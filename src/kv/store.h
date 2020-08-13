@@ -256,6 +256,12 @@ namespace kv
           }
         }
 
+        auto h = get_history();
+        if (h)
+        {
+          snapshot.add_hash_at_snapshot(h->get_raw_leaf(v));
+        }
+
         for (auto& map : maps)
         {
           map.second->unlock();
@@ -281,6 +287,13 @@ namespace kv
         return DeserialiseSuccess::FAILED;
       }
       auto v = v_.value();
+
+      std::vector<uint8_t> hash_at_snapshot;
+      auto h = get_history();
+      if (h)
+      {
+        hash_at_snapshot = d.deserialise_raw();
+      }
 
       std::lock_guard<SpinLock> mguard(maps_lock);
 
@@ -332,16 +345,13 @@ namespace kv
         last_committable = v;
       }
 
-      auto h = get_history();
       if (h)
       {
-        // BaseTx tx;
-        // Term term = 0; // For now, term is ignored
-        // tx.set_view_list(views, term);
-
-        h->init_from_seed();
-
-        // h->init_from_seed(tx);
+        // TODO: For now, this is not atomic as a new transaction is created in
+        // init_from_seed() to read the views from the transaction.
+        // A better way to do this is to pass a Tx object to init_from_seed()
+        // that has been populated with the view from the snapshot
+        h->init_from_seed(hash_at_snapshot);
       }
 
       return DeserialiseSuccess::PASS;

@@ -181,8 +181,8 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
   auto& string_map = store.create<MapTypes::StringString>(
     "string_map", kv::SecurityDomain::PUBLIC);
 
+  size_t transactions_count = 1025;
   kv::Version snapshot_version = kv::NoVersion;
-  size_t transactions_count = 4;
 
   INFO("Apply transactions to original store");
   {
@@ -195,46 +195,48 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     }
   }
 
-  auto& original_tree = history->get_tree();
-  auto serialised_tree_before_signature = original_tree.serialise();
-  auto root_before_signature = original_tree.get_root();
+  auto serialised_tree_before_signature = history->get_tree().serialise();
+
+  auto root_before_signature = history->get_replicated_state_root();
   LOG_DEBUG_FMT("Root before signature is: {}", root_before_signature);
 
   INFO("Apply signature");
   {
+    LOG_DEBUG_FMT("\n\n Apply signature");
     history->emit_signature();
     snapshot_version = transactions_count + 1;
+
+    LOG_DEBUG_FMT(
+      "Root after signature: {}", history->get_replicated_state_root());
   }
 
-  // INFO("Check tree serialisation/deserialisation");
-  // {
-  //   // First tree
-  //   auto serialised_signature = consensus->get_latest_data().value();
-  //   auto serialised_signature_hash = crypto::Sha256Hash(serialised_signature);
+  INFO("Check tree serialisation/deserialisation");
+  {
+    // First tree
+    auto serialised_signature = consensus->get_latest_data().value();
+    auto serialised_signature_hash = crypto::Sha256Hash(serialised_signature);
 
-  //   LOG_DEBUG_FMT("Serialised signature hash: {}", serialised_signature_hash);
+    LOG_DEBUG_FMT("Serialised signature hash: {}", serialised_signature_hash);
 
-  //   LOG_DEBUG_FMT("Root after signature is: {}", original_tree.get_root());
+    LOG_DEBUG_FMT("\n\n\n");
 
-  //   LOG_DEBUG_FMT("\n\n\n");
+    // Second tree
+    ccf::MerkleTreeHistory target_history(serialised_tree_before_signature);
 
-  //   // Second tree
-  //   ccf::MerkleTreeHistory target_history(serialised_tree_before_signature);
+    LOG_DEBUG_FMT(
+      "Target root before signature is: {}", target_history.get_root());
 
-  //   LOG_DEBUG_FMT(
-  //     "Target root before signature is: {}", target_history.get_root());
+    target_history.append(serialised_signature_hash);
 
-  //   target_history.append(serialised_signature_hash);
+    LOG_DEBUG_FMT(
+      "Target root after signature is: {}", target_history.get_root());
 
-  //   LOG_DEBUG_FMT(
-  //     "Target root after signature is: {}", target_history.get_root());
-
-  //   REQUIRE(target_history.get_root() == original_tree.get_root());
-  // }
+    REQUIRE(target_history.get_root() == history->get_replicated_state_root());
+  }
 
   INFO("Snapshot at signature");
   {
-    LOG_DEBUG_FMT("\n\nSnapshot!!");
+    LOG_DEBUG_FMT("\n\n\n\nSnapshot!!: {}", transactions_count);
     auto snapshot = store.serialise_snapshot(snapshot_version);
 
     kv::Store new_store;
@@ -252,6 +254,11 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
     new_store.deserialise_snapshot(snapshot);
 
-    LOG_DEBUG_FMT("Root after snapshot is: {}", new_history->get_replicated_state_root());
+    LOG_DEBUG_FMT(
+      "Root after snapshot is: {}", new_history->get_replicated_state_root());
+
+    REQUIRE(
+      history->get_replicated_state_root() ==
+      new_history->get_replicated_state_root());
   }
 }

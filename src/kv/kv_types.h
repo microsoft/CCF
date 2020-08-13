@@ -139,7 +139,8 @@ namespace kv
     virtual crypto::Sha256Hash get_replicated_state_root() = 0;
     virtual std::vector<uint8_t> get_receipt(Version v) = 0;
     virtual bool verify_receipt(const std::vector<uint8_t>& receipt) = 0;
-    virtual void init_from_seed() = 0;
+    virtual void init_from_seed(const std::vector<uint8_t>& hash_at_snapshot) = 0;
+    virtual std::vector<uint8_t> get_raw_leaf(uint64_t index) = 0;
 
     virtual bool add_request(
       kv::TxHistory::RequestID id,

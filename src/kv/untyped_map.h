@@ -317,7 +317,7 @@ namespace kv::untyped
 
         std::vector<uint8_t> ret(map_snapshot.get_serialized_size());
         map_snapshot.serialize(ret.data());
-        s.serialise_snapshot(ret);
+        s.serialise_raw(ret);
       }
 
       SecurityDomain get_security_domain() override
