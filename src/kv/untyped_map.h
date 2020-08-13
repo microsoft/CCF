@@ -430,10 +430,12 @@ namespace kv::untyped
 
       SnapshotChangeSet change_set;
 
-      Version commit_version = NoVersion;
-
     public:
-      SnapshotTxView(Map& m) : map(m) {}
+      template <typename... Ts>
+      SnapshotTxView(Map& m, Ts&&... ts) :
+        map(m),
+        change_set(std::forward<Ts>(ts)...)
+      {}
 
       bool has_writes() override
       {
@@ -447,7 +449,7 @@ namespace kv::untyped
 
       bool prepare() override
       {
-        // Snapshot never conflicts
+        // Snapshots never conflict
         return true;
       }
 
@@ -462,7 +464,7 @@ namespace kv::untyped
         auto r = map.roll.commits->get_head();
 
         r->state = change_set.state;
-        r->version = commit_version;
+        r->version = change_set.version;
       }
 
       void post_commit() override
@@ -470,14 +472,6 @@ namespace kv::untyped
         // For now, local hooks with snapshots are not supported
       }
 
-      // TODO: Refactor with other view
-      void set_commit_version(Version v)
-      {
-        commit_version = v;
-      }
-
-      // TODO: Refactor with other view
-      // Used by owning map during serialise and deserialise
       SnapshotChangeSet& get_change_set()
       {
         return change_set;
@@ -486,18 +480,12 @@ namespace kv::untyped
 
     AbstractTxView* deserialise_snapshot(KvStoreDeserialiser& d) override
     {
-      // Create a new empty view and deserialise d's contents into it.
-      auto snapshot_view = new SnapshotTxView(*this);
-
-      auto& change_set = snapshot_view->get_change_set();
-
+      // Create a new empty view, deserialising d's contents into it.
       auto v = d.deserialise_entry_version();
-      snapshot_view->set_commit_version(v);
-
       auto map_snapshot = d.deserialise_raw();
-      change_set.state = State::deserialize_map(map_snapshot);
 
-      return snapshot_view;
+      return new SnapshotTxView(
+        *this, State::deserialize_map(map_snapshot), v);
     }
 
     AbstractTxView* deserialise(

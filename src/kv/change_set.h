@@ -23,28 +23,14 @@ namespace kv
   template <typename K, typename V>
   using Write = std::map<K, std::optional<V>>;
 
-  // TODO: There should be different ChangeSet depending on the context??
-  //  - ChangeSet for transactions on the leader node
-  //  - ChangeSet for transactions deserialised on the follower node
-  //  - ChangeSet for snapshots deserialised on the follower node
-  template <typename K, typename V, typename H>
-  struct SnapshotChangeSet
-  {
-    State<K, V, H> state;
-
-    SnapshotChangeSet() = default;
-
-    SnapshotChangeSet(SnapshotChangeSet&) = delete;
-  };
-
   // This is a container for a write-set + dependencies. It can be applied to a
   // given state, or used to track a set of operations on a state
   template <typename K, typename V, typename H>
   struct ChangeSet
   {
-    State<K, V, H> state;
-    State<K, V, H> committed;
-    Version start_version;
+    const State<K, V, H> state;
+    const State<K, V, H> committed;
+    const Version start_version;
 
     Version read_version = NoVersion;
     Read<K> reads = {};
@@ -60,6 +46,22 @@ namespace kv
     {}
 
     ChangeSet(ChangeSet&) = delete;
+  };
+
+  // This is a container for a snapshot. It has no dependencies as the snapshot
+  // obliterates the current state.
+  template <typename K, typename V, typename H>
+  struct SnapshotChangeSet
+  {
+    const State<K, V, H> state;
+    const Version version;
+
+    SnapshotChangeSet(State<K, V, H>&& snapshot_state, Version version_) :
+      state(std::move(snapshot_state)),
+      version(version_)
+    {}
+
+    SnapshotChangeSet(SnapshotChangeSet&) = delete;
   };
 
   /// Signature for transaction commit handlers

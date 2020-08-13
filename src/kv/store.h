@@ -486,7 +486,6 @@ namespace kv
       // deserialisation will then fail.
       auto e = get_encryptor();
 
-      // create the first deserialiser
       auto d = KvStoreDeserialiser(
         e,
         public_only ? kv::SecurityDomain::PUBLIC :
