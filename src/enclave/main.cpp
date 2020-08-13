@@ -71,7 +71,7 @@ extern "C"
     }
 
     // Check that where we expect arguments to be in host-memory, they really
-    // are
+    // are. lfence after these checks to prevent speculative execution
     if (oe_is_within_enclave(time_location, sizeof(enclave::host_time)))
     {
       return false;
@@ -93,6 +93,8 @@ extern "C"
         return false;
       }
 
+      oe_lfence();
+
       const auto& reader = ec.circuit->read_from_outside();
       auto [data, size] = reader.get_memory_range();
       if (oe_is_within_enclave(data, size))
@@ -105,6 +107,8 @@ extern "C"
     {
       return false;
     }
+
+    oe_lfence();
 
     msgpack::object_handle oh = msgpack::unpack(ccf_config, ccf_config_size);
     msgpack::object obj = oh.get();
