@@ -119,13 +119,12 @@ namespace ccf
 
     void compact(kv::Version) override {}
 
-    bool init_from_snapshot(
-      const std::vector<uint8_t>& hash_at_snapshot) override
+    bool init_from_snapshot(const std::vector<uint8_t>&) override
     {
       return true;
     }
 
-    std::vector<uint8_t> get_raw_leaf(uint64_t index) override
+    std::vector<uint8_t> get_raw_leaf(uint64_t) override
     {
       return {};
     }

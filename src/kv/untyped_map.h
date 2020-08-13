@@ -453,7 +453,7 @@ namespace kv::untyped
         return true;
       }
 
-      void commit(Version v) override
+      void commit(Version) override
       {
         // Version argument is ignored. The version of the roll after the
         // snapshot is applied depends on the version of the map at which the

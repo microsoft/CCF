@@ -48,16 +48,12 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
   auto source_root_before_signature =
     source_history->get_replicated_state_root();
-  LOG_DEBUG_FMT("Root before signature is: {}", source_root_before_signature);
 
   INFO("Emit signature");
   {
     source_history->emit_signature();
     // Snapshot version is the version of the signature
     snapshot_version = transactions_count + 1;
-
-    LOG_DEBUG_FMT(
-      "Root after signature: {}", source_history->get_replicated_state_root());
   }
 
   INFO("Check tree start from mini-tree and sig hash");
@@ -103,7 +99,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     {
       auto snapshot = source_store.serialise_snapshot(snapshot_version - 1);
 
-      // There is not signature to read to seed the target history
+      // There is no signature to read to seed the target history
       REQUIRE(
         target_store.deserialise_snapshot(snapshot) ==
         kv::DeserialiseSuccess::FAILED);
