@@ -18,6 +18,7 @@ namespace aft
 #pragma pack(1)
   struct RequestMessageRep : public MessageRep
   {
+    RequestMessageRep() = default;
     RequestMessageRep(
       short command_size_, short cid_, kv::TxHistory::RequestID rid_) :
       MessageRep(MessageTag::Request),
@@ -60,7 +61,10 @@ namespace aft
 
     void callback(std::vector<uint8_t>& data)
     {
-      cb(nullptr, rid, 0, data);
+      if (cb != nullptr)
+      {
+        cb(nullptr, rid, 0, data);
+      }
     }
 
     void serialize_message(uint8_t* data, size_t size) const override
@@ -77,6 +81,17 @@ namespace aft
         sizeof(RequestMessageRep));
       serialized::write(data, size, request.data(), request.size());
       CCF_ASSERT(size == 0, "allocated buffer is too large");
+    }
+
+    static std::unique_ptr<RequestMessage> deserialize(
+      const uint8_t* data,
+      size_t size,
+      std::unique_ptr<RequestCtx> ctx,
+      ReplyCallback cb)
+    {
+      auto rep = serialized::read<RequestMessageRep>(data, size);
+      std::vector<uint8_t> request = serialized::read(data, size, rep.command_size);
+      return std::make_unique<RequestMessage>(std::move(request), rep.rid, std::move(ctx), std::move(cb));
     }
 
     size_t size() const override

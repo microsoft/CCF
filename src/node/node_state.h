@@ -1698,6 +1698,7 @@ namespace ccf
           self,
           node_cert.raw(),
           rpcsessions,
+          network.pbft_requests_map,
           rpc_map,
           aft::create_store_adaptor(network.tables),
           std::make_unique<consensus::LedgerEnclave>(writer_factory),

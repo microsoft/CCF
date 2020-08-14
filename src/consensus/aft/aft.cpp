@@ -5,6 +5,7 @@
 #include "aft_types.h"
 #include "impl/global_commit_handler.h"
 #include "impl/state_machine.h"
+#include "enclave/rpc_map.h"
 
 namespace aft
 {
@@ -12,12 +13,14 @@ namespace aft
     kv::NodeId my_node_id,
     const std::vector<uint8_t>& cert,
     IStore& store,
-    std::shared_ptr<EnclaveNetwork> network)
+    std::shared_ptr<EnclaveNetwork> network,
+    std::shared_ptr<enclave::RPCMap> rpc_map,
+    pbft::RequestsMap& pbft_requests_map)
   {
     return std::make_unique<StateMachine>(
       my_node_id,
       cert,
-      std::make_unique<StartupStateMachine>(network, store),
+      std::make_unique<StartupStateMachine>(network, rpc_map, store, pbft_requests_map),
       create_global_commit_handler(store),
       network);
   }

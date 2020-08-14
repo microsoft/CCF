@@ -70,7 +70,8 @@ namespace aft
     {
       if (!is_network_open)
       {
-        startup_state_machine->receive_message(std::move(oa), ae, from);
+        kv::Version version = startup_state_machine->receive_message(std::move(oa), ae, from);
+        global_commit_handler->perform_global_commit(version, current_view);
         return;
       }
 

@@ -2,16 +2,19 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/aft/aft_network.h"
 #include "consensus/aft/aft_types.h"
+#include "consensus/aft/request.h"
 #include "consensus/ledger_enclave.h"
+#include "consensus/pbft/pbft_requests.h"
 #include "ds/ccf_exception.h"
+#include "enclave/rpc_map.h"
+#include "http/http_rpc_context.h"
 #include "kv/kv_types.h"
 #include "kv/tx.h"
+#include "request_data_message.h"
 #include "request_message.h"
 #include "status_message.h"
-#include "request_data_message.h"
-
-
 
 #include <vector>
 
@@ -25,14 +28,23 @@ namespace aft
 
     virtual kv::Version receive_request(std::unique_ptr<RequestMessage> request) = 0;
     virtual void receive_message(OArray&& oa, kv::NodeId from) = 0;
-    virtual void receive_message(OArray&& oa, AppendEntries ae, kv::NodeId from) = 0;
+    virtual kv::Version receive_message(OArray&& oa, AppendEntries ae, kv::NodeId from) = 0;
   };
 
   class StartupStateMachine : public IStartupStateMachine
   {
   public:
-    StartupStateMachine(std::shared_ptr<EnclaveNetwork> network_, IStore& store_) :
-      network(network_), store(store_), is_first_message(true), have_requested_data(false)
+    StartupStateMachine(
+      std::shared_ptr<EnclaveNetwork> network_,
+      std::shared_ptr<enclave::RPCMap> rpc_map_,
+      IStore& store_,
+      pbft::RequestsMap& pbft_requests_map_) :
+      network(network_),
+      rpc_map(rpc_map_),
+      store(store_),
+      pbft_requests_map(pbft_requests_map_),
+      is_first_message(true),
+      have_requested_data(false)
     {}
     virtual ~StartupStateMachine() = default;
 
@@ -56,6 +68,7 @@ namespace aft
       frontend->update_merkle_tree();
 
       is_first_message = false;
+
       request->callback(rep.result);
 
       return rep.version;
@@ -78,10 +91,12 @@ namespace aft
       }
     }
 
-    void receive_message(OArray&& oa, AppendEntries ae, kv::NodeId from) override
+    kv::Version receive_message(OArray&& oa, AppendEntries ae, kv::NodeId from) override
     {
       const uint8_t* data = oa.data();
       size_t size = oa.size();
+      kv::Version last_version = kv::NoVersion;
+      kv::Version version;
 
       for (ccf::Index i = ae.prev_idx; i < ae.idx; i++)
       {
@@ -117,7 +132,7 @@ namespace aft
             ae.from_node,
             i,
             e.what());
-          return;
+          return last_version;
         }
 
         kv::Tx tx;
@@ -128,35 +143,73 @@ namespace aft
         {
           case kv::DeserialiseSuccess::PASS:
             LOG_INFO_FMT("deserialized entry, i - {}", i);
+            version = commit_replayed_request(tx);
+            last_version = std::max(version, last_version);
+
+
             //message_receiver_base->playback_request(tx);
             break;
           default:
             CCF_ASSERT_FMT_FAIL("Invalid entry type {}", deserialise_success);
         }
       }
+      return last_version;
     }
 
-    private:
-      std::shared_ptr<EnclaveNetwork> network;
-      IStore& store;
-      bool is_first_message;
-      bool have_requested_data;
-      kv::Version last_received_version = 0;
+    kv::Version commit_replayed_request(kv::Tx& tx)
+    {
+      auto tx_view = tx.get_view(pbft_requests_map);
+      auto req_v = tx_view->get(0);
+      CCF_ASSERT(
+        req_v.has_value(),
+        "Deserialised request but it was not found in the requests map");
+      pbft::Request request = req_v.value();
 
-      void handle_status_message(OArray && oa, kv::NodeId from)
+      //auto ctx = create_request_ctx(request.raw.data(), request.raw.size());
+      auto ctx = create_request_ctx(request);
+
+      auto request_message = RequestMessage::deserialize(
+        request.pbft_raw.data(), request.pbft_raw.size(), std::move(ctx), nullptr);
+      return receive_request(std::move(request_message));
+
+      /*
+            auto request_message = std::make_unique<RequestMessage>(
+              request.raw(),
+              args.rid,
+              std::move(ctx),
+              nullptr;
+            );
+      */
+
+      //auto req =
+      //  create_message<Request>(request.pbft_raw.data(), request.pbft_raw.size());
+      //req->create_context(verify_command);
+    }
+
+  private:
+    std::shared_ptr<EnclaveNetwork> network;
+    std::shared_ptr<enclave::RPCMap> rpc_map;
+    IStore& store;
+    bool is_first_message;
+    bool have_requested_data;
+    kv::Version last_received_version = 0;
+    pbft::RequestsMap& pbft_requests_map;
+
+    void handle_status_message(OArray&& oa, kv::NodeId from)
+    {
+      if (have_requested_data)
       {
-        if (have_requested_data)
-        {
-          // We have already requested data so need to do that again
-          return;
-        }
+        // We have already requested data so need to do that again
+        return;
+      }
+      have_requested_data = true;
 
-        StatusMessageRecv status(std::move(oa), from);
+      StatusMessageRecv status(std::move(oa), from);
 
-        RequestDataMessage request(
-          last_received_version,
-          std::min(status.get_version(), last_received_version + 100));
-        network->Send(request, from);
+      RequestDataMessage request(
+        last_received_version,
+        std::min(status.get_version(), last_received_version + 100));
+      network->Send(request, from);
       }
 
       void handle_request_data_message(OArray && oa, kv::NodeId from)
@@ -164,11 +217,49 @@ namespace aft
         RequestDataMessageRecv request(std::move(oa), from);
 
         kv::Version index_from = request.get_from();
-        kv::Version index_to = request.get_to();
+        kv::Version index_to = request.get_to() + 1;
+
+        LOG_INFO_FMT("Sending entries {} to {}", index_from, index_to);
 
         AppendEntries ae = {
           aft_append_entries, network->get_my_node_id(), index_to, index_from};
         network->Send(ae, from);
       }
-    };
-  }
+
+      // TODO: this is duplicated 
+      std::unique_ptr<RequestCtx> create_request_ctx(
+        //uint8_t* req_start, size_t req_size)
+        pbft::Request& request)
+      {
+        //LOG_INFO_FMT("Deserailizing {}", req_size);
+        auto r_ctx = std::make_unique<RequestCtx>();
+        //Request request;
+        //request.deserialise(req_start, req_size);
+
+        auto session = std::make_shared<enclave::SessionContext>(
+          enclave::InvalidSessionId, request.caller_id, request.caller_cert);
+
+        r_ctx->ctx = enclave::make_fwd_rpc_context(
+          session, request.raw, (enclave::FrameFormat)request.frame_format);
+
+        const auto actor_opt = http::extract_actor(*r_ctx->ctx);
+        if (!actor_opt.has_value())
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to extract actor from PBFT request. Method is '{}'",
+            r_ctx->ctx->get_method()));
+        }
+
+        const auto& actor_s = actor_opt.value();
+        std::string preferred_actor_s;
+        const auto actor = rpc_map->resolve(actor_s, preferred_actor_s);
+        auto handler = rpc_map->find(actor);
+        if (!handler.has_value())
+          throw std::logic_error(
+            fmt::format("No frontend associated with actor {}", actor_s));
+
+        r_ctx->frontend = handler.value();
+        return r_ctx;
+      };
+  };
+}

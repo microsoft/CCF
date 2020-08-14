@@ -18,6 +18,7 @@ namespace aft
       kv::NodeId id,
       const std::vector<uint8_t>& cert,
       std::shared_ptr<enclave::RPCSessions> rpc_sessions_,
+      pbft::RequestsMap& pbft_requests_map,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       std::unique_ptr<IStore> store_,
       std::unique_ptr<consensus::LedgerEnclave> ledger_,
@@ -40,7 +41,7 @@ namespace aft
       };
 
       network = std::make_shared<EnclaveNetwork>(id, n2n_channels, cb, cb_ae);
-      state_machine = create_state_machine(id, cert, *store, network);
+      state_machine = create_state_machine(id, cert, *store, network, rpc_map, pbft_requests_map);
     }
     virtual ~aft() = default;
 
@@ -186,6 +187,7 @@ namespace aft
     std::unique_ptr<consensus::LedgerEnclave> ledger;
     std::shared_ptr<EnclaveNetwork> network;
 
+    // TODO: this is duplicated
     std::unique_ptr<RequestCtx> create_request_ctx(
       uint8_t* req_start, size_t req_size)
     {

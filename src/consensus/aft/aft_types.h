@@ -7,6 +7,7 @@
 #include "enclave/rpc_handler.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
+#include "consensus/pbft/pbft_requests.h"
 
 #include <functional>
 #include <vector>
@@ -14,6 +15,11 @@
 namespace ccf
 {
   class NodeToNode;
+}
+
+namespace enclave
+{
+  class RPCMap;
 }
 
 namespace aft
@@ -86,7 +92,9 @@ namespace aft
     kv::NodeId my_node_id,
     const std::vector<uint8_t>& cert,
     IStore& store,
-    std::shared_ptr<EnclaveNetwork> network);
+    std::shared_ptr<EnclaveNetwork> network,
+    std::shared_ptr<enclave::RPCMap> rpc_map,
+    pbft::RequestsMap& pbft_requests_map);
 
   std::unique_ptr<IStore> create_store_adaptor(
     std::shared_ptr<kv::Store> store);
