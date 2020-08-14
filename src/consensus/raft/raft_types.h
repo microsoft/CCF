@@ -29,7 +29,6 @@ namespace raft
       Term* term = nullptr) = 0;
     virtual void compact(Index v) = 0;
     virtual void rollback(Index v, std::optional<Term> t = std::nullopt) = 0;
-    virtual std::optional<std::vector<uint8_t>> snapshot(Index v) = 0;
     virtual void set_term(Term t) = 0;
   };
 
@@ -71,16 +70,6 @@ namespace raft
       {
         p->rollback(v, t);
       }
-    }
-
-    std::optional<std::vector<uint8_t>> snapshot(Index v) override
-    {
-      auto p = x.lock();
-      if (p)
-      {
-        return p->serialise_snapshot(v);
-      }
-      return std::nullopt;
     }
 
     void set_term(Term t) override

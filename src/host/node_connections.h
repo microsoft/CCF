@@ -7,7 +7,6 @@
 #include "host/timer.h"
 #include "ledger.h"
 #include "node/node_types.h"
-#include "snapshot.h"
 #include "tcp.h"
 
 #include <unordered_map>
@@ -253,9 +252,6 @@ namespace asynchost
             // Find the total frame size, and write it along with the header.
             uint32_t frame = (uint32_t)size_to_send;
             std::optional<std::vector<uint8_t>> framed_entries = std::nullopt;
-
-            // TODO: If (ae.prev_idx + 1) is a snapshot, append that instead
-            // (with length-prefix), then all other append entries after that.
 
             framed_entries =
               ledger.read_framed_entries(ae.prev_idx + 1, ae.idx);

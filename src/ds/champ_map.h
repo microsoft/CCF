@@ -373,7 +373,7 @@ namespace champ
       return map;
     }
 
-    size_t get_size() const
+    size_t size() const
     {
       return map_size;
     }
@@ -470,7 +470,7 @@ namespace champ
     void serialize(uint8_t* data)
     {
       std::vector<KVTuple> ordered_state;
-      ordered_state.reserve(map.get_size());
+      ordered_state.reserve(map.size());
       size_t size = 0;
 
       map.foreach([&](auto& key, auto& value) {
@@ -500,7 +500,7 @@ namespace champ
         "size:{}, map->size:{} ==> count:{}, vect:{}",
         size,
         map.get_serialized_size(),
-        map.get_size(),
+        map.size(),
         ordered_state.size());
 
       serialized_buffer = CBuffer(data, map.get_serialized_size());

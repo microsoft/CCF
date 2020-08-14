@@ -5,7 +5,6 @@ import infra.network
 import infra.proc
 import suite.test_requirements as reqs
 import time
-import e2e_logging
 
 from loguru import logger as LOG
 

@@ -14,7 +14,8 @@
 using namespace std;
 
 using ms = std::chrono::milliseconds;
-using TRaft = raft::Raft<raft::LedgerStubProxy, raft::ChannelStubProxy>;
+using TRaft = raft::
+  Raft<raft::LedgerStubProxy, raft::ChannelStubProxy, raft::StubSnashotter>;
 using Store = raft::LoggingStubStore;
 using StoreSig = raft::LoggingStubStoreSig;
 using Adaptor = raft::Adaptor<Store, kv::DeserialiseSuccess>;
@@ -29,6 +30,7 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     std::make_unique<Adaptor>(kv_store),
     std::make_unique<raft::LedgerStubProxy>(node_id),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id,
     ms(10),
     election_timeout);
@@ -65,6 +67,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     std::make_unique<Adaptor>(kv_store),
     std::make_unique<raft::LedgerStubProxy>(node_id),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id,
     ms(10),
     election_timeout);
@@ -110,6 +113,7 @@ DOCTEST_TEST_CASE(
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<raft::LedgerStubProxy>(node_id0),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id0,
     request_timeout,
     ms(20));
@@ -117,6 +121,7 @@ DOCTEST_TEST_CASE(
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<raft::LedgerStubProxy>(node_id1),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id1,
     request_timeout,
     ms(100));
@@ -124,6 +129,7 @@ DOCTEST_TEST_CASE(
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<raft::LedgerStubProxy>(node_id2),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id2,
     request_timeout,
     ms(50));
@@ -277,6 +283,7 @@ DOCTEST_TEST_CASE(
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<raft::LedgerStubProxy>(node_id0),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id0,
     request_timeout,
     ms(20));
@@ -284,6 +291,7 @@ DOCTEST_TEST_CASE(
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<raft::LedgerStubProxy>(node_id1),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id1,
     request_timeout,
     ms(100));
@@ -291,6 +299,7 @@ DOCTEST_TEST_CASE(
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<raft::LedgerStubProxy>(node_id2),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id2,
     request_timeout,
     ms(50));
@@ -402,6 +411,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<raft::LedgerStubProxy>(node_id0),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id0,
     request_timeout,
     ms(20));
@@ -409,6 +419,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<raft::LedgerStubProxy>(node_id1),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id1,
     request_timeout,
     ms(100));
@@ -416,6 +427,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<raft::LedgerStubProxy>(node_id2),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id2,
     request_timeout,
     ms(50));
@@ -514,6 +526,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<raft::LedgerStubProxy>(node_id0),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id0,
     request_timeout,
     ms(20));
@@ -521,6 +534,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<raft::LedgerStubProxy>(node_id1),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id1,
     request_timeout,
     ms(100));
@@ -662,6 +676,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<raft::LedgerStubProxy>(node_id0),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id0,
     request_timeout,
     ms(20));
@@ -669,6 +684,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<raft::LedgerStubProxy>(node_id1),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id1,
     request_timeout,
     ms(100));
@@ -676,6 +692,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<raft::LedgerStubProxy>(node_id2),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id2,
     request_timeout,
     ms(50));
@@ -812,6 +829,7 @@ DOCTEST_TEST_CASE(
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<raft::LedgerStubProxy>(node_id0),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id0,
     request_timeout,
     ms(20));
@@ -819,6 +837,7 @@ DOCTEST_TEST_CASE(
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<raft::LedgerStubProxy>(node_id1),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id1,
     request_timeout,
     ms(100));
@@ -826,6 +845,7 @@ DOCTEST_TEST_CASE(
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<raft::LedgerStubProxy>(node_id2),
     std::make_shared<raft::ChannelStubProxy>(),
+    std::make_shared<raft::StubSnashotter>(),
     node_id2,
     request_timeout,
     ms(50));

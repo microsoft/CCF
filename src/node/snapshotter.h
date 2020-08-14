@@ -9,17 +9,6 @@
 
 namespace ccf
 {
-  // TODO: Delete
-  // class AbstractSnapshotter
-  // {
-  // public:
-  //   virtual ~AbstractSnapshotter() = default;
-
-  //   void snapshot(kv::Version version) = 0;
-  // };
-
-  // TODO: Probably need a lock on this????
-
   class Snapshotter
   {
   private:

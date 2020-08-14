@@ -14,6 +14,7 @@
 #include "notify_connections.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
+#include "snapshot.h"
 #include "ticker.h"
 #include "time_updater.h"
 #include "version.h"
