@@ -73,7 +73,7 @@ class Network:
         "gov_script",
         "join_timer",
         "worker_threads",
-        "ledger_chunk_max_bytes",
+        "ledger_chunk_min_bytes",
         "domain",
     ]
 
