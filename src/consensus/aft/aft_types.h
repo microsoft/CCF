@@ -55,6 +55,11 @@ namespace aft
   {
   public:
     virtual ~IStore() = default;
+    virtual kv::DeserialiseSuccess deserialise_views(
+      const std::vector<uint8_t>& data,
+      bool public_only = false,
+      kv::Term* term = nullptr,
+      kv::Tx* tx = nullptr) = 0;
     virtual void compact(kv::Version v) = 0;
     virtual kv::Version current_version() = 0;
   };

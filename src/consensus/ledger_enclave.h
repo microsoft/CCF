@@ -72,7 +72,7 @@ namespace consensus
      *
      * @return Raw entry as a vector
      */
-    std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
+    static std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
     {
       auto entry_len = serialized::read<uint32_t>(data, size);
       std::vector<uint8_t> entry(data, data + entry_len);

@@ -1,10 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "aft_types.h"
-#include "impl/state_machine.h"
-#include "impl/global_commit_handler.h"
 #include "aft_network.h"
+#include "aft_types.h"
+#include "impl/global_commit_handler.h"
+#include "impl/state_machine.h"
 
 namespace aft
 {
@@ -17,7 +17,7 @@ namespace aft
     return std::make_unique<StateMachine>(
       my_node_id,
       cert,
-      std::make_unique<StartupStateMachine>(network),
+      std::make_unique<StartupStateMachine>(network, store),
       create_global_commit_handler(store),
       network);
   }
@@ -27,7 +27,19 @@ namespace aft
   public:
     StoreAdaptor(std::shared_ptr<kv::Store> x) : x(x) {}
 
-    void compact(kv::Version v)
+    kv::DeserialiseSuccess deserialise_views(
+      const std::vector<uint8_t>& data,
+      bool public_only = false,
+      kv::Term* term = nullptr,
+      kv::Tx* tx = nullptr) override
+    {
+      auto p = x.lock();
+      if (p)
+        return p->deserialise_views(data, public_only, term, tx);
+      return kv::DeserialiseSuccess::FAILED;
+    }
+
+    void compact(kv::Version v) override
     {
       auto p = x.lock();
       if (p)
@@ -36,7 +48,7 @@ namespace aft
       }
     }
 
-    kv::Version current_version()
+    kv::Version current_version() override
     {
       auto p = x.lock();
       if (p)
@@ -49,7 +61,6 @@ namespace aft
   private:
     std::weak_ptr<kv::Store> x;
   };
-
 
   std::unique_ptr<IStore> create_store_adaptor(std::shared_ptr<kv::Store> store)
   {

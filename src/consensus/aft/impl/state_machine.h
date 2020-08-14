@@ -68,7 +68,14 @@ namespace aft
 
     void receive_message(OArray&& oa, AppendEntries ae, kv::NodeId from) override
     {
-      CCF_ASSERT_FMT_FAIL("not implemented receive append entries from {}", from);
+      if (!is_network_open)
+      {
+        startup_state_machine->receive_message(std::move(oa), ae, from);
+        return;
+      }
+
+      ccf::ccf_logic_error("Not Implemented");
+      // TODO: fill this in when we open the network
     }
 
 

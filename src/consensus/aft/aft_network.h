@@ -205,7 +205,7 @@ namespace aft {
           {
             // TODO: this should be returned on the correct thread 
             ae =
-              n2n_channels->template recv_authenticated<AppendEntries>(data, size);
+              n2n_channels->template recv_authenticated<AppendEntries>(d.data(), d.size());
           }
           catch (const std::logic_error& err)
           {
