@@ -6,7 +6,7 @@
 
 namespace consensus
 {
-  using Index = uint64_t;
+  using Index = int64_t;
 
   enum LedgerRequestPurpose : uint8_t
   {
@@ -29,7 +29,7 @@ namespace consensus
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_truncate),
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_commit),
 
-    // Create a new snapshot. Enclave -> Host
+    /// Create a new snapshot. Enclave -> Host
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_snapshot),
   };
 }

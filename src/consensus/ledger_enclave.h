@@ -99,11 +99,5 @@ namespace consensus
     {
       RINGBUFFER_WRITE_MESSAGE(consensus::ledger_commit, to_host, idx);
     }
-
-    void put_snapshot(Index idx, const std::vector<uint8_t>& snapshot)
-    {
-      RINGBUFFER_WRITE_MESSAGE(
-        consensus::ledger_snapshot, to_host, idx, snapshot);
-    }
   };
 }

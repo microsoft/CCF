@@ -6,7 +6,7 @@
 #include "ds/serialized.h"
 #include "ds/spin_lock.h"
 #include "kv/kv_types.h"
-#include "node/nodetypes.h"
+#include "node/node_types.h"
 #include "raft_types.h"
 
 #include <algorithm>
@@ -71,7 +71,7 @@ namespace raft
     }
   };
 
-  template <class LedgerProxy, class ChannelProxy>
+  template <class LedgerProxy, class ChannelProxy, class SnapshotterProxy>
   class Raft
   {
   private:
@@ -84,13 +84,13 @@ namespace raft
 
     struct NodeState
     {
+      Configuration::NodeInfo node_info;
+
       // the highest index sent to the node
       Index sent_idx;
 
       // the highest matching index with the node that was confirmed
       Index match_idx;
-
-      Configuration::NodeInfo node_info;
 
       NodeState() = default;
 
@@ -115,10 +115,6 @@ namespace raft
     Index last_idx;
     Index commit_idx;
     TermHistory term_history;
-
-    // Snapshots
-    Index last_snapshot_idx;
-    Term last_snapshot_term;
 
     // Volatile
     NodeId leader_id;
@@ -156,12 +152,14 @@ namespace raft
     static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
     std::shared_ptr<ChannelProxy> channels;
+    std::shared_ptr<SnapshotterProxy> snapshotter;
 
   public:
     Raft(
       std::unique_ptr<Store<kv::DeserialiseSuccess>> store,
       std::unique_ptr<LedgerProxy> ledger_,
       std::shared_ptr<ChannelProxy> channels_,
+      std::shared_ptr<SnapshotterProxy> snapshotter_,
       NodeId id,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
@@ -187,7 +185,8 @@ namespace raft
       rand((int)(uintptr_t)this),
 
       ledger(std::move(ledger_)),
-      channels(channels_)
+      channels(channels_),
+      snapshotter(snapshotter_)
 
     {}
 
@@ -502,20 +501,12 @@ namespace raft
         end_idx,
         commit_idx);
 
-      bool is_snapshot = start_idx == last_snapshot_idx;
-
-      if (is_snapshot)
-      {
-        LOG_FAIL_FMT("Sending snapshot");
-      }
-
       AppendEntries ae = {{raft_append_entries, local_id},
                           {end_idx, prev_idx},
                           current_term,
                           prev_term,
                           commit_idx,
-                          term_of_idx,
-                          is_snapshot};
+                          term_of_idx};
 
       auto& node = nodes.at(to);
 
@@ -627,17 +618,14 @@ namespace raft
       }
 
       LOG_DEBUG_FMT(
-        "Recv append entries to {} from {} for index {} and previous index {} "
-        "{}",
+        "Recv append entries to {} from {} for index {} and previous index {}",
         local_id,
         r.from_node,
         r.idx,
-        r.prev_idx,
-        r.is_snapshot ? "[snapshot]" : "");
+        r.prev_idx);
 
       for (Index i = r.prev_idx + 1; i <= r.idx; i++)
       {
-        // TODO: Skip this check if snapshot
         if (i <= last_idx)
         {
           // If the current entry has already been deserialised, skip the
@@ -673,7 +661,6 @@ namespace raft
         auto deserialise_success =
           store->deserialise(entry, public_only, &sig_term);
 
-        // TODO: don't do this if snapshot
         ledger->put_entry(
           entry, deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
 
@@ -1162,8 +1149,6 @@ namespace raft
 
     void commit(Index idx)
     {
-      static size_t snapshot_interval = 10;
-
       if (idx > last_idx)
         throw std::logic_error(
           "Tried to commit " + std::to_string(idx) + "but last_idx as " +
@@ -1179,31 +1164,35 @@ namespace raft
       commit_idx = idx;
 
       LOG_DEBUG_FMT("Compacting...");
+      if (state == Leader)
+      {
+        snapshotter->snapshot(idx);
+      }
       store->compact(idx);
       ledger->commit(idx);
 
-      if (state == Leader)
-      {
-        if (idx - last_snapshot_idx > snapshot_interval)
-        {
-          LOG_FAIL_FMT("Snapshotting at {}", idx);
+      // if (state == Leader)
+      // {
+      //   if (idx - last_snapshot_idx > snapshot_interval)
+      //   {
+      //     LOG_FAIL_FMT("Snapshotting at {}", idx);
 
-          auto snap = store->snapshot(idx);
-          if (snap.has_value())
-          {
-            ledger->put_snapshot(idx, snap.value());
-          }
-          else
-          {
-            LOG_FAIL_FMT(
-              "Error generating snapshot at {}. Continuing normal operation.",
-              idx);
-          }
-          last_snapshot_idx = idx;
-          last_snapshot_term = current_term;
-          LOG_FAIL_FMT("Snapshot done");
-        }
-      }
+      //     auto snap = store->snapshot(idx);
+      //     if (snap.has_value())
+      //     {
+      //       ledger->put_snapshot(idx, snap.value());
+      //     }
+      //     else
+      //     {
+      //       LOG_FAIL_FMT(
+      //         "Error generating snapshot at {}. Continuing normal
+      //         operation.", idx);
+      //     }
+      //     last_snapshot_idx = idx;
+      //     last_snapshot_term = current_term;
+      //     LOG_FAIL_FMT("Snapshot done");
+      //   }
+      // }
       LOG_DEBUG_FMT("Commit on {}: {}", local_id, idx);
 
       // Examine all configurations that are followed by a globally committed
@@ -1309,14 +1298,10 @@ namespace raft
 
         if (nodes.find(node_info.first) == nodes.end())
         {
-          // A new node is sent entries from the last snapshot idx. Subsequent
-          // entries will be caught up using normal append entries.
-
-          // TODO: In the case of last_snapshot_idx = 0, this sends -1 as
-          // prev_idx :(
-          // auto send_idx = last_snapshot_idx;
-          nodes.try_emplace(
-            node_info.first, node_info.second, last_snapshot_idx - 1);
+          // A new node is sent only future entries initially. If it does not
+          // have prior data, it will communicate that back to the leader.
+          auto index = last_idx + 1;
+          nodes.try_emplace(node_info.first, node_info.second, index, 0);
 
           if (state == Leader)
           {
@@ -1325,7 +1310,7 @@ namespace raft
               node_info.second.hostname,
               node_info.second.port);
 
-            send_append_entries(node_info.first, last_snapshot_idx);
+            send_append_entries(node_info.first, index);
           }
 
           LOG_INFO_FMT("Added raft node {}", node_info.first);

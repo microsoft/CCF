@@ -6,7 +6,7 @@
 #include "consensus/raft/raft_types.h"
 #include "host/timer.h"
 #include "ledger.h"
-#include "node/nodetypes.h"
+#include "node/node_types.h"
 #include "snapshot.h"
 #include "tcp.h"
 

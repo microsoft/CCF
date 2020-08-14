@@ -564,6 +564,7 @@ class CCFRemote(object):
         binary_dir=".",
         ledger_chunk_min_bytes=(5 * 1024 * 1024),
         domain=None,
+        snapshot_min_tx=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -648,6 +649,9 @@ class CCFRemote(object):
 
         if domain:
             cmd += [f"--domain={domain}"]
+
+        if snapshot_min_tx:
+            cmd += [f"--snapshot-min-tx={snapshot_min_tx}"]
 
         if start_type == StartType.new:
             cmd += [

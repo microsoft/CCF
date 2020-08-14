@@ -75,6 +75,7 @@ class Network:
         "worker_threads",
         "ledger_chunk_min_bytes",
         "domain",
+        "snapshot_min_tx"
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups

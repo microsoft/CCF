@@ -19,7 +19,7 @@ namespace asynchost
     static constexpr auto snapshot_file_prefix = "snapshot";
 
     void write_snapshot(
-      size_t idx, const uint8_t* snapshot_data, size_t snapshot_size)
+      consensus::Index idx, const uint8_t* snapshot_data, size_t snapshot_size)
     {
       auto snapshot_file_name = fmt::format("{}.{}", snapshot_file_prefix, idx);
       auto full_snapshot_path =

@@ -149,6 +149,15 @@ int main(int argc, char** argv)
   app.add_option("--snapshot-dir", snapshot_dir, "Snapshots directory")
     ->capture_default_str();
 
+  size_t snapshot_min_tx = std::numeric_limits<std::size_t>::max();
+  app
+    .add_option(
+      "--snapshot-min-tx",
+      snapshot_min_tx,
+      "Minimum number of transactions between snapshots (experimental). "
+      "Defaults to no snapshot.")
+    ->capture_default_str();
+
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
   for (int i = logger::TRACE; i < logger::MAX_LOG_LEVEL; i++)
@@ -597,6 +606,7 @@ int main(int argc, char** argv)
                                   node_address.port,
                                   rpc_address.port};
   ccf_config.domain = domain;
+  ccf_config.snapshot_interval = snapshot_min_tx;
 
   if (*start)
   {

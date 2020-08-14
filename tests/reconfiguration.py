@@ -94,6 +94,8 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
+
+        # TODO: Remove this
         for _ in range(1,1):
             e2e_logging.test(network, args, verify=False)
         # test_add_node_from_backup(network, args)
