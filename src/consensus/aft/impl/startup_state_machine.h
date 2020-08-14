@@ -102,7 +102,7 @@ namespace aft
       kv::Version index_from = request.get_from();
       kv::Version index_to = request.get_to();
 
-      AppendEntries ae = {aft_append_entries, from, index_to, index_from};
+      AppendEntries ae = {aft_append_entries, network->get_my_node_id(), index_to, index_from};
       network->Send(ae, from);
     }
   };

@@ -28,7 +28,18 @@ namespace aft
       store(std::move(store_)),
       ledger(std::move(ledger_))
     {
-      network = std::make_shared<EnclaveNetwork>(id, n2n_channels);
+
+    INetwork::recv_message_cb cb =
+      [this](OArray&& oa, kv::NodeId from) {
+        this->state_machine->receive_message(std::move(oa), from);
+      };
+
+    INetwork::recv_message_ae_cb cb_ae =
+      [this](OArray&& oa, AppendEntries ae, kv::NodeId from) {
+        this->state_machine->receive_message(std::move(oa), ae, from);
+      };
+
+      network = std::make_shared<EnclaveNetwork>(id, n2n_channels, cb, cb_ae);
       state_machine = create_state_machine(id, cert, *store, network);
     }
     virtual ~aft() = default;
@@ -77,14 +88,9 @@ namespace aft
       return !state_machine->is_primary();
     }
 
-    INetwork::recv_message_cb cb =
-      [this](OArray&& oa, kv::NodeId id) {
-        this->state_machine->receive_message(std::move(oa), id);
-      };
-
     void recv_message(OArray&& oa) override
     {
-      network->recv_message(std::move(oa), cb);
+      network->recv_message(std::move(oa));
     }
 
     void add_configuration(

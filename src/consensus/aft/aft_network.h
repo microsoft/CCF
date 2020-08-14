@@ -3,6 +3,7 @@
 #pragma once
 
 #include "impl/message.h"
+#include "ds/ccf_assert.h"
 #include "impl/replica.h"
 #include "ds/serialized.h"
 #include "node/nodetypes.h"
@@ -17,13 +18,14 @@ namespace aft {
   {
   public:
     using recv_message_cb = std::function<void(OArray&& oa, kv::NodeId id)>;
+    using recv_message_ae_cb = std::function<void(OArray&& oa, AppendEntries ae, kv::NodeId id)>;
 
     INetwork() = default;
     virtual ~INetwork() = default;
     virtual int Send(IMessage& msg, Replica& replica) = 0;
     virtual int Send(IMessage& msg, kv::NodeId to) = 0;
     virtual int Send(AppendEntries& ae, kv::NodeId to) = 0;
-    virtual void recv_message(OArray&& d, recv_message_cb cb) = 0;
+    virtual void recv_message(OArray&& d) = 0;
   };
 
   class EnclaveNetwork : public INetwork
@@ -35,9 +37,10 @@ namespace aft {
   public:
     EnclaveNetwork(
       kv::NodeId id,
-      std::shared_ptr<ccf::NodeToNode> n2n_channels) :
-      n2n_channels(n2n_channels),
-      id(id)
+      std::shared_ptr<ccf::NodeToNode> n2n_channels,
+      recv_message_cb cb_,
+      recv_message_ae_cb cb_ae_) :
+      n2n_channels(n2n_channels), id(id), cb(cb_), cb_ae(cb_ae_)
     {}
 
     virtual ~EnclaveNetwork() = default;
@@ -154,7 +157,7 @@ namespace aft {
       AftHeader hdr;
     };
 
-    void recv_message(OArray&& d, recv_message_cb cb) override
+    void recv_message(OArray&& d) override
     {
       const uint8_t* data = d.data();
       size_t size = d.size();
@@ -195,6 +198,23 @@ namespace aft {
 
           break;
         }
+        case aft_append_entries:
+
+          AppendEntries ae;
+          try
+          {
+            // TODO: this should be returned on the correct thread 
+            ae =
+              n2n_channels->template recv_authenticated<AppendEntries>(data, size);
+          }
+          catch (const std::logic_error& err)
+          {
+            CCF_ASSERT_FMT_FAIL("failed to authenticate append entries, err - {}", err.what());
+          }
+
+          cb_ae(std::move(d), ae, hdr.from_node);
+
+          break;
         default:
         {
           CCF_ASSERT_FMT_FAIL("Unknown message type {}", hdr.msg);
@@ -306,9 +326,16 @@ namespace aft {
         msg->data.type, msg->data.to, msg->data.ae);
     }
 
+    kv::NodeId get_my_node_id() const
+    {
+      return id;
+    }
+
   private:
     uint32_t execution_thread_counter = 0;
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
     kv::NodeId id;
+    recv_message_cb cb;
+    recv_message_ae_cb cb_ae;
   };
 }

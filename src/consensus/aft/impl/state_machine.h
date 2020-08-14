@@ -66,6 +66,12 @@ namespace aft
       // TODO: fill this in when we open the network
     }
 
+    void receive_message(OArray&& oa, AppendEntries ae, kv::NodeId from) override
+    {
+      CCF_ASSERT_FMT_FAIL("not implemented receive append entries from {}", from);
+    }
+
+
     void add_node(kv::NodeId node_id, const std::vector<uint8_t>& cert) override
     {
       std::lock_guard<std::mutex> lock(configuration_lock);
