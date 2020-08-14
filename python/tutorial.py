@@ -27,7 +27,7 @@ common_dir = client_info["common_dir"]
 ca = os.path.join(common_dir, "networkcert.pem")
 cert = os.path.join(common_dir, "user0_cert.pem")
 key = os.path.join(common_dir, "user0_privk.pem")
-# User client info loaded. 
+# User client info loaded.
 
 member_cert = os.path.join(common_dir, "member0_cert.pem")
 member_key = os.path.join(common_dir, "member0_privk.pem")
@@ -101,9 +101,7 @@ proposal, vote = ccf.proposal_generator.open_network()
 # {'script': {'text': 'return Calls:call("open_network")'}}
 
 member_client = ccf.clients.CCFClient(host, port, ca, member_cert, member_key)
-response = member_client.post(
-    "/gov/proposals", body=proposal, signed=True,
-)
+response = member_client.post("/gov/proposals", body=proposal, signed=True,)
 # SNIPPET_END: dict_proposal
 
 # SNIPPET_START: json_proposal
@@ -113,15 +111,13 @@ proposal, vote = generator.open_network()
 # '@./open_network_proposal.json'
 
 # This is still valid though `proposal` is not a `dict`.
-response = member_client.post(
-    "/gov/proposals", body=proposal, signed=True,
-)
+response = member_client.post("/gov/proposals", body=proposal, signed=True,)
 # SNIPPET_END: json_proposal
 
 # SNIPPET_START: json_proposal_with_file
 proposal, vote = generator.open_network(
-    proposal_output_path_='member0_open_network_proposal.json', 
-    vote_output_path_='member0_open_network_vote_for.json'
+    proposal_output_path_="member0_open_network_proposal.json",
+    vote_output_path_="member0_open_network_vote_for.json",
 )
 # >>> proposal
 # '@./member0_open_network_proposal.json'
