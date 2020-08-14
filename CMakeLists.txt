@@ -485,8 +485,6 @@ if(BUILD_TESTS)
     NAME governance_history_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_history.py
     CONSENSUS raft
-    ADDITIONAL_ARGS # https://github.com/microsoft/CCF/issues/1275
-                    --ledger-chunk-max-bytes 20MB
   )
 
   add_e2e_test(
