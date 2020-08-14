@@ -595,8 +595,7 @@ namespace asynchost
 
     void on_free(const uv_buf_t* buf)
     {
-      if (buf->base != nullptr)
-        delete[] buf->base;
+      delete[] buf->base;
     }
 
     static void on_read(uv_stream_t* handle, ssize_t sz, const uv_buf_t* buf)
@@ -615,6 +614,7 @@ namespace asynchost
       if (sz == UV_ENOBUFS)
       {
         LOG_DEBUG_FMT("TCP on_read reached allocation quota");
+        on_free(buf);
         return;
       }
 
