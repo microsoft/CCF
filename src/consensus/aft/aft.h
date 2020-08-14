@@ -7,6 +7,7 @@
 #include "request.h"
 #include "aft_types.h"
 #include "impl/request_message.h"
+#include "aft_network.h"
 
 namespace aft
 {
@@ -19,14 +20,16 @@ namespace aft
       std::shared_ptr<enclave::RPCSessions> rpc_sessions_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       std::unique_ptr<IStore> store_,
-      std::unique_ptr<consensus::LedgerEnclave> ledger_) :
+      std::unique_ptr<consensus::LedgerEnclave> ledger_,
+      std::shared_ptr<ccf::NodeToNode> n2n_channels) :
       Consensus(id),
       rpc_sessions(rpc_sessions_),
       rpc_map(rpc_map_),
       store(std::move(store_)),
       ledger(std::move(ledger_))
     {
-      state_machine = create_state_machine(id, cert, *store);
+      network = std::make_shared<EnclaveNetwork>(id, n2n_channels);
+      state_machine = create_state_machine(id, cert, *store, network);
     }
     virtual ~aft() = default;
 
@@ -74,10 +77,16 @@ namespace aft
       return !state_machine->is_primary();
     }
 
-    void recv_message(OArray&& /*oa*/) override
+    INetwork::recv_message_cb cb =
+      [this](OArray&& oa, kv::NodeId id) {
+        this->state_machine->receive_message(std::move(oa), id);
+      };
+
+    void recv_message(OArray&& oa) override
     {
-      throw ccf::ccf_logic_error("Not implemented");
+      network->recv_message(std::move(oa), cb);
     }
+
     void add_configuration(
       SeqNo /*seqno*/, const Configuration::Nodes& config) override
     {
@@ -106,9 +115,8 @@ namespace aft
 
     void set_f(size_t f) override
     {
-      LOG_INFO_FMT("Attempting to open network with f set to {0}", f);
-      // TODO: at this point we want to send messages to the other replicas to
-      //       make sure that everything is ready to be open.
+      LOG_INFO_FMT("Attempting to open network with f set to {}", f);
+      state_machine->attempt_to_open_network();
     }
     void emit_signature() override
     {
@@ -134,8 +142,6 @@ namespace aft
 
         return rpc_sessions->reply_async(std::get<1>(caller_rid), data);
       };
-
-      LOG_INFO_FMT("AAAAAAAAAAAAAAAA");
 
       auto ctx = create_request_ctx(serialized_req.data(), serialized_req.size());
 
@@ -172,6 +178,7 @@ namespace aft
     std::shared_ptr<enclave::RPCMap> rpc_map;
     std::unique_ptr<IStore> store;
     std::unique_ptr<consensus::LedgerEnclave> ledger;
+    std::shared_ptr<EnclaveNetwork> network;
 
     std::unique_ptr<RequestCtx> create_request_ctx(
       uint8_t* req_start, size_t req_size)

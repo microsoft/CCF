@@ -5,6 +5,7 @@
 #include "kv/kv_types.h"
 #include "consensus/aft/aft_types.h"
 #include "ds/serialized.h"
+#include "message.h"
 
 #include <vector>
 #include <memory>
@@ -15,16 +16,23 @@ namespace aft
 // Request messages have the following format.
 #pragma pack(push)
 #pragma pack(1)
-  struct RequestMessageRep
+  struct RequestMessageRep : public MessageRep
   {
+    RequestMessageRep(
+      short command_size_, short cid_, kv::TxHistory::RequestID rid_) :
+      MessageRep(MessageTag::Request),
+      command_size(command_size_),
+      cid(cid_),
+      rid(rid_)
+    {}
+
     short command_size;
     short cid; // unique id of client who sends the request
     kv::TxHistory::RequestID rid; // unique request identifier
-    // Followed a command which is "command_size" bytes long and an
-    // authenticator.
   };
 #pragma pack(pop)
-  class RequestMessage
+
+  class RequestMessage : public IMessage
   {
   public:
     RequestMessage(
@@ -40,6 +48,11 @@ namespace aft
 
     }
 
+    bool should_encrypt() const override
+    {
+      return true;
+    }
+
     RequestCtx& get_request_ctx() const
     {
       return *ctx;
@@ -50,27 +63,25 @@ namespace aft
       cb(nullptr, rid, 0, data);
     }
 
-    std::vector<uint8_t> serialize_request_message() const
+    void serialize_message(uint8_t* data, size_t size) const override
     {
-      std::vector<uint8_t> msg(sizeof(RequestMessageRep) + request.size());
-
-      auto data_ = msg.data();
-      auto size_ = msg.size();
-
-      RequestMessageRep rep;
-      rep.command_size = request.size();
-      rep.cid = 0; // This is temporary and will make everything go via the primary
-      rep.rid = rid;
+      RequestMessageRep rep(
+        request.size(),
+        0, // This is temporary and will make everything go via the primary
+        rid);
 
       serialized::write(
-        data_,
-        size_,
+        data,
+        size,
         reinterpret_cast<uint8_t*>(&rep),
         sizeof(RequestMessageRep));
-      serialized::write(data_, size_, request.data(), request.size());
-      CCF_ASSERT(size_ == 0, "allocated buffer too large");
+      serialized::write(data, size, request.data(), request.size());
+      CCF_ASSERT(size == 0, "allocated buffer is too large");
+    }
 
-      return msg;
+    size_t size() const override
+    {
+      return sizeof(RequestMessageRep) + request.size();
     }
 
   private:

@@ -17,6 +17,7 @@ namespace aft
     kv::Consensus::View view;
   };
 
+  // TODO: make this class thread safe with a lock
   class GlobalCommitHandler : public IGlobalCommitHandler
   {
   public:

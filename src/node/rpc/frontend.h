@@ -362,8 +362,6 @@ namespace ccf
 
       tx_count++;
 
-      LOG_INFO_FMT("1. NNNNNNNNNNNNNN");
-
       while (true)
       {
         try
@@ -382,7 +380,6 @@ namespace ccf
 
           if (!ctx->should_apply_writes())
           {
-            LOG_INFO_FMT("2. NNNNNNNNNNNNNN");
             update_metrics(ctx, endpoint->metrics);
             return ctx->serialise_response();
           }
@@ -418,7 +415,6 @@ namespace ccf
                   }
                 }
               }
-              LOG_INFO_FMT("2. NNNNNNNNNNNNNN");
               update_metrics(ctx, endpoint->metrics);
               return ctx->serialise_response();
             }
@@ -430,7 +426,6 @@ namespace ccf
 
             case kv::CommitSuccess::NO_REPLICATE:
             {
-              LOG_INFO_FMT("2. NNNNNNNNNNNNNN");
               ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
               ctx->set_response_body("Transaction failed to replicate.");
               update_metrics(ctx, endpoint->metrics);
@@ -440,7 +435,6 @@ namespace ccf
         }
         catch (const RpcException& e)
         {
-          LOG_INFO_FMT("3. NNNNNNNNNNNNNN");
           ctx->set_response_status(e.status);
           ctx->set_response_body(e.what());
           update_metrics(ctx, endpoint->metrics);
@@ -448,7 +442,6 @@ namespace ccf
         }
         catch (JsonParseError& e)
         {
-          LOG_INFO_FMT("3. NNNNNNNNNNNNNN");
           auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
           ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
           ctx->set_response_body(std::move(err));
@@ -458,7 +451,6 @@ namespace ccf
         /*
         catch (const kv::KvSerialiserException& e)
         {
-          LOG_INFO_FMT("3. NNNNNNNNNNNNNN");
           // If serialising the committed transaction fails, there is no way
           // to recover safely (https://github.com/microsoft/CCF/issues/338).
           // Better to abort.
@@ -470,7 +462,6 @@ namespace ccf
         /*
         catch (const std::exception& e)
         {
-          LOG_INFO_FMT("3. NNNNNNNNNNNNNN");
           ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
           ctx->set_response_body(e.what());
           update_metrics(ctx, endpoint->metrics);
@@ -624,10 +615,6 @@ namespace ccf
              ctx.session->caller_cert,
              ctx.get_serialised_request(),
              ctx.pbft_raw});
-          LOG_INFO_FMT(
-            "QQQQQQQQ adding, serialized_request.size:{}, pbft_raw.size:{}",
-            ctx.get_serialised_request().size(),
-            ctx.pbft_raw.size());
         };
       }
 
