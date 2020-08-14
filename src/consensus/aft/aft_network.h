@@ -20,7 +20,9 @@ namespace aft {
 
     INetwork() = default;
     virtual ~INetwork() = default;
-    virtual int Send(IMessage& msg, Replica& to) = 0;
+    virtual int Send(IMessage& msg, Replica& replica) = 0;
+    virtual int Send(IMessage& msg, kv::NodeId to) = 0;
+    virtual int Send(AppendEntries& ae, kv::NodeId to) = 0;
     virtual void recv_message(OArray&& d, recv_message_cb cb) = 0;
   };
 
@@ -81,7 +83,11 @@ namespace aft {
 
     int Send(IMessage& msg, Replica& replica) override
     {
-      kv::NodeId to = replica.get_id();
+      return Send(msg, replica.get_id());
+    }
+
+    virtual int Send(IMessage& msg, kv::NodeId to) override
+    {
       CCF_ASSERT(to != id, "cannot send message to self");
       LOG_INFO_FMT("Sending to {}", to);
 
@@ -252,6 +258,52 @@ namespace aft {
       std::unique_ptr<threading::Tmsg<RecvAuthenticatedMsg>> msg)
     {
       msg->data.cb(std::move(msg->data.d), msg->data.hdr.from_node);
+    }
+
+    struct SendAuthenticatedAEMsg
+    {
+      SendAuthenticatedAEMsg(
+        AppendEntries ae_,
+        ccf::NodeMsgType type_,
+        kv::NodeId to_,
+        EnclaveNetwork* self_) :
+        ae(std::move(ae_)), type(type_), to(to_), self(self_)
+      {}
+
+      AppendEntries ae;
+      ccf::NodeMsgType type;
+      kv::NodeId to;
+      EnclaveNetwork* self;
+    };
+
+    int Send(AppendEntries& ae, kv::NodeId to) override
+    {
+      auto tmsg = std::make_unique<threading::Tmsg<SendAuthenticatedAEMsg>>(
+        &send_authenticated_ae_msg_cb,
+        ae,
+        ccf::NodeMsgType::consensus_msg,
+        to,
+        this);
+
+      if (threading::ThreadMessaging::thread_count > 1)
+      {
+        uint16_t tid = threading::ThreadMessaging::get_execution_thread(to);
+        threading::ThreadMessaging::thread_messaging
+          .add_task<SendAuthenticatedAEMsg>(tid, std::move(tmsg));
+      }
+      else
+      {
+        tmsg->cb(std::move(tmsg));
+      }
+
+      return sizeof(ae);
+    }
+
+    static void send_authenticated_ae_msg_cb(
+      std::unique_ptr<threading::Tmsg<SendAuthenticatedAEMsg>> msg)
+    {
+      msg->data.self->n2n_channels->send_authenticated(
+        msg->data.type, msg->data.to, msg->data.ae);
     }
 
   private:

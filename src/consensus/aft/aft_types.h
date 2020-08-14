@@ -2,9 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/kv_types.h"
+#include "consensus/consensus_types.h"
 #include "enclave/rpc_context.h"
 #include "enclave/rpc_handler.h"
+#include "kv/kv_types.h"
 #include "kv/store.h"
 
 #include <functional>
@@ -20,7 +21,8 @@ namespace aft
   enum AftMsgType : ccf::Node2NodeMsg
   {
     aft_message = 1000,
-    encrypted_aft_message
+    encrypted_aft_message,
+    aft_append_entries
   };
 
 #pragma pack(push, 1)
@@ -29,6 +31,10 @@ namespace aft
     AftMsgType msg;
     kv::NodeId from_node;
   };
+
+  struct AppendEntries : consensus::ConsensusHeader<AftMsgType>,
+                         consensus::AppendEntriesIndex
+  {};
 
 #pragma pack(pop)
   class RequestMessage;

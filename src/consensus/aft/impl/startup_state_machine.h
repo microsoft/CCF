@@ -7,6 +7,7 @@
 #include "kv/kv_types.h"
 #include "request_message.h"
 #include "status_message.h"
+#include "request_data_message.h"
 
 #include <vector>
 
@@ -25,7 +26,9 @@ namespace aft
   class StartupStateMachine : public IStartupStateMachine
   {
   public:
-    StartupStateMachine() : is_first_message(true), have_requested_data(false) {}
+    StartupStateMachine(std::shared_ptr<EnclaveNetwork> network_) :
+      network(network_), is_first_message(true), have_requested_data(false)
+    {}
     virtual ~StartupStateMachine() = default;
 
     kv::Version receive_request(std::unique_ptr<RequestMessage> request) override
@@ -47,7 +50,6 @@ namespace aft
 
       frontend->update_merkle_tree();
 
-
       is_first_message = false;
       request->callback(rep.result);
 
@@ -63,14 +65,19 @@ namespace aft
         case MessageTag::Status:
           handle_status_message(std::move(oa), from);
           break;
+        case MessageTag::RequestData:
+          handle_request_data_message(std::move(oa), from);
+          break;
         default:
           CCF_ASSERT_FMT_FAIL("Unknown or unsupported message type - {}", get_message_type(oa.data()));
       }
     }
 
   private:
+    std::shared_ptr<EnclaveNetwork> network;
     bool is_first_message;
     bool have_requested_data;
+    kv::Version last_received_version = 0;
 
     void handle_status_message(OArray&& oa, kv::NodeId from)
     {
@@ -82,7 +89,21 @@ namespace aft
 
       StatusMessageRecv status(std::move(oa), from);
 
+      RequestDataMessage request(
+        last_received_version,
+        std::min(status.get_version(), last_received_version + 100));
+      network->Send(request, from);
     }
 
+    void handle_request_data_message(OArray&& oa, kv::NodeId from)
+    {
+      RequestDataMessageRecv request(std::move(oa), from);
+
+      kv::Version index_from = request.get_from();
+      kv::Version index_to = request.get_to();
+
+      AppendEntries ae = {aft_append_entries, from, index_to, index_from};
+      network->Send(ae, from);
+    }
   };
 }

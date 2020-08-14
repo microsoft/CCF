@@ -17,7 +17,7 @@ namespace aft
     return std::make_unique<StateMachine>(
       my_node_id,
       cert,
-      std::make_unique<StartupStateMachine>(),
+      std::make_unique<StartupStateMachine>(network),
       create_global_commit_handler(store),
       network);
   }
