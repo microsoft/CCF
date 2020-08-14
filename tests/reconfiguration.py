@@ -94,16 +94,12 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-
-        # TODO: Remove this
-        for _ in range(1,1):
-            e2e_logging.test(network, args, verify=False)
-        # test_add_node_from_backup(network, args)
+        test_add_node_from_backup(network, args)
         test_add_node(network, args)
-        # test_add_node_untrusted_code(network, args)
-        # test_retire_node(network, args)
-        # test_add_as_many_pending_nodes(network, args)
-        # test_add_node(network, args)
+        test_add_node_untrusted_code(network, args)
+        test_retire_node(network, args)
+        test_add_as_many_pending_nodes(network, args)
+        test_add_node(network, args)
 
 
 if __name__ == "__main__":

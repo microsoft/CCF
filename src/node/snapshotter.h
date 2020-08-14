@@ -26,7 +26,7 @@ namespace ccf
     ringbuffer::WriterPtr to_host;
     std::shared_ptr<kv::AbstractStore> store;
 
-    size_t last_snapshot_idx = 0;
+    kv::Version last_snapshot_idx = 0;
     size_t snapshot_interval;
 
     void record_snapshot(
@@ -46,17 +46,27 @@ namespace ccf
       snapshot_interval(snapshot_interval_)
     {}
 
-    void snapshot(kv::Version version)
+    std::optional<kv::Version> snapshot(kv::Version version)
     {
+      if (version < last_snapshot_idx)
+      {
+        LOG_FAIL_FMT(
+          "Cannot snapshot at {} which is earlier than last snapshot at {}",
+          version,
+          last_snapshot_idx);
+        return std::nullopt;
+      }
+
       if ((unsigned)(version - last_snapshot_idx) > snapshot_interval)
       {
-        LOG_FAIL_FMT("Creating snapshot at {} [NO EFFECT]", version);
         auto snapshot = store->serialise_snapshot(version);
         record_snapshot(version, snapshot);
 
         last_snapshot_idx = version;
+        return version;
       }
-      LOG_FAIL_FMT("Not snapshotting...");
+
+      return std::nullopt;
     }
   };
 }

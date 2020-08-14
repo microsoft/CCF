@@ -116,6 +116,9 @@ namespace raft
     Index commit_idx;
     TermHistory term_history;
 
+    // Snapshot
+    Index last_snapshot_idx;
+
     // Volatile
     NodeId leader_id;
     std::unordered_set<NodeId> votes_for_me;
@@ -171,6 +174,7 @@ namespace raft
       voted_for(NoNode),
       last_idx(0),
       commit_idx(0),
+      last_snapshot_idx(0),
 
       leader_id(NoNode),
 
@@ -1166,33 +1170,15 @@ namespace raft
       LOG_DEBUG_FMT("Compacting...");
       if (state == Leader)
       {
-        snapshotter->snapshot(idx);
+        auto snapshot_idx = snapshotter->snapshot(idx);
+        if (snapshot_idx.has_value())
+        {
+          last_snapshot_idx = snapshot_idx.value();
+        }
       }
       store->compact(idx);
       ledger->commit(idx);
 
-      // if (state == Leader)
-      // {
-      //   if (idx - last_snapshot_idx > snapshot_interval)
-      //   {
-      //     LOG_FAIL_FMT("Snapshotting at {}", idx);
-
-      //     auto snap = store->snapshot(idx);
-      //     if (snap.has_value())
-      //     {
-      //       ledger->put_snapshot(idx, snap.value());
-      //     }
-      //     else
-      //     {
-      //       LOG_FAIL_FMT(
-      //         "Error generating snapshot at {}. Continuing normal
-      //         operation.", idx);
-      //     }
-      //     last_snapshot_idx = idx;
-      //     last_snapshot_term = current_term;
-      //     LOG_FAIL_FMT("Snapshot done");
-      //   }
-      // }
       LOG_DEBUG_FMT("Commit on {}: {}", local_id, idx);
 
       // Examine all configurations that are followed by a globally committed
