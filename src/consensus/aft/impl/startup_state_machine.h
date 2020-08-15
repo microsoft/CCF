@@ -18,12 +18,9 @@ namespace aft
     virtual kv::Version receive_request(std::unique_ptr<RequestMessage> request) = 0;
     virtual bool receive_message(OArray& oa, kv::NodeId from) = 0;
     virtual bool is_message_type_supported(OArray& oa) = 0;
-    virtual kv::Version receive_message(OArray& oa, AppendEntries ae, kv::NodeId from) = 0;
   };
 
   std::unique_ptr<IStartupStateMachine> create_startup_state_machine(
     std::shared_ptr<EnclaveNetwork> network_,
-    std::shared_ptr<enclave::RPCMap> rpc_map_,
-    IStore& store_,
     pbft::RequestsMap& pbft_requests_map_);
 }
