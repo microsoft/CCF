@@ -12,6 +12,7 @@
 #include "request_message.h"
 #include "startup_state_machine.h"
 #include "status_message.h"
+#include "aft_state.h"
 #include "open_network_message.h"
 
 namespace aft
@@ -25,29 +26,26 @@ namespace aft
       std::unique_ptr<IStartupStateMachine> startup_state_machine_,
       std::unique_ptr<IGlobalCommitHandler> global_commit_handler_,
       std::shared_ptr<EnclaveNetwork> network_) :
-      my_node_id(my_node_id_),
-      current_view(0),
-      last_good_version(0),
+      state(std::make_shared<ServiceState>(my_node_id_)),
       startup_state_machine(std::move(startup_state_machine_)),
       global_commit_handler(std::move(global_commit_handler_)),
-      network(network_),
-      network_state(NetworkState::not_open)
+      network(network_)
     {
-      LOG_INFO_FMT("Starting AFT - my node id {}", my_node_id);
-      add_node(my_node_id, cert);
+      LOG_INFO_FMT("Starting AFT - my node id {}", my_node_id_);
+      add_node(my_node_id_, cert);
     }
 
     // TODO: move this to thread 0
     void receive_request(std::unique_ptr<RequestMessage> request) override
     {
-      if (network_state == NetworkState::not_open)
+      if (state->network_state == ServiceState::NetworkState::not_open)
       {
         kv::Version version = startup_state_machine->receive_request(std::move(request));
 
         // Before the network is open we say that every version has been
         // globally committed because we do not want to roll anything back.
-        global_commit_handler->perform_global_commit(version, current_view);
-        last_good_version = version;
+        global_commit_handler->perform_global_commit(version, state->current_view);
+        state->last_committed_version = version;
         return;
       }
 
@@ -59,7 +57,8 @@ namespace aft
     void receive_message(OArray oa, kv::NodeId from) override
     {
       if (
-        network_state == NetworkState::not_open && get_message_type(oa.data()) != MessageTag::OpenNetwork)
+        state->network_state == ServiceState::NetworkState::not_open &&
+        get_message_type(oa.data()) != MessageTag::OpenNetwork)
       {
         startup_state_machine->receive_message(oa, from);
         return;
@@ -88,10 +87,10 @@ namespace aft
 
     void receive_message(OArray oa, AppendEntries ae, kv::NodeId from) override
     {
-      if (network_state == NetworkState::not_open)
+      if (state->network_state == ServiceState::NetworkState::not_open)
       {
         kv::Version version = startup_state_machine->receive_message(oa, ae, from);
-        global_commit_handler->perform_global_commit(version, current_view);
+        global_commit_handler->perform_global_commit(version, state->current_view);
         return;
       }
 
@@ -102,9 +101,9 @@ namespace aft
 
     void add_node(kv::NodeId node_id, const std::vector<uint8_t>& cert) override
     {
-      std::lock_guard<std::mutex> lock(configuration_lock);
+      std::lock_guard<std::mutex> lock(state->configuration_lock);
       LOG_INFO_FMT("Adding node {}", node_id);
-      configuration.emplace(node_id, std::make_unique<Replica>(node_id, cert));
+      state->configuration.emplace(node_id, std::make_unique<Replica>(node_id, cert));
     }
 
     struct SendStatusMsg
@@ -121,7 +120,7 @@ namespace aft
 
     static void send_status_cb(std::unique_ptr<threading::Tmsg<SendStatusMsg>> msg)
     {
-      StatusMessage status(msg->data.self->current_view, msg->data.self->last_good_version);
+      StatusMessage status(msg->data.self->state->current_view, msg->data.self->state->last_committed_version);
       msg->data.self->network->Send(status, *msg->data.replica);
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
@@ -134,15 +133,15 @@ namespace aft
     {
       LOG_INFO_FMT("Opening network");
       CCF_ASSERT_FMT(
-        network_state == NetworkState::not_open,
+        state->network_state == ServiceState::NetworkState::not_open,
         "Cannot open a network current state is {}",
-        network_state);
+        state->network_state);
 
       {
-        std::lock_guard<std::mutex> lock(configuration_lock);
-        for (auto& it : configuration)
+        std::lock_guard<std::mutex> lock(state->configuration_lock);
+        for (auto& it : state->configuration)
         {
-          if (it.first == my_node_id)
+          if (it.first == state->my_node_id)
           {
             continue;
           }
@@ -152,53 +151,52 @@ namespace aft
         }
       }
 
-      if (my_node_id == 0)
+      if (state->my_node_id == 0)
       {
-        received_open_network_messages.insert(my_node_id);
+        state->received_open_network_messages.insert(state->my_node_id);
         return;
       }
       LOG_INFO_FMT(
         "****** Network is now open and ready to accept requests ******");
-      network_state = NetworkState::open;
+      state->network_state = ServiceState::NetworkState::open;
 
       OpenNetworkMessage open_network_msg;
-      LOG_INFO_FMT("NNNNNNN {}", 0);
       network->Send(open_network_msg, 0);
     }
 
     void handle_open_network_message(OArray oa, kv::NodeId from)
     {
-      if (network_state != NetworkState::not_open)
+      if (state->network_state != ServiceState::NetworkState::not_open)
       {
         return;
       }
 
-      received_open_network_messages.insert(from);
+      state->received_open_network_messages.insert(from);
       {
-        std::lock_guard<std::mutex> lock(configuration_lock);
-        if (received_open_network_messages.size() == configuration.size())
+        std::lock_guard<std::mutex> lock(state->configuration_lock);
+        if (state->received_open_network_messages.size() == state->configuration.size())
         {
           LOG_INFO_FMT(
             "****** Network is now open and ready to accept requests ******");
-          network_state = NetworkState::open;
+          state->network_state = ServiceState::NetworkState::open;
         }
       }
     }
 
     bool is_primary() override
     {
-      return my_node_id == primary();
+      return state->my_node_id == primary();
     }
 
     kv::NodeId primary() override
     {
-      std::lock_guard<std::mutex> lock(configuration_lock);
-      return current_view % configuration.size();
+      std::lock_guard<std::mutex> lock(state->configuration_lock);
+      return state->current_view % state->configuration.size();
     }
 
     kv::Consensus::View view() override
     {
-      return current_view;
+      return state->current_view;
     }
 
     kv::Consensus::View get_view_for_version(kv::Version version) override
@@ -208,27 +206,15 @@ namespace aft
 
     kv::Version get_last_committed_version() override
     {
-      return last_good_version;
+      return state->last_committed_version;
     }
 
 
   private:
-    kv::NodeId my_node_id;
-    kv::Consensus::View current_view;
-    kv::Version last_good_version;
+    std::shared_ptr<ServiceState> state;
     std::unique_ptr<IStartupStateMachine> startup_state_machine;
     std::unique_ptr<IGlobalCommitHandler> global_commit_handler;
     std::shared_ptr<EnclaveNetwork> network;
-    kv::Version last_global_commit;
 
-    std::map<kv::NodeId, std::shared_ptr<Replica>> configuration;
-    SpinLock configuration_lock;
-
-    enum class NetworkState
-    {
-      not_open =0,
-      open
-    } network_state;
-    std::set<kv::NodeId> received_open_network_messages;
   };
 }
