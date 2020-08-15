@@ -77,8 +77,8 @@ namespace aft
     virtual ~IStateMachine() = default;
 
     virtual void receive_request(std::unique_ptr<RequestMessage> request) = 0;
-    virtual void receive_message(OArray&& oa, kv::NodeId from) = 0;
-    virtual void receive_message(OArray&& oa, AppendEntries ae, kv::NodeId from) = 0;
+    virtual void receive_message(OArray oa, kv::NodeId from) = 0;
+    virtual void receive_message(OArray oa, AppendEntries ae, kv::NodeId from) = 0;
     virtual void add_node(kv::NodeId node_id, const std::vector<uint8_t>& cert) = 0;
     virtual bool is_primary() = 0;
     virtual kv::NodeId primary() = 0;

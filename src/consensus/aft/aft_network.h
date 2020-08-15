@@ -17,23 +17,19 @@ namespace aft {
   class INetwork
   {
   public:
-    using recv_message_cb = std::function<void(OArray&& oa, kv::NodeId id)>;
-    using recv_message_ae_cb = std::function<void(OArray&& oa, AppendEntries ae, kv::NodeId id)>;
+    using recv_message_cb = std::function<void(OArray oa, kv::NodeId id)>;
+    using recv_message_ae_cb = std::function<void(OArray oa, AppendEntries ae, kv::NodeId id)>;
 
     INetwork() = default;
     virtual ~INetwork() = default;
     virtual int Send(IMessage& msg, Replica& replica) = 0;
     virtual int Send(IMessage& msg, kv::NodeId to) = 0;
-    virtual int Send(AppendEntries& ae, kv::NodeId to) = 0;
-    virtual void recv_message(OArray&& d) = 0;
+    virtual int Send(AppendEntries ae, kv::NodeId to) = 0;
+    virtual void recv_message(OArray d) = 0;
   };
 
   class EnclaveNetwork : public INetwork
   {
-  private:
-
-    std::vector<uint8_t> serialized_msg;
-
   public:
     EnclaveNetwork(
       kv::NodeId id,
@@ -94,6 +90,8 @@ namespace aft {
       CCF_ASSERT(to != id, "cannot send message to self");
       LOG_INFO_FMT("Sending to {}", to);
 
+      std::vector<uint8_t> serialized_msg;
+
       bool encrypt = msg.should_encrypt();
       if (encrypt)
       {
@@ -139,7 +137,7 @@ namespace aft {
     {
       RecvAuthenticatedMsg(
         bool should_decrypt_,
-        OArray&& d_,
+        OArray d_,
         EnclaveNetwork* self_,
         recv_message_cb cb_) :
         should_decrypt(should_decrypt_),
@@ -157,7 +155,7 @@ namespace aft {
       AftHeader hdr;
     };
 
-    void recv_message(OArray&& d) override
+    void recv_message(OArray d) override
     {
       const uint8_t* data = d.data();
       size_t size = d.size();
@@ -296,7 +294,7 @@ namespace aft {
       EnclaveNetwork* self;
     };
 
-    int Send(AppendEntries& ae, kv::NodeId to) override
+    int Send(AppendEntries ae, kv::NodeId to) override
     {
       auto tmsg = std::make_unique<threading::Tmsg<SendAuthenticatedAEMsg>>(
         &send_authenticated_ae_msg_cb,

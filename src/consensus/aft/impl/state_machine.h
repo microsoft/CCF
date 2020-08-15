@@ -2,15 +2,17 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/aft/aft_types.h"
 #include "consensus/aft/aft_network.h"
+#include "consensus/aft/aft_types.h"
 #include "ds/ccf_assert.h"
 #include "ds/ccf_exception.h"
 #include "ds/thread_messaging.h"
 #include "global_commit_handler.h"
 #include "replica.h"
+#include "request_message.h"
 #include "startup_state_machine.h"
 #include "status_message.h"
+#include "open_network_message.h"
 
 namespace aft
 {
@@ -26,10 +28,10 @@ namespace aft
       my_node_id(my_node_id_),
       current_view(0),
       last_good_version(0),
-      is_network_open(false),
       startup_state_machine(std::move(startup_state_machine_)),
       global_commit_handler(std::move(global_commit_handler_)),
-      network(network_)
+      network(network_),
+      network_state(NetworkState::not_open)
     {
       LOG_INFO_FMT("Starting AFT - my node id {}", my_node_id);
       add_node(my_node_id, cert);
@@ -38,7 +40,7 @@ namespace aft
     // TODO: move this to thread 0
     void receive_request(std::unique_ptr<RequestMessage> request) override
     {
-      if (!is_network_open)
+      if (network_state == NetworkState::not_open)
       {
         kv::Version version = startup_state_machine->receive_request(std::move(request));
 
@@ -46,31 +48,50 @@ namespace aft
         // globally committed because we do not want to roll anything back.
         global_commit_handler->perform_global_commit(version, current_view);
         last_good_version = version;
+        LOG_INFO_FMT("PPPPPPPP updating version to {}", version);
         return;
       }
 
-      ccf::ccf_logic_error("Not Implemented");
+      //ccf::ccf_logic_error("Not Implemented");
       // TODO: fill this in when we open the network
     }
 
     // TODO: move this to thread 0
-    void receive_message(OArray&& oa, kv::NodeId from) override
+    void receive_message(OArray oa, kv::NodeId from) override
     {
-      if (!is_network_open)
+      if (
+        network_state == NetworkState::not_open && get_message_type(oa.data()) != MessageTag::OpenNetwork)
       {
-        startup_state_machine->receive_message(std::move(oa), from);
+        startup_state_machine->receive_message(oa, from);
         return;
       }
 
-      ccf::ccf_logic_error("Not Implemented");
+      switch (get_message_type(oa.data()))
+      {
+        case MessageTag::Status:
+          //handle_status_message(std::move(oa), from);
+          LOG_INFO_FMT("Received status message from {}", from);
+          break;
+        case MessageTag::RequestData:
+          //handle_request_data_message(std::move(oa), from);
+          LOG_INFO_FMT("Received RequestData message from {}", from);
+          break;
+        case MessageTag::OpenNetwork:
+          handle_open_network_message(std::move(oa), from);
+          break;
+        default:
+          CCF_ASSERT_FMT_FAIL("Unknown or unsupported message type - {}", get_message_type(oa.data()));
+      }
+
+      // ccf::ccf_logic_error("Not Implemented");
       // TODO: fill this in when we open the network
     }
 
-    void receive_message(OArray&& oa, AppendEntries ae, kv::NodeId from) override
+    void receive_message(OArray oa, AppendEntries ae, kv::NodeId from) override
     {
-      if (!is_network_open)
+      if (network_state == NetworkState::not_open)
       {
-        kv::Version version = startup_state_machine->receive_message(std::move(oa), ae, from);
+        kv::Version version = startup_state_machine->receive_message(oa, ae, from);
         global_commit_handler->perform_global_commit(version, current_view);
         return;
       }
@@ -112,19 +133,61 @@ namespace aft
     // TODO: move this to thread 0
     void attempt_to_open_network() override
     {
-      CCF_ASSERT(!is_network_open, "Cannot open a network that has already been opened");
-      // TODO: send the network open messages
-      // TODO: start sending the status messages
+      LOG_INFO_FMT("Opening network");
+      CCF_ASSERT_FMT(
+        network_state == NetworkState::not_open,
+        "Cannot open a network current state is {}",
+        network_state);
 
-      std::lock_guard<std::mutex> lock(configuration_lock);
-      for (auto& it : configuration)
       {
-        if (it.first == my_node_id)
+        std::lock_guard<std::mutex> lock(configuration_lock);
+        for (auto& it : configuration)
         {
-          continue;
+          if (it.first == my_node_id)
+          {
+            continue;
+          }
+          auto msg = std::make_unique<threading::Tmsg<SendStatusMsg>>(
+            &send_status_cb, it.second, this);
+          send_status_cb(std::move(msg));
         }
-        auto msg = std::make_unique<threading::Tmsg<SendStatusMsg>>(&send_status_cb, it.second, this);
-        send_status_cb(std::move(msg)); 
+      }
+
+      if (my_node_id == 0)
+      {
+        received_open_network_messages.insert(my_node_id);
+        return;
+      }
+      LOG_INFO_FMT(
+        "****** Network is now open and ready to accept requests ******");
+      network_state = NetworkState::open;
+
+      OpenNetworkMessage open_network_msg;
+      LOG_INFO_FMT("NNNNNNN {}", 0);
+      network->Send(open_network_msg, 0);
+    }
+
+    void handle_open_network_message(OArray oa, kv::NodeId from)
+    {
+      LOG_INFO_FMT("JJJJJ");
+      if (network_state != NetworkState::not_open)
+      {
+        return;
+      }
+
+      received_open_network_messages.insert(from);
+      {
+        std::lock_guard<std::mutex> lock(configuration_lock);
+        LOG_INFO_FMT(
+          "TTTTTT {} of {}",
+          received_open_network_messages.size(),
+          configuration.size());
+        if (received_open_network_messages.size() == configuration.size())
+        {
+          LOG_INFO_FMT(
+            "****** Network is now open and ready to accept requests ******");
+          network_state = NetworkState::open;
+        }
       }
     }
 
@@ -159,7 +222,6 @@ namespace aft
     kv::NodeId my_node_id;
     kv::Consensus::View current_view;
     kv::Version last_good_version;
-    bool is_network_open;
     std::unique_ptr<IStartupStateMachine> startup_state_machine;
     std::unique_ptr<IGlobalCommitHandler> global_commit_handler;
     std::shared_ptr<EnclaveNetwork> network;
@@ -167,5 +229,12 @@ namespace aft
 
     std::map<kv::NodeId, std::shared_ptr<Replica>> configuration;
     SpinLock configuration_lock;
+
+    enum class NetworkState
+    {
+      not_open =0,
+      open
+    } network_state;
+    std::set<kv::NodeId> received_open_network_messages;
   };
 }

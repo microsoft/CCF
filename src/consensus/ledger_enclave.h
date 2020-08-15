@@ -58,7 +58,7 @@ namespace consensus
      * @param data Serialised entries
      * @param size Size of overall serialised entries
      */
-    void skip_entry(const uint8_t*& data, size_t& size)
+    static void skip_entry(const uint8_t*& data, size_t& size)
     {
       auto entry_len = serialized::read<uint32_t>(data, size);
       serialized::skip(data, size, entry_len);

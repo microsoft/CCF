@@ -31,12 +31,12 @@ namespace aft
     {
 
     INetwork::recv_message_cb cb =
-      [this](OArray&& oa, kv::NodeId from) {
+      [this](OArray oa, kv::NodeId from) {
         this->state_machine->receive_message(std::move(oa), from);
       };
 
     INetwork::recv_message_ae_cb cb_ae =
-      [this](OArray&& oa, AppendEntries ae, kv::NodeId from) {
+      [this](OArray oa, AppendEntries ae, kv::NodeId from) {
         this->state_machine->receive_message(std::move(oa), ae, from);
       };
 

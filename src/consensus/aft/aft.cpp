@@ -3,9 +3,10 @@
 
 #include "aft_network.h"
 #include "aft_types.h"
+#include "enclave/rpc_map.h"
 #include "impl/global_commit_handler.h"
 #include "impl/state_machine.h"
-#include "enclave/rpc_map.h"
+#include "kv/tx.h"
 
 namespace aft
 {
@@ -20,7 +21,7 @@ namespace aft
     return std::make_unique<StateMachine>(
       my_node_id,
       cert,
-      std::make_unique<StartupStateMachine>(network, rpc_map, store, pbft_requests_map),
+      create_startup_state_machine(network, rpc_map, store, pbft_requests_map),
       create_global_commit_handler(store),
       network);
   }

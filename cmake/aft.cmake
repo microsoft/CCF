@@ -5,6 +5,7 @@
 set(AFT_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/aft.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/impl/global_commit_handler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/impl/startup_state_machine.cpp
 )
 
 

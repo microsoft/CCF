@@ -12,6 +12,8 @@ namespace aft
     Request = 0,
     Status = 1,
     RequestData = 2,
+    OpenNetwork = 3,
+    OpenNetworkResp = 4,
     NotSet = std::numeric_limits<uint64_t>::max()
   };
 
