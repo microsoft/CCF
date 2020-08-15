@@ -89,15 +89,11 @@ namespace aft
 
     void receive_message(OArray oa, AppendEntries ae, kv::NodeId from) override
     {
-      if (state->network_state == ServiceState::NetworkState::not_open)
-      {
-        kv::Version version = startup_state_machine->receive_message(oa, ae, from);
-        global_commit_handler->perform_global_commit(version, state->current_view);
-        return;
-      }
+      catchup_state_machine->receive_message(std::move(oa), ae, from);
 
-      ccf::ccf_logic_error("Not Implemented");
-      // TODO: fill this in when we open the network
+      // We obviously show not be committing here
+      global_commit_handler->perform_global_commit(
+        state->last_committed_version, state->current_view);
     }
 
 

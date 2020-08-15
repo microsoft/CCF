@@ -241,7 +241,7 @@ namespace aft
 
         r_ctx->frontend = handler.value();
         return r_ctx;
-      };
+      }
   };
 
   std::unique_ptr<IStartupStateMachine> create_startup_state_machine(

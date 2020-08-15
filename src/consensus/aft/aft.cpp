@@ -27,7 +27,7 @@ namespace aft
       cert,
       create_startup_state_machine(network, rpc_map, store, pbft_requests_map),
       create_global_commit_handler(store),
-      create_catchup_state_machine(state, network),
+      create_catchup_state_machine(state, network, rpc_map, store, pbft_requests_map),
       network);
   }
 
