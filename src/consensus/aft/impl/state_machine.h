@@ -2,18 +2,18 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "aft_state.h"
+#include "catchup_state_machine.h"
 #include "consensus/aft/aft_network.h"
 #include "consensus/aft/aft_types.h"
 #include "ds/ccf_assert.h"
 #include "ds/ccf_exception.h"
 #include "ds/thread_messaging.h"
 #include "global_commit_handler.h"
+#include "open_network_message.h"
 #include "replica.h"
 #include "request_message.h"
 #include "startup_state_machine.h"
-#include "status_message.h"
-#include "aft_state.h"
-#include "open_network_message.h"
 
 namespace aft
 {
@@ -21,18 +21,20 @@ namespace aft
   {
   public:
     StateMachine(
-      kv::NodeId my_node_id_,
+      std::shared_ptr<ServiceState> state_,
       const std::vector<uint8_t>& cert,
       std::unique_ptr<IStartupStateMachine> startup_state_machine_,
       std::unique_ptr<IGlobalCommitHandler> global_commit_handler_,
+      std::unique_ptr<ICatchupStateMachine> catchup_state_machine_, 
       std::shared_ptr<EnclaveNetwork> network_) :
-      state(std::make_shared<ServiceState>(my_node_id_)),
+      state(state_),
       startup_state_machine(std::move(startup_state_machine_)),
       global_commit_handler(std::move(global_commit_handler_)),
+      catchup_state_machine(std::move(catchup_state_machine_)),
       network(network_)
     {
-      LOG_INFO_FMT("Starting AFT - my node id {}", my_node_id_);
-      add_node(my_node_id_, cert);
+      LOG_INFO_FMT("Starting AFT - my node id {}", state_->my_node_id);
+      add_node(state_->my_node_id, cert);
     }
 
     // TODO: move this to thread 0
@@ -104,28 +106,7 @@ namespace aft
       std::lock_guard<std::mutex> lock(state->configuration_lock);
       LOG_INFO_FMT("Adding node {}", node_id);
       state->configuration.emplace(node_id, std::make_unique<Replica>(node_id, cert));
-    }
-
-    struct SendStatusMsg
-    {
-      SendStatusMsg(
-        std::shared_ptr<Replica>& replica_,
-        StateMachine* self_) :
-        replica(replica_), self(self_)
-      {}
-
-      std::shared_ptr<Replica> replica;
-      StateMachine* self;
-    };
-
-    static void send_status_cb(std::unique_ptr<threading::Tmsg<SendStatusMsg>> msg)
-    {
-      StatusMessage status(msg->data.self->state->current_view, msg->data.self->state->last_committed_version);
-      msg->data.self->network->Send(status, *msg->data.replica);
-
-      threading::ThreadMessaging::thread_messaging.add_task_after(
-        std::move(msg),
-        std::chrono::milliseconds(100)); // TODO: this should be configurable
+      catchup_state_machine->add_node(node_id);
     }
 
     // TODO: move this to thread 0
@@ -136,20 +117,6 @@ namespace aft
         state->network_state == ServiceState::NetworkState::not_open,
         "Cannot open a network current state is {}",
         state->network_state);
-
-      {
-        std::lock_guard<std::mutex> lock(state->configuration_lock);
-        for (auto& it : state->configuration)
-        {
-          if (it.first == state->my_node_id)
-          {
-            continue;
-          }
-          auto msg = std::make_unique<threading::Tmsg<SendStatusMsg>>(
-            &send_status_cb, it.second, this);
-          send_status_cb(std::move(msg));
-        }
-      }
 
       if (state->my_node_id == 0)
       {
@@ -214,6 +181,7 @@ namespace aft
     std::shared_ptr<ServiceState> state;
     std::unique_ptr<IStartupStateMachine> startup_state_machine;
     std::unique_ptr<IGlobalCommitHandler> global_commit_handler;
+    std::unique_ptr<ICatchupStateMachine> catchup_state_machine; 
     std::shared_ptr<EnclaveNetwork> network;
 
   };

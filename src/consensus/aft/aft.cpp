@@ -4,6 +4,7 @@
 #include "aft_network.h"
 #include "aft_types.h"
 #include "enclave/rpc_map.h"
+#include "impl/aft_state.h"
 #include "impl/global_commit_handler.h"
 #include "impl/state_machine.h"
 #include "kv/tx.h"
@@ -18,11 +19,15 @@ namespace aft
     std::shared_ptr<enclave::RPCMap> rpc_map,
     pbft::RequestsMap& pbft_requests_map)
   {
+
+    auto state = std::make_shared<ServiceState>(my_node_id);
+
     return std::make_unique<StateMachine>(
-      my_node_id,
+      state,
       cert,
       create_startup_state_machine(network, rpc_map, store, pbft_requests_map),
       create_global_commit_handler(store),
+      create_catchup_state_machine(state, network),
       network);
   }
 
