@@ -48,7 +48,6 @@ namespace aft
         // globally committed because we do not want to roll anything back.
         global_commit_handler->perform_global_commit(version, current_view);
         last_good_version = version;
-        LOG_INFO_FMT("PPPPPPPP updating version to {}", version);
         return;
       }
 
@@ -169,7 +168,6 @@ namespace aft
 
     void handle_open_network_message(OArray oa, kv::NodeId from)
     {
-      LOG_INFO_FMT("JJJJJ");
       if (network_state != NetworkState::not_open)
       {
         return;
@@ -178,10 +176,6 @@ namespace aft
       received_open_network_messages.insert(from);
       {
         std::lock_guard<std::mutex> lock(configuration_lock);
-        LOG_INFO_FMT(
-          "TTTTTT {} of {}",
-          received_open_network_messages.size(),
-          configuration.size());
         if (received_open_network_messages.size() == configuration.size())
         {
           LOG_INFO_FMT(
