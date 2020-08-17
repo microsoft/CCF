@@ -511,7 +511,8 @@ int main(int argc, char** argv)
   oversized::FragmentReconstructor fr(bp.get_dispatcher());
 
   // provide regular ticks to the enclave
-  asynchost::Ticker ticker(tick_period_ms, writer_factory, [](auto s) {
+  const std::chrono::milliseconds tick_period(tick_period_ms);
+  asynchost::Ticker ticker(tick_period, writer_factory, [](auto s) {
     logger::config::set_start(s);
   });
 
@@ -519,10 +520,10 @@ int main(int argc, char** argv)
   asynchost::ResetTCPReadQuota reset_tcp_quota;
 
   // regularly update the time given to the enclave
-  asynchost::TimeUpdater time_updater(1);
+  asynchost::TimeUpdater time_updater(1ms);
 
   // regularly record some load statistics
-  asynchost::LoadMonitor load_monitor(500, bp);
+  asynchost::LoadMonitor load_monitor(500ms, bp);
 
   // handle outbound messages from the enclave
   asynchost::HandleRingbuffer handle_ringbuffer(
@@ -539,7 +540,7 @@ int main(int argc, char** argv)
   // requesting port 0). The hostname and port may be modified - after calling
   // it holds the final assigned values.
   asynchost::NodeConnectionsTickingReconnect node(
-    20, //< Flush reconnections every 20ms
+    20ms, //< Flush reconnections every 20ms
     bp.get_dispatcher(),
     ledger,
     writer_factory,
