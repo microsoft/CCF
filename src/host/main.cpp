@@ -512,9 +512,8 @@ int main(int argc, char** argv)
 
   // provide regular ticks to the enclave
   const std::chrono::milliseconds tick_period(tick_period_ms);
-  asynchost::Ticker ticker(tick_period, writer_factory, [](auto s) {
-    logger::config::set_start(s);
-  });
+  asynchost::Ticker ticker(
+    tick_period, writer_factory, [](auto s) { logger::config::set_start(s); });
 
   // reset the inbound-TCP processing quota each iteration
   asynchost::ResetTCPReadQuota reset_tcp_quota;
