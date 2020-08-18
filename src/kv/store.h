@@ -348,9 +348,6 @@ namespace kv
 
       if (h)
       {
-        // For now, this is not atomic as a new transaction is created in
-        // init_from_snapshot() to read the views from the transaction. This is
-        // OK in practice as snapshots are deserialised sequentially.
         if (!h->init_from_snapshot(hash_at_snapshot))
         {
           return DeserialiseSuccess::FAILED;
