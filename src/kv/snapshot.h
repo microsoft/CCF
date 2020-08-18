@@ -10,6 +10,7 @@ namespace kv
   {
   private:
     std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>> snapshots;
+    std::optional<std::vector<uint8_t>> hash_at_snapshot = std::nullopt;
 
   public:
     StoreSnapshot() = default;
@@ -20,8 +21,18 @@ namespace kv
       snapshots.push_back(std::move(snapshot));
     }
 
+    void add_hash_at_snapshot(std::vector<uint8_t>&& hash_at_snapshot_)
+    {
+      hash_at_snapshot = std::move(hash_at_snapshot_);
+    }
+
     std::vector<uint8_t> serialise(KvStoreSerialiser& s) override
     {
+      if (hash_at_snapshot.has_value())
+      {
+        s.serialise_raw(hash_at_snapshot.value());
+      }
+
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
       {
         for (const auto& it : snapshots)
