@@ -330,7 +330,8 @@ namespace kv
       }
 
       // Each map is committed at a different version, independently of the
-      // snapshot version
+      // overall snapshot version. The commit versions for each map are
+      // contained in the snapshot and applied when the snapshot is committed.
       auto c = apply_views(views, []() { return NoVersion; });
       if (!c.has_value())
       {
