@@ -270,12 +270,14 @@ namespace kv
       return nullptr;
     }
 
-    void add_dynamic_map(kv::Version v, const std::shared_ptr<AbstractMap>& map) override
+    void add_dynamic_map(
+      kv::Version v, const std::shared_ptr<AbstractMap>& map) override
     {
       const auto map_name = map->get_name();
       if (get_map(v, map_name) != nullptr)
       {
-        throw std::logic_error(fmt::format("Can't add dynamic map - already have a map named {}", map_name));
+        throw std::logic_error(fmt::format(
+          "Can't add dynamic map - already have a map named {}", map_name));
       }
 
       dynamic_maps[map_name] = std::make_pair(v, map);

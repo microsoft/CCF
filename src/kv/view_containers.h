@@ -74,12 +74,13 @@ namespace kv
         break;
       }
 
-      for (const auto& [map_name, map_ptr]: new_maps)
+      for (const auto& [map_name, map_ptr] : new_maps)
       {
         // Check that none of these pending maps have already been created.
-        // It is possible for non-conflicting other transactions to commit here and increment the
-        // version, so we may ask this question at different versions. This is fine - none can create
-        // maps (ie - change their conflict set with this operation) while we hold the store lock
+        // It is possible for non-conflicting other transactions to commit here
+        // and increment the version, so we may ask this question at different
+        // versions. This is fine - none can create maps (ie - change their
+        // conflict set with this operation) while we hold the store lock
         auto store = map_ptr->get_store();
         if (store->get_map(store->current_version(), map_name) != nullptr)
         {
@@ -94,8 +95,9 @@ namespace kv
       // Get the version number to be used for this commit.
       version = f();
 
-      // Transfer ownership of these new maps to their target stores, iff we have writes to them
-      for (const auto& [map_name, map_ptr]: new_maps)
+      // Transfer ownership of these new maps to their target stores, iff we
+      // have writes to them
+      for (const auto& [map_name, map_ptr] : new_maps)
       {
         const auto it = views.find(map_name);
         if (it != views.end() && it->second.view->has_writes())
