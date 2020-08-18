@@ -150,12 +150,12 @@ int main(int argc, char** argv)
   app.add_option("--snapshot-dir", snapshot_dir, "Snapshots directory")
     ->capture_default_str();
 
-  size_t snapshot_min_tx = std::numeric_limits<std::size_t>::max();
+  size_t snapshot_max_tx = std::numeric_limits<std::size_t>::max();
   app
     .add_option(
-      "--snapshot-min-tx",
-      snapshot_min_tx,
-      "Minimum number of transactions between snapshots (experimental). "
+      "--snapshot-max-tx",
+      snapshot_max_tx,
+      "Maximum number of transactions between snapshots (experimental). "
       "Defaults to no snapshot.")
     ->capture_default_str();
 
@@ -607,7 +607,7 @@ int main(int argc, char** argv)
                                   node_address.port,
                                   rpc_address.port};
   ccf_config.domain = domain;
-  ccf_config.snapshot_interval = snapshot_min_tx;
+  ccf_config.snapshot_interval = snapshot_max_tx;
 
   if (*start)
   {

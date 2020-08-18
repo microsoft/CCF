@@ -116,7 +116,6 @@ namespace raft
     Index commit_idx;
     TermHistory term_history;
 
-    // Snapshot
     Index last_snapshot_idx;
 
     // Volatile
