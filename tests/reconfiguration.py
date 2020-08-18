@@ -25,6 +25,9 @@ def check_can_progress(node, timeout=3):
 @reqs.description("Adding a valid node from primary")
 def test_add_node(network, args):
     new_node = network.create_and_trust_node(args.package, "localhost", args)
+    with new_node.client() as c:
+        s = c.get("/node/state")
+        assert s.body["id"] == new_node.node_id
     assert new_node
     return network
 
