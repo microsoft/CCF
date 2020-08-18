@@ -6,7 +6,7 @@
 
 namespace consensus
 {
-  using Index = int64_t;
+  using Index = uint64_t;
 
   enum LedgerRequestPurpose : uint8_t
   {

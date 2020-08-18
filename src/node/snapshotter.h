@@ -15,14 +15,14 @@ namespace ccf
     ringbuffer::WriterPtr to_host;
     std::shared_ptr<kv::AbstractStore> store;
 
-    kv::Version last_snapshot_idx = 0;
+    consensus::Index last_snapshot_idx = 0;
     size_t snapshot_interval;
 
     void record_snapshot(
-      kv::Version version, const std::vector<uint8_t>& serialised_snapshot)
+      consensus::Index idx, const std::vector<uint8_t>& serialised_snapshot)
     {
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::ledger_snapshot, to_host, version, serialised_snapshot);
+        consensus::ledger_snapshot, to_host, idx, serialised_snapshot);
     }
 
   public:
@@ -35,24 +35,25 @@ namespace ccf
       snapshot_interval(snapshot_interval_)
     {}
 
-    std::optional<kv::Version> snapshot(kv::Version version)
+    std::optional<consensus::Index> snapshot(consensus::Index idx)
     {
-      if (version < last_snapshot_idx)
+      if (idx < last_snapshot_idx)
       {
         LOG_FAIL_FMT(
-          "Cannot snapshot at {} which is earlier than last snapshot at {}",
-          version,
+          "Cannot snapshot at idx {} which is earlier than last snapshot idx "
+          "{}",
+          idx,
           last_snapshot_idx);
         return std::nullopt;
       }
 
-      if ((unsigned)(version - last_snapshot_idx) > snapshot_interval)
+      if (idx - last_snapshot_idx > snapshot_interval)
       {
-        auto snapshot = store->serialise_snapshot(version);
-        record_snapshot(version, snapshot);
+        auto snapshot = store->serialise_snapshot(idx);
+        record_snapshot(idx, snapshot);
 
-        last_snapshot_idx = version;
-        return version;
+        last_snapshot_idx = idx;
+        return idx;
       }
 
       return std::nullopt;
