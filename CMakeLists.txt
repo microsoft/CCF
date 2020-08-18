@@ -578,7 +578,7 @@ if(BUILD_TESTS)
       NAME reconfiguration_snapshot_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
       CONSENSUS raft
-      ADDITIONAL_ARGS --snapshot-min-tx 10
+      ADDITIONAL_ARGS --snapshot-max-tx 10
     )
 
     add_e2e_test(
