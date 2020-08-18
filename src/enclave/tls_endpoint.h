@@ -180,8 +180,7 @@ namespace enclave
         }
 
         default:
-        {
-        }
+        {}
       }
 
       if (r < 0)
@@ -235,7 +234,7 @@ namespace enclave
       msg->data.self = this->shared_from_this();
       msg->data.data = data;
 
-      threading::ThreadMessaging::thread_messaging.add_task<SendRecvMsg>(
+      threading::ThreadMessaging::thread_messaging.add_task(
         execution_thread, std::move(msg));
     }
 
@@ -323,7 +322,7 @@ namespace enclave
       auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
       msg->data.self = this->shared_from_this();
 
-      threading::ThreadMessaging::thread_messaging.add_task<EmptyMsg>(
+      threading::ThreadMessaging::thread_messaging.add_task(
         execution_thread, std::move(msg));
     }
 
@@ -373,8 +372,7 @@ namespace enclave
         }
 
         default:
-        {
-        }
+        {}
       }
     }
 
@@ -473,8 +471,7 @@ namespace enclave
           return;
 
         default:
-        {
-        }
+        {}
       }
 
       status = status_;
@@ -504,8 +501,7 @@ namespace enclave
         }
 
         default:
-        {
-        }
+        {}
       }
     }
 

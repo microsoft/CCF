@@ -3,8 +3,6 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "replica.h"
-
 #include "append_entries.h"
 #include "checkpoint.h"
 #include "commit.h"
@@ -28,6 +26,7 @@
 #include "prepared_cert.h"
 #include "principal.h"
 #include "query_stable.h"
+#include "replica.h"
 #include "reply.h"
 #include "reply_stable.h"
 #include "request.h"
@@ -224,7 +223,7 @@ static void pre_verify_cb(std::unique_ptr<threading::Tmsg<PreVerifyCbMsg>> req)
   resp->data.self = self;
   resp->data.result = self->pre_verify(m);
 
-  threading::ThreadMessaging::thread_messaging.add_task<PreVerifyResultCbMsg>(
+  threading::ThreadMessaging::thread_messaging.add_task(
     threading::ThreadMessaging::main_thread, std::move(resp));
 }
 
@@ -353,7 +352,7 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
     msg->data.m = m;
     msg->data.self = this;
 
-    threading::ThreadMessaging::thread_messaging.add_task<PreVerifyCbMsg>(
+    threading::ThreadMessaging::thread_messaging.add_task(
       target_thread, std::move(msg));
   }
   else
