@@ -171,8 +171,8 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default="20KB",
     )
     parser.add_argument(
-        "--snapshot-min-tx",
-        help="Minimum number of transactions between two snapshots",
+        "--snapshot-max-tx",
+        help="Maximum number of transactions between two snapshots",
         default=None,
     )
 
