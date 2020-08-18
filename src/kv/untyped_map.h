@@ -423,7 +423,7 @@ namespace kv::untyped
       }
     }
 
-    class SnapshotTxView : public AbstractTxView
+    class SnapshotViewCommitter : public AbstractTxView
     {
     private:
       Map& map;
@@ -432,7 +432,7 @@ namespace kv::untyped
 
     public:
       template <typename... Ts>
-      SnapshotTxView(Map& m, Ts&&... ts) :
+      SnapshotViewCommitter(Map& m, Ts&&... ts) :
         map(m),
         change_set(std::forward<Ts>(ts)...)
       {}
@@ -484,7 +484,8 @@ namespace kv::untyped
       auto v = d.deserialise_entry_version();
       auto map_snapshot = d.deserialise_raw();
 
-      return new SnapshotTxView(*this, State::deserialize_map(map_snapshot), v);
+      return new SnapshotViewCommitter(
+        *this, State::deserialize_map(map_snapshot), v);
     }
 
     AbstractTxView* deserialise(
