@@ -76,6 +76,8 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
     REQUIRE(it.value() == "bar");
   }
 
+  const auto version_before = kv_store.current_version();
+
   {
     INFO("Multiple dynamic tables can be created in a single tx");
     auto tx = kv_store.create_tx();
@@ -97,6 +99,18 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
 
     // No writes => map is not created
     REQUIRE(kv_store.get<MapTypes::StringNum>("2") == nullptr);
+  }
+
+  {
+    INFO("Rollback can delete dynamic tables");
+    kv_store.rollback(version_before);
+
+    REQUIRE(kv_store.get<MapTypes::StringString>("1") == nullptr);
+    REQUIRE(kv_store.get<MapTypes::StringNum>("2") == nullptr);
+    REQUIRE(kv_store.get<MapTypes::NumString>("3") == nullptr);
+
+    // Previously created map is retained
+    REQUIRE(kv_store.get<MapTypes::StringString>(map_name) != nullptr);
   }
 }
 
@@ -273,7 +287,6 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
 }
 
 // TODO
-// - Rollback deletes dynamic maps
 // - If a transaction is mid-execution over a deleted-by-rollback map, it should
 // continue safely (and fail with conflict)
 // - Serialisation of map creation
