@@ -228,7 +228,6 @@ namespace kv
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
-      auto search = maps.find(name);
       if (has_map_internal(name))
         throw std::logic_error("Map already exists");
 
