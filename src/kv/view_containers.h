@@ -46,7 +46,6 @@ namespace kv
     // interleaved fashion.
     Version version = 0;
     bool has_writes = false;
-    bool has_creations = !new_maps.empty();
 
     for (auto it = views.begin(); it != views.end(); ++it)
     {
@@ -55,13 +54,6 @@ namespace kv
         it->second.map->lock();
         has_writes = true;
       }
-    }
-
-    // If we are creating any maps, then lock the Store where they'll be moved.
-    // Assume all are in the same Store
-    if (has_creations)
-    {
-      new_maps.begin()->second->get_store()->lock();
     }
 
     bool ok = true;
@@ -80,7 +72,7 @@ namespace kv
         // It is possible for non-conflicting other transactions to commit here
         // and increment the version, so we may ask this question at different
         // versions. This is fine - none can create maps (ie - change their
-        // conflict set with this operation) while we hold the store lock
+        // conflict set with this operation) while we hold the store lock. Assume that the caller is currently holding store->lock()
         auto store = map_ptr->get_store();
         if (store->get_map(store->current_version(), map_name) != nullptr)
         {
@@ -109,11 +101,6 @@ namespace kv
 
       for (auto it = views.begin(); it != views.end(); ++it)
         it->second.view->post_commit();
-    }
-
-    if (has_creations)
-    {
-      new_maps.begin()->second->get_store()->unlock();
     }
 
     for (auto it = views.begin(); it != views.end(); ++it)

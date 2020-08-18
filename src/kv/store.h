@@ -50,9 +50,9 @@ namespace kv
     // Tables, but its versioning invariants are ignored.
     const bool strict_versions = true;
 
-    DeserialiseSuccess commit_deserialised(OrderedViews& views, Version& v)
+    DeserialiseSuccess commit_deserialised(OrderedViews& views, Version& v, const MapCollection& new_maps)
     {
-      auto c = apply_views(views, [v]() { return v; });
+      auto c = apply_views(views, [v]() { return v; }, new_maps);
       if (!c.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
@@ -565,20 +565,23 @@ namespace kv
       // Deserialised transactions express read dependencies as versions,
       // rather than with the actual value read. As a result, they don't
       // need snapshot isolation on the map state, and so do not need to
-      // lock all the maps before creating the transaction.
+      // lock each of the maps before creating the transaction.
       std::lock_guard<SpinLock> mguard(maps_lock);
       OrderedViews views;
+      MapCollection new_maps;
 
       for (auto r = d.start_map(); r.has_value(); r = d.start_map())
       {
         const auto map_name = r.value();
 
-        auto search = maps.find(map_name);
-        if (search == maps.end())
+        auto map = get_map(v, map_name);
+        if (map == nullptr)
         {
-          LOG_FAIL_FMT("Failed to deserialise transaction at version {}", v);
-          LOG_DEBUG_FMT("No such map in store {}", map_name);
-          return DeserialiseSuccess::FAILED;
+          // TODO: Makes the same assumptions on privacy domain + replicated as BaseTx::get_tuple2
+          auto map_shared = std::make_shared<kv::untyped::Map>(this, map_name, kv::SecurityDomain::PRIVATE, true);
+          map = map_shared.get();
+          new_maps[map_name] = map_shared;
+          LOG_DEBUG_FMT("Creating map {} while deserialising transaction at version {}", map_name, v);
         }
 
         auto view_search = views.find(map_name);
@@ -594,7 +597,7 @@ namespace kv
         // version
         auto deserialise_version = (commit ? v : NoVersion);
         auto deserialised_write_set =
-          search->second->deserialise(d, deserialise_version);
+          map->deserialise(d, deserialise_version);
         if (deserialised_write_set == nullptr)
         {
           LOG_FAIL_FMT(
@@ -608,7 +611,7 @@ namespace kv
         // Take ownership of the produced write set, store it to be committed
         // later
         views[map_name] = {
-          search->second.get(),
+          map,
           std::unique_ptr<AbstractTxView>(deserialised_write_set)};
       }
 
@@ -622,7 +625,7 @@ namespace kv
 
       if (commit)
       {
-        success = commit_deserialised(views, v);
+        success = commit_deserialised(views, v, new_maps);
         if (success == DeserialiseSuccess::FAILED)
         {
           return success;

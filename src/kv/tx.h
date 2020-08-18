@@ -128,12 +128,14 @@ namespace kv
             throw std::logic_error("Created map without creating view over it");
           }
         }
+
         // TODO: Currently assuming all dynamic maps are replicated and private
         const bool replicated = true;
 
         auto new_map = std::make_shared<M>(
           store, map_name, kv::SecurityDomain::PRIVATE, replicated);
         created_maps[map_name] = new_map;
+        LOG_DEBUG_FMT("Creating new map '{}'", map_name);
 
         typed_map = new_map.get();
       }
@@ -247,8 +249,17 @@ namespace kv
       }
 
       auto store = view_list.begin()->second.map->get_store();
+
+      // If this transaction may create maps, ensure that commit gets a consistent view of the existing maps
+      if (!created_maps.empty())
+        this->store->lock();
+
       auto c = apply_views(
         view_list, [store]() { return store->next_version(); }, created_maps);
+
+      if (!created_maps.empty())
+        this->store->unlock();
+
       success = c.has_value();
 
       if (!success)

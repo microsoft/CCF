@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
+#include "kv/test/stub_consensus.h"
 
 #include <doctest/doctest.h>
 
@@ -283,6 +284,46 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
 
     REQUIRE(kv_store.get<MapTypes::NumString>(dynamic_map_a) != nullptr);
     REQUIRE(kv_store.get<MapTypes::StringNum>(dynamic_map_b) == nullptr);
+  }
+}
+
+TEST_CASE("Dynamic map serialisation" * doctest::test_suite("dynamic"))
+{
+  auto consensus = std::make_shared<kv::StubConsensus>();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+
+  kv::Store kv_store(consensus);
+  kv_store.set_encryptor(encryptor);
+
+  kv::Store kv_store_target;
+  kv_store_target.set_encryptor(encryptor);
+
+  const auto map_name = "new_map";
+  const auto key = "foo";
+  const auto value = "bar";
+
+  {
+    INFO("Commit a map creation in source store");
+    auto tx = kv_store.create_tx();
+    auto view = tx.get_view2<MapTypes::StringString>(map_name);
+    view->put(key, value);
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+
+  {
+    INFO("Deserialise transaction in target store");
+    const auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
+
+    REQUIRE(
+      kv_store_target.deserialise(latest_data.value()) ==
+      kv::DeserialiseSuccess::PASS);
+
+    auto tx_target = kv_store_target.create_tx();
+    auto view_target = tx_target.get_view2<MapTypes::StringString>(map_name);
+    const auto v = view_target->get(key);
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == value);
   }
 }
 
