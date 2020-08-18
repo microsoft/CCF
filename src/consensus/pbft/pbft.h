@@ -17,7 +17,7 @@
 #include "enclave/rpc_map.h"
 #include "enclave/rpc_sessions.h"
 #include "kv/kv_types.h"
-#include "node/nodetypes.h"
+#include "node/node_types.h"
 
 #include <list>
 #include <memory>

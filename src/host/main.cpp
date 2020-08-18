@@ -14,6 +14,7 @@
 #include "notify_connections.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
+#include "snapshot.h"
 #include "ticker.h"
 #include "time_updater.h"
 #include "version.h"
@@ -144,6 +145,19 @@ int main(int argc, char** argv)
       "Minimum size (bytes) at which a new ledger chunk is created.")
     ->capture_default_str()
     ->transform(CLI::AsSizeValue(true)); // 1000 is kb
+
+  std::string snapshot_dir("snapshots");
+  app.add_option("--snapshot-dir", snapshot_dir, "Snapshots directory")
+    ->capture_default_str();
+
+  size_t snapshot_max_tx = std::numeric_limits<std::size_t>::max();
+  app
+    .add_option(
+      "--snapshot-max-tx",
+      snapshot_max_tx,
+      "Maximum number of transactions between snapshots (experimental). "
+      "Defaults to no snapshot.")
+    ->capture_default_str();
 
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
@@ -534,6 +548,9 @@ int main(int argc, char** argv)
   asynchost::Ledger ledger(ledger_dir, writer_factory, ledger_min_bytes);
   ledger.register_message_handlers(bp.get_dispatcher());
 
+  asynchost::SnapshotManager snapshot(snapshot_dir);
+  snapshot.register_message_handlers(bp.get_dispatcher());
+
   // Begin listening for node-to-node and RPC messages.
   // This includes DNS resolution and potentially dynamic port assignment (if
   // requesting port 0). The hostname and port may be modified - after calling
@@ -590,6 +607,7 @@ int main(int argc, char** argv)
                                   node_address.port,
                                   rpc_address.port};
   ccf_config.domain = domain;
+  ccf_config.snapshot_interval = snapshot_max_tx;
 
   if (*start)
   {

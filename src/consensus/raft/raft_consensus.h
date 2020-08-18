@@ -13,14 +13,14 @@ namespace raft
   // the Raft API, allowing for a mapping between the generic consensus
   // terminology and the terminology that is specific to Raft
 
-  template <class LedgerProxy, class ChannelProxy>
+  template <class... T>
   class RaftConsensus : public kv::Consensus
   {
   private:
-    std::unique_ptr<Raft<LedgerProxy, ChannelProxy>> raft;
+    std::unique_ptr<Raft<T...>> raft;
 
   public:
-    RaftConsensus(std::unique_ptr<Raft<LedgerProxy, ChannelProxy>> raft_) :
+    RaftConsensus(std::unique_ptr<Raft<T...>> raft_) :
       Consensus(raft_->id()),
       raft(std::move(raft_))
     {}

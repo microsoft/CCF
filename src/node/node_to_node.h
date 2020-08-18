@@ -5,7 +5,7 @@
 #include "channels.h"
 #include "ds/serialized.h"
 #include "enclave/rpc_handler.h"
-#include "nodetypes.h"
+#include "node_types.h"
 
 #include <algorithm>
 #define FMT_HEADER_ONLY

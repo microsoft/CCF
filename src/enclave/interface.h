@@ -37,6 +37,7 @@ struct CCFConfig
   consensus::Config consensus_config = {};
   ccf::NodeInfoNetwork node_info_network = {};
   std::string domain;
+  size_t snapshot_interval;
 
   struct SignatureIntervals
   {
@@ -69,6 +70,7 @@ struct CCFConfig
     consensus_config,
     node_info_network,
     domain,
+    snapshot_interval,
     signature_intervals,
     genesis,
     joining);
