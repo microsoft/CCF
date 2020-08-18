@@ -119,6 +119,16 @@ namespace ccf
 
     void compact(kv::Version) override {}
 
+    bool init_from_snapshot(const std::vector<uint8_t>&) override
+    {
+      return true;
+    }
+
+    std::vector<uint8_t> get_raw_leaf(uint64_t) override
+    {
+      return {};
+    }
+
     void emit_signature() override
     {
       auto txid = store.next_txid();
@@ -303,6 +313,11 @@ namespace ccf
     ~MerkleTreeHistory()
     {
       mt_free(tree);
+    }
+
+    void deserialise(const std::vector<uint8_t>& serialised)
+    {
+      tree = mt_deserialize(serialised.data(), serialised.size());
     }
 
     void append(crypto::Sha256Hash& hash)
@@ -507,6 +522,34 @@ namespace ccf
       id = id_;
     }
 
+    bool init_from_snapshot(
+      const std::vector<uint8_t>& hash_at_snapshot) override
+    {
+      // The history can be initialised after a snapshot has been applied by
+      // deserialising the tree in the signatures table and then applying the
+      // hash of the transaction at which the snapshot was taken
+      kv::ReadOnlyTx tx;
+      auto sig_tv = tx.get_read_only_view(signatures);
+      auto sig = sig_tv->get(0);
+      if (!sig.has_value())
+      {
+        LOG_FAIL_FMT("No signature found in signatures map");
+        return false;
+      }
+
+      CCF_ASSERT_FMT(
+        !replicated_state_tree.in_range(1),
+        "Tree is not empty before initialising from snapshot");
+
+      replicated_state_tree.deserialise(sig->tree);
+
+      crypto::Sha256Hash hash;
+      std::copy_n(
+        hash_at_snapshot.begin(), crypto::Sha256Hash::SIZE, hash.h.begin());
+      replicated_state_tree.append(hash);
+      return true;
+    }
+
     crypto::Sha256Hash get_replicated_state_root() override
     {
       return replicated_state_tree.get_root();
@@ -615,6 +658,23 @@ namespace ccf
           },
           true);
       }
+    }
+
+    std::vector<uint8_t> get_receipt(kv::Version index) override
+    {
+      return replicated_state_tree.get_receipt(index).to_v();
+    }
+
+    bool verify_receipt(const std::vector<uint8_t>& v) override
+    {
+      Receipt r(v);
+      return replicated_state_tree.verify(r);
+    }
+
+    std::vector<uint8_t> get_raw_leaf(uint64_t index) override
+    {
+      auto leaf = replicated_state_tree.get_leaf(index);
+      return {leaf.h.begin(), leaf.h.end()};
     }
 
     bool add_request(
@@ -745,17 +805,6 @@ namespace ccf
     {
       LOG_DEBUG_FMT("HISTORY: add_response {0}", id);
       responses[id] = response;
-    }
-
-    std::vector<uint8_t> get_receipt(kv::Version index) override
-    {
-      return replicated_state_tree.get_receipt(index).to_v();
-    }
-
-    bool verify_receipt(const std::vector<uint8_t>& v) override
-    {
-      Receipt r(v);
-      return replicated_state_tree.verify(r);
     }
   };
 
