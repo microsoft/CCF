@@ -22,6 +22,10 @@ namespace kv
   // stable order to avoid deadlocks. This ordered map will claim in name-order
   using OrderedViews = std::map<std::string, MapView>;
 
+  // All collections of Map must be ordered so that we lock their contained
+  // maps in a stable order. The order here is by map name
+  using MapCollection = std::map<std::string, std::shared_ptr<AbstractMap>>;
+
   struct AbstractViewContainer
   {
     virtual ~AbstractViewContainer() = default;
@@ -32,7 +36,9 @@ namespace kv
   // to their underlying Maps. Calls f() at most once, iff the writes are
   // applied, to retrieve a unique Version for the write set.
   static inline std::optional<Version> apply_views(
-    OrderedViews& views, std::function<Version()> f)
+    OrderedViews& views,
+    std::function<Version()> f,
+    const MapCollection& new_maps = {})
   {
     // All maps with pending writes are locked, transactions are prepared
     // and possibly committed, and then all maps with pending writes are
@@ -40,6 +46,7 @@ namespace kv
     // interleaved fashion.
     Version version = 0;
     bool has_writes = false;
+    bool has_creations = !new_maps.empty();
 
     for (auto it = views.begin(); it != views.end(); ++it)
     {
@@ -50,7 +57,17 @@ namespace kv
       }
     }
 
+    // If we are creating any maps, then lock the Store where they'll be moved.
+    // Assume all are in the same Store
+    if (has_creations)
+    {
+      new_maps.begin()->second->get_store()->lock();
+    }
+
     bool ok = true;
+
+    // Need _a_ version for calls to get_map(). 
+
 
     for (auto it = views.begin(); it != views.end(); ++it)
     {
@@ -59,6 +76,19 @@ namespace kv
         ok = false;
         break;
       }
+
+      for (const auto& [map_name, map_ptr]: new_maps)
+      {
+        // It is possible for non-conflicting other transactions to commit here and increment the
+        // version, so we may ask this question at different versions. This is fine - none can create
+        // maps (ie - change their conflict set with this operation) while we hold the store lock
+        auto store = map_ptr->get_store();
+        if (store->get_map(store->current_version(), map_name) != nullptr)
+        {
+          ok = false;
+          break;
+        }
+      }
     }
 
     if (ok && has_writes)
@@ -66,11 +96,20 @@ namespace kv
       // Get the version number to be used for this commit.
       version = f();
 
+      // Transfer ownership of these new maps to their target stores
+      for (const auto& [map_name, map_ptr]: new_maps)
+        map_ptr->get_store()->add_dynamic_map(version, map_ptr);
+
       for (auto it = views.begin(); it != views.end(); ++it)
         it->second.view->commit(version);
 
       for (auto it = views.begin(); it != views.end(); ++it)
         it->second.view->post_commit();
+    }
+
+    if (has_creations)
+    {
+      new_maps.begin()->second->get_store()->unlock();
     }
 
     for (auto it = views.begin(); it != views.end(); ++it)

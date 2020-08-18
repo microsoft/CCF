@@ -412,6 +412,9 @@ namespace kv
 
     virtual ~AbstractStore() {}
 
+    virtual void lock() = 0;
+    virtual void unlock() = 0;
+
     virtual Version next_version() = 0;
     virtual TxID next_txid() = 0;
 
@@ -419,6 +422,11 @@ namespace kv
     virtual TxID current_txid() = 0;
 
     virtual Version commit_version() = 0;
+
+    virtual AbstractMap* get_map(
+      kv::Version v, const std::string& map_name) = 0;
+    virtual void add_dynamic_map(
+      kv::Version v, const std::shared_ptr<AbstractMap>& map) = 0;
 
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;

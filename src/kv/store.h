@@ -7,6 +7,7 @@
 #include "kv_types.h"
 #include "map.h"
 #include "snapshot.h"
+#include "tx.h"
 #include "view_containers.h"
 
 #include <fmt/format.h>
@@ -20,6 +21,10 @@ namespace kv
     // maps in a stable order. The order here is by map name
     using Maps = std::map<std::string, std::unique_ptr<AbstractMap>>;
     Maps maps;
+
+    using DynamicMaps = std::
+      map<std::string, std::pair<kv::Version, std::shared_ptr<AbstractMap>>>;
+    DynamicMaps dynamic_maps;
 
     std::shared_ptr<Consensus> consensus = nullptr;
     std::shared_ptr<TxHistory> history = nullptr;
@@ -59,6 +64,19 @@ namespace kv
         last_replicated = version;
       }
       return DeserialiseSuccess::PASS;
+    }
+
+    bool has_map_internal(const std::string& name)
+    {
+      auto search = maps.find(name);
+      if (search != maps.end())
+        return true;
+
+      auto dynamic_search = dynamic_maps.find(name);
+      if (dynamic_search != dynamic_maps.end())
+        return true;
+
+      return false;
     }
 
   public:
@@ -146,6 +164,17 @@ namespace kv
         return result;
       }
 
+      auto dynamic_search = dynamic_maps.find(name);
+      if (dynamic_search != dynamic_maps.end())
+      {
+        auto result = dynamic_cast<M*>(dynamic_search->second.second.get());
+
+        if (result == nullptr)
+          return nullptr;
+
+        return result;
+      }
+
       return nullptr;
     }
 
@@ -200,8 +229,9 @@ namespace kv
       std::lock_guard<SpinLock> mguard(maps_lock);
 
       auto search = maps.find(name);
-      if (search != maps.end())
+      if (has_map_internal(name))
         throw std::logic_error("Map already exists");
+
       auto replicated = true;
       if (replicate_type == kv::ReplicateType::NONE)
       {
@@ -218,6 +248,38 @@ namespace kv
       auto result = new M(this, name, security_domain, replicated);
       maps[name] = std::unique_ptr<AbstractMap>(result);
       return *result;
+    }
+
+    AbstractMap* get_map(kv::Version v, const std::string& map_name) override
+    {
+      auto search = maps.find(map_name);
+      if (search != maps.end())
+      {
+        return search->second.get();
+      }
+
+      auto dynamic_search = dynamic_maps.find(map_name);
+      if (dynamic_search != dynamic_maps.end())
+      {
+        const auto& [map_version, map_ptr] = dynamic_search->second;
+        if (map_version >= v)
+        {
+          return map_ptr.get();
+        }
+      }
+
+      return nullptr;
+    }
+
+    void add_dynamic_map(kv::Version v, const std::shared_ptr<AbstractMap>& map) override
+    {
+      const auto map_name = map->get_name();
+      if (get_map(v, map_name) != nullptr)
+      {
+        throw std::logic_error(fmt::format("Can't add dynamic map - already have a map named {}", map_name));
+      }
+
+      dynamic_maps[map_name] = std::make_pair(v, map);
     }
 
     std::vector<uint8_t> serialise_snapshot(Version v) override
@@ -408,6 +470,23 @@ namespace kv
 
       for (auto& map : maps)
         map.second->rollback(v);
+
+      // TODO: Lock dynamic maps? Or perhaps flatten both into a single
+      // container?
+      auto dynamic_it = dynamic_maps.begin();
+      while (dynamic_it != dynamic_maps.end())
+      {
+        auto& [map_creation_version, map] = dynamic_it->second;
+        if (map_creation_version > v)
+        {
+          dynamic_it = dynamic_maps.erase(dynamic_it);
+        }
+        else
+        {
+          map->rollback(v);
+          ++dynamic_it;
+        }
+      }
 
       for (auto& map : maps)
         map.second->unlock();
@@ -770,6 +849,16 @@ namespace kv
       }
     }
 
+    void lock() override
+    {
+      maps_lock.lock();
+    }
+
+    void unlock() override
+    {
+      maps_lock.unlock();
+    }
+
     Version next_version() override
     {
       std::lock_guard<SpinLock> vguard(version_lock);
@@ -893,6 +982,21 @@ namespace kv
         lhs->unlock();
         rhs->unlock();
       }
+    }
+
+    ReadOnlyTx create_read_only_tx()
+    {
+      return ReadOnlyTx(this);
+    }
+
+    Tx create_tx()
+    {
+      return Tx(this);
+    }
+
+    ReservedTx create_reserved_tx(Version v)
+    {
+      return ReservedTx(this, v);
     }
   };
 }

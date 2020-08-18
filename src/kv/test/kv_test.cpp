@@ -1175,13 +1175,25 @@ TEST_CASE("Dynamic table opacity" * doctest::test_suite("dynamic"))
   }
 
   {
+    INFO("Transaction results are persisted");
+    auto txx = kv_store.create_tx();
+    auto view = txx.get_view2<MapTypes::StringString>(map_name);
+    const auto v = view->get("foo");
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == "bar");
+  }
+
+  {
     INFO("Second transaction conflicts");
     REQUIRE(tx2.commit() == kv::CommitSuccess::CONFLICT);
+  }
 
-    INFO("Transaction can be rerun on existing map");
-
+  {
+    INFO("Conflicting transaction can be rerun, on existing map");
     auto tx3 = kv_store.create_tx();
     auto view3 = tx3.get_view2<MapTypes::StringString>(map_name);
+    const auto v = view3->get("foo");
+    REQUIRE(v.has_value());
     view3->put("foo", "baz");
 
     REQUIRE(tx3.commit() == kv::CommitSuccess::OK);
@@ -1246,7 +1258,7 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
       if (!v.has_value())
       {
         view2->put(key, "bar");
-        auto dynamic_view = tx2.get_view2<MapTypes::NumString>(dynamic_map_b);
+        auto dynamic_view = tx2.get_view2<MapTypes::StringNum>(dynamic_map_b);
         dynamic_view->put("hello world", 42);
       }
     }
@@ -1258,3 +1270,11 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
     REQUIRE(kv_store.get<MapTypes::StringNum>(dynamic_map_b) == nullptr);
   }
 }
+
+// TODO
+// - Rollback deletes dynamic maps
+// - Creating multiple maps in a single transaction
+// - Can only see maps created at or after your read version
+// - If a transaction is mid-execution over a deleted-by-rollback map, it should
+// continue safely (and fail with conflict)
+// - Serialisation of map creation
