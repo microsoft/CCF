@@ -178,67 +178,36 @@ TEST_CASE(
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
+  auto& static_map = kv_store.create<MapTypes::StringString>("static_map");
+
   constexpr auto map_name = "dynamic_map";
 
   auto tx1 = kv_store.create_tx();
   auto tx2 = kv_store.create_tx();
+  auto tx3 = kv_store.create_tx();
+  auto tx4 = kv_store.create_tx();
 
   auto view1 = tx1.get_view2<MapTypes::StringString>(map_name);
   view1->put("foo", "bar");
-  REQUIRE(view1->get("foo").value() == "bar");
 
+  // Map created in tx1 is not visible
   auto view2 = tx2.get_view2<MapTypes::StringString>(map_name);
-  view2->put("foo", "baz");
-  REQUIRE(view2->get("foo").value() == "baz");
+  REQUIRE(!view2->get("foo").has_value());
 
-  {
-    INFO("Maps are not visible externally until commit");
-    REQUIRE(kv_store.get<MapTypes::StringString>(map_name) == nullptr);
-  }
+  // tx3 takes a read dependency at an early version, before the map is visible
+  auto view3_static = tx3.get_view(static_map);
 
-  {
-    INFO("First transaction commits successfully");
-    REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
-  }
+  REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
-  {
-    INFO("Committed transaction results are persisted");
-    auto txx = kv_store.create_tx();
-    auto view = txx.get_view2<MapTypes::StringString>(map_name);
-    const auto v = view->get("foo");
-    REQUIRE(v.has_value());
-    REQUIRE(v.value() == "bar");
-  }
+  // Even after commit, the new map is not visible to tx3 because it is reading
+  // from an earlier version
+  auto view3 = tx3.get_view2<MapTypes::StringString>(map_name);
+  REQUIRE(!view3->get("foo").has_value());
 
-  {
-    INFO("Second transaction conflicts");
-    REQUIRE(tx2.commit() == kv::CommitSuccess::CONFLICT);
-  }
-
-  {
-    INFO("Conflicting transaction can be rerun, on existing map");
-    auto tx3 = kv_store.create_tx();
-    auto view3 = tx3.get_view2<MapTypes::StringString>(map_name);
-    const auto v = view3->get("foo");
-    REQUIRE(v.has_value());
-    view3->put("foo", "baz");
-    REQUIRE(view3->get("foo").value() == "baz");
-
-    REQUIRE(tx3.commit() == kv::CommitSuccess::OK);
-  }
-
-  {
-    REQUIRE(kv_store.get<MapTypes::StringString>(map_name) != nullptr);
-  }
-
-  {
-    INFO("Subsequent transactions over dynamic map are persisted");
-    auto tx4 = kv_store.create_tx();
-    auto view4 = tx4.get_view2<MapTypes::StringString>(map_name);
-    const auto v = view4->get("foo");
-    REQUIRE(v.has_value());
-    REQUIRE(v.value() == "baz");
-  }
+  // Map created in tx1 is visible, because tx4 first _reads_ (creates a
+  // view) after tx1 has committed
+  auto view4 = tx4.get_view2<MapTypes::StringString>(map_name);
+  REQUIRE(view4->get("foo").has_value());
 }
 
 TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
@@ -305,7 +274,6 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
 
 // TODO
 // - Rollback deletes dynamic maps
-// - Can only see maps created at or after your read version
 // - If a transaction is mid-execution over a deleted-by-rollback map, it should
 // continue safely (and fail with conflict)
 // - Serialisation of map creation
