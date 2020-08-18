@@ -11,7 +11,7 @@
 #include "node/historical_queries.h"
 #include "node/network_state.h"
 #include "node/node_state.h"
-#include "node/nodetypes.h"
+#include "node/node_types.h"
 #include "node/notifier.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/node_frontend.h"

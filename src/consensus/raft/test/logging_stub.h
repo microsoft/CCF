@@ -6,6 +6,7 @@
 #include "consensus/raft/raft_types.h"
 
 #include <map>
+#include <optional>
 #include <vector>
 
 namespace raft
@@ -87,32 +88,36 @@ namespace raft
 
     void close_all_outgoing() {}
 
-    void send_authenticated(
+    bool send_authenticated(
       const ccf::NodeMsgType& msg_type, NodeId to, const RequestVote& data)
     {
       sent_request_vote.push_back(std::make_pair(to, data));
+      return true;
     }
 
-    void send_authenticated(
+    bool send_authenticated(
       const ccf::NodeMsgType& msg_type, NodeId to, const AppendEntries& data)
     {
       sent_append_entries.push_back(std::make_pair(to, data));
+      return true;
     }
 
-    void send_authenticated(
+    bool send_authenticated(
       const ccf::NodeMsgType& msg_type,
       NodeId to,
       const RequestVoteResponse& data)
     {
       sent_request_vote_response.push_back(std::make_pair(to, data));
+      return true;
     }
 
-    void send_authenticated(
+    bool send_authenticated(
       const ccf::NodeMsgType& msg_type,
       NodeId to,
       const AppendEntriesResponse& data)
     {
       sent_append_entries_response.push_back(std::make_pair(to, data));
+      return true;
     }
 
     size_t sent_msg_count() const
@@ -182,6 +187,16 @@ namespace raft
       Term* term = nullptr) override
     {
       return kv::DeserialiseSuccess::PASS_SIGNATURE;
+    }
+  };
+
+  class StubSnapshotter
+  {
+  public:
+    std::optional<kv::Version> snapshot(kv::Version version)
+    {
+      // For now, do not test snapshots in unit tests
+      return std::nullopt;
     }
   };
 }
