@@ -1081,3 +1081,180 @@ TEST_CASE("Conflict resolution")
   REQUIRE_THROWS(tx1.commit());
   REQUIRE_THROWS(tx2.commit());
 }
+
+TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
+{
+  kv::Store kv_store;
+
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+
+  constexpr auto map_name = "mapA";
+
+  INFO("Dynamically created maps can be used like normal maps");
+
+  {
+    auto map_a = kv_store.get<MapTypes::StringString>(map_name);
+    REQUIRE(map_a == nullptr);
+  }
+
+  {
+    auto tx = kv_store.create_tx();
+
+    auto view = tx.get_view2<MapTypes::StringString>(map_name);
+    view->put("foo", "bar");
+
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+
+  {
+    INFO("Old style access");
+    auto map_a = kv_store.get<MapTypes::StringString>(map_name);
+    REQUIRE(map_a != nullptr);
+
+    auto tx = kv_store.create_tx();
+
+    auto view = tx.get_view(*map_a);
+    const auto it = view->get("foo");
+    REQUIRE(it.has_value());
+    REQUIRE(it.value() == "bar");
+  }
+
+  {
+    INFO("New style access");
+    auto tx = kv_store.create_tx();
+
+    auto view = tx.get_view2<MapTypes::StringString>(map_name);
+    const auto it = view->get("foo");
+    REQUIRE(it.has_value());
+    REQUIRE(it.value() == "bar");
+  }
+
+  {
+    INFO("Dynamic tables remain through compaction");
+    kv_store.compact(kv_store.current_version());
+
+    auto map_a = kv_store.get<MapTypes::StringString>(map_name);
+    REQUIRE(map_a != nullptr);
+
+    auto tx = kv_store.create_tx();
+
+    auto view = tx.get_view(*map_a);
+    const auto it = view->get("foo");
+    REQUIRE(it.has_value());
+    REQUIRE(it.value() == "bar");
+  }
+}
+
+TEST_CASE("Dynamic table opacity" * doctest::test_suite("dynamic"))
+{
+  kv::Store kv_store;
+
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+
+  constexpr auto map_name = "dynamic_map";
+
+  auto tx1 = kv_store.create_tx();
+  auto tx2 = kv_store.create_tx();
+
+  auto view1 = tx1.get_view2<MapTypes::StringString>(map_name);
+  view1->put("foo", "bar");
+
+  auto view2 = tx2.get_view2<MapTypes::StringString>(map_name);
+  view2->put("foo", "baz");
+
+  {
+    INFO("Maps are not visible externally until commit");
+    REQUIRE(kv_store.get<MapTypes::StringString>(map_name) == nullptr);
+  }
+
+  {
+    INFO("First transaction commits successfully");
+    REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
+  }
+
+  {
+    INFO("Second transaction conflicts");
+    REQUIRE(tx2.commit() == kv::CommitSuccess::CONFLICT);
+
+    INFO("Transaction can be rerun on existing map");
+
+    auto tx3 = kv_store.create_tx();
+    auto view3 = tx3.get_view2<MapTypes::StringString>(map_name);
+    view3->put("foo", "baz");
+
+    REQUIRE(tx3.commit() == kv::CommitSuccess::OK);
+  }
+
+  {
+    INFO("Subsequent transactions over dynamic map are persisted");
+    auto tx4 = kv_store.create_tx();
+    auto view4 = tx4.get_view2<MapTypes::StringString>(map_name);
+    const auto v = view4->get("foo");
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == "baz");
+  }
+}
+
+TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
+{
+  kv::Store kv_store;
+
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+
+  constexpr auto dynamic_map_a = "dynamic_map_a";
+  constexpr auto dynamic_map_b = "dynamic_map_b";
+
+  auto& static_map = kv_store.create<MapTypes::StringString>("static_map");
+
+  SUBCASE("Parallel independent map creation")
+  {
+    auto tx1 = kv_store.create_tx();
+    auto tx2 = kv_store.create_tx();
+
+    auto view1 = tx1.get_view2<MapTypes::NumString>(dynamic_map_a);
+    auto view2 = tx2.get_view2<MapTypes::StringNum>(dynamic_map_b);
+
+    view1->put(42, "hello");
+    view2->put("hello", 42);
+
+    REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+  }
+
+  SUBCASE("Map creation blocked by standard conflict")
+  {
+    constexpr auto key = "foo";
+    auto tx1 = kv_store.create_tx();
+    {
+      auto view1 = tx1.get_view(static_map);
+      const auto v = view1->get(key);
+      if (!v.has_value())
+      {
+        view1->put(key, "bar");
+        auto dynamic_view = tx1.get_view2<MapTypes::NumString>(dynamic_map_a);
+        dynamic_view->put(42, "hello world");
+      }
+    }
+
+    auto tx2 = kv_store.create_tx();
+    {
+      auto view2 = tx2.get_view(static_map);
+      const auto v = view2->get(key);
+      if (!v.has_value())
+      {
+        view2->put(key, "bar");
+        auto dynamic_view = tx2.get_view2<MapTypes::NumString>(dynamic_map_b);
+        dynamic_view->put("hello world", 42);
+      }
+    }
+
+    REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx2.commit() == kv::CommitSuccess::CONFLICT);
+
+    REQUIRE(kv_store.get<MapTypes::NumString>(dynamic_map_a) != nullptr);
+    REQUIRE(kv_store.get<MapTypes::StringNum>(dynamic_map_b) == nullptr);
+  }
+}
