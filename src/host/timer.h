@@ -18,7 +18,7 @@ namespace asynchost
     friend class close_ptr<Timer<Behaviour>>;
 
     template <typename... Args>
-    Timer(uint64_t repeat_ms, Args&&... args) :
+    Timer(std::chrono::milliseconds repeat_ms, Args&&... args) :
       behaviour(std::forward<Args>(args)...)
     {
       int rc;
@@ -31,7 +31,7 @@ namespace asynchost
 
       uv_handle.data = this;
 
-      if ((rc = uv_timer_start(&uv_handle, on_timer, 0, repeat_ms)) < 0)
+      if ((rc = uv_timer_start(&uv_handle, on_timer, 0, repeat_ms.count())) < 0)
       {
         LOG_FAIL_FMT("uv_timer_start failed: {}", uv_strerror(rc));
         throw std::logic_error("uv_timer_start failed");
