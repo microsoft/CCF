@@ -251,6 +251,12 @@ namespace kv
           snapshot.add_map_snapshot(map.second->snapshot(v));
         }
 
+        auto h = get_history();
+        if (h)
+        {
+          snapshot.add_hash_at_snapshot(h->get_raw_leaf(v));
+        }
+
         for (auto& map : maps)
         {
           map.second->unlock();
@@ -277,14 +283,16 @@ namespace kv
       }
       auto v = v_.value();
 
-      std::lock_guard<SpinLock> mguard(maps_lock);
-
-      for (auto& map : maps)
+      std::vector<uint8_t> hash_at_snapshot;
+      auto h = get_history();
+      if (h)
       {
-        map.second->lock();
+        hash_at_snapshot = d.deserialise_raw();
       }
 
-      bool success = true;
+      std::lock_guard<SpinLock> mguard(maps_lock);
+
+      OrderedViews views;
       for (auto r = d.start_map(); r.has_value(); r = d.start_map())
       {
         const auto map_name = r.value();
@@ -294,30 +302,41 @@ namespace kv
         {
           LOG_FAIL_FMT("Failed to deserialise snapshot at version {}", v);
           LOG_DEBUG_FMT("No such map in store {}", map_name);
-          success = false;
-          break;
+          return DeserialiseSuccess::FAILED;
         }
 
-        auto map_version = d.deserialise_entry_version();
-        auto map_snapshot = d.deserialise_raw();
+        auto view_search = views.find(map_name);
+        if (view_search != views.end())
+        {
+          LOG_FAIL_FMT("Failed to deserialise snapshot at version {}", v);
+          LOG_DEBUG_FMT("Multiple writes on map {}", map_name);
+          return DeserialiseSuccess::FAILED;
+        }
 
-        search->second->apply_snapshot(map_version, map_snapshot);
-      }
+        auto deserialise_snapshot_view =
+          search->second->deserialise_snapshot(d);
 
-      for (auto& map : maps)
-      {
-        map.second->unlock();
-      }
-
-      if (!success)
-      {
-        return DeserialiseSuccess::FAILED;
+        // Take ownership of the produced view, store it to be committed
+        // later
+        views[map_name] = {
+          search->second.get(),
+          std::unique_ptr<AbstractTxView>(deserialise_snapshot_view)};
       }
 
       if (!d.end())
       {
         LOG_FAIL_FMT("Unexpected content in snapshot at version {}", v);
-        success = false;
+        return DeserialiseSuccess::FAILED;
+      }
+
+      // Each map is committed at a different version, independently of the
+      // overall snapshot version. The commit versions for each map are
+      // contained in the snapshot and applied when the snapshot is committed.
+      auto c = apply_views(views, []() { return NoVersion; });
+      if (!c.has_value())
+      {
+        LOG_FAIL_FMT("Failed to commit deserialised snapshot at version {}", v);
+        return DeserialiseSuccess::FAILED;
       }
 
       {
@@ -325,6 +344,14 @@ namespace kv
         version = v;
         last_replicated = v;
         last_committable = v;
+      }
+
+      if (h)
+      {
+        if (!h->init_from_snapshot(hash_at_snapshot))
+        {
+          return DeserialiseSuccess::FAILED;
+        }
       }
 
       return DeserialiseSuccess::PASS;
@@ -452,7 +479,6 @@ namespace kv
       // deserialisation will then fail.
       auto e = get_encryptor();
 
-      // create the first deserialiser
       auto d = KvStoreDeserialiser(
         e,
         public_only ? kv::SecurityDomain::PUBLIC :
@@ -509,27 +535,17 @@ namespace kv
           return DeserialiseSuccess::FAILED;
         }
 
-        // if we are not committing now then use NoVersion to deserialise
+        // If we are not committing now then use NoVersion to deserialise
         // otherwise the view will be considered as having a committed
         // version
         auto deserialise_version = (commit ? v : NoVersion);
-        auto deserialised_write_set =
+        auto deserialised_view =
           search->second->deserialise(d, deserialise_version);
-        if (deserialised_write_set == nullptr)
-        {
-          LOG_FAIL_FMT(
-            "Failed to deserialise transaction at version {}",
-            deserialise_version);
-          LOG_DEBUG_FMT(
-            "Could not deserialise transaction for map {}", map_name);
-          return DeserialiseSuccess::FAILED;
-        }
 
-        // Take ownership of the produced write set, store it to be committed
+        // Take ownership of the produced view, store it to be applied
         // later
-        views[map_name] = {
-          search->second.get(),
-          std::unique_ptr<AbstractTxView>(deserialised_write_set)};
+        views[map_name] = {search->second.get(),
+                           std::unique_ptr<AbstractTxView>(deserialised_view)};
       }
 
       if (!d.end())
@@ -557,7 +573,7 @@ namespace kv
           // a signature and must be verified
           if (views.size() > 1)
           {
-            LOG_FAIL_FMT("Failed to deserialize");
+            LOG_FAIL_FMT("Failed to deserialise");
             LOG_DEBUG_FMT("Unexpected contents in signature transaction {}", v);
             return DeserialiseSuccess::FAILED;
           }
@@ -566,7 +582,7 @@ namespace kv
           {
             if (!h->verify(term_))
             {
-              LOG_FAIL_FMT("Failed to deserialize");
+              LOG_FAIL_FMT("Failed to deserialise");
               LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
               return DeserialiseSuccess::FAILED;
             }
@@ -585,7 +601,7 @@ namespace kv
         // contain anything else
         if (views.size() > 1)
         {
-          LOG_FAIL_FMT("Failed to deserialize");
+          LOG_FAIL_FMT("Failed to deserialise");
           LOG_DEBUG_FMT("Unexpected contents in pbft transaction {}", v);
           return DeserialiseSuccess::FAILED;
         }
@@ -694,12 +710,15 @@ namespace kv
 
       {
         std::lock_guard<SpinLock> vguard(version_lock);
-        // This can happen when a transaction started before a view change,
-        // but tries to commit after the view change is complete.
-        LOG_DEBUG_FMT(
-          "Want to commit for term {}, term is {}", txid.term, term);
         if (txid.term != term)
+        {
+          // This can happen when a transaction started before a view change,
+          // but tries to commit after the view change is complete.
+          LOG_DEBUG_FMT(
+            "Want to commit for term {}, term is {}", txid.term, term);
+
           return CommitSuccess::NO_REPLICATE;
+        }
 
         if (globally_committable && txid.version > last_committable)
           last_committable = txid.version;

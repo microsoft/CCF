@@ -349,7 +349,7 @@ namespace champ
   public:
     Map() : root(std::make_shared<SubNodes<K, V, H>>()) {}
 
-    Map<K, V, H> static deserialize_map(CBuffer serialized_state)
+    static Map<K, V, H> deserialize_map(CBuffer serialized_state)
     {
       Map<K, V, H> map;
       const uint8_t* data = serialized_state.p;
