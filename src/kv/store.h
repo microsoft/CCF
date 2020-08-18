@@ -261,8 +261,8 @@ namespace kv
       auto dynamic_search = dynamic_maps.find(map_name);
       if (dynamic_search != dynamic_maps.end())
       {
-        const auto& [map_version, map_ptr] = dynamic_search->second;
-        if (map_version >= v)
+        const auto& [map_creation_version, map_ptr] = dynamic_search->second;
+        if (v >= map_creation_version)
         {
           return map_ptr.get();
         }
