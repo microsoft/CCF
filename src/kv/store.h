@@ -576,7 +576,7 @@ namespace kv
           // a signature and must be verified
           if (views.size() > 1)
           {
-            LOG_FAIL_FMT("Failed to deserialize");
+            LOG_FAIL_FMT("Failed to deserialise");
             LOG_DEBUG_FMT("Unexpected contents in signature transaction {}", v);
             return DeserialiseSuccess::FAILED;
           }
@@ -585,7 +585,7 @@ namespace kv
           {
             if (!h->verify(term_))
             {
-              LOG_FAIL_FMT("Failed to deserialize");
+              LOG_FAIL_FMT("Failed to deserialise");
               LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
               return DeserialiseSuccess::FAILED;
             }
@@ -604,7 +604,7 @@ namespace kv
         // contain anything else
         if (views.size() > 1)
         {
-          LOG_FAIL_FMT("Failed to deserialize");
+          LOG_FAIL_FMT("Failed to deserialise");
           LOG_DEBUG_FMT("Unexpected contents in pbft transaction {}", v);
           return DeserialiseSuccess::FAILED;
         }
