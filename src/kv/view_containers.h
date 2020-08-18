@@ -66,9 +66,6 @@ namespace kv
 
     bool ok = true;
 
-    // Need _a_ version for calls to get_map(). 
-
-
     for (auto it = views.begin(); it != views.end(); ++it)
     {
       if (!it->second.view->prepare())
@@ -79,6 +76,7 @@ namespace kv
 
       for (const auto& [map_name, map_ptr]: new_maps)
       {
+        // Check that none of these pending maps have already been created.
         // It is possible for non-conflicting other transactions to commit here and increment the
         // version, so we may ask this question at different versions. This is fine - none can create
         // maps (ie - change their conflict set with this operation) while we hold the store lock
@@ -96,9 +94,13 @@ namespace kv
       // Get the version number to be used for this commit.
       version = f();
 
-      // Transfer ownership of these new maps to their target stores
+      // Transfer ownership of these new maps to their target stores, iff we have writes to them
       for (const auto& [map_name, map_ptr]: new_maps)
-        map_ptr->get_store()->add_dynamic_map(version, map_ptr);
+      {
+        const auto it = views.find(map_name);
+        if (it != views.end() && it->second.view->has_writes())
+          map_ptr->get_store()->add_dynamic_map(version, map_ptr);
+      }
 
       for (auto it = views.begin(); it != views.end(); ++it)
         it->second.view->commit(version);
