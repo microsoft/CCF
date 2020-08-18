@@ -190,7 +190,7 @@ namespace raft
     }
   };
 
-  class StubSnashotter
+  class StubSnapshotter
   {
   public:
     std::optional<kv::Version> snapshot(kv::Version version)

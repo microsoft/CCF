@@ -17,7 +17,7 @@
 
 using ms = std::chrono::milliseconds;
 using TRaft = raft::
-  Raft<raft::LedgerStubProxy, raft::ChannelStubProxy, raft::StubSnashotter>;
+  Raft<raft::LedgerStubProxy, raft::ChannelStubProxy, raft::StubSnapshotter>;
 using Store = raft::LoggingStubStore;
 using Adaptor = raft::Adaptor<Store, kv::DeserialiseSuccess>;
 
@@ -47,7 +47,7 @@ public:
         std::make_unique<Adaptor>(kv),
         std::make_unique<raft::LedgerStubProxy>(node_id),
         std::make_shared<raft::ChannelStubProxy>(),
-        std::make_shared<raft::StubSnashotter>(),
+        std::make_shared<raft::StubSnapshotter>(),
         node_id,
         ms(10),
         ms(i * 100));
