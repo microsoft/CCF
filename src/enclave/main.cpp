@@ -161,7 +161,7 @@ extern "C"
 
       LOG_INFO_FMT("All threads are ready!");
 
-      if (tid == 0)
+      if (tid == threading::MAIN_THREAD_ID)
       {
         auto s = e.load()->run_main();
         while (num_complete_threads !=
