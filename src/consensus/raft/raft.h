@@ -117,8 +117,6 @@ namespace raft
     Index commit_idx;
     TermHistory term_history;
 
-    Index last_snapshot_idx;
-
     // Volatile
     NodeId leader_id;
     std::unordered_set<NodeId> votes_for_me;
@@ -174,7 +172,6 @@ namespace raft
       voted_for(NoNode),
       last_idx(0),
       commit_idx(0),
-      last_snapshot_idx(0),
 
       leader_id(NoNode),
 
@@ -1180,11 +1177,7 @@ namespace raft
       LOG_DEBUG_FMT("Compacting...");
       if (state == Leader)
       {
-        auto snapshot_idx = snapshotter->snapshot(idx);
-        if (snapshot_idx.has_value())
-        {
-          last_snapshot_idx = snapshot_idx.value();
-        }
+        snapshotter->snapshot(idx);
       }
       store->compact(idx);
       ledger->commit(idx);

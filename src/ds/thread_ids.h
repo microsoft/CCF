@@ -10,13 +10,15 @@
 
 namespace threading
 {
+  static constexpr size_t MAIN_THREAD_ID = 0;
+
   extern std::map<std::thread::id, uint16_t> thread_ids;
 
   static inline uint16_t get_current_thread_id()
   {
     if (thread_ids.empty())
     {
-      return 0;
+      return MAIN_THREAD_ID;
     }
 
     const auto tid = std::this_thread::get_id();

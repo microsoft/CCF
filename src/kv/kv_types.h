@@ -408,9 +408,9 @@ namespace kv
     {
     public:
       virtual ~AbstractSnapshot() = default;
-      virtual void add_map_snapshot(
-        std::unique_ptr<kv::AbstractMap::Snapshot> snapshot) = 0;
-      virtual std::vector<uint8_t> serialise(KvStoreSerialiser& s) = 0;
+      virtual Version get_version() const = 0;
+      virtual std::vector<uint8_t> serialise(
+        std::shared_ptr<AbstractTxEncryptor> encryptor) = 0;
     };
 
     virtual ~AbstractStore() {}
@@ -436,7 +436,9 @@ namespace kv
     virtual CommitSuccess commit(
       const TxID& txid, PendingTx&& pending_tx, bool globally_committable) = 0;
 
-    virtual std::vector<uint8_t> serialise_snapshot(Version v) = 0;
+    virtual std::unique_ptr<AbstractSnapshot> snapshot(Version v) = 0;
+    virtual std::vector<uint8_t> serialise_snapshot(
+      std::unique_ptr<AbstractSnapshot> snapshot) = 0;
     virtual DeserialiseSuccess deserialise_snapshot(
       const std::vector<uint8_t>& data) = 0;
 

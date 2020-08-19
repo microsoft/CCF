@@ -245,7 +245,7 @@ namespace ccf
       open_node_frontend();
 
       snapshotter = std::make_shared<Snapshotter>(
-        writer_factory, network.tables, args.config.snapshot_interval);
+        writer_factory, network, args.config.snapshot_interval);
 
 #ifdef GET_QUOTE
       if (network.consensus_type != ConsensusType::PBFT)
