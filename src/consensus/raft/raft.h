@@ -6,7 +6,7 @@
 #include "ds/serialized.h"
 #include "ds/spin_lock.h"
 #include "kv/kv_types.h"
-#include "node/nodetypes.h"
+#include "node/node_types.h"
 #include "raft_types.h"
 
 #include <algorithm>
@@ -71,7 +71,7 @@ namespace raft
     }
   };
 
-  template <class LedgerProxy, class ChannelProxy>
+  template <class LedgerProxy, class ChannelProxy, class SnapshotterProxy>
   class Raft
   {
   private:
@@ -84,22 +84,23 @@ namespace raft
 
     struct NodeState
     {
-      // the highest matching index with the node that was confirmed
-      Index match_idx;
+      Configuration::NodeInfo node_info;
+
       // the highest index sent to the node
       Index sent_idx;
 
-      Configuration::NodeInfo node_info;
+      // the highest matching index with the node that was confirmed
+      Index match_idx;
 
       NodeState() = default;
 
       NodeState(
-        Index match_idx_,
+        const Configuration::NodeInfo& node_info_,
         Index sent_idx_,
-        const Configuration::NodeInfo& node_info_) :
-        match_idx(match_idx_),
+        Index match_idx_ = 0) :
+        node_info(node_info_),
         sent_idx(sent_idx_),
-        node_info(node_info_)
+        match_idx(match_idx_)
       {}
     };
 
@@ -114,6 +115,8 @@ namespace raft
     Index last_idx;
     Index commit_idx;
     TermHistory term_history;
+
+    Index last_snapshot_idx;
 
     // Volatile
     NodeId leader_id;
@@ -151,12 +154,14 @@ namespace raft
     static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
     std::shared_ptr<ChannelProxy> channels;
+    std::shared_ptr<SnapshotterProxy> snapshotter;
 
   public:
     Raft(
       std::unique_ptr<Store<kv::DeserialiseSuccess>> store,
       std::unique_ptr<LedgerProxy> ledger_,
       std::shared_ptr<ChannelProxy> channels_,
+      std::shared_ptr<SnapshotterProxy> snapshotter_,
       NodeId id,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
@@ -168,6 +173,7 @@ namespace raft
       voted_for(NoNode),
       last_idx(0),
       commit_idx(0),
+      last_snapshot_idx(0),
 
       leader_id(NoNode),
 
@@ -182,7 +188,8 @@ namespace raft
       rand((int)(uintptr_t)this),
 
       ledger(std::move(ledger_)),
-      channels(channels_)
+      channels(channels_),
+      snapshotter(snapshotter_)
 
     {}
 
@@ -507,12 +514,16 @@ namespace raft
 
       auto& node = nodes.at(to);
 
-      // Record the most recent index we have sent to this node.
-      node.sent_idx = end_idx;
-
       // The host will append log entries to this message when it is
       // sent to the destination node.
-      channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, ae);
+      if (!channels->send_authenticated(
+            ccf::NodeMsgType::consensus_msg, to, ae))
+      {
+        return;
+      }
+
+      // Record the most recent index we have sent to this node.
+      node.sent_idx = end_idx;
     }
 
     void recv_append_entries(const uint8_t* data, size_t size)
@@ -1157,8 +1168,17 @@ namespace raft
       commit_idx = idx;
 
       LOG_DEBUG_FMT("Compacting...");
+      if (state == Leader)
+      {
+        auto snapshot_idx = snapshotter->snapshot(idx);
+        if (snapshot_idx.has_value())
+        {
+          last_snapshot_idx = snapshot_idx.value();
+        }
+      }
       store->compact(idx);
       ledger->commit(idx);
+
       LOG_DEBUG_FMT("Commit on {}: {}", local_id, idx);
 
       // Examine all configurations that are followed by a globally committed
@@ -1267,7 +1287,7 @@ namespace raft
           // A new node is sent only future entries initially. If it does not
           // have prior data, it will communicate that back to the leader.
           auto index = last_idx + 1;
-          nodes.try_emplace(node_info.first, 0, index, node_info.second);
+          nodes.try_emplace(node_info.first, node_info.second, index, 0);
 
           if (state == Leader)
           {
@@ -1275,6 +1295,7 @@ namespace raft
               node_info.first,
               node_info.second.hostname,
               node_info.second.port);
+
             send_append_entries(node_info.first, index);
           }
 
