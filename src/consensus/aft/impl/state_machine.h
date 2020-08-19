@@ -117,27 +117,6 @@ namespace aft
       network->Send(open_network_msg, 0);
     }
 
-    void handle_open_network_message(OArray oa, kv::NodeId from)
-    {
-      if (state->network_state != ServiceState::NetworkState::not_open)
-      {
-        return;
-      }
-
-      state->received_open_network_messages.insert(from);
-      {
-        std::lock_guard<std::mutex> lock(state->configuration_lock);
-        if (
-          state->received_open_network_messages.size() ==
-          state->configuration.size())
-        {
-          LOG_INFO_FMT(
-            "****** Network is now open and ready to accept requests ******");
-          state->network_state = ServiceState::NetworkState::open;
-        }
-      }
-    }
-
     bool is_primary() override
     {
       return state->my_node_id == primary();
@@ -170,5 +149,27 @@ namespace aft
     std::unique_ptr<IGlobalCommitHandler> global_commit_handler;
     std::unique_ptr<ICatchupStateMachine> catchup_state_machine;
     std::shared_ptr<EnclaveNetwork> network;
+
+    void handle_open_network_message(OArray oa, kv::NodeId from)
+    {
+      if (state->network_state != ServiceState::NetworkState::not_open)
+      {
+        return;
+      }
+
+      state->received_open_network_messages.insert(from);
+      {
+        std::lock_guard<std::mutex> lock(state->configuration_lock);
+        if (
+          state->received_open_network_messages.size() ==
+          state->configuration.size())
+        {
+          LOG_INFO_FMT(
+            "****** Network is now open and ready to accept requests ******");
+          state->network_state = ServiceState::NetworkState::open;
+        }
+      }
+    }
+
   };
 }
