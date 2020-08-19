@@ -159,7 +159,7 @@ TEST_CASE(
   }
 }
 
-TEST_CASE("Local commit hooks with snapshot" * doctest::test_suite("snapshot"))
+TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
 {
   kv::Store store;
   auto& string_map = store.create<MapTypes::StringString>(
@@ -195,27 +195,49 @@ TEST_CASE("Local commit hooks with snapshot" * doctest::test_suite("snapshot"))
 
     using Write = MapTypes::StringString::Write;
     std::vector<Write> local_writes;
+    std::vector<Write> global_writes;
 
-    INFO("Set local hook on target store");
+    INFO("Set hooks on target store");
     {
       auto local_hook = [&](kv::Version v, const Write& w) {
         local_writes.push_back(w);
       };
+      auto global_hook = [&](kv::Version v, const Write& w) {
+        global_writes.push_back(w);
+      };
       new_string_map->set_local_hook(local_hook);
+      new_string_map->set_global_hook(global_hook);
     }
 
     new_store.deserialise_snapshot(serialised_snapshot);
 
-    REQUIRE_EQ(local_writes.size(), 1);
-    auto writes = local_writes.at(0);
-    REQUIRE_EQ(writes.at("foo"), "foo");
-    REQUIRE_EQ(writes.find("bar"), writes.end());
-    REQUIRE_EQ(writes.at("baz"), "baz");
+    INFO("Verify content of snapshot");
+    {
+      kv::Tx tx;
+      auto view = tx.get_view(*new_string_map);
+      REQUIRE(view->get("foo").has_value());
+      REQUIRE(!view->get("bar").has_value());
+      REQUIRE(view->get("baz").has_value());
+    }
 
-    kv::Tx tx;
-    auto view = tx.get_view(*new_string_map);
-    REQUIRE(view->get("foo").has_value());
-    REQUIRE(!view->get("bar").has_value());
-    REQUIRE(view->get("baz").has_value());
+    INFO("Verify local hook execution");
+    {
+      REQUIRE_EQ(local_writes.size(), 1);
+      auto writes = local_writes.at(0);
+      REQUIRE_EQ(writes.at("foo"), "foo");
+      REQUIRE_EQ(writes.find("bar"), writes.end());
+      REQUIRE_EQ(writes.at("baz"), "baz");
+    }
+
+    INFO("Verify global hook execution after compact");
+    {
+      new_store.compact(snapshot_version);
+
+      REQUIRE_EQ(global_writes.size(), 1);
+      auto writes = global_writes.at(0);
+      REQUIRE_EQ(writes.at("foo"), "foo");
+      REQUIRE_EQ(writes.find("bar"), writes.end());
+      REQUIRE_EQ(writes.at("baz"), "baz");
+    }
   }
 }

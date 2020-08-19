@@ -465,25 +465,25 @@ namespace kv::untyped
 
         r->state = change_set.state;
         r->version = change_set.version;
+
+        // Executing hooks from snapshot requires copying the entire snapshotted
+        // state so only do it if there's an hook on the table
+        if (map.local_hook || map.global_hook)
+        {
+          r->state.foreach([&r](const K& k, const VersionV& v) {
+            if (!is_deleted(v.version))
+            {
+              r->writes[k] = v.value;
+            }
+            return true;
+          });
+        }
       }
 
       void post_commit() override
       {
-        // Executing local hook from snapshot requires copying the entire state
-        // so only do it if there's an hook on the table
-        if (map.local_hook && change_set.state.size() > 0)
-        {
-          Write writes;
-
-          change_set.state.foreach([&writes](const K& k, const VersionV& v) {
-            if (!is_deleted(v.version))
-            {
-              writes[k] = v.value;
-            }
-            return true;
-          });
-          map.trigger_local_hook(change_set.version, writes);
-        }
+        auto r = map.roll.commits->get_head();
+        map.trigger_local_hook(change_set.version, r->writes);
       }
 
       SnapshotChangeSet& get_change_set()
