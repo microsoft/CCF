@@ -1,7 +1,7 @@
 parameters:
   suite_name_suffix: ''
   ctest_filter: ''
-  ctest_timeout: '240'
+  ctest_timeout: '360'
 
 steps:
 - script: |

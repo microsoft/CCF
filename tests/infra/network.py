@@ -248,7 +248,7 @@ class Network:
             args.pbft_view_change_timeout / 1000
             if args.consensus == "pbft"
             else args.raft_election_timeout / 1000
-        )
+        ) * 2
 
         LOG.info("All nodes started")
 

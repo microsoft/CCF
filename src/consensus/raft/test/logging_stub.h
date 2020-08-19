@@ -86,6 +86,8 @@ namespace raft
 
     void destroy_channel(NodeId peer_id) {}
 
+    void destroy_all_channels() {}
+
     void close_all_outgoing() {}
 
     bool send_authenticated(
