@@ -157,3 +157,8 @@ TEST_CASE(
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 }
+
+TEST_CASE("Snapshot with map hook" * doctest::test_suite("snapshot"))
+{
+
+}
