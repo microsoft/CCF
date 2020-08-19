@@ -81,7 +81,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
   auto second_serialised_snapshot =
     store.serialise_snapshot(std::move(second_snapshot));
 
-  INFO("Apply snapshot at 2 to new store with hook");
+  INFO("Apply snapshot at 2 to new store");
   {
     kv::Store new_store;
     new_store.clone_schema(store);
