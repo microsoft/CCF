@@ -192,7 +192,8 @@ static void ser_snap(picobench::state& s)
     throw std::logic_error("Transaction commit failed: " + std::to_string(rc));
 
   s.start_timer();
-  kv_store.serialise_snapshot(tx.commit_version());
+  auto snap = kv_store.snapshot(tx.commit_version());
+  kv_store.serialise_snapshot(std::move(snap));
   s.stop_timer();
 }
 
@@ -234,10 +235,11 @@ static void des_snap(picobench::state& s)
   if (rc != kv::CommitSuccess::OK)
     throw std::logic_error("Transaction commit failed: " + std::to_string(rc));
 
-  auto snapshot = kv_store.serialise_snapshot(tx.commit_version());
+  auto snap = kv_store.snapshot(tx.commit_version());
+  auto serialised_snap = kv_store.serialise_snapshot(std::move(snap));
 
   s.start_timer();
-  kv_store2.deserialise_snapshot(snapshot);
+  kv_store2.deserialise_snapshot(serialised_snap);
   s.stop_timer();
 }
 

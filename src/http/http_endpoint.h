@@ -45,7 +45,7 @@ namespace http
       msg->data.self = this->shared_from_this();
       msg->data.data.assign(data, data + size);
 
-      threading::ThreadMessaging::thread_messaging.add_task<SendRecvMsg>(
+      threading::ThreadMessaging::thread_messaging.add_task(
         execution_thread, std::move(msg));
     }
 
