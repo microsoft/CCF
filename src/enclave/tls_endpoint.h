@@ -73,7 +73,7 @@ namespace enclave
       }
       else
       {
-        execution_thread = 0;
+        execution_thread = threading::MAIN_THREAD_ID;
       }
       ctx->set_bio(this, send_callback, recv_callback, dbg_callback);
     }

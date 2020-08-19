@@ -25,6 +25,7 @@
 #include "service.h"
 #include "shares.h"
 #include "signatures.h"
+#include "snapshot_evidence.h"
 #include "submitted_shares.h"
 #include "users.h"
 #include "values.h"
@@ -86,6 +87,7 @@ namespace ccf
     Secrets& secrets;
     Signatures& signatures;
     ConsensusTable& consensus;
+    SnapshotEvidence& snapshot_evidences;
 
     //
     // Pbft related tables
@@ -147,6 +149,8 @@ namespace ccf
         Tables::SIGNATURES, kv::SecurityDomain::PUBLIC)),
       consensus(tables->create<ConsensusTable>(
         Tables::CONSENSUS, kv::SecurityDomain::PUBLIC)),
+      snapshot_evidences(tables->create<SnapshotEvidence>(
+        Tables::SNAPSHOT_EVIDENCES, kv::SecurityDomain::PUBLIC)),
       pbft_requests_map(
         tables->create<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
       pbft_pre_prepares_map(

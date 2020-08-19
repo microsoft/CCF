@@ -3,9 +3,11 @@
 #pragma once
 
 #include "consensus/ledger_enclave_types.h"
+#include "crypto/hash.h"
 #include "ds/ccf_assert.h"
 #include "ds/spin_lock.h"
 #include "ds/thread_messaging.h"
+#include "node/snapshot_evidence.h"
 
 #include <kv/kv_types.h>
 
@@ -16,12 +18,27 @@ namespace ccf
   private:
     ringbuffer::WriterPtr to_host;
     SpinLock lock;
-    size_t execution_thread;
 
-    std::shared_ptr<kv::AbstractStore> store;
+    NetworkState& network;
 
     consensus::Index last_snapshot_idx = 0;
     size_t snapshot_interval;
+
+    size_t get_execution_thread()
+    {
+      // For now, always generate snapshots on first worker thread if there are
+      // more than one thread. Otherwise, round robin on worker threads.
+      if (threading::ThreadMessaging::thread_count > 1)
+      {
+        static size_t generation_count = 0;
+        return (generation_count++ % threading::ThreadMessaging::thread_count) +
+          1;
+      }
+      else
+      {
+        return threading::MAIN_THREAD_ID;
+      }
+    }
 
     void record_snapshot(
       consensus::Index idx, const std::vector<uint8_t>& serialised_snapshot)
@@ -45,29 +62,37 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      auto snapshot = store->serialise_snapshot(idx);
+      auto snapshot = network.tables->serialise_snapshot(idx);
+
+      kv::Tx tx;
+      auto view = tx.get_view(network.snapshot_evidences);
+      auto snapshot_hash = crypto::Sha256Hash(snapshot);
+      view->put(0, {snapshot_hash});
+
+      auto rc = tx.commit();
+      if (rc != kv::CommitSuccess::OK)
+      {
+        LOG_FAIL_FMT(
+          "Could not commit snapshot evidence for idx {}: {}", idx, rc);
+        return;
+      }
+
       record_snapshot(idx, snapshot);
-
-      LOG_DEBUG_FMT("Snapshot successfully generated at idx {}", idx);
-
       last_snapshot_idx = idx;
+
+      LOG_DEBUG_FMT(
+        "Snapshot successfully generated for idx {}: {}", idx, snapshot_hash);
     }
 
   public:
     Snapshotter(
       ringbuffer::AbstractWriterFactory& writer_factory,
-      std::shared_ptr<kv::AbstractStore> store_,
+      NetworkState& network_,
       size_t snapshot_interval_) :
       to_host(writer_factory.create_writer_to_outside()),
-      store(store_),
+      network(network_),
       snapshot_interval(snapshot_interval_)
-    {
-      // For now, always generate snapshots on first worker thread if there are
-      // more than one thread
-      // Warning: With 1+ worker threads, this still executes on the main thread
-      // as the worker threads are initialised after the Snapshotter is created
-      execution_thread = (threading::ThreadMessaging::thread_count > 1) ? 1 : 0;
-    }
+    {}
 
     void snapshot(consensus::Index idx)
     {
@@ -87,7 +112,7 @@ namespace ccf
         msg->data.idx = idx;
 
         threading::ThreadMessaging::thread_messaging.add_task(
-          execution_thread, std::move(msg));
+          get_execution_thread(), std::move(msg));
       }
     }
   };
