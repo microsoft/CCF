@@ -256,7 +256,7 @@ namespace kv::untyped
         if (change_set.writes.empty())
           return;
 
-        map.trigger_local_hook();
+        map.trigger_local_hook(commit_version, change_set.writes);
       }
 
       // Used by owning map during serialise and deserialise
@@ -469,7 +469,22 @@ namespace kv::untyped
 
       void post_commit() override
       {
-        // For now, local hooks with snapshots are not supported
+        // Executing local hook from snapshot requires copying the entire state
+        // so only do it if there's an hook on the table
+        if (map.local_hook && change_set.state.size() > 0)
+        {
+          Write writes;
+
+          change_set.state.foreach([&writes](const K& k, const VersionV& v) {
+            // TODO: Check for deletion as well - Is this right?
+            if (!is_deleted(v.version))
+            {
+              writes[k] = v.value;
+            }
+            return true;
+          });
+          map.trigger_local_hook(change_set.version, writes);
+        }
       }
 
       SnapshotChangeSet& get_change_set()
@@ -837,12 +852,11 @@ namespace kv::untyped
       return roll;
     }
 
-    void trigger_local_hook()
+    void trigger_local_hook(Version version, const Write& writes)
     {
       if (local_hook)
       {
-        auto last_commit = roll.commits->get_tail();
-        local_hook(last_commit->version, last_commit->writes);
+        local_hook(version, writes);
       }
     }
   };

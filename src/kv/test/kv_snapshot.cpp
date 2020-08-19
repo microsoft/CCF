@@ -81,15 +81,30 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
   auto second_serialised_snapshot =
     store.serialise_snapshot(std::move(second_snapshot));
 
-  INFO("Apply snapshot at 2 to new store");
+  INFO("Apply snapshot at 2 to new store with hook");
   {
     kv::Store new_store;
     new_store.clone_schema(store);
-    new_store.deserialise_snapshot(second_serialised_snapshot);
-    REQUIRE_EQ(new_store.current_version(), 2);
 
     auto new_string_map = new_store.get<MapTypes::StringString>("string_map");
     auto new_num_map = new_store.get<MapTypes::NumNum>("num_map");
+
+    using Write = MapTypes::NumNum::Write;
+    std::vector<Write> local_writes;
+
+    INFO("Set local hook on target store");
+    {
+      auto local_hook = [&](kv::Version v, const Write& w) {
+        local_writes.push_back(w);
+      };
+      new_num_map->set_local_hook(local_hook);
+    }
+
+    new_store.deserialise_snapshot(second_serialised_snapshot);
+    REQUIRE_EQ(new_store.current_version(), 2);
+
+    REQUIRE_EQ(local_writes.size(), 1);
+    REQUIRE_EQ(local_writes.at(0).at(42), 123);
 
     kv::Tx tx1;
     auto view = tx1.get_view(*new_string_map);
@@ -156,9 +171,4 @@ TEST_CASE(
     view->put("baz", "baz");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
-}
-
-TEST_CASE("Snapshot with map hook" * doctest::test_suite("snapshot"))
-{
-
 }
