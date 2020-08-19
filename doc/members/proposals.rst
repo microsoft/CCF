@@ -76,22 +76,14 @@ Creating Proposals in Python
     :start-after: SNIPPET: import_proposal_generator
     :lines: 1
 
-To retrieve a proposal and vote as dictionaries, use the proposal generation functions directly.
+The proposal generation functions return dictionaries that can be submitted to a ``CCFClient``.
 
 .. literalinclude:: ../../python/tutorial.py
     :language: py
     :start-after: SNIPPET_START: dict_proposal
     :end-before: SNIPPET_END: dict_proposal
 
-To generate proposals and votes that are written to disk as JSON, use the ``ccf.proposal_generator.ProposalGenerator`` class. This causes the functions to return strings indicating the location of the generated files. If the ``ProposalGenerator`` was created with a ``common_dir`` argument, generated files have that ``common_dir`` prepended.
-Though the ``proposal`` and ``vote`` values returned are now strings, this is still compatible with the ``ccf.client.CCFClient``, which will now build its request body by loading from file.
-
-.. literalinclude:: ../../python/tutorial.py
-    :language: py
-    :start-after: SNIPPET_START: json_proposal
-    :end-before: SNIPPET_END: json_proposal
-
-Proposal generation calls from a ``ProposalGenerator`` can optionally include file names specifying where to write output to, which allows you to save different proposals separately.
+You may wish to write these proposals to files so they can be examined or modified further. These proposal files can be submitted directly --- ``CCFClient`` will treat string request bodies beginning with an ``@`` as file paths in the same way that ``curl`` does, and use the content of the file when sending.
 
 .. literalinclude:: ../../python/tutorial.py
     :language: py

@@ -104,21 +104,12 @@ member_client = ccf.clients.CCFClient(host, port, ca, member_cert, member_key)
 response = member_client.post("/gov/proposals", body=proposal, signed=True,)
 # SNIPPET_END: dict_proposal
 
-# SNIPPET_START: json_proposal
-generator = ccf.proposal_generator.ProposalGenerator()
-proposal, vote = generator.open_network()
-# >>> proposal
-# '@./open_network_proposal.json'
-
-# This is still valid though `proposal` is not a `dict`.
-response = member_client.post("/gov/proposals", body=proposal, signed=True,)
-# SNIPPET_END: json_proposal
-
 # SNIPPET_START: json_proposal_with_file
-proposal, vote = generator.open_network(
-    proposal_output_path_="member0_open_network_proposal.json",
-    vote_output_path_="member0_open_network_vote_for.json",
+with open("my_open_network_proposal.json", "w") as f:
+    f.write(json.dumps(proposal, indent=2))
+
+# The contents of `my_open_network_proposal.json` are submitted as the request body.
+response = member_client.post(
+    "/gov/proposals", body="@my_open_network_proposal.json", signed=True,
 )
-# >>> proposal
-# '@./member0_open_network_proposal.json'
 # SNIPPET_END: json_proposal_with_file
