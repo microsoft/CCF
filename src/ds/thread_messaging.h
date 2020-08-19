@@ -152,7 +152,8 @@ namespace threading
     {
       time_offset += elapsed;
 
-      while (!timer_map.empty() && timer_map.begin()->first.time_offset <= time_offset)
+      while (!timer_map.empty() &&
+             timer_map.begin()->first.time_offset <= time_offset)
       {
         auto it = timer_map.begin();
 

@@ -2242,7 +2242,6 @@ void Replica::global_commit(Pre_prepare* pp)
     last_gb_seqno = pp->seqno();
     if (global_commit_cb != nullptr)
     {
-      // XXX: this is where we do the callback => get_ctx() is actually the version of the store
       global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
     }
   }

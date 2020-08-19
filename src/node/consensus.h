@@ -12,6 +12,9 @@ namespace ccf
 }
 
 DECLARE_JSON_ENUM(
-  ConsensusType, {{ConsensusType::RAFT, "RAFT"}, {ConsensusType::PBFT, "PBFT"}, {ConsensusType::AFT, "AFT"}})
+  ConsensusType,
+  {{ConsensusType::RAFT, "RAFT"},
+   {ConsensusType::PBFT, "PBFT"},
+   {ConsensusType::AFT, "AFT"}})
 
 MSGPACK_ADD_ENUM(ConsensusType);

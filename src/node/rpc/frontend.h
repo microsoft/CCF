@@ -415,6 +415,7 @@ namespace ccf
                   }
                 }
               }
+
               update_metrics(ctx, endpoint->metrics);
               return ctx->serialise_response();
             }
@@ -448,7 +449,6 @@ namespace ccf
           update_metrics(ctx, endpoint->metrics);
           return ctx->serialise_response();
         }
-        /*
         catch (const kv::KvSerialiserException& e)
         {
           // If serialising the committed transaction fails, there is no way
@@ -458,8 +458,6 @@ namespace ccf
           LOG_FATAL_FMT("Failed to serialise");
           abort();
         }
-        */
-        /*
         catch (const std::exception& e)
         {
           ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
@@ -467,7 +465,6 @@ namespace ccf
           update_metrics(ctx, endpoint->metrics);
           return ctx->serialise_response();
         }
-        */
       }
     }
 
