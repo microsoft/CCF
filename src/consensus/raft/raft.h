@@ -79,7 +79,8 @@ namespace raft
     {
       Leader,
       Follower,
-      Candidate
+      Candidate,
+      Retired
     };
 
     struct NodeState
@@ -440,7 +441,7 @@ namespace raft
       }
       else
       {
-        if (timeout_elapsed >= election_timeout)
+        if (state != Retired && timeout_elapsed >= election_timeout)
         {
           // Start an election.
           become_candidate();
@@ -1074,6 +1075,15 @@ namespace raft
       channels->close_all_outgoing();
     }
 
+    void become_retired()
+    {
+      state = Retired;
+      leader_id = NoNode;
+
+      LOG_INFO_FMT("Becoming retired {}: {}", local_id, current_term);
+      channels->destroy_all_channels();
+    }
+
     void add_vote_for_me(NodeId from)
     {
       // Need 50% + 1 of the total nodes, which are the other nodes plus us.
@@ -1306,6 +1316,10 @@ namespace raft
       if (!self_is_active)
       {
         LOG_INFO_FMT("Removed raft self {}", local_id);
+        if (state == Leader)
+        {
+          become_retired();
+        }
       }
     }
   };
