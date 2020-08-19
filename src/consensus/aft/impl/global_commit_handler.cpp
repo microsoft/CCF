@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "global_commit_handler.h"
+
 #include "../aft_types.h"
 
 namespace aft
@@ -25,7 +26,8 @@ namespace aft
       view_change_list.emplace_back(0, 0);
     }
 
-    void perform_global_commit(kv::Version version, kv::Consensus::View view) override
+    void perform_global_commit(
+      kv::Version version, kv::Consensus::View view) override
     {
       if (version == kv::NoVersion || version <= last_global_commit_version)
       {
@@ -34,7 +36,7 @@ namespace aft
 
       if (last_global_commit_view < view)
       {
-        last_global_commit_view  = view;
+        last_global_commit_view = view;
         std::lock_guard<std::mutex> lock(view_change_list_lock);
         view_change_list.emplace_back(view, last_global_commit_version + 1);
       }
@@ -71,7 +73,8 @@ namespace aft
     SpinLock view_change_list_lock;
   };
 
-  std::unique_ptr<IGlobalCommitHandler> create_global_commit_handler(IStore& store)
+  std::unique_ptr<IGlobalCommitHandler> create_global_commit_handler(
+    IStore& store)
   {
     return std::make_unique<GlobalCommitHandler>(store);
   }

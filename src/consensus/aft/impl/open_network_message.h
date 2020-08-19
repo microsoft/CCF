@@ -45,7 +45,8 @@ namespace aft
   {
   public:
     OpenNetworkMessageRecv(OArray&& oa_, kv::NodeId from_) :
-      oa(std::move(oa_)), from(from_)
+      oa(std::move(oa_)),
+      from(from_)
     {}
 
   private:
@@ -89,7 +90,8 @@ namespace aft
   {
   public:
     OpenNetworkMessageRespRecv(OArray&& oa_, kv::NodeId from_) :
-      oa(std::move(oa_)), from(from_)
+      oa(std::move(oa_)),
+      from(from_)
     {}
 
   private:

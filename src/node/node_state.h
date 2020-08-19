@@ -1675,22 +1675,22 @@ namespace ccf
 
       if (consensus_type == ConsensusType::PBFT)
       {
-      consensus = std::make_shared<PbftConsensusType>(
-        std::make_unique<pbft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
-          network.tables),
-        n2n_channels,
-        self,
-        config.signature_intervals.sig_max_tx,
-        std::make_unique<consensus::LedgerEnclave>(writer_factory),
-        rpc_map,
-        rpcsessions,
-        network.pbft_requests_map,
-        network.pbft_pre_prepares_map,
-        network.signatures,
-        network.pbft_new_views_map,
-        node_sign_kp->private_key_pem().str(),
-        node_cert.raw(),
-        consensus_config);
+        consensus = std::make_shared<PbftConsensusType>(
+          std::make_unique<pbft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
+            network.tables),
+          n2n_channels,
+          self,
+          config.signature_intervals.sig_max_tx,
+          std::make_unique<consensus::LedgerEnclave>(writer_factory),
+          rpc_map,
+          rpcsessions,
+          network.pbft_requests_map,
+          network.pbft_pre_prepares_map,
+          network.signatures,
+          network.pbft_new_views_map,
+          node_sign_kp->private_key_pem().str(),
+          node_cert.raw(),
+          consensus_config);
       }
       else
       {
@@ -1704,7 +1704,6 @@ namespace ccf
           std::make_unique<consensus::LedgerEnclave>(writer_factory),
           n2n_channels);
       }
-      
 
       network.tables->set_consensus(consensus);
 

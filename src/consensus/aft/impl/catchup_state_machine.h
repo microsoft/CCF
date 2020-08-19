@@ -20,7 +20,8 @@ namespace aft
     virtual void start() = 0;
     virtual bool is_message_type_supported(OArray& oa) = 0;
     virtual void receive_message(OArray oa, kv::NodeId from) = 0;
-    virtual void receive_message(OArray oa, AppendEntries ae, kv::NodeId from) = 0;
+    virtual void receive_message(
+      OArray oa, AppendEntries ae, kv::NodeId from) = 0;
     virtual void add_node(kv::NodeId node_id) = 0;
   };
 

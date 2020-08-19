@@ -2,17 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/kv_types.h"
 #include "consensus/aft/aft_types.h"
 #include "ds/serialized.h"
+#include "kv/kv_types.h"
 #include "message.h"
 
-#include <vector>
 #include <memory>
+#include <vector>
 
 namespace aft
 {
-
 // Request messages have the following format.
 #pragma pack(push)
 #pragma pack(1)
@@ -45,9 +44,7 @@ namespace aft
       rid(rid_),
       ctx(std::move(ctx_)),
       cb(std::move(cb_))
-    {
-
-    }
+    {}
 
     bool should_encrypt() const override
     {
@@ -90,8 +87,10 @@ namespace aft
       ReplyCallback cb)
     {
       auto rep = serialized::read<RequestMessageRep>(data, size);
-      std::vector<uint8_t> request = serialized::read(data, size, rep.command_size);
-      return std::make_unique<RequestMessage>(std::move(request), rep.rid, std::move(ctx), std::move(cb));
+      std::vector<uint8_t> request =
+        serialized::read(data, size, rep.command_size);
+      return std::make_unique<RequestMessage>(
+        std::move(request), rep.rid, std::move(ctx), std::move(cb));
     }
 
     size_t size() const override

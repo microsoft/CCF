@@ -2,23 +2,23 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "impl/message.h"
-#include "ds/ccf_assert.h"
-#include "impl/replica.h"
-#include "ds/serialized.h"
-#include "node/nodetypes.h"
-#include "ds/ccf_assert.h"
-#include "ds/thread_messaging.h"
-#include "node/node_to_node.h"
 #include "aft_types.h"
+#include "ds/ccf_assert.h"
+#include "ds/serialized.h"
+#include "ds/thread_messaging.h"
+#include "impl/message.h"
+#include "impl/replica.h"
+#include "node/node_to_node.h"
+#include "node/nodetypes.h"
 
-namespace aft {
-
+namespace aft
+{
   class INetwork
   {
   public:
     using recv_message_cb = std::function<void(OArray oa, kv::NodeId id)>;
-    using recv_message_ae_cb = std::function<void(OArray oa, AppendEntries ae, kv::NodeId id)>;
+    using recv_message_ae_cb =
+      std::function<void(OArray oa, AppendEntries ae, kv::NodeId id)>;
 
     INetwork() = default;
     virtual ~INetwork() = default;
@@ -36,7 +36,10 @@ namespace aft {
       std::shared_ptr<ccf::NodeToNode> n2n_channels,
       recv_message_cb cb_,
       recv_message_ae_cb cb_ae_) :
-      n2n_channels(n2n_channels), id(id), cb(cb_), cb_ae(cb_ae_)
+      n2n_channels(n2n_channels),
+      id(id),
+      cb(cb_),
+      cb_ae(cb_ae_)
     {}
 
     virtual ~EnclaveNetwork() = default;
@@ -68,8 +71,7 @@ namespace aft {
     {
       if (msg->data.should_encrypt)
       {
-        AftHeader hdr = {AftMsgType::encrypted_aft_message,
-                          msg->data.self->id};
+        AftHeader hdr = {AftMsgType::encrypted_aft_message, msg->data.self->id};
         msg->data.self->n2n_channels->send_encrypted(
           ccf::NodeMsgType::consensus_msg, msg->data.to, msg->data.data, hdr);
       }
@@ -200,13 +202,13 @@ namespace aft {
           AppendEntries ae;
           try
           {
-            // TODO: this should be returned on the correct thread 
-            ae =
-              n2n_channels->template recv_authenticated<AppendEntries>(d.data(), d.size());
+            ae = n2n_channels->template recv_authenticated<AppendEntries>(
+              d.data(), d.size());
           }
           catch (const std::logic_error& err)
           {
-            CCF_ASSERT_FMT_FAIL("failed to authenticate append entries, err - {}", err.what());
+            CCF_ASSERT_FMT_FAIL(
+              "failed to authenticate append entries, err - {}", err.what());
           }
 
           cb_ae(std::move(d), ae, hdr.from_node);
@@ -245,8 +247,8 @@ namespace aft {
         try
         {
           msg->data.hdr = msg->data.self->n2n_channels
-            ->template recv_authenticated_with_load<AftHeader>(
-              msg->data.d.data(), msg->data.d.size());
+                            ->template recv_authenticated_with_load<AftHeader>(
+                              msg->data.d.data(), msg->data.d.size());
         }
         catch (const std::logic_error& err)
         {
@@ -284,7 +286,10 @@ namespace aft {
         ccf::NodeMsgType type_,
         kv::NodeId to_,
         EnclaveNetwork* self_) :
-        ae(std::move(ae_)), type(type_), to(to_), self(self_)
+        ae(std::move(ae_)),
+        type(type_),
+        to(to_),
+        self(self_)
       {}
 
       AppendEntries ae;

@@ -14,9 +14,9 @@ namespace aft
   {
   public:
     Replica(kv::NodeId id_, const std::vector<uint8_t>& cert_) :
-      id(id_), verifier(tls::make_unique_verifier(cert_))
-    {
-    }
+      id(id_),
+      verifier(tls::make_unique_verifier(cert_))
+    {}
 
     kv::NodeId get_id() const
     {

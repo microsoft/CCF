@@ -25,7 +25,7 @@ namespace aft
       const std::vector<uint8_t>& cert,
       std::unique_ptr<IStartupStateMachine> startup_state_machine_,
       std::unique_ptr<IGlobalCommitHandler> global_commit_handler_,
-      std::unique_ptr<ICatchupStateMachine> catchup_state_machine_, 
+      std::unique_ptr<ICatchupStateMachine> catchup_state_machine_,
       std::shared_ptr<EnclaveNetwork> network_) :
       state(state_),
       startup_state_machine(std::move(startup_state_machine_)),
@@ -41,11 +41,13 @@ namespace aft
     {
       if (state->network_state == ServiceState::NetworkState::not_open)
       {
-        kv::Version version = startup_state_machine->receive_request(std::move(request));
+        kv::Version version =
+          startup_state_machine->receive_request(std::move(request));
 
         // Before the network is open we say that every version has been
         // globally committed because we do not want to roll anything back.
-        global_commit_handler->perform_global_commit(version, state->current_view);
+        global_commit_handler->perform_global_commit(
+          version, state->current_view);
         state->last_committed_version = version;
         return;
       }
@@ -70,7 +72,9 @@ namespace aft
           handle_open_network_message(std::move(oa), from);
           break;
         default:
-          CCF_ASSERT_FMT_FAIL("Unknown or unsupported message type - {}", get_message_type(oa.data()));
+          CCF_ASSERT_FMT_FAIL(
+            "Unknown or unsupported message type - {}",
+            get_message_type(oa.data()));
       }
     }
 
@@ -83,12 +87,12 @@ namespace aft
         state->last_committed_version, state->current_view);
     }
 
-
     void add_node(kv::NodeId node_id, const std::vector<uint8_t>& cert) override
     {
       std::lock_guard<std::mutex> lock(state->configuration_lock);
       LOG_INFO_FMT("Adding node {}", node_id);
-      state->configuration.emplace(node_id, std::make_unique<Replica>(node_id, cert));
+      state->configuration.emplace(
+        node_id, std::make_unique<Replica>(node_id, cert));
       catchup_state_machine->add_node(node_id);
     }
 
@@ -123,7 +127,9 @@ namespace aft
       state->received_open_network_messages.insert(from);
       {
         std::lock_guard<std::mutex> lock(state->configuration_lock);
-        if (state->received_open_network_messages.size() == state->configuration.size())
+        if (
+          state->received_open_network_messages.size() ==
+          state->configuration.size())
         {
           LOG_INFO_FMT(
             "****** Network is now open and ready to accept requests ******");
@@ -158,13 +164,11 @@ namespace aft
       return state->last_committed_version;
     }
 
-
   private:
     std::shared_ptr<ServiceState> state;
     std::unique_ptr<IStartupStateMachine> startup_state_machine;
     std::unique_ptr<IGlobalCommitHandler> global_commit_handler;
-    std::unique_ptr<ICatchupStateMachine> catchup_state_machine; 
+    std::unique_ptr<ICatchupStateMachine> catchup_state_machine;
     std::shared_ptr<EnclaveNetwork> network;
-
   };
 }

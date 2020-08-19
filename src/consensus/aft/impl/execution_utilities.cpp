@@ -20,8 +20,7 @@ namespace aft
   }
 
   std::unique_ptr<RequestCtx> ExecutionUtilities::create_request_ctx(
-    pbft::Request& request,
-    std::shared_ptr<enclave::RPCMap>& rpc_map)
+    pbft::Request& request, std::shared_ptr<enclave::RPCMap>& rpc_map)
   {
     auto r_ctx = std::make_unique<RequestCtx>();
 

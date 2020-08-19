@@ -83,11 +83,7 @@ namespace enclave
       logger::config::writer() = writer_factory.create_writer_to_outside();
 
       node = std::make_unique<ccf::NodeState>(
-        writer_factory,
-        network,
-        rpcsessions,
-        context.notifier,
-        share_manager);
+        writer_factory, network, rpcsessions, context.notifier, share_manager);
 
       rpc_map->register_frontend<ccf::ActorsType::members>(
         {"members"},

@@ -11,8 +11,8 @@
 #endif
 
 #include <atomic>
-#include <cstddef>
 #include <chrono>
+#include <cstddef>
 
 namespace threading
 {
@@ -79,7 +79,8 @@ namespace threading
 
     std::chrono::milliseconds time_offset;
     uint64_t time_entry_counter = 0;
-    std::map<TimerEntry, std::unique_ptr<ThreadMsg>, TimerEntryCompare> timer_map;
+    std::map<TimerEntry, std::unique_ptr<ThreadMsg>, TimerEntryCompare>
+      timer_map;
 
   public:
     Task()
@@ -141,9 +142,10 @@ namespace threading
 #endif
     }
 
-    TimerEntry add_task_after(std::unique_ptr<ThreadMsg> item, std::chrono::milliseconds ms)
+    TimerEntry add_task_after(
+      std::unique_ptr<ThreadMsg> item, std::chrono::milliseconds ms)
     {
-      TimerEntry entry = {time_offset+ms, time_entry_counter++};
+      TimerEntry entry = {time_offset + ms, time_entry_counter++};
       timer_map.emplace(entry, std::move(item));
       return entry;
     }
@@ -157,7 +159,7 @@ namespace threading
       {
         auto it = timer_map.begin();
 
-        auto&cb = it->second->cb;
+        auto& cb = it->second->cb;
         auto msg = std::move(it->second);
         timer_map.erase(it);
         cb(std::move(msg));
@@ -296,7 +298,8 @@ namespace threading
       struct TickMsg
       {
         TickMsg(std::chrono::milliseconds elapsed_, Task& task_) :
-          elapsed(elapsed_), task(task_)
+          elapsed(elapsed_),
+          task(task_)
         {}
 
         std::chrono::milliseconds elapsed;

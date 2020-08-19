@@ -2,13 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "aft_network.h"
+#include "aft_types.h"
 #include "ds/ccf_exception.h"
+#include "impl/execution_utilities.h"
+#include "impl/request_message.h"
 #include "kv/kv_types.h"
 #include "request.h"
-#include "aft_types.h"
-#include "impl/request_message.h"
-#include "aft_network.h"
-#include "impl/execution_utilities.h"
 
 namespace aft
 {
@@ -30,19 +30,18 @@ namespace aft
       store(std::move(store_)),
       ledger(std::move(ledger_))
     {
-
-    INetwork::recv_message_cb cb =
-      [this](OArray oa, kv::NodeId from) {
+      INetwork::recv_message_cb cb = [this](OArray oa, kv::NodeId from) {
         this->state_machine->receive_message(std::move(oa), from);
       };
 
-    INetwork::recv_message_ae_cb cb_ae =
-      [this](OArray oa, AppendEntries ae, kv::NodeId from) {
-        this->state_machine->receive_message(std::move(oa), ae, from);
-      };
+      INetwork::recv_message_ae_cb cb_ae =
+        [this](OArray oa, AppendEntries ae, kv::NodeId from) {
+          this->state_machine->receive_message(std::move(oa), ae, from);
+        };
 
       network = std::make_shared<EnclaveNetwork>(id, n2n_channels, cb, cb_ae);
-      state_machine = create_state_machine(id, cert, *store, network, rpc_map, pbft_requests_map);
+      state_machine = create_state_machine(
+        id, cert, *store, network, rpc_map, pbft_requests_map);
     }
     virtual ~aft() = default;
 
@@ -128,7 +127,6 @@ namespace aft
     }
     void emit_signature() override
     {
-      //throw ccf::ccf_logic_error("Not implemented");
     }
     ConsensusType type() override
     {
@@ -146,7 +144,8 @@ namespace aft
                       kv::TxHistory::RequestID caller_rid,
                       int status,
                       std::vector<uint8_t>& data) {
-        LOG_DEBUG_FMT("AFT reply callback for {}, status {}", caller_rid, status);
+        LOG_DEBUG_FMT(
+          "AFT reply callback for {}, status {}", caller_rid, status);
 
         return rpc_sessions->reply_async(std::get<1>(caller_rid), data);
       };
@@ -155,22 +154,16 @@ namespace aft
         serialized_req.data(), serialized_req.size(), rpc_map);
 
       auto request_message = std::make_unique<RequestMessage>(
-        std::move(serialized_req),
-        args.rid,
-        std::move(ctx),
-        rep_cb
-      );
+        std::move(serialized_req), args.rid, std::move(ctx), rep_cb);
 
       state_machine->receive_request(std::move(request_message));
       return true;
     }
     void periodic(std::chrono::milliseconds) override
     {
-      //throw ccf::ccf_logic_error("Not implemented");
     }
     void periodic_end() override
     {
-      //throw ccf::ccf_logic_error("Not implemented");
     }
     Statistics get_statistics() override
     {

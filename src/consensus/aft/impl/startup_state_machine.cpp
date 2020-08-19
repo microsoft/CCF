@@ -33,7 +33,8 @@ namespace aft
 
     virtual ~StartupStateMachine() = default;
 
-    kv::Version receive_request(std::unique_ptr<RequestMessage> request) override
+    kv::Version receive_request(
+      std::unique_ptr<RequestMessage> request) override
     {
       CCF_ASSERT(
         threading::get_current_thread_id() ==
@@ -59,7 +60,8 @@ namespace aft
           handle_request_data_message(std::move(oa), from);
           break;
         default:
-          CCF_ASSERT_FMT_FAIL("Unsupported msg type {}", get_message_type(oa.data()));
+          CCF_ASSERT_FMT_FAIL(
+            "Unsupported msg type {}", get_message_type(oa.data()));
           return false;
       }
       return true;
@@ -96,11 +98,12 @@ namespace aft
       }
 
       RequestDataMessage request(
-        std::max(state->last_committed_version, (int64_t)0), status.get_version());
+        std::max(state->last_committed_version, (int64_t)0),
+        status.get_version());
       network->Send(request, from);
     }
 
-    void handle_request_data_message(OArray && oa, kv::NodeId from)
+    void handle_request_data_message(OArray&& oa, kv::NodeId from)
     {
       RequestDataMessageRecv request(std::move(oa), from);
 

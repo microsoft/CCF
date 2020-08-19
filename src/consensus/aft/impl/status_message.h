@@ -13,8 +13,7 @@ namespace aft
   struct StatusMessageRep : public MessageRep
   {
     StatusMessageRep(
-      kv::Consensus::View view_,
-      kv::Version last_good_version_) :
+      kv::Consensus::View view_, kv::Version last_good_version_) :
       MessageRep(MessageTag::Status),
       view(view_),
       last_good_version(last_good_version_)
@@ -28,10 +27,9 @@ namespace aft
   class StatusMessage : public IMessage
   {
   public:
-    StatusMessage(
-      kv::Consensus::View view_,
-      kv::Version last_good_version_) :
-      view(view_), last_good_version(last_good_version_)
+    StatusMessage(kv::Consensus::View view_, kv::Version last_good_version_) :
+      view(view_),
+      last_good_version(last_good_version_)
     {}
 
     bool should_encrypt() const override
@@ -62,7 +60,8 @@ namespace aft
   {
   public:
     StatusMessageRecv(OArray&& oa_, kv::NodeId from_) :
-      oa(std::move(oa_)), from(from_)
+      oa(std::move(oa_)),
+      from(from_)
     {}
 
     kv::Consensus::View get_view()
@@ -72,7 +71,8 @@ namespace aft
 
     kv::Version get_version()
     {
-      return reinterpret_cast<const StatusMessageRep*>(oa.data())->last_good_version;
+      return reinterpret_cast<const StatusMessageRep*>(oa.data())
+        ->last_good_version;
     }
 
   private:

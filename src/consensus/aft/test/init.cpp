@@ -8,5 +8,5 @@
 
 TEST_CASE("test")
 {
-    INFO("tests");
+  INFO("tests");
 }

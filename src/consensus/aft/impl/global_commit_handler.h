@@ -19,5 +19,6 @@ namespace aft
     virtual kv::Consensus::View get_view_for_version(kv::Version version) = 0;
   };
 
-  std::unique_ptr<IGlobalCommitHandler> create_global_commit_handler(IStore& store);
+  std::unique_ptr<IGlobalCommitHandler> create_global_commit_handler(
+    IStore& store);
 }

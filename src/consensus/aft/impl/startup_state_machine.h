@@ -16,7 +16,8 @@ namespace aft
     IStartupStateMachine() = default;
     virtual ~IStartupStateMachine() = default;
 
-    virtual kv::Version receive_request(std::unique_ptr<RequestMessage> request) = 0;
+    virtual kv::Version receive_request(
+      std::unique_ptr<RequestMessage> request) = 0;
     virtual bool receive_message(OArray& oa, kv::NodeId from) = 0;
     virtual bool is_message_type_supported(OArray& oa) = 0;
   };

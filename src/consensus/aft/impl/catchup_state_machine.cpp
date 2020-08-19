@@ -10,11 +10,11 @@
 #include "consensus/pbft/pbft_requests.h"
 #include "ds/thread_messaging.h"
 #include "enclave/rpc_map.h"
+#include "execution_utilities.h"
 #include "http/http_rpc_context.h"
 #include "kv/tx.h"
 #include "request_message.h"
 #include "status_message.h"
-#include "execution_utilities.h"
 
 namespace aft
 {
@@ -48,7 +48,6 @@ namespace aft
           add_node(it.first);
         }
       }
-
     }
 
     bool is_message_type_supported(OArray& oa) override
@@ -63,7 +62,6 @@ namespace aft
       }
     }
 
-    
     void receive_message(OArray oa, AppendEntries ae, kv::NodeId from) override
     {
       CCF_ASSERT(
@@ -75,7 +73,8 @@ namespace aft
       size_t size = oa.size();
       kv::Version version;
 
-      LOG_DEBUG_FMT("Applying entries from {}, total {}, size {}", from, ae.idx, oa.size());
+      LOG_DEBUG_FMT(
+        "Applying entries from {}, total {}, size {}", from, ae.idx, oa.size());
 
       for (ccf::Index i = ae.prev_idx; i < ae.idx; i++)
       {
@@ -84,7 +83,9 @@ namespace aft
           // If the current entry has already been deserialised, skip the
           // payload for that entry
           LOG_DEBUG_FMT(
-            "Skipping index {} as we are at index {}", i, state->last_committed_version);
+            "Skipping index {} as we are at index {}",
+            i,
+            state->last_committed_version);
           consensus::LedgerEnclave::skip_entry(data, size);
           continue;
         }
@@ -126,19 +127,13 @@ namespace aft
       return;
     }
 
-    void receive_message(OArray oa, kv::NodeId from) override
-    {
-
-    }
-
+    void receive_message(OArray oa, kv::NodeId from) override {}
 
     void add_node(kv::NodeId node_id) override
     {
       auto it = known_nodes.find(node_id);
       if (
-        //state->network_state == ServiceState::NetworkState::not_open ||
-        node_id == state->my_node_id ||
-        it != known_nodes.end())
+        node_id == state->my_node_id || it != known_nodes.end())
       {
         return;
       }
@@ -159,20 +154,21 @@ namespace aft
 
     struct SendStatusMsg
     {
-      SendStatusMsg(
-        kv::NodeId node_id_,
-        CatchupStateMachine* self_) :
-        node_id(node_id_), self(self_)
+      SendStatusMsg(kv::NodeId node_id_, CatchupStateMachine* self_) :
+        node_id(node_id_),
+        self(self_)
       {}
 
       kv::NodeId node_id;
       CatchupStateMachine* self;
     };
 
-
-    static void send_status_cb(std::unique_ptr<threading::Tmsg<SendStatusMsg>> msg)
+    static void send_status_cb(
+      std::unique_ptr<threading::Tmsg<SendStatusMsg>> msg)
     {
-      StatusMessage status(msg->data.self->state->current_view, msg->data.self->state->last_committed_version);
+      StatusMessage status(
+        msg->data.self->state->current_view,
+        msg->data.self->state->last_committed_version);
       msg->data.self->network->Send(status, msg->data.node_id);
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
@@ -192,7 +188,10 @@ namespace aft
       auto ctx = ExecutionUtilities::create_request_ctx(request, rpc_map);
 
       auto request_message = RequestMessage::deserialize(
-        request.pbft_raw.data(), request.pbft_raw.size(), std::move(ctx), nullptr);
+        request.pbft_raw.data(),
+        request.pbft_raw.size(),
+        std::move(ctx),
+        nullptr);
 
       return ExecutionUtilities::execute_request(
         std::move(request_message), state->last_committed_version == 0);

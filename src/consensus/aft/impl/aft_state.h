@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/spin_lock.h"
 #include "kv/kv_types.h"
 #include "replica.h"
-#include "ds/spin_lock.h"
 
 #include <map>
 #include <set>
