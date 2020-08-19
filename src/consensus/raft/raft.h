@@ -173,6 +173,7 @@ namespace raft
       voted_for(NoNode),
       last_idx(0),
       commit_idx(0),
+      last_snapshot_idx(0),
 
       leader_id(NoNode),
 

@@ -5,6 +5,7 @@
 #include "consensus/ledger_enclave_types.h"
 #include "crypto/hash.h"
 #include "ds/ccf_assert.h"
+#include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "ds/thread_messaging.h"
 #include "node/snapshot_evidence.h"

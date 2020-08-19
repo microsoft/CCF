@@ -1528,8 +1528,7 @@ namespace ccf
 
       notifier.set_consensus(consensus);
 
-      // When a node is added, even locally, inform the host so that it can
-      // map the node id to a hostname and service and inform raft so that it
+      // When a node is added, even locally, inform raft so that it
       // can add a new active configuration.
       network.nodes.set_local_hook(
         [this](kv::Version version, const Nodes::Write& w) {
