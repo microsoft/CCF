@@ -87,7 +87,7 @@ namespace ccf
     Secrets& secrets;
     Signatures& signatures;
     ConsensusTable& consensus;
-    SnapshotEvidence& snapshot_evidences;
+    SnapshotEvidence& snapshot_evidence;
 
     //
     // Pbft related tables
@@ -149,8 +149,8 @@ namespace ccf
         Tables::SIGNATURES, kv::SecurityDomain::PUBLIC)),
       consensus(tables->create<ConsensusTable>(
         Tables::CONSENSUS, kv::SecurityDomain::PUBLIC)),
-      snapshot_evidences(tables->create<SnapshotEvidence>(
-        Tables::SNAPSHOT_EVIDENCES, kv::SecurityDomain::PUBLIC)),
+      snapshot_evidence(tables->create<SnapshotEvidence>(
+        Tables::SNAPSHOT_EVIDENCE, kv::SecurityDomain::PUBLIC)),
       pbft_requests_map(
         tables->create<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
       pbft_pre_prepares_map(
