@@ -8,9 +8,8 @@
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "ds/thread_messaging.h"
+#include "kv/kv_types.h"
 #include "node/snapshot_evidence.h"
-
-#include <kv/kv_types.h>
 
 namespace ccf
 {
@@ -51,38 +50,46 @@ namespace ccf
     struct SnapshotMsg
     {
       std::shared_ptr<Snapshotter> self;
-      consensus::Index idx;
+      std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot;
     };
 
     static void snapshot_cb(std::unique_ptr<threading::Tmsg<SnapshotMsg>> msg)
     {
-      msg->data.self->snapshot_(msg->data.idx);
+      msg->data.self->snapshot_(std::move(msg->data.snapshot));
     }
 
-    void snapshot_(consensus::Index idx)
+    void snapshot_(
+      std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot)
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      auto snapshot = network.tables->serialise_snapshot(idx);
+      auto snapshot_idx = snapshot->get_version();
+
+      auto serialised_snapshot =
+        network.tables->serialise_snapshot(std::move(snapshot));
 
       kv::Tx tx;
       auto view = tx.get_view(network.snapshot_evidences);
-      auto snapshot_hash = crypto::Sha256Hash(snapshot);
-      view->put(0, {snapshot_hash, idx});
+      auto snapshot_hash = crypto::Sha256Hash(serialised_snapshot);
+      view->put(0, {snapshot_hash, snapshot_idx});
 
       auto rc = tx.commit();
       if (rc != kv::CommitSuccess::OK)
       {
         LOG_FAIL_FMT(
-          "Could not commit snapshot evidence for idx {}: {}", idx, rc);
+          "Could not commit snapshot evidence for idx {}: {}",
+          snapshot_idx,
+          rc);
         return;
       }
 
-      record_snapshot(idx, snapshot);
-      last_snapshot_idx = idx;
+      record_snapshot(snapshot_idx, serialised_snapshot);
+      last_snapshot_idx = snapshot_idx;
 
       LOG_DEBUG_FMT(
-        "Snapshot successfully generated for idx {}: {}", idx, snapshot_hash);
+        "Snapshot successfully generated for idx {}: {}",
+        snapshot_idx,
+        snapshot_hash);
     }
 
   public:
@@ -110,7 +117,7 @@ namespace ccf
       {
         auto msg = std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
         msg->data.self = shared_from_this();
-        msg->data.idx = idx;
+        msg->data.snapshot = network.tables->snapshot(idx);
 
         threading::ThreadMessaging::thread_messaging.add_task(
           get_execution_thread(), std::move(msg));

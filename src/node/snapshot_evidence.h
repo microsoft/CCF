@@ -4,6 +4,7 @@
 
 #include "crypto/hash.h"
 #include "entities.h"
+#include "kv/kv_types.h"
 #include "kv/map.h"
 
 #include <msgpack/msgpack.hpp>
@@ -13,9 +14,9 @@ namespace ccf
   struct SnapshotHash
   {
     crypto::Sha256Hash hash;
-    ObjectId seqno;
+    kv::Version version;
 
-    MSGPACK_DEFINE(hash, seqno);
+    MSGPACK_DEFINE(hash, version);
   };
 
   // As we only keep track of the latest snapshot, the key for the

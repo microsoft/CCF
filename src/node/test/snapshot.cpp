@@ -97,19 +97,24 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
     INFO("Apply snapshot taken before any signature was emitted");
     {
-      auto snapshot = source_store.serialise_snapshot(snapshot_version - 1);
+      auto snapshot = source_store.snapshot(snapshot_version - 1);
+      auto serialised_snapshot =
+        source_store.serialise_snapshot(std::move(snapshot));
 
       // There is no signature to read to seed the target history
       REQUIRE(
-        target_store.deserialise_snapshot(snapshot) ==
+        target_store.deserialise_snapshot(serialised_snapshot) ==
         kv::DeserialiseSuccess::FAILED);
     }
 
     INFO("Apply snapshot taken at signature");
     {
-      auto snapshot = source_store.serialise_snapshot(snapshot_version);
+      auto snapshot = source_store.snapshot(snapshot_version);
+      auto serialised_snapshot =
+        source_store.serialise_snapshot(std::move(snapshot));
+
       REQUIRE(
-        target_store.deserialise_snapshot(snapshot) ==
+        target_store.deserialise_snapshot(serialised_snapshot) ==
         kv::DeserialiseSuccess::PASS);
     }
 

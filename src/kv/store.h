@@ -220,7 +220,7 @@ namespace kv
       return *result;
     }
 
-    std::vector<uint8_t> serialise_snapshot(Version v) override
+    std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
     {
       CCF_ASSERT_FMT(
         v >= commit_version(),
@@ -236,7 +236,7 @@ namespace kv
         v,
         current_version());
 
-      StoreSnapshot snapshot;
+      auto snapshot = std::make_unique<StoreSnapshot>(v);
 
       {
         std::lock_guard<SpinLock> mguard(maps_lock);
@@ -248,13 +248,13 @@ namespace kv
 
         for (auto& map : maps)
         {
-          snapshot.add_map_snapshot(map.second->snapshot(v));
+          snapshot->add_map_snapshot(map.second->snapshot(v));
         }
 
         auto h = get_history();
         if (h)
         {
-          snapshot.add_hash_at_snapshot(h->get_raw_leaf(v));
+          snapshot->add_hash_at_snapshot(h->get_raw_leaf(v));
         }
 
         for (auto& map : maps)
@@ -263,10 +263,14 @@ namespace kv
         }
       }
 
-      auto e = get_encryptor();
-      KvStoreSerialiser serialiser(e, v, true);
+      return snapshot;
+    }
 
-      return snapshot.serialise(serialiser);
+    std::vector<uint8_t> serialise_snapshot(
+      std::unique_ptr<AbstractSnapshot> snapshot) override
+    {
+      auto e = get_encryptor();
+      return snapshot->serialise(e);
     }
 
     DeserialiseSuccess deserialise_snapshot(
