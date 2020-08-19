@@ -476,7 +476,6 @@ namespace kv::untyped
           Write writes;
 
           change_set.state.foreach([&writes](const K& k, const VersionV& v) {
-            // TODO: Check for deletion as well - Is this right?
             if (!is_deleted(v.version))
             {
               writes[k] = v.value;
