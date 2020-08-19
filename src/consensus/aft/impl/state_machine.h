@@ -37,7 +37,6 @@ namespace aft
       add_node(state_->my_node_id, cert);
     }
 
-    // TODO: move this to thread 0
     void receive_request(std::unique_ptr<RequestMessage> request) override
     {
       if (state->network_state == ServiceState::NetworkState::not_open)
@@ -50,12 +49,8 @@ namespace aft
         state->last_committed_version = version;
         return;
       }
-
-      //ccf::ccf_logic_error("Not Implemented");
-      // TODO: fill this in when we open the network
     }
 
-    // TODO: move this to thread 0
     void receive_message(OArray oa, kv::NodeId from) override
     {
       if (
@@ -69,12 +64,7 @@ namespace aft
       switch (get_message_type(oa.data()))
       {
         case MessageTag::Status:
-          //handle_status_message(std::move(oa), from);
-          LOG_INFO_FMT("Received status message from {}", from);
-          break;
         case MessageTag::RequestData:
-          //handle_request_data_message(std::move(oa), from);
-          LOG_INFO_FMT("Received RequestData message from {}", from);
           break;
         case MessageTag::OpenNetwork:
           handle_open_network_message(std::move(oa), from);
@@ -82,9 +72,6 @@ namespace aft
         default:
           CCF_ASSERT_FMT_FAIL("Unknown or unsupported message type - {}", get_message_type(oa.data()));
       }
-
-      // ccf::ccf_logic_error("Not Implemented");
-      // TODO: fill this in when we open the network
     }
 
     void receive_message(OArray oa, AppendEntries ae, kv::NodeId from) override
@@ -105,7 +92,6 @@ namespace aft
       catchup_state_machine->add_node(node_id);
     }
 
-    // TODO: move this to thread 0
     void attempt_to_open_network() override
     {
       LOG_INFO_FMT("Opening network");

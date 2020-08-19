@@ -17,7 +17,6 @@ namespace aft
     kv::Consensus::View view;
   };
 
-  // TODO: make this class thread safe with a lock
   class GlobalCommitHandler : public IGlobalCommitHandler
   {
   public:
@@ -36,6 +35,7 @@ namespace aft
       if (last_global_commit_view < view)
       {
         last_global_commit_view  = view;
+        std::lock_guard<std::mutex> lock(view_change_list_lock);
         view_change_list.emplace_back(view, last_global_commit_version + 1);
       }
       last_global_commit_version = version;
@@ -44,6 +44,7 @@ namespace aft
 
     kv::Consensus::View get_view_for_version(kv::Version version) override
     {
+      std::lock_guard<std::mutex> lock(view_change_list_lock);
       auto last_vc_info = view_change_list.back();
       if (last_vc_info.min_global_commit < version)
       {
@@ -59,7 +60,7 @@ namespace aft
           return info.view;
         }
       }
-      throw std::logic_error("should never be here");
+      CCF_ASSERT_FMT_FAIL("should never be here");
     }
 
   private:
@@ -67,6 +68,7 @@ namespace aft
     kv::Version last_global_commit_version;
     kv::Consensus::View last_global_commit_view;
     std::vector<ViewChangeInfo> view_change_list;
+    SpinLock view_change_list_lock;
   };
 
   std::unique_ptr<IGlobalCommitHandler> create_global_commit_handler(IStore& store)

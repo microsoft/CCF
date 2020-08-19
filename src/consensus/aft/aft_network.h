@@ -88,7 +88,6 @@ namespace aft {
     virtual int Send(IMessage& msg, kv::NodeId to) override
     {
       CCF_ASSERT(to != id, "cannot send message to self");
-      LOG_INFO_FMT("Sending to {}", to);
 
       std::vector<uint8_t> serialized_msg;
 

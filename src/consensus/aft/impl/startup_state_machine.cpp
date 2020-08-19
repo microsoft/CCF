@@ -8,6 +8,7 @@
 #include "consensus/ledger_enclave.h"
 #include "consensus/pbft/pbft_requests.h"
 #include "ds/ccf_exception.h"
+#include "execution_utilities.h"
 #include "http/http_rpc_context.h"
 #include "kv/tx.h"
 #include "request_data_message.h"
@@ -22,13 +23,14 @@ namespace aft
   {
   public:
     StartupStateMachine(
+      std::shared_ptr<ServiceState> state_,
       std::shared_ptr<EnclaveNetwork> network_,
       pbft::RequestsMap& pbft_requests_map_) :
+      state(state_),
       network(network_),
-      pbft_requests_map(pbft_requests_map_),
-      is_first_message(true),
-      last_version(kv::NoVersion)
+      pbft_requests_map(pbft_requests_map_)
     {}
+
     virtual ~StartupStateMachine() = default;
 
     kv::Version receive_request(std::unique_ptr<RequestMessage> request) override
@@ -37,26 +39,8 @@ namespace aft
         threading::get_current_thread_id() ==
           threading::ThreadMessaging::main_thread,
         "Should be executed on the main thread");
-
-      std::shared_ptr<enclave::RpcContext>& ctx = request->get_request_ctx().ctx;
-      std::shared_ptr<enclave::RpcHandler>& frontend = request->get_request_ctx().frontend;
-
-      ctx->pbft_raw.resize(request->size());
-      request->serialize_message(ctx->pbft_raw.data(), ctx->pbft_raw.size());
-
-      ctx->is_create_request = is_first_message;
-      ctx->set_apply_writes(true);
-
-      enclave::RpcHandler::ProcessPbftResp rep = frontend->process_pbft(ctx);
-
-      frontend->update_merkle_tree();
-
-      is_first_message = false;
-
-      request->callback(rep.result);
-
-      last_version = rep.version;
-      return rep.version;
+      return ExecutionUtilities::execute_request(
+        std::move(request), state->last_committed_version == 0);
     }
 
     bool receive_message(OArray& oa, kv::NodeId from) override
@@ -94,23 +78,25 @@ namespace aft
     }
 
   private:
+    std::shared_ptr<ServiceState> state;
     std::shared_ptr<EnclaveNetwork> network;
-    bool is_first_message;
     pbft::RequestsMap& pbft_requests_map;
-    kv::Version last_version = kv::NoVersion;
 
     void handle_status_message(OArray&& oa, kv::NodeId from)
     {
       StatusMessageRecv status(std::move(oa), from);
-      LOG_INFO_FMT("****** last {}, status {}", last_version, status.get_version());
-      if (last_version > status.get_version())
+      LOG_TRACE_FMT(
+        "last {}, status {}",
+        state->last_committed_version,
+        status.get_version());
+      if (state->last_committed_version > status.get_version())
       {
         // We have already requested data so need to do that again
         return;
       }
 
       RequestDataMessage request(
-        std::max(last_version, (int64_t)0), status.get_version());
+        std::max(state->last_committed_version, (int64_t)0), status.get_version());
       network->Send(request, from);
     }
 
@@ -121,7 +107,8 @@ namespace aft
       kv::Version index_from = request.get_from();
       kv::Version index_to = request.get_to();
 
-      LOG_INFO_FMT("Sending entries {} to {}, to node {}", index_from, index_to, from);
+      LOG_TRACE_FMT(
+        "Sending entries {} to {}, to node {}", index_from, index_to, from);
 
       AppendEntries ae = {
         aft_append_entries, network->get_my_node_id(), index_to, index_from};
@@ -130,10 +117,11 @@ namespace aft
   };
 
   std::unique_ptr<IStartupStateMachine> create_startup_state_machine(
+    std::shared_ptr<ServiceState> state,
     std::shared_ptr<EnclaveNetwork> network,
     pbft::RequestsMap& pbft_requests_map)
   {
     return std::make_unique<StartupStateMachine>(
-      network, pbft_requests_map);
+      state, network, pbft_requests_map);
   }
 }

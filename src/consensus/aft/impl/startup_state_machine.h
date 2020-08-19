@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "aft_state.h"
 #include "consensus/aft/aft_types.h"
 #include "kv/kv_types.h"
 
@@ -21,6 +22,7 @@ namespace aft
   };
 
   std::unique_ptr<IStartupStateMachine> create_startup_state_machine(
+    std::shared_ptr<ServiceState> state,
     std::shared_ptr<EnclaveNetwork> network_,
     pbft::RequestsMap& pbft_requests_map_);
 }

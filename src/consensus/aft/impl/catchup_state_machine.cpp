@@ -14,6 +14,7 @@
 #include "kv/tx.h"
 #include "request_message.h"
 #include "status_message.h"
+#include "execution_utilities.h"
 
 namespace aft
 {
@@ -74,7 +75,7 @@ namespace aft
       size_t size = oa.size();
       kv::Version version;
 
-      LOG_INFO_FMT("Applying entries from {}, total {}, size {}", from, ae.idx, oa.size());
+      LOG_DEBUG_FMT("Applying entries from {}, total {}, size {}", from, ae.idx, oa.size());
 
       for (ccf::Index i = ae.prev_idx; i < ae.idx; i++)
       {
@@ -82,7 +83,7 @@ namespace aft
         {
           // If the current entry has already been deserialised, skip the
           // payload for that entry
-          LOG_INFO_FMT(
+          LOG_DEBUG_FMT(
             "Skipping index {} as we are at index {}", i, state->last_committed_version);
           consensus::LedgerEnclave::skip_entry(data, size);
           continue;
@@ -176,7 +177,7 @@ namespace aft
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
         std::move(msg),
-        std::chrono::milliseconds(100)); // TODO: this should be configurable
+        std::chrono::milliseconds(100)); // this should be configurable
     }
 
     kv::Version commit_replayed_request(kv::Tx& tx)
@@ -188,67 +189,13 @@ namespace aft
         "Deserialised request but it was not found in the requests map");
       pbft::Request request = req_v.value();
 
-      auto ctx = create_request_ctx(request);
+      auto ctx = ExecutionUtilities::create_request_ctx(request, rpc_map);
 
       auto request_message = RequestMessage::deserialize(
         request.pbft_raw.data(), request.pbft_raw.size(), std::move(ctx), nullptr);
-      return receive_request(std::move(request_message));
-    }
 
-    std::unique_ptr<RequestCtx> create_request_ctx(pbft::Request& request)
-    {
-      auto r_ctx = std::make_unique<RequestCtx>();
-
-      auto session = std::make_shared<enclave::SessionContext>(
-        enclave::InvalidSessionId, request.caller_id, request.caller_cert);
-
-      r_ctx->ctx = enclave::make_fwd_rpc_context(
-        session, request.raw, (enclave::FrameFormat)request.frame_format);
-
-      const auto actor_opt = http::extract_actor(*r_ctx->ctx);
-      if (!actor_opt.has_value())
-      {
-        throw std::logic_error(fmt::format(
-          "Failed to extract actor from PBFT request. Method is '{}'",
-          r_ctx->ctx->get_method()));
-      }
-
-      const auto& actor_s = actor_opt.value();
-      std::string preferred_actor_s;
-      const auto actor = rpc_map->resolve(actor_s, preferred_actor_s);
-      auto handler = rpc_map->find(actor);
-      if (!handler.has_value())
-        throw std::logic_error(
-          fmt::format("No frontend associated with actor {}", actor_s));
-
-      r_ctx->frontend = handler.value();
-      return r_ctx;
-    }
-    
-    kv::Version receive_request(std::unique_ptr<RequestMessage> request)
-    {
-      CCF_ASSERT(
-        threading::get_current_thread_id() ==
-          threading::ThreadMessaging::main_thread,
-        "Should be executed on the main thread");
-
-      std::shared_ptr<enclave::RpcContext>& ctx = request->get_request_ctx().ctx;
-      std::shared_ptr<enclave::RpcHandler>& frontend = request->get_request_ctx().frontend;
-
-      ctx->pbft_raw.resize(request->size());
-      request->serialize_message(ctx->pbft_raw.data(), ctx->pbft_raw.size());
-
-      //ctx->is_create_request = is_first_message;
-      ctx->is_create_request = (state->last_committed_version == 0);
-      ctx->set_apply_writes(true);
-
-      enclave::RpcHandler::ProcessPbftResp rep = frontend->process_pbft(ctx);
-
-      frontend->update_merkle_tree();
-
-      request->callback(rep.result);
-
-      return rep.version;
+      return ExecutionUtilities::execute_request(
+        std::move(request_message), state->last_committed_version == 0);
     }
   };
 

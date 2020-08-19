@@ -8,6 +8,7 @@
 #include "aft_types.h"
 #include "impl/request_message.h"
 #include "aft_network.h"
+#include "impl/execution_utilities.h"
 
 namespace aft
 {
@@ -150,7 +151,8 @@ namespace aft
         return rpc_sessions->reply_async(std::get<1>(caller_rid), data);
       };
 
-      auto ctx = create_request_ctx(serialized_req.data(), serialized_req.size());
+      auto ctx = ExecutionUtilities::create_request_ctx(
+        serialized_req.data(), serialized_req.size(), rpc_map);
 
       auto request_message = std::make_unique<RequestMessage>(
         std::move(serialized_req),
@@ -186,40 +188,5 @@ namespace aft
     std::unique_ptr<IStore> store;
     std::unique_ptr<consensus::LedgerEnclave> ledger;
     std::shared_ptr<EnclaveNetwork> network;
-
-    // TODO: this is duplicated
-    std::unique_ptr<RequestCtx> create_request_ctx(
-      uint8_t* req_start, size_t req_size)
-    {
-      auto r_ctx = std::make_unique<RequestCtx>();
-      Request request;
-      request.deserialise(req_start, req_size);
-
-      auto session = std::make_shared<enclave::SessionContext>(
-        enclave::InvalidSessionId, request.caller_id, request.caller_cert);
-
-      r_ctx->ctx = enclave::make_fwd_rpc_context(
-        session, request.raw, (enclave::FrameFormat)request.frame_format);
-
-      const auto actor_opt = http::extract_actor(*r_ctx->ctx);
-      if (!actor_opt.has_value())
-      {
-        throw std::logic_error(fmt::format(
-          "Failed to extract actor from PBFT request. Method is '{}'",
-          r_ctx->ctx->get_method()));
-      }
-
-      const auto& actor_s = actor_opt.value();
-      std::string preferred_actor_s;
-      const auto actor = rpc_map->resolve(actor_s, preferred_actor_s);
-      auto handler = rpc_map->find(actor);
-      if (!handler.has_value())
-        throw std::logic_error(
-          fmt::format("No frontend associated with actor {}", actor_s));
-
-      r_ctx->frontend = handler.value();
-      return r_ctx;
-    };
   };
-
 }
