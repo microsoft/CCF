@@ -317,6 +317,7 @@ namespace ccf
 
     void deserialise(const std::vector<uint8_t>& serialised)
     {
+      mt_free(tree);
       tree = mt_deserialize(serialised.data(), serialised.size());
     }
 
