@@ -115,10 +115,10 @@ namespace kv
         read_version = txid.version;
       }
 
-      M* typed_map = nullptr;
+      MapView* typed_view = nullptr;
 
-      auto type_erased_map = store->get_map(read_version, map_name);
-      if (type_erased_map == nullptr)
+      kv::AbstractMap* abstract_map = store->get_map(read_version, map_name);
+      if (abstract_map == nullptr)
       {
         // Store doesn't know this map yet - create it dynamically
         {
@@ -132,32 +132,45 @@ namespace kv
         // TODO: Currently assuming all dynamic maps are replicated and private
         const bool replicated = true;
 
-        auto new_map = std::make_shared<M>(
+        // NB: The created maps are always untyped. Only the views over them are
+        // typed
+        auto new_map = std::make_shared<kv::untyped::Map>(
           store, map_name, kv::SecurityDomain::PRIVATE, replicated);
         created_maps[map_name] = new_map;
         LOG_DEBUG_FMT("Creating new map '{}'", map_name);
 
-        typed_map = new_map.get();
+        abstract_map = new_map.get();
+        typed_view = new_map->template create_view<MapView>(read_version);
       }
       else
       {
-        typed_map = dynamic_cast<M*>(type_erased_map);
+        auto typed_map = dynamic_cast<M*>(abstract_map);
         if (typed_map == nullptr)
         {
-          throw std::logic_error(
-            fmt::format("Map {} has unexpected type", map_name));
+          auto untyped_map = dynamic_cast<kv::untyped::Map*>(abstract_map);
+          if (untyped_map == nullptr)
+          {
+            throw std::logic_error(
+              fmt::format("Map {} has unexpected type", map_name));
+          }
+          else
+          {
+            typed_view = untyped_map->template create_view<MapView>(read_version);
+          }
+        }
+        else
+        {
+          typed_view = typed_map->template create_view<MapView>(read_version);
         }
       }
 
-      MapView* typed_view =
-        typed_map->template create_view<MapView>(read_version);
       auto abstract_view = dynamic_cast<AbstractTxView*>(typed_view);
       if (abstract_view == nullptr)
       {
         throw std::logic_error(
           fmt::format("View over map {} is not an AbstractTxView", map_name));
       }
-      view_list[map_name] = {typed_map,
+      view_list[map_name] = {abstract_map,
                              std::unique_ptr<AbstractTxView>(abstract_view)};
       return std::make_tuple(typed_view);
     }
@@ -250,7 +263,8 @@ namespace kv
 
       auto store = view_list.begin()->second.map->get_store();
 
-      // If this transaction may create maps, ensure that commit gets a consistent view of the existing maps
+      // If this transaction may create maps, ensure that commit gets a
+      // consistent view of the existing maps
       if (!created_maps.empty())
         this->store->lock();
 

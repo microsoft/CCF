@@ -41,15 +41,20 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
 
   {
     INFO("Old style access");
-    auto map_a = kv_store.get<MapTypes::StringString>(map_name);
+    // NB: Don't access these maps old-style, because you need to know this
+    // implementation detail that the map is _actually_ untyped
+    auto map_a_wrong = kv_store.get<MapTypes::StringString>(map_name);
+    REQUIRE(map_a_wrong == nullptr);
+
+    auto map_a = kv_store.get<kv::untyped::Map>(map_name);
     REQUIRE(map_a != nullptr);
 
-    auto tx = kv_store.create_tx();
+    // auto tx = kv_store.create_tx();
 
-    auto view = tx.get_view(*map_a);
-    const auto it = view->get("foo");
-    REQUIRE(it.has_value());
-    REQUIRE(it.value() == "bar");
+    // auto view = tx.get_view(*map_a);
+    // const auto it = view->get("foo");
+    // REQUIRE(it.has_value());
+    // REQUIRE(it.value() == "bar");
   }
 
   {
@@ -66,12 +71,9 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
     INFO("Dynamic tables remain through compaction");
     kv_store.compact(kv_store.current_version());
 
-    auto map_a = kv_store.get<MapTypes::StringString>(map_name);
-    REQUIRE(map_a != nullptr);
-
     auto tx = kv_store.create_tx();
 
-    auto view = tx.get_view(*map_a);
+    auto view = tx.get_view2<MapTypes::StringString>(map_name);
     const auto it = view->get("foo");
     REQUIRE(it.has_value());
     REQUIRE(it.value() == "bar");
@@ -95,23 +97,23 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
 
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
-    REQUIRE(kv_store.get<MapTypes::StringString>("1") != nullptr);
-    REQUIRE(kv_store.get<MapTypes::NumString>("3") != nullptr);
+    REQUIRE(kv_store.get<kv::untyped::Map>("1") != nullptr);
+    REQUIRE(kv_store.get<kv::untyped::Map>("3") != nullptr);
 
     // No writes => map is not created
-    REQUIRE(kv_store.get<MapTypes::StringNum>("2") == nullptr);
+    REQUIRE(kv_store.get<kv::untyped::Map>("2") == nullptr);
   }
 
   {
     INFO("Rollback can delete dynamic tables");
     kv_store.rollback(version_before);
 
-    REQUIRE(kv_store.get<MapTypes::StringString>("1") == nullptr);
-    REQUIRE(kv_store.get<MapTypes::StringNum>("2") == nullptr);
-    REQUIRE(kv_store.get<MapTypes::NumString>("3") == nullptr);
+    REQUIRE(kv_store.get<kv::untyped::Map>("1") == nullptr);
+    REQUIRE(kv_store.get<kv::untyped::Map>("2") == nullptr);
+    REQUIRE(kv_store.get<kv::untyped::Map>("3") == nullptr);
 
     // Previously created map is retained
-    REQUIRE(kv_store.get<MapTypes::StringString>(map_name) != nullptr);
+    REQUIRE(kv_store.get<kv::untyped::Map>(map_name) != nullptr);
   }
 }
 
@@ -172,7 +174,7 @@ TEST_CASE("Dynamic table opacity" * doctest::test_suite("dynamic"))
   }
 
   {
-    REQUIRE(kv_store.get<MapTypes::StringString>(map_name) != nullptr);
+    REQUIRE(kv_store.get<kv::untyped::Map>(map_name) != nullptr);
   }
 
   {
@@ -282,7 +284,7 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
     REQUIRE(tx2.commit() == kv::CommitSuccess::CONFLICT);
 
-    REQUIRE(kv_store.get<MapTypes::NumString>(dynamic_map_a) != nullptr);
+    REQUIRE(kv_store.get<kv::untyped::Map>(dynamic_map_a) != nullptr);
     REQUIRE(kv_store.get<MapTypes::StringNum>(dynamic_map_b) == nullptr);
   }
 }
@@ -330,4 +332,3 @@ TEST_CASE("Dynamic map serialisation" * doctest::test_suite("dynamic"))
 // TODO
 // - If a transaction is mid-execution over a deleted-by-rollback map, it should
 // continue safely (and fail with conflict)
-// - Serialisation of map creation
