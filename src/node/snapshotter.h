@@ -27,8 +27,8 @@ namespace ccf
 
     size_t get_execution_thread()
     {
-      // For now, always generate snapshots on first worker thread if there are
-      // more than one thread. Otherwise, round robin on worker threads.
+      // Generate on main thread if there are no worker threads. Otherwise,
+      // round robin on worker threads.
       if (threading::ThreadMessaging::thread_count > 1)
       {
         static size_t generation_count = 0;
@@ -68,7 +68,7 @@ namespace ccf
       kv::Tx tx;
       auto view = tx.get_view(network.snapshot_evidences);
       auto snapshot_hash = crypto::Sha256Hash(snapshot);
-      view->put(0, {snapshot_hash});
+      view->put(0, {snapshot_hash, idx});
 
       auto rc = tx.commit();
       if (rc != kv::CommitSuccess::OK)
