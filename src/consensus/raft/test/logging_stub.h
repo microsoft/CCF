@@ -198,5 +198,11 @@ namespace raft
       // For now, do not test snapshots in unit tests
       return;
     }
+
+    bool requires_snapshot(Index)
+    {
+      // For now, do not test snapshots in unit tests
+      return false;
+    }
   };
 }

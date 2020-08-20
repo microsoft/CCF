@@ -6,10 +6,11 @@
 #include "crypto/hash.h"
 #include "ds/ccf_assert.h"
 #include "ds/logger.h"
-#include "ds/spin_lock.h"
 #include "ds/thread_messaging.h"
 #include "kv/kv_types.h"
 #include "node/snapshot_evidence.h"
+
+#include <optional>
 
 namespace ccf
 {
@@ -17,12 +18,16 @@ namespace ccf
   {
   private:
     ringbuffer::WriterPtr to_host;
-    SpinLock lock;
 
     NetworkState& network;
 
-    consensus::Index last_snapshot_idx = 0;
     size_t snapshot_interval;
+
+    // Index at which the lastest snapshot was generated
+    consensus::Index last_snapshot_idx = 0;
+
+    // Index at which a snapshot will be next generated
+    consensus::Index next_snapshot_idx = 0;
 
     size_t get_execution_thread()
     {
@@ -61,8 +66,6 @@ namespace ccf
     void snapshot_(
       std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot)
     {
-      std::lock_guard<SpinLock> guard(lock);
-
       auto snapshot_idx = snapshot->get_version();
 
       auto serialised_snapshot =
@@ -84,7 +87,6 @@ namespace ccf
       }
 
       record_snapshot(snapshot_idx, serialised_snapshot);
-      last_snapshot_idx = snapshot_idx;
 
       LOG_DEBUG_FMT(
         "Snapshot successfully generated for idx {}: {}",
@@ -104,8 +106,6 @@ namespace ccf
 
     void snapshot(consensus::Index idx)
     {
-      std::lock_guard<SpinLock> guard(lock);
-
       CCF_ASSERT_FMT(
         idx >= last_snapshot_idx,
         "Cannot snapshot at idx {} which is earlier than last snapshot idx "
@@ -119,9 +119,21 @@ namespace ccf
         msg->data.self = shared_from_this();
         msg->data.snapshot = network.tables->snapshot(idx);
 
+        last_snapshot_idx = idx;
         threading::ThreadMessaging::thread_messaging.add_task(
           get_execution_thread(), std::move(msg));
       }
+    }
+
+    // TODO: Name is baaaad
+    bool requires_snapshot(consensus::Index idx)
+    {
+      if ((idx - next_snapshot_idx) > snapshot_interval)
+      {
+        next_snapshot_idx = idx;
+        return true;
+      }
+      return false;
     }
   };
 }

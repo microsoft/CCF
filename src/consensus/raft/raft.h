@@ -352,11 +352,18 @@ namespace raft
           index,
           (globally_committable ? " committable" : ""));
 
+        bool force_ledger_chunk = false;
         if (globally_committable)
+        {
           committable_indices.push_back(index);
 
+          // Only if globally committable, a snapshot requires a new ledger
+          // chunk to be created
+          force_ledger_chunk = snapshotter->requires_snapshot(index);
+        }
+
         last_idx = index;
-        ledger->put_entry(*data, globally_committable);
+        ledger->put_entry(*data, globally_committable, force_ledger_chunk);
         entry_size_not_limited += data->size();
         entry_count++;
 
@@ -410,8 +417,7 @@ namespace raft
           break;
 
         default:
-        {
-        }
+        {}
       }
     }
 
@@ -662,8 +668,15 @@ namespace raft
         auto deserialise_success =
           store->deserialise(entry, public_only, &sig_term);
 
-        ledger->put_entry(
-          entry, deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
+        bool globally_committable =
+          (deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
+        bool force_ledger_chunk = false;
+        if (globally_committable)
+        {
+          force_ledger_chunk = snapshotter->requires_snapshot(i);
+        }
+
+        ledger->put_entry(entry, globally_committable, force_ledger_chunk);
 
         switch (deserialise_success)
         {
