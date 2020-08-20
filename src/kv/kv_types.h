@@ -191,7 +191,7 @@ namespace kv
     using SeqNo = int64_t;
     // View describes an epoch of SeqNos. View is incremented when Consensus's
     // primary changes
-    using View = uint64_t;
+    using View = int64_t;
 
     struct Configuration
     {
