@@ -18,13 +18,10 @@ namespace kv
   {
   private:
     // All collections of Map must be ordered so that we lock their contained
-    // maps in a stable order. The order here is by map name
-    using Maps = std::map<std::string, std::shared_ptr<AbstractMap>>;
+    // maps in a stable order. The order here is by map name. The version indicates
+    // the version at which the Map was created, or kv::NoVersion for 'static' maps created by Store.create
+    using Maps = std::map<std::string, std::pair<kv::Version, std::shared_ptr<AbstractMap>>>;
     Maps maps;
-
-    using DynamicMaps = std::
-      map<std::string, std::pair<kv::Version, std::shared_ptr<AbstractMap>>>;
-    DynamicMaps dynamic_maps;
 
     std::shared_ptr<Consensus> consensus = nullptr;
     std::shared_ptr<TxHistory> history = nullptr;
@@ -72,10 +69,6 @@ namespace kv
       if (search != maps.end())
         return true;
 
-      auto dynamic_search = dynamic_maps.find(name);
-      if (dynamic_search != dynamic_maps.end())
-        return true;
-
       return false;
     }
 
@@ -87,9 +80,10 @@ namespace kv
       if ((maps.size() != 0) || (version != 0))
         throw std::logic_error("Cannot clone schema on a non-empty store");
 
-      for (auto& [name, map] : from.maps)
+      for (auto& [name, pair] : from.maps)
       {
-        maps[name] = std::unique_ptr<AbstractMap>(map->clone(this));
+        auto& [v, map] = pair;
+        maps[name] = std::make_pair(v, std::unique_ptr<AbstractMap>(map->clone(this)));
       }
     }
 
@@ -156,18 +150,7 @@ namespace kv
       auto search = maps.find(name);
       if (search != maps.end())
       {
-        auto result = dynamic_cast<M*>(search->second.get());
-
-        if (result == nullptr)
-          return nullptr;
-
-        return result;
-      }
-
-      auto dynamic_search = dynamic_maps.find(name);
-      if (dynamic_search != dynamic_maps.end())
-      {
-        auto result = dynamic_cast<M*>(dynamic_search->second.second.get());
+        auto result = dynamic_cast<M*>(search->second.second.get());
 
         if (result == nullptr)
           return nullptr;
@@ -244,8 +227,8 @@ namespace kv
         }
       }
 
-      auto result = new M(this, name, security_domain, replicated);
-      maps[name] = std::unique_ptr<AbstractMap>(result);
+      auto result = std::make_shared<M>(this, name, security_domain, replicated);
+      maps[name] = std::make_pair(NoVersion, result);
       return *result;
     }
 
@@ -254,14 +237,8 @@ namespace kv
       auto search = maps.find(map_name);
       if (search != maps.end())
       {
-        return search->second;
-      }
-
-      auto dynamic_search = dynamic_maps.find(map_name);
-      if (dynamic_search != dynamic_maps.end())
-      {
-        const auto& [map_creation_version, map_ptr] = dynamic_search->second;
-        if (v >= map_creation_version)
+        const auto& [map_creation_version, map_ptr] = search->second;
+        if (v >= map_creation_version || map_creation_version == NoVersion)
         {
           return map_ptr;
         }
@@ -280,7 +257,7 @@ namespace kv
           "Can't add dynamic map - already have a map named {}", map_name));
       }
 
-      dynamic_maps[map_name] = std::make_pair(v, map);
+      maps[map_name] = std::make_pair(v, map);
     }
 
     std::vector<uint8_t> serialise_snapshot(Version v) override
@@ -304,19 +281,22 @@ namespace kv
       {
         std::lock_guard<SpinLock> mguard(maps_lock);
 
-        for (auto& map : maps)
+        for (auto& it : maps)
         {
-          map.second->lock();
+          auto& [_, map] = it.second;
+          map->lock();
         }
 
-        for (auto& map : maps)
+        for (auto& it : maps)
         {
-          snapshot.add_map_snapshot(map.second->snapshot(v));
+          auto& [_, map] = it.second;
+          snapshot.add_map_snapshot(map->snapshot(v));
         }
 
-        for (auto& map : maps)
+        for (auto& it : maps)
         {
-          map.second->unlock();
+          auto& [_, map] = it.second;
+          map->unlock();
         }
       }
 
@@ -342,9 +322,10 @@ namespace kv
 
       std::lock_guard<SpinLock> mguard(maps_lock);
 
-      for (auto& map : maps)
+      for (auto& it : maps)
       {
-        map.second->lock();
+        auto& [_, map] = it.second;
+        map->lock();
       }
 
       bool success = true;
@@ -355,6 +336,7 @@ namespace kv
         auto search = maps.find(map_name);
         if (search == maps.end())
         {
+          // TODO: Create map here
           LOG_FAIL_FMT("Failed to deserialise snapshot at version {}", v);
           LOG_DEBUG_FMT("No such map in store {}", map_name);
           success = false;
@@ -364,12 +346,13 @@ namespace kv
         auto map_version = d.deserialise_entry_version();
         auto map_snapshot = d.deserialise_raw();
 
-        search->second->apply_snapshot(map_version, map_snapshot);
+        search->second.second->apply_snapshot(map_version, map_snapshot);
       }
 
-      for (auto& map : maps)
+      for (auto& it : maps)
       {
-        map.second->unlock();
+        auto& [_, map] = it.second;
+        map->unlock();
       }
 
       if (!success)
@@ -405,19 +388,23 @@ namespace kv
         return;
       }
 
-      for (auto& map : maps)
+      for (auto& it : maps)
       {
-        map.second->lock();
+        auto& [_, map] = it.second;
+        map->lock();
       }
 
-      for (auto& map : maps)
+      for (auto& it : maps)
       {
-        map.second->compact(v);
+        // TODO: Is there anything interesting to do here, in noting that some previously at-risk-of-rollback maps are now permanent?
+        auto& [_, map] = it.second;
+        map->compact(v);
       }
 
-      for (auto& map : maps)
+      for (auto& it : maps)
       {
-        map.second->unlock();
+        auto& [_, map] = it.second;
+        map->unlock();
       }
 
       {
@@ -437,9 +424,10 @@ namespace kv
         }
       }
 
-      for (auto& map : maps)
+      for (auto& it : maps)
       {
-        map.second->post_compact();
+        auto& [_, map] = it.second;
+        map->post_compact();
       }
     }
 
@@ -466,33 +454,36 @@ namespace kv
           v,
           commit_version()));
 
-      for (auto& map : maps)
-        map.second->lock();
-
-      for (auto& map : maps)
-        map.second->rollback(v);
-
-      // TODO: Lock dynamic maps? Or perhaps flatten both into a single
-      // container?
-      auto dynamic_it = dynamic_maps.begin();
-      while (dynamic_it != dynamic_maps.end())
+      for (auto& it : maps)
       {
-        auto& [map_creation_version, map] = dynamic_it->second;
+        auto& [_, map] = it.second;
+        map->lock();
+      }
+
+      auto it = maps.begin();
+      while (it != maps.end())
+      {
+        auto& [map_creation_version, map] = it->second;
         // Rollback this map whether we're forgetting about it or not. Anyone
         // else still holding it should see it has rolled back
         map->rollback(v);
         if (map_creation_version > v)
         {
-          dynamic_it = dynamic_maps.erase(dynamic_it);
+          // Map was created more recently; its creation is being forgotten. Erase our knowledge of it
+          map->unlock();
+          it = maps.erase(it);
         }
         else
         {
-          ++dynamic_it;
+          ++it;
         }
       }
 
-      for (auto& map : maps)
-        map.second->unlock();
+      for (auto& it : maps)
+      {
+        auto& [_, map] = it.second;
+        map->unlock();
+      }
 
       std::lock_guard<SpinLock> vguard(version_lock);
       version = v;
@@ -723,7 +714,13 @@ namespace kv
         if (search == that.maps.end())
           return false;
 
-        if (*it->second != *search->second)
+        auto& [this_v, this_map] = it->second;
+        auto& [that_v, that_map] = search->second;
+
+        if (this_v != that_v)
+          return false;
+
+        if (*this_map != *that_map)
           return false;
       }
 
@@ -900,15 +897,25 @@ namespace kv
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
+      // TODO: This doesn't make sense with dynamically-created maps - are we creating them or deleting them?
       // This deletes the entire content of all maps in the store.
-      for (auto& map : maps)
-        map.second->lock();
+      for (auto& it : maps)
+      {
+        auto& [_, map] = it.second;
+        map->lock();
+      }
 
-      for (auto& map : maps)
-        map.second->clear();
+      for (auto& it : maps)
+      {
+        auto& [_, map] = it.second;
+        map->clear();
+      }
 
-      for (auto& map : maps)
-        map.second->unlock();
+      for (auto& it : maps)
+      {
+        auto& [_, map] = it.second;
+        map->unlock();
+      }
 
       {
         std::lock_guard<SpinLock> vguard(version_lock);
@@ -941,8 +948,9 @@ namespace kv
       using MapEntry = std::tuple<std::string, AbstractMap*, AbstractMap*>;
       std::vector<MapEntry> entries;
 
-      for (auto& [name, map] : maps)
+      for (auto& [name, pair] : maps)
       {
+        auto& [_, map] = pair;
         if (map->get_security_domain() == SecurityDomain::PRIVATE)
         {
           map->lock();
@@ -951,8 +959,9 @@ namespace kv
       }
 
       auto entry = entries.begin();
-      for (auto& [name, map] : store.maps)
+      for (auto& [name, pair] : maps)
       {
+        auto& [_, map] = pair;
         if (map->get_security_domain() == SecurityDomain::PRIVATE)
         {
           if (entry == entries.end())
