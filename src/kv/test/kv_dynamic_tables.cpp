@@ -81,39 +81,63 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
 
   const auto version_before = kv_store.current_version();
 
+  constexpr auto new_map1 = "1";
+  constexpr auto new_map2 = "2";
+  constexpr auto new_map3 = "3";
+
   {
     INFO("Multiple dynamic tables can be created in a single tx");
     auto tx = kv_store.create_tx();
 
-    auto [v1, v2] =
-      tx.get_view2<MapTypes::StringString, MapTypes::StringNum>("1", "2");
-    auto [v2a, v3] =
-      tx.get_view2<MapTypes::StringNum, MapTypes::NumString>("2", "3");
+    auto [v1, v2] = tx.get_view2<MapTypes::StringString, MapTypes::StringNum>(
+      new_map1, new_map2);
+    auto [v2a, v3] = tx.get_view2<MapTypes::StringNum, MapTypes::NumString>(
+      new_map2, new_map3);
 
     REQUIRE(v2 == v2a);
 
     v1->put("foo", "bar");
     v3->put(42, "hello");
 
+    auto va = tx.get_view2<MapTypes::StringString>(map_name);
+    va->put("foo", "baz");
+
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
-    REQUIRE(kv_store.get<kv::untyped::Map>("1") != nullptr);
-    REQUIRE(kv_store.get<kv::untyped::Map>("3") != nullptr);
+    {
+      auto check_tx = kv_store.create_tx();
+      auto check_va = check_tx.get_view2<MapTypes::StringString>(map_name);
+      const auto v = check_va->get("foo");
+      REQUIRE(v.has_value());
+      REQUIRE(v.value() == "baz");
+    }
+
+    REQUIRE(kv_store.get<kv::untyped::Map>(new_map1) != nullptr);
+    REQUIRE(kv_store.get<kv::untyped::Map>(new_map3) != nullptr);
 
     // No writes => map is not created
-    REQUIRE(kv_store.get<kv::untyped::Map>("2") == nullptr);
+    REQUIRE(kv_store.get<kv::untyped::Map>(new_map2) == nullptr);
   }
 
   {
     INFO("Rollback can delete dynamic tables");
     kv_store.rollback(version_before);
 
-    REQUIRE(kv_store.get<kv::untyped::Map>("1") == nullptr);
-    REQUIRE(kv_store.get<kv::untyped::Map>("2") == nullptr);
-    REQUIRE(kv_store.get<kv::untyped::Map>("3") == nullptr);
+    REQUIRE(kv_store.get<kv::untyped::Map>(new_map1) == nullptr);
+    REQUIRE(kv_store.get<kv::untyped::Map>(new_map2) == nullptr);
+    REQUIRE(kv_store.get<kv::untyped::Map>(new_map3) == nullptr);
 
     // Previously created map is retained
     REQUIRE(kv_store.get<kv::untyped::Map>(map_name) != nullptr);
+
+    {
+      INFO("Retained dynamic maps have their state rolled back");
+      auto check_tx = kv_store.create_tx();
+      auto check_va = check_tx.get_view2<MapTypes::StringString>(map_name);
+      const auto v = check_va->get("foo");
+      REQUIRE(v.has_value());
+      REQUIRE(v.value() == "bar");
+    }
   }
 }
 
