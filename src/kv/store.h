@@ -18,9 +18,11 @@ namespace kv
   {
   private:
     // All collections of Map must be ordered so that we lock their contained
-    // maps in a stable order. The order here is by map name. The version indicates
-    // the version at which the Map was created, or kv::NoVersion for 'static' maps created by Store.create
-    using Maps = std::map<std::string, std::pair<kv::Version, std::shared_ptr<AbstractMap>>>;
+    // maps in a stable order. The order here is by map name. The version
+    // indicates the version at which the Map was created, or kv::NoVersion for
+    // 'static' maps created by Store.create
+    using Maps = std::
+      map<std::string, std::pair<kv::Version, std::shared_ptr<AbstractMap>>>;
     Maps maps;
 
     std::shared_ptr<Consensus> consensus = nullptr;
@@ -47,9 +49,11 @@ namespace kv
     // Tables, but its versioning invariants are ignored.
     const bool strict_versions = true;
 
-    DeserialiseSuccess commit_deserialised(OrderedViews& views, Version& v, const MapCollection& new_maps)
+    DeserialiseSuccess commit_deserialised(
+      OrderedViews& views, Version& v, const MapCollection& new_maps)
     {
-      auto c = apply_views(views, [v]() { return v; }, new_maps);
+      auto c = apply_views(
+        views, [v]() { return v; }, new_maps);
       if (!c.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
@@ -83,7 +87,8 @@ namespace kv
       for (auto& [name, pair] : from.maps)
       {
         auto& [v, map] = pair;
-        maps[name] = std::make_pair(v, std::unique_ptr<AbstractMap>(map->clone(this)));
+        maps[name] =
+          std::make_pair(v, std::unique_ptr<AbstractMap>(map->clone(this)));
       }
     }
 
@@ -227,12 +232,14 @@ namespace kv
         }
       }
 
-      auto result = std::make_shared<M>(this, name, security_domain, replicated);
+      auto result =
+        std::make_shared<M>(this, name, security_domain, replicated);
       maps[name] = std::make_pair(NoVersion, result);
       return *result;
     }
 
-    std::shared_ptr<AbstractMap> get_map(kv::Version v, const std::string& map_name) override
+    std::shared_ptr<AbstractMap> get_map(
+      kv::Version v, const std::string& map_name) override
     {
       auto search = maps.find(map_name);
       if (search != maps.end())
@@ -396,7 +403,8 @@ namespace kv
 
       for (auto& it : maps)
       {
-        // TODO: Is there anything interesting to do here, in noting that some previously at-risk-of-rollback maps are now permanent?
+        // TODO: Is there anything interesting to do here, in noting that some
+        // previously at-risk-of-rollback maps are now permanent?
         auto& [_, map] = it.second;
         map->compact(v);
       }
@@ -469,7 +477,8 @@ namespace kv
         map->rollback(v);
         if (map_creation_version > v)
         {
-          // Map was created more recently; its creation is being forgotten. Erase our knowledge of it
+          // Map was created more recently; its creation is being forgotten.
+          // Erase our knowledge of it
           map->unlock();
           it = maps.erase(it);
         }
@@ -570,11 +579,16 @@ namespace kv
         auto map = get_map(v, map_name);
         if (map == nullptr)
         {
-          // TODO: Makes the same assumptions on privacy domain + replicated as BaseTx::get_tuple2
-          auto map_shared = std::make_shared<kv::untyped::Map>(this, map_name, kv::SecurityDomain::PRIVATE, true);
+          // TODO: Makes the same assumptions on privacy domain + replicated as
+          // BaseTx::get_tuple2
+          auto map_shared = std::make_shared<kv::untyped::Map>(
+            this, map_name, kv::SecurityDomain::PRIVATE, true);
           map = map_shared;
           new_maps[map_name] = map_shared;
-          LOG_DEBUG_FMT("Creating map {} while deserialising transaction at version {}", map_name, v);
+          LOG_DEBUG_FMT(
+            "Creating map {} while deserialising transaction at version {}",
+            map_name,
+            v);
         }
 
         auto view_search = views.find(map_name);
@@ -589,8 +603,7 @@ namespace kv
         // otherwise the view will be considered as having a committed
         // version
         auto deserialise_version = (commit ? v : NoVersion);
-        auto deserialised_write_set =
-          map->deserialise(d, deserialise_version);
+        auto deserialised_write_set = map->deserialise(d, deserialise_version);
         if (deserialised_write_set == nullptr)
         {
           LOG_FAIL_FMT(
@@ -604,8 +617,7 @@ namespace kv
         // Take ownership of the produced write set, store it to be committed
         // later
         views[map_name] = {
-          map,
-          std::unique_ptr<AbstractTxView>(deserialised_write_set)};
+          map, std::unique_ptr<AbstractTxView>(deserialised_write_set)};
       }
 
       if (!d.end())
@@ -897,8 +909,9 @@ namespace kv
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
-      // TODO: This doesn't make sense with dynamically-created maps - are we creating them or deleting them?
-      // This deletes the entire content of all maps in the store.
+      // TODO: This doesn't make sense with dynamically-created maps - are we
+      // creating them or deleting them? This deletes the entire content of all
+      // maps in the store.
       for (auto& it : maps)
       {
         auto& [_, map] = it.second;

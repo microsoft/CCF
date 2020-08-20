@@ -73,8 +73,8 @@ namespace kv
       // It is possible for non-conflicting other transactions to commit here
       // and increment the version, so we may ask this question at different
       // versions. This is fine - none can create maps (ie - change their
-      // conflict set with this operation) while we hold the store lock. Assume that
-      // the caller is currently holding store->lock()
+      // conflict set with this operation) while we hold the store lock. Assume
+      // that the caller is currently holding store->lock()
       auto store = map_ptr->get_store();
       if (store->get_map(store->current_version(), map_name) != nullptr)
       {
