@@ -48,14 +48,14 @@ namespace ccf
      {TxStatus::Committed, tx_status_to_str(TxStatus::Committed)},
      {TxStatus::Invalid, tx_status_to_str(TxStatus::Invalid)}});
 
-  constexpr size_t VIEW_UNKNOWN = 0;
+  constexpr int64_t VIEW_UNKNOWN = -1;
 
   static TxStatus get_tx_status(
-    size_t target_view,
-    size_t target_seqno,
-    size_t local_view,
-    size_t committed_view,
-    size_t committed_seqno)
+    int64_t target_view,
+    int64_t target_seqno,
+    int64_t local_view,
+    int64_t committed_view,
+    int64_t committed_seqno)
   {
     const bool is_committed = committed_seqno >= target_seqno;
     const bool views_match = local_view == target_view;
