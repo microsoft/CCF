@@ -55,7 +55,7 @@ namespace raft
         }
       }
 
-      for (auto i = terms.size(); i < term; ++i)
+      for (int64_t i = terms.size(); i < term; ++i)
         terms.push_back(idx);
       LOG_DEBUG_FMT("Resulting terms: {}", fmt::join(terms, ", "));
     }
