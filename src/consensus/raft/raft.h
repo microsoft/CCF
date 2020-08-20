@@ -7,8 +7,8 @@
 #include "ds/spin_lock.h"
 #include "kv/kv_types.h"
 #include "node/node_types.h"
-#include "raft_types.h"
 #include "node/rpc/tx_status.h"
+#include "raft_types.h"
 
 #include <algorithm>
 #include <deque>
