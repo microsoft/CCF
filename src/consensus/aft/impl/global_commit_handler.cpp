@@ -62,7 +62,7 @@ namespace aft
           return info.view;
         }
       }
-      CCF_ASSERT_FMT_FAIL("should never be here");
+      throw ccf::ccf_logic_error("should never be here");
     }
 
   private:
