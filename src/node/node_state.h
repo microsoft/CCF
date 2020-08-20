@@ -22,7 +22,6 @@
 #include "secret_share.h"
 #include "share_manager.h"
 #include "snapshotter.h"
-#include "timer.h"
 #include "tls/25519.h"
 #include "tls/client.h"
 #include "tls/entropy.h"
@@ -154,18 +153,12 @@ namespace ccf
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
     ccf::Notifier& notifier;
-    Timers& timers;
 
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
     ShareManager& share_manager;
     std::shared_ptr<Snapshotter> snapshotter;
-
-    //
-    // join protocol
-    //
-    std::shared_ptr<Timer> join_timer;
 
     //
     // recovery
@@ -188,7 +181,6 @@ namespace ccf
       NetworkState& network,
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
       ccf::Notifier& notifier,
-      Timers& timers,
       ShareManager& share_manager) :
       sm(State::uninitialized),
       self(INVALID_ID),
@@ -199,7 +191,6 @@ namespace ccf
       network(network),
       rpcsessions(rpcsessions),
       notifier(notifier),
-      timers(timers),
       share_manager(share_manager)
     {
       ::EverCrypt_AutoConfig2_init();
@@ -477,8 +468,6 @@ namespace ccf
               sm.advance(State::partOfNetwork);
             }
 
-            join_timer.reset();
-
             LOG_INFO_FMT(
               "Node has now joined the network as node {}: {}",
               self,
@@ -526,17 +515,33 @@ namespace ccf
 
       initiate_join(config);
 
-      join_timer = timers.new_timer(
-        std::chrono::milliseconds(config.joining.join_timer),
-        [this, &config]() {
-          if (sm.check(State::pending))
+      struct JoinTimeMsg
+      {
+        JoinTimeMsg(NodeState* self_, CCFConfig& config_) : self(self_), config(config_)
+        {}
+
+        NodeState* self;
+        CCFConfig& config;
+      };
+
+      auto join_timer_msg = std::make_unique<threading::Tmsg<JoinTimeMsg>>(
+        [](std::unique_ptr<threading::Tmsg<JoinTimeMsg>> msg) {
+          if (msg->data.self->sm.check(State::pending))
           {
-            initiate_join(config);
-            return true;
+            msg->data.self->initiate_join(msg->data.config);
+            auto delay = std::chrono::milliseconds(
+              msg->data.config.joining.join_timer);
+
+            threading::ThreadMessaging::thread_messaging.add_task_after(
+              std::move(msg), delay);
           }
-          return false;
-        });
-      join_timer->start();
+        },
+        this,
+        config);
+
+      threading::ThreadMessaging::thread_messaging.add_task_after(
+        std::move(join_timer_msg),
+        std::chrono::milliseconds(config.joining.join_timer));
     }
 
     //

@@ -15,7 +15,6 @@
 #include "node/notifier.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/node_frontend.h"
-#include "node/timer.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
 
@@ -30,7 +29,6 @@ namespace enclave
     ccf::NetworkState network;
     ccf::ShareManager share_manager;
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
-    ccf::Timers timers;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCSessions> rpcsessions;
     std::unique_ptr<ccf::NodeState> node;
@@ -92,7 +90,6 @@ namespace enclave
         network,
         rpcsessions,
         context.notifier,
-        timers,
         share_manager);
 
       rpc_map->register_frontend<ccf::ActorsType::members>(
@@ -225,7 +222,7 @@ namespace enclave
               std::chrono::milliseconds elapsed_ms(ms_count);
               logger::config::tick(elapsed_ms);
               node->tick(elapsed_ms);
-              timers.tick(elapsed_ms);
+              threading::ThreadMessaging::thread_messaging.tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
               // public ledger is being read
               if (!node->is_reading_public_ledger())
