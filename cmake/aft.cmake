@@ -10,7 +10,6 @@ set(AFT_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/impl/execution_utilities.cpp
 )
 
-
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_library(aft.enclave STATIC ${AFT_SRC})
   target_compile_options(aft.enclave PRIVATE -nostdinc)
@@ -48,8 +47,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
   # Unit tests
   add_unit_test(
-    aft_unit_tests
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/init.cpp
+    aft_unit_tests ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/init.cpp
   )
   use_libbyz(aft_unit_tests)
   add_san(aft_unit_tests)

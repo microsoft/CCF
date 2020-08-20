@@ -328,7 +328,8 @@ class Network:
         LOG.info("Initial set of users added")
 
         self.consortium.open_network(
-            remote_node=primary, pbft_open=(args.consensus == "pbft" or args.consensus == "aft")
+            remote_node=primary,
+            pbft_open=(args.consensus == "pbft" or args.consensus == "aft"),
         )
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
@@ -379,7 +380,9 @@ class Network:
             )
 
         self.consortium.check_for_service(
-            primary, ServiceStatus.OPEN, pbft_open=(args.consensus == "pbft" or args.consensus == "aft")
+            primary,
+            ServiceStatus.OPEN,
+            pbft_open=(args.consensus == "pbft" or args.consensus == "aft"),
         )
         LOG.success("***** Recovered network is now open *****")
 

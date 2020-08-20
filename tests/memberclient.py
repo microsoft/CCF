@@ -136,7 +136,9 @@ def assert_recovery_shares_update(func, network, args, **kwargs):
 
 
 def run(args):
-    hosts = ["localhost"] * (4 if args.consensus == "pbft" or args.consensus == "aft" else 2)
+    hosts = ["localhost"] * (
+        4 if args.consensus == "pbft" or args.consensus == "aft" else 2
+    )
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb

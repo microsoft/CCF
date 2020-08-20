@@ -102,7 +102,9 @@ def test_suspend_nodes(network, args, nodes=None):
             if args.consensus == "pbft" or args.consensus == "aft"
             else args.raft_election_timeout / 1000
         )
-        if node.node_id == cur_primary.node_id and (args.consensus == "pbft" or args.consensus == "aft"):
+        if node.node_id == cur_primary.node_id and (
+            args.consensus == "pbft" or args.consensus == "aft"
+        ):
             # if pbft suspend the primary for more than twice the election timeout
             # in order to make sure view changes will be triggered
             suspend_time = 2.5 * suspend_time

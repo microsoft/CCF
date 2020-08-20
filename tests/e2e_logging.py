@@ -600,7 +600,9 @@ def test_primary(network, args, notifications_queue=None, verify=True):
 
 
 def run(args):
-    hosts = ["localhost"] * (3 if (args.consensus == "pbft" or args.consensus == "aft") else 2)
+    hosts = ["localhost"] * (
+        3 if (args.consensus == "pbft" or args.consensus == "aft") else 2
+    )
 
     with infra.notification.notification_server(args.notify_server) as notifications:
         # Lua apps do not support notifications
