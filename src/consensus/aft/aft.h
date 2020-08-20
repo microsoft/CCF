@@ -125,9 +125,7 @@ namespace aft
       LOG_INFO_FMT("Attempting to open network with f set to {}", f);
       state_machine->attempt_to_open_network();
     }
-    void emit_signature() override
-    {
-    }
+    void emit_signature() override {}
     ConsensusType type() override
     {
       return ConsensusType::AFT;
@@ -159,12 +157,8 @@ namespace aft
       state_machine->receive_request(std::move(request_message));
       return true;
     }
-    void periodic(std::chrono::milliseconds) override
-    {
-    }
-    void periodic_end() override
-    {
-    }
+    void periodic(std::chrono::milliseconds) override {}
+    void periodic_end() override {}
     Statistics get_statistics() override
     {
       return Statistics();

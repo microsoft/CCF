@@ -132,8 +132,7 @@ namespace aft
     void add_node(kv::NodeId node_id) override
     {
       auto it = known_nodes.find(node_id);
-      if (
-        node_id == state->my_node_id || it != known_nodes.end())
+      if (node_id == state->my_node_id || it != known_nodes.end())
       {
         return;
       }
