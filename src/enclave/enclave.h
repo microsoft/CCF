@@ -11,7 +11,7 @@
 #include "node/historical_queries.h"
 #include "node/network_state.h"
 #include "node/node_state.h"
-#include "node/nodetypes.h"
+#include "node/node_types.h"
 #include "node/notifier.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/node_frontend.h"
@@ -397,7 +397,7 @@ namespace enclave
       {
         auto msg = std::make_unique<threading::Tmsg<Msg>>(&init_thread_cb);
         msg->data.tid = threading::get_current_thread_id();
-        threading::ThreadMessaging::thread_messaging.add_task<Msg>(
+        threading::ThreadMessaging::thread_messaging.add_task(
           msg->data.tid, std::move(msg));
 
         threading::ThreadMessaging::thread_messaging.run();

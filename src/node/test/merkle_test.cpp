@@ -149,6 +149,12 @@ TEST_CASE("Deserialised")
     {
       REQUIRE(deser_tree.get_leaf(i) == original_tree.get_leaf(i));
     }
+
+    auto h = rand_hash();
+    auto h1 = h; // tree.append(h) modifies h so we take a copy
+    original_tree.append(h);
+    deser_tree.append(h1);
+    REQUIRE(original_tree.get_root() == deser_tree.get_root());
   }
 }
 

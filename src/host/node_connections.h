@@ -6,7 +6,7 @@
 #include "consensus/raft/raft_types.h"
 #include "host/timer.h"
 #include "ledger.h"
-#include "node/nodetypes.h"
+#include "node/node_types.h"
 #include "tcp.h"
 
 #include <unordered_map>
@@ -252,6 +252,7 @@ namespace asynchost
             // Find the total frame size, and write it along with the header.
             uint32_t frame = (uint32_t)size_to_send;
             std::optional<std::vector<uint8_t>> framed_entries = std::nullopt;
+
             framed_entries =
               ledger.read_framed_entries(ae.prev_idx + 1, ae.idx);
             if (framed_entries.has_value())

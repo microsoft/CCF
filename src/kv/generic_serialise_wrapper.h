@@ -113,9 +113,9 @@ namespace kv
       serialise_internal(name);
     }
 
-    void serialise_snapshot(const std::vector<uint8_t>& snapshot)
+    void serialise_raw(const std::vector<uint8_t>& raw)
     {
-      serialise_internal_pre_serialised(snapshot);
+      serialise_internal_pre_serialised(raw);
     }
 
     template <class Version>

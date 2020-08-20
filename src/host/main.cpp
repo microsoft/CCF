@@ -14,6 +14,7 @@
 #include "notify_connections.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
+#include "snapshot.h"
 #include "ticker.h"
 #include "time_updater.h"
 #include "version.h"
@@ -144,6 +145,19 @@ int main(int argc, char** argv)
       "Minimum size (bytes) at which a new ledger chunk is created.")
     ->capture_default_str()
     ->transform(CLI::AsSizeValue(true)); // 1000 is kb
+
+  std::string snapshot_dir("snapshots");
+  app.add_option("--snapshot-dir", snapshot_dir, "Snapshots directory")
+    ->capture_default_str();
+
+  size_t snapshot_max_tx = std::numeric_limits<std::size_t>::max();
+  app
+    .add_option(
+      "--snapshot-max-tx",
+      snapshot_max_tx,
+      "Maximum number of transactions between snapshots (experimental). "
+      "Defaults to no snapshot.")
+    ->capture_default_str();
 
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
@@ -511,18 +525,18 @@ int main(int argc, char** argv)
   oversized::FragmentReconstructor fr(bp.get_dispatcher());
 
   // provide regular ticks to the enclave
-  asynchost::Ticker ticker(tick_period_ms, writer_factory, [](auto s) {
-    logger::config::set_start(s);
-  });
+  const std::chrono::milliseconds tick_period(tick_period_ms);
+  asynchost::Ticker ticker(
+    tick_period, writer_factory, [](auto s) { logger::config::set_start(s); });
 
   // reset the inbound-TCP processing quota each iteration
   asynchost::ResetTCPReadQuota reset_tcp_quota;
 
   // regularly update the time given to the enclave
-  asynchost::TimeUpdater time_updater(1);
+  asynchost::TimeUpdater time_updater(1ms);
 
   // regularly record some load statistics
-  asynchost::LoadMonitor load_monitor(500, bp);
+  asynchost::LoadMonitor load_monitor(500ms, bp);
 
   // handle outbound messages from the enclave
   asynchost::HandleRingbuffer handle_ringbuffer(
@@ -534,12 +548,15 @@ int main(int argc, char** argv)
   asynchost::Ledger ledger(ledger_dir, writer_factory, ledger_min_bytes);
   ledger.register_message_handlers(bp.get_dispatcher());
 
+  asynchost::SnapshotManager snapshot(snapshot_dir);
+  snapshot.register_message_handlers(bp.get_dispatcher());
+
   // Begin listening for node-to-node and RPC messages.
   // This includes DNS resolution and potentially dynamic port assignment (if
   // requesting port 0). The hostname and port may be modified - after calling
   // it holds the final assigned values.
   asynchost::NodeConnectionsTickingReconnect node(
-    20, //< Flush reconnections every 20ms
+    20ms, //< Flush reconnections every 20ms
     bp.get_dispatcher(),
     ledger,
     writer_factory,
@@ -590,6 +607,7 @@ int main(int argc, char** argv)
                                   node_address.port,
                                   rpc_address.port};
   ccf_config.domain = domain;
+  ccf_config.snapshot_interval = snapshot_max_tx;
 
   if (*start)
   {

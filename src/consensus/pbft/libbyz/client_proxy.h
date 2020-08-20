@@ -281,7 +281,7 @@ bool ClientProxy<T, C>::send_request(
 
   if (threading::ThreadMessaging::thread_count > 1)
   {
-    threading::ThreadMessaging::thread_messaging.add_task<ExecuteRequestMsg>(
+    threading::ThreadMessaging::thread_messaging.add_task(
       threading::ThreadMessaging::main_thread, std::move(msg));
   }
   else
@@ -427,7 +427,7 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
 
   if (threading::ThreadMessaging::thread_count > 1)
   {
-    threading::ThreadMessaging::thread_messaging.add_task<ReplyCbMsg>(
+    threading::ThreadMessaging::thread_messaging.add_task(
       ctx->reply_thread, std::move(msg));
   }
   else

@@ -18,6 +18,8 @@ namespace kv::untyped
   using Write = kv::Write<SerialisedEntry, SerialisedEntry>;
   using ChangeSet =
     kv::ChangeSet<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
+  using SnapshotChangeSet = kv::
+    SnapshotChangeSet<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
 
   class TxView
   {

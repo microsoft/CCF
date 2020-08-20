@@ -336,6 +336,11 @@ if(BUILD_TESTS)
     target_link_libraries(historical_queries_test PRIVATE secp256k1.host)
 
     add_unit_test(
+      snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
+    )
+    target_link_libraries(snapshot_test PRIVATE secp256k1.host)
+
+    add_unit_test(
       msgpack_serialization_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/msgpack_serialization.cpp
     )
@@ -573,6 +578,13 @@ if(BUILD_TESTS)
       NAME reconfiguration_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
       CONSENSUS raft
+    )
+
+    add_e2e_test(
+      NAME reconfiguration_snapshot_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+      CONSENSUS raft
+      ADDITIONAL_ARGS --snapshot-max-tx 10
     )
 
     add_e2e_test(

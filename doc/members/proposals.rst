@@ -67,6 +67,29 @@ Some of these subcommands require additional arguments, such as the node ID or u
 
 These proposals and votes should be sent as the body of HTTP requests as described below.
 
+Creating Proposals in Python
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``ccf.proposal_generator`` can also be imported and used in a Python application instead of as a command-line tool.
+
+.. literalinclude:: ../../python/tutorial.py
+    :language: py
+    :start-after: SNIPPET: import_proposal_generator
+    :lines: 1
+
+The proposal generation functions return dictionaries that can be submitted to a ``CCFClient``.
+
+.. literalinclude:: ../../python/tutorial.py
+    :language: py
+    :start-after: SNIPPET_START: dict_proposal
+    :end-before: SNIPPET_END: dict_proposal
+
+You may wish to write these proposals to files so they can be examined or modified further. These proposal files can be submitted directly --- ``CCFClient`` will treat string request bodies beginning with an ``@`` as file paths in the same way that ``curl`` does, and use the content of the file when sending.
+
+.. literalinclude:: ../../python/tutorial.py
+    :language: py
+    :start-after: SNIPPET_START: json_proposal_with_file
+    :end-before: SNIPPET_END: json_proposal_with_file
+
 Submitting a New Proposal
 -------------------------
 

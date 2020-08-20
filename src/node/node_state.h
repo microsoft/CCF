@@ -27,6 +27,7 @@
 #include "rpc/serialization.h"
 #include "secret_share.h"
 #include "share_manager.h"
+#include "snapshotter.h"
 #include "timer.h"
 #include "tls/25519.h"
 #include "tls/client.h"
@@ -68,8 +69,10 @@ namespace std
 namespace ccf
 {
   using RaftConsensusType =
-    raft::RaftConsensus<consensus::LedgerEnclave, NodeToNode>;
-  using RaftType = raft::Raft<consensus::LedgerEnclave, NodeToNode>;
+    raft::RaftConsensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
+  using RaftType =
+    raft::Raft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
+
   using PbftConsensusType = pbft::Pbft<consensus::LedgerEnclave, NodeToNode>;
 
   template <typename T>
@@ -164,7 +167,8 @@ namespace ccf
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
-    ShareManager share_manager;
+    ShareManager& share_manager;
+    std::shared_ptr<Snapshotter> snapshotter;
 
     //
     // join protocol
@@ -239,6 +243,9 @@ namespace ccf
 
       create_node_cert(args.config);
       open_node_frontend();
+
+      snapshotter = std::make_shared<Snapshotter>(
+        writer_factory, network, args.config.snapshot_interval);
 
 #ifdef GET_QUOTE
       if (network.consensus_type != ConsensusType::PBFT)
@@ -1510,6 +1517,7 @@ namespace ccf
           network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
+        snapshotter,
         self,
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
@@ -1521,8 +1529,7 @@ namespace ccf
 
       notifier.set_consensus(consensus);
 
-      // When a node is added, even locally, inform the host so that it can
-      // map the node id to a hostname and service and inform raft so that it
+      // When a node is added, even locally, inform raft so that it
       // can add a new active configuration.
       network.nodes.set_local_hook(
         [this](kv::Version version, const Nodes::Write& w) {
