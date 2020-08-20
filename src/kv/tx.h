@@ -84,7 +84,7 @@ namespace kv
           "View over map {} is not an AbstractTxView", m.get_name()));
       }
       view_list[m.get_name()] = {
-        &m, std::unique_ptr<AbstractTxView>(abstract_view)};
+        m.shared_from_this(), std::unique_ptr<AbstractTxView>(abstract_view)};
       return std::make_tuple(typed_view);
     }
 
@@ -125,7 +125,7 @@ namespace kv
 
       MapView* typed_view = nullptr;
 
-      kv::AbstractMap* abstract_map = store->get_map(read_version, map_name);
+      auto abstract_map = store->get_map(read_version, map_name);
       if (abstract_map == nullptr)
       {
         // Store doesn't know this map yet - create it dynamically
@@ -147,15 +147,16 @@ namespace kv
         created_maps[map_name] = new_map;
         LOG_DEBUG_FMT("Creating new map '{}'", map_name);
 
-        abstract_map = new_map.get();
+        abstract_map = new_map;
         typed_view = new_map->template create_view<MapView>(read_version);
       }
       else
       {
-        auto typed_map = dynamic_cast<M*>(abstract_map);
+        auto* am = abstract_map.get();
+        auto typed_map = dynamic_cast<M*>(am);
         if (typed_map == nullptr)
         {
-          auto untyped_map = dynamic_cast<kv::untyped::Map*>(abstract_map);
+          auto untyped_map = dynamic_cast<kv::untyped::Map*>(am);
           if (untyped_map == nullptr)
           {
             throw std::logic_error(

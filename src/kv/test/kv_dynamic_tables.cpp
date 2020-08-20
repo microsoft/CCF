@@ -353,6 +353,47 @@ TEST_CASE("Dynamic map serialisation" * doctest::test_suite("dynamic"))
   }
 }
 
-// TODO
-// - If a transaction is mid-execution over a deleted-by-rollback map, it should
-// continue safely (and fail with conflict)
+TEST_CASE("Mid rollback safety" * doctest::test_suite("dynamic"))
+{
+  kv::Store kv_store;
+
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+
+  constexpr auto map_name = "my_new_map";
+
+  const auto version_before = kv_store.current_version();
+
+  {
+    auto tx = kv_store.create_tx();
+
+    auto view = tx.get_view2<MapTypes::StringString>(map_name);
+    view->put("foo", "bar");
+
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+
+  {
+    auto tx = kv_store.create_tx();
+    auto view = tx.get_view2<MapTypes::StringString>(map_name);
+    const auto v_0 = view->get("foo");
+    REQUIRE(v_0.has_value());
+    REQUIRE(v_0.value() == "bar");
+
+    // Rollbacks may happen while a tx is executing, and these can delete the
+    // maps this tx is executing over
+    kv_store.rollback(version_before);
+
+    const auto v_1 = view->get("foo");
+    REQUIRE(v_0.has_value());
+    REQUIRE(v_0.value() == "bar");
+
+    auto view_after = tx.get_view2<MapTypes::StringString>(map_name);
+    REQUIRE(view_after == view);
+
+    view->put("foo", "baz");
+
+    const auto result = tx.commit();
+    REQUIRE(result == kv::CommitSuccess::CONFLICT);
+  }
+}

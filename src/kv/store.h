@@ -19,7 +19,7 @@ namespace kv
   private:
     // All collections of Map must be ordered so that we lock their contained
     // maps in a stable order. The order here is by map name
-    using Maps = std::map<std::string, std::unique_ptr<AbstractMap>>;
+    using Maps = std::map<std::string, std::shared_ptr<AbstractMap>>;
     Maps maps;
 
     using DynamicMaps = std::
@@ -28,7 +28,7 @@ namespace kv
 
     std::shared_ptr<Consensus> consensus = nullptr;
     std::shared_ptr<TxHistory> history = nullptr;
-    std::shared_ptr<AbstractTxEncryptor> encryptor = nullptr;
+    EncryptorPtr encryptor = nullptr;
     Version version = 0;
     Version compacted = 0;
     Term term = 0;
@@ -126,12 +126,12 @@ namespace kv
       history = history_;
     }
 
-    void set_encryptor(std::shared_ptr<AbstractTxEncryptor> encryptor_)
+    void set_encryptor(const EncryptorPtr& encryptor_)
     {
       encryptor = encryptor_;
     }
 
-    std::shared_ptr<AbstractTxEncryptor> get_encryptor() override
+    EncryptorPtr get_encryptor() override
     {
       return encryptor;
     }
@@ -249,12 +249,12 @@ namespace kv
       return *result;
     }
 
-    AbstractMap* get_map(kv::Version v, const std::string& map_name) override
+    std::shared_ptr<AbstractMap> get_map(kv::Version v, const std::string& map_name) override
     {
       auto search = maps.find(map_name);
       if (search != maps.end())
       {
-        return search->second.get();
+        return search->second;
       }
 
       auto dynamic_search = dynamic_maps.find(map_name);
@@ -263,7 +263,7 @@ namespace kv
         const auto& [map_creation_version, map_ptr] = dynamic_search->second;
         if (v >= map_creation_version)
         {
-          return map_ptr.get();
+          return map_ptr;
         }
       }
 
@@ -478,13 +478,15 @@ namespace kv
       while (dynamic_it != dynamic_maps.end())
       {
         auto& [map_creation_version, map] = dynamic_it->second;
+        // Rollback this map whether we're forgetting about it or not. Anyone
+        // else still holding it should see it has rolled back
+        map->rollback(v);
         if (map_creation_version > v)
         {
           dynamic_it = dynamic_maps.erase(dynamic_it);
         }
         else
         {
-          map->rollback(v);
           ++dynamic_it;
         }
       }
@@ -579,7 +581,7 @@ namespace kv
         {
           // TODO: Makes the same assumptions on privacy domain + replicated as BaseTx::get_tuple2
           auto map_shared = std::make_shared<kv::untyped::Map>(this, map_name, kv::SecurityDomain::PRIVATE, true);
-          map = map_shared.get();
+          map = map_shared;
           new_maps[map_name] = map_shared;
           LOG_DEBUG_FMT("Creating map {} while deserialising transaction at version {}", map_name, v);
         }

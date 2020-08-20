@@ -348,6 +348,8 @@ namespace kv
       Version version, const std::vector<uint8_t>& raw_ledger_key) = 0;
   };
 
+  using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
+
   class AbstractTxView
   {
   public:
@@ -361,7 +363,7 @@ namespace kv
   };
 
   class AbstractStore;
-  class AbstractMap
+  class AbstractMap : public std::enable_shared_from_this<AbstractMap>
   {
   public:
     class Snapshot
@@ -423,14 +425,14 @@ namespace kv
 
     virtual Version commit_version() = 0;
 
-    virtual AbstractMap* get_map(
+    virtual std::shared_ptr<AbstractMap> get_map(
       kv::Version v, const std::string& map_name) = 0;
     virtual void add_dynamic_map(
       kv::Version v, const std::shared_ptr<AbstractMap>& map) = 0;
 
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;
-    virtual std::shared_ptr<AbstractTxEncryptor> get_encryptor() = 0;
+    virtual EncryptorPtr get_encryptor() = 0;
     virtual DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
       bool public_only = false,

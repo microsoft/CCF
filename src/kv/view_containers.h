@@ -11,8 +11,8 @@ namespace kv
 {
   struct MapView
   {
-    // Weak pointer to source map
-    AbstractMap* map;
+    // Shared ownership over source map
+    std::shared_ptr<AbstractMap> map;
 
     // Owning pointer of TxView over that map
     std::unique_ptr<AbstractTxView> view;
@@ -65,20 +65,21 @@ namespace kv
         ok = false;
         break;
       }
+    }
 
-      for (const auto& [map_name, map_ptr] : new_maps)
+    for (const auto& [map_name, map_ptr] : new_maps)
+    {
+      // Check that none of these pending maps have already been created.
+      // It is possible for non-conflicting other transactions to commit here
+      // and increment the version, so we may ask this question at different
+      // versions. This is fine - none can create maps (ie - change their
+      // conflict set with this operation) while we hold the store lock. Assume that
+      // the caller is currently holding store->lock()
+      auto store = map_ptr->get_store();
+      if (store->get_map(store->current_version(), map_name) != nullptr)
       {
-        // Check that none of these pending maps have already been created.
-        // It is possible for non-conflicting other transactions to commit here
-        // and increment the version, so we may ask this question at different
-        // versions. This is fine - none can create maps (ie - change their
-        // conflict set with this operation) while we hold the store lock. Assume that the caller is currently holding store->lock()
-        auto store = map_ptr->get_store();
-        if (store->get_map(store->current_version(), map_name) != nullptr)
-        {
-          ok = false;
-          break;
-        }
+        ok = false;
+        break;
       }
     }
 
@@ -106,7 +107,9 @@ namespace kv
     for (auto it = views.begin(); it != views.end(); ++it)
     {
       if (it->second.view->has_writes())
+      {
         it->second.map->unlock();
+      }
     }
 
     if (!ok)
