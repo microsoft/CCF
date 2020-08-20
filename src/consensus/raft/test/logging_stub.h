@@ -193,10 +193,10 @@ namespace raft
   class StubSnapshotter
   {
   public:
-    std::optional<kv::Version> snapshot(kv::Version version)
+    void snapshot(Index)
     {
       // For now, do not test snapshots in unit tests
-      return std::nullopt;
+      return;
     }
   };
 }

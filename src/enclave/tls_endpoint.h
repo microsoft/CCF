@@ -73,7 +73,7 @@ namespace enclave
       }
       else
       {
-        execution_thread = 0;
+        execution_thread = threading::MAIN_THREAD_ID;
       }
       ctx->set_bio(this, send_callback, recv_callback, dbg_callback);
     }
@@ -235,7 +235,7 @@ namespace enclave
       msg->data.self = this->shared_from_this();
       msg->data.data = data;
 
-      threading::ThreadMessaging::thread_messaging.add_task<SendRecvMsg>(
+      threading::ThreadMessaging::thread_messaging.add_task(
         execution_thread, std::move(msg));
     }
 
@@ -323,7 +323,7 @@ namespace enclave
       auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
       msg->data.self = this->shared_from_this();
 
-      threading::ThreadMessaging::thread_messaging.add_task<EmptyMsg>(
+      threading::ThreadMessaging::thread_messaging.add_task(
         execution_thread, std::move(msg));
     }
 

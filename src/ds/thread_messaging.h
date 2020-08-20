@@ -183,7 +183,7 @@ namespace threading
   public:
     static ThreadMessaging thread_messaging;
     static std::atomic<uint16_t> thread_count;
-    static const uint16_t main_thread = 0;
+    static const uint16_t main_thread = MAIN_THREAD_ID;
 
     static const uint16_t max_num_threads = 24;
 
@@ -238,7 +238,7 @@ namespace threading
 
     static uint16_t get_execution_thread(uint32_t i)
     {
-      uint16_t tid = 0;
+      uint16_t tid = MAIN_THREAD_ID;
       if (thread_count > 1)
       {
         tid = (i % (thread_count - 1));
