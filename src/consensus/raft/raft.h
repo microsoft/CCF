@@ -8,6 +8,7 @@
 #include "kv/kv_types.h"
 #include "node/node_types.h"
 #include "raft_types.h"
+#include "node/rpc/tx_status.h"
 
 #include <algorithm>
 #include <deque>
@@ -465,7 +466,7 @@ namespace raft
     Term get_term_internal(Index idx)
     {
       if (idx > last_idx)
-        return 0;
+        return ccf::VIEW_UNKNOWN;
 
       return term_history.term_at(idx);
     }
