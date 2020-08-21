@@ -102,9 +102,9 @@ def run(args):
             node.stop()
 
         LOG.info(
-            f"Waiting {network.election_duration * 2}s for a new primary to be elected..."
+            f"Waiting {network.election_duration}s for a new primary to be elected..."
         )
-        time.sleep(network.election_duration * 2)
+        time.sleep(network.election_duration)
 
         new_primary, _ = network.find_primary()
         LOG.info(f"Waited, new_primary is {new_primary.node_id}")
