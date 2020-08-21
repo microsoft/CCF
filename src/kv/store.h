@@ -941,42 +941,6 @@ namespace kv
       return version - last_committable;
     }
 
-    void clear()
-    {
-      std::lock_guard<SpinLock> mguard(maps_lock);
-
-      // TODO: This doesn't make sense with dynamically-created maps - are we
-      // creating them or deleting them? This deletes the entire content of all
-      // maps in the store.
-      for (auto& it : maps)
-      {
-        auto& [_, map] = it.second;
-        map->lock();
-      }
-
-      for (auto& it : maps)
-      {
-        auto& [_, map] = it.second;
-        map->clear();
-      }
-
-      for (auto& it : maps)
-      {
-        auto& [_, map] = it.second;
-        map->unlock();
-      }
-
-      {
-        std::lock_guard<SpinLock> vguard(version_lock);
-        version = 0;
-        compacted = 0;
-        last_replicated = 0;
-        last_committable = 0;
-        rollback_count = 0;
-        pending_txs.clear();
-      }
-    }
-
     /** This is only safe in very restricted circumstances, and is only
      * meant to be used during catastrophic recovery, between a KV
      * with public-state only and a KV with full state, to swap in the
