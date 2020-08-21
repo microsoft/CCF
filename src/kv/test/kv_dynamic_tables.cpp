@@ -277,29 +277,38 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
     auto tx1 = kv_store.create_tx();
     {
       auto view1 = tx1.get_view(static_map);
-      const auto v = view1->get(key);
-      if (!v.has_value())
-      {
-        view1->put(key, "bar");
-        auto dynamic_view = tx1.get_view2<MapTypes::NumString>(dynamic_map_a);
-        dynamic_view->put(42, "hello world");
-      }
+      const auto v = view1->get(key); // Introduce read-dependency
+      view1->put(key, "bar");
+      auto dynamic_view = tx1.get_view2<MapTypes::NumString>(dynamic_map_a);
+      dynamic_view->put(42, "hello world");
     }
 
     auto tx2 = kv_store.create_tx();
     {
       auto view2 = tx2.get_view(static_map);
-      const auto v = view2->get(key);
-      if (!v.has_value())
-      {
-        view2->put(key, "bar");
-        auto dynamic_view = tx2.get_view2<MapTypes::StringNum>(dynamic_map_b);
-        dynamic_view->put("hello world", 42);
-      }
+      const auto v = view2->get(key); // Introduce read-dependency
+      view2->put(key, "bar");
+      auto dynamic_view = tx2.get_view2<MapTypes::StringNum>(dynamic_map_b);
+      dynamic_view->put("hello world", 42);
     }
 
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
     REQUIRE(tx2.commit() == kv::CommitSuccess::CONFLICT);
+
+    {
+      auto tx3 = kv_store.create_tx();
+
+      auto [view1, view2] =
+        tx3.get_view2<MapTypes::NumString, MapTypes::StringNum>(
+          dynamic_map_a, dynamic_map_b);
+
+      const auto v1 = view1->get(42);
+      REQUIRE(v1.has_value());
+      REQUIRE(v1.value() == "hello world");
+
+      const auto v2 = view2->get("hello world");
+      REQUIRE_FALSE(v2.has_value());
+    }
 
     REQUIRE(kv_store.get<kv::untyped::Map>(dynamic_map_a) != nullptr);
     REQUIRE(kv_store.get<MapTypes::StringNum>(dynamic_map_b) == nullptr);
