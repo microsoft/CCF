@@ -357,7 +357,7 @@ namespace http
       send_raw(data);
     }
 
-    void send(const std::vector<uint8_t>& data) override
+    void send(const std::vector<uint8_t>&) override
     {
       throw std::logic_error(
         "send() should not be called directly on HTTPClient");
