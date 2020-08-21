@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/pbft/libbyz/parameters.h"
+#include "consensus/pbft/parameters.h"
 #include "ds/json.h"
 #include "kv/map.h"
 #include "node/entities.h"

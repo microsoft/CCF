@@ -287,7 +287,7 @@ namespace kv
     }
     virtual void enable_all_domains() {}
 
-    virtual void set_f(size_t f) = 0;
+    virtual void open_network() = 0;
     virtual void emit_signature() = 0;
     virtual ConsensusType type() = 0;
   };
