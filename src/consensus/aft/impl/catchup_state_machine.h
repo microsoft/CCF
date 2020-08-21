@@ -2,16 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/aft/raft.h"
+//#include "consensus/aft/raft.h"
 #include "aft_state.h"
+#include "consensus/aft/raft_types.h"
 #include "consensus/pbft/pbft_requests.h"
+#include "enclave/rpc_map.h"
 #include "kv/kv_types.h"
 #include "node/node_to_node.h"
 
 namespace aft
 {
-  class ServiceState;
-
   class ICatchupStateMachine
   {
   public:

@@ -12,6 +12,7 @@
 #include "impl/execution_utilities.h"
 #include "impl/request_message.h"
 #include "impl/aft_state.h"
+#include "impl/state_machine.h"
 
 #include <algorithm>
 #include <deque>
