@@ -38,7 +38,7 @@ def ensure_reqs(check_reqs):
                 except Exception as e:
                     raise TestRequirementsNotMet(
                         f"Could not check if test requirements were met: {e}"
-                    )
+                    ) from e
 
             return func(network, args, *nargs, **kwargs)
 

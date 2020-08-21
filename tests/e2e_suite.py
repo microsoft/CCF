@@ -32,8 +32,8 @@ def run(args):
     for choice in args.test_suite:
         try:
             chosen_suite.extend(s.suites[choice])
-        except KeyError:
-            raise ValueError(f"Unhandled choice: {choice}")
+        except KeyError as e:
+            raise ValueError(f"Unhandled choice: {choice}") from e
 
     seed = None
     if os.getenv("SHUFFLE_SUITE"):
