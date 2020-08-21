@@ -175,7 +175,7 @@ DOCTEST_TEST_CASE(
   auto rvc = get<1>(rv);
   DOCTEST_REQUIRE(rvc.term == 1);
   DOCTEST_REQUIRE(rvc.last_commit_idx == 0);
-  DOCTEST_REQUIRE(rvc.last_commit_term == raft::TermHistory::InvalidTerm);
+  DOCTEST_REQUIRE(rvc.last_commit_term == aft::ViewHistory::InvalidView);
 
   r1.recv_message(reinterpret_cast<uint8_t*>(&rvc), sizeof(rvc));
 
@@ -187,7 +187,7 @@ DOCTEST_TEST_CASE(
   rvc = get<1>(rv);
   DOCTEST_REQUIRE(rvc.term == 1);
   DOCTEST_REQUIRE(rvc.last_commit_idx == 0);
-  DOCTEST_REQUIRE(rvc.last_commit_term == raft::TermHistory::InvalidTerm);
+  DOCTEST_REQUIRE(rvc.last_commit_term == aft::ViewHistory::InvalidView);
 
   r2.recv_message(reinterpret_cast<uint8_t*>(&rvc), sizeof(rvc));
 
@@ -231,7 +231,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(aec.idx == 0);
   DOCTEST_REQUIRE(aec.term == 1);
   DOCTEST_REQUIRE(aec.prev_idx == 0);
-  DOCTEST_REQUIRE(aec.prev_term == raft::TermHistory::InvalidTerm);
+  DOCTEST_REQUIRE(aec.prev_term == aft::ViewHistory::InvalidView);
   DOCTEST_REQUIRE(aec.leader_commit_idx == 0);
 
   ae = r0.channels->sent_append_entries.front();
@@ -241,7 +241,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(aec.idx == 0);
   DOCTEST_REQUIRE(aec.term == 1);
   DOCTEST_REQUIRE(aec.prev_idx == 0);
-  DOCTEST_REQUIRE(aec.prev_term == raft::TermHistory::InvalidTerm);
+  DOCTEST_REQUIRE(aec.prev_term == aft::ViewHistory::InvalidView);
   DOCTEST_REQUIRE(aec.leader_commit_idx == 0);
 }
 
@@ -398,7 +398,7 @@ DOCTEST_TEST_CASE(
         DOCTEST_REQUIRE(msg.idx == 1);
         DOCTEST_REQUIRE(msg.term == 1);
         DOCTEST_REQUIRE(msg.prev_idx == 0);
-        DOCTEST_REQUIRE(msg.prev_term == raft::TermHistory::InvalidTerm);
+        DOCTEST_REQUIRE(msg.prev_term == aft::ViewHistory::InvalidView);
         DOCTEST_REQUIRE(msg.leader_commit_idx == 0);
       }));
 
@@ -505,7 +505,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
         DOCTEST_REQUIRE(msg.idx == 1);
         DOCTEST_REQUIRE(msg.term == 1);
         DOCTEST_REQUIRE(msg.prev_idx == 0);
-        DOCTEST_REQUIRE(msg.prev_term == raft::TermHistory::InvalidTerm);
+        DOCTEST_REQUIRE(msg.prev_term == aft::ViewHistory::InvalidView);
         DOCTEST_REQUIRE(msg.leader_commit_idx == 0);
       }));
 

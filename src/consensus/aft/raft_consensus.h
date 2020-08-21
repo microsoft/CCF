@@ -68,7 +68,7 @@ namespace aft
 
     void init_as_backup(SeqNo seqno, View view) override
     {
-      raft->init_as_follower(seqno, view);
+      aft->init_as_follower(seqno, view);
     }
 
     bool replicate(const kv::BatchVector& entries, View view) override

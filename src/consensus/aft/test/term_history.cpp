@@ -9,28 +9,28 @@ using namespace aft;
 
 TEST_CASE("Advancing term history" * doctest::test_suite("termhistory"))
 {
-  TermHistory history;
+  ViewHistory history;
 
   {
     INFO("Initial history is completely unknown");
-    CHECK(history.term_at(0) == TermHistory::InvalidTerm);
-    CHECK(history.term_at(1) == TermHistory::InvalidTerm);
-    CHECK(history.term_at(2) == TermHistory::InvalidTerm);
-    CHECK(history.term_at(3) == TermHistory::InvalidTerm);
-    CHECK(history.term_at(4) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(0) == ViewHistory::InvalidView);
+    CHECK(history.term_at(1) == ViewHistory::InvalidView);
+    CHECK(history.term_at(2) == ViewHistory::InvalidView);
+    CHECK(history.term_at(3) == ViewHistory::InvalidView);
+    CHECK(history.term_at(4) == ViewHistory::InvalidView);
   }
 
   {
     INFO("Advancing index gives term for current and future indices");
     history.update(1, 1);
-    CHECK(history.term_at(0) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(0) == ViewHistory::InvalidView);
     CHECK(history.term_at(1) == 1);
     CHECK(history.term_at(2) == 1);
     CHECK(history.term_at(3) == 1);
     CHECK(history.term_at(4) == 1);
 
     history.update(2, 1);
-    CHECK(history.term_at(0) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(0) == ViewHistory::InvalidView);
     CHECK(history.term_at(1) == 1);
     CHECK(history.term_at(2) == 1);
     CHECK(history.term_at(3) == 1);
@@ -40,14 +40,14 @@ TEST_CASE("Advancing term history" * doctest::test_suite("termhistory"))
   {
     INFO("Advancing term increases term of affected indices");
     history.update(3, 2);
-    CHECK(history.term_at(0) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(0) == ViewHistory::InvalidView);
     CHECK(history.term_at(1) == 1);
     CHECK(history.term_at(2) == 1);
     CHECK(history.term_at(3) == 2);
     CHECK(history.term_at(4) == 2);
 
     history.update(4, 3);
-    CHECK(history.term_at(0) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(0) == ViewHistory::InvalidView);
     CHECK(history.term_at(1) == 1);
     CHECK(history.term_at(2) == 1);
     CHECK(history.term_at(3) == 2);
@@ -59,22 +59,22 @@ TEST_CASE("Edge case term histories" * doctest::test_suite("termhistory"))
 {
   {
     INFO("Index skips leave unknown indices");
-    TermHistory history;
+    ViewHistory history;
     history.update(3, 1);
-    CHECK(history.term_at(0) == TermHistory::InvalidTerm);
-    CHECK(history.term_at(1) == TermHistory::InvalidTerm);
-    CHECK(history.term_at(2) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(0) == ViewHistory::InvalidView);
+    CHECK(history.term_at(1) == ViewHistory::InvalidView);
+    CHECK(history.term_at(2) == ViewHistory::InvalidView);
     CHECK(history.term_at(3) == 1);
     CHECK(history.term_at(4) == 1);
   }
 
   {
     INFO("Term skips advance to given term");
-    TermHistory history;
+    ViewHistory history;
     history.update(3, 2);
-    CHECK(history.term_at(0) == TermHistory::InvalidTerm);
-    CHECK(history.term_at(1) == TermHistory::InvalidTerm);
-    CHECK(history.term_at(2) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(0) == ViewHistory::InvalidView);
+    CHECK(history.term_at(1) == ViewHistory::InvalidView);
+    CHECK(history.term_at(2) == ViewHistory::InvalidView);
     CHECK(history.term_at(3) == 2);
     CHECK(history.term_at(4) == 2);
   }
@@ -82,10 +82,10 @@ TEST_CASE("Edge case term histories" * doctest::test_suite("termhistory"))
   {
     INFO(
       "Subsequent calls on same term must not move backward from term start");
-    TermHistory history;
+    ViewHistory history;
     history.update(2, 2);
-    CHECK(history.term_at(0) == TermHistory::InvalidTerm);
-    CHECK(history.term_at(1) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(0) == ViewHistory::InvalidView);
+    CHECK(history.term_at(1) == ViewHistory::InvalidView);
     CHECK(history.term_at(2) == 2);
     CHECK(history.term_at(3) == 2);
     CHECK(history.term_at(4) == 2);
@@ -94,8 +94,8 @@ TEST_CASE("Edge case term histories" * doctest::test_suite("termhistory"))
     CHECK_NOTHROW(history.update(3, 2));
     CHECK_NOTHROW(history.update(2, 2));
     CHECK_NOTHROW(history.update(4, 2));
-    CHECK(history.term_at(0) == TermHistory::InvalidTerm);
-    CHECK(history.term_at(1) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(0) == ViewHistory::InvalidView);
+    CHECK(history.term_at(1) == ViewHistory::InvalidView);
     CHECK(history.term_at(2) == 2);
     CHECK(history.term_at(3) == 2);
     CHECK(history.term_at(4) == 2);
@@ -105,24 +105,24 @@ TEST_CASE("Edge case term histories" * doctest::test_suite("termhistory"))
 
   {
     INFO("Highest matching term is returned");
-    TermHistory history;
+    ViewHistory history;
     history.update(2, 2);
-    CHECK(history.term_at(0) == TermHistory::InvalidTerm);
-    CHECK(history.term_at(1) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(0) == ViewHistory::InvalidView);
+    CHECK(history.term_at(1) == ViewHistory::InvalidView);
     CHECK(history.term_at(2) == 2);
     CHECK(history.term_at(3) == 2);
     CHECK(history.term_at(4) == 2);
 
     history.update(2, 4);
-    CHECK(history.term_at(0) == TermHistory::InvalidTerm);
-    CHECK(history.term_at(1) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(0) == ViewHistory::InvalidView);
+    CHECK(history.term_at(1) == ViewHistory::InvalidView);
     CHECK(history.term_at(2) == 4);
     CHECK(history.term_at(3) == 4);
     CHECK(history.term_at(4) == 4);
 
     history.update(2, 3);
-    CHECK(history.term_at(0) == TermHistory::InvalidTerm);
-    CHECK(history.term_at(1) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(0) == ViewHistory::InvalidView);
+    CHECK(history.term_at(1) == ViewHistory::InvalidView);
     CHECK(history.term_at(2) == 4);
     CHECK(history.term_at(3) == 4);
     CHECK(history.term_at(4) == 4);
@@ -133,7 +133,7 @@ TEST_CASE("Initialised term histories" * doctest::test_suite("termhistory"))
 {
   {
     INFO("Initialise validates the given term history");
-    TermHistory history;
+    ViewHistory history;
     CHECK_NOTHROW(history.initialise({}));
     CHECK_NOTHROW(history.initialise({1}));
     CHECK_NOTHROW(history.initialise({2}));
@@ -147,17 +147,17 @@ TEST_CASE("Initialised term histories" * doctest::test_suite("termhistory"))
 
   {
     INFO("Initialise overwrites term history");
-    TermHistory history;
+    ViewHistory history;
     history.update(5, 1);
     history.update(10, 2);
     history.update(20, 3);
-    CHECK(history.term_at(4) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(4) == ViewHistory::InvalidView);
     CHECK(history.term_at(8) == 1);
     CHECK(history.term_at(19) == 2);
     CHECK(history.term_at(20) == 3);
 
     history.initialise({6});
-    CHECK(history.term_at(4) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(4) == ViewHistory::InvalidView);
     CHECK(history.term_at(8) == 1);
     CHECK(history.term_at(19) == 1);
     CHECK(history.term_at(20) == 1);

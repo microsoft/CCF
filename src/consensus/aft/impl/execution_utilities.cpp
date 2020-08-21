@@ -60,7 +60,7 @@ namespace aft
       request->get_request_ctx().frontend;
 
     ctx->pbft_raw.resize(request->size());
-    request->serialize_message(ctx->pbft_raw.data(), ctx->pbft_raw.size());
+    request->serialize_message(NoNode, ctx->pbft_raw.data(), ctx->pbft_raw.size());
 
     ctx->is_create_request = is_create_request;
     ctx->set_apply_writes(true);

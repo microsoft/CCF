@@ -15,12 +15,15 @@ namespace aft
 // Request messages have the following format.
 #pragma pack(push)
 #pragma pack(1)
-  struct RequestMessageRep : public MessageRep
+  struct RequestMessageRep : public consensus::ConsensusHeader<RaftMsgType>
   {
     RequestMessageRep() = default;
     RequestMessageRep(
-      short command_size_, short cid_, kv::TxHistory::RequestID rid_) :
-      MessageRep(MessageTag::Request),
+      aft::NodeId from_node,
+      short command_size_,
+      short cid_,
+      kv::TxHistory::RequestID rid_) :
+      consensus::ConsensusHeader<RaftMsgType>(RaftMsgType::bft_Request, from_node),
       command_size(command_size_),
       cid(cid_),
       rid(rid_)
@@ -64,9 +67,10 @@ namespace aft
       }
     }
 
-    void serialize_message(uint8_t* data, size_t size) const override
+    void serialize_message(aft::NodeId from_node, uint8_t* data, size_t size) const override
     {
       RequestMessageRep rep(
+        from_node,
         request.size(),
         0, // This is temporary and will make everything go via the primary
         rid);
