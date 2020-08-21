@@ -113,7 +113,7 @@ def run(args):
                 else:
                     primary_is_known = False
 
-        assert not primary_is_known, f"Primary is still knowm"
+        assert not primary_is_known, "Primary is still known"
         LOG.success("Test ended successfully.")
 
 

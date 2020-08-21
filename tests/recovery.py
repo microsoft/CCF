@@ -5,7 +5,6 @@ import infra.network
 import infra.logging_app as app
 import infra.checker
 import suite.test_requirements as reqs
-import time
 
 from loguru import logger as LOG
 
