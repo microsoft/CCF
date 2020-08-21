@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/aft/aft_types.h"
+#include "consensus/aft/raft_types.h"
 #include "ds/serialized.h"
 #include "kv/kv_types.h"
 #include "message.h"

@@ -4,6 +4,9 @@
 
 #include "consensus/consensus_types.h"
 #include "ds/ring_buffer_types.h"
+#include "enclave/rpc_context.h"
+#include "enclave/rpc_handler.h"
+#include "kv/kv_types.h"
 
 #include <chrono>
 #include <cstdint>
@@ -15,6 +18,13 @@ namespace aft
   using Term = int64_t;
   using NodeId = uint64_t;
   using Node2NodeMsg = uint64_t;
+
+  using ReplyCallback = std::function<bool(
+    void* owner,
+    kv::TxHistory::RequestID caller_rid,
+    int status,
+    std::vector<uint8_t>& data)>;
+
 
   static constexpr NodeId NoNode = std::numeric_limits<NodeId>::max();
 
@@ -139,6 +149,12 @@ namespace aft
   {
     Term term;
     bool vote_granted;
+  };
+
+  struct RequestCtx
+  {
+    std::shared_ptr<enclave::RpcContext> ctx;
+    std::shared_ptr<enclave::RpcHandler> frontend;
   };
 #pragma pack(pop)
 }

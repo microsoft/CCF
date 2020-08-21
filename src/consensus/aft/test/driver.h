@@ -48,6 +48,8 @@ public:
         std::make_unique<aft::LedgerStubProxy>(node_id),
         std::make_shared<aft::ChannelStubProxy>(),
         std::make_shared<aft::StubSnapshotter>(),
+        nullptr,
+        nullptr,
         node_id,
         ms(10),
         ms(i * 100));

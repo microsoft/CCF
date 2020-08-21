@@ -9,6 +9,8 @@
 #include "node/node_types.h"
 #include "node/rpc/tx_status.h"
 #include "raft_types.h"
+#include "impl/execution_utilities.h"
+#include "impl/request_message.h"
 
 #include <algorithm>
 #include <deque>
@@ -159,18 +161,22 @@ namespace aft
     std::unique_ptr<LedgerProxy> ledger;
     std::shared_ptr<ChannelProxy> channels;
     std::shared_ptr<SnapshotterProxy> snapshotter;
+    std::shared_ptr<enclave::RPCSessions> rpc_sessions;
+    std::shared_ptr<enclave::RPCMap> rpc_map;
 
   public:
     Aft(
-      std::unique_ptr<Store<kv::DeserialiseSuccess>> store,
+      std::unique_ptr<Store<kv::DeserialiseSuccess>> store_,
       std::unique_ptr<LedgerProxy> ledger_,
       std::shared_ptr<ChannelProxy> channels_,
       std::shared_ptr<SnapshotterProxy> snapshotter_,
+      std::shared_ptr<enclave::RPCSessions> rpc_sessions_,
+      std::shared_ptr<enclave::RPCMap> rpc_map_,
       NodeId id,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
       bool public_only_ = false) :
-      store(std::move(store)),
+      store(std::move(store_)),
 
       current_term(0),
       local_id(id),
@@ -192,7 +198,9 @@ namespace aft
 
       ledger(std::move(ledger_)),
       channels(channels_),
-      snapshotter(snapshotter_)
+      snapshotter(snapshotter_),
+      rpc_sessions(rpc_sessions_),
+      rpc_map(rpc_map_)
 
     {}
 
@@ -473,6 +481,26 @@ namespace aft
           become_candidate();
         }
       }
+    }
+
+    bool is_first_request = true;
+
+    bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
+    {
+      auto request = ExecutionUtilities::create_request_message(args, rpc_sessions, rpc_map);
+      kv::Version version = ExecutionUtilities::execute_request(std::move(request), is_first_request);
+      is_first_request = false;
+
+      store->compact(version);
+      {
+        std::lock_guard<SpinLock> guard(lock);
+        if (version > commit_idx)
+        {
+          commit_idx = version;
+          last_idx = version;
+        }
+      }
+      return true;
     }
 
   private:
@@ -1366,5 +1394,6 @@ namespace aft
         }
       }
     }
+
   };
 }

@@ -31,6 +31,8 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id,
     ms(10),
     election_timeout);
@@ -68,6 +70,8 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id,
     ms(10),
     election_timeout);
@@ -114,6 +118,8 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id0,
     request_timeout,
     ms(20));
@@ -122,6 +128,8 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id1,
     request_timeout,
     ms(100));
@@ -130,6 +138,8 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id2,
     request_timeout,
     ms(50));
@@ -284,6 +294,8 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id0,
     request_timeout,
     ms(20));
@@ -292,6 +304,8 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id1,
     request_timeout,
     ms(100));
@@ -300,6 +314,8 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id2,
     request_timeout,
     ms(50));
@@ -412,6 +428,8 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id0,
     request_timeout,
     ms(20));
@@ -420,6 +438,8 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id1,
     request_timeout,
     ms(100));
@@ -428,6 +448,8 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id2,
     request_timeout,
     ms(50));
@@ -527,6 +549,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id0,
     request_timeout,
     ms(20));
@@ -535,6 +559,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id1,
     request_timeout,
     ms(100));
@@ -677,6 +703,8 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id0,
     request_timeout,
     ms(20));
@@ -685,6 +713,8 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id1,
     request_timeout,
     ms(100));
@@ -693,6 +723,8 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id2,
     request_timeout,
     ms(50));
@@ -830,6 +862,8 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id0,
     request_timeout,
     ms(20));
@@ -838,6 +872,8 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id1,
     request_timeout,
     ms(100));
@@ -846,6 +882,8 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
     node_id2,
     request_timeout,
     ms(50));
