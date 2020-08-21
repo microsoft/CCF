@@ -90,7 +90,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            lua.enclave
            secp256k1.enclave
            sss.enclave
-           byz.enclave
   )
 
   set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
