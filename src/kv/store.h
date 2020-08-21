@@ -297,7 +297,7 @@ namespace kv
         for (auto& it : maps)
         {
           auto& [_, map] = it.second;
-          snapshot.add_map_snapshot(map->snapshot(v));
+          snapshot->add_map_snapshot(map->snapshot(v));
         }
 
         auto h = get_history();
@@ -352,8 +352,6 @@ namespace kv
         hash_at_snapshot = d.deserialise_raw();
       }
 
-      std::lock_guard<SpinLock> mguard(maps_lock);
-
       OrderedViews views;
       for (auto r = d.start_map(); r.has_value(); r = d.start_map())
       {
@@ -376,13 +374,15 @@ namespace kv
           return DeserialiseSuccess::FAILED;
         }
 
+        auto& [_, map] = search->second;
+
         auto deserialise_snapshot_view =
-          search->second->deserialise_snapshot(d);
+          map->deserialise_snapshot(d);
 
         // Take ownership of the produced view, store it to be committed
         // later
         views[map_name] = {
-          search->second.get(),
+          map,
           std::unique_ptr<AbstractTxView>(deserialise_snapshot_view)};
       }
 
@@ -1008,7 +1008,7 @@ namespace kv
       }
 
       auto entry = entries.begin();
-      for (auto& [name, pair] : maps)
+      for (auto& [name, pair] : store.maps)
       {
         auto& [_, map] = pair;
         if (map->get_security_domain() == SecurityDomain::PRIVATE)
