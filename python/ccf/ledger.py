@@ -275,7 +275,7 @@ class Ledger:
                 self._current_tx = Transaction(self._filenames[self._fileindex])
                 return next(self._current_tx)
             else:
-                raise StopIteration() from e
+                raise
 
     def __iter__(self):
         return self
