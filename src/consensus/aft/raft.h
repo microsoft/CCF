@@ -113,6 +113,7 @@ namespace aft
     };
 
     SpinLock lock;
+    ConsensusType consensus_type;
     std::unique_ptr<Store<kv::DeserialiseSuccess>> store;
 
     // Persistent
@@ -166,6 +167,7 @@ namespace aft
 
   public:
     Aft(
+      ConsensusType consensus_type_,
       std::unique_ptr<Store<kv::DeserialiseSuccess>> store_,
       std::unique_ptr<LedgerProxy> ledger_,
       std::shared_ptr<ChannelProxy> channels_,
@@ -176,6 +178,7 @@ namespace aft
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
       bool public_only_ = false) :
+      consensus_type(consensus_type_),
       store(std::move(store_)),
 
       current_term(0),
@@ -183,8 +186,6 @@ namespace aft
       voted_for(NoNode),
       last_idx(0),
       commit_idx(0),
-
-      leader_id(NoNode),
 
       state(Follower),
       timeout_elapsed(0),
@@ -202,7 +203,17 @@ namespace aft
       rpc_sessions(rpc_sessions_),
       rpc_map(rpc_map_)
 
-    {}
+    {
+      if (consensus_type == ConsensusType::PBFT)
+      {
+        leader_id = 0;
+      }
+      else
+      {
+        leader_id = NoNode;
+      }
+      
+    }
 
     NodeId leader()
     {
@@ -351,6 +362,15 @@ namespace aft
       const std::vector<std::tuple<Index, T, bool>>& entries, Term term)
     {
       std::lock_guard<SpinLock> guard(lock);
+
+      if (consensus_type == ConsensusType::PBFT)
+      {
+        for (auto& [index, data, globally_committable] : entries)
+        {
+          ledger->put_entry(*data, globally_committable);
+        }
+        return true;
+      }
 
       if (state != Leader)
       {

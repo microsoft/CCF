@@ -44,6 +44,7 @@ public:
 
       auto kv = std::make_shared<Store>(node_id);
       auto raft = std::make_shared<TRaft>(
+        ConsensusType::RAFT,
         std::make_unique<Adaptor>(kv),
         std::make_unique<aft::LedgerStubProxy>(node_id),
         std::make_shared<aft::ChannelStubProxy>(),

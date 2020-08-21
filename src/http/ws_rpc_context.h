@@ -6,6 +6,7 @@
 #include "enclave/rpc_context.h"
 #include "http_parser.h"
 #include "http_sig.h"
+#include "node/rpc/tx_status.h"
 #include "ws_builder.h"
 
 namespace ws

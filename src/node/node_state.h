@@ -1549,6 +1549,7 @@ namespace ccf
       setup_cmd_forwarder();
 
       auto raft = std::make_unique<RaftType>(
+        network.consensus_type,
         std::make_unique<aft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
           network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),

@@ -43,6 +43,11 @@ namespace aft
 
     void force_become_primary() override
     {
+      if (consensus_type == ConsensusType::PBFT)
+      {
+        LOG_DEBUG_FMT("Cannot force_become primary with a BFT consensus");
+        return;
+      }
       aft->force_become_leader();
     }
 
@@ -52,6 +57,12 @@ namespace aft
       const std::vector<kv::Version>& terms,
       SeqNo commit_seqno) override
     {
+      if (consensus_type == ConsensusType::PBFT)
+      {
+        LOG_DEBUG_FMT("Cannot force_become primary with a BFT consensus");
+        return;
+      }
+
       aft->force_become_leader(seqno, view, terms, commit_seqno);
     }
 
@@ -108,6 +119,11 @@ namespace aft
 
     void periodic(std::chrono::milliseconds elapsed) override
     {
+      if (consensus_type == ConsensusType::PBFT)
+      {
+        //LOG_DEBUG_FMT("Periodic is not defined for CFT consensus");
+        return;
+      }
       aft->periodic(elapsed);
     }
 
