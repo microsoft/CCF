@@ -3,7 +3,6 @@
 #pragma once
 
 #include "aft_state.h"
-//#include "consensus/aft/aft_types.h"
 #include "consensus/pbft/pbft_requests.h"
 #include "kv/kv_types.h"
 #include "node/node_to_node.h"

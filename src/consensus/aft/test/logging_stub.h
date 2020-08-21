@@ -184,6 +184,15 @@ namespace aft
     {
       return kv::NoVersion;
     }
+
+    virtual kv::DeserialiseSuccess deserialise_views(
+      const std::vector<uint8_t>& data,
+      bool public_only = false,
+      kv::Term* term = nullptr,
+      kv::Tx* tx = nullptr)
+    {
+      return kv::DeserialiseSuccess::PASS;
+    }
   };
 
   class LoggingStubStoreSig : public LoggingStubStore

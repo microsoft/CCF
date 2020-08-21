@@ -6,6 +6,8 @@
 #include "ds/spin_lock.h"
 #include "kv/kv_types.h"
 #include "node/rpc/tx_status.h"
+#include "tls/key_pair.h"
+#include "tls/verifier.h"
 
 #include <map>
 #include <set>
@@ -67,6 +69,24 @@ namespace aft
     }
   };
 
+  class Replica
+  {
+  public:
+    Replica(kv::NodeId id_, const std::vector<uint8_t>& cert_) :
+      id(id_),
+      verifier(tls::make_unique_verifier(cert_))
+    {}
+
+    kv::NodeId get_id() const
+    {
+      return id;
+    }
+
+  private:
+    kv::NodeId id;
+    tls::VerifierUniquePtr verifier;
+  };
+
   struct ServiceState
   {
     ServiceState(kv::NodeId my_node_id_) :
@@ -77,6 +97,7 @@ namespace aft
     {}
 
     SpinLock lock;
+    std::map<kv::NodeId, std::shared_ptr<Replica>> configuration;
 
     kv::NodeId my_node_id;
     kv::Consensus::View current_view;

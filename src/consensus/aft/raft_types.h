@@ -41,6 +41,11 @@ namespace aft
     virtual void rollback(Index v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
     virtual kv::Version current_version() = 0;
+    virtual S deserialise_views(
+      const std::vector<uint8_t>& data,
+      bool public_only = false,
+      kv::Term* term = nullptr,
+      kv::Tx* tx = nullptr) = 0;
   };
 
   template <typename T, typename S>
@@ -100,6 +105,18 @@ namespace aft
         return p->current_version();
       }
       return kv::NoVersion;
+    }
+
+    S deserialise_views(
+      const std::vector<uint8_t>& data,
+      bool public_only = false,
+      kv::Term* term = nullptr,
+      kv::Tx* tx = nullptr) override
+    {
+      auto p = x.lock();
+      if (p)
+        return p->deserialise_views(data, public_only, term, tx);
+      return S::FAILED;
     }
   };
 
