@@ -12,7 +12,6 @@
 #include "node/snapshot_evidence.h"
 
 #include <deque>
-#include <optional>
 
 namespace ccf
 {
