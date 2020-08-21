@@ -876,9 +876,9 @@ namespace pbft
       }
     }
 
-    void set_f(size_t f) override
+    void open_network(ConsensusType consensus_type) override
     {
-      message_receiver_base->set_f(f);
+      message_receiver_base->open_network(consensus_type);
     }
 
     void emit_signature() override
