@@ -244,8 +244,8 @@ class Node:
                 assert (
                     rep.status_code == 200
                 ), f"An error occured after node {self.node_id} joined the network: {rep.body}"
-        except ccf.clients.CCFConnectionException:
-            raise TimeoutError(f"Node {self.node_id} failed to join the network")
+        except ccf.clients.CCFConnectionException as e:
+            raise TimeoutError(f"Node {self.node_id} failed to join the network") from e
 
     def get_ledger(self):
         return self.remote.get_ledger()

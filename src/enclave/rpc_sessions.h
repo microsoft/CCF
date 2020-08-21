@@ -23,6 +23,7 @@ namespace enclave
   class RPCSessions : public AbstractRPCResponder
   {
   private:
+    ringbuffer::AbstractWriterFactory& writer_factory;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<tls::Cert> cert;
 
@@ -33,8 +34,6 @@ namespace enclave
     // the enclave via create_client().
     std::atomic<size_t> next_client_session_id =
       std::numeric_limits<size_t>::max() / 2;
-
-    ringbuffer::AbstractWriterFactory& writer_factory;
 
   public:
     RPCSessions(
