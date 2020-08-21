@@ -48,13 +48,6 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
 
     auto map_a = kv_store.get<kv::untyped::Map>(map_name);
     REQUIRE(map_a != nullptr);
-
-    // auto tx = kv_store.create_tx();
-
-    // auto view = tx.get_view(*map_a);
-    // const auto it = view->get("foo");
-    // REQUIRE(it.has_value());
-    // REQUIRE(it.value() == "bar");
   }
 
   {
@@ -81,9 +74,9 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
 
   const auto version_before = kv_store.current_version();
 
-  constexpr auto new_map1 = "1";
-  constexpr auto new_map2 = "2";
-  constexpr auto new_map3 = "3";
+  constexpr auto new_map1 = "new_map1";
+  constexpr auto new_map2 = "new_map2";
+  constexpr auto new_map3 = "new_map3";
 
   {
     INFO("Multiple dynamic tables can be created in a single tx");
