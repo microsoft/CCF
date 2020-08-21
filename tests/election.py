@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+from infra.network import PrimaryNotFound
 import time
 import math
 import infra.network
@@ -20,16 +21,11 @@ from loguru import logger as LOG
 
 @reqs.description("Stopping current primary and waiting for a new one to be elected")
 @reqs.can_kill_n_nodes(1)
-def test_kill_primary(network, args, find_new_primary=True):
+def test_kill_primary(network, args):
     primary, _ = network.find_primary()
     primary.stop()
-    LOG.debug(
-        f"Waiting {network.election_duration}s for a new primary to be elected..."
-    )
-    time.sleep(network.election_duration)
-    if find_new_primary:
-        new_primary, new_term = network.find_primary()
-        LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
+    new_primary, new_term = network.wait_for_new_primary(primary.node_id)
+    LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
 
     return network
 
@@ -81,7 +77,8 @@ def run(args):
         if args.consensus == "pbft":
             nodes_to_stop = math.ceil(len(hosts) / 3)
 
-        for _ in range(nodes_to_stop):
+        primary_is_known = True
+        for node_to_stop in range(nodes_to_stop):
             # Note that for the first iteration, the primary is known in advance anyway
             LOG.debug("Find freshly elected primary")
             # After a view change in pbft, finding the new primary takes longer
@@ -108,23 +105,15 @@ def run(args):
             LOG.debug("Waiting for transaction to be committed by all nodes")
             wait_for_seqno_to_commit(seqno, current_view, network.get_joined_nodes())
 
-            test_kill_primary(network, args, find_new_primary=False)
+            try:
+                test_kill_primary(network, args)
+            except PrimaryNotFound:
+                if node_to_stop < nodes_to_stop - 1:
+                    raise
+                else:
+                    primary_is_known = False
 
-        # More than F nodes have been stopped, trying to commit any message
-        LOG.debug(
-            "No progress can be made as more than {} nodes have stopped".format(
-                nodes_to_stop
-            )
-        )
-        try:
-            primary, _ = network.find_primary()
-            assert False, "Primary should not be found"
-        except infra.network.PrimaryNotFound:
-            pass
-
-        LOG.success(
-            f"As expected, primary could not be found after election duration ({network.election_duration}s)."
-        )
+        assert not primary_is_known, f"Primary is still knowm"
         LOG.success("Test ended successfully.")
 
 

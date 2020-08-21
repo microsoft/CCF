@@ -70,11 +70,7 @@ def test_share_resilience(network, args):
         f"Shutting down node {primary.node_id} before submitting last recovery share"
     )
     primary.stop()
-    LOG.debug(
-        f"Waiting {recovered_network.election_duration}s for a new primary to be elected..."
-    )
-    time.sleep(recovered_network.election_duration)
-    new_primary, _ = recovered_network.find_primary()
+    new_primary, _ = recovered_network.wait_for_new_primary(primary.node_id)
     assert (
         new_primary is not primary
     ), f"Primary {primary.node_id} should have changed after election"
