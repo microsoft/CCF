@@ -269,7 +269,7 @@ class Ledger:
     def __next__(self) -> Transaction:
         try:
             return next(self._current_tx)
-        except StopIteration as e:
+        except StopIteration:
             self._fileindex += 1
             if len(self._filenames) > self._fileindex:
                 self._current_tx = Transaction(self._filenames[self._fileindex])
