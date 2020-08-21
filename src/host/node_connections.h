@@ -236,8 +236,8 @@ namespace asynchost
             msg_type == ccf::NodeMsgType::consensus_msg &&
             (serialized::peek<aft::RaftMsgType>(data, size) ==
                aft::raft_append_entries ||
-             serialized::peek<pbft::PbftMsgType>(data, size) ==
-               pbft::pbft_append_entries))
+             serialized::peek<aft::RaftMsgType>(data, size) ==
+               aft::bft_append_entries))
           {
             // Parse the indices to be sent to the recipient.
             auto p = data;
