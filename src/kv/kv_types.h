@@ -58,7 +58,7 @@ namespace kv
     SECURITY_DOMAIN_MAX
   };
 
-  static SecurityDomain get_security_domain(const std::string& name)
+  static inline SecurityDomain get_security_domain(const std::string& name)
   {
     constexpr auto public_domain_prefix = "public:";
 

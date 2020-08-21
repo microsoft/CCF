@@ -66,14 +66,6 @@ namespace kv
         read_version = txid.version;
       }
 
-      // TODO: The whole TxView definition hoopla is just for this, and this is
-      // ridiculous. We know the type of the map here, and want to ask for its
-      // change set at this version. We can also do that if the map is untyped,
-      // and we're being asked for a typed view. From that change set, we want
-      // to create and own a Modifier (that you can call get/put/etc on), and
-      // maybe-separately a thing you can _commit_ etc on. But perhaps that can
-      // be created later?
-
       MapView* typed_view = m.template create_view<MapView>(read_version);
       auto abstract_view = dynamic_cast<AbstractTxView*>(typed_view);
       if (abstract_view == nullptr)
