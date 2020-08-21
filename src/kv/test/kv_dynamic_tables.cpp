@@ -437,3 +437,56 @@ TEST_CASE("Mid rollback safety" * doctest::test_suite("dynamic"))
     REQUIRE(result == kv::CommitSuccess::CONFLICT);
   }
 }
+
+TEST_CASE(
+  "Security domain is determined by map name" * doctest::test_suite("dynamic"))
+{
+  kv::Store kv_store;
+
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+
+  {
+    auto tx = kv_store.create_tx();
+    auto view = tx.get_view2<MapTypes::StringString>("public:foo");
+    view->put("foo", "bar");
+
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+
+  {
+    auto tx = kv_store.create_tx();
+    auto view = tx.get_view2<MapTypes::StringString>("foo");
+    view->put("hello", "world");
+
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+
+  {
+    auto public_map = kv_store.get<kv::untyped::Map>("public:foo");
+    REQUIRE(public_map != nullptr);
+    REQUIRE(public_map->get_security_domain() == kv::SecurityDomain::PUBLIC);
+
+    auto private_map = kv_store.get<kv::untyped::Map>("foo");
+    REQUIRE(private_map != nullptr);
+    REQUIRE(private_map->get_security_domain() == kv::SecurityDomain::PRIVATE);
+  }
+
+  {
+    auto tx = kv_store.create_tx();
+    auto [public_view, private_view] =
+      tx.get_view2<MapTypes::StringString, MapTypes::StringString>(
+        "public:foo", "foo");
+
+    // These are _different views_ over _different maps_
+    REQUIRE(public_view != private_view);
+
+    const auto pub_v = public_view->get("foo");
+    REQUIRE(pub_v.has_value());
+    REQUIRE(pub_v.value() == "bar");
+
+    const auto priv_v = private_view->get("hello");
+    REQUIRE(priv_v.has_value());
+    REQUIRE(priv_v.value() == "world");
+  }
+}

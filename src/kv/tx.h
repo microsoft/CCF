@@ -135,13 +135,10 @@ namespace kv
           }
         }
 
-        // TODO: Currently assuming all dynamic maps are replicated and private
-        const bool replicated = true;
-
         // NB: The created maps are always untyped. Only the views over them are
         // typed
         auto new_map = std::make_shared<kv::untyped::Map>(
-          store, map_name, kv::SecurityDomain::PRIVATE, replicated);
+          store, map_name, kv::get_security_domain(map_name), store->is_map_replicated(map_name));
         created_maps[map_name] = new_map;
         LOG_DEBUG_FMT("Creating new map '{}'", map_name);
 

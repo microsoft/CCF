@@ -58,6 +58,18 @@ namespace kv
     SECURITY_DOMAIN_MAX
   };
 
+  static SecurityDomain get_security_domain(const std::string& name)
+  {
+    constexpr auto public_domain_prefix = "public:";
+
+    if (name.rfind(public_domain_prefix, 0) == 0)
+    {
+      return SecurityDomain::PUBLIC;
+    }
+
+    return SecurityDomain::PRIVATE;
+  }
+
   // Note that failed = 0, and all other values are variants of PASS, which
   // allows DeserialiseSuccess to be used as a boolean in code that does not
   // need any detail about what happened on success
@@ -432,6 +444,7 @@ namespace kv
       kv::Version v, const std::string& map_name) = 0;
     virtual void add_dynamic_map(
       kv::Version v, const std::shared_ptr<AbstractMap>& map) = 0;
+    virtual bool is_map_replicated(const std::string& map_name) = 0;
 
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;
@@ -454,5 +467,4 @@ namespace kv
 
     virtual size_t commit_gap() = 0;
   };
-
 }

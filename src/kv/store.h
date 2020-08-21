@@ -219,21 +219,8 @@ namespace kv
       if (has_map_internal(name))
         throw std::logic_error("Map already exists");
 
-      auto replicated = true;
-      if (replicate_type == kv::ReplicateType::NONE)
-      {
-        replicated = false;
-      }
-      else if (replicate_type == kv::ReplicateType::SOME)
-      {
-        if (replicated_tables.find(name) == replicated_tables.end())
-        {
-          replicated = false;
-        }
-      }
-
-      auto result =
-        std::make_shared<M>(this, name, security_domain, replicated);
+      auto result = std::make_shared<M>(
+        this, name, security_domain, is_map_replicated(name));
       maps[name] = std::make_pair(NoVersion, result);
       return *result;
     }
@@ -265,6 +252,32 @@ namespace kv
       }
 
       maps[map_name] = std::make_pair(v, map);
+    }
+
+    bool is_map_replicated(const std::string& name) override
+    {
+      switch (replicate_type)
+      {
+        case (kv::ReplicateType::ALL):
+        {
+          return true;
+        }
+
+        case (kv::ReplicateType::NONE):
+        {
+          return false;
+        }
+
+        case (kv::ReplicateType::SOME):
+        {
+          return replicated_tables.find(name) != replicated_tables.end();
+        }
+
+        default:
+        {
+          throw std::logic_error("Unhandled ReplicateType value");
+        }
+      }
     }
 
     std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
@@ -364,10 +377,11 @@ namespace kv
         auto search = maps.find(map_name);
         if (search == maps.end())
         {
-          // TODO: Makes the same assumptions on privacy domain + replicated as
-          // BaseTx::get_tuple2
           map = std::make_shared<kv::untyped::Map>(
-            this, map_name, kv::SecurityDomain::PRIVATE, true);
+            this,
+            map_name,
+            get_security_domain(map_name),
+            is_map_replicated(map_name));
           new_maps[map_name] = map;
           LOG_DEBUG_FMT(
             "Creating map {} while deserialising snapshot at version {}",
@@ -387,14 +401,12 @@ namespace kv
           return DeserialiseSuccess::FAILED;
         }
 
-        auto deserialise_snapshot_view =
-          map->deserialise_snapshot(d);
+        auto deserialise_snapshot_view = map->deserialise_snapshot(d);
 
         // Take ownership of the produced view, store it to be committed
         // later
         views[map_name] = {
-          map,
-          std::unique_ptr<AbstractTxView>(deserialise_snapshot_view)};
+          map, std::unique_ptr<AbstractTxView>(deserialise_snapshot_view)};
       }
 
       for (auto& it : maps)
@@ -412,7 +424,8 @@ namespace kv
       // Each map is committed at a different version, independently of the
       // overall snapshot version. The commit versions for each map are
       // contained in the snapshot and applied when the snapshot is committed.
-      auto c = apply_views(views, []() { return NoVersion; }, new_maps);
+      auto c = apply_views(
+        views, []() { return NoVersion; }, new_maps);
       if (!c.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised snapshot at version {}", v);
@@ -630,10 +643,11 @@ namespace kv
         auto map = get_map(v, map_name);
         if (map == nullptr)
         {
-          // TODO: Makes the same assumptions on privacy domain + replicated as
-          // BaseTx::get_tuple2
           auto map_shared = std::make_shared<kv::untyped::Map>(
-            this, map_name, kv::SecurityDomain::PRIVATE, true);
+            this,
+            map_name,
+            get_security_domain(map_name),
+            is_map_replicated(map_name));
           map = map_shared;
           new_maps[map_name] = map_shared;
           LOG_DEBUG_FMT(
