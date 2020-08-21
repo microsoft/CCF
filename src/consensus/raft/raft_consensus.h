@@ -18,11 +18,16 @@ namespace raft
   {
   private:
     std::unique_ptr<Raft<T...>> raft;
+    ConsensusType consensus_type;
+    bool is_open;
 
   public:
-    RaftConsensus(std::unique_ptr<Raft<T...>> raft_) :
+    RaftConsensus(
+      std::unique_ptr<Raft<T...>> raft_, ConsensusType consensus_type_) :
       Consensus(raft_->id()),
-      raft(std::move(raft_))
+      raft(std::move(raft_)),
+      consensus_type(consensus_type_),
+      is_open(false)
     {}
 
     bool is_primary() override
@@ -105,8 +110,9 @@ namespace raft
       raft->enable_all_domains();
     }
 
-    void set_f(size_t) override
+    void open_network() override
     {
+      is_open = true;
       return;
     }
 
@@ -116,9 +122,15 @@ namespace raft
         "Method should not be called when using raft consensus");
     }
 
+    bool on_request(const kv::TxHistory::RequestCallbackArgs&) override
+    {
+      throw ccf::ccf_logic_error("Not implemented");
+      return true;
+    }
+
     ConsensusType type() override
     {
-      return ConsensusType::RAFT;
+      return consensus_type;
     }
   };
 }
