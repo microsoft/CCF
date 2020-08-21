@@ -353,17 +353,30 @@ namespace kv
       }
 
       OrderedViews views;
+      MapCollection new_maps;
+
       for (auto r = d.start_map(); r.has_value(); r = d.start_map())
       {
         const auto map_name = r.value();
 
+        std::shared_ptr<AbstractMap> map = nullptr;
+
         auto search = maps.find(map_name);
         if (search == maps.end())
         {
-          // TODO: Create map here
-          LOG_FAIL_FMT("Failed to deserialise snapshot at version {}", v);
-          LOG_DEBUG_FMT("No such map in store {}", map_name);
-          return DeserialiseSuccess::FAILED;
+          // TODO: Makes the same assumptions on privacy domain + replicated as
+          // BaseTx::get_tuple2
+          map = std::make_shared<kv::untyped::Map>(
+            this, map_name, kv::SecurityDomain::PRIVATE, true);
+          new_maps[map_name] = map;
+          LOG_DEBUG_FMT(
+            "Creating map {} while deserialising snapshot at version {}",
+            map_name,
+            v);
+        }
+        else
+        {
+          map = search->second.second;
         }
 
         auto view_search = views.find(map_name);
@@ -373,8 +386,6 @@ namespace kv
           LOG_DEBUG_FMT("Multiple writes on map {}", map_name);
           return DeserialiseSuccess::FAILED;
         }
-
-        auto& [_, map] = search->second;
 
         auto deserialise_snapshot_view =
           map->deserialise_snapshot(d);
@@ -401,7 +412,7 @@ namespace kv
       // Each map is committed at a different version, independently of the
       // overall snapshot version. The commit versions for each map are
       // contained in the snapshot and applied when the snapshot is committed.
-      auto c = apply_views(views, []() { return NoVersion; });
+      auto c = apply_views(views, []() { return NoVersion; }, new_maps);
       if (!c.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised snapshot at version {}", v);
@@ -446,8 +457,6 @@ namespace kv
 
       for (auto& it : maps)
       {
-        // TODO: Is there anything interesting to do here, in noting that some
-        // previously at-risk-of-rollback maps are now permanent?
         auto& [_, map] = it.second;
         map->compact(v);
       }

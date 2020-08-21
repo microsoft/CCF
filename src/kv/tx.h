@@ -14,8 +14,6 @@ namespace kv
   class BaseTx : public AbstractViewContainer
   {
   protected:
-    // TODO: Should eventually never be null, but now only set for some test
-    // cases
     AbstractStore* store = nullptr;
 
     OrderedViews view_list;

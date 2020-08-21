@@ -353,6 +353,53 @@ TEST_CASE("Dynamic map serialisation" * doctest::test_suite("dynamic"))
   }
 }
 
+TEST_CASE("Dynamic map snapshot serialisation" * doctest::test_suite("dynamic"))
+{
+  kv::Store store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
+
+  constexpr auto map_name = "string_map";
+
+  kv::Version snapshot_version;
+  INFO("Create maps in original store");
+  {
+    auto tx1 = store.create_tx();
+    auto view_1 = tx1.get_view2<MapTypes::StringString>(map_name);
+    view_1->put("foo", "foo");
+    REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
+
+    auto tx2 = store.create_tx();
+    auto view_2 = tx2.get_view2<MapTypes::StringString>(map_name);
+    view_2->put("bar", "bar");
+    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+
+    snapshot_version = tx2.commit_version();
+  }
+
+  INFO("Create snapshot of original store");
+  auto snapshot = store.snapshot(snapshot_version);
+  auto serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
+
+  INFO("Apply snapshot to create maps in new store");
+  {
+    kv::Store new_store;
+    new_store.set_encryptor(encryptor);
+    new_store.deserialise_snapshot(serialised_snapshot);
+
+    auto tx = new_store.create_tx();
+    auto view = tx.get_view2<MapTypes::StringString>(map_name);
+
+    const auto foo_v = view->get("foo");
+    REQUIRE(foo_v.has_value());
+    REQUIRE(foo_v.value() == "foo");
+
+    const auto bar_v = view->get("bar");
+    REQUIRE(bar_v.has_value());
+    REQUIRE(bar_v.value() == "bar");
+  }
+}
+
 TEST_CASE("Mid rollback safety" * doctest::test_suite("dynamic"))
 {
   kv::Store kv_store;
