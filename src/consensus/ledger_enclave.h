@@ -3,11 +3,8 @@
 #pragma once
 
 #include "consensus/ledger_enclave_types.h"
+#include "ds/ccf_assert.h"
 #include "ds/serialized.h"
-
-#include <algorithm>
-#include <cassert>
-#include <sstream>
 
 namespace consensus
 {

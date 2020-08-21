@@ -22,7 +22,10 @@ namespace raft
 
     LedgerStubProxy(NodeId id) : _id(id) {}
 
-    void put_entry(const std::vector<uint8_t>& data, bool globally_committable)
+    void put_entry(
+      const std::vector<uint8_t>& data,
+      bool globally_committable,
+      bool force_chunk)
     {
 #ifdef STUB_LOG
       std::cout << "  Node" << _id << "->>Ledger" << _id
