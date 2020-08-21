@@ -123,7 +123,7 @@ namespace kv
       return {};
     }
 
-    void set_f(size_t) override
+    void open_network() override
     {
       return;
     }
