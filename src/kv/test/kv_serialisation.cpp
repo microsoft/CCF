@@ -78,7 +78,8 @@ TEST_CASE(
   auto* target_map = kv_store.get<MapTypes::StringString>("priv_map");
   REQUIRE(target_map != nullptr);
 
-  INFO("Commit a private transaction without an encryptor throws an exception");
+  SUBCASE(
+    "Commit a private transaction without an encryptor throws an exception")
   {
     kv::Tx tx;
     auto view0 = tx.get_view(priv_map);
@@ -86,31 +87,29 @@ TEST_CASE(
     REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
   }
 
-  // Since a serialisation error occurred and was not recovered properly (see
-  // https://github.com/microsoft/CCF/issues/338), we need to clear the store to
-  // get a fresh version.
-  kv_store.clear();
-  kv_store.set_encryptor(encryptor);
-
-  INFO("Commit to private map in source store");
+  SUBCASE("Commit private transaction with encryptor")
   {
-    kv::Tx tx;
-    auto view0 = tx.get_view(priv_map);
-    view0->put("privk1", "privv1");
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-  }
+    kv_store.set_encryptor(encryptor);
+    INFO("Commit to private map in source store");
+    {
+      kv::Tx tx;
+      auto view0 = tx.get_view(priv_map);
+      view0->put("privk1", "privv1");
+      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    }
 
-  INFO("Deserialise transaction in target store");
-  {
-    const auto latest_data = consensus->get_latest_data();
-    REQUIRE(latest_data.has_value());
-    REQUIRE(
-      kv_store_target.deserialise(latest_data.value()) ==
-      kv::DeserialiseSuccess::PASS);
+    INFO("Deserialise transaction in target store");
+    {
+      const auto latest_data = consensus->get_latest_data();
+      REQUIRE(latest_data.has_value());
+      REQUIRE(
+        kv_store_target.deserialise(latest_data.value()) ==
+        kv::DeserialiseSuccess::PASS);
 
-    kv::Tx tx_target;
-    auto view_target = tx_target.get_view(*target_map);
-    REQUIRE(view_target->get("privk1") == "privv1");
+      kv::Tx tx_target;
+      auto view_target = tx_target.get_view(*target_map);
+      REQUIRE(view_target->get("privk1") == "privv1");
+    }
   }
 }
 
