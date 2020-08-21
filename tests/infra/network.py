@@ -432,7 +432,7 @@ class Network:
                     else infra.node.NodeStatus.TRUSTED
                 ),
             )
-        except TimeoutError:
+        except TimeoutError as e:
             # The node can be safely discarded since it has not been
             # attributed a unique node_id by CCF
             LOG.error(f"New pending node {new_node.node_id} failed to join the network")
@@ -442,7 +442,7 @@ class Network:
                 # Throw accurate exceptions if known errors found in
                 for error in errors:
                     if "CODE_ID_NOT_FOUND" in error:
-                        raise CodeIdNotFound
+                        raise CodeIdNotFound from e
             raise
 
         return new_node
