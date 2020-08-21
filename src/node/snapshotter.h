@@ -6,10 +6,12 @@
 #include "crypto/hash.h"
 #include "ds/ccf_assert.h"
 #include "ds/logger.h"
+#include "ds/spin_lock.h"
 #include "ds/thread_messaging.h"
 #include "kv/kv_types.h"
 #include "node/snapshot_evidence.h"
 
+#include <deque>
 #include <optional>
 
 namespace ccf
@@ -18,6 +20,7 @@ namespace ccf
   {
   private:
     ringbuffer::WriterPtr to_host;
+    SpinLock lock;
 
     NetworkState& network;
 
@@ -26,8 +29,8 @@ namespace ccf
     // Index at which the lastest snapshot was generated
     consensus::Index last_snapshot_idx = 0;
 
-    // Index at which a snapshot will be next generated
-    consensus::Index next_snapshot_idx = 0;
+    // Indices at which a snapshot will be next generated
+    std::deque<consensus::Index> next_snapshot_indices;
 
     size_t get_execution_thread()
     {
@@ -102,10 +105,14 @@ namespace ccf
       to_host(writer_factory.create_writer_to_outside()),
       network(network_),
       snapshot_interval(snapshot_interval_)
-    {}
+    {
+      next_snapshot_indices.push_back(last_snapshot_idx);
+    }
 
     void snapshot(consensus::Index idx)
     {
+      std::lock_guard<SpinLock> guard(lock);
+
       CCF_ASSERT_FMT(
         idx >= last_snapshot_idx,
         "Cannot snapshot at idx {} which is earlier than last snapshot idx "
@@ -125,15 +132,44 @@ namespace ccf
       }
     }
 
-    // TODO: Name is baaaad
+    void compact(consensus::Index idx)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+
+      while (!next_snapshot_indices.empty() &&
+             (next_snapshot_indices.front() < idx))
+      {
+        next_snapshot_indices.pop_front();
+      }
+    }
+
     bool requires_snapshot(consensus::Index idx)
     {
-      if ((idx - next_snapshot_idx) > snapshot_interval)
+      std::lock_guard<SpinLock> guard(lock);
+
+      // Returns true if the idx will require the generation of a snapshot
+      if ((idx - next_snapshot_indices.back()) >= snapshot_interval)
       {
-        next_snapshot_idx = idx;
+        next_snapshot_indices.push_back(idx);
         return true;
       }
       return false;
+    }
+
+    void rollback(consensus::Index idx)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+
+      while (!next_snapshot_indices.empty() &&
+             (next_snapshot_indices.back() > idx))
+      {
+        next_snapshot_indices.pop_back();
+      }
+
+      if (next_snapshot_indices.empty())
+      {
+        next_snapshot_indices.push_back(last_snapshot_idx);
+      }
     }
   };
 }

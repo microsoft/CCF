@@ -204,5 +204,17 @@ namespace raft
       // For now, do not test snapshots in unit tests
       return false;
     }
+
+    void compact(Index)
+    {
+      // For now, do not test snapshots in unit tests
+      return;
+    }
+
+    void rollback(Index)
+    {
+      // For now, do not test snapshots in unit tests
+      return;
+    }
   };
 }

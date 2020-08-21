@@ -1178,6 +1178,7 @@ namespace raft
       commit_idx = idx;
 
       LOG_DEBUG_FMT("Compacting...");
+      snapshotter->compact(idx);
       if (state == Leader)
       {
         snapshotter->snapshot(idx);
@@ -1216,6 +1217,7 @@ namespace raft
 
     void rollback(Index idx)
     {
+      snapshotter->rollback(idx);
       store->rollback(idx, current_term);
       LOG_DEBUG_FMT("Setting term in store to: {}", current_term);
       ledger->truncate(idx);
