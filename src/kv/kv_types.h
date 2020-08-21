@@ -32,7 +32,7 @@ namespace kv
   // writer(s) changes. Term and Version combined give a unique identifier for
   // all accepted kv modifications. Terms are handled by Consensus via the
   // TermHistory
-  using Term = uint64_t;
+  using Term = int64_t;
   using NodeId = uint64_t;
 
   struct TxID
@@ -191,7 +191,7 @@ namespace kv
     using SeqNo = int64_t;
     // View describes an epoch of SeqNos. View is incremented when Consensus's
     // primary changes
-    using View = uint64_t;
+    using View = int64_t;
 
     struct Configuration
     {
@@ -287,7 +287,7 @@ namespace kv
     }
     virtual void enable_all_domains() {}
 
-    virtual void set_f(size_t f) = 0;
+    virtual void open_network() = 0;
     virtual void emit_signature() = 0;
     virtual ConsensusType type() = 0;
   };
@@ -429,7 +429,7 @@ namespace kv
     virtual DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
       bool public_only = false,
-      Term* term = nullptr) = 0;
+      kv::Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;
     virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;

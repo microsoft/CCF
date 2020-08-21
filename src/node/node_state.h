@@ -4,12 +4,6 @@
 
 #include "call_types.h"
 #include "consensus/ledger_enclave.h"
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
-#include "consensus/pbft/pbft.h"
-#pragma clang diagnostic pop
-
 #include "consensus/raft/raft_consensus.h"
 #include "crypto/crypto_box.h"
 #include "ds/logger.h"
@@ -72,8 +66,6 @@ namespace ccf
     raft::RaftConsensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
   using RaftType =
     raft::Raft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
-
-  using PbftConsensusType = pbft::Pbft<consensus::LedgerEnclave, NodeToNode>;
 
   template <typename T>
   class StateMachine
@@ -282,7 +274,7 @@ namespace ccf
           self = 0; // The first node id is always 0
 
           setup_encryptor(network.consensus_type);
-          setup_consensus(network.consensus_type, args.config);
+          setup_consensus();
           setup_history();
 
           // Become the primary and force replication
@@ -431,10 +423,7 @@ namespace ccf
             }
 
             setup_encryptor(resp.network_info.consensus_type);
-            setup_consensus(
-              resp.network_info.consensus_type,
-              args.config,
-              resp.network_info.public_only);
+            setup_consensus(resp.network_info.public_only);
             setup_history();
 
             open_member_frontend();
@@ -1340,7 +1329,7 @@ namespace ccf
             it->second.value().status == ServiceStatus::OPEN &&
             this->network.identity->cert == it->second->cert)
           {
-            this->consensus->set_f(1);
+            this->consensus->open_network();
             open_user_frontend();
             LOG_INFO_FMT("Network is OPEN, now accepting user transactions");
           }
@@ -1523,7 +1512,8 @@ namespace ccf
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         public_only);
 
-      consensus = std::make_shared<RaftConsensusType>(std::move(raft));
+      consensus = std::make_shared<RaftConsensusType>(
+        std::move(raft), network.consensus_type);
 
       network.tables->set_consensus(consensus);
 
@@ -1621,24 +1611,9 @@ namespace ccf
       network.tables->set_encryptor(encryptor);
     }
 
-    void setup_consensus(
-      ConsensusType consensus_type,
-      const CCFConfig& config,
-      bool public_only = false)
+    void setup_consensus(bool public_only = false)
     {
-      if (consensus_type == ConsensusType::PBFT)
-      {
-        setup_pbft(config);
-      }
-      else if (consensus_type == ConsensusType::RAFT)
-      {
-        setup_raft(public_only);
-      }
-      else
-      {
-        throw std::logic_error(
-          "Unknown consensus type " + std::to_string(consensus_type));
-      }
+      setup_raft(public_only);
     }
 
     void read_ledger_idx(consensus::Index idx)
@@ -1653,53 +1628,6 @@ namespace ccf
     void ledger_truncate(consensus::Index idx)
     {
       RINGBUFFER_WRITE_MESSAGE(consensus::ledger_truncate, to_host, idx);
-    }
-
-    void setup_pbft(const CCFConfig& config)
-    {
-      setup_n2n_channels();
-
-      consensus = std::make_shared<PbftConsensusType>(
-        std::make_unique<pbft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
-          network.tables),
-        n2n_channels,
-        self,
-        config.signature_intervals.sig_max_tx,
-        std::make_unique<consensus::LedgerEnclave>(writer_factory),
-        rpc_map,
-        rpcsessions,
-        network.pbft_requests_map,
-        network.pbft_pre_prepares_map,
-        network.signatures,
-        network.pbft_new_views_map,
-        node_sign_kp->private_key_pem().str(),
-        node_cert.raw(),
-        consensus_config);
-
-      network.tables->set_consensus(consensus);
-
-      notifier.set_consensus(consensus);
-
-      network.nodes.set_local_hook(
-        [this](kv::Version version, const Nodes::Write& w) {
-          for (const auto& [node_id, opt_ni] : w)
-          {
-            if (!opt_ni.has_value())
-            {
-              throw std::logic_error(fmt::format(
-                "Unexpected: removal from nodes table ({})", node_id));
-            }
-
-            const auto& ni = opt_ni.value();
-            n2n_channels->create_channel(node_id, ni.nodehost, ni.nodeport);
-
-            pbft::Configuration::Nodes configuration;
-            configuration[node_id] = {ni.nodehost, ni.nodeport, ni.cert};
-            consensus->add_configuration(version, configuration);
-          }
-        });
-
-      setup_basic_hooks();
     }
   };
 }

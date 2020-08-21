@@ -7,6 +7,7 @@
 #include "ds/spin_lock.h"
 #include "kv/kv_types.h"
 #include "node/node_types.h"
+#include "node/rpc/tx_status.h"
 #include "raft_types.h"
 
 #include <algorithm>
@@ -54,7 +55,7 @@ namespace raft
         }
       }
 
-      for (auto i = terms.size(); i < term; ++i)
+      for (int64_t i = terms.size(); i < term; ++i)
         terms.push_back(idx);
       LOG_DEBUG_FMT("Resulting terms: {}", fmt::join(terms, ", "));
     }
@@ -472,7 +473,7 @@ namespace raft
     Term get_term_internal(Index idx)
     {
       if (idx > last_idx)
-        return 0;
+        return ccf::VIEW_UNKNOWN;
 
       return term_history.term_at(idx);
     }
