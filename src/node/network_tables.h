@@ -11,7 +11,7 @@
 #include "consensus/pbft/pbft_pre_prepares.h"
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_tables.h"
-#include "consensus/raft/raft_tables.h"
+#include "consensus/aft/raft_tables.h"
 #include "entities.h"
 #include "governance_history.h"
 #include "kv/map.h"
@@ -102,7 +102,7 @@ namespace ccf
       tables(
         (consensus_type == ConsensusType::RAFT) ?
           std::make_shared<kv::Store>(
-            raft::replicate_type_raft, raft::replicated_tables_raft) :
+            aft::replicate_type_raft, aft::replicated_tables_raft) :
           std::make_shared<kv::Store>(
             pbft::replicate_type_pbft, pbft::replicated_tables_pbft)),
       members(

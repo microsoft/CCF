@@ -264,7 +264,7 @@ namespace pbft
         View view) {
         info.pending_cmd_callbacks = num_requests;
         info.version_before_execution_start = store->current_version();
-        // PBFT views start at 0, where Raft (and therefore CCF, historically)
+        // PBFT views start at 0, where Aft (and therefore CCF, historically)
         // starts at 2
         store->set_view(view + 2);
         for (uint32_t i = 0; i < num_requests; ++i)

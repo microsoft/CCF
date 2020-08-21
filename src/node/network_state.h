@@ -14,7 +14,7 @@ namespace ccf
     std::unique_ptr<NetworkIdentity> identity;
     std::shared_ptr<LedgerSecrets> ledger_secrets;
     std::unique_ptr<NetworkEncryptionKey> encryption_key;
-    // default set to Raft
+    // default set to Aft
     ConsensusType consensus_type = ConsensusType::RAFT;
 
     NetworkState(const ConsensusType& consensus_type_) :

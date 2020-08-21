@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "consensus/raft/raft.h"
+#include "consensus/aft/raft.h"
 #include "ds/logger.h"
 #include "logging_stub.h"
 
@@ -14,23 +14,23 @@
 using namespace std;
 
 using ms = std::chrono::milliseconds;
-using TRaft = raft::
-  Raft<raft::LedgerStubProxy, raft::ChannelStubProxy, raft::StubSnapshotter>;
-using Store = raft::LoggingStubStore;
-using StoreSig = raft::LoggingStubStoreSig;
-using Adaptor = raft::Adaptor<Store, kv::DeserialiseSuccess>;
+using TRaft = aft::
+  Aft<aft::LedgerStubProxy, aft::ChannelStubProxy, aft::StubSnapshotter>;
+using Store = aft::LoggingStubStore;
+using StoreSig = aft::LoggingStubStoreSig;
+using Adaptor = aft::Adaptor<Store, kv::DeserialiseSuccess>;
 
 DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 {
   auto kv_store = std::make_shared<Store>(0);
-  raft::NodeId node_id(0);
+  aft::NodeId node_id(0);
   ms election_timeout(150);
 
   TRaft r0(
     std::make_unique<Adaptor>(kv_store),
-    std::make_unique<raft::LedgerStubProxy>(node_id),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id,
     ms(10),
     election_timeout);
@@ -42,7 +42,7 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
   DOCTEST_INFO("DOCTEST_REQUIRE Initial State");
 
   DOCTEST_REQUIRE(!r0.is_leader());
-  DOCTEST_REQUIRE(r0.leader() == raft::NoNode);
+  DOCTEST_REQUIRE(r0.leader() == aft::NoNode);
   DOCTEST_REQUIRE(r0.get_term() == 0);
   DOCTEST_REQUIRE(r0.get_commit_idx() == 0);
 
@@ -60,19 +60,19 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 {
   auto kv_store = std::make_shared<Store>(0);
-  raft::NodeId node_id(0);
+  aft::NodeId node_id(0);
   ms election_timeout(150);
 
   TRaft r0(
     std::make_unique<Adaptor>(kv_store),
-    std::make_unique<raft::LedgerStubProxy>(node_id),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id,
     ms(10),
     election_timeout);
 
-  raft::Configuration::Nodes config;
+  aft::Configuration::Nodes config;
   config[node_id] = {};
   r0.add_configuration(0, config);
 
@@ -103,38 +103,38 @@ DOCTEST_TEST_CASE(
   auto kv_store1 = std::make_shared<Store>(1);
   auto kv_store2 = std::make_shared<Store>(2);
 
-  raft::NodeId node_id0(0);
-  raft::NodeId node_id1(1);
-  raft::NodeId node_id2(2);
+  aft::NodeId node_id0(0);
+  aft::NodeId node_id1(1);
+  aft::NodeId node_id2(2);
 
   ms request_timeout(10);
 
   TRaft r0(
     std::make_unique<Adaptor>(kv_store0),
-    std::make_unique<raft::LedgerStubProxy>(node_id0),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id0),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id0,
     request_timeout,
     ms(20));
   TRaft r1(
     std::make_unique<Adaptor>(kv_store1),
-    std::make_unique<raft::LedgerStubProxy>(node_id1),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id1),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id1,
     request_timeout,
     ms(100));
   TRaft r2(
     std::make_unique<Adaptor>(kv_store2),
-    std::make_unique<raft::LedgerStubProxy>(node_id2),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id2),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id2,
     request_timeout,
     ms(50));
 
-  raft::Configuration::Nodes config;
+  aft::Configuration::Nodes config;
   config[node_id0] = {};
   config[node_id1] = {};
   config[node_id2] = {};
@@ -273,38 +273,38 @@ DOCTEST_TEST_CASE(
   auto kv_store1 = std::make_shared<Store>(1);
   auto kv_store2 = std::make_shared<Store>(2);
 
-  raft::NodeId node_id0(0);
-  raft::NodeId node_id1(1);
-  raft::NodeId node_id2(2);
+  aft::NodeId node_id0(0);
+  aft::NodeId node_id1(1);
+  aft::NodeId node_id2(2);
 
   ms request_timeout(10);
 
   TRaft r0(
     std::make_unique<Adaptor>(kv_store0),
-    std::make_unique<raft::LedgerStubProxy>(node_id0),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id0),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id0,
     request_timeout,
     ms(20));
   TRaft r1(
     std::make_unique<Adaptor>(kv_store1),
-    std::make_unique<raft::LedgerStubProxy>(node_id1),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id1),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id1,
     request_timeout,
     ms(100));
   TRaft r2(
     std::make_unique<Adaptor>(kv_store2),
-    std::make_unique<raft::LedgerStubProxy>(node_id2),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id2),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id2,
     request_timeout,
     ms(50));
 
-  raft::Configuration::Nodes config;
+  aft::Configuration::Nodes config;
   config[node_id0] = {};
   config[node_id1] = {};
   config[node_id2] = {};
@@ -312,7 +312,7 @@ DOCTEST_TEST_CASE(
   r1.add_configuration(0, config);
   r2.add_configuration(0, config);
 
-  map<raft::NodeId, TRaft*> nodes;
+  map<aft::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
   nodes[node_id2] = &r2;
@@ -401,44 +401,44 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
   auto kv_store1 = std::make_shared<Store>(1);
   auto kv_store2 = std::make_shared<Store>(2);
 
-  raft::NodeId node_id0(0);
-  raft::NodeId node_id1(1);
-  raft::NodeId node_id2(2);
+  aft::NodeId node_id0(0);
+  aft::NodeId node_id1(1);
+  aft::NodeId node_id2(2);
 
   ms request_timeout(10);
 
   TRaft r0(
     std::make_unique<Adaptor>(kv_store0),
-    std::make_unique<raft::LedgerStubProxy>(node_id0),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id0),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id0,
     request_timeout,
     ms(20));
   TRaft r1(
     std::make_unique<Adaptor>(kv_store1),
-    std::make_unique<raft::LedgerStubProxy>(node_id1),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id1),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id1,
     request_timeout,
     ms(100));
   TRaft r2(
     std::make_unique<Adaptor>(kv_store2),
-    std::make_unique<raft::LedgerStubProxy>(node_id2),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id2),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id2,
     request_timeout,
     ms(50));
 
-  raft::Configuration::Nodes config;
+  aft::Configuration::Nodes config;
   config[node_id0] = {};
   config[node_id1] = {};
   r0.add_configuration(0, config);
   r1.add_configuration(0, config);
 
-  map<raft::NodeId, TRaft*> nodes;
+  map<aft::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 
@@ -486,7 +486,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
 
   DOCTEST_INFO("Node 2 joins the ensemble");
 
-  raft::Configuration::Nodes config1;
+  aft::Configuration::Nodes config1;
   config1[node_id0] = {};
   config1[node_id1] = {};
   config1[node_id2] = {};
@@ -517,35 +517,35 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   auto kv_store0 = std::make_shared<Store>(0);
   auto kv_store1 = std::make_shared<Store>(1);
 
-  raft::NodeId node_id0(0);
-  raft::NodeId node_id1(1);
+  aft::NodeId node_id0(0);
+  aft::NodeId node_id1(1);
 
   ms request_timeout(10);
 
   TRaft r0(
     std::make_unique<Adaptor>(kv_store0),
-    std::make_unique<raft::LedgerStubProxy>(node_id0),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id0),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id0,
     request_timeout,
     ms(20));
   TRaft r1(
     std::make_unique<Adaptor>(kv_store1),
-    std::make_unique<raft::LedgerStubProxy>(node_id1),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id1),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id1,
     request_timeout,
     ms(100));
 
-  raft::Configuration::Nodes config0;
+  aft::Configuration::Nodes config0;
   config0[node_id0] = {};
   config0[node_id1] = {};
   r0.add_configuration(0, config0);
   r1.add_configuration(0, config0);
 
-  map<raft::NodeId, TRaft*> nodes;
+  map<aft::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 
@@ -563,7 +563,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 0);
   }
 
-  raft::AppendEntries ae_idx_2; // To save for later use
+  aft::AppendEntries ae_idx_2; // To save for later use
 
   DOCTEST_INFO("Replicate two entries");
   {
@@ -666,44 +666,44 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   auto kv_store1 = std::make_shared<Store>(1);
   auto kv_store2 = std::make_shared<Store>(2);
 
-  raft::NodeId node_id0(0);
-  raft::NodeId node_id1(1);
-  raft::NodeId node_id2(2);
+  aft::NodeId node_id0(0);
+  aft::NodeId node_id1(1);
+  aft::NodeId node_id2(2);
 
   ms request_timeout(10);
 
   TRaft r0(
     std::make_unique<Adaptor>(kv_store0),
-    std::make_unique<raft::LedgerStubProxy>(node_id0),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id0),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id0,
     request_timeout,
     ms(20));
   TRaft r1(
     std::make_unique<Adaptor>(kv_store1),
-    std::make_unique<raft::LedgerStubProxy>(node_id1),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id1),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id1,
     request_timeout,
     ms(100));
   TRaft r2(
     std::make_unique<Adaptor>(kv_store2),
-    std::make_unique<raft::LedgerStubProxy>(node_id2),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id2),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id2,
     request_timeout,
     ms(50));
 
-  raft::Configuration::Nodes config0;
+  aft::Configuration::Nodes config0;
   config0[node_id0] = {};
   config0[node_id1] = {};
   r0.add_configuration(0, config0);
   r1.add_configuration(0, config0);
 
-  map<raft::NodeId, TRaft*> nodes;
+  map<aft::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 
@@ -764,7 +764,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
 
   DOCTEST_INFO("Node 2 joins the ensemble");
 
-  raft::Configuration::Nodes config1;
+  aft::Configuration::Nodes config1;
   config1[node_id0] = {};
   config1[node_id1] = {};
   config1[node_id2] = {};
@@ -819,38 +819,38 @@ DOCTEST_TEST_CASE(
   auto kv_store1 = std::make_shared<StoreSig>(1);
   auto kv_store2 = std::make_shared<StoreSig>(2);
 
-  raft::NodeId node_id0(0);
-  raft::NodeId node_id1(1);
-  raft::NodeId node_id2(2);
+  aft::NodeId node_id0(0);
+  aft::NodeId node_id1(1);
+  aft::NodeId node_id2(2);
 
   ms request_timeout(10);
 
   TRaft r0(
     std::make_unique<Adaptor>(kv_store0),
-    std::make_unique<raft::LedgerStubProxy>(node_id0),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id0),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id0,
     request_timeout,
     ms(20));
   TRaft r1(
     std::make_unique<Adaptor>(kv_store1),
-    std::make_unique<raft::LedgerStubProxy>(node_id1),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id1),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id1,
     request_timeout,
     ms(100));
   TRaft r2(
     std::make_unique<Adaptor>(kv_store2),
-    std::make_unique<raft::LedgerStubProxy>(node_id2),
-    std::make_shared<raft::ChannelStubProxy>(),
-    std::make_shared<raft::StubSnapshotter>(),
+    std::make_unique<aft::LedgerStubProxy>(node_id2),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
     node_id2,
     request_timeout,
     ms(50));
 
-  raft::Configuration::Nodes config0;
+  aft::Configuration::Nodes config0;
   config0[node_id0] = {};
   config0[node_id1] = {};
   config0[node_id2] = {};
@@ -858,7 +858,7 @@ DOCTEST_TEST_CASE(
   r1.add_configuration(0, config0);
   r2.add_configuration(0, config0);
 
-  map<raft::NodeId, TRaft*> nodes;
+  map<aft::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
   nodes[node_id2] = &r2;

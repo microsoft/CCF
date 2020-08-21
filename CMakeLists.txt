@@ -38,6 +38,7 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake
 )
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/aft.cmake)
 
 configure_file(
   ${CCF_DIR}/src/host/version.h.in ${CCF_GENERATED_DIR}/version.h @ONLY
@@ -89,6 +90,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            http_parser.enclave
            lua.enclave
            secp256k1.enclave
+           aft.enclave
            sss.enclave
   )
 
@@ -142,6 +144,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            http_parser.host
            lua.host
            secp256k1.host
+           aft.host
            sss.host
            # TODO: replace with openenclave::oehostverify once OE 0.11 is
            # released (OE#3312)
@@ -284,14 +287,14 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/main.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/term_history.cpp
+      raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/term_history.cpp
     )
     target_link_libraries(raft_test PRIVATE ${CRYPTO_LIBRARY})
 
     add_unit_test(
       raft_enclave_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/enclave.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/enclave.cpp
     )
     target_include_directories(raft_enclave_test PRIVATE ${CCFCRYPTO_INC})
     target_link_libraries(
@@ -444,10 +447,10 @@ if(BUILD_TESTS)
     # Raft driver and scenario test
     add_executable(
       raft_driver
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/driver.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
     )
     use_client_mbedtls(raft_driver)
-    target_include_directories(raft_driver PRIVATE src/raft)
+    target_include_directories(raft_driver PRIVATE src/aft)
 
     add_test(
       NAME raft_scenario_test

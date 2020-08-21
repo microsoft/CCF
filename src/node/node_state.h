@@ -4,7 +4,7 @@
 
 #include "call_types.h"
 #include "consensus/ledger_enclave.h"
-#include "consensus/raft/raft_consensus.h"
+#include "consensus/aft/raft_consensus.h"
 #include "crypto/crypto_box.h"
 #include "ds/logger.h"
 #include "enclave/rpc_sessions.h"
@@ -62,9 +62,9 @@ namespace std
 namespace ccf
 {
   using RaftConsensusType =
-    raft::RaftConsensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
+    aft::AftConsensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
   using RaftType =
-    raft::Raft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
+    aft::Aft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
 
   template <typename T>
   class StateMachine
@@ -756,7 +756,7 @@ namespace ccf
       recovery_store.reset();
       reset_recovery_hook();
 
-      // Raft should deserialise all security domains when network is opened
+      // Aft should deserialise all security domains when network is opened
       consensus->enable_all_domains();
 
       // Open the service
@@ -1549,7 +1549,7 @@ namespace ccf
       setup_cmd_forwarder();
 
       auto raft = std::make_unique<RaftType>(
-        std::make_unique<raft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
+        std::make_unique<aft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
           network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,

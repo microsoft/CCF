@@ -7,23 +7,23 @@
 
 #include <memory>
 
-namespace raft
+namespace aft
 {
   // This class acts as an adapter between the generic Consensus API and
-  // the Raft API, allowing for a mapping between the generic consensus
-  // terminology and the terminology that is specific to Raft
+  // the Aft API, allowing for a mapping between the generic consensus
+  // terminology and the terminology that is specific to Aft
 
   template <class... T>
-  class RaftConsensus : public kv::Consensus
+  class AftConsensus : public kv::Consensus
   {
   private:
-    std::unique_ptr<Raft<T...>> raft;
+    std::unique_ptr<Aft<T...>> raft;
     ConsensusType consensus_type;
     bool is_open;
 
   public:
-    RaftConsensus(
-      std::unique_ptr<Raft<T...>> raft_, ConsensusType consensus_type_) :
+    AftConsensus(
+      std::unique_ptr<Aft<T...>> raft_, ConsensusType consensus_type_) :
       Consensus(raft_->id()),
       raft(std::move(raft_)),
       consensus_type(consensus_type_),

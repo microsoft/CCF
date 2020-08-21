@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <limits>
 
-namespace raft
+namespace aft
 {
   using Index = int64_t;
   using Term = int64_t;
@@ -30,6 +30,7 @@ namespace raft
     virtual void compact(Index v) = 0;
     virtual void rollback(Index v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
+    virtual kv::Version current_version() = 0;
   };
 
   template <typename T, typename S>
@@ -79,6 +80,16 @@ namespace raft
       {
         p->set_term(t);
       }
+    }
+
+    kv::Version current_version() override
+    {
+      auto p = x.lock();
+      if (p)
+      {
+        return p->current_version();
+      }
+      return kv::NoVersion;
     }
   };
 

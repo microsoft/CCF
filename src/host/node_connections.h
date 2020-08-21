@@ -3,7 +3,7 @@
 #pragma once
 
 #include "consensus/pbft/pbft_types.h"
-#include "consensus/raft/raft_types.h"
+#include "consensus/aft/raft_types.h"
 #include "host/timer.h"
 #include "ledger.h"
 #include "node/node_types.h"
@@ -234,8 +234,8 @@ namespace asynchost
           auto msg_type = serialized::read<ccf::NodeMsgType>(data, size);
           if (
             msg_type == ccf::NodeMsgType::consensus_msg &&
-            (serialized::peek<raft::RaftMsgType>(data, size) ==
-               raft::raft_append_entries ||
+            (serialized::peek<aft::RaftMsgType>(data, size) ==
+               aft::raft_append_entries ||
              serialized::peek<pbft::PbftMsgType>(data, size) ==
                pbft::pbft_append_entries))
           {

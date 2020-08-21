@@ -17,7 +17,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace raft
+namespace aft
 {
   using Configuration = kv::Consensus::Configuration;
 
@@ -77,7 +77,7 @@ namespace raft
   };
 
   template <class LedgerProxy, class ChannelProxy, class SnapshotterProxy>
-  class Raft
+  class Aft
   {
   private:
     enum State
@@ -161,7 +161,7 @@ namespace raft
     std::shared_ptr<SnapshotterProxy> snapshotter;
 
   public:
-    Raft(
+    Aft(
       std::unique_ptr<Store<kv::DeserialiseSuccess>> store,
       std::unique_ptr<LedgerProxy> ledger_,
       std::shared_ptr<ChannelProxy> channels_,
@@ -417,7 +417,7 @@ namespace raft
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      // The host does a CALLIN to this when a Raft message
+      // The host does a CALLIN to this when a Aft message
       // is received. Invalid or malformed messages are ignored
       // without informing the host. Messages are idempotent,
       // so it is not necessary to defend against replay attacks.

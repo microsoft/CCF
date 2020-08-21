@@ -2,14 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/raft/raft.h"
-#include "consensus/raft/raft_types.h"
+#include "consensus/aft/raft.h"
+#include "consensus/aft/raft_types.h"
 
 #include <map>
 #include <optional>
 #include <vector>
 
-namespace raft
+namespace aft
 {
   class LedgerStubProxy
   {
@@ -141,10 +141,10 @@ namespace raft
   class LoggingStubStore
   {
   private:
-    raft::NodeId _id;
+    aft::NodeId _id;
 
   public:
-    LoggingStubStore(raft::NodeId id) : _id(id) {}
+    LoggingStubStore(aft::NodeId id) : _id(id) {}
 
     virtual void compact(Index i)
     {
@@ -179,12 +179,17 @@ namespace raft
     {
       return kv::DeserialiseSuccess::PASS;
     }
+
+    kv::Version current_version()
+    {
+      return kv::NoVersion;
+    }
   };
 
   class LoggingStubStoreSig : public LoggingStubStore
   {
   public:
-    LoggingStubStoreSig(raft::NodeId id) : LoggingStubStore(id) {}
+    LoggingStubStoreSig(aft::NodeId id) : LoggingStubStore(id) {}
 
     kv::DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,

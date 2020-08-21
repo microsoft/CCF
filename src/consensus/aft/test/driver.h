@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/raft/raft.h"
+#include "consensus/aft/raft.h"
 #include "ds/logger.h"
 
 #include <chrono>
@@ -16,10 +16,10 @@
 #include "logging_stub.h"
 
 using ms = std::chrono::milliseconds;
-using TRaft = raft::
-  Raft<raft::LedgerStubProxy, raft::ChannelStubProxy, raft::StubSnapshotter>;
-using Store = raft::LoggingStubStore;
-using Adaptor = raft::Adaptor<Store, kv::DeserialiseSuccess>;
+using TRaft =
+  aft::Aft<aft::LedgerStubProxy, aft::ChannelStubProxy, aft::StubSnapshotter>;
+using Store = aft::LoggingStubStore;
+using Adaptor = aft::Adaptor<Store, kv::DeserialiseSuccess>;
 
 class RaftDriver
 {
@@ -30,8 +30,8 @@ private:
     std::shared_ptr<TRaft> raft;
   };
 
-  std::unordered_map<raft::NodeId, NodeDriver> _nodes;
-  std::set<std::pair<raft::NodeId, raft::NodeId>> _connections;
+  std::unordered_map<aft::NodeId, NodeDriver> _nodes;
+  std::set<std::pair<aft::NodeId, aft::NodeId>> _connections;
 
 public:
   RaftDriver(size_t number_of_nodes)
@@ -40,14 +40,14 @@ public:
 
     for (size_t i = 0; i < number_of_nodes; ++i)
     {
-      raft::NodeId node_id = i;
+      aft::NodeId node_id = i;
 
       auto kv = std::make_shared<Store>(node_id);
       auto raft = std::make_shared<TRaft>(
         std::make_unique<Adaptor>(kv),
-        std::make_unique<raft::LedgerStubProxy>(node_id),
-        std::make_shared<raft::ChannelStubProxy>(),
-        std::make_shared<raft::StubSnapshotter>(),
+        std::make_unique<aft::LedgerStubProxy>(node_id),
+        std::make_shared<aft::ChannelStubProxy>(),
+        std::make_shared<aft::StubSnapshotter>(),
         node_id,
         ms(10),
         ms(i * 100));
@@ -62,20 +62,20 @@ public:
     }
   }
 
-  void log(raft::NodeId first, raft::NodeId second, const std::string& message)
+  void log(aft::NodeId first, aft::NodeId second, const std::string& message)
   {
     std::cout << "  Node" << first << "->>"
               << "Node" << second << ": " << message << std::endl;
   }
 
-  void rlog(raft::NodeId first, raft::NodeId second, const std::string& message)
+  void rlog(aft::NodeId first, aft::NodeId second, const std::string& message)
   {
     std::cout << "  Node" << first << "-->>"
               << "Node" << second << ": " << message << std::endl;
   }
 
   void log_msg_details(
-    raft::NodeId node_id, raft::NodeId tgt_node_id, raft::RequestVote rv)
+    aft::NodeId node_id, aft::NodeId tgt_node_id, aft::RequestVote rv)
   {
     std::ostringstream s;
     s << "request_vote t: " << rv.term << ", lli: " << rv.last_commit_idx
@@ -84,9 +84,9 @@ public:
   }
 
   void log_msg_details(
-    raft::NodeId node_id,
-    raft::NodeId tgt_node_id,
-    raft::RequestVoteResponse rv)
+    aft::NodeId node_id,
+    aft::NodeId tgt_node_id,
+    aft::RequestVoteResponse rv)
   {
     std::ostringstream s;
     s << "request_vote_response t: " << rv.term << ", vg: " << rv.vote_granted;
@@ -94,7 +94,7 @@ public:
   }
 
   void log_msg_details(
-    raft::NodeId node_id, raft::NodeId tgt_node_id, raft::AppendEntries ae)
+    aft::NodeId node_id, aft::NodeId tgt_node_id, aft::AppendEntries ae)
   {
     std::ostringstream s;
     s << "append_entries i: " << ae.idx << ", t: " << ae.term
@@ -104,9 +104,9 @@ public:
   }
 
   void log_msg_details(
-    raft::NodeId node_id,
-    raft::NodeId tgt_node_id,
-    raft::AppendEntriesResponse aer)
+    aft::NodeId node_id,
+    aft::NodeId tgt_node_id,
+    aft::AppendEntriesResponse aer)
   {
     std::ostringstream s;
     s << "append_entries_response t: " << aer.term
@@ -114,7 +114,7 @@ public:
     rlog(node_id, tgt_node_id, s.str());
   }
 
-  void connect(raft::NodeId first, raft::NodeId second)
+  void connect(aft::NodeId first, aft::NodeId second)
   {
     std::cout << "  Node" << first << "-->Node" << second << ": connect"
               << std::endl;
@@ -122,7 +122,7 @@ public:
     _connections.insert(std::make_pair(second, first));
   }
 
-  void periodic_one(raft::NodeId node_id, ms ms_)
+  void periodic_one(aft::NodeId node_id, ms ms_)
   {
     std::ostringstream s;
     s << "periodic for " << std::to_string(ms_.count()) << " ms";
@@ -138,7 +138,7 @@ public:
     }
   }
 
-  void state_one(raft::NodeId node_id)
+  void state_one(aft::NodeId node_id)
   {
     std::cout << "  Note right of Node" << node_id << ": ";
     auto raft = _nodes.at(node_id).raft;
@@ -159,7 +159,7 @@ public:
   }
 
   template <class Messages>
-  size_t dispatch_one_queue(raft::NodeId node_id, Messages& messages)
+  size_t dispatch_one_queue(aft::NodeId node_id, Messages& messages)
   {
     size_t count = 0;
 
@@ -185,7 +185,7 @@ public:
     return count;
   }
 
-  void dispatch_one(raft::NodeId node_id)
+  void dispatch_one(aft::NodeId node_id)
   {
     auto raft = _nodes.at(node_id).raft;
     dispatch_one_queue(node_id, raft->channels->sent_request_vote);
@@ -219,8 +219,8 @@ public:
   }
 
   void replicate(
-    raft::NodeId node_id,
-    raft::Index idx,
+    aft::NodeId node_id,
+    aft::Index idx,
     std::shared_ptr<std::vector<uint8_t>> data)
   {
     std::cout << "  KV" << node_id << "->>Node" << node_id
@@ -228,7 +228,7 @@ public:
     _nodes.at(node_id).raft->replicate(kv::BatchVector{{idx, data, true}}, 1);
   }
 
-  void disconnect(raft::NodeId left, raft::NodeId right)
+  void disconnect(aft::NodeId left, aft::NodeId right)
   {
     bool noop = true;
     auto ltr = std::make_pair(left, right);
@@ -250,7 +250,7 @@ public:
     }
   }
 
-  void disconnect_node(raft::NodeId node_id)
+  void disconnect_node(aft::NodeId node_id)
   {
     for (auto& node : _nodes)
     {
@@ -261,7 +261,7 @@ public:
     }
   }
 
-  void reconnect(raft::NodeId left, raft::NodeId right)
+  void reconnect(aft::NodeId left, aft::NodeId right)
   {
     std::cout << "  Node" << left << "-->Node" << right << ": reconnect"
               << std::endl;
@@ -269,7 +269,7 @@ public:
     _connections.insert(std::make_pair(right, left));
   }
 
-  void reconnect_node(raft::NodeId node_id)
+  void reconnect_node(aft::NodeId node_id)
   {
     for (auto& node : _nodes)
     {

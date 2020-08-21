@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "consensus/raft/raft.h"
+#include "consensus/aft/raft.h"
 
 #include <doctest/doctest.h>
 
-using namespace raft;
+using namespace aft;
 
 TEST_CASE("Advancing term history" * doctest::test_suite("termhistory"))
 {
