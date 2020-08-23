@@ -70,7 +70,7 @@ namespace enclave
       writer_factory(basic_writer_factory, enclave_config.writer_config),
       network(consensus_type_),
       share_manager(network),
-      n2n_channels(std::make_shared<ccf::NodeToNode>(writer_factory)),
+      n2n_channels(std::make_shared<ccf::NodeToNodeImpl>(writer_factory)),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(

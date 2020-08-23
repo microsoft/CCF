@@ -15,17 +15,100 @@ namespace ccf
 {
   class NodeToNode
   {
+  public:
+    virtual ~NodeToNode() = default;
+
+    virtual void create_channel(
+      NodeId peer_id,
+      const std::string& peer_hostname,
+      const std::string& peer_service) = 0;
+
+    virtual void destroy_channel(NodeId peer_id) = 0;
+
+    virtual void close_all_outgoing() = 0;
+
+    virtual void destroy_all_channels() = 0;
+
+    template <class T>
+    bool send_authenticated(
+      const NodeMsgType& msg_type, NodeId to, const T& data)
+    {
+      return send_authenticated(msg_type, to, reinterpret_cast<const uint8_t*>(&data), sizeof(T));
+    }
+
+    template <>
+    bool send_authenticated(
+      const NodeMsgType& msg_type, NodeId to, const std::vector<uint8_t>& data)
+    {
+      return send_authenticated(msg_type, to, data.data(), data.size());
+    }
+
+    virtual bool send_authenticated(
+      const ccf::NodeMsgType& msg_type, NodeId to, const uint8_t* data, size_t size) = 0;
+
+    template <class T>
+    const T& recv_authenticated(const uint8_t*& data, size_t& size)
+    {
+      auto& t = serialized::overlay<T>(data, size);
+
+      if (!recv_authenticated(t.from_node, asCb(t), data, size))
+      {
+        throw std::logic_error(fmt::format(
+          "Invalid authenticated node2node message from node {}", t.from_node));
+      }
+
+      return t;
+    }
+
+    virtual bool recv_authenticated(NodeId from_node, CBuffer cb, const uint8_t*& data, size_t& size) = 0;
+
+    virtual void recv_message(OArray&& oa) = 0;
+
+    virtual void initialize(NodeId self_id, const tls::Pem& network_pkey) = 0;
+    
+    virtual bool send_encrypted(
+      const NodeMsgType& msg_type,
+      CBuffer cb,
+      NodeId to,
+      const std::vector<uint8_t>& data) = 0;
+
+    template <class T>
+    bool send_encrypted(
+      const NodeMsgType& msg_type,
+      NodeId to,
+      const std::vector<uint8_t>& data,
+      const T& msg_hdr)
+    {
+      return send_encrypted(msg_type, asCb(msg_hdr), to, data);
+    }
+
+    template <class T>
+    std::pair<T, std::vector<uint8_t>> recv_encrypted(
+      const uint8_t* data, size_t size)
+    {
+      auto t = serialized::read<T>(data, size);
+
+      std::vector<uint8_t> plain = recv_encrypted(t.from_node, asCb(t), data, size);
+      return std::make_pair(t, plain);
+    }
+
+    virtual std::vector<uint8_t> recv_encrypted(
+      NodeId from_node, CBuffer cb, const uint8_t* data, size_t size) = 0;
+  };
+
+  class NodeToNodeImpl : public NodeToNode
+  {
   private:
     NodeId self;
     std::unique_ptr<ChannelManager> channels;
     ringbuffer::AbstractWriterFactory& writer_factory;
 
   public:
-    NodeToNode(ringbuffer::AbstractWriterFactory& writer_factory_) :
+    NodeToNodeImpl(ringbuffer::AbstractWriterFactory& writer_factory_) :
       writer_factory(writer_factory_)
     {}
 
-    void initialize(NodeId self_id, const tls::Pem& network_pkey)
+    void initialize(NodeId self_id, const tls::Pem& network_pkey) override
     {
       self = self_id;
       channels =
@@ -33,7 +116,7 @@ namespace ccf
     }
 
     void create_channel(
-      NodeId peer_id, const std::string& hostname, const std::string& service)
+      NodeId peer_id, const std::string& hostname, const std::string& service) override
     {
       if (peer_id == self)
       {
@@ -43,7 +126,7 @@ namespace ccf
       channels->create_channel(peer_id, hostname, service);
     }
 
-    void destroy_channel(NodeId peer_id)
+    void destroy_channel(NodeId peer_id) override
     {
       if (peer_id == self)
       {
@@ -53,57 +136,43 @@ namespace ccf
       channels->destroy_channel(peer_id);
     }
 
-    void close_all_outgoing()
+    void close_all_outgoing() override
     {
       channels->close_all_outgoing();
     }
 
-    void destroy_all_channels()
+    void destroy_all_channels() override
     {
       channels->destroy_all_channels();
     }
 
-    template <class T>
     bool send_authenticated(
-      const NodeMsgType& msg_type, NodeId to, const T& data)
+      const ccf::NodeMsgType& msg_type,
+      NodeId to,
+      const uint8_t* data,
+      size_t size) override
     {
       auto& n2n_channel = channels->get(to);
-      return n2n_channel.send(msg_type, asCb(data));
+      return n2n_channel.send(msg_type, {data, size});
     }
 
-    template <>
-    bool send_authenticated(
-      const NodeMsgType& msg_type, NodeId to, const std::vector<uint8_t>& data)
+    bool recv_authenticated(
+      NodeId from_node, CBuffer cb, const uint8_t*& data, size_t& size) override
     {
-      auto& n2n_channel = channels->get(to);
-      return n2n_channel.send(msg_type, data);
+      auto& n2n_channel = channels->get(from_node);
+      return n2n_channel.recv_authenticated(cb, data, size); 
     }
 
-    template <class T>
     bool send_encrypted(
       const NodeMsgType& msg_type,
+      CBuffer cb,
       NodeId to,
-      const std::vector<uint8_t>& data,
-      const T& msg_hdr)
+      const std::vector<uint8_t>& data) override
     {
       auto& n2n_channel = channels->get(to);
-      return n2n_channel.send(msg_type, asCb(msg_hdr), data);
+      return n2n_channel.send(msg_type, cb, data);
     }
 
-    template <class T>
-    const T& recv_authenticated(const uint8_t*& data, size_t& size)
-    {
-      auto& t = serialized::overlay<T>(data, size);
-      auto& n2n_channel = channels->get(t.from_node);
-
-      if (!n2n_channel.recv_authenticated(asCb(t), data, size))
-      {
-        throw std::logic_error(fmt::format(
-          "Invalid authenticated node2node message from node {}", t.from_node));
-      }
-
-      return t;
-    }
 
     template <class T>
     const T& recv_authenticated_with_load(const uint8_t*& data, size_t& size)
@@ -126,21 +195,19 @@ namespace ccf
       return t;
     }
 
-    template <class T>
-    std::pair<T, std::vector<uint8_t>> recv_encrypted(
-      const uint8_t* data, size_t size)
+    std::vector<uint8_t> recv_encrypted(
+      NodeId from_node, CBuffer cb, const uint8_t* data, size_t size) override
     {
-      auto t = serialized::read<T>(data, size);
-      auto& n2n_channel = channels->get(t.from_node);
+      auto& n2n_channel = channels->get(from_node);
 
-      auto plain = n2n_channel.recv_encrypted(asCb(t), data, size);
+      auto plain = n2n_channel.recv_encrypted(cb, data, size);
       if (!plain.has_value())
       {
         throw std::logic_error(fmt::format(
-          "Invalid encrypted node2node message from node {}", t.from_node));
+          "Invalid encrypted node2node message from node {}", from_node));
       }
 
-      return std::make_pair(t, plain.value());
+      return plain.value();
     }
 
     template <class T>
@@ -182,7 +249,7 @@ namespace ccf
       n2n_channel.load_peer_signed_public(true, data, size);
     }
 
-    void recv_message(OArray&& oa)
+    void recv_message(OArray&& oa) override
     {
       const uint8_t* data = oa.data();
       size_t size = oa.size();

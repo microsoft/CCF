@@ -1557,6 +1557,8 @@ namespace ccf
         snapshotter,
         rpcsessions,
         rpc_map,
+        node_cert.raw(),
+        network.pbft_requests_map,
         self,
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),

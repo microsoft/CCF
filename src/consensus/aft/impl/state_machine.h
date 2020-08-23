@@ -54,7 +54,7 @@ namespace aft
       }
     }
 
-    void receive_message(OArray oa, kv::NodeId from) override
+    void receive_message(OArray&& oa, kv::NodeId from) override
     {
       if (
         state->network_state == ServiceState::NetworkState::not_open &&
@@ -75,7 +75,7 @@ namespace aft
         default:
           CCF_ASSERT_FMT_FAIL(
             "Unknown or unsupported message type - {}",
-            get_message_type(oa.data()));
+            serialized::peek<RaftMsgType>(oa.data(), oa.size()));
       }
     }
 

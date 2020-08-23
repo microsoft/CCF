@@ -20,6 +20,9 @@ using Store = aft::LoggingStubStore;
 using StoreSig = aft::LoggingStubStoreSig;
 using Adaptor = aft::Adaptor<Store, kv::DeserialiseSuccess>;
 
+std::vector<uint8_t> cert;
+kv::Map<size_t, pbft::Request> request_map(nullptr, "test", kv::SecurityDomain::PUBLIC, true);
+
 DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 {
   auto kv_store = std::make_shared<Store>(0);
@@ -34,6 +37,8 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id,
     ms(10),
     election_timeout);
@@ -74,6 +79,8 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id,
     ms(10),
     election_timeout);
@@ -123,6 +130,8 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id0,
     request_timeout,
     ms(20));
@@ -134,6 +143,8 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id1,
     request_timeout,
     ms(100));
@@ -145,6 +156,8 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id2,
     request_timeout,
     ms(50));
@@ -302,6 +315,8 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id0,
     request_timeout,
     ms(20));
@@ -313,6 +328,8 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id1,
     request_timeout,
     ms(100));
@@ -324,6 +341,8 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id2,
     request_timeout,
     ms(50));
@@ -439,6 +458,8 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id0,
     request_timeout,
     ms(20));
@@ -450,6 +471,8 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id1,
     request_timeout,
     ms(100));
@@ -461,6 +484,8 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id2,
     request_timeout,
     ms(50));
@@ -563,6 +588,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id0,
     request_timeout,
     ms(20));
@@ -574,6 +601,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id1,
     request_timeout,
     ms(100));
@@ -719,6 +748,8 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id0,
     request_timeout,
     ms(20));
@@ -730,6 +761,8 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id1,
     request_timeout,
     ms(100));
@@ -741,6 +774,8 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id2,
     request_timeout,
     ms(50));
@@ -881,6 +916,8 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id0,
     request_timeout,
     ms(20));
@@ -892,6 +929,8 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id1,
     request_timeout,
     ms(100));
@@ -903,6 +942,8 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
+    cert,
+    request_map,
     node_id2,
     request_timeout,
     ms(50));

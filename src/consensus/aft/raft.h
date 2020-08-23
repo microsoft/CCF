@@ -62,6 +62,7 @@ namespace aft
     ConsensusType consensus_type;
     std::unique_ptr<Store<kv::DeserialiseSuccess>> store;
     std::shared_ptr<ServiceState> shared_state;
+    std::unique_ptr<StateMachine> bft_state_machine;
 
     // Persistent
     NodeId voted_for;
@@ -115,6 +116,8 @@ namespace aft
       std::shared_ptr<SnapshotterProxy> snapshotter_,
       std::shared_ptr<enclave::RPCSessions> rpc_sessions_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
+      const std::vector<uint8_t>&/* cert*/,
+      pbft::RequestsMap&/*requests_map*/,
       NodeId id,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
@@ -140,16 +143,29 @@ namespace aft
       rpc_map(rpc_map_)
 
     {
+      shared_state = std::make_shared<ServiceState>(id);
+
       if (consensus_type == ConsensusType::PBFT)
       {
         leader_id = 0;
+        /*
+        auto startup_state_machine = create_startup_state_machine(shared_state, channels_, requests_map);
+        auto global_commit_handler = create_global_commit_handler(*store_.get());
+        auto catchup_state_machine = create_catchup_state_machine(
+          shared_state, channels_, rpc_map_, store_, requests_map);
+        auto bft_state_machine = std::make_unique<BftStateMachine>(
+          shared_state,
+          cert,
+          std::move(startup_state_machine),
+          std::move(global_commit_handler),
+          std::move(catchup_state_machine),
+          channels_);
+        */
       }
       else
       {
         leader_id = NoNode;
       }
-
-      shared_state = std::make_shared<ServiceState>(id);
     }
 
     NodeId leader()
@@ -446,6 +462,10 @@ namespace aft
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
     {
       auto request = ExecutionUtilities::create_request_message(args, rpc_sessions, rpc_map);
+      bft_state_machine->receive_request(std::move(request));
+      return true;
+
+      /*
       kv::Version version = ExecutionUtilities::execute_request(std::move(request), is_first_request);
       is_first_request = false;
 
@@ -459,6 +479,7 @@ namespace aft
         }
       }
       return true;
+      */
     }
 
   private:

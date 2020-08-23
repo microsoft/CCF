@@ -61,7 +61,8 @@ namespace aft
           break;
         default:
           CCF_ASSERT_FMT_FAIL(
-            "Unsupported msg type {}", get_message_type(oa.data()));
+            "Unsupported msg type {}",
+            serialized::peek<RaftMsgType>(oa.data(), oa.size()));
           return false;
       }
       return true;
