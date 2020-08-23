@@ -34,13 +34,17 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if("virtual" IN_LIST COMPILE_TARGETS)
 
-  add_library(aft.host STATIC ${AFT_SRC})
-  target_compile_options(aft.host PRIVATE -stdlib=libc++)
-  set_property(TARGET aft.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-  target_include_directories(aft.host PRIVATE SYSTEM ${EVERCRYPT_INC})
-  use_client_mbedtls(aft.host)
+  add_library(aft.virtual STATIC ${AFT_SRC})
+  target_compile_options(aft.virtual PRIVATE -stdlib=libc++)
+  target_compile_definitions(
+    aft.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                       _LIBCPP_HAS_THREAD_API_PTHREAD
+  )
+  set_property(TARGET aft.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
+  target_include_directories(aft.virtual PRIVATE SYSTEM ${EVERCRYPT_INC})
+  use_client_mbedtls(aft.virtual)
   install(
-    TARGETS aft.host
+    TARGETS aft.virtual
     EXPORT ccf
     DESTINATION lib
   )

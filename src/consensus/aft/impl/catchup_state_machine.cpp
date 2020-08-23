@@ -37,7 +37,7 @@ namespace aft
     void start() override
     {
       {
-        std::lock_guard<std::mutex> lock(state->lock);
+        std::lock_guard<SpinLock> lock(state->lock);
         for (auto& it : state->configuration)
         {
           if (it.first == state->my_node_id)

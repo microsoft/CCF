@@ -156,19 +156,6 @@ namespace aft
       if (consensus_type == ConsensusType::PBFT)
       {
         leader_id = 0;
-        /*
-        auto startup_state_machine = create_startup_state_machine(shared_state, channels_, requests_map);
-        auto global_commit_handler = create_global_commit_handler(*store_.get());
-        auto catchup_state_machine = create_catchup_state_machine(
-          shared_state, channels_, rpc_map_, store_, requests_map);
-        auto bft_state_machine = std::make_unique<BftStateMachine>(
-          shared_state,
-          cert,
-          std::move(startup_state_machine),
-          std::move(global_commit_handler),
-          std::move(catchup_state_machine),
-          channels_);
-        */
         bft_state_machine = create_bft_state_machine(
           shared_state,
           channels_,

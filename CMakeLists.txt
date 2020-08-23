@@ -144,7 +144,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            http_parser.host
            lua.host
            secp256k1.host
-           aft.host
+           aft.virtual
            sss.host
            # TODO: replace with openenclave::oehostverify once OE 0.11 is
            # released (OE#3312)

@@ -37,8 +37,8 @@ namespace aft
 
       if (last_global_commit_view < view)
       {
+        std::lock_guard<SpinLock> lock(view_change_list_lock);
         last_global_commit_view = view;
-        std::lock_guard<std::mutex> lock(view_change_list_lock);
         view_change_list.emplace_back(view, last_global_commit_version + 1);
       }
       last_global_commit_version = version;
@@ -47,7 +47,7 @@ namespace aft
 
     kv::Consensus::View get_view_for_version(kv::Version version) override
     {
-      std::lock_guard<std::mutex> lock(view_change_list_lock);
+      std::lock_guard<SpinLock> lock(view_change_list_lock);
       auto last_vc_info = view_change_list.back();
       if (last_vc_info.min_global_commit < version)
       {
