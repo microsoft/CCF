@@ -102,7 +102,7 @@ namespace aft
   public:
     static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
-    std::shared_ptr<ChannelProxy> channels;
+    std::shared_ptr<ccf::NodeToNode> channels;
     std::shared_ptr<SnapshotterProxy> snapshotter;
     std::shared_ptr<enclave::RPCSessions> rpc_sessions;
     std::shared_ptr<enclave::RPCMap> rpc_map;
@@ -112,7 +112,7 @@ namespace aft
       ConsensusType consensus_type_,
       std::unique_ptr<Store<kv::DeserialiseSuccess>> store_,
       std::unique_ptr<LedgerProxy> ledger_,
-      std::shared_ptr<ChannelProxy> channels_,
+      std::shared_ptr<ccf::NodeToNode> channels_,
       std::shared_ptr<SnapshotterProxy> snapshotter_,
       std::shared_ptr<enclave::RPCSessions> rpc_sessions_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,

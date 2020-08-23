@@ -68,7 +68,7 @@ namespace aft
     void commit(Index idx) {}
   };
 
-  class ChannelStubProxy
+  class ChannelStubProxy : public ccf::NodeToNode
   {
   public:
     // Capture what is being sent out
@@ -84,44 +84,38 @@ namespace aft
     void create_channel(
       NodeId peer_id,
       const std::string& peer_hostname,
-      const std::string& peer_service)
+      const std::string& peer_service) override
     {}
 
-    void destroy_channel(NodeId peer_id) {}
+    void destroy_channel(NodeId peer_id) override {}
 
-    void destroy_all_channels() {}
+    void close_all_outgoing() override {}
 
-    void close_all_outgoing() {}
-
-    bool send_authenticated(
-      const ccf::NodeMsgType& msg_type, NodeId to, const RequestVote& data)
-    {
-      sent_request_vote.push_back(std::make_pair(to, data));
-      return true;
-    }
+    void destroy_all_channels() override {}
 
     bool send_authenticated(
-      const ccf::NodeMsgType& msg_type, NodeId to, const AppendEntries& data)
+      const ccf::NodeMsgType& msg_type, NodeId to, const uint8_t* data, size_t size) override
     {
-      sent_append_entries.push_back(std::make_pair(to, data));
-      return true;
-    }
 
-    bool send_authenticated(
-      const ccf::NodeMsgType& msg_type,
-      NodeId to,
-      const RequestVoteResponse& data)
-    {
-      sent_request_vote_response.push_back(std::make_pair(to, data));
-      return true;
-    }
+      switch (serialized::peek<RaftMsgType>(data, size))
+      {
+        case aft::RaftMsgType::raft_append_entries:
+          sent_append_entries.push_back(std::make_pair(to, *(AppendEntries*)(data)));
+          break;
+        case aft::RaftMsgType::raft_request_vote:
+          sent_request_vote.push_back(std::make_pair(to, *(RequestVote*)(data)));
+          break;
+        case aft::RaftMsgType::raft_request_vote_response:
+          sent_request_vote_response.push_back(std::make_pair(to, *(RequestVoteResponse*)(data)));
+          break;
+        case aft::RaftMsgType::raft_append_entries_response:
+          sent_append_entries_response.push_back(
+            std::make_pair(to, *(AppendEntriesResponse*)(data)));
+          break;
+        default:
+          throw std::logic_error("unexpected response type");
+      }
 
-    bool send_authenticated(
-      const ccf::NodeMsgType& msg_type,
-      NodeId to,
-      const AppendEntriesResponse& data)
-    {
-      sent_append_entries_response.push_back(std::make_pair(to, data));
       return true;
     }
 
@@ -131,10 +125,26 @@ namespace aft
         sent_append_entries.size() + sent_append_entries_response.size();
     }
 
-    template <class T>
-    const T& recv_authenticated(const uint8_t*& data, size_t& size)
+    bool recv_authenticated(
+      NodeId from_node, CBuffer cb, const uint8_t*& data, size_t& size) override
     {
-      return serialized::overlay<T>(data, size);
+      return true;
+    }
+
+    void recv_message(OArray&& oa) override {}
+
+    void initialize(NodeId self_id, const tls::Pem& network_pkey) override {}
+    
+    bool send_encrypted(
+      const ccf::NodeMsgType& msg_type,
+      CBuffer cb,
+      NodeId to,
+      const std::vector<uint8_t>& data) override {return true;}
+
+    std::vector<uint8_t> recv_encrypted(
+      NodeId from_node, CBuffer cb, const uint8_t* data, size_t size) override
+    {
+      return {};
     }
   };
 

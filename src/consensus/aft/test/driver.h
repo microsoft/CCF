@@ -196,11 +196,10 @@ public:
   void dispatch_one(aft::NodeId node_id)
   {
     auto raft = _nodes.at(node_id).raft;
-    dispatch_one_queue(node_id, raft->channels->sent_request_vote);
-    dispatch_one_queue(node_id, raft->channels->sent_request_vote_response);
-    dispatch_one_queue(node_id, raft->channels->sent_append_entries);
-    dispatch_one_queue(node_id, raft->channels->sent_append_entries_response);
-  }
+    dispatch_one_queue(node_id, ((aft::ChannelStubProxy*)raft->channels.get())->sent_request_vote);
+    dispatch_one_queue(node_id, ((aft::ChannelStubProxy*)raft->channels.get())->sent_request_vote_response);
+    dispatch_one_queue(node_id, ((aft::ChannelStubProxy*)raft->channels.get())->sent_append_entries);
+    dispatch_one_queue(node_id, ((aft::ChannelStubProxy*)raft->channels.get())->sent_append_entries_response); }
 
   void dispatch_all_once()
   {
@@ -218,7 +217,7 @@ public:
              _nodes.end(),
              0,
              [](int acc, auto& node) {
-               return node.second.raft->channels->sent_msg_count() + acc;
+               return ((aft::ChannelStubProxy*)node.second.raft->channels.get())->sent_msg_count() + acc;
              }) &&
            iterations++ < 5)
     {
