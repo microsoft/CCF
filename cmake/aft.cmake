@@ -7,6 +7,7 @@ set(AFT_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/impl/startup_state_machine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/impl/catchup_state_machine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/impl/global_commit_handler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/impl/aft.cpp
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)

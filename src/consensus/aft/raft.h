@@ -25,6 +25,14 @@ namespace aft
 {
   using Configuration = kv::Consensus::Configuration;
 
+  std::unique_ptr<StateMachine> create_bft_state_machine(
+    std::shared_ptr<ServiceState> shared_state,
+    std::shared_ptr<ccf::NodeToNode> channels,
+    pbft::RequestsMap& requests_map,
+    Store<kv::DeserialiseSuccess>& store,
+    std::shared_ptr<enclave::RPCMap> rpc_map,
+    const std::vector<uint8_t>& cert);
+
   template <class LedgerProxy, class ChannelProxy, class SnapshotterProxy>
   class Aft
   {
@@ -116,8 +124,8 @@ namespace aft
       std::shared_ptr<SnapshotterProxy> snapshotter_,
       std::shared_ptr<enclave::RPCSessions> rpc_sessions_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
-      const std::vector<uint8_t>&/* cert*/,
-      pbft::RequestsMap&/*requests_map*/,
+      const std::vector<uint8_t>& cert,
+      pbft::RequestsMap& requests_map,
       NodeId id,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
@@ -161,6 +169,13 @@ namespace aft
           std::move(catchup_state_machine),
           channels_);
         */
+        bft_state_machine = create_bft_state_machine(
+          shared_state,
+          channels_,
+          requests_map,
+          *store.get(),
+          rpc_map_,
+          cert);
       }
       else
       {
