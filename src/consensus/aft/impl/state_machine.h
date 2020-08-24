@@ -50,6 +50,7 @@ namespace aft
         global_commit_handler->perform_global_commit(
           version, state->current_view);
         state->commit_idx = version;
+        state->last_idx = version;
         return;
       }
     }
