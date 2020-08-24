@@ -167,9 +167,8 @@ namespace ccfapp
     JSValueConst this_val,
     JSAtom property)
   {
-    LOG_INFO_FMT("111111111111");
     const auto property_name = JS_AtomToCString(ctx, property);
-    LOG_INFO_FMT("Looking for table '{}'", property_name);
+    LOG_TRACE_FMT("Looking for table '{}'", property_name);
 
     auto tx_ptr = static_cast<kv::Tx*>(JS_GetOpaque(this_val, tables_class_id));
     auto view = tx_ptr->get_view2<Table>(property_name);
@@ -209,7 +208,7 @@ namespace ccfapp
       module_name_kv.insert(0, "/");
     }
 
-    LOG_INFO_FMT("Loading module '{}'", module_name_kv);
+    LOG_TRACE_FMT("Loading module '{}'", module_name_kv);
 
     auto arg = (JSModuleLoaderArg*)opaque;
 
@@ -246,7 +245,6 @@ namespace ccfapp
   {
   private:
     NetworkTables& network;
-    Table& table;
 
     JSClassDef tables_class_def = {};
     JSClassExoticMethods tables_exotic_methods = {};
@@ -256,11 +254,15 @@ namespace ccfapp
   public:
     JSHandlers(NetworkTables& network) :
       UserEndpointRegistry(network),
-      network(network),
-      table(network.tables->create<Table>("data"))
+      network(network)
     {
       JS_NewClassID(&tables_class_id);
+      tables_exotic_methods.get_own_property = js_tables_lookup;
+      tables_class_def.class_name = "KV Tables";
+      tables_class_def.exotic = &tables_exotic_methods;
+
       JS_NewClassID(&view_class_id);
+      view_class_def.class_name = "KV View";
 
       auto default_handler = [this](EndpointContext& args) {
         const auto method = args.rpc_ctx->get_method();
@@ -312,15 +314,8 @@ namespace ccfapp
           throw std::runtime_error("Failed to initialise QuickJS context");
         }
 
-        LOG_INFO_FMT("AAAA");
-
         // Register class for tables
         {
-          tables_exotic_methods.get_own_property = js_tables_lookup;
-          tables_class_def.class_name = "KV Tables";
-          tables_class_def.exotic = &tables_exotic_methods;
-
-          LOG_INFO_FMT("BBBB");
           auto ret = JS_NewClass(rt, tables_class_id, &tables_class_def);
           if (ret != 0)
           {
@@ -331,9 +326,6 @@ namespace ccfapp
 
         // Register class for views
         {
-          view_class_def.class_name = "KV View";
-
-          LOG_INFO_FMT("CCCC");
           auto ret = JS_NewClass(rt, view_class_id, &view_class_def);
           if (ret != 0)
           {
@@ -354,9 +346,7 @@ namespace ccfapp
 
         auto tables_ = JS_NewObjectClass(ctx, tables_class_id);
         JS_SetOpaque(tables_, &args.tx);
-        LOG_INFO_FMT("DDDD");
         JS_SetPropertyStr(ctx, global_obj, "tables", tables_);
-        LOG_INFO_FMT("EEEE");
 
         const auto& request_query = args.rpc_ctx->get_request_query();
         auto query_str =
@@ -378,14 +368,12 @@ namespace ccfapp
         // Compile module
         std::string code = handler_script.value().text.value();
         const std::string path = "/__endpoint__.js";
-        LOG_INFO_FMT("FFFF");
         JSValue module = JS_Eval(
           ctx,
           code.c_str(),
           code.size() + 1,
           path.c_str(),
           JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-        LOG_INFO_FMT("GGGG");
 
         if (JS_IsException(module))
         {
@@ -406,8 +394,6 @@ namespace ccfapp
         }
         JS_FreeValue(ctx, eval_val);
 
-        LOG_INFO_FMT("HHHH");
-
         // Get exported function from module
         assert(JS_VALUE_GET_TAG(module) == JS_TAG_MODULE);
         auto module_def = (JSModuleDef*)JS_VALUE_GET_PTR(module);
@@ -426,9 +412,7 @@ namespace ccfapp
         // Call exported function
         int argc = 0;
         JSValueConst* argv = nullptr;
-        LOG_INFO_FMT("IIII");
         auto val = JS_Call(ctx, export_func, JS_UNDEFINED, argc, argv);
-        LOG_INFO_FMT("JJJJ");
         JS_FreeValue(ctx, export_func);
 
         if (JS_IsException(val))
