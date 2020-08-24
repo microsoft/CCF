@@ -480,6 +480,8 @@ namespace kv
       return std::get<0>(get_tuple(m));
     }
 
+    // EXPERIMENTAL - DO NOT USE
+    // This API is for internal testing only, and may change or be removed
     template <class M>
     typename M::TxView* get_view2(const std::string& map_name)
     {
@@ -498,6 +500,8 @@ namespace kv
       return std::tuple_cat(get_tuple(m), get_tuple(ms...));
     }
 
+    // EXPERIMENTAL - DO NOT USE
+    // This API is for internal testing only, and may change or be removed
     template <class M, class... Ms, class... Ts>
     std::tuple<typename M::TxView*, typename Ms::TxView*...> get_view2(
       const std::string& map_name, const Ts&... names)

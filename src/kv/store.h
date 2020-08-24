@@ -225,6 +225,8 @@ namespace kv
       return *result;
     }
 
+    // EXPERIMENTAL - DO NOT USE
+    // This API is for internal testing only, and may change or be removed
     std::shared_ptr<AbstractMap> get_map(
       kv::Version v, const std::string& map_name) override
     {
@@ -241,6 +243,8 @@ namespace kv
       return nullptr;
     }
 
+    // EXPERIMENTAL - DO NOT USE
+    // This API is for internal testing only, and may change or be removed
     void add_dynamic_map(
       kv::Version v, const std::shared_ptr<AbstractMap>& map) override
     {
