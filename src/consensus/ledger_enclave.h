@@ -26,8 +26,8 @@ namespace consensus
      *
      * @param entry Serialised entry
      * @param globally_committable True is entry is signature transaction
-     * @param force_chunk Force new ledger chunk to be created (only if
-     * globally_committable)
+     * @param force_chunk Force new ledger chunk to be created after this entry
+     * (only if globally_committable)
      */
     void put_entry(
       const std::vector<uint8_t>& entry,
@@ -43,8 +43,8 @@ namespace consensus
      * @param data Serialised entry start
      * @param size Serialised entry size
      * @param globally_committable True is entry is signature transaction
-     * @param force_chunk Force new ledger chunk to be created (only if
-     * globally_committable)
+     * @param force_chunk Force new ledger chunk to be created after this entry
+     * (only if globally_committable)
      */
     void put_entry(
       const uint8_t* data,
