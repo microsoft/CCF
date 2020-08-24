@@ -80,7 +80,8 @@ namespace raft
     {
       Leader,
       Follower,
-      Candidate
+      Candidate,
+      Retired
     };
 
     struct NodeState
@@ -353,11 +354,18 @@ namespace raft
           index,
           (globally_committable ? " committable" : ""));
 
+        bool force_ledger_chunk = false;
         if (globally_committable)
+        {
           committable_indices.push_back(index);
 
+          // Only if globally committable, a snapshot requires a new ledger
+          // chunk to be created
+          force_ledger_chunk = snapshotter->requires_snapshot(index);
+        }
+
         last_idx = index;
-        ledger->put_entry(*data, globally_committable);
+        ledger->put_entry(*data, globally_committable, force_ledger_chunk);
         entry_size_not_limited += data->size();
         entry_count++;
 
@@ -438,7 +446,7 @@ namespace raft
       }
       else
       {
-        if (timeout_elapsed >= election_timeout)
+        if (state != Retired && timeout_elapsed >= election_timeout)
         {
           // Start an election.
           become_candidate();
@@ -663,8 +671,15 @@ namespace raft
         auto deserialise_success =
           store->deserialise(entry, public_only, &sig_term);
 
-        ledger->put_entry(
-          entry, deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
+        bool globally_committable =
+          (deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
+        bool force_ledger_chunk = false;
+        if (globally_committable)
+        {
+          force_ledger_chunk = snapshotter->requires_snapshot(i);
+        }
+
+        ledger->put_entry(entry, globally_committable, force_ledger_chunk);
 
         switch (deserialise_success)
         {
@@ -1072,6 +1087,15 @@ namespace raft
       channels->close_all_outgoing();
     }
 
+    void become_retired()
+    {
+      state = Retired;
+      leader_id = NoNode;
+
+      LOG_INFO_FMT("Becoming retired {}: {}", local_id, current_term);
+      channels->destroy_all_channels();
+    }
+
     void add_vote_for_me(NodeId from)
     {
       // Need 50% + 1 of the total nodes, which are the other nodes plus us.
@@ -1166,6 +1190,7 @@ namespace raft
       commit_idx = idx;
 
       LOG_DEBUG_FMT("Compacting...");
+      snapshotter->compact(idx);
       if (state == Leader)
       {
         snapshotter->snapshot(idx);
@@ -1204,6 +1229,7 @@ namespace raft
 
     void rollback(Index idx)
     {
+      snapshotter->rollback(idx);
       store->rollback(idx, current_term);
       LOG_DEBUG_FMT("Setting term in store to: {}", current_term);
       ledger->truncate(idx);
@@ -1300,6 +1326,10 @@ namespace raft
       if (!self_is_active)
       {
         LOG_INFO_FMT("Removed raft self {}", local_id);
+        if (state == Leader)
+        {
+          become_retired();
+        }
       }
     }
   };

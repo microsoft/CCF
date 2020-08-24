@@ -81,11 +81,28 @@ def test_add_node_untrusted_code(network, args):
 
 @reqs.description("Retiring a backup")
 @reqs.at_least_n_nodes(2)
-def test_retire_node(network, args):
+def test_retire_backup(network, args):
     primary, _ = network.find_primary()
     backup_to_retire = network.find_any_backup()
     network.consortium.retire_node(primary, backup_to_retire)
     backup_to_retire.stop()
+    return network
+
+
+@reqs.description("Retiring the primary")
+@reqs.at_least_n_nodes(3)
+def test_retire_primary(network, args):
+    primary, backup = network.find_primary_and_any_backup()
+    network.consortium.retire_node(primary, primary)
+    LOG.debug(
+        f"Waiting {network.election_duration}s for a new primary to be elected..."
+    )
+    time.sleep(network.election_duration)
+    new_primary, new_term = network.find_primary()
+    assert new_primary.node_id != primary.node_id
+    LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
+    check_can_progress(backup)
+    primary.stop()
     return network
 
 
@@ -99,9 +116,10 @@ def run(args):
         test_add_node_from_backup(network, args)
         test_add_node(network, args)
         test_add_node_untrusted_code(network, args)
-        test_retire_node(network, args)
+        test_retire_backup(network, args)
         test_add_as_many_pending_nodes(network, args)
         test_add_node(network, args)
+        test_retire_primary(network, args)
 
 
 if __name__ == "__main__":
