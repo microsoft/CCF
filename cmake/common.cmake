@@ -7,7 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
-set(PYTHON python3)
+set(PYTHON unbuffer python3)
 
 set(DISTRIBUTE_PERF_TESTS
     ""
