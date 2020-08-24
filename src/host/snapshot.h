@@ -48,13 +48,10 @@ namespace asynchost
     {
       if (fs::is_directory(snapshot_dir))
       {
-        throw std::logic_error(fmt::format(
-          "Error: Cannot create snapshot directory as it already "
-          "exists: {}",
-          snapshot_dir));
+        LOG_INFO_FMT(
+          "Snapshots will be stored in existing directory {}", snapshot_dir);
       }
-
-      if (!fs::create_directory(snapshot_dir))
+      else if (!fs::create_directory(snapshot_dir))
       {
         throw std::logic_error(fmt::format(
           "Error: Could not create snapshot directory: {}", snapshot_dir));

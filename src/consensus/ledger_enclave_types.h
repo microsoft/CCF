@@ -46,7 +46,10 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::Index,
   consensus::LedgerRequestPurpose);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::ledger_append, bool /* committable */, std::vector<uint8_t>);
+  consensus::ledger_append,
+  bool /* committable */,
+  bool /* force chunk */,
+  std::vector<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::ledger_truncate, consensus::Index);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_commit, consensus::Index);
