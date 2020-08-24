@@ -499,3 +499,90 @@ TEST_CASE(
     REQUIRE(priv_v.value() == "world");
   }
 }
+
+TEST_CASE("Swapping dynamic maps" * doctest::test_suite("dynamic"))
+{
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+
+  kv::Store s1;
+  s1.set_encryptor(encryptor);
+
+  {
+    auto tx = s1.create_tx();
+    auto [v0, v1] =
+      tx.get_view2<MapTypes::StringString, MapTypes::NumString>("foo", "bar");
+    v0->put("hello", "world");
+    v1->put(42, "everything");
+    tx.commit();
+  }
+
+  {
+    auto tx = s1.create_tx();
+    auto [v0, v1] =
+      tx.get_view2<MapTypes::StringString, MapTypes::StringNum>("foo", "baz");
+    v0->put("hello", "goodbye");
+    v1->put("saluton", 100);
+    tx.commit();
+  }
+
+  {
+    // Create _public_ state in source store
+    auto tx = s1.create_tx();
+    auto v0 = tx.get_view2<MapTypes::StringString>("public:source_state");
+    v0->put("store", "source");
+    tx.commit();
+  }
+
+  kv::Store s2;
+  s2.set_encryptor(encryptor);
+
+  {
+    // Create public state in target store, to confirm it is unaffected
+    auto tx = s2.create_tx();
+    auto v0 = tx.get_view2<MapTypes::StringString>("public:target_state");
+    v0->put("store", "target");
+    tx.commit();
+  }
+
+  s1.compact(s1.current_version());
+
+  s2.swap_private_maps(s1);
+
+  {
+    INFO("Private state is transferred");
+    auto tx = s2.create_tx();
+
+    auto [v0, v1, v2] = tx.get_view2<
+      MapTypes::StringString,
+      MapTypes::NumString,
+      MapTypes::StringNum>("foo", "bar", "baz");
+
+    const auto val0 = v0->get("hello");
+    REQUIRE(val0.has_value());
+    REQUIRE(val0.value() == "goodbye");
+
+    const auto val1 = v1->get(42);
+    REQUIRE(val1.has_value());
+    REQUIRE(val1.value() == "everything");
+
+    const auto val2 = v2->get("saluton");
+    REQUIRE(val2.has_value());
+    REQUIRE(val2.value() == 100);
+  }
+
+  {
+    INFO("Public state is untouched");
+    auto tx = s2.create_tx();
+
+    auto [v0, v1] =
+      tx.get_view2<MapTypes::StringString, MapTypes::StringString>(
+        "public:source_state", "public:target_state");
+
+    const auto val0 = v0->get("store");
+    REQUIRE_FALSE(val0.has_value());
+
+    const auto val1 = v1->get("store");
+    REQUIRE(val1.has_value());
+    REQUIRE(val1.value() == "target");
+  }
+}

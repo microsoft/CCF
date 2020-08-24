@@ -187,7 +187,7 @@ namespace kv
       const std::string& map_names, const Ts&... names)
     {
       return std::tuple_cat(
-        get_tuple2<M>(map_names), get_tuple<Ms...>(names...));
+        get_tuple2<M>(map_names), get_tuple2<Ms...>(names...));
     }
 
     void reset()

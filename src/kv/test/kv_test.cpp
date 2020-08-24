@@ -802,35 +802,6 @@ TEST_CASE("Map swap between stores")
   }
 }
 
-TEST_CASE("Invalid map swaps")
-{
-  {
-    kv::Store s1;
-    s1.create<MapTypes::NumNum>("one");
-
-    kv::Store s2;
-    s2.create<MapTypes::NumNum>("one");
-    s2.create<MapTypes::NumNum>("two");
-
-    REQUIRE_THROWS_WITH(
-      s2.swap_private_maps(s1),
-      "Private map list mismatch during swap, missing at least two");
-  }
-
-  {
-    kv::Store s1;
-    s1.create<MapTypes::NumNum>("one");
-    s1.create<MapTypes::NumNum>("two");
-
-    kv::Store s2;
-    s2.create<MapTypes::NumNum>("one");
-
-    REQUIRE_THROWS_WITH(
-      s2.swap_private_maps(s1),
-      "Private map list mismatch during swap, two not found");
-  }
-}
-
 TEST_CASE("Private recovery map swap")
 {
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();

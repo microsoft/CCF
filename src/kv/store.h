@@ -981,46 +981,55 @@ namespace kv
       std::lock_guard<SpinLock> this_maps_guard(maps_lock);
       std::lock_guard<SpinLock> other_maps_guard(store.maps_lock);
 
+      // Each entry is (Name, MyMap, TheirMap)
       using MapEntry = std::tuple<std::string, AbstractMap*, AbstractMap*>;
       std::vector<MapEntry> entries;
 
-      for (auto& [name, pair] : maps)
-      {
-        auto& [_, map] = pair;
-        if (map->get_security_domain() == SecurityDomain::PRIVATE)
-        {
-          map->lock();
-          entries.emplace_back(name, map.get(), nullptr);
-        }
-      }
-
-      auto entry = entries.begin();
+      // Get the list of private maps from the source store
       for (auto& [name, pair] : store.maps)
       {
         auto& [_, map] = pair;
         if (map->get_security_domain() == SecurityDomain::PRIVATE)
         {
-          if (entry == entries.end())
-            throw std::logic_error(
-              "Private map list mismatch during swap, " + name + " not found");
-
-          if (std::get<0>(*entry) != name)
-            throw std::logic_error(
-              "Private map list mismatch during swap, " + std::get<0>(*entry) +
-              " != " + name);
-
           map->lock();
-          std::get<2>(*entry) = map.get();
-
-          ++entry;
+          entries.emplace_back(name, nullptr, map.get());
         }
       }
 
-      if (entry != entries.end())
+      // For each source map, either create it or, where it already exists,
+      // confirm it is PRIVATE. Lock it and store it in entries
+      auto entry = entries.begin();
+      while (entry != entries.end())
       {
-        throw std::logic_error(
-          "Private map list mismatch during swap, missing at least " +
-          std::get<0>(*entry));
+        const auto& [name, _, their_map] = *entry;
+        std::shared_ptr<AbstractMap> map = nullptr;
+        const auto it = maps.find(name);
+        if (it == maps.end())
+        {
+          // NB: We lose the creation version from the original map, but assume
+          // it is irrelevant - its creation should no longer be at risk of
+          // rollback
+          auto new_map = std::make_pair(
+            NoVersion,
+            std::make_shared<kv::untyped::Map>(
+              this, name, SecurityDomain::PRIVATE, is_map_replicated(name)));
+          maps[name] = new_map;
+          map = new_map.second;
+        }
+        else
+        {
+          map = it->second.second;
+          if (map->get_security_domain() != SecurityDomain::PRIVATE)
+          {
+            throw std::logic_error(fmt::format(
+              "Swap mismatch - map {} is private in source but not in target",
+              name));
+          }
+        }
+
+        std::get<1>(*entry) = map.get();
+        map->lock();
+        ++entry;
       }
 
       for (auto& [name, lhs, rhs] : entries)
