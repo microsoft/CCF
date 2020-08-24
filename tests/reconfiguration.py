@@ -92,8 +92,7 @@ def test_retire_backup(network, args):
 @reqs.description("Retiring the primary")
 @reqs.at_least_n_nodes(3)
 def test_retire_primary(network, args):
-    primary, _ = network.find_primary()
-    backup = network.find_any_backup()
+    primary, backup = network.find_primary_and_any_backup()
     network.consortium.retire_node(primary, primary)
     LOG.debug(
         f"Waiting {network.election_duration}s for a new primary to be elected..."
