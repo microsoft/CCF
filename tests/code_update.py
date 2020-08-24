@@ -7,7 +7,6 @@ import infra.proc
 import os
 import subprocess
 import sys
-import time
 from loguru import logger as LOG
 
 
@@ -101,13 +100,8 @@ def run(args):
             LOG.debug(f"Stopping old node {node.node_id}")
             node.stop()
 
-        LOG.info(
-            f"Waiting {network.election_duration}s for a new primary to be elected..."
-        )
-        time.sleep(network.election_duration)
-
-        new_primary, _ = network.find_primary()
-        LOG.info(f"Waited, new_primary is {new_primary.node_id}")
+        new_primary, _ = network.wait_for_new_primary(primary.node_id)
+        LOG.info(f"New_primary is {new_primary.node_id}")
 
         LOG.info("Adding another node to the network")
         new_node = network.create_and_trust_node(

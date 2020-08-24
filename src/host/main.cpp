@@ -134,7 +134,7 @@ int main(int argc, char** argv)
     "--rpc-address)");
 
   std::string ledger_dir("ledger");
-  app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
+  app.add_option("--ledger-dir", ledger_dir, "Ledger and snapshots directory")
     ->capture_default_str();
 
   size_t ledger_min_bytes = 5'000'000;
@@ -145,10 +145,6 @@ int main(int argc, char** argv)
       "Minimum size (bytes) at which a new ledger chunk is created.")
     ->capture_default_str()
     ->transform(CLI::AsSizeValue(true)); // 1000 is kb
-
-  std::string snapshot_dir("snapshots");
-  app.add_option("--snapshot-dir", snapshot_dir, "Snapshots directory")
-    ->capture_default_str();
 
   size_t snapshot_max_tx = std::numeric_limits<std::size_t>::max();
   app

@@ -228,8 +228,8 @@ class Transaction:
             self._complete_read()
             self._read_header()
             return self
-        except:
-            raise StopIteration()
+        except Exception as e:
+            raise StopIteration() from e
 
 
 class Ledger:
@@ -275,7 +275,7 @@ class Ledger:
                 self._current_tx = Transaction(self._filenames[self._fileindex])
                 return next(self._current_tx)
             else:
-                raise StopIteration()
+                raise
 
     def __iter__(self):
         return self
