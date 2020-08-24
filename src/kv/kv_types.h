@@ -58,6 +58,18 @@ namespace kv
     SECURITY_DOMAIN_MAX
   };
 
+  static inline SecurityDomain get_security_domain(const std::string& name)
+  {
+    constexpr auto public_domain_prefix = "public:";
+
+    if (name.rfind(public_domain_prefix, 0) == 0)
+    {
+      return SecurityDomain::PUBLIC;
+    }
+
+    return SecurityDomain::PRIVATE;
+  }
+
   // Note that failed = 0, and all other values are variants of PASS, which
   // allows DeserialiseSuccess to be used as a boolean in code that does not
   // need any detail about what happened on success
@@ -352,6 +364,8 @@ namespace kv
       Version version, const std::vector<uint8_t>& raw_ledger_key) = 0;
   };
 
+  using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
+
   class AbstractTxView
   {
   public:
@@ -365,7 +379,7 @@ namespace kv
   };
 
   class AbstractStore;
-  class AbstractMap
+  class AbstractMap : public std::enable_shared_from_this<AbstractMap>
   {
   public:
     class Snapshot
@@ -415,6 +429,9 @@ namespace kv
 
     virtual ~AbstractStore() {}
 
+    virtual void lock() = 0;
+    virtual void unlock() = 0;
+
     virtual Version next_version() = 0;
     virtual TxID next_txid() = 0;
 
@@ -423,9 +440,15 @@ namespace kv
 
     virtual Version commit_version() = 0;
 
+    virtual std::shared_ptr<AbstractMap> get_map(
+      kv::Version v, const std::string& map_name) = 0;
+    virtual void add_dynamic_map(
+      kv::Version v, const std::shared_ptr<AbstractMap>& map) = 0;
+    virtual bool is_map_replicated(const std::string& map_name) = 0;
+
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;
-    virtual std::shared_ptr<AbstractTxEncryptor> get_encryptor() = 0;
+    virtual EncryptorPtr get_encryptor() = 0;
     virtual DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
       bool public_only = false,
@@ -444,5 +467,4 @@ namespace kv
 
     virtual size_t commit_gap() = 0;
   };
-
 }
