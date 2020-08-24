@@ -548,6 +548,7 @@ class CCFRemote(object):
         common_dir,
         target_rpc_address=None,
         members_info=None,
+        snapshot_dir=None,
         join_timer=None,
         host_log_level="info",
         sig_max_tx=1000,
@@ -569,6 +570,8 @@ class CCFRemote(object):
         """
         Run a ccf binary on a remote host.
         """
+        LOG.warning(f"Snapshot dir: {snapshot_dir}")
+        input("")
         self.start_type = start_type
         self.local_node_id = local_node_id
         self.pem = f"{local_node_id}.pem"
@@ -676,6 +679,12 @@ class CCFRemote(object):
                 f"--join-timer={join_timer}",
             ]
             data_files += [os.path.join(self.common_dir, "networkcert.pem")]
+
+            LOG.warning(f"Snapshot dir: {snapshot_dir}")
+
+            if snapshot_dir:
+                LOG.warning("Copying snapshot dir to remote")
+                data_files += [snapshot_dir]
         elif start_type == StartType.recover:
             cmd += ["recover", "--network-cert-file=networkcert.pem"]
         else:

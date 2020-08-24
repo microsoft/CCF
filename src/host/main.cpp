@@ -358,7 +358,7 @@ int main(int argc, char** argv)
     "key)")
     ->required();
 
-  std::optional<size_t> recovery_threshold;
+  std::optional<size_t> recovery_threshold = std::nullopt;
   start
     ->add_option(
       "--recovery-threshold",
@@ -439,10 +439,10 @@ int main(int argc, char** argv)
         rpc_address.hostname));
     }
 
-    if ((*start || *join) && files::exists(ledger_dir))
+    if (*start && files::exists(ledger_dir))
     {
       throw std::logic_error(fmt::format(
-        "On start/join, ledger directory should not exist ({})", ledger_dir));
+        "On start, ledger directory should not exist ({})", ledger_dir));
     }
     else if (*recover && !files::exists(ledger_dir))
     {
@@ -548,7 +548,7 @@ int main(int argc, char** argv)
   asynchost::Ledger ledger(ledger_dir, writer_factory, ledger_min_bytes);
   ledger.register_message_handlers(bp.get_dispatcher());
 
-  asynchost::SnapshotManager snapshot(snapshot_dir);
+  asynchost::SnapshotManager snapshot(ledger_dir);
   snapshot.register_message_handlers(bp.get_dispatcher());
 
   // Begin listening for node-to-node and RPC messages.
@@ -638,6 +638,17 @@ int main(int argc, char** argv)
     ccf_config.joining.target_port = target_rpc_address.port;
     ccf_config.joining.network_cert = files::slurp(network_cert_file);
     ccf_config.joining.join_timer = join_timer;
+
+    auto snapshot_file = snapshot.find_latest_snapshot();
+    if (snapshot_file.has_value())
+    {
+      LOG_FAIL_FMT("Found latest snapshot file: {}", snapshot_file.value());
+      ccf_config.joining.snapshot = files::slurp(snapshot_file.value());
+    }
+    else
+    {
+      LOG_FAIL_FMT("No snapshot found, node will join from genesis");
+    }
   }
   else if (*recover)
   {

@@ -126,6 +126,12 @@ namespace ccf
       return {{}, false};
     }
 
+    template <typename T>
+    static Result<T> Fail(const std::string& s)
+    {
+      return Fail<T>(s.c_str());
+    }
+
     //
     // this node's core state
     //
@@ -306,6 +312,19 @@ namespace ccf
           // has joined
           accept_node_tls_connections();
 
+          // TODO: If there's a snapshot, deserialise it in the store
+          if (args.config.joining.snapshot.has_value())
+          {
+            LOG_FAIL_FMT("Applying snapshot to store...");
+            auto rc = network.tables->deserialise_snapshot(
+              args.config.joining.snapshot.value());
+            if (rc != kv::DeserialiseSuccess::PASS)
+            {
+              return Fail<CreateNew::Out>(
+                fmt::format("Failed to apply snapshot : {}", rc).c_str());
+            }
+          }
+
           sm.advance(State::pending);
 
           return Success<CreateNew::Out>({node_cert, {}, {}});
@@ -424,6 +443,10 @@ namespace ccf
 
             setup_encryptor(resp.network_info.consensus_type);
             setup_consensus(resp.network_info.public_only);
+
+            // TODO: If we deserialised a snapshot in our store originally,
+            // setup Raft like we should (term, last_idx, etc.)
+
             setup_history();
 
             open_member_frontend();
@@ -918,8 +941,7 @@ namespace ccf
         }
 
         default:
-        {
-        }
+        {}
       }
     }
 
@@ -1556,8 +1578,7 @@ namespace ccf
                 break;
               }
               default:
-              {
-              }
+              {}
             }
           }
 

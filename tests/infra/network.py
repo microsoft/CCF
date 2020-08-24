@@ -161,7 +161,15 @@ class Network:
         self.nodes.append(node)
         return node
 
-    def _add_node(self, node, lib_name, args, target_node=None, recovery=False):
+    def _add_node(
+        self,
+        node,
+        lib_name,
+        args,
+        target_node=None,
+        recovery=False,
+        from_snapshot=True,
+    ):
         forwarded_args = {
             arg: getattr(args, arg)
             for arg in infra.network.Network.node_args_to_forward
@@ -173,12 +181,22 @@ class Network:
                 timeout=args.ledger_recovery_timeout if recovery else 3
             )
 
+        snapshot_dir = None
+        if from_snapshot:
+            LOG.warning("Joining from snapshot")
+            # TODO: Copy snapshot dir from target node
+            input("")
+            snapshot_dir = target_node.get_ledger()
+
+        LOG.warning(f"Snapshot dir is: {snapshot_dir}")
+
         node.join(
             lib_name=lib_name,
             workspace=args.workspace,
             label=args.label,
             common_dir=self.common_dir,
             target_rpc_address=f"{target_node.host}:{target_node.rpc_port}",
+            snapshot_dir=snapshot_dir,
             **forwarded_args,
         )
 

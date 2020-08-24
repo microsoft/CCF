@@ -82,8 +82,7 @@ class Node:
             workspace,
             label,
             common_dir,
-            None,
-            members_info,
+            members_info=members_info,
             **kwargs,
         )
         self.network_state = NodeNetworkState.joined
@@ -96,8 +95,11 @@ class Node:
         label,
         common_dir,
         target_rpc_address,
+        snapshot_dir,
         **kwargs,
     ):
+        LOG.success(f"Snapshot dir: {snapshot_dir}")
+
         self._start(
             infra.remote.StartType.join,
             lib_name,
@@ -105,7 +107,8 @@ class Node:
             workspace,
             label,
             common_dir,
-            target_rpc_address,
+            target_rpc_address=target_rpc_address,
+            snapshot_dir=snapshot_dir,
             **kwargs,
         )
 
@@ -130,6 +133,7 @@ class Node:
         label,
         common_dir,
         target_rpc_address=None,
+        snapshot_dir=None,
         members_info=None,
         **kwargs,
     ):
@@ -144,6 +148,9 @@ class Node:
         :param label: label for this node (to differentiate nodes from different test runs)
         :return: void
         """
+        LOG.error(f"Snapshot dir: {snapshot_dir}")
+        LOG.error(f"Target RPC dir: {target_rpc_address}")
+
         lib_path = infra.path.build_lib_path(lib_name, enclave_type)
         self.common_dir = common_dir
         self.remote = infra.remote.CCFRemote(
@@ -161,6 +168,7 @@ class Node:
             common_dir,
             target_rpc_address,
             members_info,
+            snapshot_dir,
             binary_dir=self.binary_dir,
             **kwargs,
         )
@@ -238,6 +246,8 @@ class Node:
         """
         # Until the node has joined, the SSL handshake will fail as the node
         # is not yet endorsed by the network certificate
+
+        # TODO: Change this with snapshots!!
         try:
             with self.client(connection_timeout=timeout) as nc:
                 rep = nc.get("/node/commit")
