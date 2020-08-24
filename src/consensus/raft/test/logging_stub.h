@@ -22,7 +22,10 @@ namespace raft
 
     LedgerStubProxy(NodeId id) : _id(id) {}
 
-    void put_entry(const std::vector<uint8_t>& data, bool globally_committable)
+    void put_entry(
+      const std::vector<uint8_t>& data,
+      bool globally_committable,
+      bool force_chunk)
     {
 #ifdef STUB_LOG
       std::cout << "  Node" << _id << "->>Ledger" << _id
@@ -85,6 +88,8 @@ namespace raft
     {}
 
     void destroy_channel(NodeId peer_id) {}
+
+    void destroy_all_channels() {}
 
     void close_all_outgoing() {}
 
@@ -194,6 +199,24 @@ namespace raft
   {
   public:
     void snapshot(Index)
+    {
+      // For now, do not test snapshots in unit tests
+      return;
+    }
+
+    bool requires_snapshot(Index)
+    {
+      // For now, do not test snapshots in unit tests
+      return false;
+    }
+
+    void compact(Index)
+    {
+      // For now, do not test snapshots in unit tests
+      return;
+    }
+
+    void rollback(Index)
     {
       // For now, do not test snapshots in unit tests
       return;

@@ -498,6 +498,11 @@ namespace ccf
       channels.erase(peer_id);
     }
 
+    void destroy_all_channels()
+    {
+      channels.clear();
+    }
+
     void close_all_outgoing()
     {
       for (auto& c : channels)
