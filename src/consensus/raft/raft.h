@@ -288,6 +288,7 @@ namespace raft
       term_history.update(index, term);
 
       ledger->init(index);
+      snapshotter->set_last_snapshot_idx(index); // TODO: Is this always true??
     }
 
     Index get_last_idx()
