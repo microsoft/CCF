@@ -43,6 +43,16 @@ def test_add_node_from_backup(network, args):
     return network
 
 
+@reqs.description("Adding a valid node from snapshot")
+@reqs.at_least_n_nodes(2)
+def test_add_node_from_snapshot(network, args):
+    new_node = network.create_and_trust_node(
+        args.package, "localhost", args, from_snapshot=True
+    )
+    assert new_node
+    return network
+
+
 @reqs.description("Adding as many pending nodes as current number of nodes")
 @reqs.supports_methods("log/private")
 def test_add_as_many_pending_nodes(network, args):
@@ -96,6 +106,7 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
+        test_add_node_from_snapshot(network, args)
         # test_add_node_from_backup(network, args)
         # test_add_node(network, args)
         # test_add_node_untrusted_code(network, args)

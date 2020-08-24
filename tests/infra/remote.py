@@ -570,8 +570,6 @@ class CCFRemote(object):
         """
         Run a ccf binary on a remote host.
         """
-        LOG.warning(f"Snapshot dir: {snapshot_dir}")
-        input("")
         self.start_type = start_type
         self.local_node_id = local_node_id
         self.pem = f"{local_node_id}.pem"
@@ -587,6 +585,12 @@ class CCFRemote(object):
             if self.ledger_dir
             else f"{local_node_id}.ledger"
         )
+        # TODO: To check with SSH remote and start_test_network.sh
+        self.snapshot_dir = os.path.normpath(snapshot_dir) if snapshot_dir else None
+        self.snapshot_dir_name = (
+            os.path.basename(self.snapshot_dir) if self.snapshot_dir else "snapshots"
+        )
+
         self.common_dir = common_dir
 
         exe_files = [self.BIN, lib_path] + self.DEPS
@@ -680,9 +684,8 @@ class CCFRemote(object):
             ]
             data_files += [os.path.join(self.common_dir, "networkcert.pem")]
 
-            LOG.warning(f"Snapshot dir: {snapshot_dir}")
-
             if snapshot_dir:
+                # TODO: Only copy latest snapshot??
                 LOG.warning("Copying snapshot dir to remote")
                 data_files += [snapshot_dir]
         elif start_type == StartType.recover:
@@ -762,6 +765,10 @@ class CCFRemote(object):
     def get_ledger(self):
         self.remote.get(self.ledger_dir_name, self.common_dir)
         return os.path.join(self.common_dir, self.ledger_dir_name)
+
+    def get_snapshots(self):
+        self.remote.get(self.snapshot_dir_name, self.common_dir)
+        return os.path.join(self.common_dir, self.snapshot_dir_name)
 
     def ledger_path(self):
         return os.path.join(self.remote.root, self.ledger_dir_name)

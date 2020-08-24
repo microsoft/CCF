@@ -312,18 +312,21 @@ namespace ccf
           // has joined
           accept_node_tls_connections();
 
+          LOG_FAIL_FMT("Size of snapshot: {}", args.config.joining.snapshot.size());
+
           // TODO: If there's a snapshot, deserialise it in the store
-          if (args.config.joining.snapshot.has_value())
-          {
-            LOG_FAIL_FMT("Applying snapshot to store...");
-            auto rc = network.tables->deserialise_snapshot(
-              args.config.joining.snapshot.value());
-            if (rc != kv::DeserialiseSuccess::PASS)
-            {
-              return Fail<CreateNew::Out>(
-                fmt::format("Failed to apply snapshot : {}", rc).c_str());
-            }
-          }
+          // TODO: Hooks need to be enabled by then
+          // if (args.config.joining.snapshot.has_value())
+          // {
+          //   LOG_FAIL_FMT("Applying snapshot to store...");
+          //   auto rc = network.tables->deserialise_snapshot(
+          //     args.config.joining.snapshot.value());
+          //   if (rc != kv::DeserialiseSuccess::PASS)
+          //   {
+          //     return Fail<CreateNew::Out>(
+          //       fmt::format("Failed to apply snapshot : {}", rc).c_str());
+          //   }
+          // }
 
           sm.advance(State::pending);
 

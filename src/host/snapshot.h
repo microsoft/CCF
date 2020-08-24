@@ -61,7 +61,7 @@ namespace asynchost
 
     std::optional<std::string> find_latest_snapshot()
     {
-      std::optional<std::string> snapshot_file_name = std::nullopt;
+      std::optional<std::string> snapshot_file = std::nullopt;
       size_t latest_idx = 0;
 
       for (auto& f : fs::directory_iterator(snapshot_dir))
@@ -70,18 +70,20 @@ namespace asynchost
         auto pos = file_name.find(fmt::format("{}.", snapshot_file_prefix));
         if (pos == std::string::npos)
         {
+          LOG_FAIL_FMT("File {} does not appear to be a snapshot", file_name);
           continue;
         }
 
+        pos = file_name.find(".");
         size_t snapshot_idx = std::stol(file_name.substr(pos + 1));
         if (snapshot_idx > latest_idx)
         {
-          snapshot_file_name = file_name;
+          snapshot_file = f.path().string();
           latest_idx = snapshot_idx;
         }
       }
 
-      return snapshot_file_name;
+      return snapshot_file;
     }
 
     void register_message_handlers(

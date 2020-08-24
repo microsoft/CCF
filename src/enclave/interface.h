@@ -62,7 +62,7 @@ struct CCFConfig
     std::string target_port;
     std::vector<uint8_t> network_cert;
     size_t join_timer;
-    std::optional<std::vector<uint8_t>> snapshot = std::nullopt;
+    std::vector<uint8_t> snapshot;
     MSGPACK_DEFINE(
       target_host, target_port, network_cert, join_timer, snapshot);
   };

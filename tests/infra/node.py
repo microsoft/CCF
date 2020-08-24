@@ -98,8 +98,6 @@ class Node:
         snapshot_dir,
         **kwargs,
     ):
-        LOG.success(f"Snapshot dir: {snapshot_dir}")
-
         self._start(
             infra.remote.StartType.join,
             lib_name,
@@ -148,9 +146,6 @@ class Node:
         :param label: label for this node (to differentiate nodes from different test runs)
         :return: void
         """
-        LOG.error(f"Snapshot dir: {snapshot_dir}")
-        LOG.error(f"Target RPC dir: {target_rpc_address}")
-
         lib_path = infra.path.build_lib_path(lib_name, enclave_type)
         self.common_dir = common_dir
         self.remote = infra.remote.CCFRemote(
@@ -259,6 +254,9 @@ class Node:
 
     def get_ledger(self):
         return self.remote.get_ledger()
+
+    def get_snapshots(self):
+        return self.remote.get_snapshots()
 
     def client(self, identity=None, **kwargs):
         akwargs = {
