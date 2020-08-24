@@ -298,6 +298,26 @@ namespace aft
     // TODO: this needs to be moved to the bft state machine
     void add_configuration(Index idx, const Configuration::Nodes& conf)
     {
+      if (consensus_type == ConsensusType::PBFT)
+      {
+        if (conf.size() != 1)
+        {
+          throw std::logic_error(
+            "PBFT configuration should add one node at a time");
+        }
+
+        auto new_node_id = conf.begin()->first;
+        auto new_node_info = conf.begin()->second;
+
+        if (new_node_id == shared_state->my_node_id)
+        {
+          return;
+        }
+
+        bft_state_machine->add_node(new_node_id, new_node_info.cert.raw());
+        return;
+      }
+
       // This should only be called when the spin lock is held.
       configurations.push_back({idx, std::move(conf)});
       create_and_remove_node_state();
@@ -396,11 +416,15 @@ namespace aft
 
       return true;
     }
-
     void recv_message(const uint8_t* data, size_t size)
     {
-      std::lock_guard<SpinLock> guard(shared_state->lock);
+      recv_message(OArray({data, data + size}));
+    }
 
+    void recv_message(OArray&& d)
+    {
+      const uint8_t* data = d.data();
+      size_t size = d.size();
       // The host does a CALLIN to this when a Aft message
       // is received. Invalid or malformed messages are ignored
       // without informing the host. Messages are idempotent,
@@ -424,8 +448,8 @@ namespace aft
           break;
 
         default:
-        {
-        }
+          bft_state_machine->receive_message(std::move(d));
+          break;
       }
     }
 
@@ -564,6 +588,7 @@ namespace aft
 
     void recv_append_entries(const uint8_t* data, size_t size)
     {
+      std::lock_guard<SpinLock> guard(shared_state->lock);
       AppendEntries r;
       bool is_first_entry = true; // Indicates first entry in batch
 
@@ -780,6 +805,7 @@ namespace aft
 
     void recv_append_entries_response(const uint8_t* data, size_t size)
     {
+      std::lock_guard<SpinLock> guard(shared_state->lock);
       // Ignore if we're not the leader.
       if (state != Leader)
         return;
@@ -876,6 +902,7 @@ namespace aft
 
     void recv_request_vote(const uint8_t* data, size_t size)
     {
+      std::lock_guard<SpinLock> guard(shared_state->lock);
       RequestVote r;
 
       try
@@ -968,6 +995,7 @@ namespace aft
 
     void recv_request_vote_response(const uint8_t* data, size_t size)
     {
+      std::lock_guard<SpinLock> guard(shared_state->lock);
       if (state != Candidate)
       {
         LOG_INFO_FMT(

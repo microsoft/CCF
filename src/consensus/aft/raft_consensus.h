@@ -103,7 +103,7 @@ namespace aft
 
     void recv_message(OArray&& data) override
     {
-      return aft->recv_message(data.data(), data.size());
+      return aft->recv_message(std::move(data));
     }
 
     void add_configuration(

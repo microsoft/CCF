@@ -55,8 +55,12 @@ namespace aft
       }
     }
 
-    void receive_message(OArray&& oa, kv::NodeId from) override
+    void receive_message(OArray&& oa) override
     {
+      kv::NodeId from =
+        serialized::peek<consensus::ConsensusHeader<RaftMsgType>>(
+          oa.data(), oa.size())
+          .from_node;
       if (
         state->network_state == ServiceState::NetworkState::not_open &&
         serialized::peek<RaftMsgType>(oa.data(), oa.size()) != bft_OpenNetwork)

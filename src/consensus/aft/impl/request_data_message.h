@@ -16,7 +16,7 @@ namespace aft
     RequestDataMessageRep(
       aft::NodeId from_node, kv::Version from_, kv::Version to_) :
       consensus::ConsensusHeader<RaftMsgType>(
-        RaftMsgType::bft_Request, from_node),
+        RaftMsgType::bft_RequestData, from_node),
       from(from_),
       to(to_)
     {}
@@ -53,7 +53,7 @@ namespace aft
 
     size_t size() const override
     {
-      return sizeof(RequestDataMessage);
+      return sizeof(RequestDataMessageRep);
     }
 
   private:

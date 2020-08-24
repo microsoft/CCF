@@ -191,7 +191,7 @@ namespace aft
     virtual ~StateMachine() = default;
 
     virtual void receive_request(std::unique_ptr<RequestMessage> request) = 0;
-    virtual void receive_message(OArray&& oa, kv::NodeId from) = 0;
+    virtual void receive_message(OArray&& oa) = 0;
     virtual void receive_message(
       OArray oa, AppendEntries ae, kv::NodeId from) = 0;
     virtual void add_node(
