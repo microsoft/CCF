@@ -254,6 +254,11 @@ namespace kv
       state = Primary;
     }
 
+    virtual void force_become_backup(SeqNo, View)
+    {
+      state = Backup;
+    }
+
     virtual bool replicate(const BatchVector& entries, View view) = 0;
     virtual std::pair<View, SeqNo> get_committed_txid() = 0;
 

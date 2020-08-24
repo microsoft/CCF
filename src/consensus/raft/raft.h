@@ -270,6 +270,26 @@ namespace raft
       become_leader();
     }
 
+    void force_become_follower(Index index, Term term)
+    {
+      // This is unsafe and should only be called when the node is certain
+      // there is no leader and no other node will attempt to force leadership.
+      if (leader_id != NoNode)
+        throw std::logic_error(
+          "Can't force followershing if there is already a leader");
+
+      std::lock_guard<SpinLock> guard(lock);
+
+      last_idx = index;
+      current_term = term;
+
+      // TODO: Bad, should be retrieved from snapshot instead
+      term_history.update(1, 2);
+      term_history.update(index, term);
+
+      ledger->init(index);
+    }
+
     Index get_last_idx()
     {
       return last_idx;
@@ -418,8 +438,7 @@ namespace raft
           break;
 
         default:
-        {
-        }
+        {}
       }
     }
 

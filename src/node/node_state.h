@@ -312,21 +312,8 @@ namespace ccf
           // has joined
           accept_node_tls_connections();
 
-          LOG_FAIL_FMT("Size of snapshot: {}", args.config.joining.snapshot.size());
-
-          // TODO: If there's a snapshot, deserialise it in the store
-          // TODO: Hooks need to be enabled by then
-          // if (args.config.joining.snapshot.has_value())
-          // {
-          //   LOG_FAIL_FMT("Applying snapshot to store...");
-          //   auto rc = network.tables->deserialise_snapshot(
-          //     args.config.joining.snapshot.value());
-          //   if (rc != kv::DeserialiseSuccess::PASS)
-          //   {
-          //     return Fail<CreateNew::Out>(
-          //       fmt::format("Failed to apply snapshot : {}", rc).c_str());
-          //   }
-          // }
+          LOG_FAIL_FMT(
+            "Size of snapshot: {}", args.config.joining.snapshot.size());
 
           sm.advance(State::pending);
 
@@ -446,11 +433,29 @@ namespace ccf
 
             setup_encryptor(resp.network_info.consensus_type);
             setup_consensus(resp.network_info.public_only);
-
-            // TODO: If we deserialised a snapshot in our store originally,
-            // setup Raft like we should (term, last_idx, etc.)
-
             setup_history();
+
+            // TODO: If there's a snapshot, deserialise it in the store
+            // TODO: Hooks need to be enabled by then
+            if (!args.config.joining.snapshot.empty())
+            {
+              LOG_FAIL_FMT("Applying snapshot to store...");
+              auto rc = network.tables->deserialise_snapshot(
+                args.config.joining.snapshot);
+              LOG_FAIL_FMT("rc: {}", rc);
+
+              // TODO: Handling error here is awkward and late :(
+              // if (rc != kv::DeserialiseSuccess::PASS)
+              // {
+              //   return Fail<CreateNew::Out>(
+              //     fmt::format("Failed to apply snapshot : {}", rc).c_str());
+              // }
+              consensus->force_become_backup(
+                network.tables->current_version(),
+                2); // TODO: 2 Hardcoded for now
+            }
+
+            // TODO: Setup Raft term
 
             open_member_frontend();
 
