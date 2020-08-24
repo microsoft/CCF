@@ -344,8 +344,6 @@ public:
 
 // used throughout
 auto kp = tls::make_key_pair();
-NetworkState network;
-NetworkState network2;
 auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
 NetworkState pbft_network(ConsensusType::PBFT);
@@ -357,9 +355,6 @@ auto history = std::make_shared<NullTxHistory>(
   *history_kp,
   pbft_network.signatures,
   pbft_network.nodes);
-
-ShareManager share_manager(network);
-StubNodeState stub_node(share_manager);
 
 auto create_simple_request(
   const std::string& method = "empty_function",
@@ -407,7 +402,8 @@ nlohmann::json parse_response_body(
   return serdes::unpack(body, pack);
 }
 
-std::optional<SignedReq> get_signed_req(CallerId caller_id)
+std::optional<SignedReq> get_signed_req(
+  NetworkState& network, CallerId caller_id)
 {
   kv::Tx tx;
   auto client_sig_view = tx.get_view(network.user_client_signatures);
@@ -453,21 +449,16 @@ UserId nos_id = INVALID_ID;
 MemberId member_id = INVALID_ID;
 MemberId invalid_member_id = INVALID_ID;
 
-void prepare_callers()
+void prepare_callers(NetworkState& network)
 {
   // It is necessary to set a consensus before committing the first transaction,
   // so that the KV batching done before calling into replicate() stays in
   // order.
-
-  // First, clear all previous callers since the same callers cannot be added
-  // twice to a store
-  network.tables->clear();
   auto backup_consensus = std::make_shared<kv::PrimaryStubConsensus>();
   network.tables->set_consensus(backup_consensus);
 
   kv::Tx tx;
   network.tables->set_encryptor(encryptor);
-  network2.tables->set_encryptor(encryptor);
 
   GenesisGenerator g(network, tx);
   g.init_values();
@@ -479,23 +470,10 @@ void prepare_callers()
   CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 
-void add_callers_primary_store()
-{
-  kv::Tx gen_tx;
-  network2.tables->clear();
-  GenesisGenerator g(network2, gen_tx);
-  g.init_values();
-  g.create_service({});
-  user_id = g.add_user({user_caller});
-  member_id = g.add_member(member_caller, dummy_key_share);
-  CHECK(g.finalize() == kv::CommitSuccess::OK);
-}
-
 void add_callers_pbft_store()
 {
   kv::Tx gen_tx;
   pbft_network.tables->set_encryptor(encryptor);
-  pbft_network.tables->clear();
   pbft_network.tables->set_history(history);
   auto backup_consensus =
     std::make_shared<kv::PrimaryStubConsensus>(ConsensusType::PBFT);
@@ -556,7 +534,8 @@ TEST_CASE("SignedReq to and from json")
 
 TEST_CASE("process with signatures")
 {
-  prepare_callers();
+  NetworkState network;
+  prepare_callers(network);
   TestUserFrontend frontend(*network.tables);
 
   SUBCASE("missing rpc")
@@ -589,7 +568,7 @@ TEST_CASE("process with signatures")
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
 
-      auto signed_resp = get_signed_req(user_id);
+      auto signed_resp = get_signed_req(network, user_id);
       CHECK(!signed_resp.has_value());
     }
 
@@ -599,7 +578,7 @@ TEST_CASE("process with signatures")
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
 
-      auto signed_resp = get_signed_req(user_id);
+      auto signed_resp = get_signed_req(network, user_id);
       REQUIRE(signed_resp.has_value());
       auto value = signed_resp.value();
       CHECK(value == signed_req);
@@ -627,7 +606,7 @@ TEST_CASE("process with signatures")
       const std::string error_msg(response.body.begin(), response.body.end());
       CHECK(error_msg.find("RPC must be signed") != std::string::npos);
 
-      auto signed_resp = get_signed_req(user_id);
+      auto signed_resp = get_signed_req(network, user_id);
       CHECK(!signed_resp.has_value());
     }
 
@@ -637,7 +616,7 @@ TEST_CASE("process with signatures")
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
 
-      auto signed_resp = get_signed_req(user_id);
+      auto signed_resp = get_signed_req(network, user_id);
       REQUIRE(signed_resp.has_value());
       auto value = signed_resp.value();
       CHECK(value == signed_req);
@@ -658,7 +637,7 @@ TEST_CASE("process with signatures")
     const auto response = parse_response(serialized_response);
     REQUIRE(response.status == HTTP_STATUS_OK);
 
-    auto signed_resp = get_signed_req(user_id);
+    auto signed_resp = get_signed_req(network, user_id);
     REQUIRE(signed_resp.has_value());
     auto value = signed_resp.value();
     CHECK(value.req.empty());
@@ -668,7 +647,8 @@ TEST_CASE("process with signatures")
 
 TEST_CASE("process with caller")
 {
-  prepare_callers();
+  NetworkState network;
+  prepare_callers(network);
   TestUserFrontend frontend(*network.tables);
 
   SUBCASE("endpoint does not require valid caller")
@@ -757,7 +737,8 @@ TEST_CASE("process with caller")
 
 TEST_CASE("No certs table")
 {
-  prepare_callers();
+  NetworkState network;
+  prepare_callers(network);
   TestNoCertsFrontend frontend(*network.tables);
   auto simple_call = create_simple_request();
   std::vector<uint8_t> serialized_call = simple_call.build_request();
@@ -784,7 +765,12 @@ TEST_CASE("No certs table")
 
 TEST_CASE("Member caller")
 {
-  prepare_callers();
+  NetworkState network;
+  prepare_callers(network);
+
+  ShareManager share_manager(network);
+  StubNodeState stub_node(share_manager);
+
   auto simple_call = create_simple_request();
   std::vector<uint8_t> serialized_call = simple_call.build_request();
   TestMemberFrontend frontend(network, stub_node, share_manager);
@@ -811,7 +797,8 @@ TEST_CASE("Member caller")
 
 TEST_CASE("MinimalEndpointFunction")
 {
-  prepare_callers();
+  NetworkState network;
+  prepare_callers(network);
   TestMinimalEndpointFunction frontend(*network.tables);
   for (const auto pack_type : {serdes::Pack::Text, serdes::Pack::MsgPack})
   {
@@ -912,7 +899,8 @@ TEST_CASE("MinimalEndpointFunction")
 
 TEST_CASE("Restricted verbs")
 {
-  prepare_callers();
+  NetworkState network;
+  prepare_callers(network);
   TestRestrictedVerbsFrontend frontend(*network.tables);
 
   for (auto verb = HTTP_DELETE; verb <= HTTP_SOURCE;
@@ -987,7 +975,8 @@ TEST_CASE("Restricted verbs")
 
 TEST_CASE("Explicit commitability")
 {
-  prepare_callers();
+  NetworkState network;
+  prepare_callers(network);
   TestExplicitCommitability frontend(*network.tables);
 
 #define XX(num, name, string) HTTP_STATUS_##name,
@@ -1088,7 +1077,8 @@ TEST_CASE("Explicit commitability")
 
 TEST_CASE("Alternative endpoints")
 {
-  prepare_callers();
+  NetworkState network;
+  prepare_callers(network);
   TestAlternativeHandlerTypes frontend(*network.tables);
 
   {
@@ -1114,7 +1104,8 @@ TEST_CASE("Alternative endpoints")
 
 TEST_CASE("Templated paths")
 {
-  prepare_callers();
+  NetworkState network;
+  prepare_callers(network);
   TestTemplatedPaths frontend(*network.tables);
 
   {
@@ -1158,8 +1149,8 @@ TEST_CASE("Templated paths")
 
 TEST_CASE("Signed read requests can be executed on backup")
 {
-  prepare_callers();
-
+  NetworkState network;
+  prepare_callers(network);
   TestUserFrontend frontend(*network.tables);
 
   auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
@@ -1183,19 +1174,22 @@ TEST_CASE("Signed read requests can be executed on backup")
 
 TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 {
-  prepare_callers();
+  NetworkState network_primary;
 
-  TestForwardingUserFrontEnd user_frontend_backup(*network.tables);
-  TestForwardingUserFrontEnd user_frontend_primary(*network2.tables);
+  NetworkState network_backup;
+  prepare_callers(network_backup);
+
+  TestForwardingUserFrontEnd user_frontend_primary(*network_primary.tables);
+  TestForwardingUserFrontEnd user_frontend_backup(*network_backup.tables);
+
+  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  network_primary.tables->set_consensus(primary_consensus);
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     nullptr, channel_stub, nullptr);
   auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
-  network.tables->set_consensus(backup_consensus);
-
-  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network2.tables->set_consensus(primary_consensus);
+  network_backup.tables->set_consensus(backup_consensus);
 
   auto simple_call = create_simple_request();
   auto serialized_call = simple_call.build_request();
@@ -1221,7 +1215,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
   {
     INFO("Read command is not forwarded to primary");
-    TestUserFrontend user_frontend_backup_read(*network.tables);
+    TestUserFrontend user_frontend_backup_read(*network_backup.tables);
     REQUIRE(channel_stub->is_empty());
 
     const auto r = user_frontend_backup_read.process(backup_ctx);
@@ -1253,9 +1247,10 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
       CHECK(response.status == HTTP_STATUS_FORBIDDEN);
     };
 
+    prepare_callers(network_primary);
+
     {
       INFO("Valid caller");
-      add_callers_primary_store();
       auto response =
         parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
       CHECK(response.status == HTTP_STATUS_OK);
@@ -1342,7 +1337,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     // A write was executed on this frontend (above), so reads must be
     // forwarded too for session consistency
     INFO("Read command is now forwarded to primary on this session");
-    TestUserFrontend user_frontend_backup_read(*network.tables);
+    TestUserFrontend user_frontend_backup_read(*network_backup.tables);
     REQUIRE(channel_stub->is_empty());
 
     const auto r = user_frontend_backup_read.process(backup_ctx);
@@ -1374,7 +1369,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     user_frontend_primary.process_forwarded(fwd_ctx);
 
     kv::Tx tx;
-    auto client_sig_view = tx.get_view(network2.user_client_signatures);
+    auto client_sig_view = tx.get_view(network_primary.user_client_signatures);
     auto client_sig = client_sig_view->get(user_id);
     REQUIRE(client_sig.has_value());
     REQUIRE(client_sig.value() == signed_req);
@@ -1389,7 +1384,6 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
     const auto r = user_frontend_primary.process(ctx);
     CHECK(r.has_value());
-    add_callers_primary_store();
     auto response = parse_response(r.value());
     CHECK(response.status == HTTP_STATUS_OK);
   }
@@ -1397,20 +1391,28 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
 TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
 {
-  prepare_callers();
+  NetworkState network_primary;
+  prepare_callers(network_primary);
 
-  TestForwardingNodeFrontEnd node_frontend_backup(network, stub_node);
-  TestForwardingNodeFrontEnd node_frontend_primary(network2, stub_node);
+  NetworkState network_backup;
+  prepare_callers(network_backup);
+
+  ShareManager share_manager(network_primary);
+  StubNodeState stub_node(share_manager);
+
+  TestForwardingNodeFrontEnd node_frontend_primary(network_primary, stub_node);
+  TestForwardingNodeFrontEnd node_frontend_backup(network_backup, stub_node);
+
   auto channel_stub = std::make_shared<ChannelStubProxy>();
+
+  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  network_primary.tables->set_consensus(primary_consensus);
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     nullptr, channel_stub, nullptr);
   node_frontend_backup.set_cmd_forwarder(backup_forwarder);
   auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
-  network.tables->set_consensus(backup_consensus);
-
-  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network2.tables->set_consensus(primary_consensus);
+  network_backup.tables->set_consensus(backup_consensus);
 
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();
@@ -1438,21 +1440,25 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
 
 TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
 {
-  prepare_callers();
-  add_callers_primary_store();
+  NetworkState network_primary;
+  prepare_callers(network_primary);
 
-  TestForwardingUserFrontEnd user_frontend_backup(*network.tables);
-  TestForwardingUserFrontEnd user_frontend_primary(*network2.tables);
+  NetworkState network_backup;
+  prepare_callers(network_backup);
+
+  TestForwardingUserFrontEnd user_frontend_primary(*network_primary.tables);
+  TestForwardingUserFrontEnd user_frontend_backup(*network_backup.tables);
+
   auto channel_stub = std::make_shared<ChannelStubProxy>();
+
+  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  network_primary.tables->set_consensus(primary_consensus);
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     nullptr, channel_stub, nullptr);
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
   auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
-  network.tables->set_consensus(backup_consensus);
-
-  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network2.tables->set_consensus(primary_consensus);
+  network_backup.tables->set_consensus(backup_consensus);
 
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();
@@ -1478,23 +1484,29 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
 
 TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
 {
-  prepare_callers();
-  add_callers_primary_store();
+  NetworkState network_primary;
+  prepare_callers(network_primary);
 
-  TestForwardingMemberFrontEnd member_frontend_backup(
-    *network.tables, network, stub_node, share_manager);
+  NetworkState network_backup;
+  prepare_callers(network_backup);
+
+  ShareManager share_manager(network_primary);
+  StubNodeState stub_node(share_manager);
+
   TestForwardingMemberFrontEnd member_frontend_primary(
-    *network2.tables, network2, stub_node, share_manager);
+    *network_primary.tables, network_primary, stub_node, share_manager);
+  TestForwardingMemberFrontEnd member_frontend_backup(
+    *network_backup.tables, network_backup, stub_node, share_manager);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
+
+  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  network_primary.tables->set_consensus(primary_consensus);
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     nullptr, channel_stub, nullptr);
   member_frontend_backup.set_cmd_forwarder(backup_forwarder);
   auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
-  network.tables->set_consensus(backup_consensus);
-
-  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network2.tables->set_consensus(primary_consensus);
+  network_backup.tables->set_consensus(backup_consensus);
 
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();
@@ -1554,8 +1566,8 @@ public:
 
 TEST_CASE("Signature is stored even after conflicts")
 {
-  prepare_callers();
-  add_callers_primary_store();
+  NetworkState network;
+  prepare_callers(network);
 
   TestConflictFrontend frontend(*network.tables);
 

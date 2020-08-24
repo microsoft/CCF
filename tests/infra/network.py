@@ -432,7 +432,7 @@ class Network:
                     else infra.node.NodeStatus.TRUSTED
                 ),
             )
-        except TimeoutError:
+        except TimeoutError as e:
             # The node can be safely discarded since it has not been
             # attributed a unique node_id by CCF
             LOG.error(f"New pending node {new_node.node_id} failed to join the network")
@@ -442,7 +442,7 @@ class Network:
                 # Throw accurate exceptions if known errors found in
                 for error in errors:
                     if "CODE_ID_NOT_FOUND" in error:
-                        raise CodeIdNotFound
+                        raise CodeIdNotFound from e
             raise
 
         return new_node
@@ -630,6 +630,27 @@ class Network:
             time.sleep(0.1)
         expected = [commits[0]] * len(commits)
         assert expected == commits, f"{commits} != {expected}"
+
+    def wait_for_new_primary(self, old_primary_id):
+        # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
+        # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
+        timeout = self.election_duration * 2
+        LOG.info(
+            f"Waiting up to {timeout}s for a new primary (different from {old_primary_id}) to be elected..."
+        )
+        end_time = time.time() + timeout
+        error = TimeoutError
+        while time.time() < end_time:
+            try:
+                new_primary, new_term = self.find_primary()
+                if new_primary.node_id != old_primary_id:
+                    return (new_primary, new_term)
+            except PrimaryNotFound:
+                error = PrimaryNotFound
+            except Exception:
+                pass
+            time.sleep(0.1)
+        raise error(f"A new primary was not elected after {timeout} seconds")
 
 
 @contextmanager
