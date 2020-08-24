@@ -77,7 +77,6 @@ all_tests_suite = [
     receipts.test,
     # reconfiguration:
     reconfiguration.test_add_node,
-    reconfiguration.test_retire_primary,
     reconfiguration.test_add_node_from_backup,
     reconfiguration.test_add_as_many_pending_nodes,
     reconfiguration.test_add_node_untrusted_code,
