@@ -97,7 +97,6 @@ namespace ccfapp
     }
     else
     {
-      // TODO: Should this just return null?
       return JS_ThrowRangeError(ctx, "No such key");
     }
   }
