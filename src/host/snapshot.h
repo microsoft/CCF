@@ -50,7 +50,7 @@ namespace asynchost
       if (fs::is_directory(snapshot_dir))
       {
         LOG_INFO_FMT(
-          "Snapshots will be stored in existing directory {}", snapshot_dir);
+          "Snapshots will be stored in existing directory: {}", snapshot_dir);
       }
       else if (!fs::create_directory(snapshot_dir))
       {

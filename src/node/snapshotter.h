@@ -130,8 +130,6 @@ namespace ccf
         idx,
         last_snapshot_idx);
 
-      LOG_FAIL_FMT("Snapshotting at {}?", idx);
-
       if (idx - last_snapshot_idx >= snapshot_interval)
       {
         auto msg = std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
@@ -139,7 +137,6 @@ namespace ccf
         msg->data.snapshot = network.tables->snapshot(idx);
 
         last_snapshot_idx = idx;
-        LOG_FAIL_FMT("YES! Snapshotting at {}", idx);
         threading::ThreadMessaging::thread_messaging.add_task(
           get_execution_thread(), std::move(msg));
       }
@@ -149,16 +146,12 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      LOG_FAIL_FMT("Compact snapshotter at {}", idx);
-
       while (!next_snapshot_indices.empty() &&
              (next_snapshot_indices.front() < idx))
       {
-        LOG_FAIL_FMT("Popping config at {}", next_snapshot_indices.front());
         next_snapshot_indices.pop_front();
       }
 
-      // TODO: This logic seems convoluted. Review again.
       if (next_snapshot_indices.empty())
       {
         next_snapshot_indices.push_back(last_snapshot_idx);
@@ -169,15 +162,9 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      LOG_FAIL_FMT(
-        "Requires snapshot at {}?, last: {}",
-        idx,
-        next_snapshot_indices.back());
-
       // Returns true if the idx will require the generation of a snapshot
       if ((idx - next_snapshot_indices.back()) >= snapshot_interval)
       {
-        LOG_FAIL_FMT("YES! Requires snapshot at: {}", idx);
         next_snapshot_indices.push_back(idx);
         return true;
       }
@@ -188,12 +175,9 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      LOG_FAIL_FMT("Rollback snapshotter at {}", idx);
-
       while (!next_snapshot_indices.empty() &&
              (next_snapshot_indices.back() > idx))
       {
-        LOG_FAIL_FMT("Popping config at {}", next_snapshot_indices.back());
         next_snapshot_indices.pop_back();
       }
 

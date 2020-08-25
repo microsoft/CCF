@@ -185,6 +185,11 @@ class Network:
         if from_snapshot:
             LOG.warning("Joining from snapshot")
             snapshot_dir = target_node.get_snapshots()
+            # For now, we must have a snapshot to resume from when attempting
+            # to join from one
+            assert (
+                len(os.listdir(snapshot_dir)) > 0
+            ), f"There are no snapshots to resume from in directory {snapshot_dir}"
 
         node.join(
             lib_name=lib_name,

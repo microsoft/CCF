@@ -643,13 +643,15 @@ int main(int argc, char** argv)
     auto snapshot_file = snapshots.find_latest_snapshot();
     if (snapshot_file.has_value())
     {
-      LOG_FAIL_FMT("Found latest snapshot file: {}", snapshot_file.value());
       ccf_config.joining.snapshot = files::slurp(snapshot_file.value());
-      LOG_FAIL_FMT("Size of snapshot: {}", ccf_config.joining.snapshot.size());
+      LOG_INFO_FMT(
+        "Found latest snapshot file: {} (size: {})",
+        snapshot_file.value(),
+        ccf_config.joining.snapshot.size());
     }
     else
     {
-      LOG_FAIL_FMT("No snapshot found, node will join from genesis");
+      LOG_INFO_FMT("No snapshot found, node will join from genesis");
     }
   }
   else if (*recover)

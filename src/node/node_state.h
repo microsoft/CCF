@@ -306,9 +306,6 @@ namespace ccf
           // has joined
           accept_node_tls_connections();
 
-          LOG_FAIL_FMT(
-            "Size of snapshot: {}", args.config.joining.snapshot.size());
-
           sm.advance(State::pending);
 
           return Success<CreateNew::Out>({node_cert, {}, {}});
