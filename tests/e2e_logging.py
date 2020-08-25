@@ -494,7 +494,7 @@ def test_view_history(network, args):
                 )
 
             # Compare view history between nodes
-            if len(previous_tx_ids):
+            if previous_tx_ids:
                 # Some nodes may have a slightly longer view history so only compare the common prefix
                 min_tx_ids_len = min(len(previous_tx_ids), len(tx_ids_condensed))
                 assert (
