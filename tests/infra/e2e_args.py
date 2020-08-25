@@ -135,6 +135,15 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Domain name used for node certificate verification, eg. example.com",
     )
     parser.add_argument(
+        "--sn",
+        help="Subject Name in node certificate, eg. CN=CCF Node",
+    )
+    parser.add_argument(
+        "--san",
+        help="Subject Alternative Name in node certificate. Can be either iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld",
+        action="append"
+    )
+    parser.add_argument(
         "--participants-curve",
         help="Curve to use for member and user identities",
         default=infra.network.ParticipantsCurve.secp384r1.name,

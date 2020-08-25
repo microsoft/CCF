@@ -297,6 +297,19 @@ int main(int argc, char** argv)
   app.add_option(
     "--domain", domain, "DNS to use for TLS certificate validation");
 
+  std::string subject_name("CN=CCF Node");
+  app
+    .add_option(
+      "--sn", subject_name, "Subject Name in node certificate, eg. CN=CCF Node")
+    ->capture_default_str();
+
+  std::vector<std::string> subject_alternative_names;
+  app.add_option(
+    "--san",
+    subject_alternative_names,
+    "Subject Alternative Name in node certificate. Can be either "
+    "iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld");
+
   size_t memory_reserve_startup = 0;
   app
     .add_option(
@@ -604,6 +617,9 @@ int main(int argc, char** argv)
                                   rpc_address.port};
   ccf_config.domain = domain;
   ccf_config.snapshot_interval = snapshot_max_tx;
+
+  ccf_config.subject_name = subject_name;
+  ccf_config.subject_alternative_names = subject_alternative_names;
 
   if (*start)
   {

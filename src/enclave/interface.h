@@ -66,6 +66,9 @@ struct CCFConfig
   };
   Joining joining = {};
 
+  std::string subject_name;
+  std::vector<std::string> subject_alternative_names;
+
   MSGPACK_DEFINE(
     consensus_config,
     node_info_network,
@@ -73,7 +76,9 @@ struct CCFConfig
     snapshot_interval,
     signature_intervals,
     genesis,
-    joining);
+    joining,
+    subject_name,
+    subject_alternative_names);
 };
 
 /// General administrative messages
