@@ -31,8 +31,9 @@ jobs:
     - script: |
         python3.7 -m venv env
         source ./env/bin/activate
-        python setup.py sdist
-        pip install twine
+        pip install -r requirements.txt
+        pip install wheel twine
+        python setup.py bdist_wheel
         twine upload -u __token__ -p $(pypi_token) dist/*
       workingDirectory: python
       displayName: PyPi https://pypi.org/project/ccf/

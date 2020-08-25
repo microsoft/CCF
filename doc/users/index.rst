@@ -20,6 +20,7 @@ Before issuing business transactions to CCF, the certificates of trusted users n
 
     deploy_app
     issue_commands
+    verify_quote
     python_tutorial
     python_api
     rpc_api

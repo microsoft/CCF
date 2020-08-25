@@ -18,6 +18,7 @@ cd nested/run
 python3.7 -m venv env
 source env/bin/activate
 python -m pip install -U -r "$INSTALL_PREFIX"/bin/requirements.txt
+python -m pip install ../../../python
 
 # Start ephemeral network in the background
 network_info_file="network_info.txt"
