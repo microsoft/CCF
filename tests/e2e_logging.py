@@ -446,7 +446,7 @@ def test_view_history(network, args):
     check = infra.checker.Checker()
 
     previous_node = None
-    previous_tx_ids = None
+    previous_tx_ids = ""
     for node in network.get_joined_nodes():
         with node.client("user0") as c:
             r = c.get("/node/commit")
@@ -494,7 +494,7 @@ def test_view_history(network, args):
                 )
 
             # Compare view history between nodes
-            if previous_tx_ids is not None:
+            if len(previous_tx_ids):
                 # Some nodes may have a slightly longer view history so only compare the common prefix
                 min_tx_ids_len = min(len(previous_tx_ids), len(tx_ids_condensed))
                 assert (
