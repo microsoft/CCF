@@ -155,37 +155,43 @@ TEST_CASE("Variadic write" * doctest::test_suite("ringbuffer"))
   r.read(1, [&](Message m, const uint8_t* data, size_t size) {
     REQUIRE(Const::msg_min == m);
 
-    auto r0 = serialized::read<decltype(v0)>(data, size);
+    auto r0 = serialized::read<std::remove_const_t<decltype(v0)>>(data, size);
     REQUIRE(v0 == r0);
 
-    auto r1 = serialized::read<decltype(v1)>(data, size);
+    auto r1 = serialized::read<std::remove_const_t<decltype(v1)>>(data, size);
     REQUIRE(v1 == r1);
 
-    auto r2 = serialized::read<decltype(v2)>(data, size);
+    auto r2 = serialized::read<std::remove_const_t<decltype(v2)>>(data, size);
     REQUIRE(v2 == r2);
 
-    auto r3 = serialized::read<decltype(v3)>(data, size);
+    auto r3 = serialized::read<std::remove_const_t<decltype(v3)>>(data, size);
     REQUIRE(v3 == r3);
 
-    auto s4 = serialized::read<decltype(v4.size())>(data, size);
+    auto s4 =
+      serialized::read<std::remove_const_t<decltype(v4.size())>>(data, size);
     REQUIRE(v4.size() == s4);
 
     for (size_t i = 0; i < s4; ++i)
     {
-      auto r4i = serialized::read<decltype(v4)::value_type>(data, size);
+      auto r4i =
+        serialized::read<std::remove_const_t<decltype(v4)>::value_type>(
+          data, size);
       REQUIRE(v4[i] == r4i);
     }
 
-    auto s5 = serialized::read<decltype(v5_limit)>(data, size);
+    auto s5 =
+      serialized::read<std::remove_const_t<decltype(v5_limit)>>(data, size);
     REQUIRE(v5_limit == s5);
 
     for (size_t i = 0; i < s5; ++i)
     {
-      auto r5i = serialized::read<decltype(v4)::value_type>(data, size);
+      auto r5i =
+        serialized::read<std::remove_const_t<decltype(v4)>::value_type>(
+          data, size);
       REQUIRE(v4[i] == r5i);
     }
 
-    auto r6 = serialized::read<decltype(v6)>(data, size);
+    auto r6 = serialized::read<std::remove_const_t<decltype(v6)>>(data, size);
     REQUIRE(v6 == r6);
 
     REQUIRE(size == 0);

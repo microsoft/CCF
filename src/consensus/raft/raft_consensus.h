@@ -13,16 +13,21 @@ namespace raft
   // the Raft API, allowing for a mapping between the generic consensus
   // terminology and the terminology that is specific to Raft
 
-  template <class LedgerProxy, class ChannelProxy>
+  template <class... T>
   class RaftConsensus : public kv::Consensus
   {
   private:
-    std::unique_ptr<Raft<LedgerProxy, ChannelProxy>> raft;
+    std::unique_ptr<Raft<T...>> raft;
+    ConsensusType consensus_type;
+    bool is_open;
 
   public:
-    RaftConsensus(std::unique_ptr<Raft<LedgerProxy, ChannelProxy>> raft_) :
+    RaftConsensus(
+      std::unique_ptr<Raft<T...>> raft_, ConsensusType consensus_type_) :
       Consensus(raft_->id()),
-      raft(std::move(raft_))
+      raft(std::move(raft_)),
+      consensus_type(consensus_type_),
+      is_open(false)
     {}
 
     bool is_primary() override
@@ -105,8 +110,9 @@ namespace raft
       raft->enable_all_domains();
     }
 
-    void set_f(size_t) override
+    void open_network() override
     {
+      is_open = true;
       return;
     }
 
@@ -116,9 +122,15 @@ namespace raft
         "Method should not be called when using raft consensus");
     }
 
+    bool on_request(const kv::TxHistory::RequestCallbackArgs&) override
+    {
+      throw ccf::ccf_logic_error("Not implemented");
+      return true;
+    }
+
     ConsensusType type() override
     {
-      return ConsensusType::RAFT;
+      return consensus_type;
     }
   };
 }

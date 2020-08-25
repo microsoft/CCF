@@ -302,10 +302,10 @@ namespace ccf
          }},
         {"new_user",
          [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
-           const auto pem_cert = args.get<tls::Pem>();
+           const auto user_info = args.get<ccf::UserInfo>();
 
            GenesisGenerator g(this->network, tx);
-           g.add_user(pem_cert);
+           g.add_user(user_info);
 
            return true;
          }},

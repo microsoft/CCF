@@ -17,7 +17,7 @@
 #include "enclave/rpc_map.h"
 #include "enclave/rpc_sessions.h"
 #include "kv/kv_types.h"
-#include "node/nodetypes.h"
+#include "node/node_types.h"
 
 #include <list>
 #include <memory>
@@ -129,8 +129,8 @@ namespace pbft
       if (threading::ThreadMessaging::thread_count > 1)
       {
         uint16_t tid = threading::ThreadMessaging::get_execution_thread(to);
-        threading::ThreadMessaging::thread_messaging
-          .add_task<SendAuthenticatedAEMsg>(tid, std::move(tmsg));
+        threading::ThreadMessaging::thread_messaging.add_task(
+          tid, std::move(tmsg));
       }
       else
       {
@@ -297,8 +297,8 @@ namespace pbft
       {
         uint16_t tid = threading::ThreadMessaging::get_execution_thread(
           ++execution_thread_counter);
-        threading::ThreadMessaging::thread_messaging
-          .add_task<SendAuthenticatedMsg>(tid, std::move(tmsg));
+        threading::ThreadMessaging::thread_messaging.add_task(
+          tid, std::move(tmsg));
       }
       else
       {
@@ -702,9 +702,8 @@ namespace pbft
         msg, &recv_authenticated_msg_process_cb);
       if (threading::ThreadMessaging::thread_count > 1)
       {
-        threading::ThreadMessaging::thread_messaging
-          .add_task<RecvAuthenticatedMsg>(
-            threading::ThreadMessaging::main_thread, std::move(msg));
+        threading::ThreadMessaging::thread_messaging.add_task(
+          threading::ThreadMessaging::main_thread, std::move(msg));
       }
       else
       {
@@ -749,10 +748,9 @@ namespace pbft
 
           if (threading::ThreadMessaging::thread_count > 1)
           {
-            threading::ThreadMessaging::thread_messaging
-              .add_task<RecvAuthenticatedMsg>(
-                recv_nonce.tid % threading::ThreadMessaging::thread_count,
-                std::move(tmsg));
+            threading::ThreadMessaging::thread_messaging.add_task(
+              recv_nonce.tid % threading::ThreadMessaging::thread_count,
+              std::move(tmsg));
           }
           else
           {
@@ -878,9 +876,9 @@ namespace pbft
       }
     }
 
-    void set_f(size_t f) override
+    void open_network(ConsensusType consensus_type) override
     {
-      message_receiver_base->set_f(f);
+      message_receiver_base->open_network(consensus_type);
     }
 
     void emit_signature() override

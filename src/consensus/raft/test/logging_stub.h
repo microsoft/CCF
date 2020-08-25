@@ -6,6 +6,7 @@
 #include "consensus/raft/raft_types.h"
 
 #include <map>
+#include <optional>
 #include <vector>
 
 namespace raft
@@ -21,7 +22,10 @@ namespace raft
 
     LedgerStubProxy(NodeId id) : _id(id) {}
 
-    void put_entry(const std::vector<uint8_t>& data, bool globally_committable)
+    void put_entry(
+      const std::vector<uint8_t>& data,
+      bool globally_committable,
+      bool force_chunk)
     {
 #ifdef STUB_LOG
       std::cout << "  Node" << _id << "->>Ledger" << _id
@@ -85,34 +89,40 @@ namespace raft
 
     void destroy_channel(NodeId peer_id) {}
 
+    void destroy_all_channels() {}
+
     void close_all_outgoing() {}
 
-    void send_authenticated(
+    bool send_authenticated(
       const ccf::NodeMsgType& msg_type, NodeId to, const RequestVote& data)
     {
       sent_request_vote.push_back(std::make_pair(to, data));
+      return true;
     }
 
-    void send_authenticated(
+    bool send_authenticated(
       const ccf::NodeMsgType& msg_type, NodeId to, const AppendEntries& data)
     {
       sent_append_entries.push_back(std::make_pair(to, data));
+      return true;
     }
 
-    void send_authenticated(
+    bool send_authenticated(
       const ccf::NodeMsgType& msg_type,
       NodeId to,
       const RequestVoteResponse& data)
     {
       sent_request_vote_response.push_back(std::make_pair(to, data));
+      return true;
     }
 
-    void send_authenticated(
+    bool send_authenticated(
       const ccf::NodeMsgType& msg_type,
       NodeId to,
       const AppendEntriesResponse& data)
     {
       sent_append_entries_response.push_back(std::make_pair(to, data));
+      return true;
     }
 
     size_t sent_msg_count() const
@@ -182,6 +192,34 @@ namespace raft
       Term* term = nullptr) override
     {
       return kv::DeserialiseSuccess::PASS_SIGNATURE;
+    }
+  };
+
+  class StubSnapshotter
+  {
+  public:
+    void snapshot(Index)
+    {
+      // For now, do not test snapshots in unit tests
+      return;
+    }
+
+    bool requires_snapshot(Index)
+    {
+      // For now, do not test snapshots in unit tests
+      return false;
+    }
+
+    void compact(Index)
+    {
+      // For now, do not test snapshots in unit tests
+      return;
+    }
+
+    void rollback(Index)
+    {
+      // For now, do not test snapshots in unit tests
+      return;
     }
   };
 }

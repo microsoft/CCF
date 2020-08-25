@@ -7,7 +7,7 @@ trigger:
 
 jobs:
 - job: build_and_publish_docs
-  container: ccfciteam/ccf-ci:oe0.10-lvi
+  container: ccfciteam/ccf-ci:oe0.10-npm
   pool:
     vmImage: ubuntu-18.04
 
@@ -21,6 +21,11 @@ jobs:
         git rev-parse HEAD
         git checkout -b master $(git rev-parse HEAD)
       displayName: Prepare repo
+
+    # Used to generate setup.py
+    - template: .azure-pipelines-templates/cmake.yml
+      parameters:
+        cmake_args: ''
 
     - script: |
         python3.7 -m venv env

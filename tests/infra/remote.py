@@ -562,8 +562,9 @@ class CCFRemote(object):
         ledger_dir=None,
         log_format_json=None,
         binary_dir=".",
-        ledger_chunk_max_bytes=(5 * 1024 * 1024),
+        ledger_chunk_min_bytes=(5 * 1024 * 1024),
         domain=None,
+        snapshot_max_tx=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -629,8 +630,8 @@ class CCFRemote(object):
         if memory_reserve_startup:
             cmd += [f"--memory-reserve-startup={memory_reserve_startup}"]
 
-        if ledger_chunk_max_bytes:
-            cmd += [f"--ledger-chunk-max-bytes={ledger_chunk_max_bytes}"]
+        if ledger_chunk_min_bytes:
+            cmd += [f"--ledger-chunk-min-bytes={ledger_chunk_min_bytes}"]
 
         if notify_server:
             notify_server_host, *notify_server_port = notify_server.split(":")
@@ -648,6 +649,9 @@ class CCFRemote(object):
 
         if domain:
             cmd += [f"--domain={domain}"]
+
+        if snapshot_max_tx:
+            cmd += [f"--snapshot-max-tx={snapshot_max_tx}"]
 
         if start_type == StartType.new:
             cmd += [

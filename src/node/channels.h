@@ -5,7 +5,7 @@
 #include "crypto/symmetric_key.h"
 #include "ds/logger.h"
 #include "entities.h"
-#include "nodetypes.h"
+#include "node_types.h"
 #include "tls/key_exchange.h"
 #include "tls/key_pair.h"
 
@@ -496,6 +496,11 @@ namespace ccf
       }
 
       channels.erase(peer_id);
+    }
+
+    void destroy_all_channels()
+    {
+      channels.clear();
     }
 
     void close_all_outgoing()

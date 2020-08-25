@@ -256,7 +256,7 @@ namespace kv::untyped
         if (change_set.writes.empty())
           return;
 
-        map.trigger_local_hook();
+        map.trigger_local_hook(commit_version, change_set.writes);
       }
 
       // Used by owning map during serialise and deserialise
@@ -317,7 +317,7 @@ namespace kv::untyped
 
         std::vector<uint8_t> ret(map_snapshot.get_serialized_size());
         map_snapshot.serialize(ret.data());
-        s.serialise_snapshot(ret);
+        s.serialise_raw(ret);
       }
 
       SecurityDomain get_security_domain() override
@@ -421,6 +421,85 @@ namespace kv::untyped
           s.serialise_remove(it->first);
         }
       }
+    }
+
+    class SnapshotViewCommitter : public AbstractTxView
+    {
+    private:
+      Map& map;
+
+      SnapshotChangeSet change_set;
+
+    public:
+      template <typename... Ts>
+      SnapshotViewCommitter(Map& m, Ts&&... ts) :
+        map(m),
+        change_set(std::forward<Ts>(ts)...)
+      {}
+
+      bool has_writes() override
+      {
+        return true;
+      }
+
+      virtual bool has_changes() override
+      {
+        return true;
+      }
+
+      bool prepare() override
+      {
+        // Snapshots never conflict
+        return true;
+      }
+
+      void commit(Version) override
+      {
+        // Version argument is ignored. The version of the roll after the
+        // snapshot is applied depends on the version of the map at which the
+        // snapshot was taken.
+        map.roll.reset_commits();
+        map.roll.rollback_counter++;
+
+        auto r = map.roll.commits->get_head();
+
+        r->state = change_set.state;
+        r->version = change_set.version;
+
+        // Executing hooks from snapshot requires copying the entire snapshotted
+        // state so only do it if there's an hook on the table
+        if (map.local_hook || map.global_hook)
+        {
+          r->state.foreach([&r](const K& k, const VersionV& v) {
+            if (!is_deleted(v.version))
+            {
+              r->writes[k] = v.value;
+            }
+            return true;
+          });
+        }
+      }
+
+      void post_commit() override
+      {
+        auto r = map.roll.commits->get_head();
+        map.trigger_local_hook(change_set.version, r->writes);
+      }
+
+      SnapshotChangeSet& get_change_set()
+      {
+        return change_set;
+      }
+    };
+
+    AbstractTxView* deserialise_snapshot(KvStoreDeserialiser& d) override
+    {
+      // Create a new empty view, deserialising d's contents into it.
+      auto v = d.deserialise_entry_version();
+      auto map_snapshot = d.deserialise_raw();
+
+      return new SnapshotViewCommitter(
+        *this, State::deserialize_map(map_snapshot), v);
     }
 
     AbstractTxView* deserialise(
@@ -621,20 +700,6 @@ namespace kv::untyped
         name, security_domain, r->version, StateSnapshot(r->state));
     }
 
-    void apply_snapshot(
-      Version version, const std::vector<uint8_t>& snapshot) override
-    {
-      // This discards all entries in the roll and applies the given
-      // snapshot. The Map expects to be locked while applying the snapshot.
-      roll.reset_commits();
-      roll.rollback_counter++;
-
-      auto r = roll.commits->get_head();
-
-      r->state = State::deserialize_map(snapshot);
-      r->version = version;
-    }
-
     void compact(Version v) override
     {
       // This discards available rollback state before version v, and populates
@@ -786,12 +851,11 @@ namespace kv::untyped
       return roll;
     }
 
-    void trigger_local_hook()
+    void trigger_local_hook(Version version, const Write& writes)
     {
       if (local_hook)
       {
-        auto last_commit = roll.commits->get_tail();
-        local_hook(last_commit->version, last_commit->writes);
+        local_hook(version, writes);
       }
     }
   };

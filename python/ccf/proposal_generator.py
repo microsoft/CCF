@@ -7,7 +7,6 @@ import inspect
 import json
 import os
 import sys
-import functools
 from pathlib import PurePosixPath
 from typing import Union, Optional, Any
 
@@ -239,9 +238,11 @@ def retire_member(member_id: int, **kwargs):
 
 
 @cli_proposal
-def new_user(user_cert_path: str, **kwargs):
-    user_cert = open(user_cert_path).read()
-    return build_proposal("new_user", user_cert, **kwargs)
+def new_user(user_cert_path: str, user_data: Any = None, **kwargs):
+    user_info = {"cert": open(user_cert_path).read()}
+    if user_data is not None:
+        user_info["user_data"] = user_data
+    return build_proposal("new_user", user_info, **kwargs)
 
 
 @cli_proposal
@@ -250,7 +251,7 @@ def remove_user(user_id: int, **kwargs):
 
 
 @cli_proposal
-def set_user_data(user_id: int, user_data: dict, **kwargs):
+def set_user_data(user_id: int, user_data: Any, **kwargs):
     proposal_args = {"user_id": user_id, "user_data": user_data}
     return build_proposal("set_user_data", proposal_args, **kwargs)
 
@@ -355,53 +356,6 @@ def update_root_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
         
     args = {"name": cert_name, "cert": cert_pem}
     return build_proposal("update_root_ca_cert", args, **kwargs)
-
-
-class ProposalGenerator:
-    def __init__(self, common_dir: str = "."):
-        self.common_dir = common_dir
-
-        # Auto-generate methods wrapping inspected functions, dumping outputs to file
-        def wrapper(func):
-            @functools.wraps(func)
-            def wrapper_func(
-                *args,
-                proposal_output_path_: Optional[str] = None,
-                vote_output_path_: Optional[str] = None,
-                **kwargs,
-            ):
-                proposal_output_path = complete_proposal_output_path(
-                    func.__name__,
-                    proposal_output_path=proposal_output_path_,
-                    common_dir=self.common_dir,
-                )
-
-                vote_output_path = complete_vote_output_path(
-                    func.__name__,
-                    vote_output_path=vote_output_path_,
-                    common_dir=self.common_dir,
-                )
-
-                proposal_object, vote_object = func(*args, **kwargs)
-                dump_args = {"indent": 2}
-
-                LOG.debug(f"Writing proposal to {proposal_output_path}")
-                dump_to_file(proposal_output_path, proposal_object, dump_args)
-
-                LOG.debug(f"Writing vote to {vote_output_path}")
-                dump_to_file(vote_output_path, vote_object, dump_args)
-
-                return f"@{proposal_output_path}", f"@{vote_output_path}"
-
-            return wrapper_func
-
-        module = inspect.getmodule(inspect.currentframe())
-        proposal_generators = inspect.getmembers(module, predicate=inspect.isfunction)
-
-        for func_name, func in proposal_generators:
-            # Only wrap decorated functions
-            if hasattr(func, "is_cli_proposal"):
-                setattr(self, func_name, wrapper(func))
 
 
 if __name__ == "__main__":

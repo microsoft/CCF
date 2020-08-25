@@ -20,7 +20,9 @@ namespace asynchost
   class HandleRingbufferImpl
   {
   private:
-    static constexpr size_t max_messages = 128;
+    // Maximum number of outbound ringbuffer messages which will be processed in
+    // a single iteration
+    static constexpr size_t max_messages = 256;
 
     messaging::BufferProcessor& bp;
     ringbuffer::Reader& r;
@@ -67,11 +69,8 @@ namespace asynchost
     {
       // On each uv loop iteration...
 
-      // ...read (and process) all outbound ringbuffer messages...
-      while (bp.read_n(max_messages, r) > 0)
-      {
-        continue;
-      }
+      // ...read (and process) some outbound ringbuffer messages...
+      bp.read_n(max_messages, r);
 
       // ...flush any pending inbound messages...
       nbwf.flush_all_inbound();

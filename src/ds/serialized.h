@@ -22,15 +22,15 @@ namespace serialized
   }
 
   template <class T>
-  __attribute__((no_sanitize("undefined"))) T read(
-    const uint8_t*& data, size_t& size)
+  T read(const uint8_t*& data, size_t& size)
   {
     if (size < sizeof(T))
       throw std::logic_error(
         "Insufficient space (read<T>: " + std::to_string(size) + " < " +
         std::to_string(sizeof(T)) + ")");
 
-    T v = *(T*)data;
+    T v;
+    std::memcpy(reinterpret_cast<uint8_t*>(&v), data, sizeof(T));
     data += sizeof(T);
     size -= sizeof(T);
     return v;
@@ -75,15 +75,15 @@ namespace serialized
   };
 
   template <class T>
-  __attribute__((no_sanitize("undefined"))) void write(
-    uint8_t*& data, size_t& size, T v)
+  void write(uint8_t*& data, size_t& size, const T& v)
   {
     if (size < sizeof(T))
       throw std::logic_error(
         "Insufficient space (write<T>: " + std::to_string(size) + " < " +
         std::to_string(sizeof(T)) + ")");
 
-    *reinterpret_cast<T*>(data) = v;
+    const auto src = reinterpret_cast<const uint8_t*>(&v);
+    std::memcpy(data, src, sizeof(T));
     data += sizeof(T);
     size -= sizeof(T);
   }

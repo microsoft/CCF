@@ -38,18 +38,13 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake
 )
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pbft.cmake)
 
 configure_file(
   ${CCF_DIR}/src/host/version.h.in ${CCF_GENERATED_DIR}/version.h @ONLY
 )
 configure_file(${CCF_DIR}/python/setup.py.in ${CCF_DIR}/python/setup.py @ONLY)
 
-if(PBFT_TESTS)
-  set(CONSENSUSES raft pbft)
-else()
-  set(CONSENSUSES raft)
-endif()
+set(CONSENSUSES raft)
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
@@ -95,7 +90,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            lua.enclave
            secp256k1.enclave
            sss.enclave
-           byz.enclave
   )
 
   set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -149,7 +143,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            lua.host
            secp256k1.host
            sss.host
-           byz.host
            #TODO: replace with openenclave::oehostverify once OE 0.11 is released (OE#3312)
            openenclave::oehost
            ${CMAKE_THREAD_LIBS_INIT}
@@ -266,6 +259,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_serialisation.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_snapshot.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_dynamic_tables.cpp
     )
     use_client_mbedtls(kv_test)
     target_link_libraries(
@@ -335,6 +329,11 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
     )
     target_link_libraries(historical_queries_test PRIVATE secp256k1.host)
+
+    add_unit_test(
+      snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
+    )
+    target_link_libraries(snapshot_test PRIVATE secp256k1.host)
 
     add_unit_test(
       msgpack_serialization_test
@@ -487,8 +486,6 @@ if(BUILD_TESTS)
     NAME governance_history_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_history.py
     CONSENSUS raft
-    ADDITIONAL_ARGS # https://github.com/microsoft/CCF/issues/1275
-                    --ledger-chunk-max-bytes 20MB
   )
 
   add_e2e_test(
@@ -565,11 +562,24 @@ if(BUILD_TESTS)
                     ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua
   )
 
+  add_e2e_test(
+    NAME modules_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/modules.py
+    CONSENSUS raft
+  )
+
   if(QUOTES_ENABLED)
     add_e2e_test(
       NAME reconfiguration_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
       CONSENSUS raft
+    )
+
+    add_e2e_test(
+      NAME reconfiguration_snapshot_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+      CONSENSUS raft
+      ADDITIONAL_ARGS --snapshot-max-tx 10
     )
 
     add_e2e_test(
@@ -584,12 +594,6 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
       CONSENSUS raft
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
-    )
-
-    add_e2e_test(
-      NAME modules_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/modules.py
-      CONSENSUS raft
     )
 
     add_e2e_test(

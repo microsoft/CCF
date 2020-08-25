@@ -12,7 +12,7 @@
 namespace raft
 {
   using Index = int64_t;
-  using Term = uint64_t;
+  using Term = int64_t;
   using NodeId = uint64_t;
   using Node2NodeMsg = uint64_t;
 
@@ -44,15 +44,17 @@ namespace raft
     S deserialise(
       const std::vector<uint8_t>& data,
       bool public_only = false,
-      Term* term = nullptr)
+      Term* term = nullptr) override
     {
       auto p = x.lock();
       if (p)
+      {
         return p->deserialise(data, public_only, term);
+      }
       return S::FAILED;
     }
 
-    void compact(Index v)
+    void compact(Index v) override
     {
       auto p = x.lock();
       if (p)
@@ -61,18 +63,22 @@ namespace raft
       }
     }
 
-    void rollback(Index v, std::optional<Term> t = std::nullopt)
+    void rollback(Index v, std::optional<Term> t = std::nullopt) override
     {
       auto p = x.lock();
       if (p)
+      {
         p->rollback(v, t);
+      }
     }
 
-    void set_term(Term t)
+    void set_term(Term t) override
     {
       auto p = x.lock();
       if (p)
+      {
         p->set_term(t);
+      }
     }
   };
 

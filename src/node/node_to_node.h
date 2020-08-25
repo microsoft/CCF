@@ -5,7 +5,7 @@
 #include "channels.h"
 #include "ds/serialized.h"
 #include "enclave/rpc_handler.h"
-#include "nodetypes.h"
+#include "node_types.h"
 
 #include <algorithm>
 #define FMT_HEADER_ONLY
@@ -56,6 +56,11 @@ namespace ccf
     void close_all_outgoing()
     {
       channels->close_all_outgoing();
+    }
+
+    void destroy_all_channels()
+    {
+      channels->destroy_all_channels();
     }
 
     template <class T>

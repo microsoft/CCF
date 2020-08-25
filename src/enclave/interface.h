@@ -37,6 +37,7 @@ struct CCFConfig
   consensus::Config consensus_config = {};
   ccf::NodeInfoNetwork node_info_network = {};
   std::string domain;
+  size_t snapshot_interval;
 
   struct SignatureIntervals
   {
@@ -69,6 +70,7 @@ struct CCFConfig
     consensus_config,
     node_info_network,
     domain,
+    snapshot_interval,
     signature_intervals,
     genesis,
     joining);
@@ -93,7 +95,10 @@ enum AdminMessage : ringbuffer::Message
   DEFINE_RINGBUFFER_MSG_TYPE(notification),
 
   /// Periodically update based on current time. Host -> Enclave
-  DEFINE_RINGBUFFER_MSG_TYPE(tick)
+  DEFINE_RINGBUFFER_MSG_TYPE(tick),
+
+  /// Notify the host of work done since last message. Enclave -> Host
+  DEFINE_RINGBUFFER_MSG_TYPE(work_stats)
 };
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
@@ -110,3 +115,4 @@ DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stopped);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   AdminMessage::notification, std::vector<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::tick, size_t);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::work_stats, std::string);

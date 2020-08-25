@@ -17,6 +17,9 @@ namespace ccfapp
 
   using Table = kv::Map<std::vector<uint8_t>, std::vector<uint8_t>>;
 
+  JSClassID tables_class_id;
+  JSClassID view_class_id;
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
@@ -70,9 +73,11 @@ namespace ccfapp
   }
 
   static JSValue js_get(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    auto table_view = (Table::TxView*)JS_GetContextOpaque(ctx);
+    auto table_view =
+      static_cast<Table::TxView*>(JS_GetOpaque(this_val, view_class_id));
+
     if (argc != 1)
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 1", argc);
@@ -86,16 +91,22 @@ namespace ccfapp
     JS_FreeCString(ctx, k);
 
     if (v.has_value())
+    {
       return JS_NewStringLen(
         ctx, (const char*)v.value().data(), v.value().size());
+    }
     else
+    {
       return JS_ThrowRangeError(ctx, "No such key");
+    }
   }
 
   static JSValue js_remove(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    auto table_view = (Table::TxView*)JS_GetContextOpaque(ctx);
+    auto table_view =
+      static_cast<Table::TxView*>(JS_GetOpaque(this_val, view_class_id));
+
     if (argc != 1)
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 1", argc);
@@ -109,15 +120,21 @@ namespace ccfapp
     JS_FreeCString(ctx, k);
 
     if (v)
+    {
       return JS_NULL;
+    }
     else
+    {
       return JS_ThrowRangeError(ctx, "Failed to remove at key");
+    }
   }
 
   static JSValue js_put(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    auto table_view = (Table::TxView*)JS_GetContextOpaque(ctx);
+    auto table_view =
+      static_cast<Table::TxView*>(JS_GetOpaque(this_val, view_class_id));
+
     if (argc != 2)
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 2", argc);
@@ -143,6 +160,37 @@ namespace ccfapp
     return r;
   }
 
+  static int js_tables_lookup(
+    JSContext* ctx,
+    JSPropertyDescriptor* desc,
+    JSValueConst this_val,
+    JSAtom property)
+  {
+    const auto property_name = JS_AtomToCString(ctx, property);
+    LOG_TRACE_FMT("Looking for table '{}'", property_name);
+
+    auto tx_ptr = static_cast<kv::Tx*>(JS_GetOpaque(this_val, tables_class_id));
+    auto view = tx_ptr->get_view2<Table>(property_name);
+
+    auto view_val = JS_NewObjectClass(ctx, view_class_id);
+    JS_SetOpaque(view_val, view);
+
+    JS_SetPropertyStr(
+      ctx, view_val, "get", JS_NewCFunction(ctx, ccfapp::js_get, "get", 1));
+    JS_SetPropertyStr(
+      ctx, view_val, "put", JS_NewCFunction(ctx, ccfapp::js_put, "put", 2));
+    JS_SetPropertyStr(
+      ctx,
+      view_val,
+      "remove",
+      JS_NewCFunction(ctx, ccfapp::js_remove, "remove", 1));
+
+    desc->flags = 0;
+    desc->value = view_val;
+
+    return true;
+  }
+
   struct JSModuleLoaderArg
   {
     ccf::NetworkTables* network;
@@ -159,7 +207,7 @@ namespace ccfapp
       module_name_kv.insert(0, "/");
     }
 
-    LOG_INFO_FMT("Loading module '{}'", module_name_kv);
+    LOG_TRACE_FMT("Loading module '{}'", module_name_kv);
 
     auto arg = (JSModuleLoaderArg*)opaque;
 
@@ -196,14 +244,25 @@ namespace ccfapp
   {
   private:
     NetworkTables& network;
-    Table& table;
+
+    JSClassDef tables_class_def = {};
+    JSClassExoticMethods tables_exotic_methods = {};
+
+    JSClassDef view_class_def = {};
 
   public:
     JSHandlers(NetworkTables& network) :
       UserEndpointRegistry(network),
-      network(network),
-      table(network.tables->create<Table>("data"))
+      network(network)
     {
+      JS_NewClassID(&tables_class_id);
+      tables_exotic_methods.get_own_property = js_tables_lookup;
+      tables_class_def.class_name = "KV Tables";
+      tables_class_def.exotic = &tables_exotic_methods;
+
+      JS_NewClassID(&view_class_id);
+      view_class_def.class_name = "KV View";
+
       auto default_handler = [this](EndpointContext& args) {
         const auto method = args.rpc_ctx->get_method();
         const auto local_method = method.substr(method.find_first_not_of('/'));
@@ -241,6 +300,8 @@ namespace ccfapp
           throw std::runtime_error("Failed to initialise QuickJS runtime");
         }
 
+        JS_SetMaxStackSize(rt, 1024 * 1024);
+
         JSModuleLoaderArg js_module_loader_arg{&this->network, &args.tx};
         JS_SetModuleLoaderFunc(
           rt, nullptr, js_module_loader, &js_module_loader_arg);
@@ -252,8 +313,25 @@ namespace ccfapp
           throw std::runtime_error("Failed to initialise QuickJS context");
         }
 
-        auto ltv = args.tx.get_view(table);
-        JS_SetContextOpaque(ctx, (void*)ltv);
+        // Register class for tables
+        {
+          auto ret = JS_NewClass(rt, tables_class_id, &tables_class_def);
+          if (ret != 0)
+          {
+            throw std::logic_error(
+              "Failed to register JS class definition for KV tables");
+          }
+        }
+
+        // Register class for views
+        {
+          auto ret = JS_NewClass(rt, view_class_id, &view_class_def);
+          if (ret != 0)
+          {
+            throw std::logic_error(
+              "Failed to register JS class definition for KV view");
+          }
+        }
 
         auto global_obj = JS_GetGlobalObject(ctx);
 
@@ -265,18 +343,8 @@ namespace ccfapp
           JS_NewCFunction(ctx, ccfapp::js_print, "log", 1));
         JS_SetPropertyStr(ctx, global_obj, "console", console);
 
-        auto data = JS_NewObject(ctx);
-        JS_SetPropertyStr(
-          ctx, data, "get", JS_NewCFunction(ctx, ccfapp::js_get, "get", 1));
-        JS_SetPropertyStr(
-          ctx, data, "put", JS_NewCFunction(ctx, ccfapp::js_put, "put", 2));
-        JS_SetPropertyStr(
-          ctx,
-          data,
-          "remove",
-          JS_NewCFunction(ctx, ccfapp::js_remove, "remove", 1));
-        auto tables_ = JS_NewObject(ctx);
-        JS_SetPropertyStr(ctx, tables_, "data", data);
+        auto tables_ = JS_NewObjectClass(ctx, tables_class_id);
+        JS_SetOpaque(tables_, &args.tx);
         JS_SetPropertyStr(ctx, global_obj, "tables", tables_);
 
         const auto& request_query = args.rpc_ctx->get_request_query();
@@ -298,7 +366,7 @@ namespace ccfapp
 
         // Compile module
         std::string code = handler_script.value().text.value();
-        auto path = fmt::format("/__endpoint__{}.js", local_method);
+        const std::string path = "/__endpoint__.js";
         JSValue module = JS_Eval(
           ctx,
           code.c_str(),

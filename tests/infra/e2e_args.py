@@ -166,9 +166,14 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=30,
     )
     parser.add_argument(
-        "--ledger-chunk-max-bytes",
-        help="Minimum size (bytes) at which a new ledger chunk is created.",
+        "--ledger-chunk-min-bytes",
+        help="Minimum size (bytes) at which a new ledger chunk is created",
         default="20KB",
+    )
+    parser.add_argument(
+        "--snapshot-max-tx",
+        help="Maximum number of transactions between two snapshots",
+        default=None,
     )
 
     add(parser)
