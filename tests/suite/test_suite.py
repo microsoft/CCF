@@ -26,6 +26,17 @@ suite_rekey_recovery = [
 ]
 suites["rekey_recovery"] = suite_rekey_recovery
 
+suites["term_history"] = [
+    reconfiguration.test_add_node,
+    e2e_logging.test_view_history,
+    election.test_kill_primary,
+    reconfiguration.test_add_node,
+    e2e_logging.test,
+    # reconfiguration.test_add_node,
+    # election.test_kill_primary,
+    e2e_logging.test_view_history,
+]
+
 # This suite tests that membership changes and recoveries can be interleaved
 suite_membership_recovery = [
     memberclient.test_add_member,
