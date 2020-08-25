@@ -183,7 +183,7 @@ class Network:
 
         snapshot_dir = None
         if from_snapshot:
-            LOG.warning("Joining from snapshot")
+            LOG.info("Joining from snapshot")
             snapshot_dir = target_node.get_snapshots()
             # For now, we must have a snapshot to resume from when attempting
             # to join from one

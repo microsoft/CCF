@@ -428,9 +428,11 @@ namespace ccf
 
             if (!args.config.joining.snapshot.empty())
             {
-              // It is only possible to apply the snapshot then, once the ledger
-              // secrets have been passed in by the network
-              LOG_DEBUG_FMT("Applying snapshot to store...");
+              // It is only possible to deserialise the snapshot then, once the
+              // ledger secrets have been passed in by the network
+              LOG_DEBUG_FMT(
+                "Deserialising snapshot ({})",
+                args.config.joining.snapshot.size());
               auto rc = network.tables->deserialise_snapshot(
                 args.config.joining.snapshot);
 
@@ -952,7 +954,8 @@ namespace ccf
         }
 
         default:
-        {}
+        {
+        }
       }
     }
 

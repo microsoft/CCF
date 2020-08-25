@@ -28,6 +28,8 @@ namespace raft
     std::vector<Index> terms;
 
   public:
+    static constexpr Term InvalidTerm = ccf::VIEW_UNKNOWN;
+
     void initialise(const std::vector<Index>& terms_)
     {
       terms.clear();
@@ -67,7 +69,7 @@ namespace raft
       // Indices before the index of the first term are unknown
       if (it == terms.begin())
       {
-        return ccf::VIEW_UNKNOWN;
+        return InvalidTerm;
       }
 
       return (it - terms.begin());

@@ -242,7 +242,6 @@ class Node:
         # Until the node has joined, the SSL handshake will fail as the node
         # is not yet endorsed by the network certificate
 
-        # TODO: Change this with snapshots!!
         try:
             with self.client(connection_timeout=timeout) as nc:
                 rep = nc.get("/node/commit")

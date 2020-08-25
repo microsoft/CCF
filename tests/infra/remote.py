@@ -67,14 +67,14 @@ def log_errors(out_path, err_path):
                 stripped_line = line.rstrip()
                 tail_lines.append(stripped_line)
                 if any(x in stripped_line for x in error_filter):
-                    # LOG.error("{}: {}".format(out_path, stripped_line))
+                    LOG.error("{}: {}".format(out_path, stripped_line))
                     error_lines.append(stripped_line)
         if error_lines:
             LOG.info(
                 "{} errors found, printing end of output for context:", len(error_lines)
             )
-            # for line in tail_lines:
-                # LOG.info(line)
+            for line in tail_lines:
+                LOG.info(line)
     except IOError:
         LOG.exception("Could not check output {} for errors".format(out_path))
 
@@ -585,7 +585,6 @@ class CCFRemote(object):
             if self.ledger_dir
             else f"{local_node_id}.ledger"
         )
-        # TODO: To check with SSH remote and start_test_network.sh
         self.snapshot_dir = os.path.normpath(snapshot_dir) if snapshot_dir else None
         self.snapshot_dir_name = (
             os.path.basename(self.snapshot_dir) if self.snapshot_dir else "snapshots"
@@ -685,8 +684,6 @@ class CCFRemote(object):
             data_files += [os.path.join(self.common_dir, "networkcert.pem")]
 
             if snapshot_dir:
-                # TODO: Only copy latest snapshot??
-                LOG.warning("Copying snapshot dir to remote")
                 data_files += [snapshot_dir]
         elif start_type == StartType.recover:
             cmd += ["recover", "--network-cert-file=networkcert.pem"]
