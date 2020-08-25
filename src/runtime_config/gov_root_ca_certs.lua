@@ -13,7 +13,8 @@ return {
   STATE_ACTIVE = "ACTIVE"
 
   -- Root CA validation definitions
-  EXPECTED_MRSIGNER = "ca9ad7331448980aa28890ce73e433638377f179ab4456b2fe237193193a8d0a"
+  EXPECTED_SIGNER_ID = "5e5410aaf99a32e32df2a97d579e65f8310f274816ec4f34cedeeb1be410a526"
+  EXPECTED_ATTRIBUTES = "0300000000000000"
 
   -- count member votes
   member_votes = 0
@@ -55,14 +56,14 @@ return {
     if call.func == "update_root_ca_cert" then
       cert_der = pem_to_der(call.args.cert)
       claims = verify_cert_and_get_claims(cert_der)
-      if claims.mrsigner ~= EXPECTED_MRSIGNER then
-        LOG_INFO("mrsigner mismatch: ", EXPECTED_MRSIGNER, " != ", claims.mrsigner)
+      if claims.signer_id ~= EXPECTED_SIGNER_ID then
+        LOG_INFO("signer_id mismatch: ", EXPECTED_SIGNER_ID, " != ", claims.signer_id)
         return REJECTED
       end
-      --if claims.is_debuggable then
-      --  LOG_INFO("quote in cert has debuggable bit set")
-      --  return REJECTED
-      --end
+      if claims.attributes ~= EXPECTED_ATTRIBUTES then
+        LOG_INFO("attributes mismatch: ", EXPECTED_ATTRIBUTES, " != ", claims.attributes)
+        return REJECTED
+      end
       return PASSED
     end
   end

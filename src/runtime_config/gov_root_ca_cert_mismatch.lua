@@ -13,9 +13,10 @@ return {
   STATE_ACTIVE = "ACTIVE"
 
   -- Root CA validation definitions
-  -- This MRSIGNER is intentially random and does not match the actual certificate.
+  -- This SIGNER_ID is intentially random and does not match the actual certificate.
   -- See the governance_root_ca_cert_mismatch.py test.
-  EXPECTED_MRSIGNER = "abcd"
+  EXPECTED_SIGNER_ID = "abcd"
+  EXPECTED_ATTRIBUTES = "0300000000000000"
 
   -- count member votes
   member_votes = 0
@@ -57,8 +58,12 @@ return {
     if call.func == "update_root_ca_cert" then
       cert_der = pem_to_der(call.args.cert)
       claims = verify_cert_and_get_claims(cert_der)
-      if claims.mrsigner ~= EXPECTED_MRSIGNER then
-        LOG_INFO("mrsigner mismatch: ", EXPECTED_MRSIGNER, " != ", claims.mrsigner)
+      if claims.signer_id ~= EXPECTED_SIGNER_ID then
+        LOG_INFO("signer_id mismatch: ", EXPECTED_SIGNER_ID, " != ", claims.signer_id)
+        return REJECTED
+      end
+      if claims.attributes ~= EXPECTED_ATTRIBUTES then
+        LOG_INFO("attributes mismatch: ", EXPECTED_ATTRIBUTES, " != ", claims.attributes)
         return REJECTED
       end
       return PASSED

@@ -53,7 +53,7 @@ def test_cert_store(network, args):
             assert False, "Proposal should not have been created"
 
     LOG.info("Member makes a root ca cert update proposal with valid cert")
-    ca_cert_path = os.path.join(this_dir, "root_ca_cert.pem")
+    ca_cert_path = os.path.join(this_dir, "maa_root_ca_cert.pem")
     proposal_body, _ = ccf.proposal_generator.update_root_ca_cert(
         "mycert", ca_cert_path
     )

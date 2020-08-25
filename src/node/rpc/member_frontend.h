@@ -8,6 +8,7 @@
 #include "node/members.h"
 #include "node/nodes.h"
 #include "node/quote.h"
+#include "node/maa.h"
 #include "node/secret_share.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
@@ -53,12 +54,6 @@ namespace ccf
       return 1;
     }
 
-#if 0
-    // Uses the new API: oe_verify_attestation_certificate_with_evidence.
-    // Requires OE 0.11. (OE#3312)
-    // The quote is assumed to be an OE attestation (with oe_attestation_header_t header)
-    // stored at 1.2.840.113556.10.1.2 in the cert.
-
     static oe_result_t oe_verify_attestation_certificate_with_evidence_cb(
       oe_claim_t* claims, size_t claims_length, void* arg)
     {
@@ -81,7 +76,7 @@ namespace ccf
       std::map<std::string, std::vector<uint8_t>> claims;
 
       oe_verifier_initialize();
-      oe_result_t res = oe_verify_attestation_certificate_with_evidence(
+      oe_result_t res = verify_maa_root_ca_certificate(
         cert_der.data(),
         cert_der.size(),
         oe_verify_attestation_certificate_with_evidence_cb,
@@ -99,64 +94,14 @@ namespace ccf
 
       for (auto const& item : claims)
       {
-        LOG_INFO_FMT("claim: {}", item.first);
         std::string val_hex = fmt::format("{:02x}", fmt::join(item.second, ""));
+        LOG_INFO_FMT("claim[{}] = {}", item.first, val_hex);
         lua::push_raw(l, val_hex);
         lua_setfield(l, table_idx, item.first.c_str());
       }
 
       return 1;
     }
-#else
-    // Uses the old API: oe_verify_attestation_certificate.
-    // The quote is assumed to be an OE report (with oe_report_header_t header)
-    // stored at 1.2.840.113556.10.1.1 in the cert.
-
-    static oe_result_t oe_verify_attestation_certificate_cb(
-      oe_identity_t* identity, void* arg)
-    {
-      std::memcpy(arg, identity, sizeof(oe_identity_t));
-      return OE_OK;
-    }
-
-    static int lua_verify_cert_and_get_claims(lua_State* l)
-    {
-      LOG_INFO_FMT("lua_verify_cert_and_get_claims");
-      nlohmann::json json = lua::check_get<nlohmann::json>(l, -1);
-      std::vector<uint8_t> cert_der = json;
-
-      oe_identity_t identity;
-      oe_result_t res = oe_verify_attestation_certificate(
-        cert_der.data(),
-        cert_der.size(),
-        oe_verify_attestation_certificate_cb,
-        &identity);
-
-      if (res != OE_OK)
-      {
-        throw std::runtime_error("certificate not valid");
-      }
-
-      lua_newtable(l);
-      const int table_idx = -2;
-
-      std::string mrsigner =
-        fmt::format("{:02x}", fmt::join(identity.signer_id, ""));
-      lua::push_raw(l, mrsigner);
-      lua_setfield(l, table_idx, "mrsigner");
-
-      std::string mrenclave =
-        fmt::format("{:02x}", fmt::join(identity.unique_id, ""));
-      lua::push_raw(l, mrenclave);
-      lua_setfield(l, table_idx, "mrenclave");
-
-      lua::push_raw(
-        l, static_cast<bool>(identity.attributes & OE_REPORT_ATTRIBUTES_DEBUG));
-      lua_setfield(l, table_idx, "is_debuggable");
-
-      return 1;
-    }
-#endif
 
   public:
     MemberTsr(NetworkTables& network) : TxScriptRunner(network) {}

@@ -24,7 +24,7 @@ def test_cert_mrsigner_mismatch(network, args):
     primary, _ = network.find_nodes()
 
     LOG.info("Member makes a root ca cert update proposal with mismatching MRSIGNER")
-    ca_cert_path = os.path.join(this_dir, "root_ca_cert.pem")
+    ca_cert_path = os.path.join(this_dir, "maa_root_ca_cert.pem")
     proposal_body, _ = ccf.proposal_generator.update_root_ca_cert(
         "mycert", ca_cert_path
     )
