@@ -28,8 +28,6 @@ namespace raft
     std::vector<Index> terms;
 
   public:
-    static constexpr Term InvalidTerm = 0;
-
     void initialise(const std::vector<Index>& terms_)
     {
       terms.clear();
@@ -56,7 +54,9 @@ namespace raft
       }
 
       for (int64_t i = terms.size(); i < term; ++i)
+      {
         terms.push_back(idx);
+      }
       LOG_DEBUG_FMT("Resulting terms: {}", fmt::join(terms, ", "));
     }
 
@@ -66,7 +66,9 @@ namespace raft
 
       // Indices before the index of the first term are unknown
       if (it == terms.begin())
-        return InvalidTerm;
+      {
+        return ccf::VIEW_UNKNOWN;
+      }
 
       return (it - terms.begin());
     }
@@ -272,23 +274,19 @@ namespace raft
 
     void force_become_follower(Index index, Term term)
     {
-      // This is unsafe and should only be called when the node is certain
-      // there is no leader and no other node will attempt to force leadership.
-      if (leader_id != NoNode)
-        throw std::logic_error(
-          "Can't force followershing if there is already a leader");
-
+      // This should only be called when the node resumes from a snapshot and
+      // before it has received any append entries.
       std::lock_guard<SpinLock> guard(lock);
 
       last_idx = index;
-      current_term = term;
+      commit_idx = index;
 
-      // TODO: Bad, should be retrieved from snapshot instead
-      term_history.update(1, 2);
       term_history.update(index, term);
 
       ledger->init(index);
-      snapshotter->set_last_snapshot_idx(index); // TODO: Is this always true??
+      snapshotter->set_last_snapshot_idx(index);
+
+      become_follower(term);
     }
 
     Index get_last_idx()
@@ -712,7 +710,6 @@ namespace raft
 
           case kv::DeserialiseSuccess::PASS_SIGNATURE:
           {
-            LOG_DEBUG_FMT("Commit idx: {}", commit_idx);
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
             committable_indices.push_back(i);
 
