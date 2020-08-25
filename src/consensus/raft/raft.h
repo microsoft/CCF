@@ -693,7 +693,6 @@ namespace raft
 
           case kv::DeserialiseSuccess::PASS_SIGNATURE:
           {
-            LOG_DEBUG_FMT("Commit idx: {}", commit_idx);
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
             committable_indices.push_back(i);
 
