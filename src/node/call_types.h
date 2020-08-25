@@ -24,7 +24,7 @@ namespace ccf
   {
     struct In
     {
-      CCFConfig config;
+      CCFConfig& config;
     };
   };
 }

@@ -126,12 +126,6 @@ namespace ccf
       return {{}, false};
     }
 
-    template <typename T>
-    static Result<T> Fail(const std::string& s)
-    {
-      return Fail<T>(s.c_str());
-    }
-
     //
     // this node's core state
     //
@@ -298,7 +292,7 @@ namespace ccf
 
           accept_network_tls_connections(args.config);
 
-          reset_quote();
+          reset_data(quote);
           sm.advance(State::partOfNetwork);
 
           return Success<CreateNew::Out>(
@@ -359,7 +353,7 @@ namespace ccf
     //
     // funcs in state "pending"
     //
-    void initiate_join(const Join::In& args)
+    void initiate_join(Join::In& args)
     {
       auto network_ca =
         std::make_shared<tls::CA>(args.config.joining.network_cert);
@@ -373,7 +367,7 @@ namespace ccf
       join_client->connect(
         args.config.joining.target_host,
         args.config.joining.target_port,
-        [this, args](
+        [this, &args](
           http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
           std::lock_guard<SpinLock> guard(lock);
           if (!sm.check(State::pending))
@@ -435,27 +429,39 @@ namespace ccf
             setup_consensus(resp.network_info.public_only);
             setup_history();
 
-            // TODO: If there's a snapshot, deserialise it in the store
-            // TODO: Hooks need to be enabled by then
             if (!args.config.joining.snapshot.empty())
             {
-              LOG_FAIL_FMT("Applying snapshot to store...");
+              // It is only possible to apply the snapshot then, once the ledger
+              // secrets have been passed in by the network
+              LOG_DEBUG_FMT("Applying snapshot to store...");
               auto rc = network.tables->deserialise_snapshot(
                 args.config.joining.snapshot);
-              LOG_FAIL_FMT("rc: {}", rc);
 
-              // TODO: Handling error here is awkward and late :(
-              // if (rc != kv::DeserialiseSuccess::PASS)
-              // {
-              //   return Fail<CreateNew::Out>(
-              //     fmt::format("Failed to apply snapshot : {}", rc).c_str());
-              // }
-              consensus->force_become_backup(
-                network.tables->current_version(),
-                2); // TODO: 2 Hardcoded for now
+              if (rc != kv::DeserialiseSuccess::PASS)
+              {
+                throw std::logic_error(
+                  fmt::format("Failed to apply snapshot: {}", rc));
+              }
+
+              kv::ReadOnlyTx tx;
+              auto sig_view = tx.get_read_only_view(network.signatures);
+              auto sig = sig_view->get(0);
+              if (!sig.has_value())
+              {
+                throw std::logic_error(
+                  fmt::format("No signatures found after applying snapshot"));
+              }
+
+              auto seqno = network.tables->current_version();
+              consensus->force_become_backup(seqno, sig->view);
+
+              reset_data(args.config.joining.snapshot);
+              LOG_INFO_FMT(
+                "Joiner successfully resumed from snapshot at seqno {} and "
+                "view {}",
+                seqno,
+                sig->view);
             }
-
-            // TODO: Setup Raft term
 
             open_member_frontend();
 
@@ -470,7 +476,7 @@ namespace ccf
             }
             else
             {
-              reset_quote();
+              reset_data(quote);
               sm.advance(State::partOfNetwork);
             }
 
@@ -516,7 +522,7 @@ namespace ccf
       join_client->send_request(r.build_request());
     }
 
-    void join(const Join::In& args)
+    void join(Join::In& args)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::pending);
@@ -525,7 +531,7 @@ namespace ccf
 
       join_timer = timers.new_timer(
         std::chrono::milliseconds(args.config.joining.join_timer),
-        [this, args]() {
+        [this, &args]() {
           if (sm.check(State::pending))
           {
             initiate_join(args);
@@ -772,7 +778,7 @@ namespace ccf
         }
       }
 
-      reset_quote();
+      reset_data(quote);
       sm.advance(State::partOfNetwork);
     }
 
@@ -1317,10 +1323,10 @@ namespace ccf
         .raw();
     }
 
-    void reset_quote()
+    void reset_data(std::vector<uint8_t>& data)
     {
-      quote.clear();
-      quote.shrink_to_fit();
+      data.clear();
+      data.shrink_to_fit();
     }
 
     void backup_finish_recovery()

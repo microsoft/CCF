@@ -134,8 +134,7 @@ namespace enclave
       // <= node_cert_size is checked by the EDL-generated wrapper
 
       start_type = start_type_;
-      ccf_config = ccf_config_; // TODO: This copies the entire snapshot,
-                                // perhaps delete it once used?
+      ccf_config = ccf_config_;
 
       auto r = node->create({start_type, ccf_config});
       if (!r.second)
@@ -319,7 +318,8 @@ namespace enclave
 
         if (start_type == StartType::Join)
         {
-          node->join({ccf_config});
+          ccf::Join::In args = {ccf_config};
+          node->join(args);
         }
         else if (start_type == StartType::Recover)
         {
