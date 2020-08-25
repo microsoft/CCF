@@ -526,7 +526,7 @@ namespace ccf
     {
       update_consensus();
 
-      kv::Tx tx;
+      auto tx = tables.create_tx();
 
       auto caller_id = endpoints.get_caller_id(tx, ctx->session->caller_cert);
 
@@ -584,7 +584,7 @@ namespace ccf
     ProcessPbftResp process_pbft(
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
-      kv::Tx tx;
+      auto tx = tables.create_tx();
       return process_pbft(ctx, tx, false);
     }
 
@@ -649,7 +649,7 @@ namespace ccf
 
       update_consensus();
 
-      kv::Tx tx;
+      auto tx = tables.create_tx();
 
       auto rep =
         process_command(ctx, tx, ctx->session->original_caller->caller_id);
