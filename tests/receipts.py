@@ -30,7 +30,8 @@ def test(network, args, notifications_queue=None):
             check(c.get("/app/log/private?id=42"), result={"msg": msg})
             for _ in range(10):
                 c.post(
-                    "/app/log/private", {"id": 43, "msg": "Additional messages"},
+                    "/app/log/private",
+                    {"id": 43, "msg": "Additional messages"},
                 )
             check_commit(
                 c.post("/app/log/private", {"id": 43, "msg": "A final message"}),
