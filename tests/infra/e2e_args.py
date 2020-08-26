@@ -74,13 +74,16 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         action="store_true",
     )
     parser.add_argument(
-        "--sig-max-tx", help="Max transactions between signatures", type=int
+        "--sig-tx-interval",
+        help="Number of transactions between signatures",
+        type=int,
+        default=5000,
     )
     parser.add_argument(
-        "--sig-max-ms",
-        help="Max milliseconds between signatures",
+        "--sig-ms-interval",
+        help="Milliseconds between signatures",
         type=int,
-        default=100,
+        default=1000,
     )
     parser.add_argument(
         "--memory-reserve-startup",

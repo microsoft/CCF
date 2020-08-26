@@ -190,18 +190,18 @@ int main(int argc, char** argv)
       "Path to which the node PID will be written")
     ->capture_default_str();
 
-  size_t sig_max_tx = 5000;
+  size_t sig_tx_interval = 5000;
   app
     .add_option(
-      "--sig-max-tx",
-      sig_max_tx,
-      "Maximum number of transactions between signatures")
+      "--sig-tx-interval",
+      sig_tx_interval,
+      "Number of transactions between signatures")
     ->capture_default_str();
 
-  size_t sig_max_ms = 1000;
+  size_t sig_ms_interval = 1000;
   app
     .add_option(
-      "--sig-max-ms", sig_max_ms, "Maximum milliseconds between signatures")
+      "--sig-ms-interval", sig_ms_interval, "Milliseconds between signatures")
     ->capture_default_str();
 
   size_t circuit_size_shift = 22;
@@ -596,7 +596,7 @@ int main(int argc, char** argv)
                                  raft_election_timeout,
                                  pbft_view_change_timeout,
                                  pbft_status_interval};
-  ccf_config.signature_intervals = {sig_max_tx, sig_max_ms};
+  ccf_config.signature_intervals = {sig_tx_interval, sig_ms_interval};
   ccf_config.node_info_network = {rpc_address.hostname,
                                   public_rpc_address.hostname,
                                   node_address.hostname,

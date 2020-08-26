@@ -62,8 +62,8 @@ class Network:
     node_args_to_forward = [
         "enclave_type",
         "host_log_level",
-        "sig_max_tx",
-        "sig_max_ms",
+        "sig_tx_interval",
+        "sig_ms_interval",
         "raft_election_timeout",
         "pbft_view_change_timeout",
         "consensus",

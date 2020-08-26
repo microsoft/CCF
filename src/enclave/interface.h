@@ -41,9 +41,9 @@ struct CCFConfig
 
   struct SignatureIntervals
   {
-    size_t sig_max_tx;
-    size_t sig_max_ms;
-    MSGPACK_DEFINE(sig_max_tx, sig_max_ms);
+    size_t sig_tx_interval;
+    size_t sig_ms_interval;
+    MSGPACK_DEFINE(sig_tx_interval, sig_ms_interval);
   };
   SignatureIntervals signature_intervals = {};
 

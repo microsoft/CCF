@@ -550,8 +550,8 @@ class CCFRemote(object):
         members_info=None,
         join_timer=None,
         host_log_level="info",
-        sig_max_tx=1000,
-        sig_max_ms=1000,
+        sig_tx_interval=5000,
+        sig_ms_interval=1000,
         raft_election_timeout=1000,
         pbft_view_change_timeout=5000,
         consensus="raft",
@@ -621,11 +621,11 @@ class CCFRemote(object):
         if log_format_json:
             cmd += ["--log-format-json"]
 
-        if sig_max_tx:
-            cmd += [f"--sig-max-tx={sig_max_tx}"]
+        if sig_tx_interval:
+            cmd += [f"--sig-tx-interval={sig_tx_interval}"]
 
-        if sig_max_ms:
-            cmd += [f"--sig-max-ms={sig_max_ms}"]
+        if sig_ms_interval:
+            cmd += [f"--sig-ms-interval={sig_ms_interval}"]
 
         if memory_reserve_startup:
             cmd += [f"--memory-reserve-startup={memory_reserve_startup}"]

@@ -359,7 +359,7 @@ namespace pbft
       std::unique_ptr<pbft::PbftStore> store_,
       std::shared_ptr<ChannelProxy> channels_,
       NodeId id,
-      size_t sig_max_tx,
+      size_t sig_tx_interval,
       std::unique_ptr<consensus::LedgerEnclave> ledger_,
       std::shared_ptr<enclave::RPCMap> rpc_map,
       std::shared_ptr<enclave::RPCSessions> rpcsessions_,
@@ -390,7 +390,7 @@ namespace pbft
       general_info.status_timeout = consensus_config.pbft_status_interval;
       general_info.recovery_timeout = 9999250000;
       general_info.max_requests_between_signatures =
-        sig_max_tx / Max_requests_in_batch;
+        sig_tx_interval / Max_requests_in_batch;
       general_info.support_threading = true;
 
       // Adding myself
