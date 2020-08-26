@@ -19,12 +19,4 @@ namespace ccf
       tls::Pem network_enc_pubk;
     };
   };
-
-  struct Join
-  {
-    struct In
-    {
-      CCFConfig& config;
-    };
-  };
 }

@@ -318,8 +318,7 @@ namespace enclave
 
         if (start_type == StartType::Join)
         {
-          ccf::Join::In args = {ccf_config};
-          node->join(args);
+          node->join(ccf_config);
         }
         else if (start_type == StartType::Recover)
         {
