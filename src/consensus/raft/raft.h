@@ -546,6 +546,7 @@ namespace raft
         LOG_FAIL_FMT(err.what());
         return;
       }
+
       LOG_DEBUG_FMT(
         "Received pt: {} pi: {} t: {} i: {}",
         r.prev_term,
@@ -618,7 +619,7 @@ namespace raft
       if (r.prev_idx < commit_idx)
       {
         LOG_DEBUG_FMT(
-          "Recv append entries to {} from {} but prev_idex ({}) < commit_idx "
+          "Recv append entries to {} from {} but prev_idx ({}) < commit_idx "
           "({})",
           local_id,
           r.from_node,
@@ -684,22 +685,34 @@ namespace raft
         switch (deserialise_success)
         {
           case kv::DeserialiseSuccess::FAILED:
+          {
             throw std::logic_error(
               "Follower failed to apply log entry " + std::to_string(i));
             break;
+          }
 
           case kv::DeserialiseSuccess::PASS_SIGNATURE:
+          {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
             committable_indices.push_back(i);
+
             if (sig_term)
+            {
               term_history.update(commit_idx + 1, sig_term);
+              commit_if_possible(r.leader_commit_idx);
+            }
             break;
+          }
 
           case kv::DeserialiseSuccess::PASS:
+          {
             break;
+          }
 
           default:
+          {
             throw std::logic_error("Unknown DeserialiseSuccess value");
+          }
         }
       }
 
