@@ -36,12 +36,15 @@ namespace aft
     kv::Version receive_request(
       std::unique_ptr<RequestMessage> request) override
     {
+      /*
       CCF_ASSERT(
         threading::get_current_thread_id() ==
           threading::ThreadMessaging::main_thread,
         "Should be executed on the main thread");
       return ExecutionUtilities::execute_request(
         std::move(request), state->commit_idx == 0);
+      */
+      return 0;
     }
 
     bool receive_message(OArray& oa, kv::NodeId from) override

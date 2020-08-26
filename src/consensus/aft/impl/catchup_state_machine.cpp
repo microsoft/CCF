@@ -206,6 +206,7 @@ namespace aft
 
     kv::Version commit_replayed_request(kv::Tx& tx)
     {
+      /*
       auto tx_view = tx.get_view(pbft_requests_map);
       auto req_v = tx_view->get(0);
       CCF_ASSERT(
@@ -223,6 +224,8 @@ namespace aft
 
       return ExecutionUtilities::execute_request(
         std::move(request_message), state->commit_idx == 0);
+      */
+      return 0;
     }
   };
 

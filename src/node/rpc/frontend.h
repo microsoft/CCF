@@ -449,6 +449,7 @@ namespace ccf
           update_metrics(ctx, endpoint->metrics);
           return ctx->serialise_response();
         }
+        /*
         catch (const kv::KvSerialiserException& e)
         {
           // If serialising the committed transaction fails, there is no way
@@ -456,7 +457,7 @@ namespace ccf
           // Better to abort.
           LOG_DEBUG_FMT("Failed to serialise: {}", e.what());
           LOG_FATAL_FMT("Failed to serialise");
-          abort();
+          //abort();
         }
         catch (const std::exception& e)
         {
@@ -465,6 +466,7 @@ namespace ccf
           update_metrics(ctx, endpoint->metrics);
           return ctx->serialise_response();
         }
+        */
       }
     }
 

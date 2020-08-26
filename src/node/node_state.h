@@ -1548,6 +1548,7 @@ namespace ccf
       setup_n2n_channels();
       setup_cmd_forwarder();
 
+      auto shared_state = std::make_shared<aft::ServiceState>(self);
       auto raft = std::make_unique<RaftType>(
         network.consensus_type,
         std::make_unique<aft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
@@ -1559,7 +1560,9 @@ namespace ccf
         rpc_map,
         node_cert.raw(),
         network.pbft_requests_map,
-        self,
+        shared_state,
+        std::make_shared<aft::ExecutionUtilitiesImpl>(
+          network.pbft_requests_map, shared_state, rpc_map, rpcsessions),
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         public_only);
@@ -1575,7 +1578,7 @@ namespace ccf
       // can add a new active configuration.
       network.nodes.set_local_hook(
         [this](kv::Version version, const Nodes::Write& w) {
-          if (network.consensus_type != ConsensusType::PBFT)
+          //if (network.consensus_type != ConsensusType::PBFT)
           {
             bool configure = false;
             auto configuration = consensus->get_latest_configuration();
@@ -1616,6 +1619,7 @@ namespace ccf
               consensus->add_configuration(version, configuration);
             }
           }
+          /*
           else
           {
             for (const auto& [node_id, opt_ni] : w)
@@ -1634,6 +1638,7 @@ namespace ccf
               consensus->add_configuration(version, configuration);
             }
           }
+          */
         });
 
       setup_basic_hooks();
