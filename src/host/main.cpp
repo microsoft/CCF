@@ -146,12 +146,12 @@ int main(int argc, char** argv)
     ->capture_default_str()
     ->transform(CLI::AsSizeValue(true)); // 1000 is kb
 
-  size_t snapshot_max_tx = std::numeric_limits<std::size_t>::max();
+  size_t snapshot_tx_interval = std::numeric_limits<std::size_t>::max();
   app
     .add_option(
-      "--snapshot-max-tx",
-      snapshot_max_tx,
-      "Maximum number of transactions between snapshots (experimental). "
+      "--snapshot-tx-interval",
+      snapshot_tx_interval,
+      "Number of transactions between snapshots (experimental). "
       "Defaults to no snapshot.")
     ->capture_default_str();
 
@@ -603,7 +603,7 @@ int main(int argc, char** argv)
                                   node_address.port,
                                   rpc_address.port};
   ccf_config.domain = domain;
-  ccf_config.snapshot_interval = snapshot_max_tx;
+  ccf_config.snapshot_tx_interval = snapshot_tx_interval;
 
   if (*start)
   {

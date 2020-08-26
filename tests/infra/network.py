@@ -73,9 +73,9 @@ class Network:
         "gov_script",
         "join_timer",
         "worker_threads",
-        "ledger_chunk_min_bytes",
+        "ledger_chunk_bytes",
         "domain",
-        "snapshot_max_tx",
+        "snapshot_tx_interval",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
