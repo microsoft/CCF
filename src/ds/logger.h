@@ -249,7 +249,7 @@ namespace logger
 #ifdef VERBOSE_LOGGING
         Level::TRACE
 #else
-        Level::INFO
+        Level::TRACE
 #endif
         ;
 
