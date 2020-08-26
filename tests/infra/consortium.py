@@ -419,7 +419,11 @@ class Consortium:
         return True
 
     def wait_for_node_to_exist_in_store(
-        self, remote_node, node_id, timeout, node_status=None,
+        self,
+        remote_node,
+        node_id,
+        timeout,
+        node_status=None,
     ):
         exists = False
         end_time = time.time() + timeout

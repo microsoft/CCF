@@ -215,7 +215,8 @@ class SSHRemote(CmdMixin):
                         os.makedirs(dst_dir)
                         for f in session.listdir(src_dir):
                             session.get(
-                                os.path.join(src_dir, f), os.path.join(dst_dir, f),
+                                os.path.join(src_dir, f),
+                                os.path.join(dst_dir, f),
                             )
                     else:
                         session.get(
@@ -254,7 +255,9 @@ class SSHRemote(CmdMixin):
             for filepath in (self.err, self.out):
                 try:
                     local_file_name = "{}_{}_{}".format(
-                        self.hostname, self.name, os.path.basename(filepath),
+                        self.hostname,
+                        self.name,
+                        os.path.basename(filepath),
                     )
                     dst_path = os.path.join(self.common_dir, local_file_name)
                     session.get(filepath, dst_path)

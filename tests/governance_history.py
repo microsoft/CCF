@@ -100,9 +100,11 @@ def run(args):
     # Refresh ledger to beginning
     ledger = ccf.ledger.Ledger(ledger_directory)
 
-    (final_proposals, final_votes, final_withdrawals,) = count_governance_operations(
-        ledger
-    )
+    (
+        final_proposals,
+        final_votes,
+        final_withdrawals,
+    ) = count_governance_operations(ledger)
 
     assert (
         final_proposals == original_proposals + proposals_issued
