@@ -104,11 +104,17 @@ class LoggingTxs:
                             pub_msg = f"Public message at index {self.next_pub_index}"
                             rep_priv = uc.post(
                                 "/app/log/private",
-                                {"id": self.next_priv_index, "msg": priv_msg,},
+                                {
+                                    "id": self.next_priv_index,
+                                    "msg": priv_msg,
+                                },
                             )
                             rep_pub = uc.post(
                                 "/app/log/public",
-                                {"id": self.next_pub_index, "msg": pub_msg,},
+                                {
+                                    "id": self.next_pub_index,
+                                    "msg": pub_msg,
+                                },
                             )
                             check_commit_n(rep_priv, result=True)
                             check_commit(rep_pub, result=True)
@@ -169,6 +175,7 @@ class LoggingTxs:
                 else:
                     check = infra.checker.Checker(uc)
                     check(
-                        rep, result={"msg": txs[idx]},
+                        rep,
+                        result={"msg": txs[idx]},
                     )
                     break

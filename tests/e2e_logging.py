@@ -25,10 +25,15 @@ from loguru import logger as LOG
 def test(network, args, notifications_queue=None, verify=True):
     txs = app.LoggingTxs(notifications_queue=notifications_queue)
     txs.issue(
-        network=network, number_txs=1, consensus=args.consensus,
+        network=network,
+        number_txs=1,
+        consensus=args.consensus,
     )
     txs.issue(
-        network=network, number_txs=1, on_backup=True, consensus=args.consensus,
+        network=network,
+        number_txs=1,
+        on_backup=True,
+        consensus=args.consensus,
     )
     if verify:
         txs.verify(network)
@@ -61,10 +66,15 @@ def test_illegal(network, args, notifications_queue=None, verify=True):
     # Valid transactions are still accepted
     txs = app.LoggingTxs(notifications_queue=notifications_queue)
     txs.issue(
-        network=network, number_txs=1, consensus=args.consensus,
+        network=network,
+        number_txs=1,
+        consensus=args.consensus,
     )
     txs.issue(
-        network=network, number_txs=1, on_backup=True, consensus=args.consensus,
+        network=network,
+        number_txs=1,
+        on_backup=True,
+        consensus=args.consensus,
     )
     if verify:
         txs.verify(network)
@@ -115,16 +125,19 @@ def test_remove(network, args):
                 for table in ["private", "public"]:
                     resource = f"/app/log/{table}"
                     check_commit(
-                        c.post(resource, {"id": log_id, "msg": msg}), result=True,
+                        c.post(resource, {"id": log_id, "msg": msg}),
+                        result=True,
                     )
                     check(c.get(f"{resource}?id={log_id}"), result={"msg": msg})
                     check(
-                        c.delete(f"{resource}?id={log_id}"), result=None,
+                        c.delete(f"{resource}?id={log_id}"),
+                        result=None,
                     )
                     get_r = c.get(f"{resource}?id={log_id}")
                     if args.package == "libjs_generic":
                         check(
-                            get_r, result={"error": "No such key"},
+                            get_r,
+                            result={"error": "No such key"},
                         )
                     else:
                         check(
@@ -338,7 +351,8 @@ def test_forwarding_frontends(network, args):
         msg = "forwarded_msg"
         log_id = 123
         check_commit(
-            c.post("/app/log/private", {"id": log_id, "msg": msg}), result=True,
+            c.post("/app/log/private", {"id": log_id, "msg": msg}),
+            result=True,
         )
         check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg})
 
@@ -399,7 +413,8 @@ def test_user_data_ACL(network, args):
 
         # Give isAdmin permissions to a single user
         proposal_body, careful_vote = ccf.proposal_generator.set_user_data(
-            user_id, {"isAdmin": True},
+            user_id,
+            {"isAdmin": True},
         )
         proposal = proposing_member.propose(primary, proposal_body)
         proposal.vote_for = careful_vote
@@ -412,7 +427,8 @@ def test_user_data_ACL(network, args):
 
         # Remove permission
         proposal_body, careful_vote = ccf.proposal_generator.set_user_data(
-            user_id, {"isAdmin": False},
+            user_id,
+            {"isAdmin": False},
         )
         proposal = proposing_member.propose(primary, proposal_body)
         proposal.vote_for = careful_vote
@@ -626,7 +642,11 @@ def run(args):
         )
 
         with infra.network.network(
-            hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
+            hosts,
+            args.binary_dir,
+            args.debug_nodes,
+            args.perf_nodes,
+            pdb=args.pdb,
         ) as network:
             network.start_and_join(args)
             network = test(

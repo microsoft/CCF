@@ -101,7 +101,11 @@ proposal, vote = ccf.proposal_generator.open_network()
 # {'script': {'text': 'return Calls:call("open_network")'}}
 
 member_client = ccf.clients.CCFClient(host, port, ca, member_cert, member_key)
-response = member_client.post("/gov/proposals", body=proposal, signed=True,)
+response = member_client.post(
+    "/gov/proposals",
+    body=proposal,
+    signed=True,
+)
 # SNIPPET_END: dict_proposal
 
 # SNIPPET_START: json_proposal_with_file
@@ -110,6 +114,8 @@ with open("my_open_network_proposal.json", "w") as f:
 
 # The contents of `my_open_network_proposal.json` are submitted as the request body.
 response = member_client.post(
-    "/gov/proposals", body="@my_open_network_proposal.json", signed=True,
+    "/gov/proposals",
+    body="@my_open_network_proposal.json",
+    signed=True,
 )
 # SNIPPET_END: json_proposal_with_file
