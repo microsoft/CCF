@@ -801,11 +801,8 @@ namespace asynchost
     void register_message_handlers(
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {
-
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp,
-        consensus::ledger_init,
-        [this](const uint8_t* data, size_t size) {
+        disp, consensus::ledger_init, [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
           init_idx(idx);
         });

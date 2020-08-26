@@ -46,8 +46,7 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::ledger_no_entry,
   consensus::Index,
   consensus::LedgerRequestPurpose);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::ledger_init, consensus::Index);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_init, consensus::Index);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::ledger_append,
   bool /* committable */,

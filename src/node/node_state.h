@@ -1592,7 +1592,8 @@ namespace ccf
                 break;
               }
               default:
-              {}
+              {
+              }
             }
           }
 

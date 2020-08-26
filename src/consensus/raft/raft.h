@@ -439,7 +439,8 @@ namespace raft
           break;
 
         default:
-        {}
+        {
+        }
       }
     }
 
