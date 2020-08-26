@@ -67,7 +67,11 @@ class Member:
 
     def propose(self, remote_node, proposal, has_proposer_voted_for=True):
         with remote_node.client(f"member{self.member_id}") as mc:
-            r = mc.post("/gov/proposals", proposal, signed=True,)
+            r = mc.post(
+                "/gov/proposals",
+                proposal,
+                signed=True,
+            )
             if r.status_code != http.HTTPStatus.OK.value:
                 raise infra.proposal.ProposalNotCreated(r)
 
@@ -79,7 +83,11 @@ class Member:
             )
 
     def vote(
-        self, remote_node, proposal, accept=True, wait_for_global_commit=True,
+        self,
+        remote_node,
+        proposal,
+        accept=True,
+        wait_for_global_commit=True,
     ):
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.post(

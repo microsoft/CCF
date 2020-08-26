@@ -84,7 +84,8 @@ def test_share_resilience(network, args):
         )
 
     recovered_network.consortium.check_for_service(
-        new_primary, infra.network.ServiceStatus.OPEN,
+        new_primary,
+        infra.network.ServiceStatus.OPEN,
     )
     return recovered_network
 
