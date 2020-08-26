@@ -43,10 +43,12 @@ suites["membership_recovery"] = suite_membership_recovery
 # can be interleaved
 suite_reconfiguration = [
     reconfiguration.test_add_node,
+    reconfiguration.test_retire_primary,
+    reconfiguration.test_add_node,
     election.test_kill_primary,
     reconfiguration.test_add_node,
     reconfiguration.test_add_node,
-    reconfiguration.test_retire_node,
+    reconfiguration.test_retire_backup,
     reconfiguration.test_add_node,
     election.test_kill_primary,
 ]
@@ -94,7 +96,7 @@ all_tests_suite = [
     reconfiguration.test_add_node_from_backup,
     reconfiguration.test_add_as_many_pending_nodes,
     reconfiguration.test_add_node_untrusted_code,
-    reconfiguration.test_retire_node,
+    reconfiguration.test_retire_backup,
     # recovery:
     recovery.test,
     # rekey:

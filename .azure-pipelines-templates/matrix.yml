@@ -52,7 +52,6 @@ jobs:
         suffix: 'Debug'
         artifact_name: '${{ target }}_Debug'
         ctest_filter: '${{ parameters.test[target].ctest_args }}'
-        ctest_timeout: '240'
 
   # Performance
   - template: common.yml
@@ -63,7 +62,6 @@ jobs:
       suffix: 'Perf'
       artifact_name: 'SGX_Perf'
       ctest_filter: '${{ parameters.test.perf.ctest_args }}'
-      ctest_timeout: '240'
 
   # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
@@ -74,7 +72,6 @@ jobs:
         cmake_args: '${{ parameters.build.common.cmake_args }}'
         suffix: 'Release'
         artifact_name: 'SGX_Release'
-        ctest_timeout: '240'
 
     - template: release.yml
       parameters:

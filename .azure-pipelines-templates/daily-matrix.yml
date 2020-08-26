@@ -48,5 +48,4 @@ jobs:
       suffix: 'Release'
       artifact_name: 'SGX_Release'
       ctest_filter: '-LE "benchmark|perf"'
-      ctest_timeout: '240'
       tls_report: true
