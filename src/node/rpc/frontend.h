@@ -483,7 +483,8 @@ namespace ccf
       history(nullptr)
     {}
 
-    void set_sig_intervals(size_t sig_tx_interval_, size_t sig_ms_interval_) override
+    void set_sig_intervals(
+      size_t sig_tx_interval_, size_t sig_ms_interval_) override
     {
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = std::chrono::milliseconds(sig_ms_interval_);
