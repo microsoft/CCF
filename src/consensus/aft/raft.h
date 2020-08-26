@@ -285,12 +285,20 @@ namespace aft
 
     Index get_commit_idx()
     {
+      if (consensus_type == ConsensusType::PBFT && is_follower())
+      {
+        return service_state->commit_idx;
+      }
       std::lock_guard<SpinLock> guard(service_state->lock);
       return service_state->commit_idx;
     }
 
     Term get_term()
     {
+      if (consensus_type == ConsensusType::PBFT && is_follower())
+      {
+        return service_state->current_view;
+      }
       std::lock_guard<SpinLock> guard(service_state->lock);
       return service_state->current_view;
     }
@@ -303,6 +311,10 @@ namespace aft
 
     Term get_term(Index idx)
     {
+      if (consensus_type == ConsensusType::PBFT && is_follower())
+      {
+        return get_term_internal(idx);
+      }
       std::lock_guard<SpinLock> guard(service_state->lock);
       return get_term_internal(idx);
     }
@@ -351,10 +363,7 @@ namespace aft
     bool replicate(
       const std::vector<std::tuple<Index, T, bool>>& entries, Term term)
     {
-      std::lock_guard<SpinLock> guard(service_state->lock);
-
-/*
-      if (consensus_type == ConsensusType::PBFT)
+      if (consensus_type == ConsensusType::PBFT && is_follower())
       {
         for (auto& [index, data, globally_committable] : entries)
         {
@@ -362,7 +371,8 @@ namespace aft
         }
         return true;
       }
-*/
+
+      std::lock_guard<SpinLock> guard(service_state->lock);
 
 /*
       if (state != Leader)
@@ -747,15 +757,15 @@ namespace aft
         }
 
         Term sig_term = 0;
-        //kv::Tx tx;
+        kv::Tx tx;
         kv::DeserialiseSuccess deserialise_success;
-        /*if (consensus_type == ConsensusType::PBFT)
+        if (consensus_type == ConsensusType::PBFT)
         {
           deserialise_success =
             store->deserialise_views(entry, public_only, &sig_term, &tx);
         }
-        else*/
-        
+        else
+        {
           deserialise_success =
             store->deserialise(entry, public_only, &sig_term);
 
@@ -795,7 +805,8 @@ namespace aft
           {
             //CCF_ASSERT(consensus_type == ConsensusType::PBFT, "wrong consensus type");
             LOG_INFO_FMT("AAAAAAAAAAA");
-            //execution_utilities->commit_replayed_request(tx);
+            execution_utilities->commit_replayed_request(tx);
+            LOG_INFO_FMT("BBBBBBBBBBB");
             break;
           }
 
