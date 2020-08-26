@@ -335,7 +335,10 @@ class Network:
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(
-        self, args, ledger_dir, common_dir=None,
+        self,
+        args,
+        ledger_dir,
+        common_dir=None,
     ):
         """
         Starts a CCF network in recovery mode.
