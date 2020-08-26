@@ -137,12 +137,12 @@ int main(int argc, char** argv)
   app.add_option("--ledger-dir", ledger_dir, "Ledger and snapshots directory")
     ->capture_default_str();
 
-  size_t ledger_min_bytes = 5'000'000;
+  size_t ledger_chunk_bytes = 5'000'000;
   app
     .add_option(
-      "--ledger-chunk-min-bytes",
-      ledger_min_bytes,
-      "Minimum size (bytes) at which a new ledger chunk is created.")
+      "--ledger-chunk-bytes",
+      ledger_chunk_bytes,
+      "Size (bytes) at which a new ledger chunk is created")
     ->capture_default_str()
     ->transform(CLI::AsSizeValue(true)); // 1000 is kb
 
@@ -541,7 +541,7 @@ int main(int argc, char** argv)
   // graceful shutdown on sigterm
   asynchost::Sigterm sigterm(writer_factory);
 
-  asynchost::Ledger ledger(ledger_dir, writer_factory, ledger_min_bytes);
+  asynchost::Ledger ledger(ledger_dir, writer_factory, ledger_chunk_bytes);
   ledger.register_message_handlers(bp.get_dispatcher());
 
   asynchost::SnapshotManager snapshot(ledger_dir);
