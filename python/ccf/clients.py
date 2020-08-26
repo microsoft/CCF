@@ -174,6 +174,13 @@ def get_curve(ca_file):
     )
 
 
+def unpack_seqno_or_view(data):
+    (value,) = struct.unpack("<q", data)
+    if value == -1:
+        return None
+    return value
+
+
 class CurlClient:
     """
     This client uses Curl to send HTTP requests to CCF, and logs all Curl commands it runs.
@@ -439,9 +446,9 @@ class WSClient:
         self.ws.send_frame(frame)
         out = self.ws.recv_frame().data
         (status_code,) = struct.unpack("<h", out[:2])
-        (seqno,) = struct.unpack("<Q", out[2:10])
-        (view,) = struct.unpack("<Q", out[10:18])
-        (global_commit,) = struct.unpack("<Q", out[18:26])
+        seqno = unpack_seqno_or_view(out[2:10])
+        view = unpack_seqno_or_view(out[10:18])
+        global_commit = unpack_seqno_or_view(out[18:26])
         payload = out[26:]
         if status_code == 200:
             body = json.loads(payload) if payload else None
