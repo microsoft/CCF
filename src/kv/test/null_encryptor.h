@@ -15,7 +15,8 @@ namespace kv
       const std::vector<uint8_t>& additional_data,
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
-      kv::Version version) override
+      kv::Version version,
+      bool is_snapshot = false) override
     {
       cipher = plain;
     }

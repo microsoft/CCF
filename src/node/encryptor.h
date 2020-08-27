@@ -2,9 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/encryptor.h"
-
 #include "entities.h"
+#include "kv/encryptor.h"
 #include "node/ledger_secrets.h"
 
 #include <atomic>
@@ -19,10 +18,12 @@ namespace ccf
     std::atomic<size_t> seq_no{0};
 
     void set_iv(
-      crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr, kv::Version) override
+      crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr,
+      kv::Version,
+      bool) override
     {
-      gcm_hdr.set_iv_id(BaseEncryptor::iv_id);
       gcm_hdr.set_iv_seq(seq_no.fetch_add(1));
+      gcm_hdr.set_iv_id(BaseEncryptor::iv_id);
     }
 
     using BaseEncryptor::BaseEncryptor;

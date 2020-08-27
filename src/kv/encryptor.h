@@ -3,6 +3,7 @@
 #pragma once
 
 #include "crypto/symmetric_key.h"
+#include "ds/ccf_assert.h"
 #include "ds/spin_lock.h"
 #include "kv/kv_types.h"
 
@@ -24,10 +25,13 @@ namespace kv
     SpinLock lock;
 
     virtual void set_iv(
-      crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr, kv::Version version)
+      crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr,
+      kv::Version version,
+      bool is_snapshot = false)
     {
-      gcm_hdr.set_iv_id(iv_id);
       gcm_hdr.set_iv_seq(version);
+      gcm_hdr.set_iv_id(iv_id);
+      gcm_hdr.set_iv_snapshot(is_snapshot);
     }
 
     const crypto::KeyAesGcm& get_encryption_key(kv::Version version)
@@ -88,19 +92,21 @@ namespace kv
      * @param[out]  cipher            Encrypted ciphertext
      * @param[in]   version           Version used to retrieve the corresponding
      * encryption key
+     * @param[in]   is_snapshot       Indicates that the entry is a snapshot (to
+     * avoid IV re-use)
      */
     void encrypt(
       const std::vector<uint8_t>& plain,
       const std::vector<uint8_t>& additional_data,
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
-      kv::Version version) override
+      kv::Version version,
+      bool is_snapshot = false) override
     {
       crypto::GcmHeader<crypto::GCM_SIZE_IV> gcm_hdr;
       cipher.resize(plain.size());
 
-      // Set IV
-      set_iv(gcm_hdr, version);
+      set_iv(gcm_hdr, version, is_snapshot);
 
       get_encryption_key(version).encrypt(
         gcm_hdr.get_iv(), plain, additional_data, cipher.data(), gcm_hdr.tag);
