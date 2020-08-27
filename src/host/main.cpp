@@ -651,7 +651,7 @@ int main(int argc, char** argv)
     }
     else
     {
-      LOG_INFO_FMT("No snapshot found, node will join from genesis");
+      LOG_INFO_FMT("No snapshot found, node will request transactions from the beginning");
     }
   }
   else if (*recover)
