@@ -3,7 +3,6 @@
 #pragma once
 
 #include "crypto/symmetric_key.h"
-#include "ds/ccf_assert.h"
 #include "ds/spin_lock.h"
 #include "kv/kv_types.h"
 
