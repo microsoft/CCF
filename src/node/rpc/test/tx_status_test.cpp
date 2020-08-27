@@ -65,12 +65,12 @@ TEST_CASE("edge cases")
     INFO("Unknown views");
     // Impossible: view for all global txs must be known
     // get_tx_status(a, N, 0, b, >=N)
-    CHECK_THROWS(get_tx_status(3, 10, -1, 1, 10));
-    CHECK_THROWS(get_tx_status(3, 10, -1, 1, 11));
-    CHECK_THROWS(get_tx_status(3, 10, -1, 3, 10));
-    CHECK_THROWS(get_tx_status(3, 10, -1, 3, 11));
-    CHECK_THROWS(get_tx_status(3, 10, -1, 4, 10));
-    CHECK_THROWS(get_tx_status(3, 10, -1, 4, 11));
+    CHECK_THROWS(get_tx_status(3, 10, VIEW_UNKNOWN, 1, 10));
+    CHECK_THROWS(get_tx_status(3, 10, VIEW_UNKNOWN, 1, 11));
+    CHECK_THROWS(get_tx_status(3, 10, VIEW_UNKNOWN, 3, 10));
+    CHECK_THROWS(get_tx_status(3, 10, VIEW_UNKNOWN, 3, 11));
+    CHECK_THROWS(get_tx_status(3, 10, VIEW_UNKNOWN, 4, 10));
+    CHECK_THROWS(get_tx_status(3, 10, VIEW_UNKNOWN, 4, 11));
   }
   {
     INFO("seqno is known locally in an old view");
