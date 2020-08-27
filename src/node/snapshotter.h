@@ -130,7 +130,7 @@ namespace ccf
         idx,
         last_snapshot_idx);
 
-      if (idx - last_snapshot_idx >= snapshot_interval)
+      if (idx - last_snapshot_idx >= snapshot_tx_interval)
       {
         auto msg = std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
         msg->data.self = shared_from_this();
