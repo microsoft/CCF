@@ -1403,17 +1403,3 @@ DOCTEST_TEST_CASE(
     DOCTEST_CHECK(r2.get_last_idx() == 3);
   }
 }
-
-namespace aft
-{
-  std::unique_ptr<StateMachine> create_bft_state_machine(
-    std::shared_ptr<ServiceState> shared_state,
-    std::shared_ptr<ccf::NodeToNode> channels,
-    pbft::RequestsMap& requests_map,
-    Store<kv::DeserialiseSuccess>& store,
-    std::shared_ptr<enclave::RPCMap> rpc_map,
-    const std::vector<uint8_t>& cert)
-  {
-    return nullptr;
-  }
-}

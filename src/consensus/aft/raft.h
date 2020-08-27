@@ -26,14 +26,6 @@ namespace aft
 {
   using Configuration = kv::Consensus::Configuration;
 
-  std::unique_ptr<StateMachine> create_bft_state_machine(
-    std::shared_ptr<ServiceState> service_state,
-    std::shared_ptr<ccf::NodeToNode> channels,
-    pbft::RequestsMap& requests_map,
-    Store<kv::DeserialiseSuccess>& store,
-    std::shared_ptr<enclave::RPCMap> rpc_map,
-    const std::vector<uint8_t>& cert);
-
   template <class LedgerProxy, class ChannelProxy, class SnapshotterProxy>
   class Aft
   {
@@ -70,7 +62,6 @@ namespace aft
 
     ConsensusType consensus_type;
     std::unique_ptr<Store<kv::DeserialiseSuccess>> store;
-    std::unique_ptr<StateMachine> bft_state_machine;
 
     // Persistent
     NodeId voted_for;
@@ -439,8 +430,8 @@ namespace aft
           break;
 
         default:
-          bft_state_machine->receive_message(std::move(d));
-          break;
+        {
+        }
       }
     }
 
@@ -537,13 +528,12 @@ namespace aft
       const auto term_of_idx = get_term_internal(end_idx);
 
       LOG_DEBUG_FMT(
-        "Send append entries from {} to {}: {} to {} ({}), prev_term {}",
+        "Send append entries from {} to {}: {} to {} ({})",
         service_state->my_node_id,
         to,
         start_idx,
         end_idx,
-        service_state->commit_idx,
-        prev_term);
+        service_state->commit_idx);
 
       AppendEntries ae = {{raft_append_entries, service_state->my_node_id},
                           {end_idx, prev_idx},
@@ -1006,7 +996,6 @@ namespace aft
 
     void recv_request_vote_response(const uint8_t* data, size_t size)
     {
-      std::lock_guard<SpinLock> guard(service_state->lock);
       if (state != Candidate)
       {
         LOG_INFO_FMT(
