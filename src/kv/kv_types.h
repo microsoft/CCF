@@ -21,7 +21,7 @@ namespace kv
   // Version indexes modifications to the local kv store. Negative values
   // indicate deletion
   using Version = int64_t;
-  static const Version NoVersion = std::numeric_limits<Version>::min();
+  static const Version NoVersion = -1;
 
   static bool is_deleted(Version version)
   {
