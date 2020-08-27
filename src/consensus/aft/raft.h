@@ -161,24 +161,7 @@ namespace aft
       rpc_map(rpc_map_)
 
     {
-      /*
-            if (consensus_type == ConsensusType::PBFT)
-            {
-              leader_id = 0;
-              bft_state_machine = create_bft_state_machine(
-                service_state,
-                channels_,
-                requests_map,
-                *store.get(),
-                rpc_map_,
-                cert);
-            }
-            else
-      */
-      {
         leader_id = NoNode;
-        LOG_DEBUG_FMT("ZZZZZ leader is NoNode");
-      }
     }
 
     NodeId leader()
@@ -495,25 +478,9 @@ namespace aft
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
     {
       auto request = execution_utilities->create_request_message(args);
-      /*
-      bft_state_machine->receive_request(std::move(request));
-      return true;
-      */
-
-      /*kv::Version version = */execution_utilities->execute_request(std::move(request), is_first_request);
+      execution_utilities->execute_request(std::move(request), is_first_request);
       is_first_request = false;
 
-      /*
-      store->compact(version);
-      {
-        std::lock_guard<SpinLock> guard(service_state->lock);
-        if (version > service_state->commit_idx)
-        {
-          service_state->commit_idx = version;
-          service_state->last_idx = version;
-        }
-      }
-      */
       return true;
     }
 
@@ -781,28 +748,10 @@ namespace aft
 
           case kv::DeserialiseSuccess::PASS:
           {
-            if (consensus_type != ConsensusType::PBFT)
+            if (consensus_type == ConsensusType::PBFT)
             {
-              break;
+              service_state->last_idx = execution_utilities->commit_replayed_request(tx);
             }
-            //CCF_ASSERT(consensus_type == ConsensusType::PBFT, "wrong consensus type");
-            LOG_INFO_FMT("AAAAAAAAAAA, primary {}", leader_id);
-            service_state->last_idx = execution_utilities->commit_replayed_request(tx);
-            LOG_INFO_FMT("BBBBBBBBBBB");
-            // Update the current leader because we accepted entries.
-            /*
-            if (leader_id != r.from_node)
-            {
-              leader_id = r.from_node;
-              LOG_DEBUG_FMT(
-                "ZZZZZ Node {} thinks leader is {}",
-                service_state->my_node_id,
-                leader_id);
-            }
-
-            send_append_entries_response(r.from_node, true);
-            LOG_INFO_FMT("CCCCCCCCCCC");
-            return;*/
             break;
           }
 
@@ -817,15 +766,12 @@ namespace aft
       if (leader_id != r.from_node)
       {
         leader_id = r.from_node;
-        LOG_DEBUG_FMT("ZZZZZ Node {} thinks leader is {}", service_state->my_node_id, leader_id);
       }
 
       send_append_entries_response(r.from_node, true);
       if (consensus_type == ConsensusType::PBFT && is_follower())
       {
-        LOG_INFO_FMT("CCCCCCCCCCC");
         store->compact(service_state->last_idx);
-        LOG_INFO_FMT("DDDDDDDDDDD");
       }
       else
       {
@@ -1026,7 +972,6 @@ namespace aft
         // progress.
         restart_election_timeout();
         leader_id = NoNode;
-        LOG_DEBUG_FMT("ZZZZZ leader is NoNode");
         voted_for = r.from_node;
       }
 
@@ -1131,7 +1076,6 @@ namespace aft
     {
       state = Candidate;
       leader_id = NoNode;
-      LOG_DEBUG_FMT("ZZZZZ leader is NoNode");
       voted_for = service_state->my_node_id;
       votes_for_me.clear();
       service_state->current_view++;
@@ -1167,7 +1111,6 @@ namespace aft
       committable_indices.clear();
       state = Leader;
       leader_id = service_state->my_node_id;
-      LOG_DEBUG_FMT("ZZZZZ leader is {}", leader_id);
 
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
@@ -1198,7 +1141,6 @@ namespace aft
     {
       state = Follower;
       leader_id = NoNode;
-      LOG_DEBUG_FMT("ZZZZZ leader is NoNode");
       restart_election_timeout();
 
       service_state->current_view = term;
