@@ -82,8 +82,7 @@ class Node:
             workspace,
             label,
             common_dir,
-            None,
-            members_info,
+            members_info=members_info,
             **kwargs,
         )
         self.network_state = NodeNetworkState.joined
@@ -96,6 +95,7 @@ class Node:
         label,
         common_dir,
         target_rpc_address,
+        snapshot_dir,
         **kwargs,
     ):
         self._start(
@@ -105,7 +105,8 @@ class Node:
             workspace,
             label,
             common_dir,
-            target_rpc_address,
+            target_rpc_address=target_rpc_address,
+            snapshot_dir=snapshot_dir,
             **kwargs,
         )
 
@@ -130,6 +131,7 @@ class Node:
         label,
         common_dir,
         target_rpc_address=None,
+        snapshot_dir=None,
         members_info=None,
         **kwargs,
     ):
@@ -161,6 +163,7 @@ class Node:
             common_dir,
             target_rpc_address,
             members_info,
+            snapshot_dir,
             binary_dir=self.binary_dir,
             **kwargs,
         )
@@ -238,6 +241,7 @@ class Node:
         """
         # Until the node has joined, the SSL handshake will fail as the node
         # is not yet endorsed by the network certificate
+
         try:
             with self.client(connection_timeout=timeout) as nc:
                 rep = nc.get("/node/commit")
@@ -249,6 +253,9 @@ class Node:
 
     def get_ledger(self):
         return self.remote.get_ledger()
+
+    def get_snapshots(self):
+        return self.remote.get_snapshots()
 
     def client(self, identity=None, **kwargs):
         akwargs = {

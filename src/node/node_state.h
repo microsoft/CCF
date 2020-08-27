@@ -292,7 +292,7 @@ namespace ccf
 
           accept_network_tls_connections(args.config);
 
-          reset_quote();
+          reset_data(quote);
           sm.advance(State::partOfNetwork);
 
           return Success<CreateNew::Out>(
@@ -350,10 +350,9 @@ namespace ccf
     //
     // funcs in state "pending"
     //
-    void initiate_join(const Join::In& args)
+    void initiate_join(CCFConfig& config)
     {
-      auto network_ca =
-        std::make_shared<tls::CA>(args.config.joining.network_cert);
+      auto network_ca = std::make_shared<tls::CA>(config.joining.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
         network_ca, node_cert, node_sign_kp->private_key_pem());
 
@@ -362,9 +361,9 @@ namespace ccf
         rpcsessions->create_client(std::move(join_client_cert));
 
       join_client->connect(
-        args.config.joining.target_host,
-        args.config.joining.target_port,
-        [this, args](
+        config.joining.target_host,
+        config.joining.target_port,
+        [this, &config](
           http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
           std::lock_guard<SpinLock> guard(lock);
           if (!sm.check(State::pending))
@@ -426,9 +425,44 @@ namespace ccf
             setup_consensus(resp.network_info.public_only);
             setup_history();
 
+            if (!config.joining.snapshot.empty())
+            {
+              // It is only possible to deserialise the snapshot then, once the
+              // ledger secrets have been passed in by the network
+              LOG_DEBUG_FMT(
+                "Deserialising snapshot ({})", config.joining.snapshot.size());
+              auto rc =
+                network.tables->deserialise_snapshot(config.joining.snapshot);
+
+              if (rc != kv::DeserialiseSuccess::PASS)
+              {
+                throw std::logic_error(
+                  fmt::format("Failed to apply snapshot: {}", rc));
+              }
+
+              kv::ReadOnlyTx tx;
+              auto sig_view = tx.get_read_only_view(network.signatures);
+              auto sig = sig_view->get(0);
+              if (!sig.has_value())
+              {
+                throw std::logic_error(
+                  fmt::format("No signatures found after applying snapshot"));
+              }
+
+              auto seqno = network.tables->current_version();
+              consensus->init_as_backup(seqno, sig->view);
+
+              reset_data(config.joining.snapshot);
+              LOG_INFO_FMT(
+                "Joiner successfully resumed from snapshot at seqno {} and "
+                "view {}",
+                seqno,
+                sig->view);
+            }
+
             open_member_frontend();
 
-            accept_network_tls_connections(args.config);
+            accept_network_tls_connections(config);
 
             if (resp.network_info.public_only)
             {
@@ -439,7 +473,7 @@ namespace ccf
             }
             else
             {
-              reset_quote();
+              reset_data(quote);
               sm.advance(State::partOfNetwork);
             }
 
@@ -463,7 +497,7 @@ namespace ccf
       // Send RPC request to remote node to join the network.
       JoinNetworkNodeToNode::In join_params;
 
-      join_params.node_info_network = args.config.node_info_network;
+      join_params.node_info_network = config.node_info_network;
       join_params.public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
       join_params.quote = quote;
@@ -471,8 +505,8 @@ namespace ccf
 
       LOG_DEBUG_FMT(
         "Sending join request to {}:{}",
-        args.config.joining.target_host,
-        args.config.joining.target_port);
+        config.joining.target_host,
+        config.joining.target_port);
 
       const auto body = serdes::pack(join_params, serdes::Pack::Text);
 
@@ -485,19 +519,19 @@ namespace ccf
       join_client->send_request(r.build_request());
     }
 
-    void join(const Join::In& args)
+    void join(CCFConfig& config)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::pending);
 
-      initiate_join(args);
+      initiate_join(config);
 
       join_timer = timers.new_timer(
-        std::chrono::milliseconds(args.config.joining.join_timer),
-        [this, args]() {
+        std::chrono::milliseconds(config.joining.join_timer),
+        [this, &config]() {
           if (sm.check(State::pending))
           {
-            initiate_join(args);
+            initiate_join(config);
             return true;
           }
           return false;
@@ -741,7 +775,7 @@ namespace ccf
         }
       }
 
-      reset_quote();
+      reset_data(quote);
       sm.advance(State::partOfNetwork);
     }
 
@@ -1287,10 +1321,10 @@ namespace ccf
         .raw();
     }
 
-    void reset_quote()
+    void reset_data(std::vector<uint8_t>& data)
     {
-      quote.clear();
-      quote.shrink_to_fit();
+      data.clear();
+      data.shrink_to_fit();
     }
 
     void backup_finish_recovery()

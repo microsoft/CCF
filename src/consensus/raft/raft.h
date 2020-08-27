@@ -28,7 +28,7 @@ namespace raft
     std::vector<Index> terms;
 
   public:
-    static constexpr Term InvalidTerm = 0;
+    static constexpr Term InvalidTerm = ccf::VIEW_UNKNOWN;
 
     void initialise(const std::vector<Index>& terms_)
     {
@@ -56,7 +56,9 @@ namespace raft
       }
 
       for (int64_t i = terms.size(); i < term; ++i)
+      {
         terms.push_back(idx);
+      }
       LOG_DEBUG_FMT("Resulting terms: {}", fmt::join(terms, ", "));
     }
 
@@ -66,7 +68,9 @@ namespace raft
 
       // Indices before the index of the first term are unknown
       if (it == terms.begin())
+      {
         return InvalidTerm;
+      }
 
       return (it - terms.begin());
     }
@@ -269,6 +273,23 @@ namespace raft
       term_history.update(index, term);
       current_term += 2;
       become_leader();
+    }
+
+    void init_as_follower(Index index, Term term)
+    {
+      // This should only be called when the node resumes from a snapshot and
+      // before it has received any append entries.
+      std::lock_guard<SpinLock> guard(lock);
+
+      last_idx = index;
+      commit_idx = index;
+
+      term_history.update(index, term);
+
+      ledger->init(index);
+      snapshotter->set_last_snapshot_idx(index);
+
+      become_follower(term);
     }
 
     Index get_last_idx()

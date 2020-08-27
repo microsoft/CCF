@@ -62,7 +62,9 @@ struct CCFConfig
     std::string target_port;
     std::vector<uint8_t> network_cert;
     size_t join_timer;
-    MSGPACK_DEFINE(target_host, target_port, network_cert, join_timer);
+    std::vector<uint8_t> snapshot;
+    MSGPACK_DEFINE(
+      target_host, target_port, network_cert, join_timer, snapshot);
   };
   Joining joining = {};
 

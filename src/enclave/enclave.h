@@ -319,7 +319,7 @@ namespace enclave
 
         if (start_type == StartType::Join)
         {
-          node->join({ccf_config});
+          node->join(ccf_config);
         }
         else if (start_type == StartType::Recover)
         {

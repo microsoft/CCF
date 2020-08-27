@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 
 namespace fs = std::filesystem;
 
@@ -49,13 +50,43 @@ namespace asynchost
       if (fs::is_directory(snapshot_dir))
       {
         LOG_INFO_FMT(
-          "Snapshots will be stored in existing directory {}", snapshot_dir);
+          "Snapshots will be stored in existing directory: {}", snapshot_dir);
       }
       else if (!fs::create_directory(snapshot_dir))
       {
         throw std::logic_error(fmt::format(
           "Error: Could not create snapshot directory: {}", snapshot_dir));
       }
+    }
+
+    std::optional<std::string> find_latest_snapshot()
+    {
+      std::optional<std::string> snapshot_file = std::nullopt;
+      size_t latest_idx = 0;
+
+      for (auto& f : fs::directory_iterator(snapshot_dir))
+      {
+        auto file_name = f.path().filename().string();
+        auto pos = file_name.find(fmt::format("{}.", snapshot_file_prefix));
+        if (pos == std::string::npos)
+        {
+          LOG_FAIL_FMT(
+            "Ignoring \"{}\" because it does not start with {}",
+            file_name,
+            snapshot_file_prefix);
+          continue;
+        }
+
+        pos = file_name.find(".");
+        size_t snapshot_idx = std::stol(file_name.substr(pos + 1));
+        if (snapshot_idx > latest_idx)
+        {
+          snapshot_file = f.path().string();
+          latest_idx = snapshot_idx;
+        }
+      }
+
+      return snapshot_file;
     }
 
     void register_message_handlers(

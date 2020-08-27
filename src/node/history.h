@@ -633,18 +633,21 @@ namespace ccf
       {
         auto txid = store.next_txid();
         auto commit_txid = consensus->get_committed_txid();
+
         LOG_DEBUG_FMT(
           "Signed at {} in view: {} commit was: {}.{}",
           txid.version,
           txid.term,
           commit_txid.first,
           commit_txid.second);
+
         store.commit(
           txid,
           [txid, commit_txid, this]() {
             kv::Tx sig(txid.version);
             auto sig_view = sig.get_view(signatures);
             crypto::Sha256Hash root = replicated_state_tree.get_root();
+
             Signature sig_value(
               id,
               txid.version,
@@ -654,6 +657,7 @@ namespace ccf
               root,
               kp.sign_hash(root.h.data(), root.h.size()),
               replicated_state_tree.serialise());
+
             sig_view->put(0, sig_value);
             return sig.commit_reserved();
           },
