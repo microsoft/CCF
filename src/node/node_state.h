@@ -598,6 +598,7 @@ namespace ccf
                          quote,
                          node_encrypt_kp->public_key_pem().raw(),
                          NodeStatus::PENDING});
+
       setup_encryptor(network.consensus_type);
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
@@ -1599,6 +1600,11 @@ namespace ccf
       else if (network.consensus_type == ConsensusType::RAFT)
       {
         encryptor = std::make_shared<RaftTxEncryptor>(network.ledger_secrets);
+        if (self == INVALID_ID)
+        {
+          throw std::logic_error(
+            "Node ID should be set before setting encryptor IV ID");
+        }
         encryptor->set_iv_id(self); // RaftEncryptor uses node ID in iv
       }
       else
