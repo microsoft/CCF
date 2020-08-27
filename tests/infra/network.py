@@ -62,8 +62,8 @@ class Network:
     node_args_to_forward = [
         "enclave_type",
         "host_log_level",
-        "sig_max_tx",
-        "sig_max_ms",
+        "sig_tx_interval",
+        "sig_ms_interval",
         "raft_election_timeout",
         "pbft_view_change_timeout",
         "consensus",
@@ -73,9 +73,9 @@ class Network:
         "gov_script",
         "join_timer",
         "worker_threads",
-        "ledger_chunk_min_bytes",
+        "ledger_chunk_bytes",
         "domain",
-        "snapshot_max_tx",
+        "snapshot_tx_interval",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups

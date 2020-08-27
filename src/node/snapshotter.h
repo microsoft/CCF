@@ -23,7 +23,7 @@ namespace ccf
 
     NetworkState& network;
 
-    size_t snapshot_interval;
+    size_t snapshot_tx_interval;
 
     // Index at which the lastest snapshot was generated
     consensus::Index last_snapshot_idx = 0;
@@ -100,10 +100,10 @@ namespace ccf
     Snapshotter(
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network_,
-      size_t snapshot_interval_) :
+      size_t snapshot_tx_interval_) :
       to_host(writer_factory.create_writer_to_outside()),
       network(network_),
-      snapshot_interval(snapshot_interval_)
+      snapshot_tx_interval(snapshot_tx_interval_)
     {
       next_snapshot_indices.push_back(last_snapshot_idx);
     }
@@ -163,7 +163,7 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
 
       // Returns true if the idx will require the generation of a snapshot
-      if ((idx - next_snapshot_indices.back()) >= snapshot_interval)
+      if ((idx - next_snapshot_indices.back()) >= snapshot_tx_interval)
       {
         next_snapshot_indices.push_back(idx);
         return true;
