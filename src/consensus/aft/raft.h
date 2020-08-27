@@ -8,9 +8,9 @@
 #include "impl/aft_state.h"
 #include "impl/execution_utilities.h"
 #include "impl/request_message.h"
-#include "impl/state_machine.h"
 #include "kv/kv_types.h"
 #include "kv/tx.h"
+#include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/rpc/tx_status.h"
 #include "raft_types.h"
@@ -320,31 +320,8 @@ namespace aft
       return get_term_internal(idx);
     }
 
-    // TODO: this needs to be moved to the bft state machine
     void add_configuration(Index idx, const Configuration::Nodes& conf)
     {
-      /*
-      if (consensus_type == ConsensusType::PBFT)
-      {
-        if (conf.size() != 1)
-        {
-          throw std::logic_error(
-            "PBFT configuration should add one node at a time");
-        }
-
-        auto new_node_id = conf.begin()->first;
-        auto new_node_info = conf.begin()->second;
-
-        if (new_node_id == service_state->my_node_id)
-        {
-          return;
-        }
-
-        bft_state_machine->add_node(new_node_id, new_node_info.cert.raw());
-        return;
-      }
-      */
-
       // This should only be called when the spin lock is held.
       configurations.push_back({idx, std::move(conf)});
       create_and_remove_node_state();

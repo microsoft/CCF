@@ -756,7 +756,7 @@ namespace ccf
       recovery_store.reset();
       reset_recovery_hook();
 
-      // Aft should deserialise all security domains when network is opened
+      // Raft should deserialise all security domains when network is opened
       consensus->enable_all_domains();
 
       // Open the service
@@ -1578,67 +1578,48 @@ namespace ccf
       // can add a new active configuration.
       network.nodes.set_local_hook(
         [this](kv::Version version, const Nodes::Write& w) {
-          //if (network.consensus_type != ConsensusType::PBFT)
+          bool configure = false;
+          auto configuration = consensus->get_latest_configuration();
+
+          for (const auto& [node_id, opt_ni] : w)
           {
-            bool configure = false;
-            auto configuration = consensus->get_latest_configuration();
-
-            for (const auto& [node_id, opt_ni] : w)
+            if (!opt_ni.has_value())
             {
-              if (!opt_ni.has_value())
-              {
-                throw std::logic_error(fmt::format(
-                  "Unexpected: removal from nodes table ({})", node_id));
-              }
-
-              const auto& ni = opt_ni.value();
-              switch (ni.status)
-              {
-                case NodeStatus::PENDING: {
-                  // Pending nodes are not added to consensus until they are
-                  // trusted
-                  break;
-                }
-                case NodeStatus::TRUSTED: {
-                  configuration.try_emplace(node_id, ni.nodehost, ni.nodeport);
-                  configure = true;
-                  break;
-                }
-                case NodeStatus::RETIRED: {
-                  configuration.erase(node_id);
-                  configure = true;
-                  break;
-                }
-                default: {
-                }
-              }
+              throw std::logic_error(fmt::format(
+                "Unexpected: removal from nodes table ({})", node_id));
             }
 
-            if (configure)
+            const auto& ni = opt_ni.value();
+            switch (ni.status)
             {
-              consensus->add_configuration(version, configuration);
+              case NodeStatus::PENDING:
+              {
+                // Pending nodes are not added to consensus until they are
+                // trusted
+                break;
+              }
+              case NodeStatus::TRUSTED:
+              {
+                configuration.try_emplace(node_id, ni.nodehost, ni.nodeport);
+                configure = true;
+                break;
+              }
+              case NodeStatus::RETIRED:
+              {
+                configuration.erase(node_id);
+                configure = true;
+                break;
+              }
+              default:
+              {
+              }
             }
           }
-          /*
-          else
+
+          if (configure)
           {
-            for (const auto& [node_id, opt_ni] : w)
-            {
-              if (!opt_ni.has_value())
-              {
-                throw std::logic_error(fmt::format(
-                  "Unexpected: removal from nodes table ({})", node_id));
-              }
-
-              const auto& ni = opt_ni.value();
-              n2n_channels->create_channel(node_id, ni.nodehost, ni.nodeport);
-
-              aft::Configuration::Nodes configuration;
-              configuration[node_id] = {ni.nodehost, ni.nodeport, ni.cert};
-              consensus->add_configuration(version, configuration);
-            }
+            consensus->add_configuration(version, configuration);
           }
-          */
         });
 
       setup_basic_hooks();

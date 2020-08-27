@@ -294,7 +294,7 @@ namespace kv
         // From here, we have received a unique commit version and made
         // modifications to our local kv. If we fail in any way, we cannot
         // recover.
-        //try
+        try
         {
           auto data = serialise();
 
@@ -315,7 +315,6 @@ namespace kv
             MovePendingTx(std::move(data), std::move(req_id)),
             false);
         }
-        /*
         catch (const std::exception& e)
         {
           committed = false;
@@ -327,7 +326,6 @@ namespace kv
           // KvSerialiserException
           throw KvSerialiserException(e.what());
         }
-        */
       }
     }
 

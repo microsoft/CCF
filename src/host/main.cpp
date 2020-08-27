@@ -228,7 +228,7 @@ int main(int argc, char** argv)
     .add_option(
       "--raft-timeout-ms",
       raft_timeout,
-      "Aft timeout in milliseconds. The Aft leader sends heartbeats to its "
+      "Raft timeout in milliseconds. The Raft leader sends heartbeats to its "
       "followers at regular intervals defined by this timeout. This should be "
       "set to a significantly lower value than --raft-election-timeout-ms.")
     ->capture_default_str();
@@ -238,7 +238,7 @@ int main(int argc, char** argv)
     .add_option(
       "--raft-election-timeout-ms",
       raft_election_timeout,
-      "Aft election timeout in milliseconds. If a follower does not receive "
+      "Raft election timeout in milliseconds. If a follower does not receive "
       "any "
       "heartbeat from the leader after this timeout, the follower triggers a "
       "new "
