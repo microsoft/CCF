@@ -175,7 +175,7 @@ def get_curve(ca_file):
 
 
 def unpack_seqno_or_view(data):
-    value, = struct.unpack("<q", data)
+    (value,) = struct.unpack("<q", data)
     if value == -1:
         return None
     return value
