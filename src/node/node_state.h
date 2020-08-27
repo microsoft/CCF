@@ -583,7 +583,6 @@ namespace ccf
         last_recovered_commit_idx);
 
       network.ledger_secrets->init(last_recovered_commit_idx + 1);
-      setup_encryptor(network.consensus_type);
       // KV term must be set before the first Tx is committed
       LOG_INFO_FMT(
         "Setting term on public recovery KV to {}", term_history.size() + 2);
@@ -599,6 +598,7 @@ namespace ccf
                          quote,
                          node_encrypt_kp->public_key_pem().raw(),
                          NodeStatus::PENDING});
+      setup_encryptor(network.consensus_type);
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
@@ -918,8 +918,7 @@ namespace ccf
         }
 
         default:
-        {
-        }
+        {}
       }
     }
 
@@ -1556,8 +1555,7 @@ namespace ccf
                 break;
               }
               default:
-              {
-              }
+              {}
             }
           }
 
