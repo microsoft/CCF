@@ -89,9 +89,9 @@ namespace aft
 
     void destroy_channel(NodeId peer_id) override {}
 
-    void close_all_outgoing() override {}
-
     void destroy_all_channels() override {}
+
+    void close_all_outgoing() override {}
 
     bool send_authenticated(
       const ccf::NodeMsgType& msg_type,

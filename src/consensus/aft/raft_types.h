@@ -39,7 +39,6 @@ namespace aft
     virtual void compact(Index v) = 0;
     virtual void rollback(Index v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
-    virtual kv::Version current_version() = 0;
     virtual S deserialise_views(
       const std::vector<uint8_t>& data,
       bool public_only = false,
@@ -94,16 +93,6 @@ namespace aft
       {
         p->set_term(t);
       }
-    }
-
-    kv::Version current_version() override
-    {
-      auto p = x.lock();
-      if (p)
-      {
-        return p->current_version();
-      }
-      return kv::NoVersion;
     }
 
     S deserialise_views(
