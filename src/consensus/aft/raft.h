@@ -808,7 +808,7 @@ namespace aft
           {
             if (consensus_type != ConsensusType::PBFT)
             {
-              return;
+              break;
             }
             //CCF_ASSERT(consensus_type == ConsensusType::PBFT, "wrong consensus type");
             LOG_INFO_FMT("AAAAAAAAAAA, primary {}", leader_id);
