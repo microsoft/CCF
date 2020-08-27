@@ -108,6 +108,24 @@ namespace ccf
       next_snapshot_indices.push_back(last_snapshot_idx);
     }
 
+    void set_last_snapshot_idx(consensus::Index idx)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+
+      // Should only be called once, after a snapshot has been applied
+      if (last_snapshot_idx != 0)
+      {
+        throw std::logic_error(
+          "Last snapshot index can only be set if no snapshot has been "
+          "generated");
+      }
+
+      last_snapshot_idx = idx;
+
+      next_snapshot_indices.clear();
+      next_snapshot_indices.push_back(last_snapshot_idx);
+    }
+
     void snapshot(consensus::Index idx)
     {
       std::lock_guard<SpinLock> guard(lock);
@@ -119,7 +137,7 @@ namespace ccf
         idx,
         last_snapshot_idx);
 
-      if (idx - last_snapshot_idx > snapshot_tx_interval)
+      if (idx - last_snapshot_idx >= snapshot_tx_interval)
       {
         auto msg = std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
         msg->data.self = shared_from_this();
@@ -139,6 +157,11 @@ namespace ccf
              (next_snapshot_indices.front() < idx))
       {
         next_snapshot_indices.pop_front();
+      }
+
+      if (next_snapshot_indices.empty())
+      {
+        next_snapshot_indices.push_back(last_snapshot_idx);
       }
     }
 

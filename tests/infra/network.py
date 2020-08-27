@@ -161,7 +161,15 @@ class Network:
         self.nodes.append(node)
         return node
 
-    def _add_node(self, node, lib_name, args, target_node=None, recovery=False):
+    def _add_node(
+        self,
+        node,
+        lib_name,
+        args,
+        target_node=None,
+        recovery=False,
+        from_snapshot=False,
+    ):
         forwarded_args = {
             arg: getattr(args, arg)
             for arg in infra.network.Network.node_args_to_forward
@@ -173,12 +181,23 @@ class Network:
                 timeout=args.ledger_recovery_timeout if recovery else 3
             )
 
+        snapshot_dir = None
+        if from_snapshot:
+            LOG.info("Joining from snapshot")
+            snapshot_dir = target_node.get_snapshots()
+            # For now, we must have a snapshot to resume from when attempting
+            # to join from one
+            assert (
+                len(os.listdir(snapshot_dir)) > 0
+            ), f"There are no snapshots to resume from in directory {snapshot_dir}"
+
         node.join(
             lib_name=lib_name,
             workspace=args.workspace,
             label=args.label,
             common_dir=self.common_dir,
             target_rpc_address=f"{target_node.host}:{target_node.rpc_port}",
+            snapshot_dir=snapshot_dir,
             **forwarded_args,
         )
 
@@ -415,14 +434,22 @@ class Network:
                 raise NodeShutdownError("Fatal error found during node shutdown")
 
     def create_and_add_pending_node(
-        self, lib_name, host, args, target_node=None, timeout=JOIN_TIMEOUT
+        self,
+        lib_name,
+        host,
+        args,
+        target_node=None,
+        from_snapshot=False,
+        timeout=JOIN_TIMEOUT,
     ):
         """
         Create a new node and add it to the network. Note that the new node
         still needs to be trusted by members to complete the join protocol.
         """
         new_node = self.create_node(host)
-        self._add_node(new_node, lib_name, args, target_node)
+        self._add_node(
+            new_node, lib_name, args, target_node, from_snapshot=from_snapshot
+        )
         primary, _ = self.find_primary()
         try:
             self.consortium.wait_for_node_to_exist_in_store(
@@ -450,12 +477,16 @@ class Network:
 
         return new_node
 
-    def create_and_trust_node(self, lib_name, host, args, target_node=None):
+    def create_and_trust_node(
+        self, lib_name, host, args, target_node=None, from_snapshot=False
+    ):
         """
         Create a new node, add it to the network and let members vote to trust
         it so that it becomes part of the consensus protocol.
         """
-        new_node = self.create_and_add_pending_node(lib_name, host, args, target_node)
+        new_node = self.create_and_add_pending_node(
+            lib_name, host, args, target_node, from_snapshot
+        )
 
         primary, _ = self.find_primary()
         try:

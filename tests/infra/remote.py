@@ -551,6 +551,7 @@ class CCFRemote(object):
         common_dir,
         target_rpc_address=None,
         members_info=None,
+        snapshot_dir=None,
         join_timer=None,
         host_log_level="info",
         sig_tx_interval=5000,
@@ -587,6 +588,11 @@ class CCFRemote(object):
             if self.ledger_dir
             else f"{local_node_id}.ledger"
         )
+        self.snapshot_dir = os.path.normpath(snapshot_dir) if snapshot_dir else None
+        self.snapshot_dir_name = (
+            os.path.basename(self.snapshot_dir) if self.snapshot_dir else "snapshots"
+        )
+
         self.common_dir = common_dir
 
         exe_files = [self.BIN, lib_path] + self.DEPS
@@ -679,6 +685,9 @@ class CCFRemote(object):
                 f"--join-timer={join_timer}",
             ]
             data_files += [os.path.join(self.common_dir, "networkcert.pem")]
+
+            if snapshot_dir:
+                data_files += [snapshot_dir]
         elif start_type == StartType.recover:
             cmd += ["recover", "--network-cert-file=networkcert.pem"]
         else:
@@ -756,6 +765,10 @@ class CCFRemote(object):
     def get_ledger(self):
         self.remote.get(self.ledger_dir_name, self.common_dir)
         return os.path.join(self.common_dir, self.ledger_dir_name)
+
+    def get_snapshots(self):
+        self.remote.get(self.snapshot_dir_name, self.common_dir)
+        return os.path.join(self.common_dir, self.snapshot_dir_name)
 
     def ledger_path(self):
         return os.path.join(self.remote.root, self.ledger_dir_name)
