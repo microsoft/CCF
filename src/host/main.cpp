@@ -134,28 +134,24 @@ int main(int argc, char** argv)
     "--rpc-address)");
 
   std::string ledger_dir("ledger");
-  app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
+  app.add_option("--ledger-dir", ledger_dir, "Ledger and snapshots directory")
     ->capture_default_str();
 
-  size_t ledger_min_bytes = 5'000'000;
+  size_t ledger_chunk_bytes = 5'000'000;
   app
     .add_option(
-      "--ledger-chunk-min-bytes",
-      ledger_min_bytes,
-      "Minimum size (bytes) at which a new ledger chunk is created.")
+      "--ledger-chunk-bytes",
+      ledger_chunk_bytes,
+      "Size (bytes) at which a new ledger chunk is created")
     ->capture_default_str()
     ->transform(CLI::AsSizeValue(true)); // 1000 is kb
 
-  std::string snapshot_dir("snapshots");
-  app.add_option("--snapshot-dir", snapshot_dir, "Snapshots directory")
-    ->capture_default_str();
-
-  size_t snapshot_max_tx = std::numeric_limits<std::size_t>::max();
+  size_t snapshot_tx_interval = std::numeric_limits<std::size_t>::max();
   app
     .add_option(
-      "--snapshot-max-tx",
-      snapshot_max_tx,
-      "Maximum number of transactions between snapshots (experimental). "
+      "--snapshot-tx-interval",
+      snapshot_tx_interval,
+      "Number of transactions between snapshots (experimental). "
       "Defaults to no snapshot.")
     ->capture_default_str();
 
@@ -194,18 +190,18 @@ int main(int argc, char** argv)
       "Path to which the node PID will be written")
     ->capture_default_str();
 
-  size_t sig_max_tx = 5000;
+  size_t sig_tx_interval = 5000;
   app
     .add_option(
-      "--sig-max-tx",
-      sig_max_tx,
-      "Maximum number of transactions between signatures")
+      "--sig-tx-interval",
+      sig_tx_interval,
+      "Number of transactions between signatures")
     ->capture_default_str();
 
-  size_t sig_max_ms = 1000;
+  size_t sig_ms_interval = 1000;
   app
     .add_option(
-      "--sig-max-ms", sig_max_ms, "Maximum milliseconds between signatures")
+      "--sig-ms-interval", sig_ms_interval, "Milliseconds between signatures")
     ->capture_default_str();
 
   size_t circuit_size_shift = 22;
@@ -545,10 +541,10 @@ int main(int argc, char** argv)
   // graceful shutdown on sigterm
   asynchost::Sigterm sigterm(writer_factory);
 
-  asynchost::Ledger ledger(ledger_dir, writer_factory, ledger_min_bytes);
+  asynchost::Ledger ledger(ledger_dir, writer_factory, ledger_chunk_bytes);
   ledger.register_message_handlers(bp.get_dispatcher());
 
-  asynchost::SnapshotManager snapshot(snapshot_dir);
+  asynchost::SnapshotManager snapshot(ledger_dir);
   snapshot.register_message_handlers(bp.get_dispatcher());
 
   // Begin listening for node-to-node and RPC messages.
@@ -600,14 +596,14 @@ int main(int argc, char** argv)
                                  raft_election_timeout,
                                  pbft_view_change_timeout,
                                  pbft_status_interval};
-  ccf_config.signature_intervals = {sig_max_tx, sig_max_ms};
+  ccf_config.signature_intervals = {sig_tx_interval, sig_ms_interval};
   ccf_config.node_info_network = {rpc_address.hostname,
                                   public_rpc_address.hostname,
                                   node_address.hostname,
                                   node_address.port,
                                   rpc_address.port};
   ccf_config.domain = domain;
-  ccf_config.snapshot_interval = snapshot_max_tx;
+  ccf_config.snapshot_tx_interval = snapshot_tx_interval;
 
   if (*start)
   {

@@ -243,7 +243,7 @@ namespace pbft
       {
         threading::ThreadMessaging::thread_messaging
           .ChangeTmsgCallback<ExecutionCtx>(c, &ExecuteCb);
-        threading::ThreadMessaging::thread_messaging.add_task<ExecutionCtx>(
+        threading::ThreadMessaging::thread_messaging.add_task(
           threading::ThreadMessaging::main_thread, std::move(c));
       }
       else
@@ -282,7 +282,7 @@ namespace pbft
             {
               tid = (threading::ThreadMessaging::thread_count - 1);
             }
-            threading::ThreadMessaging::thread_messaging.add_task<ExecutionCtx>(
+            threading::ThreadMessaging::thread_messaging.add_task(
               tid, std::move(execution_ctx));
           }
           else

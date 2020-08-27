@@ -314,7 +314,9 @@ def run(args):
             test_set_recovery_threshold, network, args, recovery_threshold=1
         )
         test_set_recovery_threshold(
-            network, args, recovery_threshold=network.consortium.recovery_threshold,
+            network,
+            args,
+            recovery_threshold=network.consortium.recovery_threshold,
         )
 
         LOG.info(

@@ -31,7 +31,9 @@ class CryptoBoxCtx:
         with open(privk_path, "rb") as privk:
             self.privk = PrivateKey(
                 load_pem_private_key(
-                    privk.read(), password=None, backend=default_backend(),
+                    privk.read(),
+                    password=None,
+                    backend=default_backend(),
                 ).private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption()),
                 RawEncoder,
             )
@@ -39,7 +41,8 @@ class CryptoBoxCtx:
         with open(pubk_path, "rb") as pubk:
             self.pubk = PublicKey(
                 load_pem_public_key(
-                    pubk.read(), backend=default_backend(),
+                    pubk.read(),
+                    backend=default_backend(),
                 ).public_bytes(Encoding.Raw, PublicFormat.Raw),
                 RawEncoder,
             )

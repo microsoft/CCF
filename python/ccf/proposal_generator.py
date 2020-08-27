@@ -7,7 +7,6 @@ import inspect
 import json
 import os
 import sys
-import functools
 from pathlib import PurePosixPath
 from typing import Union, Optional, Any
 
@@ -335,53 +334,6 @@ def update_recovery_shares(**kwargs):
 @cli_proposal
 def set_recovery_threshold(threshold: int, **kwargs):
     return build_proposal("set_recovery_threshold", threshold, **kwargs)
-
-
-class ProposalGenerator:
-    def __init__(self, common_dir: str = "."):
-        self.common_dir = common_dir
-
-        # Auto-generate methods wrapping inspected functions, dumping outputs to file
-        def wrapper(func):
-            @functools.wraps(func)
-            def wrapper_func(
-                *args,
-                proposal_output_path_: Optional[str] = None,
-                vote_output_path_: Optional[str] = None,
-                **kwargs,
-            ):
-                proposal_output_path = complete_proposal_output_path(
-                    func.__name__,
-                    proposal_output_path=proposal_output_path_,
-                    common_dir=self.common_dir,
-                )
-
-                vote_output_path = complete_vote_output_path(
-                    func.__name__,
-                    vote_output_path=vote_output_path_,
-                    common_dir=self.common_dir,
-                )
-
-                proposal_object, vote_object = func(*args, **kwargs)
-                dump_args = {"indent": 2}
-
-                LOG.debug(f"Writing proposal to {proposal_output_path}")
-                dump_to_file(proposal_output_path, proposal_object, dump_args)
-
-                LOG.debug(f"Writing vote to {vote_output_path}")
-                dump_to_file(vote_output_path, vote_object, dump_args)
-
-                return f"@{proposal_output_path}", f"@{vote_output_path}"
-
-            return wrapper_func
-
-        module = inspect.getmodule(inspect.currentframe())
-        proposal_generators = inspect.getmembers(module, predicate=inspect.isfunction)
-
-        for func_name, func in proposal_generators:
-            # Only wrap decorated functions
-            if hasattr(func, "is_cli_proposal"):
-                setattr(self, func_name, wrapper(func))
 
 
 if __name__ == "__main__":

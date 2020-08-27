@@ -51,9 +51,9 @@ namespace ccf
     std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder;
     kv::TxHistory* history;
 
-    size_t sig_max_tx = 1000;
+    size_t sig_tx_interval = 5000;
     std::atomic<size_t> tx_count = 0;
-    std::chrono::milliseconds sig_max_ms = std::chrono::milliseconds(1000);
+    std::chrono::milliseconds sig_ms_interval = std::chrono::milliseconds(1000);
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
     bool request_storing_disabled = false;
 
@@ -403,7 +403,7 @@ namespace ccf
 
                 if (
                   history && consensus->is_primary() &&
-                  (cv % sig_max_tx == sig_max_tx / 2))
+                  (cv % sig_tx_interval == sig_tx_interval / 2))
                 {
                   if (consensus->type() == ConsensusType::RAFT)
                   {
@@ -483,11 +483,12 @@ namespace ccf
       history(nullptr)
     {}
 
-    void set_sig_intervals(size_t sig_max_tx_, size_t sig_max_ms_) override
+    void set_sig_intervals(
+      size_t sig_tx_interval_, size_t sig_ms_interval_) override
     {
-      sig_max_tx = sig_max_tx_;
-      sig_max_ms = std::chrono::milliseconds(sig_max_ms_);
-      ms_to_sig = sig_max_ms;
+      sig_tx_interval = sig_tx_interval_;
+      sig_ms_interval = std::chrono::milliseconds(sig_ms_interval_);
+      ms_to_sig = sig_ms_interval;
     }
 
     void set_cmd_forwarder(
@@ -526,7 +527,7 @@ namespace ccf
     {
       update_consensus();
 
-      kv::Tx tx;
+      auto tx = tables.create_tx();
 
       auto caller_id = endpoints.get_caller_id(tx, ctx->session->caller_cert);
 
@@ -584,7 +585,7 @@ namespace ccf
     ProcessPbftResp process_pbft(
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
-      kv::Tx tx;
+      auto tx = tables.create_tx();
       return process_pbft(ctx, tx, false);
     }
 
@@ -649,7 +650,7 @@ namespace ccf
 
       update_consensus();
 
-      kv::Tx tx;
+      auto tx = tables.create_tx();
 
       auto rep =
         process_command(ctx, tx, ctx->session->original_caller->caller_id);
@@ -688,7 +689,7 @@ namespace ccf
           return;
         }
 
-        ms_to_sig = sig_max_ms;
+        ms_to_sig = sig_ms_interval;
         if (history && tables.commit_gap() > 0)
         {
           if (consensus->type() == ConsensusType::RAFT)

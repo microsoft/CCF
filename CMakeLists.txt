@@ -38,18 +38,13 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake
 )
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pbft.cmake)
 
 configure_file(
   ${CCF_DIR}/src/host/version.h.in ${CCF_GENERATED_DIR}/version.h @ONLY
 )
 configure_file(${CCF_DIR}/python/setup.py.in ${CCF_DIR}/python/setup.py @ONLY)
 
-if(PBFT_TESTS)
-  set(CONSENSUSES raft pbft)
-else()
-  set(CONSENSUSES raft)
-endif()
+set(CONSENSUSES raft)
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
@@ -95,7 +90,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            lua.enclave
            secp256k1.enclave
            sss.enclave
-           byz.enclave
   )
 
   set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -149,7 +143,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            lua.host
            secp256k1.host
            sss.host
-           byz.host
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
@@ -264,6 +257,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_serialisation.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_snapshot.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_dynamic_tables.cpp
     )
     use_client_mbedtls(kv_test)
     target_link_libraries(
@@ -583,7 +577,7 @@ if(BUILD_TESTS)
       NAME reconfiguration_snapshot_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
       CONSENSUS raft
-      ADDITIONAL_ARGS --snapshot-max-tx 10
+      ADDITIONAL_ARGS --snapshot-tx-interval 10
     )
 
     add_e2e_test(

@@ -7,6 +7,7 @@
 #include "ds/spin_lock.h"
 #include "kv/kv_types.h"
 #include "node/node_types.h"
+#include "node/rpc/tx_status.h"
 #include "raft_types.h"
 
 #include <algorithm>
@@ -54,7 +55,7 @@ namespace raft
         }
       }
 
-      for (auto i = terms.size(); i < term; ++i)
+      for (int64_t i = terms.size(); i < term; ++i)
         terms.push_back(idx);
       LOG_DEBUG_FMT("Resulting terms: {}", fmt::join(terms, ", "));
     }
@@ -79,7 +80,8 @@ namespace raft
     {
       Leader,
       Follower,
-      Candidate
+      Candidate,
+      Retired
     };
 
     struct NodeState
@@ -115,8 +117,6 @@ namespace raft
     Index last_idx;
     Index commit_idx;
     TermHistory term_history;
-
-    Index last_snapshot_idx;
 
     // Volatile
     NodeId leader_id;
@@ -173,7 +173,6 @@ namespace raft
       voted_for(NoNode),
       last_idx(0),
       commit_idx(0),
-      last_snapshot_idx(0),
 
       leader_id(NoNode),
 
@@ -355,11 +354,18 @@ namespace raft
           index,
           (globally_committable ? " committable" : ""));
 
+        bool force_ledger_chunk = false;
         if (globally_committable)
+        {
           committable_indices.push_back(index);
 
+          // Only if globally committable, a snapshot requires a new ledger
+          // chunk to be created
+          force_ledger_chunk = snapshotter->requires_snapshot(index);
+        }
+
         last_idx = index;
-        ledger->put_entry(*data, globally_committable);
+        ledger->put_entry(*data, globally_committable, force_ledger_chunk);
         entry_size_not_limited += data->size();
         entry_count++;
 
@@ -440,7 +446,7 @@ namespace raft
       }
       else
       {
-        if (timeout_elapsed >= election_timeout)
+        if (state != Retired && timeout_elapsed >= election_timeout)
         {
           // Start an election.
           become_candidate();
@@ -468,7 +474,7 @@ namespace raft
     Term get_term_internal(Index idx)
     {
       if (idx > last_idx)
-        return 0;
+        return ccf::VIEW_UNKNOWN;
 
       return term_history.term_at(idx);
     }
@@ -540,6 +546,7 @@ namespace raft
         LOG_FAIL_FMT(err.what());
         return;
       }
+
       LOG_DEBUG_FMT(
         "Received pt: {} pi: {} t: {} i: {}",
         r.prev_term,
@@ -612,7 +619,7 @@ namespace raft
       if (r.prev_idx < commit_idx)
       {
         LOG_DEBUG_FMT(
-          "Recv append entries to {} from {} but prev_idex ({}) < commit_idx "
+          "Recv append entries to {} from {} but prev_idx ({}) < commit_idx "
           "({})",
           local_id,
           r.from_node,
@@ -665,28 +672,47 @@ namespace raft
         auto deserialise_success =
           store->deserialise(entry, public_only, &sig_term);
 
-        ledger->put_entry(
-          entry, deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
+        bool globally_committable =
+          (deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
+        bool force_ledger_chunk = false;
+        if (globally_committable)
+        {
+          force_ledger_chunk = snapshotter->requires_snapshot(i);
+        }
+
+        ledger->put_entry(entry, globally_committable, force_ledger_chunk);
 
         switch (deserialise_success)
         {
           case kv::DeserialiseSuccess::FAILED:
+          {
             throw std::logic_error(
               "Follower failed to apply log entry " + std::to_string(i));
             break;
+          }
 
           case kv::DeserialiseSuccess::PASS_SIGNATURE:
+          {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
             committable_indices.push_back(i);
+
             if (sig_term)
+            {
               term_history.update(commit_idx + 1, sig_term);
+              commit_if_possible(r.leader_commit_idx);
+            }
             break;
+          }
 
           case kv::DeserialiseSuccess::PASS:
+          {
             break;
+          }
 
           default:
+          {
             throw std::logic_error("Unknown DeserialiseSuccess value");
+          }
         }
       }
 
@@ -1074,6 +1100,15 @@ namespace raft
       channels->close_all_outgoing();
     }
 
+    void become_retired()
+    {
+      state = Retired;
+      leader_id = NoNode;
+
+      LOG_INFO_FMT("Becoming retired {}: {}", local_id, current_term);
+      channels->destroy_all_channels();
+    }
+
     void add_vote_for_me(NodeId from)
     {
       // Need 50% + 1 of the total nodes, which are the other nodes plus us.
@@ -1168,13 +1203,10 @@ namespace raft
       commit_idx = idx;
 
       LOG_DEBUG_FMT("Compacting...");
+      snapshotter->compact(idx);
       if (state == Leader)
       {
-        auto snapshot_idx = snapshotter->snapshot(idx);
-        if (snapshot_idx.has_value())
-        {
-          last_snapshot_idx = snapshot_idx.value();
-        }
+        snapshotter->snapshot(idx);
       }
       store->compact(idx);
       ledger->commit(idx);
@@ -1210,6 +1242,7 @@ namespace raft
 
     void rollback(Index idx)
     {
+      snapshotter->rollback(idx);
       store->rollback(idx, current_term);
       LOG_DEBUG_FMT("Setting term in store to: {}", current_term);
       ledger->truncate(idx);
@@ -1306,6 +1339,10 @@ namespace raft
       if (!self_is_active)
       {
         LOG_INFO_FMT("Removed raft self {}", local_id);
+        if (state == Leader)
+        {
+          become_retired();
+        }
       }
     }
   };

@@ -109,7 +109,8 @@ namespace enclave
       for (auto& [actor, fe] : rpc_map->get_map())
       {
         fe->set_sig_intervals(
-          signature_intervals.sig_max_tx, signature_intervals.sig_max_ms);
+          signature_intervals.sig_tx_interval,
+          signature_intervals.sig_ms_interval);
         fe->set_cmd_forwarder(cmd_forwarder);
       }
 
@@ -397,7 +398,7 @@ namespace enclave
       {
         auto msg = std::make_unique<threading::Tmsg<Msg>>(&init_thread_cb);
         msg->data.tid = threading::get_current_thread_id();
-        threading::ThreadMessaging::thread_messaging.add_task<Msg>(
+        threading::ThreadMessaging::thread_messaging.add_task(
           msg->data.tid, std::move(msg));
 
         threading::ThreadMessaging::thread_messaging.run();

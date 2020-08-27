@@ -20,20 +20,28 @@ def run(args):
     hosts = ["localhost", "localhost"]
 
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
+        hosts,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
     ) as network:
         network.start_and_join(args)
 
         txs = app.LoggingTxs()
         txs.issue(
-            network=network, number_txs=3, consensus=args.consensus,
+            network=network,
+            number_txs=3,
+            consensus=args.consensus,
         )
         txs.verify(network=network)
 
         network = test(network, args)
 
         txs.issue(
-            network=network, number_txs=3, consensus=args.consensus,
+            network=network,
+            number_txs=3,
+            consensus=args.consensus,
         )
         txs.verify(network=network)
 

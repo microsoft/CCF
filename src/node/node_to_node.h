@@ -58,6 +58,11 @@ namespace ccf
       channels->close_all_outgoing();
     }
 
+    void destroy_all_channels()
+    {
+      channels->destroy_all_channels();
+    }
+
     template <class T>
     bool send_authenticated(
       const NodeMsgType& msg_type, NodeId to, const T& data)
