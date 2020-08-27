@@ -177,6 +177,7 @@ namespace aft
       */
       {
         leader_id = NoNode;
+        LOG_DEBUG_FMT("ZZZZZ leader is NoNode");
       }
     }
 
@@ -591,12 +592,13 @@ namespace aft
       const auto term_of_idx = get_term_internal(end_idx);
 
       LOG_DEBUG_FMT(
-        "Send append entries from {} to {}: {} to {} ({})",
+        "Send append entries from {} to {}: {} to {} ({}), prev_term {}",
         service_state->my_node_id,
         to,
         start_idx,
         end_idx,
-        service_state->commit_idx);
+        service_state->commit_idx,
+        prev_term);
 
       AppendEntries ae = {{raft_append_entries, service_state->my_node_id},
                           {end_idx, prev_idx},
@@ -768,6 +770,7 @@ namespace aft
         {
           deserialise_success =
             store->deserialise(entry, public_only, &sig_term);
+        }
 
         bool globally_committable =
           (deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
@@ -803,10 +806,28 @@ namespace aft
 
           case kv::DeserialiseSuccess::PASS:
           {
+            if (consensus_type != ConsensusType::PBFT)
+            {
+              return;
+            }
             //CCF_ASSERT(consensus_type == ConsensusType::PBFT, "wrong consensus type");
-            LOG_INFO_FMT("AAAAAAAAAAA");
-            execution_utilities->commit_replayed_request(tx);
+            LOG_INFO_FMT("AAAAAAAAAAA, primary {}", leader_id);
+            service_state->last_idx = execution_utilities->commit_replayed_request(tx);
             LOG_INFO_FMT("BBBBBBBBBBB");
+            // Update the current leader because we accepted entries.
+            /*
+            if (leader_id != r.from_node)
+            {
+              leader_id = r.from_node;
+              LOG_DEBUG_FMT(
+                "ZZZZZ Node {} thinks leader is {}",
+                service_state->my_node_id,
+                leader_id);
+            }
+
+            send_append_entries_response(r.from_node, true);
+            LOG_INFO_FMT("CCCCCCCCCCC");
+            return;*/
             break;
           }
 
@@ -821,11 +842,20 @@ namespace aft
       if (leader_id != r.from_node)
       {
         leader_id = r.from_node;
-        LOG_DEBUG_FMT("Node {} thinks leader is {}", service_state->my_node_id, leader_id);
+        LOG_DEBUG_FMT("ZZZZZ Node {} thinks leader is {}", service_state->my_node_id, leader_id);
       }
 
       send_append_entries_response(r.from_node, true);
-      commit_if_possible(r.leader_commit_idx);
+      if (consensus_type == ConsensusType::PBFT && is_follower())
+      {
+        LOG_INFO_FMT("CCCCCCCCCCC");
+        store->compact(service_state->last_idx);
+        LOG_INFO_FMT("DDDDDDDDDDD");
+      }
+      else
+      {
+        commit_if_possible(r.leader_commit_idx);
+      }
 
       service_state->view_history.update(service_state->commit_idx + 1, r.term_of_idx);
     }
@@ -1021,6 +1051,7 @@ namespace aft
         // progress.
         restart_election_timeout();
         leader_id = NoNode;
+        LOG_DEBUG_FMT("ZZZZZ leader is NoNode");
         voted_for = r.from_node;
       }
 
@@ -1125,6 +1156,7 @@ namespace aft
     {
       state = Candidate;
       leader_id = NoNode;
+      LOG_DEBUG_FMT("ZZZZZ leader is NoNode");
       voted_for = service_state->my_node_id;
       votes_for_me.clear();
       service_state->current_view++;
@@ -1160,6 +1192,7 @@ namespace aft
       committable_indices.clear();
       state = Leader;
       leader_id = service_state->my_node_id;
+      LOG_DEBUG_FMT("ZZZZZ leader is {}", leader_id);
 
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
@@ -1190,6 +1223,7 @@ namespace aft
     {
       state = Follower;
       leader_id = NoNode;
+      LOG_DEBUG_FMT("ZZZZZ leader is NoNode");
       restart_election_timeout();
 
       service_state->current_view = term;
