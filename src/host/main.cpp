@@ -134,7 +134,11 @@ int main(int argc, char** argv)
     "--rpc-address)");
 
   std::string ledger_dir("ledger");
-  app.add_option("--ledger-dir", ledger_dir, "Ledger and snapshots directory")
+  app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
+    ->capture_default_str();
+
+  std::string snapshot_dir("snapshots");
+  app.add_option("--snapshot-dir", snapshot_dir, "Snapshots directory")
     ->capture_default_str();
 
   size_t ledger_chunk_bytes = 5'000'000;
@@ -354,7 +358,7 @@ int main(int argc, char** argv)
     "key)")
     ->required();
 
-  std::optional<size_t> recovery_threshold;
+  std::optional<size_t> recovery_threshold = std::nullopt;
   start
     ->add_option(
       "--recovery-threshold",
@@ -438,7 +442,8 @@ int main(int argc, char** argv)
     if ((*start || *join) && files::exists(ledger_dir))
     {
       throw std::logic_error(fmt::format(
-        "On start/join, ledger directory should not exist ({})", ledger_dir));
+        "On start and join, ledger directory should not exist ({})",
+        ledger_dir));
     }
     else if (*recover && !files::exists(ledger_dir))
     {
@@ -544,8 +549,8 @@ int main(int argc, char** argv)
   asynchost::Ledger ledger(ledger_dir, writer_factory, ledger_chunk_bytes);
   ledger.register_message_handlers(bp.get_dispatcher());
 
-  asynchost::SnapshotManager snapshot(ledger_dir);
-  snapshot.register_message_handlers(bp.get_dispatcher());
+  asynchost::SnapshotManager snapshots(snapshot_dir);
+  snapshots.register_message_handlers(bp.get_dispatcher());
 
   // Begin listening for node-to-node and RPC messages.
   // This includes DNS resolution and potentially dynamic port assignment (if
@@ -634,6 +639,21 @@ int main(int argc, char** argv)
     ccf_config.joining.target_port = target_rpc_address.port;
     ccf_config.joining.network_cert = files::slurp(network_cert_file);
     ccf_config.joining.join_timer = join_timer;
+
+    auto snapshot_file = snapshots.find_latest_snapshot();
+    if (snapshot_file.has_value())
+    {
+      ccf_config.joining.snapshot = files::slurp(snapshot_file.value());
+      LOG_INFO_FMT(
+        "Found latest snapshot file: {} (size: {})",
+        snapshot_file.value(),
+        ccf_config.joining.snapshot.size());
+    }
+    else
+    {
+      LOG_INFO_FMT(
+        "No snapshot found, node will request transactions from the beginning");
+    }
   }
   else if (*recover)
   {

@@ -51,7 +51,7 @@ namespace serdes
   {
     if (input.size() == 0)
     {
-      return {};
+      return std::nullopt;
     }
 
     if (input[0] == '{')

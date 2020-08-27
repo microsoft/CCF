@@ -114,5 +114,15 @@ namespace consensus
     {
       RINGBUFFER_WRITE_MESSAGE(consensus::ledger_commit, to_host, idx);
     }
+
+    /**
+     * Initialise ledger at a given index (e.g. after a snapshot)
+     *
+     * @param idx Index to start ledger from
+     */
+    void init(Index idx)
+    {
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_init, to_host, idx);
+    }
   };
 }

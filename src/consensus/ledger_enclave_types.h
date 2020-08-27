@@ -28,6 +28,7 @@ namespace consensus
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_append),
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_truncate),
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_commit),
+    DEFINE_RINGBUFFER_MSG_TYPE(ledger_init),
 
     /// Create a new snapshot. Enclave -> Host
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_snapshot),
@@ -45,6 +46,7 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::ledger_no_entry,
   consensus::Index,
   consensus::LedgerRequestPurpose);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_init, consensus::Index);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::ledger_append,
   bool /* committable */,
