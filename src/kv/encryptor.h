@@ -29,6 +29,7 @@ namespace kv
       kv::Version version,
       bool is_snapshot = false)
     {
+      // Warning: The same IV will get re-used on rollback!
       gcm_hdr.set_iv_seq(version);
       gcm_hdr.set_iv_id(iv_id);
       gcm_hdr.set_iv_snapshot(is_snapshot);
