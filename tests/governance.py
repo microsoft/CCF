@@ -69,7 +69,9 @@ def test_user(network, args, notifications_queue=None, verify=True):
     network.consortium.add_user(primary, new_user_id, user_data)
     txs = app.LoggingTxs(notifications_queue=notifications_queue, user_id=3)
     txs.issue(
-        network=network, number_txs=1, consensus=args.consensus,
+        network=network,
+        number_txs=1,
+        consensus=args.consensus,
     )
     if verify:
         txs.verify(network)

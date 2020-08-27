@@ -21,8 +21,8 @@ To create a new CCF network, the first node of the network should be invoked wit
     [--domain domain]
     --ledger-dir /path/to/ledger/dir
     --node-cert-file /path/to/node_certificate
-    [--sig-max-tx number_of_transactions]
-    [--sig-max-ms number_of_milliseconds]
+    [--sig-tx-interval number_of_transactions]
+    [--sig-ms-interval number_of_milliseconds]
     start
     --network-cert-file /path/to/network_certificate
     --network-enc-pubk-file /path/to/network_encryption_pubk
@@ -62,14 +62,14 @@ To use the PBFT consensus protocol, pass ``--consensus pbft``. Please see :ref:`
 Signature Interval
 ~~~~~~~~~~~~~~~~~~
 
-Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster,
-but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction
-latency and throughput.
+Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput.
 
 Two options are provided to that end:
 
-- ``--sig-max-tx``: maximum number of transactions between two signatures
-- ``--sig-max-ms``: maximum time in milliseconds between two signatures.
+- ``--sig-tx-interval``: number of transactions between two signatures
+- ``--sig-ms-interval``: time in milliseconds between two signatures
+
+.. note:: These options specify the intervals at which the generation of signature transactions is `triggered`. However, because of the parallel execution of transactions, it is possible that signature transactions are recorded in the ledger at a slightly higher interval than the specified values.
 
 Adding a New Node to the Network
 --------------------------------
