@@ -2,8 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
-#include "kv/kv_types.h"
 #include "node/encryptor.h"
+
+#include "kv/kv_types.h"
 #include "node/entities.h"
 #include "node/ledger_secrets.h"
 
@@ -61,7 +62,7 @@ TEST_CASE(
   encryptor->encrypt(
     plain, additional_data, serialised_header2, cipher2, version);
 
-  // Cipher are different because IV is different
+  // Ciphers are different because IV is different
   REQUIRE(cipher != cipher2);
   REQUIRE(serialised_header != serialised_header2);
 }
@@ -89,7 +90,7 @@ TEST_CASE(
   encryptor_1->encrypt(
     plain, additional_data, serialised_header2, cipher2, version);
 
-  // Cipher are different because IV is different
+  // Ciphers are different because IV is different
   REQUIRE(cipher != cipher2);
   REQUIRE(serialised_header != serialised_header2);
 }
@@ -114,13 +115,13 @@ TEST_CASE("Two ciphers from same plaintext are different - PbftTxEncryptor")
   encryptor->encrypt(
     plain, additional_data, serialised_header2, cipher2, version);
 
-  // Cipher are different because IV is different
+  // Ciphers are different because IV is different
   REQUIRE(cipher != cipher2);
   REQUIRE(serialised_header != serialised_header2);
 }
 
 TEST_CASE(
-  "Same node ciphers from same plaintext with and without snapshots - "
+  "Different node ciphers from same plaintext with and without snapshots - "
   "PbftTxEncryptor")
 {
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
@@ -144,7 +145,7 @@ TEST_CASE(
   encryptor->encrypt(
     plain, additional_data, serialised_header2, cipher2, version, is_snapshot);
 
-  // Cipher are different because IV is different
+  // Ciphers are different because IV is different
   REQUIRE(cipher != cipher2);
   REQUIRE(serialised_header != serialised_header2);
 }
