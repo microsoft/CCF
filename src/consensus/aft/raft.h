@@ -266,12 +266,12 @@ namespace aft
     {
       // This should only be called when the node resumes from a snapshot and
       // before it has received any append entries.
-      std::lock_guard<SpinLock> guard(shared_state->lock);
+      std::lock_guard<SpinLock> guard(service_state->lock);
 
-      shared_state->last_idx = index;
-      shared_state->commit_idx = index;
+      service_state->last_idx = index;
+      service_state->commit_idx = index;
 
-      shared_state->view_history.update(index, term);
+      service_state->view_history.update(index, term);
 
       ledger->init(index);
       snapshotter->set_last_snapshot_idx(index);
