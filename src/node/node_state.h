@@ -450,7 +450,7 @@ namespace ccf
               }
 
               auto seqno = network.tables->current_version();
-              consensus->force_become_backup(seqno, sig->view);
+              consensus->init_as_backup(seqno, sig->view);
 
               reset_data(config.joining.snapshot);
               LOG_INFO_FMT(

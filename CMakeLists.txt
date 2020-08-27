@@ -548,7 +548,7 @@ if(BUILD_TESTS)
       snapshots
       --raft-election-timeout
       4000
-      --snapshot-max-tx
+      --snapshot-tx-interval
       5
   )
 

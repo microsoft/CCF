@@ -123,7 +123,7 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        if args.snapshot_max_tx is not None:
+        if args.snapshot_tx_interval is not None:
             test_add_node_from_snapshot(network, args)
 
         test_add_node_from_backup(network, args)

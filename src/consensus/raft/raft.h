@@ -275,7 +275,7 @@ namespace raft
       become_leader();
     }
 
-    void force_become_follower(Index index, Term term)
+    void init_as_follower(Index index, Term term)
     {
       // This should only be called when the node resumes from a snapshot and
       // before it has received any append entries.

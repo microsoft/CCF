@@ -54,9 +54,9 @@ namespace raft
       raft->force_become_leader(seqno, view, terms, commit_seqno);
     }
 
-    void force_become_backup(SeqNo seqno, View view) override
+    void init_as_backup(SeqNo seqno, View view) override
     {
-      raft->force_become_follower(seqno, view);
+      raft->init_as_follower(seqno, view);
     }
 
     bool replicate(const kv::BatchVector& entries, View view) override

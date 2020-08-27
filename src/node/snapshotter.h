@@ -110,8 +110,15 @@ namespace ccf
 
     void set_last_snapshot_idx(consensus::Index idx)
     {
-      // Warning: Should only be called once, after a snapshot has been applied
       std::lock_guard<SpinLock> guard(lock);
+
+      // Should only be called once, after a snapshot has been applied
+      if (last_snapshot_idx != 0)
+      {
+        throw std::logic_error(
+          "Last snapshot index can only be set if no snapshot has been "
+          "generated");
+      }
 
       last_snapshot_idx = idx;
 
