@@ -70,7 +70,7 @@ namespace asynchost
         auto pos = file_name.find(fmt::format("{}.", snapshot_file_prefix));
         if (pos == std::string::npos)
         {
-          LOG_FAIL_FMT("File {} does not appear to be a snapshot", file_name);
+          LOG_FAIL_FMT("Ignoring \"{}\" because it does not start with {}", file_name, snapshot_file_prefix);
           continue;
         }
 
