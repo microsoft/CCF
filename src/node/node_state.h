@@ -1058,22 +1058,7 @@ namespace ccf
     std::vector<tls::SubjectAltName> get_subject_alternative_names(
       const CCFConfig& config)
     {
-      std::vector<tls::SubjectAltName> sans;
-      for (auto& san : config.subject_alternative_names)
-      {
-        if (san.rfind(IP_ADDRESS_PREFIX, 0) == 0)
-        {
-          sans.push_back({san.substr(IP_ADDRESS_PREFIX.size()), true});
-        }
-        else if (san.rfind(DNS_NAME_PREFIX, 0) == 0)
-        {
-          sans.push_back({san.substr(DNS_NAME_PREFIX.size()), false});
-        }
-        else
-        {
-          LOG_FAIL_FMT("Unknown Subject Alternative Name");
-        }
-      }
+      std::vector<tls::SubjectAltName> sans = config.subject_alternative_names;
       sans.push_back(get_subject_alt_name(config));
       return sans;
     }

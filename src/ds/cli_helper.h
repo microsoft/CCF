@@ -2,7 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "../tls/san.h"
+
 #include <CLI11/CLI11.hpp>
+
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 
 namespace cli
 {
@@ -113,6 +118,45 @@ namespace cli
 
     auto* option = app.add_option(option_name, fun, option_desc, true);
     option->type_name("member_cert.pem,member_enc_pubk.pem")->type_size(-1);
+
+    return option;
+  }
+
+  static const std::string IP_ADDRESS_PREFIX("iPAddress:");
+  static const std::string DNS_NAME_PREFIX("dNSName:");
+
+  CLI::Option* add_subject_alternative_name_option(
+    CLI::App& app,
+    std::vector<tls::SubjectAltName>& parsed,
+    const std::string& option_name,
+    const std::string& option_desc)
+  {
+    CLI::callback_t fun = [&parsed, option_name](CLI::results_t results) {
+      for (auto& result : results)
+      {
+        if (result.rfind(IP_ADDRESS_PREFIX, 0) == 0)
+        {
+          parsed.push_back({result.substr(IP_ADDRESS_PREFIX.size()), true});
+        }
+        else if (result.rfind(DNS_NAME_PREFIX, 0) == 0)
+        {
+          parsed.push_back({result.substr(DNS_NAME_PREFIX.size()), false});
+        }
+        else
+        {
+          throw CLI::ValidationError(
+            option_name,
+            fmt::format(
+              "SAN could not be parsed: {}, must be (iPAddress|dNSName):VALUE",
+              result));
+        }
+      }
+
+      return true;
+    };
+
+    auto* option = app.add_option(option_name, fun, option_desc, true);
+    option->type_name("(iPAddress|dNSName):VALUE")->type_size(-1);
 
     return option;
   }

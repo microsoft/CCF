@@ -14,6 +14,7 @@
 #include "node/members.h"
 #include "node/node_info_network.h"
 #include "start_type.h"
+#include "tls/san.h"
 #include "tls/tls.h"
 
 #include <chrono>
@@ -67,7 +68,7 @@ struct CCFConfig
   Joining joining = {};
 
   std::string subject_name;
-  std::vector<std::string> subject_alternative_names;
+  std::vector<tls::SubjectAltName> subject_alternative_names;
 
   MSGPACK_DEFINE(
     consensus_config,

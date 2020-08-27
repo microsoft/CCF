@@ -9,6 +9,7 @@
 #include "error_string.h"
 #include "hash.h"
 #include "pem.h"
+#include "san.h"
 
 #include <cstring>
 #include <iomanip>
@@ -371,12 +372,6 @@ namespace tls
       return std::make_shared<PublicKey>(std::move(ctx));
     }
   }
-
-  struct SubjectAltName
-  {
-    std::string san;
-    bool is_ip;
-  };
 
   class KeyPair : public PublicKey
   {

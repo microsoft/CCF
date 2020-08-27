@@ -303,10 +303,11 @@ int main(int argc, char** argv)
       "--sn", subject_name, "Subject Name in node certificate, eg. CN=CCF Node")
     ->capture_default_str();
 
-  std::vector<std::string> subject_alternative_names;
-  app.add_option(
-    "--san",
+  std::vector<tls::SubjectAltName> subject_alternative_names;
+  cli::add_subject_alternative_name_option(
+    app,
     subject_alternative_names,
+    "--san",
     "Subject Alternative Name in node certificate. Can be either "
     "iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld");
 
