@@ -48,7 +48,7 @@ namespace ccf
      {TxStatus::Committed, tx_status_to_str(TxStatus::Committed)},
      {TxStatus::Invalid, tx_status_to_str(TxStatus::Invalid)}});
 
-  constexpr int64_t VIEW_UNKNOWN = -1;
+  constexpr int64_t VIEW_UNKNOWN = std::numeric_limits<int64_t>::min();
 
   static TxStatus get_tx_status(
     int64_t target_view,
