@@ -132,7 +132,6 @@ namespace aft
     bft_RequestData,
     bft_OpenNetwork,
     bft_OpenNetworkResp,
-    bft_append_entries = 0,
   };
 
 #pragma pack(push, 1)

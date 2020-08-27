@@ -17,7 +17,6 @@ namespace aft
   class ViewHistory
   {
     // Entry i stores the first version in view i+1
-    // (view 0 doesn't exist, so we store nothing for it)
     std::vector<kv::Version> views;
 
   public:

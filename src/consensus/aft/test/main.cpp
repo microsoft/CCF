@@ -336,7 +336,7 @@ DOCTEST_TEST_CASE(
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id0),
+    std::make_shared<aft::ServiceState>(node_id1),
     nullptr,
     request_timeout,
     ms(100));

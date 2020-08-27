@@ -72,7 +72,7 @@ namespace aft
       RequestMessageRep rep(
         from_node,
         request.size(),
-        0, // This is temporary and will make everything go via the primary
+        0,
         rid);
 
       serialized::write(

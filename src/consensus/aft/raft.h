@@ -352,7 +352,6 @@ namespace aft
 
       std::lock_guard<SpinLock> guard(service_state->lock);
 
-/*
       if (state != Leader)
       {
         LOG_FAIL_FMT(
@@ -360,7 +359,6 @@ namespace aft
         rollback(service_state->last_idx);
         return false;
       }
-*/
 
       if (term != service_state->current_view)
       {

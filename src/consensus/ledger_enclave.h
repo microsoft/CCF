@@ -73,7 +73,7 @@ namespace consensus
      * @param data Serialised entries
      * @param size Size of overall serialised entries
      */
-    static void skip_entry(const uint8_t*& data, size_t& size)
+    void skip_entry(const uint8_t*& data, size_t& size)
     {
       auto entry_len = serialized::read<uint32_t>(data, size);
       serialized::skip(data, size, entry_len);
@@ -87,7 +87,7 @@ namespace consensus
      *
      * @return Raw entry as a vector
      */
-    static std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
+    std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
     {
       auto entry_len = serialized::read<uint32_t>(data, size);
       std::vector<uint8_t> entry(data, data + entry_len);
