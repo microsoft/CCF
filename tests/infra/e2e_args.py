@@ -74,13 +74,16 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         action="store_true",
     )
     parser.add_argument(
-        "--sig-max-tx", help="Max transactions between signatures", type=int
+        "--sig-tx-interval",
+        help="Number of transactions between signatures",
+        type=int,
+        default=5000,
     )
     parser.add_argument(
-        "--sig-max-ms",
-        help="Max milliseconds between signatures",
+        "--sig-ms-interval",
+        help="Milliseconds between signatures",
         type=int,
-        default=100,
+        default=1000,
     )
     parser.add_argument(
         "--memory-reserve-startup",
@@ -100,7 +103,10 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=5000,
     )
     parser.add_argument(
-        "--consensus", help="Consensus", default="raft", choices=("raft", "pbft"),
+        "--consensus",
+        help="Consensus",
+        default="raft",
+        choices=("raft", "pbft"),
     )
     parser.add_argument(
         "--worker-threads",
@@ -175,13 +181,13 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=30,
     )
     parser.add_argument(
-        "--ledger-chunk-min-bytes",
-        help="Minimum size (bytes) at which a new ledger chunk is created",
+        "--ledger-chunk-bytes",
+        help="Size (bytes) at which a new ledger chunk is created",
         default="20KB",
     )
     parser.add_argument(
-        "--snapshot-max-tx",
-        help="Maximum number of transactions between two snapshots",
+        "--snapshot-tx-interval",
+        help="Number of transactions between two snapshots",
         default=None,
     )
 

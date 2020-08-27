@@ -536,6 +536,23 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME snapshots_test_suite
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+    CONSENSUS raft
+    LABEL suite
+    ADDITIONAL_ARGS
+      --test-duration
+      150
+      --enforce-reqs
+      --test-suite
+      snapshots
+      --raft-election-timeout
+      4000
+      --snapshot-tx-interval
+      5
+  )
+
+  add_e2e_test(
     NAME full_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS raft
@@ -571,13 +588,14 @@ if(BUILD_TESTS)
       NAME reconfiguration_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
       CONSENSUS raft
+      ADDITIONAL_ARGS --raft-election-timeout 4000
     )
 
     add_e2e_test(
       NAME reconfiguration_snapshot_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
       CONSENSUS raft
-      ADDITIONAL_ARGS --snapshot-max-tx 10
+      ADDITIONAL_ARGS --snapshot-tx-interval 10 --raft-election-timeout 4000
     )
 
     add_e2e_test(

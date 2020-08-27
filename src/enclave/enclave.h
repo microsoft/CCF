@@ -109,7 +109,8 @@ namespace enclave
       for (auto& [actor, fe] : rpc_map->get_map())
       {
         fe->set_sig_intervals(
-          signature_intervals.sig_max_tx, signature_intervals.sig_max_ms);
+          signature_intervals.sig_tx_interval,
+          signature_intervals.sig_ms_interval);
         fe->set_cmd_forwarder(cmd_forwarder);
       }
 
@@ -318,7 +319,7 @@ namespace enclave
 
         if (start_type == StartType::Join)
         {
-          node->join({ccf_config});
+          node->join(ccf_config);
         }
         else if (start_type == StartType::Recover)
         {

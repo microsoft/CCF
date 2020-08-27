@@ -23,7 +23,7 @@ namespace ccf
 
     NetworkState& network;
 
-    size_t snapshot_interval;
+    size_t snapshot_tx_interval;
 
     // Index at which the lastest snapshot was generated
     consensus::Index last_snapshot_idx = 0;
@@ -100,11 +100,29 @@ namespace ccf
     Snapshotter(
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network_,
-      size_t snapshot_interval_) :
+      size_t snapshot_tx_interval_) :
       to_host(writer_factory.create_writer_to_outside()),
       network(network_),
-      snapshot_interval(snapshot_interval_)
+      snapshot_tx_interval(snapshot_tx_interval_)
     {
+      next_snapshot_indices.push_back(last_snapshot_idx);
+    }
+
+    void set_last_snapshot_idx(consensus::Index idx)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+
+      // Should only be called once, after a snapshot has been applied
+      if (last_snapshot_idx != 0)
+      {
+        throw std::logic_error(
+          "Last snapshot index can only be set if no snapshot has been "
+          "generated");
+      }
+
+      last_snapshot_idx = idx;
+
+      next_snapshot_indices.clear();
       next_snapshot_indices.push_back(last_snapshot_idx);
     }
 
@@ -119,7 +137,7 @@ namespace ccf
         idx,
         last_snapshot_idx);
 
-      if (idx - last_snapshot_idx > snapshot_interval)
+      if (idx - last_snapshot_idx >= snapshot_tx_interval)
       {
         auto msg = std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
         msg->data.self = shared_from_this();
@@ -140,6 +158,11 @@ namespace ccf
       {
         next_snapshot_indices.pop_front();
       }
+
+      if (next_snapshot_indices.empty())
+      {
+        next_snapshot_indices.push_back(last_snapshot_idx);
+      }
     }
 
     bool requires_snapshot(consensus::Index idx)
@@ -147,7 +170,7 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
 
       // Returns true if the idx will require the generation of a snapshot
-      if ((idx - next_snapshot_indices.back()) >= snapshot_interval)
+      if ((idx - next_snapshot_indices.back()) >= snapshot_tx_interval)
       {
         next_snapshot_indices.push_back(idx);
         return true;

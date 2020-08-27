@@ -13,9 +13,9 @@ namespace ws
   static std::vector<uint8_t> serialise(
     size_t code,
     const std::vector<uint8_t>& body,
-    kv::Version seqno = 0,
-    kv::Consensus::View view = 0,
-    kv::Version global_commit = 0)
+    kv::Version seqno = kv::NoVersion,
+    kv::Consensus::View view = ccf::VIEW_UNKNOWN,
+    kv::Version global_commit = kv::NoVersion)
   {
     return make_out_frame(code, seqno, view, global_commit, body);
   };
