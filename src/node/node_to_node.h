@@ -33,7 +33,8 @@ namespace ccf
     bool send_authenticated(
       const NodeMsgType& msg_type, NodeId to, const T& data)
     {
-      return send_authenticated(msg_type, to, reinterpret_cast<const uint8_t*>(&data), sizeof(T));
+      return send_authenticated(
+        msg_type, to, reinterpret_cast<const uint8_t*>(&data), sizeof(T));
     }
 
     template <>
@@ -44,7 +45,10 @@ namespace ccf
     }
 
     virtual bool send_authenticated(
-      const ccf::NodeMsgType& msg_type, NodeId to, const uint8_t* data, size_t size) = 0;
+      const ccf::NodeMsgType& msg_type,
+      NodeId to,
+      const uint8_t* data,
+      size_t size) = 0;
 
     template <class T>
     const T& recv_authenticated(const uint8_t*& data, size_t& size)
@@ -60,12 +64,13 @@ namespace ccf
       return t;
     }
 
-    virtual bool recv_authenticated(NodeId from_node, CBuffer cb, const uint8_t*& data, size_t& size) = 0;
+    virtual bool recv_authenticated(
+      NodeId from_node, CBuffer cb, const uint8_t*& data, size_t& size) = 0;
 
     virtual void recv_message(OArray&& oa) = 0;
 
     virtual void initialize(NodeId self_id, const tls::Pem& network_pkey) = 0;
-    
+
     virtual bool send_encrypted(
       const NodeMsgType& msg_type,
       CBuffer cb,
@@ -88,7 +93,8 @@ namespace ccf
     {
       auto t = serialized::read<T>(data, size);
 
-      std::vector<uint8_t> plain = recv_encrypted(t.from_node, asCb(t), data, size);
+      std::vector<uint8_t> plain =
+        recv_encrypted(t.from_node, asCb(t), data, size);
       return std::make_pair(t, plain);
     }
 
@@ -116,7 +122,9 @@ namespace ccf
     }
 
     void create_channel(
-      NodeId peer_id, const std::string& hostname, const std::string& service) override
+      NodeId peer_id,
+      const std::string& hostname,
+      const std::string& service) override
     {
       if (peer_id == self)
       {
@@ -160,7 +168,7 @@ namespace ccf
       NodeId from_node, CBuffer cb, const uint8_t*& data, size_t& size) override
     {
       auto& n2n_channel = channels->get(from_node);
-      return n2n_channel.recv_authenticated(cb, data, size); 
+      return n2n_channel.recv_authenticated(cb, data, size);
     }
 
     bool send_encrypted(
@@ -172,7 +180,6 @@ namespace ccf
       auto& n2n_channel = channels->get(to);
       return n2n_channel.send(msg_type, cb, data);
     }
-
 
     template <class T>
     const T& recv_authenticated_with_load(const uint8_t*& data, size_t& size)

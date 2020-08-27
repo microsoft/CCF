@@ -23,10 +23,10 @@ namespace aft
     virtual ~ExecutionUtilities() = default;
 
     virtual std::unique_ptr<RequestCtx> create_request_ctx(
-      uint8_t* req_start,
-      size_t req_size) = 0;
+      uint8_t* req_start, size_t req_size) = 0;
 
-    virtual std::unique_ptr<RequestCtx> create_request_ctx(pbft::Request& request) = 0;
+    virtual std::unique_ptr<RequestCtx> create_request_ctx(
+      pbft::Request& request) = 0;
 
     virtual kv::Version execute_request(
       std::unique_ptr<RequestMessage> request, bool is_create_request) = 0;
@@ -34,8 +34,7 @@ namespace aft
     virtual std::unique_ptr<aft::RequestMessage> create_request_message(
       const kv::TxHistory::RequestCallbackArgs& args) = 0;
 
-    virtual kv::Version commit_replayed_request(
-      kv::Tx& tx) = 0;
+    virtual kv::Version commit_replayed_request(kv::Tx& tx) = 0;
   };
 
   class ExecutionUtilitiesImpl : public ExecutionUtilities
@@ -53,10 +52,10 @@ namespace aft
     {}
 
     std::unique_ptr<RequestCtx> create_request_ctx(
-      uint8_t* req_start,
-      size_t req_size) override;
+      uint8_t* req_start, size_t req_size) override;
 
-    std::unique_ptr<RequestCtx> create_request_ctx(pbft::Request& request) override;
+    std::unique_ptr<RequestCtx> create_request_ctx(
+      pbft::Request& request) override;
 
     kv::Version execute_request(
       std::unique_ptr<RequestMessage> request, bool is_create_request) override;
@@ -64,8 +63,7 @@ namespace aft
     std::unique_ptr<aft::RequestMessage> create_request_message(
       const kv::TxHistory::RequestCallbackArgs& args) override;
 
-    kv::Version commit_replayed_request(
-      kv::Tx& tx) override;
+    kv::Version commit_replayed_request(kv::Tx& tx) override;
 
   private:
     pbft::RequestsMap& pbft_requests_map;

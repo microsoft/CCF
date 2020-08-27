@@ -161,7 +161,7 @@ namespace aft
       rpc_map(rpc_map_)
 
     {
-        leader_id = NoNode;
+      leader_id = NoNode;
     }
 
     NodeId leader()
@@ -290,7 +290,8 @@ namespace aft
     std::pair<Term, Index> get_commit_term_and_idx()
     {
       std::lock_guard<SpinLock> guard(service_state->lock);
-      return {get_term_internal(service_state->commit_idx), service_state->commit_idx};
+      return {get_term_internal(service_state->commit_idx),
+              service_state->commit_idx};
     }
 
     Term get_term(Index idx)
@@ -478,7 +479,8 @@ namespace aft
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
     {
       auto request = execution_utilities->create_request_message(args);
-      execution_utilities->execute_request(std::move(request), is_first_request);
+      execution_utilities->execute_request(
+        std::move(request), is_first_request);
       is_first_request = false;
 
       return true;
@@ -515,7 +517,8 @@ namespace aft
         0 :
         std::min(start_idx + entries_batch_size, service_state->last_idx);
 
-      for (Index i = end_idx; i < service_state->last_idx; i += entries_batch_size)
+      for (Index i = end_idx; i < service_state->last_idx;
+           i += entries_batch_size)
       {
         send_append_entries_range(to, start_idx, i);
         start_idx = std::min(i + 1, service_state->last_idx);
@@ -677,7 +680,8 @@ namespace aft
           continue;
         }
 
-        LOG_DEBUG_FMT("Replicating on follower {}: {}", service_state->my_node_id, i);
+        LOG_DEBUG_FMT(
+          "Replicating on follower {}: {}", service_state->my_node_id, i);
 
         service_state->last_idx = i;
         is_first_entry = false;
@@ -740,7 +744,8 @@ namespace aft
 
             if (sig_term)
             {
-              service_state->view_history.update(service_state->commit_idx + 1, sig_term);
+              service_state->view_history.update(
+                service_state->commit_idx + 1, sig_term);
               commit_if_possible(r.leader_commit_idx);
             }
             break;
@@ -750,7 +755,8 @@ namespace aft
           {
             if (consensus_type == ConsensusType::PBFT)
             {
-              service_state->last_idx = execution_utilities->commit_replayed_request(tx);
+              service_state->last_idx =
+                execution_utilities->commit_replayed_request(tx);
             }
             break;
           }
@@ -778,7 +784,8 @@ namespace aft
         commit_if_possible(r.leader_commit_idx);
       }
 
-      service_state->view_history.update(service_state->commit_idx + 1, r.term_of_idx);
+      service_state->view_history.update(
+        service_state->commit_idx + 1, r.term_of_idx);
     }
 
     void send_append_entries_response(NodeId to, bool answer)
@@ -864,7 +871,8 @@ namespace aft
       }
 
       // Update next and match for the responding node.
-      node->second.match_idx = std::min(r.last_log_idx, service_state->last_idx);
+      node->second.match_idx =
+        std::min(r.last_log_idx, service_state->last_idx);
 
       if (!r.success)
       {
@@ -887,7 +895,8 @@ namespace aft
 
     void send_request_vote(NodeId to)
     {
-      LOG_INFO_FMT("Send request vote from {} to {}", service_state->my_node_id, to);
+      LOG_INFO_FMT(
+        "Send request vote from {} to {}", service_state->my_node_id, to);
 
       RequestVote rv = {{raft_request_vote, service_state->my_node_id},
                         service_state->current_view,
@@ -981,10 +990,15 @@ namespace aft
     void send_request_vote_response(NodeId to, bool answer)
     {
       LOG_INFO_FMT(
-        "Send request vote response from {} to {}: {}", service_state->my_node_id, to, answer);
+        "Send request vote response from {} to {}: {}",
+        service_state->my_node_id,
+        to,
+        answer);
 
       RequestVoteResponse response = {
-        {raft_request_vote_response, service_state->my_node_id}, service_state->current_view, answer};
+        {raft_request_vote_response, service_state->my_node_id},
+        service_state->current_view,
+        answer};
 
       channels->send_authenticated(
         ccf::NodeMsgType::consensus_msg, to, response);
@@ -996,7 +1010,8 @@ namespace aft
       if (state != Candidate)
       {
         LOG_INFO_FMT(
-          "Recv request vote response to {}: we aren't a candidate", service_state->my_node_id);
+          "Recv request vote response to {}: we aren't a candidate",
+          service_state->my_node_id);
         return;
       }
 
@@ -1083,7 +1098,10 @@ namespace aft
       restart_election_timeout();
       add_vote_for_me(service_state->my_node_id);
 
-      LOG_INFO_FMT("Becoming candidate {}: {}", service_state->my_node_id, service_state->current_view);
+      LOG_INFO_FMT(
+        "Becoming candidate {}: {}",
+        service_state->my_node_id,
+        service_state->current_view);
 
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
       {
@@ -1115,7 +1133,10 @@ namespace aft
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
 
-      LOG_INFO_FMT("Becoming leader {}: {}", service_state->my_node_id, service_state->current_view);
+      LOG_INFO_FMT(
+        "Becoming leader {}: {}",
+        service_state->my_node_id,
+        service_state->current_view);
 
       // Immediately commit if there are no other nodes.
       if (nodes.size() == 0)
@@ -1151,7 +1172,10 @@ namespace aft
       rollback(service_state->commit_idx);
       committable_indices.clear();
 
-      LOG_INFO_FMT("Becoming follower {}: {}", service_state->my_node_id, service_state->current_view);
+      LOG_INFO_FMT(
+        "Becoming follower {}: {}",
+        service_state->my_node_id,
+        service_state->current_view);
       channels->close_all_outgoing();
     }
 
@@ -1160,7 +1184,10 @@ namespace aft
       state = Retired;
       leader_id = NoNode;
 
-      LOG_INFO_FMT("Becoming retired {}: {}", service_state->my_node_id, service_state->current_view);
+      LOG_INFO_FMT(
+        "Becoming retired {}: {}",
+        service_state->my_node_id,
+        service_state->current_view);
       channels->destroy_all_channels();
     }
 
@@ -1224,7 +1251,9 @@ namespace aft
 
     void commit_if_possible(Index idx)
     {
-      if ((idx > service_state->commit_idx) && (get_term_internal(idx) <= service_state->current_view))
+      if (
+        (idx > service_state->commit_idx) &&
+        (get_term_internal(idx) <= service_state->current_view))
       {
         Index highest_committable = 0;
         bool can_commit = false;
@@ -1299,7 +1328,8 @@ namespace aft
     {
       snapshotter->rollback(idx);
       store->rollback(idx, service_state->current_view);
-      LOG_DEBUG_FMT("Setting term in store to: {}", service_state->current_view);
+      LOG_DEBUG_FMT(
+        "Setting term in store to: {}", service_state->current_view);
       ledger->truncate(idx);
       service_state->last_idx = idx;
       LOG_DEBUG_FMT("Rolled back at {}", idx);
@@ -1400,6 +1430,5 @@ namespace aft
         }
       }
     }
-
   };
 }

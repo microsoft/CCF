@@ -91,8 +91,7 @@ namespace aft
       return rpc_sessions->reply_async(std::get<1>(caller_rid), data);
     };
 
-    auto ctx = create_request_ctx(
-      serialized_req.data(), serialized_req.size());
+    auto ctx = create_request_ctx(serialized_req.data(), serialized_req.size());
 
     return std::make_unique<RequestMessage>(
       std::move(serialized_req), args.rid, std::move(ctx), rep_cb);
@@ -115,7 +114,6 @@ namespace aft
       std::move(ctx),
       nullptr);
 
-    return execute_request(
-      std::move(request_message), state->commit_idx == 0);
+    return execute_request(std::move(request_message), state->commit_idx == 0);
   }
 }

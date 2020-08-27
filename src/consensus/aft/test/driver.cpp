@@ -102,7 +102,7 @@ namespace aft
     Store<kv::DeserialiseSuccess>& store,
     std::shared_ptr<enclave::RPCMap> rpc_map,
     const std::vector<uint8_t>& cert)
-    {
-      return nullptr;
-    }
+  {
+    return nullptr;
+  }
 }

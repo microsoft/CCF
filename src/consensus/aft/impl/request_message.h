@@ -23,7 +23,8 @@ namespace aft
       short command_size_,
       short cid_,
       kv::TxHistory::RequestID rid_) :
-      consensus::ConsensusHeader<RaftMsgType>(RaftMsgType::bft_Request, from_node),
+      consensus::ConsensusHeader<RaftMsgType>(
+        RaftMsgType::bft_Request, from_node),
       command_size(command_size_),
       cid(cid_),
       rid(rid_)
@@ -67,13 +68,10 @@ namespace aft
       }
     }
 
-    void serialize_message(aft::NodeId from_node, uint8_t* data, size_t size) const override
+    void serialize_message(
+      aft::NodeId from_node, uint8_t* data, size_t size) const override
     {
-      RequestMessageRep rep(
-        from_node,
-        request.size(),
-        0,
-        rid);
+      RequestMessageRep rep(from_node, request.size(), 0, rid);
 
       serialized::write(
         data,

@@ -3,8 +3,8 @@
 #pragma once
 
 #include "call_types.h"
-#include "consensus/ledger_enclave.h"
 #include "consensus/aft/raft_consensus.h"
+#include "consensus/ledger_enclave.h"
 #include "crypto/crypto_box.h"
 #include "ds/logger.h"
 #include "enclave/rpc_sessions.h"
@@ -63,8 +63,7 @@ namespace ccf
 {
   using RaftConsensusType =
     aft::AftConsensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
-  using RaftType =
-    aft::Aft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
+  using RaftType = aft::Aft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
 
   template <typename T>
   class StateMachine
@@ -517,7 +516,9 @@ namespace ccf
 
       struct JoinTimeMsg
       {
-        JoinTimeMsg(NodeState* self_, CCFConfig& config_) : self(self_), config(config_)
+        JoinTimeMsg(NodeState* self_, CCFConfig& config_) :
+          self(self_),
+          config(config_)
         {}
 
         NodeState* self;
@@ -529,8 +530,8 @@ namespace ccf
           if (msg->data.self->sm.check(State::pending))
           {
             msg->data.self->initiate_join(msg->data.config);
-            auto delay = std::chrono::milliseconds(
-              msg->data.config.joining.join_timer);
+            auto delay =
+              std::chrono::milliseconds(msg->data.config.joining.join_timer);
 
             threading::ThreadMessaging::thread_messaging.add_task_after(
               std::move(msg), delay);

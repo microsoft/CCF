@@ -94,19 +94,24 @@ namespace aft
     void destroy_all_channels() override {}
 
     bool send_authenticated(
-      const ccf::NodeMsgType& msg_type, NodeId to, const uint8_t* data, size_t size) override
+      const ccf::NodeMsgType& msg_type,
+      NodeId to,
+      const uint8_t* data,
+      size_t size) override
     {
-
       switch (serialized::peek<RaftMsgType>(data, size))
       {
         case aft::RaftMsgType::raft_append_entries:
-          sent_append_entries.push_back(std::make_pair(to, *(AppendEntries*)(data)));
+          sent_append_entries.push_back(
+            std::make_pair(to, *(AppendEntries*)(data)));
           break;
         case aft::RaftMsgType::raft_request_vote:
-          sent_request_vote.push_back(std::make_pair(to, *(RequestVote*)(data)));
+          sent_request_vote.push_back(
+            std::make_pair(to, *(RequestVote*)(data)));
           break;
         case aft::RaftMsgType::raft_request_vote_response:
-          sent_request_vote_response.push_back(std::make_pair(to, *(RequestVoteResponse*)(data)));
+          sent_request_vote_response.push_back(
+            std::make_pair(to, *(RequestVoteResponse*)(data)));
           break;
         case aft::RaftMsgType::raft_append_entries_response:
           sent_append_entries_response.push_back(
@@ -134,12 +139,15 @@ namespace aft
     void recv_message(OArray&& oa) override {}
 
     void initialize(NodeId self_id, const tls::Pem& network_pkey) override {}
-    
+
     bool send_encrypted(
       const ccf::NodeMsgType& msg_type,
       CBuffer cb,
       NodeId to,
-      const std::vector<uint8_t>& data) override {return true;}
+      const std::vector<uint8_t>& data) override
+    {
+      return true;
+    }
 
     std::vector<uint8_t> recv_encrypted(
       NodeId from_node, CBuffer cb, const uint8_t* data, size_t size) override

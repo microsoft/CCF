@@ -25,7 +25,6 @@ namespace aft
     int status,
     std::vector<uint8_t>& data)>;
 
-
   static constexpr NodeId NoNode = std::numeric_limits<NodeId>::max();
 
   template <typename S>

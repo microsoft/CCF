@@ -4,9 +4,9 @@
 
 //#define USE_MPSCQ
 
+#include "ds/ccf_assert.h"
 #include "ds/logger.h"
 #include "ds/thread_ids.h"
-#include "ds/ccf_assert.h"
 #ifdef USE_MPSCQ
 #  include "snmalloc/src/ds/mpscq.h"
 #endif
@@ -306,7 +306,8 @@ namespace threading
       struct TickMsg
       {
         TickMsg(std::chrono::milliseconds elapsed_, Task& task_) :
-          elapsed(elapsed_), task(task_)
+          elapsed(elapsed_),
+          task(task_)
         {}
 
         std::chrono::milliseconds elapsed;
