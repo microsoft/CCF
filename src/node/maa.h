@@ -305,6 +305,13 @@ namespace ccf
     uint8_t* sgx_quote;
     sgx_quote_t* quote;
     size_t sgx_quote_size;
+#else
+    unsigned char dummy_signer_id[] = {
+      0x5e, 0x54, 0x10, 0xaa, 0xf9, 0x9a, 0x32, 0xe3, 0x2d, 0xf2, 0xa9,
+      0x7d, 0x57, 0x9e, 0x65, 0xf8, 0x31, 0x0f, 0x27, 0x48, 0x16, 0xec,
+      0x4f, 0x34, 0xce, 0xde, 0xeb, 0x1b, 0xe4, 0x10, 0xa5, 0x26};
+    unsigned char dummy_attributes[] = {
+      0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 #endif
 
     const char* oid_array[] = {oid_maa_sgx_quote_with_collateral};
@@ -398,7 +405,21 @@ namespace ccf
     OE_CHECK(result);
     OE_TRACE_VERBOSE("user data: hash(public key) validation passed", NULL);
 #else
-    // need to add dummy claims
+    // Set some dummy claims.
+    claims_length = 2;
+    claims = (oe_claim_t*)malloc(sizeof(oe_claim_t) * claims_length);
+    
+    claims[0].name = (char*)malloc(sizeof(OE_CLAIM_SIGNER_ID));
+    claims[0].value = (uint8_t*)malloc(sizeof(dummy_signer_id));
+    strcpy(claims[0].name, OE_CLAIM_SIGNER_ID);
+    memcpy(claims[0].value, dummy_signer_id, sizeof(dummy_signer_id));
+    claims[0].value_size = sizeof(dummy_signer_id);
+
+    claims[1].name = (char*)malloc(sizeof(OE_CLAIM_ATTRIBUTES));
+    claims[1].value = (uint8_t*)malloc(sizeof(dummy_attributes));
+    strcpy(claims[1].name, OE_CLAIM_ATTRIBUTES);
+    memcpy(claims[1].value, dummy_attributes, sizeof(dummy_attributes));
+    claims[1].value_size = sizeof(dummy_attributes);
 #endif
 
     //---------------------------------------
