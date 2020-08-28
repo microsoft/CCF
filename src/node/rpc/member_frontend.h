@@ -87,7 +87,7 @@ namespace ccf
       {
         // Validation should happen before the proposal is registered.
         // See https://github.com/microsoft/CCF/issues/1458.
-        throw std::runtime_error("certificate not valid");
+        throw std::runtime_error(fmt::format("Invalid certificate, verify_maa_root_ca_certificate() returned {}", res));
       }
 
       lua_newtable(l);
