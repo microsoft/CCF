@@ -143,9 +143,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            lua.host
            secp256k1.host
            sss.host
-           # TODO: replace with openenclave::oehostverify once OE 0.11 is
-           # released (OE#3312)
-           openenclave::oehost
+           openenclave::oehostverify
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
