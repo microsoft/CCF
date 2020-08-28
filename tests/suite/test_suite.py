@@ -39,7 +39,8 @@ suite_membership_recovery = [
 ]
 suites["membership_recovery"] = suite_membership_recovery
 
-# This suite tests that nodes addition, deletion and primary changes can be interleaved
+# This suite tests that nodes addition, deletion and primary changes
+# can be interleaved
 suite_reconfiguration = [
     reconfiguration.test_add_node,
     reconfiguration.test_retire_primary,
@@ -52,6 +53,21 @@ suite_reconfiguration = [
     election.test_kill_primary,
 ]
 suites["reconfiguration"] = suite_reconfiguration
+
+# Temporary suite while snapshotting feature is being implemented
+# https://github.com/microsoft/CCF/milestone/12
+suite_snapshots = [
+    reconfiguration.test_add_node_from_snapshot,
+    election.test_kill_primary,
+    # The new primary has no snapshot so issue new entries
+    # to generate at least one snapshot
+    e2e_logging.test,
+    e2e_logging.test,
+    e2e_logging.test,
+    e2e_logging.test,
+    reconfiguration.test_add_node_from_snapshot,
+]
+suites["snapshots"] = suite_snapshots
 
 all_tests_suite = [
     # e2e_logging:

@@ -134,24 +134,28 @@ int main(int argc, char** argv)
     "--rpc-address)");
 
   std::string ledger_dir("ledger");
-  app.add_option("--ledger-dir", ledger_dir, "Ledger and snapshots directory")
+  app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
     ->capture_default_str();
 
-  size_t ledger_min_bytes = 5'000'000;
+  std::string snapshot_dir("snapshots");
+  app.add_option("--snapshot-dir", snapshot_dir, "Snapshots directory")
+    ->capture_default_str();
+
+  size_t ledger_chunk_bytes = 5'000'000;
   app
     .add_option(
-      "--ledger-chunk-min-bytes",
-      ledger_min_bytes,
-      "Minimum size (bytes) at which a new ledger chunk is created.")
+      "--ledger-chunk-bytes",
+      ledger_chunk_bytes,
+      "Size (bytes) at which a new ledger chunk is created")
     ->capture_default_str()
     ->transform(CLI::AsSizeValue(true)); // 1000 is kb
 
-  size_t snapshot_max_tx = std::numeric_limits<std::size_t>::max();
+  size_t snapshot_tx_interval = std::numeric_limits<std::size_t>::max();
   app
     .add_option(
-      "--snapshot-max-tx",
-      snapshot_max_tx,
-      "Maximum number of transactions between snapshots (experimental). "
+      "--snapshot-tx-interval",
+      snapshot_tx_interval,
+      "Number of transactions between snapshots (experimental). "
       "Defaults to no snapshot.")
     ->capture_default_str();
 
@@ -190,18 +194,18 @@ int main(int argc, char** argv)
       "Path to which the node PID will be written")
     ->capture_default_str();
 
-  size_t sig_max_tx = 5000;
+  size_t sig_tx_interval = 5000;
   app
     .add_option(
-      "--sig-max-tx",
-      sig_max_tx,
-      "Maximum number of transactions between signatures")
+      "--sig-tx-interval",
+      sig_tx_interval,
+      "Number of transactions between signatures")
     ->capture_default_str();
 
-  size_t sig_max_ms = 1000;
+  size_t sig_ms_interval = 1000;
   app
     .add_option(
-      "--sig-max-ms", sig_max_ms, "Maximum milliseconds between signatures")
+      "--sig-ms-interval", sig_ms_interval, "Milliseconds between signatures")
     ->capture_default_str();
 
   size_t circuit_size_shift = 22;
@@ -297,6 +301,20 @@ int main(int argc, char** argv)
   app.add_option(
     "--domain", domain, "DNS to use for TLS certificate validation");
 
+  std::string subject_name("CN=CCF Node");
+  app
+    .add_option(
+      "--sn", subject_name, "Subject Name in node certificate, eg. CN=CCF Node")
+    ->capture_default_str();
+
+  std::vector<tls::SubjectAltName> subject_alternative_names;
+  cli::add_subject_alternative_name_option(
+    app,
+    subject_alternative_names,
+    "--san",
+    "Subject Alternative Name in node certificate. Can be either "
+    "iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld");
+
   size_t memory_reserve_startup = 0;
   app
     .add_option(
@@ -354,7 +372,7 @@ int main(int argc, char** argv)
     "key)")
     ->required();
 
-  std::optional<size_t> recovery_threshold;
+  std::optional<size_t> recovery_threshold = std::nullopt;
   start
     ->add_option(
       "--recovery-threshold",
@@ -438,7 +456,8 @@ int main(int argc, char** argv)
     if ((*start || *join) && files::exists(ledger_dir))
     {
       throw std::logic_error(fmt::format(
-        "On start/join, ledger directory should not exist ({})", ledger_dir));
+        "On start and join, ledger directory should not exist ({})",
+        ledger_dir));
     }
     else if (*recover && !files::exists(ledger_dir))
     {
@@ -541,11 +560,11 @@ int main(int argc, char** argv)
   // graceful shutdown on sigterm
   asynchost::Sigterm sigterm(writer_factory);
 
-  asynchost::Ledger ledger(ledger_dir, writer_factory, ledger_min_bytes);
+  asynchost::Ledger ledger(ledger_dir, writer_factory, ledger_chunk_bytes);
   ledger.register_message_handlers(bp.get_dispatcher());
 
-  asynchost::SnapshotManager snapshot(ledger_dir);
-  snapshot.register_message_handlers(bp.get_dispatcher());
+  asynchost::SnapshotManager snapshots(snapshot_dir);
+  snapshots.register_message_handlers(bp.get_dispatcher());
 
   // Begin listening for node-to-node and RPC messages.
   // This includes DNS resolution and potentially dynamic port assignment (if
@@ -596,14 +615,17 @@ int main(int argc, char** argv)
                                  raft_election_timeout,
                                  pbft_view_change_timeout,
                                  pbft_status_interval};
-  ccf_config.signature_intervals = {sig_max_tx, sig_max_ms};
+  ccf_config.signature_intervals = {sig_tx_interval, sig_ms_interval};
   ccf_config.node_info_network = {rpc_address.hostname,
                                   public_rpc_address.hostname,
                                   node_address.hostname,
                                   node_address.port,
                                   rpc_address.port};
   ccf_config.domain = domain;
-  ccf_config.snapshot_interval = snapshot_max_tx;
+  ccf_config.snapshot_tx_interval = snapshot_tx_interval;
+
+  ccf_config.subject_name = subject_name;
+  ccf_config.subject_alternative_names = subject_alternative_names;
 
   if (*start)
   {
@@ -634,6 +656,21 @@ int main(int argc, char** argv)
     ccf_config.joining.target_port = target_rpc_address.port;
     ccf_config.joining.network_cert = files::slurp(network_cert_file);
     ccf_config.joining.join_timer = join_timer;
+
+    auto snapshot_file = snapshots.find_latest_snapshot();
+    if (snapshot_file.has_value())
+    {
+      ccf_config.joining.snapshot = files::slurp(snapshot_file.value());
+      LOG_INFO_FMT(
+        "Found latest snapshot file: {} (size: {})",
+        snapshot_file.value(),
+        ccf_config.joining.snapshot.size());
+    }
+    else
+    {
+      LOG_INFO_FMT(
+        "No snapshot found, node will request transactions from the beginning");
+    }
   }
   else if (*recover)
   {

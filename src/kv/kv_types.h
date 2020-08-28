@@ -266,6 +266,11 @@ namespace kv
       state = Primary;
     }
 
+    virtual void init_as_backup(SeqNo, View)
+    {
+      state = Backup;
+    }
+
     virtual bool replicate(const BatchVector& entries, View view) = 0;
     virtual std::pair<View, SeqNo> get_committed_txid() = 0;
 
@@ -351,7 +356,8 @@ namespace kv
       const std::vector<uint8_t>& additional_data,
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
-      kv::Version version) = 0;
+      kv::Version version,
+      bool is_snapshot = false) = 0;
     virtual bool decrypt(
       const std::vector<uint8_t>& cipher,
       const std::vector<uint8_t>& additional_data,

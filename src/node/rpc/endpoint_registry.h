@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/ccf_deprecated.h"
 #include "ds/json_schema.h"
 #include "enclave/rpc_context.h"
 #include "http/http_consts.h"
@@ -27,11 +26,6 @@ namespace ccf
     CallerId caller_id;
   };
   using EndpointFunction = std::function<void(EndpointContext& args)>;
-
-  using RequestArgs CCF_DEPRECATED(
-    "Handlers have been renamed to Endpoints. Please use EndpointContext "
-    "instead of HandlerArgs, and use 'auto' wherever possible") =
-    EndpointContext;
 
   // Read-only endpoints can only get values from the kv, they cannot write
   struct ReadOnlyEndpointContext
@@ -190,14 +184,6 @@ namespace ccf
         return *this;
       }
 
-      CCF_DEPRECATED("Replaced by set_forwarding_required")
-      Endpoint& set_read_write(ReadWrite rw)
-      {
-        return set_forwarding_required(
-          rw == Read ? ForwardingRequired::Sometimes :
-                       ForwardingRequired::Always);
-      }
-
       bool require_client_signature = false;
 
       /** Requires that the HTTP request is cryptographically signed by
@@ -270,32 +256,6 @@ namespace ccf
       }
 
       RESTVerb verb = HTTP_POST;
-
-      CCF_DEPRECATED(
-        "HTTP Verb should not be changed after installation: pass verb to "
-        "install()")
-      Endpoint& set_allowed_verb(RESTVerb v)
-      {
-        const auto previous_verb = verb;
-        verb = v;
-        return registry->reinstall(*this, method, previous_verb);
-      }
-
-      CCF_DEPRECATED(
-        "HTTP Verb should not be changed after installation: use "
-        "install(...HTTP_GET...)")
-      Endpoint& set_http_get_only()
-      {
-        return set_allowed_verb(HTTP_GET);
-      }
-
-      CCF_DEPRECATED(
-        "HTTP Verb should not be changed after installation: use "
-        "install(...HTTP_POST...)")
-      Endpoint& set_http_post_only()
-      {
-        return set_allowed_verb(HTTP_POST);
-      }
 
       /** Finalise and install this endpoint
        */
@@ -460,36 +420,6 @@ namespace ccf
       {
         fully_qualified_endpoints[endpoint.method][endpoint.verb] = endpoint;
       }
-    }
-
-    CCF_DEPRECATED(
-      "HTTP verb should be specified explicitly. Use: "
-      "make_endpoint(METHOD, VERB, FN)"
-      "  .set_forwarding_required() // Optional"
-      "  .install()"
-      "or make_read_only_endpoint(...")
-    Endpoint& install(
-      const std::string& method,
-      const EndpointFunction& f,
-      ReadWrite read_write)
-    {
-      constexpr auto default_verb = HTTP_POST;
-      make_endpoint(method, default_verb, f)
-        .set_read_write(read_write)
-        .install();
-      return fully_qualified_endpoints[method][default_verb];
-    }
-
-    // Only needed to support deprecated functions
-    Endpoint& reinstall(
-      const Endpoint& h, const std::string& prev_method, RESTVerb prev_verb)
-    {
-      const auto endpoints_it = fully_qualified_endpoints.find(prev_method);
-      if (endpoints_it != fully_qualified_endpoints.end())
-      {
-        endpoints_it->second.erase(prev_verb);
-      }
-      return fully_qualified_endpoints[h.method][h.verb] = h;
     }
 
     /** Set a default EndpointFunction

@@ -96,20 +96,20 @@ namespace enclave
         share_manager);
 
       rpc_map->register_frontend<ccf::ActorsType::members>(
-        {"members"},
         std::make_unique<ccf::MemberRpcFrontend>(
           network, *node, share_manager));
 
       rpc_map->register_frontend<ccf::ActorsType::users>(
-        {"users"}, ccfapp::get_rpc_handler(network, context));
+        ccfapp::get_rpc_handler(network, context));
 
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
-        {"nodes"}, std::make_unique<ccf::NodeRpcFrontend>(network, *node));
+        std::make_unique<ccf::NodeRpcFrontend>(network, *node));
 
       for (auto& [actor, fe] : rpc_map->get_map())
       {
         fe->set_sig_intervals(
-          signature_intervals.sig_max_tx, signature_intervals.sig_max_ms);
+          signature_intervals.sig_tx_interval,
+          signature_intervals.sig_ms_interval);
         fe->set_cmd_forwarder(cmd_forwarder);
       }
 
@@ -318,7 +318,7 @@ namespace enclave
 
         if (start_type == StartType::Join)
         {
-          node->join({ccf_config});
+          node->join(ccf_config);
         }
         else if (start_type == StartType::Recover)
         {
