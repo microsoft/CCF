@@ -12,15 +12,8 @@ jwks_url = requests.get(openid_url).json()["jwks_uri"]
 
 jwks = requests.get(jwks_url).json()
 
-# Find a self-signed cert in the JWKS.
-# MAA uses self-signed certs for signing MAA tokens.
-cert_b64 = None
-for jwk in jwks["keys"]:
-    chain = jwk["x5c"]
-    if len(chain) == 1:
-        cert_b64 = chain[0]
-        break
-assert cert_b64, "no self-signed cert found!"
+# First cert is used for signing tokens.
+cert_b64 = jwks["keys"][0]["x5c"][0]
 
 cert = base64.b64decode(cert_b64)
 path_der = "maa_ca_cert.der"
