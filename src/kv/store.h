@@ -52,8 +52,7 @@ namespace kv
     DeserialiseSuccess commit_deserialised(
       OrderedViews& views, Version& v, const MapCollection& new_maps)
     {
-      auto c = apply_views(
-        views, [v]() { return v; }, new_maps);
+      auto c = apply_views(views, [v]() { return v; }, new_maps);
       if (!c.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
@@ -341,10 +340,13 @@ namespace kv
     }
 
     DeserialiseSuccess deserialise_snapshot(
-      const std::vector<uint8_t>& data) override
+      const std::vector<uint8_t>& data, bool public_only = false) override
     {
       auto e = get_encryptor();
-      auto d = KvStoreDeserialiser(e);
+      auto d = KvStoreDeserialiser(
+        e,
+        public_only ? kv::SecurityDomain::PUBLIC :
+                      std::optional<kv::SecurityDomain>());
 
       auto v_ = d.init(data.data(), data.size());
       if (!v_.has_value())
@@ -428,8 +430,7 @@ namespace kv
       // Each map is committed at a different version, independently of the
       // overall snapshot version. The commit versions for each map are
       // contained in the snapshot and applied when the snapshot is committed.
-      auto c = apply_views(
-        views, []() { return NoVersion; }, new_maps);
+      auto c = apply_views(views, []() { return NoVersion; }, new_maps);
       if (!c.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised snapshot at version {}", v);
@@ -853,7 +854,7 @@ namespace kv
           // This can happen when a transaction started before a view change,
           // but tries to commit after the view change is complete.
           LOG_DEBUG_FMT(
-            "Want to commit for term {}, term is {}", txid.term, term);
+            "Want to commit for term {} but term is {}", txid.term, term);
 
           return CommitSuccess::NO_REPLICATE;
         }

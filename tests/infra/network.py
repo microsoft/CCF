@@ -211,7 +211,9 @@ class Network:
                     raise
             node.network_state = infra.node.NodeNetworkState.joined
 
-    def _start_all_nodes(self, args, recovery=False, ledger_dir=None):
+    def _start_all_nodes(
+        self, args, recovery=False, ledger_dir=None, snapshot_dir=None
+    ):
         hosts = self.hosts
 
         if not args.package:
@@ -240,10 +242,11 @@ class Network:
                     else:
                         node.recover(
                             lib_name=args.package,
-                            ledger_dir=ledger_dir,
                             workspace=args.workspace,
                             label=args.label,
                             common_dir=self.common_dir,
+                            ledger_dir=ledger_dir,
+                            snapshot_dir=snapshot_dir,
                             **forwarded_args,
                         )
                         # When a recovery network in started without an existing network,
@@ -258,6 +261,7 @@ class Network:
                             )
                             self._adjust_local_node_ids(node)
                 else:
+                    # TODO: Start from snapshot as well here!!
                     self._add_node(node, args.package, args, recovery=recovery)
             except Exception:
                 LOG.exception("Failed to start node {}".format(node.node_id))
@@ -354,22 +358,22 @@ class Network:
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(
-        self,
-        args,
-        ledger_dir,
-        common_dir=None,
+        self, args, ledger_dir, snapshot_dir=None, common_dir=None,
     ):
         """
         Starts a CCF network in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
         :param ledger_dir: ledger directory to recover from.
+        :param snapshot_dir: snapshot directory to recover from.
         :param common_dir: common directory containing member and user keys and certs.
         """
         self.common_dir = common_dir or get_common_folder_name(
             args.workspace, args.label
         )
 
-        primary = self._start_all_nodes(args, recovery=True, ledger_dir=ledger_dir)
+        primary = self._start_all_nodes(
+            args, recovery=True, ledger_dir=ledger_dir, snapshot_dir=snapshot_dir
+        )
 
         # If a common directory was passed in, initialise the consortium from it
         if common_dir is not None:

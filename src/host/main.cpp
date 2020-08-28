@@ -639,26 +639,29 @@ int main(int argc, char** argv)
     ccf_config.joining.target_port = target_rpc_address.port;
     ccf_config.joining.network_cert = files::slurp(network_cert_file);
     ccf_config.joining.join_timer = join_timer;
+  }
+  else if (*recover)
+  {
+    LOG_INFO_FMT("Creating new node - recover");
+    start_type = StartType::Recover;
+  }
 
+  if (*join || *recover)
+  {
     auto snapshot_file = snapshots.find_latest_snapshot();
     if (snapshot_file.has_value())
     {
-      ccf_config.joining.snapshot = files::slurp(snapshot_file.value());
+      ccf_config.snapshot = files::slurp(snapshot_file.value());
       LOG_INFO_FMT(
         "Found latest snapshot file: {} (size: {})",
         snapshot_file.value(),
-        ccf_config.joining.snapshot.size());
+        ccf_config.snapshot.size());
     }
     else
     {
       LOG_INFO_FMT(
         "No snapshot found, node will request transactions from the beginning");
     }
-  }
-  else if (*recover)
-  {
-    LOG_INFO_FMT("Creating new node - recover");
-    start_type = StartType::Recover;
   }
 
   if (start_type == StartType::Unknown)
@@ -706,8 +709,8 @@ int main(int argc, char** argv)
 
       // This exception should be rethrown, probably aborting the process, but
       // we sleep briefly to allow more outbound messages to be processed. If
-      // the enclave sent logging messages, it is useful to read and print them
-      // before dying.
+      // the enclave sent logging messages, it is useful to read and print
+      // them before dying.
       std::this_thread::sleep_for(1s);
       throw;
     }

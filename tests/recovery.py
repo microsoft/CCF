@@ -13,13 +13,15 @@ from loguru import logger as LOG
 @reqs.recover(number_txs=2)
 def test(network, args):
     primary, _ = network.find_primary()
-    ledger = primary.get_ledger()
+    ledger_dir = primary.get_ledger()
+    snapshot_dir = primary.get_snapshots()
+    LOG.warning(f"Ledger dir is: {snapshot_dir}")
     defunct_network_enc_pubk = network.store_current_network_encryption_key()
 
     recovered_network = infra.network.Network(
         network.hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
-    recovered_network.start_in_recovery(args, ledger)
+    recovered_network.start_in_recovery(args, ledger_dir, snapshot_dir)
     recovered_network.recover(args, defunct_network_enc_pubk)
     return recovered_network
 
@@ -102,11 +104,11 @@ def run(args):
 
         for i in range(args.recovery):
             # Alternate between recovery with primary change and stable primary-ship
-            if i % 2 == 0:
-                recovered_network = test_share_resilience(network, args)
-            else:
-                recovered_network = test(network, args)
-            network.stop_all_nodes()
+            # if i % 2 == 0:
+                # recovered_network = test_share_resilience(network, args)
+            # else:
+            recovered_network = test(network, args)
+            # network.stop_all_nodes()
             network = recovered_network
             LOG.success("Recovery complete on all nodes")
 

@@ -330,6 +330,45 @@ namespace ccf
 
           setup_recovery_hook();
 
+          if (!args.config.snapshot.empty())
+          {
+            LOG_FAIL_FMT("Deserialising snapshot on recovery...");
+            auto rc =
+              network.tables->deserialise_snapshot(args.config.snapshot, true);
+
+            if (rc != kv::DeserialiseSuccess::PASS)
+            {
+              throw std::logic_error(
+                fmt::format("Failed to apply snapshot: {}", rc));
+            }
+
+            ledger_idx = network.tables->current_version();
+            last_recovered_commit_idx = ledger_idx;
+
+            // TODO: Snapshot interval is not right either
+
+            // TODO: Refactor this with join protocol
+            kv::ReadOnlyTx tx;
+            auto sig_view = tx.get_read_only_view(network.signatures);
+            auto sig = sig_view->get(0);
+            if (!sig.has_value())
+            {
+              throw std::logic_error(
+                fmt::format("No signatures found after applying snapshot"));
+            }
+
+            // TODO: Really ugly. Wish we could use TermHistory directly instead
+            // (same for normal recovery?)
+            // TODO: Is this right?? What happens if there's more than 1 term beforehand??
+            for (size_t i = term_history.size(); i < sig->view; ++i)
+            {
+              LOG_FAIL_FMT("Term history: {} for term  {}", ledger_idx, sig->view);
+              term_history.push_back(ledger_idx);
+            }
+
+            LOG_FAIL_FMT("Current version is {}", ledger_idx);
+          }
+
           accept_network_tls_connections(args.config);
 
           sm.advance(State::readingPublicLedger);
@@ -425,14 +464,13 @@ namespace ccf
             setup_consensus(resp.network_info.public_only);
             setup_history();
 
-            if (!config.joining.snapshot.empty())
+            if (!config.snapshot.empty())
             {
               // It is only possible to deserialise the snapshot then, once the
               // ledger secrets have been passed in by the network
               LOG_DEBUG_FMT(
-                "Deserialising snapshot ({})", config.joining.snapshot.size());
-              auto rc =
-                network.tables->deserialise_snapshot(config.joining.snapshot);
+                "Deserialising snapshot ({})", config.snapshot.size());
+              auto rc = network.tables->deserialise_snapshot(config.snapshot);
 
               if (rc != kv::DeserialiseSuccess::PASS)
               {
@@ -452,7 +490,7 @@ namespace ccf
               auto seqno = network.tables->current_version();
               consensus->init_as_backup(seqno, sig->view);
 
-              reset_data(config.joining.snapshot);
+              reset_data(config.snapshot);
               LOG_INFO_FMT(
                 "Joiner successfully resumed from snapshot at seqno {} and "
                 "view {}",
@@ -952,8 +990,7 @@ namespace ccf
         }
 
         default:
-        {
-        }
+        {}
       }
     }
 
@@ -1590,8 +1627,7 @@ namespace ccf
                 break;
               }
               default:
-              {
-              }
+              {}
             }
           }
 

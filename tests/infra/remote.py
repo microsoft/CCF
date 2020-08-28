@@ -597,6 +597,7 @@ class CCFRemote(object):
 
         exe_files = [self.BIN, lib_path] + self.DEPS
         data_files = [self.ledger_dir] if self.ledger_dir else []
+        data_files += [self.snapshot_dir] if self.snapshot_dir else []
 
         # exe_files may be relative or absolute. The remote implementation should
         # copy (or symlink) to the target workspace, and then node will be able
@@ -685,9 +686,6 @@ class CCFRemote(object):
                 f"--join-timer={join_timer}",
             ]
             data_files += [os.path.join(self.common_dir, "networkcert.pem")]
-
-            if snapshot_dir:
-                data_files += [snapshot_dir]
         elif start_type == StartType.recover:
             cmd += ["recover", "--network-cert-file=networkcert.pem"]
         else:
