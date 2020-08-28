@@ -28,6 +28,11 @@ jobs:
         addChangeLog: false
       displayName: 'GitHub release (create)'
 
+    # Used to generate setup.py
+    - template: cmake.yml
+      parameters:
+        cmake_args: ''
+
     - script: |
         python3.7 -m venv env
         source ./env/bin/activate
