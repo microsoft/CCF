@@ -440,8 +440,7 @@ namespace raft
           break;
 
         default:
-        {
-        }
+        {}
       }
     }
 
@@ -579,6 +578,8 @@ namespace raft
       // passes the integrity check. This way, entries containing dynamic
       // topology changes that include adding this new leader can be accepted.
 
+      // First, check append entries term against our own term, becoming
+      // follower if necessary
       if (current_term == r.term && state == Candidate)
       {
         // Become a follower in this term.
@@ -602,8 +603,8 @@ namespace raft
         return;
       }
 
+      // Second, check term consistency with the entries we have so far
       const auto prev_term = get_term_internal(r.prev_idx);
-
       if (prev_term != r.prev_term)
       {
         LOG_DEBUG_FMT(
@@ -624,7 +625,7 @@ namespace raft
         {
           LOG_DEBUG_FMT(
             "Recv append entries to {} from {} but our log at {} has the wrong "
-            "term (ours: {}, theirs: {})",
+            "previous term (ours: {}, theirs: {})",
             local_id,
             r.from_node,
             r.prev_idx,
@@ -635,8 +636,17 @@ namespace raft
         return;
       }
 
+      // If the terms match up, it is sufficient to convince us that the sender
+      // (leader) is legit in our term
       restart_election_timeout();
+      if (leader_id != r.from_node)
+      {
+        leader_id = r.from_node;
+        LOG_DEBUG_FMT("Node {} thinks leader is {}", local_id, leader_id);
+      }
 
+      // Third, check index consistency, making sure entries are not in the past
+      // or in the future
       if (r.prev_idx < commit_idx)
       {
         LOG_DEBUG_FMT(
@@ -648,6 +658,16 @@ namespace raft
           commit_idx);
         return;
       }
+      else if (r.prev_idx > last_idx)
+      {
+        LOG_DEBUG_FMT(
+          "Recv append entries to {} from {} but prev_idx ({}) > last_idx ({})",
+          local_id,
+          r.from_node,
+          r.prev_idx,
+          last_idx);
+        return;
+      }
 
       LOG_DEBUG_FMT(
         "Recv append entries to {} from {} for index {} and previous index {}",
@@ -656,6 +676,7 @@ namespace raft
         r.idx,
         r.prev_idx);
 
+      // Finally, deserialise each entry in the batch
       for (Index i = r.prev_idx + 1; i <= r.idx; i++)
       {
         if (i <= last_idx)
@@ -684,7 +705,7 @@ namespace raft
             local_id,
             r.from_node,
             e.what());
-          last_idx = r.prev_idx;
+          last_idx--;
           send_append_entries_response(r.from_node, false);
           return;
         }
@@ -707,8 +728,9 @@ namespace raft
         {
           case kv::DeserialiseSuccess::FAILED:
           {
-            throw std::logic_error(
-              "Follower failed to apply log entry " + std::to_string(i));
+            LOG_FAIL_FMT("Follower failed to apply log entry: {}", i);
+            last_idx--;
+            send_append_entries_response(r.from_node, false);
             break;
           }
 
@@ -737,17 +759,12 @@ namespace raft
         }
       }
 
-      // Update the current leader because we accepted entries.
-      if (leader_id != r.from_node)
-      {
-        leader_id = r.from_node;
-        LOG_DEBUG_FMT("Node {} thinks leader is {}", local_id, leader_id);
-      }
+      // After entries have been deserialised, we try to commit the leader's
+      // commit index and update our term history accordingly
+      commit_if_possible(r.leader_commit_idx);
+      term_history.update(commit_idx + 1, r.term_of_idx);
 
       send_append_entries_response(r.from_node, true);
-      commit_if_possible(r.leader_commit_idx);
-
-      term_history.update(commit_idx + 1, r.term_of_idx);
     }
 
     void send_append_entries_response(NodeId to, bool answer)
@@ -1210,9 +1227,10 @@ namespace raft
     void commit(Index idx)
     {
       if (idx > last_idx)
+      {
         throw std::logic_error(
-          "Tried to commit " + std::to_string(idx) + "but last_idx as " +
-          std::to_string(last_idx));
+          fmt::format("Tried to commit {} but last_idx is {}", idx, last_idx));
+      }
 
       LOG_DEBUG_FMT("Starting commit");
 
