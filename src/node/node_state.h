@@ -1634,11 +1634,6 @@ namespace ccf
       else if (network.consensus_type == ConsensusType::RAFT)
       {
         encryptor = std::make_shared<RaftTxEncryptor>(network.ledger_secrets);
-        if (self == INVALID_ID)
-        {
-          throw std::logic_error(
-            "Node ID should be set before setting encryptor IV ID");
-        }
         encryptor->set_iv_id(self); // RaftEncryptor uses node ID in iv
       }
       else
