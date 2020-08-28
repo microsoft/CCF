@@ -19,9 +19,10 @@ echo "TODOs"
 "$SCRIPT_DIR"/check-todo.sh src
 
 echo "C/C++ format"
-"$SCRIPT_DIR"/check-format.sh src samples
-if [ $FIX -ne 0 ] && [ $? -ne 0 ]; then
-    "$SCRIPT_DIR"/check-format.sh -f src samples
+if [ $FIX -ne 0 ]; then
+  "$SCRIPT_DIR"/check-format.sh -f src samples
+else
+  "$SCRIPT_DIR"/check-format.sh src samples
 fi
 
 echo "Copyright notice headers"
@@ -41,7 +42,7 @@ if [ ! -f "scripts/env/bin/activate" ]
 fi
 
 source scripts/env/bin/activate
-pip --disable-pip-version-check install black pylint mypy 1>/dev/null
+pip --disable-pip-version-check install -U black pylint mypy 1>/dev/null
 
 echo "Python format"
 if [ $FIX -ne 0 ]; then
