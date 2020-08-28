@@ -8,97 +8,84 @@
 #else
 #  include <openenclave/host_verify.h>
 #endif
-#include <openenclave/attestation/verifier.h>
 #include <openenclave/attestation/sgx/evidence.h>
+#include <openenclave/attestation/verifier.h>
 #include <openenclave/bits/sgx/sgxtypes.h>
 
 static const char* oid_maa_sgx_quote_with_collateral = "1.2.840.113556.10.1.1";
 
 // UUID for SGX quotes without header.
-static const oe_uuid_t _sgx_quote_uuid = {
-    OE_FORMAT_UUID_RAW_SGX_QUOTE_ECDSA};
+static const oe_uuid_t _sgx_quote_uuid = {OE_FORMAT_UUID_RAW_SGX_QUOTE_ECDSA};
 
 #define KEY_BUFF_SIZE 2048
 
 // Internal OE types and functions
-extern "C" {
-
+extern "C"
+{
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 
-typedef struct _oe_cert
-{
+  typedef struct _oe_cert
+  {
     /* Internal private implementation */
     uint64_t impl[4];
-} oe_cert_t;
+  } oe_cert_t;
 
-typedef struct _oe_cert_chain
-{
+  typedef struct _oe_cert_chain
+  {
     /* Internal private implementation */
     uint64_t impl[4];
-} oe_cert_chain_t;
+  } oe_cert_chain_t;
 
-typedef struct _oe_crl
-{
+  typedef struct _oe_crl
+  {
     /* Internal private implementation */
     uint64_t impl[4];
-} oe_crl_t;
+  } oe_crl_t;
 
-typedef struct _oe_sha256_context
-{
+  typedef struct _oe_sha256_context
+  {
     /* Internal private implementation */
     uint64_t impl[16];
-} oe_sha256_context_t;
+  } oe_sha256_context_t;
 
 #define OE_SHA256_SIZE 32
 
-typedef struct _OE_SHA256
-{
+  typedef struct _OE_SHA256
+  {
     unsigned char buf[OE_SHA256_SIZE];
-} OE_SHA256;
+  } OE_SHA256;
 
-oe_result_t oe_memset_s(
-    void* dst,
-    size_t dst_size,
-    int value,
-    size_t num_bytes);
+  oe_result_t oe_memset_s(
+    void* dst, size_t dst_size, int value, size_t num_bytes);
 
-oe_result_t oe_cert_free(oe_cert_t* cert);
+  oe_result_t oe_cert_free(oe_cert_t* cert);
 
-oe_result_t oe_cert_read_der(
-    oe_cert_t* cert,
-    const void* der_data,
-    size_t der_size);
+  oe_result_t oe_cert_read_der(
+    oe_cert_t* cert, const void* der_data, size_t der_size);
 
-oe_result_t oe_cert_find_extension(
-    const oe_cert_t* cert,
-    const char* oid,
-    uint8_t* data,
-    size_t* size);
+  oe_result_t oe_cert_find_extension(
+    const oe_cert_t* cert, const char* oid, uint8_t* data, size_t* size);
 
-oe_result_t oe_cert_verify(
+  oe_result_t oe_cert_verify(
     oe_cert_t* cert,
     oe_cert_chain_t* chain,
     const oe_crl_t* const* crls,
     size_t num_crls);
 
-oe_result_t oe_cert_write_public_key_pem(
-    const oe_cert_t* cert,
-    uint8_t* pem_data,
-    size_t* pem_size);
+  oe_result_t oe_cert_write_public_key_pem(
+    const oe_cert_t* cert, uint8_t* pem_data, size_t* pem_size);
 
-oe_result_t oe_sha256_init(oe_sha256_context_t* context);
+  oe_result_t oe_sha256_init(oe_sha256_context_t* context);
 
-oe_result_t oe_sha256_update(
-    oe_sha256_context_t* context,
-    const void* data,
-    size_t size);
+  oe_result_t oe_sha256_update(
+    oe_sha256_context_t* context, const void* data, size_t size);
 
-oe_result_t oe_sha256_final(oe_sha256_context_t* context, OE_SHA256* sha256);
+  oe_result_t oe_sha256_final(oe_sha256_context_t* context, OE_SHA256* sha256);
 
-// Logging and error check macros to avoid changing copied OE code.
-typedef enum _oe_log_level
-{
+  // Logging and error check macros to avoid changing copied OE code.
+  typedef enum _oe_log_level
+  {
     OE_LOG_LEVEL_NONE = 0,
     OE_LOG_LEVEL_FATAL,
     OE_LOG_LEVEL_ERROR,
@@ -106,195 +93,188 @@ typedef enum _oe_log_level
     OE_LOG_LEVEL_INFO,
     OE_LOG_LEVEL_VERBOSE,
     OE_LOG_LEVEL_MAX
-} oe_log_level_t;
+  } oe_log_level_t;
 
-oe_result_t oe_log(oe_log_level_t level, const char* fmt, ...);
+  oe_result_t oe_log(oe_log_level_t level, const char* fmt, ...);
 
-#define OE_TRACE(level, ...)        \
-    do                              \
-    {                               \
-        oe_log(level, __VA_ARGS__); \
-    } while (0)
+#define OE_TRACE(level, ...) \
+  do \
+  { \
+    oe_log(level, __VA_ARGS__); \
+  } while (0)
 
 #define OE_TRACE_FATAL(fmt, ...) \
-    OE_TRACE(                    \
-        OE_LOG_LEVEL_FATAL,      \
-        fmt " [%s:%s:%d]\n",     \
-        ##__VA_ARGS__,           \
-        __FILE__,                \
-        __FUNCTION__,            \
-        __LINE__)
+  OE_TRACE( \
+    OE_LOG_LEVEL_FATAL, \
+    fmt " [%s:%s:%d]\n", \
+    ##__VA_ARGS__, \
+    __FILE__, \
+    __FUNCTION__, \
+    __LINE__)
 
 #define OE_TRACE_ERROR(fmt, ...) \
-    OE_TRACE(                    \
-        OE_LOG_LEVEL_ERROR,      \
-        fmt " [%s:%s:%d]\n",     \
-        ##__VA_ARGS__,           \
-        __FILE__,                \
-        __FUNCTION__,            \
-        __LINE__)
+  OE_TRACE( \
+    OE_LOG_LEVEL_ERROR, \
+    fmt " [%s:%s:%d]\n", \
+    ##__VA_ARGS__, \
+    __FILE__, \
+    __FUNCTION__, \
+    __LINE__)
 
 #define OE_TRACE_WARNING(fmt, ...) \
-    OE_TRACE(                      \
-        OE_LOG_LEVEL_WARNING,      \
-        fmt " [%s:%s:%d]\n",       \
-        ##__VA_ARGS__,             \
-        __FILE__,                  \
-        __FUNCTION__,              \
-        __LINE__)
+  OE_TRACE( \
+    OE_LOG_LEVEL_WARNING, \
+    fmt " [%s:%s:%d]\n", \
+    ##__VA_ARGS__, \
+    __FILE__, \
+    __FUNCTION__, \
+    __LINE__)
 
 #define OE_TRACE_INFO(fmt, ...) \
-    OE_TRACE(                   \
-        OE_LOG_LEVEL_INFO,      \
-        fmt " [%s:%s:%d]\n",    \
-        ##__VA_ARGS__,          \
-        __FILE__,               \
-        __FUNCTION__,           \
-        __LINE__)
+  OE_TRACE( \
+    OE_LOG_LEVEL_INFO, \
+    fmt " [%s:%s:%d]\n", \
+    ##__VA_ARGS__, \
+    __FILE__, \
+    __FUNCTION__, \
+    __LINE__)
 
 #define OE_TRACE_VERBOSE(fmt, ...) \
-    OE_TRACE(                      \
-        OE_LOG_LEVEL_VERBOSE,      \
-        fmt " [%s:%s:%d]\n",       \
-        ##__VA_ARGS__,             \
-        __FILE__,                  \
-        __FUNCTION__,              \
-        __LINE__)
+  OE_TRACE( \
+    OE_LOG_LEVEL_VERBOSE, \
+    fmt " [%s:%s:%d]\n", \
+    ##__VA_ARGS__, \
+    __FILE__, \
+    __FUNCTION__, \
+    __LINE__)
 
-#define OE_RAISE(RESULT, ...)                             \
-    do                                                    \
-    {                                                     \
-        result = (RESULT);                                \
-        if (result != OE_OK)                              \
-        {                                                 \
-            OE_TRACE_ERROR(":%s", oe_result_str(result)); \
-        }                                                 \
-        goto done;                                        \
-    } while (0)
+#define OE_RAISE(RESULT, ...) \
+  do \
+  { \
+    result = (RESULT); \
+    if (result != OE_OK) \
+    { \
+      OE_TRACE_ERROR(":%s", oe_result_str(result)); \
+    } \
+    goto done; \
+  } while (0)
 
-#define OE_RAISE_MSG(RESULT, fmt, ...)                               \
-    do                                                               \
-    {                                                                \
-        result = (RESULT);                                           \
-        if (result != OE_OK)                                         \
-        {                                                            \
-            if (!strcmp(#__VA_ARGS__, "NULL"))                      \
-            {                                                        \
-                OE_TRACE_ERROR(                                      \
-                    fmt " (oe_result_t=%s)", oe_result_str(result)); \
-            }                                                        \
-            else                                                     \
-            {                                                        \
-                OE_TRACE_ERROR(                                      \
-                    fmt " (oe_result_t=%s)",                         \
-                    ##__VA_ARGS__,                                   \
-                    oe_result_str(result));                          \
-            }                                                        \
-        }                                                            \
-        goto done;                                                   \
-    } while (0)
+#define OE_RAISE_MSG(RESULT, fmt, ...) \
+  do \
+  { \
+    result = (RESULT); \
+    if (result != OE_OK) \
+    { \
+      if (!strcmp(#__VA_ARGS__, "NULL")) \
+      { \
+        OE_TRACE_ERROR(fmt " (oe_result_t=%s)", oe_result_str(result)); \
+      } \
+      else \
+      { \
+        OE_TRACE_ERROR( \
+          fmt " (oe_result_t=%s)", ##__VA_ARGS__, oe_result_str(result)); \
+      } \
+    } \
+    goto done; \
+  } while (0)
 
-#define OE_CHECK(EXPRESSION)                 \
-    do                                       \
-    {                                        \
-        oe_result_t _result_ = (EXPRESSION); \
-        if (_result_ != OE_OK)               \
-            OE_RAISE(_result_);              \
-    } while (0)
+#define OE_CHECK(EXPRESSION) \
+  do \
+  { \
+    oe_result_t _result_ = (EXPRESSION); \
+    if (_result_ != OE_OK) \
+      OE_RAISE(_result_); \
+  } while (0)
 
-#define OE_CHECK_MSG(EXPRESSION, fmt, ...)              \
-    do                                                  \
-    {                                                   \
-        oe_result_t _result_ = (EXPRESSION);            \
-        if (_result_ != OE_OK)                          \
-            OE_RAISE_MSG(_result_, fmt, ##__VA_ARGS__); \
-    } while (0)
+#define OE_CHECK_MSG(EXPRESSION, fmt, ...) \
+  do \
+  { \
+    oe_result_t _result_ = (EXPRESSION); \
+    if (_result_ != OE_OK) \
+      OE_RAISE_MSG(_result_, fmt, ##__VA_ARGS__); \
+  } while (0)
 
 } // extern "C"
 // End of internal OE types and functions
 
 namespace ccf
 {
-
   // Copied from openenclave/common/attest_plugin.c.
   // verify report user data against peer certificate
   static oe_result_t verify_sgx_report_user_data(
-      uint8_t* key_buff,
-      size_t key_buff_size,
-      uint8_t* report_data)
+    uint8_t* key_buff, size_t key_buff_size, uint8_t* report_data)
   {
-      oe_result_t result = OE_FAILURE;
-      oe_sha256_context_t sha256_ctx = {0};
-      OE_SHA256 sha256;
+    oe_result_t result = OE_FAILURE;
+    oe_sha256_context_t sha256_ctx = {0};
+    OE_SHA256 sha256;
 
-      OE_TRACE_VERBOSE(
-          "key_buff=[%s] \n oe_strlen(key_buff)=[%d]",
-          key_buff,
-          strlen((const char*)key_buff));
+    OE_TRACE_VERBOSE(
+      "key_buff=[%s] \n oe_strlen(key_buff)=[%d]",
+      key_buff,
+      strlen((const char*)key_buff));
 
-      // create a hash of public key
-      oe_memset_s(sha256.buf, OE_SHA256_SIZE, 0, OE_SHA256_SIZE);
-      OE_CHECK(oe_sha256_init(&sha256_ctx));
-      OE_CHECK(oe_sha256_update(&sha256_ctx, key_buff, key_buff_size));
-      OE_CHECK(oe_sha256_final(&sha256_ctx, &sha256));
+    // create a hash of public key
+    oe_memset_s(sha256.buf, OE_SHA256_SIZE, 0, OE_SHA256_SIZE);
+    OE_CHECK(oe_sha256_init(&sha256_ctx));
+    OE_CHECK(oe_sha256_update(&sha256_ctx, key_buff, key_buff_size));
+    OE_CHECK(oe_sha256_final(&sha256_ctx, &sha256));
 
-      // validate report's user data against hash(public key)
-      if (memcmp(report_data, (uint8_t*)&sha256, OE_SHA256_SIZE) != 0)
-      {
-          for (int i = 0; i < OE_SHA256_SIZE; i++)
-              OE_TRACE_VERBOSE(
-                  "[%d] report_data[0x%x] sha256=0x%x ",
-                  i,
-                  report_data[i],
-                  sha256.buf[i]);
-          OE_RAISE_MSG(
-              OE_VERIFY_FAILED,
-              "hash of peer certificate's public key does not match report data",
-              NULL);
-      }
-      result = OE_OK;
+    // validate report's user data against hash(public key)
+    if (memcmp(report_data, (uint8_t*)&sha256, OE_SHA256_SIZE) != 0)
+    {
+      for (int i = 0; i < OE_SHA256_SIZE; i++)
+        OE_TRACE_VERBOSE(
+          "[%d] report_data[0x%x] sha256=0x%x ",
+          i,
+          report_data[i],
+          sha256.buf[i]);
+      OE_RAISE_MSG(
+        OE_VERIFY_FAILED,
+        "hash of peer certificate's public key does not match report data",
+        NULL);
+    }
+    result = OE_OK;
   done:
-      return result;
+    return result;
   }
 
   // Copied from openenclave/common/attest_plugin.c.
   // Verify there is a matched claim for the public key
   static oe_result_t _verify_public_key_claim(
-      oe_claim_t* claims,
-      size_t claims_length,
-      uint8_t* public_key_buffer,
-      size_t public_key_buffer_size)
+    oe_claim_t* claims,
+    size_t claims_length,
+    uint8_t* public_key_buffer,
+    size_t public_key_buffer_size)
   {
-      oe_result_t result = OE_FAILURE;
-      for (int i = (int)claims_length - 1; i >= 0; i--)
+    oe_result_t result = OE_FAILURE;
+    for (int i = (int)claims_length - 1; i >= 0; i--)
+    {
+      if (strcmp(claims[i].name, OE_CLAIM_CUSTOM_CLAIMS_BUFFER) == 0)
       {
-          if (strcmp(claims[i].name, OE_CLAIM_CUSTOM_CLAIMS_BUFFER) == 0)
-          {
-              if (claims[i].value_size == public_key_buffer_size &&
-                  memcmp(
-                      claims[i].value,
-                      public_key_buffer,
-                      public_key_buffer_size) == 0)
-              {
-                  OE_TRACE_VERBOSE("Found matched public key in claims");
-                  result = OE_OK;
-                  break;
-              }
-          }
-          if (strcmp(claims[i].name, OE_CLAIM_SGX_REPORT_DATA) == 0)
-          {
-              if (verify_sgx_report_user_data(
-                      public_key_buffer,
-                      public_key_buffer_size,
-                      claims[i].value) == OE_OK)
-              {
-                  OE_TRACE_VERBOSE("Found matched public key in claims");
-                  result = OE_OK;
-                  break;
-              }
-          }
+        if (
+          claims[i].value_size == public_key_buffer_size &&
+          memcmp(claims[i].value, public_key_buffer, public_key_buffer_size) ==
+            0)
+        {
+          OE_TRACE_VERBOSE("Found matched public key in claims");
+          result = OE_OK;
+          break;
+        }
       }
-      return result;
+      if (strcmp(claims[i].name, OE_CLAIM_SGX_REPORT_DATA) == 0)
+      {
+        if (
+          verify_sgx_report_user_data(
+            public_key_buffer, public_key_buffer_size, claims[i].value) ==
+          OE_OK)
+        {
+          OE_TRACE_VERBOSE("Found matched public key in claims");
+          result = OE_OK;
+          break;
+        }
+      }
+    }
+    return result;
   }
 
   // Same interface as oe_verify_attestation_certificate_with_evidence.
@@ -371,13 +351,13 @@ namespace ccf
     OE_TRACE_VERBOSE("extract_x509_report_extension() succeeded");
 
     // 'report' contains the whole MAA structure:
-    // <2 bytes flags><2 bytes size of quote+collateral><raw SGX quote><collateral>
-    // Let's extract the SGX quote from it.
+    // <2 bytes flags><2 bytes size of quote+collateral><raw SGX
+    // quote><collateral> Let's extract the SGX quote from it.
     sgx_quote = report + maa_header_size;
     quote = (sgx_quote_t*)sgx_quote;
     sgx_quote_size = sizeof(sgx_quote_t) + quote->signature_len;
-    //size_t collateral_size = report_size - maa_header_size - sgx_quote_size;
-    //uint8_t* collateral = sgx_quote + sgx_quote_size;
+    // size_t collateral_size = report_size - maa_header_size - sgx_quote_size;
+    // uint8_t* collateral = sgx_quote + sgx_quote_size;
 
     result = oe_verify_evidence(
       &_sgx_quote_uuid,

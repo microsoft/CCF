@@ -143,7 +143,8 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            lua.host
            secp256k1.host
            sss.host
-           #TODO: replace with openenclave::oehostverify once OE 0.11 is released (OE#3312)
+           # TODO: replace with openenclave::oehostverify once OE 0.11 is
+           # released (OE#3312)
            openenclave::oehost
            ${CMAKE_THREAD_LIBS_INIT}
   )
@@ -598,15 +599,17 @@ if(BUILD_TESTS)
 
     add_e2e_test(
       NAME governance_root_ca_certs_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_root_ca_certs.py
-      GOV_SCRIPT ${CCF_DIR}/src/runtime_config/gov_root_ca_certs.lua
+      PYTHON_SCRIPT
+        ${CMAKE_SOURCE_DIR}/tests/governance_root_ca_certs.py GOV_SCRIPT
+        ${CCF_DIR}/src/runtime_config/gov_root_ca_certs.lua
       CONSENSUS raft
     )
 
     add_e2e_test(
       NAME governance_root_ca_cert_mismatch_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_root_ca_cert_mismatch.py
-      GOV_SCRIPT ${CCF_DIR}/src/runtime_config/gov_root_ca_cert_mismatch.lua
+      PYTHON_SCRIPT
+        ${CMAKE_SOURCE_DIR}/tests/governance_root_ca_cert_mismatch.py GOV_SCRIPT
+        ${CCF_DIR}/src/runtime_config/gov_root_ca_cert_mismatch.lua
       CONSENSUS raft
     )
   endif()

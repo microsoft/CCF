@@ -5,10 +5,10 @@
 #include "lua_interp/lua_json.h"
 #include "lua_interp/tx_script_runner.h"
 #include "node/genesis_gen.h"
+#include "node/maa.h"
 #include "node/members.h"
 #include "node/nodes.h"
 #include "node/quote.h"
-#include "node/maa.h"
 #include "node/secret_share.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
@@ -57,11 +57,12 @@ namespace ccf
     static oe_result_t oe_verify_attestation_certificate_with_evidence_cb(
       oe_claim_t* claims, size_t claims_length, void* arg)
     {
-      auto claims_map = (std::map<std::string,std::vector<uint8_t>>*)arg;
-      for (size_t i=0; i < claims_length; i++)
+      auto claims_map = (std::map<std::string, std::vector<uint8_t>>*)arg;
+      for (size_t i = 0; i < claims_length; i++)
       {
         std::string claim_name(claims[i].name);
-        std::vector<uint8_t> claim_value(claims[i].value, claims[i].value + claims[i].value_size);
+        std::vector<uint8_t> claim_value(
+          claims[i].value, claims[i].value + claims[i].value_size);
         claims_map->emplace(std::move(claim_name), std::move(claim_value));
       }
       return OE_OK;

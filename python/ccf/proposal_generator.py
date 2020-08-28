@@ -337,6 +337,7 @@ def update_recovery_shares(**kwargs):
 def set_recovery_threshold(threshold: int, **kwargs):
     return build_proposal("set_recovery_threshold", threshold, **kwargs)
 
+
 @cli_proposal
 def update_root_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
     with open(cert_path) as f:
@@ -344,16 +345,18 @@ def update_root_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
 
     if not skip_checks:
         try:
-            cert = x509.load_pem_x509_certificate(cert_pem.encode(), crypto_backends.default_backend())
+            cert = x509.load_pem_x509_certificate(
+                cert_pem.encode(), crypto_backends.default_backend()
+            )
         except Exception:
             raise ValueError("Cannot parse PEM certificate")
-        
+
         try:
             oid = x509.ObjectIdentifier("1.2.840.113556.10.1.1")
             _ = cert.extensions.get_extension_for_oid(oid)
         except x509.ExtensionNotFound:
             raise ValueError("X.509 extension with SGX quote not found in certificate")
-        
+
     args = {"name": cert_name, "cert": cert_pem}
     return build_proposal("update_root_ca_cert", args, **kwargs)
 
