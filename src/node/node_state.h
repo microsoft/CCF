@@ -1087,10 +1087,18 @@ namespace ccf
               san_is_ip};
     }
 
+    std::vector<tls::SubjectAltName> get_subject_alternative_names(
+      const CCFConfig& config)
+    {
+      std::vector<tls::SubjectAltName> sans = config.subject_alternative_names;
+      sans.push_back(get_subject_alt_name(config));
+      return sans;
+    }
+
     void create_node_cert(const CCFConfig& config)
     {
-      node_cert =
-        node_sign_kp->self_sign("CN=CCF node", get_subject_alt_name(config));
+      auto sans = get_subject_alternative_names(config);
+      node_cert = node_sign_kp->self_sign(config.subject_name, sans);
     }
 
     void accept_node_tls_connections()
@@ -1108,10 +1116,11 @@ namespace ccf
       // certificate
       auto nw = tls::make_key_pair({network.identity->priv_key});
 
+      auto sans = get_subject_alternative_names(config);
       auto endorsed_node_cert = nw->sign_csr(
-        node_sign_kp->create_csr(fmt::format("CN=CCF node {}", self)),
+        node_sign_kp->create_csr(config.subject_name),
         fmt::format("CN={}", "CCF Network"),
-        get_subject_alt_name(config));
+        sans);
 
       rpcsessions->set_cert(
         endorsed_node_cert, node_sign_kp->private_key_pem());
