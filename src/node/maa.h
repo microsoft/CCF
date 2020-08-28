@@ -379,7 +379,6 @@ namespace ccf
     //size_t collateral_size = report_size - maa_header_size - sgx_quote_size;
     //uint8_t* collateral = sgx_quote + sgx_quote_size;
 
-    // TODO supply collateral as well
     result = oe_verify_evidence(
       &_sgx_quote_uuid,
       sgx_quote,
