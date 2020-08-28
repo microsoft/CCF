@@ -28,21 +28,35 @@ namespace crypto
     GcmHeader(const std::vector<uint8_t>& data)
     {
       if (data.size() != RAW_DATA_SIZE)
+      {
         throw std::logic_error("Incompatible IV size");
+      }
 
       memcpy(tag, data.data(), sizeof(tag));
       memcpy(iv, data.data() + sizeof(tag), sizeof(iv));
     }
 
+    void set_iv_seq(uint64_t seq)
+    {
+      *reinterpret_cast<uint64_t*>(iv) = seq;
+    }
+
     void set_iv_id(uint64_t id)
     {
+      if (id > 0x7FFFFFFF)
+      {
+        throw std::logic_error(
+          fmt::format("id should fit in 31 bits of IV. Value is: 0x{0:x}", id));
+      }
+
       *reinterpret_cast<uint32_t*>(iv + IV_DELIMITER) =
         static_cast<uint32_t>(id);
     }
 
-    void set_iv_seq(uint64_t seq)
+    void set_iv_snapshot(bool is_snapshot)
     {
-      *reinterpret_cast<uint64_t*>(iv) = seq;
+      // Set very last bit in IV
+      iv[SIZE_IV - 1] |= (is_snapshot << ((sizeof(uint8_t) * 8) - 1));
     }
 
     void set_iv(uint8_t* iv_, size_t size)
