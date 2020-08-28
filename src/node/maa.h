@@ -408,7 +408,7 @@ namespace ccf
     // Set some dummy claims.
     claims_length = 2;
     claims = (oe_claim_t*)malloc(sizeof(oe_claim_t) * claims_length);
-    
+
     claims[0].name = (char*)malloc(sizeof(OE_CLAIM_SIGNER_ID));
     claims[0].value = (uint8_t*)malloc(sizeof(dummy_signer_id));
     strcpy(claims[0].name, OE_CLAIM_SIGNER_ID);
