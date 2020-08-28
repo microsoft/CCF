@@ -67,9 +67,6 @@ namespace ccf
   using RaftType =
     raft::Raft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
 
-  static const std::string IP_ADDRESS_PREFIX("iPAddress:");
-  static const std::string DNS_NAME_PREFIX("dNSName:");
-
   template <typename T>
   class StateMachine
   {
