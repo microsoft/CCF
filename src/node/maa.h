@@ -8,14 +8,18 @@
 #else
 #  include <openenclave/host_verify.h>
 #endif
-#include <openenclave/attestation/sgx/evidence.h>
 #include <openenclave/attestation/verifier.h>
 #include <openenclave/bits/sgx/sgxtypes.h>
+#ifdef MAA_SUPPORT_QUOTE_IN_CERT_VALIDATION
+#  include <openenclave/attestation/sgx/evidence.h>
+#endif
 
 static const char* oid_maa_sgx_quote_with_collateral = "1.2.840.113556.10.1.1";
 
 // UUID for SGX quotes without header.
+#ifdef MAA_SUPPORT_QUOTE_IN_CERT_VALIDATION
 static const oe_uuid_t _sgx_quote_uuid = {OE_FORMAT_UUID_RAW_SGX_QUOTE_ECDSA};
+#endif
 
 #define KEY_BUFF_SIZE 2048
 
@@ -24,6 +28,11 @@ extern "C"
 {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+
+  typedef oe_result_t (*oe_verify_claims_callback_t)(
+      oe_claim_t* claims,
+      size_t claims_length,
+      void* arg);
 
   typedef struct _oe_cert
   {
@@ -199,6 +208,7 @@ extern "C"
 
 namespace ccf
 {
+#ifdef MAA_SUPPORT_QUOTE_IN_CERT_VALIDATION
   // Copied from openenclave/common/attest_plugin.c.
   // verify report user data against peer certificate
   static oe_result_t verify_sgx_report_user_data(
@@ -276,7 +286,7 @@ namespace ccf
     }
     return result;
   }
-
+#endif
   // Same interface as oe_verify_attestation_certificate_with_evidence.
   oe_result_t verify_maa_root_ca_certificate(
     uint8_t* cert_in_der,
@@ -288,22 +298,20 @@ namespace ccf
     oe_cert_t cert = {0};
     uint8_t* report = NULL;
     size_t report_size = 0;
-    uint8_t* pub_key_buff = NULL;
-    size_t pub_key_buff_size = KEY_BUFF_SIZE;
     oe_claim_t* claims = NULL;
     size_t claims_length = 0;
+#ifdef MAA_SUPPORT_QUOTE_IN_CERT_VALIDATION
+    uint8_t* pub_key_buff = NULL;
+    size_t pub_key_buff_size = KEY_BUFF_SIZE;
     const size_t maa_header_size = 4;
     uint8_t* sgx_quote;
     sgx_quote_t* quote;
     size_t sgx_quote_size;
+#endif
 
     const char* oid_array[] = {oid_maa_sgx_quote_with_collateral};
     size_t oid_array_index = 0;
     size_t oid_array_count = OE_COUNTOF(oid_array);
-
-    pub_key_buff = (uint8_t*)malloc(KEY_BUFF_SIZE);
-    if (!pub_key_buff)
-      OE_RAISE(OE_OUT_OF_MEMORY);
 
     result = oe_cert_read_der(&cert, cert_in_der, cert_in_der_len);
     OE_CHECK_MSG(result, "cert_in_der_len=%d", cert_in_der_len);
@@ -350,6 +358,7 @@ namespace ccf
     // find the extension
     OE_TRACE_VERBOSE("extract_x509_report_extension() succeeded");
 
+#ifdef MAA_SUPPORT_QUOTE_IN_CERT_VALIDATION
     // 'report' contains the whole MAA structure:
     // <2 bytes flags><2 bytes size of quote+collateral><raw SGX
     // quote><collateral> Let's extract the SGX quote from it.
@@ -373,6 +382,10 @@ namespace ccf
     OE_CHECK(result);
     OE_TRACE_VERBOSE("quote validation succeeded");
 
+    pub_key_buff = (uint8_t*)malloc(KEY_BUFF_SIZE);
+    if (!pub_key_buff)
+      OE_RAISE(OE_OUT_OF_MEMORY);
+
     // verify report data: hash(public key)
     // extract public key from the cert
     oe_memset_s(pub_key_buff, KEY_BUFF_SIZE, 0, KEY_BUFF_SIZE);
@@ -386,6 +399,9 @@ namespace ccf
       claims, claims_length, pub_key_buff, pub_key_buff_size);
     OE_CHECK(result);
     OE_TRACE_VERBOSE("user data: hash(public key) validation passed", NULL);
+#else
+    // TODO add dummy claims
+#endif
 
     //---------------------------------------
     // call client to further check claims
@@ -405,7 +421,9 @@ namespace ccf
     }
 
   done:
+#ifdef MAA_SUPPORT_QUOTE_IN_CERT_VALIDATION
     free(pub_key_buff);
+#endif
     oe_free_claims(claims, claims_length);
     oe_cert_free(&cert);
     free(report);
