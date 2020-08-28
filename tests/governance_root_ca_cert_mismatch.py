@@ -1,10 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import os
-import sys
-import tempfile
-from cryptography import x509
-import cryptography.hazmat.backends as crypto_backends
 import infra.network
 import infra.path
 import infra.proc
