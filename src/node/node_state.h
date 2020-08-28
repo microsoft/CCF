@@ -1280,8 +1280,7 @@ namespace ccf
         throw std::logic_error("Unable to get actor for create request");
       }
 
-      const auto actor =
-        rpc_map->resolve(actor_opt.value());
+      const auto actor = rpc_map->resolve(actor_opt.value());
       auto frontend_opt = this->rpc_map->find(actor);
       if (!frontend_opt.has_value())
       {
