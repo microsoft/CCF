@@ -89,10 +89,6 @@ namespace ccf
     {}
   };
 
-  using UserHandlerRegistry CCF_DEPRECATED(
-    "Handlers have been renamed to Endpoints. Please use "
-    "UserEndpointRegistry") = UserEndpointRegistry;
-
   class SimpleUserRpcFrontend : public UserRpcFrontend
   {
   protected:
