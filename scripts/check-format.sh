@@ -34,11 +34,11 @@ badly_named_files=""
 for file in $(find "$@" -name "*.h" -or -name "*.hpp" -or -name "*.cpp" -or -name "*.c"); do
   # Workaround for https://bugs.llvm.org/show_bug.cgi?id=39216
   d=$(cat "$file" | clang-format-8 -style=file --assume-filename "${file%.*}".cpp | diff "$file" -)
-  if $fix ; then
-    cat "$file" | clang-format-8 -style=file --assume-filename "${file%.*}".cpp > "$file".tmp
-    mv "$file".tmp "$file"
-  fi
   if [ "$d" != "" ]; then
+    if $fix ; then
+      cat "$file" | clang-format-8 -style=file --assume-filename "${file%.*}".cpp > "$file".tmp
+      mv "$file".tmp "$file"
+    fi
     if [ "$unformatted_files" != "" ]; then
       unformatted_files+=$'\n'
     fi
@@ -54,9 +54,15 @@ for file in $(find "$@" -name "*.h" -or -name "*.hpp" -or -name "*.cpp" -or -nam
 done
 
 if [ "$unformatted_files" != "" ]; then
-  echo "Fix formatting:"
+  if $fix ; then
+    echo "Fixed formatting:"
+  else
+    echo "Fix formatting:"
+  fi
   echo "$unformatted_files"
-  exit 1
+  if ! $fix ; then
+    exit 1
+  fi
 else
   echo "All files formatted correctly!"
 fi
