@@ -14,7 +14,7 @@ return {
 
   -- Root CA validation definitions
   -- This SIGNER_ID is intentially random and does not match the actual certificate.
-  -- See the governance_root_ca_cert_mismatch.py test.
+  -- See the governance_ca_cert_mismatch.py test.
   EXPECTED_SIGNER_ID = "abcd"
   EXPECTED_ATTRIBUTES = "0300000000000000"
 
@@ -53,9 +53,9 @@ return {
     end
   end
 
-  -- validate update_root_ca_cert calls
+  -- validate update_ca_cert calls
   for _, call in pairs(calls) do
-    if call.func == "update_root_ca_cert" then
+    if call.func == "update_ca_cert" then
       cert_der = pem_to_der(call.args.cert)
       claims = verify_cert_and_get_claims(cert_der)
       if claims.signer_id ~= EXPECTED_SIGNER_ID then
@@ -121,9 +121,9 @@ return {
   end
   return true]],
 
-  update_root_ca_cert = [[
+  update_ca_cert = [[
   tables, args = ...
-  t = tables["ccf.root_ca_cert_ders"]
+  t = tables["ccf.ca_cert_ders"]
   cert_der = pem_to_der(args.cert)
   t:put(args.name, cert_der)
   return true

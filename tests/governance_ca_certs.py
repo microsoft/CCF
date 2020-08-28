@@ -27,19 +27,17 @@ def test_cert_store(network, args):
         f.write("foo")
         f.flush()
         try:
-            proposal_body, _ = ccf.proposal_generator.update_root_ca_cert(
-                "mycert", f.name
-            )
+            proposal_body, _ = ccf.proposal_generator.update_ca_cert("mycert", f.name)
         except ValueError:
             pass
         else:
-            assert False, "update_root_ca_cert should have raised an error"
+            assert False, "update_ca_cert should have raised an error"
 
     LOG.info("Member makes a root ca cert update proposal with malformed cert")
     with tempfile.NamedTemporaryFile("w") as f:
         f.write("foo")
         f.flush()
-        proposal_body, _ = ccf.proposal_generator.update_root_ca_cert(
+        proposal_body, _ = ccf.proposal_generator.update_ca_cert(
             "mycert", f.name, skip_checks=True
         )
         try:
@@ -52,10 +50,8 @@ def test_cert_store(network, args):
             assert False, "Proposal should not have been created"
 
     LOG.info("Member makes a root ca cert update proposal with valid cert")
-    ca_cert_path = os.path.join(this_dir, "maa_root_ca_cert.pem")
-    proposal_body, _ = ccf.proposal_generator.update_root_ca_cert(
-        "mycert", ca_cert_path
-    )
+    ca_cert_path = os.path.join(this_dir, "maa_ca_cert.pem")
+    proposal_body, _ = ccf.proposal_generator.update_ca_cert("mycert", ca_cert_path)
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
@@ -64,7 +60,7 @@ def test_cert_store(network, args):
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
-        r = c.post("/gov/read", {"table": "ccf.root_ca_cert_ders", "key": "mycert"})
+        r = c.post("/gov/read", {"table": "ccf.ca_cert_ders", "key": "mycert"})
         assert r.status_code == 200, r.status_code
         cert_pem_str = open(ca_cert_path).read()
         cert_ref = x509.load_pem_x509_certificate(

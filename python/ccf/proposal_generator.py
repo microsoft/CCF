@@ -342,7 +342,7 @@ def set_recovery_threshold(threshold: int, **kwargs):
 
 
 @cli_proposal
-def update_root_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
+def update_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
     with open(cert_path) as f:
         cert_pem = f.read()
 
@@ -363,7 +363,7 @@ def update_root_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
             ) from exc
 
     args = {"name": cert_name, "cert": cert_pem}
-    return build_proposal("update_root_ca_cert", args, **kwargs)
+    return build_proposal("update_ca_cert", args, **kwargs)
 
 
 if __name__ == "__main__":

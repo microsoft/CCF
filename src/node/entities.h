@@ -86,7 +86,7 @@ namespace ccf
     static constexpr auto CONFIGURATION = "ccf.config";
     static constexpr auto SUBMITTED_SHARES = "ccf.submitted_shares";
     static constexpr auto SNAPSHOT_EVIDENCE = "ccf.snapshot_evidence";
-    static constexpr auto ROOT_CA_CERT_DERS = "ccf.root_ca_cert_ders";
+    static constexpr auto CA_CERT_DERS = "ccf.ca_cert_ders";
   };
 }
 

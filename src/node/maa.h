@@ -30,9 +30,7 @@ extern "C"
 #pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 
   typedef oe_result_t (*oe_verify_claims_callback_t)(
-      oe_claim_t* claims,
-      size_t claims_length,
-      void* arg);
+    oe_claim_t* claims, size_t claims_length, void* arg);
 
   typedef struct _oe_cert
   {
@@ -288,7 +286,7 @@ namespace ccf
   }
 #endif
   // Same interface as oe_verify_attestation_certificate_with_evidence.
-  oe_result_t verify_maa_root_ca_certificate(
+  oe_result_t verify_maa_ca_certificate(
     uint8_t* cert_in_der,
     size_t cert_in_der_len,
     oe_verify_claims_callback_t claim_verify_callback,
@@ -400,7 +398,7 @@ namespace ccf
     OE_CHECK(result);
     OE_TRACE_VERBOSE("user data: hash(public key) validation passed", NULL);
 #else
-    // TODO add dummy claims
+    // need to add dummy claims
 #endif
 
     //---------------------------------------

@@ -77,7 +77,7 @@ namespace ccf
       std::map<std::string, std::vector<uint8_t>> claims;
 
       oe_verifier_initialize();
-      oe_result_t res = verify_maa_root_ca_certificate(
+      oe_result_t res = verify_maa_ca_certificate(
         cert_der.data(),
         cert_der.size(),
         oe_verify_attestation_certificate_with_evidence_cb,
@@ -87,7 +87,8 @@ namespace ccf
       {
         // Validation should happen before the proposal is registered.
         // See https://github.com/microsoft/CCF/issues/1458.
-        throw std::runtime_error(fmt::format("Invalid certificate, verify_maa_root_ca_certificate() returned {}", res));
+        throw std::runtime_error(fmt::format(
+          "Invalid certificate, verify_maa_ca_certificate() returned {}", res));
       }
 
       lua_newtable(l);

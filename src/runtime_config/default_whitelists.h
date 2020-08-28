@@ -28,7 +28,7 @@ namespace ccf
       Tables::MODULES,
       Tables::SERVICE,
       Tables::CONFIGURATION,
-      Tables::ROOT_CA_CERT_DERS}},
+      Tables::CA_CERT_DERS}},
 
     {MEMBER_CAN_PROPOSE,
      {Tables::USERS,
@@ -39,7 +39,7 @@ namespace ccf
       Tables::APP_SCRIPTS,
       Tables::MODULES,
       Tables::CONFIGURATION,
-      Tables::ROOT_CA_CERT_DERS}},
+      Tables::CA_CERT_DERS}},
 
     {USER_APP_CAN_READ_ONLY,
      {Tables::MEMBERS,
@@ -51,5 +51,5 @@ namespace ccf
       Tables::APP_SCRIPTS,
       Tables::MODULES,
       Tables::GOV_HISTORY,
-      Tables::ROOT_CA_CERT_DERS}}};
+      Tables::CA_CERT_DERS}}};
 }
