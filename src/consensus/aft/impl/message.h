@@ -7,11 +7,11 @@
 
 namespace aft
 {
-  class IMessage
+  class AbstractMessage
   {
   public:
-    IMessage() = default;
-    virtual ~IMessage() = default;
+    AbstractMessage() = default;
+    virtual ~AbstractMessage() = default;
 
     virtual bool should_encrypt() const = 0;
     virtual void serialize_message(

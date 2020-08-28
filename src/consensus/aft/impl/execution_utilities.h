@@ -17,10 +17,16 @@ namespace aft
 {
   class RequestMessage;
 
-  class ExecutionUtilities
+  struct RequestCtx
+  {
+    std::shared_ptr<enclave::RpcContext> ctx;
+    std::shared_ptr<enclave::RpcHandler> frontend;
+  };
+
+  class AbstractExecutionUtilities
   {
   public:
-    virtual ~ExecutionUtilities() = default;
+    virtual ~AbstractExecutionUtilities() = default;
 
     virtual std::unique_ptr<RequestCtx> create_request_ctx(
       uint8_t* req_start, size_t req_size) = 0;
@@ -37,7 +43,7 @@ namespace aft
     virtual kv::Version commit_replayed_request(kv::Tx& tx) = 0;
   };
 
-  class ExecutionUtilitiesImpl : public ExecutionUtilities
+  class ExecutionUtilitiesImpl : public AbstractExecutionUtilities
   {
   public:
     ExecutionUtilitiesImpl(

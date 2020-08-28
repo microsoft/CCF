@@ -516,20 +516,20 @@ namespace ccf
 
       struct JoinTimeMsg
       {
-        JoinTimeMsg(NodeState* self_, CCFConfig& config_) :
+        JoinTimeMsg(NodeState& self_, CCFConfig& config_) :
           self(self_),
           config(config_)
         {}
 
-        NodeState* self;
+        NodeState& self;
         CCFConfig& config;
       };
 
       auto join_timer_msg = std::make_unique<threading::Tmsg<JoinTimeMsg>>(
         [](std::unique_ptr<threading::Tmsg<JoinTimeMsg>> msg) {
-          if (msg->data.self->sm.check(State::pending))
+          if (msg->data.self.sm.check(State::pending))
           {
-            msg->data.self->initiate_join(msg->data.config);
+            msg->data.self.initiate_join(msg->data.config);
             auto delay =
               std::chrono::milliseconds(msg->data.config.joining.join_timer);
 
@@ -537,7 +537,7 @@ namespace ccf
               std::move(msg), delay);
           }
         },
-        this,
+        *this,
         config);
 
       threading::ThreadMessaging::thread_messaging.add_task_after(

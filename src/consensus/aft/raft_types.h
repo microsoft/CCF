@@ -115,7 +115,7 @@ namespace aft
     raft_request_vote,
     raft_request_vote_response,
 
-    bft_Request,
+    bft_request,
   };
 
 #pragma pack(push, 1)
@@ -158,10 +158,4 @@ namespace aft
     bool vote_granted;
   };
 #pragma pack(pop)
-
-  struct RequestCtx
-  {
-    std::shared_ptr<enclave::RpcContext> ctx;
-    std::shared_ptr<enclave::RpcHandler> frontend;
-  };
 }

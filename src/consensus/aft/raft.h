@@ -76,7 +76,7 @@ namespace aft
     // BFT
     pbft::RequestsMap& pbft_requests_map;
     std::shared_ptr<ServiceState> service_state;
-    std::shared_ptr<ExecutionUtilities> execution_utilities;
+    std::shared_ptr<AbstractExecutionUtilities> execution_utilities;
 
     // Timeouts
     std::chrono::milliseconds request_timeout;
@@ -123,7 +123,7 @@ namespace aft
       const std::vector<uint8_t>& /*cert*/,
       pbft::RequestsMap& requests_map,
       std::shared_ptr<aft::ServiceState> service_state_,
-      std::shared_ptr<ExecutionUtilities> execution_utilities_,
+      std::shared_ptr<AbstractExecutionUtilities> execution_utilities_,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
       bool public_only_ = false) :

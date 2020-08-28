@@ -24,7 +24,7 @@ namespace aft
       short cid_,
       kv::TxHistory::RequestID rid_) :
       consensus::ConsensusHeader<RaftMsgType>(
-        RaftMsgType::bft_Request, from_node),
+        RaftMsgType::bft_request, from_node),
       command_size(command_size_),
       cid(cid_),
       rid(rid_)
@@ -36,7 +36,7 @@ namespace aft
   };
 #pragma pack(pop)
 
-  class RequestMessage : public IMessage
+  class RequestMessage : public AbstractMessage
   {
   public:
     RequestMessage(
