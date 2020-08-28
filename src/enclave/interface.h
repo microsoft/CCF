@@ -14,6 +14,7 @@
 #include "node/members.h"
 #include "node/node_info_network.h"
 #include "start_type.h"
+#include "tls/san.h"
 #include "tls/tls.h"
 
 #include <chrono>
@@ -68,6 +69,9 @@ struct CCFConfig
   };
   Joining joining = {};
 
+  std::string subject_name;
+  std::vector<tls::SubjectAltName> subject_alternative_names;
+
   MSGPACK_DEFINE(
     consensus_config,
     node_info_network,
@@ -75,7 +79,9 @@ struct CCFConfig
     snapshot_tx_interval,
     signature_intervals,
     genesis,
-    joining);
+    joining,
+    subject_name,
+    subject_alternative_names);
 };
 
 /// General administrative messages

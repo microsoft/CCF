@@ -9,6 +9,7 @@
 #include "error_string.h"
 #include "hash.h"
 #include "pem.h"
+#include "san.h"
 
 #include <cstring>
 #include <iomanip>
@@ -372,12 +373,6 @@ namespace tls
     }
   }
 
-  struct SubjectAltName
-  {
-    std::string san;
-    bool is_ip;
-  };
-
   class KeyPair : public PublicKey
   {
   private:
@@ -617,7 +612,7 @@ namespace tls
     Pem sign_csr(
       const Pem& csr,
       const std::string& issuer,
-      const std::optional<SubjectAltName> subject_alt_name = std::nullopt,
+      const std::vector<SubjectAltName> subject_alt_names,
       bool ca = false)
     {
       SignCsr sign;
@@ -675,14 +670,14 @@ namespace tls
       // Because mbedtls does not support parsing x509v3 extensions from a
       // CSR (https://github.com/ARMmbed/mbedtls/issues/2912), the CA sets the
       // SAN directly instead of reading it from the CSR
-      if (subject_alt_name.has_value())
+      for (auto& subject_alt_name : subject_alt_names)
       {
         if (
           x509write_crt_set_subject_alt_name(
             &sign.crt,
-            subject_alt_name->san.c_str(),
-            (subject_alt_name->is_ip ? san_type::ip_address :
-                                       san_type::dns_name)) != 0)
+            subject_alt_name.san.c_str(),
+            (subject_alt_name.is_ip ? san_type::ip_address :
+                                      san_type::dns_name)) != 0)
           return {};
       }
 
@@ -707,8 +702,20 @@ namespace tls
       const std::optional<SubjectAltName> subject_alt_name = std::nullopt,
       bool ca = true)
     {
+      std::vector<SubjectAltName> sans;
+      if (subject_alt_name.has_value())
+        sans.push_back(subject_alt_name.value());
       auto csr = create_csr(name);
-      return sign_csr(csr, name, subject_alt_name, ca);
+      return sign_csr(csr, name, sans, ca);
+    }
+
+    Pem self_sign(
+      const std::string& name,
+      const std::vector<SubjectAltName> subject_alt_names,
+      bool ca = true)
+    {
+      auto csr = create_csr(name);
+      return sign_csr(csr, name, subject_alt_names, ca);
     }
   };
 
