@@ -9,7 +9,7 @@ import os
 def run(cert_test):
     def test(args, *substrs):
         with tempfile.NamedTemporaryFile() as ntf:
-            subprocess.run([cert_test] + args, stdout=ntf)
+            subprocess.run([cert_test] + args, stdout=ntf, check=True)
             ntf.flush()
             rv = subprocess.run(
                 [
@@ -20,7 +20,7 @@ def run(cert_test):
                     "-text",
                 ],
                 capture_output=True,
-                check=True
+                check=True,
             )
             try:
                 for substr in substrs:
