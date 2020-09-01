@@ -56,8 +56,9 @@ namespace ccf
 #ifdef USING_OE_11
     // Uses the new API: oe_verify_attestation_certificate_with_evidence.
     // Requires OE 0.11. (OE#3312)
-    // The quote is assumed to be an OE attestation (with oe_attestation_header_t header)
-    // stored at 1.2.840.113556.10.1.2 in the cert.
+    // The quote is assumed to be an OE attestation (with
+    // oe_attestation_header_t header) stored at 1.2.840.113556.10.1.2 in the
+    // cert.
     static oe_result_t oe_verify_attestation_certificate_with_evidence_cb(
       oe_claim_t* claims, size_t claims_length, void* arg)
     {
@@ -92,7 +93,9 @@ namespace ccf
         // Validation should happen before the proposal is registered.
         // See https://github.com/microsoft/CCF/issues/1458.
         throw std::runtime_error(fmt::format(
-          "Invalid certificate, oe_verify_attestation_certificate_with_evidence() returned {}", res));
+          "Invalid certificate, "
+          "oe_verify_attestation_certificate_with_evidence() returned {}",
+          res));
       }
 
       lua_newtable(l);
