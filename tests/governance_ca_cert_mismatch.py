@@ -15,12 +15,12 @@ from loguru import logger as LOG
 this_dir = os.path.dirname(__file__)
 
 
-@reqs.description("Add certificate with mismatching MRSIGNER")
-def test_cert_mrsigner_mismatch(network, args):
+@reqs.description("Add certificate with mismatching SIGNER_ID")
+def test_cert_signer_id_mismatch(network, args):
     primary, _ = network.find_nodes()
 
-    LOG.info("Member makes a root ca cert update proposal with mismatching MRSIGNER")
-    ca_cert_path = os.path.join(this_dir, "maa_ca_cert.pem")
+    LOG.info("Member makes a root ca cert update proposal with mismatching SIGNER_ID")
+    ca_cert_path = os.path.join(this_dir, "ca_cert.pem")
     proposal_body, _ = ccf.proposal_generator.update_ca_cert("mycert", ca_cert_path)
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
@@ -37,7 +37,7 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        network = test_cert_mrsigner_mismatch(network, args)
+        network = test_cert_signer_id_mismatch(network, args)
 
 
 if __name__ == "__main__":

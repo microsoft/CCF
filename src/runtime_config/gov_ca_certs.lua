@@ -12,8 +12,8 @@ return {
   REJECTED = -1
   STATE_ACTIVE = "ACTIVE"
 
-  -- Root CA validation definitions
-  EXPECTED_SIGNER_ID = "5e5410aaf99a32e32df2a97d579e65f8310f274816ec4f34cedeeb1be410a526"
+  -- CA cert validation definitions
+  EXPECTED_SIGNER_ID = "ca9ad7331448980aa28890ce73e433638377f179ab4456b2fe237193193a8d0a"
   EXPECTED_ATTRIBUTES = "0300000000000000"
 
   -- count member votes

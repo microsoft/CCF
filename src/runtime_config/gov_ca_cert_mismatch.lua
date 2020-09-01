@@ -12,7 +12,7 @@ return {
   REJECTED = -1
   STATE_ACTIVE = "ACTIVE"
 
-  -- Root CA validation definitions
+  -- CA cert validation definitions
   -- This SIGNER_ID is intentially random and does not match the actual certificate.
   -- See the governance_ca_cert_mismatch.py test.
   EXPECTED_SIGNER_ID = "abcd"

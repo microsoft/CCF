@@ -22,7 +22,7 @@ this_dir = os.path.dirname(__file__)
 def test_cert_store(network, args):
     primary, _ = network.find_nodes()
 
-    LOG.info("Member builds a root ca cert update proposal with malformed cert")
+    LOG.info("Member builds a ca cert update proposal with malformed cert")
     with tempfile.NamedTemporaryFile("w") as f:
         f.write("foo")
         f.flush()
@@ -33,7 +33,7 @@ def test_cert_store(network, args):
         else:
             assert False, "update_ca_cert should have raised an error"
 
-    LOG.info("Member makes a root ca cert update proposal with malformed cert")
+    LOG.info("Member makes a ca cert update proposal with malformed cert")
     with tempfile.NamedTemporaryFile("w") as f:
         f.write("foo")
         f.flush()
@@ -49,8 +49,8 @@ def test_cert_store(network, args):
         else:
             assert False, "Proposal should not have been created"
 
-    LOG.info("Member makes a root ca cert update proposal with valid cert")
-    ca_cert_path = os.path.join(this_dir, "maa_ca_cert.pem")
+    LOG.info("Member makes a ca cert update proposal with valid cert")
+    ca_cert_path = os.path.join(this_dir, "ca_cert.pem")
     proposal_body, _ = ccf.proposal_generator.update_ca_cert("mycert", ca_cert_path)
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body

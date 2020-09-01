@@ -53,7 +53,7 @@ namespace ccf
       return 1;
     }
 
-#if USING_OE_11
+#ifdef USING_OE_11
     // Uses the new API: oe_verify_attestation_certificate_with_evidence.
     // Requires OE 0.11. (OE#3312)
     // The quote is assumed to be an OE attestation (with oe_attestation_header_t header)

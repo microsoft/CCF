@@ -15,7 +15,7 @@ import cryptography.hazmat.backends as crypto_backends
 from loguru import logger as LOG  # type: ignore
 
 
-CERT_OID_MAA_SGX_QUOTE_WITH_COLLATERAL = "1.2.840.113556.10.1.1"
+CERT_OID_SGX_QUOTE = "1.2.840.113556.10.1.1"
 
 
 def dump_to_file(output_path: str, obj: dict, dump_args: dict):
@@ -355,7 +355,7 @@ def update_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
             raise ValueError("Cannot parse PEM certificate") from exc
 
         try:
-            oid = x509.ObjectIdentifier(CERT_OID_MAA_SGX_QUOTE_WITH_COLLATERAL)
+            oid = x509.ObjectIdentifier(CERT_OID_SGX_QUOTE)
             _ = cert.extensions.get_extension_for_oid(oid)
         except x509.ExtensionNotFound as exc:
             raise ValueError(
