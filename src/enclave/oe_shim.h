@@ -37,9 +37,9 @@ OE_EXTERNC bool oe_is_within_enclave(const void*, std::size_t)
   return false;
 }
 
-OE_EXTERNC bool oe_is_outside_enclave(const void* p, std::size_t n)
+OE_EXTERNC bool oe_is_outside_enclave(const void*, std::size_t)
 {
-  return !oe_is_within_enclave(p, n);
+  return true;
 }
 
 #  define oe_lfence() // nop
