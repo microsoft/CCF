@@ -343,7 +343,7 @@ if(BUILD_TESTS)
       tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
     )
 
-    add_unit_test(cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/cert.cpp)
+    add_test_bin(cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/cert.cpp)
     target_link_libraries(
       cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
     )

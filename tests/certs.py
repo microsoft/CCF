@@ -26,7 +26,7 @@ def run(cert_test):
                 for substr in substrs:
                     assert substr in rv.stdout.decode()
             except AssertionError:
-                print(rv.stdout.decode())
+                print(rv.stdout.decode(), file=sys.stderr)
                 raise
 
     test(
