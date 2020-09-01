@@ -670,15 +670,12 @@ namespace tls
       // Because mbedtls does not support parsing x509v3 extensions from a
       // CSR (https://github.com/ARMmbed/mbedtls/issues/2912), the CA sets the
       // SAN directly instead of reading it from the CSR
-      for (auto& subject_alt_name : subject_alt_names)
+      auto rc =
+        x509write_crt_set_subject_alt_names(&sign.crt, subject_alt_names);
+      if (rc != 0)
       {
-        if (
-          x509write_crt_set_subject_alt_name(
-            &sign.crt,
-            subject_alt_name.san.c_str(),
-            (subject_alt_name.is_ip ? san_type::ip_address :
-                                      san_type::dns_name)) != 0)
-          return {};
+        LOG_FAIL_FMT("Failed to set subject alternative names ({})", rc);
+        return {};
       }
 
       uint8_t buf[4096];
