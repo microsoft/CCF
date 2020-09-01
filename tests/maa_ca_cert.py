@@ -24,4 +24,9 @@ subprocess.run(
     ["openssl", "x509", "-inform", "DER", "-in", path_der, "-out", path_pem],
     check=True,
 )
+subprocess.run(
+    ["openssl", "x509", "-inform", "DER", "-in", path_der, "-text"],
+    check=True,
+)
 os.remove(path_der)
+print(f"Certificate written to {path_pem}")

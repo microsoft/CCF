@@ -5,7 +5,6 @@
 #include "lua_interp/lua_json.h"
 #include "lua_interp/tx_script_runner.h"
 #include "node/genesis_gen.h"
-#include "node/maa.h"
 #include "node/members.h"
 #include "node/nodes.h"
 #include "node/quote.h"
@@ -54,6 +53,11 @@ namespace ccf
       return 1;
     }
 
+#if 0
+    // Uses the new API: oe_verify_attestation_certificate_with_evidence.
+    // Requires OE 0.11. (OE#3312)
+    // The quote is assumed to be an OE attestation (with oe_attestation_header_t header)
+    // stored at 1.2.840.113556.10.1.2 in the cert.
     static oe_result_t oe_verify_attestation_certificate_with_evidence_cb(
       oe_claim_t* claims, size_t claims_length, void* arg)
     {
@@ -77,7 +81,7 @@ namespace ccf
       std::map<std::string, std::vector<uint8_t>> claims;
 
       oe_verifier_initialize();
-      oe_result_t res = verify_maa_ca_certificate(
+      oe_result_t res = oe_verify_attestation_certificate_with_evidence(
         cert_der.data(),
         cert_der.size(),
         oe_verify_attestation_certificate_with_evidence_cb,
@@ -88,7 +92,7 @@ namespace ccf
         // Validation should happen before the proposal is registered.
         // See https://github.com/microsoft/CCF/issues/1458.
         throw std::runtime_error(fmt::format(
-          "Invalid certificate, verify_maa_ca_certificate() returned {}", res));
+          "Invalid certificate, oe_verify_attestation_certificate_with_evidence() returned {}", res));
       }
 
       lua_newtable(l);
@@ -104,6 +108,74 @@ namespace ccf
 
       return 1;
     }
+#else
+    // Uses the old API: oe_verify_attestation_certificate.
+    // The quote is assumed to be an OE report (with oe_report_header_t header)
+    // stored at 1.2.840.113556.10.1.1 in the cert.
+
+    static oe_result_t oe_verify_attestation_certificate_cb(
+      oe_identity_t* identity, void* arg)
+    {
+      std::memcpy(arg, identity, sizeof(oe_identity_t));
+      return OE_OK;
+    }
+
+    static int lua_verify_cert_and_get_claims(lua_State* l)
+    {
+      LOG_INFO_FMT("lua_verify_cert_and_get_claims");
+      nlohmann::json json = lua::check_get<nlohmann::json>(l, -1);
+      std::vector<uint8_t> cert_der = json;
+
+      oe_identity_t identity;
+      oe_result_t res = oe_verify_attestation_certificate(
+        cert_der.data(),
+        cert_der.size(),
+        oe_verify_attestation_certificate_cb,
+        &identity);
+
+      if (res != OE_OK)
+      {
+        throw std::runtime_error("certificate not valid");
+      }
+
+      lua_newtable(l);
+      const int table_idx = -2;
+
+      std::vector<uint8_t> security_version_bytes(
+        (uint8_t*)&identity.security_version,
+        (uint8_t*)&identity.security_version +
+          sizeof(identity.security_version));
+      std::string security_version =
+        fmt::format("{:02x}", fmt::join(security_version_bytes, ""));
+      lua::push_raw(l, security_version);
+      lua_setfield(l, table_idx, "security_version");
+
+      std::vector<uint8_t> attributes_bytes(
+        (uint8_t*)&identity.attributes,
+        (uint8_t*)&identity.attributes + sizeof(identity.attributes));
+      std::string attributes =
+        fmt::format("{:02x}", fmt::join(attributes_bytes, ""));
+      lua::push_raw(l, attributes);
+      lua_setfield(l, table_idx, "attributes");
+
+      std::string unique_id =
+        fmt::format("{:02x}", fmt::join(identity.unique_id, ""));
+      lua::push_raw(l, unique_id);
+      lua_setfield(l, table_idx, "unique_id");
+
+      std::string signer_id =
+        fmt::format("{:02x}", fmt::join(identity.signer_id, ""));
+      lua::push_raw(l, signer_id);
+      lua_setfield(l, table_idx, "signer_id");
+
+      std::string product_id =
+        fmt::format("{:02x}", fmt::join(identity.product_id, ""));
+      lua::push_raw(l, product_id);
+      lua_setfield(l, table_idx, "product_id");
+
+      return 1;
+    }
+#endif
 
   public:
     MemberTsr(NetworkTables& network) : TxScriptRunner(network) {}
