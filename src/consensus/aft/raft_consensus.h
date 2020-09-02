@@ -15,7 +15,7 @@ namespace aft
   // terminology and the terminology that is specific to AFT
 
   template <class... T>
-  class AftConsensus : public kv::Consensus
+  class Consensus : public kv::Consensus
   {
   private:
     std::unique_ptr<Aft<T...>> aft;
@@ -23,9 +23,9 @@ namespace aft
     bool is_open;
 
   public:
-    AftConsensus(
+    Consensus(
       std::unique_ptr<Aft<T...>> raft_, ConsensusType consensus_type_) :
-      Consensus(raft_->id()),
+      kv::Consensus(raft_->id()),
       aft(std::move(raft_)),
       consensus_type(consensus_type_),
       is_open(false)

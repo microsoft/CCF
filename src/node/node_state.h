@@ -62,7 +62,7 @@ namespace std
 namespace ccf
 {
   using RaftConsensusType =
-    aft::AftConsensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
+    aft::Consensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
   using RaftType = aft::Aft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
 
   template <typename T>
