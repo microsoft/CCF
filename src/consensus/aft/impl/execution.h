@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "state.h"
 #include "consensus/aft/raft_types.h"
 #include "consensus/pbft/pbft_requests.h"
 #include "enclave/rpc_map.h"
+#include "state.h"
 
 namespace enclave
 {

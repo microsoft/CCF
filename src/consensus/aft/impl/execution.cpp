@@ -73,8 +73,8 @@ namespace aft
     return rep.version;
   }
 
-  std::unique_ptr<aft::RequestMessage> ExecutorImpl::
-    create_request_message(const kv::TxHistory::RequestCallbackArgs& args)
+  std::unique_ptr<aft::RequestMessage> ExecutorImpl::create_request_message(
+    const kv::TxHistory::RequestCallbackArgs& args)
   {
     Request request = {
       args.caller_id, args.caller_cert, args.request, {}, args.frame_format};

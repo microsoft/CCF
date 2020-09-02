@@ -23,8 +23,7 @@ namespace aft
     bool is_open;
 
   public:
-    Consensus(
-      std::unique_ptr<Aft<T...>> raft_, ConsensusType consensus_type_) :
+    Consensus(std::unique_ptr<Aft<T...>> raft_, ConsensusType consensus_type_) :
       kv::Consensus(raft_->id()),
       aft(std::move(raft_)),
       consensus_type(consensus_type_),

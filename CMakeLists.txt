@@ -446,8 +446,7 @@ if(BUILD_TESTS)
 
     # Raft driver and scenario test
     add_executable(
-      raft_driver
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
+      raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
     )
     use_client_mbedtls(raft_driver)
     target_include_directories(raft_driver PRIVATE src/aft)

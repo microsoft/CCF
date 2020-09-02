@@ -2,9 +2,7 @@
 # Licensed under the Apache 2.0 License.
 # AFT
 
-set(AFT_SRC
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/impl/execution.cpp
-)
+set(AFT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/impl/execution.cpp)
 
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_library(aft.enclave STATIC ${AFT_SRC})

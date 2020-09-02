@@ -5,9 +5,9 @@
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "ds/spin_lock.h"
-#include "impl/state.h"
 #include "impl/execution.h"
 #include "impl/request_message.h"
+#include "impl/state.h"
 #include "kv/kv_types.h"
 #include "kv/tx.h"
 #include "node/node_to_node.h"
@@ -281,8 +281,7 @@ namespace aft
     std::pair<Term, Index> get_commit_term_and_idx()
     {
       std::lock_guard<SpinLock> guard(state->lock);
-      return {get_term_internal(state->commit_idx),
-              state->commit_idx};
+      return {get_term_internal(state->commit_idx), state->commit_idx};
     }
 
     Term get_term(Index idx)
@@ -470,8 +469,7 @@ namespace aft
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
     {
       auto request = executor->create_request_message(args);
-      executor->execute_request(
-        std::move(request), is_first_request);
+      executor->execute_request(std::move(request), is_first_request);
       is_first_request = false;
 
       return true;
@@ -508,8 +506,7 @@ namespace aft
         0 :
         std::min(start_idx + entries_batch_size, state->last_idx);
 
-      for (Index i = end_idx; i < state->last_idx;
-           i += entries_batch_size)
+      for (Index i = end_idx; i < state->last_idx; i += entries_batch_size)
       {
         send_append_entries_range(to, start_idx, i);
         start_idx = std::min(i + 1, state->last_idx);
@@ -670,8 +667,7 @@ namespace aft
           continue;
         }
 
-        LOG_DEBUG_FMT(
-          "Replicating on follower {}: {}", state->my_node_id, i);
+        LOG_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
 
         state->last_idx = i;
         is_first_entry = false;
@@ -734,8 +730,7 @@ namespace aft
 
             if (sig_term)
             {
-              state->view_history.update(
-                state->commit_idx + 1, sig_term);
+              state->view_history.update(state->commit_idx + 1, sig_term);
               commit_if_possible(r.leader_commit_idx);
             }
             break;
@@ -745,8 +740,7 @@ namespace aft
           {
             if (consensus_type == ConsensusType::PBFT)
             {
-              state->last_idx =
-                executor->commit_replayed_request(tx);
+              state->last_idx = executor->commit_replayed_request(tx);
             }
             break;
           }
@@ -774,8 +768,7 @@ namespace aft
         commit_if_possible(r.leader_commit_idx);
       }
 
-      state->view_history.update(
-        state->commit_idx + 1, r.term_of_idx);
+      state->view_history.update(state->commit_idx + 1, r.term_of_idx);
     }
 
     void send_append_entries_response(NodeId to, bool answer)
@@ -861,8 +854,7 @@ namespace aft
       }
 
       // Update next and match for the responding node.
-      node->second.match_idx =
-        std::min(r.last_log_idx, state->last_idx);
+      node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
 
       if (!r.success)
       {
@@ -885,8 +877,7 @@ namespace aft
 
     void send_request_vote(NodeId to)
     {
-      LOG_INFO_FMT(
-        "Send request vote from {} to {}", state->my_node_id, to);
+      LOG_INFO_FMT("Send request vote from {} to {}", state->my_node_id, to);
 
       RequestVote rv = {{raft_request_vote, state->my_node_id},
                         state->current_view,
@@ -1088,9 +1079,7 @@ namespace aft
       add_vote_for_me(state->my_node_id);
 
       LOG_INFO_FMT(
-        "Becoming candidate {}: {}",
-        state->my_node_id,
-        state->current_view);
+        "Becoming candidate {}: {}", state->my_node_id, state->current_view);
 
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
       {
@@ -1123,9 +1112,7 @@ namespace aft
       timeout_elapsed = 0ms;
 
       LOG_INFO_FMT(
-        "Becoming leader {}: {}",
-        state->my_node_id,
-        state->current_view);
+        "Becoming leader {}: {}", state->my_node_id, state->current_view);
 
       // Immediately commit if there are no other nodes.
       if (nodes.size() == 0)
@@ -1162,9 +1149,7 @@ namespace aft
       committable_indices.clear();
 
       LOG_INFO_FMT(
-        "Becoming follower {}: {}",
-        state->my_node_id,
-        state->current_view);
+        "Becoming follower {}: {}", state->my_node_id, state->current_view);
       channels->close_all_outgoing();
     }
 
@@ -1174,9 +1159,7 @@ namespace aft
       leader_id = NoNode;
 
       LOG_INFO_FMT(
-        "Becoming retired {}: {}",
-        state->my_node_id,
-        state->current_view);
+        "Becoming retired {}: {}", state->my_node_id, state->current_view);
       channels->destroy_all_channels();
     }
 
@@ -1317,8 +1300,7 @@ namespace aft
     {
       snapshotter->rollback(idx);
       store->rollback(idx, state->current_view);
-      LOG_DEBUG_FMT(
-        "Setting term in store to: {}", state->current_view);
+      LOG_DEBUG_FMT("Setting term in store to: {}", state->current_view);
       ledger->truncate(idx);
       state->last_idx = idx;
       LOG_DEBUG_FMT("Rolled back at {}", idx);
