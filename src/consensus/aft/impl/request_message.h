@@ -20,18 +20,18 @@ namespace aft
     RequestMessageRep() = default;
     RequestMessageRep(
       aft::NodeId from_node,
-      short command_size_,
-      short cid_,
+      uint16_t command_size_,
+      uint16_t session_id_,
       kv::TxHistory::RequestID rid_) :
       consensus::ConsensusHeader<RaftMsgType>(
         RaftMsgType::bft_request, from_node),
       command_size(command_size_),
-      cid(cid_),
+      session_id(session_id_),
       rid(rid_)
     {}
 
-    short command_size;
-    short cid; // unique id of client who sends the request
+    uint16_t command_size;
+    uint16_t session_id; // unique id of client who sends the request
     kv::TxHistory::RequestID rid; // unique request identifier
   };
 #pragma pack(pop)

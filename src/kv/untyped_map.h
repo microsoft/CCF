@@ -12,6 +12,7 @@
 #include <functional>
 #include <optional>
 #include <unordered_set>
+#include <mutex>
 
 namespace kv::untyped
 {

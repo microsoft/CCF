@@ -11,8 +11,8 @@
 namespace aft
 {
   // This class acts as an adapter between the generic Consensus API and
-  // the Aft API, allowing for a mapping between the generic consensus
-  // terminology and the terminology that is specific to Aft
+  // the AFT API, allowing for a mapping between the generic consensus
+  // terminology and the terminology that is specific to AFT
 
   template <class... T>
   class AftConsensus : public kv::Consensus

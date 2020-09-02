@@ -1549,7 +1549,7 @@ namespace ccf
       setup_n2n_channels();
       setup_cmd_forwarder();
 
-      auto shared_state = std::make_shared<aft::ServiceState>(self);
+      auto shared_state = std::make_shared<aft::State>(self);
       auto raft = std::make_unique<RaftType>(
         network.consensus_type,
         std::make_unique<aft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
@@ -1562,7 +1562,7 @@ namespace ccf
         node_cert.raw(),
         network.pbft_requests_map,
         shared_state,
-        std::make_shared<aft::ExecutionUtilitiesImpl>(
+        std::make_shared<aft::ExecutorImpl>(
           network.pbft_requests_map, shared_state, rpc_map, rpcsessions),
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),

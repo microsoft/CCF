@@ -40,7 +40,7 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id),
+    std::make_shared<aft::State>(node_id),
     nullptr,
     ms(10),
     election_timeout);
@@ -83,7 +83,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id),
+    std::make_shared<aft::State>(node_id),
     nullptr,
     ms(10),
     election_timeout);
@@ -135,7 +135,7 @@ DOCTEST_TEST_CASE(
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id0),
+    std::make_shared<aft::State>(node_id0),
     nullptr,
     request_timeout,
     ms(20));
@@ -149,7 +149,7 @@ DOCTEST_TEST_CASE(
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id1),
+    std::make_shared<aft::State>(node_id1),
     nullptr,
     request_timeout,
     ms(100));
@@ -163,7 +163,7 @@ DOCTEST_TEST_CASE(
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id2),
+    std::make_shared<aft::State>(node_id2),
     nullptr,
     request_timeout,
     ms(50));
@@ -336,7 +336,7 @@ DOCTEST_TEST_CASE(
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id0),
+    std::make_shared<aft::State>(node_id0),
     nullptr,
     request_timeout,
     ms(20));
@@ -350,7 +350,7 @@ DOCTEST_TEST_CASE(
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id1),
+    std::make_shared<aft::State>(node_id1),
     nullptr,
     request_timeout,
     ms(100));
@@ -364,7 +364,7 @@ DOCTEST_TEST_CASE(
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id2),
+    std::make_shared<aft::State>(node_id2),
     nullptr,
     request_timeout,
     ms(50));
@@ -508,7 +508,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id0),
+    std::make_shared<aft::State>(node_id0),
     nullptr,
     request_timeout,
     ms(20));
@@ -522,7 +522,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id1),
+    std::make_shared<aft::State>(node_id1),
     nullptr,
     request_timeout,
     ms(100));
@@ -536,7 +536,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id2),
+    std::make_shared<aft::State>(node_id2),
     nullptr,
     request_timeout,
     ms(50));
@@ -662,7 +662,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id0),
+    std::make_shared<aft::State>(node_id0),
     nullptr,
     request_timeout,
     ms(20));
@@ -676,7 +676,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id1),
+    std::make_shared<aft::State>(node_id1),
     nullptr,
     request_timeout,
     ms(100));
@@ -874,7 +874,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id0),
+    std::make_shared<aft::State>(node_id0),
     nullptr,
     request_timeout,
     ms(20));
@@ -888,7 +888,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id1),
+    std::make_shared<aft::State>(node_id1),
     nullptr,
     request_timeout,
     ms(100));
@@ -902,7 +902,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id2),
+    std::make_shared<aft::State>(node_id2),
     nullptr,
     request_timeout,
     ms(50));
@@ -1069,7 +1069,7 @@ DOCTEST_TEST_CASE(
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id0),
+    std::make_shared<aft::State>(node_id0),
     nullptr,
     request_timeout,
     ms(20));
@@ -1083,7 +1083,7 @@ DOCTEST_TEST_CASE(
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id1),
+    std::make_shared<aft::State>(node_id1),
     nullptr,
     request_timeout,
     ms(100));
@@ -1097,7 +1097,7 @@ DOCTEST_TEST_CASE(
     nullptr,
     cert,
     request_map,
-    std::make_shared<aft::ServiceState>(node_id2),
+    std::make_shared<aft::State>(node_id2),
     nullptr,
     request_timeout,
     ms(50));

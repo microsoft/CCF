@@ -57,7 +57,7 @@ public:
         nullptr,
         cert,
         request_map,
-        std::make_shared<aft::ServiceState>(node_id),
+        std::make_shared<aft::State>(node_id),
         nullptr,
         ms(10),
         ms(i * 100));
