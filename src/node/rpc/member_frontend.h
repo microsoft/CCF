@@ -304,6 +304,26 @@ namespace ccf
       return true;
     }
 
+    bool retire_code_id(
+      kv::Tx& tx,
+      const CodeDigest& code_id,
+      CodeIDs& code_id_table,
+      ObjectId proposal_id)
+    {
+      auto code_ids = tx.get_view(code_id_table);
+      auto existing_code_id = code_ids->get(code_id);
+      if (!existing_code_id)
+      {
+        LOG_FAIL_FMT(
+          "Proposal {}: No such code id in table: {:02x}",
+          proposal_id,
+          fmt::join(code_id, ""));
+        return false;
+      }
+      code_ids->put(code_id, CodeStatus::RETIRED);
+      return true;
+    }
+
     //! Table of functions that proposal scripts can propose to invoke
     const std::unordered_map<
       std::string,
@@ -468,6 +488,15 @@ namespace ccf
         {"new_node_code",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            return this->add_new_code_id(
+             tx,
+             args.get<CodeDigest>(),
+             this->network.node_code_ids,
+             proposal_id);
+         }},
+        // retire node code ID
+        {"retire_node_code",
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           return this->retire_code_id(
              tx,
              args.get<CodeDigest>(),
              this->network.node_code_ids,

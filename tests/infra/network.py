@@ -47,6 +47,10 @@ class CodeIdNotFound(Exception):
     pass
 
 
+class CodeIdRetired(Exception):
+    pass
+
+
 class NodeShutdownError(Exception):
     pass
 
@@ -473,6 +477,8 @@ class Network:
                 for error in errors:
                     if "CODE_ID_NOT_FOUND" in error:
                         raise CodeIdNotFound from e
+                    if "CODE_ID_RETIRED" in error:
+                        raise CodeIdRetired from e
             raise
 
         return new_node
