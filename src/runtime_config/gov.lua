@@ -97,4 +97,27 @@ return {
     end
   end
   return true]],
+
+  update_modules = [[
+  tables, args = ...
+  function starts_with(str, start)
+    return str:sub(1, #start) == start
+  end
+  function remove_modules_with_prefix(prefix)
+    tables["ccf.modules"]:foreach(function(module_name, _)
+      if starts_with(module_name, prefix) then
+        tables["ccf.modules"]:remove(module_name)
+      end
+    end)
+  end
+  function add_modules_with_prefix(prefix, modules)
+    for _, module in pairs(modules) do
+      module_name = prefix .. module.rel_name
+      tables["ccf.modules"]:put(module_name, module.module)
+    end
+  end
+  remove_modules_with_prefix(args.prefix)
+  add_modules_with_prefix(args.prefix, args.modules)
+  return true
+  ]]
 }
