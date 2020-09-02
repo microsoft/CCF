@@ -4,7 +4,6 @@ import tempfile
 import http
 import subprocess
 import os
-import glob
 import infra.network
 import infra.path
 import infra.proc
@@ -18,6 +17,7 @@ from loguru import logger as LOG
 
 THIS_DIR = os.path.dirname(__file__)
 
+MODULE_PREFIX_1 = "/app/"
 MODULE_PATH_1 = "/app/foo.js"
 MODULE_RETURN_1 = "Hello world!"
 MODULE_CONTENT_1 = f"""
@@ -85,7 +85,7 @@ def make_module_set_proposal(path, content, network):
 def test_module_set_and_remove(network, args):
     primary, _ = network.find_nodes()
 
-    LOG.info("Member makes a module update proposal")
+    LOG.info("Member makes a module set proposal")
     make_module_set_proposal(MODULE_PATH_1, MODULE_CONTENT_1, network)
 
     with primary.client(
@@ -97,6 +97,35 @@ def test_module_set_and_remove(network, args):
 
     LOG.info("Member makes a module remove proposal")
     proposal_body, _ = ccf.proposal_generator.remove_module(MODULE_PATH_1)
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
+    )
+    network.consortium.vote_using_majority(primary, proposal)
+
+    with primary.client(
+        f"member{network.consortium.get_any_active_member().member_id}"
+    ) as c:
+        r = c.post("/gov/read", {"table": "ccf.modules", "key": MODULE_PATH_1})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+    return network
+
+
+@reqs.description("Test prefix-based modules remove")
+def test_modules_remove(network, args):
+    primary, _ = network.find_nodes()
+
+    LOG.info("Member makes a module set proposal")
+    make_module_set_proposal(MODULE_PATH_1, MODULE_CONTENT_1, network)
+
+    with primary.client(
+        f"member{network.consortium.get_any_active_member().member_id}"
+    ) as c:
+        r = c.post("/gov/read", {"table": "ccf.modules", "key": MODULE_PATH_1})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body["js"] == MODULE_CONTENT_1, r.body
+
+    LOG.info("Member makes a prefix-based modules remove proposal")
+    proposal_body, _ = ccf.proposal_generator.remove_modules(MODULE_PREFIX_1)
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
@@ -132,7 +161,7 @@ def test_module_import(network, args):
     return network
 
 
-@reqs.description("Test Node.js/npm app")
+@reqs.description("Test Node.js/npm app with prefix-based modules update")
 def test_npm_app(network, args):
     primary, _ = network.find_nodes()
 
@@ -142,15 +171,14 @@ def test_npm_app(network, args):
     subprocess.run(["npm", "run", "build"], cwd=app_dir, check=True)
 
     LOG.info("Deploying npm app modules")
-    kv_prefix = "/my-npm-app"
+    module_name_prefix = "/my-npm-app/"
     dist_dir = os.path.join(app_dir, "dist")
-    for module_path in glob.glob(os.path.join(dist_dir, "**", "*.js"), recursive=True):
-        module_name = os.path.join(kv_prefix, os.path.relpath(module_path, dist_dir))
-        proposal_body, _ = ccf.proposal_generator.set_module(module_name, module_path)
-        proposal = network.consortium.get_any_active_member().propose(
-            primary, proposal_body
-        )
-        network.consortium.vote_using_majority(primary, proposal)
+
+    proposal_body, _ = ccf.proposal_generator.update_modules(module_name_prefix, dist_dir)
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
+    )
+    network.consortium.vote_using_majority(primary, proposal)
 
     LOG.info("Deploying endpoint script")
     with tempfile.NamedTemporaryFile("w") as f:
@@ -186,6 +214,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
         network = test_module_set_and_remove(network, args)
+        network = test_modules_remove(network, args)
         network = test_module_import(network, args)
         network = test_npm_app(network, args)
 
