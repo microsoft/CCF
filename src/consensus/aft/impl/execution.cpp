@@ -40,8 +40,7 @@ namespace aft
     }
 
     const auto& actor_s = actor_opt.value();
-    std::string preferred_actor_s;
-    const auto actor = rpc_map->resolve(actor_s, preferred_actor_s);
+    const auto actor = rpc_map->resolve(actor_s);
     auto handler = rpc_map->find(actor);
     if (!handler.has_value())
       throw std::logic_error(
