@@ -313,7 +313,7 @@ def update_modules(module_name_prefix: str, modules_path: Optional[str], **kwarg
     if modules_path:
         for path in glob.glob(f"{modules_path}/**/*.js", recursive=True):
             rel_module_name = os.path.relpath(path, modules_path)
-            rel_module_name = rel_module_name.replace('\\', '/') # Windows support
+            rel_module_name = rel_module_name.replace("\\", "/")  # Windows support
             with open(path) as f:
                 js = f.read()
                 modules.append({"rel_name": rel_module_name, "module": {"js": js}})

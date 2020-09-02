@@ -174,7 +174,9 @@ def test_npm_app(network, args):
     module_name_prefix = "/my-npm-app/"
     dist_dir = os.path.join(app_dir, "dist")
 
-    proposal_body, _ = ccf.proposal_generator.update_modules(module_name_prefix, dist_dir)
+    proposal_body, _ = ccf.proposal_generator.update_modules(
+        module_name_prefix, dist_dir
+    )
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
