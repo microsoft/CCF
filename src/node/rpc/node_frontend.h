@@ -280,6 +280,7 @@ namespace ccf
       make_read_only_endpoint(
         "state", HTTP_GET, json_read_only_adapter(get_state))
         .set_auto_schema<GetState>()
+        .set_forwarding_required(ForwardingRequired::Never)
         .install();
 
       auto get_quote = [this](auto& args, nlohmann::json&&) {
