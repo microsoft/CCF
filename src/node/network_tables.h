@@ -59,6 +59,8 @@ namespace ccf
     SubmittedShares& submitted_shares;
     Configuration& config;
 
+    CACertDERs& ca_certs;
+
     //
     // User tables
     //
@@ -129,6 +131,8 @@ namespace ccf
         Tables::SUBMITTED_SHARES, kv::SecurityDomain::PUBLIC)),
       config(tables->create<Configuration>(
         Tables::CONFIGURATION, kv::SecurityDomain::PUBLIC)),
+      ca_certs(tables->create<CACertDERs>(
+        Tables::CA_CERT_DERS, kv::SecurityDomain::PUBLIC)),
       users(tables->create<Users>(Tables::USERS, kv::SecurityDomain::PUBLIC)),
       user_certs(tables->create<CertDERs>(
         Tables::USER_CERT_DERS, kv::SecurityDomain::PUBLIC)),
@@ -178,6 +182,7 @@ namespace ccf
         std::ref(governance_history),
         std::ref(member_client_signatures),
         std::ref(config),
+        std::ref(ca_certs),
         std::ref(users),
         std::ref(user_certs),
         std::ref(user_client_signatures),

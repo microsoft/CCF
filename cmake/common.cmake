@@ -179,7 +179,10 @@ function(add_unit_test name)
   target_compile_options(${name} PRIVATE -stdlib=libc++)
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
   enable_coverage(${name})
-  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host)
+  target_link_libraries(
+    ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehost
+  ) # TODO: replace with openenclave::oehostverify once OE 0.11 is released
+    # (OE#3312)
   use_client_mbedtls(${name})
   add_san(${name})
 
@@ -326,9 +329,9 @@ set(WORKER_THREADS
     CACHE STRING "Number of worker threads to start on each CCF node"
 )
 
-set(CCF_NETWORK_TEST_ARGS
-    -l ${TEST_HOST_LOGGING_LEVEL} -g ${CCF_DIR}/src/runtime_config/gov.lua
-    --worker-threads ${WORKER_THREADS}
+set(CCF_NETWORK_TEST_DEFAULT_GOV ${CCF_DIR}/src/runtime_config/gov.lua)
+set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
+                          ${WORKER_THREADS}
 )
 
 # SNIPPET_START: Lua generic application
@@ -375,16 +378,21 @@ endfunction()
 function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;CONSENSUS;" "ADDITIONAL_ARGS"
+    "NAME;PYTHON_SCRIPT;GOV_SCRIPT;LABEL;CURL_CLIENT;CONSENSUS;"
+    "ADDITIONAL_ARGS"
   )
+
+  if(NOT PARSED_ARGS_GOV_SCRIPT)
+    set(PARSED_ARGS_GOV_SCRIPT ${CCF_NETWORK_TEST_DEFAULT_GOV})
+  endif()
 
   if(BUILD_END_TO_END_TESTS)
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
-        ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS}
-        ${PARSED_ARGS_ADDITIONAL_ARGS}
+        ${CCF_NETWORK_TEST_ARGS} -g ${PARSED_ARGS_GOV_SCRIPT} --consensus
+        ${PARSED_ARGS_CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
     )
 
     # Make python test client framework importable
@@ -441,9 +449,13 @@ function(add_perf_test)
 
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;CLIENT_BIN;VERIFICATION_FILE;LABEL;CONSENSUS"
+    "NAME;PYTHON_SCRIPT;GOV_SCRIPT;CLIENT_BIN;VERIFICATION_FILE;LABEL;CONSENSUS"
     "ADDITIONAL_ARGS"
   )
+
+  if(NOT PARSED_ARGS_GOV_SCRIPT)
+    set(PARSED_ARGS_GOV_SCRIPT ${CCF_NETWORK_TEST_DEFAULT_GOV})
+  endif()
 
   if(PARSED_ARGS_VERIFICATION_FILE)
     set(VERIFICATION_ARG "--verify ${PARSED_ARGS_VERIFICATION_FILE}")
@@ -471,9 +483,9 @@ function(add_perf_test)
     NAME ${PARSED_ARGS_NAME}
     COMMAND
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
-      ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS}
-      --write-tx-times ${VERIFICATION_ARG} --label ${LABEL_ARG}
-      ${PARSED_ARGS_ADDITIONAL_ARGS} ${NODES}
+      ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS} -g
+      ${PARSED_ARGS_GOV_SCRIPT} --write-tx-times ${VERIFICATION_ARG} --label
+      ${LABEL_ARG} ${PARSED_ARGS_ADDITIONAL_ARGS} ${NODES}
   )
 
   # Make python test client framework importable

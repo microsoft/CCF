@@ -143,6 +143,9 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            lua.host
            secp256k1.host
            sss.host
+           # TODO: replace with openenclave::oehostverify once OE 0.11 is
+           # released (OE#3312)
+           openenclave::oehost
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
@@ -624,6 +627,21 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
       CONSENSUS raft
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
+    )
+
+    add_e2e_test(
+      NAME governance_ca_certs_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_ca_certs.py GOV_SCRIPT
+                    ${CCF_DIR}/src/runtime_config/gov_ca_certs.lua
+      CONSENSUS raft
+    )
+
+    add_e2e_test(
+      NAME governance_ca_cert_mismatch_test
+      PYTHON_SCRIPT
+        ${CMAKE_SOURCE_DIR}/tests/governance_ca_cert_mismatch.py GOV_SCRIPT
+        ${CCF_DIR}/src/runtime_config/gov_ca_cert_mismatch.lua
+      CONSENSUS raft
     )
   endif()
 

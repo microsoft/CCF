@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "frontend.h"
+#include "lua_interp/lua_json.h"
 #include "lua_interp/tx_script_runner.h"
 #include "node/genesis_gen.h"
 #include "node/members.h"
@@ -10,6 +11,7 @@
 #include "node/secret_share.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
+#include "tls/base64.h"
 #include "tls/key_pair.h"
 
 #include <charconv>
@@ -17,11 +19,171 @@
 #include <initializer_list>
 #include <map>
 #include <memory>
+#include <openenclave/attestation/verifier.h>
 #include <set>
 #include <sstream>
+#if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
+#  include <openenclave/enclave.h>
+#else
+#  include <openenclave/host_verify.h>
+#endif
 
 namespace ccf
 {
+  class MemberTsr : public lua::TxScriptRunner
+  {
+    void setup_environment(
+      lua::Interpreter& li,
+      const std::optional<Script>& env_script) const override
+    {
+      auto l = li.get_state();
+      lua_register(l, "pem_to_der", lua_pem_to_der);
+      lua_register(
+        l, "verify_cert_and_get_claims", lua_verify_cert_and_get_claims);
+
+      TxScriptRunner::setup_environment(li, env_script);
+    }
+
+    static int lua_pem_to_der(lua_State* l)
+    {
+      std::string pem = get_var_string_from_args(l);
+      std::vector<uint8_t> der = tls::make_verifier(pem)->der_cert_data();
+      nlohmann::json json = der;
+      lua::push_raw(l, json);
+      return 1;
+    }
+
+#ifdef USING_OE_11
+    // Uses the new API: oe_verify_attestation_certificate_with_evidence.
+    // Requires OE 0.11. (OE#3312)
+    // The quote is assumed to be an OE attestation (with
+    // oe_attestation_header_t header) stored at 1.2.840.113556.10.1.2 in the
+    // cert.
+    static oe_result_t oe_verify_attestation_certificate_with_evidence_cb(
+      oe_claim_t* claims, size_t claims_length, void* arg)
+    {
+      auto claims_map = (std::map<std::string, std::vector<uint8_t>>*)arg;
+      for (size_t i = 0; i < claims_length; i++)
+      {
+        std::string claim_name(claims[i].name);
+        std::vector<uint8_t> claim_value(
+          claims[i].value, claims[i].value + claims[i].value_size);
+        claims_map->emplace(std::move(claim_name), std::move(claim_value));
+      }
+      return OE_OK;
+    }
+
+    static int lua_verify_cert_and_get_claims(lua_State* l)
+    {
+      LOG_INFO_FMT("lua_verify_cert_and_get_claims");
+      nlohmann::json json = lua::check_get<nlohmann::json>(l, -1);
+      std::vector<uint8_t> cert_der = json;
+
+      std::map<std::string, std::vector<uint8_t>> claims;
+
+      oe_verifier_initialize();
+      oe_result_t res = oe_verify_attestation_certificate_with_evidence(
+        cert_der.data(),
+        cert_der.size(),
+        oe_verify_attestation_certificate_with_evidence_cb,
+        &claims);
+
+      if (res != OE_OK)
+      {
+        // Validation should happen before the proposal is registered.
+        // See https://github.com/microsoft/CCF/issues/1458.
+        throw std::runtime_error(fmt::format(
+          "Invalid certificate, "
+          "oe_verify_attestation_certificate_with_evidence() returned {}",
+          res));
+      }
+
+      lua_newtable(l);
+      const int table_idx = -2;
+
+      for (auto const& item : claims)
+      {
+        std::string val_hex = fmt::format("{:02x}", fmt::join(item.second, ""));
+        LOG_INFO_FMT("claim[{}] = {}", item.first, val_hex);
+        lua::push_raw(l, val_hex);
+        lua_setfield(l, table_idx, item.first.c_str());
+      }
+
+      return 1;
+    }
+#else
+    // Uses the old API: oe_verify_attestation_certificate.
+    // The quote is assumed to be an OE report (with oe_report_header_t header)
+    // stored at 1.2.840.113556.10.1.1 in the cert.
+
+    static oe_result_t oe_verify_attestation_certificate_cb(
+      oe_identity_t* identity, void* arg)
+    {
+      std::memcpy(arg, identity, sizeof(oe_identity_t));
+      return OE_OK;
+    }
+
+    static int lua_verify_cert_and_get_claims(lua_State* l)
+    {
+      LOG_INFO_FMT("lua_verify_cert_and_get_claims");
+      nlohmann::json json = lua::check_get<nlohmann::json>(l, -1);
+      std::vector<uint8_t> cert_der = json;
+
+      oe_identity_t identity;
+      oe_result_t res = oe_verify_attestation_certificate(
+        cert_der.data(),
+        cert_der.size(),
+        oe_verify_attestation_certificate_cb,
+        &identity);
+
+      if (res != OE_OK)
+      {
+        throw std::runtime_error("certificate not valid");
+      }
+
+      lua_newtable(l);
+      const int table_idx = -2;
+
+      std::vector<uint8_t> security_version_bytes(
+        (uint8_t*)&identity.security_version,
+        (uint8_t*)&identity.security_version +
+          sizeof(identity.security_version));
+      std::string security_version =
+        fmt::format("{:02x}", fmt::join(security_version_bytes, ""));
+      lua::push_raw(l, security_version);
+      lua_setfield(l, table_idx, "security_version");
+
+      std::vector<uint8_t> attributes_bytes(
+        (uint8_t*)&identity.attributes,
+        (uint8_t*)&identity.attributes + sizeof(identity.attributes));
+      std::string attributes =
+        fmt::format("{:02x}", fmt::join(attributes_bytes, ""));
+      lua::push_raw(l, attributes);
+      lua_setfield(l, table_idx, "attributes");
+
+      std::string unique_id =
+        fmt::format("{:02x}", fmt::join(identity.unique_id, ""));
+      lua::push_raw(l, unique_id);
+      lua_setfield(l, table_idx, "unique_id");
+
+      std::string signer_id =
+        fmt::format("{:02x}", fmt::join(identity.signer_id, ""));
+      lua::push_raw(l, signer_id);
+      lua_setfield(l, table_idx, "signer_id");
+
+      std::string product_id =
+        fmt::format("{:02x}", fmt::join(identity.product_id, ""));
+      lua::push_raw(l, product_id);
+      lua_setfield(l, table_idx, "product_id");
+
+      return 1;
+    }
+#endif
+
+  public:
+    MemberTsr(NetworkTables& network) : TxScriptRunner(network) {}
+  };
+
   struct SetUserData
   {
     UserId user_id;
@@ -637,7 +799,7 @@ namespace ccf
     NetworkTables& network;
     AbstractNodeState& node;
     ShareManager& share_manager;
-    const lua::TxScriptRunner tsr;
+    const MemberTsr tsr;
 
   public:
     MemberEndpoints(
