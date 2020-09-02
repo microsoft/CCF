@@ -194,6 +194,17 @@ function(add_unit_test name)
   )
 endfunction()
 
+# Test binary wrapper
+function(add_test_bin name)
+  add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
+  target_compile_options(${name} PRIVATE -stdlib=libc++)
+  target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
+  enable_coverage(${name})
+  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host)
+  use_client_mbedtls(${name})
+  add_san(${name})
+endfunction()
+
 if("sgx" IN_LIST COMPILE_TARGETS)
   # Host Executable
   add_executable(

@@ -346,6 +346,11 @@ if(BUILD_TESTS)
       tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
     )
 
+    add_test_bin(cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/cert.cpp)
+    target_link_libraries(
+      cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
+    )
+
     add_unit_test(
       key_exchange_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/key_exchange.cpp
@@ -452,6 +457,15 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}
     )
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
+
+    add_test(NAME csr_test COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/certs.py
+                                   ./cert_test
+    )
+    set_property(
+      TEST csr_test
+      APPEND
+      PROPERTY LABELS unit_test
+    )
   endif()
 
   # Picobench benchmarks
