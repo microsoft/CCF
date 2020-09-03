@@ -348,7 +348,8 @@ namespace ccfapp
         JS_SetPropertyStr(ctx, global_obj, "tables", tables_);
 
         auto headers = JS_NewObject(ctx);
-        for (auto &[header_name, header_value] : args.rpc_ctx->get_request_headers())
+        for (auto& [header_name, header_value] :
+             args.rpc_ctx->get_request_headers())
         {
           JS_SetPropertyStr(
             ctx,

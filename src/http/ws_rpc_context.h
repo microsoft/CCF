@@ -37,7 +37,7 @@ namespace ws
     std::string method = {};
 
     http::HeaderMap request_headers = {};
-    
+
     std::vector<uint8_t> request_body = {};
     enclave::PathParams path_params = {};
 

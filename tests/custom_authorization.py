@@ -29,6 +29,7 @@ return {{
 }}
 """
 
+
 @reqs.description("Test custom authorization")
 def test_custom_auth(network, args):
     primary, _ = network.find_nodes()
@@ -39,7 +40,9 @@ def test_custom_auth(network, args):
         network.consortium.set_js_app(remote_node=primary, app_script_path=f.name)
 
     with primary.client("user0") as c:
-        r = c.get("/app/custom_auth", headers={'Authorization': AUTH_VALUE}, signed=False)
+        r = c.get(
+            "/app/custom_auth", headers={"Authorization": AUTH_VALUE}, signed=False
+        )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body
 
