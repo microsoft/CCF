@@ -172,14 +172,16 @@ endfunction()
 function(add_san name)
   if(SAN)
     target_compile_options(
-      ${name} PRIVATE -fsanitize=address
-                      -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
+      ${name}
+      PRIVATE -fsanitize=undefined,address -fno-omit-frame-pointer
+              -fno-sanitize-recover=all -fno-sanitize=function
+              -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
     )
     target_link_libraries(
       ${name}
-      PRIVATE -fsanitize=address
+      PRIVATE -fsanitize=undefined,address -fno-omit-frame-pointer
+              -fno-sanitize-recover=all -fno-sanitize=function
               -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
-              -shared-libasan
     )
   endif()
 endfunction()
