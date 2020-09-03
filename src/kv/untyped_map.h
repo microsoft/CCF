@@ -10,7 +10,6 @@
 #include "kv/untyped_tx_view.h"
 
 #include <functional>
-#include <mutex>
 #include <optional>
 #include <unordered_set>
 
