@@ -257,8 +257,6 @@ function(add_ccf_app name)
       ${virt_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_VIRTUAL} ccf.virtual
     )
 
-    target_link_options(${virt_name} PRIVATE LINKER:--no-undefined)
-
     set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
     enable_coverage(${virt_name})
