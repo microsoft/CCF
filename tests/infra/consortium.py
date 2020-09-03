@@ -355,6 +355,12 @@ class Consortium:
         proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
+    def retire_code(self, remote_node, code_id):
+        proposal_body, careful_vote = self.make_proposal("retire_node_code", code_id)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        proposal.vote_for = careful_vote
+        return self.vote_using_majority(remote_node, proposal)
+
     def add_new_user_code(self, remote_node, new_code_id):
         proposal_body, careful_vote = self.make_proposal("new_user_code", new_code_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)

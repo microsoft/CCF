@@ -110,6 +110,41 @@ def run(args):
         assert new_node
         network.wait_for_node_commit_sync(args.consensus)
 
+        LOG.info("Remove first code id")
+        network.consortium.retire_code(new_node, first_code_id)
+
+        with new_node.client() as uc:
+            r = uc.get("/node/code")
+            versions = sorted(r.body["versions"], key=lambda x: x["digest"])
+            expected = sorted(
+                [
+                    {"digest": first_code_id, "status": "RETIRED"},
+                    {"digest": new_code_id, "status": "ACCEPTED"},
+                ],
+                key=lambda x: x["digest"],
+            )
+            assert versions == expected, versions
+
+        LOG.info(f"Adding a node with retired code id {first_code_id}")
+        code_not_found_exception = None
+        try:
+            network.create_and_add_pending_node(
+                args.package, "localhost", args, timeout=3
+            )
+        except infra.network.CodeIdRetired as err:
+            code_not_found_exception = err
+
+        assert (
+            code_not_found_exception is not None
+        ), f"Adding a node with unsupported code id {new_code_id} should fail"
+
+        LOG.info("Adding another node with the new code to the network")
+        new_node = network.create_and_trust_node(
+            args.patched_file_name, "localhost", args
+        )
+        assert new_node
+        network.wait_for_node_commit_sync(args.consensus)
+
 
 if __name__ == "__main__":
 

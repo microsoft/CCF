@@ -5,6 +5,7 @@ import argparse
 import collections
 import inspect
 import json
+import glob
 import os
 import sys
 from pathlib import PurePosixPath
@@ -295,6 +296,40 @@ def remove_module(module_name: str, **kwargs):
 
 
 @cli_proposal
+def update_modules(module_name_prefix: str, modules_path: Optional[str], **kwargs):
+    LOG.debug("Generating update_modules proposal")
+
+    # Validate module name prefix
+    module_name_prefix_ = PurePosixPath(module_name_prefix)
+    if not module_name_prefix_.is_absolute():
+        raise ValueError("module name prefix must be an absolute path")
+    if any(folder in [".", ".."] for folder in module_name_prefix_.parents):
+        raise ValueError("module name prefix must not contain . or .. components")
+    if not module_name_prefix.endswith("/"):
+        raise ValueError("module name prefix must end with /")
+
+    # Read module files and build relative module names
+    modules = []
+    if modules_path:
+        for path in glob.glob(f"{modules_path}/**/*.js", recursive=True):
+            rel_module_name = os.path.relpath(path, modules_path)
+            rel_module_name = rel_module_name.replace("\\", "/")  # Windows support
+            with open(path) as f:
+                js = f.read()
+                modules.append({"rel_name": rel_module_name, "module": {"js": js}})
+
+    proposal_args = {"prefix": module_name_prefix, "modules": modules}
+
+    return build_proposal("update_modules", proposal_args, **kwargs)
+
+
+@cli_proposal
+def remove_modules(module_name_prefix: str, **kwargs):
+    LOG.debug("Generating update_modules proposal (remove only)")
+    return update_modules(module_name_prefix, modules_path=None)
+
+
+@cli_proposal
 def trust_node(node_id: int, **kwargs):
     return build_proposal("trust_node", node_id, **kwargs)
 
@@ -308,6 +343,12 @@ def retire_node(node_id: int, **kwargs):
 def new_node_code(code_digest: str, **kwargs):
     code_digest_bytes = list(bytearray.fromhex(code_digest))
     return build_proposal("new_node_code", code_digest_bytes, **kwargs)
+
+
+@cli_proposal
+def retire_node_code(code_digest: str, **kwargs):
+    code_digest_bytes = list(bytearray.fromhex(code_digest))
+    return build_proposal("retire_node_code", code_digest_bytes, **kwargs)
 
 
 @cli_proposal
