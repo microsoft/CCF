@@ -1,6 +1,3 @@
-parameters:
-  tls_report: false
-
 jobs:
 - job: ${{ parameters.target }}_${{ parameters.suffix }}
   variables:
@@ -39,9 +36,8 @@ jobs:
       - template: metrics.yml
 
     - ${{ if eq(parameters.suffix, 'Release') }}:
-      - template: publish_build.yml
+      - template: publish_tls_report.yml
         parameters:
           artifact_name: ${{ parameters.artifact_name }}
-          tls_report: ${{ parameters.tls_report }}
 
       - template: install.yml
