@@ -178,7 +178,8 @@ function(add_san name)
     target_link_libraries(
       ${name}
       PRIVATE -fsanitize=address
-              -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist -lasan
+              -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
+              -shared-libasan
     )
   endif()
 endfunction()
