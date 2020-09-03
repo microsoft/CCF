@@ -37,7 +37,4 @@ jobs:
 
     - ${{ if eq(parameters.suffix, 'Release') }}:
       - template: publish_tls_report.yml
-        parameters:
-          artifact_name: ${{ parameters.artifact_name }}
-
       - template: install.yml

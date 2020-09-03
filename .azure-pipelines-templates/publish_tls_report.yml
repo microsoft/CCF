@@ -1,7 +1,5 @@
-parameters:
-  artifact_name: ''
-
+steps:
 - task: PublishPipelineArtifact@1
   inputs:
-    artifactName: '${{ parameters.artifact_name }} TLS report'
+    artifactName: 'TLS report'
     targetPath: build/tls_report.html
