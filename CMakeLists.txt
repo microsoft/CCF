@@ -600,6 +600,12 @@ if(BUILD_TESTS)
     CONSENSUS raft
   )
 
+  add_e2e_test(
+    NAME custom_authorization_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/custom_authorization.py
+    CONSENSUS raft
+  )
+
   if(QUOTES_ENABLED)
     add_e2e_test(
       NAME reconfiguration_test

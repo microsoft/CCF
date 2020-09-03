@@ -347,6 +347,17 @@ namespace ccfapp
         JS_SetOpaque(tables_, &args.tx);
         JS_SetPropertyStr(ctx, global_obj, "tables", tables_);
 
+        auto headers = JS_NewObject(ctx);
+        for (auto &[header_name, header_value] : args.rpc_ctx->get_request_headers())
+        {
+          JS_SetPropertyStr(
+            ctx,
+            headers,
+            header_name.c_str(),
+            JS_NewStringLen(ctx, header_value.c_str(), header_value.size()));
+        }
+        JS_SetPropertyStr(ctx, global_obj, "headers", headers);
+
         const auto& request_query = args.rpc_ctx->get_request_query();
         auto query_str =
           JS_NewStringLen(ctx, request_query.c_str(), request_query.size());
