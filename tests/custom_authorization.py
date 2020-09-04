@@ -11,10 +11,6 @@ import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
 
-from loguru import logger as LOG
-
-THIS_DIR = os.path.dirname(__file__)
-
 AUTH_VALUE = "Bearer 42"
 APP_SCRIPT = f"""
 return {{
