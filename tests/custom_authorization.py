@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import tempfile
 import http
-import os
 import infra.network
 import infra.path
 import infra.proc
