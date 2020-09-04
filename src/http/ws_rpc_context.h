@@ -36,6 +36,8 @@ namespace ws
     std::string path = {};
     std::string method = {};
 
+    http::HeaderMap request_headers = {};
+
     std::vector<uint8_t> request_body = {};
     enclave::PathParams path_params = {};
 
@@ -126,6 +128,11 @@ namespace ws
     virtual void set_method(const std::string_view& p) override
     {
       method = p;
+    }
+
+    virtual const http::HeaderMap& get_request_headers() const override
+    {
+      return request_headers;
     }
 
     virtual std::optional<std::string> get_request_header(

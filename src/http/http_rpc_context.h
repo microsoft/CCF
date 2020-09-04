@@ -87,33 +87,36 @@ namespace http
         {
           std::string_view authz_header = auth_it->second;
 
-          auto parsed_sign_params =
-            http::HttpSignatureVerifier::parse_signature_params(authz_header);
-
-          if (!parsed_sign_params.has_value())
+          if (http::HttpSignatureVerifier::parse_auth_scheme(authz_header))
           {
-            throw std::logic_error(fmt::format(
-              "Unable to parse signature params from: {}", authz_header));
-          }
+            auto parsed_sign_params =
+              http::HttpSignatureVerifier::parse_signature_params(authz_header);
 
-          // Keep all signed headers, and the auth header containing the
-          // signature itself
-          auto& signed_headers = parsed_sign_params->signed_headers;
-          signed_headers.emplace_back(http::headers::AUTHORIZATION);
-
-          auto it = request_headers.begin();
-          while (it != request_headers.end())
-          {
-            if (
-              std::find(
-                signed_headers.begin(), signed_headers.end(), it->first) ==
-              signed_headers.end())
+            if (!parsed_sign_params.has_value())
             {
-              it = request_headers.erase(it);
+              throw std::logic_error(fmt::format(
+                "Unable to parse signature params from: {}", authz_header));
             }
-            else
+
+            // Keep all signed headers, and the auth header containing the
+            // signature itself
+            auto& signed_headers = parsed_sign_params->signed_headers;
+            signed_headers.emplace_back(http::headers::AUTHORIZATION);
+
+            auto it = request_headers.begin();
+            while (it != request_headers.end())
             {
-              ++it;
+              if (
+                std::find(
+                  signed_headers.begin(), signed_headers.end(), it->first) ==
+                signed_headers.end())
+              {
+                it = request_headers.erase(it);
+              }
+              else
+              {
+                ++it;
+              }
             }
           }
         }
@@ -249,6 +252,11 @@ namespace http
     virtual void set_method(const std::string_view& p) override
     {
       path = p;
+    }
+
+    virtual const http::HeaderMap& get_request_headers() const override
+    {
+      return request_headers;
     }
 
     virtual std::optional<std::string> get_request_header(
