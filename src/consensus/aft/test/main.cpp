@@ -21,7 +21,7 @@ using StoreSig = aft::LoggingStubStoreSig;
 using Adaptor = aft::Adaptor<Store, kv::DeserialiseSuccess>;
 
 std::vector<uint8_t> cert;
-kv::Map<size_t, pbft::Request> request_map(
+kv::Map<size_t, aft::Request> request_map(
   nullptr, "test", kv::SecurityDomain::PUBLIC, true);
 
 DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
