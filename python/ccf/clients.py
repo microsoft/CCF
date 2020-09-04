@@ -352,15 +352,6 @@ class RequestClient:
                 headers=["(request-target)", "Digest", "Content-Length"],
             )
 
-        request_args = {
-            "method": request.http_verb,
-            "url": f"https://{self.host}:{self.port}{request.path}",
-            "auth": auth_value,
-            "headers": extra_headers,
-            "allow_redirects": False,
-            "timeout": timeout,
-        }
-
         request_body = None
         if request.body is not None:
             if isinstance(request.body, str) and request.body.startswith("@"):
@@ -380,13 +371,20 @@ class RequestClient:
             else:
                 request_body = json.dumps(request.body).encode()
                 content_type = CONTENT_TYPE_JSON
-            request_args["data"] = request_body
 
             if not "content-type" in request.headers:
                 extra_headers["content-type"] = content_type
 
         try:
-            response = self.session.request(**request_args)
+            response = self.session.request(
+                request.http_verb,
+                url=f"https://{self.host}:{self.port}{request.path}",
+                auth=auth_value,
+                headers=extra_headers,
+                allow_redirects=False,
+                timeout=timeout,
+                data=request_body,
+            )
         except requests.exceptions.ReadTimeout as exc:
             raise TimeoutError from exc
         except requests.exceptions.SSLError as exc:
