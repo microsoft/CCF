@@ -4,45 +4,45 @@
 
 #include "kv/kv_types.h"
 #include "raft.h"
+#include "request.h"
 
 #include <memory>
 
-namespace raft
+namespace aft
 {
   // This class acts as an adapter between the generic Consensus API and
-  // the Raft API, allowing for a mapping between the generic consensus
-  // terminology and the terminology that is specific to Raft
+  // the AFT API, allowing for a mapping between the generic consensus
+  // terminology and the terminology that is specific to AFT
 
   template <class... T>
-  class RaftConsensus : public kv::Consensus
+  class Consensus : public kv::Consensus
   {
   private:
-    std::unique_ptr<Raft<T...>> raft;
+    std::unique_ptr<Aft<T...>> aft;
     ConsensusType consensus_type;
     bool is_open;
 
   public:
-    RaftConsensus(
-      std::unique_ptr<Raft<T...>> raft_, ConsensusType consensus_type_) :
-      Consensus(raft_->id()),
-      raft(std::move(raft_)),
+    Consensus(std::unique_ptr<Aft<T...>> raft_, ConsensusType consensus_type_) :
+      kv::Consensus(raft_->id()),
+      aft(std::move(raft_)),
       consensus_type(consensus_type_),
       is_open(false)
     {}
 
     bool is_primary() override
     {
-      return raft->is_leader();
+      return aft->is_leader();
     }
 
     bool is_backup() override
     {
-      return raft->is_follower();
+      return aft->is_follower();
     }
 
     void force_become_primary() override
     {
-      raft->force_become_leader();
+      aft->force_become_leader();
     }
 
     void force_become_primary(
@@ -51,68 +51,68 @@ namespace raft
       const std::vector<kv::Version>& terms,
       SeqNo commit_seqno) override
     {
-      raft->force_become_leader(seqno, view, terms, commit_seqno);
+      aft->force_become_leader(seqno, view, terms, commit_seqno);
     }
 
     void init_as_backup(SeqNo seqno, View view) override
     {
-      raft->init_as_follower(seqno, view);
+      aft->init_as_follower(seqno, view);
     }
 
     bool replicate(const kv::BatchVector& entries, View view) override
     {
-      return raft->replicate(entries, view);
+      return aft->replicate(entries, view);
     }
 
     std::pair<View, SeqNo> get_committed_txid() override
     {
-      return raft->get_commit_term_and_idx();
+      return aft->get_commit_term_and_idx();
     }
 
     View get_view(SeqNo seqno) override
     {
-      return raft->get_term(seqno);
+      return aft->get_term(seqno);
     }
 
     View get_view() override
     {
-      return raft->get_term();
+      return aft->get_term();
     }
 
     SeqNo get_committed_seqno() override
     {
-      return raft->get_commit_idx();
+      return aft->get_commit_idx();
     }
 
     NodeId primary() override
     {
-      return raft->leader();
+      return aft->leader();
     }
 
     void recv_message(OArray&& data) override
     {
-      return raft->recv_message(data.data(), data.size());
+      return aft->recv_message(std::move(data));
     }
 
     void add_configuration(
       SeqNo seqno, const Configuration::Nodes& conf) override
     {
-      raft->add_configuration(seqno, conf);
+      aft->add_configuration(seqno, conf);
     }
 
     Configuration::Nodes get_latest_configuration() const override
     {
-      return raft->get_latest_configuration();
+      return aft->get_latest_configuration();
     }
 
     void periodic(std::chrono::milliseconds elapsed) override
     {
-      raft->periodic(elapsed);
+      aft->periodic(elapsed);
     }
 
     void enable_all_domains() override
     {
-      raft->enable_all_domains();
+      aft->enable_all_domains();
     }
 
     void open_network() override
@@ -121,16 +121,11 @@ namespace raft
       return;
     }
 
-    void emit_signature() override
-    {
-      throw std::logic_error(
-        "Method should not be called when using raft consensus");
-    }
+    void emit_signature() override {}
 
-    bool on_request(const kv::TxHistory::RequestCallbackArgs&) override
+    bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
-      throw ccf::ccf_logic_error("Not implemented");
-      return true;
+      return aft->on_request(args);
     }
 
     ConsensusType type() override

@@ -257,7 +257,9 @@ function(add_ccf_app name)
       ${virt_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_VIRTUAL} ccf.virtual
     )
 
-    target_link_options(${virt_name} PRIVATE LINKER:--no-undefined)
+    if(NOT SAN)
+      target_link_options(${virt_name} PRIVATE LINKER:--no-undefined)
+    endif()
 
     set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
