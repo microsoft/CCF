@@ -77,7 +77,7 @@ namespace aft
     const kv::TxHistory::RequestCallbackArgs& args)
   {
     Request request = {
-      args.caller_id, args.caller_cert, args.request, {}, args.frame_format};
+      args.caller_id, args.rid, args.caller_cert, args.request, args.frame_format};
     auto serialized_req = request.serialise();
 
     auto rep_cb = [=](
@@ -107,11 +107,23 @@ namespace aft
 
     auto ctx = create_request_ctx(request);
 
+/*
     auto request_message = RequestMessage::deserialize(
       request.pbft_raw.data(),
       request.pbft_raw.size(),
       std::move(ctx),
       nullptr);
+*/
+
+
+    kv::TxHistory::RequestID rid = request.rid;
+
+    auto request_message = RequestMessage::deserialize(
+      std::move(request.raw),
+      rid,
+      std::move(ctx),
+      nullptr);
+
 
     return execute_request(std::move(request_message), state->commit_idx == 0);
   }

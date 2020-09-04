@@ -219,6 +219,11 @@ namespace kv
       req_id = req_id_;
     }
 
+    const kv::TxHistory::RequestID& get_req_id()
+    {
+      return req_id;
+    }
+
     /** Version for the transaction set
      *
      * @return Committed version, or `kv::NoVersion` otherwise

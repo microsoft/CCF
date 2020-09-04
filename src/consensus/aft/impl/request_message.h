@@ -95,6 +95,16 @@ namespace aft
         std::move(request), rep.rid, std::move(ctx), std::move(cb));
     }
 
+    static std::unique_ptr<RequestMessage> deserialize(
+      std::vector<uint8_t> request,
+      kv::TxHistory::RequestID rid,
+      std::unique_ptr<RequestCtx> ctx,
+      ReplyCallback cb)
+    {
+      return std::make_unique<RequestMessage>(
+        std::move(request), rid, std::move(ctx), std::move(cb));
+    }
+
     size_t size() const override
     {
       return sizeof(RequestMessageRep) + request.size();

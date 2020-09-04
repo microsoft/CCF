@@ -606,10 +606,11 @@ namespace ccf
           auto req_view = tx.get_view(*frontend.pbft_requests_map);
           req_view->put(
             0,
-            {ctx.session->original_caller.value().caller_id,
+            {//ctx.session->rid,
+             ctx.session->original_caller.value().caller_id,
+             tx.get_req_id(),
              ctx.session->caller_cert,
-             ctx.get_serialised_request(),
-             ctx.pbft_raw});
+             ctx.get_serialised_request()});
         };
       }
 

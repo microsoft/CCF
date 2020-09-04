@@ -496,9 +496,11 @@ TEST_CASE("process_pbft")
   const auto serialized_body = serdes::pack(call_body, default_pack);
   simple_call.set_body(&serialized_body);
 
+  kv::TxHistory::RequestID rid = {1, 1, 1};
+
   const auto serialized_call = simple_call.build_request();
   aft::Request request = {
-    user_id, user_caller_der, serialized_call, {}, enclave::FrameFormat::http};
+    user_id, rid, user_caller_der, serialized_call, enclave::FrameFormat::http};
 
   auto session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_id, user_caller_der);
@@ -515,7 +517,6 @@ TEST_CASE("process_pbft")
   REQUIRE(deserialised_req.caller_id == user_id);
   REQUIRE(deserialised_req.caller_cert == user_caller.raw());
   REQUIRE(deserialised_req.raw == serialized_call);
-  REQUIRE(deserialised_req.pbft_raw.empty());
   REQUIRE(deserialised_req.frame_format == enclave::FrameFormat::http);
 }
 

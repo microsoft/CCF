@@ -118,8 +118,10 @@ namespace enclave
 
     bool is_create_request = false;
 
+    // TODO: add rid here
     RpcContext(std::shared_ptr<SessionContext> s) : session(s) {}
 
+    // TODO: add rid here
     RpcContext(
       std::shared_ptr<SessionContext> s,
       const std::vector<uint8_t>& pbft_raw_) :
