@@ -74,7 +74,7 @@ namespace aft
     std::chrono::milliseconds timeout_elapsed;
 
     // BFT
-    pbft::RequestsMap& pbft_requests_map;
+    RequestsMap& pbft_requests_map;
     std::shared_ptr<aft::State> state;
     std::shared_ptr<Executor> executor;
 
@@ -121,7 +121,7 @@ namespace aft
       std::shared_ptr<enclave::RPCSessions> rpc_sessions_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       const std::vector<uint8_t>& /*cert*/,
-      pbft::RequestsMap& requests_map,
+      RequestsMap& requests_map,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<Executor> executor_,
       std::chrono::milliseconds request_timeout_,
