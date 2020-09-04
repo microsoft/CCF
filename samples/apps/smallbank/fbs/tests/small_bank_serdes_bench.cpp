@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #define PICOBENCH_IMPLEMENT
 
-#include "consensus/pbft/pbft_requests.h"
+#include "consensus/aft/request.h"
 #include "node/encryptor.h"
 #include "node/history.h"
 #include "node/rpc/serdes.h"
@@ -64,7 +64,7 @@ static std::vector<uint8_t> kv_serialized_data(std::vector<uint8_t>& data)
   auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
 
-  auto& map0 = kv_store.create<pbft::RequestsMap>("map0");
+  auto& map0 = kv_store.create<aft::RequestsMap>("map0");
 
   kv::Tx tx(kv_store.next_version());
   auto tx0 = tx.get_view(map0);
