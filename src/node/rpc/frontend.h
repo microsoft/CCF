@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "common_endpoint_registry.h"
-#include "consensus/pbft/pbft_requests.h"
+#include "consensus/aft/request.h"
 #include "consensus/pbft/pbft_tables.h"
 #include "ds/buffer.h"
 #include "ds/spin_lock.h"
@@ -46,7 +46,7 @@ namespace ccf
 
     Nodes* nodes;
     ClientSignatures* client_signatures;
-    pbft::RequestsMap* pbft_requests_map;
+    aft::RequestsMap* pbft_requests_map;
     kv::Consensus* consensus;
     std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder;
     kv::TxHistory* history;
@@ -478,7 +478,7 @@ namespace ccf
       nodes(tables.get<Nodes>(Tables::NODES)),
       client_signatures(client_sigs_),
       pbft_requests_map(
-        tables.get<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
+        tables.get<aft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
       consensus(nullptr),
       history(nullptr)
     {}
@@ -607,9 +607,9 @@ namespace ccf
           req_view->put(
             0,
             {ctx.session->original_caller.value().caller_id,
+             tx.get_req_id(),
              ctx.session->caller_cert,
-             ctx.get_serialised_request(),
-             ctx.pbft_raw});
+             ctx.get_serialised_request()});
         };
       }
 
