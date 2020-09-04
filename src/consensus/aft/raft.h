@@ -195,6 +195,7 @@ namespace aft
 
       std::lock_guard<SpinLock> guard(state->lock);
       state->current_view += 2;
+      LOG_INFO_FMT("PPPPPPPPP {}", state->current_view);
       become_leader();
     }
 
@@ -212,6 +213,7 @@ namespace aft
       state->commit_idx = commit_idx_;
       state->view_history.update(index, term);
       state->current_view += 2;
+      LOG_INFO_FMT("PPPPPPPPP {}", state->current_view);
       become_leader();
     }
 
@@ -233,6 +235,7 @@ namespace aft
       state->view_history.initialise(terms);
       state->view_history.update(index, term);
       state->current_view += 2;
+      LOG_INFO_FMT("PPPPPPPPP {}", state->current_view);
       become_leader();
     }
 
@@ -245,6 +248,7 @@ namespace aft
       state->last_idx = index;
       state->commit_idx = index;
 
+      LOG_INFO_FMT("ZZZZZZZZ index:{}, term:{}", index, term);
       state->view_history.update(index, term);
 
       ledger->init(index);
@@ -319,6 +323,8 @@ namespace aft
       {
         for (auto& [index, data, globally_committable] : entries)
         {
+          LOG_INFO_FMT("PPPPPPPPPPPPPP setting last_idx {}", index);
+          state->last_idx = index;
           ledger->put_entry(*data, globally_committable, false);
         }
         return true;
@@ -375,6 +381,8 @@ namespace aft
         entry_size_not_limited += data->size();
         entry_count++;
 
+        // TODO: we should copy on our replica
+      LOG_INFO_FMT("ZZZZZZZZ index:{}, term:{}", index, state->current_view);
         state->view_history.update(index, state->current_view);
         if (entry_size_not_limited >= append_entries_size_limit)
         {
@@ -495,7 +503,10 @@ namespace aft
     Term get_term_internal(Index idx)
     {
       if (idx > state->last_idx)
+      {
+        LOG_INFO_FMT("unknown term for idx {} > {}", idx, state->last_idx);
         return ccf::VIEW_UNKNOWN;
+      }
 
       return state->view_history.term_at(idx);
     }
@@ -604,6 +615,8 @@ namespace aft
       }
 
       const auto prev_term = get_term_internal(r.prev_idx);
+        LOG_DEBUG_FMT(
+          "UUUUU Previous term for {} ours {}", r.prev_idx, prev_term);
 
       if (prev_term != r.prev_term)
       {
@@ -642,7 +655,7 @@ namespace aft
       {
         LOG_DEBUG_FMT(
           "Recv append entries to {} from {} but prev_idx ({}) < commit_idx "
-          "({})",
+          "({}) NNNNNNNNNNNN",
           state->my_node_id,
           r.from_node,
           r.prev_idx,
@@ -695,11 +708,13 @@ namespace aft
         kv::DeserialiseSuccess deserialise_success;
         if (consensus_type == ConsensusType::PBFT)
         {
+          LOG_INFO_FMT("1 - TTTTTT");
           deserialise_success =
             store->deserialise_views(entry, public_only, &sig_term, &tx);
         }
         else
         {
+          LOG_INFO_FMT("2 - TTTTTT");
           deserialise_success =
             store->deserialise(entry, public_only, &sig_term);
         }
@@ -730,6 +745,8 @@ namespace aft
 
             if (sig_term)
             {
+              // TODO: look at this
+              LOG_INFO_FMT("ZZZZZZZZ index:{}, term:{}", state->commit_idx +1 , sig_term);
               state->view_history.update(state->commit_idx + 1, sig_term);
               commit_if_possible(r.leader_commit_idx);
             }
@@ -761,13 +778,18 @@ namespace aft
       send_append_entries_response(r.from_node, true);
       if (consensus_type == ConsensusType::PBFT && is_follower())
       {
+        LOG_INFO_FMT("1. XXXXXXXXXXX");
+        //state->commit_idx = r.leader_commit_idx;
         store->compact(state->last_idx);
+        //commit_if_possible(r.leader_commit_idx);
+        LOG_INFO_FMT("2. XXXXXXXXXXX");
       }
       else
       {
         commit_if_possible(r.leader_commit_idx);
       }
 
+      LOG_INFO_FMT("ZZZZZZZZ index:{}, term:{}", state->commit_idx +1 , r.term_of_idx);
       state->view_history.update(state->commit_idx + 1, r.term_of_idx);
     }
 
@@ -854,6 +876,7 @@ namespace aft
       }
 
       // Update next and match for the responding node.
+      LOG_INFO_FMT("ZZZZZZZZ index:{}, term:{}", r.last_log_idx , state->last_idx);
       node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
 
       if (!r.success)
@@ -1073,7 +1096,9 @@ namespace aft
       leader_id = NoNode;
       voted_for = state->my_node_id;
       votes_for_me.clear();
+      LOG_INFO_FMT("PPPPPPPPP {}", state->current_view);
       state->current_view++;
+      LOG_INFO_FMT("PPPPPPPPP {}", state->current_view);
 
       restart_election_timeout();
       add_vote_for_me(state->my_node_id);
@@ -1140,7 +1165,10 @@ namespace aft
       leader_id = NoNode;
       restart_election_timeout();
 
+      // TODO: setting term here
+      LOG_INFO_FMT("PPPPPPPPP {}", state->current_view);
       state->current_view = term;
+      LOG_INFO_FMT("PPPPPPPPP {}", state->current_view);
       voted_for = NoNode;
       votes_for_me.clear();
 
@@ -1223,10 +1251,12 @@ namespace aft
 
     void commit_if_possible(Index idx)
     {
+      LOG_INFO_FMT("GGGGGGG");
       if (
         (idx > state->commit_idx) &&
         (get_term_internal(idx) <= state->current_view))
       {
+      LOG_INFO_FMT("GGGGGGG");
         Index highest_committable = 0;
         bool can_commit = false;
         while (!committable_indices.empty() &&
@@ -1237,17 +1267,29 @@ namespace aft
           can_commit = true;
         }
 
+        if (consensus_type == ConsensusType::PBFT && is_follower())
+        {
+          can_commit = true;
+          highest_committable = idx;
+        }
+
+      LOG_INFO_FMT("GGGGGGG");
         if (can_commit)
+        {
+      LOG_INFO_FMT("GGGGGGG");
           commit(highest_committable);
+        }
       }
     }
 
     void commit(Index idx)
     {
+      /*
       if (idx > state->last_idx)
         throw std::logic_error(
           "Tried to commit " + std::to_string(idx) + "but last_idx as " +
           std::to_string(state->last_idx));
+      */
 
       LOG_DEBUG_FMT("Starting commit");
 

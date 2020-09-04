@@ -750,7 +750,15 @@ namespace kv
         {
           // we have deserialised an entry that didn't belong to the pbft
           // requests, nor the pbft new views, nor the pbft pre prepares table
-          return DeserialiseSuccess::FAILED;
+          LOG_FAIL_FMT("Failed to deserialise");
+          LOG_DEBUG_FMT("Unexpected contents in pbft transaction size {}", views.size());
+          //using OrderedViews = std::map<std::string, MapView>;
+          for (auto& view : views)
+          {
+            LOG_INFO_FMT("name: {}", view.first);
+          }
+          LOG_INFO_FMT("Finished printing");
+          //return DeserialiseSuccess::FAILED;
         }
       }
 

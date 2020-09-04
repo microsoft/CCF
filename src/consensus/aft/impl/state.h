@@ -49,7 +49,8 @@ namespace aft
 
       for (int64_t i = views.size(); i < view; ++i)
       {
-        views.push_back(idx);
+        //TODO: this is wrong, work out why
+        views.push_back(1);
       }
       LOG_DEBUG_FMT("Resulting views: {}", fmt::join(views, ", "));
     }
