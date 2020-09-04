@@ -26,7 +26,7 @@
 #pragma once
 
 #include <string>
-#include <nlohmann/json.hpp>
+#include <json.hpp>
 
 #include <valijson/adapters/adapter.hpp>
 #include <valijson/adapters/basic_adapter.hpp>
