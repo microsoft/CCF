@@ -24,7 +24,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
   target_compile_definitions(
     evercrypt.enclave PRIVATE INSIDE_ENCLAVE KRML_HOST_PRINTF=oe_printf
-                              KRML_HOST_EXIT=oe_abort
+                              KRML_HOST_EXIT=oe_abort LINUX_NO_EXPLICIT_BZERO
   )
   target_link_libraries(evercrypt.enclave PRIVATE ${OE_TARGET_LIBC})
   set_property(TARGET evercrypt.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)

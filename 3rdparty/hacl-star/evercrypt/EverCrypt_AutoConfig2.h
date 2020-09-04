@@ -21,17 +21,22 @@
  * SOFTWARE.
  */
 
+
+#ifndef __EverCrypt_AutoConfig2_H
+#define __EverCrypt_AutoConfig2_H
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include "evercrypt_targetconfig.h"
 #include "kremlin/internal/types.h"
 #include "kremlin/lowstar_endianness.h"
 #include <string.h>
 #include "kremlin/internal/target.h"
 
-#ifndef __EverCrypt_AutoConfig2_H
-#define __EverCrypt_AutoConfig2_H
 
 #include "Vale.h"
-
 
 bool EverCrypt_AutoConfig2_has_shaext();
 
@@ -52,6 +57,8 @@ bool EverCrypt_AutoConfig2_has_sse();
 bool EverCrypt_AutoConfig2_has_movbe();
 
 bool EverCrypt_AutoConfig2_has_rdrand();
+
+bool EverCrypt_AutoConfig2_has_avx512();
 
 bool EverCrypt_AutoConfig2_wants_vale();
 
@@ -87,6 +94,8 @@ void EverCrypt_AutoConfig2_disable_movbe();
 
 void EverCrypt_AutoConfig2_disable_rdrand();
 
+void EverCrypt_AutoConfig2_disable_avx512();
+
 void EverCrypt_AutoConfig2_disable_vale();
 
 void EverCrypt_AutoConfig2_disable_hacl();
@@ -94,6 +103,10 @@ void EverCrypt_AutoConfig2_disable_hacl();
 void EverCrypt_AutoConfig2_disable_openssl();
 
 void EverCrypt_AutoConfig2_disable_bcrypt();
+
+#if defined(__cplusplus)
+}
+#endif
 
 #define __EverCrypt_AutoConfig2_H_DEFINED
 #endif

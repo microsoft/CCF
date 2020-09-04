@@ -21,46 +21,50 @@
  * SOFTWARE.
  */
 
+
+#ifndef __TestLib_H
+#define __TestLib_H
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include "evercrypt_targetconfig.h"
 #include "kremlin/internal/types.h"
 #include "kremlin/lowstar_endianness.h"
 #include <string.h>
 #include "kremlin/internal/target.h"
 
-#ifndef __TestLib_H
-#define __TestLib_H
 
 
 
+extern void TestLib_touch(int32_t uu___);
 
-extern void TestLib_touch(int32_t uu____11);
+extern void TestLib_check(bool uu___);
 
-extern void TestLib_check(bool uu____26);
+extern void TestLib_check8(int8_t uu___, int8_t uu___1);
 
-extern void TestLib_check8(int8_t uu____48, int8_t uu____49);
+extern void TestLib_check16(int16_t uu___, int16_t uu___1);
 
-extern void TestLib_check16(int16_t uu____70, int16_t uu____71);
+extern void TestLib_check32(int32_t uu___, int32_t uu___1);
 
-extern void TestLib_check32(int32_t uu____92, int32_t uu____93);
+extern void TestLib_check64(int64_t uu___, int64_t uu___1);
 
-extern void TestLib_check64(int64_t uu____114, int64_t uu____115);
+extern void TestLib_checku8(uint8_t uu___, uint8_t uu___1);
 
-extern void TestLib_checku8(uint8_t uu____136, uint8_t uu____137);
+extern void TestLib_checku16(uint16_t uu___, uint16_t uu___1);
 
-extern void TestLib_checku16(uint16_t uu____158, uint16_t uu____159);
+extern void TestLib_checku32(uint32_t uu___, uint32_t uu___1);
 
-extern void TestLib_checku32(uint32_t uu____180, uint32_t uu____181);
+extern void TestLib_checku64(uint64_t uu___, uint64_t uu___1);
 
-extern void TestLib_checku64(uint64_t uu____202, uint64_t uu____203);
-
-extern void
-TestLib_compare_and_print(C_String_t uu____242, uint8_t *b1, uint8_t *b2, uint32_t l);
+extern void TestLib_compare_and_print(C_String_t uu___, uint8_t *b1, uint8_t *b2, uint32_t l);
 
 extern uint8_t *TestLib_unsafe_malloc(uint32_t l);
 
-extern void TestLib_perr(uint32_t uu____281);
+extern void TestLib_perr(uint32_t uu___);
 
-extern void TestLib_print_clock_diff(clock_t uu____302, clock_t uu____303);
+extern void TestLib_print_clock_diff(clock_t uu___, clock_t uu___1);
 
 KRML_DEPRECATED("p_null from TestLib; use LowStar.Buffer.null instead")
 
@@ -77,11 +81,11 @@ extern uint64_t *TestLib_uint64_p_null;
 extern TestLib_cycles TestLib_cpucycles();
 
 extern void
-TestLib_print_cycles_per_round(
-  TestLib_cycles uu____378,
-  TestLib_cycles uu____379,
-  uint32_t uu____380
-);
+TestLib_print_cycles_per_round(TestLib_cycles uu___, TestLib_cycles uu___1, uint32_t uu___2);
+
+#if defined(__cplusplus)
+}
+#endif
 
 #define __TestLib_H_DEFINED
 #endif
