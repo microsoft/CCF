@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT
-#include "consensus/pbft/pbft_requests.h"
+#include "consensus/aft/request.h"
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/app_interface.h"
@@ -497,7 +497,7 @@ TEST_CASE("process_pbft")
   simple_call.set_body(&serialized_body);
 
   const auto serialized_call = simple_call.build_request();
-  pbft::Request request = {
+  aft::Request request = {
     user_id, user_caller_der, serialized_call, {}, enclave::FrameFormat::http};
 
   auto session = std::make_shared<enclave::SessionContext>(
@@ -510,7 +510,7 @@ TEST_CASE("process_pbft")
   auto request_value = pbft_requests_map->get(0);
   REQUIRE(request_value.has_value());
 
-  pbft::Request deserialised_req = request_value.value();
+  aft::Request deserialised_req = request_value.value();
 
   REQUIRE(deserialised_req.caller_id == user_id);
   REQUIRE(deserialised_req.caller_cert == user_caller.raw());

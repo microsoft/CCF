@@ -15,13 +15,13 @@ namespace aft
   std::unique_ptr<RequestCtx> ExecutorImpl::create_request_ctx(
     uint8_t* req_start, size_t req_size)
   {
-    pbft::Request request;
+    Request request;
     request.deserialise(req_start, req_size);
     return create_request_ctx(request);
   }
 
   std::unique_ptr<RequestCtx> ExecutorImpl::create_request_ctx(
-    pbft::Request& request)
+    Request& request)
   {
     auto r_ctx = std::make_unique<RequestCtx>();
 
@@ -103,7 +103,7 @@ namespace aft
     CCF_ASSERT(
       req_v.has_value(),
       "Deserialised request but it was not found in the requests map");
-    pbft::Request request = req_v.value();
+    Request request = req_v.value();
 
     auto ctx = create_request_ctx(request);
 

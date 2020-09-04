@@ -72,5 +72,10 @@ namespace aft
 
   DECLARE_JSON_TYPE(Request);
   DECLARE_JSON_REQUIRED_FIELDS(
-    Request, caller_id, caller_cert, raw, pbft_raw, frame_format);
+    Request, caller_id, caller_cert, raw, frame_format);
+
+  // size_t is used as the key of the table. This key will always be 0 since we
+  // don't want to store the requests in the kv over time, we just want to get
+  // them into the ledger
+  using RequestsMap = kv::Map<size_t, Request>;
 }
