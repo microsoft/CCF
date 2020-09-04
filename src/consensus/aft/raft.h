@@ -5,7 +5,12 @@
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "ds/spin_lock.h"
+#include "impl/execution.h"
+#include "impl/request_message.h"
+#include "impl/state.h"
 #include "kv/kv_types.h"
+#include "kv/tx.h"
+#include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/rpc/tx_status.h"
 #include "raft_types.h"
@@ -17,70 +22,15 @@
 #include <unordered_map>
 #include <vector>
 
-namespace raft
+namespace aft
 {
   using Configuration = kv::Consensus::Configuration;
 
-  class TermHistory
-  {
-    // Entry i stores the first index in term i+1
-    // (term 0 doesn't exist, so we store nothing for it)
-    std::vector<Index> terms;
-
-  public:
-    static constexpr Term InvalidTerm = ccf::VIEW_UNKNOWN;
-
-    void initialise(const std::vector<Index>& terms_)
-    {
-      terms.clear();
-      for (size_t i = 0; i < terms_.size(); ++i)
-      {
-        update(terms_[i], i + 1);
-      }
-      LOG_DEBUG_FMT("Initialised terms: {}", fmt::join(terms, ", "));
-    }
-
-    void update(Index idx, Term term)
-    {
-      LOG_DEBUG_FMT("Updating term to: {} at index: {}", term, idx);
-      if (!terms.empty())
-      {
-        const auto current_latest_index = terms.back();
-        if (idx < current_latest_index)
-        {
-          throw std::logic_error(fmt::format(
-            "Index must not move backwards ({} < {})",
-            idx,
-            current_latest_index));
-        }
-      }
-
-      for (int64_t i = terms.size(); i < term; ++i)
-      {
-        terms.push_back(idx);
-      }
-      LOG_DEBUG_FMT("Resulting terms: {}", fmt::join(terms, ", "));
-    }
-
-    Term term_at(Index idx)
-    {
-      auto it = upper_bound(terms.begin(), terms.end(), idx);
-
-      // Indices before the index of the first term are unknown
-      if (it == terms.begin())
-      {
-        return InvalidTerm;
-      }
-
-      return (it - terms.begin());
-    }
-  };
-
   template <class LedgerProxy, class ChannelProxy, class SnapshotterProxy>
-  class Raft
+  class Aft
   {
   private:
-    enum State
+    enum ReplicaState
     {
       Leader,
       Follower,
@@ -110,24 +60,23 @@ namespace raft
       {}
     };
 
-    SpinLock lock;
+    ConsensusType consensus_type;
     std::unique_ptr<Store<kv::DeserialiseSuccess>> store;
 
     // Persistent
-    Term current_term;
-    NodeId local_id;
     NodeId voted_for;
-
-    Index last_idx;
-    Index commit_idx;
-    TermHistory term_history;
 
     // Volatile
     NodeId leader_id;
     std::unordered_set<NodeId> votes_for_me;
 
-    State state;
+    ReplicaState replica_state;
     std::chrono::milliseconds timeout_elapsed;
+
+    // BFT
+    pbft::RequestsMap& pbft_requests_map;
+    std::shared_ptr<aft::State> state;
+    std::shared_ptr<Executor> executor;
 
     // Timeouts
     std::chrono::milliseconds request_timeout;
@@ -157,31 +106,37 @@ namespace raft
   public:
     static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
-    std::shared_ptr<ChannelProxy> channels;
+    std::shared_ptr<ccf::NodeToNode> channels;
     std::shared_ptr<SnapshotterProxy> snapshotter;
+    std::shared_ptr<enclave::RPCSessions> rpc_sessions;
+    std::shared_ptr<enclave::RPCMap> rpc_map;
 
   public:
-    Raft(
-      std::unique_ptr<Store<kv::DeserialiseSuccess>> store,
+    Aft(
+      ConsensusType consensus_type_,
+      std::unique_ptr<Store<kv::DeserialiseSuccess>> store_,
       std::unique_ptr<LedgerProxy> ledger_,
-      std::shared_ptr<ChannelProxy> channels_,
+      std::shared_ptr<ccf::NodeToNode> channels_,
       std::shared_ptr<SnapshotterProxy> snapshotter_,
-      NodeId id,
+      std::shared_ptr<enclave::RPCSessions> rpc_sessions_,
+      std::shared_ptr<enclave::RPCMap> rpc_map_,
+      const std::vector<uint8_t>& /*cert*/,
+      pbft::RequestsMap& requests_map,
+      std::shared_ptr<aft::State> state_,
+      std::shared_ptr<Executor> executor_,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
       bool public_only_ = false) :
-      store(std::move(store)),
-
-      current_term(0),
-      local_id(id),
+      consensus_type(consensus_type_),
+      store(std::move(store_)),
       voted_for(NoNode),
-      last_idx(0),
-      commit_idx(0),
 
-      leader_id(NoNode),
-
-      state(Follower),
+      replica_state(Follower),
       timeout_elapsed(0),
+
+      pbft_requests_map(requests_map),
+      state(state_),
+      executor(executor_),
 
       request_timeout(request_timeout_),
       election_timeout(election_timeout_),
@@ -192,9 +147,13 @@ namespace raft
 
       ledger(std::move(ledger_)),
       channels(channels_),
-      snapshotter(snapshotter_)
+      snapshotter(snapshotter_),
+      rpc_sessions(rpc_sessions_),
+      rpc_map(rpc_map_)
 
-    {}
+    {
+      leader_id = NoNode;
+    }
 
     NodeId leader()
     {
@@ -203,24 +162,24 @@ namespace raft
 
     NodeId id()
     {
-      return local_id;
+      return state->my_node_id;
     }
 
     bool is_leader()
     {
-      return state == Leader;
+      return replica_state == Leader;
     }
 
     bool is_follower()
     {
-      return state == Follower;
+      return replica_state == Follower;
     }
 
     void enable_all_domains()
     {
       // When receiving append entries as a follower, all security domains will
       // be deserialised
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<SpinLock> guard(state->lock);
       public_only = false;
     }
 
@@ -229,11 +188,13 @@ namespace raft
       // This is unsafe and should only be called when the node is certain
       // there is no leader and no other node will attempt to force leadership.
       if (leader_id != NoNode)
+      {
         throw std::logic_error(
           "Can't force leadership if there is already a leader");
+      }
 
-      std::lock_guard<SpinLock> guard(lock);
-      current_term += 2;
+      std::lock_guard<SpinLock> guard(state->lock);
+      state->current_view += 2;
       become_leader();
     }
 
@@ -245,12 +206,12 @@ namespace raft
         throw std::logic_error(
           "Can't force leadership if there is already a leader");
 
-      std::lock_guard<SpinLock> guard(lock);
-      current_term = term;
-      last_idx = index;
-      commit_idx = commit_idx_;
-      term_history.update(index, term);
-      current_term += 2;
+      std::lock_guard<SpinLock> guard(state->lock);
+      state->current_view = term;
+      state->last_idx = index;
+      state->commit_idx = commit_idx_;
+      state->view_history.update(index, term);
+      state->current_view += 2;
       become_leader();
     }
 
@@ -265,13 +226,13 @@ namespace raft
       if (leader_id != NoNode)
         throw std::logic_error(
           "Can't force leadership if there is already a leader");
-      std::lock_guard<SpinLock> guard(lock);
-      current_term = term;
-      last_idx = index;
-      commit_idx = commit_idx_;
-      term_history.initialise(terms);
-      term_history.update(index, term);
-      current_term += 2;
+      std::lock_guard<SpinLock> guard(state->lock);
+      state->current_view = term;
+      state->last_idx = index;
+      state->commit_idx = commit_idx_;
+      state->view_history.initialise(terms);
+      state->view_history.update(index, term);
+      state->current_view += 2;
       become_leader();
     }
 
@@ -279,12 +240,12 @@ namespace raft
     {
       // This should only be called when the node resumes from a snapshot and
       // before it has received any append entries.
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<SpinLock> guard(state->lock);
 
-      last_idx = index;
-      commit_idx = index;
+      state->last_idx = index;
+      state->commit_idx = index;
 
-      term_history.update(index, term);
+      state->view_history.update(index, term);
 
       ledger->init(index);
       snapshotter->set_last_snapshot_idx(index);
@@ -294,30 +255,42 @@ namespace raft
 
     Index get_last_idx()
     {
-      return last_idx;
+      return state->last_idx;
     }
 
     Index get_commit_idx()
     {
-      std::lock_guard<SpinLock> guard(lock);
-      return commit_idx;
+      if (consensus_type == ConsensusType::PBFT && is_follower())
+      {
+        return state->commit_idx;
+      }
+      std::lock_guard<SpinLock> guard(state->lock);
+      return state->commit_idx;
     }
 
     Term get_term()
     {
-      std::lock_guard<SpinLock> guard(lock);
-      return current_term;
+      if (consensus_type == ConsensusType::PBFT && is_follower())
+      {
+        return state->current_view;
+      }
+      std::lock_guard<SpinLock> guard(state->lock);
+      return state->current_view;
     }
 
     std::pair<Term, Index> get_commit_term_and_idx()
     {
-      std::lock_guard<SpinLock> guard(lock);
-      return {get_term_internal(commit_idx), commit_idx};
+      std::lock_guard<SpinLock> guard(state->lock);
+      return {get_term_internal(state->commit_idx), state->commit_idx};
     }
 
     Term get_term(Index idx)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      if (consensus_type == ConsensusType::PBFT && is_follower())
+      {
+        return get_term_internal(idx);
+      }
+      std::lock_guard<SpinLock> guard(state->lock);
       return get_term_internal(idx);
     }
 
@@ -342,36 +315,48 @@ namespace raft
     bool replicate(
       const std::vector<std::tuple<Index, T, bool>>& entries, Term term)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      if (consensus_type == ConsensusType::PBFT && is_follower())
+      {
+        for (auto& [index, data, globally_committable] : entries)
+        {
+          ledger->put_entry(*data, globally_committable, false);
+        }
+        return true;
+      }
 
-      if (state != Leader)
+      std::lock_guard<SpinLock> guard(state->lock);
+
+      if (replica_state != Leader)
       {
         LOG_FAIL_FMT(
           "Failed to replicate {} items: not leader", entries.size());
-        rollback(last_idx);
+        rollback(state->last_idx);
         return false;
       }
 
-      if (term != current_term)
+      if (term != state->current_view)
       {
         LOG_FAIL_FMT(
           "Failed to replicate {} items at term {}, current term is {}",
           entries.size(),
           term,
-          current_term);
+          state->current_view);
         return false;
       }
 
       LOG_DEBUG_FMT("Replicating {} entries", entries.size());
 
-      for (auto& [index, data, globally_committable] : entries)
+      for (auto& [index, data, is_globally_committable] : entries)
       {
-        if (index != last_idx + 1)
+        bool globally_committable =
+          is_globally_committable || consensus_type == ConsensusType::PBFT;
+
+        if (index != state->last_idx + 1)
           return false;
 
         LOG_DEBUG_FMT(
           "Replicated on leader {}: {}{}",
-          local_id,
+          state->my_node_id,
           index,
           (globally_committable ? " committable" : ""));
 
@@ -385,12 +370,12 @@ namespace raft
           force_ledger_chunk = snapshotter->requires_snapshot(index);
         }
 
-        last_idx = index;
+        state->last_idx = index;
         ledger->put_entry(*data, globally_committable, force_ledger_chunk);
         entry_size_not_limited += data->size();
         entry_count++;
 
-        term_history.update(index, current_term);
+        state->view_history.update(index, state->current_view);
         if (entry_size_not_limited >= append_entries_size_limit)
         {
           update_batch_size();
@@ -412,12 +397,16 @@ namespace raft
 
       return true;
     }
-
     void recv_message(const uint8_t* data, size_t size)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      recv_message(OArray({data, data + size}));
+    }
 
-      // The host does a CALLIN to this when a Raft message
+    void recv_message(OArray&& d)
+    {
+      const uint8_t* data = d.data();
+      size_t size = d.size();
+      // The host does a CALLIN to this when a Aft message
       // is received. Invalid or malformed messages are ignored
       // without informing the host. Messages are idempotent,
       // so it is not necessary to defend against replay attacks.
@@ -447,10 +436,10 @@ namespace raft
 
     void periodic(std::chrono::milliseconds elapsed)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<SpinLock> guard(state->lock);
       timeout_elapsed += elapsed;
 
-      if (state == Leader)
+      if (replica_state == Leader)
       {
         if (timeout_elapsed >= request_timeout)
         {
@@ -467,12 +456,23 @@ namespace raft
       }
       else
       {
-        if (state != Retired && timeout_elapsed >= election_timeout)
+        if (replica_state != Retired && timeout_elapsed >= election_timeout)
         {
           // Start an election.
           become_candidate();
         }
       }
+    }
+
+    bool is_first_request = true;
+
+    bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
+    {
+      auto request = executor->create_request_message(args);
+      executor->execute_request(std::move(request), is_first_request);
+      is_first_request = false;
+
+      return true;
     }
 
   private:
@@ -494,27 +494,27 @@ namespace raft
 
     Term get_term_internal(Index idx)
     {
-      if (idx > last_idx)
+      if (idx > state->last_idx)
         return ccf::VIEW_UNKNOWN;
 
-      return term_history.term_at(idx);
+      return state->view_history.term_at(idx);
     }
 
     void send_append_entries(NodeId to, Index start_idx)
     {
-      Index end_idx = (last_idx == 0) ?
+      Index end_idx = (state->last_idx == 0) ?
         0 :
-        std::min(start_idx + entries_batch_size, last_idx);
+        std::min(start_idx + entries_batch_size, state->last_idx);
 
-      for (Index i = end_idx; i < last_idx; i += entries_batch_size)
+      for (Index i = end_idx; i < state->last_idx; i += entries_batch_size)
       {
         send_append_entries_range(to, start_idx, i);
-        start_idx = std::min(i + 1, last_idx);
+        start_idx = std::min(i + 1, state->last_idx);
       }
 
-      if (last_idx == 0 || end_idx <= last_idx)
+      if (state->last_idx == 0 || end_idx <= state->last_idx)
       {
-        send_append_entries_range(to, start_idx, last_idx);
+        send_append_entries_range(to, start_idx, state->last_idx);
       }
     }
 
@@ -526,17 +526,17 @@ namespace raft
 
       LOG_DEBUG_FMT(
         "Send append entries from {} to {}: {} to {} ({})",
-        local_id,
+        state->my_node_id,
         to,
         start_idx,
         end_idx,
-        commit_idx);
+        state->commit_idx);
 
-      AppendEntries ae = {{raft_append_entries, local_id},
+      AppendEntries ae = {{raft_append_entries, state->my_node_id},
                           {end_idx, prev_idx},
-                          current_term,
+                          state->current_view,
                           prev_term,
-                          commit_idx,
+                          state->commit_idx,
                           term_of_idx};
 
       auto& node = nodes.at(to);
@@ -555,6 +555,7 @@ namespace raft
 
     void recv_append_entries(const uint8_t* data, size_t size)
     {
+      std::lock_guard<SpinLock> guard(state->lock);
       AppendEntries r;
       bool is_first_entry = true; // Indicates first entry in batch
 
@@ -579,24 +580,24 @@ namespace raft
       // passes the integrity check. This way, entries containing dynamic
       // topology changes that include adding this new leader can be accepted.
 
-      if (current_term == r.term && state == Candidate)
+      if (state->current_view == r.term && replica_state == Candidate)
       {
         // Become a follower in this term.
         become_follower(r.term);
       }
-      else if (current_term < r.term)
+      else if (state->current_view < r.term)
       {
         // Become a follower in the new term.
         become_follower(r.term);
       }
-      else if (current_term > r.term)
+      else if (state->current_view > r.term)
       {
         // Reply false, since our term is later than the received term.
         LOG_DEBUG_FMT(
           "Recv append entries to {} from {} but our term is later ({} > {})",
-          local_id,
+          state->my_node_id,
           r.from_node,
-          current_term,
+          state->current_view,
           r.term);
         send_append_entries_response(r.from_node, false);
         return;
@@ -616,7 +617,7 @@ namespace raft
           LOG_DEBUG_FMT(
             "Recv append entries to {} from {} but our log does not yet "
             "contain index {}",
-            local_id,
+            state->my_node_id,
             r.from_node,
             r.prev_idx);
         }
@@ -625,7 +626,7 @@ namespace raft
           LOG_DEBUG_FMT(
             "Recv append entries to {} from {} but our log at {} has the wrong "
             "term (ours: {}, theirs: {})",
-            local_id,
+            state->my_node_id,
             r.from_node,
             r.prev_idx,
             prev_term,
@@ -637,28 +638,28 @@ namespace raft
 
       restart_election_timeout();
 
-      if (r.prev_idx < commit_idx)
+      if (r.prev_idx < state->commit_idx)
       {
         LOG_DEBUG_FMT(
           "Recv append entries to {} from {} but prev_idx ({}) < commit_idx "
           "({})",
-          local_id,
+          state->my_node_id,
           r.from_node,
           r.prev_idx,
-          commit_idx);
+          state->commit_idx);
         return;
       }
 
       LOG_DEBUG_FMT(
         "Recv append entries to {} from {} for index {} and previous index {}",
-        local_id,
+        state->my_node_id,
         r.from_node,
         r.idx,
         r.prev_idx);
 
       for (Index i = r.prev_idx + 1; i <= r.idx; i++)
       {
-        if (i <= last_idx)
+        if (i <= state->last_idx)
         {
           // If the current entry has already been deserialised, skip the
           // payload for that entry
@@ -666,9 +667,9 @@ namespace raft
           continue;
         }
 
-        LOG_DEBUG_FMT("Replicating on follower {}: {}", local_id, i);
+        LOG_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
 
-        last_idx = i;
+        state->last_idx = i;
         is_first_entry = false;
         std::vector<uint8_t> entry;
 
@@ -681,17 +682,27 @@ namespace raft
           // This should only fail if there is malformed data.
           LOG_FAIL_FMT(
             "Recv append entries to {} from {} but the data is malformed: {}",
-            local_id,
+            state->my_node_id,
             r.from_node,
             e.what());
-          last_idx = r.prev_idx;
+          state->last_idx = r.prev_idx;
           send_append_entries_response(r.from_node, false);
           return;
         }
 
         Term sig_term = 0;
-        auto deserialise_success =
-          store->deserialise(entry, public_only, &sig_term);
+        kv::Tx tx;
+        kv::DeserialiseSuccess deserialise_success;
+        if (consensus_type == ConsensusType::PBFT)
+        {
+          deserialise_success =
+            store->deserialise_views(entry, public_only, &sig_term, &tx);
+        }
+        else
+        {
+          deserialise_success =
+            store->deserialise(entry, public_only, &sig_term);
+        }
 
         bool globally_committable =
           (deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
@@ -719,7 +730,7 @@ namespace raft
 
             if (sig_term)
             {
-              term_history.update(commit_idx + 1, sig_term);
+              state->view_history.update(state->commit_idx + 1, sig_term);
               commit_if_possible(r.leader_commit_idx);
             }
             break;
@@ -727,6 +738,10 @@ namespace raft
 
           case kv::DeserialiseSuccess::PASS:
           {
+            if (consensus_type == ConsensusType::PBFT)
+            {
+              state->last_idx = executor->commit_replayed_request(tx);
+            }
             break;
           }
 
@@ -741,28 +756,34 @@ namespace raft
       if (leader_id != r.from_node)
       {
         leader_id = r.from_node;
-        LOG_DEBUG_FMT("Node {} thinks leader is {}", local_id, leader_id);
       }
 
       send_append_entries_response(r.from_node, true);
-      commit_if_possible(r.leader_commit_idx);
+      if (consensus_type == ConsensusType::PBFT && is_follower())
+      {
+        store->compact(state->last_idx);
+      }
+      else
+      {
+        commit_if_possible(r.leader_commit_idx);
+      }
 
-      term_history.update(commit_idx + 1, r.term_of_idx);
+      state->view_history.update(state->commit_idx + 1, r.term_of_idx);
     }
 
     void send_append_entries_response(NodeId to, bool answer)
     {
       LOG_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",
-        local_id,
+        state->my_node_id,
         to,
-        last_idx,
+        state->last_idx,
         answer);
 
       AppendEntriesResponse response = {
-        {raft_append_entries_response, local_id},
-        current_term,
-        last_idx,
+        {raft_append_entries_response, state->my_node_id},
+        state->current_view,
+        state->last_idx,
         answer};
 
       channels->send_authenticated(
@@ -771,8 +792,9 @@ namespace raft
 
     void recv_append_entries_response(const uint8_t* data, size_t size)
     {
+      std::lock_guard<SpinLock> guard(state->lock);
       // Ignore if we're not the leader.
-      if (state != Leader)
+      if (replica_state != Leader)
         return;
 
       AppendEntriesResponse r;
@@ -794,27 +816,27 @@ namespace raft
         // Ignore if we don't recognise the node.
         LOG_FAIL_FMT(
           "Recv append entries response to {} from {}: unknown node",
-          local_id,
+          state->my_node_id,
           r.from_node);
         return;
       }
-      else if (current_term < r.term)
+      else if (state->current_view < r.term)
       {
         // We are behind, convert to a follower.
         LOG_DEBUG_FMT(
           "Recv append entries response to {} from {}: more recent term",
-          local_id,
+          state->my_node_id,
           r.from_node);
         become_follower(r.term);
         return;
       }
-      else if (current_term != r.term)
+      else if (state->current_view != r.term)
       {
         // Stale response, discard if success.
         // Otherwise reset sent_idx and try again.
         LOG_DEBUG_FMT(
           "Recv append entries response to {} from {}: stale term",
-          local_id,
+          state->my_node_id,
           r.from_node);
         if (r.success)
           return;
@@ -825,21 +847,21 @@ namespace raft
         // Otherwise reset sent_idx and try again.
         LOG_DEBUG_FMT(
           "Recv append entries response to {} from {}: stale idx",
-          local_id,
+          state->my_node_id,
           r.from_node);
         if (r.success)
           return;
       }
 
       // Update next and match for the responding node.
-      node->second.match_idx = std::min(r.last_log_idx, last_idx);
+      node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
 
       if (!r.success)
       {
         // Failed due to log inconsistency. Reset sent_idx and try again.
         LOG_DEBUG_FMT(
           "Recv append entries response to {} from {}: failed",
-          local_id,
+          state->my_node_id,
           r.from_node);
         send_append_entries(r.from_node, node->second.match_idx + 1);
         return;
@@ -847,7 +869,7 @@ namespace raft
 
       LOG_DEBUG_FMT(
         "Recv append entries response to {} from {} for index {}: success",
-        local_id,
+        state->my_node_id,
         r.from_node,
         r.last_log_idx);
       update_commit();
@@ -855,18 +877,19 @@ namespace raft
 
     void send_request_vote(NodeId to)
     {
-      LOG_INFO_FMT("Send request vote from {} to {}", local_id, to);
+      LOG_INFO_FMT("Send request vote from {} to {}", state->my_node_id, to);
 
-      RequestVote rv = {{raft_request_vote, local_id},
-                        current_term,
-                        commit_idx,
-                        get_term_internal(commit_idx)};
+      RequestVote rv = {{raft_request_vote, state->my_node_id},
+                        state->current_view,
+                        state->commit_idx,
+                        get_term_internal(state->commit_idx)};
 
       channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, rv);
     }
 
     void recv_request_vote(const uint8_t* data, size_t size)
     {
+      std::lock_guard<SpinLock> guard(state->lock);
       RequestVote r;
 
       try
@@ -885,31 +908,31 @@ namespace raft
       {
         LOG_FAIL_FMT(
           "Recv request vote to {} from {}: unknown node",
-          local_id,
+          state->my_node_id,
           r.from_node);
         return;
       }
 
-      if (current_term > r.term)
+      if (state->current_view > r.term)
       {
         // Reply false, since our term is later than the received term.
         LOG_DEBUG_FMT(
           "Recv request vote to {} from {}: our term is later ({} > {})",
-          local_id,
+          state->my_node_id,
           r.from_node,
-          current_term,
+          state->current_view,
           r.term);
         send_request_vote_response(r.from_node, false);
         return;
       }
-      else if (current_term < r.term)
+      else if (state->current_view < r.term)
       {
         // Become a follower in the new term.
         LOG_DEBUG_FMT(
           "Recv request vote to {} from {}: their term is later ({} < {})",
-          local_id,
+          state->my_node_id,
           r.from_node,
-          current_term,
+          state->current_view,
           r.term);
         become_follower(r.term);
       }
@@ -919,7 +942,7 @@ namespace raft
         // Reply false, since we already voted for someone else.
         LOG_DEBUG_FMT(
           "Recv request vote to {} from {}: already voted for {}",
-          local_id,
+          state->my_node_id,
           r.from_node,
           voted_for);
         send_request_vote_response(r.from_node, false);
@@ -927,11 +950,11 @@ namespace raft
       }
 
       // If the candidate's log is at least as up-to-date as ours, vote yes
-      auto last_commit_term = get_term_internal(commit_idx);
+      auto last_commit_term = get_term_internal(state->commit_idx);
 
       auto answer = (r.last_commit_term > last_commit_term) ||
         ((r.last_commit_term == last_commit_term) &&
-         (r.last_commit_idx >= commit_idx));
+         (r.last_commit_idx >= state->commit_idx));
 
       if (answer)
       {
@@ -948,10 +971,15 @@ namespace raft
     void send_request_vote_response(NodeId to, bool answer)
     {
       LOG_INFO_FMT(
-        "Send request vote response from {} to {}: {}", local_id, to, answer);
+        "Send request vote response from {} to {}: {}",
+        state->my_node_id,
+        to,
+        answer);
 
       RequestVoteResponse response = {
-        {raft_request_vote_response, local_id}, current_term, answer};
+        {raft_request_vote_response, state->my_node_id},
+        state->current_view,
+        answer};
 
       channels->send_authenticated(
         ccf::NodeMsgType::consensus_msg, to, response);
@@ -959,10 +987,11 @@ namespace raft
 
     void recv_request_vote_response(const uint8_t* data, size_t size)
     {
-      if (state != Candidate)
+      if (replica_state != Candidate)
       {
         LOG_INFO_FMT(
-          "Recv request vote response to {}: we aren't a candidate", local_id);
+          "Recv request vote response to {}: we aren't a candidate",
+          state->my_node_id);
         return;
       }
 
@@ -985,32 +1014,32 @@ namespace raft
       {
         LOG_INFO_FMT(
           "Recv request vote response to {} from {}: unknown node",
-          local_id,
+          state->my_node_id,
           r.from_node);
         return;
       }
 
-      if (current_term < r.term)
+      if (state->current_view < r.term)
       {
         // Become a follower in the new term.
         LOG_INFO_FMT(
           "Recv request vote response to {} from {}: their term is more recent "
           "({} < {})",
-          local_id,
+          state->my_node_id,
           r.from_node,
-          current_term,
+          state->current_view,
           r.term);
         become_follower(r.term);
         return;
       }
-      else if (current_term != r.term)
+      else if (state->current_view != r.term)
       {
         // Ignore as it is stale.
         LOG_INFO_FMT(
           "Recv request vote response to {} from {}: stale ({} != {})",
-          local_id,
+          state->my_node_id,
           r.from_node,
-          current_term,
+          state->current_view,
           r.term);
         return;
       }
@@ -1019,14 +1048,14 @@ namespace raft
         // Do nothing.
         LOG_INFO_FMT(
           "Recv request vote response to {} from {}: they voted no",
-          local_id,
+          state->my_node_id,
           r.from_node);
         return;
       }
 
       LOG_INFO_FMT(
         "Recv request vote response to {} from {}: they voted yes",
-        local_id,
+        state->my_node_id,
         r.from_node);
       add_vote_for_me(r.from_node);
     }
@@ -1040,16 +1069,17 @@ namespace raft
 
     void become_candidate()
     {
-      state = Candidate;
+      replica_state = Candidate;
       leader_id = NoNode;
-      voted_for = local_id;
+      voted_for = state->my_node_id;
       votes_for_me.clear();
-      current_term++;
+      state->current_view++;
 
       restart_election_timeout();
-      add_vote_for_me(local_id);
+      add_vote_for_me(state->my_node_id);
 
-      LOG_INFO_FMT("Becoming candidate {}: {}", local_id, current_term);
+      LOG_INFO_FMT(
+        "Becoming candidate {}: {}", state->my_node_id, state->current_view);
 
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
       {
@@ -1064,34 +1094,35 @@ namespace raft
       // Discard any un-committed updates we may hold,
       // since we have no signature for them. Except at startup,
       // where we do not want to roll back the genesis transaction.
-      if (commit_idx)
+      if (state->commit_idx)
       {
-        rollback(commit_idx);
+        rollback(state->commit_idx);
       }
       else
       {
         // but we still want the KV to know which term we're in
-        store->set_term(current_term);
+        store->set_term(state->current_view);
       }
 
       committable_indices.clear();
-      state = Leader;
-      leader_id = local_id;
+      replica_state = Leader;
+      leader_id = state->my_node_id;
 
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
 
-      LOG_INFO_FMT("Becoming leader {}: {}", local_id, current_term);
+      LOG_INFO_FMT(
+        "Becoming leader {}: {}", state->my_node_id, state->current_view);
 
       // Immediately commit if there are no other nodes.
       if (nodes.size() == 0)
       {
-        commit(last_idx);
+        commit(state->last_idx);
         return;
       }
 
       // Reset next, match, and sent indices for all nodes.
-      auto next = last_idx + 1;
+      auto next = state->last_idx + 1;
 
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
       {
@@ -1105,28 +1136,30 @@ namespace raft
 
     void become_follower(Term term)
     {
-      state = Follower;
+      replica_state = Follower;
       leader_id = NoNode;
       restart_election_timeout();
 
-      current_term = term;
+      state->current_view = term;
       voted_for = NoNode;
       votes_for_me.clear();
 
       // Rollback unreplicated commits.
-      rollback(commit_idx);
+      rollback(state->commit_idx);
       committable_indices.clear();
 
-      LOG_INFO_FMT("Becoming follower {}: {}", local_id, current_term);
+      LOG_INFO_FMT(
+        "Becoming follower {}: {}", state->my_node_id, state->current_view);
       channels->close_all_outgoing();
     }
 
     void become_retired()
     {
-      state = Retired;
+      replica_state = Retired;
       leader_id = NoNode;
 
-      LOG_INFO_FMT("Becoming retired {}: {}", local_id, current_term);
+      LOG_INFO_FMT(
+        "Becoming retired {}: {}", state->my_node_id, state->current_view);
       channels->destroy_all_channels();
     }
 
@@ -1155,9 +1188,9 @@ namespace raft
 
         for (auto node : c.nodes)
         {
-          if (node.first == local_id)
+          if (node.first == state->my_node_id)
           {
-            match.push_back(last_idx);
+            match.push_back(state->last_idx);
           }
           else
           {
@@ -1177,9 +1210,9 @@ namespace raft
       LOG_DEBUG_FMT(
         "In update_commit, new_commit_idx: {}, last_idx: {}",
         new_commit_idx,
-        last_idx);
+        state->last_idx);
 
-      if (new_commit_idx > last_idx)
+      if (new_commit_idx > state->last_idx)
       {
         throw std::logic_error(
           "Followers appear to have later match indices than leader");
@@ -1190,7 +1223,9 @@ namespace raft
 
     void commit_if_possible(Index idx)
     {
-      if ((idx > commit_idx) && (get_term_internal(idx) <= current_term))
+      if (
+        (idx > state->commit_idx) &&
+        (get_term_internal(idx) <= state->current_view))
       {
         Index highest_committable = 0;
         bool can_commit = false;
@@ -1209,30 +1244,30 @@ namespace raft
 
     void commit(Index idx)
     {
-      if (idx > last_idx)
+      if (idx > state->last_idx)
         throw std::logic_error(
           "Tried to commit " + std::to_string(idx) + "but last_idx as " +
-          std::to_string(last_idx));
+          std::to_string(state->last_idx));
 
       LOG_DEBUG_FMT("Starting commit");
 
       // This could happen if a follower becomes the leader when it
       // has committed fewer log entries, although it has them available.
-      if (idx <= commit_idx)
+      if (idx <= state->commit_idx)
         return;
 
-      commit_idx = idx;
+      state->commit_idx = idx;
 
       LOG_DEBUG_FMT("Compacting...");
       snapshotter->compact(idx);
-      if (state == Leader)
+      if (replica_state == Leader)
       {
         snapshotter->snapshot(idx);
       }
       store->compact(idx);
       ledger->commit(idx);
 
-      LOG_DEBUG_FMT("Commit on {}: {}", local_id, idx);
+      LOG_DEBUG_FMT("Commit on {}: {}", state->my_node_id, idx);
 
       // Examine all configurations that are followed by a globally committed
       // configuration.
@@ -1264,10 +1299,10 @@ namespace raft
     void rollback(Index idx)
     {
       snapshotter->rollback(idx);
-      store->rollback(idx, current_term);
-      LOG_DEBUG_FMT("Setting term in store to: {}", current_term);
+      store->rollback(idx, state->current_view);
+      LOG_DEBUG_FMT("Setting term in store to: {}", state->current_view);
       ledger->truncate(idx);
-      last_idx = idx;
+      state->last_idx = idx;
       LOG_DEBUG_FMT("Rolled back at {}", idx);
 
       while (!committable_indices.empty() && (committable_indices.back() > idx))
@@ -1317,7 +1352,7 @@ namespace raft
 
       for (auto node_id : to_remove)
       {
-        if (state == Leader)
+        if (replica_state == Leader)
         {
           channels->destroy_channel(node_id);
         }
@@ -1330,7 +1365,7 @@ namespace raft
 
       for (auto node_info : active_nodes)
       {
-        if (node_info.first == local_id)
+        if (node_info.first == state->my_node_id)
         {
           self_is_active = true;
           continue;
@@ -1340,10 +1375,10 @@ namespace raft
         {
           // A new node is sent only future entries initially. If it does not
           // have prior data, it will communicate that back to the leader.
-          auto index = last_idx + 1;
+          auto index = state->last_idx + 1;
           nodes.try_emplace(node_info.first, node_info.second, index, 0);
 
-          if (state == Leader)
+          if (replica_state == Leader)
           {
             channels->create_channel(
               node_info.first,
@@ -1359,8 +1394,8 @@ namespace raft
 
       if (!self_is_active)
       {
-        LOG_INFO_FMT("Removed raft self {}", local_id);
-        if (state == Leader)
+        LOG_INFO_FMT("Removed raft self {}", state->my_node_id);
+        if (replica_state == Leader)
         {
           become_retired();
         }
