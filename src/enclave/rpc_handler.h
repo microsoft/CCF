@@ -9,6 +9,11 @@
 #include <stdint.h>
 #include <vector>
 
+namespace kv
+{
+  class Tx;
+}
+
 namespace enclave
 {
   class RpcHandler

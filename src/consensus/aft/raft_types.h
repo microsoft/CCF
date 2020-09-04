@@ -4,17 +4,26 @@
 
 #include "consensus/consensus_types.h"
 #include "ds/ring_buffer_types.h"
+#include "enclave/rpc_context.h"
+#include "enclave/rpc_handler.h"
+#include "kv/kv_types.h"
 
 #include <chrono>
 #include <cstdint>
 #include <limits>
 
-namespace raft
+namespace aft
 {
   using Index = int64_t;
   using Term = int64_t;
   using NodeId = uint64_t;
   using Node2NodeMsg = uint64_t;
+
+  using ReplyCallback = std::function<bool(
+    void* owner,
+    kv::TxHistory::RequestID caller_rid,
+    int status,
+    std::vector<uint8_t>& data)>;
 
   static constexpr NodeId NoNode = std::numeric_limits<NodeId>::max();
 
@@ -30,6 +39,11 @@ namespace raft
     virtual void compact(Index v) = 0;
     virtual void rollback(Index v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
+    virtual S deserialise_views(
+      const std::vector<uint8_t>& data,
+      bool public_only = false,
+      kv::Term* term = nullptr,
+      kv::Tx* tx = nullptr) = 0;
   };
 
   template <typename T, typename S>
@@ -80,6 +94,18 @@ namespace raft
         p->set_term(t);
       }
     }
+
+    S deserialise_views(
+      const std::vector<uint8_t>& data,
+      bool public_only = false,
+      kv::Term* term = nullptr,
+      kv::Tx* tx = nullptr) override
+    {
+      auto p = x.lock();
+      if (p)
+        return p->deserialise_views(data, public_only, term, tx);
+      return S::FAILED;
+    }
   };
 
   enum RaftMsgType : Node2NodeMsg
@@ -88,6 +114,8 @@ namespace raft
     raft_append_entries_response,
     raft_request_vote,
     raft_request_vote_response,
+
+    bft_request,
   };
 
 #pragma pack(push, 1)

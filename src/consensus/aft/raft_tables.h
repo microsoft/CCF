@@ -6,7 +6,7 @@
 
 #include <unordered_set>
 
-namespace raft
+namespace aft
 {
   static constexpr auto replicate_type_raft = kv::ReplicateType::ALL;
   static const std::unordered_set<std::string> replicated_tables_raft = {};
