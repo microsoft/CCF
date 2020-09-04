@@ -77,7 +77,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/tristanpenman/valijson",
-          "commitHash": "0abf633bc06571df51d9641eb485c7a4e5c97bdf"
+          "commitHash": "7a52fc88cdffd6678c009ca2fad700151f7363c6"
         }
       }
     },
