@@ -215,9 +215,11 @@ inline AdapterType resolveJsonPointer(
     } else if (node.maybeObject()) {
         // Fragment must identify a member of the candidate object
         typedef typename AdapterType::Object Object;
-        typename Object::const_iterator itr = node.asObject().find(
+
+        const Object object = node.asObject();
+        typename Object::const_iterator itr = object.find(
                 referenceToken);
-        if (itr == node.asObject().end()) {
+        if (itr == object.end()) {
             throw std::runtime_error("Expected reference token to identify an "
                     "element in the current object; "
                     "actual token: " + referenceToken);

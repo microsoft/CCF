@@ -48,9 +48,7 @@ public:
         sharedEmptySubschema = NULL;
 
         try {
-            for (std::set<Subschema *>::iterator itr = subschemaSet.begin();
-                    itr != subschemaSet.end(); ++itr) {
-                Subschema *subschema = *itr;
+            for (auto subschema : subschemaSet) {
                 subschema->~Subschema();
                 freeFn(subschema);
             }
@@ -116,6 +114,11 @@ public:
     const Subschema * root() const
     {
         return this;
+    }
+
+    void setAlwaysInvalid(const Subschema *subschema, bool value)
+    {
+        mutableSubschema(subschema)->setAlwaysInvalid(value);
     }
 
     /**
