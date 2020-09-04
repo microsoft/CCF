@@ -3,8 +3,8 @@
 #pragma once
 
 #include "call_types.h"
+#include "consensus/aft/raft_consensus.h"
 #include "consensus/ledger_enclave.h"
-#include "consensus/raft/raft_consensus.h"
 #include "crypto/crypto_box.h"
 #include "ds/logger.h"
 #include "enclave/rpc_sessions.h"
@@ -22,7 +22,6 @@
 #include "secret_share.h"
 #include "share_manager.h"
 #include "snapshotter.h"
-#include "timer.h"
 #include "tls/25519.h"
 #include "tls/client.h"
 #include "tls/entropy.h"
@@ -63,9 +62,8 @@ namespace std
 namespace ccf
 {
   using RaftConsensusType =
-    raft::RaftConsensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
-  using RaftType =
-    raft::Raft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
+    aft::Consensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
+  using RaftType = aft::Aft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
 
   template <typename T>
   class StateMachine
@@ -154,18 +152,12 @@ namespace ccf
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
     ccf::Notifier& notifier;
-    Timers& timers;
 
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
     ShareManager& share_manager;
     std::shared_ptr<Snapshotter> snapshotter;
-
-    //
-    // join protocol
-    //
-    std::shared_ptr<Timer> join_timer;
 
     //
     // recovery
@@ -188,7 +180,6 @@ namespace ccf
       NetworkState& network,
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
       ccf::Notifier& notifier,
-      Timers& timers,
       ShareManager& share_manager) :
       sm(State::uninitialized),
       self(INVALID_ID),
@@ -199,7 +190,6 @@ namespace ccf
       network(network),
       rpcsessions(rpcsessions),
       notifier(notifier),
-      timers(timers),
       share_manager(share_manager)
     {
       ::EverCrypt_AutoConfig2_init();
@@ -477,8 +467,6 @@ namespace ccf
               sm.advance(State::partOfNetwork);
             }
 
-            join_timer.reset();
-
             LOG_INFO_FMT(
               "Node has now joined the network as node {}: {}",
               self,
@@ -526,17 +514,35 @@ namespace ccf
 
       initiate_join(config);
 
-      join_timer = timers.new_timer(
-        std::chrono::milliseconds(config.joining.join_timer),
-        [this, &config]() {
-          if (sm.check(State::pending))
+      struct JoinTimeMsg
+      {
+        JoinTimeMsg(NodeState& self_, CCFConfig& config_) :
+          self(self_),
+          config(config_)
+        {}
+
+        NodeState& self;
+        CCFConfig& config;
+      };
+
+      auto join_timer_msg = std::make_unique<threading::Tmsg<JoinTimeMsg>>(
+        [](std::unique_ptr<threading::Tmsg<JoinTimeMsg>> msg) {
+          if (msg->data.self.sm.check(State::pending))
           {
-            initiate_join(config);
-            return true;
+            msg->data.self.initiate_join(msg->data.config);
+            auto delay =
+              std::chrono::milliseconds(msg->data.config.joining.join_timer);
+
+            threading::ThreadMessaging::thread_messaging.add_task_after(
+              std::move(msg), delay);
           }
-          return false;
-        });
-      join_timer->start();
+        },
+        *this,
+        config);
+
+      threading::ThreadMessaging::thread_messaging.add_task_after(
+        std::move(join_timer_msg),
+        std::chrono::milliseconds(config.joining.join_timer));
     }
 
     //
@@ -1543,13 +1549,21 @@ namespace ccf
       setup_n2n_channels();
       setup_cmd_forwarder();
 
+      auto shared_state = std::make_shared<aft::State>(self);
       auto raft = std::make_unique<RaftType>(
-        std::make_unique<raft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
+        network.consensus_type,
+        std::make_unique<aft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
           network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         snapshotter,
-        self,
+        rpcsessions,
+        rpc_map,
+        node_cert.raw(),
+        network.pbft_requests_map,
+        shared_state,
+        std::make_shared<aft::ExecutorImpl>(
+          network.pbft_requests_map, shared_state, rpc_map, rpcsessions),
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         public_only);

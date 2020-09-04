@@ -79,6 +79,13 @@ set(CLIENT_MBEDTLS_LIBRARIES "${MBEDTLS_LIBRARIES}")
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
 
+if(SAN AND LVI_MITIGATIONS)
+  message(
+    FATAL_ERROR
+      "Building with both SAN and LVI mitigations is unsafe and deadlocks - choose one"
+  )
+endif()
+
 add_custom_command(
   COMMAND
     openenclave::oeedger8r ${CCF_DIR}/edl/ccf.edl --search-path ${OE_INCLUDEDIR}
