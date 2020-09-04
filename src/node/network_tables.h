@@ -8,9 +8,9 @@
 #include "config.h"
 #include "consensus.h"
 #include "consensus/aft/raft_tables.h"
+#include "consensus/aft/request.h"
 #include "consensus/pbft/pbft_new_views.h"
 #include "consensus/pbft/pbft_pre_prepares.h"
-#include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_tables.h"
 #include "entities.h"
 #include "governance_history.h"
@@ -94,7 +94,7 @@ namespace ccf
     //
     // Pbft related tables
     //
-    pbft::RequestsMap& pbft_requests_map;
+    aft::RequestsMap& pbft_requests_map;
     pbft::PrePreparesMap& pbft_pre_prepares_map;
     pbft::NewViewsMap& pbft_new_views_map;
 
@@ -156,7 +156,7 @@ namespace ccf
       snapshot_evidence(tables->create<SnapshotEvidence>(
         Tables::SNAPSHOT_EVIDENCE, kv::SecurityDomain::PUBLIC)),
       pbft_requests_map(
-        tables->create<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
+        tables->create<aft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
       pbft_pre_prepares_map(
         tables->create<pbft::PrePreparesMap>(pbft::Tables::PBFT_PRE_PREPARES)),
       pbft_new_views_map(
