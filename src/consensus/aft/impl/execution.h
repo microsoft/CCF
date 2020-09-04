@@ -59,8 +59,7 @@ namespace aft
     std::unique_ptr<RequestCtx> create_request_ctx(
       uint8_t* req_start, size_t req_size) override;
 
-    std::unique_ptr<RequestCtx> create_request_ctx(
-      Request& request) override;
+    std::unique_ptr<RequestCtx> create_request_ctx(Request& request) override;
 
     kv::Version execute_request(
       std::unique_ptr<RequestMessage> request, bool is_create_request) override;

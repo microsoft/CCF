@@ -20,8 +20,7 @@ namespace aft
     return create_request_ctx(request);
   }
 
-  std::unique_ptr<RequestCtx> ExecutorImpl::create_request_ctx(
-    Request& request)
+  std::unique_ptr<RequestCtx> ExecutorImpl::create_request_ctx(Request& request)
   {
     auto r_ctx = std::make_unique<RequestCtx>();
 
@@ -76,8 +75,11 @@ namespace aft
   std::unique_ptr<aft::RequestMessage> ExecutorImpl::create_request_message(
     const kv::TxHistory::RequestCallbackArgs& args)
   {
-    Request request = {
-      args.caller_id, args.rid, args.caller_cert, args.request, args.frame_format};
+    Request request = {args.caller_id,
+                       args.rid,
+                       args.caller_cert,
+                       args.request,
+                       args.frame_format};
     auto serialized_req = request.serialise();
 
     auto rep_cb = [=](
@@ -107,23 +109,8 @@ namespace aft
 
     auto ctx = create_request_ctx(request);
 
-/*
     auto request_message = RequestMessage::deserialize(
-      request.pbft_raw.data(),
-      request.pbft_raw.size(),
-      std::move(ctx),
-      nullptr);
-*/
-
-
-    kv::TxHistory::RequestID rid = request.rid;
-
-    auto request_message = RequestMessage::deserialize(
-      std::move(request.raw),
-      rid,
-      std::move(ctx),
-      nullptr);
-
+      std::move(request.raw), request.rid, std::move(ctx), nullptr);
 
     return execute_request(std::move(request_message), state->commit_idx == 0);
   }

@@ -24,8 +24,8 @@ namespace aft
     std::vector<uint8_t> serialise()
     {
       bool include_caller = false;
-      size_t size = sizeof(caller_id) + sizeof(rid) + sizeof(bool) + sizeof(size_t) +
-        raw.size() + sizeof(enclave::FrameFormat);
+      size_t size = sizeof(caller_id) + sizeof(rid) + sizeof(bool) +
+        sizeof(size_t) + raw.size() + sizeof(enclave::FrameFormat);
       if (!caller_cert.empty())
       {
         size += sizeof(size_t) + caller_cert.size();
