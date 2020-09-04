@@ -34,13 +34,20 @@ namespace ccfapp
     {
       if (i != 0)
         ss << ' ';
-      str = JS_ToCString(ctx, argv[i]);
+      if (!JS_IsError(ctx, argv[i]) && JS_IsObject(argv[i]))
+      {
+        JSValue rval = JS_JSONStringify(ctx, argv[i], JS_NULL, JS_NULL);
+        str = JS_ToCString(ctx, rval);
+        JS_FreeValue(ctx, rval);
+      }
+      else
+        str = JS_ToCString(ctx, argv[i]);
       if (!str)
         return JS_EXCEPTION;
       ss << str;
       JS_FreeCString(ctx, str);
     }
-    LOG_INFO_FMT(ss.str());
+    LOG_INFO << ss.str() << std::endl;
     return JS_UNDEFINED;
   }
 
@@ -365,9 +372,23 @@ namespace ccfapp
         JS_SetPropertyStr(ctx, global_obj, "query", query_str);
 
         const auto& request_body = args.rpc_ctx->get_request_body();
-        auto body_str = JS_NewStringLen(
-          ctx, (const char*)request_body.data(), request_body.size());
-        JS_SetPropertyStr(ctx, global_obj, "body", body_str);
+        auto content_type = args.rpc_ctx->get_request_header("content-type");
+        // Matching on a specific content type is a temporary solution
+        // until endpoints can declare the expected type.
+        if (
+          content_type.has_value() &&
+          content_type.value() == http::headervalues::contenttype::OCTET_STREAM)
+        {
+          auto body_arr = JS_NewArrayBufferCopy(
+            ctx, request_body.data(), request_body.size());
+          JS_SetProperty(ctx, global_obj, JS_NewAtom(ctx, "body"), body_arr);
+        }
+        else
+        {
+          auto body_str = JS_NewStringLen(
+            ctx, (const char*)request_body.data(), request_body.size());
+          JS_SetPropertyStr(ctx, global_obj, "body", body_str);
+        }
 
         JS_FreeValue(ctx, global_obj);
 
@@ -435,26 +456,46 @@ namespace ccfapp
         }
 
         // Handle return value
-        auto status = true;
-        if (JS_IsBool(val) && !JS_VALUE_GET_BOOL(val))
-          status = false;
+        std::string response_content_type;
+        std::vector<uint8_t> response_body;
+        size_t buf_size;
+        uint8_t* array_buffer = JS_GetArrayBuffer(ctx, &buf_size, val);
+        if (array_buffer)
+        {
+          response_content_type = http::headervalues::contenttype::OCTET_STREAM;
+          response_body =
+            std::vector<uint8_t>(array_buffer, array_buffer + buf_size);
+        }
+        else
+        {
+          const char* cstr = nullptr;
+          if (JS_IsString(val))
+          {
+            response_content_type = http::headervalues::contenttype::TEXT;
+            cstr = JS_ToCString(ctx, val);
+          }
+          else
+          {
+            response_content_type = http::headervalues::contenttype::JSON;
+            JSValue rval = JS_JSONStringify(ctx, val, JS_NULL, JS_NULL);
+            cstr = JS_ToCString(ctx, rval);
+            JS_FreeValue(ctx, rval);
+          }
+          std::string str(cstr);
+          JS_FreeCString(ctx, cstr);
 
-        JSValue rval = JS_JSONStringify(ctx, val, JS_NULL, JS_NULL);
-        auto cstr = JS_ToCString(ctx, rval);
-        auto response = nlohmann::json::parse(cstr);
+          response_body = std::vector<uint8_t>(str.begin(), str.end());
+        }
 
-        JS_FreeValue(ctx, rval);
-        JS_FreeCString(ctx, cstr);
         JS_FreeValue(ctx, val);
 
         JS_FreeContext(ctx);
         JS_FreeRuntime(rt);
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        args.rpc_ctx->set_response_body(
-          serdes::pack(response, serdes::Pack::Text));
+        args.rpc_ctx->set_response_body(std::move(response_body));
         args.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          http::headers::CONTENT_TYPE, response_content_type);
         return;
       };
 
