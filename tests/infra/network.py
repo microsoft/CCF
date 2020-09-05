@@ -405,7 +405,7 @@ class Network:
             )
 
         self.consortium.check_for_service(
-            primary, ServiceStatus.OPEN, pbft_open=(args.consensus == "pbft")
+            primary, ServiceStatus.OPEN
         )
         LOG.success("***** Recovered network is now open *****")
 

@@ -505,6 +505,7 @@ TEST_CASE("process_pbft")
   auto session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_id, user_caller_der);
   auto ctx = enclave::make_rpc_context(session, request.raw);
+  ctx->execute_on_node = true;
   frontend.process_pbft(ctx);
 
   kv::Tx tx;

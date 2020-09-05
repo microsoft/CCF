@@ -333,13 +333,26 @@ namespace ccf
 
       update_history();
 
+      if(ctx != nullptr)
+      {
       LOG_INFO_FMT(
         "7. DDDDDDD is_primary:{}, exec_on_node:{}",
         is_primary,
         ctx->execute_on_node);
-      //if (!is_primary && consensus->type() == ConsensusType::RAFT)
-      if (!is_primary && (consensus->type() == ConsensusType::RAFT || !ctx->execute_on_node))
+      }
+      else
       {
+      LOG_INFO_FMT(
+        "7. DDDDDDD is_primary:{}, exec_on_node:nullptr",
+        is_primary);
+      }
+      
+      //if (!is_primary && consensus->type() == ConsensusType::RAFT)
+      if (
+        (!is_primary && consensus->type() == ConsensusType::RAFT) ||
+        (consensus != nullptr && consensus->type() != ConsensusType::RAFT && !ctx->execute_on_node))
+      {
+        LOG_INFO_FMT("7.0 DDDDDDD");
         switch (endpoint->forwarding_required)
         {
           case ForwardingRequired::Never:
@@ -351,8 +364,8 @@ namespace ccf
           case ForwardingRequired::Sometimes:
           {
             if (
-              ctx->session->is_forwarding ||
-              consensus->type() == ConsensusType::RAFT || !ctx->execute_on_node)
+              (ctx->session->is_forwarding && consensus->type() == ConsensusType::RAFT) ||
+               (consensus->type() != ConsensusType::RAFT && !ctx->execute_on_node))
             {
             LOG_INFO_FMT("7.2 DDDDDDD");
             ctx->session->is_forwarding = true;
