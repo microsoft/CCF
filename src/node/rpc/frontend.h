@@ -351,7 +351,7 @@ namespace ccf
               (consensus->type() != ConsensusType::RAFT &&
                !ctx->execute_on_node))
             {
-            ctx->session->is_forwarding = true;
+              ctx->session->is_forwarding = true;
               return forward_or_redirect_json(ctx, endpoint, caller_id);
             }
             break;

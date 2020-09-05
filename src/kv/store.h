@@ -754,7 +754,8 @@ namespace kv
           // NOTE: we currently do not support signature transactions and said
           // support will be added in the near future
           LOG_FAIL_FMT("Failed to deserialise");
-          LOG_DEBUG_FMT("Unexpected contents in pbft transaction size {}", views.size());
+          LOG_DEBUG_FMT(
+            "Unexpected contents in pbft transaction size {}", views.size());
         }
       }
 

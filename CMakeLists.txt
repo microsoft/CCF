@@ -742,8 +742,7 @@ if(BUILD_TESTS)
     NAME schema_test_raft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
     CONSENSUS raft
-    ADDITIONAL_ARGS -p liblogging --schema-dir
-                    ${CMAKE_SOURCE_DIR}/doc/schemas
+    ADDITIONAL_ARGS -p liblogging --schema-dir ${CMAKE_SOURCE_DIR}/doc/schemas
   )
 
   add_e2e_test(
