@@ -103,10 +103,7 @@ namespace aft
     {
       auto p = x.lock();
       if (p)
-      {
         return p->deserialise_views(data, public_only, term, tx);
-      }
-      LOG_INFO_FMT("foobar");
       return S::FAILED;
     }
   };

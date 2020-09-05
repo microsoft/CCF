@@ -235,7 +235,6 @@ namespace ccf
       CallerId caller_id,
       PreExec pre_exec = {})
     {
-      LOG_INFO_FMT("5. DDDDDDD");
       const auto endpoint = endpoints.find_endpoint(*ctx);
       if (endpoint == nullptr)
       {
@@ -271,7 +270,6 @@ namespace ccf
         }
       }
 
-      LOG_INFO_FMT("6. DDDDDDD");
       // Note: calls that could not be dispatched (cases handled above)
       // are not counted against any particular endpoint.
       endpoint->metrics.calls++;
@@ -333,58 +331,39 @@ namespace ccf
 
       update_history();
 
-      if(ctx != nullptr)
-      {
-      LOG_INFO_FMT(
-        "7. DDDDDDD is_primary:{}, exec_on_node:{}",
-        is_primary,
-        ctx->execute_on_node);
-      }
-      else
-      {
-      LOG_INFO_FMT(
-        "7. DDDDDDD is_primary:{}, exec_on_node:nullptr",
-        is_primary);
-      }
-      
-      //if (!is_primary && consensus->type() == ConsensusType::RAFT)
       if ((!is_primary &&
            (consensus->type() == ConsensusType::RAFT ||
             (consensus->type() != ConsensusType::RAFT &&
              !ctx->execute_on_node))))
       {
-        LOG_INFO_FMT("7.0 DDDDDDD");
         switch (endpoint->forwarding_required)
         {
           case ForwardingRequired::Never:
           {
-            LOG_INFO_FMT("7.1 DDDDDDD");
             break;
           }
 
           case ForwardingRequired::Sometimes:
           {
             if (
-              (ctx->session->is_forwarding && consensus->type() == ConsensusType::RAFT) ||
-               (consensus->type() != ConsensusType::RAFT && !ctx->execute_on_node))
+              (ctx->session->is_forwarding &&
+               consensus->type() == ConsensusType::RAFT) ||
+              (consensus->type() != ConsensusType::RAFT &&
+               !ctx->execute_on_node))
             {
-            LOG_INFO_FMT("7.2 DDDDDDD");
             ctx->session->is_forwarding = true;
               return forward_or_redirect_json(ctx, endpoint, caller_id);
             }
-            LOG_INFO_FMT("7.3 DDDDDDD");
             break;
           }
 
           case ForwardingRequired::Always:
           {
-            LOG_INFO_FMT("7.4 DDDDDDD");
             ctx->session->is_forwarding = true;
             return forward_or_redirect_json(ctx, endpoint, caller_id);
           }
         }
       }
-      LOG_INFO_FMT("8. DDDDDDD");
 
       auto func = endpoint->func;
       auto args = EndpointContext{ctx, tx, caller_id};
@@ -555,7 +534,6 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
       update_consensus();
-      LOG_INFO_FMT("AAAAAAA");
 
       auto tx = tables.create_tx();
 
@@ -564,15 +542,7 @@ namespace ccf
       if (
         consensus != nullptr && consensus->type() == ConsensusType::PBFT &&
         (ctx->execute_on_node || consensus->is_primary()))
-      //if ( consensus != nullptr && consensus->type() == ConsensusType::PBFT)
       {
-        LOG_INFO_FMT("BBBBBBB, exec_on_node:{}, is_primary", ctx->execute_on_node, consensus->is_primary());
-        //if (consensus->is_backup())
-        //{
-          //throw std::logic_error("foo");
-        //  throw ccf::ccf_logic_error("ksldjf");
-        //}
-
         auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
         if (rep.has_value())
         {
@@ -614,7 +584,6 @@ namespace ccf
       }
       else
       {
-        LOG_INFO_FMT("CCCCCCC");
         return process_command(ctx, tx, caller_id);
       }
     }
