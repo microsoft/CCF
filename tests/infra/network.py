@@ -328,7 +328,6 @@ class Network:
         self.create_users(initial_users, args.participants_curve)
 
         primary = self._start_all_nodes(args)
-        #if args.consensus != "pbft":
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
 
@@ -352,8 +351,7 @@ class Network:
         LOG.info("Initial set of users added")
 
         self.consortium.open_network(
-            #remote_node=primary, pbft_open=(args.consensus == "pbft")
-            remote_node=primary, pbft_open=(False)
+            remote_node=primary
         )
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")

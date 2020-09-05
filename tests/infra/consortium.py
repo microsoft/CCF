@@ -256,7 +256,7 @@ class Consortium:
         self.vote_using_majority(remote_node, proposal)
         member_to_retire.status_code = infra.member.MemberStatus.RETIRED
 
-    def open_network(self, remote_node, pbft_open=False):
+    def open_network(self, remote_node):
         """
         Assuming a network in state OPENING, this functions creates a new
         proposal and make members vote to transition the network to state
@@ -266,9 +266,9 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         proposal.vote_for = careful_vote
         self.vote_using_majority(
-            remote_node, proposal, wait_for_global_commit=(not pbft_open)
+            remote_node, proposal, wait_for_global_commit=True
         )
-        self.check_for_service(remote_node, infra.network.ServiceStatus.OPEN, pbft_open)
+        self.check_for_service(remote_node, infra.network.ServiceStatus.OPEN)
 
     def rekey_ledger(self, remote_node):
         proposal_body, careful_vote = self.make_proposal("rekey_ledger")
@@ -367,7 +367,7 @@ class Consortium:
         proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
-    def check_for_service(self, remote_node, status, pbft_open=False):
+    def check_for_service(self, remote_node, status):
         """
         Check via the member frontend of the given node that the certificate
         associated with current CCF service signing key has been recorded in
@@ -397,7 +397,7 @@ class Consortium:
                     return service
                     """
                 },
-                timeout=(30 if pbft_open else 3),
+                timeout=3,
             )
             current_status = r.body["status"]
             current_cert = r.body["cert"]
