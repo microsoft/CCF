@@ -64,68 +64,58 @@ get_verification_file(
 
 if(BUILD_TESTS)
   # Small Bank end to end and performance test
-  foreach(CONSENSUS ${CONSENSUSES})
 
-    if(${CONSENSUS} STREQUAL pbft)
-      if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-        set(SMALL_BANK_ITERATIONS 50000)
-      else()
-        set(SMALL_BANK_ITERATIONS 2000)
-      endif()
-    else()
-      set(SMALL_BANK_ITERATIONS 200000)
-    endif()
-    get_verification_file(${SMALL_BANK_ITERATIONS} SMALL_BANK_VERIFICATION_FILE)
+  set(SMALL_BANK_ITERATIONS 200000)
+  get_verification_file(${SMALL_BANK_ITERATIONS} SMALL_BANK_VERIFICATION_FILE)
 
-    add_perf_test(
-      NAME small_bank_client_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
-      CLIENT_BIN ./small_bank_client
-      VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
-      LABEL SB
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS
-        --transactions ${SMALL_BANK_ITERATIONS} --max-writes-ahead 1000
-        --metrics-file small_bank_${CONSENSUS}_metrics.json
-    )
+  add_perf_test(
+    NAME small_bank_client_test_raft
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
+    CLIENT_BIN ./small_bank_client
+    VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
+    LABEL SB
+    CONSENSUS raft
+    ADDITIONAL_ARGS
+      --transactions ${SMALL_BANK_ITERATIONS} --max-writes-ahead 1000
+      --metrics-file small_bank_raft_metrics.json
+  )
 
-    add_perf_test(
-      NAME small_bank_client_ws_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
-      CLIENT_BIN ./small_bank_client
-      VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
-      LABEL SB_WS
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS
-        --transactions
-        ${SMALL_BANK_ITERATIONS}
-        --max-writes-ahead
-        1000
-        --metrics-file
-        small_bank_${CONSENSUS}_metrics.json
-        --use-websockets
-    )
+  add_perf_test(
+    NAME small_bank_client_ws_test_raft
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
+    CLIENT_BIN ./small_bank_client
+    VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
+    LABEL SB_WS
+    CONSENSUS raft
+    ADDITIONAL_ARGS
+      --transactions
+      ${SMALL_BANK_ITERATIONS}
+      --max-writes-ahead
+      1000
+      --metrics-file
+      small_bank_raft_metrics.json
+      --use-websockets
+  )
 
-    add_perf_test(
-      NAME small_bank_sigs_client_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
-      CLIENT_BIN ./small_bank_client
-      VERIFICATION_FILE ${SMALL_BANK_SIGNED_VERIFICATION_FILE}
-      LABEL "SB_sig"
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS
-        --transactions
-        ${SMALL_BANK_SIGNED_ITERATIONS}
-        --max-writes-ahead
-        1000
-        --sign
-        --participants-curve
-        "secp256k1"
-        --metrics-file
-        small_bank_${CONSENSUS}_sigs_metrics.json
-    )
+  add_perf_test(
+    NAME small_bank_sigs_client_test_raft
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
+    CLIENT_BIN ./small_bank_client
+    VERIFICATION_FILE ${SMALL_BANK_SIGNED_VERIFICATION_FILE}
+    LABEL "SB_sig"
+    CONSENSUS raft
+    ADDITIONAL_ARGS
+      --transactions
+      ${SMALL_BANK_SIGNED_ITERATIONS}
+      --max-writes-ahead
+      1000
+      --sign
+      --participants-curve
+      "secp256k1"
+      --metrics-file
+      small_bank_raft_sigs_metrics.json
+  )
 
-  endforeach()
 
   # It is better to run performance tests with forwarding on different machines
   # (i.e. nodes and clients)

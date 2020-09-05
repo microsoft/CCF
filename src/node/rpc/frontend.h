@@ -348,9 +348,10 @@ namespace ccf
       }
       
       //if (!is_primary && consensus->type() == ConsensusType::RAFT)
-      if (
-        (!is_primary && consensus->type() == ConsensusType::RAFT) ||
-        (consensus != nullptr && consensus->type() != ConsensusType::RAFT && !ctx->execute_on_node))
+      if ((!is_primary &&
+           (consensus->type() == ConsensusType::RAFT ||
+            (consensus->type() != ConsensusType::RAFT &&
+             !ctx->execute_on_node))))
       {
         LOG_INFO_FMT("7.0 DDDDDDD");
         switch (endpoint->forwarding_required)

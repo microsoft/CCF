@@ -497,19 +497,17 @@ class Network:
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(primary, new_node.node_id)
-            if args.consensus != "pbft":
-                # Here, quote verification has already been run when the node
-                # was added as pending. Only wait for the join timer for the
-                # joining node to retrieve network secrets.
-                new_node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
+            # Here, quote verification has already been run when the node
+            # was added as pending. Only wait for the join timer for the
+            # joining node to retrieve network secrets.
+            new_node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {new_node.node_id} failed to join the network")
             new_node.stop()
             raise
 
         new_node.network_state = infra.node.NodeNetworkState.joined
-        if args.consensus != "pbft":
-            self.wait_for_all_nodes_to_catch_up(primary)
+        self.wait_for_all_nodes_to_catch_up(primary)
 
         return new_node
 
