@@ -525,22 +525,21 @@ namespace ccfapp
         std::vector<uint8_t> response_body;
         size_t buf_size;
         size_t buf_offset;
-        JSValue typed_array_buffer = JS_GetTypedArrayBuffer(ctx, val,
-                               &buf_offset,
-                               &buf_size,
-                               nullptr);
+        JSValue typed_array_buffer =
+          JS_GetTypedArrayBuffer(ctx, val, &buf_offset, &buf_size, nullptr);
         uint8_t* array_buffer;
         if (!JS_IsException(typed_array_buffer))
         {
           size_t buf_size_total;
-          array_buffer = JS_GetArrayBuffer(ctx, &buf_size_total, typed_array_buffer);
+          array_buffer =
+            JS_GetArrayBuffer(ctx, &buf_size_total, typed_array_buffer);
           array_buffer += buf_offset;
           JS_FreeValue(ctx, typed_array_buffer);
         }
         else
         {
           array_buffer = JS_GetArrayBuffer(ctx, &buf_size, val);
-        }          
+        }
         if (array_buffer)
         {
           response_content_type = http::headervalues::contenttype::OCTET_STREAM;
