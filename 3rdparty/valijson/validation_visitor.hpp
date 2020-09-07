@@ -4,6 +4,7 @@
 #include <string>
 #include <regex>
 
+#include <valijson/adapters/std_string_adapter.hpp>
 #include <valijson/constraints/concrete_constraints.hpp>
 #include <valijson/constraints/constraint_visitor.hpp>
 #include <valijson/validation_results.hpp>
@@ -34,7 +35,7 @@ public:
      * @param  strictTypes  Use strict type comparison
      * @param  results      Optional pointer to ValidationResults object, for
      *                      recording error descriptions. If this pointer is set
-     *                      to NULL, validation errors will caused validation to
+     *                      to nullptr, validation errors will caused validation to
      *                      stop immediately.
      */
     ValidationVisitor(const AdapterType &target,
@@ -63,13 +64,17 @@ public:
      */
     bool validateSchema(const Subschema &subschema)
     {
+        if (subschema.getAlwaysInvalid()) {
+            return false;
+        }
+
         // Wrap the validationCallback() function below so that it will be
         // passed a reference to a constraint (_1), and a reference to the
         // visitor (*this).
         Subschema::ApplyFunction fn(std::bind(validationCallback, std::placeholders::_1, *this));
 
         // Perform validation against each constraint defined in the schema
-        if (results == NULL) {
+        if (results == nullptr) {
             // The applyStrict() function will return immediately if the
             // callback function returns false
             if (!subschema.applyStrict(fn)) {
@@ -109,9 +114,8 @@ public:
     virtual bool visit(const AllOfConstraint &constraint)
     {
         bool validated = true;
-
         constraint.applyToSubschemas(ValidateSubschemas(target, context,
-                true, false, *this, results, NULL, &validated));
+                true, false, *this, results, nullptr, &validated));
 
         return validated;
     }
@@ -138,11 +142,11 @@ public:
         unsigned int numValidated = 0;
 
         ValidationResults newResults;
-        ValidationResults *childResults = (results) ? &newResults : NULL;
+        ValidationResults *childResults = (results) ? &newResults : nullptr;
 
         ValidationVisitor<AdapterType> v(target, context, strictTypes, childResults);
         constraint.applyToSubschemas(ValidateSubschemas(target, context, false,
-                true, v, childResults, &numValidated, NULL));
+                true, v, childResults, &numValidated, nullptr));
 
         if (numValidated == 0 && results) {
             ValidationResults::Error childError;
@@ -156,6 +160,96 @@ public:
         }
 
         return numValidated > 0;
+    }
+
+    /**
+     * @brief   Validate current node using a set of 'if', 'then' and 'else' subschemas
+     *
+     * A conditional constraint allows a document to be validated against one of two additional
+     * subschemas (specified via 'then' or 'else' properties) depending on whether the document
+     * satifies an optional subschema (specified via the 'if' property).
+     *
+     * @param   constraint  ConditionalConstraint that the current node must validate against
+     *
+     * @return  \c true if validation passes; \c false otherwise
+     */
+    virtual bool visit(const ConditionalConstraint &constraint)
+    {
+        // Create a validator to evaluate the conditional
+        ValidationVisitor ifValidator(target, context, strictTypes, nullptr);
+        ValidationVisitor thenElseValidator(target, context, strictTypes, nullptr);
+
+        if (ifValidator.validateSchema(*constraint.getIfSubschema())) {
+            const Subschema *thenSubschema = constraint.getThenSubschema();
+            return thenSubschema == nullptr ||
+                thenElseValidator.validateSchema(*thenSubschema);
+        }
+
+        const Subschema *elseSubschema = constraint.getElseSubschema();
+        return elseSubschema == nullptr ||
+            thenElseValidator.validateSchema(*elseSubschema);
+    }
+
+    /**
+     * @brief   Validate current node using a 'const' constraint
+     *
+     * A const constraint allows a document to be validated against a specific value.
+     *
+     * @param   constraint  ConstConstraint that the current node must validate against
+     *
+     * @return  \c true if validation passes; \f false otherwise
+     */
+    virtual bool visit(const ConstConstraint &constraint)
+    {
+        if (!constraint.getValue()->equalTo(target, strictTypes)) {
+            if (results) {
+                results->pushError(context,
+                        "Failed to match expected value set by 'const' constraint.");
+            }
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @brief  Validate current node using a 'contains' constraint
+     *
+     * A contains constraint is satisfied if the target is not an array, or if it is an array,
+     * only if it contains at least one value that matches the specified schema.
+     *
+     * @param   constraint  ContainsConstraint that the current node must validate against
+     *
+     * @return  \c true if validation passes; \c false otherwise
+     */
+    virtual bool visit(const ContainsConstraint &constraint)
+    {
+        if ((strictTypes && !target.isArray()) || !target.maybeArray()) {
+            return true;
+        }
+
+        const Subschema *subschema = constraint.getSubschema();
+        const typename AdapterType::Array arr = target.asArray();
+
+        bool validated = false;
+        for (auto itr = arr.begin(); itr != arr.end(); ++itr) {
+            ValidationVisitor containsValidator(*itr, context, strictTypes, nullptr);
+            if (containsValidator.validateSchema(*subschema)) {
+                validated = true;
+                break;
+            }
+        }
+
+        if (!validated) {
+            if (results) {
+                results->pushError(context,
+                        "Failed to any values against subschema in 'contains' constraint.");
+            }
+
+            return false;
+        }
+
+        return validated;
     }
 
     /**
@@ -223,7 +317,7 @@ public:
     {
         unsigned int numValidated = 0;
         constraint.applyToValues(ValidateEquality(target, context, false, true,
-                strictTypes, NULL, &numValidated));
+                strictTypes, nullptr, &numValidated));
 
         if (numValidated == 0) {
             if (results) {
@@ -292,7 +386,7 @@ public:
             }
 
             constraint.applyToItemSubschemas(ValidateItems(arr, context, true,
-                    results != NULL, strictTypes, results, &numValidated,
+                    results != nullptr, strictTypes, results, &numValidated,
                     &validated));
 
             if (!results && !validated) {
@@ -700,7 +794,7 @@ public:
     /**
      * @brief   Validate a value against a NotConstraint
      *
-     * If the subschema NotConstraint currently holds a NULL pointer, the
+     * If the subschema NotConstraint currently holds a nullptr, the
      * schema will be treated like the empty schema. Therefore validation
      * will always fail.
      *
@@ -712,11 +806,11 @@ public:
     {
         const Subschema *subschema = constraint.getSubschema();
         if (!subschema) {
-            // Treat NULL pointer like empty schema
+            // Treat nullptr like empty schema
             return false;
         }
 
-        ValidationVisitor<AdapterType> v(target, context, strictTypes, NULL);
+        ValidationVisitor<AdapterType> v(target, context, strictTypes, nullptr);
         if (v.validateSchema(*subschema)) {
             if (results) {
                 results->pushError(context,
@@ -742,11 +836,11 @@ public:
         unsigned int numValidated = 0;
 
         ValidationResults newResults;
-        ValidationResults *childResults = (results) ? &newResults : NULL;
+        ValidationResults *childResults = (results) ? &newResults : nullptr;
 
         ValidationVisitor<AdapterType> v(target, context, strictTypes, childResults);
         constraint.applyToSubschemas(ValidateSubschemas(target, context,
-                true, true, v, childResults, &numValidated, NULL));
+                true, true, v, childResults, &numValidated, nullptr));
 
         if (numValidated == 0) {
             if (results) {
@@ -851,7 +945,7 @@ public:
         // constraints
         const typename AdapterType::Object object = target.asObject();
         constraint.applyToProperties(ValidatePropertySubschemas(object, context,
-                true, results != NULL, true, strictTypes, results,
+                true, results != nullptr, true, strictTypes, results,
                 &propertiesMatched, &validated));
 
         // Exit early if validation failed, and we're not collecting exhaustive
@@ -915,6 +1009,30 @@ public:
     }
 
     /**
+     * @brief   Validate a value against a PropertyNamesConstraint
+     *
+     * @param   constraint  Constraint that the target must validate against
+     *
+     * @return  \c true if validation succeeds; \c false otherwise
+     */
+    virtual bool visit(const PropertyNamesConstraint &constraint)
+    {
+        if ((strictTypes && !target.isObject()) || !target.maybeObject()) {
+            return true;
+        }
+
+        for (const typename AdapterType::ObjectMember m : target.asObject()) {
+            adapters::StdStringAdapter stringAdapter(m.first);
+            ValidationVisitor<adapters::StdStringAdapter> validator(stringAdapter, context, strictTypes, nullptr);
+            if (!validator.validateSchema(*constraint.getSubschema())) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * @brief   Validate a value against a RequiredConstraint
      *
      * A required constraint specifies a list of properties that must be present
@@ -927,17 +1045,13 @@ public:
     virtual bool visit(const RequiredConstraint &constraint)
     {
         if ((strictTypes && !target.isObject()) || !target.maybeObject()) {
-            if (results) {
-                results->pushError(context,
-                        "Object required to validate 'required' properties.");
-            }
-            return false;
+            return true;
         }
 
         bool validated = true;
         const typename AdapterType::Object object = target.asObject();
         constraint.applyToRequiredProperties(ValidateProperties(object, context,
-                true, results != NULL, results, &validated));
+                true, results != nullptr, results, &validated));
 
         return validated;
     }
@@ -1028,7 +1142,7 @@ public:
         {
             unsigned int numValidated = 0;
             constraint.applyToSchemaTypes(ValidateSubschemas(target, context,
-                    false, true, *this, NULL, &numValidated, NULL));
+                    false, true, *this, nullptr, &numValidated, nullptr));
             if (numValidated > 0) {
                 return true;
             } else if (results) {
@@ -1703,7 +1817,6 @@ private:
 
     /// Option to use strict type comparison
     const bool strictTypes;
-
 };
 
 }  // namespace valijson

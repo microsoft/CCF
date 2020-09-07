@@ -331,7 +331,10 @@ namespace ccf
 
       update_history();
 
-      if (!is_primary && consensus->type() == ConsensusType::RAFT)
+      if ((!is_primary &&
+           (consensus->type() == ConsensusType::RAFT ||
+            (consensus->type() != ConsensusType::RAFT &&
+             !ctx->execute_on_node))))
       {
         switch (endpoint->forwarding_required)
         {
@@ -342,8 +345,13 @@ namespace ccf
 
           case ForwardingRequired::Sometimes:
           {
-            if (ctx->session->is_forwarding)
+            if (
+              (ctx->session->is_forwarding &&
+               consensus->type() == ConsensusType::RAFT) ||
+              (consensus->type() != ConsensusType::RAFT &&
+               !ctx->execute_on_node))
             {
+              ctx->session->is_forwarding = true;
               return forward_or_redirect_json(ctx, endpoint, caller_id);
             }
             break;
@@ -531,7 +539,9 @@ namespace ccf
 
       auto caller_id = endpoints.get_caller_id(tx, ctx->session->caller_cert);
 
-      if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
+      if (
+        consensus != nullptr && consensus->type() == ConsensusType::PBFT &&
+        (ctx->execute_on_node || consensus->is_primary()))
       {
         auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
         if (rep.has_value())

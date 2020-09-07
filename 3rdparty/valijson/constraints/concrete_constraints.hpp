@@ -109,10 +109,125 @@ public:
 
 private:
     typedef std::vector<const Subschema *,
-            internal::CustomAllocator<const Subschema *> > Subschemas;
+          internal::CustomAllocator<const Subschema *> > Subschemas;
 
     /// Collection of sub-schemas, at least one of which must be satisfied
     Subschemas subschemas;
+};
+
+/**
+ * @brief  Represents a combination 'if', 'then' and 'else' constraints
+ *
+ * The schema provided by an 'if' constraint is used as the expression for a conditional. When the
+ * target validates against that schema, the 'then' subschema will be also be tested. Otherwise,
+ * the 'else' subschema will be tested.
+ */
+class ConditionalConstraint: public BasicConstraint<ConditionalConstraint>
+{
+public:
+    ConditionalConstraint()
+      : ifSubschema(NULL),
+        thenSubschema(NULL),
+        elseSubschema(NULL) { }
+
+    ConditionalConstraint(CustomAlloc allocFn, CustomFree freeFn)
+      : BasicConstraint(allocFn, freeFn),
+        ifSubschema(NULL),
+        thenSubschema(NULL),
+        elseSubschema(NULL) { }
+
+    const Subschema * getIfSubschema() const
+    {
+        return ifSubschema;
+    }
+
+    const Subschema * getThenSubschema() const
+    {
+        return thenSubschema;
+    }
+
+    const Subschema * getElseSubschema() const
+    {
+        return elseSubschema;
+    }
+
+    void setIfSubschema(const Subschema *subschema)
+    {
+        ifSubschema = subschema;
+    }
+
+    void setThenSubschema(const Subschema *subschema)
+    {
+        thenSubschema = subschema;
+    }
+
+    void setElseSubschema(const Subschema *subschema)
+    {
+        elseSubschema = subschema;
+    }
+
+private:
+    const Subschema *ifSubschema;
+    const Subschema *thenSubschema;
+    const Subschema *elseSubschema;
+};
+
+class ConstConstraint: public BasicConstraint<ConstConstraint>
+{
+public:
+    ConstConstraint()
+      : value(nullptr) { }
+
+    ConstConstraint(CustomAlloc allocFn, CustomFree freeFn)
+      : BasicConstraint(allocFn, freeFn),
+        value(nullptr) { }
+
+    ConstConstraint(const ConstConstraint &other)
+      : BasicConstraint(other),
+        value(other.value->clone()) { }
+
+    adapters::FrozenValue * getValue() const
+    {
+        return value;
+    }
+
+    void setValue(const adapters::Adapter &value)
+    {
+        this->value = value.freeze();
+    }
+
+private:
+    adapters::FrozenValue *value;
+};
+
+/**
+ * @brief  Represents a 'contains' constraint
+ *
+ * A 'contains' constraint specifies a schema that must be satisfied by at least one
+ * of the values in an array.
+ */
+class ContainsConstraint: public BasicConstraint<ContainsConstraint>
+{
+public:
+    ContainsConstraint()
+      : subschema(nullptr) { }
+
+    ContainsConstraint(CustomAlloc allocFn, CustomFree freeFn)
+      : BasicConstraint(allocFn, freeFn),
+        subschema(nullptr) { }
+
+    const Subschema * getSubschema() const
+    {
+        return subschema;
+    }
+
+    void setSubschema(const Subschema *subschema)
+    {
+        this->subschema = subschema;
+    }
+
+private:
+    const Subschema *subschema;
 };
 
 /**
@@ -257,7 +372,6 @@ public:
                     throw;
                 }
             }
-
         } catch (...) {
             // Delete values already added to constraint
             for (const EnumValue *value : enumValues) {
@@ -339,7 +453,7 @@ public:
     void applyToItemSubschemas(const FunctorType &fn) const
     {
         unsigned int index = 0;
-        for( const Subschema *subschema : itemSubschemas ) {
+        for (const Subschema *subschema : itemSubschemas) {
             if (!fn(index, subschema)) {
                 return;
             }
@@ -557,7 +671,7 @@ public:
     }
 
 private:
-    size_t minItems;
+    uint64_t minItems;
 };
 
 /**
@@ -611,7 +725,7 @@ public:
     }
 
 private:
-    size_t minProperties;
+    uint64_t minProperties;
 };
 
 /**
@@ -721,7 +835,7 @@ public:
     void applyToSubschemas(const FunctorType &fn) const
     {
         unsigned int index = 0;
-        for( const Subschema *subschema : subschemas ) {
+        for (const Subschema *subschema : subschemas) {
             if (!fn(index, subschema)) {
                 return;
             }
@@ -864,7 +978,7 @@ public:
     void applyToPatternProperties(const FunctorType &fn) const
     {
         typedef typename PropertySchemaMap::value_type ValueType;
-        for( const ValueType &value : patternProperties ) {
+        for (const ValueType &value : patternProperties) {
             if (!fn(value.first, value.second)) {
                 return;
             }
@@ -875,7 +989,7 @@ public:
     void applyToProperties(const FunctorType &fn) const
     {
         typedef typename PropertySchemaMap::value_type ValueType;
-        for( const ValueType &value : properties ) {
+        for (const ValueType &value : properties) {
             if (!fn(value.first, value.second)) {
                 return;
             }
@@ -900,6 +1014,30 @@ private:
     PropertySchemaMap patternProperties;
 
     const Subschema *additionalProperties;
+};
+
+class PropertyNamesConstraint: public BasicConstraint<PropertyNamesConstraint>
+{
+public:
+    PropertyNamesConstraint()
+      : subschema(NULL) { }
+
+    PropertyNamesConstraint(CustomAlloc allocFn, CustomFree freeFn)
+      : BasicConstraint(allocFn, freeFn),
+        subschema(NULL) { }
+
+    const Subschema * getSubschema() const
+    {
+        return subschema;
+    }
+
+    void setSubschema(const Subschema *subschema)
+    {
+        this->subschema = subschema;
+    }
+
+private:
+    const Subschema *subschema;
 };
 
 /**
@@ -931,7 +1069,7 @@ public:
     template<typename FunctorType>
     void applyToRequiredProperties(const FunctorType &fn) const
     {
-        for( const String &propertyName : requiredProperties ) {
+        for (const String &propertyName : requiredProperties) {
             if (!fn(propertyName)) {
                 return;
             }
@@ -1018,7 +1156,7 @@ public:
     template<typename FunctorType>
     void applyToNamedTypes(const FunctorType &fn) const
     {
-        for( const JsonType namedType : namedTypes ) {
+        for (const JsonType namedType : namedTypes) {
             if (!fn(namedType)) {
                 return;
             }
@@ -1029,7 +1167,7 @@ public:
     void applyToSchemaTypes(const FunctorType &fn) const
     {
         unsigned int index = 0;
-        for( const Subschema *subschema : schemaTypes ) {
+        for (const Subschema *subschema : schemaTypes) {
             if (!fn(index, subschema)) {
                 return;
             }
