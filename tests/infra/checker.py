@@ -1,9 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import json
-import time
-
 from ccf.commit import wait_for_commit
 
 
