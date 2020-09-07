@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "ds/logger.h"
 #include "lua_json.h"
 
 /**
@@ -137,7 +138,15 @@ namespace ccf
           lua::push_raw<nlohmann::json>(l, v);
 
           // Call the lua functor. This pops the args and functor-copy
-          lua_pcall(l, ifunc, 0, 0);
+          LOG_INFO_FMT("Called foreach from lua, ifunc is {}", ifunc);
+          const auto ret = lua_pcall(l, 2, 0, 0);
+
+          if (ret != 0)
+          {
+            const auto err = lua::check_get<std::string>(l, -1);
+            throw lua::ex(err);
+          }
+
           return true;
         });
 
