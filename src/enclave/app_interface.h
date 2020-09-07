@@ -3,7 +3,6 @@
 #pragma once
 
 #include "node/historical_queries_interface.h"
-#include "node/rpc/notifier_interface.h"
 #include "node/rpc/user_frontend.h"
 
 namespace ccfapp
@@ -12,7 +11,6 @@ namespace ccfapp
   {
     virtual ~AbstractNodeContext() = default;
 
-    virtual ccf::AbstractNotifier& get_notifier() = 0;
     virtual ccf::historical::AbstractStateCache& get_historical_state() = 0;
   };
 

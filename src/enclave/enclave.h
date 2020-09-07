@@ -12,7 +12,6 @@
 #include "node/network_state.h"
 #include "node/node_state.h"
 #include "node/node_types.h"
-#include "node/notifier.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/node_frontend.h"
 #include "rpc_map.h"
@@ -40,18 +39,11 @@ namespace enclave
 
     struct NodeContext : public ccfapp::AbstractNodeContext
     {
-      ccf::Notifier notifier;
       ccf::historical::StateCache historical_state_cache;
 
-      NodeContext(ccf::Notifier&& n, ccf::historical::StateCache&& hsc) :
-        notifier(std::move(n)),
+      NodeContext(ccf::historical::StateCache&& hsc) :
         historical_state_cache(std::move(hsc))
       {}
-
-      ccf::AbstractNotifier& get_notifier() override
-      {
-        return notifier;
-      }
 
       ccf::historical::AbstractStateCache& get_historical_state() override
       {
@@ -76,7 +68,6 @@ namespace enclave
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpcsessions, n2n_channels, rpc_map)),
       context(
-        ccf::Notifier(writer_factory),
         ccf::historical::StateCache(
           *network.tables, writer_factory.create_writer_to_outside()))
     {
@@ -86,7 +77,7 @@ namespace enclave
       to_host = writer_factory.create_writer_to_outside();
 
       node = std::make_unique<ccf::NodeState>(
-        writer_factory, network, rpcsessions, context.notifier, share_manager);
+        writer_factory, network, rpcsessions, share_manager);
 
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(
