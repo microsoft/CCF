@@ -23,7 +23,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/onqtam/doctest.git",
-          "commitHash": "7d42bd0fab6c44010c8aed9338bd02bea5feba41"
+          "commitHash": "1c8da00c978c19e00a434b2b1f854fcffc9fba35"
         }
       }
     },
@@ -68,7 +68,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/fmtlib/fmt",
-          "commitHash": "9bdd1596cef1b57b9556f8bef32dc4a32322ef3e"
+          "commitHash": "cd4af11efc9c622896a3e4cb599fa28668ca3d05"
         }
       }
     },
@@ -77,7 +77,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/tristanpenman/valijson",
-          "commitHash": "0abf633bc06571df51d9641eb485c7a4e5c97bdf"
+          "commitHash": "7a52fc88cdffd6678c009ca2fad700151f7363c6"
         }
       }
     },

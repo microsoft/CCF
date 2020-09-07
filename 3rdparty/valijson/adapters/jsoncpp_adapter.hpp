@@ -706,7 +706,7 @@ inline JsonCppObjectMemberIterator JsonCppObject::find(
 {
     if (value.isMember(propertyName)) {
         Json::ValueConstIterator itr;
-        for ( itr = value.begin(); itr != value.end(); ++itr) {
+        for (itr = value.begin(); itr != value.end(); ++itr) {
             if (itr.key() == propertyName) {
                 return itr;
             }
