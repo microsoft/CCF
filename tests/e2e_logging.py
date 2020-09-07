@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.network
-import infra.notification
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import infra.e2e_args
@@ -22,8 +21,8 @@ from loguru import logger as LOG
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("log/private", "log/public")
 @reqs.at_least_n_nodes(2)
-def test(network, args, notifications_queue=None, verify=True):
-    txs = app.LoggingTxs(notifications_queue=notifications_queue)
+def test(network, args, verify=True):
+    txs = app.LoggingTxs()
     txs.issue(
         network=network,
         number_txs=1,
@@ -46,7 +45,7 @@ def test(network, args, notifications_queue=None, verify=True):
 @reqs.description("Protocol-illegal traffic")
 @reqs.supports_methods("log/private", "log/public")
 @reqs.at_least_n_nodes(2)
-def test_illegal(network, args, notifications_queue=None, verify=True):
+def test_illegal(network, args, verify=True):
     # Send malformed HTTP traffic and check the connection is closed
     cafile = cafile = os.path.join(network.common_dir, "networkcert.pem")
     context = ssl.create_default_context(cafile=cafile)
@@ -64,7 +63,7 @@ def test_illegal(network, args, notifications_queue=None, verify=True):
     rv = conn.recv(1024)
     assert rv == b"", rv
     # Valid transactions are still accepted
-    txs = app.LoggingTxs(notifications_queue=notifications_queue)
+    txs = app.LoggingTxs()
     txs.issue(
         network=network,
         number_txs=1,
@@ -609,7 +608,7 @@ def test_tx_statuses(network, args):
 
 @reqs.description("Primary and redirection")
 @reqs.at_least_n_nodes(2)
-def test_primary(network, args, notifications_queue=None, verify=True):
+def test_primary(network, args, verify=True):
     LOG.error(network.nodes)
     primary, _ = network.find_primary()
     LOG.error(f"PRIMARY {primary.pubhost}")
@@ -632,44 +631,34 @@ def test_primary(network, args, notifications_queue=None, verify=True):
 def run(args):
     hosts = ["localhost"] * (3 if args.consensus == "pbft" else 2)
 
-    with infra.notification.notification_server(args.notify_server) as notifications:
-        # Lua apps do not support notifications
-        # https://github.com/microsoft/CCF/issues/415
-        notifications_queue = (
-            notifications.get_queue()
-            if (args.package == "liblogging" and args.consensus == "raft")
-            else None
+    with infra.network.network(
+        hosts,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_join(args)
+        network = test(
+            network,
+            args,
+            verify=args.package is not "libjs_generic",
         )
-
-        with infra.network.network(
-            hosts,
-            args.binary_dir,
-            args.debug_nodes,
-            args.perf_nodes,
-            pdb=args.pdb,
-        ) as network:
-            network.start_and_join(args)
-            network = test(
-                network,
-                args,
-                notifications_queue,
-                verify=args.package is not "libjs_generic",
-            )
-            network = test_illegal(
-                network, args, verify=args.package is not "libjs_generic"
-            )
-            network = test_large_messages(network, args)
-            network = test_remove(network, args)
-            network = test_forwarding_frontends(network, args)
-            network = test_update_lua(network, args)
-            network = test_user_data_ACL(network, args)
-            network = test_cert_prefix(network, args)
-            network = test_anonymous_caller(network, args)
-            network = test_raw_text(network, args)
-            network = test_historical_query(network, args)
-            network = test_view_history(network, args)
-            network = test_primary(network, args)
-            network = test_metrics(network, args)
+        network = test_illegal(
+            network, args, verify=args.package is not "libjs_generic"
+        )
+        network = test_large_messages(network, args)
+        network = test_remove(network, args)
+        network = test_forwarding_frontends(network, args)
+        network = test_update_lua(network, args)
+        network = test_user_data_ACL(network, args)
+        network = test_cert_prefix(network, args)
+        network = test_anonymous_caller(network, args)
+        network = test_raw_text(network, args)
+        network = test_historical_query(network, args)
+        network = test_view_history(network, args)
+        network = test_primary(network, args)
+        network = test_metrics(network, args)
 
 
 if __name__ == "__main__":

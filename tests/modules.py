@@ -7,7 +7,6 @@ import os
 import infra.network
 import infra.path
 import infra.proc
-import infra.notification
 import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
