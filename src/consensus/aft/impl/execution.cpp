@@ -61,6 +61,7 @@ namespace aft
       NoNode, ctx->pbft_raw.data(), ctx->pbft_raw.size());
 
     ctx->is_create_request = is_create_request;
+    ctx->execute_on_node = true;
     ctx->set_apply_writes(true);
 
     enclave::RpcHandler::ProcessPbftResp rep = frontend->process_pbft(ctx);
