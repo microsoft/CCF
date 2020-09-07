@@ -696,7 +696,7 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME ws_scaffold_raft
+    NAME ws_logging_raft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/ws_scaffold.py
     CONSENSUS raft
   )
