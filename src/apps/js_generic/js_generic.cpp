@@ -19,6 +19,7 @@ namespace ccfapp
 
   JSClassID tables_class_id;
   JSClassID view_class_id;
+  JSClassID body_class_id;
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
@@ -198,6 +199,54 @@ namespace ccfapp
     return true;
   }
 
+  static JSValue js_body_text(
+    JSContext *ctx, JSValueConst this_val, int argc, [[maybe_unused]] JSValueConst *argv)
+  {
+    if (argc != 0)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected none", argc);
+
+    auto body = static_cast<const std::vector<uint8_t>*>(JS_GetOpaque(this_val, body_class_id));
+    auto body_ = JS_NewStringLen(
+        ctx, (const char*)body->data(), body->size());
+    return body_;
+  }
+
+  static JSValue js_body_json(
+    JSContext *ctx, JSValueConst this_val, int argc, [[maybe_unused]] JSValueConst *argv)
+  {
+    if (argc != 0)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected none", argc);
+
+    auto body = static_cast<const std::vector<uint8_t>*>(JS_GetOpaque(this_val, body_class_id));
+    std::string body_str(body->begin(), body->end());
+    auto body_ = JS_ParseJSON(
+        ctx, body_str.c_str(), body->size(), "<body>");
+    return body_;
+  }
+
+  static JSValue js_body_array_buffer(
+    JSContext *ctx, JSValueConst this_val, int argc, [[maybe_unused]] JSValueConst *argv)
+  {
+    if (argc != 0)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected none", argc);
+    
+    auto body = static_cast<const std::vector<uint8_t>*>(JS_GetOpaque(this_val, body_class_id));
+    auto body_ = JS_NewArrayBufferCopy(
+          ctx, body->data(), body->size());
+    return body_;
+  }
+
+  // Partially replicates https://developer.mozilla.org/en-US/docs/Web/API/Body
+  // with a synchronous interface.
+  static const JSCFunctionListEntry js_body_proto_funcs[] = {
+      JS_CFUNC_DEF("text", 0, js_body_text),
+      JS_CFUNC_DEF("json", 0, js_body_json),
+      JS_CFUNC_DEF("arrayBuffer", 0, js_body_array_buffer),
+  };
+
   struct JSModuleLoaderArg
   {
     ccf::NetworkTables* network;
@@ -256,6 +305,8 @@ namespace ccfapp
     JSClassExoticMethods tables_exotic_methods = {};
 
     JSClassDef view_class_def = {};
+    
+    JSClassDef body_class_def = {};
 
   public:
     JSHandlers(NetworkTables& network) :
@@ -269,6 +320,9 @@ namespace ccfapp
 
       JS_NewClassID(&view_class_id);
       view_class_def.class_name = "KV View";
+
+      JS_NewClassID(&body_class_id);
+      body_class_def.class_name = "Body";
 
       auto default_handler = [this](EndpointContext& args) {
         const auto method = args.rpc_ctx->get_method();
@@ -340,6 +394,20 @@ namespace ccfapp
           }
         }
 
+        // Register class for body
+        {
+          auto ret = JS_NewClass(rt, body_class_id, &body_class_def);
+          if (ret != 0)
+          {
+            throw std::logic_error(
+              "Failed to register JS class definition for Body");
+          }
+          JSValue body_proto = JS_NewObject(ctx);
+          size_t func_count = sizeof(js_body_proto_funcs) / sizeof(js_body_proto_funcs[0]);
+          JS_SetPropertyFunctionList(ctx, body_proto, js_body_proto_funcs, func_count);
+          JS_SetClassProto(ctx, body_class_id, body_proto);
+        }
+
         auto global_obj = JS_GetGlobalObject(ctx);
 
         auto console = JS_NewObject(ctx);
@@ -372,23 +440,9 @@ namespace ccfapp
         JS_SetPropertyStr(ctx, global_obj, "query", query_str);
 
         const auto& request_body = args.rpc_ctx->get_request_body();
-        auto content_type = args.rpc_ctx->get_request_header("content-type");
-        // Matching on a specific content type is a temporary solution
-        // until endpoints can declare the expected type.
-        if (
-          content_type.has_value() &&
-          content_type.value() == http::headervalues::contenttype::OCTET_STREAM)
-        {
-          auto body_arr = JS_NewArrayBufferCopy(
-            ctx, request_body.data(), request_body.size());
-          JS_SetProperty(ctx, global_obj, JS_NewAtom(ctx, "body"), body_arr);
-        }
-        else
-        {
-          auto body_str = JS_NewStringLen(
-            ctx, (const char*)request_body.data(), request_body.size());
-          JS_SetPropertyStr(ctx, global_obj, "body", body_str);
-        }
+        auto body_ = JS_NewObjectClass(ctx, body_class_id);
+        JS_SetOpaque(body_, (void*)&request_body);
+        JS_SetPropertyStr(ctx, global_obj, "body", body_);
 
         JS_FreeValue(ctx, global_obj);
 

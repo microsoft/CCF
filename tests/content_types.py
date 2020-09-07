@@ -17,8 +17,9 @@ return {
     {
       if (headers['content-type'] !== 'text/plain')
         throw new Error('unexpected content-type: ' + headers['content-type']);
-      if (body !== 'text')
-        throw new Error('unexpected body: ' + body);
+      const text = body.text();
+      if (text !== 'text')
+        throw new Error('unexpected body: ' + text);
       return 'text';
     }
   ]],
@@ -27,9 +28,9 @@ return {
     {
       if (headers['content-type'] !== 'application/json')
         throw new Error('unexpected content type: ' + headers['content-type']);
-      let obj = JSON.parse(body);
+      const obj = body.json();
       if (obj.foo !== 'bar')
-        throw new Error('unexpected body: ' + body);
+        throw new Error('unexpected body: ' + obj);
       return { foo: 'bar' };
     }
   ]],
@@ -38,10 +39,9 @@ return {
     {
       if (headers['content-type'] !== 'application/octet-stream')
         throw new Error('unexpected content type: ' + headers['content-type']);
-      if (!(body instanceof ArrayBuffer))
-        throw new Error('body is not an ArrayBuffer');
-      if (body.byteLength !== 42)
-        throw new Error(`unexpected body size: ${body.byteLength}`);
+      const buf = body.arrayBuffer();
+      if (buf.byteLength !== 42)
+        throw new Error(`unexpected body size: ${buf.byteLength}`);
       return new ArrayBuffer(42);
     }
   ]],
@@ -50,8 +50,9 @@ return {
     {
       if (headers['content-type'] !== 'foo/bar')
         throw new Error('unexpected content type: ' + headers['content-type']);
-      if (body !== 'text')
-        throw new Error('unexpected body: ' + body);
+      const text = body.text();
+      if (text !== 'text')
+        throw new Error('unexpected body: ' + text);
       return 'text';
     }
   ]]
