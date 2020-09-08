@@ -4,7 +4,7 @@ import * as rs  from 'jsrsasign';
 
 export function partition() {
     // Example from https://lodash.com.
-    let arr = JSON.parse(body);
+    let arr = body.json();
     return _.partition(arr, n => n % 2);
 }
 
@@ -15,13 +15,9 @@ export function proto() {
  
     let AwesomeMessage = new Type("AwesomeMessage").add(new Field("awesomeField", 1, "string"));
     
-    let message = AwesomeMessage.create({ awesomeField: body });
-    let buffer = AwesomeMessage.encode(message).finish();
-
-    // CCF doesn't support binary responses yet, so we'll convert the Uint8Array into a hex string.
-    let hex = [...buffer].map(b => ('00' + b.toString(16)).slice(-2)).join("");
-
-    return hex;
+    let message = AwesomeMessage.create({ awesomeField: body.text() });
+    let arr = AwesomeMessage.encode(message).finish();
+    return arr;
 }
 
 export function crypto() {

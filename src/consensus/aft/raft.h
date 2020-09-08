@@ -319,6 +319,7 @@ namespace aft
       {
         for (auto& [index, data, globally_committable] : entries)
         {
+          state->last_idx = index;
           ledger->put_entry(*data, globally_committable, false);
         }
         return true;

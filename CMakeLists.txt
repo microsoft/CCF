@@ -45,7 +45,7 @@ configure_file(
 )
 configure_file(${CCF_DIR}/python/setup.py.in ${CCF_DIR}/python/setup.py @ONLY)
 
-set(CONSENSUSES raft)
+set(CONSENSUSES raft pbft)
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
@@ -608,6 +608,12 @@ if(BUILD_TESTS)
     CONSENSUS raft
   )
 
+  add_e2e_test(
+    NAME content_types_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/content_types.py
+    CONSENSUS raft
+  )
+
   if(QUOTES_ENABLED)
     add_e2e_test(
       NAME reconfiguration_test
@@ -666,125 +672,99 @@ if(BUILD_TESTS)
     )
   endif()
 
+  # Lua sample app (tx regulator) end to end test
+  add_e2e_test(
+    NAME lua_txregulator_test_raft
+    PYTHON_SCRIPT
+      ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
+    CONSENSUS raft
+    ADDITIONAL_ARGS
+      --app-script
+      ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
+      --datafile
+      ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv
+  )
+
+  add_e2e_test(
+    NAME js_e2e_logging_raft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+    CONSENSUS raft
+    ADDITIONAL_ARGS --js-app-script
+                    ${CMAKE_SOURCE_DIR}/src/apps/logging/logging_js.lua
+  )
+
+  add_e2e_test(
+    NAME e2e_scenario_raft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
+    CONSENSUS raft
+    ADDITIONAL_ARGS --scenario
+                    ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
+  )
+
+  add_e2e_test(
+    NAME ws_logging_raft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/ws_scaffold.py
+    CONSENSUS raft
+  )
+
+  add_e2e_test(
+    NAME lua_e2e_logging_raft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+    CONSENSUS raft
+    ADDITIONAL_ARGS --app-script
+                    ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
+  )
+
+  add_e2e_test(
+    NAME member_client_test_raft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
+    CONSENSUS raft
+  )
+
+  if(NOT SAN)
+    add_e2e_test(
+      NAME connections_raft
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+      CONSENSUS raft
+    )
+  endif()
+
+  add_e2e_test(
+    NAME receipts_test_raft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
+    CONSENSUS raft
+  )
+
+  if(TLS_TEST)
+    add_e2e_test(
+      NAME tlstest_raft
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tlstest.py
+      CONSENSUS raft
+      LABEL tlstest
+    )
+  endif()
+
+  add_e2e_test(
+    NAME schema_test_raft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+    CONSENSUS raft
+    ADDITIONAL_ARGS -p liblogging --schema-dir ${CMAKE_SOURCE_DIR}/doc/schemas
+  )
+
+  add_e2e_test(
+    NAME election_test_raft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+    CONSENSUS raft
+    ADDITIONAL_ARGS "--raft-election-timeout" "4000"
+  )
+
   foreach(CONSENSUS ${CONSENSUSES})
-    # Lua sample app (tx regulator) end to end test
-    add_e2e_test(
-      NAME lua_txregulator_test_${CONSENSUS}
-      PYTHON_SCRIPT
-        ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS
-        --app-script
-        ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
-        --datafile
-        ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv
-    )
-
-    add_e2e_test(
-      NAME js_e2e_logging_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS --js-app-script
-                      ${CMAKE_SOURCE_DIR}/src/apps/logging/logging_js.lua
-    )
-
-    add_e2e_test(
-      NAME e2e_scenario_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS --scenario
-                      ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
-    )
-
-    add_e2e_test(
-      NAME ws_scaffold_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/ws_scaffold.py
-      CONSENSUS ${CONSENSUS}
-    )
-
-    add_e2e_test(
-      NAME lua_e2e_logging_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS --app-script
-                      ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
-    )
-
-    add_e2e_test(
-      NAME member_client_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
-      CONSENSUS ${CONSENSUS}
-    )
-
-    if(NOT SAN)
-      add_e2e_test(
-        NAME connections_${CONSENSUS}
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-        CONSENSUS ${CONSENSUS}
-      )
-    endif()
-
-    add_e2e_test(
-      NAME receipts_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
-      CONSENSUS ${CONSENSUS}
-    )
-
-    if(TLS_TEST AND ${CONSENSUS} STREQUAL raft)
-      add_e2e_test(
-        NAME tlstest_${CONSENSUS}
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tlstest.py
-        CONSENSUS ${CONSENSUS}
-        LABEL tlstest
-      )
-    endif()
-
-    add_e2e_test(
-      NAME schema_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS -p liblogging --schema-dir
-                      ${CMAKE_SOURCE_DIR}/doc/schemas
-    )
-
     add_e2e_test(
       NAME cpp_e2e_logging_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       CURL_CLIENT TRUE
       CONSENSUS ${CONSENSUS}
     )
-
-    if(${CONSENSUS} STREQUAL pbft)
-      set(ELECTION_TIMEOUT_ARG "--pbft-view-change-timeout" "4000")
-    else()
-      set(ELECTION_TIMEOUT_ARG "--raft-election-timeout" "4000")
-    endif()
-
-    add_e2e_test(
-      NAME election_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS ${ELECTION_TIMEOUT_ARG}
-    )
-
-    if(${CONSENSUS} STREQUAL pbft)
-      add_e2e_test(
-        NAME suspend_nodes_pbft
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/suspend_nodes.py
-        CONSENSUS pbft
-        LABEL long_test
-        ADDITIONAL_ARGS --seed 42
-      )
-
-      add_e2e_test(
-        NAME replay_new_view_pbft
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/replay_new_view.py
-        CONSENSUS pbft
-        LABEL long_test
-        ADDITIONAL_ARGS --seed 42
-      )
-    endif()
-
   endforeach()
 
   add_perf_test(
