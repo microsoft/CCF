@@ -17,7 +17,7 @@ parameters:
 
   build:
     common:
-      cmake_args: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache" -DVERBOSE_LOGGING=ON'
+      cmake_args: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache"'
     NoSGX:
       cmake_args: '-DCOMPILE_TARGETS=virtual'
     SGX:
@@ -29,11 +29,9 @@ parameters:
 
   test:
     NoSGX:
-      #ctest_args: '-LE "benchmark|perf|tlstest|long_test"'
-      ctest_args: '-L "modulestest"'
+      ctest_args: '-LE "benchmark|perf|tlstest|long_test"'
     SGX:
-      #ctest_args: '-LE "benchmark|perf|tlstest|long_test"'
-      ctest_args: '-L "modulestest"'
+      ctest_args: '-LE "benchmark|perf|tlstest|long_test"'
     Release:
       ctest_args: '-LE "tlstest"'
     perf:
@@ -56,14 +54,14 @@ jobs:
         ctest_filter: '${{ parameters.test[target].ctest_args }}'
 
   # Performance
-  #- template: common.yml
-  #  parameters:
-  #    target: SGX
-  #    env: ${{ parameters.env.Perf }}
-  #    cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }}'
-  #    suffix: 'Perf'
-  #    artifact_name: 'SGX_Perf'
-  #    ctest_filter: '${{ parameters.test.perf.ctest_args }}'
+  - template: common.yml
+    parameters:
+      target: SGX
+      env: ${{ parameters.env.Perf }}
+      cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }}'
+      suffix: 'Perf'
+      artifact_name: 'SGX_Perf'
+      ctest_filter: '${{ parameters.test.perf.ctest_args }}'
 
   # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
