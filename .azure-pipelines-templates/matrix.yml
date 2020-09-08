@@ -29,9 +29,11 @@ parameters:
 
   test:
     NoSGX:
-      ctest_args: '-LE "benchmark|perf|tlstest|long_test"'
+      #ctest_args: '-LE "benchmark|perf|tlstest|long_test"'
+      ctest_args: '-LE "modulestest"'
     SGX:
-      ctest_args: '-LE "benchmark|perf|tlstest|long_test"'
+      #ctest_args: '-LE "benchmark|perf|tlstest|long_test"'
+      ctest_args: '-LE "modulestest"'
     Release:
       ctest_args: '-LE "tlstest"'
     perf:

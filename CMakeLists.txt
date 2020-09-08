@@ -600,6 +600,7 @@ if(BUILD_TESTS)
     NAME modules_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/modules.py
     CONSENSUS raft
+    LABEL modulestest
   )
 
   add_e2e_test(
