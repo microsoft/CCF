@@ -137,7 +137,14 @@ namespace ccf
           lua::push_raw<nlohmann::json>(l, v);
 
           // Call the lua functor. This pops the args and functor-copy
-          lua_pcall(l, ifunc, 0, 0);
+          const auto ret = lua_pcall(l, 2, 0, 0);
+
+          if (ret != 0)
+          {
+            const auto err = lua::check_get<std::string>(l, -1);
+            throw lua::ex(err);
+          }
+
           return true;
         });
 
