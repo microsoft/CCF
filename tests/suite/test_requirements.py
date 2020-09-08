@@ -110,7 +110,7 @@ def can_kill_n_nodes(nodes_to_kill_count):
             running_nodes_count = len(network.get_joined_nodes())
             would_leave_nodes_count = running_nodes_count - nodes_to_kill_count
             minimum_nodes_to_run_count = ceil((trusted_nodes_count + 1) / 2)
-            if args.consensus == "raft" and (
+            if args.consensus == "cft" and (
                 would_leave_nodes_count < minimum_nodes_to_run_count
             ):
                 raise TestRequirementsNotMet(

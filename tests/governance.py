@@ -83,14 +83,14 @@ def test_user(network, args, notifications_queue=None, verify=True):
 
 
 def run(args):
-    hosts = ["localhost"] * (3 if args.consensus == "pbft" else 2)
+    hosts = ["localhost"] * (3 if args.consensus == "bft" else 2)
 
     with infra.notification.notification_server(args.notify_server) as notifications:
         # Lua apps do not support notifications
         # https://github.com/microsoft/CCF/issues/415
         notifications_queue = (
             notifications.get_queue()
-            if (args.package == "liblogging" and args.consensus == "raft")
+            if (args.package == "liblogging" and args.consensus == "cft")
             else None
         )
 

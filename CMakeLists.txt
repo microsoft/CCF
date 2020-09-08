@@ -45,7 +45,7 @@ configure_file(
 )
 configure_file(${CCF_DIR}/python/setup.py.in ${CCF_DIR}/python/setup.py @ONLY)
 
-set(CONSENSUSES raft pbft)
+set(CONSENSUSES cft bft)
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
@@ -502,13 +502,13 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME governance_history_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_history.py
-    CONSENSUS raft
+    CONSENSUS cft
   )
 
   add_e2e_test(
     NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-    CONSENSUS raft
+    CONSENSUS cft
     ADDITIONAL_ARGS
       --recovery
       2
@@ -521,13 +521,13 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME rekey_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rekey.py
-    CONSENSUS raft
+    CONSENSUS cft
   )
 
   add_e2e_test(
     NAME recovery_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-    CONSENSUS raft
+    CONSENSUS cft
     LABEL suite
     ADDITIONAL_ARGS
       --test-duration
@@ -542,7 +542,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME reconfiguration_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-    CONSENSUS raft
+    CONSENSUS cft
     LABEL suite
     ADDITIONAL_ARGS
       --test-duration
@@ -557,7 +557,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME snapshots_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-    CONSENSUS raft
+    CONSENSUS cft
     LABEL suite
     ADDITIONAL_ARGS
       --test-duration
@@ -574,7 +574,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME full_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-    CONSENSUS raft
+    CONSENSUS cft
     LABEL suite
     ADDITIONAL_ARGS
       --ledger-recovery-timeout
@@ -591,7 +591,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME lua_e2e_batched
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
-    CONSENSUS raft
+    CONSENSUS cft
     ADDITIONAL_ARGS --app-script
                     ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua
   )
@@ -599,13 +599,13 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME modules_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/modules.py
-    CONSENSUS raft
+    CONSENSUS cft
   )
 
   add_e2e_test(
     NAME custom_authorization_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/custom_authorization.py
-    CONSENSUS raft
+    CONSENSUS cft
   )
 
   add_e2e_test(
@@ -639,7 +639,7 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME governance_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-      CONSENSUS raft
+      CONSENSUS cft
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
     )
 
@@ -647,7 +647,7 @@ if(BUILD_TESTS)
       NAME governance_ca_certs_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_ca_certs.py GOV_SCRIPT
                     ${CCF_DIR}/src/runtime_config/gov_ca_certs.lua
-      CONSENSUS raft
+      CONSENSUS cft
     )
 
     add_e2e_test(
@@ -655,7 +655,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT
         ${CMAKE_SOURCE_DIR}/tests/governance_ca_cert_mismatch.py GOV_SCRIPT
         ${CCF_DIR}/src/runtime_config/gov_ca_cert_mismatch.lua
-      CONSENSUS raft
+      CONSENSUS cft
     )
   endif()
 
@@ -677,7 +677,7 @@ if(BUILD_TESTS)
     NAME lua_txregulator_test_raft
     PYTHON_SCRIPT
       ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
-    CONSENSUS raft
+    CONSENSUS cft
     ADDITIONAL_ARGS
       --app-script
       ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
@@ -688,7 +688,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME js_e2e_logging_raft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-    CONSENSUS raft
+    CONSENSUS cft
     ADDITIONAL_ARGS --js-app-script
                     ${CMAKE_SOURCE_DIR}/src/apps/logging/logging_js.lua
   )
@@ -696,7 +696,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME e2e_scenario_raft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
-    CONSENSUS raft
+    CONSENSUS cft
     ADDITIONAL_ARGS --scenario
                     ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
   )
@@ -704,57 +704,57 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME ws_logging_raft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/ws_scaffold.py
-    CONSENSUS raft
+    CONSENSUS cft
   )
 
   add_e2e_test(
-    NAME lua_e2e_logging_raft
+    NAME lua_e2e_logging_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-    CONSENSUS raft
+    CONSENSUS cft
     ADDITIONAL_ARGS --app-script
                     ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
   )
 
   add_e2e_test(
-    NAME member_client_test_raft
+    NAME member_client_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
-    CONSENSUS raft
+    CONSENSUS cft
   )
 
   if(NOT SAN)
     add_e2e_test(
-      NAME connections_raft
+      NAME connections_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-      CONSENSUS raft
+      CONSENSUS cft
     )
   endif()
 
   add_e2e_test(
-    NAME receipts_test_raft
+    NAME receipts_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
-    CONSENSUS raft
+    CONSENSUS cft
   )
 
   if(TLS_TEST)
     add_e2e_test(
-      NAME tlstest_raft
+      NAME tlstest_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tlstest.py
-      CONSENSUS raft
+      CONSENSUS cft
       LABEL tlstest
     )
   endif()
 
   add_e2e_test(
-    NAME schema_test_raft
+    NAME schema_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
-    CONSENSUS raft
+    CONSENSUS cft
     ADDITIONAL_ARGS -p liblogging --schema-dir ${CMAKE_SOURCE_DIR}/doc/schemas
   )
 
   add_e2e_test(
-    NAME election_test_raft
+    NAME election_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-    CONSENSUS raft
+    CONSENSUS cft
     ADDITIONAL_ARGS "--raft-election-timeout" "4000"
   )
 
@@ -770,7 +770,7 @@ if(BUILD_TESTS)
   add_perf_test(
     NAME logging_scenario_perf_test
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-    CONSENSUS raft
+    CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
     LABEL log_scenario
     ADDITIONAL_ARGS
@@ -787,7 +787,7 @@ if(BUILD_TESTS)
   add_perf_test(
     NAME logging_scenario_ws_perf_test
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-    CONSENSUS raft
+    CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
     LABEL log_scenario_ws
     ADDITIONAL_ARGS

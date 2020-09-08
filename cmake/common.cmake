@@ -476,7 +476,7 @@ function(add_perf_test)
   endif()
   if("raft" STREQUAL ${PARSED_ARGS_CONSENSUS})
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_CFT")
-  elseif("pbft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+  elseif("bft" STREQUAL ${PARSED_ARGS_CONSENSUS})
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_BFT")
   endif()
 

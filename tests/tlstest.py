@@ -26,7 +26,7 @@ def run(args):
     with infra.notification.notification_server(args.notify_server) as notifications:
         notifications_queue = (
             notifications.get_queue()
-            if (args.package == "liblogging" and args.consensus == "raft")
+            if (args.package == "liblogging" and args.consensus == "cft")
             else None
         )
 
