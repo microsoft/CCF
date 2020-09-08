@@ -12,6 +12,8 @@ import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
 import ccf.proposal_generator
+# TODO remove me
+import ccf.clients
 
 from loguru import logger as LOG
 
@@ -164,6 +166,11 @@ def test_module_import(network, args):
 @reqs.description("Test Node.js/npm app with prefix-based modules update")
 def test_npm_app(network, args):
     primary, _ = network.find_nodes()
+
+    # TODO remove me
+    ccf.clients.DEFAULT_CONNECTION_TIMEOUT_SEC = 10
+    ccf.clients.DEFAULT_REQUEST_TIMEOUT_SEC = 10
+    ccf.clients.DEFAULT_COMMIT_TIMEOUT_SEC = 10
 
     LOG.info("Building npm app")
     app_dir = os.path.join(THIS_DIR, "npm-app")

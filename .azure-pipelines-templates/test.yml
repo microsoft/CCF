@@ -17,14 +17,16 @@ steps:
     contents: '**/?(*out|*err)'
     sourceFolder: $(Build.SourcesDirectory)/build/workspace
     targetFolder: $(Build.ArtifactStagingDirectory)
-  condition: or(failed(), canceled())
+  #condition: or(failed(), canceled())
+  condition: always()
   displayName: 'Copy logs (only on failure)'
 
 - task: PublishBuildArtifacts@1
   inputs:
     pathToPublish: $(Build.ArtifactStagingDirectory)
     artifactName: 'workspace ${{ parameters.suite_name_suffix }}'
-  condition: or(failed(), canceled())
+  #condition: or(failed(), canceled())
+  condition: always()
   displayName: 'Upload logs (only on failure)'
 
 - script: |
