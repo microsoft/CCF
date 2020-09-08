@@ -46,10 +46,12 @@ namespace stacktrace
     // This is based on the constructor of backward::SignalHandling, but avoids
     // infinitely recursing stacktraces
     constexpr size_t stack_size = 1024 * 1024 * 8;
-    static char stack_content[stack_size];
+    static std::unique_ptr<char[]> stack_content = nullptr;
+    
+    stack_content.reset(new char[stack_size]);
 
     stack_t ss;
-    ss.ss_sp = stack_content;
+    ss.ss_sp = stack_content.get();
     ss.ss_size = stack_size;
     ss.ss_flags = 0;
     const auto ret = sigaltstack(&ss, nullptr);
