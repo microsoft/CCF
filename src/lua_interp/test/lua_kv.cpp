@@ -78,6 +78,8 @@ namespace ccf
         "local n = 0;"
         "tx:foreach( function(k, v) n = n + 1 end );"
         "return n");
+      constexpr auto foreach_error(
+        "tx:foreach( function(k, v) nil = nil + nil end )");
       constexpr auto put(
         "local tx, k, v = ...;"
         "return tx:put(k, v)");
@@ -148,6 +150,11 @@ namespace ccf
         }
 
         REQUIRE(next_txs.commit() == kv::CommitSuccess::OK);
+      }
+
+      INFO("Errors caught in foreach");
+      {
+        REQUIRE_THROWS_AS(li.invoke<int>(foreach_error, tx), lua::ex);
       }
     }
   }
