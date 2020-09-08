@@ -123,8 +123,8 @@
         "Type": "other",
         "Other": {
           "Name": "QuickJS",
-          "Version": "2020-04-12",
-          "DownloadUrl": "https://bellard.org/quickjs/quickjs-2020-04-12.tar.xz"
+          "Version": "2020-07-05",
+          "DownloadUrl": "https://bellard.org/quickjs/quickjs-2020-07-05.tar.xz"
         }
       }
     },
