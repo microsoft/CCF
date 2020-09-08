@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "common_endpoint_registry.h"
-#include "consensus/pbft/pbft_requests.h"
+#include "consensus/aft/request.h"
 #include "consensus/pbft/pbft_tables.h"
 #include "ds/buffer.h"
 #include "ds/spin_lock.h"
@@ -46,7 +46,7 @@ namespace ccf
 
     Nodes* nodes;
     ClientSignatures* client_signatures;
-    pbft::RequestsMap* pbft_requests_map;
+    aft::RequestsMap* pbft_requests_map;
     kv::Consensus* consensus;
     std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder;
     kv::TxHistory* history;
@@ -331,7 +331,10 @@ namespace ccf
 
       update_history();
 
-      if (!is_primary && consensus->type() == ConsensusType::RAFT)
+      if ((!is_primary &&
+           (consensus->type() == ConsensusType::RAFT ||
+            (consensus->type() != ConsensusType::RAFT &&
+             !ctx->execute_on_node))))
       {
         switch (endpoint->forwarding_required)
         {
@@ -342,8 +345,13 @@ namespace ccf
 
           case ForwardingRequired::Sometimes:
           {
-            if (ctx->session->is_forwarding)
+            if (
+              (ctx->session->is_forwarding &&
+               consensus->type() == ConsensusType::RAFT) ||
+              (consensus->type() != ConsensusType::RAFT &&
+               !ctx->execute_on_node))
             {
+              ctx->session->is_forwarding = true;
               return forward_or_redirect_json(ctx, endpoint, caller_id);
             }
             break;
@@ -478,7 +486,7 @@ namespace ccf
       nodes(tables.get<Nodes>(Tables::NODES)),
       client_signatures(client_sigs_),
       pbft_requests_map(
-        tables.get<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
+        tables.get<aft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
       consensus(nullptr),
       history(nullptr)
     {}
@@ -531,7 +539,9 @@ namespace ccf
 
       auto caller_id = endpoints.get_caller_id(tx, ctx->session->caller_cert);
 
-      if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
+      if (
+        consensus != nullptr && consensus->type() == ConsensusType::PBFT &&
+        (ctx->execute_on_node || consensus->is_primary()))
       {
         auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
         if (rep.has_value())
@@ -607,9 +617,9 @@ namespace ccf
           req_view->put(
             0,
             {ctx.session->original_caller.value().caller_id,
+             tx.get_req_id(),
              ctx.session->caller_cert,
-             ctx.get_serialised_request(),
-             ctx.pbft_raw});
+             ctx.get_serialised_request()});
         };
       }
 

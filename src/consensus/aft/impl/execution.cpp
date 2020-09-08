@@ -15,13 +15,12 @@ namespace aft
   std::unique_ptr<RequestCtx> ExecutorImpl::create_request_ctx(
     uint8_t* req_start, size_t req_size)
   {
-    pbft::Request request;
+    Request request;
     request.deserialise(req_start, req_size);
     return create_request_ctx(request);
   }
 
-  std::unique_ptr<RequestCtx> ExecutorImpl::create_request_ctx(
-    pbft::Request& request)
+  std::unique_ptr<RequestCtx> ExecutorImpl::create_request_ctx(Request& request)
   {
     auto r_ctx = std::make_unique<RequestCtx>();
 
@@ -62,6 +61,7 @@ namespace aft
       NoNode, ctx->pbft_raw.data(), ctx->pbft_raw.size());
 
     ctx->is_create_request = is_create_request;
+    ctx->execute_on_node = true;
     ctx->set_apply_writes(true);
 
     enclave::RpcHandler::ProcessPbftResp rep = frontend->process_pbft(ctx);
@@ -76,8 +76,11 @@ namespace aft
   std::unique_ptr<aft::RequestMessage> ExecutorImpl::create_request_message(
     const kv::TxHistory::RequestCallbackArgs& args)
   {
-    Request request = {
-      args.caller_id, args.caller_cert, args.request, {}, args.frame_format};
+    Request request = {args.caller_id,
+                       args.rid,
+                       args.caller_cert,
+                       args.request,
+                       args.frame_format};
     auto serialized_req = request.serialise();
 
     auto rep_cb = [=](
@@ -103,15 +106,12 @@ namespace aft
     CCF_ASSERT(
       req_v.has_value(),
       "Deserialised request but it was not found in the requests map");
-    pbft::Request request = req_v.value();
+    Request request = req_v.value();
 
     auto ctx = create_request_ctx(request);
 
     auto request_message = RequestMessage::deserialize(
-      request.pbft_raw.data(),
-      request.pbft_raw.size(),
-      std::move(ctx),
-      nullptr);
+      std::move(request.raw), request.rid, std::move(ctx), nullptr);
 
     return execute_request(std::move(request_message), state->commit_idx == 0);
   }

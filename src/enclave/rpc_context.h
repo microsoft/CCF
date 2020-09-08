@@ -117,6 +117,7 @@ namespace enclave
     std::vector<uint8_t> pbft_raw = {};
 
     bool is_create_request = false;
+    bool execute_on_node = false;
 
     RpcContext(std::shared_ptr<SessionContext> s) : session(s) {}
 
