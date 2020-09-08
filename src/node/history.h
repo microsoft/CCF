@@ -629,7 +629,7 @@ namespace ccf
         return;
       }
 
-      if (consensus->type() == ConsensusType::RAFT)
+      if (consensus->type() == ConsensusType::CFT)
       {
         auto txid = store.next_txid();
         auto commit_txid = consensus->get_committed_txid();
@@ -731,7 +731,7 @@ namespace ccf
       std::shared_ptr<std::vector<uint8_t>> replicated) override
     {
       auto consensus = store.get_consensus();
-      if (consensus->type() == ConsensusType::RAFT)
+      if (consensus->type() == ConsensusType::CFT)
       {
         add_result(id, version, replicated->data(), replicated->size());
       }

@@ -313,7 +313,7 @@ namespace ccf
         if (
           (!ctx->is_create_request &&
            (!(consensus != nullptr &&
-              consensus->type() == ConsensusType::RAFT) ||
+              consensus->type() == ConsensusType::CFT) ||
             !ctx->session->original_caller.has_value())) &&
           !verify_client_signature(
             ctx->session->caller_cert, caller_id, signed_request.value()))
@@ -332,8 +332,8 @@ namespace ccf
       update_history();
 
       if ((!is_primary &&
-           (consensus->type() == ConsensusType::RAFT ||
-            (consensus->type() != ConsensusType::RAFT &&
+           (consensus->type() == ConsensusType::CFT ||
+            (consensus->type() != ConsensusType::CFT &&
              !ctx->execute_on_node))))
       {
         switch (endpoint->forwarding_required)
@@ -347,8 +347,8 @@ namespace ccf
           {
             if (
               (ctx->session->is_forwarding &&
-               consensus->type() == ConsensusType::RAFT) ||
-              (consensus->type() != ConsensusType::RAFT &&
+               consensus->type() == ConsensusType::CFT) ||
+              (consensus->type() != ConsensusType::CFT &&
                !ctx->execute_on_node))
             {
               ctx->session->is_forwarding = true;
@@ -413,7 +413,7 @@ namespace ccf
                   history && consensus->is_primary() &&
                   (cv % sig_tx_interval == sig_tx_interval / 2))
                 {
-                  if (consensus->type() == ConsensusType::RAFT)
+                  if (consensus->type() == ConsensusType::CFT)
                   {
                     history->emit_signature();
                   }
@@ -702,7 +702,7 @@ namespace ccf
         ms_to_sig = sig_ms_interval;
         if (history && tables.commit_gap() > 0)
         {
-          if (consensus->type() == ConsensusType::RAFT)
+          if (consensus->type() == ConsensusType::CFT)
           {
             history->emit_signature();
           }

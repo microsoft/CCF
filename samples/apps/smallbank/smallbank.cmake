@@ -69,18 +69,18 @@ if(BUILD_TESTS)
   get_verification_file(${SMALL_BANK_ITERATIONS} SMALL_BANK_VERIFICATION_FILE)
 
   add_perf_test(
-    NAME small_bank_client_test_raft
+    NAME small_bank_client_test_cft
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
     CLIENT_BIN ./small_bank_client
     VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
     LABEL SB
     CONSENSUS cft
     ADDITIONAL_ARGS --transactions ${SMALL_BANK_ITERATIONS} --max-writes-ahead
-                    1000 --metrics-file small_bank_raft_metrics.json
+                    1000 --metrics-file small_bank_cft_metrics.json
   )
 
   add_perf_test(
-    NAME small_bank_client_ws_test_raft
+    NAME small_bank_client_ws_test_cft
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
     CLIENT_BIN ./small_bank_client
     VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
@@ -92,12 +92,12 @@ if(BUILD_TESTS)
       --max-writes-ahead
       1000
       --metrics-file
-      small_bank_raft_metrics.json
+      small_bank_cft_metrics.json
       --use-websockets
   )
 
   add_perf_test(
-    NAME small_bank_sigs_client_test_raft
+    NAME small_bank_sigs_client_test_cft
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
     CLIENT_BIN ./small_bank_client
     VERIFICATION_FILE ${SMALL_BANK_SIGNED_VERIFICATION_FILE}
@@ -112,7 +112,7 @@ if(BUILD_TESTS)
       --participants-curve
       "secp256k1"
       --metrics-file
-      small_bank_raft_sigs_metrics.json
+      small_bank_cft_sigs_metrics.json
   )
 
   # It is better to run performance tests with forwarding on different machines

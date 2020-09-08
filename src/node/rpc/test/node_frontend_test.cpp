@@ -114,7 +114,7 @@ TEST_CASE("Add a node to an opening service")
         "Node requested to join with consensus type {} but "
         "current consensus type is {}",
         ConsensusType::PBFT,
-        ConsensusType::RAFT));
+        ConsensusType::CFT));
   }
 
   INFO("Add first node before a service exists");
