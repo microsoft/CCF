@@ -47,7 +47,7 @@ return {
   ["POST log/private"] = [[
     export default function()
     {
-      let params = JSON.parse(body);
+      let params = body.json();
       tables.data.put(params.id.toString(), params.msg);
       return true;
     }
@@ -56,7 +56,7 @@ return {
   ["POST log/public"] = [[
     export default function()
     {
-      let params = JSON.parse(body);
+      let params = body.json();
       tables.data.put(params.id.toString(), params.msg);
       return true;
     }

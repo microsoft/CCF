@@ -608,6 +608,12 @@ if(BUILD_TESTS)
     CONSENSUS raft
   )
 
+  add_e2e_test(
+    NAME content_types_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/content_types.py
+    CONSENSUS raft
+  )
+
   if(QUOTES_ENABLED)
     add_e2e_test(
       NAME reconfiguration_test
