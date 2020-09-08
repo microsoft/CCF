@@ -196,11 +196,9 @@ def test_npm_app(network, args):
 
         r = c.post("/app/npm/proto", body)
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # CCF does not support binary responses yet.
-        pb = bytes.fromhex(r.body)
         # We could now decode the protobuf message but given all the machinery
         # involved to make it happen (code generation with protoc) we'll leave it at that.
-        assert len(pb) == 14, len(pb)
+        assert len(r.body) == 14, len(r.body)
 
         r = c.get("/app/npm/crypto")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
