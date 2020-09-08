@@ -611,28 +611,28 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME content_types_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/content_types.py
-    CONSENSUS raft
+    CONSENSUS cft
   )
 
   if(QUOTES_ENABLED)
     add_e2e_test(
       NAME reconfiguration_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-      CONSENSUS raft
+      CONSENSUS cft
       ADDITIONAL_ARGS --raft-election-timeout 4000
     )
 
     add_e2e_test(
       NAME reconfiguration_snapshot_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-      CONSENSUS raft
+      CONSENSUS cft
       ADDITIONAL_ARGS --snapshot-tx-interval 10 --raft-election-timeout 4000
     )
 
     add_e2e_test(
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-      CONSENSUS raft
+      CONSENSUS cft
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --raft-election-timeout 20000
     )
 
