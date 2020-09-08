@@ -12,11 +12,6 @@ import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
 import ccf.proposal_generator
-# TODO remove me
-import ccf.clients
-ccf.clients.DEFAULT_CONNECTION_TIMEOUT_SEC = 10
-ccf.clients.DEFAULT_REQUEST_TIMEOUT_SEC = 10
-ccf.clients.DEFAULT_COMMIT_TIMEOUT_SEC = 10
 
 from loguru import logger as LOG
 
