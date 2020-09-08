@@ -5,7 +5,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nlohmann/json.git",
-          "commitHash": "e7b3b40b5a95bc74b9a7f662830a27c49ffc01b4"
+          "commitHash": "db78ac1d7716f56fc9f1b030b715f872f93964e4"
         }
       }
     },
@@ -59,7 +59,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/msgpack/msgpack-c.git",
-          "commitHash": "8085ab8721090a447cf98bb802d1406ad7afe420"
+          "commitHash": "6e7deb809120881634b3ca895e66b2a946084f34"
         }
       }
     },

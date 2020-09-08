@@ -285,7 +285,7 @@ struct CustomJsonSerialiser
 
   static CustomClass from_serialised(const Bytes& b)
   {
-    const auto j = nlohmann::json::parse(b);
+    const auto j = nlohmann::json::parse(b.begin(), b.end());
     CustomClass c;
     c.s = j["s"];
     c.n = j["n"];
