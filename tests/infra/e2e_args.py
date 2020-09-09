@@ -105,8 +105,8 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--consensus",
         help="Consensus",
-        default="raft",
-        choices=("raft", "pbft"),
+        default="cft",
+        choices=("cft", "bft"),
     )
     parser.add_argument(
         "--worker-threads",
