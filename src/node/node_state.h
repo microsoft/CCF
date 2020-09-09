@@ -230,7 +230,7 @@ namespace ccf
         writer_factory, network, args.config.snapshot_tx_interval);
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::PBFT)
+      if (network.consensus_type != ConsensusType::BFT)
       {
         auto quote_opt = QuoteGenerator::get_quote(node_cert);
         if (!quote_opt.has_value())
@@ -675,7 +675,7 @@ namespace ccf
       g.trust_node(self);
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::PBFT)
+      if (network.consensus_type != ConsensusType::BFT)
       {
         g.trust_node_code_id(node_code_id);
       }
@@ -831,12 +831,12 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       recovery_encryptor = std::make_shared<kv::NullTxEncryptor>();
 #else
-      if (network.consensus_type == ConsensusType::PBFT)
+      if (network.consensus_type == ConsensusType::BFT)
       {
         recovery_encryptor =
           std::make_shared<PbftTxEncryptor>(network.ledger_secrets, true);
       }
-      else if (network.consensus_type == ConsensusType::RAFT)
+      else if (network.consensus_type == ConsensusType::CFT)
       {
         recovery_encryptor =
           std::make_shared<RaftTxEncryptor>(network.ledger_secrets, true);
@@ -1056,7 +1056,7 @@ namespace ccf
             q.node_id = nid;
             q.raw = fmt::format("{:02x}", fmt::join(ni.quote, ""));
 
-            if (this->network.consensus_type != ConsensusType::PBFT)
+            if (this->network.consensus_type != ConsensusType::BFT)
             {
 #ifdef GET_QUOTE
               auto code_id_opt = QuoteGenerator::get_code_id(ni.quote);
@@ -1318,7 +1318,7 @@ namespace ccf
     {
       const auto create_success =
         send_create_request(serialize_create_request(args, quote));
-      if (network.consensus_type == ConsensusType::PBFT)
+      if (network.consensus_type == ConsensusType::BFT)
       {
         return true;
       }
@@ -1648,11 +1648,11 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       encryptor = std::make_shared<kv::NullTxEncryptor>();
 #else
-      if (network.consensus_type == ConsensusType::PBFT)
+      if (network.consensus_type == ConsensusType::BFT)
       {
         encryptor = std::make_shared<PbftTxEncryptor>(network.ledger_secrets);
       }
-      else if (network.consensus_type == ConsensusType::RAFT)
+      else if (network.consensus_type == ConsensusType::CFT)
       {
         encryptor = std::make_shared<RaftTxEncryptor>(network.ledger_secrets);
         encryptor->set_iv_id(self); // RaftEncryptor uses node ID in iv

@@ -136,7 +136,7 @@ def assert_recovery_shares_update(func, network, args, **kwargs):
 
 
 def run(args):
-    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
+    hosts = ["localhost"] * (4 if args.consensus == "bft" else 2)
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -276,7 +276,7 @@ def run(args):
 
         # Membership changes trigger re-sharing and re-keying and are
         # only supported with Raft
-        if args.consensus == "raft":
+        if args.consensus == "cft":
             LOG.debug("New member proposes to retire member 0")
             network.consortium.retire_member(
                 primary, network.consortium.get_member_by_id(0)
