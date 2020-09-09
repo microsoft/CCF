@@ -46,12 +46,11 @@ def test_run_txs(
 
 
 class LoggingTxs:
-    def __init__(self, notifications_queue=None, user_id=0):
+    def __init__(self, user_id=0):
         self.pub = {}
         self.priv = {}
         self.next_pub_index = 1
         self.next_priv_index = 1
-        self.notifications_queue = notifications_queue
         self.user = f"user{user_id}"
 
     def issue(
@@ -91,7 +90,7 @@ class LoggingTxs:
         LOG.success(f"Applying {number_txs} logging txs to node {remote_node.node_id}")
         with remote_node.client() as mc:
             check_commit = infra.checker.Checker(mc)
-            check_commit_n = infra.checker.Checker(mc, self.notifications_queue)
+            check_commit_n = infra.checker.Checker(mc)
 
             with remote_node.client(self.user) as uc:
                 for _ in range(number_txs):

@@ -72,7 +72,6 @@ class Network:
         "pbft_view_change_timeout",
         "consensus",
         "memory_reserve_startup",
-        "notify_server",
         "log_format_json",
         "gov_script",
         "join_timer",

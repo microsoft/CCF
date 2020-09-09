@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import infra.network
 import infra.proc
-import infra.notification
 import infra.net
 import infra.e2e_args
 import infra.suspension as suspend

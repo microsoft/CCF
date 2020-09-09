@@ -15,7 +15,6 @@
 #include "network_state.h"
 #include "node/rpc/serdes.h"
 #include "node_to_node.h"
-#include "notifier.h"
 #include "rpc/frontend.h"
 #include "rpc/member_frontend.h"
 #include "rpc/serialization.h"
@@ -151,7 +150,6 @@ namespace ccf
     std::shared_ptr<NodeToNode> n2n_channels;
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
-    ccf::Notifier& notifier;
 
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
@@ -179,7 +177,6 @@ namespace ccf
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
-      ccf::Notifier& notifier,
       ShareManager& share_manager) :
       sm(State::uninitialized),
       self(INVALID_ID),
@@ -189,7 +186,6 @@ namespace ccf
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
       rpcsessions(rpcsessions),
-      notifier(notifier),
       share_manager(share_manager)
     {
       ::EverCrypt_AutoConfig2_init();
@@ -1572,8 +1568,6 @@ namespace ccf
         std::move(raft), network.consensus_type);
 
       network.tables->set_consensus(consensus);
-
-      notifier.set_consensus(consensus);
 
       // When a node is added, even locally, inform raft so that it
       // can add a new active configuration.
