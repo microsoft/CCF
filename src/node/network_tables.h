@@ -98,9 +98,9 @@ namespace ccf
     pbft::PrePreparesMap& pbft_pre_prepares_map;
     pbft::NewViewsMap& pbft_new_views_map;
 
-    NetworkTables(const ConsensusType& consensus_type = ConsensusType::RAFT) :
+    NetworkTables(const ConsensusType& consensus_type = ConsensusType::CFT) :
       tables(
-        (consensus_type == ConsensusType::RAFT) ?
+        (consensus_type == ConsensusType::CFT) ?
           std::make_shared<kv::Store>(
             aft::replicate_type_raft, aft::replicated_tables_raft) :
           std::make_shared<kv::Store>(

@@ -558,7 +558,7 @@ class CCFRemote(object):
         sig_ms_interval=1000,
         raft_election_timeout=1000,
         pbft_view_change_timeout=5000,
-        consensus="raft",
+        consensus="cft",
         worker_threads=0,
         memory_reserve_startup=0,
         gov_script=None,
@@ -605,7 +605,7 @@ class CCFRemote(object):
 
         election_timeout_arg = (
             f"--pbft_view-change-timeout-ms={pbft_view_change_timeout}"
-            if consensus == "pbft"
+            if consensus == "bft"
             else f"--raft-election-timeout-ms={raft_election_timeout}"
         )
 

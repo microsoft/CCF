@@ -94,7 +94,7 @@ def test_large_messages(network, args):
 
         with primary.client("user0") as c:
             log_id = 44
-            for p in range(14, 20) if args.consensus == "raft" else range(10, 13):
+            for p in range(14, 20) if args.consensus == "cft" else range(10, 13):
                 long_msg = "X" * (2 ** p)
                 check_commit(
                     c.post("/app/log/private", {"id": log_id, "msg": long_msg}),
@@ -262,7 +262,7 @@ def test_metrics(network, args):
 @reqs.description("Read historical state")
 @reqs.supports_methods("log/private", "log/private/historical")
 def test_historical_query(network, args):
-    if args.consensus == "pbft":
+    if args.consensus == "bft":
         LOG.warning("Skipping historical queries in PBFT")
         return network
 
@@ -448,7 +448,7 @@ def test_user_data_ACL(network, args):
 
 @reqs.description("Check for commit of every prior transaction")
 def test_view_history(network, args):
-    if args.consensus == "pbft":
+    if args.consensus == "bft":
         # This appears to work in PBFT, but it is unacceptably slow:
         # - Each /tx request is a write, with a non-trivial roundtrip response time
         # - Since each read (eg - /tx and /commit) has produced writes and a unique tx ID,
@@ -629,7 +629,7 @@ def test_primary(network, args, verify=True):
 
 
 def run(args):
-    hosts = ["localhost"] * (3 if args.consensus == "pbft" else 2)
+    hosts = ["localhost"] * (3 if args.consensus == "bft" else 2)
 
     with infra.network.network(
         hosts,

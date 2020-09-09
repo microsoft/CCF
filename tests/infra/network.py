@@ -206,7 +206,7 @@ class Network:
 
         # If the network is opening, node are trusted without consortium approval
         if self.status == ServiceStatus.OPENING:
-            if args.consensus != "pbft":
+            if args.consensus != "bft":
                 try:
                     node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
                 except TimeoutError:
@@ -268,7 +268,7 @@ class Network:
 
         self.election_duration = (
             args.pbft_view_change_timeout / 1000
-            if args.consensus == "pbft"
+            if args.consensus == "bft"
             else args.raft_election_timeout / 1000
         ) * 2
 

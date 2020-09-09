@@ -92,7 +92,7 @@ def test_suspend_nodes(network, args, nodes=None):
     timeouts = []
     for i, node in enumerate(nodes):
         # if pbft suspend half of them including the primary
-        if i % 2 != 0 and args.consensus == "pbft":
+        if i % 2 != 0 and args.consensus == "bft":
             continue
         LOG.success(f"Will suspend node with id {node.node_id}")
         t = random.uniform(0, 2)
@@ -102,10 +102,10 @@ def test_suspend_nodes(network, args, nodes=None):
     for t, node in timeouts:
         suspend_time = (
             args.pbft_view_change_timeout / 1000
-            if args.consensus == "pbft"
+            if args.consensus == "bft"
             else args.raft_election_timeout / 1000
         )
-        if node.node_id == cur_primary.node_id and args.consensus == "pbft":
+        if node.node_id == cur_primary.node_id and args.consensus == "bft":
             # if pbft suspend the primary for more than twice the election timeout
             # in order to make sure view changes will be triggered
             suspend_time = 2.5 * suspend_time
