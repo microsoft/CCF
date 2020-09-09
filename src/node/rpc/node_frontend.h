@@ -289,7 +289,14 @@ namespace ccf
         filter.insert(this->node.get_node_id());
         this->node.node_quotes(args.tx, result, filter);
 
-        return make_success(result);
+        if (result.quotes.size() > 0)
+        {
+          return make_success(result);
+        }
+        else
+        {
+          return make_error(HTTP_STATUS_NOT_FOUND, "Could not find node quote");
+        }
       };
       make_read_only_endpoint(
         "quote", HTTP_GET, json_read_only_adapter(get_quote))
