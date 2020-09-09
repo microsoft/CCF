@@ -467,8 +467,8 @@ namespace ccfapp
         const std::string path = "/__endpoint__.js";
         JSValue module = JS_Eval(
           ctx,
-          code.c_str(),
-          code.size() + 1,
+          code.data(),
+          code.size(),
           path.c_str(),
           JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
 
