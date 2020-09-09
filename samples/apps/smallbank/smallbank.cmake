@@ -17,10 +17,7 @@ add_client_exe(
 target_link_libraries(small_bank_client PRIVATE secp256k1.host http_parser.host)
 
 # SmallBank application
-add_ccf_app(
-  smallbank
-  SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp
-)
+add_ccf_app(smallbank SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp)
 sign_app_library(
   smallbank.enclave ${CMAKE_CURRENT_LIST_DIR}/app/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem
