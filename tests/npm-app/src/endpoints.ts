@@ -1,14 +1,26 @@
 import * as _ from 'lodash-es'
-import protobuf from 'protobufjs/dist/protobuf.js'
 import * as rs  from 'jsrsasign';
+// Importing the browser bundle works around https://github.com/protobufjs/protobuf.js/issues/1402.
+import protobuf from 'protobufjs/dist/protobuf.js'
 
-export function partition() {
+declare var body: {
+    text: () => string;
+    json: () => any;
+    arrayBuffer: () => ArrayBuffer;
+};
+
+type PartitionRequest = [any]
+type PartitionResponse = [any[], any[]]
+
+export function partition(): PartitionResponse {
     // Example from https://lodash.com.
-    let arr = body.json();
+    let arr: PartitionRequest = body.json();
     return _.partition(arr, n => n % 2);
 }
 
-export function proto() {
+type ProtoResponse = Uint8Array
+
+export function proto(): ProtoResponse {
     // Example from https://github.com/protobufjs/protobuf.js.
     let Type  = protobuf.Type;
     let Field = protobuf.Field;
@@ -20,15 +32,17 @@ export function proto() {
     return arr;
 }
 
-export function crypto() {
-    let response;
+interface CryptoResponse {
+    available: boolean
+}
+
+export function crypto(): CryptoResponse {
     // Most functionality of jsrsasign requires keys.
     // Generating a key here is too slow, so we'll just check if the
     // JS API got exported correctly.
     if (rs.KEYUTIL.generateKeypair) {
-        response = { available: true };
+        return { available: true };
     } else {
-        response = { available: false };
+        return { available: false };
     }
-    return response;
 }
