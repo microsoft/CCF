@@ -6,7 +6,6 @@
 #include "node/encryptor.h"
 #include "node/history.h"
 #include "node/rpc/serdes.h"
-#include "tests/flatbuffer_wrapper_test.h"
 
 #include <nlohmann/json.hpp>
 #include <picobench/picobench.hpp>
@@ -53,12 +52,6 @@ static std::vector<uint8_t> packed_json_tx()
   j["name"] = account_name;
   j["value"] = transaction_value;
   return serdes::pack(j, serdes::Pack::MsgPack);
-}
-
-static std::unique_ptr<flatbuffers::DetachedBuffer> fb_tx_buffer()
-{
-  TransactionSerializer ts(account_name, transaction_value);
-  return ts.get_detached_buffer();
 }
 
 std::vector<uint8_t> large_payload(size_t size)
@@ -120,32 +113,6 @@ static void raw_des(picobench::state& s)
   s.stop_timer();
 }
 
-static void flatbuffers_ser(picobench::state& s)
-{
-  s.start_timer();
-  for (int i = 0; i < s.iterations(); i++)
-  {
-    auto buf = fb_tx_buffer();
-    CBuffer b = {buf->data(), buf->size()};
-    clobber_memory();
-  }
-  s.stop_timer();
-}
-
-static void flatbuffers_des(picobench::state& s)
-{
-  auto buf = fb_tx_buffer();
-  s.start_timer();
-  for (int i = 0; i < s.iterations(); i++)
-  {
-    TransactionDeserializer td(buf->data());
-    std::string name = td.name();
-    int64_t value = td.value();
-    clobber_memory();
-  }
-  s.stop_timer();
-}
-
 static void json_msgpack_ser(picobench::state& s)
 {
   s.start_timer();
@@ -191,14 +158,6 @@ static void raw_mt_append(picobench::state& s)
   run_mt_benchmark(s, serialized_data);
 }
 
-static void flatbuffers_mt_append(picobench::state& s)
-{
-  auto buf = fb_tx_buffer();
-  std::vector<uint8_t> data(buf->data(), buf->data() + buf->size());
-  auto serialized_data = kv_serialized_data(data);
-  run_mt_benchmark(s, serialized_data);
-}
-
 static void json_msgpack_mt_append(picobench::state& s)
 {
   auto data = packed_json_tx();
@@ -211,16 +170,6 @@ static void raw_large_payload(picobench::state& s)
 {
   auto payload = large_payload(S);
   auto data = kv_serialized_data(payload);
-  run_mt_benchmark(s, data);
-}
-
-template <size_t S>
-static void fb_large_payload(picobench::state& s)
-{
-  auto payload = large_payload(S);
-  LargePayloadSerializer lps(payload);
-  auto d = lps.get_data();
-  auto data = kv_serialized_data(d);
   run_mt_benchmark(s, data);
 }
 
@@ -240,31 +189,24 @@ const std::vector<int> iter = {100};
 
 PICOBENCH_SUITE("smallbank payload serialize");
 PICOBENCH(raw_ser).iterations(iters).samples(10);
-PICOBENCH(flatbuffers_ser).iterations(iters).samples(10);
 PICOBENCH(json_msgpack_ser).iterations(iters).samples(10);
 
 PICOBENCH_SUITE("smallbank payload deserialize");
 PICOBENCH(raw_des).iterations(iters).samples(10);
-PICOBENCH(flatbuffers_des).iterations(iters).samples(10);
 PICOBENCH(json_msgpack_des).iterations(iters).samples(10);
 
 PICOBENCH_SUITE("smallbank payload merkle tree bench");
 PICOBENCH(raw_mt_append).iterations(iters).samples(10);
-PICOBENCH(flatbuffers_mt_append).iterations(iters).samples(10);
 PICOBENCH(json_msgpack_mt_append).iterations(iters).samples(10);
 
 PICOBENCH_SUITE("large payload merkle tree bench");
 PICOBENCH(raw_large_payload<10>).iterations(iter).samples(10);
-PICOBENCH(fb_large_payload<10>).iterations(iter).samples(10);
 PICOBENCH(jm_large_payload<10>).iterations(iter).samples(10);
 PICOBENCH(raw_large_payload<100>).iterations(iter).samples(10);
-PICOBENCH(fb_large_payload<100>).iterations(iter).samples(10);
 PICOBENCH(jm_large_payload<100>).iterations(iter).samples(10);
 PICOBENCH(raw_large_payload<1000>).iterations(iter).samples(10);
-PICOBENCH(fb_large_payload<1000>).iterations(iter).samples(10);
 PICOBENCH(jm_large_payload<1000>).iterations(iter).samples(10);
 PICOBENCH(raw_large_payload<10000>).iterations(iter).samples(10);
-PICOBENCH(fb_large_payload<10000>).iterations(iter).samples(10);
 PICOBENCH(jm_large_payload<10000>).iterations(iter).samples(10);
 
 // We need an explicit main to initialize kremlib and EverCrypt

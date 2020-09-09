@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "flatbuffer_wrapper.h"
+#include "../smallbank_schema.h"
 #include "perf_client.h"
 
 using namespace std;
@@ -52,12 +52,14 @@ private:
 
     for (auto i = 0ul; i < options.total_accounts; i++)
     {
-      BankSerializer bs(to_string(i));
-      const auto response = conn->call("SmallBank_balance", bs.get_buffer());
+      const auto body = smallbank::AccountName{to_string(i)}.serialize();
+      const auto response =
+        conn->call("SmallBank_balance", CBuffer{body.data(), body.size()});
 
       check_response(response);
-      BalanceDeserializer bd(response.body.data());
-      accs.push_back({{"account", i}, {"balance", bd.balance()}});
+      auto balance = smallbank::Balance::deserialize(
+        response.body.data(), response.body.size());
+      accs.push_back({{"account", i}, {"balance", balance.value}});
     }
 
     LOG_INFO_FMT("Accounts:\n{}", accs.dump(4));
@@ -70,9 +72,14 @@ private:
 
     auto connection = get_connection();
     LOG_INFO_FMT("Creating accounts from {} to {}", from, to);
-    AccountsSerializer as(from, to, 1000, 1000);
-    const auto response =
-      connection->call("SmallBank_create_batch", as.get_buffer());
+    smallbank::AccountCreation ac;
+    ac.new_id_from = from;
+    ac.new_id_to = options.total_accounts;
+    ac.initial_checking_amt = 1000;
+    ac.initial_savings_amt = 1000;
+    const auto body = ac.serialize();
+    const auto response = connection->call(
+      "SmallBank_create_batch", CBuffer{body.data(), body.size()});
     check_response(response);
 
     return response;
@@ -89,18 +96,19 @@ private:
       uint8_t operation =
         rand_range((uint8_t)TransactionTypes::NumberTransactions);
 
-      std::unique_ptr<flatbuffers::DetachedBuffer> fb;
+      std::vector<uint8_t> serialized_body;
 
       switch ((TransactionTypes)operation)
       {
         case TransactionTypes::TransactSavings:
         {
-          TransactionSerializer ts(
-            to_string(rand_range(options.total_accounts)),
-            rand_range<int>(-50, 50));
-          fb = ts.get_detached_buffer();
+          smallbank::Transaction t;
+          t.name = to_string(rand_range(options.total_accounts));
+          t.value = rand_range<int>(-50, 50);
+          serialized_body = t.serialize();
         }
         break;
+
         case TransactionTypes::Amalgamate:
         {
           unsigned int src_account = rand_range(options.total_accounts);
@@ -109,33 +117,36 @@ private:
           {
             dest_account += 1;
           }
-          AmalgamateSerializer as(
-            to_string(src_account), to_string(dest_account));
-          fb = as.get_detached_buffer();
+          smallbank::Amalgamate a;
+          a.src = to_string(src_account);
+          a.dst = to_string(dest_account);
+          serialized_body = a.serialize();
         }
         break;
 
         case TransactionTypes::WriteCheck:
         {
-          TransactionSerializer ts(
-            to_string(rand_range(options.total_accounts)), rand_range<int>(50));
-          fb = ts.get_detached_buffer();
+          smallbank::Transaction t;
+          t.name = to_string(rand_range(options.total_accounts));
+          t.value = rand_range<int>(50);
+          serialized_body = t.serialize();
         }
         break;
 
         case TransactionTypes::DepositChecking:
         {
-          TransactionSerializer ts(
-            to_string(rand_range(options.total_accounts)),
-            (rand_range<int>(50) + 1));
-          fb = ts.get_detached_buffer();
+          smallbank::Transaction t;
+          t.name = to_string(rand_range(options.total_accounts));
+          t.value = rand_range<int>(50) + 1;
+          serialized_body = t.serialize();
         }
         break;
 
         case TransactionTypes::GetBalance:
         {
-          BankSerializer bs(to_string(rand_range(options.total_accounts)));
-          fb = bs.get_detached_buffer();
+          smallbank::AccountName a;
+          a.name = to_string(rand_range(options.total_accounts));
+          serialized_body = a.serialize();
         }
         break;
 
@@ -145,7 +156,7 @@ private:
 
       add_prepared_tx(
         OPERATION_C_STR[operation],
-        {fb->data(), fb->size()},
+        CBuffer{serialized_body.data(), serialized_body.size()},
         operation != (uint8_t)TransactionTypes::GetBalance,
         i);
     }
@@ -236,8 +247,11 @@ private:
         throw std::runtime_error(expected_type_msg(entry));
       }
 
-      BankSerializer bs(to_string(account_it->get<size_t>()));
-      const auto response = conn->call("SmallBank_balance", bs.get_buffer());
+      const auto body =
+        smallbank::AccountName{to_string(account_it->get<size_t>())}
+          .serialize();
+      const auto response =
+        conn->call("SmallBank_balance", CBuffer{body.data(), body.size()});
 
       if (!http::status_success(response.status))
       {
@@ -245,9 +259,10 @@ private:
           "Error in verification response: {}", conn->get_error(response)));
       }
 
-      BalanceDeserializer bd(response.body.data());
+      auto balance = smallbank::Balance::deserialize(
+        response.body.data(), response.body.size());
       auto expected_balance = balance_it->get<int64_t>();
-      auto actual_balance = bd.balance();
+      auto actual_balance = balance.value;
       if (expected_balance != actual_balance)
       {
         throw std::runtime_error(
