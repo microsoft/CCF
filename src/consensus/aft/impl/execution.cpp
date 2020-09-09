@@ -64,6 +64,7 @@ namespace aft
     ctx->execute_on_node = true;
     ctx->set_apply_writes(true);
 
+    LOG_INFO_FMT("PPPPPPPP");
     enclave::RpcHandler::ProcessPbftResp rep = frontend->process_pbft(ctx);
 
     frontend->update_merkle_tree();

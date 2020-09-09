@@ -756,6 +756,7 @@ namespace kv
           LOG_FAIL_FMT("Failed to deserialise");
           LOG_DEBUG_FMT(
             "Unexpected contents in pbft transaction size {}", views.size());
+          //throw std::logic_error("foobar");
         }
       }
 

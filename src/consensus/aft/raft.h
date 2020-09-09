@@ -280,6 +280,10 @@ namespace aft
 
     std::pair<Term, Index> get_commit_term_and_idx()
     {
+      if (consensus_type == ConsensusType::BFT && is_follower())
+      {
+        return {get_term_internal(state->commit_idx), state->commit_idx};
+      }
       std::lock_guard<SpinLock> guard(state->lock);
       return {get_term_internal(state->commit_idx), state->commit_idx};
     }
@@ -319,6 +323,7 @@ namespace aft
       {
         for (auto& [index, data, globally_committable] : entries)
         {
+          LOG_INFO_FMT("1. AAAAAA index:{}, data.size:{}", index, data->size());
           state->last_idx = index;
           ledger->put_entry(*data, globally_committable, false);
         }
@@ -372,6 +377,8 @@ namespace aft
         }
 
         state->last_idx = index;
+        LOG_INFO_FMT("2. AAAAAA index:{}, data.size:{}", index, data->size());
+        LOG_INFO_FMT("writing to ledger - KKKKKKKKKKKKK");
         ledger->put_entry(*data, globally_committable, force_ledger_chunk);
         entry_size_not_limited += data->size();
         entry_count++;
