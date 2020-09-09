@@ -36,7 +36,7 @@ def check_status(rc):
 
 
 def run(args):
-    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 1)
+    hosts = ["localhost"] * (4 if args.consensus == "bft" else 1)
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb

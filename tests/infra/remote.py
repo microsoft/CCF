@@ -558,10 +558,9 @@ class CCFRemote(object):
         sig_ms_interval=1000,
         raft_election_timeout=1000,
         pbft_view_change_timeout=5000,
-        consensus="raft",
+        consensus="cft",
         worker_threads=0,
         memory_reserve_startup=0,
-        notify_server=None,
         gov_script=None,
         ledger_dir=None,
         log_format_json=None,
@@ -606,7 +605,7 @@ class CCFRemote(object):
 
         election_timeout_arg = (
             f"--pbft_view-change-timeout-ms={pbft_view_change_timeout}"
-            if consensus == "pbft"
+            if consensus == "bft"
             else f"--raft-election-timeout-ms={raft_election_timeout}"
         )
 
@@ -641,20 +640,6 @@ class CCFRemote(object):
 
         if ledger_chunk_bytes:
             cmd += [f"--ledger-chunk-bytes={ledger_chunk_bytes}"]
-
-        if notify_server:
-            notify_server_host, *notify_server_port = notify_server.split(":")
-
-            if not notify_server_host or not (
-                notify_server_port and notify_server_port[0]
-            ):
-                raise ValueError(
-                    "Notification server host:port configuration is invalid"
-                )
-
-            cmd += [
-                f"--notify-server-address={notify_server_host}:{notify_server_port[0]}"
-            ]
 
         if domain:
             cmd += [f"--domain={domain}"]

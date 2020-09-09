@@ -5,7 +5,6 @@ import http
 import infra.network
 import infra.path
 import infra.proc
-import infra.notification
 import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
@@ -45,7 +44,7 @@ def test_custom_auth(network, args):
 
 
 def run(args):
-    hosts = ["localhost"] * (3 if args.consensus == "pbft" else 2)
+    hosts = ["localhost"] * (3 if args.consensus == "bft" else 2)
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb

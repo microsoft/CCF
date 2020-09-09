@@ -15,7 +15,6 @@
 #include "network_state.h"
 #include "node/rpc/serdes.h"
 #include "node_to_node.h"
-#include "notifier.h"
 #include "rpc/frontend.h"
 #include "rpc/member_frontend.h"
 #include "rpc/serialization.h"
@@ -151,7 +150,6 @@ namespace ccf
     std::shared_ptr<NodeToNode> n2n_channels;
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
-    ccf::Notifier& notifier;
 
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
@@ -179,7 +177,6 @@ namespace ccf
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
-      ccf::Notifier& notifier,
       ShareManager& share_manager) :
       sm(State::uninitialized),
       self(INVALID_ID),
@@ -189,7 +186,6 @@ namespace ccf
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
       rpcsessions(rpcsessions),
-      notifier(notifier),
       share_manager(share_manager)
     {
       ::EverCrypt_AutoConfig2_init();
@@ -230,7 +226,7 @@ namespace ccf
         writer_factory, network, args.config.snapshot_tx_interval);
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::PBFT)
+      if (network.consensus_type != ConsensusType::BFT)
       {
         auto quote_opt = QuoteGenerator::get_quote(node_cert);
         if (!quote_opt.has_value())
@@ -675,7 +671,7 @@ namespace ccf
       g.trust_node(self);
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::PBFT)
+      if (network.consensus_type != ConsensusType::BFT)
       {
         g.trust_node_code_id(node_code_id);
       }
@@ -831,12 +827,12 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       recovery_encryptor = std::make_shared<kv::NullTxEncryptor>();
 #else
-      if (network.consensus_type == ConsensusType::PBFT)
+      if (network.consensus_type == ConsensusType::BFT)
       {
         recovery_encryptor =
           std::make_shared<PbftTxEncryptor>(network.ledger_secrets, true);
       }
-      else if (network.consensus_type == ConsensusType::RAFT)
+      else if (network.consensus_type == ConsensusType::CFT)
       {
         recovery_encryptor =
           std::make_shared<RaftTxEncryptor>(network.ledger_secrets, true);
@@ -1056,7 +1052,7 @@ namespace ccf
             q.node_id = nid;
             q.raw = fmt::format("{:02x}", fmt::join(ni.quote, ""));
 
-            if (this->network.consensus_type != ConsensusType::PBFT)
+            if (this->network.consensus_type != ConsensusType::BFT)
             {
 #ifdef GET_QUOTE
               auto code_id_opt = QuoteGenerator::get_code_id(ni.quote);
@@ -1318,7 +1314,7 @@ namespace ccf
     {
       const auto create_success =
         send_create_request(serialize_create_request(args, quote));
-      if (network.consensus_type == ConsensusType::PBFT)
+      if (network.consensus_type == ConsensusType::BFT)
       {
         return true;
       }
@@ -1573,8 +1569,6 @@ namespace ccf
 
       network.tables->set_consensus(consensus);
 
-      notifier.set_consensus(consensus);
-
       // When a node is added, even locally, inform raft so that it
       // can add a new active configuration.
       network.nodes.set_local_hook(
@@ -1648,11 +1642,11 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       encryptor = std::make_shared<kv::NullTxEncryptor>();
 #else
-      if (network.consensus_type == ConsensusType::PBFT)
+      if (network.consensus_type == ConsensusType::BFT)
       {
         encryptor = std::make_shared<PbftTxEncryptor>(network.ledger_secrets);
       }
-      else if (network.consensus_type == ConsensusType::RAFT)
+      else if (network.consensus_type == ConsensusType::CFT)
       {
         encryptor = std::make_shared<RaftTxEncryptor>(network.ledger_secrets);
         encryptor->set_iv_id(self); // RaftEncryptor uses node ID in iv

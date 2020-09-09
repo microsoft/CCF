@@ -70,7 +70,7 @@ namespace ccf
       tls::Pem public_encryption_key;
       std::vector<uint8_t> code_digest;
       NodeInfoNetwork node_info_network;
-      ConsensusType consensus_type = ConsensusType::RAFT;
+      ConsensusType consensus_type = ConsensusType::CFT;
       size_t recovery_threshold;
     };
   };
@@ -82,7 +82,7 @@ namespace ccf
       NodeInfoNetwork node_info_network;
       std::vector<uint8_t> quote;
       tls::Pem public_encryption_key;
-      ConsensusType consensus_type = ConsensusType::RAFT;
+      ConsensusType consensus_type = ConsensusType::CFT;
     };
 
     struct Out
@@ -95,7 +95,7 @@ namespace ccf
       {
         bool public_only = false;
         kv::Version last_recovered_commit_idx = kv::NoVersion;
-        ConsensusType consensus_type = ConsensusType::RAFT;
+        ConsensusType consensus_type = ConsensusType::CFT;
 
         LedgerSecrets ledger_secrets;
         NetworkIdentity identity;
