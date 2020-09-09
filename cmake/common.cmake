@@ -66,10 +66,7 @@ enable_language(ASM)
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 include_directories(${CCF_DIR}/src)
 
-include_directories(
-  SYSTEM ${CCF_DIR}/3rdparty ${CCF_DIR}/3rdparty/hacl-star
-  ${CCF_DIR}/3rdparty/flatbuffers/include
-)
+include_directories(SYSTEM ${CCF_DIR}/3rdparty ${CCF_DIR}/3rdparty/hacl-star)
 
 find_package(MbedTLS REQUIRED)
 
@@ -551,16 +548,4 @@ function(add_picobench name)
   use_client_mbedtls(${name})
 
   set_property(TEST ${name} PROPERTY LABELS benchmark)
-endfunction()
-
-# flatbuffer generator
-function(generate_flatbuffer path name)
-  add_custom_command(
-    OUTPUT ${CCF_GENERATED_DIR}/${name}_generated.h
-    COMMAND flatc -o "${CCF_GENERATED_DIR}" --cpp ${path}/${name}.fbs
-    DEPENDS ${path}/${name}.fbs
-  )
-  install(FILES ${CCF_GENERATED_DIR}/${name}_generated.h
-          DESTINATION ${CCF_GENERATED_DIR}
-  )
 endfunction()
