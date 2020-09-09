@@ -13,7 +13,6 @@ import os
 LABELS_TO_COLOURS = {
     # Processed on Host
     "AdminMessage::log_msg": "dimgray",
-    "AdminMessage::notification": "silver",
     "AdminMessage::work_stats": "gainsboro",
     "ccf::add_node": "lime",
     "ccf::node_outbound": "darkgreen",

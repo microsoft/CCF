@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.network
-import infra.notification
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import infra.e2e_args
