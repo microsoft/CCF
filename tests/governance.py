@@ -85,8 +85,12 @@ def test_user(network, args, notifications_queue=None, verify=True):
 @reqs.description("Add untrusted node, check no quote is returned")
 def test_no_quote(network, args, notifications_queue=None, verify=True):
     primary, _ = network.find_nodes()
-    untrusted_node = network.create_and_add_pending_node(args.package, "localhost", args)
-    with untrusted_node.client(ca=os.path.join(untrusted_node.common_dir, f"{untrusted_node.node_id}.pem")) as uc:
+    untrusted_node = network.create_and_add_pending_node(
+        args.package, "localhost", args
+    )
+    with untrusted_node.client(
+        ca=os.path.join(untrusted_node.common_dir, f"{untrusted_node.node_id}.pem")
+    ) as uc:
         r = uc.get("/node/quote")
         assert r.status_code == http.HTTPStatus.NOT_FOUND
 
