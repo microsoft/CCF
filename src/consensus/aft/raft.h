@@ -329,6 +329,7 @@ namespace aft
         {
           LOG_INFO_FMT("1. AAAAAA index:{}, data.size:{}", index, data->size());
           state->last_idx = index;
+          //state->commit_idx = index;
           ledger->put_entry(*data, globally_committable, false);
         }
         return true;

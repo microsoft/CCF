@@ -349,13 +349,16 @@ namespace ccf
 
           case ForwardingRequired::Sometimes:
           {
-            LOG_INFO_FMT("2. BBBB {}, is_forwarding:{}", ctx->get_method(), ctx->session->is_forwarding);
+            LOG_INFO_FMT("2. BBBB {}, execute_on_node:{}, is_forwarding:{}", ctx->get_method(), ctx->execute_on_node, ctx->session->is_forwarding);
+
+            auto endpoint = endpoints.find_endpoint(*ctx);
             if (
               (ctx->session->is_forwarding &&
                consensus->type() == ConsensusType::CFT) ||
               (consensus->type() != ConsensusType::CFT &&
-               !ctx->execute_on_node && !ctx->session->is_forwarding))
+               !ctx->execute_on_node && (endpoint == nullptr || (endpoint != nullptr && !endpoint->execute_locally))))
             {
+              LOG_INFO_FMT("2.1 execute_on_node:{}, is_forwarding:{}", ctx->execute_on_node, ctx->session->is_forwarding);
               ctx->session->is_forwarding = true;
               return forward_or_redirect_json(ctx, endpoint, caller_id);
             }
@@ -617,6 +620,15 @@ namespace ccf
           auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
           if (rep.has_value())
           {
+            return rep;
+          }
+        }
+        if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
+        {
+          auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
+          if (rep.has_value())
+          {
+            LOG_INFO_FMT("3.1 TTTTTTTT {}", ctx->get_method());
             return rep;
           }
         }
