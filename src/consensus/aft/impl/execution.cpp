@@ -114,6 +114,7 @@ namespace aft
     auto request_message = RequestMessage::deserialize(
       std::move(request.raw), request.rid, std::move(ctx), nullptr);
 
+    LOG_INFO_FMT("111111");
     return execute_request(std::move(request_message), state->commit_idx == 0);
   }
 }

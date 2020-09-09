@@ -569,12 +569,14 @@ namespace ccf
         consensus != nullptr && consensus->type() == ConsensusType::BFT &&
         (ctx->execute_on_node || consensus->is_primary()))
       {
+        LOG_INFO_FMT("1. TTTTTTTT {}", ctx->get_method());
         auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
         if (rep.has_value())
         {
           return rep;
         }
         kv::TxHistory::RequestID reqid;
+      LOG_INFO_FMT("2. TTTTTTTT {}", ctx->get_method());
 
         update_history();
         reqid = {
@@ -610,7 +612,16 @@ namespace ccf
       }
       else
       {
-        LOG_INFO_FMT("TTTTTTTT {}", ctx->get_method());
+        if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
+        {
+          auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
+          if (rep.has_value())
+          {
+            return rep;
+          }
+        }
+
+        LOG_INFO_FMT("3. TTTTTTTT {}", ctx->get_method());
         return process_command(ctx, tx, caller_id);
       }
     }

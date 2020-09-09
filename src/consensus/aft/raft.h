@@ -282,6 +282,10 @@ namespace aft
     {
       if (consensus_type == ConsensusType::BFT && is_follower())
       {
+        LOG_INFO_FMT(
+          "@@@@@@@@@@@ idx:{}, term:{}",
+          state->commit_idx,
+          get_term_internal(state->commit_idx));
         return {get_term_internal(state->commit_idx), state->commit_idx};
       }
       std::lock_guard<SpinLock> guard(state->lock);
@@ -477,6 +481,7 @@ namespace aft
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
     {
       auto request = executor->create_request_message(args);
+      LOG_INFO_FMT("111111");
       executor->execute_request(std::move(request), is_first_request);
       is_first_request = false;
 
