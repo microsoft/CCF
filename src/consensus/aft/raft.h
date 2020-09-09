@@ -260,7 +260,7 @@ namespace aft
 
     Index get_commit_idx()
     {
-      if (consensus_type == ConsensusType::PBFT && is_follower())
+      if (consensus_type == ConsensusType::BFT && is_follower())
       {
         return state->commit_idx;
       }
@@ -270,7 +270,7 @@ namespace aft
 
     Term get_term()
     {
-      if (consensus_type == ConsensusType::PBFT && is_follower())
+      if (consensus_type == ConsensusType::BFT && is_follower())
       {
         return state->current_view;
       }
@@ -286,7 +286,7 @@ namespace aft
 
     Term get_term(Index idx)
     {
-      if (consensus_type == ConsensusType::PBFT && is_follower())
+      if (consensus_type == ConsensusType::BFT && is_follower())
       {
         return get_term_internal(idx);
       }
@@ -315,7 +315,7 @@ namespace aft
     bool replicate(
       const std::vector<std::tuple<Index, T, bool>>& entries, Term term)
     {
-      if (consensus_type == ConsensusType::PBFT && is_follower())
+      if (consensus_type == ConsensusType::BFT && is_follower())
       {
         for (auto& [index, data, globally_committable] : entries)
         {
@@ -350,7 +350,7 @@ namespace aft
       for (auto& [index, data, is_globally_committable] : entries)
       {
         bool globally_committable =
-          is_globally_committable || consensus_type == ConsensusType::PBFT;
+          is_globally_committable || consensus_type == ConsensusType::BFT;
 
         if (index != state->last_idx + 1)
           return false;
@@ -694,7 +694,7 @@ namespace aft
         Term sig_term = 0;
         kv::Tx tx;
         kv::DeserialiseSuccess deserialise_success;
-        if (consensus_type == ConsensusType::PBFT)
+        if (consensus_type == ConsensusType::BFT)
         {
           deserialise_success =
             store->deserialise_views(entry, public_only, &sig_term, &tx);
@@ -739,7 +739,7 @@ namespace aft
 
           case kv::DeserialiseSuccess::PASS:
           {
-            if (consensus_type == ConsensusType::PBFT)
+            if (consensus_type == ConsensusType::BFT)
             {
               state->last_idx = executor->commit_replayed_request(tx);
             }
@@ -760,7 +760,7 @@ namespace aft
       }
 
       send_append_entries_response(r.from_node, true);
-      if (consensus_type == ConsensusType::PBFT && is_follower())
+      if (consensus_type == ConsensusType::BFT && is_follower())
       {
         store->compact(state->last_idx);
       }

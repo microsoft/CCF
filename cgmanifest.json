@@ -91,16 +91,6 @@
       }
     },
     {
-      "Component": {
-        "Type": "other",
-        "Other": {
-          "Name": "PBFT",
-          "Version": "na",
-          "DownloadUrl": "http://www.pmg.csail.mit.edu/bft/bft.tar.gz"
-        }
-      }
-    },
-    {
       "component": {
         "type": "git",
         "git": {
