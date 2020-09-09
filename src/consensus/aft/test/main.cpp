@@ -31,7 +31,7 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
   ms election_timeout(150);
 
   TRaft r0(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -74,7 +74,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
   ms election_timeout(150);
 
   TRaft r0(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -126,7 +126,7 @@ DOCTEST_TEST_CASE(
   ms request_timeout(10);
 
   TRaft r0(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -140,7 +140,7 @@ DOCTEST_TEST_CASE(
     request_timeout,
     ms(20));
   TRaft r1(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -154,7 +154,7 @@ DOCTEST_TEST_CASE(
     request_timeout,
     ms(100));
   TRaft r2(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -327,7 +327,7 @@ DOCTEST_TEST_CASE(
   ms request_timeout(10);
 
   TRaft r0(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -341,7 +341,7 @@ DOCTEST_TEST_CASE(
     request_timeout,
     ms(20));
   TRaft r1(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -355,7 +355,7 @@ DOCTEST_TEST_CASE(
     request_timeout,
     ms(100));
   TRaft r2(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -499,7 +499,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
   ms request_timeout(10);
 
   TRaft r0(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -513,7 +513,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     request_timeout,
     ms(20));
   TRaft r1(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -527,7 +527,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     request_timeout,
     ms(100));
   TRaft r2(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -653,7 +653,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   ms request_timeout(10);
 
   TRaft r0(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -667,7 +667,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     request_timeout,
     ms(20));
   TRaft r1(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -865,7 +865,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   ms request_timeout(10);
 
   TRaft r0(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -879,7 +879,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     request_timeout,
     ms(20));
   TRaft r1(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -893,7 +893,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     request_timeout,
     ms(100));
   TRaft r2(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -1060,7 +1060,7 @@ DOCTEST_TEST_CASE(
   ms request_timeout(10);
 
   TRaft r0(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -1074,7 +1074,7 @@ DOCTEST_TEST_CASE(
     request_timeout,
     ms(20));
   TRaft r1(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -1088,7 +1088,7 @@ DOCTEST_TEST_CASE(
     request_timeout,
     ms(100));
   TRaft r2(
-    ConsensusType::RAFT,
+    ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),

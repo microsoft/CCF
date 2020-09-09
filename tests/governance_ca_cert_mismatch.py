@@ -31,7 +31,7 @@ def test_cert_signer_id_mismatch(network, args):
 
 
 def run(args):
-    hosts = ["localhost"] * (3 if args.consensus == "pbft" else 2)
+    hosts = ["localhost"] * (3 if args.consensus == "bft" else 2)
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
