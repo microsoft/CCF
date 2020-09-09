@@ -47,7 +47,7 @@ namespace stacktrace
     // infinitely recursing stacktraces
     constexpr size_t stack_size = 1024 * 1024 * 8;
     static std::unique_ptr<char[]> stack_content = nullptr;
-    
+
     stack_content.reset(new char[stack_size]);
 
     stack_t ss;
