@@ -1,11 +1,12 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.ccf
+import infra.network
 import infra.proc
 import infra.notification
 import infra.net
 import suite.test_requirements as reqs
 import infra.e2e_args
+import infra.checker
 
 from loguru import logger as LOG
 
@@ -16,49 +17,52 @@ from loguru import logger as LOG
 def test(network, args, notifications_queue=None):
     primary, _ = network.find_primary_and_any_backup()
 
-    with primary.node_client() as mc:
+    with primary.client() as mc:
         check_commit = infra.checker.Checker(mc, notifications_queue)
         check = infra.checker.Checker()
 
         msg = "Hello world"
 
         LOG.info("Write/Read on primary")
-        with primary.user_client() as c:
-            r = c.rpc("log/private", {"id": 42, "msg": msg})
+        with primary.client("user0") as c:
+            r = c.post("/app/log/private", {"id": 42, "msg": msg})
             check_commit(r, result=True)
-            check(c.get("log/private", {"id": 42}), result={"msg": msg})
+            check(c.get("/app/log/private?id=42"), result={"msg": msg})
             for _ in range(10):
-                c.rpc(
-                    "log/private", {"id": 43, "msg": "Additional messages"},
+                c.post(
+                    "/app/log/private",
+                    {"id": 43, "msg": "Additional messages"},
                 )
             check_commit(
-                c.rpc("log/private", {"id": 43, "msg": "A final message"}), result=True,
+                c.post("/app/log/private", {"id": 43, "msg": "A final message"}),
+                result=True,
             )
-            r = c.get("receipt", {"commit": r.seqno})
+            r = c.get(f"/app/receipt?commit={r.seqno}")
             check(
-                c.rpc("receipt/verify", {"receipt": r.result["receipt"]}),
+                c.post("/app/receipt/verify", {"receipt": r.body["receipt"]}),
                 result={"valid": True},
             )
-            invalid = r.result["receipt"]
+            invalid = r.body["receipt"]
             invalid[-3] += 1
             check(
-                c.rpc("receipt/verify", {"receipt": invalid}), result={"valid": False}
+                c.post("/app/receipt/verify", {"receipt": invalid}),
+                result={"valid": False},
             )
 
     return network
 
 
 def run(args):
-    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
+    hosts = ["localhost"] * (4 if args.consensus == "bft" else 2)
 
     with infra.notification.notification_server(args.notify_server) as notifications:
         notifications_queue = (
             notifications.get_queue()
-            if (args.package == "liblogging" and args.consensus == "raft")
+            if (args.package == "liblogging" and args.consensus == "cft")
             else None
         )
 
-        with infra.ccf.network(
+        with infra.network.network(
             hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
         ) as network:
             network.start_and_join(args)

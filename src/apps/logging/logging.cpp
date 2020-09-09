@@ -95,6 +95,11 @@ namespace loggingapp
         .install();
       // SNIPPET_END: install_record
 
+      make_endpoint(
+        "log/private", ws::Verb::WEBSOCKET, ccf::json_adapter(record))
+        .set_auto_schema<LoggingRecord::In, bool>()
+        .install();
+
       // SNIPPET_START: get
       auto get =
         [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&& params) {
@@ -223,6 +228,15 @@ namespace loggingapp
         const auto& cert_data = args.rpc_ctx->session->caller_cert;
         const auto ret =
           mbedtls_x509_crt_parse(&cert, cert_data.data(), cert_data.size());
+        if (ret != 0)
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body(
+            "Cannot parse x509 caller certificate");
+          return;
+        }
 
         const auto log_line = fmt::format("{}: {}", cert.subject, in.msg);
         auto view = args.tx.get_view(records);
@@ -278,19 +292,19 @@ namespace loggingapp
           return;
         }
 
-        constexpr auto log_id_header = "x-log-id";
-        const auto id_it = args.rpc_ctx->get_request_header(log_id_header);
-        if (!id_it.has_value())
+        const auto& path_params = args.rpc_ctx->get_request_path_params();
+        const auto id_it = path_params.find("id");
+        if (id_it == path_params.end())
         {
           args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
           args.rpc_ctx->set_response_header(
             http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
           args.rpc_ctx->set_response_body(
-            fmt::format("Missing ID header '{}'", log_id_header));
+            fmt::format("Missing ID component in request path"));
           return;
         }
 
-        const auto id = strtoul(id_it.value().c_str(), nullptr, 10);
+        const auto id = strtoul(id_it->second.c_str(), nullptr, 10);
 
         const std::vector<uint8_t>& content = args.rpc_ctx->get_request_body();
         const std::string log_line(content.begin(), content.end());
@@ -300,7 +314,7 @@ namespace loggingapp
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
-      make_endpoint("log/private/raw_text", HTTP_POST, log_record_text)
+      make_endpoint("log/private/raw_text/{id}", HTTP_POST, log_record_text)
         .install();
       // SNIPPET_END: log_record_text
 
@@ -381,15 +395,57 @@ namespace loggingapp
           get_historical, context.get_historical_state(), is_tx_committed))
         .install();
 
+      auto record_admin_only =
+        [this, &nwt](ccf::EndpointContext& ctx, nlohmann::json&& params) {
+          {
+            // SNIPPET_START: user_data_check
+            // Check caller's user-data for required permissions
+            auto users_view = ctx.tx.get_view(nwt.users);
+            const auto user_opt = users_view->get(ctx.caller_id);
+            const nlohmann::json user_data = user_opt.has_value() ?
+              user_opt->user_data :
+              nlohmann::json(nullptr);
+            const auto is_admin_it = user_data.find("isAdmin");
+
+            // Exit if this user has no user data, or the user data is not an
+            // object with isAdmin field, or the value of this field is not true
+            if (
+              !user_data.is_object() || is_admin_it == user_data.end() ||
+              !is_admin_it.value().get<bool>())
+            {
+              return ccf::make_error(
+                HTTP_STATUS_FORBIDDEN, "Only admins may access this endpoint");
+            }
+            // SNIPPET_END: user_data_check
+          }
+
+          const auto in = params.get<LoggingRecord::In>();
+
+          if (in.msg.empty())
+          {
+            return ccf::make_error(
+              HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
+          }
+
+          auto view = ctx.tx.get_view(records);
+          view->put(in.id, in.msg);
+          return ccf::make_success(true);
+        };
+      make_endpoint(
+        "log/private/admin_only",
+        HTTP_POST,
+        ccf::json_adapter(record_admin_only))
+        .set_auto_schema<LoggingRecord::In, bool>()
+        .install();
+
       auto& notifier = context.get_notifier();
       nwt.signatures.set_global_hook(
-        [this,
-         &notifier](kv::Version version, const ccf::Signatures::Write& w) {
+        [&notifier](kv::Version version, const ccf::Signatures::Write& w) {
           if (w.size() > 0)
           {
             nlohmann::json notify_j;
             notify_j["commit"] = version;
-            notifier.notify(jsonrpc::pack(notify_j, jsonrpc::Pack::Text));
+            notifier.notify(serdes::pack(notify_j, serdes::Pack::Text));
           }
         });
     }

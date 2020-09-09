@@ -3,6 +3,7 @@
 #pragma once
 #include "ds/json_schema.h"
 #include "kv/kv_types.h"
+#include "node/code_id.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
 #include "node/nodes.h"
@@ -65,6 +66,20 @@ namespace ccf
     };
   };
 
+  struct GetCode
+  {
+    struct Version
+    {
+      std::string digest;
+      ccf::CodeStatus status;
+    };
+
+    struct Out
+    {
+      std::vector<GetCode::Version> versions = {};
+    };
+  };
+
   struct GetNetworkInfo
   {
     struct NodeInfo
@@ -77,7 +92,7 @@ namespace ccf
     struct Out
     {
       std::vector<NodeInfo> nodes = {};
-      std::optional<NodeId> primary_id = {};
+      std::optional<NodeId> primary_id = std::nullopt;
     };
   };
 
@@ -119,7 +134,33 @@ namespace ccf
 
   struct GetAPI
   {
-    using Out = nlohmann::json;
+    struct Endpoint
+    {
+      std::string verb;
+      std::string path;
+    };
+
+    // TODO: What is the format of this now?
+    //using Out = nlohmann::json;
+    struct Out
+    {
+      std::vector<Endpoint> endpoints;
+    };
+  };
+
+  struct EndpointMetrics
+  {
+    struct Metric
+    {
+      size_t calls = 0;
+      size_t errors = 0;
+      size_t failures = 0;
+    };
+
+    struct Out
+    {
+      std::map<std::string, std::map<std::string, Metric>> metrics;
+    };
   };
 
   struct GetSchema

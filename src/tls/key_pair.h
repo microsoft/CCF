@@ -9,6 +9,7 @@
 #include "error_string.h"
 #include "hash.h"
 #include "pem.h"
+#include "san.h"
 
 #include <cstring>
 #include <iomanip>
@@ -169,7 +170,7 @@ namespace tls
       }
 
       const size_t len = strlen((char const*)data);
-      return Pem({data, len});
+      return Pem(data, len);
     }
 
     mbedtls_pk_context* get_raw_context() const
@@ -372,12 +373,6 @@ namespace tls
     }
   }
 
-  struct SubjectAltName
-  {
-    std::string san;
-    bool is_ip;
-  };
-
   class KeyPair : public PublicKey
   {
   private:
@@ -495,7 +490,7 @@ namespace tls
       }
 
       const size_t len = strlen((char const*)data);
-      return Pem({data, len});
+      return Pem(data, len);
     }
 
     /**
@@ -570,7 +565,7 @@ namespace tls
       EntropyPtr entropy = create_entropy();
 
       const auto ec = get_ec_from_context(*ctx);
-      const auto md_type = get_md_for_ec(ec);
+      const auto md_type = get_md_for_ec(ec, true);
 
       return mbedtls_pk_sign(
         ctx.get(),
@@ -588,7 +583,7 @@ namespace tls
      * loaded from a private key, there will be no public key available for
      * this call.
      */
-    std::vector<uint8_t> create_csr(const std::string& name)
+    Pem create_csr(const std::string& name)
     {
       Csr csr;
 
@@ -610,22 +605,19 @@ namespace tls
           entropy->get_data()) != 0)
         return {};
 
-      auto len = strlen((char*)buf) + 1; // For null termination
-      std::vector<uint8_t> pem(buf, buf + len);
-      return pem;
+      auto len = strlen((char*)buf);
+      return Pem(buf, len);
     }
 
-    std::vector<uint8_t> sign_csr(
-      CBuffer csr,
+    Pem sign_csr(
+      const Pem& csr,
       const std::string& issuer,
-      const std::optional<SubjectAltName> subject_alt_name = std::nullopt,
+      const std::vector<SubjectAltName> subject_alt_names,
       bool ca = false)
     {
       SignCsr sign;
 
-      Pem pem_csr(csr);
-      if (
-        mbedtls_x509_csr_parse(&sign.csr, pem_csr.data(), pem_csr.size()) != 0)
+      if (mbedtls_x509_csr_parse(&sign.csr, csr.data(), csr.size()) != 0)
         return {};
 
       char subject[512];
@@ -678,15 +670,20 @@ namespace tls
       // Because mbedtls does not support parsing x509v3 extensions from a
       // CSR (https://github.com/ARMmbed/mbedtls/issues/2912), the CA sets the
       // SAN directly instead of reading it from the CSR
-      if (subject_alt_name.has_value())
+      try
       {
-        if (
-          x509write_crt_set_subject_alt_name(
-            &sign.crt,
-            subject_alt_name->san.c_str(),
-            (subject_alt_name->is_ip ? san_type::ip_address :
-                                       san_type::dns_name)) != 0)
+        auto rc =
+          x509write_crt_set_subject_alt_names(&sign.crt, subject_alt_names);
+        if (rc != 0)
+        {
+          LOG_FAIL_FMT("Failed to set subject alternative names ({})", rc);
           return {};
+        }
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_FMT(err.what());
+        return {};
       }
 
       uint8_t buf[4096];
@@ -701,18 +698,29 @@ namespace tls
           sign.entropy->get_data()) != 0)
         return {};
 
-      auto len = strlen((char*)buf) + 1; // For null termination
-      std::vector<uint8_t> pem(buf, buf + len);
-      return pem;
+      auto len = strlen((char*)buf);
+      return Pem(buf, len);
     }
 
-    std::vector<uint8_t> self_sign(
+    Pem self_sign(
       const std::string& name,
       const std::optional<SubjectAltName> subject_alt_name = std::nullopt,
       bool ca = true)
     {
+      std::vector<SubjectAltName> sans;
+      if (subject_alt_name.has_value())
+        sans.push_back(subject_alt_name.value());
       auto csr = create_csr(name);
-      return sign_csr(csr, name, subject_alt_name, ca);
+      return sign_csr(csr, name, sans, ca);
+    }
+
+    Pem self_sign(
+      const std::string& name,
+      const std::vector<SubjectAltName> subject_alt_names,
+      bool ca = true)
+    {
+      auto csr = create_csr(name);
+      return sign_csr(csr, name, subject_alt_names, ca);
     }
   };
 
@@ -842,7 +850,7 @@ namespace tls
       throw std::logic_error("Could not parse key: " + error_string(rc));
     }
 
-    return std::move(key);
+    return key;
   }
 
   /**

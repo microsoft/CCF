@@ -3,6 +3,7 @@
 #pragma once
 
 #include "../ds/logger.h"
+#include "before_io.h"
 #include "dns.h"
 #include "proxy.h"
 
@@ -23,10 +24,10 @@ namespace asynchost
     {
       LOG_INFO_FMT("Listening on {}:{}", host, service);
     }
-    virtual void on_accept(TCP& peer) {}
+    virtual void on_accept(TCP&) {}
     virtual void on_connect() {}
     virtual void on_connect_failed() {}
-    virtual void on_read(size_t len, uint8_t*& data) {}
+    virtual void on_read(size_t, uint8_t*&) {}
     virtual void on_disconnect() {}
   };
 
@@ -51,6 +52,10 @@ namespace asynchost
 
     static constexpr int backlog = 128;
     static constexpr size_t max_read_size = 16384;
+
+    // Each uv iteration, read only a capped amount from all sockets.
+    static constexpr auto max_read_quota = max_read_size * 4;
+    static size_t remaining_read_quota;
 
     enum Status
     {
@@ -129,6 +134,11 @@ namespace asynchost
     }
 
   public:
+    static void reset_read_quota()
+    {
+      remaining_read_quota = max_read_quota;
+    }
+
     void set_behaviour(std::unique_ptr<TCPBehaviour> b)
     {
       behaviour = std::move(b);
@@ -424,7 +434,7 @@ namespace asynchost
       return true;
     }
 
-    static void on_resolved(uv_getaddrinfo_t* req, int rc, struct addrinfo* res)
+    static void on_resolved(uv_getaddrinfo_t* req, int rc, struct addrinfo*)
     {
       static_cast<TCPImpl*>(req->data)->on_resolved(req, rc);
     }
@@ -571,14 +581,21 @@ namespace asynchost
     void on_alloc(size_t suggested_size, uv_buf_t* buf)
     {
       auto alloc_size = std::min(suggested_size, max_read_size);
+
+      alloc_size = std::min(alloc_size, remaining_read_quota);
+      remaining_read_quota -= alloc_size;
+      LOG_TRACE_FMT(
+        "Allocating {} bytes for TCP read ({} of quota remaining)",
+        alloc_size,
+        remaining_read_quota);
+
       buf->base = new char[alloc_size];
       buf->len = alloc_size;
     }
 
     void on_free(const uv_buf_t* buf)
     {
-      if (buf->base != nullptr)
-        delete[] buf->base;
+      delete[] buf->base;
     }
 
     static void on_read(uv_stream_t* handle, ssize_t sz, const uv_buf_t* buf)
@@ -590,6 +607,13 @@ namespace asynchost
     {
       if (sz == 0)
       {
+        on_free(buf);
+        return;
+      }
+
+      if (sz == UV_ENOBUFS)
+      {
+        LOG_DEBUG_FMT("TCP on_read reached allocation quota");
         on_free(buf);
         return;
       }
@@ -612,9 +636,8 @@ namespace asynchost
         on_free(buf);
     }
 
-    static void on_write(uv_write_t* req, int rc)
+    static void on_write(uv_write_t* req, int)
     {
-      (void)rc;
       free_write(req);
     }
 
@@ -648,4 +671,17 @@ namespace asynchost
       connect_resolved();
     }
   };
+
+  class ResetTCPReadQuotaImpl
+  {
+  public:
+    ResetTCPReadQuotaImpl() {}
+
+    void before_io()
+    {
+      TCPImpl::reset_read_quota();
+    }
+  };
+
+  using ResetTCPReadQuota = proxy_ptr<BeforeIO<ResetTCPReadQuotaImpl>>;
 }

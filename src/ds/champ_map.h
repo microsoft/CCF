@@ -243,8 +243,10 @@ namespace champ
       const auto& entry0 = node_as<Entry<K, V>>(c_idx);
       if (k == entry0->key)
       {
+        auto current_size =
+          get_size_with_padding<K, V>(entry0->key, entry0->value);
         nodes[c_idx] = std::make_shared<Entry<K, V>>(k, v);
-        return get_size_with_padding<K, V>(entry0->key, entry0->value);
+        return current_size;
       }
 
       if (depth < (collision_depth - 1))
@@ -332,7 +334,7 @@ namespace champ
   {
   private:
     std::shared_ptr<SubNodes<K, V, H>> root;
-    size_t _size = 0;
+    size_t map_size = 0;
     size_t serialized_size = 0;
 
     Map(
@@ -340,14 +342,14 @@ namespace champ
       size_t size_,
       size_t serialized_size_) :
       root(std::move(root_)),
-      _size(size_),
+      map_size(size_),
       serialized_size(serialized_size_)
     {}
 
   public:
     Map() : root(std::make_shared<SubNodes<K, V, H>>()) {}
 
-    Map<K, V, H> static deserialize_map(CBuffer serialized_state)
+    static Map<K, V, H> deserialize_map(CBuffer serialized_state)
     {
       Map<K, V, H> map;
       const uint8_t* data = serialized_state.p;
@@ -373,7 +375,7 @@ namespace champ
 
     size_t size() const
     {
-      return _size;
+      return map_size;
     }
 
     size_t get_serialized_size() const
@@ -383,7 +385,7 @@ namespace champ
 
     bool empty() const
     {
-      return _size == 0;
+      return map_size == 0;
     }
 
     std::optional<V> get(const K& key) const
@@ -404,7 +406,7 @@ namespace champ
     const Map<K, V, H> put(const K& key, const V& value) const
     {
       auto r = root->put(0, H()(key), key, value);
-      auto size_ = _size;
+      auto size_ = map_size;
       if (r.second == 0)
       {
         size_++;
@@ -428,13 +430,13 @@ namespace champ
     Map<K, V, H> map;
     CBuffer serialized_buffer;
 
-    struct pair
+    struct KVTuple
     {
       K* k;
       Hash h_k;
       V* v;
 
-      pair(K* k_, Hash h_k_, V* v_) : k(k_), h_k(h_k_), v(v_) {}
+      KVTuple(K* k_, Hash h_k_, V* v_) : k(k_), h_k(h_k_), v(v_) {}
     };
     const uintptr_t padding = 0;
 
@@ -462,17 +464,15 @@ namespace champ
 
     CBuffer& get_serialized_buffer()
     {
-      CCF_ASSERT(
-        serialized_buffer.rawSize() != 0,
-        "attempting to get buffer that was not serialized");
       return serialized_buffer;
     }
 
     void serialize(uint8_t* data)
     {
-      std::vector<pair> serialized_state;
-      serialized_state.reserve(map.size());
+      std::vector<KVTuple> ordered_state;
+      ordered_state.reserve(map.size());
       size_t size = 0;
+
       map.foreach([&](auto& key, auto& value) {
         K* k = &key;
         V* v = &value;
@@ -483,12 +483,15 @@ namespace champ
 
         size += (key_size + value_size);
 
-        serialized_state.emplace_back(k, static_cast<Hash>(H()(key)), v);
+        ordered_state.emplace_back(k, static_cast<Hash>(H()(key)), v);
 
         return true;
       });
+
+      // Sort keys to be able to generate byte-for-byte serialised snapshot from
+      // the same state
       std::sort(
-        serialized_state.begin(), serialized_state.end(), [](pair& i, pair& j) {
+        ordered_state.begin(), ordered_state.end(), [](KVTuple& i, KVTuple& j) {
           return i.h_k < j.h_k;
         });
 
@@ -498,11 +501,11 @@ namespace champ
         size,
         map.get_serialized_size(),
         map.size(),
-        serialized_state.size());
+        ordered_state.size());
 
       serialized_buffer = CBuffer(data, map.get_serialized_size());
 
-      for (const auto& p : serialized_state)
+      for (const auto& p : ordered_state)
       {
         // Serialize the key
         uint32_t key_size = champ::serialize(*p.k, data, size);

@@ -29,17 +29,57 @@ if((NOT ${IS_VALID_TARGET}))
   )
 endif()
 
-# Find OpenEnclave package, preferring local version if found (in the install
-# case)
-find_package(
-  OpenEnclave 0.9 CONFIG PATHS ${CMAKE_CURRENT_LIST_DIR}/../openenclave
-  NO_DEFAULT_PATH
-)
-find_package(OpenEnclave 0.9 CONFIG REQUIRED)
+# Find OpenEnclave package
+find_package(OpenEnclave 0.10 CONFIG REQUIRED)
 # As well as pulling in openenclave:: targets, this sets variables which can be
 # used for our edge cases (eg - for virtual libraries). These do not follow the
 # standard naming patterns, for example use OE_INCLUDEDIR rather than
 # OpenEnclave_INCLUDE_DIRS
+
+option(LVI_MITIGATIONS "Enable LVI mitigations" ON)
+if(LVI_MITIGATIONS)
+  set(OE_TARGET_LIBC openenclave::oelibc-lvi-cfg)
+  set(OE_TARGET_ENCLAVE_AND_STD
+      openenclave::oeenclave-lvi-cfg openenclave::oelibcxx-lvi-cfg
+      openenclave::oelibc-lvi-cfg
+  )
+  set(OE_TARGET_ENCLAVE_CORE_LIBS
+      openenclave::oeenclave-lvi-cfg openenclave::oesnmalloc-lvi-cfg
+      openenclave::oecore-lvi-cfg openenclave::oesyscall-lvi-cfg
+  )
+else()
+  set(OE_TARGET_LIBC openenclave::oelibc)
+  set(OE_TARGET_ENCLAVE_AND_STD openenclave::oeenclave openenclave::oelibcxx
+                                openenclave::oelibc
+  )
+  # These oe libraries must be linked in specific order
+  set(OE_TARGET_ENCLAVE_CORE_LIBS
+      openenclave::oeenclave openenclave::oesnmalloc openenclave::oecore
+      openenclave::oesyscall
+  )
+endif()
+
+function(add_lvi_mitigations name)
+  if(LVI_MITIGATIONS)
+    apply_lvi_mitigation(${name})
+  endif()
+endfunction()
+
+if(LVI_MITIGATIONS)
+  install(FILES ${CMAKE_CURRENT_LIST_DIR}/lvi/lvi_mitigation_config.cmake
+          DESTINATION cmake/lvi
+  )
+  install(
+    FILES ${CMAKE_CURRENT_LIST_DIR}/lvi/configure_lvi_mitigation_build.cmake
+    DESTINATION cmake/lvi
+  )
+  install(FILES ${CMAKE_CURRENT_LIST_DIR}/lvi/apply_lvi_mitigation.cmake
+          DESTINATION cmake/lvi
+  )
+
+  # Also pull in the LVI mitigation wrappers
+  include(${CMAKE_CURRENT_LIST_DIR}/lvi/lvi_mitigation_config.cmake)
+endif()
 
 # Sign a built enclave library with oesign
 function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
@@ -55,8 +95,18 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
     set(TMP_FOLDER ${CMAKE_CURRENT_BINARY_DIR}/${name}_tmp)
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
-      COMMAND cp ${app_oe_conf_path} ${DEBUG_CONF_NAME}
-      COMMAND echo "Debug=1" >> ${DEBUG_CONF_NAME}
+      COMMAND
+        cp ${app_oe_conf_path} ${DEBUG_CONF_NAME} && (grep
+                                                      -q
+                                                      "Debug\=.*"
+                                                      ${DEBUG_CONF_NAME}
+                                                      &&
+                                                      (sed -i
+                                                       "s/Debug=\.*/Debug=1/"
+                                                       ${DEBUG_CONF_NAME})
+                                                      ||
+                                                      (echo "Debug=1" >>
+                                                       ${DEBUG_CONF_NAME}))
       COMMAND mkdir -p ${TMP_FOLDER}
       COMMAND ln -s ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so
               ${TMP_FOLDER}/lib${name}.so
@@ -78,8 +128,18 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
     set(SIGNED_CONF_NAME ${CMAKE_CURRENT_BINARY_DIR}/${name}.signed.conf)
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
-      COMMAND cp ${app_oe_conf_path} ${SIGNED_CONF_NAME}
-      COMMAND echo "Debug=0" >> ${SIGNED_CONF_NAME}
+      COMMAND
+        cp ${app_oe_conf_path} ${SIGNED_CONF_NAME} && (grep
+                                                       -q
+                                                       "Debug\=.*"
+                                                       ${SIGNED_CONF_NAME}
+                                                       &&
+                                                       (sed -i
+                                                        "s/Debug=\.*/Debug=0/"
+                                                        ${SIGNED_CONF_NAME})
+                                                       ||
+                                                       (echo "Debug=0" >>
+                                                        ${SIGNED_CONF_NAME}))
       COMMAND
         openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
         ${SIGNED_CONF_NAME} -k ${enclave_sign_key_path}
@@ -146,10 +206,7 @@ function(use_client_mbedtls name)
 endfunction()
 
 function(use_oe_mbedtls name)
-  target_link_libraries(
-    ${name} PRIVATE openenclave::oeenclave openenclave::oelibcxx
-                    openenclave::oelibc
-  )
+  target_link_libraries(${name} PRIVATE ${OE_TARGET_ENCLAVE_AND_STD})
 endfunction()
 
 # Enclave library wrapper
@@ -169,19 +226,15 @@ function(add_ccf_app name)
     target_include_directories(
       ${enc_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
     )
-
+    add_warning_checks(${enc_name})
     target_link_libraries(
-      ${enc_name}
-      PRIVATE ${PARSED_ARGS_LINK_LIBS_ENCLAVE}
-              # These oe libraries must be linked in correct order, so they are
-              # re-declared here
-              openenclave::oeenclave
-              openenclave::oecore
-              openenclave::oesyscall
-              ccf.enclave
+      ${enc_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_ENCLAVE}
+                          ${OE_TARGET_ENCLAVE_CORE_LIBS} ccf.enclave
     )
 
     set_property(TARGET ${enc_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+    add_lvi_mitigations(${enc_name})
 
     add_dependencies(${name} ${enc_name})
     if(PARSED_ARGS_DEPS)
@@ -198,16 +251,22 @@ function(add_ccf_app name)
     target_include_directories(
       ${virt_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
     )
+    add_warning_checks(${virt_name})
 
     target_link_libraries(
       ${virt_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_VIRTUAL} ccf.virtual
     )
+
+    if(NOT SAN)
+      target_link_options(${virt_name} PRIVATE LINKER:--no-undefined)
+    endif()
 
     set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
     enable_coverage(${virt_name})
     use_client_mbedtls(${virt_name})
     add_san(${virt_name})
+    add_lvi_mitigations(${virt_name})
 
     add_dependencies(${name} ${virt_name})
     if(PARSED_ARGS_DEPS)
@@ -225,6 +284,6 @@ endfunction()
 function(add_enclave_library_c name files)
   add_library(${name} STATIC ${files})
   target_compile_options(${name} PRIVATE -nostdinc)
-  target_link_libraries(${name} PRIVATE openenclave::oelibc)
+  target_link_libraries(${name} PRIVATE ${OE_TARGET_LIBC})
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 endfunction()

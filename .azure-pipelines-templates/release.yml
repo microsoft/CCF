@@ -11,7 +11,7 @@ jobs:
     - task: DownloadPipelineArtifact@2
       inputs:
         source: current
-        patterns: '**/ccf*.tar.gz'
+        patterns: '*'
         path: $(Build.ArtifactStagingDirectory)
 
     - task: GitHubRelease@0
@@ -21,9 +21,18 @@ jobs:
         action: 'create'
         target: '$(Build.SourceVersion)'
         tagSource: 'auto'
-        assets: $(Build.ArtifactStagingDirectory)/**/ccf.tar.gz
+        assets: $(Build.ArtifactStagingDirectory)/*
         assetUploadMode: 'delete'
         isDraft: true
         isPreRelease: true
         addChangeLog: false
       displayName: 'GitHub release (create)'
+
+    - script: |
+        python3.7 -m venv env
+        source ./env/bin/activate
+        pip install -r requirements.txt
+        pip install twine
+        twine upload -u __token__ -p $(pypi_token) $(Build.ArtifactStagingDirectory)/*.whl
+      workingDirectory: python
+      displayName: PyPi https://pypi.org/project/ccf/

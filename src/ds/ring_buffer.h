@@ -117,6 +117,11 @@ namespace ringbuffer
       v{{0}, {0}, {0}}
     {}
 
+    std::pair<const uint8_t*, size_t> get_memory_range() const
+    {
+      return std::make_pair(buffer.data(), buffer.size());
+    }
+
     size_t read(size_t limit, Handler f)
     {
       auto mask = c.size - 1;
@@ -192,7 +197,7 @@ namespace ringbuffer
     Const c; // copy of reader's consts
     Var* v; // pointer to reader's vars
 
-    virtual void checkAccess(size_t index, size_t size) {}
+    virtual void checkAccess(size_t, size_t) {}
 
     struct Reservation
     {

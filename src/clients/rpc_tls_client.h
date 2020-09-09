@@ -7,7 +7,7 @@
 #include "http/http_parser.h"
 #include "http/ws_builder.h"
 #include "http/ws_parser.h"
-#include "node/rpc/json_rpc.h"
+#include "node/rpc/serdes.h"
 #include "tls_client.h"
 
 #define FMT_HEADER_ONLY
@@ -163,7 +163,7 @@ public:
     std::vector<uint8_t> body;
     if (!params.is_null())
     {
-      body = jsonrpc::pack(params, jsonrpc::Pack::MsgPack);
+      body = serdes::pack(params, serdes::Pack::MsgPack);
     }
     return gen_request(
       method,
@@ -194,17 +194,21 @@ public:
     return call(method, params, HTTP_POST);
   }
 
-  Response get(const std::string& method, const nlohmann::json& params)
+  Response get(
+    const std::string& method, const nlohmann::json& params = nullptr)
   {
     // GET body is ignored, so params must be placed in query
     auto full_path = method;
-    for (auto it = params.begin(); it != params.end(); ++it)
+    if (!params.is_null())
     {
-      full_path += fmt::format(
-        "{}{}={}",
-        it == params.begin() ? "?" : "&",
-        it.key(),
-        it.value().dump());
+      for (auto it = params.begin(); it != params.end(); ++it)
+      {
+        full_path += fmt::format(
+          "{}{}={}",
+          it == params.begin() ? "?" : "&",
+          it.key(),
+          it.value().dump());
+      }
     }
     return call(full_path, nullptr, HTTP_GET);
   }
@@ -218,7 +222,7 @@ public:
     else if (http::status_success(resp.status))
     {
       const auto& content_type = resp.headers.find(http::headers::CONTENT_TYPE);
-      return jsonrpc::unpack(resp.body, jsonrpc::Pack::MsgPack);
+      return serdes::unpack(resp.body, serdes::Pack::MsgPack);
     }
     else
     {

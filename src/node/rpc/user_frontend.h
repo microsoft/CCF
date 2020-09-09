@@ -46,7 +46,7 @@ namespace ccf
         return false;
       }
 
-      ctx->session->caller_cert = caller.value().cert;
+      ctx->session->caller_cert = caller.value().cert.raw();
       return true;
     }
 
@@ -82,17 +82,16 @@ namespace ccf
   public:
     UserEndpointRegistry(kv::Store& store) :
       CommonEndpointRegistry(
-        get_actor_prefix(ActorsType::users), store, Tables::USER_CERTS)
+        get_actor_prefix(ActorsType::users), store, Tables::USER_CERT_DERS)
     {}
 
     UserEndpointRegistry(NetworkTables& network) :
-      UserEndpointRegistry(*network.tables)
+      CommonEndpointRegistry(
+        get_actor_prefix(ActorsType::users),
+        *network.tables,
+        Tables::USER_CERT_DERS)
     {}
   };
-
-  using UserHandlerRegistry CCF_DEPRECATED(
-    "Handlers have been renamed to Endpoints. Please use "
-    "UserEndpointRegistry") = UserEndpointRegistry;
 
   class SimpleUserRpcFrontend : public UserRpcFrontend
   {

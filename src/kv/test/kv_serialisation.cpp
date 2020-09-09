@@ -78,7 +78,8 @@ TEST_CASE(
   auto* target_map = kv_store.get<MapTypes::StringString>("priv_map");
   REQUIRE(target_map != nullptr);
 
-  INFO("Commit a private transaction without an encryptor throws an exception");
+  SUBCASE(
+    "Commit a private transaction without an encryptor throws an exception")
   {
     kv::Tx tx;
     auto view0 = tx.get_view(priv_map);
@@ -86,31 +87,29 @@ TEST_CASE(
     REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
   }
 
-  // Since a serialisation error occurred and was not recovered properly (see
-  // https://github.com/microsoft/CCF/issues/338), we need to clear the store to
-  // get a fresh version.
-  kv_store.clear();
-  kv_store.set_encryptor(encryptor);
-
-  INFO("Commit to private map in source store");
+  SUBCASE("Commit private transaction with encryptor")
   {
-    kv::Tx tx;
-    auto view0 = tx.get_view(priv_map);
-    view0->put("privk1", "privv1");
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-  }
+    kv_store.set_encryptor(encryptor);
+    INFO("Commit to private map in source store");
+    {
+      kv::Tx tx;
+      auto view0 = tx.get_view(priv_map);
+      view0->put("privk1", "privv1");
+      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    }
 
-  INFO("Deserialise transaction in target store");
-  {
-    const auto latest_data = consensus->get_latest_data();
-    REQUIRE(latest_data.has_value());
-    REQUIRE(
-      kv_store_target.deserialise(latest_data.value()) ==
-      kv::DeserialiseSuccess::PASS);
+    INFO("Deserialise transaction in target store");
+    {
+      const auto latest_data = consensus->get_latest_data();
+      REQUIRE(latest_data.has_value());
+      REQUIRE(
+        kv_store_target.deserialise(latest_data.value()) ==
+        kv::DeserialiseSuccess::PASS);
 
-    kv::Tx tx_target;
-    auto view_target = tx_target.get_view(*target_map);
-    REQUIRE(view_target->get("privk1") == "privv1");
+      kv::Tx tx_target;
+      auto view_target = tx_target.get_view(*target_map);
+      REQUIRE(view_target->get("privk1") == "privv1");
+    }
   }
 }
 
@@ -220,14 +219,56 @@ TEST_CASE(
   }
 }
 
+// SNIPPET_START: CustomClass definition
 struct CustomClass
 {
   std::string s;
   size_t n;
 
-  // This macro allows the default serialiser to be used
+  // This macro allows the default msgpack serialiser to be used
   MSGPACK_DEFINE(s, n);
 };
+// SNIPPET_END: CustomClass definition
+
+// SNIPPET_START: CustomSerialiser definition
+struct CustomSerialiser
+{
+  /**
+   * Format:
+   * [ 8 bytes=n | 8 bytes=size_of_s | size_of_s bytes=s... ]
+   */
+
+  static constexpr auto size_of_n = 8;
+  static constexpr auto size_of_size_of_s = 8;
+  static kv::serialisers::SerialisedEntry to_serialised(const CustomClass& cc)
+  {
+    const auto s_size = cc.s.size();
+    const auto total_size = size_of_n + size_of_size_of_s + s_size;
+    kv::serialisers::SerialisedEntry serialised(total_size);
+    uint8_t* data = serialised.data();
+    memcpy(data, (const uint8_t*)&cc.n, size_of_n);
+    data += size_of_n;
+    memcpy(data, (const uint8_t*)&s_size, size_of_size_of_s);
+    data += size_of_size_of_s;
+    memcpy(data, (const uint8_t*)cc.s.data(), s_size);
+    return serialised;
+  }
+
+  static CustomClass from_serialised(
+    const kv::serialisers::SerialisedEntry& ser)
+  {
+    CustomClass cc;
+    const uint8_t* data = ser.data();
+    cc.n = *(const uint64_t*)data;
+    data += size_of_n;
+    const auto s_size = *(const uint64_t*)data;
+    data += size_of_size_of_s;
+    cc.s.resize(s_size);
+    std::memcpy(cc.s.data(), data, s_size);
+    return cc;
+  }
+};
+// SNIPPET_END: CustomSerialiser definition
 
 struct CustomJsonSerialiser
 {
@@ -244,7 +285,7 @@ struct CustomJsonSerialiser
 
   static CustomClass from_serialised(const Bytes& b)
   {
-    const auto j = nlohmann::json::parse(b);
+    const auto j = nlohmann::json::parse(b.begin(), b.end());
     CustomClass c;
     c.s = j["s"];
     c.n = j["n"];
@@ -298,6 +339,12 @@ struct CustomVerboseDumbSerialiser
 };
 
 using DefaultSerialisedMap = kv::Map<CustomClass, CustomClass>;
+
+// SNIPPET_START: CustomSerialisedMap definition
+using CustomSerialisedMap =
+  kv::TypedMap<CustomClass, CustomClass, CustomSerialiser, CustomSerialiser>;
+// SNIPPET_END: CustomSerialisedMap definition
+
 using CustomJsonMap = kv::TypedMap<
   CustomClass,
   CustomClass,
@@ -313,6 +360,7 @@ TEST_CASE_TEMPLATE(
   "Custom type serialisation test" * doctest::test_suite("serialisation"),
   MapType,
   DefaultSerialisedMap,
+  CustomSerialisedMap,
   CustomJsonMap,
   VerboseSerialisedMap)
 {

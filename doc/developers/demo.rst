@@ -1,76 +1,129 @@
 End-to-end demo
 ===============
 
-This document explains how the Python testing infrastructure is used to run a complete end-to-end test of CCF.
+This document explains how to spin up a test CCF network and submit simple commands to it using `curl`_. We use curl here because it is a standard tool and broadly available - you should be able to get the same results with any HTTP client, provided you can configure the appropriate caller and CA identities. Once you have built your own app, you should be able to test it in the same way - simply replace ``liblogging`` with the name of your app binary, and call the endpoints defined by your app.
 
-The script ``tests/e2e_scenarios.py`` reads a test scenario from json. This json file can specify which app the network should run, how many nodes it should create, and the list of transactions to run. ``tests/simple_logging_scenario.json`` is an example scenario file showing the expected format:
+Startup
+-------
 
-.. literalinclude:: ../../tests/simple_logging_scenario.json
-    :language: json
+This uses the :ref:`example C++ logging app <developers/logging_cpp:Logging (C++)>` and the ``start_test_network.sh`` helper script from the main CCF repo.
 
-To see how this is run in the main test suite, look at the `Test command` used by CTest:
+``start_test_network.sh`` is a thin wrapper around ``start_network.py``. It ensures the necessary Python dependencies are available, sets some sensible default values, and uses ``curl`` to submit CCF commands (``CURL_CLIENT=ON``). There are a large number of additional configuration options, documented by passing the ``--help`` argument. You may wish to pass ``-v`` which will make the script significantly more verbose, printing the precise ``curl`` commands which were used to communicate with the test network.
+
+This script automates the steps described in :ref:`operators/start_network:Starting a New Network`, in summary:
+
+- generating new identities (private keys and certs) for the initial members and users
+- starting the initial ``cchost`` node
+- starting multiple additional nodes, instructed to ``join`` the initial node
+- verifying that each node has successfully joined the new service
+- proposing and passing governance votes using the generated member identities
+
+The following command will run a simple 3-node test network on a single machine:
 
 .. code-block:: bash
 
-    $ cd build
-    $ ctest -VV -R end_to_end_scenario -N
+    $ cd CCF/build
 
+    $ ../start_test_network.sh --package ./liblogging.enclave.so.signed
+    Setting up Python environment...
     ...
-    42: Test command: /usr/bin/unbuffer "python3" "/data/src/CCF/tests/e2e_scenarios.py" "-b" "." "--label" "end_to_end_scenario" "-l" "info" "-g" "/data/src/CCF/src/runtime_config/gov.lua" "--scenario" "/data/src/CCF/tests/simple_logging_scenario.json"
-    42: Environment variables:
-    42:  PYTHONPATH=/data/src/CCF/tests
+    Python environment successfully setup
+    [2020-07-17 15:27:41.759] Starting 3 CCF nodes...
+    [2020-07-17 15:27:46.643] Started CCF network with the following nodes:
+    [2020-07-17 15:27:46.643]   Node [ 0] = 127.251.192.205:36981
+    [2020-07-17 15:27:46.643]   Node [ 1] = 127.98.174.190:36795
+    [2020-07-17 15:27:46.643]   Node [ 2] = 127.113.40.231:33227
+    [2020-07-17 15:27:46.644] You can now issue business transactions to the ./liblogging.enclave.so.signed application.
+    [2020-07-17 15:27:46.644] Keys and certificates have been copied to the common folder: /data/src/CCF/build/workspace/test_network_common
+    [2020-07-17 15:27:46.644] See https://microsoft.github.io/CCF/users/issue_commands.html for more information.
+    [2020-07-17 15:27:46.644] Press Ctrl+C to shutdown the network.
 
-To run manually with your own scenario:
+The command output shows the addresses of the CCF nodes where commands may be submitted (eg, in this case, via ``curl https://127.251.192.205:36981/...``). The output and error logs of each node can be found in the node-specific directory in the workspace (eg, ``workspace/test_network_0/err`` is node 0's stderr).
+
+Authentication
+--------------
+
+When establishing a TLS connection with a CCF service both the service and client must prove their identity.
+
+The service identity is created at startup. The initial node generates a fresh private key which exists solely within the service's enclaves. A certificate of the corresponding public key is emitted (``networkcert.pem``) and used by all subsequent connections to confirm they are communicating with the intended service.
+
+Each member and user is identified by the cert with which they were registered with the service, either at genesis or in a subsequent ``new_member`` or ``new_user`` governance proposal. Access to the corresponding private key allows a client to submit commands as this member or user. For this test network these are all freshly generated and stored in the same common workspace for easy access. In a real deployment only the certificates would be shared; the private keys would be distributed and remain confidential.
+
+When using curl the server's identity is provided by ``--cacert`` and the client identity by ``--cert`` and ``--key``. Resources under the ``/gov`` path require member identities, while those under ``/app`` typically require user identities.
+
+These certificates and keys are copied by the start network script to the common workspace directory, displayed by the start network script. By default this is ``workspace/test_network_common``.
+
+Basic Commands
+--------------
+
+For ease of access, we copy the generated PEMs to the current directory:
 
 .. code-block:: bash
 
-    $ cd build
-    $ ./tests.sh -N                           # Creates Python venv
-    $ source env/bin/activate                 # Activates venv
-    $ export PYTHONPATH=/data/src/CCF/tests   # Makes Python test infra importable
-    $ python ../tests/e2e_scenarios.py --scenario path/to/scenario.json
+    $ cp workspace/test_network_common/*.pem .
 
-This first loads the scenario from the given json file, extracting setup fields:
+Now we can submit a first command, to find the current commit index of the test network:
 
-.. literalinclude:: ../../tests/e2e_scenarios.py
-    :language: python
-    :start-after: SNIPPET_START: parsing
-    :end-before: SNIPPET_END: parsing
-    :dedent: 2
+.. code-block:: bash
 
-Given the above ``scenario.json`` this should create 2 nodes on the local machine running the ``logging`` example app. The script then creates the requested CCF network:
+    $ curl https://127.251.192.205:36981/app/commit -X GET --cacert networkcert.pem --cert user0_cert.pem --key user0_privk.pem
+    {"seqno":30,"view":2}
 
-.. literalinclude:: ../../tests/e2e_scenarios.py
-    :language: python
-    :start-after: SNIPPET_START: create_network
-    :end-before: SNIPPET_END: create_network
-    :dedent: 2
+This should look much like a standard HTTP server, with error codes for missing resources or resources the caller is not authorized to access:
 
-Each transaction listed in the scenario is then sent to either the `primary` or a `backup` node. Any ``Write`` transactions (which modify the KV) must be processed by the `primary`. If a ``Write`` transaction is sent to a `backup` it will be forwarded to the `primary`.
+.. code-block:: bash
 
-The response to each transaction is printed at the ``DEBUG`` logging level, and also compared against the expected result. For instance, given this transaction in the scenario file:
+    $ curl https://127.251.192.205:36981/app/not/a/real/resource -X GET --cacert networkcert.pem --cert user0_cert.pem --key user0_privk.pem -i
+    HTTP/1.1 404 Not Found
 
-.. code-block:: json
+    $ curl https://127.251.192.205:36981/gov/proposals -X POST --cacert networkcert.pem --cert user0_cert.pem --key user0_privk.pem -i
+    HTTP/1.1 403 Forbidden
 
-    {
-      "method": "users/log/private",
-      "params": {
-        "id": 42,
-        "msg": "Hello world"
-      },
-      "expected": true
-    }
+Logging App Commands
+--------------------
 
-There should be a corresponding entry in the Python output, similar to:
+The business transaction endpoints defined by our application are available under the ``/app`` prefix. For example, consider the ``"log/private"`` endpoint installed by the C++ logging application:
 
-.. code-block:: text
+.. literalinclude:: ../../src/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: install_record
+    :end-before: SNIPPET_END: install_record
+    :dedent: 6
 
-    | INFO     | infra.clients:log_request:122 - users/log/private {'id': 42, 'msg': 'Hello world'}
-    | DEBUG    | infra.clients:log_response:135 - {'status': 200, 'result': True, 'error': None, 'seqno': 23, 'view': 2}
+This is available at the ``/app/log/private`` path:
 
-The ``e2e`` test script takes several additional parameters, documented by passing ``-h`` on the command line. To debug a node it may be useful to increase the node's verbosity by altering the ``--log-level`` option [#log_location]_, or to attach a debugger to a node at launch with the ``--debug-nodes`` option. If passed the ``--network-only`` option the script will keep the network alive, rather than closing immediately after transactions have completed, allowing additional transactions to be sent manually.
+.. code-block:: bash
 
-.. rubric:: Footnotes
+    $ curl https://127.251.192.205:36981/app/log/private -X POST --cacert networkcert.pem --cert user0_cert.pem --key user0_privk.pem -H "Content-Type: application/json" --data-binary '{"id": 42, "msg": "Logged to private table"}'
+    true
 
-.. [#log_location] The log location should be visible in the Python output. By default, node ``N`` will log to files ``out`` and ``err`` in ``CCF/build/workspace/end_to_end_scenario_{N}``
+This has written an entry to the CCF KV, which can be retrieved by a future request:
+
+.. code-block:: bash
+
+    $ curl https://127.251.192.205:36981/app/log/private?id=42 -X GET --cacert networkcert.pem --cert user0_cert.pem --key user0_privk.pem
+    {"msg":"Logged to private table"}
+
+We can log messages in the public table via the ``/app/log/public`` path:
+
+.. code-block:: bash
+
+    $ curl https://127.251.192.205:36981/app/log/public -X POST --cacert networkcert.pem --cert user0_cert.pem --key user0_privk.pem -H "Content-Type: application/json" --data-binary '{"id": 42, "msg": "Logged to public table"}'
+    true
+
+    $ curl https://127.251.192.205:36981/app/log/public?id=42 -X GET --cacert networkcert.pem --cert user0_cert.pem --key user0_privk.pem
+    {"msg":"Logged to public table"}
+
+Note that the paths to these handlers is arbitrary. The names of the endpoints do not affect whether the result works with public or private tables - that is determined entirely by the application code. The logging app contains very simple examples, and real business transactions are likely to read and write from multiple tables. The difference between public and private tables is that private tables are encrypted before being written to the ledger, so their contents are only visible within the service's enclaves, whereas public tables can be read and audited directly from the ledger. This can be crudely checked by grepping the produced ledger files:
+
+.. code-block:: bash
+
+    $ grep "Logged to public table" workspace/test_network_0/0.ledger/ledger_1 -q && echo "Visible" || echo "Not visible"
+    Visible
+
+    $ grep "Logged to private table" workspace/test_network_0/0.ledger/ledger_1 -q && echo "Visible" || echo "Not visible"
+    Not visible
+
+.. _curl: https://curl.haxx.se/
+
 

@@ -43,7 +43,7 @@ namespace ccf
       push_raw(l, args.rpc_ctx->get_method());
       lua_setfield(l, -2, "method");
 
-      push_raw(l, args.rpc_ctx->get_request_verb());
+      push_raw(l, args.rpc_ctx->get_request_verb().c_str());
       lua_setfield(l, -2, "verb");
 
       const auto [pack, params] =

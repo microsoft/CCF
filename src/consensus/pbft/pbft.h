@@ -17,7 +17,7 @@
 #include "enclave/rpc_map.h"
 #include "enclave/rpc_sessions.h"
 #include "kv/kv_types.h"
-#include "node/nodetypes.h"
+#include "node/node_types.h"
 
 #include <list>
 #include <memory>
@@ -28,6 +28,7 @@ namespace pbft
 {
   using SeqNo = kv::Consensus::SeqNo;
   using View = kv::Consensus::View;
+  using Configuration = kv::Consensus::Configuration;
 
   struct ViewChangeInfo
   {
@@ -128,8 +129,8 @@ namespace pbft
       if (threading::ThreadMessaging::thread_count > 1)
       {
         uint16_t tid = threading::ThreadMessaging::get_execution_thread(to);
-        threading::ThreadMessaging::thread_messaging
-          .add_task<SendAuthenticatedAEMsg>(tid, std::move(tmsg));
+        threading::ThreadMessaging::thread_messaging.add_task(
+          tid, std::move(tmsg));
       }
       else
       {
@@ -296,8 +297,8 @@ namespace pbft
       {
         uint16_t tid = threading::ThreadMessaging::get_execution_thread(
           ++execution_thread_counter);
-        threading::ThreadMessaging::thread_messaging
-          .add_task<SendAuthenticatedMsg>(tid, std::move(tmsg));
+        threading::ThreadMessaging::thread_messaging.add_task(
+          tid, std::move(tmsg));
       }
       else
       {
@@ -331,6 +332,8 @@ namespace pbft
   class Pbft : public kv::Consensus
   {
   private:
+    using Configuration = kv::Consensus::Configuration;
+
     NodesMap nodes;
 
     std::shared_ptr<ChannelProxy> channels;
@@ -356,7 +359,7 @@ namespace pbft
       std::unique_ptr<pbft::PbftStore> store_,
       std::shared_ptr<ChannelProxy> channels_,
       NodeId id,
-      size_t sig_max_tx,
+      size_t sig_tx_interval,
       std::unique_ptr<consensus::LedgerEnclave> ledger_,
       std::shared_ptr<enclave::RPCMap> rpc_map,
       std::shared_ptr<enclave::RPCSessions> rpcsessions_,
@@ -387,7 +390,7 @@ namespace pbft
       general_info.status_timeout = consensus_config.pbft_status_interval;
       general_info.recovery_timeout = 9999250000;
       general_info.max_requests_between_signatures =
-        sig_max_tx / Max_requests_in_batch;
+        sig_tx_interval / Max_requests_in_batch;
       general_info.support_threading = true;
 
       // Adding myself
@@ -580,29 +583,37 @@ namespace pbft
     }
 
     void add_configuration(
-      SeqNo seqno,
-      const std::unordered_set<kv::NodeId>& config,
-      const NodeConf& node_conf) override
+      SeqNo seqno, const Configuration::Nodes& config) override
     {
-      if (node_conf.node_id == local_id)
+      if (config.size() != 1)
+      {
+        throw std::logic_error(
+          "PBFT configuration should add one node at a time");
+      }
+
+      auto new_node_id = config.begin()->first;
+      auto new_node_info = config.begin()->second;
+
+      if (new_node_id == local_id)
       {
         return;
       }
 
       PrincipalInfo info;
-      info.id = node_conf.node_id;
-      info.port = short(atoi(node_conf.port.c_str()));
+      info.id = new_node_id;
+      info.port = short(atoi(new_node_info.port.c_str()));
       info.ip = "256.256.256.256"; // Invalid
-      info.cert = node_conf.cert;
-      info.host_name = node_conf.host_name;
+      info.cert = new_node_info.cert.raw();
+      info.host_name = new_node_info.hostname;
       info.is_replica = true;
+
       Byz_add_principal(info);
       LOG_INFO_FMT("PBFT added node, id: {}", info.id);
 
-      nodes[node_conf.node_id] = 0;
+      nodes[new_node_id] = 0;
     }
 
-    std::unordered_set<NodeId> get_latest_configuration() const override
+    Configuration::Nodes get_latest_configuration() const override
     {
       throw std::logic_error("Unimplemented");
     }
@@ -674,11 +685,9 @@ namespace pbft
       {
         try
         {
-          auto r = msg->data.self->channels
-                     ->template recv_authenticated_with_load<PbftHeader>(
-                       msg->data.d.data(), msg->data.d.size());
-          msg->data.d.data() = r.p;
-          msg->data.d.size() = r.n;
+          msg->data.self->channels
+            ->template recv_authenticated_with_load<PbftHeader>(
+              msg->data.d.data(), msg->data.d.size());
         }
         catch (const std::logic_error& err)
         {
@@ -693,9 +702,8 @@ namespace pbft
         msg, &recv_authenticated_msg_process_cb);
       if (threading::ThreadMessaging::thread_count > 1)
       {
-        threading::ThreadMessaging::thread_messaging
-          .add_task<RecvAuthenticatedMsg>(
-            threading::ThreadMessaging::main_thread, std::move(msg));
+        threading::ThreadMessaging::thread_messaging.add_task(
+          threading::ThreadMessaging::main_thread, std::move(msg));
       }
       else
       {
@@ -740,10 +748,9 @@ namespace pbft
 
           if (threading::ThreadMessaging::thread_count > 1)
           {
-            threading::ThreadMessaging::thread_messaging
-              .add_task<RecvAuthenticatedMsg>(
-                recv_nonce.tid % threading::ThreadMessaging::thread_count,
-                std::move(tmsg));
+            threading::ThreadMessaging::thread_messaging.add_task(
+              recv_nonce.tid % threading::ThreadMessaging::thread_count,
+              std::move(tmsg));
           }
           else
           {
@@ -869,9 +876,9 @@ namespace pbft
       }
     }
 
-    void set_f(size_t f) override
+    void open_network(ConsensusType consensus_type) override
     {
-      message_receiver_base->set_f(f);
+      message_receiver_base->open_network(consensus_type);
     }
 
     void emit_signature() override

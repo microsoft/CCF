@@ -1,0 +1,69 @@
+- name: Include vars
+  include_vars: common.yml
+
+- name: Install git
+  apt:
+    name: git
+  become: true
+
+- name: Remove Pre-existing Open Enclave source on the remote
+  file:
+    path: "{{ workspace }}/openenclave-{{ oe_ver }}"
+    state: absent
+
+- name: Create directory for Open Enclave source
+  file:
+    path: "{{ workspace }}/openenclave-{{ oe_ver }}"
+    state: directory
+
+- name: Check out Open Enclave source
+  git:
+    repo: "{{ oe_repo }}"
+    dest: "{{ workspace }}/openenclave-{{ oe_ver }}"
+    version: "{{ oe_ver }}"
+
+- name: Make Open Enclave build dir
+  file:
+    path: "{{ workspace }}/openenclave-{{ oe_ver }}/build"
+    state: directory
+
+- name: Install Open Enclave dependencies
+  shell: |
+    scripts/ansible/install-ansible.sh
+    ansible-playbook "{{ oe_playbook }}"
+  args:
+    chdir: "{{ workspace }}/openenclave-{{ oe_ver }}"
+  become: true
+  async: 600
+  poll: 5
+
+- name: Install ninja
+  apt:
+    name: ninja-build
+  become: true
+
+- name: Make Open Enclave build dir
+  file:
+    path: "{{ workspace }}/openenclave-{{ oe_ver }}/build"
+    state: directory
+
+- name: Build Open Enclave
+  shell: |
+    cmake -GNinja -DCMAKE_INSTALL_PREFIX:PATH={{ oe_prefix }} -DCMAKE_BUILD_TYPE=RelWithDebInfo {{ oe_build_opts }} ..
+    ninja
+  args:
+    chdir: "{{ workspace }}/openenclave-{{ oe_ver }}/build"
+  async: 600
+  poll: 5
+
+- name: Remove Pre-existing Open Enclave install
+  file:
+    path: "{{ oe_prefix }}"
+    state: absent
+  become: true
+
+- name: Install Open Enclave
+  command: ninja install
+  args:
+    chdir: "{{ workspace }}/openenclave-{{ oe_ver }}/build"
+  become: true

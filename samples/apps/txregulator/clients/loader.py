@@ -1,7 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
-import infra.ccf
+import infra.network
+import ccf.proposal_generator
+import infra.checker
 import os
 import logging
 from time import gmtime, strftime, perf_counter
@@ -32,7 +34,7 @@ class AppUser:
 def run(args):
     hosts = ["localhost"]
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
@@ -46,23 +48,15 @@ def run(args):
 
         # Give regulators permissions to register regulators and banks
         for regulator in regulators:
-            proposal_result, error = network.consortium.propose(
-                0,
-                primary,
-                f"""
-                return Calls:call(
-                    "set_user_data",
-                    {{
-                        user_id = {regulator.ccf_id},
-                        user_data = {{
-                            privileges = {{
-                                REGISTER_REGULATORS = true,
-                                REGISTER_BANKS = true,
-                            }}
-                        }}
-                    }}
-                )
-                """,
+            proposal_body, _ = ccf.proposal_generator.set_user_data(
+                regulator.ccf_id,
+                {"proposals": {"REGISTER_REGULATORS": True, "REGISTER_BANKS": True}},
+            )
+            (
+                proposal_result,
+                error,
+            ) = network.consortium.get_any_active_member().propose(
+                primary, proposal_body
             )
             network.consortium.vote_using_majority(primary, proposal_result["id"])
 
@@ -107,7 +101,7 @@ def run(args):
                 check = infra.checker.Checker()
 
                 check(
-                    c.rpc(
+                    c.post(
                         "REG_register",
                         {
                             "regulator_id": regulator.ccf_id,
@@ -119,7 +113,7 @@ def run(args):
                     result=regulator.ccf_id,
                 )
                 check(
-                    c.rpc("REG_get", {"id": regulator.ccf_id}),
+                    c.post("REG_get", {"id": regulator.ccf_id}),
                     result=[
                         regulator.country,
                         scripts[regulator.name],
@@ -134,12 +128,12 @@ def run(args):
                 check = infra.checker.Checker()
 
                 check(
-                    c.rpc(
+                    c.post(
                         "BK_register", {"bank_id": bank.ccf_id, "country": bank.country}
                     ),
                     result=bank.ccf_id,
                 )
-                check(c.rpc("BK_get", {"id": bank.ccf_id}), result=bank.country)
+                check(c.post("BK_get", {"id": bank.ccf_id}), result=bank.country)
                 LOG.debug(f"User {bank} successfully registered as bank")
 
         LOG.success(
@@ -151,7 +145,7 @@ def run(args):
 
         with primary.user_client(format="msgpack", user_id=regulators[0].name) as reg_c:
             with primary.user_client(
-                format="msgpack", user_id=banks[0].name, log_file=None
+                format="msgpack", user_id=banks[0].name
             ) as c:
                 with open(args.datafile, newline="") as f:
                     start_time = perf_counter()
@@ -169,7 +163,7 @@ def run(args):
                             "dst_country": row["dst_country"],
                         }
 
-                        check(c.rpc("TX_record", json_tx), result=tx_id)
+                        check(c.post("TX_record", json_tx), result=tx_id)
                         print(json.dumps(json_tx))
                         tx_id += 1
 

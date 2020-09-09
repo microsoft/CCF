@@ -1,10 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import infra.ccf
+import infra.network
 import functools
 
 from loguru import logger as LOG
+from math import ceil
 
 
 class TestRequirementsNotMet(Exception):
@@ -37,7 +38,7 @@ def ensure_reqs(check_reqs):
                 except Exception as e:
                     raise TestRequirementsNotMet(
                         f"Could not check if test requirements were met: {e}"
-                    )
+                    ) from e
 
             return func(network, args, *nargs, **kwargs)
 
@@ -49,10 +50,10 @@ def ensure_reqs(check_reqs):
 def supports_methods(*methods):
     def check(network, args, *nargs, **kwargs):
         primary, _ = network.find_primary()
-        with primary.user_client() as c:
-            response = c.get("api")
-            supported_methods = response.result["methods"]
-            missing = {*methods}.difference(supported_methods)
+        with primary.client("user0") as c:
+            response = c.get("/app/api")
+            supported_methods = response.body["endpoints"]
+            missing = {*methods}.difference([sm["path"] for sm in supported_methods])
             if missing:
                 concat = ", ".join(missing)
                 raise TestRequirementsNotMet(f"Missing required methods: {concat}")
@@ -82,6 +83,40 @@ def sufficient_member_count():
                 f" ({len(network.consortium.get_active_members()) - 1}) would be less than"
                 f" the recovery threshold ({network.consortium.recovery_threshold})"
             )
+
+    return ensure_reqs(check)
+
+
+def can_kill_n_nodes(nodes_to_kill_count):
+    def check(network, args, *nargs, **kwargs):
+        primary, _ = network.find_primary()
+        with primary.client("member0") as c:
+            r = c.post(
+                "/gov/query",
+                {
+                    "text": """tables = ...
+                        trusted_nodes_count = 0
+                        tables["ccf.nodes"]:foreach(function(node_id, details)
+                            if details["status"] == "TRUSTED" then
+                                trusted_nodes_count = trusted_nodes_count + 1
+                            end
+                        end)
+                        return trusted_nodes_count
+                        """
+                },
+            )
+
+            trusted_nodes_count = r.body
+            running_nodes_count = len(network.get_joined_nodes())
+            would_leave_nodes_count = running_nodes_count - nodes_to_kill_count
+            minimum_nodes_to_run_count = ceil((trusted_nodes_count + 1) / 2)
+            if args.consensus == "cft" and (
+                would_leave_nodes_count < minimum_nodes_to_run_count
+            ):
+                raise TestRequirementsNotMet(
+                    f"Cannot kill {nodes_to_kill_count} node(s) as the network would not be able to make progress"
+                    f" (would leave {would_leave_nodes_count} nodes but requires {minimum_nodes_to_run_count} nodes to make progress) "
+                )
 
     return ensure_reqs(check)
 

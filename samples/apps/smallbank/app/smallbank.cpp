@@ -10,23 +10,6 @@ using namespace ccf;
 
 namespace ccfapp
 {
-  struct Procs
-  {
-    // small banking application for benchmarking
-    static constexpr auto SMALL_BANKING_CREATE = "SmallBank_create";
-    static constexpr auto SMALL_BANKING_CREATE_BATCH = "SmallBank_create_batch";
-    static constexpr auto SMALL_BANKING_BALANCE = "SmallBank_balance";
-    static constexpr auto SMALL_BANKING_DEPOSIT_CHECKING =
-      "SmallBank_deposit_checking";
-    static constexpr auto SMALL_BANKING_TRANSACT_SAVINGS =
-      "SmallBank_transact_savings";
-    static constexpr auto SMALL_BANKING_AMALGAMATE = "SmallBank_amalgamate";
-    static constexpr auto SMALL_BANKING_WRITE_CHECK = "SmallBank_write_check";
-  };
-
-  static constexpr auto expected =
-    http::headervalues::contenttype::OCTET_STREAM;
-
   struct SmallBankTables
   {
     kv::Map<std::string, uint64_t>& accounts;
@@ -44,30 +27,6 @@ namespace ccfapp
   {
   private:
     SmallBankTables tables;
-
-    bool headers_unmatched(EndpointContext& args)
-    {
-      const auto actual =
-        args.rpc_ctx->get_request_header(http::headers::CONTENT_TYPE)
-          .value_or("");
-      if (expected != actual)
-      {
-        return true;
-      }
-      return false;
-    }
-
-    void set_unmatched_header_status(EndpointContext& args)
-    {
-      args.rpc_ctx->set_response_status(HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE);
-      args.rpc_ctx->set_response_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-      args.rpc_ctx->set_response_body(fmt::format(
-        "Expected content-type '{}'. Got '{}'.",
-        expected,
-        args.rpc_ctx->get_request_header(http::headers::CONTENT_TYPE)
-          .value_or("")));
-    }
 
     void set_error_status(
       EndpointContext& args, int status, std::string&& message)
@@ -451,20 +410,19 @@ namespace ccfapp
         set_no_content_status(args);
       };
 
-      make_endpoint(Procs::SMALL_BANKING_CREATE, HTTP_POST, create).install();
-      make_endpoint(Procs::SMALL_BANKING_CREATE_BATCH, HTTP_POST, create_batch)
-        .install();
-      make_endpoint(Procs::SMALL_BANKING_BALANCE, HTTP_POST, balance).install();
-      make_endpoint(
-        Procs::SMALL_BANKING_TRANSACT_SAVINGS, HTTP_POST, transact_savings)
-        .install();
-      make_endpoint(
-        Procs::SMALL_BANKING_DEPOSIT_CHECKING, HTTP_POST, deposit_checking)
-        .install();
-      make_endpoint(Procs::SMALL_BANKING_AMALGAMATE, HTTP_POST, amalgamate)
-        .install();
-      make_endpoint(Procs::SMALL_BANKING_WRITE_CHECK, HTTP_POST, writeCheck)
-        .install();
+      std::vector<ccf::RESTVerb> verbs = {HTTP_POST, ws::Verb::WEBSOCKET};
+      for (auto verb : verbs)
+      {
+        make_endpoint("SmallBank_create", verb, create).install();
+        make_endpoint("SmallBank_create_batch", verb, create_batch).install();
+        make_endpoint("SmallBank_balance", verb, balance).install();
+        make_endpoint("SmallBank_transact_savings", verb, transact_savings)
+          .install();
+        make_endpoint("SmallBank_deposit_checking", verb, deposit_checking)
+          .install();
+        make_endpoint("SmallBank_amalgamate", verb, amalgamate).install();
+        make_endpoint("SmallBank_write_check", verb, writeCheck).install();
+      }
     }
   };
 
@@ -483,7 +441,7 @@ namespace ccfapp
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& nwt, ccfapp::AbstractNodeContext& context)
+    NetworkTables& nwt, ccfapp::AbstractNodeContext&)
   {
     return make_shared<SmallBank>(*nwt.tables);
   }

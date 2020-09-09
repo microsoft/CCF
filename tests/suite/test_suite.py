@@ -7,6 +7,7 @@ import receipts
 import reconfiguration
 import recovery
 import rekey
+import election
 
 from inspect import signature, Parameter
 
@@ -38,6 +39,36 @@ suite_membership_recovery = [
 ]
 suites["membership_recovery"] = suite_membership_recovery
 
+# This suite tests that nodes addition, deletion and primary changes
+# can be interleaved
+suite_reconfiguration = [
+    reconfiguration.test_add_node,
+    reconfiguration.test_retire_primary,
+    reconfiguration.test_add_node,
+    election.test_kill_primary,
+    reconfiguration.test_add_node,
+    reconfiguration.test_add_node,
+    reconfiguration.test_retire_backup,
+    reconfiguration.test_add_node,
+    election.test_kill_primary,
+]
+suites["reconfiguration"] = suite_reconfiguration
+
+# Temporary suite while snapshotting feature is being implemented
+# https://github.com/microsoft/CCF/milestone/12
+suite_snapshots = [
+    reconfiguration.test_add_node_from_snapshot,
+    election.test_kill_primary,
+    # The new primary has no snapshot so issue new entries
+    # to generate at least one snapshot
+    e2e_logging.test,
+    e2e_logging.test,
+    e2e_logging.test,
+    e2e_logging.test,
+    reconfiguration.test_add_node_from_snapshot,
+]
+suites["snapshots"] = suite_snapshots
+
 all_tests_suite = [
     # e2e_logging:
     e2e_logging.test,
@@ -49,6 +80,7 @@ all_tests_suite = [
     e2e_logging.test_raw_text,
     e2e_logging.test_forwarding_frontends,
     e2e_logging.test_update_lua,
+    e2e_logging.test_user_data_ACL,
     e2e_logging.test_view_history,
     e2e_logging.test_tx_statuses,
     # memberclient:
@@ -56,6 +88,7 @@ all_tests_suite = [
     memberclient.test_add_member,
     memberclient.test_retire_member,
     memberclient.test_update_recovery_shares,
+    memberclient.test_missing_signature,
     # receipts:
     receipts.test,
     # reconfiguration:
@@ -63,11 +96,14 @@ all_tests_suite = [
     reconfiguration.test_add_node_from_backup,
     reconfiguration.test_add_as_many_pending_nodes,
     reconfiguration.test_add_node_untrusted_code,
-    reconfiguration.test_retire_node,
+    reconfiguration.test_retire_backup,
     # recovery:
     recovery.test,
     # rekey:
     rekey.test,
+    # election:
+    reconfiguration.test_add_node,
+    election.test_kill_primary,
 ]
 suites["all"] = all_tests_suite
 

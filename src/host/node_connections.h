@@ -2,12 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/consensus_types.h"
-#include "consensus/pbft/pbft_types.h"
-#include "consensus/raft/raft_types.h"
+#include "consensus/aft/raft_types.h"
 #include "host/timer.h"
 #include "ledger.h"
-#include "node/nodetypes.h"
+#include "node/node_types.h"
 #include "tcp.h"
 
 #include <unordered_map>
@@ -102,7 +100,7 @@ namespace asynchost
 
       void on_disconnect()
       {
-        LOG_DEBUG_FMT("node incoming disconnect {}, from {}", id, node);
+        LOG_DEBUG_FMT("node incoming disconnect {} with node {}", id, node);
 
         parent.incoming.erase(id);
 
@@ -174,7 +172,11 @@ namespace asynchost
 
     Ledger& ledger;
     TCP listener;
+
+    // The lifetime of outgoing connections is handled by node channels in the
+    // enclave
     std::unordered_map<ccf::NodeId, TCP> outgoing;
+
     std::unordered_map<size_t, TCP> incoming;
     std::unordered_map<ccf::NodeId, TCP> associated;
     size_t next_id = 1;
@@ -231,10 +233,8 @@ namespace asynchost
           auto msg_type = serialized::read<ccf::NodeMsgType>(data, size);
           if (
             msg_type == ccf::NodeMsgType::consensus_msg &&
-            (serialized::peek<raft::RaftMsgType>(data, size) ==
-               raft::raft_append_entries ||
-             serialized::peek<pbft::PbftMsgType>(data, size) ==
-               pbft::pbft_append_entries))
+            (serialized::peek<aft::RaftMsgType>(data, size) ==
+             aft::raft_append_entries))
           {
             // Parse the indices to be sent to the recipient.
             auto p = data;
@@ -245,11 +245,11 @@ namespace asynchost
 
             const auto& ae =
               serialized::overlay<consensus::AppendEntriesIndex>(p, psize);
-            // Find the total frame size, and write it along with the header.
-            auto count = ae.idx - ae.prev_idx;
 
+            // Find the total frame size, and write it along with the header.
             uint32_t frame = (uint32_t)size_to_send;
             std::optional<std::vector<uint8_t>> framed_entries = std::nullopt;
+
             framed_entries =
               ledger.read_framed_entries(ae.prev_idx + 1, ae.idx);
             if (framed_entries.has_value())
@@ -305,11 +305,10 @@ namespace asynchost
       for (const auto node : local_queue)
       {
         LOG_DEBUG_FMT("reconnecting node {}", node);
-        auto s = find(node);
-
-        if (s)
+        auto s = outgoing.find(node);
+        if (s != outgoing.end())
         {
-          s.value()->reconnect();
+          s->second->reconnect();
         }
       }
     }
@@ -320,11 +319,9 @@ namespace asynchost
     {
       if (outgoing.find(node) != outgoing.end())
       {
-        LOG_FAIL_FMT("Cannot add node {}: already in use", node);
+        LOG_FAIL_FMT("Cannot add node connection {}: already in use", node);
         return false;
       }
-
-      LOG_DEBUG_FMT("Adding node {} {}:{}", node, host, service);
 
       TCP s;
       s->set_behaviour(std::make_unique<OutgoingBehaviour>(*this, node));
@@ -336,6 +333,9 @@ namespace asynchost
       }
 
       outgoing.emplace(node, s);
+
+      LOG_DEBUG_FMT(
+        "Added node connection with {} ({}:{})", node, host, service);
       return true;
     }
 
@@ -354,19 +354,19 @@ namespace asynchost
           return s->second;
       }
 
-      LOG_FAIL_FMT("Unknown node {}", node);
+      LOG_FAIL_FMT("Unknown node connection {}", node);
       return {};
     }
 
     bool remove_node(ccf::NodeId node)
     {
-      LOG_DEBUG_FMT("removing node {}", node);
-
       if (outgoing.erase(node) < 1)
       {
-        LOG_FAIL_FMT("Cannot remove node {}: does not exist", node);
+        LOG_FAIL_FMT("Cannot remove node connection {}: does not exist", node);
         return false;
       }
+
+      LOG_DEBUG_FMT("Removed node connection with {}", node);
 
       return true;
     }

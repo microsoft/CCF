@@ -182,11 +182,7 @@ namespace tls
           fmt::format("mbedtls_pem_write_buffer failed: {}", error_string(rc)));
       }
 
-      // mbedtls includes the terminating null, but tls::Pem provides this
-      // already
-      pem_len--;
-
-      return Pem({public_pem.data(), pem_len});
+      return Pem(public_pem.data(), pem_len);
     }
   };
 }

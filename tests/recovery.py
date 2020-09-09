@@ -1,10 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
-import infra.ccf
+import infra.network
 import infra.logging_app as app
+import infra.checker
 import suite.test_requirements as reqs
-import time
 
 from loguru import logger as LOG
 
@@ -16,7 +16,7 @@ def test(network, args):
     ledger = primary.get_ledger()
     defunct_network_enc_pubk = network.store_current_network_encryption_key()
 
-    recovered_network = infra.ccf.Network(
+    recovered_network = infra.network.Network(
         network.hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
     recovered_network.start_in_recovery(args, ledger)
@@ -31,7 +31,7 @@ def test_share_resilience(network, args):
     ledger = old_primary.get_ledger()
     defunct_network_enc_pubk = network.store_current_network_encryption_key()
 
-    recovered_network = infra.ccf.Network(
+    recovered_network = infra.network.Network(
         network.hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
     recovered_network.start_in_recovery(args, ledger)
@@ -42,7 +42,7 @@ def test_share_resilience(network, args):
     # submitted after a new primary is found.
     submitted_shares_count = 0
     for m in recovered_network.consortium.get_active_members():
-        with primary.node_client() as nc:
+        with primary.client() as nc:
             if (
                 submitted_shares_count
                 >= recovered_network.consortium.recovery_threshold - 1
@@ -69,11 +69,7 @@ def test_share_resilience(network, args):
         f"Shutting down node {primary.node_id} before submitting last recovery share"
     )
     primary.stop()
-    LOG.debug(
-        f"Waiting {recovered_network.election_duration}s for a new primary to be elected..."
-    )
-    time.sleep(recovered_network.election_duration)
-    new_primary, _ = recovered_network.find_primary()
+    new_primary, _ = recovered_network.wait_for_new_primary(primary.node_id)
     assert (
         new_primary is not primary
     ), f"Primary {primary.node_id} should have changed after election"
@@ -88,7 +84,8 @@ def test_share_resilience(network, args):
         )
 
     recovered_network.consortium.check_for_service(
-        new_primary, infra.ccf.ServiceStatus.OPEN,
+        new_primary,
+        infra.network.ServiceStatus.OPEN,
     )
     return recovered_network
 
@@ -98,7 +95,7 @@ def run(args):
 
     txs = app.LoggingTxs()
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb, txs=txs
     ) as network:
         network.start_and_join(args)

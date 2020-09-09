@@ -140,12 +140,9 @@ TEST_CASE("persistent map operations")
 static const champ::Map<K, V, H> gen_map(size_t size)
 {
   champ::Map<K, V, H> map;
-  for (uint32_t j = 0; j < 2; ++j)
+  for (size_t i = 0; i < size; ++i)
   {
-    for (uint64_t i = 0; i < size; ++i)
-    {
-      map = map.put(i, i);
-    }
+    map = map.put(i, i);
   }
   return map;
 }
@@ -161,6 +158,7 @@ TEST_CASE("serialize map")
   std::vector<pair> results;
   uint32_t num_elements = 100;
   auto map = gen_map(num_elements);
+
   INFO("make sure we can serialize a map");
   {
     map.foreach([&results](const auto& key, const auto& value) {
@@ -226,5 +224,24 @@ TEST_CASE("serialize map")
     snapshot_2.serialize(s_2.data());
 
     REQUIRE_EQ(s_1, s_2);
+  }
+
+  INFO("Serialize map with different key sizes");
+  {
+    using SerialisedKey = champ::serialisers::SerialisedEntry;
+    using SerialisedValue = champ::serialisers::SerialisedEntry;
+
+    uint32_t num_elements = 100;
+    champ::Map<SerialisedKey, SerialisedValue> map;
+    SerialisedKey key(16);
+    SerialisedValue value(8);
+    SerialisedValue long_value(256);
+
+    map = map.put(key, value);
+    map = map.put(key, long_value);
+
+    champ::Snapshot<SerialisedKey, SerialisedValue> snapshot(map);
+    std::vector<uint8_t> s(map.get_serialized_size());
+    snapshot.serialize(s.data());
   }
 }

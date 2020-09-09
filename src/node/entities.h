@@ -62,9 +62,9 @@ namespace ccf
   {
     static constexpr auto MEMBERS = "ccf.members";
     static constexpr auto MEMBER_ACKS = "ccf.member_acks";
-    static constexpr auto MEMBER_CERTS = "ccf.member_certs";
+    static constexpr auto MEMBER_CERT_DERS = "ccf.member_cert_ders";
     static constexpr auto USERS = "ccf.users";
-    static constexpr auto USER_CERTS = "ccf.user_certs";
+    static constexpr auto USER_CERT_DERS = "ccf.user_cert_ders";
     static constexpr auto NODES = "ccf.nodes";
     static constexpr auto VALUES = "ccf.values";
     static constexpr auto SIGNATURES = "ccf.signatures";
@@ -76,6 +76,7 @@ namespace ccf
     static constexpr auto PROPOSALS = "ccf.proposals";
     static constexpr auto GOV_SCRIPTS = "ccf.governance.scripts";
     static constexpr auto APP_SCRIPTS = "ccf.app_scripts";
+    static constexpr auto MODULES = "ccf.modules";
     static constexpr auto SECRETS = "ccf.secrets";
     static constexpr auto NODE_CODE_IDS = "ccf.nodes.code_ids";
     static constexpr auto GOV_HISTORY = "ccf.governance.history";
@@ -84,6 +85,8 @@ namespace ccf
     static constexpr auto USER_CODE_IDS = "ccf.users.code_ids";
     static constexpr auto CONFIGURATION = "ccf.config";
     static constexpr auto SUBMITTED_SHARES = "ccf.submitted_shares";
+    static constexpr auto SNAPSHOT_EVIDENCE = "ccf.snapshot_evidence";
+    static constexpr auto CA_CERT_DERS = "ccf.ca_cert_ders";
   };
 }
 

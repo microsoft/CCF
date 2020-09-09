@@ -87,7 +87,7 @@ extern "C"
   using tick_func_t = bool (*)(size_t, size_t);
 
   /*ocall function table*/
-  static oe_ocall_func_t __ccf_ocall_function_table[] = {NULL};
+  static oe_ocall_func_t __ccf_ocall_function_table[] = {nullptr};
 
   inline void load_virtual_enclave(const char* path)
   {
@@ -106,7 +106,7 @@ extern "C"
   }
 
   inline oe_result_t enclave_create_node(
-    oe_enclave_t* enclave,
+    oe_enclave_t*,
     bool* _retval,
     void* enclave_config,
     char* ccf_config,
@@ -148,7 +148,7 @@ extern "C"
     return *_retval ? OE_OK : OE_FAILURE;
   }
 
-  inline oe_result_t enclave_run(oe_enclave_t* enclave, bool* _retval)
+  inline oe_result_t enclave_run(oe_enclave_t*, bool* _retval)
   {
     static run_func_t run_func =
       get_enclave_exported_function<run_func_t>("enclave_run");
@@ -158,12 +158,12 @@ extern "C"
   }
 
   inline oe_result_t oe_create_ccf_enclave(
-    const char* path,
-    oe_enclave_type_t type,
-    uint32_t flags,
-    const void* config,
-    uint32_t config_size,
-    oe_enclave_t** enclave)
+    const char*,
+    oe_enclave_type_t,
+    uint32_t,
+    const void*,
+    uint32_t,
+    oe_enclave_t**)
   {
     // this function is not supposed to be called when using a virtual enclave
     return OE_FAILURE;

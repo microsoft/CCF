@@ -10,7 +10,7 @@ The Key-Value :cpp:class:`kv::Store` is a collection of :cpp:class:`kv::Maps` th
 Creating a Map
 --------------
 
-A :cpp:class:`kv::Map` (often referred to as a ``Table``) is created in the constructor of an application. It maps a unique ``key`` to a ``value``.
+A :cpp:type:`kv::Map` (often referred to as a ``Table``) is created in the constructor of an application. It maps a unique ``key`` to a ``value``.
 
 When a ``Map`` is created, its name and the types of the key and value mapping should be specified.
 
@@ -139,39 +139,6 @@ The :cpp:class:`kv::Map::TxView::get_globally_committed` member function returns
 Miscellaneous
 -------------
 
-Custom key and value types
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-User-defined types can also be used for the types of the key and value mapping of each :cpp:class:`kv::Map`. When defining each custom type, the following conditions must be met:
-
-- For both the custom key and value types, the ``MSGPACK_DEFINE();`` macro should be used to declare each member of the custom type for serialisation.
-- For the custom key type, the ``==`` operator should be defined.
-
-.. code-block:: cpp
-
-    struct CustomKey
-    {
-        uint64_t id;
-        std::string name;
-
-        bool operator==(const CustomKey& other) const
-        {
-            return id == other.id && name == other.name;
-        }
-
-        MSGPACK_DEFINE(id, name);
-    };
-
-    struct CustomValue
-    {
-        uint64_t value;
-        std::string name;
-
-        MSGPACK_DEFINE(value, name);
-    };
-
-    auto& map = tables.create<CustomKey, CustomValue>("map");
-
 ``foreach()``
 ~~~~~~~~~~~~~
 
@@ -216,3 +183,4 @@ By default CCF decides which transactions are successful (so should be applied t
 
      // Apply this, even though it has an error response
     args.rpc_ctx->set_apply_writes(true);
+

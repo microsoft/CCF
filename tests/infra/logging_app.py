@@ -2,8 +2,10 @@
 # Licensed under the Apache 2.0 License.
 
 import infra.checker
+import ccf.clients
 import suite.test_requirements as reqs
 import time
+import http
 
 from loguru import logger as LOG
 
@@ -44,14 +46,13 @@ def test_run_txs(
 
 
 class LoggingTxs:
-    def __init__(
-        self, notifications_queue=None,
-    ):
+    def __init__(self, notifications_queue=None, user_id=0):
         self.pub = {}
         self.priv = {}
         self.next_pub_index = 1
         self.next_priv_index = 1
         self.notifications_queue = notifications_queue
+        self.user = f"user{user_id}"
 
     def issue(
         self,
@@ -88,11 +89,11 @@ class LoggingTxs:
         timeout=3,
     ):
         LOG.success(f"Applying {number_txs} logging txs to node {remote_node.node_id}")
-        with remote_node.node_client() as mc:
+        with remote_node.client() as mc:
             check_commit = infra.checker.Checker(mc)
             check_commit_n = infra.checker.Checker(mc, self.notifications_queue)
 
-            with remote_node.user_client() as uc:
+            with remote_node.client(self.user) as uc:
                 for _ in range(number_txs):
                     end_time = time.time() + timeout
                     while time.time() < end_time:
@@ -101,13 +102,19 @@ class LoggingTxs:
                                 f"Private message at index {self.next_priv_index}"
                             )
                             pub_msg = f"Public message at index {self.next_pub_index}"
-                            rep_priv = uc.rpc(
-                                "log/private",
-                                {"id": self.next_priv_index, "msg": priv_msg,},
+                            rep_priv = uc.post(
+                                "/app/log/private",
+                                {
+                                    "id": self.next_priv_index,
+                                    "msg": priv_msg,
+                                },
                             )
-                            rep_pub = uc.rpc(
-                                "log/public",
-                                {"id": self.next_pub_index, "msg": pub_msg,},
+                            rep_pub = uc.post(
+                                "/app/log/public",
+                                {
+                                    "id": self.next_pub_index,
+                                    "msg": pub_msg,
+                                },
                             )
                             check_commit_n(rep_priv, result=True)
                             check_commit(rep_pub, result=True)
@@ -119,7 +126,7 @@ class LoggingTxs:
                             break
                         except (
                             TimeoutError,
-                            infra.clients.CCFConnectionException,
+                            ccf.clients.CCFConnectionException,
                         ):
                             LOG.debug("Network is unavailable")
                             if not ignore_failures:
@@ -134,7 +141,7 @@ class LoggingTxs:
             try:
                 network.wait_for_node_commit_sync(consensus)
                 break
-            except (TimeoutError, infra.clients.CCFConnectionException):
+            except (TimeoutError, ccf.clients.CCFConnectionException):
                 LOG.error("Timeout error while waiting for nodes to sync")
                 if not ignore_failures:
                     raise
@@ -156,18 +163,19 @@ class LoggingTxs:
 
     def _verify_tx(self, node, idx, priv=True, timeout=5):
         txs = self.priv if priv else self.pub
-        cmd = "log/private" if priv else "log/public"
+        cmd = "/app/log/private" if priv else "/app/log/public"
 
         end_time = time.time() + timeout
         while time.time() < end_time:
-            with node.user_client() as uc:
-                rep = uc.get(cmd, {"id": idx})
-                if rep.status == 404:
+            with node.client(self.user) as uc:
+                rep = uc.get(f"{cmd}?id={idx}")
+                if rep.status_code == http.HTTPStatus.NOT_FOUND.value:
                     LOG.warning("User frontend is not yet opened")
                     time.sleep(0.1)
                 else:
                     check = infra.checker.Checker(uc)
                     check(
-                        rep, result={"msg": txs[idx]},
+                        rep,
+                        result={"msg": txs[idx]},
                     )
                     break

@@ -14,17 +14,9 @@ namespace ccf
     };
     struct Out
     {
-      std::vector<uint8_t> node_cert;
-      std::vector<uint8_t> network_cert;
-      std::vector<uint8_t> network_enc_pubk;
-    };
-  };
-
-  struct Join
-  {
-    struct In
-    {
-      CCFConfig config;
+      tls::Pem node_cert;
+      tls::Pem network_cert;
+      tls::Pem network_enc_pubk;
     };
   };
 }

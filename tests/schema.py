@@ -4,9 +4,10 @@ import os
 import sys
 import json
 import http
-import infra.ccf
+import infra.network
 import infra.proc
 import infra.e2e_args
+import infra.checker
 
 from loguru import logger as LOG
 
@@ -16,7 +17,7 @@ def build_schema_file_path(root, verb, method, schema_type):
 
 
 def run(args):
-    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
+    hosts = ["localhost"] * (4 if args.consensus == "bft" else 2)
     os.makedirs(args.schema_dir, exist_ok=True)
 
     changed_files = []
@@ -28,24 +29,27 @@ def run(args):
         for filename in filenames
     )
 
-    def fetch_schema(client):
-        list_response = client.get("api")
+    all_methods = []
+
+    def fetch_schema(client, prefix):
+        list_response = client.get(f"/{prefix}/api")
         check(
             list_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
         )
         LOG.warning(list_response)
-        methods = list_response.result["methods"]
+        methods = list_response.body["endpoints"]
+        all_methods.extend([m["path"] for m in methods])
 
-        for method in methods:
+        for method in [m["path"] for m in methods]:
             schema_found = False
-            schema_response = client.get("api/schema", params={"method": method})
+            schema_response = client.get(f'/{prefix}/api/schema?method="{method}"')
             check(
                 schema_response,
                 error=lambda status, msg: status == http.HTTPStatus.OK.value,
             )
 
-            if schema_response.result is not None:
-                for verb, schema_element in schema_response.result.items():
+            if schema_response.body is not None:
+                for verb, schema_element in schema_response.body.items():
                     for schema_type in ["params", "result"]:
                         element_name = "{}_schema".format(schema_type)
                         element = schema_element[element_name]
@@ -81,7 +85,7 @@ def run(args):
             else:
                 methods_without_schema.add(method)
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes
     ) as network:
         network.start_and_join(args)
@@ -89,17 +93,17 @@ def run(args):
 
         check = infra.checker.Checker()
 
-        with primary.user_client() as user_client:
+        with primary.client("user0") as user_client:
             LOG.info("user frontend")
-            fetch_schema(user_client)
+            fetch_schema(user_client, "app")
 
-        with primary.node_client() as node_client:
+        with primary.client() as node_client:
             LOG.info("node frontend")
-            fetch_schema(node_client)
+            fetch_schema(node_client, "node")
 
-        with primary.member_client() as member_client:
+        with primary.client("member0") as member_client:
             LOG.info("member frontend")
-            fetch_schema(member_client)
+            fetch_schema(member_client, "gov")
 
     if len(methods_without_schema) > 0:
         LOG.info("The following methods have no schema:")
@@ -126,6 +130,11 @@ def run(args):
             LOG.error(" " + f)
         made_changes = True
 
+    if args.list_all:
+        LOG.info("Discovered methods:")
+        for method in sorted(set(all_methods)):
+            LOG.info(f"  {method}")
+
     if made_changes:
         sys.exit(1)
 
@@ -143,6 +152,11 @@ if __name__ == "__main__":
             "--schema-dir",
             help="Path to directory where retrieved schema should be saved",
             required=True,
+        )
+        parser.add_argument(
+            "--list-all",
+            help="List all discovered methods at the end of the run",
+            action="store_true",
         )
 
     args = infra.e2e_args.cli_args(add=add)

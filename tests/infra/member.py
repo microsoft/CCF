@@ -6,6 +6,8 @@ import infra.proc
 import infra.node
 import infra.proposal
 import infra.crypto
+import ccf.clients
+import infra.checker
 import http
 import os
 import base64
@@ -27,7 +29,7 @@ class Member:
     def __init__(self, member_id, curve, common_dir, share_script, key_generator=None):
         self.common_dir = common_dir
         self.member_id = member_id
-        self.status = MemberStatus.ACCEPTED
+        self.status_code = MemberStatus.ACCEPTED
         self.share_script = share_script
 
         if key_generator is not None:
@@ -57,31 +59,27 @@ class Member:
             )
 
     def is_active(self):
-        return self.status == MemberStatus.ACTIVE
+        return self.status_code == MemberStatus.ACTIVE
 
     def set_active(self):
         # Use this with caution (i.e. only when the network is opening)
-        self.status = MemberStatus.ACTIVE
+        self.status_code = MemberStatus.ACTIVE
 
-    def propose(self, remote_node, script=None, params=None, vote_for=True):
-        with remote_node.member_client(self.member_id) as mc:
-            r = mc.rpc(
-                "propose",
-                {
-                    "parameter": params,
-                    "script": {"text": script},
-                    "ballot": {"text": ("return true" if vote_for else "return false")},
-                },
+    def propose(self, remote_node, proposal, has_proposer_voted_for=True):
+        with remote_node.client(f"member{self.member_id}") as mc:
+            r = mc.post(
+                "/gov/proposals",
+                proposal,
                 signed=True,
             )
-            if r.status != http.HTTPStatus.OK.value:
+            if r.status_code != http.HTTPStatus.OK.value:
                 raise infra.proposal.ProposalNotCreated(r)
 
             return infra.proposal.Proposal(
                 proposer_id=self.member_id,
-                proposal_id=r.result["proposal_id"],
-                state=infra.proposal.ProposalState(r.result["state"]),
-                has_proposer_voted_for=vote_for,
+                proposal_id=r.body["proposal_id"],
+                state=infra.proposal.ProposalState(r.body["state"]),
+                has_proposer_voted_for=has_proposer_voted_for,
             )
 
     def vote(
@@ -89,66 +87,61 @@ class Member:
         remote_node,
         proposal,
         accept=True,
-        force_unsigned=False,
         wait_for_global_commit=True,
     ):
-        ballot = """
-        tables, changes = ...
-        return true
-        """
-        with remote_node.member_client(member_id=self.member_id) as mc:
-            r = mc.rpc(
-                "vote",
-                {"ballot": {"text": ballot}, "id": proposal.proposal_id},
-                signed=not force_unsigned,
+        with remote_node.client(f"member{self.member_id}") as mc:
+            r = mc.post(
+                f"/gov/proposals/{proposal.proposal_id}/votes",
+                body=proposal.vote_for,
+                signed=True,
             )
 
-        if r.error is not None:
+        if r.status_code != 200:
             return r
 
         # If the proposal was accepted, wait for it to be globally committed
         # This is particularly useful for the open network proposal to wait
         # until the global hook on the SERVICE table is triggered
         if (
-            r.result["state"] == infra.proposal.ProposalState.Accepted.value
+            r.body["state"] == infra.proposal.ProposalState.Accepted.value
             and wait_for_global_commit
         ):
-            with remote_node.node_client() as mc:
+            with remote_node.client() as mc:
                 # If we vote in a new node, which becomes part of quorum, the transaction
                 # can only commit after it has successfully joined and caught up.
                 # Given that the retry timer on join RPC is 4 seconds, anything less is very
                 # likely to time out!
-                infra.checker.wait_for_global_commit(
-                    mc, r.seqno, r.view, True, timeout=6
-                )
+                ccf.commit.wait_for_commit(mc, r.seqno, r.view, timeout=6)
 
         return r
 
     def withdraw(self, remote_node, proposal):
-        with remote_node.member_client(member_id=self.member_id) as c:
-            r = c.rpc("withdraw", {"id": proposal.proposal_id}, signed=True)
-            if r.status == http.HTTPStatus.OK.value:
+        with remote_node.client(f"member{self.member_id}") as c:
+            r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw", signed=True)
+            if r.status_code == http.HTTPStatus.OK.value:
                 proposal.state = infra.proposal.ProposalState.Withdrawn
             return r
 
     def update_ack_state_digest(self, remote_node):
-        with remote_node.member_client(member_id=self.member_id) as mc:
-            r = mc.rpc("ack/update_state_digest")
-            assert r.error is None, f"Error ack/update_state_digest: {r.error}"
-            return bytearray(r.result["state_digest"])
+        with remote_node.client(f"member{self.member_id}") as mc:
+            r = mc.post("/gov/ack/update_state_digest")
+            assert r.status_code == 200, f"Error ack/update_state_digest: {r}"
+            return bytearray(r.body["state_digest"])
 
     def ack(self, remote_node):
         state_digest = self.update_ack_state_digest(remote_node)
-        with remote_node.member_client(member_id=self.member_id) as mc:
-            r = mc.rpc("ack", params={"state_digest": list(state_digest)}, signed=True)
-            assert r.error is None, f"Error ACK: {r.error}"
-            self.status = MemberStatus.ACTIVE
+        with remote_node.client(f"member{self.member_id}") as mc:
+            r = mc.post(
+                "/gov/ack", body={"state_digest": list(state_digest)}, signed=True
+            )
+            assert r.status_code == 200, f"Error ACK: {r}"
+            self.status_code = MemberStatus.ACTIVE
             return r
 
     def get_and_decrypt_recovery_share(self, remote_node, defunct_network_enc_pubk):
-        with remote_node.member_client(member_id=self.member_id) as mc:
-            r = mc.get("recovery_share")
-            if r.status != http.HTTPStatus.OK.value:
+        with remote_node.client(f"member{self.member_id}") as mc:
+            r = mc.get("/gov/recovery_share")
+            if r.status_code != http.HTTPStatus.OK.value:
                 raise NoRecoveryShareFound(r)
 
             ctx = infra.crypto.CryptoBoxCtx(
@@ -156,10 +149,8 @@ class Member:
                 defunct_network_enc_pubk,
             )
 
-            nonce_bytes = base64.b64decode(r.result["nonce"])
-            encrypted_share_bytes = base64.b64decode(
-                r.result["encrypted_recovery_share"]
-            )
+            nonce_bytes = base64.b64decode(r.body["nonce"])
+            encrypted_share_bytes = base64.b64decode(r.body["encrypted_recovery_share"])
             return ctx.decrypt(encrypted_share_bytes, nonce_bytes)
 
     def get_and_submit_recovery_share(self, remote_node, defunct_network_enc_pubk):
@@ -181,4 +172,4 @@ class Member:
             log_output=True,
         )
         res.check_returncode()
-        return infra.clients.Response.from_raw(res.stdout)
+        return ccf.clients.Response.from_raw(res.stdout)

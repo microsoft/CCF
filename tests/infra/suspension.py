@@ -3,8 +3,8 @@
 from threading import Timer
 import time
 import suite.test_requirements as reqs
-import infra.ccf
 import random
+import ccf.clients
 from enum import Enum
 
 from loguru import logger as LOG
@@ -40,9 +40,9 @@ def update_view_info(network, view_info):
 
 
 def get_node_local_commit(node):
-    with node.node_client() as c:
-        r = c.get("commit")
-        return r.result["seqno"], r.global_commit
+    with node.client() as c:
+        r = c.get("/node/commit")
+        return r.body["seqno"], r.global_commit
 
 
 def wait_for_late_joiner(old_node, late_joiner, strict=False, timeout=60):
@@ -62,7 +62,10 @@ def wait_for_late_joiner(old_node, late_joiner, strict=False, timeout=60):
             if local_commit >= old_node_lc:
                 return LateJoinerStatus.Ready
             time.sleep(1)
-        except (TimeoutError, infra.clients.CCFConnectionException,) as exc:
+        except (
+            TimeoutError,
+            ccf.clients.CCFConnectionException,
+        ) as exc:
             LOG.warning(
                 f"late joiner with node id {late_joiner.node_id} isn't quite ready yet: {exc}"
             )
@@ -89,7 +92,7 @@ def test_suspend_nodes(network, args, nodes=None):
     timeouts = []
     for i, node in enumerate(nodes):
         # if pbft suspend half of them including the primary
-        if i % 2 != 0 and args.consensus == "pbft":
+        if i % 2 != 0 and args.consensus == "bft":
             continue
         LOG.success(f"Will suspend node with id {node.node_id}")
         t = random.uniform(0, 2)
@@ -99,10 +102,10 @@ def test_suspend_nodes(network, args, nodes=None):
     for t, node in timeouts:
         suspend_time = (
             args.pbft_view_change_timeout / 1000
-            if args.consensus == "pbft"
+            if args.consensus == "bft"
             else args.raft_election_timeout / 1000
         )
-        if node.node_id == cur_primary.node_id and args.consensus == "pbft":
+        if node.node_id == cur_primary.node_id and args.consensus == "bft":
             # if pbft suspend the primary for more than twice the election timeout
             # in order to make sure view changes will be triggered
             suspend_time = 2.5 * suspend_time

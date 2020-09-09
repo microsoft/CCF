@@ -5,265 +5,356 @@
 #include "../channels.h"
 
 #include <doctest/doctest.h>
+#include <queue>
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
+ringbuffer::Circuit eio1(1024 * 16);
+ringbuffer::Circuit eio2(1024 * 16);
+auto wf1 = ringbuffer::WriterFactory(eio1);
+auto wf2 = ringbuffer::WriterFactory(eio2);
 
 using namespace ccf;
 
+// Use fixed-size messages as channels messages are not length-prefixed since
+// the type of the authenticated header is known in advance (e.g. AppendEntries)
+static constexpr auto msg_size = 64;
+using MsgType = std::array<uint8_t, msg_size>;
+
+template <typename T>
+struct NodeOutboundMsg
+{
+  NodeMsgType type;
+  T authenticated_hdr;
+  std::vector<uint8_t> payload;
+};
+
+template <typename T>
+auto read_outbound_msgs(ringbuffer::Circuit& circuit)
+{
+  std::vector<NodeOutboundMsg<T>> msgs;
+
+  circuit.read_from_inside().read(
+    -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
+      switch (m)
+      {
+        case node_outbound:
+        {
+          serialized::read<NodeId>(data, size); // Ignore destination node id
+          auto msg_type = serialized::read<NodeMsgType>(data, size);
+          auto aad = serialized::read<T>(data, size);
+          auto payload = serialized::read(data, size, size);
+          msgs.push_back(NodeOutboundMsg<T>{msg_type, aad, payload});
+          break;
+        }
+        case add_node:
+        {
+          LOG_DEBUG_FMT("Add node msg!");
+          break;
+        }
+        default:
+        {
+          LOG_DEBUG_FMT("Outbound message is not expected: {}", m);
+          REQUIRE(false);
+        }
+      }
+    });
+
+  return msgs;
+}
+
+auto read_node_msgs(ringbuffer::Circuit& circuit)
+{
+  std::vector<std::tuple<NodeId, std::string, std::string>> add_node_msgs;
+  std::vector<NodeId> remove_node_msgs;
+
+  circuit.read_from_inside().read(
+    -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
+      switch (m)
+      {
+        case add_node:
+        {
+          auto [id, hostname, service] =
+            ringbuffer::read_message<ccf::add_node>(data, size);
+          add_node_msgs.push_back(std::make_tuple(id, hostname, service));
+
+          break;
+        }
+        case remove_node:
+        {
+          auto [id] = ringbuffer::read_message<ccf::remove_node>(data, size);
+          remove_node_msgs.push_back(id);
+          break;
+        }
+        default:
+        {
+          LOG_DEBUG_FMT("Outbound message is not expected: {}", m);
+          REQUIRE(false);
+        }
+      }
+    });
+
+  return std::make_pair(add_node_msgs, remove_node_msgs);
+}
+
 TEST_CASE("Client/Server key exchange")
 {
-  Channel channel1, channel2;
-  SeqNo iv_seq1 = 1;
+  auto network_kp = tls::make_key_pair();
+  auto channel1 = Channel(wf1, network_kp, 1, 2);
+  auto channel2 = Channel(wf2, network_kp, 2, 1);
+
+  MsgType msg;
+  msg.fill(0x42);
 
   INFO("Trying to tag/verify before channel establishment");
   {
-    std::vector<uint8_t> msg(128, 0x42);
-    ccf::GcmHdr hdr;
+    REQUIRE_FALSE(
+      channel1.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
+    REQUIRE_FALSE(
+      channel1.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
 
-    REQUIRE_THROWS_AS(channel1.tag(hdr, msg), std::logic_error);
-    REQUIRE_THROWS_AS(channel2.verify(hdr, msg), std::logic_error);
+    // Every send is replaced with a new channel establishment message
+    auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(outbound_msgs.size() == 2);
+    REQUIRE(outbound_msgs[0].type == channel_msg);
+    REQUIRE(outbound_msgs[1].type == channel_msg);
   }
 
-  INFO("Compute shared secret");
+  INFO("Establish channels");
   {
-    auto channel1_public = channel1.get_public();
-    auto channel2_public = channel2.get_public();
-    REQUIRE(channel1_public.has_value());
-    REQUIRE(channel2_public.has_value());
+    auto channel1_signed_public = channel1.get_signed_public();
+    auto channel2_signed_public = channel2.get_signed_public();
 
-    channel1.load_peer_public(
-      channel2_public.value().data(), channel2_public.value().size());
-    channel2.load_peer_public(
-      channel1_public.value().data(), channel1_public.value().size());
+    REQUIRE(channel1.load_peer_signed_public(
+      true, channel2_signed_public.data(), channel2_signed_public.size()));
 
-    channel1.establish();
-    channel2.establish();
+    // Messages sent before channel was established are flushed
+    auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(outbound_msgs.size() == 1);
+    REQUIRE(outbound_msgs[0].type == NodeMsgType::consensus_msg);
+    REQUIRE(outbound_msgs[0].authenticated_hdr == msg);
+
+    REQUIRE(channel2.load_peer_signed_public(
+      true, channel1_signed_public.data(), channel1_signed_public.size()));
+
+    // Second channel had no pending messages
+    outbound_msgs = read_outbound_msgs<MsgType>(eio2);
+    REQUIRE(outbound_msgs.size() == 0);
   }
 
   INFO("Protect integrity of message (peer1 -> peer2)");
   {
-    std::vector<uint8_t> msg(128, 0x42);
-    ccf::GcmHdr hdr;
+    REQUIRE(
+      channel1.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
+    auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(outbound_msgs.size() == 1);
+    auto msg_ = outbound_msgs[0];
+    const auto* data_ = msg_.payload.data();
+    auto size_ = msg_.payload.size();
+    REQUIRE(msg_.type == NodeMsgType::consensus_msg);
 
-    channel1.tag(hdr, msg);
-    RecvNonce u(*reinterpret_cast<const uint64_t*>(hdr.get_iv().p));
-    REQUIRE(u.nonce == iv_seq1++);
-    REQUIRE(channel2.verify(hdr, msg));
+    REQUIRE(channel2.recv_authenticated(
+      {msg_.authenticated_hdr.begin(), msg_.authenticated_hdr.size()},
+      data_,
+      size_));
   }
 
   INFO("Protect integrity of message (peer2 -> peer1)");
   {
-    std::vector<uint8_t> msg(128, 0x42);
-    ccf::GcmHdr hdr;
+    REQUIRE(
+      channel2.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
+    auto outbound_msgs = read_outbound_msgs<MsgType>(eio2);
+    REQUIRE(outbound_msgs.size() == 1);
+    auto msg_ = outbound_msgs[0];
+    const auto* data_ = msg_.payload.data();
+    auto size_ = msg_.payload.size();
+    REQUIRE(msg_.type == NodeMsgType::consensus_msg);
 
-    channel2.tag(hdr, msg);
-    REQUIRE(channel1.verify(hdr, msg));
+    REQUIRE(channel1.recv_authenticated(
+      {msg_.authenticated_hdr.begin(), msg_.authenticated_hdr.size()},
+      data_,
+      size_));
   }
 
   INFO("Tamper with message");
   {
-    std::vector<uint8_t> msg(128, 0x42);
-    ccf::GcmHdr hdr;
+    REQUIRE(
+      channel1.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
+    auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(outbound_msgs.size() == 1);
+    auto msg_ = outbound_msgs[0];
+    msg_.payload[0] += 1; // Tamper with message
+    const auto* data_ = msg_.payload.data();
+    auto size_ = msg_.payload.size();
+    REQUIRE(msg_.type == NodeMsgType::consensus_msg);
 
-    channel1.tag(hdr, msg);
-    RecvNonce u(*reinterpret_cast<const uint64_t*>(hdr.get_iv().p));
-    REQUIRE(u.nonce == iv_seq1++);
-    msg[50] = 0xFF;
-    REQUIRE_FALSE(channel2.verify(hdr, msg));
-  }
-
-  INFO("Tamper with header");
-  {
-    std::vector<uint8_t> msg(128, 0x42);
-    ccf::GcmHdr hdr;
-
-    channel1.tag(hdr, msg);
-    RecvNonce u(*reinterpret_cast<const uint64_t*>(hdr.get_iv().p));
-    REQUIRE(u.nonce == iv_seq1++);
-    hdr.iv[4] = hdr.iv[4] + 1;
-    REQUIRE_FALSE(channel2.verify(hdr, msg));
+    REQUIRE_FALSE(channel2.recv_authenticated(
+      {msg_.authenticated_hdr.begin(), msg_.authenticated_hdr.size()},
+      data_,
+      size_));
   }
 
   INFO("Encrypt message (peer1 -> peer2)");
   {
-    std::vector<uint8_t> plain(128, 0x42);
-    std::vector<uint8_t> cipher(128);
-    std::vector<uint8_t> decrypted(128);
-    ccf::GcmHdr hdr;
+    std::vector<uint8_t> plain_text(128, 0x1);
+    REQUIRE(channel1.send(
+      NodeMsgType::consensus_msg, {msg.begin(), msg.size()}, plain_text));
 
-    channel1.encrypt(hdr, {}, plain, cipher);
-    RecvNonce u(*reinterpret_cast<const uint64_t*>(hdr.get_iv().p));
-    REQUIRE(u.nonce == iv_seq1++);
-    REQUIRE(channel2.decrypt(hdr, {}, cipher, decrypted));
-    REQUIRE(plain == decrypted);
+    auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(outbound_msgs.size() == 1);
+    auto msg_ = outbound_msgs[0];
+    const auto* data_ = msg_.payload.data();
+    auto size_ = msg_.payload.size();
+    REQUIRE(msg_.type == NodeMsgType::consensus_msg);
+
+    auto decrypted = channel2.recv_encrypted(
+      {msg_.authenticated_hdr.begin(), msg_.authenticated_hdr.size()},
+      data_,
+      size_);
+
+    REQUIRE(decrypted.has_value());
+    REQUIRE(decrypted.value() == plain_text);
   }
 
   INFO("Encrypt message (peer2 -> peer1)");
   {
-    std::vector<uint8_t> plain(128, 0x42);
-    std::vector<uint8_t> cipher(128);
-    std::vector<uint8_t> decrypted(128);
-    ccf::GcmHdr hdr;
+    std::vector<uint8_t> plain_text(128, 0x1);
+    REQUIRE(channel2.send(
+      NodeMsgType::consensus_msg, {msg.begin(), msg.size()}, plain_text));
 
-    channel2.encrypt(hdr, {}, plain, cipher);
-    REQUIRE(channel1.decrypt(hdr, {}, cipher, decrypted));
-    REQUIRE(plain == decrypted);
+    auto outbound_msgs = read_outbound_msgs<MsgType>(eio2);
+    REQUIRE(outbound_msgs.size() == 1);
+    auto msg_ = outbound_msgs[0];
+    const auto* data_ = msg_.payload.data();
+    auto size_ = msg_.payload.size();
+    REQUIRE(msg_.type == NodeMsgType::consensus_msg);
+
+    auto decrypted = channel1.recv_encrypted(
+      {msg_.authenticated_hdr.begin(), msg_.authenticated_hdr.size()},
+      data_,
+      size_);
+
+    REQUIRE(decrypted.has_value());
+    REQUIRE(decrypted.value() == plain_text);
   }
 }
 
 TEST_CASE("Replay and out-of-order")
 {
-  Channel channel1, channel2;
+  auto network_kp = tls::make_key_pair();
+  auto channel1 = Channel(wf1, network_kp, 1, 2);
+  auto channel2 = Channel(wf2, network_kp, 2, 1);
 
-  INFO("Compute shared secret");
+  MsgType msg;
+  msg.fill(0x42);
+
+  INFO("Establish channels");
   {
-    channel1.load_peer_public(
-      channel2.get_public().value().data(),
-      channel2.get_public().value().size());
-    channel2.load_peer_public(
-      channel1.get_public().value().data(),
-      channel1.get_public().value().size());
-    channel1.establish();
-    channel2.establish();
+    auto channel1_signed_public = channel1.get_signed_public();
+    auto channel2_signed_public = channel2.get_signed_public();
+
+    REQUIRE(channel1.load_peer_signed_public(
+      true, channel2_signed_public.data(), channel2_signed_public.size()));
+    REQUIRE(channel2.load_peer_signed_public(
+      true, channel1_signed_public.data(), channel1_signed_public.size()));
   }
 
-  std::vector<uint8_t> msg(128, 0x42);
-  ccf::GcmHdr hdr;
+  NodeOutboundMsg<MsgType> first_msg, first_msg_copy;
 
-  INFO("First message");
+  INFO("Replay same message");
   {
-    channel1.tag(hdr, msg);
-    REQUIRE(channel2.verify(hdr, msg));
+    REQUIRE(
+      channel1.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
+    auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(outbound_msgs.size() == 1);
+    first_msg = outbound_msgs[0];
+    auto msg_copy = first_msg;
+    first_msg_copy = first_msg;
+    const auto* data_ = first_msg.payload.data();
+    auto size_ = first_msg.payload.size();
+    REQUIRE(first_msg.type == NodeMsgType::consensus_msg);
+
+    REQUIRE(channel2.recv_authenticated(
+      {first_msg.authenticated_hdr.begin(), first_msg.authenticated_hdr.size()},
+      data_,
+      size_));
+
+    // Replay
+    data_ = msg_copy.payload.data();
+    size_ = msg_copy.payload.size();
+    REQUIRE_FALSE(channel2.recv_authenticated(
+      {msg_copy.authenticated_hdr.begin(), msg_copy.authenticated_hdr.size()},
+      data_,
+      size_));
   }
 
-  INFO("Replay message");
+  INFO("Issue more messages and replay old one");
   {
-    REQUIRE_FALSE(channel2.verify(hdr, msg));
-  }
+    REQUIRE(
+      channel1.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
+    REQUIRE(read_outbound_msgs<MsgType>(eio1).size() == 1);
 
-  INFO("Skip some messages and replay");
-  {
-    ccf::GcmHdr hdr2;
-    channel1.tag(hdr2, msg);
-    channel1.tag(hdr2, msg);
-    channel1.tag(hdr2, msg);
+    REQUIRE(
+      channel1.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
+    REQUIRE(read_outbound_msgs<MsgType>(eio1).size() == 1);
 
-    REQUIRE(channel2.verify(hdr2, msg));
-    REQUIRE_FALSE(channel2.verify(hdr, msg));
-  }
+    REQUIRE(
+      channel1.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
+    auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(outbound_msgs.size() == 1);
+    auto msg_ = outbound_msgs[0];
+    const auto* data_ = msg_.payload.data();
+    auto size_ = msg_.payload.size();
+    REQUIRE(msg_.type == NodeMsgType::consensus_msg);
 
-  INFO("Replay and skip encrypted messages");
-  {
-    std::vector<uint8_t> cipher(128);
-    std::vector<uint8_t> decrypted(128);
+    REQUIRE(channel2.recv_authenticated(
+      {msg_.authenticated_hdr.begin(), msg_.authenticated_hdr.size()},
+      data_,
+      size_));
 
-    channel1.encrypt(hdr, {}, msg, cipher);
-    REQUIRE(channel2.decrypt(hdr, {}, cipher, decrypted));
-    REQUIRE_FALSE(channel2.decrypt(hdr, {}, cipher, decrypted));
-
-    channel1.encrypt(hdr, {}, msg, cipher);
-    channel1.encrypt(hdr, {}, msg, cipher);
-
-    REQUIRE(channel2.decrypt(hdr, {}, cipher, decrypted));
-    REQUIRE_FALSE(channel2.decrypt(hdr, {}, cipher, decrypted));
+    const auto* first_msg_data_ = first_msg_copy.payload.data();
+    auto first_msg_size_ = first_msg_copy.payload.size();
+    REQUIRE_FALSE(channel2.recv_authenticated(
+      {first_msg_copy.authenticated_hdr.begin(),
+       first_msg_copy.authenticated_hdr.size()},
+      first_msg_data_,
+      first_msg_size_));
   }
 }
 
-TEST_CASE("Channel manager")
+TEST_CASE("Host connections")
 {
-  NodeId primary_id = 1;
-  NodeId backup_id = 2;
-  NodeId other_id = 3;
+  NodeId self = 1;
+  auto network_kp = tls::make_key_pair();
+  auto channel_manager =
+    ChannelManager(wf1, network_kp->private_key_pem(), self);
+  NodeId peer_id = 2;
 
-  auto kp = tls::make_key_pair(), kp_other = tls::make_key_pair();
-  auto network_pkey = kp->private_key_pem();
-  auto other_pkey = kp_other->private_key_pem();
-
-  ChannelManager primary_n2n_channel_manager(network_pkey);
-  ChannelManager backup_n2n_channel_manager(network_pkey);
-  ChannelManager other_n2n_channel_manager(other_pkey);
-
-  INFO("Compute shared secret");
+  INFO("New channel creates host connection");
   {
-    // Retrieve own signed public
-    auto signed_primary_to_backup =
-      primary_n2n_channel_manager.get_signed_public(backup_id);
-    REQUIRE(signed_primary_to_backup.value().size() > 0);
-    auto signed_backup_to_primary =
-      backup_n2n_channel_manager.get_signed_public(primary_id);
-    REQUIRE(signed_backup_to_primary.value().size() > 0);
-
-    // Load peer public and compute shared secret
-    REQUIRE(backup_n2n_channel_manager.load_peer_signed_public(
-      primary_id, signed_primary_to_backup.value()));
-    REQUIRE(primary_n2n_channel_manager.load_peer_signed_public(
-      backup_id, signed_backup_to_primary.value()));
-
-    // Retrieving own signed public once channel is established should fail
-    REQUIRE(
-      !backup_n2n_channel_manager.get_signed_public(primary_id).has_value());
-    REQUIRE(
-      !primary_n2n_channel_manager.get_signed_public(backup_id).has_value());
+    channel_manager.create_channel(peer_id, "hostname", "port");
+    auto [add_node_msgs, remove_node_msgs] = read_node_msgs(eio1);
+    REQUIRE(add_node_msgs.size() == 1);
+    REQUIRE(remove_node_msgs.size() == 0);
+    REQUIRE(std::get<0>(add_node_msgs[0]) == peer_id);
+    REQUIRE(std::get<1>(add_node_msgs[0]) == "hostname");
+    REQUIRE(std::get<2>(add_node_msgs[0]) == "port");
   }
 
-  INFO("Try to compute shared secret with node not in network");
+  INFO("Retrieving unknown channel does not create host connection");
   {
-    auto signed_primary_to_other =
-      primary_n2n_channel_manager.get_signed_public(other_id);
-
-    REQUIRE_FALSE(other_n2n_channel_manager.load_peer_signed_public(
-      primary_id, signed_primary_to_other.value()));
-
-    auto signed_other_to_primary =
-      other_n2n_channel_manager.get_signed_public(primary_id);
-
-    REQUIRE_FALSE(primary_n2n_channel_manager.load_peer_signed_public(
-      other_id, signed_other_to_primary.value()));
+    NodeId unknown_peer_id = 3;
+    channel_manager.get(unknown_peer_id);
+    auto [add_node_msgs, remove_node_msgs] = read_node_msgs(eio1);
+    REQUIRE(add_node_msgs.size() == 0);
+    REQUIRE(remove_node_msgs.size() == 0);
   }
 
-  auto& primary_channel_with_backup =
-    primary_n2n_channel_manager.get(backup_id);
-  auto& backup_channel_with_primary =
-    backup_n2n_channel_manager.get(primary_id);
-
-  INFO("Protect integrity of message (primary -> backup)");
+  INFO("Destroying channel closes host connection");
   {
-    std::vector<uint8_t> msg(128, 0x42);
-    GcmHdr hdr;
-    primary_channel_with_backup.tag(hdr, msg);
-    REQUIRE(backup_channel_with_primary.verify(hdr, msg));
-  }
-
-  INFO("Protect integrity of message (backup -> primary)");
-  {
-    std::vector<uint8_t> msg(128, 0x42);
-    GcmHdr hdr;
-    backup_channel_with_primary.tag(hdr, msg);
-    REQUIRE(primary_channel_with_backup.verify(hdr, msg));
-  }
-
-  INFO("Encrypt message (primary -> backup)");
-  {
-    std::vector<uint8_t> plain(128, 0x42);
-    std::vector<uint8_t> cipher(128);
-    std::vector<uint8_t> decrypted(128);
-    ccf::GcmHdr hdr;
-
-    primary_channel_with_backup.encrypt(hdr, {}, plain, cipher);
-    REQUIRE(backup_channel_with_primary.decrypt(hdr, {}, cipher, decrypted));
-    REQUIRE(plain == decrypted);
-  }
-
-  INFO("Encrypt message (backup -> primary)");
-  {
-    std::vector<uint8_t> plain(128, 0x42);
-    std::vector<uint8_t> cipher(128);
-    std::vector<uint8_t> decrypted(128);
-    ccf::GcmHdr hdr;
-
-    backup_channel_with_primary.encrypt(hdr, {}, plain, cipher);
-    REQUIRE(primary_channel_with_backup.decrypt(hdr, {}, cipher, decrypted));
-    REQUIRE(plain == decrypted);
+    channel_manager.destroy_channel(peer_id);
+    auto [add_node_msgs, remove_node_msgs] = read_node_msgs(eio1);
+    REQUIRE(add_node_msgs.size() == 0);
+    REQUIRE(remove_node_msgs.size() == 1);
   }
 }

@@ -13,6 +13,7 @@ source env/bin/activate
 
 PATH_HERE=$(dirname "$(realpath -s "$0")")
 
+pip install -q -U -e "${PATH_HERE}"/python/
 pip install -q -U -r "${PATH_HERE}"/tests/requirements.txt
 echo "Python environment successfully setup"
 
@@ -20,5 +21,5 @@ CURL_CLIENT=ON \
     python "${PATH_HERE}"/tests/start_network.py \
     --gov-script "${PATH_HERE}"/src/runtime_config/gov.lua \
     --label test_network \
-    --ledger-chunk-max-bytes 5MB \
+    --ledger-chunk-bytes 5MB \
     "$@"

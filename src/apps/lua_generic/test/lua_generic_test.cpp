@@ -9,7 +9,7 @@
 #include "lua_interp/lua_interp.h"
 #include "node/genesis_gen.h"
 #include "node/rpc/json_handler.h"
-#include "node/rpc/json_rpc.h"
+#include "node/rpc/serdes.h"
 #include "node/rpc/test/node_stub.h"
 #include "runtime_config/default_whitelists.h"
 #include "tls/key_pair.h"
@@ -23,20 +23,12 @@
 using namespace ccfapp;
 using namespace ccf;
 using namespace std;
-using namespace jsonrpc;
+using namespace serdes;
 using namespace nlohmann;
 
 auto kp = tls::make_key_pair();
 
-namespace ccf
-{
-  bool operator==(const MemberInfo& mi0, const MemberInfo& mi1)
-  {
-    return mi0.status == mi1.status && mi0.keyshare == mi1.keyshare;
-  }
-}
-
-constexpr auto default_format = jsonrpc::Pack::MsgPack;
+constexpr auto default_format = serdes::Pack::MsgPack;
 constexpr auto content_type =
   ccf::jsonhandler::pack_to_content_type(default_format);
 
@@ -64,7 +56,7 @@ TResponse check_error(const vector<uint8_t>& v, http_status expected)
 template <typename T>
 T parse_response_body(const TResponse& r)
 {
-  const auto body_j = jsonrpc::unpack(r.body, default_format);
+  const auto body_j = serdes::unpack(r.body, default_format);
   return body_j.get<T>();
 }
 
@@ -127,13 +119,23 @@ auto init_frontend(
   GenesisGenerator& gen,
   ccfapp::AbstractNodeContext& context,
   const int n_users,
-  const int n_members)
+  const int n_members,
+  std::vector<tls::Pem>* created_members = nullptr)
 {
   for (uint8_t i = 0; i < n_users; i++)
-    gen.add_user(user_caller);
+    gen.add_user({user_caller});
 
+  std::vector<tls::Pem> member_certs;
   for (uint8_t i = 0; i < n_members; i++)
-    gen.add_member(kp->self_sign("CN=name_member"), dummy_key_share);
+  {
+    member_certs.push_back(kp->self_sign("CN=name_member"));
+    gen.add_member(member_certs.back(), dummy_key_share);
+  }
+
+  if (created_members != nullptr)
+  {
+    *created_members = member_certs;
+  }
 
   set_whitelists(gen);
 
@@ -169,7 +171,7 @@ std::vector<uint8_t> make_pc(const string& method, const Params& params)
 {
   auto request = http::Request(method);
   request.set_header(http::headers::CONTENT_TYPE, content_type);
-  const auto body = jsonrpc::pack(params, default_format);
+  const auto body = serdes::pack(params, default_format);
   request.set_body(&body);
   return request.build_request();
 }
@@ -202,7 +204,8 @@ TEST_CASE("simple lua apps")
   gen.create_service({});
   NodeContext context;
   // create network with 1 user and 3 active members
-  auto frontend = init_frontend(network, gen, context, 1, 3);
+  std::vector<tls::Pem> active_members;
+  auto frontend = init_frontend(network, gen, context, 1, 3, &active_members);
   set_lua_logger();
   auto user_session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_caller_der);
@@ -313,9 +316,9 @@ TEST_CASE("simple lua apps")
     auto get_ctx = enclave::make_rpc_context(user_session, packed);
     // expect to see 3 members in state active
     map<string, MemberInfo> expected = {
-      {"0", {{}, dummy_key_share, MemberStatus::ACCEPTED}},
-      {"1", {{}, dummy_key_share, MemberStatus::ACCEPTED}},
-      {"2", {{}, dummy_key_share, MemberStatus::ACCEPTED}}};
+      {"0", {active_members[0], dummy_key_share, MemberStatus::ACCEPTED}},
+      {"1", {active_members[1], dummy_key_share, MemberStatus::ACCEPTED}},
+      {"2", {active_members[2], dummy_key_share, MemberStatus::ACCEPTED}}};
     check_success(frontend->process(get_ctx).value(), expected);
 
     // (2) try to write to members table

@@ -15,12 +15,8 @@ const baseURL = `https://${__ENV.HOST}/`;
 export function setup()
 {
   const body = JSON.stringify({
-    jsonrpc: "2.0",
-    method: "users/log/private",
-    params: {
-      id: 0,
-      msg: "Unique message: d41d8cd98f00b204e9800998ecf8427e"
-    }
+    id: 0,
+    msg: "Unique message: d41d8cd98f00b204e9800998ecf8427e"
   });
   const params = {headers: { "Content-Type": "application/json" }}; 
 

@@ -52,25 +52,22 @@ class TxRates:
             json.dump(self.all_metrics, mfile)
 
     def process_next(self):
-        with self.primary.user_client() as client:
-            rv = client.get("commit")
-            result = rv.to_dict()
-            next_commit = result["result"]["seqno"]
+        with self.primary.client() as client:
+            rv = client.get("/node/commit")
+            next_commit = rv.body["seqno"]
             more_to_process = self.commit != next_commit
             self.commit = next_commit
 
             return more_to_process
 
     def get_metrics(self):
-        with self.primary.user_client() as client:
-            rv = client.get("metrics")
-            result = rv.to_dict()
-            result = result["result"]
-            self.all_metrics = result
+        with self.primary.client() as client:
+            rv = client.get("/node/metrics")
+            self.all_metrics = rv.body
 
             all_rates = []
             all_durations = []
-            rates = result.get("tx_rates")
+            rates = self.all_metrics.get("tx_rates")
             if rates is None:
                 LOG.info("No tx rate metrics found...")
             else:
@@ -79,7 +76,7 @@ class TxRates:
                     all_durations.append(float(rates[key]["duration"]))
                 self.tx_rates_data = all_rates
 
-            histogram = result.get("histogram")
+            histogram = self.all_metrics.get("histogram")
             if histogram is None:
                 LOG.info("No histogram metrics found...")
             else:

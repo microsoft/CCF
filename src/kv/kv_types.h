@@ -5,12 +5,14 @@
 #include "crypto/hash.h"
 #include "enclave/consensus_type.h"
 #include "serialiser_declare.h"
+#include "tls/pem.h"
 
 #include <array>
 #include <chrono>
 #include <functional>
 #include <limits>
 #include <memory>
+#include <string>
 #include <unordered_set>
 #include <vector>
 
@@ -30,7 +32,7 @@ namespace kv
   // writer(s) changes. Term and Version combined give a unique identifier for
   // all accepted kv modifications. Terms are handled by Consensus via the
   // TermHistory
-  using Term = uint64_t;
+  using Term = int64_t;
   using NodeId = uint64_t;
 
   struct TxID
@@ -51,15 +53,26 @@ namespace kv
 
   enum SecurityDomain
   {
-    PUBLIC, // Public domains indicate the version and always appears, first
+    PUBLIC, // Public domain indicates the version and always appears first
     PRIVATE,
     SECURITY_DOMAIN_MAX
   };
 
-  // Note that failed = 0, and all other values are
-  // variants of PASS, which allows DeserialiseSuccess
-  // to be used as a boolean in code that does not need
-  // any detail about what happened on success
+  static inline SecurityDomain get_security_domain(const std::string& name)
+  {
+    constexpr auto public_domain_prefix = "public:";
+
+    if (name.rfind(public_domain_prefix, 0) == 0)
+    {
+      return SecurityDomain::PUBLIC;
+    }
+
+    return SecurityDomain::PRIVATE;
+  }
+
+  // Note that failed = 0, and all other values are variants of PASS, which
+  // allows DeserialiseSuccess to be used as a boolean in code that does not
+  // need any detail about what happened on success
   enum DeserialiseSuccess
   {
     FAILED = 0,
@@ -135,6 +148,13 @@ namespace kv
     virtual void append(const uint8_t* replicated, size_t replicated_size) = 0;
     virtual bool verify(Term* term = nullptr) = 0;
     virtual void emit_signature() = 0;
+    virtual crypto::Sha256Hash get_replicated_state_root() = 0;
+    virtual std::vector<uint8_t> get_receipt(Version v) = 0;
+    virtual bool verify_receipt(const std::vector<uint8_t>& receipt) = 0;
+    virtual bool init_from_snapshot(
+      const std::vector<uint8_t>& hash_at_snapshot) = 0;
+    virtual std::vector<uint8_t> get_raw_leaf(uint64_t index) = 0;
+
     virtual bool add_request(
       kv::TxHistory::RequestID id,
       uint64_t caller_id,
@@ -162,9 +182,6 @@ namespace kv
     virtual void register_on_response(ResponseCallbackHandler func) = 0;
     virtual void clear_on_result() = 0;
     virtual void clear_on_response() = 0;
-    virtual crypto::Sha256Hash get_replicated_state_root() = 0;
-    virtual std::vector<uint8_t> get_receipt(Version v) = 0;
-    virtual bool verify_receipt(const std::vector<uint8_t>& receipt) = 0;
   };
 
   class Consensus
@@ -186,17 +203,41 @@ namespace kv
     using SeqNo = int64_t;
     // View describes an epoch of SeqNos. View is incremented when Consensus's
     // primary changes
-    using View = uint64_t;
+    using View = int64_t;
 
-    struct NodeConf
+    struct Configuration
     {
-      NodeId node_id;
-      std::string host_name;
-      std::string port;
-      std::vector<uint8_t> cert;
+      struct NodeInfo
+      {
+        std::string hostname;
+        std::string port;
+        tls::Pem cert = {};
+
+        NodeInfo() = default;
+
+        NodeInfo(
+          const std::string& hostname_,
+          const std::string& port_,
+          const tls::Pem& cert_ = {}) :
+          hostname(hostname_),
+          port(port_),
+          cert(cert_)
+        {}
+
+        NodeInfo(const NodeInfo& other) :
+          hostname(other.hostname),
+          port(other.port),
+          cert(other.cert)
+        {}
+      };
+
+      using Nodes = std::unordered_map<NodeId, NodeInfo>;
+
+      SeqNo idx;
+      Nodes nodes;
     };
 
-    Consensus(NodeId id) : local_id(id), state(Backup){};
+    Consensus(NodeId id) : state(Backup), local_id(id) {}
     virtual ~Consensus() {}
 
     virtual NodeId id()
@@ -220,12 +261,14 @@ namespace kv
     }
 
     virtual void force_become_primary(
-      SeqNo seqno,
-      View view,
-      const std::vector<Version>& terms,
-      SeqNo commit_seqno)
+      SeqNo, View, const std::vector<Version>&, SeqNo)
     {
       state = Primary;
+    }
+
+    virtual void init_as_backup(SeqNo, View)
+    {
+      state = Backup;
     }
 
     virtual bool replicate(const BatchVector& entries, View view) = 0;
@@ -238,17 +281,15 @@ namespace kv
 
     virtual void recv_message(OArray&& oa) = 0;
     virtual void add_configuration(
-      SeqNo seqno,
-      const std::unordered_set<NodeId>& conf,
-      const NodeConf& node_conf = {}) = 0;
-    virtual std::unordered_set<NodeId> get_latest_configuration() const = 0;
+      SeqNo seqno, const Configuration::Nodes& conf) = 0;
+    virtual Configuration::Nodes get_latest_configuration() const = 0;
 
-    virtual bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
+    virtual bool on_request(const kv::TxHistory::RequestCallbackArgs&)
     {
       return true;
     }
 
-    virtual void periodic(std::chrono::milliseconds elapsed) {}
+    virtual void periodic(std::chrono::milliseconds) {}
     virtual void periodic_end() {}
 
     struct Statistics
@@ -263,7 +304,7 @@ namespace kv
     }
     virtual void enable_all_domains() {}
 
-    virtual void set_f(size_t f) = 0;
+    virtual void open_network() = 0;
     virtual void emit_signature() = 0;
     virtual ConsensusType type() = 0;
   };
@@ -294,25 +335,10 @@ namespace kv
 
   public:
     MovePendingTx(
-      std::vector<uint8_t>&& data_, kv::TxHistory::RequestID req_id_) :
+      std::vector<uint8_t>&& data_, kv::TxHistory::RequestID&& req_id_) :
       data(std::move(data_)),
       req_id(std::move(req_id_))
     {}
-
-    MovePendingTx(MovePendingTx&& other) = default;
-    MovePendingTx& operator=(MovePendingTx&& other) = default;
-
-    MovePendingTx(const MovePendingTx& other)
-    {
-      throw std::logic_error(
-        "Calling copy constructor of MovePendingTx is not permitted");
-    }
-    MovePendingTx& operator=(const MovePendingTx& other)
-    {
-      throw std::logic_error(
-        "Calling copy asignment operator of MovePendingTx is not "
-        "permitted");
-    }
 
     PendingTxInfo operator()()
     {
@@ -330,7 +356,8 @@ namespace kv
       const std::vector<uint8_t>& additional_data,
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
-      kv::Version version) = 0;
+      kv::Version version,
+      bool is_snapshot = false) = 0;
     virtual bool decrypt(
       const std::vector<uint8_t>& cipher,
       const std::vector<uint8_t>& additional_data,
@@ -342,6 +369,8 @@ namespace kv
     virtual void update_encryption_key(
       Version version, const std::vector<uint8_t>& raw_ledger_key) = 0;
   };
+
+  using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
 
   class AbstractTxView
   {
@@ -356,20 +385,15 @@ namespace kv
   };
 
   class AbstractStore;
-  class AbstractMap
+  class AbstractMap : public std::enable_shared_from_this<AbstractMap>
   {
   public:
     class Snapshot
     {
     public:
       virtual ~Snapshot() = default;
-      virtual void serialize(uint8_t* data) = 0;
-      virtual size_t get_serialized_size() = 0;
-      virtual std::string& get_name() = 0;
+      virtual void serialise(KvStoreSerialiser& s) = 0;
       virtual SecurityDomain get_security_domain() = 0;
-      virtual bool get_is_replicated() = 0;
-      virtual kv::Version get_version() = 0;
-      virtual const CBuffer& get_serialized_buffer() = 0;
     };
 
     virtual ~AbstractMap() {}
@@ -381,10 +405,10 @@ namespace kv
       const AbstractTxView* view, KvStoreSerialiser& s, bool include_reads) = 0;
     virtual AbstractTxView* deserialise(
       KvStoreDeserialiser& d, Version version) = 0;
+    virtual AbstractTxView* deserialise_snapshot(KvStoreDeserialiser& d) = 0;
     virtual const std::string& get_name() const = 0;
     virtual void compact(Version v) = 0;
     virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
-    virtual void apply(std::unique_ptr<AbstractMap::Snapshot>& s) = 0;
     virtual void post_compact() = 0;
     virtual void rollback(Version v) = 0;
     virtual void lock() = 0;
@@ -404,16 +428,15 @@ namespace kv
     {
     public:
       virtual ~AbstractSnapshot() = default;
-      virtual void add_snapshot(
-        std::unique_ptr<kv::AbstractMap::Snapshot> snapshot) = 0;
-      virtual std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>>&
-      get_snapshots() = 0;
-      virtual std::vector<uint8_t>& get_buffer() = 0;
-      virtual void serialize() = 0;
-      virtual kv::Version get_version() const = 0;
+      virtual Version get_version() const = 0;
+      virtual std::vector<uint8_t> serialise(
+        std::shared_ptr<AbstractTxEncryptor> encryptor) = 0;
     };
 
     virtual ~AbstractStore() {}
+
+    virtual void lock() = 0;
+    virtual void unlock() = 0;
 
     virtual Version next_version() = 0;
     virtual TxID next_txid() = 0;
@@ -423,21 +446,31 @@ namespace kv
 
     virtual Version commit_version() = 0;
 
+    virtual std::shared_ptr<AbstractMap> get_map(
+      kv::Version v, const std::string& map_name) = 0;
+    virtual void add_dynamic_map(
+      kv::Version v, const std::shared_ptr<AbstractMap>& map) = 0;
+    virtual bool is_map_replicated(const std::string& map_name) = 0;
+
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;
-    virtual std::shared_ptr<AbstractTxEncryptor> get_encryptor() = 0;
+    virtual EncryptorPtr get_encryptor() = 0;
     virtual DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
       bool public_only = false,
-      Term* term = nullptr) = 0;
+      kv::Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;
-    virtual std::unique_ptr<AbstractSnapshot> snapshot(Version v) = 0;
     virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
     virtual CommitSuccess commit(
-      const TxID& txid, PendingTx pt, bool globally_committable) = 0;
+      const TxID& txid, PendingTx&& pending_tx, bool globally_committable) = 0;
+
+    virtual std::unique_ptr<AbstractSnapshot> snapshot(Version v) = 0;
+    virtual std::vector<uint8_t> serialise_snapshot(
+      std::unique_ptr<AbstractSnapshot> snapshot) = 0;
+    virtual DeserialiseSuccess deserialise_snapshot(
+      const std::vector<uint8_t>& data) = 0;
 
     virtual size_t commit_gap() = 0;
   };
-
 }

@@ -1,11 +1,25 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
-import infra.ccf
+import infra.network
 import time
 import sys
-
+import json
+import os
 from loguru import logger as LOG
+
+
+def dump_network_info(path, network, node):
+    network_info = {}
+    network_info["host"] = node.pubhost
+    network_info["port"] = node.rpc_port
+    network_info["ledger"] = node.remote.ledger_path()
+    network_info["common_dir"] = network.common_dir
+
+    with open(path, "w") as network_info_file:
+        json.dump(network_info, network_info_file)
+
+    LOG.debug(f"Dumped network information to {os.path.abspath(path)}")
 
 
 def run(args):
@@ -18,12 +32,13 @@ def run(args):
             format="<green>[{time:YYYY-MM-DD HH:mm:ss.SSS}]</green> {message}",
         )
         LOG.disable("infra")
+        LOG.disable("ccf")
 
-    LOG.info("Starting {} CCF nodes...".format(len(hosts)))
+    LOG.info(f"Starting {len(hosts)} CCF nodes...")
     if args.enclave_type == "virtual":
         LOG.warning("Virtual mode enabled")
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts=hosts, binary_directory=args.binary_dir, dbg_nodes=args.debug_nodes
     ) as network:
         if args.recover:
@@ -49,10 +64,15 @@ def run(args):
         for b in backups:
             LOG.info("  Node [{:2d}] = {}:{}".format(b.node_id, b.pubhost, b.rpc_port))
 
+        # Dump primary info to file for tutorial testing
+        if args.network_info_file is not None:
+            dump_network_info(args.network_info_file, network, primary)
+
         LOG.info(
-            "You can now issue business transactions to the {} application.".format(
-                args.package
-            )
+            f"You can now issue business transactions to the {args.package} application."
+        )
+        LOG.info(
+            f"Keys and certificates have been copied to the common folder: {network.common_dir}"
         )
         LOG.info(
             "See https://microsoft.github.io/CCF/users/issue_commands.html for more information."
@@ -92,6 +112,11 @@ if __name__ == "__main__":
             default=False,
         )
         parser.add_argument(
+            "--network-info-file",
+            help="Path to output file where network information will be dumped to (useful for scripting)",
+            default=None,
+        )
+        parser.add_argument(
             "-r",
             "--recover",
             help="Start a new network from an existing one",
@@ -99,7 +124,8 @@ if __name__ == "__main__":
             default=False,
         )
         parser.add_argument(
-            "--ledger-dir", help="Ledger directory to recover from",
+            "--ledger-dir",
+            help="Ledger directory to recover from",
         )
         parser.add_argument(
             "--network-enc-pubk",
@@ -120,4 +146,5 @@ if __name__ == "__main__":
             "Error: --recover requires --ledger, --network-enc-pubk and --common-dir arguments."
         )
         sys.exit(1)
+
     run(args)

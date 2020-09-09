@@ -28,6 +28,9 @@ namespace http
     return header_string;
   }
 
+// Most builder function are unused from enclave
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
   static http_method http_method_from_str(const char* s)
   {
 #define XX(num, name, string) \
@@ -40,6 +43,7 @@ namespace http
 
     throw std::logic_error(fmt::format("Unknown HTTP method '{}'", s));
   }
+#pragma clang diagnostic pop
 
   class Message
   {
@@ -221,6 +225,10 @@ namespace http
     }
   };
 
+// Most builder function are unused from enclave
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+
   // Generic
   static std::vector<uint8_t> build_header(
     http_method method, const std::vector<uint8_t>& body)
@@ -287,4 +295,5 @@ namespace http
   {
     return build_request(HTTP_PUT, body);
   }
+#pragma clang diagnostic pop
 }

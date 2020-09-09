@@ -12,24 +12,26 @@ The API can also be retrieved from a running service using the `api`_ and `api/s
       "methods": [
         "api",
         "api/schema",
+        "code",
         "commit",
-        "quote",
-        "quotes",
-        "signed_index",
-        "join",
+        "log/private",
+        "log/private/anonymous",
+        "log/private/historical",
+        "log/private/prefix_cert",
+        "log/private/raw_text/{id}",
+        "log/public",
         "metrics",
-        "mkSign",
         "network_info",
         "node/ids",
         "primary_info",
-        "receipt",
         "receipt/verify",
+        "receipt",
         "tx",
-        "who"
+        "user_id"
       ]
     }
 
-    $ curl https://<ccf-node-address>/node/api/schema?method="tx" -X GET --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem -H "Content-Type: application/json"
+    $ curl 'https://<ccf-node-address>/app/api/schema?method="tx"' -X GET --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem -H "Content-Type: application/json"
     {
       "params_schema": {
         "$schema": "http://json-schema.org/draft-07/schema#",

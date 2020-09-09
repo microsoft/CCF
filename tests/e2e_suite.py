@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import infra.e2e_args
-import infra.ccf
+import infra.network
 import suite.test_suite as s
 import suite.test_requirements as reqs
 import infra.logging_app as app
@@ -32,8 +32,8 @@ def run(args):
     for choice in args.test_suite:
         try:
             chosen_suite.extend(s.suites[choice])
-        except KeyError:
-            raise ValueError(f"Unhandled choice: {choice}")
+        except KeyError as e:
+            raise ValueError(f"Unhandled choice: {choice}") from e
 
     seed = None
     if os.getenv("SHUFFLE_SUITE"):
@@ -51,7 +51,7 @@ def run(args):
 
     hosts = ["localhost", "localhost"]
     txs = app.LoggingTxs()
-    network = infra.ccf.Network(
+    network = infra.network.Network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, txs=txs
     )
     network.start_and_join(args)

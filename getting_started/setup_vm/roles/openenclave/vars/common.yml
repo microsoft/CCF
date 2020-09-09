@@ -1,5 +1,20 @@
+oe_ver: "0.10.0"
+
+# Source install
 workspace: "/tmp/"
-oe_ver: "v0.9.0"
 oe_src: "oe-{{ oe_ver }}.tar.gz"
 oe_prefix: "/opt/openenclave"
 oe_repo: "https://github.com/openenclave/openenclave.git"
+oe_playbook: scripts/ansible/oe-contributors-acc-setup-no-driver.yml
+oe_build_opts: ""
+
+# Binary install
+oe_deb: "https://github.com/openenclave/openenclave/releases/download/v{{ oe_ver }}/Ubuntu_1804_open-enclave_{{ oe_ver }}_amd64.deb"
+
+# LVI mitigations
+oe_lvi_scripts_dir: "{{ oe_prefix }}/bin/scripts/lvi-mitigation"
+oe_lvi_clang_version: "clang-8"
+oe_lvi_clangpp_version: "clang++-8"
+oe_lvi_bin_dir: /opt/oe_lvi
+oe_lvi_toolset_name: "as.ld.objdump.gold.r1.tar.gz"
+oe_lvi_intel_bin_url: "https://download.01.org/intel-sgx/sgx-linux/2.9/{{ oe_lvi_toolset_name }}"

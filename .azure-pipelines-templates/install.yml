@@ -1,50 +1,40 @@
 steps:
 - script: |
-    ninja install
+    cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
+    cpack -V -G DEB
+    PKG=`ls *.deb`
+    cp $PKG $(Build.ArtifactStagingDirectory)
+    echo "##vso[task.setvariable variable=pkgname]$PKG"
   workingDirectory: build
-  displayName: 'Install'
+  displayName: 'Make .deb package'
 
 - script: |
-    mkdir -p nested/run
-    cd nested/run
     python3.7 -m venv env
-    source env/bin/activate
-    python -m pip install -U -r ${{ parameters.install_prefix }}/bin/requirements.txt
-    pip freeze > ${{ parameters.install_prefix }}/bin/requirements.txt
-    timeout --signal=SIGINT --kill-after=30s --preserve-status 30s \
-      python ${{ parameters.install_prefix }}/bin/start_network.py \
-      -p ../../build/liblogging \
-      -b ${{ parameters.install_prefix }}/bin \
-      -g $(pwd)/../../src/runtime_config/gov.lua \
-      -v
-    cp -r ./workspace/start_network_0/0.ledger .
-    cp ./workspace/start_network_0/network_enc_pubk.pem .
-    timeout --signal=SIGINT --kill-after=30s --preserve-status 30s \
-      python ${{ parameters.install_prefix }}/bin/start_network.py \
-      -p ../../build/liblogging \
-      -b ${{ parameters.install_prefix }}/bin \
-      -v \
-      --recover \
-      --ledger-dir 0.ledger \
-      --network-enc-pubk network_enc_pubk.pem \
-      --common-dir ./workspace/start_network_common/
-  displayName: Test installed CCF
+    source ./env/bin/activate
+    pip install -r requirements.txt
+    pip install wheel
+    python setup.py bdist_wheel
+    WHL=`ls dist/*.whl`
+    cp $WHL $(Build.ArtifactStagingDirectory)
+    WHL=`basename $WHL`
+    echo "##vso[task.setvariable variable=wheel]$WHL"
+  workingDirectory: python
+  displayName: Build wheel
 
 - script: |
-    cp -r /opt/openenclave ${{ parameters.install_prefix }}
-  displayName: Copy OE into install dir
-
-- task: ArchiveFiles@2
-  inputs:
-    rootFolderOrFile: ${{ parameters.install_prefix }}
-    archiveType: 'tar'
-    tarCompression: 'gz'
-    archiveFile: '$(Build.ArtifactStagingDirectory)/ccf.tar.gz'
-    verbose: true
-  displayName: 'Create Install Tarball'
+    sudo apt -y install ./$(pkgname)
+    cat /tmp/install_prefix | xargs ./test_install.sh
+  workingDirectory: build
+  displayName: Test installed CCF
 
 - task: PublishPipelineArtifact@1
   inputs:
-    path: $(Build.ArtifactStagingDirectory)/ccf.tar.gz
-    artifact: ccf.tar.gz
-    displayName: 'Publish CCF Install'
+    path: $(Build.ArtifactStagingDirectory)/$(pkgname)
+    artifact: $(pkgname)
+    displayName: 'Publish CCF Debian Package'
+
+- task: PublishPipelineArtifact@1
+  inputs:
+    path: $(Build.ArtifactStagingDirectory)/$(wheel)
+    artifact: $(wheel)
+    displayName: 'Publish CCF Wheel'

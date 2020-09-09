@@ -9,45 +9,51 @@ namespace kv
   class StoreSnapshot : public AbstractStore::AbstractSnapshot
   {
   private:
+    Version version;
+
     std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>> snapshots;
-    kv::Version version;
-    size_t serialized_size = 0;
-    std::vector<uint8_t> buffer;
+    std::optional<std::vector<uint8_t>> hash_at_snapshot = std::nullopt;
 
   public:
-    StoreSnapshot(kv::Version version_) : version(version_) {}
+    StoreSnapshot(Version version_) : version(version_) {}
 
-    void add_snapshot(std::unique_ptr<kv::AbstractMap::Snapshot> snapshot)
+    void add_map_snapshot(std::unique_ptr<kv::AbstractMap::Snapshot> snapshot)
     {
-      serialized_size += snapshot->get_serialized_size();
       snapshots.push_back(std::move(snapshot));
     }
 
-    std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>>& get_snapshots()
+    void add_hash_at_snapshot(std::vector<uint8_t>&& hash_at_snapshot_)
     {
-      return snapshots;
+      hash_at_snapshot = std::move(hash_at_snapshot_);
     }
 
-    std::vector<uint8_t>& get_buffer()
-    {
-      buffer.resize(serialized_size);
-      return buffer;
-    }
-
-    void serialize()
-    {
-      uint8_t* buffer = get_buffer().data();
-      uint32_t position = 0;
-      for (auto& s : snapshots)
-      {
-        s->serialize(buffer);
-        buffer = buffer + s->get_serialized_size();
-      }
-    }
-
-    kv::Version get_version() const
+    Version get_version() const
     {
       return version;
+    }
+
+    std::vector<uint8_t> serialise(
+      std::shared_ptr<AbstractTxEncryptor> encryptor)
+    {
+      KvStoreSerialiser serialiser(encryptor, version, true);
+
+      if (hash_at_snapshot.has_value())
+      {
+        serialiser.serialise_raw(hash_at_snapshot.value());
+      }
+
+      for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
+      {
+        for (const auto& it : snapshots)
+        {
+          if (it->get_security_domain() == domain)
+          {
+            it->serialise(serialiser);
+          }
+        }
+      }
+
+      return serialiser.get_raw_data();
     }
   };
 }

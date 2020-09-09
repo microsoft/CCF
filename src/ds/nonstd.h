@@ -6,7 +6,9 @@
 #include <array>
 #include <cctype>
 #include <string>
+#include <string_view>
 #include <type_traits>
+#include <vector>
 
 /**
  * This file defines various type traits and utils that are not available in the

@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #define PICOBENCH_IMPLEMENT
 
-#include "consensus/pbft/pbft_requests.h"
+#include "consensus/aft/request.h"
 #include "node/encryptor.h"
 #include "node/history.h"
-#include "node/rpc/json_rpc.h"
+#include "node/rpc/serdes.h"
 #include "tests/flatbuffer_wrapper_test.h"
 
 #include <nlohmann/json.hpp>
@@ -38,7 +38,7 @@ static std::vector<uint8_t> packed_json_tx()
   nlohmann::json j;
   j["name"] = std::to_string(account_name);
   j["value"] = transaction_value;
-  return jsonrpc::pack(j, jsonrpc::Pack::MsgPack);
+  return serdes::pack(j, serdes::Pack::MsgPack);
 }
 
 static std::unique_ptr<flatbuffers::DetachedBuffer> fb_tx_buffer()
@@ -64,7 +64,7 @@ static std::vector<uint8_t> kv_serialized_data(std::vector<uint8_t>& data)
   auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
 
-  auto& map0 = kv_store.create<pbft::RequestsMap>("map0");
+  auto& map0 = kv_store.create<aft::RequestsMap>("map0");
 
   kv::Tx tx(kv_store.next_version());
   auto tx0 = tx.get_view(map0);
@@ -117,7 +117,7 @@ static void json_msgpack_des(picobench::state& s)
   s.start_timer();
   for (int i = 0; i < s.iterations(); i++)
   {
-    auto params = jsonrpc::unpack(p, jsonrpc::Pack::MsgPack);
+    auto params = serdes::unpack(p, serdes::Pack::MsgPack);
     std::string name = params["name"];
     int64_t value = params["value"];
   }
@@ -168,7 +168,7 @@ static void jm_large_payload(picobench::state& s)
   auto payload = large_payload(S);
   nlohmann::json j;
   j["data"] = payload;
-  auto d = jsonrpc::pack(j, jsonrpc::Pack::MsgPack);
+  auto d = serdes::pack(j, serdes::Pack::MsgPack);
   auto data = kv_serialized_data(d);
   run_mt_benchmark(s, data);
 }

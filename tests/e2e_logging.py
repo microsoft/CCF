@@ -1,11 +1,12 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.ccf
+import infra.network
 import infra.notification
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import infra.e2e_args
-from infra.tx_status import TxStatus
+from ccf.tx_status import TxStatus
+import infra.checker
 import inspect
 import http
 import ssl
@@ -13,7 +14,7 @@ import socket
 import os
 from collections import defaultdict
 import time
-import infra.clients
+import ccf.clients
 
 from loguru import logger as LOG
 
@@ -24,10 +25,15 @@ from loguru import logger as LOG
 def test(network, args, notifications_queue=None, verify=True):
     txs = app.LoggingTxs(notifications_queue=notifications_queue)
     txs.issue(
-        network=network, number_txs=1, consensus=args.consensus,
+        network=network,
+        number_txs=1,
+        consensus=args.consensus,
     )
     txs.issue(
-        network=network, number_txs=1, on_backup=True, consensus=args.consensus,
+        network=network,
+        number_txs=1,
+        on_backup=True,
+        consensus=args.consensus,
     )
     if verify:
         txs.verify(network)
@@ -44,7 +50,7 @@ def test_illegal(network, args, notifications_queue=None, verify=True):
     # Send malformed HTTP traffic and check the connection is closed
     cafile = cafile = os.path.join(network.common_dir, "networkcert.pem")
     context = ssl.create_default_context(cafile=cafile)
-    context.set_ecdh_curve(infra.clients.get_curve(cafile).name)
+    context.set_ecdh_curve(ccf.clients.get_curve(cafile).name)
     context.load_cert_chain(
         certfile=os.path.join(network.common_dir, "user0_cert.pem"),
         keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
@@ -60,10 +66,15 @@ def test_illegal(network, args, notifications_queue=None, verify=True):
     # Valid transactions are still accepted
     txs = app.LoggingTxs(notifications_queue=notifications_queue)
     txs.issue(
-        network=network, number_txs=1, consensus=args.consensus,
+        network=network,
+        number_txs=1,
+        consensus=args.consensus,
     )
     txs.issue(
-        network=network, number_txs=1, on_backup=True, consensus=args.consensus,
+        network=network,
+        number_txs=1,
+        on_backup=True,
+        consensus=args.consensus,
     )
     if verify:
         txs.verify(network)
@@ -78,18 +89,19 @@ def test_illegal(network, args, notifications_queue=None, verify=True):
 def test_large_messages(network, args):
     primary, _ = network.find_primary()
 
-    with primary.node_client() as nc:
+    with primary.client() as nc:
         check_commit = infra.checker.Checker(nc)
         check = infra.checker.Checker()
 
-        with primary.user_client() as c:
+        with primary.client("user0") as c:
             log_id = 44
-            for p in range(14, 20) if args.consensus == "raft" else range(10, 13):
+            for p in range(14, 20) if args.consensus == "cft" else range(10, 13):
                 long_msg = "X" * (2 ** p)
                 check_commit(
-                    c.rpc("log/private", {"id": log_id, "msg": long_msg}), result=True,
+                    c.post("/app/log/private", {"id": log_id, "msg": long_msg}),
+                    result=True,
                 )
-                check(c.get("log/private", {"id": log_id}), result={"msg": long_msg})
+                check(c.get(f"/app/log/private?id={log_id}"), result={"msg": long_msg})
                 log_id += 1
 
     return network
@@ -102,28 +114,30 @@ def test_remove(network, args):
     if args.package in supported_packages:
         primary, _ = network.find_primary()
 
-        with primary.node_client() as nc:
+        with primary.client() as nc:
             check_commit = infra.checker.Checker(nc)
             check = infra.checker.Checker()
 
-            with primary.user_client() as c:
+            with primary.client("user0") as c:
                 log_id = 44
                 msg = "Will be deleted"
 
                 for table in ["private", "public"]:
-                    resource = f"log/{table}"
+                    resource = f"/app/log/{table}"
                     check_commit(
-                        c.rpc(resource, {"id": log_id, "msg": msg}), result=True,
+                        c.post(resource, {"id": log_id, "msg": msg}),
+                        result=True,
                     )
-                    check(c.get(resource, {"id": log_id}), result={"msg": msg})
+                    check(c.get(f"{resource}?id={log_id}"), result={"msg": msg})
                     check(
-                        c.delete(resource, {"id": log_id}, params_in_query=True),
+                        c.delete(f"{resource}?id={log_id}"),
                         result=None,
                     )
-                    get_r = c.get(resource, {"id": log_id})
+                    get_r = c.get(f"{resource}?id={log_id}")
                     if args.package == "libjs_generic":
                         check(
-                            get_r, result={"error": "No such key"},
+                            get_r,
+                            result={"error": "No such key"},
                         )
                     else:
                         check(
@@ -146,13 +160,12 @@ def test_cert_prefix(network, args):
         primary, _ = network.find_primary()
 
         for user_id in network.user_ids:
-            with primary.user_client(user_id) as c:
+            with primary.client(f"user{user_id}") as c:
                 log_id = 101
                 msg = "This message will be prefixed"
-                c.rpc("log/private/prefix_cert", {"id": log_id, "msg": msg})
-                r = c.get("log/private", {"id": log_id})
-                assert r.result is not None
-                assert f"CN=user{user_id}" in r.result["msg"]
+                c.post("/app/log/private/prefix_cert", {"id": log_id, "msg": msg})
+                r = c.get(f"/app/log/private?id={log_id}")
+                assert f"CN=user{user_id}" in r.body["msg"], r
 
     else:
         LOG.warning(
@@ -173,18 +186,16 @@ def test_anonymous_caller(network, args):
 
         log_id = 101
         msg = "This message is anonymous"
-        with primary.user_client(user_id=4) as c:
-            r = c.rpc("log/private/anonymous", {"id": log_id, "msg": msg})
-            assert r.result == True
-            r = c.get("log/private", {"id": log_id})
-            assert (
-                r.error is not None
-            ), "Anonymous user is not authorised to call log/private"
+        with primary.client("user4") as c:
+            r = c.post("/app/log/private/anonymous", {"id": log_id, "msg": msg})
+            assert r.body == True
+            r = c.get(f"/app/log/private?id={log_id}")
+            assert r.status_code == http.HTTPStatus.FORBIDDEN.value, r
 
-        with primary.user_client(user_id=0) as c:
-            r = c.get("log/private", {"id": log_id})
-            assert r.result is not None
-            assert msg in r.result["msg"]
+        with primary.client("user0") as c:
+            r = c.get(f"/app/log/private?id={log_id}")
+            assert msg in r.body["msg"], r
+
     else:
         LOG.warning(
             f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
@@ -194,23 +205,22 @@ def test_anonymous_caller(network, args):
 
 
 @reqs.description("Write non-JSON body")
-@reqs.supports_methods("log/private/raw_text", "log/private")
+@reqs.supports_methods("log/private/raw_text/{id}", "log/private")
 def test_raw_text(network, args):
     if args.package == "liblogging":
         primary, _ = network.find_primary()
 
         log_id = 101
         msg = "This message is not in JSON"
-        with primary.user_client() as c:
-            r = c.rpc(
-                "log/private/raw_text",
+        with primary.client("user0") as c:
+            r = c.post(
+                f"/app/log/private/raw_text/{log_id}",
                 msg,
-                headers={"content-type": "text/plain", "x-log-id": str(log_id)},
+                headers={"content-type": "text/plain"},
             )
-            assert r.status == http.HTTPStatus.OK.value
-            r = c.get("log/private", {"id": log_id})
-            assert r.result is not None
-            assert msg in r.result["msg"]
+            assert r.status_code == http.HTTPStatus.OK.value
+            r = c.get(f"/app/log/private?id={log_id}")
+            assert msg in r.body["msg"], r
 
     else:
         LOG.warning(
@@ -220,68 +230,95 @@ def test_raw_text(network, args):
     return network
 
 
+@reqs.description("Read metrics")
+@reqs.supports_methods("endpoint_metrics")
+def test_metrics(network, args):
+    primary, _ = network.find_primary()
+
+    calls = 0
+    errors = 0
+    with primary.client("user0") as c:
+        r = c.get("/app/endpoint_metrics")
+        m = r.body["metrics"]["endpoint_metrics"]["GET"]
+        calls = m["calls"]
+        errors = m["errors"]
+
+    with primary.client("user0") as c:
+        r = c.get("/app/endpoint_metrics")
+        assert r.body["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 1
+        r = c.get("/app/endpoint_metrics")
+        assert r.body["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 2
+
+    with primary.client() as c:
+        r = c.get("/app/endpoint_metrics")
+        assert r.status_code == http.HTTPStatus.FORBIDDEN.value
+
+    with primary.client("user0") as c:
+        r = c.get("/app/endpoint_metrics")
+        assert r.body["metrics"]["endpoint_metrics"]["GET"]["errors"] == errors + 1
+
+    return network
+
+
 @reqs.description("Read historical state")
 @reqs.supports_methods("log/private", "log/private/historical")
 def test_historical_query(network, args):
-    if args.consensus == "pbft":
+    if args.consensus == "bft":
         LOG.warning("Skipping historical queries in PBFT")
         return network
 
     if args.package == "liblogging":
         primary, _ = network.find_primary()
 
-        with primary.node_client() as nc:
+        with primary.client() as nc:
             check_commit = infra.checker.Checker(nc)
             check = infra.checker.Checker()
 
-            with primary.user_client() as c:
+            with primary.client("user0") as c:
                 log_id = 10
                 msg = "This tests historical queries"
-                record_response = c.rpc("log/private", {"id": log_id, "msg": msg})
+                record_response = c.post("/app/log/private", {"id": log_id, "msg": msg})
                 check_commit(record_response, result=True)
                 view = record_response.view
                 seqno = record_response.seqno
 
                 msg2 = "This overwrites the original message"
                 check_commit(
-                    c.rpc("log/private", {"id": log_id, "msg": msg2}), result=True
+                    c.post("/app/log/private", {"id": log_id, "msg": msg2}), result=True
                 )
-                check(c.get("log/private", {"id": log_id}), result={"msg": msg2})
+                check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg2})
 
                 timeout = 15
                 found = False
                 headers = {
-                    infra.clients.CCF_TX_VIEW_HEADER: str(view),
-                    infra.clients.CCF_TX_SEQNO_HEADER: str(seqno),
+                    ccf.clients.CCF_TX_VIEW_HEADER: str(view),
+                    ccf.clients.CCF_TX_SEQNO_HEADER: str(seqno),
                 }
-                params = {"id": log_id}
                 end_time = time.time() + timeout
 
                 while time.time() < end_time:
                     get_response = c.get(
-                        "log/private/historical", params, headers=headers
+                        f"/app/log/private/historical?id={log_id}", headers=headers
                     )
-                    if get_response.status == http.HTTPStatus.ACCEPTED:
+                    if get_response.status_code == http.HTTPStatus.ACCEPTED:
                         retry_after = get_response.headers.get("retry-after")
                         if retry_after is None:
                             raise ValueError(
-                                f"Response with status {get_response.status} is missing 'retry-after' header"
+                                f"Response with status {get_response.status_code} is missing 'retry-after' header"
                             )
                         retry_after = int(retry_after)
                         time.sleep(retry_after)
-                    elif get_response.status == http.HTTPStatus.OK:
-                        assert (
-                            get_response.result["msg"] == msg
-                        ), f"{get_response.result}"
+                    elif get_response.status_code == http.HTTPStatus.OK:
+                        assert get_response.body["msg"] == msg, get_response
                         found = True
                         break
-                    elif get_response.status == http.HTTPStatus.NO_CONTENT:
+                    elif get_response.status_code == http.HTTPStatus.NO_CONTENT:
                         raise ValueError(
                             f"Historical query response claims there was no write to {log_id} at {view}.{seqno}"
                         )
                     else:
                         raise ValueError(
-                            f"Unexpected response status {get_response.status}: {get_response.error}"
+                            f"Unexpected response status code {get_response.status_code}: {get_response.body}"
                         )
 
                 if not found:
@@ -297,16 +334,27 @@ def test_historical_query(network, args):
     return network
 
 
-@reqs.description("Testing forwarding on member and node frontends")
-@reqs.supports_methods("tx")
+@reqs.description("Testing forwarding on member and user frontends")
+@reqs.supports_methods("log/private")
 @reqs.at_least_n_nodes(2)
 def test_forwarding_frontends(network, args):
-    primary, backup = network.find_primary_and_any_backup()
+    backup = network.find_any_backup()
 
-    with primary.node_client() as nc:
-        check_commit = infra.checker.Checker(nc)
+    with backup.client() as c:
+        check_commit = infra.checker.Checker(c)
         ack = network.consortium.get_any_active_member().ack(backup)
         check_commit(ack)
+
+    with backup.client("user0") as c:
+        check_commit = infra.checker.Checker(c)
+        check = infra.checker.Checker()
+        msg = "forwarded_msg"
+        log_id = 123
+        check_commit(
+            c.post("/app/log/private", {"id": log_id, "msg": msg}),
+            result=True,
+        )
+        check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg})
 
     return network
 
@@ -333,17 +381,19 @@ def test_update_lua(network, args):
                     }"""
             )
 
-        network.consortium.set_lua_app(remote_node=primary, app_script=new_app_file)
-        with primary.user_client() as c:
-            check(c.rpc("ping"), result="pong")
+        network.consortium.set_lua_app(
+            remote_node=primary, app_script_path=new_app_file
+        )
+        with primary.client("user0") as c:
+            check(c.post("/app/ping"), result="pong")
 
             LOG.debug("Check that former endpoints no longer exists")
             for endpoint in [
-                "log/private",
-                "log/public",
+                "/app/log/private",
+                "/app/log/public",
             ]:
                 check(
-                    c.rpc(endpoint),
+                    c.post(endpoint),
                     error=lambda status, msg: status == http.HTTPStatus.NOT_FOUND.value,
                 )
     else:
@@ -352,10 +402,54 @@ def test_update_lua(network, args):
     return network
 
 
+@reqs.description("Test user-data used for access permissions")
+@reqs.supports_methods("log/private/admin_only")
+def test_user_data_ACL(network, args):
+    if args.package == "liblogging":
+        primary, _ = network.find_primary()
+
+        proposing_member = network.consortium.get_any_active_member()
+        user_id = 0
+
+        # Give isAdmin permissions to a single user
+        proposal_body, careful_vote = ccf.proposal_generator.set_user_data(
+            user_id,
+            {"isAdmin": True},
+        )
+        proposal = proposing_member.propose(primary, proposal_body)
+        proposal.vote_for = careful_vote
+        network.consortium.vote_using_majority(primary, proposal)
+
+        # Confirm that user can now use this endpoint
+        with primary.client(f"user{user_id}") as c:
+            r = c.post("/app/log/private/admin_only", {"id": 42, "msg": "hello world"})
+            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+
+        # Remove permission
+        proposal_body, careful_vote = ccf.proposal_generator.set_user_data(
+            user_id,
+            {"isAdmin": False},
+        )
+        proposal = proposing_member.propose(primary, proposal_body)
+        proposal.vote_for = careful_vote
+        network.consortium.vote_using_majority(primary, proposal)
+
+        # Confirm that user is now forbidden on this endpoint
+        with primary.client(f"user{user_id}") as c:
+            r = c.post("/app/log/private/admin_only", {"id": 42, "msg": "hello world"})
+            assert r.status_code == http.HTTPStatus.FORBIDDEN.value, r.status_code
+
+    else:
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+        )
+
+    return network
+
+
 @reqs.description("Check for commit of every prior transaction")
-@reqs.supports_methods("commit", "tx")
 def test_view_history(network, args):
-    if args.consensus == "pbft":
+    if args.consensus == "bft":
         # This appears to work in PBFT, but it is unacceptably slow:
         # - Each /tx request is a write, with a non-trivial roundtrip response time
         # - Since each read (eg - /tx and /commit) has produced writes and a unique tx ID,
@@ -367,33 +461,27 @@ def test_view_history(network, args):
 
     check = infra.checker.Checker()
 
+    previous_node = None
+    previous_tx_ids = ""
     for node in network.get_joined_nodes():
-        with node.user_client() as c:
-            r = c.get("commit")
+        with node.client("user0") as c:
+            r = c.get("/node/commit")
             check(c)
 
-            commit_view = r.view
-            commit_seqno = r.global_commit
-
-            # Temporarily disable logging of RPCs for readability
-            rpc_loggers = c.rpc_loggers
-            c.rpc_loggers = ()
-            LOG.warning("RPC logging temporarily suppressed")
+            commit_view = r.body["view"]
+            commit_seqno = r.body["seqno"]
 
             # Retrieve status for all possible Tx IDs
             seqno_to_views = {}
             for seqno in range(1, commit_seqno + 1):
                 views = []
                 for view in range(1, commit_view + 1):
-                    r = c.get("tx", {"view": view, "seqno": seqno})
+                    r = c.get(f"/node/tx?view={view}&seqno={seqno}")
                     check(r)
-                    status = TxStatus(r.result["status"])
+                    status = TxStatus(r.body["status"])
                     if status == TxStatus.Committed:
                         views.append(view)
                 seqno_to_views[seqno] = views
-
-            c.rpc_loggers = rpc_loggers
-            LOG.warning("RPC logging restored")
 
             # Check we have exactly one Tx ID for each seqno
             txs_ok = True
@@ -420,6 +508,18 @@ def test_view_history(network, args):
                 raise RuntimeError(
                     f"Node {node.node_id}: Incomplete or inconsistent view history"
                 )
+
+            # Compare view history between nodes
+            if previous_tx_ids:
+                # Some nodes may have a slightly longer view history so only compare the common prefix
+                min_tx_ids_len = min(len(previous_tx_ids), len(tx_ids_condensed))
+                assert (
+                    tx_ids_condensed[:min_tx_ids_len]
+                    == previous_tx_ids[:min_tx_ids_len]
+                ), f"Tx IDs don't match between node {node.node_id} and node {previous_node.node_id}: {tx_ids_condensed[:min_tx_ids_len]} and {previous_tx_ids[:min_tx_ids_len]}"
+
+            previous_tx_ids = tx_ids_condensed
+            previous_node = node
 
     return network
 
@@ -464,13 +564,13 @@ class SentTxs:
 
 
 @reqs.description("Build a list of Tx IDs, check they transition states as expected")
-@reqs.supports_methods("log/private", "tx")
+@reqs.supports_methods("log/private")
 def test_tx_statuses(network, args):
     primary, _ = network.find_primary()
 
-    with primary.user_client() as c:
+    with primary.client("user0") as c:
         check = infra.checker.Checker()
-        r = c.rpc("log/private", {"id": 0, "msg": "Ignored"})
+        r = c.post("/app/log/private", {"id": 0, "msg": "Ignored"})
         check(r)
         # Until this tx is globally committed, poll for the status of this and some other
         # related transactions around it (and also any historical transactions we're tracking)
@@ -489,9 +589,9 @@ def test_tx_statuses(network, args):
 
             done = False
             for view, seqno in SentTxs.get_all_tx_ids():
-                r = c.get("tx", {"view": view, "seqno": seqno})
+                r = c.get(f"/node/tx?view={view}&seqno={seqno}")
                 check(r)
-                status = TxStatus(r.result["status"])
+                status = TxStatus(r.body["status"])
                 SentTxs.update_status(view, seqno, status)
                 if (
                     status == TxStatus.Committed
@@ -507,20 +607,46 @@ def test_tx_statuses(network, args):
     return network
 
 
+@reqs.description("Primary and redirection")
+@reqs.at_least_n_nodes(2)
+def test_primary(network, args, notifications_queue=None, verify=True):
+    LOG.error(network.nodes)
+    primary, _ = network.find_primary()
+    LOG.error(f"PRIMARY {primary.pubhost}")
+    with primary.client() as c:
+        r = c.head("/node/primary")
+        assert r.status_code == http.HTTPStatus.OK.value
+
+    backup = network.find_any_backup()
+    LOG.error(f"BACKUP {backup.pubhost}")
+    with backup.client() as c:
+        r = c.head("/node/primary")
+        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
+        assert (
+            r.headers["location"]
+            == f"https://{primary.pubhost}:{primary.rpc_port}/node/primary"
+        )
+    return network
+
+
 def run(args):
-    hosts = ["localhost"] * (3 if args.consensus == "pbft" else 2)
+    hosts = ["localhost"] * (3 if args.consensus == "bft" else 2)
 
     with infra.notification.notification_server(args.notify_server) as notifications:
         # Lua apps do not support notifications
         # https://github.com/microsoft/CCF/issues/415
         notifications_queue = (
             notifications.get_queue()
-            if (args.package == "liblogging" and args.consensus == "raft")
+            if (args.package == "liblogging" and args.consensus == "cft")
             else None
         )
 
-        with infra.ccf.network(
-            hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
+        with infra.network.network(
+            hosts,
+            args.binary_dir,
+            args.debug_nodes,
+            args.perf_nodes,
+            pdb=args.pdb,
         ) as network:
             network.start_and_join(args)
             network = test(
@@ -536,11 +662,14 @@ def run(args):
             network = test_remove(network, args)
             network = test_forwarding_frontends(network, args)
             network = test_update_lua(network, args)
+            network = test_user_data_ACL(network, args)
             network = test_cert_prefix(network, args)
             network = test_anonymous_caller(network, args)
             network = test_raw_text(network, args)
             network = test_historical_query(network, args)
             network = test_view_history(network, args)
+            network = test_primary(network, args)
+            network = test_metrics(network, args)
 
 
 if __name__ == "__main__":

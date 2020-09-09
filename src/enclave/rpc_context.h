@@ -2,11 +2,62 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "http/http_builder.h"
+#include "http/http_consts.h"
+#include "http/ws_consts.h"
 #include "node/client_signatures.h"
 #include "node/entities.h"
 
+#include <http-parser/http_parser.h>
 #include <variant>
 #include <vector>
+
+namespace ccf
+{
+  static_assert(
+    static_cast<int>(ws::Verb::WEBSOCKET) <
+    static_cast<int>(http_method::HTTP_DELETE));
+  /*!
+    Extension of http_method including a special "WEBSOCKET" method,
+    to allow make_*_endpoint() to be a single uniform interface to define
+    handlers for either use cases.
+
+    This may be removed if instead of exposing a single RpcContext, callbacks
+    are instead given a specialised WsRpcContext, and make_endpoint becomes
+    templated on Verb and specialised on the respective enum types.
+  */
+  class RESTVerb
+  {
+  private:
+    int verb;
+
+  public:
+    RESTVerb(const http_method& hm) : verb(hm) {}
+    RESTVerb(const ws::Verb& wv) : verb(wv) {}
+
+    const char* c_str() const
+    {
+      if (verb == ws::WEBSOCKET)
+      {
+        return "WEBSOCKET";
+      }
+      else
+      {
+        return http_method_str(static_cast<http_method>(verb));
+      }
+    }
+
+    bool operator<(const RESTVerb& o) const
+    {
+      return verb < o.verb;
+    }
+
+    bool operator!=(const RESTVerb& o) const
+    {
+      return verb != o.verb;
+    }
+  };
+}
 
 namespace enclave
 {
@@ -15,7 +66,8 @@ namespace enclave
   struct SessionContext
   {
     size_t client_session_id = InvalidSessionId;
-    std::vector<uint8_t> caller_cert = {}; // DER certificate
+    // Usually a DER certificate, may be a PEM on forwardee
+    std::vector<uint8_t> caller_cert = {};
     bool is_forwarding = false;
 
     //
@@ -46,11 +98,13 @@ namespace enclave
       size_t fwd_session_id_,
       ccf::CallerId caller_id_,
       const std::vector<uint8_t>& caller_cert_ = {}) :
+      caller_cert(caller_cert_),
       original_caller(
-        std::make_optional<Forwarded>(fwd_session_id_, caller_id_)),
-      caller_cert(caller_cert_)
+        std::make_optional<Forwarded>(fwd_session_id_, caller_id_))
     {}
   };
+
+  using PathParams = std::map<std::string, std::string>;
 
   class RpcContext
   {
@@ -63,6 +117,7 @@ namespace enclave
     std::vector<uint8_t> pbft_raw = {};
 
     bool is_create_request = false;
+    bool execute_on_node = false;
 
     RpcContext(std::shared_ptr<SessionContext> s) : session(s) {}
 
@@ -80,11 +135,13 @@ namespace enclave
 
     virtual const std::vector<uint8_t>& get_request_body() const = 0;
     virtual const std::string& get_request_query() const = 0;
-    virtual size_t get_request_verb() const = 0;
+    virtual PathParams& get_request_path_params() = 0;
+    virtual const ccf::RESTVerb& get_request_verb() const = 0;
 
     virtual std::string get_method() const = 0;
     virtual void set_method(const std::string_view& method) = 0;
 
+    virtual const http::HeaderMap& get_request_headers() const = 0;
     virtual std::optional<std::string> get_request_header(
       const std::string_view& name) = 0;
 
@@ -97,6 +154,7 @@ namespace enclave
     virtual void set_response_body(std::string&& body) = 0;
 
     virtual void set_response_status(int status) = 0;
+    virtual int get_response_status() const = 0;
 
     virtual void set_seqno(kv::Version) = 0;
     virtual void set_view(kv::Consensus::View) = 0;

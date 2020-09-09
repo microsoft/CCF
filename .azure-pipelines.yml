@@ -3,7 +3,7 @@ trigger:
   branches:
     include:
       - master
-      - 'refs/tags/v*'
+      - 'refs/tags/ccf-*'
 
 pr:
   autoCancel: true
@@ -25,17 +25,17 @@ schedules:
 resources:
   containers:
     - container: nosgx
-      image: ccfciteam/ccf-ci-18.04-oe-0.9.0:latest
-      options: --publish-all --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache -v /mnt/build:/__w/ -v /lib/modules:/lib/modules:ro
+      image: ccfciteam/ccf-ci:oe0.10-npm
+      options: --publish-all --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache -v /lib/modules:/lib/modules:ro
 
     - container: sgx
-      image: ccfciteam/ccf-ci-18.04-oe-0.9.0:latest
-      options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache -v /mnt/build:/__w/ -v /lib/modules:/lib/modules:ro
+      image: ccfciteam/ccf-ci:oe0.10-npm
+      options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache -v /lib/modules:/lib/modules:ro
 
 variables:
-  ${{ if startsWith(variables['Build.SourceBranch'], 'refs/tags/v') }}:
+  ${{ if startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-') }}:
     perf_or_release: release
-  ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/tags/v')) }}:
+  ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-')) }}:
     perf_or_release: perf
 
 jobs:

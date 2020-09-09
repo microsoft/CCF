@@ -124,9 +124,7 @@ namespace ccfapp
         if (!handler_script)
         {
           const auto verb_prefixed = fmt::format(
-            "{} {}",
-            http_method_str((http_method)args.rpc_ctx->get_request_verb()),
-            local_method);
+            "{} {}", args.rpc_ctx->get_request_verb().c_str(), local_method);
           handler_script = scripts->get(verb_prefixed);
           if (!handler_script)
           {
@@ -202,6 +200,12 @@ namespace ccfapp
       //   }
       //   return true;
       // });
+
+      // auto scripts = tx.get_view(this->network.app_scripts);
+      // scripts->foreach([&out](const auto& key, const auto&) {
+      // out.endpoints.push_back({"POST", key});
+      // return true;
+      // });
     }
   };
 
@@ -218,7 +222,7 @@ namespace ccfapp
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& network, ccfapp::AbstractNodeContext& context)
+    NetworkTables& network, ccfapp::AbstractNodeContext&)
   {
     return std::make_shared<Lua>(network);
   }

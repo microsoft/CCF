@@ -74,20 +74,21 @@ namespace asynchost
 
     const std::string dir;
 
+    // This uses C stdio instead of fstream because an fstream
+    // cannot be truncated.
+    FILE* file;
+
     size_t start_idx = 1;
     size_t total_len = 0;
     std::vector<uint32_t> positions;
 
-    // This uses C stdio instead of fstream because an fstream
-    // cannot be truncated.
-    FILE* file;
     bool completed = false;
     bool committed = false;
 
   public:
     LedgerFile(const std::string& dir, size_t start_idx) :
       dir(dir),
-      file(NULL),
+      file(nullptr),
       start_idx(start_idx)
     {
       const auto filename = fmt::format("{}_{}", file_name_prefix, start_idx);
@@ -107,7 +108,7 @@ namespace asynchost
     // Used when recovering an existing ledger file
     LedgerFile(const std::string& dir, const std::string& file_name) :
       dir(dir),
-      file(NULL)
+      file(nullptr)
     {
       auto full_path = (fs::path(dir) / fs::path(file_name));
       file = fopen(full_path.c_str(), "r+b");
@@ -578,10 +579,10 @@ namespace asynchost
       ringbuffer::AbstractWriterFactory& writer_factory,
       size_t chunk_threshold,
       size_t max_read_cache_files = max_read_cache_files_default) :
-      ledger_dir(ledger_dir),
-      chunk_threshold(chunk_threshold),
       to_enclave(writer_factory.create_writer_to_inside()),
-      max_read_cache_files(max_read_cache_files)
+      ledger_dir(ledger_dir),
+      max_read_cache_files(max_read_cache_files),
+      chunk_threshold(chunk_threshold)
     {
       if (chunk_threshold == 0 || chunk_threshold > max_chunk_threshold_size)
       {
@@ -646,6 +647,11 @@ namespace asynchost
 
     Ledger(const Ledger& that) = delete;
 
+    void init_idx(size_t idx)
+    {
+      last_idx = idx;
+    }
+
     std::optional<std::vector<uint8_t>> read_entry(size_t idx)
     {
       auto f = get_file_from_idx(idx);
@@ -689,7 +695,8 @@ namespace asynchost
       return entries;
     }
 
-    size_t write_entry(const uint8_t* data, size_t size, bool committable)
+    size_t write_entry(
+      const uint8_t* data, size_t size, bool committable, bool force_chunk)
     {
       if (require_new_file)
       {
@@ -700,9 +707,14 @@ namespace asynchost
       last_idx = f->write_entry(data, size, committable);
 
       LOG_DEBUG_FMT(
-        "Wrote entry at {} [committable: {}]", last_idx, committable);
+        "Wrote entry at {} [committable: {}, forced: {}]",
+        last_idx,
+        committable,
+        force_chunk);
 
-      if (committable && f->get_current_size() >= chunk_threshold)
+      if (
+        committable &&
+        (force_chunk || f->get_current_size() >= chunk_threshold))
       {
         f->complete();
         require_new_file = true;
@@ -790,11 +802,18 @@ namespace asynchost
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {
       DISPATCHER_SET_MESSAGE_HANDLER(
+        disp, consensus::ledger_init, [this](const uint8_t* data, size_t size) {
+          auto idx = serialized::read<consensus::Index>(data, size);
+          init_idx(idx);
+        });
+
+      DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
         consensus::ledger_append,
         [this](const uint8_t* data, size_t size) {
           auto committable = serialized::read<bool>(data, size);
-          write_entry(data, size, committable);
+          auto force_chunk = serialized::read<bool>(data, size);
+          write_entry(data, size, committable, force_chunk);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "frontend.h"
+#include "lua_interp/lua_json.h"
 #include "lua_interp/tx_script_runner.h"
 #include "node/genesis_gen.h"
 #include "node/members.h"
@@ -10,17 +11,179 @@
 #include "node/secret_share.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
+#include "tls/base64.h"
 #include "tls/key_pair.h"
 
+#include <charconv>
 #include <exception>
 #include <initializer_list>
 #include <map>
 #include <memory>
+#include <openenclave/attestation/verifier.h>
 #include <set>
 #include <sstream>
+#if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
+#  include <openenclave/enclave.h>
+#else
+#  include <openenclave/host_verify.h>
+#endif
 
 namespace ccf
 {
+  class MemberTsr : public lua::TxScriptRunner
+  {
+    void setup_environment(
+      lua::Interpreter& li,
+      const std::optional<Script>& env_script) const override
+    {
+      auto l = li.get_state();
+      lua_register(l, "pem_to_der", lua_pem_to_der);
+      lua_register(
+        l, "verify_cert_and_get_claims", lua_verify_cert_and_get_claims);
+
+      TxScriptRunner::setup_environment(li, env_script);
+    }
+
+    static int lua_pem_to_der(lua_State* l)
+    {
+      std::string pem = get_var_string_from_args(l);
+      std::vector<uint8_t> der = tls::make_verifier(pem)->der_cert_data();
+      nlohmann::json json = der;
+      lua::push_raw(l, json);
+      return 1;
+    }
+
+#ifdef USING_OE_11
+    // Uses the new API: oe_verify_attestation_certificate_with_evidence.
+    // Requires OE 0.11. (OE#3312)
+    // The quote is assumed to be an OE attestation (with
+    // oe_attestation_header_t header) stored at 1.2.840.113556.10.1.2 in the
+    // cert.
+    static oe_result_t oe_verify_attestation_certificate_with_evidence_cb(
+      oe_claim_t* claims, size_t claims_length, void* arg)
+    {
+      auto claims_map = (std::map<std::string, std::vector<uint8_t>>*)arg;
+      for (size_t i = 0; i < claims_length; i++)
+      {
+        std::string claim_name(claims[i].name);
+        std::vector<uint8_t> claim_value(
+          claims[i].value, claims[i].value + claims[i].value_size);
+        claims_map->emplace(std::move(claim_name), std::move(claim_value));
+      }
+      return OE_OK;
+    }
+
+    static int lua_verify_cert_and_get_claims(lua_State* l)
+    {
+      LOG_INFO_FMT("lua_verify_cert_and_get_claims");
+      nlohmann::json json = lua::check_get<nlohmann::json>(l, -1);
+      std::vector<uint8_t> cert_der = json;
+
+      std::map<std::string, std::vector<uint8_t>> claims;
+
+      oe_verifier_initialize();
+      oe_result_t res = oe_verify_attestation_certificate_with_evidence(
+        cert_der.data(),
+        cert_der.size(),
+        oe_verify_attestation_certificate_with_evidence_cb,
+        &claims);
+
+      if (res != OE_OK)
+      {
+        // Validation should happen before the proposal is registered.
+        // See https://github.com/microsoft/CCF/issues/1458.
+        throw std::runtime_error(fmt::format(
+          "Invalid certificate, "
+          "oe_verify_attestation_certificate_with_evidence() returned {}",
+          res));
+      }
+
+      lua_newtable(l);
+      const int table_idx = -2;
+
+      for (auto const& item : claims)
+      {
+        std::string val_hex = fmt::format("{:02x}", fmt::join(item.second, ""));
+        LOG_INFO_FMT("claim[{}] = {}", item.first, val_hex);
+        lua::push_raw(l, val_hex);
+        lua_setfield(l, table_idx, item.first.c_str());
+      }
+
+      return 1;
+    }
+#else
+    // Uses the old API: oe_verify_attestation_certificate.
+    // The quote is assumed to be an OE report (with oe_report_header_t header)
+    // stored at 1.2.840.113556.10.1.1 in the cert.
+
+    static oe_result_t oe_verify_attestation_certificate_cb(
+      oe_identity_t* identity, void* arg)
+    {
+      std::memcpy(arg, identity, sizeof(oe_identity_t));
+      return OE_OK;
+    }
+
+    static int lua_verify_cert_and_get_claims(lua_State* l)
+    {
+      LOG_INFO_FMT("lua_verify_cert_and_get_claims");
+      nlohmann::json json = lua::check_get<nlohmann::json>(l, -1);
+      std::vector<uint8_t> cert_der = json;
+
+      oe_identity_t identity;
+      oe_result_t res = oe_verify_attestation_certificate(
+        cert_der.data(),
+        cert_der.size(),
+        oe_verify_attestation_certificate_cb,
+        &identity);
+
+      if (res != OE_OK)
+      {
+        throw std::runtime_error("certificate not valid");
+      }
+
+      lua_newtable(l);
+      const int table_idx = -2;
+
+      std::vector<uint8_t> security_version_bytes(
+        (uint8_t*)&identity.security_version,
+        (uint8_t*)&identity.security_version +
+          sizeof(identity.security_version));
+      std::string security_version =
+        fmt::format("{:02x}", fmt::join(security_version_bytes, ""));
+      lua::push_raw(l, security_version);
+      lua_setfield(l, table_idx, "security_version");
+
+      std::vector<uint8_t> attributes_bytes(
+        (uint8_t*)&identity.attributes,
+        (uint8_t*)&identity.attributes + sizeof(identity.attributes));
+      std::string attributes =
+        fmt::format("{:02x}", fmt::join(attributes_bytes, ""));
+      lua::push_raw(l, attributes);
+      lua_setfield(l, table_idx, "attributes");
+
+      std::string unique_id =
+        fmt::format("{:02x}", fmt::join(identity.unique_id, ""));
+      lua::push_raw(l, unique_id);
+      lua_setfield(l, table_idx, "unique_id");
+
+      std::string signer_id =
+        fmt::format("{:02x}", fmt::join(identity.signer_id, ""));
+      lua::push_raw(l, signer_id);
+      lua_setfield(l, table_idx, "signer_id");
+
+      std::string product_id =
+        fmt::format("{:02x}", fmt::join(identity.product_id, ""));
+      lua::push_raw(l, product_id);
+      lua_setfield(l, table_idx, "product_id");
+
+      return 1;
+    }
+#endif
+
+  public:
+    MemberTsr(NetworkTables& network) : TxScriptRunner(network) {}
+  };
+
   struct SetUserData
   {
     UserId user_id;
@@ -47,6 +210,14 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     GetEncryptedRecoveryShare, encrypted_recovery_share, nonce)
 
+  struct SetModule
+  {
+    std::string name;
+    Module module;
+  };
+  DECLARE_JSON_TYPE(SetModule)
+  DECLARE_JSON_REQUIRED_FIELDS(SetModule, name, module)
+
   class MemberEndpoints : public CommonEndpointRegistry
   {
   private:
@@ -67,7 +238,7 @@ namespace ccf
 
       // First, remove all existing handlers
       tx_scripts->foreach(
-        [&tx_scripts](const std::string& name, const Script& script) {
+        [&tx_scripts](const std::string& name, const Script&) {
           tx_scripts->remove(name);
           return true;
         });
@@ -84,7 +255,7 @@ namespace ccf
 
       // First, remove all existing handlers
       tx_scripts->foreach(
-        [&tx_scripts](const std::string& name, const Script& script) {
+        [&tx_scripts](const std::string& name, const Script&) {
           tx_scripts->remove(name);
           return true;
         });
@@ -93,6 +264,24 @@ namespace ccf
       {
         tx_scripts->put(rs.first, {rs.second});
       }
+    }
+
+    bool set_module(kv::Tx& tx, std::string name, Module module)
+    {
+      if (name.empty() || name[0] != '/')
+      {
+        LOG_FAIL_FMT("module names must start with /");
+        return false;
+      }
+      auto tx_modules = tx.get_view(network.modules);
+      tx_modules->put(name, module);
+      return true;
+    }
+
+    bool remove_module(kv::Tx& tx, std::string name)
+    {
+      auto tx_modules = tx.get_view(network.modules);
+      return tx_modules->remove(name);
     }
 
     bool add_new_code_id(
@@ -115,6 +304,26 @@ namespace ccf
       return true;
     }
 
+    bool retire_code_id(
+      kv::Tx& tx,
+      const CodeDigest& code_id,
+      CodeIDs& code_id_table,
+      ObjectId proposal_id)
+    {
+      auto code_ids = tx.get_view(code_id_table);
+      auto existing_code_id = code_ids->get(code_id);
+      if (!existing_code_id)
+      {
+        LOG_FAIL_FMT(
+          "Proposal {}: No such code id in table: {:02x}",
+          proposal_id,
+          fmt::join(code_id, ""));
+        return false;
+      }
+      code_ids->put(code_id, CodeStatus::RETIRED);
+      return true;
+    }
+
     //! Table of functions that proposal scripts can propose to invoke
     const std::unordered_map<
       std::string,
@@ -122,7 +331,7 @@ namespace ccf
       hardcoded_funcs = {
         // set the lua application script
         {"set_lua_app",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
            const std::string app = args;
            set_app_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
 
@@ -130,23 +339,35 @@ namespace ccf
          }},
         // set the js application script
         {"set_js_app",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
            const std::string app = args;
            set_js_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
            return true;
          }},
+        // add/update a module
+        {"set_module",
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
+           const auto parsed = args.get<SetModule>();
+           return set_module(tx, parsed.name, parsed.module);
+         }},
+        // remove a module
+        {"remove_module",
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
+           const auto name = args.get<std::string>();
+           return remove_module(tx, name);
+         }},
         // add a new member
         {"new_member",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<MemberPubInfo>();
            GenesisGenerator g(this->network, tx);
-           auto new_member_id = g.add_member(parsed.cert, parsed.keyshare);
+           g.add_member(parsed.cert, parsed.keyshare);
 
            return true;
          }},
         // retire an existing member
         {"retire_member",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
            const auto member_id = args.get<MemberId>();
 
            GenesisGenerator g(this->network, tx);
@@ -176,15 +397,28 @@ namespace ccf
 
            return true;
          }},
-        // add a new user
         {"new_user",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
-           const Cert pem_cert = args;
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
+           const auto user_info = args.get<ccf::UserInfo>();
 
            GenesisGenerator g(this->network, tx);
-           g.add_user(pem_cert);
+           g.add_user(user_info);
 
            return true;
+         }},
+        {"remove_user",
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const UserId user_id = args;
+
+           GenesisGenerator g(this->network, tx);
+           auto r = g.remove_user(user_id);
+           if (!r)
+           {
+             LOG_FAIL_FMT(
+               "Proposal {}: {} is not a valid user ID", proposal_id, user_id);
+           }
+
+           return r;
          }},
         {"set_user_data",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
@@ -253,8 +487,16 @@ namespace ccf
         // accept new node code ID
         {"new_node_code",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
-           const auto id = args.get<CodeDigest>();
            return this->add_new_code_id(
+             tx,
+             args.get<CodeDigest>(),
+             this->network.node_code_ids,
+             proposal_id);
+         }},
+        // retire node code ID
+        {"retire_node_code",
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           return this->retire_code_id(
              tx,
              args.get<CodeDigest>(),
              this->network.node_code_ids,
@@ -263,7 +505,6 @@ namespace ccf
         // accept new user code ID
         {"new_user_code",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
-           const auto id = args.get<CodeDigest>();
            return this->add_new_code_id(
              tx,
              args.get<CodeDigest>(),
@@ -274,7 +515,7 @@ namespace ccf
         // that case, members will have to submit their shares after this
         // proposal is accepted.
         {"accept_recovery",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json&) {
            if (node.is_part_of_public_network())
            {
              const auto accept_recovery = node.accept_recovery(tx);
@@ -292,7 +533,7 @@ namespace ccf
            }
          }},
         {"open_network",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json&) {
            // On network open, the service checks that a sufficient number of
            // members have become active. If so, recovery shares are allocated
            // to each active member.
@@ -319,7 +560,7 @@ namespace ccf
            return network_opened;
          }},
         {"rekey_ledger",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json&) {
            const auto ledger_rekeyed = node.rekey_ledger(tx);
            if (!ledger_rekeyed)
            {
@@ -328,7 +569,7 @@ namespace ccf
            return ledger_rekeyed;
          }},
         {"update_recovery_shares",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json&) {
            try
            {
              share_manager.issue_shares(tx);
@@ -369,7 +610,9 @@ namespace ccf
            catch (const std::logic_error& e)
            {
              LOG_FAIL_FMT(
-               "Proposal {}: Setting recovery threshold failed: {}", e.what());
+               "Proposal {}: Setting recovery threshold failed: {}",
+               proposal_id,
+               e.what());
              return false;
            }
            return true;
@@ -539,10 +782,53 @@ namespace ccf
       return ProposalInfo{proposal_id, proposal.proposer, proposal.state};
     }
 
+    template <typename T>
+    bool get_path_param(
+      const enclave::PathParams& params,
+      const std::string& param_name,
+      T& value,
+      std::string& error)
+    {
+      const auto it = params.find(param_name);
+      if (it == params.end())
+      {
+        error = fmt::format("No parameter named '{}' in path", param_name);
+        return false;
+      }
+
+      const auto param_s = it->second;
+      const auto [p, ec] =
+        std::from_chars(param_s.data(), param_s.data() + param_s.size(), value);
+      if (ec != std::errc())
+      {
+        error = fmt::format(
+          "Unable to parse path parameter '{}' as a {}", param_s, param_name);
+        return false;
+      }
+
+      return true;
+    }
+
+    bool get_proposal_id_from_path(
+      const enclave::PathParams& params,
+      ObjectId& proposal_id,
+      std::string& error)
+    {
+      return get_path_param(params, "proposal_id", proposal_id, error);
+    }
+
+    bool get_member_id_from_path(
+      const enclave::PathParams& params,
+      MemberId& member_id,
+      std::string& error)
+    {
+      return get_path_param(params, "member_id", member_id, error);
+    }
+
     NetworkTables& network;
     AbstractNodeState& node;
     ShareManager& share_manager;
-    const lua::TxScriptRunner tsr;
+    const MemberTsr tsr;
 
   public:
     MemberEndpoints(
@@ -552,7 +838,7 @@ namespace ccf
       CommonEndpointRegistry(
         get_actor_prefix(ActorsType::members),
         *network.tables,
-        Tables::MEMBER_CERTS),
+        Tables::MEMBER_CERT_DERS),
       network(network),
       node(node),
       share_manager(share_manager),
@@ -637,18 +923,59 @@ namespace ccf
         return make_success(
           Propose::Out{complete_proposal(args.tx, proposal_id, proposal)});
       };
-      make_endpoint("propose", HTTP_POST, json_adapter(propose))
+      make_endpoint("proposals", HTTP_POST, json_adapter(propose))
         .set_auto_schema<Propose>()
+        .set_require_client_signature(true)
         .install();
 
-      auto withdraw = [this](EndpointContext& args, nlohmann::json&& params) {
+      auto get_proposal =
+        [this](ReadOnlyEndpointContext& args, nlohmann::json&&) {
+          if (!check_member_active(args.tx, args.caller_id))
+          {
+            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+          }
+
+          ObjectId proposal_id;
+          std::string error;
+          if (!get_proposal_id_from_path(
+                args.rpc_ctx->get_request_path_params(), proposal_id, error))
+          {
+            return make_error(HTTP_STATUS_BAD_REQUEST, error);
+          }
+
+          auto proposals = args.tx.get_read_only_view(this->network.proposals);
+          auto proposal = proposals->get(proposal_id);
+
+          if (!proposal)
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              fmt::format("Proposal {} does not exist", proposal_id));
+          }
+
+          return make_success(proposal.value());
+        };
+      make_read_only_endpoint(
+        "proposals/{proposal_id}",
+        HTTP_GET,
+        json_read_only_adapter(get_proposal))
+        .set_auto_schema<void, Proposal>()
+        .install();
+
+      auto withdraw = [this](EndpointContext& args, nlohmann::json&&) {
         if (!check_member_active(args.tx, args.caller_id))
         {
           return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
         }
 
-        const auto proposal_action = params.get<ProposalAction>();
-        const auto proposal_id = proposal_action.id;
+        ObjectId proposal_id;
+        std::string error;
+        if (!get_proposal_id_from_path(
+              args.rpc_ctx->get_request_path_params(), proposal_id, error))
+        {
+          return make_error(HTTP_STATUS_BAD_REQUEST, error);
+        }
+
         auto proposals = args.tx.get_view(this->network.proposals);
         auto proposal = proposals->get(proposal_id);
 
@@ -689,8 +1016,9 @@ namespace ccf
 
         return make_success(get_proposal_info(proposal_id, proposal.value()));
       };
-      make_endpoint("withdraw", HTTP_POST, json_adapter(withdraw))
-        .set_auto_schema<ProposalAction, ProposalInfo>()
+      make_endpoint(
+        "proposals/{proposal_id}/withdraw", HTTP_POST, json_adapter(withdraw))
+        .set_auto_schema<void, ProposalInfo>()
         .set_require_client_signature(true)
         .install();
 
@@ -706,14 +1034,21 @@ namespace ccf
           return make_error(HTTP_STATUS_BAD_REQUEST, "Votes must be signed");
         }
 
-        const auto vote = params.get<Vote>();
+        ObjectId proposal_id;
+        std::string error;
+        if (!get_proposal_id_from_path(
+              args.rpc_ctx->get_request_path_params(), proposal_id, error))
+        {
+          return make_error(HTTP_STATUS_BAD_REQUEST, error);
+        }
+
         auto proposals = args.tx.get_view(this->network.proposals);
-        auto proposal = proposals->get(vote.id);
+        auto proposal = proposals->get(proposal_id);
         if (!proposal)
         {
           return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            fmt::format("Proposal {} does not exist", vote.id));
+            HTTP_STATUS_NOT_FOUND,
+            fmt::format("Proposal {} does not exist", proposal_id));
         }
 
         if (proposal->state != ProposalState::OPEN)
@@ -723,49 +1058,106 @@ namespace ccf
             fmt::format(
               "Proposal {} is currently in state {} - only {} proposals can "
               "receive votes",
-              vote.id,
+              proposal_id,
               proposal->state,
               ProposalState::OPEN));
         }
 
+        const auto vote = params.get<Vote>();
         proposal->votes[args.caller_id] = vote.ballot;
-        proposals->put(vote.id, proposal.value());
+        proposals->put(proposal_id, proposal.value());
 
         record_voting_history(
           args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
         return make_success(
-          complete_proposal(args.tx, vote.id, proposal.value()));
+          complete_proposal(args.tx, proposal_id, proposal.value()));
       };
-      make_endpoint("vote", HTTP_POST, json_adapter(vote))
+      make_endpoint(
+        "proposals/{proposal_id}/votes", HTTP_POST, json_adapter(vote))
         .set_auto_schema<Vote, ProposalInfo>()
         .set_require_client_signature(true)
         .install();
 
-      auto complete =
-        [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
-          if (!check_member_active(tx, caller_id))
-          {
-            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
-          }
+      auto get_vote = [this](ReadOnlyEndpointContext& args, nlohmann::json&&) {
+        if (!check_member_active(args.tx, args.caller_id))
+        {
+          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+        }
 
-          const auto proposal_action = params.get<ProposalAction>();
-          const auto proposal_id = proposal_action.id;
+        std::string error;
+        ObjectId proposal_id;
+        if (!get_proposal_id_from_path(
+              args.rpc_ctx->get_request_path_params(), proposal_id, error))
+        {
+          return make_error(HTTP_STATUS_BAD_REQUEST, error);
+        }
 
-          auto proposals = tx.get_view(this->network.proposals);
-          auto proposal = proposals->get(proposal_id);
-          if (!proposal.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              fmt::format("No such proposal: {}", proposal_id));
-          }
+        MemberId member_id;
+        if (!get_member_id_from_path(
+              args.rpc_ctx->get_request_path_params(), member_id, error))
+        {
+          return make_error(HTTP_STATUS_BAD_REQUEST, error);
+        }
 
-          return make_success(
-            complete_proposal(tx, proposal_id, proposal.value()));
-        };
-      make_endpoint("complete", HTTP_POST, json_adapter(complete))
-        .set_auto_schema<ProposalAction, ProposalInfo>()
+        auto proposals = args.tx.get_read_only_view(this->network.proposals);
+        auto proposal = proposals->get(proposal_id);
+        if (!proposal)
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            fmt::format("Proposal {} does not exist", proposal_id));
+        }
+
+        const auto vote_it = proposal->votes.find(member_id);
+        if (vote_it == proposal->votes.end())
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            fmt::format(
+              "Member {} has not voted for proposal {}",
+              member_id,
+              proposal_id));
+        }
+
+        return make_success(vote_it->second);
+      };
+      make_read_only_endpoint(
+        "proposals/{proposal_id}/votes/{member_id}",
+        HTTP_GET,
+        json_read_only_adapter(get_vote))
+        .set_auto_schema<void, Vote>()
+        .install();
+
+      auto complete = [this](EndpointContext& ctx, nlohmann::json&&) {
+        if (!check_member_active(ctx.tx, ctx.caller_id))
+        {
+          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+        }
+
+        ObjectId proposal_id;
+        std::string error;
+        if (!get_proposal_id_from_path(
+              ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
+        {
+          return make_error(HTTP_STATUS_BAD_REQUEST, error);
+        }
+
+        auto proposals = ctx.tx.get_view(this->network.proposals);
+        auto proposal = proposals->get(proposal_id);
+        if (!proposal.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            fmt::format("No such proposal: {}", proposal_id));
+        }
+
+        return make_success(
+          complete_proposal(ctx.tx, proposal_id, proposal.value()));
+      };
+      make_endpoint(
+        "proposals/{proposal_id}/complete", HTTP_POST, json_adapter(complete))
+        .set_auto_schema<void, ProposalInfo>()
         .set_require_client_signature(true)
         .install();
 
@@ -835,7 +1227,7 @@ namespace ccf
 
       //! A member asks for a fresher state digest
       auto update_state_digest =
-        [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
+        [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&&) {
           auto [ma_view, sig_view] =
             tx.get_view(this->network.member_acks, this->network.signatures);
           auto ma = ma_view->get(caller_id);
@@ -859,12 +1251,12 @@ namespace ccf
         };
       make_endpoint(
         "ack/update_state_digest", HTTP_POST, json_adapter(update_state_digest))
-        .set_auto_schema<void, StateDigest>()
+        .set_auto_schema<void, MemberAck>()
         .install();
 
       auto get_encrypted_recovery_share = [this](
                                             EndpointContext& args,
-                                            nlohmann::json&& params) {
+                                            nlohmann::json&&) {
         if (!check_member_active(args.tx, args.caller_id))
         {
           return make_error(
@@ -1017,7 +1409,7 @@ namespace ccf
         }
 
 #ifdef GET_QUOTE
-        if (in.consensus_type != ConsensusType::PBFT)
+        if (in.consensus_type != ConsensusType::BFT)
         {
           CodeDigest node_code_id;
           std::copy_n(
@@ -1078,7 +1470,7 @@ namespace ccf
         return false;
       }
 
-      ctx->session->caller_cert = caller.value().cert;
+      ctx->session->caller_cert = caller.value().cert.raw();
       return true;
     }
 

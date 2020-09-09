@@ -8,8 +8,8 @@
 #include "kv/test/null_encryptor.h"
 #include "node/client_signatures.h"
 #include "node/genesis_gen.h"
-#include "node/rpc/json_rpc.h"
 #include "node/rpc/member_frontend.h"
+#include "node/rpc/serdes.h"
 #include "node/rpc/user_frontend.h"
 #include "node_stub.h"
 #include "runtime_config/default_whitelists.h"
@@ -26,7 +26,7 @@ extern "C"
 using namespace ccfapp;
 using namespace ccf;
 using namespace std;
-using namespace jsonrpc;
+using namespace serdes;
 using namespace nlohmann;
 
 using TResponse = http::SimpleResponseProcessor::Response;
@@ -41,7 +41,7 @@ std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 
 auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
-constexpr auto default_pack = jsonrpc::Pack::Text;
+constexpr auto default_pack = serdes::Pack::Text;
 
 string get_script_path(string name)
 {
@@ -63,7 +63,7 @@ T parse_response_body(const TResponse& r)
   nlohmann::json body_j;
   try
   {
-    body_j = jsonrpc::unpack(r.body, jsonrpc::Pack::Text);
+    body_j = serdes::unpack(r.body, serdes::Pack::Text);
   }
   catch (const nlohmann::json::parse_error& e)
   {
@@ -113,18 +113,21 @@ std::vector<uint8_t> create_request(
 {
   http::Request r(method_name, verb);
   const auto body = params.is_null() ? std::vector<uint8_t>() :
-                                       jsonrpc::pack(params, default_pack);
+                                       serdes::pack(params, default_pack);
   r.set_body(&body);
   return r.build_request();
 }
 
 std::vector<uint8_t> create_signed_request(
-  const json& params, const string& method_name, const tls::KeyPairPtr& kp_)
+  const json& params,
+  const string& method_name,
+  const tls::KeyPairPtr& kp_,
+  http_method verb = HTTP_POST)
 {
-  http::Request r(method_name);
+  http::Request r(method_name, verb);
 
   const auto body = params.is_null() ? std::vector<uint8_t>() :
-                                       jsonrpc::pack(params, default_pack);
+                                       serdes::pack(params, default_pack);
 
   r.set_body(&body);
   http::sign_request(r, kp_);
@@ -155,7 +158,7 @@ auto read_params(const T& key, const string& table_name)
 auto frontend_process(
   MemberRpcFrontend& frontend,
   const std::vector<uint8_t>& serialized_request,
-  const Cert& caller)
+  const tls::Pem& caller)
 {
   auto session = std::make_shared<enclave::SessionContext>(
     0, tls::make_verifier(caller)->der_cert_data());
@@ -176,33 +179,41 @@ auto frontend_process(
 }
 
 auto get_proposal(
-  MemberRpcFrontend& frontend, size_t proposal_id, const Cert& caller)
+  MemberRpcFrontend& frontend, size_t proposal_id, const tls::Pem& caller)
 {
-  Script read_proposal(fmt::format(
-    R"xxx(
-      tables = ...
-      return tables["ccf.proposals"]:get({})
-    )xxx",
-    proposal_id));
-
-  const auto read = create_request(read_proposal, "query");
+  const auto getter =
+    create_request(nullptr, fmt::format("proposals/{}", proposal_id), HTTP_GET);
 
   return parse_response_body<Proposal>(
-    frontend_process(frontend, read, caller));
+    frontend_process(frontend, getter, caller));
 }
 
-std::vector<uint8_t> get_cert_data(uint64_t member_id, tls::KeyPairPtr& kp_mem)
+auto get_vote(
+  MemberRpcFrontend& frontend,
+  size_t proposal_id,
+  MemberId voter,
+  const tls::Pem& caller)
+{
+  const auto getter = create_request(
+    nullptr,
+    fmt::format("proposals/{}/votes/{}", proposal_id, voter),
+    HTTP_GET);
+
+  return parse_response_body<Script>(
+    frontend_process(frontend, getter, caller));
+}
+
+auto get_cert(uint64_t member_id, tls::KeyPairPtr& kp_mem)
 {
   return kp_mem->self_sign("CN=new member" + to_string(member_id));
 }
 
-std::vector<uint8_t> gen_public_encryption_key()
+auto gen_public_encryption_key()
 {
   auto private_encryption_key =
     tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
   return tls::PublicX25519::write(
-           crypto::BoxKey::public_from_private(private_encryption_key))
-    .raw();
+    crypto::BoxKey::public_from_private(private_encryption_key));
 }
 
 auto init_frontend(
@@ -211,12 +222,12 @@ auto init_frontend(
   StubNodeState& node,
   ShareManager& share_manager,
   const int n_members,
-  std::vector<std::vector<uint8_t>>& member_certs)
+  std::vector<tls::Pem>& member_certs)
 {
   // create members
   for (uint8_t i = 0; i < n_members; i++)
   {
-    member_certs.push_back(get_cert_data(i, kp));
+    member_certs.push_back(get_cert(i, kp));
     gen.activate_member(gen.add_member(member_certs.back(), {}));
   }
 
@@ -243,7 +254,7 @@ DOCTEST_TEST_CASE("Member query/read")
   gen.finalize();
 
   const enclave::SessionContext member_session(
-    enclave::InvalidSessionId, member_cert);
+    enclave::InvalidSessionId, member_cert.raw());
 
   // put value to read
   constexpr auto key = 123;
@@ -341,10 +352,10 @@ DOCTEST_TEST_CASE("Proposer ballot")
   gen.init_values();
   gen.create_service({});
 
-  const auto proposer_cert = get_cert_data(0, kp);
+  const auto proposer_cert = get_cert(0, kp);
   const auto proposer_id = gen.add_member(proposer_cert, {});
   gen.activate_member(proposer_id);
-  const auto voter_cert = get_cert_data(1, kp);
+  const auto voter_cert = get_cert(1, kp);
   const auto voter_id = gen.add_member(voter_cert, {});
   gen.activate_member(voter_id);
 
@@ -364,7 +375,7 @@ DOCTEST_TEST_CASE("Proposer ballot")
   {
     DOCTEST_INFO("Propose, initially voting against");
 
-    const auto proposed_member = get_cert_data(2, kp);
+    const auto proposed_member = get_cert(2, kp);
 
     Propose::In proposal;
     proposal.script = std::string(R"xxx(
@@ -374,7 +385,7 @@ DOCTEST_TEST_CASE("Proposer ballot")
     proposal.parameter["cert"] = proposed_member;
     proposal.parameter["keyshare"] = dummy_key_share;
     proposal.ballot = vote_against;
-    const auto propose = create_signed_request(proposal, "propose", kp);
+    const auto propose = create_signed_request(proposal, "proposals", kp);
     const auto r = frontend_process(frontend, propose, proposer_cert);
 
     // the proposal should be accepted, but not succeed immediately
@@ -387,8 +398,8 @@ DOCTEST_TEST_CASE("Proposer ballot")
   {
     DOCTEST_INFO("Second member votes for proposal");
 
-    const auto vote =
-      create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
+    const auto vote = create_signed_request(
+      Vote{vote_for}, fmt::format("proposals/{}/votes", proposal_id), kp);
     const auto r = frontend_process(frontend, vote, voter_cert);
 
     // The vote should not yet succeed
@@ -411,13 +422,24 @@ DOCTEST_TEST_CASE("Proposer ballot")
     const auto voter_vote = votes.find(voter_id);
     DOCTEST_CHECK(voter_vote != votes.end());
     DOCTEST_CHECK(voter_vote->second == vote_for);
+
+    {
+      DOCTEST_INFO("Get votes directly");
+      const auto proposer_vote2 =
+        get_vote(frontend, proposal_id, proposer_id, proposer_cert);
+      DOCTEST_CHECK(proposer_vote2 == vote_against);
+
+      const auto voter_vote2 =
+        get_vote(frontend, proposal_id, voter_id, proposer_cert);
+      DOCTEST_CHECK(voter_vote2 == vote_for);
+    }
   }
 
   {
     DOCTEST_INFO("Proposer votes for");
 
-    const auto vote =
-      create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
+    const auto vote = create_signed_request(
+      Vote{vote_for}, fmt::format("proposals/{}/votes", proposal_id), kp);
     const auto r = frontend_process(frontend, vote, proposer_cert);
 
     // The vote should now succeed
@@ -429,7 +451,7 @@ struct NewMember
 {
   MemberId id;
   tls::KeyPairPtr kp = tls::make_key_pair();
-  Cert cert;
+  tls::Pem cert;
 };
 
 DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
@@ -457,10 +479,10 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   gen.activate_member(proposer_id);
 
   // the voters
-  const auto voter_a_cert = get_cert_data(1, kp);
+  const auto voter_a_cert = get_cert(1, kp);
   auto voter_a = gen.add_member(voter_a_cert, gen_public_encryption_key());
   gen.activate_member(voter_a);
-  const auto voter_b_cert = get_cert_data(2, kp);
+  const auto voter_b_cert = get_cert(2, kp);
   auto voter_b = gen.add_member(voter_b_cert, gen_public_encryption_key());
   gen.activate_member(voter_b);
 
@@ -484,9 +506,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
     auto cert_pem =
       new_member.kp->self_sign(fmt::format("CN=new member{}", new_member.id));
     auto keyshare = dummy_key_share;
-    auto v = tls::make_verifier(cert_pem);
-    const auto _cert = v->raw();
-    new_member.cert = {_cert->raw.p, _cert->raw.p + _cert->raw.len};
+    new_member.cert = cert_pem;
 
     // check new_member id does not work before member is added
     const auto read_next_req = create_request(
@@ -503,7 +523,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
     proposal.parameter["cert"] = cert_pem;
     proposal.parameter["keyshare"] = gen_public_encryption_key();
 
-    const auto propose = create_signed_request(proposal, "propose", kp);
+    const auto propose = create_signed_request(proposal, "proposals", kp);
 
     {
       const auto r = frontend_process(frontend, propose, member_cert);
@@ -535,8 +555,8 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       )xxx",
       max_members));
 
-    const auto vote =
-      create_signed_request(Vote{proposal_id, vote_ballot}, "vote", kp);
+    const auto vote = create_signed_request(
+      Vote{vote_ballot}, fmt::format("proposals/{}/votes", proposal_id), kp);
 
     {
       const auto r = frontend_process(frontend, vote, voter_a_cert);
@@ -641,6 +661,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       const auto mi = parse_response_body<MemberInfo>(
         frontend_process(frontend, read_status_req, new_member->cert));
       DOCTEST_CHECK(mi.status == MemberStatus::ACTIVE);
+      DOCTEST_CHECK(mi.cert == new_member->cert);
     }
   }
 }
@@ -657,8 +678,8 @@ DOCTEST_TEST_CASE("Accept node")
   StubNodeState node(share_manager);
   auto new_kp = tls::make_key_pair();
 
-  const auto member_0_cert = get_cert_data(0, new_kp);
-  const auto member_1_cert = get_cert_data(1, kp);
+  const auto member_0_cert = get_cert(0, new_kp);
+  const auto member_1_cert = get_cert(1, kp);
   const auto member_0 = gen.add_member(member_0_cert, {});
   const auto member_1 = gen.add_member(member_1_cert, {});
   gen.activate_member(member_0);
@@ -688,18 +709,19 @@ DOCTEST_TEST_CASE("Accept node")
   }
 
   // m0 proposes adding new node
+  ObjectId trust_node_proposal_id;
   {
     Script proposal(R"xxx(
       local tables, node_id = ...
       return Calls:call("trust_node", node_id)
     )xxx");
-    const auto propose =
-      create_signed_request(Propose::In{proposal, node_id}, "propose", new_kp);
+    const auto propose = create_signed_request(
+      Propose::In{proposal, node_id}, "proposals", new_kp);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_0_cert));
 
     DOCTEST_CHECK(r.state == ProposalState::OPEN);
-    DOCTEST_CHECK(r.proposal_id == 0);
+    trust_node_proposal_id = r.proposal_id;
   }
 
   // m1 votes for accepting a single new node
@@ -708,7 +730,10 @@ DOCTEST_TEST_CASE("Accept node")
         local tables, calls = ...
         return #calls == 1 and calls[1].func == "trust_node"
        )xxx");
-    const auto vote = create_signed_request(Vote{0, vote_ballot}, "vote", kp);
+    const auto vote = create_signed_request(
+      Vote{vote_ballot},
+      fmt::format("proposals/{}/votes", trust_node_proposal_id),
+      kp);
 
     check_result_state(
       frontend_process(frontend, vote, member_1_cert), ProposalState::ACCEPTED);
@@ -724,24 +749,28 @@ DOCTEST_TEST_CASE("Accept node")
   }
 
   // m0 proposes retire node
+  ObjectId retire_node_proposal_id;
   {
     Script proposal(R"xxx(
       local tables, node_id = ...
       return Calls:call("retire_node", node_id)
     )xxx");
-    const auto propose =
-      create_signed_request(Propose::In{proposal, node_id}, "propose", new_kp);
+    const auto propose = create_signed_request(
+      Propose::In{proposal, node_id}, "proposals", new_kp);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_0_cert));
 
     DOCTEST_CHECK(r.state == ProposalState::OPEN);
-    DOCTEST_CHECK(r.proposal_id == 1);
+    retire_node_proposal_id = r.proposal_id;
   }
 
   // m1 votes for retiring node
   {
     const Script vote_ballot("return true");
-    const auto vote = create_signed_request(Vote{1, vote_ballot}, "vote", kp);
+    const auto vote = create_signed_request(
+      Vote{vote_ballot},
+      fmt::format("proposals/{}/votes", retire_node_proposal_id),
+      kp);
     check_result_state(
       frontend_process(frontend, vote, member_1_cert), ProposalState::ACCEPTED);
   }
@@ -761,14 +790,14 @@ DOCTEST_TEST_CASE("Accept node")
       local tables, node_id = ...
       return Calls:call("trust_node", node_id)
     )xxx");
-    const auto propose =
-      create_signed_request(Propose::In{proposal, node_id}, "propose", new_kp);
+    const auto propose = create_signed_request(
+      Propose::In{proposal, node_id}, "proposals", new_kp);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_0_cert));
 
     const Script vote_ballot("return true");
-    const auto vote =
-      create_signed_request(Vote{r.proposal_id, vote_ballot}, "vote", kp);
+    const auto vote = create_signed_request(
+      Vote{vote_ballot}, fmt::format("proposals/{}/votes", r.proposal_id), kp);
     check_result_state(
       frontend_process(frontend, vote, member_1_cert), ProposalState::FAILED);
   }
@@ -779,14 +808,14 @@ DOCTEST_TEST_CASE("Accept node")
       local tables, node_id = ...
       return Calls:call("retire_node", node_id)
     )xxx");
-    const auto propose =
-      create_signed_request(Propose::In{proposal, node_id}, "propose", new_kp);
+    const auto propose = create_signed_request(
+      Propose::In{proposal, node_id}, "proposals", new_kp);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_0_cert));
 
     const Script vote_ballot("return true");
-    const auto vote =
-      create_signed_request(Vote{r.proposal_id, vote_ballot}, "vote", kp);
+    const auto vote = create_signed_request(
+      Vote{vote_ballot}, fmt::format("proposals/{}/votes", r.proposal_id), kp);
     check_result_state(
       frontend_process(frontend, vote, member_1_cert), ProposalState::FAILED);
   }
@@ -802,7 +831,7 @@ ProposalInfo test_raw_writes(
   const int pro_votes = 1,
   bool explicit_proposer_vote = false)
 {
-  std::vector<std::vector<uint8_t>> member_certs;
+  std::vector<tls::Pem> member_certs;
   auto frontend =
     init_frontend(network, gen, node, share_manager, n_members, member_certs);
   frontend.open();
@@ -820,7 +849,7 @@ ProposalInfo test_raw_writes(
   const auto proposal_id = 0ul;
   {
     const uint8_t proposer_id = 0;
-    const auto propose = create_signed_request(proposal, "propose", kp);
+    const auto propose = create_signed_request(proposal, "proposals", kp);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_certs[0]));
 
@@ -836,8 +865,8 @@ ProposalInfo test_raw_writes(
   for (int i = n_members - 1; i >= pro_votes; i--)
   {
     const Script vote("return false");
-    const auto vote_serialized =
-      create_signed_request(Vote{proposal_id, vote}, "vote", kp);
+    const auto vote_serialized = create_signed_request(
+      Vote{vote}, fmt::format("proposals/{}/votes", proposal_id), kp);
 
     check_result_state(
       frontend_process(frontend, vote_serialized, member_certs[i]),
@@ -849,8 +878,8 @@ ProposalInfo test_raw_writes(
   for (uint8_t i = explicit_proposer_vote ? 0 : 1; i < pro_votes; i++)
   {
     const Script vote("return true");
-    const auto vote_serialized =
-      create_signed_request(Vote{proposal_id, vote}, "vote", kp);
+    const auto vote_serialized = create_signed_request(
+      Vote{vote}, fmt::format("proposals/{}/votes", proposal_id), kp);
     if (info.state == ProposalState::OPEN)
     {
       info = parse_response_body<ProposalInfo>(
@@ -967,7 +996,7 @@ DOCTEST_TEST_CASE("Remove proposal")
   NewMember caller;
   auto cert = caller.kp->self_sign("CN=new member");
   auto v = tls::make_verifier(cert);
-  caller.cert = v->der_cert_data();
+  caller.cert = v->cert_pem();
 
   NetworkState network;
   network.tables->set_encryptor(encryptor);
@@ -1001,7 +1030,7 @@ DOCTEST_TEST_CASE("Remove proposal")
 
   {
     const auto propose =
-      create_signed_request(Propose::In{proposal_script, 0}, "propose", kp);
+      create_signed_request(Propose::In{proposal_script, 0}, "proposals", kp);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_cert));
 
@@ -1021,9 +1050,8 @@ DOCTEST_TEST_CASE("Remove proposal")
 
   DOCTEST_SUBCASE("Attempt withdraw proposal with non existing id")
   {
-    json param;
-    param["id"] = wrong_proposal_id;
-    const auto withdraw = create_signed_request(param, "withdraw", kp);
+    const auto withdraw = create_signed_request(
+      nullptr, fmt::format("proposals/{}/withdraw", wrong_proposal_id), kp);
 
     check_error(
       frontend_process(frontend, withdraw, member_cert),
@@ -1032,9 +1060,8 @@ DOCTEST_TEST_CASE("Remove proposal")
 
   DOCTEST_SUBCASE("Attempt withdraw proposal that you didn't propose")
   {
-    json param;
-    param["id"] = proposal_id;
-    const auto withdraw = create_signed_request(param, "withdraw", caller.kp);
+    const auto withdraw = create_signed_request(
+      nullptr, fmt::format("proposals/{}/withdraw", proposal_id), caller.kp);
 
     check_error(
       frontend_process(frontend, withdraw, cert), HTTP_STATUS_FORBIDDEN);
@@ -1042,9 +1069,8 @@ DOCTEST_TEST_CASE("Remove proposal")
 
   DOCTEST_SUBCASE("Successfully withdraw proposal")
   {
-    json param;
-    param["id"] = proposal_id;
-    const auto withdraw = create_signed_request(param, "withdraw", kp);
+    const auto withdraw = create_signed_request(
+      nullptr, fmt::format("proposals/{}/withdraw", proposal_id), kp);
 
     check_result_state(
       frontend_process(frontend, withdraw, member_cert),
@@ -1070,22 +1096,24 @@ DOCTEST_TEST_CASE("Complete proposal after initial rejection")
   gen.create_service({});
   ShareManager share_manager(network);
   StubNodeState node(share_manager);
-  std::vector<std::vector<uint8_t>> member_certs;
+  std::vector<tls::Pem> member_certs;
   auto frontend =
     init_frontend(network, gen, node, share_manager, 3, member_certs);
   frontend.open();
 
+  ObjectId raw_puts_proposal_id;
   {
     DOCTEST_INFO("Propose");
     const auto proposal =
       "return Calls:call('raw_puts', Puts:put('ccf.values', 999, 999))"s;
     const auto propose =
-      create_signed_request(Propose::In{proposal}, "propose", kp);
+      create_signed_request(Propose::In{proposal}, "proposals", kp);
 
     kv::Tx tx;
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_certs[0]));
     DOCTEST_CHECK(r.state == ProposalState::OPEN);
+    raw_puts_proposal_id = r.proposal_id;
   }
 
   {
@@ -1094,8 +1122,8 @@ DOCTEST_TEST_CASE("Complete proposal after initial rejection")
     local tables = ...
     return tables["ccf.values"]:get(123) == 123
     )xxx");
-    const auto vote_serialized =
-      create_signed_request(Vote{0, vote}, "vote", kp);
+    const auto vote_serialized = create_signed_request(
+      Vote{vote}, fmt::format("proposals/{}/votes", raw_puts_proposal_id), kp);
 
     check_result_state(
       frontend_process(frontend, vote_serialized, member_certs[1]),
@@ -1104,8 +1132,8 @@ DOCTEST_TEST_CASE("Complete proposal after initial rejection")
 
   {
     DOCTEST_INFO("Try to complete");
-    const auto complete =
-      create_signed_request(ProposalAction{0}, "complete", kp);
+    const auto complete = create_signed_request(
+      nullptr, fmt::format("proposals/{}/complete", raw_puts_proposal_id), kp);
 
     check_result_state(
       frontend_process(frontend, complete, member_certs[1]),
@@ -1121,8 +1149,8 @@ DOCTEST_TEST_CASE("Complete proposal after initial rejection")
 
   {
     DOCTEST_INFO("Try again to complete");
-    const auto complete =
-      create_signed_request(ProposalAction{0}, "complete", kp);
+    const auto complete = create_signed_request(
+      nullptr, fmt::format("proposals/{}/complete", raw_puts_proposal_id), kp);
 
     check_result_state(
       frontend_process(frontend, complete, member_certs[1]),
@@ -1140,9 +1168,9 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
   gen.create_service({});
   ShareManager share_manager(network);
   StubNodeState node(share_manager);
-  const auto voter_a_cert = get_cert_data(1, kp);
+  const auto voter_a_cert = get_cert(1, kp);
   auto voter_a = gen.add_member(voter_a_cert, {});
-  const auto voter_b_cert = get_cert_data(2, kp);
+  const auto voter_b_cert = get_cert(2, kp);
   auto voter_b = gen.add_member(voter_b_cert, {});
   gen.activate_member(voter_a);
   gen.activate_member(voter_b);
@@ -1157,20 +1185,19 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
       return Calls:call("new_user", user_cert)
     )xxx");
 
-  const vector<uint8_t> user_cert = kp->self_sign("CN=new user");
   const auto propose =
-    create_signed_request(Propose::In{proposal, user_cert}, "propose", kp);
+    create_signed_request(Propose::In{proposal, user_cert}, "proposals", kp);
 
   const auto r = parse_response_body<Propose::Out>(
     frontend_process(frontend, propose, voter_a_cert));
   DOCTEST_CHECK(r.state == ProposalState::OPEN);
-  DOCTEST_CHECK(r.proposal_id == 0);
 
   const ccf::Script vote_against("return false");
   {
     DOCTEST_INFO("Member vetoes proposal");
 
-    const auto vote = create_signed_request(Vote{0, vote_against}, "vote", kp);
+    const auto vote = create_signed_request(
+      Vote{vote_against}, fmt::format("proposals/{}/votes", r.proposal_id), kp);
     const auto r = frontend_process(frontend, vote, voter_b_cert);
 
     check_result_state(r, ProposalState::REJECTED);
@@ -1185,7 +1212,7 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
   }
 }
 
-DOCTEST_TEST_CASE("Add user via proposed call")
+DOCTEST_TEST_CASE("Add and remove user via proposed calls")
 {
   NetworkState network;
   network.tables->set_encryptor(encryptor);
@@ -1195,7 +1222,7 @@ DOCTEST_TEST_CASE("Add user via proposed call")
   gen.create_service({});
   ShareManager share_manager(network);
   StubNodeState node(share_manager);
-  const auto member_cert = get_cert_data(0, kp);
+  const auto member_cert = get_cert(0, kp);
   gen.activate_member(gen.add_member(member_cert, {}));
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
@@ -1203,28 +1230,57 @@ DOCTEST_TEST_CASE("Add user via proposed call")
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  Script proposal(R"xxx(
-    tables, user_cert = ...
-      return Calls:call("new_user", user_cert)
-    )xxx");
+  ccf::Cert user_der;
 
-  const vector<uint8_t> user_cert = kp->self_sign("CN=new user");
-  const auto propose =
-    create_signed_request(Propose::In{proposal, user_cert}, "propose", kp);
+  {
+    DOCTEST_INFO("Add user");
 
-  const auto r = parse_response_body<Propose::Out>(
-    frontend_process(frontend, propose, member_cert));
-  DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
-  DOCTEST_CHECK(r.proposal_id == 0);
+    Script proposal(R"xxx(
+        tables, user_cert = ...
+        return Calls:call("new_user", {cert = user_cert})
+      )xxx");
 
-  kv::Tx tx1;
-  const auto uid = tx1.get_view(network.values)->get(ValueIds::NEXT_USER_ID);
-  DOCTEST_CHECK(uid);
-  DOCTEST_CHECK(*uid == 1);
-  const auto uid1 = tx1.get_view(network.user_certs)
-                      ->get(tls::make_verifier(user_cert)->der_cert_data());
-  DOCTEST_CHECK(uid1);
-  DOCTEST_CHECK(*uid1 == 0);
+    const auto user_cert = kp->self_sign("CN=new user");
+    const auto propose =
+      create_signed_request(Propose::In{proposal, user_cert}, "proposals", kp);
+
+    const auto r = parse_response_body<Propose::Out>(
+      frontend_process(frontend, propose, member_cert));
+    DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
+    DOCTEST_CHECK(r.proposal_id == 0);
+
+    kv::Tx tx1;
+    const auto uid = tx1.get_view(network.values)->get(ValueIds::NEXT_USER_ID);
+    DOCTEST_CHECK(uid);
+    DOCTEST_CHECK(*uid == 1);
+    user_der = tls::make_verifier(user_cert)->der_cert_data();
+    const auto uid1 = tx1.get_view(network.user_certs)->get(user_der);
+    DOCTEST_CHECK(uid1);
+    DOCTEST_CHECK(*uid1 == 0);
+  }
+
+  {
+    DOCTEST_INFO("Remove user");
+
+    Script proposal(R"xxx(
+      tables, user_id = ...
+        return Calls:call("remove_user", user_id)
+      )xxx");
+
+    const auto propose =
+      create_signed_request(Propose::In{proposal, 0}, "proposals", kp);
+
+    const auto r = parse_response_body<Propose::Out>(
+      frontend_process(frontend, propose, member_cert));
+    DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
+    DOCTEST_CHECK(r.proposal_id == 1);
+
+    kv::Tx tx1;
+    auto user = tx1.get_view(network.users)->get(0);
+    DOCTEST_CHECK(!user.has_value());
+    auto user_cert = tx1.get_view(network.user_certs)->get(user_der);
+    DOCTEST_CHECK(!user_cert.has_value());
+  }
 }
 
 DOCTEST_TEST_CASE("Passing members ballot with operator")
@@ -1239,15 +1295,15 @@ DOCTEST_TEST_CASE("Passing members ballot with operator")
   gen.create_service({});
 
   // Operating member, as set in operator_gov.lua
-  const auto operator_cert = get_cert_data(0, kp);
+  const auto operator_cert = get_cert(0, kp);
   const auto operator_id = gen.add_member(operator_cert, {});
   gen.activate_member(operator_id);
 
   // Non-operating members
-  std::map<size_t, ccf::Cert> members;
+  std::map<size_t, tls::Pem> members;
   for (size_t i = 1; i < 4; i++)
   {
-    auto cert = get_cert_data(i, kp);
+    auto cert = get_cert(i, kp);
     auto id = gen.add_member(cert, {});
     gen.activate_member(id);
     members[id] = cert;
@@ -1272,7 +1328,7 @@ DOCTEST_TEST_CASE("Passing members ballot with operator")
   {
     DOCTEST_INFO("Propose and vote for");
 
-    const auto proposed_member = get_cert_data(4, kp);
+    const auto proposed_member = get_cert(4, kp);
 
     Propose::In proposal;
     proposal.script = std::string(R"xxx(
@@ -1283,7 +1339,7 @@ DOCTEST_TEST_CASE("Passing members ballot with operator")
     proposal.parameter["keyshare"] = dummy_key_share;
     proposal.ballot = vote_for;
 
-    const auto propose = create_signed_request(proposal, "propose", kp);
+    const auto propose = create_signed_request(proposal, "proposals", kp);
     const auto r = parse_response_body<Propose::Out>(frontend_process(
       frontend,
       propose,
@@ -1297,8 +1353,8 @@ DOCTEST_TEST_CASE("Passing members ballot with operator")
   {
     DOCTEST_INFO("Operator votes, but without effect");
 
-    const auto vote =
-      create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
+    const auto vote = create_signed_request(
+      Vote{vote_for}, fmt::format("proposals/{}/votes", proposal_id), kp);
     const auto r = frontend_process(frontend, vote, operator_cert);
 
     check_result_state(r, ProposalState::OPEN);
@@ -1307,8 +1363,8 @@ DOCTEST_TEST_CASE("Passing members ballot with operator")
   {
     DOCTEST_INFO("Second member votes for proposal, which passes");
 
-    const auto vote =
-      create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
+    const auto vote = create_signed_request(
+      Vote{vote_for}, fmt::format("proposals/{}/votes", proposal_id), kp);
     const auto r = frontend_process(frontend, vote, members[voter_id]);
 
     check_result_state(r, ProposalState::ACCEPTED);
@@ -1316,9 +1372,6 @@ DOCTEST_TEST_CASE("Passing members ballot with operator")
 
   {
     DOCTEST_INFO("Validate vote tally");
-
-    const auto readj = create_signed_request(
-      read_params(proposal_id, Tables::PROPOSALS), "read", kp);
 
     const auto proposal =
       get_proposal(frontend, proposal_id, members[proposer_id]);
@@ -1357,15 +1410,15 @@ DOCTEST_TEST_CASE("Passing operator vote")
   gen.add_node(ni);
 
   // Operating member, as set in operator_gov.lua
-  const auto operator_cert = get_cert_data(0, kp);
+  const auto operator_cert = get_cert(0, kp);
   const auto operator_id = gen.add_member(operator_cert, {});
   gen.activate_member(operator_id);
 
   // Non-operating members
-  std::map<size_t, ccf::Cert> members;
+  std::map<size_t, tls::Pem> members;
   for (size_t i = 1; i < 4; i++)
   {
-    auto cert = get_cert_data(i, kp);
+    auto cert = get_cert(i, kp);
     auto id = gen.add_member(cert, {});
     gen.activate_member(id);
     members[id] = cert;
@@ -1405,7 +1458,7 @@ DOCTEST_TEST_CASE("Passing operator vote")
     )xxx");
 
     const auto propose = create_signed_request(
-      Propose::In{proposal, node_id, vote_for}, "propose", kp);
+      Propose::In{proposal, node_id, vote_for}, "proposals", kp);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, operator_cert));
 
@@ -1415,9 +1468,6 @@ DOCTEST_TEST_CASE("Passing operator vote")
 
   {
     DOCTEST_INFO("Validate vote tally");
-
-    const auto readj = create_signed_request(
-      read_params(proposal_id, Tables::PROPOSALS), "read", kp);
 
     const auto proposal = get_proposal(frontend, proposal_id, operator_cert);
 
@@ -1447,15 +1497,15 @@ DOCTEST_TEST_CASE("Members passing an operator vote")
   gen.add_node(ni);
 
   // Operating member, as set in operator_gov.lua
-  const auto operator_cert = get_cert_data(0, kp);
+  const auto operator_cert = get_cert(0, kp);
   const auto operator_id = gen.add_member(operator_cert, {});
   gen.activate_member(operator_id);
 
   // Non-operating members
-  std::map<size_t, ccf::Cert> members;
+  std::map<size_t, tls::Pem> members;
   for (size_t i = 1; i < 4; i++)
   {
-    auto cert = get_cert_data(i, kp);
+    auto cert = get_cert(i, kp);
     auto id = gen.add_member(cert, {});
     gen.activate_member(id);
     members[id] = cert;
@@ -1494,7 +1544,7 @@ DOCTEST_TEST_CASE("Members passing an operator vote")
     )xxx");
 
     const auto propose = create_signed_request(
-      Propose::In{proposal, node_id, vote_against}, "propose", kp);
+      Propose::In{proposal, node_id, vote_against}, "proposals", kp);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, operator_cert));
 
@@ -1508,8 +1558,8 @@ DOCTEST_TEST_CASE("Members passing an operator vote")
   {
     DOCTEST_INFO("First member votes for proposal");
 
-    const auto vote =
-      create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
+    const auto vote = create_signed_request(
+      Vote{vote_for}, fmt::format("proposals/{}/votes", proposal_id), kp);
     const auto r = frontend_process(frontend, vote, members[first_voter_id]);
 
     check_result_state(r, ProposalState::OPEN);
@@ -1518,8 +1568,8 @@ DOCTEST_TEST_CASE("Members passing an operator vote")
   {
     DOCTEST_INFO("Second member votes for proposal");
 
-    const auto vote =
-      create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
+    const auto vote = create_signed_request(
+      Vote{vote_for}, fmt::format("proposals/{}/votes", proposal_id), kp);
     const auto r = frontend_process(frontend, vote, members[second_voter_id]);
 
     check_result_state(r, ProposalState::ACCEPTED);
@@ -1527,9 +1577,6 @@ DOCTEST_TEST_CASE("Members passing an operator vote")
 
   {
     DOCTEST_INFO("Validate vote tally");
-
-    const auto readj = create_signed_request(
-      read_params(proposal_id, Tables::PROPOSALS), "read", kp);
 
     const auto proposal = get_proposal(frontend, proposal_id, operator_cert);
 
@@ -1560,24 +1607,48 @@ DOCTEST_TEST_CASE("User data")
   gen.create_service({});
   const auto member_id = gen.add_member(member_cert, {});
   gen.activate_member(member_id);
-  const auto user_id = gen.add_user(user_cert);
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  gen.finalize();
 
   ShareManager share_manager(network);
   StubNodeState node(share_manager);
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  const auto read_user_info =
-    create_request(read_params(user_id, Tables::USERS), "read");
+  ccf::UserId user_id;
+  std::vector<uint8_t> read_user_info;
 
+  DOCTEST_SUBCASE("No initial user data")
   {
-    DOCTEST_INFO("user data is initially empty");
-    const auto read_response = parse_response_body<ccf::UserInfo>(
-      frontend_process(frontend, read_user_info, member_cert));
-    DOCTEST_CHECK(read_response.user_data.is_null());
+    user_id = gen.add_user({user_cert});
+    gen.finalize();
+
+    read_user_info =
+      create_request(read_params(user_id, Tables::USERS), "read");
+
+    {
+      DOCTEST_INFO("user data is initially empty");
+      const auto read_response = parse_response_body<ccf::UserInfo>(
+        frontend_process(frontend, read_user_info, member_cert));
+      DOCTEST_CHECK(read_response.user_data.is_null());
+    }
+  }
+
+  DOCTEST_SUBCASE("Initial user data")
+  {
+    const auto user_data_string = "BOB";
+    user_id = gen.add_user({user_cert, user_data_string});
+    gen.finalize();
+
+    read_user_info =
+      create_request(read_params(user_id, Tables::USERS), "read");
+
+    {
+      DOCTEST_INFO("initial user data object can be read");
+      const auto read_response = parse_response_body<ccf::UserInfo>(
+        frontend_process(frontend, read_user_info, member_cert));
+      DOCTEST_CHECK(read_response.user_data == user_data_string);
+    }
   }
 
   {
@@ -1598,7 +1669,7 @@ DOCTEST_TEST_CASE("User data")
       )xxx",
       user_id);
     const auto proposal_serialized =
-      create_signed_request(proposal, "propose", kp);
+      create_signed_request(proposal, "proposals", kp);
     const auto propose_response = parse_response_body<Propose::Out>(
       frontend_process(frontend, proposal_serialized, member_cert));
     DOCTEST_CHECK(propose_response.state == ProposalState::ACCEPTED);
@@ -1622,7 +1693,7 @@ DOCTEST_TEST_CASE("User data")
     proposal.parameter["id"] = user_id;
     proposal.parameter["data"] = user_data_string;
     const auto proposal_serialized =
-      create_signed_request(proposal, "propose", kp);
+      create_signed_request(proposal, "proposals", kp);
     const auto propose_response = parse_response_body<Propose::Out>(
       frontend_process(frontend, proposal_serialized, member_cert));
     DOCTEST_CHECK(propose_response.state == ProposalState::ACCEPTED);
@@ -1637,7 +1708,7 @@ DOCTEST_TEST_CASE("User data")
 DOCTEST_TEST_CASE("Submit recovery shares")
 {
   // Setup original state
-  NetworkState network(ConsensusType::RAFT);
+  NetworkState network(ConsensusType::CFT);
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   network.encryption_key = std::make_unique<NetworkEncryptionKey>(
@@ -1646,7 +1717,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
   ShareManager share_manager(network);
   auto node = StubNodeState(share_manager);
   MemberRpcFrontend frontend(network, node, share_manager);
-  std::map<size_t, std::pair<ccf::Cert, std::vector<uint8_t>>> members;
+  std::map<size_t, std::pair<tls::Pem, std::vector<uint8_t>>> members;
 
   size_t members_count = 4;
   size_t recovery_threshold = 2;
@@ -1662,7 +1733,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
 
     for (size_t i = 0; i < members_count; i++)
     {
-      auto cert = get_cert_data(i, kp);
+      auto cert = get_cert(i, kp);
       auto private_encryption_key =
         tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
       auto public_encryption_key = tls::PublicX25519::write(
@@ -1794,7 +1865,7 @@ DOCTEST_TEST_CASE("Maximum number of active members")
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  std::map<size_t, ccf::Cert> members;
+  std::map<size_t, tls::Pem> members;
 
   kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
@@ -1803,7 +1874,7 @@ DOCTEST_TEST_CASE("Maximum number of active members")
 
   for (size_t i = 1; i < max_active_members_count + 1; i++)
   {
-    auto cert = get_cert_data(i, kp);
+    auto cert = get_cert(i, kp);
     members[gen.add_member(cert, {})] = cert;
   }
   gen.finalize();
@@ -1836,7 +1907,7 @@ DOCTEST_TEST_CASE("Maximum number of active members")
 DOCTEST_TEST_CASE("Open network sequence")
 {
   // Setup original state
-  NetworkState network(ConsensusType::RAFT);
+  NetworkState network(ConsensusType::CFT);
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   network.encryption_key = std::make_unique<NetworkEncryptionKey>(
@@ -1845,7 +1916,7 @@ DOCTEST_TEST_CASE("Open network sequence")
   ShareManager share_manager(network);
   auto node = StubNodeState(share_manager);
   MemberRpcFrontend frontend(network, node, share_manager);
-  std::map<size_t, std::pair<ccf::Cert, std::vector<uint8_t>>> members;
+  std::map<size_t, std::pair<tls::Pem, std::vector<uint8_t>>> members;
 
   size_t members_count = 4;
   size_t recovery_threshold = 100;
@@ -1861,7 +1932,7 @@ DOCTEST_TEST_CASE("Open network sequence")
     // Adding accepted members
     for (size_t i = 0; i < members_count; i++)
     {
-      auto cert = get_cert_data(i, kp);
+      auto cert = get_cert(i, kp);
       auto private_encryption_key =
         tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
       auto public_encryption_key = tls::PublicX25519::write(

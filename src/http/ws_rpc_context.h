@@ -13,9 +13,9 @@ namespace ws
   static std::vector<uint8_t> serialise(
     size_t code,
     const std::vector<uint8_t>& body,
-    kv::Version seqno = 0,
-    kv::Consensus::View view = 0,
-    kv::Version global_commit = 0)
+    kv::Version seqno = kv::NoVersion,
+    kv::Consensus::View view = ccf::VIEW_UNKNOWN,
+    kv::Version global_commit = kv::NoVersion)
   {
     return make_out_frame(code, seqno, view, global_commit, body);
   };
@@ -31,10 +31,15 @@ namespace ws
   private:
     size_t request_index;
 
+    ccf::RESTVerb verb = ws::Verb::WEBSOCKET;
+
     std::string path = {};
     std::string method = {};
 
+    http::HeaderMap request_headers = {};
+
     std::vector<uint8_t> request_body = {};
+    enclave::PathParams path_params = {};
 
     std::vector<uint8_t> serialised_request = {};
     std::optional<ccf::SignedReq> signed_request = std::nullopt;
@@ -85,10 +90,14 @@ namespace ws
       return query;
     }
 
-    virtual size_t get_request_verb() const override
+    virtual enclave::PathParams& get_request_path_params() override
     {
-      // Expedient for now
-      return http_method::HTTP_POST;
+      return path_params;
+    }
+
+    virtual const ccf::RESTVerb& get_request_verb() const override
+    {
+      return verb;
     }
 
     virtual const std::vector<uint8_t>& get_serialised_request() override
@@ -121,8 +130,13 @@ namespace ws
       method = p;
     }
 
+    virtual const http::HeaderMap& get_request_headers() const override
+    {
+      return request_headers;
+    }
+
     virtual std::optional<std::string> get_request_header(
-      const std::string_view& name) override
+      const std::string_view&) override
     {
       return std::nullopt;
     }
@@ -147,8 +161,13 @@ namespace ws
       response_status = (http_status)status;
     }
 
+    virtual int get_response_status() const override
+    {
+      return response_status;
+    }
+
     virtual void set_response_header(
-      const std::string_view& name, const std::string_view& value) override
+      const std::string_view&, const std::string_view&) override
     {}
 
     virtual void set_seqno(kv::Version sn) override

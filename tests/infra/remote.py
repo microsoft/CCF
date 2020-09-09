@@ -215,7 +215,8 @@ class SSHRemote(CmdMixin):
                         os.makedirs(dst_dir)
                         for f in session.listdir(src_dir):
                             session.get(
-                                os.path.join(src_dir, f), os.path.join(dst_dir, f),
+                                os.path.join(src_dir, f),
+                                os.path.join(dst_dir, f),
                             )
                     else:
                         session.get(
@@ -254,7 +255,9 @@ class SSHRemote(CmdMixin):
             for filepath in (self.err, self.out):
                 try:
                     local_file_name = "{}_{}_{}".format(
-                        self.hostname, self.name, os.path.basename(filepath),
+                        self.hostname,
+                        self.name,
+                        os.path.basename(filepath),
                     )
                     dst_path = os.path.join(self.common_dir, local_file_name)
                     session.get(filepath, dst_path)
@@ -435,8 +438,8 @@ class LocalRemote(CmdMixin):
             dst_path = os.path.join(self.root, os.path.basename(path))
             self._cp(path, dst_path)
 
-    def get(self, file_name, dst_path, timeout=FILE_TIMEOUT, target_name=None):
-        path = os.path.join(self.root, file_name)
+    def get(self, src_path, dst_path, timeout=FILE_TIMEOUT, target_name=None):
+        path = os.path.join(self.root, src_path)
         end_time = time.time() + timeout
         while time.time() < end_time:
             if os.path.exists(path):
@@ -444,8 +447,10 @@ class LocalRemote(CmdMixin):
             time.sleep(0.1)
         else:
             raise ValueError(path)
-        target_name = target_name or file_name
-        self._cp(path, dst_path)
+        if target_name is not None:
+            self._cp(path, os.path.join(dst_path, target_name))
+        else:
+            self._cp(path, dst_path)
 
     def list_files(self):
         return os.listdir(self.root)
@@ -546,13 +551,14 @@ class CCFRemote(object):
         common_dir,
         target_rpc_address=None,
         members_info=None,
+        snapshot_dir=None,
         join_timer=None,
         host_log_level="info",
-        sig_max_tx=1000,
-        sig_max_ms=1000,
+        sig_tx_interval=5000,
+        sig_ms_interval=1000,
         raft_election_timeout=1000,
         pbft_view_change_timeout=5000,
-        consensus="raft",
+        consensus="cft",
         worker_threads=0,
         memory_reserve_startup=0,
         notify_server=None,
@@ -560,8 +566,9 @@ class CCFRemote(object):
         ledger_dir=None,
         log_format_json=None,
         binary_dir=".",
-        ledger_chunk_max_bytes=(5 * 1024 * 1024),
+        ledger_chunk_bytes=(5 * 1000 * 1000),
         domain=None,
+        snapshot_tx_interval=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -581,6 +588,11 @@ class CCFRemote(object):
             if self.ledger_dir
             else f"{local_node_id}.ledger"
         )
+        self.snapshot_dir = os.path.normpath(snapshot_dir) if snapshot_dir else None
+        self.snapshot_dir_name = (
+            os.path.basename(self.snapshot_dir) if self.snapshot_dir else "snapshots"
+        )
+
         self.common_dir = common_dir
 
         exe_files = [self.BIN, lib_path] + self.DEPS
@@ -594,7 +606,7 @@ class CCFRemote(object):
 
         election_timeout_arg = (
             f"--pbft_view-change-timeout-ms={pbft_view_change_timeout}"
-            if consensus == "pbft"
+            if consensus == "bft"
             else f"--raft-election-timeout-ms={raft_election_timeout}"
         )
 
@@ -618,17 +630,17 @@ class CCFRemote(object):
         if log_format_json:
             cmd += ["--log-format-json"]
 
-        if sig_max_tx:
-            cmd += [f"--sig-max-tx={sig_max_tx}"]
+        if sig_tx_interval:
+            cmd += [f"--sig-tx-interval={sig_tx_interval}"]
 
-        if sig_max_ms:
-            cmd += [f"--sig-max-ms={sig_max_ms}"]
+        if sig_ms_interval:
+            cmd += [f"--sig-ms-interval={sig_ms_interval}"]
 
         if memory_reserve_startup:
             cmd += [f"--memory-reserve-startup={memory_reserve_startup}"]
 
-        if ledger_chunk_max_bytes:
-            cmd += [f"--ledger-chunk-max-bytes={ledger_chunk_max_bytes}"]
+        if ledger_chunk_bytes:
+            cmd += [f"--ledger-chunk-bytes={ledger_chunk_bytes}"]
 
         if notify_server:
             notify_server_host, *notify_server_port = notify_server.split(":")
@@ -646,6 +658,9 @@ class CCFRemote(object):
 
         if domain:
             cmd += [f"--domain={domain}"]
+
+        if snapshot_tx_interval:
+            cmd += [f"--snapshot-tx-interval={snapshot_tx_interval}"]
 
         if start_type == StartType.new:
             cmd += [
@@ -670,6 +685,9 @@ class CCFRemote(object):
                 f"--join-timer={join_timer}",
             ]
             data_files += [os.path.join(self.common_dir, "networkcert.pem")]
+
+            if snapshot_dir:
+                data_files += [snapshot_dir]
         elif start_type == StartType.recover:
             cmd += ["recover", "--network-cert-file=networkcert.pem"]
         else:
@@ -747,6 +765,10 @@ class CCFRemote(object):
     def get_ledger(self):
         self.remote.get(self.ledger_dir_name, self.common_dir)
         return os.path.join(self.common_dir, self.ledger_dir_name)
+
+    def get_snapshots(self):
+        self.remote.get(self.snapshot_dir_name, self.common_dir)
+        return os.path.join(self.common_dir, self.snapshot_dir_name)
 
     def ledger_path(self):
         return os.path.join(self.remote.root, self.ledger_dir_name)

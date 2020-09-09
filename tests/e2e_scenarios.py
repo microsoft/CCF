@@ -4,9 +4,10 @@ import os
 import json
 import http
 import random
-import infra.ccf
+import infra.network
 import infra.proc
 import infra.e2e_args
+import infra.checker
 
 from loguru import logger as LOG
 
@@ -17,7 +18,7 @@ def run(args):
         scenario = json.load(f)
 
     hosts = scenario.get("hosts", ["localhost", "localhost"])
-    if args.consensus == "pbft":
+    if args.consensus == "bft":
         hosts = ["localhost"] * 3
     args.package = scenario["package"]
     # SNIPPET_END: parsing
@@ -25,7 +26,7 @@ def run(args):
     scenario_dir = os.path.dirname(args.scenario)
 
     # SNIPPET_START: create_network
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes
     ) as network:
         network.start_and_join(args)
@@ -33,16 +34,16 @@ def run(args):
 
         primary, backups = network.find_nodes()
 
-        with primary.node_client() as mc:
+        with primary.client() as mc:
 
             check = infra.checker.Checker()
             check_commit = infra.checker.Checker(mc)
 
             for connection in scenario["connections"]:
                 with (
-                    primary.user_client()
+                    primary.client("user0")
                     if not connection.get("on_backup")
-                    else random.choice(backups).user_client()
+                    else random.choice(backups).client("user0")
                 ) as client:
                     txs = connection.get("transactions", [])
 
@@ -51,9 +52,9 @@ def run(args):
                             txs += json.load(f)
 
                     for tx in txs:
-                        r = client.rpc(
+                        r = client.call(
                             tx["method"],
-                            params=tx["params"],
+                            body=tx["body"],
                             http_verb=tx.get("verb", "POST"),
                         )
 

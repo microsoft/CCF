@@ -20,10 +20,11 @@ namespace ccf
 
     void set_iv(
       crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr,
-      kv::Version version) override
+      kv::Version,
+      bool) override
     {
-      gcm_hdr.set_iv_id(BaseEncryptor::iv_id);
       gcm_hdr.set_iv_seq(seq_no.fetch_add(1));
+      gcm_hdr.set_iv_id(BaseEncryptor::iv_id);
     }
 
     using BaseEncryptor::BaseEncryptor;
@@ -33,8 +34,8 @@ namespace ccf
   class LedgerSecretsMixin : public BaseEncryptor
   {
   private:
-    bool is_recovery;
     std::shared_ptr<LedgerSecrets> ledger_secrets;
+    bool is_recovery;
 
     using KeyInfo = kv::TxEncryptor::KeyInfo;
 

@@ -33,24 +33,23 @@ namespace tls
   public:
     Cert(
       std::shared_ptr<CA> peer_ca_,
-      CBuffer own_cert_ = nullb,
+      const tls::Pem& own_cert_ = nullb,
       const tls::Pem& own_pkey_ = {},
       CBuffer pw = nullb,
       Auth auth_ = auth_default,
       std::optional<std::string> peer_hostname_ = std::nullopt) :
+      peer_hostname(peer_hostname_),
       peer_ca(peer_ca_),
       auth(auth_),
-      peer_hostname(peer_hostname_),
       has_cert(false)
     {
       mbedtls_x509_crt_init(&own_cert);
       mbedtls_pk_init(&own_pkey);
 
-      if ((own_cert_.n > 0) && (own_pkey_.size() > 0))
+      if ((!own_cert_.empty()) && (own_pkey_.size() > 0))
       {
-        Pem pem_cert(own_cert_);
         int rc =
-          mbedtls_x509_crt_parse(&own_cert, pem_cert.data(), pem_cert.size());
+          mbedtls_x509_crt_parse(&own_cert, own_cert_.data(), own_cert_.size());
 
         if (rc != 0)
         {
@@ -129,7 +128,8 @@ namespace tls
         }
 
         default:
-        {}
+        {
+        }
       }
 
       return MBEDTLS_SSL_VERIFY_REQUIRED;

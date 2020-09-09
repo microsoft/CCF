@@ -1,0 +1,85 @@
+- name: Include vars
+  include_vars: common.yml
+
+- name: Install Open Enclave
+  apt:
+    deb: "{{ oe_deb }}"
+  become: yes
+
+- name: Make OE LVI dir
+  file:
+    path: "{{ oe_lvi_bin_dir }}"
+    state: directory
+  become: yes
+
+- name: Copy invoke_compiler to OE LVI dir
+  copy:
+    remote_src: yes
+    src: "{{ oe_lvi_scripts_dir }}/invoke_compiler"
+    dest: "{{ oe_lvi_bin_dir }}/invoke_compiler"
+    mode: "0555"
+  become: yes
+
+- name: "Create OE LVI symlink to {{ oe_lvi_clang_version }}"
+  file:
+    src: "/usr/bin/{{ oe_lvi_clang_version }}"
+    dest: "{{ oe_lvi_bin_dir }}/{{ oe_lvi_clang_version }}_symlink"
+    state: link
+    force: yes
+  become: yes
+
+- name: "Generate OE LVI wrapper for {{ oe_lvi_clang_version }}"
+  shell: |
+    "{{ oe_lvi_scripts_dir }}/generate_wrapper" --name="{{ oe_lvi_clang_version }}" --path="{{ oe_lvi_bin_dir }}"
+  args:
+    chdir: "{{ oe_lvi_bin_dir }}"
+  become: yes
+
+- name: "Create OE LVI symlink to {{ oe_lvi_clangpp_version }}"
+  file:
+    src: "/usr/bin/{{ oe_lvi_clangpp_version }}"
+    dest: "{{ oe_lvi_bin_dir }}/{{ oe_lvi_clangpp_version }}_symlink"
+    state: link
+    force: yes
+  become: yes
+
+- name: "Generate OE LVI wrapper for {{ oe_lvi_clangpp_version }}"
+  shell: |
+    "{{ oe_lvi_scripts_dir }}/generate_wrapper" --name="{{ oe_lvi_clangpp_version }}" --path="{{ oe_lvi_bin_dir }}"
+  args:
+    chdir: "{{ oe_lvi_bin_dir }}"
+  become: yes
+
+- name: Download Intel LVI toolset
+  get_url:
+    url: "{{ oe_lvi_intel_bin_url }}"
+    dest: "{{ workspace }}/{{ oe_lvi_toolset_name }}"
+
+- name: Remove existing expanded Intel LVI toolset
+  file:
+    path: "{{ workspace }}/external"
+    state: absent
+
+- name: Expand Intel LVI toolset
+  unarchive:
+    src: "{{ workspace }}/{{ oe_lvi_toolset_name }}"
+    dest: "{{ workspace }}"
+    copy: no
+    creates: "{{ workspace }}/external/toolset"
+
+- name: Copy Intel LVI as
+  copy:
+    remote_src: yes
+    src: "{{ workspace }}/external/toolset/as"
+    dest: "{{ oe_lvi_bin_dir }}/as"
+    mode: "0775"
+  become: yes
+
+- name: Copy Intel LVI ld
+  copy:
+    remote_src: yes
+    src: "{{ workspace }}/external/toolset/ld"
+    dest: "{{ oe_lvi_bin_dir }}/ld"
+    mode: "0775"
+  become: yes
+  

@@ -33,9 +33,9 @@ namespace ringbuffer
 
       PendingMessage(Message m_, std::vector<uint8_t>&& buffer_) :
         m(m_),
-        buffer(buffer_),
         marker(0),
-        finished(false)
+        finished(false),
+        buffer(buffer_)
       {}
     };
 
@@ -47,7 +47,7 @@ namespace ringbuffer
     virtual WriteMarker prepare(
       ringbuffer::Message m,
       size_t total_size,
-      bool wait = true,
+      bool,
       size_t* identifier = nullptr) override
     {
       if (pending.empty())

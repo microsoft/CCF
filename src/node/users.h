@@ -3,6 +3,7 @@
 #pragma once
 
 #include "kv/map.h"
+#include "tls/pem.h"
 
 #include <nlohmann/json.hpp>
 
@@ -10,7 +11,7 @@ namespace ccf
 {
   struct UserInfo
   {
-    std::vector<uint8_t> cert;
+    tls::Pem cert;
     nlohmann::json user_data = nullptr;
 
     MSGPACK_DEFINE(cert, user_data);

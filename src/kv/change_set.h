@@ -13,6 +13,8 @@ namespace kv
   using VersionV = champ::VersionV<V>;
   template <typename K, typename V, typename H>
   using State = champ::Map<K, VersionV<V>, H>;
+  template <typename K, typename V, typename H>
+  using Snapshot = champ::Snapshot<K, VersionV<V>, H>;
 
   template <typename K>
   using Read = std::map<K, Version>;
@@ -26,10 +28,9 @@ namespace kv
   template <typename K, typename V, typename H>
   struct ChangeSet
   {
-  public:
-    State<K, V, H> state;
-    State<K, V, H> committed;
-    Version start_version;
+    const State<K, V, H> state;
+    const State<K, V, H> committed;
+    const Version start_version;
 
     Version read_version = NoVersion;
     Read<K> reads = {};
@@ -45,6 +46,22 @@ namespace kv
     {}
 
     ChangeSet(ChangeSet&) = delete;
+  };
+
+  // This is a container for a snapshot. It has no dependencies as the snapshot
+  // obliterates the current state.
+  template <typename K, typename V, typename H>
+  struct SnapshotChangeSet
+  {
+    const State<K, V, H> state;
+    const Version version;
+
+    SnapshotChangeSet(State<K, V, H>&& snapshot_state, Version version_) :
+      state(std::move(snapshot_state)),
+      version(version_)
+    {}
+
+    SnapshotChangeSet(SnapshotChangeSet&) = delete;
   };
 
   /// Signature for transaction commit handlers

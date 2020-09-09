@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import os
-import infra.ccf
+import infra.network
 import infra.remote
 
 from loguru import logger as LOG
@@ -34,7 +34,7 @@ class CCFRemoteClient(object):
         self.BIN = infra.path.build_bin_path(bin_path)
 
         # strip out the config from the path
-        self.common_dir = infra.ccf.get_common_folder_name(workspace, label)
+        self.common_dir = infra.network.get_common_folder_name(workspace, label)
 
         self.DEPS = [
             os.path.join(self.common_dir, "user1_cert.pem"),
@@ -58,7 +58,14 @@ class CCFRemoteClient(object):
         ] + client_command_args
 
         self.remote = remote_class(
-            name, host, [self.BIN], self.DEPS, cmd, workspace, label, self.common_dir,
+            name,
+            host,
+            [self.BIN],
+            self.DEPS,
+            cmd,
+            workspace,
+            label,
+            self.common_dir,
         )
 
     def setup(self):
@@ -72,24 +79,17 @@ class CCFRemoteClient(object):
         return self.remote.debug_node_cmd()
 
     def stop(self):
-        try:
-            self.remote.stop()
-            remote_files = self.remote.list_files()
-            remote_csvs = [f for f in remote_files if f.endswith(".csv")]
+        self.remote.stop()
+        remote_files = self.remote.list_files()
+        remote_csvs = [f for f in remote_files if f.endswith(".csv")]
 
-            for csv in remote_csvs:
-                remote_file_dst = f"{self.name}_{csv}"
-                self.remote.get(csv, self.common_dir, 1, remote_file_dst)
-                if csv == "perf_summary.csv":
-                    with open("perf_summary.csv", "a") as l:
-                        with open(
-                            os.path.join(self.common_dir, remote_file_dst), "r"
-                        ) as r:
-                            for line in r.readlines():
-                                l.write(line)
-
-        except Exception:
-            LOG.exception("Failed to shut down {} cleanly".format(self.name))
+        for csv in remote_csvs:
+            remote_file_dst = f"{self.name}_{csv}"
+            self.remote.get(csv, self.common_dir, 1, remote_file_dst)
+            if csv == "perf_summary.csv":
+                with open("perf_summary.csv", "a") as l:
+                    with open(os.path.join(self.common_dir, remote_file_dst), "r") as r:
+                        l.write(r.read())
 
     def check_done(self):
         return self.remote.check_done()

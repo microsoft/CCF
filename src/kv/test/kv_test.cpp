@@ -431,45 +431,6 @@ TEST_CASE("Rollback and compact")
   }
 }
 
-TEST_CASE("Clear entire store")
-{
-  kv::Store kv_store;
-  auto& map1 =
-    kv_store.create<MapTypes::StringString>("map1", kv::SecurityDomain::PUBLIC);
-  auto& map2 =
-    kv_store.create<MapTypes::StringString>("map2", kv::SecurityDomain::PUBLIC);
-
-  INFO("Commit a transaction over two maps");
-  {
-    kv::Tx tx;
-    kv::Tx tx2;
-    auto [view1, view2] = tx.get_view(map1, map2);
-    view1->put("key1", "value1");
-    view2->put("key2", "value2");
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-
-    auto [view1_, view2_] = tx2.get_view(map1, map2);
-    REQUIRE(view1_->get("key1") == "value1");
-    REQUIRE(view2_->get("key2") == "value2");
-  }
-
-  INFO("Clear the entire store and make sure it is empty");
-  {
-    kv::Tx tx;
-    kv::Tx tx2;
-    auto [view1, view2] = tx.get_view(map1, map2);
-
-    kv_store.clear();
-
-    REQUIRE(kv_store.current_version() == 0);
-    REQUIRE(kv_store.commit_version() == 0);
-    REQUIRE(view1->get("key1") == "value1");
-    auto [view1_, view2_] = tx2.get_view(map1, map2);
-    REQUIRE_FALSE(view1_->get("key1").has_value());
-    REQUIRE_FALSE(view2_->get("key2").has_value());
-  }
-}
-
 TEST_CASE("Local commit hooks")
 {
   using Write = MapTypes::StringString::Write;
@@ -584,7 +545,7 @@ TEST_CASE("Global commit hooks")
     REQUIRE(global_writes.size() == 0);
   }
 
-  INFO("Compact one transaction");
+  SUBCASE("Compact one transaction")
   {
     kv::Tx tx1;
     auto view_hook = tx1.get_view(map_with_hook);
@@ -600,12 +561,9 @@ TEST_CASE("Global commit hooks")
     REQUIRE(it1 != latest_writes.writes.end());
     REQUIRE(it1->second.has_value());
     REQUIRE(it1->second.value() == "value1");
-
-    global_writes.clear();
-    kv_store.clear();
   }
 
-  INFO("Compact beyond the last map version");
+  SUBCASE("Compact beyond the last map version")
   {
     kv::Tx tx1, tx2, tx3;
     auto view_hook = tx1.get_view(map_with_hook);
@@ -638,12 +596,9 @@ TEST_CASE("Global commit hooks")
     REQUIRE(it2 != global_writes.at(1).writes.end());
     REQUIRE(it2->second.has_value());
     REQUIRE(it2->second.value() == "value2");
-
-    global_writes.clear();
-    kv_store.clear();
   }
 
-  INFO("Compact in between two map versions");
+  SUBCASE("Compact in between two map versions")
   {
     kv::Tx tx1, tx2, tx3;
     auto view_hook = tx1.get_view(map_with_hook);
@@ -672,12 +627,9 @@ TEST_CASE("Global commit hooks")
     REQUIRE(it1 != global_writes.at(0).writes.end());
     REQUIRE(it1->second.has_value());
     REQUIRE(it1->second.value() == "value1");
-
-    global_writes.clear();
-    kv_store.clear();
   }
 
-  INFO("Compact twice");
+  SUBCASE("Compact twice")
   {
     kv::Tx tx1, tx2;
     auto view_hook = tx1.get_view(map_with_hook);
@@ -700,9 +652,6 @@ TEST_CASE("Global commit hooks")
     REQUIRE(it2 != global_writes.at(0).writes.end());
     REQUIRE(it2->second.has_value());
     REQUIRE(it2->second.value() == "value2");
-
-    global_writes.clear();
-    kv_store.clear();
   }
 }
 
@@ -850,35 +799,6 @@ TEST_CASE("Map swap between stores")
     kv::Tx tx;
     auto v = tx.get_view(pd2);
     REQUIRE_FALSE(v->get(14).has_value());
-  }
-}
-
-TEST_CASE("Invalid map swaps")
-{
-  {
-    kv::Store s1;
-    s1.create<MapTypes::NumNum>("one");
-
-    kv::Store s2;
-    s2.create<MapTypes::NumNum>("one");
-    s2.create<MapTypes::NumNum>("two");
-
-    REQUIRE_THROWS_WITH(
-      s2.swap_private_maps(s1),
-      "Private map list mismatch during swap, missing at least two");
-  }
-
-  {
-    kv::Store s1;
-    s1.create<MapTypes::NumNum>("one");
-    s1.create<MapTypes::NumNum>("two");
-
-    kv::Store s2;
-    s2.create<MapTypes::NumNum>("one");
-
-    REQUIRE_THROWS_WITH(
-      s2.swap_private_maps(s1),
-      "Private map list mismatch during swap, two not found");
   }
 }
 
@@ -1080,68 +1000,4 @@ TEST_CASE("Conflict resolution")
   // Re-running a _committed_ transaction is exceptionally bad
   REQUIRE_THROWS(tx1.commit());
   REQUIRE_THROWS(tx2.commit());
-}
-
-TEST_CASE("Serialization")
-{
-  const char* map_name = "map";
-  kv::SecurityDomain security_domain = kv::SecurityDomain::PUBLIC;
-  kv::Store kv_store;
-  auto& map =
-    kv_store.create<MapTypes::StringString>(map_name, security_domain);
-
-  auto try_write = [&](kv::Tx& tx, const std::string& s) {
-    auto view = tx.get_view(map);
-
-    // Numroduce read-dependency
-    view->get("foo");
-    view->put("foo", s);
-
-    view->put(s, s);
-  };
-
-  INFO("Simulate parallel execution by interleaving tx steps");
-  {
-    kv::Tx tx1;
-    kv::Tx tx2;
-
-    // First transaction tries to write a value, depending on initial version
-    try_write(tx1, "bar");
-
-    {
-      // A second transaction is committed, conflicting with the first
-      try_write(tx2, "baz");
-      const auto res2 = tx2.commit();
-      REQUIRE(res2 == kv::CommitSuccess::OK);
-    }
-
-    // Trying to commit first transaction produces a conflict
-    auto res1 = tx1.commit();
-    REQUIRE(res1 == kv::CommitSuccess::CONFLICT);
-
-    // First transaction is rerun with same object, producing different result
-    try_write(tx1, "buzz");
-
-    // Expected results are committed
-    res1 = tx1.commit();
-    REQUIRE(res1 == kv::CommitSuccess::OK);
-  }
-
-  // now we serialize the a KV that is in the mid point of the known versions
-  std::unique_ptr<kv::AbstractStore::AbstractSnapshot> s = kv_store.snapshot(1);
-  auto& vec_s = s->get_snapshots();
-  for (auto& s : vec_s)
-  {
-    REQUIRE_EQ(s->get_name(), map_name);
-    REQUIRE_EQ(s->get_security_domain(), security_domain);
-    REQUIRE_EQ(s->get_is_replicated(), true);
-    REQUIRE_GT(s->get_serialized_size(), 0);
-  }
-
-  kv::Store new_store;
-  auto& new_map =
-    new_store.create<MapTypes::StringString>(map_name, security_domain);
-  new_store.deserialize(s);
-
-  REQUIRE_EQ(new_store.current_version(), 1);
 }

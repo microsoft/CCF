@@ -1,0 +1,23 @@
+- name: Include vars
+  include_vars: common.yml
+
+- name: Install CCF
+  apt:
+    deb: "{{ ccf_deb_url }}"
+  become: yes
+
+- name: Copy cchost
+  copy:
+    src: "/opt/ccf-{{ ccf_ver }}/bin/cchost"
+    dest: "/usr/bin/cchost"
+    remote_src: true
+    mode: a=rx
+  become: true
+  when: run_only|bool
+
+- name: Remove release
+  apt:
+    name: ccf
+    state: absent
+  become: true
+  when: run_only|bool

@@ -6,7 +6,7 @@ from enum import Enum
 import infra.remote
 import infra.net
 import infra.path
-import infra.clients
+import ccf.clients
 import os
 import socket
 
@@ -82,8 +82,7 @@ class Node:
             workspace,
             label,
             common_dir,
-            None,
-            members_info,
+            members_info=members_info,
             **kwargs,
         )
         self.network_state = NodeNetworkState.joined
@@ -96,6 +95,7 @@ class Node:
         label,
         common_dir,
         target_rpc_address,
+        snapshot_dir,
         **kwargs,
     ):
         self._start(
@@ -105,7 +105,8 @@ class Node:
             workspace,
             label,
             common_dir,
-            target_rpc_address,
+            target_rpc_address=target_rpc_address,
+            snapshot_dir=snapshot_dir,
             **kwargs,
         )
 
@@ -130,6 +131,7 @@ class Node:
         label,
         common_dir,
         target_rpc_address=None,
+        snapshot_dir=None,
         members_info=None,
         **kwargs,
     ):
@@ -161,12 +163,19 @@ class Node:
             common_dir,
             target_rpc_address,
             members_info,
+            snapshot_dir,
             binary_dir=self.binary_dir,
             **kwargs,
         )
         self.remote.setup()
         self.network_state = NodeNetworkState.started
         if self.debug:
+            with open(os.path.join(self.binary_dir, "vscode-gdb.sh"), "a") as f:
+                f.write(f"if [ $1 -eq {self.remote.local_node_id} ]; then\n")
+                f.write(f"cd {self.remote.remote.root}\n")
+                f.write(f"{' '.join(self.remote.remote.cmd)}\n")
+                f.write("fi\n")
+
             print("")
             phost = "localhost" if self.host.startswith("127.") else self.host
             print(
@@ -232,56 +241,35 @@ class Node:
         """
         # Until the node has joined, the SSL handshake will fail as the node
         # is not yet endorsed by the network certificate
+
         try:
-            with self.node_client(connection_timeout=timeout) as nc:
-                rep = nc.get("commit")
+            with self.client(connection_timeout=timeout) as nc:
+                rep = nc.get("/node/commit")
                 assert (
-                    rep.error is None and rep.result is not None
-                ), f"An error occured after node {self.node_id} joined the network: {rep.error}"
-        except infra.clients.CCFConnectionException:
-            raise TimeoutError(f"Node {self.node_id} failed to join the network")
+                    rep.status_code == 200
+                ), f"An error occured after node {self.node_id} joined the network: {rep.body}"
+        except ccf.clients.CCFConnectionException as e:
+            raise TimeoutError(f"Node {self.node_id} failed to join the network") from e
 
     def get_ledger(self):
         return self.remote.get_ledger()
 
-    def user_client(self, user_id=0, **kwargs):
-        return infra.clients.client(
-            self.pubhost,
-            self.rpc_port,
-            cert=os.path.join(self.common_dir, f"user{user_id}_cert.pem"),
-            key=os.path.join(self.common_dir, f"user{user_id}_privk.pem"),
-            ca=os.path.join(self.common_dir, "networkcert.pem"),
-            description=f"node {self.node_id} (user {user_id})",
-            prefix="app",
-            binary_dir=self.binary_dir,
-            **kwargs,
-        )
+    def get_snapshots(self):
+        return self.remote.get_snapshots()
 
-    def node_client(self, **kwargs):
-        return infra.clients.client(
-            self.pubhost,
-            self.rpc_port,
-            cert=None,
-            key=None,
-            ca=os.path.join(self.common_dir, "networkcert.pem"),
-            description=f"node {self.node_id} (node)",
-            prefix="node",
-            binary_dir=self.binary_dir,
-            **kwargs,
-        )
-
-    def member_client(self, member_id=0, **kwargs):
-        return infra.clients.client(
-            self.pubhost,
-            self.rpc_port,
-            cert=os.path.join(self.common_dir, f"member{member_id}_cert.pem"),
-            key=os.path.join(self.common_dir, f"member{member_id}_privk.pem"),
-            ca=os.path.join(self.common_dir, "networkcert.pem"),
-            description=f"node {self.node_id} (member {member_id})",
-            prefix="gov",
-            binary_dir=self.binary_dir,
-            **kwargs,
-        )
+    def client(self, identity=None, **kwargs):
+        akwargs = {
+            "cert": os.path.join(self.common_dir, f"{identity}_cert.pem")
+            if identity
+            else None,
+            "key": os.path.join(self.common_dir, f"{identity}_privk.pem")
+            if identity
+            else None,
+            "ca": os.path.join(self.common_dir, "networkcert.pem"),
+            "description": f"node {self.node_id} as {identity or 'unauthenticated'}",
+        }
+        akwargs.update(kwargs)
+        return ccf.clients.client(self.pubhost, self.rpc_port, **akwargs)
 
     def suspend(self):
         self.remote.suspend()

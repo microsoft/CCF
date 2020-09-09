@@ -1,7 +1,7 @@
 # The Confidential Consortium Framework 
 
 [![Gitter](https://badges.gitter.im/MSRC-CCF/community.svg)](https://gitter.im/MSRC-CCF/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20Github%20CI?branchName=master)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=3&branchName=master)
-[![Docs](https://img.shields.io/badge/Docs-succeeded-green)](https://microsoft.github.io/CCF)
+[![Docs](https://img.shields.io/badge/Docs-succeeded-green)](https://microsoft.github.io/CCF) ![Build and Publish Release Containers](https://github.com/microsoft/CCF/workflows/Build%20and%20Publish%20Release%20Containers/badge.svg)
 
 
 <img alt="ccf" align="right" src="https://microsoft.github.io/CCF/master/_images/ccf.svg" width="300">
@@ -22,7 +22,7 @@ Leveraging the power of trusted execution environments (TEEs), decentralized sys
 
 ## Getting Started with CCF
 
-* [Get started](https://microsoft.github.io/CCF/master/quickstart/index.html) with Azure confidentual computing and CCF.
+* [Get started](https://microsoft.github.io/CCF/master/quickstart/index.html) with Azure confidential computing and CCF.
 * Learn how to [build](https://microsoft.github.io/CCF/master/quickstart/build.html) and [run](https://microsoft.github.io/CCF/master/quickstart/build.html#running-tests) a test network.
 * Start [writing](https://microsoft.github.io/CCF/master/developers/index.html) your own CCF application.
 * Submit [bugs](https://github.com/microsoft/CCF/issues/new?assignees=&labels=bug&template=bug_report.md&title=) and [feature requests](https://github.com/microsoft/CCF/issues/new?assignees=&labels=enhancement&template=feature_request.md&title=), and help us verify those that are checked in.
@@ -33,22 +33,4 @@ We rely on several open source third-party components, attributed under [THIRD_P
 
 ## Contributing
 
-This project welcomes contributions and suggestions. Most contributions require you to
-agree to a Contributor License Agreement (CLA) declaring that you have the right to,
-and actually do, grant us the rights to use your contribution. For details, visit
-https://cla.microsoft.com.
-
-When you submit a pull request, a CLA-bot will automatically determine whether you need
-to provide a CLA and decorate the PR appropriately (e.g., label, comment). Simply follow the
-instructions provided by the bot. You will only need to do this once across all repositories using our CLA.
-
-All pull requests must pass a suite of CI tests before they will be merged.
-The test commands are defined in [`test.yml`](https://github.com/microsoft/CCF/blob/master/.azure-pipelines-templates/test.yml), so you can locally repeat any tests which fail.
-You should at least run the code format checking scripts defined in
-[`checks.yml`](https://github.com/microsoft/CCF/blob/master/.azure-pipelines-templates/checks.yml) before creating a pull request, ensuring all of your code is correctly formatted.
-The test commands will only report misformatted files - to _reformat_ the files, pass `-f` to the `check-format.sh ...` command and remove `--check` from the `black ...` command.
-
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
-For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/)
-or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
-
+This project welcomes contributions and suggestions. Please see the [Contribution guidelines](.github/CONTRIBUTING.md).

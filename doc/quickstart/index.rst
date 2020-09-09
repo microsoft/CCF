@@ -33,6 +33,10 @@ SGX-enabled VM
 The install directory contains (under ``getting_started/``) the Azure and Ansible scripts required to create and set up
 an SGX-enabled dev VM in Azure, with all necessary dependencies to build CCF itself or CCF applications.
 
+If you use `Visual Studio Code`_ you can install and set up the `Remote - SSH`_ extension to connect to your SGX-enabled VM.
+
+.. _`Remote - SSH`: https://code.visualstudio.com/docs/remote/ssh-tutorial
+
 Creation
 ~~~~~~~~
 
@@ -63,7 +67,7 @@ After signing in to your Azure account, the script will create a default ``ccf``
 Setup
 ~~~~~
 
-CCF dependencies include OpenEnclave_, mbedtls_, libuv_ and libcurl_.
+CCF dependencies include `Open Enclave`_, mbedtls_, libuv_ and libcurl_.
 
 To quickly set up the dependencies necessary to build CCF, simply run:
 
@@ -81,7 +85,7 @@ On a machine without SGX, you can instead run:
     $ cd CCF/getting_started/setup_vm
     $ ./run.sh ccf-dev.yml
 
-.. _OpenEnclave: https://github.com/openenclave/openenclave
+.. _`Open Enclave`: https://github.com/openenclave/openenclave
 .. _mbedtls: https://tls.mbed.org/
 .. _libuv: https://github.com/libuv/libuv
 .. _libcurl: https://curl.haxx.se/libcurl/
@@ -107,7 +111,7 @@ Releases
 --------
 
 CCF releases (``ccf.tar.gz``) are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases>`_.
-Once downloaded, the extracted install directory can be copied to a long-lived path, e.g. ``/opt/ccf-install``.
+Once downloaded, the extracted install directory can be copied to a long-lived path, e.g. under ``/opt/``.
 
 To setup a CI for your CCF application, you may want to use the :ref:`developers/build_app:Build Container`. If you are running
 CCF nodes in containers, the :ref:`operators/container:Runtime Container` is a good place to start.

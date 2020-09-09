@@ -1,14 +1,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
-import infra.ccf
+import infra.network
 import infra.proc
 import infra.remote
 import infra.crypto
-import infra.ledger
+import ccf.ledger
 from infra.proposal import ProposalState
 import http
-import os
 from loguru import logger as LOG
 
 
@@ -22,8 +21,8 @@ def count_governance_operations(ledger):
 
     for tr in ledger:
         tables = tr.get_public_domain().get_tables()
-        if "ccf.member_certs" in tables:
-            members_table = tables["ccf.member_certs"]
+        if "ccf.member_cert_ders" in tables:
+            members_table = tables["ccf.member_cert_ders"]
             for cert, member_id in members_table.items():
                 members[member_id] = cert
 
@@ -37,12 +36,14 @@ def count_governance_operations(ledger):
                 request_body = signed_request[0][2]
                 digest = signed_request[0][3]
                 infra.crypto.verify_request_sig(cert, sig, req, request_body, digest)
-                if "gov/propose" in req.decode():
-                    verified_proposals += 1
-                elif "gov/vote" in req.decode():
-                    verified_votes += 1
-                elif "gov/withdraw" in req.decode():
-                    verified_withdrawals += 1
+                request_target_line = req.decode().splitlines()[0]
+                if "/gov/proposals" in request_target_line:
+                    if request_target_line.endswith("/votes"):
+                        verified_votes += 1
+                    elif request_target_line.endswith("/withdraw"):
+                        verified_withdrawals += 1
+                    else:
+                        verified_proposals += 1
 
     return (verified_proposals, verified_votes, verified_withdrawals)
 
@@ -55,18 +56,15 @@ def run(args):
     votes_issued = 0
     withdrawals_issued = 0
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
         primary, _ = network.find_primary()
 
         ledger_directory = network.find_primary()[0].remote.ledger_path()
-        # For now, this test only works with one ledger file
-        for l in os.listdir(ledger_directory):
-            if l.endswith("_1"):
-                ledger_filename = os.path.join(ledger_directory, l)
-        ledger = infra.ledger.Ledger(ledger_filename)
+
+        ledger = ccf.ledger.Ledger(ledger_directory)
         (
             original_proposals,
             original_votes,
@@ -75,7 +73,7 @@ def run(args):
 
         LOG.info("Add new member proposal (implicit vote)")
         new_member_proposal, _ = network.consortium.generate_and_propose_new_member(
-            primary, curve=infra.ccf.ParticipantsCurve.secp256k1
+            primary, curve=infra.network.ParticipantsCurve.secp256k1
         )
         proposals_issued += 1
 
@@ -84,28 +82,29 @@ def run(args):
         votes_issued += 1
         assert new_member_proposal.state == infra.proposal.ProposalState.Accepted
 
-        LOG.info("Unsigned votes are rejected")
-        response = network.consortium.get_member_by_id(2).vote(
-            primary, new_member_proposal, accept=True, force_unsigned=True
-        )
-        assert response.status == http.HTTPStatus.UNAUTHORIZED.value
-
         LOG.info("Create new proposal but withdraw it before it is accepted")
         new_member_proposal, _ = network.consortium.generate_and_propose_new_member(
-            primary, curve=infra.ccf.ParticipantsCurve.secp256k1
+            primary, curve=infra.network.ParticipantsCurve.secp256k1
         )
         proposals_issued += 1
 
-        response = network.consortium.get_member_by_id(
-            new_member_proposal.proposer_id
-        ).withdraw(primary, new_member_proposal)
-        assert response.status == http.HTTPStatus.OK.value
-        assert response.result["state"] == ProposalState.Withdrawn.value
+        with primary.client() as c:
+            response = network.consortium.get_member_by_id(
+                new_member_proposal.proposer_id
+            ).withdraw(primary, new_member_proposal)
+            infra.checker.Checker(c)(response)
+        assert response.status_code == http.HTTPStatus.OK.value
+        assert response.body["state"] == ProposalState.Withdrawn.value
         withdrawals_issued += 1
 
-    (final_proposals, final_votes, final_withdrawals,) = count_governance_operations(
-        ledger
-    )
+    # Refresh ledger to beginning
+    ledger = ccf.ledger.Ledger(ledger_directory)
+
+    (
+        final_proposals,
+        final_votes,
+        final_withdrawals,
+    ) = count_governance_operations(ledger)
 
     assert (
         final_proposals == original_proposals + proposals_issued

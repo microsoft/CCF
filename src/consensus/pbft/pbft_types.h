@@ -12,7 +12,7 @@
 namespace pbft
 {
   using Index = int64_t;
-  using Term = uint64_t;
+  using Term = int64_t;
   using NodeId = uint64_t;
   using Node2NodeMsg = uint64_t;
   using CallerId = uint64_t;
@@ -156,7 +156,7 @@ namespace pbft
           new_view.view,
           new_view.node_id);
 
-        auto success = p->commit(
+        p->commit(
           txid,
           [txid, &pbft_new_views_map, new_view]() {
             kv::Tx tx(txid.version);

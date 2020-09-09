@@ -10,7 +10,8 @@
 
 namespace http
 {
-  static std::optional<std::string> extract_actor(enclave::RpcContext& ctx)
+  inline static std::optional<std::string> extract_actor(
+    enclave::RpcContext& ctx)
   {
     const auto path = ctx.get_method();
 
@@ -54,7 +55,7 @@ namespace http
   private:
     size_t request_index;
 
-    http_method verb;
+    ccf::RESTVerb verb;
     std::string whole_path = {};
     std::string path = {};
     std::string query = {};
@@ -62,6 +63,7 @@ namespace http
     http::HeaderMap request_headers = {};
 
     std::vector<uint8_t> request_body = {};
+    enclave::PathParams path_params = {};
 
     std::vector<uint8_t> serialised_request = {};
     std::optional<ccf::SignedReq> signed_request = std::nullopt;
@@ -85,48 +87,36 @@ namespace http
         {
           std::string_view authz_header = auth_it->second;
 
-          auto parsed_sign_params =
-            http::HttpSignatureVerifier::parse_signature_params(authz_header);
-
-          if (!parsed_sign_params.has_value())
+          if (http::HttpSignatureVerifier::parse_auth_scheme(authz_header))
           {
-            throw std::logic_error(fmt::format(
-              "Unable to parse signature params from: {}", authz_header));
-          }
+            auto parsed_sign_params =
+              http::HttpSignatureVerifier::parse_signature_params(authz_header);
 
-          // Keep all signed headers, and the auth header containing the
-          // signature itself
-          auto& signed_headers = parsed_sign_params->signed_headers;
-          signed_headers.emplace_back(http::headers::AUTHORIZATION);
-
-          for (const auto& required_header :
-               {http::headers::DIGEST, http::headers::CONTENT_LENGTH})
-          {
-            if (
-              std::find(
-                signed_headers.begin(),
-                signed_headers.end(),
-                required_header) == signed_headers.end())
+            if (!parsed_sign_params.has_value())
             {
               throw std::logic_error(fmt::format(
-                "HTTP authorization header must sign header '{}'",
-                required_header));
+                "Unable to parse signature params from: {}", authz_header));
             }
-          }
 
-          auto it = request_headers.begin();
-          while (it != request_headers.end())
-          {
-            if (
-              std::find(
-                signed_headers.begin(), signed_headers.end(), it->first) ==
-              signed_headers.end())
+            // Keep all signed headers, and the auth header containing the
+            // signature itself
+            auto& signed_headers = parsed_sign_params->signed_headers;
+            signed_headers.emplace_back(http::headers::AUTHORIZATION);
+
+            auto it = request_headers.begin();
+            while (it != request_headers.end())
             {
-              it = request_headers.erase(it);
-            }
-            else
-            {
-              ++it;
+              if (
+                std::find(
+                  signed_headers.begin(), signed_headers.end(), it->first) ==
+                signed_headers.end())
+              {
+                it = request_headers.erase(it);
+              }
+              else
+              {
+                ++it;
+              }
             }
           }
         }
@@ -135,7 +125,7 @@ namespace http
           "{} {}{} HTTP/1.1\r\n"
           "{}"
           "\r\n",
-          http_method_str(verb),
+          verb.c_str(),
           whole_path,
           query.empty() ? "" : fmt::format("?{}", query),
           http::get_header_string(request_headers));
@@ -222,7 +212,12 @@ namespace http
       return query;
     }
 
-    virtual size_t get_request_verb() const override
+    virtual enclave::PathParams& get_request_path_params() override
+    {
+      return path_params;
+    }
+
+    virtual const ccf::RESTVerb& get_request_verb() const override
     {
       return verb;
     }
@@ -239,7 +234,7 @@ namespace http
       if (!signed_request.has_value())
       {
         signed_request = http::HttpSignatureVerifier::parse(
-          std::string(http_method_str(verb)),
+          std::string(verb.c_str()),
           whole_path,
           query,
           request_headers,
@@ -257,6 +252,11 @@ namespace http
     virtual void set_method(const std::string_view& p) override
     {
       path = p;
+    }
+
+    virtual const http::HeaderMap& get_request_headers() const override
+    {
+      return request_headers;
     }
 
     virtual std::optional<std::string> get_request_header(
@@ -291,6 +291,11 @@ namespace http
     virtual void set_response_status(int status) override
     {
       response_status = (http_status)status;
+    }
+
+    virtual int get_response_status() const override
+    {
+      return response_status;
     }
 
     virtual void set_response_header(
@@ -436,7 +441,7 @@ namespace enclave
         ws::RequestParser parser(processor);
 
         auto next_read = 2;
-        auto index = 0;
+        size_t index = 0;
         while (index < packed.size())
         {
           auto chunk = std::vector(

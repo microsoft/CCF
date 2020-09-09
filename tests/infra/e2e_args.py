@@ -3,8 +3,16 @@
 import argparse
 import os
 import infra.path
-import infra.ccf
+import infra.network
 import sys
+
+
+def absolute_path_to_existing_file(arg):
+    if not os.path.isabs(arg):
+        raise argparse.ArgumentTypeError("Must provide absolute path")
+    if not os.path.isfile(arg):
+        raise argparse.ArgumentTypeError(f"{arg} is not a file")
+    return arg
 
 
 def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
@@ -52,7 +60,10 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=False,
     )
     parser.add_argument(
-        "-g", "--gov-script", help="Path to governance script",
+        "-g",
+        "--gov-script",
+        help="Path to governance script",
+        type=absolute_path_to_existing_file,
     )
     parser.add_argument("-s", "--app-script", help="Path to app script")
     parser.add_argument("-j", "--js-app-script", help="Path to js app script")
@@ -63,10 +74,16 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         action="store_true",
     )
     parser.add_argument(
-        "--sig-max-tx", help="Max transactions between signatures", type=int
+        "--sig-tx-interval",
+        help="Number of transactions between signatures",
+        type=int,
+        default=5000,
     )
     parser.add_argument(
-        "--sig-max-ms", help="Max milliseconds between signatures", type=int
+        "--sig-ms-interval",
+        help="Milliseconds between signatures",
+        type=int,
+        default=1000,
     )
     parser.add_argument(
         "--memory-reserve-startup",
@@ -86,7 +103,10 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=5000,
     )
     parser.add_argument(
-        "--consensus", help="Consensus", default="raft", choices=("raft", "pbft"),
+        "--consensus",
+        help="Consensus",
+        default="cft",
+        choices=("cft", "bft"),
     )
     parser.add_argument(
         "--worker-threads",
@@ -121,11 +141,20 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Domain name used for node certificate verification, eg. example.com",
     )
     parser.add_argument(
+        "--sn",
+        help="Subject Name in node certificate, eg. CN=CCF Node",
+    )
+    parser.add_argument(
+        "--san",
+        help="Subject Alternative Name in node certificate. Can be either iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld",
+        action="append",
+    )
+    parser.add_argument(
         "--participants-curve",
         help="Curve to use for member and user identities",
-        default=infra.ccf.ParticipantsCurve.secp384r1.name,
-        type=lambda curve: infra.ccf.ParticipantsCurve[curve],
-        choices=list(infra.ccf.ParticipantsCurve),
+        default=infra.network.ParticipantsCurve.secp384r1.name,
+        type=lambda curve: infra.network.ParticipantsCurve[curve],
+        choices=list(infra.network.ParticipantsCurve),
     )
     parser.add_argument(
         "--join-timer",
@@ -149,12 +178,17 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--ledger-recovery-timeout",
         help="On recovery, maximum timeout (s) while reading the ledger",
         type=int,
-        default=10,
+        default=30,
     )
     parser.add_argument(
-        "--ledger-chunk-max-bytes",
-        help="Minimum size (bytes) at which a new ledger chunk is created.",
+        "--ledger-chunk-bytes",
+        help="Size (bytes) at which a new ledger chunk is created",
         default="20KB",
+    )
+    parser.add_argument(
+        "--snapshot-tx-interval",
+        help="Number of transactions between two snapshots",
+        default=None,
     )
 
     add(parser)

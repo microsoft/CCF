@@ -79,9 +79,18 @@ set(CLIENT_MBEDTLS_LIBRARIES "${MBEDTLS_LIBRARIES}")
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
 
+if(SAN AND LVI_MITIGATIONS)
+  message(
+    FATAL_ERROR
+      "Building with both SAN and LVI mitigations is unsafe and deadlocks - choose one"
+  )
+endif()
+
 add_custom_command(
-  COMMAND openenclave::oeedger8r ${CCF_DIR}/edl/ccf.edl --trusted --trusted-dir
-          ${CCF_GENERATED_DIR} --untrusted --untrusted-dir ${CCF_GENERATED_DIR}
+  COMMAND
+    openenclave::oeedger8r ${CCF_DIR}/edl/ccf.edl --search-path ${OE_INCLUDEDIR}
+    --trusted --trusted-dir ${CCF_GENERATED_DIR} --untrusted --untrusted-dir
+    ${CCF_GENERATED_DIR}
   COMMAND mv ${CCF_GENERATED_DIR}/ccf_t.c ${CCF_GENERATED_DIR}/ccf_t.cpp
   COMMAND mv ${CCF_GENERATED_DIR}/ccf_u.c ${CCF_GENERATED_DIR}/ccf_u.cpp
   DEPENDS ${CCF_DIR}/edl/ccf.edl
@@ -89,34 +98,34 @@ add_custom_command(
   COMMENT "Generating code from EDL, and renaming to .cpp"
 )
 
-# Copy utilities from tests directory
-set(CCF_UTILITIES tests.sh keygenerator.sh cimetrics_env.sh
-                  upload_pico_metrics.py scurl.sh submit_recovery_share.sh
-)
+# Copy and install CCF utilities
+set(CCF_UTILITIES keygenerator.sh scurl.sh submit_recovery_share.sh)
 foreach(UTILITY ${CCF_UTILITIES})
+  configure_file(
+    ${CCF_DIR}/python/utils/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
+  )
+  install(PROGRAMS ${CCF_DIR}/python/utils/${UTILITY} DESTINATION bin)
+endforeach()
+
+# Copy utilities from tests directory
+set(CCF_TEST_UTILITIES tests.sh cimetrics_env.sh upload_pico_metrics.py
+                       test_install.sh
+)
+foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
     ${CCF_DIR}/tests/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
   )
 endforeach()
 
-# Install specific utilities
-install(PROGRAMS ${CCF_DIR}/tests/scurl.sh ${CCF_DIR}/tests/keygenerator.sh
-                 ${CCF_DIR}/tests/sgxinfo.sh
-                 ${CCF_DIR}/tests/submit_recovery_share.sh DESTINATION bin
-)
+# Install additional utilities
+install(PROGRAMS ${CCF_DIR}/tests/sgxinfo.sh DESTINATION bin)
 
 # Install getting_started scripts for VM creation and setup
 install(DIRECTORY ${CCF_DIR}/getting_started/ DESTINATION getting_started)
 
 if("sgx" IN_LIST COMPILE_TARGETS)
-  # If OE was built with LINK_SGX=1, then we also need to link SGX
-  if(OE_SGX)
-    message(STATUS "Linking SGX")
-    set(SGX_LIBS sgx_enclave_common sgx_dcap_ql sgx_urts)
-
-    if(NOT DISABLE_QUOTE_VERIFICATION)
-      set(QUOTES_ENABLED ON)
-    endif()
+  if(NOT DISABLE_QUOTE_VERIFICATION)
+    set(QUOTES_ENABLED ON)
   endif()
 
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -177,7 +186,10 @@ function(add_unit_test name)
   target_compile_options(${name} PRIVATE -stdlib=libc++)
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
   enable_coverage(${name})
-  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host)
+  target_link_libraries(
+    ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehost
+  ) # TODO: replace with openenclave::oehostverify once OE 0.11 is released
+    # (OE#3312)
   use_client_mbedtls(${name})
   add_san(${name})
 
@@ -189,22 +201,33 @@ function(add_unit_test name)
   )
 endfunction()
 
+# Test binary wrapper
+function(add_test_bin name)
+  add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
+  target_compile_options(${name} PRIVATE -stdlib=libc++)
+  target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
+  enable_coverage(${name})
+  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host)
+  use_client_mbedtls(${name})
+  add_san(${name})
+endfunction()
+
 if("sgx" IN_LIST COMPILE_TARGETS)
   # Host Executable
   add_executable(
     cchost ${CCF_DIR}/src/host/main.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
   )
+
+  add_warning_checks(cchost)
   use_client_mbedtls(cchost)
   target_compile_options(cchost PRIVATE -stdlib=libc++)
-  target_include_directories(
-    cchost PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${CCF_GENERATED_DIR}
-  )
+  target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
   add_san(cchost)
+  add_lvi_mitigations(cchost)
 
   target_link_libraries(
     cchost
     PRIVATE uv
-            ${SGX_LIBS}
             ${CRYPTO_LIBRARY}
             ${CMAKE_DL_LIBS}
             ${CMAKE_THREAD_LIBS_INIT}
@@ -238,9 +261,11 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   target_compile_definitions(cchost.virtual PRIVATE -DVIRTUAL_ENCLAVE)
   target_compile_options(cchost.virtual PRIVATE -stdlib=libc++)
   target_include_directories(
-    cchost.virtual PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${OE_INCLUDEDIR}
+    cchost.virtual PRIVATE ${OE_INCLUDEDIR} ${CCF_GENERATED_DIR}
   )
+  add_warning_checks(cchost.virtual)
   add_san(cchost.virtual)
+  add_lvi_mitigations(cchost.virtual)
   enable_coverage(cchost.virtual)
   target_link_libraries(
     cchost.virtual
@@ -311,9 +336,9 @@ set(WORKER_THREADS
     CACHE STRING "Number of worker threads to start on each CCF node"
 )
 
-set(CCF_NETWORK_TEST_ARGS
-    -l ${TEST_HOST_LOGGING_LEVEL} -g ${CCF_DIR}/src/runtime_config/gov.lua
-    --worker-threads ${WORKER_THREADS}
+set(CCF_NETWORK_TEST_DEFAULT_GOV ${CCF_DIR}/src/runtime_config/gov.lua)
+set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
+                          ${WORKER_THREADS}
 )
 
 # SNIPPET_START: Lua generic application
@@ -360,47 +385,66 @@ endfunction()
 function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;CONSENSUS;" "ADDITIONAL_ARGS"
+    "NAME;PYTHON_SCRIPT;GOV_SCRIPT;LABEL;CURL_CLIENT;CONSENSUS;"
+    "ADDITIONAL_ARGS"
   )
+
+  if(NOT PARSED_ARGS_GOV_SCRIPT)
+    set(PARSED_ARGS_GOV_SCRIPT ${CCF_NETWORK_TEST_DEFAULT_GOV})
+  endif()
 
   if(BUILD_END_TO_END_TESTS)
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
-        ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS}
-        ${PARSED_ARGS_ADDITIONAL_ARGS}
+        ${CCF_NETWORK_TEST_ARGS} -g ${PARSED_ARGS_GOV_SCRIPT} --consensus
+        ${PARSED_ARGS_CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
     )
 
     # Make python test client framework importable
     set_property(
-      TEST ${PARSED_ARGS_NAME} APPEND
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
       PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
     )
 
     if(SHUFFLE_SUITE)
       set_property(
-        TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "SHUFFLE_SUITE=1"
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY ENVIRONMENT "SHUFFLE_SUITE=1"
       )
     endif()
 
-    set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS end_to_end)
     set_property(
-      TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_LABEL}
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY LABELS e2e
+    )
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY LABELS ${PARSED_ARGS_LABEL}
     )
 
     if(${PARSED_ARGS_CURL_CLIENT})
       set_property(
-        TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
       )
     endif()
     set_property(
-      TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
     )
 
     if(DEFINED DEFAULT_ENCLAVE_TYPE)
       set_property(
-        TEST ${PARSED_ARGS_NAME} APPEND
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
         PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
       )
     endif()
@@ -412,9 +456,13 @@ function(add_perf_test)
 
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;CLIENT_BIN;VERIFICATION_FILE;LABEL;CONSENSUS"
+    "NAME;PYTHON_SCRIPT;GOV_SCRIPT;CLIENT_BIN;VERIFICATION_FILE;LABEL;CONSENSUS"
     "ADDITIONAL_ARGS"
   )
+
+  if(NOT PARSED_ARGS_GOV_SCRIPT)
+    set(PARSED_ARGS_GOV_SCRIPT ${CCF_NETWORK_TEST_DEFAULT_GOV})
+  endif()
 
   if(PARSED_ARGS_VERIFICATION_FILE)
     set(VERIFICATION_ARG "--verify ${PARSED_ARGS_VERIFICATION_FILE}")
@@ -426,9 +474,9 @@ function(add_perf_test)
   if("sgx" IN_LIST COMPILE_TARGETS)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_SGX")
   endif()
-  if("raft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+  if("cft" STREQUAL ${PARSED_ARGS_CONSENSUS})
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_CFT")
-  elseif("pbft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+  elseif("bft" STREQUAL ${PARSED_ARGS_CONSENSUS})
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_BFT")
   endif()
 
@@ -442,27 +490,35 @@ function(add_perf_test)
     NAME ${PARSED_ARGS_NAME}
     COMMAND
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
-      ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS}
-      --write-tx-times ${VERIFICATION_ARG} --label ${LABEL_ARG}
-      ${PARSED_ARGS_ADDITIONAL_ARGS} ${NODES}
+      ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS} -g
+      ${PARSED_ARGS_GOV_SCRIPT} --write-tx-times ${VERIFICATION_ARG} --label
+      ${LABEL_ARG} ${PARSED_ARGS_ADDITIONAL_ARGS} ${NODES}
   )
 
   # Make python test client framework importable
   set_property(
-    TEST ${PARSED_ARGS_NAME} APPEND
+    TEST ${PARSED_ARGS_NAME}
+    APPEND
     PROPERTY
       ENVIRONMENT
       "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
   )
   if(DEFINED DEFAULT_ENCLAVE_TYPE)
     set_property(
-      TEST ${PARSED_ARGS_NAME} APPEND
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
       PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
     )
   endif()
-  set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS perf)
   set_property(
-    TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
+    TEST ${PARSED_ARGS_NAME}
+    APPEND
+    PROPERTY LABELS perf
+  )
+  set_property(
+    TEST ${PARSED_ARGS_NAME}
+    APPEND
+    PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
   )
 endfunction()
 
@@ -473,6 +529,8 @@ function(add_picobench name)
   )
 
   add_executable(${name} ${PARSED_ARGS_SRCS})
+
+  add_lvi_mitigations(${name})
 
   target_include_directories(${name} PRIVATE src ${PARSED_ARGS_INCLUDE_DIRS})
 

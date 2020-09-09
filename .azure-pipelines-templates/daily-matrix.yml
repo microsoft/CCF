@@ -13,10 +13,7 @@ parameters:
     SGX:
       cmake_args: '-DCOMPILE_TARGETS=sgx'
     debug:
-      cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DCOVERAGE=ON -DBUILD_SMALLBANK=OFF'
-    install:
-      install_prefix: '/tmp/ccf-install'
-      cmake_args: '-DCMAKE_INSTALL_PREFIX=/tmp/ccf-install'
+      cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DCOVERAGE=ON -DBUILD_SMALLBANK=OFF -DLVI_MITIGATIONS=OFF'
 
 jobs:
   - job: 'Make'
@@ -38,8 +35,8 @@ jobs:
       target: NoSGX
       env: '${{ parameters.env.NoSGX }}'
       cmake_args: '${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
-      suffix: 'Coverage'
-      artifact_name: 'NoSGX_Coverage'
+      suffix: 'Instrumented'
+      artifact_name: 'NoSGX_Instrumented'
       ctest_filter: '-LE "benchmark|perf|long_test"'
       ctest_timeout: '300'
 
@@ -47,10 +44,7 @@ jobs:
     parameters:
       target: SGX
       env: '${{ parameters.env.SGX }}'
-      cmake_args: '${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON'
+      cmake_args: '${{ parameters.build.SGX.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON'
       suffix: 'Release'
       artifact_name: 'SGX_Release'
       ctest_filter: '-LE "benchmark|perf"'
-      ctest_timeout: '240'
-      install_prefix: '${{ parameters.build.install.install_prefix }}'
-      tls_report: true

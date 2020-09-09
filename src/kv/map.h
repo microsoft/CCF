@@ -68,6 +68,11 @@ namespace kv
       return untyped_map.deserialise_internal<TxView>(d, version);
     }
 
+    AbstractTxView* deserialise_snapshot(KvStoreDeserialiser& d) override
+    {
+      return untyped_map.deserialise_snapshot(d);
+    }
+
     const std::string& get_name() const override
     {
       return untyped_map.get_name();
@@ -81,11 +86,6 @@ namespace kv
     std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
     {
       return untyped_map.snapshot(v);
-    }
-
-    void apply(std::unique_ptr<AbstractMap::Snapshot>& s) override
-    {
-      untyped_map.apply(s);
     }
 
     void post_compact() override
@@ -215,8 +215,9 @@ namespace kv
   using MsgPackSerialisedMap =
     MapSerialisedWith<K, V, kv::serialisers::MsgPackSerialiser>;
 
-  // The default kv::Map will use msgpack serialisers. Custom types are
-  // supported through the MSGPACK_DEFINE macro
+  /** Short name for default-serialised maps, using msgpack serialisers. Support
+   * for custom types can be added through the MSGPACK_DEFINE macro
+   */
   template <typename K, typename V>
   using Map = MsgPackSerialisedMap<K, V>;
 }

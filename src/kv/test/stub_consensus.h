@@ -17,7 +17,7 @@ namespace kv
     ConsensusType consensus_type;
 
   public:
-    StubConsensus(ConsensusType consensus_type_ = ConsensusType::RAFT) :
+    StubConsensus(ConsensusType consensus_type_ = ConsensusType::CFT) :
       Consensus(0),
       replica(),
       consensus_type(consensus_type_)
@@ -115,17 +115,15 @@ namespace kv
     void recv_message(OArray&& oa) override {}
 
     void add_configuration(
-      SeqNo seqno,
-      const std::unordered_set<NodeId>& conf,
-      const NodeConf& node_conf) override
+      SeqNo seqno, const Configuration::Nodes& conf) override
     {}
 
-    std::unordered_set<NodeId> get_latest_configuration() const override
+    Configuration::Nodes get_latest_configuration() const override
     {
       return {};
     }
 
-    void set_f(size_t) override
+    void open_network() override
     {
       return;
     }
@@ -144,7 +142,7 @@ namespace kv
   class BackupStubConsensus : public StubConsensus
   {
   public:
-    BackupStubConsensus(ConsensusType consensus_type = ConsensusType::RAFT) :
+    BackupStubConsensus(ConsensusType consensus_type = ConsensusType::CFT) :
       StubConsensus(consensus_type)
     {}
 
@@ -162,7 +160,7 @@ namespace kv
   class PrimaryStubConsensus : public StubConsensus
   {
   public:
-    PrimaryStubConsensus(ConsensusType consensus_type = ConsensusType::RAFT) :
+    PrimaryStubConsensus(ConsensusType consensus_type = ConsensusType::CFT) :
       StubConsensus(consensus_type)
     {}
 
