@@ -776,7 +776,7 @@ namespace ccf
 
       auto consensus = store.get_consensus();
 
-      if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
+      if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
       {
         if (on_result.has_value())
         {
@@ -792,7 +792,7 @@ namespace ccf
     {
       auto consensus = store.get_consensus();
 
-      if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
+      if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
       {
         if (on_result.has_value())
         {

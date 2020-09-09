@@ -103,7 +103,7 @@ TEST_CASE("Add a node to an opening service")
   {
     JoinNetworkNodeToNode::In join_input;
     join_input.public_encryption_key = node_public_encryption_key;
-    join_input.consensus_type = ConsensusType::PBFT;
+    join_input.consensus_type = ConsensusType::BFT;
     const auto response =
       frontend_process(frontend, join_input, "join", caller);
 
@@ -113,7 +113,7 @@ TEST_CASE("Add a node to an opening service")
       fmt::format(
         "Node requested to join with consensus type {} but "
         "current consensus type is {}",
-        ConsensusType::PBFT,
+        ConsensusType::BFT,
         ConsensusType::CFT));
   }
 

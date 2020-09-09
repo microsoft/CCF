@@ -5,5 +5,5 @@
 enum ConsensusType
 {
   CFT = 0,
-  PBFT = 1
+  BFT = 1
 };

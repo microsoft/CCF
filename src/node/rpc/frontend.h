@@ -540,7 +540,7 @@ namespace ccf
       auto caller_id = endpoints.get_caller_id(tx, ctx->session->caller_cert);
 
       if (
-        consensus != nullptr && consensus->type() == ConsensusType::PBFT &&
+        consensus != nullptr && consensus->type() == ConsensusType::BFT &&
         (ctx->execute_on_node || consensus->is_primary()))
       {
         auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
