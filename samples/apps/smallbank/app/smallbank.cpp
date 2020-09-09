@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../smallbank_schema.h"
+#include "../smallbank_serializer.h"
 #include "enclave/app_interface.h"
 #include "node/rpc/user_frontend.h"
 
