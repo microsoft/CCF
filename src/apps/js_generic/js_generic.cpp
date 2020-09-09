@@ -286,7 +286,7 @@ namespace ccfapp
     std::string js = module->js;
 
     const char* buf = js.c_str();
-    size_t buf_len = js.size() + 1;
+    size_t buf_len = js.size();
     JSValue func_val = JS_Eval(
       ctx,
       buf,
