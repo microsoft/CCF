@@ -8,6 +8,8 @@ import infra.network
 import infra.proc
 import infra.e2e_args
 import infra.checker
+from openapi_spec_validator import validate_spec
+
 
 from loguru import logger as LOG
 
@@ -32,58 +34,60 @@ def run(args):
     all_methods = []
 
     def fetch_schema(client, prefix):
-        list_response = client.get(f"/{prefix}/api")
+        api_response = client.get(f"/{prefix}/api")
         check(
-            list_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
+            api_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
         )
-        LOG.warning(list_response)
-        methods = list_response.body["endpoints"]
-        all_methods.extend([m["path"] for m in methods])
+        LOG.warning(json.dumps(api_response.body, indent=2))
+        paths = api_response.body["paths"]
+        all_methods.extend([key for key in paths.keys()])
 
-        for method in [m["path"] for m in methods]:
-            schema_found = False
-            schema_response = client.get(f'/{prefix}/api/schema?method="{method}"')
-            check(
-                schema_response,
-                error=lambda status, msg: status == http.HTTPStatus.OK.value,
-            )
+        validate_spec(api_response.body)
 
-            if schema_response.body is not None:
-                for verb, schema_element in schema_response.body.items():
-                    for schema_type in ["params", "result"]:
-                        element_name = "{}_schema".format(schema_type)
-                        element = schema_element[element_name]
-                        target_file = build_schema_file_path(
-                            args.schema_dir, verb, method, schema_type
-                        )
-                        if element is not None and len(element) != 0:
-                            try:
-                                old_schema.remove(target_file)
-                            except KeyError:
-                                pass
-                            schema_found = True
-                            formatted_schema = json.dumps(element, indent=2)
-                            os.makedirs(os.path.dirname(target_file), exist_ok=True)
-                            with open(target_file, "a+") as f:
-                                f.seek(0)
-                                previous = f.read()
-                                if previous != formatted_schema:
-                                    LOG.debug(
-                                        "Writing schema to {}".format(target_file)
-                                    )
-                                    f.truncate(0)
-                                    f.seek(0)
-                                    f.write(formatted_schema)
-                                    changed_files.append(target_file)
-                                else:
-                                    LOG.debug(
-                                        "Schema matches in {}".format(target_file)
-                                    )
+        # for path, path_item in paths.items():
+        #     schema_found = False
+        #     schema_response = client.get(f'/{prefix}/api/schema?method="{path}"')
+        #     check(
+        #         schema_response,
+        #         error=lambda status, msg: status == http.HTTPStatus.OK.value,
+        #     )
 
-            if schema_found:
-                methods_with_schema.add(method)
-            else:
-                methods_without_schema.add(method)
+        #     if schema_response.body is not None:
+        #         for verb, schema_element in schema_response.body.items():
+        #             for schema_type in ["params", "result"]:
+        #                 element_name = "{}_schema".format(schema_type)
+        #                 element = schema_element[element_name]
+        #                 target_file = build_schema_file_path(
+        #                     args.schema_dir, verb, path, schema_type
+        #                 )
+        #                 if element is not None and len(element) != 0:
+        #                     try:
+        #                         old_schema.remove(target_file)
+        #                     except KeyError:
+        #                         pass
+        #                     schema_found = True
+        #                     formatted_schema = json.dumps(element, indent=2)
+        #                     os.makedirs(os.path.dirname(target_file), exist_ok=True)
+        #                     with open(target_file, "a+") as f:
+        #                         f.seek(0)
+        #                         previous = f.read()
+        #                         if previous != formatted_schema:
+        #                             LOG.debug(
+        #                                 "Writing schema to {}".format(target_file)
+        #                             )
+        #                             f.truncate(0)
+        #                             f.seek(0)
+        #                             f.write(formatted_schema)
+        #                             changed_files.append(target_file)
+        #                         else:
+        #                             LOG.debug(
+        #                                 "Schema matches in {}".format(target_file)
+        #                             )
+
+        #     if schema_found:
+        #         methods_with_schema.add(path)
+        #     else:
+        #         methods_without_schema.add(path)
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes

@@ -79,13 +79,6 @@ namespace ds
       return access::get_object(path, s);
     }
 
-    static inline nlohmann::json& path_operation(
-      nlohmann::json& path, std::string s)
-    {
-      nonstd::to_lower(s);
-      return access::get_object(path, s);
-    }
-
     static inline nlohmann::json& response(
       nlohmann::json& path_operation,
       http_status status,

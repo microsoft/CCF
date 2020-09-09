@@ -454,15 +454,21 @@ namespace ccf
       for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
       {
         const auto full_path = fmt::format("/{}/{}", method_prefix, path);
-        auto& path_object = ds::openapi::path(document, "/users/foo");
+        auto& path_object = ds::openapi::path(document, full_path);
         for (const auto& [verb, handler] : verb_endpoints)
         {
-          auto& path_operation = ds::openapi::path_operation(path_object, verb.c_str());
+          const auto http_verb = verb.get_http_method();
+          if (!http_verb.has_value())
+          {
+            continue;
+          }
+
+          auto& path_operation = ds::openapi::path_operation(path_object, http_verb.value());
           auto& path_response_ok = ds::openapi::response(
             path_operation, HTTP_STATUS_OK, "Auto-generated");
           auto& path_response_ok_json = ds::openapi::media_type(
             path_response_ok, http::headervalues::contenttype::JSON);
-          path_response_ok_json["schema"] = "Placeholder";
+          path_response_ok_json["schema"] = {{"type", "string"}};
         }
       }
 
