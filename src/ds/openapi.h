@@ -9,6 +9,9 @@
 #include <nlohmann/json.hpp>
 #include <string>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+
 namespace ds
 {
   /**
@@ -21,20 +24,22 @@ namespace ds
   {
     namespace access
     {
-      static nlohmann::json& get_object(nlohmann::json& j, const std::string& k)
+      static inline nlohmann::json& get_object(
+        nlohmann::json& j, const std::string& k)
       {
         const auto ib = j.emplace(k, nlohmann::json::object());
         return ib.first.value();
       }
 
-      static nlohmann::json& get_array(nlohmann::json& j, const std::string& k)
+      static inline nlohmann::json& get_array(
+        nlohmann::json& j, const std::string& k)
       {
         const auto ib = j.emplace(k, nlohmann::json::array());
         return ib.first.value();
       }
     }
 
-    static nlohmann::json create_document(
+    static inline nlohmann::json create_document(
       const std::string& title,
       const std::string& description,
       const std::string& document_version)
@@ -49,21 +54,24 @@ namespace ds
                             {"paths", nlohmann::json::object()}};
     }
 
-    static nlohmann::json& server(nlohmann::json& document, const std::string& url)
+    static inline nlohmann::json& server(
+      nlohmann::json& document, const std::string& url)
     {
       auto& servers = access::get_object(document, "servers");
       servers.push_back({{"url", url}});
       return servers.back();
     }
 
-    static nlohmann::json& path(nlohmann::json& document, const std::string& path)
+    static inline nlohmann::json& path(
+      nlohmann::json& document, const std::string& path)
     {
       // TODO: Check that path starts with /?
       auto& paths = access::get_object(document, "paths");
       return access::get_object(paths, path);
     }
 
-    static nlohmann::json& path_operation(nlohmann::json& path, http_method verb)
+    static inline nlohmann::json& path_operation(
+      nlohmann::json& path, http_method verb)
     {
       // HTTP_GET becomes the string "get"
       std::string s = http_method_str(verb);
@@ -71,7 +79,14 @@ namespace ds
       return access::get_object(path, s);
     }
 
-    static nlohmann::json& response(
+    static inline nlohmann::json& path_operation(
+      nlohmann::json& path, std::string s)
+    {
+      nonstd::to_lower(s);
+      return access::get_object(path, s);
+    }
+
+    static inline nlohmann::json& response(
       nlohmann::json& path_operation,
       http_status status,
       const std::string& description = "Default response description")
@@ -85,19 +100,15 @@ namespace ds
       return response;
     }
 
-    static nlohmann::json& request_body(
-      nlohmann::json& path_operation
-    )
+    static inline nlohmann::json& request_body(nlohmann::json& path_operation)
     {
       auto& request_body = access::get_object(path_operation, "requestBody");
       access::get_object(request_body, "content");
       return request_body;
     }
 
-    static nlohmann::json& media_type(
-      nlohmann::json& j,
-      const std::string& mt
-    )
+    static inline nlohmann::json& media_type(
+      nlohmann::json& j, const std::string& mt)
     {
       auto& content = access::get_object(j, "content");
       return access::get_object(content, mt);
@@ -402,3 +413,5 @@ namespace ds
     DECLARE_JSON_OPTIONAL_FIELDS(Document, servers, components);
   }
 }
+
+#pragma clang diagnostic pop

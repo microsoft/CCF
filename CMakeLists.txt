@@ -253,9 +253,9 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      openapi ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/openapi.cpp
+      openapi_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/openapi.cpp
     )
-    target_link_libraries(openapi PRIVATE http_parser.host)
+    target_link_libraries(openapi_test PRIVATE http_parser.host)
 
     add_unit_test(
       logger_json_test

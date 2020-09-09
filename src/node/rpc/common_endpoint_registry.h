@@ -218,7 +218,8 @@ namespace ccf
         .install();
 
       auto openapi = [this](kv::Tx& tx, nlohmann::json&&) {
-        ds::openapi::Document document;
+        // TODO: Update these
+        auto document = ds::openapi::create_document("Placeholder title", "Placeholder description", "1.0.0");
         build_api(document, tx);
         return make_success(document);
       };
@@ -276,10 +277,9 @@ namespace ccf
 
         if (j.empty())
         {
-          std::string verb_name = http_method_str(verb);
-          nonstd::to_lower(verb_name);
-          j[verb_name] =
-            GetSchema::Out{endpoint.params_schema, endpoint.result_schema};
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            fmt::format("Method {} not recognised", in.method));
         }
 
         return make_success(j);

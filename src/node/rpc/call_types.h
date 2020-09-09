@@ -134,18 +134,8 @@ namespace ccf
 
   struct GetAPI
   {
-    struct Endpoint
-    {
-      std::string verb;
-      std::string path;
-    };
-
     // TODO: What is the format of this now?
-    //using Out = nlohmann::json;
-    struct Out
-    {
-      std::vector<Endpoint> endpoints;
-    };
+    using Out = nlohmann::json;
   };
 
   struct EndpointMetrics

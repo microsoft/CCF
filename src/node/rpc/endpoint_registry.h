@@ -449,15 +449,20 @@ namespace ccf
      * with the supported endpoints however it defines them.
      */
     // TODO: May want the entire rpc context, not just tx?
-    virtual void build_api(ds::openapi::Document& document, kv::Tx& tx)
+    virtual void build_api(nlohmann::json& document, kv::Tx&)
     {
       for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
       {
-        const auto full_path = fmt::format("/{}/{}", method_prefix, method);
-        auto& path_object = document.paths[full_path];
-        for (const auto& [verb, handler] : verb_handlers)
+        const auto full_path = fmt::format("/{}/{}", method_prefix, path);
+        auto& path_object = ds::openapi::path(document, "/users/foo");
+        for (const auto& [verb, handler] : verb_endpoints)
         {
-          path_object[verb][HTTP_STATUS_OK].description = "Auto-generated";
+          auto& path_operation = ds::openapi::path_operation(path_object, verb.c_str());
+          auto& path_response_ok = ds::openapi::response(
+            path_operation, HTTP_STATUS_OK, "Auto-generated");
+          auto& path_response_ok_json = ds::openapi::media_type(
+            path_response_ok, http::headervalues::contenttype::JSON);
+          path_response_ok_json["schema"] = "Placeholder";
         }
       }
 

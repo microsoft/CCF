@@ -549,7 +549,7 @@ namespace std
     fill_json_schema_required_fields(j, t); \
     POST_FILL_SCHEMA; \
   } \
-  inline std::string schema_name(const TYPE& t) \
+  inline std::string schema_name(const TYPE&) \
   { \
     return #TYPE; \
   } \
@@ -599,7 +599,8 @@ namespace std
     add_schema_components_optional_fields(doc, j, t))
 
 #define DECLARE_JSON_REQUIRED_FIELDS(TYPE, ...) \
-  inline void to_json_required_fields(nlohmann::json& j, const TYPE& t) \
+  inline void to_json_required_fields( \
+    nlohmann::json& j, [[maybe_unused]] const TYPE& t) \
   { \
     if (!j.is_object()) \
     { \
@@ -607,7 +608,8 @@ namespace std
     } \
     _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)(WRITE_REQUIRED, TYPE, ##__VA_ARGS__) \
   } \
-  inline void from_json_required_fields(const nlohmann::json& j, TYPE& t) \
+  inline void from_json_required_fields( \
+    const nlohmann::json& j, [[maybe_unused]] TYPE& t) \
   { \
     if (!j.is_object()) \
     { \
@@ -615,7 +617,8 @@ namespace std
     } \
     _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)(READ_REQUIRED, TYPE, ##__VA_ARGS__) \
   } \
-  inline void fill_json_schema_required_fields(nlohmann::json& j, const TYPE&) \
+  inline void fill_json_schema_required_fields( \
+    nlohmann::json& j, [[maybe_unused]] const TYPE& t) \
   { \
     j["type"] = "object"; \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
@@ -623,7 +626,9 @@ namespace std
   } \
   template <typename T> \
   void add_schema_components_required_fields( \
-    T& doc, nlohmann::json& j, const TYPE& t) \
+    [[maybe_unused]] T& doc, \
+    nlohmann::json& j, \
+    [[maybe_unused]] const TYPE& t) \
   { \
     j["type"] = "object"; \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
@@ -681,7 +686,7 @@ namespace std
   } \
   template <typename T> \
   void add_schema_components_optional_fields( \
-    T& doc, nlohmann::json& j, const TYPE& t) \
+    T& doc, nlohmann::json& j, const TYPE&) \
   { \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP1)(ADD_SCHEMA_COMPONENTS_OPTIONAL, TYPE, ##__VA_ARGS__); \

@@ -187,7 +187,7 @@ namespace ccfapp
 
     // Since we do our own dispatch within the default handler, report the
     // supported methods here
-    void build_api(ds::openapi::Document& document, kv::Tx& tx) override
+    void build_api(nlohmann::json& document, kv::Tx& tx) override
     {
       UserEndpointRegistry::build_api(document, tx);
 
