@@ -52,14 +52,18 @@ namespace kv
     DeserialiseSuccess commit_deserialised(
       OrderedViews& views, Version& v, const MapCollection& new_maps)
     {
+      LOG_INFO_FMT("9999999.1.2 Something is going on there");
       auto c = apply_views(
         views, [v]() { return v; }, new_maps);
+      LOG_INFO_FMT("9999999.1.3 Something is going on there");
       if (!c.has_value())
       {
+        LOG_INFO_FMT("9999999.1.4 Something is going on there");
         LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
         return DeserialiseSuccess::FAILED;
       }
       {
+        LOG_INFO_FMT("9999999.1.5 Something is going on there");
         std::lock_guard<SpinLock> vguard(version_lock);
         version = v;
         last_replicated = version;
@@ -690,41 +694,53 @@ namespace kv
 
       if (commit)
       {
+        LOG_INFO_FMT("9999999.1 Something is going on there");
         success = commit_deserialised(views, v, new_maps);
+        LOG_INFO_FMT("9999999.2 Something is going on there");
         if (success == DeserialiseSuccess::FAILED)
         {
           return success;
         }
 
         auto h = get_history();
+        LOG_INFO_FMT("9999999.3 Something is going on there");
 
         auto search = views.find("ccf.signatures");
         if (search != views.end())
         {
+          LOG_INFO_FMT("9999999.4 Something is going on there");
+
           // Transactions containing a signature must only contain
           // a signature and must be verified
           if (views.size() > 1)
           {
+            LOG_INFO_FMT("9999999.5 Something is going on there");
             LOG_FAIL_FMT("Failed to deserialise");
             LOG_DEBUG_FMT("Unexpected contents in signature transaction {}", v);
             return DeserialiseSuccess::FAILED;
           }
+          LOG_INFO_FMT("9999999.6 Something is going on there");
 
           if (h)
           {
+          LOG_INFO_FMT("9999999.7 Something is going on there");
             if (!h->verify(term_))
             {
+          LOG_INFO_FMT("9999999.8 Something is going on there");
               LOG_FAIL_FMT("Failed to deserialise");
               LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
               return DeserialiseSuccess::FAILED;
             }
+          LOG_INFO_FMT("9999999.9 Something is going on there");
           }
           success = DeserialiseSuccess::PASS_SIGNATURE;
         }
 
         if (h)
         {
+          LOG_INFO_FMT("9999999.10 Something is going on there");
           h->append(data.data(), data.size());
+          LOG_INFO_FMT("9999999.11 Something is going on there");
         }
       }
       else
@@ -748,12 +764,15 @@ namespace kv
         }
         else if (views.find("ccf.signatures") != views.end())
         {
+          LOG_INFO_FMT("9999999 Something is going on there");
           success = commit_deserialised(views, v, new_maps);
           if (success == DeserialiseSuccess::FAILED)
           {
             throw std::logic_error("foobarbaz");
             return success;
           }
+          auto h = get_history();
+          h->append(data.data(), data.size());
           success = DeserialiseSuccess::PASS_SIGNATURE;
         }
         else if (views.find("ccf.pbft.requests") == views.end())

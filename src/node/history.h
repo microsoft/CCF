@@ -641,6 +641,8 @@ namespace ccf
           commit_txid.first,
           commit_txid.second);
 
+      //if (consensus->type() == ConsensusType::CFT)
+      {
         store.commit(
           txid,
           [txid, commit_txid, this]() {
@@ -659,9 +661,38 @@ namespace ccf
               replicated_state_tree.serialise());
 
             sig_view->put(0, sig_value);
+            LOG_INFO_FMT("111111111 - start");
             return sig.commit_reserved();
+            //return sig.commit();
+            LOG_INFO_FMT("111111111 - end");
           },
           true);
+        }
+        /*
+        else
+        {
+            kv::Tx sig(txid.version);
+            auto sig_view = sig.get_view(signatures);
+            crypto::Sha256Hash root = replicated_state_tree.get_root();
+
+            Signature sig_value(
+              id,
+              txid.version,
+              txid.term,
+              txid.version,
+              txid.term,
+              root,
+              kp.sign_hash(root.h.data(), root.h.size()),
+              replicated_state_tree.serialise());
+
+            sig_view->put(0, sig_value);
+            LOG_INFO_FMT("111111111 - start");
+            sig.commit();
+            LOG_INFO_FMT("111111111 - end");
+
+        }
+        */
+      
       }
     }
 
