@@ -326,6 +326,8 @@ static const char main_c_template1[] =
     "  JSRuntime *rt;\n"
     "  JSContext *ctx;\n"
     "  rt = JS_NewRuntime();\n"
+    "  js_std_set_worker_new_context_func(JS_NewCustomContext);\n"
+    "  js_std_init_handlers(rt);\n"
     ;
 
 static const char main_c_template2[] =
@@ -348,10 +350,12 @@ void help(void)
            "-o output   set the output filename\n"
            "-N cname    set the C name of the generated data\n"
            "-m          compile as Javascript module (default=autodetect)\n"
+           "-D module_name         compile a dynamically loaded module or worker\n"
            "-M module_name[,cname] add initialization code for an external C module\n"
            "-x          byte swapped output\n"
            "-p prefix   set the prefix of the generated C names\n"
-           );
+           "-S n        set the maximum stack size to 'n' bytes (default=%d)\n",
+           JS_DEFAULT_STACK_SIZE);
 #ifdef CONFIG_LTO
     {
         int i;
@@ -447,6 +451,7 @@ static int output_executable(const char *out_filename, const char *cfilename,
     *arg++ = libjsname;
     *arg++ = "-lm";
     *arg++ = "-ldl";
+    *arg++ = "-lpthread";
     *arg = NULL;
     
     if (verbose) {
@@ -487,9 +492,11 @@ int main(int argc, char **argv)
     BOOL use_lto;
     int module;
     OutputTypeEnum output_type;
+    size_t stack_size;
 #ifdef CONFIG_BIGNUM
     BOOL bignum_ext = FALSE;
 #endif
+    namelist_t dynamic_module_list;
     
     out_filename = NULL;
     output_type = OUTPUT_EXECUTABLE;
@@ -499,13 +506,15 @@ int main(int argc, char **argv)
     byte_swap = FALSE;
     verbose = 0;
     use_lto = FALSE;
+    stack_size = 0;
+    memset(&dynamic_module_list, 0, sizeof(dynamic_module_list));
     
     /* add system modules */
     namelist_add(&cmodule_list, "std", "std", 0);
     namelist_add(&cmodule_list, "os", "os", 0);
 
     for(;;) {
-        c = getopt(argc, argv, "ho:cN:f:mxevM:p:");
+        c = getopt(argc, argv, "ho:cN:f:mxevM:p:S:D:");
         if (c == -1)
             break;
         switch(c) {
@@ -571,6 +580,9 @@ int main(int argc, char **argv)
                 namelist_add(&cmodule_list, path, cname, 0);
             }
             break;
+        case 'D':
+            namelist_add(&dynamic_module_list, optarg, NULL, 0);
+            break;
         case 'x':
             byte_swap = TRUE;
             break;
@@ -579,6 +591,9 @@ int main(int argc, char **argv)
             break;
         case 'p':
             c_ident_prefix = optarg;
+            break;
+        case 'S':
+            stack_size = (size_t)strtod(optarg, NULL);
             break;
         default:
             break;
@@ -648,17 +663,22 @@ int main(int argc, char **argv)
         cname = NULL;
     }
 
-    if (output_type != OUTPUT_C) {
-        fputs(main_c_template1, fo);
-        fprintf(fo, "  ctx = JS_NewContextRaw(rt);\n");
-
-        /* add the module loader if necessary */
-        if (feature_bitmap & (1 << FE_MODULE_LOADER)) {
-            fprintf(fo, "  JS_SetModuleLoaderFunc(rt, NULL, js_module_loader, NULL);\n");
+    for(i = 0; i < dynamic_module_list.count; i++) {
+        if (!jsc_module_loader(ctx, dynamic_module_list.array[i].name, NULL)) {
+            fprintf(stderr, "Could not load dynamic module '%s'\n",
+                    dynamic_module_list.array[i].name);
+            exit(1);
         }
-        
+    }
+    
+    if (output_type != OUTPUT_C) {
+        fprintf(fo,
+                "static JSContext *JS_NewCustomContext(JSRuntime *rt)\n"
+                "{\n"
+                "  JSContext *ctx = JS_NewContextRaw(rt);\n"
+                "  if (!ctx)\n"
+                "    return NULL;\n");
         /* add the basic objects */
-        
         fprintf(fo, "  JS_AddIntrinsicBaseObjects(ctx);\n");
         for(i = 0; i < countof(feature_list); i++) {
             if ((feature_bitmap & ((uint64_t)1 << i)) &&
@@ -676,8 +696,8 @@ int main(int argc, char **argv)
                     "  JS_EnableBignumExt(ctx, 1);\n");
         }
 #endif
-        fprintf(fo, "  js_std_add_helpers(ctx, argc, argv);\n");
-
+        /* add the precompiled modules (XXX: could modify the module
+           loader instead) */
         for(i = 0; i < init_module_list.count; i++) {
             namelist_entry_t *e = &init_module_list.array[i];
             /* initialize the static C modules */
@@ -689,12 +709,39 @@ int main(int argc, char **argv)
                     "  }\n",
                     e->short_name, e->short_name, e->name);
         }
+        for(i = 0; i < cname_list.count; i++) {
+            namelist_entry_t *e = &cname_list.array[i];
+            if (e->flags) {
+                fprintf(fo, "  js_std_eval_binary(ctx, %s, %s_size, 1);\n",
+                        e->name, e->name);
+            }
+        }
+        fprintf(fo,
+                "  return ctx;\n"
+                "}\n\n");
+        
+        fputs(main_c_template1, fo);
+
+        if (stack_size != 0) {
+            fprintf(fo, "  JS_SetMaxStackSize(rt, %u);\n",
+                    (unsigned int)stack_size);
+        }
+        
+        /* add the module loader if necessary */
+        if (feature_bitmap & (1 << FE_MODULE_LOADER)) {
+            fprintf(fo, "  JS_SetModuleLoaderFunc(rt, NULL, js_module_loader, NULL);\n");
+        }
+        
+        fprintf(fo,
+                "  ctx = JS_NewCustomContext(rt);\n"
+                "  js_std_add_helpers(ctx, argc, argv);\n");
 
         for(i = 0; i < cname_list.count; i++) {
             namelist_entry_t *e = &cname_list.array[i];
-            fprintf(fo, "  js_std_eval_binary(ctx, %s, %s_size, %s);\n",
-                    e->name, e->name,
-                    e->flags ? "1" : "0");
+            if (!e->flags) {
+                fprintf(fo, "  js_std_eval_binary(ctx, %s, %s_size, 0);\n",
+                        e->name, e->name);
+            }
         }
         fputs(main_c_template2, fo);
     }
