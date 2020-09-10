@@ -286,7 +286,7 @@ namespace ccfapp
     std::string js = module->js;
 
     const char* buf = js.c_str();
-    size_t buf_len = js.size() + 1;
+    size_t buf_len = js.size();
     JSValue func_val = JS_Eval(
       ctx,
       buf,
@@ -468,7 +468,7 @@ namespace ccfapp
         JSValue module = JS_Eval(
           ctx,
           code.c_str(),
-          code.size() + 1,
+          code.size(),
           path.c_str(),
           JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
 
