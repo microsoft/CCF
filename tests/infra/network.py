@@ -205,9 +205,7 @@ class Network:
         )
 
         # If the network is opening, node are trusted without consortium approval
-        LOG.warning(f"{self.status}")
         if self.status == ServiceStatus.OPENING:
-            #if args.consensus != "bft":
             try:
                 node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
             except TimeoutError:
@@ -230,7 +228,6 @@ class Network:
         }
 
         for i, node in enumerate(self.nodes):
-            LOG.warning(f"{i}")
             try:
                 if i == 0:
                     if not recovery:

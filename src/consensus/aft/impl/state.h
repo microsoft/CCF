@@ -29,12 +29,12 @@ namespace aft
       {
         update(terms_[i], i + 1);
       }
-      LOG_DEBUG_FMT("ZZZZZ Initialised views: {}", fmt::join(views, ", "));
+      LOG_DEBUG_FMT("Initialised views: {}", fmt::join(views, ", "));
     }
 
     void update(kv::Version idx, kv::Consensus::View view)
     {
-      LOG_DEBUG_FMT("ZZZZZ Updating view to: {} at version: {}", view, idx);
+      LOG_DEBUG_FMT("Updating view to: {} at version: {}", view, idx);
       if (!views.empty())
       {
         const auto current_latest_index = views.back();
@@ -51,7 +51,7 @@ namespace aft
       {
         views.push_back(idx);
       }
-      LOG_DEBUG_FMT("ZZZZZ Resulting views: {}", fmt::join(views, ", "));
+      LOG_DEBUG_FMT("Resulting views: {}", fmt::join(views, ", "));
     }
 
     kv::Consensus::View term_at(kv::Version idx)

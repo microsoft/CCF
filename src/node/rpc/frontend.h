@@ -349,16 +349,15 @@ namespace ccf
 
           case ForwardingRequired::Sometimes:
           {
-            LOG_INFO_FMT("2. BBBB {}, execute_on_node:{}, is_forwarding:{}", ctx->get_method(), ctx->execute_on_node, ctx->session->is_forwarding);
-
             auto endpoint = endpoints.find_endpoint(*ctx);
             if (
               (ctx->session->is_forwarding &&
                consensus->type() == ConsensusType::CFT) ||
               (consensus->type() != ConsensusType::CFT &&
-               !ctx->execute_on_node && (endpoint == nullptr || (endpoint != nullptr && !endpoint->execute_locally))))
+               !ctx->execute_on_node &&
+               (endpoint == nullptr ||
+                (endpoint != nullptr && !endpoint->execute_locally))))
             {
-              LOG_INFO_FMT("2.1 execute_on_node:{}, is_forwarding:{}", ctx->execute_on_node, ctx->session->is_forwarding);
               ctx->session->is_forwarding = true;
               return forward_or_redirect_json(ctx, endpoint, caller_id);
             }
@@ -372,7 +371,6 @@ namespace ccf
           }
         }
       }
-      LOG_INFO_FMT("3. BBBB {}", ctx->get_method());
 
       auto func = endpoint->func;
       auto args = EndpointContext{ctx, tx, caller_id};
@@ -381,42 +379,33 @@ namespace ccf
 
       while (true)
       {
-        LOG_INFO_FMT("4. BBBB {}", ctx->get_method());
         try
         {
           if (pre_exec)
           {
             pre_exec(tx, *ctx.get(), *this);
           }
-          LOG_INFO_FMT("4.1 BBBB {}", ctx->get_method());
 
           if (should_record_client_signature)
           {
             record_client_signature(tx, caller_id, signed_request.value());
           }
-          LOG_INFO_FMT("4.2 BBBB {}", ctx->get_method());
 
           func(args);
-          LOG_INFO_FMT("4.3 BBBB {}", ctx->get_method());
 
           if (!ctx->should_apply_writes())
           {
             update_metrics(ctx, endpoint->metrics);
-            LOG_INFO_FMT("5. BBBB {}", ctx->get_method());
             return ctx->serialise_response();
           }
-          LOG_INFO_FMT("4.4 BBBB {}", ctx->get_method());
 
           switch (tx.commit())
           {
             case kv::CommitSuccess::OK:
             {
-              LOG_INFO_FMT("4.5 BBBB {}", ctx->get_method());
               auto cv = tx.commit_version();
               if (cv == 0)
                 cv = tx.get_read_version();
-
-              LOG_INFO_FMT("4.6 BBBB {}", ctx->get_method());
               if (consensus != nullptr)
               {
                 if (cv != kv::NoVersion)
@@ -424,44 +413,28 @@ namespace ccf
                   ctx->set_seqno(cv);
                   ctx->set_view(tx.commit_term());
                 }
-                LOG_INFO_FMT("4.7 BBBB {}", ctx->get_method());
                 // Deprecated, this will be removed in future releases
                 ctx->set_global_commit(consensus->get_committed_seqno());
 
-                LOG_INFO_FMT("4.8 BBBB {}", ctx->get_method());
                 if (
                   history && consensus->is_primary() &&
                   (cv % sig_tx_interval == sig_tx_interval / 2))
                 {
-                  LOG_INFO_FMT("4.9 BBBB {}", ctx->get_method());
-                  //if (consensus->type() == ConsensusType::CFT)
-                  {
-                    history->emit_signature();
-                  }
-                  /*
-                  else
-                  {
-                    consensus->emit_signature();
-                  }
-                  */
-                  LOG_INFO_FMT("4.10 BBBB {}", ctx->get_method());
+                  history->emit_signature();
                 }
               }
 
               update_metrics(ctx, endpoint->metrics);
-              LOG_INFO_FMT("6. BBBB {}", ctx->get_method());
               return ctx->serialise_response();
             }
 
             case kv::CommitSuccess::CONFLICT:
             {
-              LOG_INFO_FMT("7. BBBB {}", ctx->get_method());
               break;
             }
 
             case kv::CommitSuccess::NO_REPLICATE:
             {
-              LOG_INFO_FMT("8. BBBB {}", ctx->get_method());
               ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
               ctx->set_response_body("Transaction failed to replicate.");
               update_metrics(ctx, endpoint->metrics);
@@ -471,7 +444,6 @@ namespace ccf
         }
         catch (const RpcException& e)
         {
-          LOG_INFO_FMT("9. BBBB {}", ctx->get_method());
           ctx->set_response_status(e.status);
           ctx->set_response_body(e.what());
           update_metrics(ctx, endpoint->metrics);
@@ -479,7 +451,6 @@ namespace ccf
         }
         catch (JsonParseError& e)
         {
-          LOG_INFO_FMT("10. BBBB {}", ctx->get_method());
           auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
           ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
           ctx->set_response_body(std::move(err));
@@ -488,7 +459,6 @@ namespace ccf
         }
         catch (const kv::KvSerialiserException& e)
         {
-          LOG_INFO_FMT("11. BBBB {}", ctx->get_method());
           // If serialising the committed transaction fails, there is no way
           // to recover safely (https://github.com/microsoft/CCF/issues/338).
           // Better to abort.
@@ -498,7 +468,6 @@ namespace ccf
         }
         catch (const std::exception& e)
         {
-          LOG_INFO_FMT("12. BBBB {}", ctx->get_method());
           ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
           ctx->set_response_body(e.what());
           update_metrics(ctx, endpoint->metrics);
@@ -574,14 +543,12 @@ namespace ccf
         consensus != nullptr && consensus->type() == ConsensusType::BFT &&
         (ctx->execute_on_node || consensus->is_primary()))
       {
-        LOG_INFO_FMT("1. TTTTTTTT {}", ctx->get_method());
         auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
         if (rep.has_value())
         {
           return rep;
         }
         kv::TxHistory::RequestID reqid;
-      LOG_INFO_FMT("2. TTTTTTTT {}", ctx->get_method());
 
         update_history();
         reqid = {
@@ -625,17 +592,6 @@ namespace ccf
             return rep;
           }
         }
-        if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
-        {
-          auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
-          if (rep.has_value())
-          {
-            LOG_INFO_FMT("3.1 TTTTTTTT {}", ctx->get_method());
-            return rep;
-          }
-        }
-
-        LOG_INFO_FMT("3. TTTTTTTT {}", ctx->get_method());
         return process_command(ctx, tx, caller_id);
       }
     }
@@ -675,10 +631,8 @@ namespace ccf
         };
       }
 
-      LOG_INFO_FMT("start - KKKKKKKKKKKKK");
       auto rep =
         process_command(ctx, tx, ctx->session->original_caller->caller_id, fn);
-      LOG_INFO_FMT("end - KKKKKKKKKKKKK");
 
       version = tx.get_version();
       return {std::move(rep.value()), version};
@@ -719,11 +673,9 @@ namespace ccf
 
       auto tx = tables.create_tx();
 
-      LOG_INFO_FMT("ZZZZZZZZ");
       if (consensus->type() == ConsensusType::CFT)
       {
         auto rep =
-          // process_command(ctx, tx, ctx->session->original_caller->caller_id);
           process_command(ctx, tx, ctx->session->original_caller->caller_id);
         if (!rep.has_value())
         {
@@ -736,7 +688,6 @@ namespace ccf
       }
       else
       {
-        LOG_INFO_FMT("PPPPPPPP");
         auto rep = process_pbft(ctx, tx, false); 
         return rep.result;
       }
@@ -770,16 +721,7 @@ namespace ccf
         ms_to_sig = sig_ms_interval;
         if (history && tables.commit_gap() > 0)
         {
-          //if (consensus->type() == ConsensusType::CFT)
-          {
-            history->emit_signature();
-          }
-          /*
-          else
-          {
-            consensus->emit_signature();
-          }
-          */
+          history->emit_signature();
         }
       }
     }
