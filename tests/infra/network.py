@@ -601,7 +601,7 @@ class Network:
         backup = random.choice(backups)
         return primary, backup
 
-    def wait_for_all_nodes_to_catch_up(self, primary, timeout=3):
+    def wait_for_all_nodes_to_catch_up(self, primary, timeout=6):
         """
         Wait for all nodes to have joined the network and globally replicated
         all transactions globally executed on the primary (including transactions
@@ -620,6 +620,7 @@ class Network:
             seqno != 0
         ), f"Primary {primary.node_id} has not made any progress yet (view: {view}, seqno: {seqno})"
 
+        caught_up_nodes = []
         while time.time() < end_time:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
