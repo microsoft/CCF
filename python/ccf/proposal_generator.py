@@ -464,11 +464,15 @@ if __name__ == "__main__":
                 continue
             if param.annotation == param.empty:
                 param_type = None
-            elif param.annotation == dict:
+            elif param.annotation == dict or param.annotation == Any:
                 param_type = json.loads
             else:
                 param_type = param.annotation
-            subparser.add_argument(param_name, type=param_type)  # type: ignore
+            add_argument_extras = {}
+            if param.default is None:
+                add_argument_extras["nargs"] = "?"
+                add_argument_extras["default"] = param.default
+            subparser.add_argument(param_name, type=param_type, **add_argument_extras)  # type: ignore
             func_param_names.append(param_name)
         subparser.set_defaults(func=func, param_names=func_param_names)
 
