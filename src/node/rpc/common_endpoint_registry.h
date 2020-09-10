@@ -63,18 +63,10 @@ namespace ccf
           const auto tx_view = consensus->get_view(in.seqno);
           const auto committed_seqno = consensus->get_committed_seqno();
           const auto committed_view = consensus->get_view(committed_seqno);
-         
-          LOG_INFO_FMT(
-            "@@@@@@@@@@@ in.view:{}, in.seqno:{}, tx_view:{}, committed_seqno:{}, committed_view:{}",
-            in.view, in.seqno, tx_view, committed_seqno, committed_view);
 
           GetTxStatus::Out out;
           out.status = ccf::get_tx_status(
             in.view, in.seqno, tx_view, committed_view, committed_seqno);
-          if (in.seqno > 35)
-          {
-            //out.status = ccf::TxStatus::Committed;
-          }
           return make_success(out);
         }
 

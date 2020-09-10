@@ -224,7 +224,6 @@ namespace ccf
       auto endpoint = endpoints.find_endpoint(*ctx);
       if (endpoint != nullptr && endpoint->execute_locally)
       {
-        LOG_INFO_FMT("ZZZZZZZZ");
         return process_command(ctx, tx, caller_id);
       }
       return std::nullopt;
@@ -236,7 +235,6 @@ namespace ccf
       CallerId caller_id,
       PreExec pre_exec = {})
     {
-      LOG_INFO_FMT("running - KKKKKKKKKKKKK");
       const auto endpoint = endpoints.find_endpoint(*ctx);
       if (endpoint == nullptr)
       {
@@ -333,8 +331,6 @@ namespace ccf
 
       update_history();
 
-      LOG_INFO_FMT("1. BBBB {}", ctx->get_method());
-
       if ((!is_primary &&
            (consensus->type() == ConsensusType::CFT ||
             (consensus->type() != ConsensusType::CFT &&
@@ -349,7 +345,6 @@ namespace ccf
 
           case ForwardingRequired::Sometimes:
           {
-            auto endpoint = endpoints.find_endpoint(*ctx);
             if (
               (ctx->session->is_forwarding &&
                consensus->type() == ConsensusType::CFT) ||

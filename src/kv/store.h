@@ -751,7 +751,6 @@ namespace kv
           success = commit_deserialised(views, v, new_maps);
           if (success == DeserialiseSuccess::FAILED)
           {
-            throw std::logic_error("foobarbaz");
             return success;
           }
           auto h = get_history();
@@ -768,7 +767,6 @@ namespace kv
           LOG_FAIL_FMT("Failed to deserialise");
           LOG_DEBUG_FMT(
             "Unexpected contents in pbft transaction size {}", views.size());
-          throw std::logic_error("foobar");
         }
       }
 
