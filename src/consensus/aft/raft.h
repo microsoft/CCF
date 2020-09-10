@@ -210,7 +210,6 @@ namespace aft
       state->current_view = term;
       state->last_idx = index;
       state->commit_idx = commit_idx_;
-        LOG_INFO_FMT("AAAAAA");
       state->view_history.update(index, term);
       state->current_view += 2;
       become_leader();
@@ -232,7 +231,6 @@ namespace aft
       state->last_idx = index;
       state->commit_idx = commit_idx_;
       state->view_history.initialise(terms);
-        LOG_INFO_FMT("AAAAAA");
       state->view_history.update(index, term);
       state->current_view += 2;
       become_leader();
@@ -247,7 +245,6 @@ namespace aft
       state->last_idx = index;
       state->commit_idx = index;
 
-        LOG_INFO_FMT("AAAAAA");
       state->view_history.update(index, term);
 
       ledger->init(index);
@@ -383,7 +380,6 @@ namespace aft
         entry_size_not_limited += data->size();
         entry_count++;
 
-        LOG_INFO_FMT("AAAAAA");
         state->view_history.update(index, state->current_view);
         if (entry_size_not_limited >= append_entries_size_limit)
         {
@@ -744,7 +740,6 @@ namespace aft
 
             if (sig_term)
             {
-              LOG_INFO_FMT("AAAAAA");
               if (consensus_type == ConsensusType::BFT)
               {
                 state->last_idx = i;
@@ -784,7 +779,6 @@ namespace aft
       send_append_entries_response(r.from_node, true);
       commit_if_possible(r.leader_commit_idx);
 
-      LOG_INFO_FMT("AAAAAA");
       state->view_history.update(state->commit_idx + 1, r.term_of_idx);
     }
 
