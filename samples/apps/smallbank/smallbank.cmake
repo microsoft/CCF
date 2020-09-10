@@ -98,27 +98,4 @@ if(BUILD_TESTS)
       small_bank_cft_sigs_metrics.json
   )
 
-  # It is better to run performance tests with forwarding on different machines
-  # (i.e. nodes and clients)
-  add_perf_test(
-    NAME small_bank_sigs_forwarding
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
-    CLIENT_BIN ./small_bank_client
-    LABEL "SB_sig_fwd"
-    CONSENSUS cft
-    ADDITIONAL_ARGS
-      --transactions
-      ${SMALL_BANK_SIGNED_ITERATIONS}
-      --max-writes-ahead
-      1000
-      --metrics-file
-      small_bank_fwd_metrics.json
-      --send-tx-to
-      backups
-      --sign
-      --participants-curve
-      "secp256k1"
-      --one-client-per-backup
-  )
-
 endif()
