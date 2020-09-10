@@ -464,11 +464,24 @@ namespace ccf
           }
 
           auto& path_operation = ds::openapi::path_operation(path_object, http_verb.value());
-          auto& path_response_ok = ds::openapi::response(
+
+          auto& request_body = ds::openapi::request_body(path_operation);
+          auto& request_body_json = ds::openapi::media_type(request_body, http::headervalues::contenttype::JSON);
+          if (!handler.params_schema.empty())
+          {
+            auto& request_body_json_schema = ds::openapi::schema(request_body_json);
+            request_body_json_schema = handler.params_schema;
+          }
+          
+          auto& response_ok = ds::openapi::response(
             path_operation, HTTP_STATUS_OK, "Auto-generated");
-          auto& path_response_ok_json = ds::openapi::media_type(
-            path_response_ok, http::headervalues::contenttype::JSON);
-          path_response_ok_json["schema"] = {{"type", "string"}};
+          auto& response_ok_json = ds::openapi::media_type(
+            response_ok, http::headervalues::contenttype::JSON);
+          if (!handler.result_schema.empty())
+          {
+            auto& response_ok_json_schema = ds::openapi::schema(response_ok_json);
+            response_ok_json_schema = handler.result_schema;
+          }
         }
       }
 

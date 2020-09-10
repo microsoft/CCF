@@ -1,0 +1,1040 @@
+{
+  "info": {
+    "description": "Placeholder description",
+    "title": "Placeholder title",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.0",
+  "paths": {
+    "/gov/ack": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "state_digest": {
+                    "items": {
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "state_digest"
+                ],
+                "title": "ack/params",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "ack/result",
+                  "type": "boolean"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/ack/update_state_digest": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "signed_req": {
+                      "properties": {
+                        "md": {
+                          "enum": [
+                            "MBEDTLS_MD_NONE",
+                            "MBEDTLS_MD_SHA1",
+                            "MBEDTLS_MD_SHA256",
+                            "MBEDTLS_MD_SHA384",
+                            "MBEDTLS_MD_SHA512"
+                          ]
+                        },
+                        "req": {
+                          "items": {
+                            "maximum": 255,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        },
+                        "request_body": {
+                          "items": {
+                            "maximum": 255,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        },
+                        "sig": {
+                          "items": {
+                            "maximum": 255,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "sig",
+                        "req",
+                        "request_body",
+                        "md"
+                      ],
+                      "type": "object"
+                    },
+                    "state_digest": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "state_digest",
+                    "signed_req"
+                  ],
+                  "title": "ack/update_state_digest/result",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/api": {
+      "get": {
+        "requestBody": {
+          "content": {
+            "application/json": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "api/result"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/api/schema": {
+      "get": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "method": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "method"
+                ],
+                "title": "api/schema/params",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "params_schema": {
+                      "$ref": "http://json-schema.org/draft-07/schema#"
+                    },
+                    "result_schema": {
+                      "$ref": "http://json-schema.org/draft-07/schema#"
+                    }
+                  },
+                  "required": [
+                    "params_schema",
+                    "result_schema"
+                  ],
+                  "title": "api/schema/result",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/code": {
+      "get": {
+        "requestBody": {
+          "content": {
+            "application/json": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "versions": {
+                      "items": {
+                        "properties": {
+                          "digest": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "enum": [
+                              "ACCEPTED",
+                              "RETIRED"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "digest",
+                          "status"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "versions"
+                  ],
+                  "title": "code/result",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/commit": {
+      "get": {
+        "requestBody": {
+          "content": {
+            "application/json": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "seqno": {
+                      "maximum": 9223372036854775807,
+                      "minimum": -9223372036854775808,
+                      "type": "integer"
+                    },
+                    "view": {
+                      "maximum": 9223372036854775807,
+                      "minimum": -9223372036854775808,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "view",
+                    "seqno"
+                  ],
+                  "title": "commit/result",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/create": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/endpoint_metrics": {
+      "get": {
+        "requestBody": {
+          "content": {
+            "application/json": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "metrics": {
+                      "items": {
+                        "items": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "items": {
+                              "items": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "properties": {
+                                    "calls": {
+                                      "maximum": 18446744073709551615,
+                                      "minimum": 0,
+                                      "type": "integer"
+                                    },
+                                    "errors": {
+                                      "maximum": 18446744073709551615,
+                                      "minimum": 0,
+                                      "type": "integer"
+                                    },
+                                    "failures": {
+                                      "maximum": 18446744073709551615,
+                                      "minimum": 0,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "required": [
+                                    "calls",
+                                    "errors",
+                                    "failures"
+                                  ],
+                                  "type": "object"
+                                }
+                              ],
+                              "type": "array"
+                            },
+                            "type": "array"
+                          }
+                        ],
+                        "type": "array"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "metrics"
+                  ],
+                  "title": "endpoint_metrics/result",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/metrics": {
+      "get": {
+        "requestBody": {
+          "content": {
+            "application/json": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "histogram": {
+                      "properties": {
+                        "buckets": {},
+                        "high": {
+                          "maximum": 2147483647,
+                          "minimum": -2147483648,
+                          "type": "integer"
+                        },
+                        "low": {
+                          "maximum": 2147483647,
+                          "minimum": -2147483648,
+                          "type": "integer"
+                        },
+                        "overflow": {
+                          "maximum": 18446744073709551615,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "underflow": {
+                          "maximum": 18446744073709551615,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "low",
+                        "high",
+                        "overflow",
+                        "underflow",
+                        "buckets"
+                      ],
+                      "type": "object"
+                    },
+                    "tx_rates": {}
+                  },
+                  "required": [
+                    "histogram",
+                    "tx_rates"
+                  ],
+                  "title": "metrics/result",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/network_info": {
+      "get": {
+        "requestBody": {
+          "content": {
+            "application/json": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "nodes": {
+                      "items": {
+                        "properties": {
+                          "host": {
+                            "type": "string"
+                          },
+                          "node_id": {
+                            "maximum": 18446744073709551615,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "port": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "node_id",
+                          "host",
+                          "port"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "primary_id": {
+                      "maximum": 18446744073709551615,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "nodes",
+                    "primary_id"
+                  ],
+                  "title": "network_info/result",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/node/ids": {
+      "get": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "host": {
+                    "type": "string"
+                  },
+                  "port": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "host",
+                  "port"
+                ],
+                "title": "node/ids/params",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "nodes": {
+                      "items": {
+                        "properties": {
+                          "node_id": {
+                            "maximum": 18446744073709551615,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "status": {
+                            "enum": [
+                              "PENDING",
+                              "TRUSTED",
+                              "RETIRED"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "node_id",
+                          "status"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "nodes"
+                  ],
+                  "title": "node/ids/result",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/primary_info": {
+      "get": {
+        "requestBody": {
+          "content": {
+            "application/json": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "current_view": {
+                      "maximum": 9223372036854775807,
+                      "minimum": -9223372036854775808,
+                      "type": "integer"
+                    },
+                    "primary_host": {
+                      "type": "string"
+                    },
+                    "primary_id": {
+                      "maximum": 18446744073709551615,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "primary_port": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "primary_id",
+                    "primary_host",
+                    "primary_port",
+                    "current_view"
+                  ],
+                  "title": "primary_info/result",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/proposals": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "ballot": {
+                    "properties": {
+                      "bytecode": {
+                        "items": {
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "type": "array"
+                      },
+                      "text": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "parameter": {},
+                  "script": {
+                    "properties": {
+                      "bytecode": {
+                        "items": {
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "type": "array"
+                      },
+                      "text": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "script"
+                ],
+                "title": "proposals/params",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "proposal_id": {
+                      "maximum": 18446744073709551615,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "proposer_id": {
+                      "maximum": 18446744073709551615,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "state": {
+                      "enum": [
+                        "OPEN",
+                        "ACCEPTED",
+                        "WITHDRAWN",
+                        "REJECTED",
+                        "FAILED"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "proposal_id",
+                    "proposer_id",
+                    "state"
+                  ],
+                  "title": "proposals/result",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/query": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "bytecode": {
+                    "items": {
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "title": "query/params",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "query/result"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/read": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "key": {},
+                  "table": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "table",
+                  "key"
+                ],
+                "title": "read/params",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "read/result"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/receipt": {
+      "get": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "commit": {
+                    "maximum": 9223372036854775807,
+                    "minimum": -9223372036854775808,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "commit"
+                ],
+                "title": "receipt/params",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "receipt": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "receipt"
+                  ],
+                  "title": "receipt/result",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/receipt/verify": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "receipt": {
+                    "items": {
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "receipt"
+                ],
+                "title": "receipt/verify/params",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "valid": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "valid"
+                  ],
+                  "title": "receipt/verify/result",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/recovery_share": {
+      "get": {
+        "requestBody": {
+          "content": {
+            "application/json": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "encrypted_recovery_share": {
+                      "type": "string"
+                    },
+                    "nonce": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "encrypted_recovery_share",
+                    "nonce"
+                  ],
+                  "title": "recovery_share/result",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/recovery_share/submit": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "recovery_share/submit/params",
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "recovery_share/submit/result",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/tx": {
+      "get": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "seqno": {
+                    "maximum": 9223372036854775807,
+                    "minimum": -9223372036854775808,
+                    "type": "integer"
+                  },
+                  "view": {
+                    "maximum": 9223372036854775807,
+                    "minimum": -9223372036854775808,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "view",
+                  "seqno"
+                ],
+                "title": "tx/params",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status": {
+                      "enum": [
+                        "UNKNOWN",
+                        "PENDING",
+                        "COMMITTED",
+                        "INVALID"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "title": "tx/result",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    },
+    "/gov/user_id": {
+      "get": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "cert": {
+                    "items": {
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "cert"
+                ],
+                "title": "user_id/params",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "caller_id": {
+                      "maximum": 18446744073709551615,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "caller_id"
+                  ],
+                  "title": "user_id/result",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Auto-generated"
+          }
+        }
+      }
+    }
+  },
+  "servers": []
+}

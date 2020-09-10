@@ -23,13 +23,13 @@ def run(args):
     os.makedirs(args.schema_dir, exist_ok=True)
 
     changed_files = []
-    methods_with_schema = set()
-    methods_without_schema = set()
     old_schema = set(
         os.path.join(dir_path, filename)
         for dir_path, _, filenames in os.walk(args.schema_dir)
         for filename in filenames
     )
+
+    documents_valid = True
 
     all_methods = []
 
@@ -38,56 +38,37 @@ def run(args):
         check(
             api_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
         )
-        LOG.warning(json.dumps(api_response.body, indent=2))
+
         paths = api_response.body["paths"]
         all_methods.extend([key for key in paths.keys()])
 
-        validate_spec(api_response.body)
+        formatted_schema = json.dumps(api_response.body, indent=2)
 
-        # for path, path_item in paths.items():
-        #     schema_found = False
-        #     schema_response = client.get(f'/{prefix}/api/schema?method="{path}"')
-        #     check(
-        #         schema_response,
-        #         error=lambda status, msg: status == http.HTTPStatus.OK.value,
-        #     )
+        target_file = os.path.join(args.schema_dir, f"{prefix}.json")
 
-        #     if schema_response.body is not None:
-        #         for verb, schema_element in schema_response.body.items():
-        #             for schema_type in ["params", "result"]:
-        #                 element_name = "{}_schema".format(schema_type)
-        #                 element = schema_element[element_name]
-        #                 target_file = build_schema_file_path(
-        #                     args.schema_dir, verb, path, schema_type
-        #                 )
-        #                 if element is not None and len(element) != 0:
-        #                     try:
-        #                         old_schema.remove(target_file)
-        #                     except KeyError:
-        #                         pass
-        #                     schema_found = True
-        #                     formatted_schema = json.dumps(element, indent=2)
-        #                     os.makedirs(os.path.dirname(target_file), exist_ok=True)
-        #                     with open(target_file, "a+") as f:
-        #                         f.seek(0)
-        #                         previous = f.read()
-        #                         if previous != formatted_schema:
-        #                             LOG.debug(
-        #                                 "Writing schema to {}".format(target_file)
-        #                             )
-        #                             f.truncate(0)
-        #                             f.seek(0)
-        #                             f.write(formatted_schema)
-        #                             changed_files.append(target_file)
-        #                         else:
-        #                             LOG.debug(
-        #                                 "Schema matches in {}".format(target_file)
-        #                             )
+        try:
+            old_schema.remove(target_file)
+        except KeyError:
+            pass
 
-        #     if schema_found:
-        #         methods_with_schema.add(path)
-        #     else:
-        #         methods_without_schema.add(path)
+        with open(target_file, "a+") as f:
+            f.seek(0)
+            previous = f.read()
+            if previous != formatted_schema:
+                LOG.debug("Writing schema to {}".format(target_file))
+                f.truncate(0)
+                f.seek(0)
+                f.write(formatted_schema)
+                changed_files.append(target_file)
+            else:
+                LOG.debug("Schema matches in {}".format(target_file))
+
+        try:
+            validate_spec(api_response.body)
+        except Exception as e:
+            LOG.error("Invalid json schema")
+            LOG.error(e)
+            documents_valid = False
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes
@@ -108,11 +89,6 @@ def run(args):
         with primary.client("member0") as member_client:
             LOG.info("member frontend")
             fetch_schema(member_client, "gov")
-
-    if len(methods_without_schema) > 0:
-        LOG.info("The following methods have no schema:")
-        for m in sorted(methods_without_schema):
-            LOG.info(" " + m)
 
     made_changes = False
 
@@ -139,7 +115,7 @@ def run(args):
         for method in sorted(set(all_methods)):
             LOG.info(f"  {method}")
 
-    if made_changes:
+    if made_changes or not documents_valid:
         sys.exit(1)
 
 

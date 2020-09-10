@@ -107,6 +107,11 @@ namespace ds
       return access::get_object(content, mt);
     }
 
+    static inline nlohmann::json& schema(nlohmann::json& media_type_object)
+    {
+      return access::get_object(media_type_object, "schema");
+    }
+
     struct Info
     {
       std::string title;

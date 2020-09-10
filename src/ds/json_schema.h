@@ -265,7 +265,6 @@ namespace ds
     inline nlohmann::json build_schema(const std::string& title)
     {
       nlohmann::json schema;
-      schema["$schema"] = JsonSchema::hyperschema;
       schema["title"] = title;
 
       fill_schema<T>(schema);
