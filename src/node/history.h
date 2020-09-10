@@ -629,7 +629,7 @@ namespace ccf
         return;
       }
 
-      if (consensus->type() == ConsensusType::CFT)
+      //if (consensus->type() == ConsensusType::CFT)
       {
         auto txid = store.next_txid();
         auto commit_txid = consensus->get_committed_txid();

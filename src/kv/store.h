@@ -746,6 +746,16 @@ namespace kv
         {
           success = DeserialiseSuccess::PASS_NEW_VIEW;
         }
+        else if (views.find("ccf.signatures") != views.end())
+        {
+          success = commit_deserialised(views, v, new_maps);
+          if (success == DeserialiseSuccess::FAILED)
+          {
+            throw std::logic_error("foobarbaz");
+            return success;
+          }
+          success = DeserialiseSuccess::PASS_SIGNATURE;
+        }
         else if (views.find("ccf.pbft.requests") == views.end())
         {
           // we have deserialised an entry that didn't belong to the pbft
@@ -753,10 +763,14 @@ namespace kv
 
           // NOTE: we currently do not support signature transactions and said
           // support will be added in the near future
+          for (auto& it : views)
+          {
+            LOG_INFO_FMT("table name:{}", it.first);
+          }
           LOG_FAIL_FMT("Failed to deserialise");
           LOG_DEBUG_FMT(
             "Unexpected contents in pbft transaction size {}", views.size());
-          //throw std::logic_error("foobar");
+          throw std::logic_error("foobar");
         }
       }
 

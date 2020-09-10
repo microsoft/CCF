@@ -629,7 +629,7 @@ def test_primary(network, args, verify=True):
 
 
 def run(args):
-    hosts = ["localhost"] * (3 if args.consensus == "bft" else 2)
+    hosts = ["localhost"] * (2 if args.consensus == "bft" else 2)
 
     with infra.network.network(
         hosts,

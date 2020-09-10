@@ -434,14 +434,16 @@ namespace ccf
                   (cv % sig_tx_interval == sig_tx_interval / 2))
                 {
                   LOG_INFO_FMT("4.9 BBBB {}", ctx->get_method());
-                  if (consensus->type() == ConsensusType::CFT)
+                  //if (consensus->type() == ConsensusType::CFT)
                   {
                     history->emit_signature();
                   }
+                  /*
                   else
                   {
                     consensus->emit_signature();
                   }
+                  */
                   LOG_INFO_FMT("4.10 BBBB {}", ctx->get_method());
                 }
               }
@@ -689,7 +691,10 @@ namespace ccf
 
     void update_merkle_tree() override
     {
-      history->flush_pending();
+      if (history != nullptr)
+      {
+        history->flush_pending();
+      }
     }
 
     /** Process a serialised input forwarded from another node
@@ -765,14 +770,16 @@ namespace ccf
         ms_to_sig = sig_ms_interval;
         if (history && tables.commit_gap() > 0)
         {
-          if (consensus->type() == ConsensusType::CFT)
+          //if (consensus->type() == ConsensusType::CFT)
           {
             history->emit_signature();
           }
+          /*
           else
           {
             consensus->emit_signature();
           }
+          */
         }
       }
     }
