@@ -780,22 +780,7 @@ namespace aft
       }
 
       send_append_entries_response(r.from_node, true);
-      if (consensus_type == ConsensusType::BFT && is_follower())
-      {
         commit_if_possible(r.leader_commit_idx);
-        /*
-        store->compact(state->last_idx);
-        // TODO: fix this
-        if(state->last_idx > 5)
-        {
-          state->commit_idx = state->last_idx -1;
-        }
-        */
-      }
-      else
-      {
-        commit_if_possible(r.leader_commit_idx);
-      }
 
       LOG_INFO_FMT("6. ZZZZZ");
       state->view_history.update(state->commit_idx + 1, r.term_of_idx);
@@ -1235,6 +1220,7 @@ namespace aft
         {
           new_commit_idx = confirmed;
         }
+        LOG_INFO_FMT("8888888888 confirmed:{}, new_commit_idx:{}, size:{}", confirmed, new_commit_idx, match.size());
       }
 
       LOG_DEBUG_FMT(

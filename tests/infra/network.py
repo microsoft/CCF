@@ -205,13 +205,14 @@ class Network:
         )
 
         # If the network is opening, node are trusted without consortium approval
+        LOG.warning(f"{self.status}")
         if self.status == ServiceStatus.OPENING:
-            if args.consensus != "bft":
-                try:
-                    node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
-                except TimeoutError:
-                    LOG.error(f"New node {node.node_id} failed to join the network")
-                    raise
+            #if args.consensus != "bft":
+            try:
+                node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
+            except TimeoutError:
+                LOG.error(f"New node {node.node_id} failed to join the network")
+                raise
             node.network_state = infra.node.NodeNetworkState.joined
 
     def _start_all_nodes(self, args, recovery=False, ledger_dir=None):
@@ -229,6 +230,7 @@ class Network:
         }
 
         for i, node in enumerate(self.nodes):
+            LOG.warning(f"{i}")
             try:
                 if i == 0:
                     if not recovery:
@@ -350,6 +352,7 @@ class Network:
         LOG.info("Initial set of users added")
 
         self.consortium.open_network(remote_node=primary)
+        self.wait_for_all_nodes_to_catch_up(primary)
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
