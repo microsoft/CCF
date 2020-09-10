@@ -8,7 +8,7 @@ import infra.network
 import infra.proc
 import infra.e2e_args
 import infra.checker
-from openapi_spec_validator import validate_spec
+import openapi_spec_validator
 
 
 from loguru import logger as LOG
@@ -64,9 +64,9 @@ def run(args):
                 LOG.debug("Schema matches in {}".format(target_file))
 
         try:
-            validate_spec(api_response.body)
+            openapi_spec_validator.validate_spec(api_response.body)
         except Exception as e:
-            LOG.error("Invalid json schema")
+            LOG.error(f"Validation of {prefix} schema failed")
             LOG.error(e)
             documents_valid = False
 

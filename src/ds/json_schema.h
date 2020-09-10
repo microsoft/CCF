@@ -262,7 +262,10 @@ namespace ds
       }
       else if constexpr (std::is_same<T, JsonSchema>::value)
       {
-        schema["$ref"] = JsonSchema::hyperschema;
+        // TODO: OpenAPI validator isn't happy with these $ref elements, so
+        // we're being very vague for now
+        // schema["$ref"] = JsonSchema::hyperschema;
+        schema["type"] = "object";
       }
       else
       {
