@@ -3,7 +3,6 @@
 #pragma once
 
 #include "node/rpc/node_interface.h"
-#include "node/rpc/notifier_interface.h"
 #include "node/share_manager.h"
 
 namespace ccf
@@ -82,10 +81,5 @@ namespace ccf
     {
       return {State::partOfNetwork, {}, {}};
     }
-  };
-
-  class StubNotifier : public ccf::AbstractNotifier
-  {
-    void notify(const std::vector<uint8_t>& data) override {}
   };
 }

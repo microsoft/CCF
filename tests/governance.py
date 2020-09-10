@@ -7,7 +7,6 @@ import subprocess
 import infra.network
 import infra.path
 import infra.proc
-import infra.notification
 import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
@@ -18,7 +17,7 @@ from loguru import logger as LOG
 
 @reqs.description("Test quotes")
 @reqs.supports_methods("quote", "quotes")
-def test_quote(network, args, notifications_queue=None, verify=True):
+def test_quote(network, args, verify=True):
     primary, _ = network.find_nodes()
     with primary.client() as c:
         oed = subprocess.run(
@@ -61,13 +60,13 @@ def test_quote(network, args, notifications_queue=None, verify=True):
 
 @reqs.description("Add user, remove user")
 @reqs.supports_methods("log/private")
-def test_user(network, args, notifications_queue=None, verify=True):
+def test_user(network, args, verify=True):
     primary, _ = network.find_nodes()
     new_user_id = 3
     network.create_users([new_user_id], args.participants_curve)
     user_data = {"lifetime": "temporary"}
     network.consortium.add_user(primary, new_user_id, user_data)
-    txs = app.LoggingTxs(notifications_queue=notifications_queue, user_id=3)
+    txs = app.LoggingTxs(user_id=3)
     txs.issue(
         network=network,
         number_txs=1,
@@ -82,24 +81,28 @@ def test_user(network, args, notifications_queue=None, verify=True):
     return network
 
 
+@reqs.description("Add untrusted node, check no quote is returned")
+def test_no_quote(network, args, notifications_queue=None, verify=True):
+    untrusted_node = network.create_and_add_pending_node(
+        args.package, "localhost", args
+    )
+    with untrusted_node.client(
+        ca=os.path.join(untrusted_node.common_dir, f"{untrusted_node.node_id}.pem")
+    ) as uc:
+        r = uc.get("/node/quote")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND
+
+
 def run(args):
     hosts = ["localhost"] * (3 if args.consensus == "bft" else 2)
 
-    with infra.notification.notification_server(args.notify_server) as notifications:
-        # Lua apps do not support notifications
-        # https://github.com/microsoft/CCF/issues/415
-        notifications_queue = (
-            notifications.get_queue()
-            if (args.package == "liblogging" and args.consensus == "cft")
-            else None
-        )
-
-        with infra.network.network(
-            hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
-        ) as network:
-            network.start_and_join(args)
-            network = test_quote(network, args, notifications_queue)
-            network = test_user(network, args, notifications_queue)
+    with infra.network.network(
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_join(args)
+        network = test_quote(network, args)
+        network = test_user(network, args)
+        network = test_no_quote(network, args)
 
 
 if __name__ == "__main__":
@@ -114,13 +117,6 @@ if __name__ == "__main__":
     if args.enclave_type == "virtual":
         LOG.warning("This test can only run in real enclaves, skipping")
         sys.exit(0)
-
-    notify_server_host = "localhost"
-    args.notify_server = (
-        notify_server_host
-        + ":"
-        + str(infra.net.probably_free_local_port(notify_server_host))
-    )
 
     args.package = "liblogging"
     run(args)

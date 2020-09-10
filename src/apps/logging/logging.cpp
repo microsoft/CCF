@@ -437,17 +437,6 @@ namespace loggingapp
         ccf::json_adapter(record_admin_only))
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
-
-      auto& notifier = context.get_notifier();
-      nwt.signatures.set_global_hook(
-        [&notifier](kv::Version version, const ccf::Signatures::Write& w) {
-          if (w.size() > 0)
-          {
-            nlohmann::json notify_j;
-            notify_j["commit"] = version;
-            notifier.notify(serdes::pack(notify_j, serdes::Pack::Text));
-          }
-        });
     }
   };
 
