@@ -79,6 +79,11 @@ namespace ds
       return access::get_object(path, s);
     }
 
+    static inline nlohmann::json& parameters(nlohmann::json& path_operation)
+    {
+      return access::get_array(path_operation, "parameters");
+    }
+
     static inline nlohmann::json& response(
       nlohmann::json& path_operation,
       http_status status,

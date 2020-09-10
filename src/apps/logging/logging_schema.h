@@ -52,7 +52,6 @@ namespace loggingapp
   // Manual schemas, verified then parsed in handler
   static const std::string j_record_public_in = R"!!!(
   {
-    "$schema": "http://json-schema.org/draft-07/schema#",
     "properties": {
       "id": {
         "type": "number"
@@ -72,15 +71,13 @@ namespace loggingapp
 
   static const std::string j_record_public_out = R"!!!(
   {
-    "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "log/public/result",
-    "type": "bool"
+    "type": "boolean"
   }
   )!!!";
 
   static const std::string j_get_public_in = R"!!!(
   {
-    "$schema": "http://json-schema.org/draft-07/schema#",
     "properties": {
       "id": {
         "type": "number"
@@ -96,7 +93,6 @@ namespace loggingapp
 
   static const std::string j_get_public_out = R"!!!(
   {
-    "$schema": "http://json-schema.org/draft-07/schema#",
     "properties": {
       "msg": {
         "type": "string"

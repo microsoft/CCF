@@ -8,11 +8,6 @@
   "paths": {
     "/node/api": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -29,24 +24,16 @@
     },
     "/node/api/schema": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "method": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "method"
-                ],
-                "title": "api/schema/params",
-                "type": "object"
-              }
+        "parameters": [
+          {
+            "in": "query",
+            "name": "method",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
-        },
+        ],
         "responses": {
           "200": {
             "content": {
@@ -76,11 +63,6 @@
     },
     "/node/code": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -124,11 +106,6 @@
     },
     "/node/commit": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -162,11 +139,6 @@
     },
     "/node/endpoint_metrics": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -174,51 +146,35 @@
                 "schema": {
                   "properties": {
                     "metrics": {
-                      "items": {
-                        "items": [
-                          {
-                            "type": "string"
-                          },
-                          {
-                            "items": {
-                              "items": [
-                                {
-                                  "type": "string"
-                                },
-                                {
-                                  "properties": {
-                                    "calls": {
-                                      "maximum": 18446744073709551615,
-                                      "minimum": 0,
-                                      "type": "integer"
-                                    },
-                                    "errors": {
-                                      "maximum": 18446744073709551615,
-                                      "minimum": 0,
-                                      "type": "integer"
-                                    },
-                                    "failures": {
-                                      "maximum": 18446744073709551615,
-                                      "minimum": 0,
-                                      "type": "integer"
-                                    }
-                                  },
-                                  "required": [
-                                    "calls",
-                                    "errors",
-                                    "failures"
-                                  ],
-                                  "type": "object"
-                                }
-                              ],
-                              "type": "array"
+                      "additionalProperties": {
+                        "additionalProperties": {
+                          "properties": {
+                            "calls": {
+                              "maximum": 18446744073709551615,
+                              "minimum": 0,
+                              "type": "integer"
                             },
-                            "type": "array"
-                          }
-                        ],
-                        "type": "array"
+                            "errors": {
+                              "maximum": 18446744073709551615,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "failures": {
+                              "maximum": 18446744073709551615,
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "calls",
+                            "errors",
+                            "failures"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "object"
                       },
-                      "type": "array"
+                      "type": "object"
                     }
                   },
                   "required": [
@@ -236,11 +192,6 @@
     },
     "/node/join": {
       "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -253,11 +204,6 @@
     },
     "/node/metrics": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -315,11 +261,6 @@
     },
     "/node/network": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -332,11 +273,6 @@
     },
     "/node/network_info": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -389,28 +325,24 @@
     },
     "/node/node/ids": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "host": {
-                    "type": "string"
-                  },
-                  "port": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "host",
-                  "port"
-                ],
-                "title": "node/ids/params",
-                "type": "object"
-              }
+        "parameters": [
+          {
+            "in": "query",
+            "name": "host",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "port",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
-        },
+        ],
         "responses": {
           "200": {
             "content": {
@@ -457,11 +389,6 @@
     },
     "/node/primary": {
       "head": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -474,11 +401,6 @@
     },
     "/node/primary_info": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -520,11 +442,6 @@
     },
     "/node/quote": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -573,11 +490,6 @@
     },
     "/node/quotes": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -626,26 +538,18 @@
     },
     "/node/receipt": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "commit": {
-                    "maximum": 9223372036854775807,
-                    "minimum": -9223372036854775808,
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "commit"
-                ],
-                "title": "receipt/params",
-                "type": "object"
-              }
+        "parameters": [
+          {
+            "in": "query",
+            "name": "commit",
+            "required": false,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": -9223372036854775808,
+              "type": "integer"
             }
           }
-        },
+        ],
         "responses": {
           "200": {
             "content": {
@@ -724,11 +628,6 @@
     },
     "/node/state": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -784,32 +683,28 @@
     },
     "/node/tx": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "seqno": {
-                    "maximum": 9223372036854775807,
-                    "minimum": -9223372036854775808,
-                    "type": "integer"
-                  },
-                  "view": {
-                    "maximum": 9223372036854775807,
-                    "minimum": -9223372036854775808,
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "view",
-                  "seqno"
-                ],
-                "title": "tx/params",
-                "type": "object"
-              }
+        "parameters": [
+          {
+            "in": "query",
+            "name": "seqno",
+            "required": false,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": -9223372036854775808,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": -9223372036854775808,
+              "type": "integer"
             }
           }
-        },
+        ],
         "responses": {
           "200": {
             "content": {

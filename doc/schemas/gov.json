@@ -48,11 +48,6 @@
     },
     "/gov/ack/update_state_digest": {
       "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -128,11 +123,6 @@
     },
     "/gov/api": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -149,24 +139,16 @@
     },
     "/gov/api/schema": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "method": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "method"
-                ],
-                "title": "api/schema/params",
-                "type": "object"
-              }
+        "parameters": [
+          {
+            "in": "query",
+            "name": "method",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
-        },
+        ],
         "responses": {
           "200": {
             "content": {
@@ -196,11 +178,6 @@
     },
     "/gov/code": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -244,11 +221,6 @@
     },
     "/gov/commit": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -282,11 +254,6 @@
     },
     "/gov/create": {
       "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -299,11 +266,6 @@
     },
     "/gov/endpoint_metrics": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -311,51 +273,35 @@
                 "schema": {
                   "properties": {
                     "metrics": {
-                      "items": {
-                        "items": [
-                          {
-                            "type": "string"
-                          },
-                          {
-                            "items": {
-                              "items": [
-                                {
-                                  "type": "string"
-                                },
-                                {
-                                  "properties": {
-                                    "calls": {
-                                      "maximum": 18446744073709551615,
-                                      "minimum": 0,
-                                      "type": "integer"
-                                    },
-                                    "errors": {
-                                      "maximum": 18446744073709551615,
-                                      "minimum": 0,
-                                      "type": "integer"
-                                    },
-                                    "failures": {
-                                      "maximum": 18446744073709551615,
-                                      "minimum": 0,
-                                      "type": "integer"
-                                    }
-                                  },
-                                  "required": [
-                                    "calls",
-                                    "errors",
-                                    "failures"
-                                  ],
-                                  "type": "object"
-                                }
-                              ],
-                              "type": "array"
+                      "additionalProperties": {
+                        "additionalProperties": {
+                          "properties": {
+                            "calls": {
+                              "maximum": 18446744073709551615,
+                              "minimum": 0,
+                              "type": "integer"
                             },
-                            "type": "array"
-                          }
-                        ],
-                        "type": "array"
+                            "errors": {
+                              "maximum": 18446744073709551615,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "failures": {
+                              "maximum": 18446744073709551615,
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "calls",
+                            "errors",
+                            "failures"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "object"
                       },
-                      "type": "array"
+                      "type": "object"
                     }
                   },
                   "required": [
@@ -373,11 +319,6 @@
     },
     "/gov/metrics": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -435,11 +376,6 @@
     },
     "/gov/network_info": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -492,28 +428,24 @@
     },
     "/gov/node/ids": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "host": {
-                    "type": "string"
-                  },
-                  "port": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "host",
-                  "port"
-                ],
-                "title": "node/ids/params",
-                "type": "object"
-              }
+        "parameters": [
+          {
+            "in": "query",
+            "name": "host",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "port",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
-        },
+        ],
         "responses": {
           "200": {
             "content": {
@@ -560,11 +492,6 @@
     },
     "/gov/primary_info": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -772,26 +699,18 @@
     },
     "/gov/receipt": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "commit": {
-                    "maximum": 9223372036854775807,
-                    "minimum": -9223372036854775808,
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "commit"
-                ],
-                "title": "receipt/params",
-                "type": "object"
-              }
+        "parameters": [
+          {
+            "in": "query",
+            "name": "commit",
+            "required": false,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": -9223372036854775808,
+              "type": "integer"
             }
           }
-        },
+        ],
         "responses": {
           "200": {
             "content": {
@@ -870,11 +789,6 @@
     },
     "/gov/recovery_share": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {}
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -931,32 +845,28 @@
     },
     "/gov/tx": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "seqno": {
-                    "maximum": 9223372036854775807,
-                    "minimum": -9223372036854775808,
-                    "type": "integer"
-                  },
-                  "view": {
-                    "maximum": 9223372036854775807,
-                    "minimum": -9223372036854775808,
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "view",
-                  "seqno"
-                ],
-                "title": "tx/params",
-                "type": "object"
-              }
+        "parameters": [
+          {
+            "in": "query",
+            "name": "seqno",
+            "required": false,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": -9223372036854775808,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": -9223372036854775808,
+              "type": "integer"
             }
           }
-        },
+        ],
         "responses": {
           "200": {
             "content": {
@@ -987,29 +897,21 @@
     },
     "/gov/user_id": {
       "get": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "cert": {
-                    "items": {
-                      "maximum": 255,
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "type": "array"
-                  }
-                },
-                "required": [
-                  "cert"
-                ],
-                "title": "user_id/params",
-                "type": "object"
-              }
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cert",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
             }
           }
-        },
+        ],
         "responses": {
           "200": {
             "content": {

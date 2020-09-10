@@ -464,19 +464,42 @@ namespace ccf
           }
 
           auto& path_operation = ds::openapi::path_operation(path_object, http_verb.value());
-
-          auto& request_body = ds::openapi::request_body(path_operation);
-          auto& request_body_json = ds::openapi::media_type(request_body, http::headervalues::contenttype::JSON);
           if (!handler.params_schema.empty())
           {
-            auto& request_body_json_schema = ds::openapi::schema(request_body_json);
-            request_body_json_schema = handler.params_schema;
+            if (http_verb.value() == HTTP_GET || http_verb.value() == HTTP_DELETE)
+            {
+              // TODO: Should set these as individual parameters, not reparse them here
+              if (handler.params_schema["type"] != "object")
+              {
+                throw std::logic_error(fmt::format("Unexpected params schema type: {}", handler.params_schema.dump()));
+              }
+
+              const auto& required_parameters = handler.params_schema["required"];
+              auto& parameters = ds::openapi::parameters(path_operation);
+              for (const auto& [name, schema]: handler.params_schema["properties"].items())
+              {
+                auto parameter = nlohmann::json::object();
+                parameter["name"] = name;
+                parameter["in"] = "query";
+                parameter["required"] = required_parameters.find(name) != required_parameters.end();
+                parameter["schema"] = schema;
+                parameters.push_back(parameter);
+              }
+            }
+            else
+            {
+              auto& request_body = ds::openapi::request_body(path_operation);
+              auto& request_body_json = ds::openapi::media_type(request_body, http::headervalues::contenttype::JSON);
+              auto& request_body_json_schema = ds::openapi::schema(request_body_json);
+              request_body_json_schema = handler.params_schema;
+            }
           }
           
           auto& response_ok = ds::openapi::response(
             path_operation, HTTP_STATUS_OK, "Auto-generated");
           auto& response_ok_json = ds::openapi::media_type(
             response_ok, http::headervalues::contenttype::JSON);
+          
           if (!handler.result_schema.empty())
           {
             auto& response_ok_json_schema = ds::openapi::schema(response_ok_json);
