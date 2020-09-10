@@ -19,7 +19,7 @@ parameters:
     common:
       cmake_args: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache"'
     NoSGX:
-      cmake_args: '-DCOMPILE_TARGETS=virtual'
+      cmake_args: '-DCOMPILE_TARGETS=virtual -DVERBOSE_LOGGING=ON'
     SGX:
       cmake_args: '-DCOMPILE_TARGETS=sgx'
     debug:
@@ -29,7 +29,7 @@ parameters:
 
   test:
     NoSGX:
-      ctest_args: '-LE "benchmark|perf|tlstest|long_test"'
+      ctest_args: '-L "bft"'
     SGX:
       ctest_args: '-LE "benchmark|perf|tlstest|long_test"'
     Release:
