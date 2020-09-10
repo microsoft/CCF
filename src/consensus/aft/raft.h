@@ -210,7 +210,6 @@ namespace aft
       state->current_view = term;
       state->last_idx = index;
       state->commit_idx = commit_idx_;
-      LOG_INFO_FMT("1. ZZZZZ");
       state->view_history.update(index, term);
       state->current_view += 2;
       become_leader();
@@ -232,7 +231,6 @@ namespace aft
       state->last_idx = index;
       state->commit_idx = commit_idx_;
       state->view_history.initialise(terms);
-      LOG_INFO_FMT("2. ZZZZZ");
       state->view_history.update(index, term);
       state->current_view += 2;
       become_leader();
@@ -247,7 +245,6 @@ namespace aft
       state->last_idx = index;
       state->commit_idx = index;
 
-      LOG_INFO_FMT("3. ZZZZZ");
       state->view_history.update(index, term);
 
       ledger->init(index);
@@ -285,10 +282,6 @@ namespace aft
     {
       if (consensus_type == ConsensusType::BFT && is_follower())
       {
-        LOG_INFO_FMT(
-          "@@@@@@@@@@@ idx:{}, term:{}",
-          state->commit_idx,
-          get_term_internal(state->commit_idx));
         return {get_term_internal(state->commit_idx), state->commit_idx};
       }
       std::lock_guard<SpinLock> guard(state->lock);
@@ -330,9 +323,7 @@ namespace aft
       {
         for (auto& [index, data, globally_committable] : entries)
         {
-          LOG_INFO_FMT("1. AAAAAA index:{}, data.size:{}", index, data->size());
           state->last_idx = index;
-          //state->commit_idx = index;
           ledger->put_entry(*data, globally_committable, false);
         }
         return true;
@@ -385,13 +376,10 @@ namespace aft
         }
 
         state->last_idx = index;
-        LOG_INFO_FMT("2. AAAAAA index:{}, data.size:{}", index, data->size());
-        LOG_INFO_FMT("writing to ledger - KKKKKKKKKKKKK");
         ledger->put_entry(*data, globally_committable, force_ledger_chunk);
         entry_size_not_limited += data->size();
         entry_count++;
 
-        LOG_INFO_FMT("4. ZZZZZ");
         state->view_history.update(index, state->current_view);
         if (entry_size_not_limited >= append_entries_size_limit)
         {
@@ -486,7 +474,6 @@ namespace aft
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
     {
       auto request = executor->create_request_message(args);
-      LOG_INFO_FMT("111111");
       executor->execute_request(std::move(request), is_first_request);
       is_first_request = false;
 
@@ -722,8 +709,6 @@ namespace aft
             store->deserialise(entry, public_only, &sig_term);
         }
 
-        LOG_INFO_FMT("11111111 sig_term:{}, deserialize_success:{}", sig_term, deserialise_success);
-
         bool globally_committable =
           (deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
         bool force_ledger_chunk = false;
@@ -750,7 +735,6 @@ namespace aft
 
             if (sig_term)
             {
-              LOG_INFO_FMT("5. ZZZZZ");
               state->view_history.update(state->commit_idx + 1, sig_term);
               commit_if_possible(r.leader_commit_idx);
             }
@@ -780,9 +764,8 @@ namespace aft
       }
 
       send_append_entries_response(r.from_node, true);
-        commit_if_possible(r.leader_commit_idx);
+      commit_if_possible(r.leader_commit_idx);
 
-      LOG_INFO_FMT("6. ZZZZZ");
       state->view_history.update(state->commit_idx + 1, r.term_of_idx);
     }
 
@@ -1220,7 +1203,6 @@ namespace aft
         {
           new_commit_idx = confirmed;
         }
-        LOG_INFO_FMT("8888888888 confirmed:{}, new_commit_idx:{}, size:{}", confirmed, new_commit_idx, match.size());
       }
 
       LOG_DEBUG_FMT(
