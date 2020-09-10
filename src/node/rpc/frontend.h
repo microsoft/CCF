@@ -683,7 +683,7 @@ namespace ccf
       }
       else
       {
-        auto rep = process_pbft(ctx, tx, false); 
+        auto rep = process_pbft(ctx, tx, false);
         return rep.result;
       }
     }
