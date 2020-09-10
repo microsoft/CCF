@@ -73,7 +73,7 @@ namespace ccf
             in.view, in.seqno, tx_view, committed_view, committed_seqno);
           if (in.seqno > 35)
           {
-            out.status = ccf::TxStatus::Committed;
+            //out.status = ccf::TxStatus::Committed;
           }
           return make_success(out);
         }

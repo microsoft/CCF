@@ -210,6 +210,7 @@ namespace aft
       state->current_view = term;
       state->last_idx = index;
       state->commit_idx = commit_idx_;
+      LOG_INFO_FMT("1. ZZZZZ");
       state->view_history.update(index, term);
       state->current_view += 2;
       become_leader();
@@ -231,6 +232,7 @@ namespace aft
       state->last_idx = index;
       state->commit_idx = commit_idx_;
       state->view_history.initialise(terms);
+      LOG_INFO_FMT("2. ZZZZZ");
       state->view_history.update(index, term);
       state->current_view += 2;
       become_leader();
@@ -245,6 +247,7 @@ namespace aft
       state->last_idx = index;
       state->commit_idx = index;
 
+      LOG_INFO_FMT("3. ZZZZZ");
       state->view_history.update(index, term);
 
       ledger->init(index);
@@ -388,6 +391,7 @@ namespace aft
         entry_size_not_limited += data->size();
         entry_count++;
 
+        LOG_INFO_FMT("4. ZZZZZ");
         state->view_history.update(index, state->current_view);
         if (entry_size_not_limited >= append_entries_size_limit)
         {
@@ -718,6 +722,8 @@ namespace aft
             store->deserialise(entry, public_only, &sig_term);
         }
 
+        LOG_INFO_FMT("11111111 sig_term:{}", sig_term);
+
         bool globally_committable =
           (deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
         bool force_ledger_chunk = false;
@@ -744,6 +750,7 @@ namespace aft
 
             if (sig_term)
             {
+              LOG_INFO_FMT("5. ZZZZZ");
               state->view_history.update(state->commit_idx + 1, sig_term);
               commit_if_possible(r.leader_commit_idx);
             }
@@ -776,12 +783,17 @@ namespace aft
       if (consensus_type == ConsensusType::BFT && is_follower())
       {
         store->compact(state->last_idx);
+        if(state->last_idx > 5)
+        {
+          state->commit_idx = state->last_idx -1;
+        }
       }
       else
       {
         commit_if_possible(r.leader_commit_idx);
       }
 
+      LOG_INFO_FMT("6. ZZZZZ");
       state->view_history.update(state->commit_idx + 1, r.term_of_idx);
     }
 
