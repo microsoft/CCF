@@ -22,12 +22,10 @@ void print_doc(const std::string& title, const nlohmann::json& doc)
     REQUIRE(name##_it->type_fn()); \
   }
 
-static constexpr auto server_url =
-  "https://not.a.real.server.example.com/testing_only";
+static constexpr auto server_url = "https://not.a.real.server.com/testing_only";
 
-// TODO: Use some external verifier to check this. What we primarily care about
-// is "is this a valid OpenAPI doc". We don't even really care about parsing it
-// for specific elements, just producing it
+// This is only a very basic check - assume full validation is done by external
+// validator
 void required_doc_elements(const nlohmann::json& j)
 {
   REQUIRE_ELEMENT(j, openapi, is_string);
@@ -35,13 +33,13 @@ void required_doc_elements(const nlohmann::json& j)
   REQUIRE_ELEMENT(j, paths, is_object);
 }
 
-TEST_CASE("Required elements")
-{
-  openapi::Document doc;
+// TEST_CASE("Required elements")
+// {
+//   openapi::Document doc;
 
-  const nlohmann::json j = doc;
-  required_doc_elements(j);
-}
+//   const nlohmann::json j = doc;
+//   required_doc_elements(j);
+// }
 
 TEST_CASE("Manual construction")
 {
@@ -66,7 +64,8 @@ TEST_CASE("Manual construction")
     foo_post, HTTP_STATUS_OK, "Indicates that everything went ok");
   auto& foo_post_response_ok_json = openapi::media_type(
     foo_post_response_ok, http::headervalues::contenttype::JSON);
-  auto& foo_post_response_ok_json_schema = openapi::schema(foo_post_response_ok_json);
+  auto& foo_post_response_ok_json_schema =
+    openapi::schema(foo_post_response_ok_json);
   foo_post_response_ok_json_schema = string_schema;
 
   required_doc_elements(doc);
@@ -81,8 +80,6 @@ TEST_CASE("Manual construction")
   REQUIRE(servers_element.size() == 1);
   const auto& first_server = servers_element[0];
   REQUIRE_ELEMENT(first_server, url, is_string);
-
-  print_doc("PATHS", doc);
 }
 
 struct Foo
@@ -95,32 +92,29 @@ DECLARE_JSON_REQUIRED_FIELDS(Foo, n, s);
 
 TEST_CASE("Simple custom types")
 {
-  openapi::Document doc;
-  doc.info.title = "Test generated API";
-  doc.info.description = "Some longer description enhanced with **Markdown**";
-  doc.info.version = "0.1.42";
+  auto doc = openapi::create_document(
+    "Test generated API",
+    "Some longer description enhanced with **Markdown**",
+    "0.1.42");
 
-  {
-    openapi::Server mockup_server;
-    mockup_server.url = server_url;
-    doc.servers.push_back(mockup_server);
-  }
+  openapi::server(doc, server_url);
 
-  doc.add_request_body_schema<Foo>(
-    "/app/foo", HTTP_POST, http::headervalues::contenttype::JSON);
-  doc.add_response_schema<size_t>(
+  openapi::add_request_body_schema<Foo>(
+    doc, "/app/foo", HTTP_POST, http::headervalues::contenttype::JSON);
+  openapi::add_response_schema<size_t>(
+    doc,
     "/app/foo",
     HTTP_POST,
     HTTP_STATUS_OK,
     http::headervalues::contenttype::JSON);
-  doc.add_response_schema<Foo>(
+  openapi::add_response_schema<Foo>(
+    doc,
     "/app/foo",
-    HTTP_GET,
+    HTTP_POST,
     HTTP_STATUS_OK,
     http::headervalues::contenttype::JSON);
 
-  const nlohmann::json j = doc;
-  required_doc_elements(j);
+  required_doc_elements(doc);
 
   print_doc("SIMPLE", doc);
 }
@@ -157,41 +151,54 @@ DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(
 
 TEST_CASE("Complex custom types")
 {
-  openapi::Document doc;
-  doc.info.title = "Test generated API";
-  doc.info.description = "Some longer description enhanced with **Markdown**";
-  doc.info.version = "0.1.42";
+  auto doc = openapi::create_document(
+    "Test generated API",
+    "Some longer description enhanced with **Markdown**",
+    "0.1.42");
 
-  doc.add_response_schema<std::vector<Foo>>(
+  openapi::server(doc, server_url);
+
+  openapi::add_response_schema<std::vector<Foo>>(
+    doc,
     "/app/foos",
     HTTP_GET,
     HTTP_STATUS_OK,
     http::headervalues::contenttype::JSON);
-  doc.add_response_schema<Bar>(
+  openapi::add_response_schema<std::vector<std::vector<Foo>>>(
+    doc,
+    "/app/fooss",
+    HTTP_GET,
+    HTTP_STATUS_OK,
+    http::headervalues::contenttype::JSON);
+  openapi::add_response_schema<Bar>(
+    doc,
     "/app/bar",
     HTTP_GET,
     HTTP_STATUS_OK,
     http::headervalues::contenttype::JSON);
-  doc.add_response_schema<Baz>(
+  openapi::add_response_schema<Baz>(
+    doc,
     "/app/baz",
     HTTP_GET,
     HTTP_STATUS_OK,
     http::headervalues::contenttype::JSON);
-  doc.add_response_schema<Buzz>(
+  openapi::add_response_schema<std::map<std::string, Buzz>>(
+    doc,
     "/app/buzz",
     HTTP_GET,
     HTTP_STATUS_OK,
     http::headervalues::contenttype::JSON);
-  doc.add_request_body_schema<std::optional<Bar>>(
-    "/app/complex", HTTP_GET, http::headervalues::contenttype::JSON);
-  doc.add_response_schema<std::map<Baz, std::vector<Buzz>>>(
+
+  openapi::add_request_body_schema<std::optional<Bar>>(
+    doc, "/app/complex", HTTP_POST, http::headervalues::contenttype::JSON);
+  openapi::add_response_schema<std::map<Baz, std::vector<Buzz>>>(
+    doc,
     "/app/complex",
-    HTTP_GET,
+    HTTP_POST,
     HTTP_STATUS_OK,
     http::headervalues::contenttype::JSON);
 
-  const nlohmann::json j = doc;
-  required_doc_elements(j);
+  required_doc_elements(doc);
 
   print_doc("COMPLEX", doc);
 }

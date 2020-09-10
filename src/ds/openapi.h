@@ -39,12 +39,20 @@ namespace ds
       }
     }
 
+    static inline void check_path_valid(const std::string& s)
+    {
+      if (s.rfind("/", 0) != 0)
+      {
+        throw std::logic_error(
+          fmt::format("'{}' is not a valid path - must begin with '/'", s));
+      }
+    }
+
     static inline nlohmann::json create_document(
       const std::string& title,
       const std::string& description,
       const std::string& document_version)
     {
-      // TODO: Check document_version looks valid?
       return nlohmann::json{{"openapi", "3.0.0"},
                             {"info",
                              {{"title", title},
@@ -117,238 +125,58 @@ namespace ds
       return access::get_object(media_type_object, "schema");
     }
 
-    struct Info
+    //
+    // Helper functions for auto-inserting schema into components
+    //
+
+    static inline nlohmann::json components_ref_object(
+      const std::string& element_name)
     {
-      std::string title;
-      std::string description;
-      std::string version;
-    };
-    DECLARE_JSON_TYPE(Info);
-    DECLARE_JSON_REQUIRED_FIELDS(Info, title, description, version);
-
-    struct Server
-    {
-      std::string url;
-
-      bool operator==(const Server& rhs) const
-      {
-        return url == rhs.url;
-      }
-    };
-    DECLARE_JSON_TYPE(Server);
-    DECLARE_JSON_REQUIRED_FIELDS(Server, url);
-
-    struct MediaType
-    {
-      // May be a full in-place schema, but is generally a reference object
-      nlohmann::json schema;
-
-      bool operator==(const MediaType& rhs) const
-      {
-        return schema == rhs.schema;
-      }
-    };
-    DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(MediaType);
-    DECLARE_JSON_REQUIRED_FIELDS(MediaType);
-    DECLARE_JSON_OPTIONAL_FIELDS(MediaType, schema);
-
-    using ContentMap = std::map<std::string, MediaType>;
-
-    struct RequestBody
-    {
-      std::string description;
-      ContentMap content;
-      bool required = false;
-
-      bool operator==(const RequestBody& rhs) const
-      {
-        return description == rhs.description && content == rhs.content &&
-          required == rhs.required;
-      }
-
-      bool operator!=(const RequestBody& rhs) const
-      {
-        return !(*this == rhs);
-      }
-    };
-    DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RequestBody);
-    DECLARE_JSON_REQUIRED_FIELDS(RequestBody, content);
-    DECLARE_JSON_OPTIONAL_FIELDS(RequestBody, description, required);
-
-    struct Response
-    {
-      std::string description;
-      ContentMap content;
-    };
-    DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Response);
-    DECLARE_JSON_REQUIRED_FIELDS(Response, description);
-    DECLARE_JSON_OPTIONAL_FIELDS(Response, content);
-
-    struct Operation
-    {
-      RequestBody requestBody;
-      std::map<std::string, Response> responses;
-
-      Response& operator[](http_status status)
-      {
-        // HTTP_STATUS_OK (aka an int with value 200) becomes the string "200"
-        const auto s = std::to_string(status);
-        return responses[s];
-      }
-    };
-    DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Operation);
-    DECLARE_JSON_REQUIRED_FIELDS(Operation, responses);
-    DECLARE_JSON_OPTIONAL_FIELDS(Operation, requestBody);
-
-    struct PathItem
-    {
-      std::map<std::string, Operation> operations;
-
-      Operation& operator[](http_method verb)
-      {
-        // HTTP_GET becomes the string "get"
-        std::string s = http_method_str(verb);
-        nonstd::to_lower(s);
-        return operations[s];
-      }
-    };
-
-    // When converted to JSON, a PathItem is not an object containing an
-    // 'operations' field with an object value, it _is_ this operations object
-    // value
-    inline void to_json(nlohmann::json& j, const PathItem& pi)
-    {
-      j = pi.operations;
+      auto schema_ref_object = nlohmann::json::object();
+      schema_ref_object["$ref"] =
+        fmt::format("#/components/schemas/{}", element_name);
+      return schema_ref_object;
     }
 
-    inline void from_json(const nlohmann::json& j, PathItem& pi)
+    // Returns a ref object pointing to the item inserted into the components
+    static inline nlohmann::json add_schema_to_components(
+      nlohmann::json& document,
+      const std::string& element_name,
+      const nlohmann::json& schema_)
     {
-      pi.operations = j.get<decltype(pi.operations)>();
-    }
+      auto& components = access::get_object(document, "components");
+      auto& schemas = access::get_object(components, "schemas");
 
-    using Paths = std::map<std::string, PathItem>;
-
-    inline void check_path_valid(const std::string& s)
-    {
-      if (s.rfind("/", 0) != 0)
+      const auto schema_it = schemas.find(element_name);
+      if (schema_it != schemas.end())
       {
-        throw std::logic_error(
-          fmt::format("'{}' is not a valid path - must begin with '/'", s));
-      }
-    }
-
-    struct Components
-    {
-      std::map<std::string, nlohmann::json> schemas;
-
-      bool operator!=(const Components& rhs) const
-      {
-        return schemas != rhs.schemas;
-      }
-    };
-    DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Components);
-    DECLARE_JSON_REQUIRED_FIELDS(Components);
-    DECLARE_JSON_OPTIONAL_FIELDS(Components, schemas);
-
-    struct Document
-    {
-      std::string openapi = "3.0.0";
-      Info info;
-      std::vector<Server> servers;
-      Paths paths;
-      Components components;
-
-      nlohmann::json add_schema_to_components(
-        const std::string& element_name, const nlohmann::json& schema)
-      {
-        const auto schema_it = components.schemas.find(element_name);
-        if (schema_it != components.schemas.end())
+        // Check that the existing schema matches the new one being added with
+        // the same name
+        const auto& existing_schema = schema_it.value();
+        if (schema_ != existing_schema)
         {
-          // Check that the existing schema matches the new one being added with
-          // the same name
-          const auto& existing_schema = schema_it->second;
-          if (schema != existing_schema)
-          {
-            throw std::logic_error(fmt::format(
-              "Adding schema with name '{}'. Does not match previous schema "
-              "registered with this name: {} vs {}",
-              element_name,
-              schema.dump(),
-              existing_schema.dump()));
-          }
+          throw std::logic_error(fmt::format(
+            "Adding schema with name '{}'. Does not match previous schema "
+            "registered with this name: {} vs {}",
+            element_name,
+            schema_.dump(),
+            existing_schema.dump()));
         }
-        else
-        {
-          components.schemas.emplace(element_name, schema);
-        }
-
-        auto schema_ref_object = nlohmann::json::object();
-        schema_ref_object["$ref"] =
-          fmt::format("#/components/schemas/{}", element_name);
-        return schema_ref_object;
       }
-
-      void add_request_body_schema(
-        const std::string& uri,
-        http_method verb,
-        const std::string& content_type,
-        const std::string& schema_name,
-        const nlohmann::json& schema)
+      else
       {
-        check_path_valid(uri);
-
-        auto& request_body = paths[uri][verb].requestBody;
-        request_body.description = "Auto-generated request body schema";
-        request_body.content[content_type].schema =
-          add_schema_to_components(schema_name, schema);
+        schemas.emplace(element_name, schema_);
       }
+
+      return components_ref_object(element_name);
+    }
+
+    struct SchemaHelper
+    {
+      nlohmann::json& document;
 
       template <typename T>
-      void add_request_body_schema(
-        const std::string& uri,
-        http_method verb,
-        const std::string& content_type)
-      {
-        check_path_valid(uri);
-
-        auto& request_body = paths[uri][verb].requestBody;
-        request_body.description = "Auto-generated request body schema";
-        request_body.content[content_type].schema = add_schema_component<T>();
-      }
-
-      void add_response_schema(
-        const std::string& uri,
-        http_method verb,
-        http_status status,
-        const std::string& content_type,
-        const std::string& schema_name,
-        const nlohmann::json& schema)
-      {
-        check_path_valid(uri);
-
-        auto& response_object = paths[uri][verb][status];
-        response_object.description = "Auto-generated response schema";
-        response_object.content[content_type].schema =
-          add_schema_to_components(schema_name, schema);
-      }
-
-      template <typename T>
-      void add_response_schema(
-        const std::string& uri,
-        http_method verb,
-        http_status status,
-        const std::string& content_type)
-      {
-        check_path_valid(uri);
-
-        auto& response_object = paths[uri][verb][status];
-        response_object.description = "Auto-generated response schema";
-        response_object.content[content_type].schema =
-          add_schema_component<T>();
-      }
-
-      template <typename T>
-      inline nlohmann::json add_schema_component()
+      nlohmann::json add_schema_component()
       {
         nlohmann::json schema;
         if constexpr (nonstd::is_specialization<T, std::optional>::value)
@@ -359,29 +187,41 @@ namespace ds
         {
           schema["type"] = "array";
           schema["items"] = add_schema_component<typename T::value_type>();
-          return schema;
+
+          return add_schema_to_components(
+            document, ds::json::schema_name<T>(), schema);
         }
         else if constexpr (
           nonstd::is_specialization<T, std::map>::value ||
           nonstd::is_specialization<T, std::unordered_map>::value)
         {
           // Nlohmann serialises maps to an array of (K, V) pairs
-          // TODO: Unless the keys are strings!
-          schema["type"] = "array";
-          auto items = nlohmann::json::object();
+          if (std::is_same<typename T::key_type, std::string>::value)
           {
-            items["type"] = "array";
-
-            auto sub_items = nlohmann::json::array();
-            // TODO: OpenAPI doesn't like this tuple for "items", even though
-            // its valid JSON schema. Maybe fixed in a newer spec version?
-            sub_items.push_back(add_schema_component<typename T::key_type>());
-            sub_items.push_back(
-              add_schema_component<typename T::mapped_type>());
-            items["items"] = sub_items;
+            // ...unless the keys are strings!
+            schema["type"] = "object";
+            schema["additionalProperties"] =
+              add_schema_component<typename T::mapped_type>();
           }
-          schema["items"] = items;
-          return schema;
+          else
+          {
+            schema["type"] = "array";
+            auto items = nlohmann::json::object();
+            {
+              items["type"] = "array";
+
+              auto sub_items = nlohmann::json::array();
+              // TODO: OpenAPI doesn't like this tuple for "items", even though
+              // its valid JSON schema. Maybe fixed in a newer spec version?
+              sub_items.push_back(add_schema_component<typename T::key_type>());
+              sub_items.push_back(
+                add_schema_component<typename T::mapped_type>());
+              items["items"] = sub_items;
+            }
+            schema["items"] = items;
+          }
+          return add_schema_to_components(
+            document, ds::json::schema_name<T>(), schema);
         }
         else if constexpr (nonstd::is_specialization<T, std::pair>::value)
         {
@@ -390,7 +230,8 @@ namespace ds
           items.push_back(add_schema_component<typename T::first_type>());
           items.push_back(add_schema_component<typename T::second_type>());
           schema["items"] = items;
-          return schema;
+          return add_schema_to_components(
+            document, ds::json::schema_name<T>(), schema);
         }
         else if constexpr (
           std::is_same<T, std::string>::value || std::is_same<T, bool>::value ||
@@ -403,17 +244,95 @@ namespace ds
           std::is_same<T, nlohmann::json>::value)
         {
           ds::json::fill_schema<T>(schema);
-          return add_schema_to_components(ds::json::schema_name<T>(), schema);
+          return add_schema_to_components(
+            document, ds::json::schema_name<T>(), schema);
         }
         else
         {
-          return ds::json::adl::add_schema_to_components<T>(*this);
+          const auto name = ds::json::adl::schema_name<T>();
+
+          auto& components = access::get_object(document, "components");
+          auto& schemas = access::get_object(components, "schemas");
+
+          const auto ib = schemas.emplace(name, nlohmann::json::object());
+          if (ib.second)
+          {
+            auto& j = ib.first.value();
+            // Use argument-dependent-lookup to call correct functions
+            T t;
+            add_schema_components(*this, j, t);
+          }
+
+          return components_ref_object(name);
         }
       }
     };
-    DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Document);
-    DECLARE_JSON_REQUIRED_FIELDS(Document, openapi, info, paths);
-    DECLARE_JSON_OPTIONAL_FIELDS(Document, servers, components);
+
+    static inline void add_request_body_schema(
+      nlohmann::json& document,
+      const std::string& uri,
+      http_method verb,
+      const std::string& content_type,
+      const std::string& schema_name,
+      const nlohmann::json& schema_)
+    {
+      check_path_valid(uri);
+
+      auto& rb = request_body(path_operation(path(document, uri), verb));
+      rb["description"] = "Auto-generated request body schema";
+
+      schema(media_type(rb, content_type)) =
+        add_schema_to_components(document, schema_name, schema_);
+    }
+
+    template <typename T>
+    static inline void add_request_body_schema(
+      nlohmann::json& document,
+      const std::string& uri,
+      http_method verb,
+      const std::string& content_type)
+    {
+      check_path_valid(uri);
+
+      auto& rb = request_body(path_operation(path(document, uri), verb));
+      rb["description"] = "Auto-generated request body schema";
+
+      SchemaHelper sh{document};
+      schema(media_type(rb, content_type)) = sh.add_schema_component<T>();
+    }
+
+    static inline void add_response_schema(
+      nlohmann::json& document,
+      const std::string& uri,
+      http_method verb,
+      http_status status,
+      const std::string& content_type,
+      const std::string& schema_name,
+      const nlohmann::json& schema_)
+    {
+      check_path_valid(uri);
+
+      auto& r = response(path_operation(path(document, uri), verb), status);
+
+      schema(media_type(r, content_type)) =
+        add_schema_to_components(document, schema_name, schema_);
+    }
+
+    template <typename T>
+    static inline void add_response_schema(
+      nlohmann::json& document,
+      const std::string& uri,
+      http_method verb,
+      http_status status,
+      const std::string& content_type)
+    {
+      check_path_valid(uri);
+
+      auto& r = response(path_operation(path(document, uri), verb), status);
+
+      SchemaHelper sh{document};
+      schema(media_type(r, content_type)) = sh.add_schema_component<T>();
+    }
   }
 }
 

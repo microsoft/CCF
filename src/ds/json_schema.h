@@ -120,15 +120,23 @@ namespace ds
         nonstd::is_specialization<T, std::map>::value ||
         nonstd::is_specialization<T, std::unordered_map>::value)
       {
-        return fmt::format(
-          "{}_to_{}",
-          schema_name<typename T::key_type>(),
-          schema_name<typename T::mapped_type>());
+        if (std::is_same<typename T::key_type, std::string>::value)
+        {
+          return fmt::format(
+            "named_{}", schema_name<typename T::mapped_type>());
+        }
+        else
+        {
+          return fmt::format(
+            "{}_to_{}",
+            schema_name<typename T::key_type>(),
+            schema_name<typename T::mapped_type>());
+        }
       }
       else if constexpr (nonstd::is_specialization<T, std::pair>::value)
       {
         return fmt::format(
-          "{}_to_{}",
+          "{}_and_{}",
           schema_name<typename T::first_type>(),
           schema_name<typename T::second_type>());
       }
