@@ -660,6 +660,7 @@ def run(args):
         network = test_primary(network, args)
         network = test_metrics(network, args)
 
+
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
