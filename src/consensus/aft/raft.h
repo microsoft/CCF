@@ -722,7 +722,7 @@ namespace aft
             store->deserialise(entry, public_only, &sig_term);
         }
 
-        LOG_INFO_FMT("11111111 sig_term:{}", sig_term);
+        LOG_INFO_FMT("11111111 sig_term:{}, deserialize_success:{}", sig_term, deserialise_success);
 
         bool globally_committable =
           (deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
@@ -782,11 +782,15 @@ namespace aft
       send_append_entries_response(r.from_node, true);
       if (consensus_type == ConsensusType::BFT && is_follower())
       {
+        commit_if_possible(r.leader_commit_idx);
+        /*
         store->compact(state->last_idx);
+        // TODO: fix this
         if(state->last_idx > 5)
         {
           state->commit_idx = state->last_idx -1;
         }
+        */
       }
       else
       {

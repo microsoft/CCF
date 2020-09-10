@@ -64,7 +64,6 @@ namespace aft
     ctx->execute_on_node = true;
     ctx->set_apply_writes(true);
 
-    LOG_INFO_FMT("PPPPPPPP");
     enclave::RpcHandler::ProcessPbftResp rep = frontend->process_pbft(ctx);
 
     frontend->update_merkle_tree();
@@ -114,7 +113,6 @@ namespace aft
     auto request_message = RequestMessage::deserialize(
       std::move(request.raw), request.rid, std::move(ctx), nullptr);
 
-    LOG_INFO_FMT("111111");
     return execute_request(std::move(request_message), state->commit_idx == 0);
   }
 }
