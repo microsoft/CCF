@@ -507,11 +507,7 @@ namespace aft
     Term get_term_internal(Index idx)
     {
       if (idx > state->last_idx)
-      {
-        LOG_INFO_FMT(
-          "Unknown term idx:{}, state->last_idx:{}", idx, state->last_idx);
         return ccf::VIEW_UNKNOWN;
-      }
 
       return state->view_history.term_at(idx);
     }
@@ -746,10 +742,6 @@ namespace aft
 
             if (sig_term)
             {
-              if (consensus_type == ConsensusType::BFT)
-              {
-                state->last_idx = i;
-              }
               state->view_history.update(state->commit_idx + 1, sig_term);
               commit_if_possible(r.leader_commit_idx);
             }
@@ -761,8 +753,6 @@ namespace aft
             if (consensus_type == ConsensusType::BFT)
             {
               state->last_idx = executor->commit_replayed_request(tx);
-              LOG_INFO_FMT(
-                "setting last_idx after replay to {}", state->last_idx);
             }
             break;
           }

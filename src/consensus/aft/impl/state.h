@@ -61,8 +61,6 @@ namespace aft
       // Indices before the version of the first view are unknown
       if (it == views.begin())
       {
-        LOG_INFO_FMT("Unknown view idx:{}", idx);
-        LOG_INFO_FMT("current views: {}", fmt::join(views, ", "));
         return InvalidView;
       }
 
