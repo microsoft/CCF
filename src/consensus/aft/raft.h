@@ -461,9 +461,7 @@ namespace aft
       }
       else
       {
-        if (
-          replica_state != Retired && timeout_elapsed >= election_timeout &&
-          consensus_type != ConsensusType::BFT)
+        if (replica_state != Retired && timeout_elapsed >= election_timeout)
         {
           // Start an election.
           become_candidate();
