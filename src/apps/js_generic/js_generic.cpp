@@ -575,7 +575,7 @@ namespace ccfapp
         else
         {
           const char* cstr = nullptr;
-          if (JS_IsString(val))
+          if (JS_IsString(response_body_js))
           {
             args.rpc_ctx->set_response_header(
               http::headers::CONTENT_TYPE,

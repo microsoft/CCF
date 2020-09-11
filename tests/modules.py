@@ -196,7 +196,7 @@ def test_npm_app(network, args):
 
         r = c.post("/app/npm/proto", body)
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.headers['content-type'] == 'application/x-protobuf'
+        assert r.headers["content-type"] == "application/x-protobuf"
         # We could now decode the protobuf message but given all the machinery
         # involved to make it happen (code generation with protoc) we'll leave it at that.
         assert len(r.body) == 14, len(r.body)

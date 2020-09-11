@@ -17,7 +17,7 @@ return {{
     {{
       // Header names become lower-case
       const auth = request.headers['authorization'];
-      return {{ body: auth === '{AUTH_VALUE}' };
+      return {{ body: auth === '{AUTH_VALUE}' }};
     }}
   ]]
 }}
