@@ -3,7 +3,7 @@
 # Licensed under the Apache 2.0 License.
 set -ex
 
-# This onlt checks that the following commands do not throw errors.
+# This only checks that the following commands do not throw errors.
 # It is expected that other tests cover correctness of the generated
 # proposals, this just checks the basic usability of the CLI.
 
