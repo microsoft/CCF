@@ -742,11 +742,12 @@ namespace aft
               {
                 state->last_idx = i;
               }
+              state->view_history.update(state->commit_idx + 1, sig_term);
               commit_if_possible(r.leader_commit_idx);
               //state->view_history.update(state->commit_idx + 1, sig_term);
-              state->view_history.update(i, r.term_of_idx);
+              //state->view_history.update(i, r.term_of_idx);
             }
-            state->view_history.update(i, r.term_of_idx);
+            //state->view_history.update(i, r.term_of_idx);
             break;
           }
 
