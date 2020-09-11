@@ -153,6 +153,10 @@ namespace aft
 
     {
       leader_id = NoNode;
+      if (consensus_type == ConsensusType::BFT)
+      {
+        state->view_history.update(1, 1);
+      }
     }
 
     NodeId leader()
@@ -740,15 +744,13 @@ namespace aft
 
             if (sig_term)
             {
+              state->view_history.update(state->commit_idx + 1, sig_term);
               if (consensus_type == ConsensusType::BFT)
               {
                 state->last_idx = i;
               }
               commit_if_possible(r.leader_commit_idx);
-              //state->view_history.update(state->commit_idx + 1, sig_term);
-              state->view_history.update(i, r.term_of_idx);
             }
-            state->view_history.update(i, r.term_of_idx);
             break;
           }
 
@@ -759,7 +761,6 @@ namespace aft
               state->last_idx = executor->commit_replayed_request(tx);
               LOG_INFO_FMT("setting last_idx after replay to {}", state->last_idx);
             }
-            state->view_history.update(i, r.term_of_idx);
             break;
           }
 
