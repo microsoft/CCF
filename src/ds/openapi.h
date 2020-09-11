@@ -73,7 +73,7 @@ namespace ds
     static inline nlohmann::json& path(
       nlohmann::json& document, const std::string& path)
     {
-      // TODO: Check that path starts with /?
+      check_path_valid(path);
       auto& paths = access::get_object(document, "paths");
       return access::get_object(paths, path);
     }

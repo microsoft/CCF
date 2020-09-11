@@ -134,7 +134,6 @@ namespace ccf
 
   struct GetAPI
   {
-    // TODO: What is the format of this now?
     using Out = nlohmann::json;
   };
 

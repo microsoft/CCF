@@ -23,6 +23,8 @@ def run(args):
     os.makedirs(args.schema_dir, exist_ok=True)
 
     changed_files = []
+    methods_with_schema = set()
+    methods_without_schema = set()
     old_schema = set(
         os.path.join(dir_path, filename)
         for dir_path, _, filenames in os.walk(args.schema_dir)
@@ -42,26 +44,74 @@ def run(args):
         paths = api_response.body["paths"]
         all_methods.extend([key for key in paths.keys()])
 
-        formatted_schema = json.dumps(api_response.body, indent=2)
+        # Fetch the schema of each method
+        for method, _ in paths.items():
+            schema_found = False
+            expected_method_prefix = f"/{prefix}/"
+            if method.startswith(expected_method_prefix):
+                method = method[len(expected_method_prefix):]
+            schema_response = client.get(f'/{prefix}/api/schema?method="{method}"')
+            check(
+                schema_response,
+                error=lambda status, msg: status == http.HTTPStatus.OK.value,
+            )
 
-        target_file = os.path.join(args.schema_dir, f"{prefix}.json")
+            if schema_response.body is not None:
+                for verb, schema_element in schema_response.body.items():
+                    for schema_type in ["params", "result"]:
+                        element_name = "{}_schema".format(schema_type)
+                        element = schema_element[element_name]
+                        target_file = build_schema_file_path(
+                            args.schema_dir, verb, method, schema_type
+                        )
+                        if element is not None and len(element) != 0:
+                            try:
+                                old_schema.remove(target_file)
+                            except KeyError:
+                                pass
+                            schema_found = True
+                            formatted_schema = json.dumps(element, indent=2)
+                            os.makedirs(os.path.dirname(target_file), exist_ok=True)
+                            with open(target_file, "a+") as f:
+                                f.seek(0)
+                                previous = f.read()
+                                if previous != formatted_schema:
+                                    LOG.debug(
+                                        "Writing schema to {}".format(target_file)
+                                    )
+                                    f.truncate(0)
+                                    f.seek(0)
+                                    f.write(formatted_schema)
+                                    changed_files.append(target_file)
+                                else:
+                                    LOG.debug(
+                                        "Schema matches in {}".format(target_file)
+                                    )
+
+            if schema_found:
+                methods_with_schema.add(method)
+            else:
+                methods_without_schema.add(method)
+
+        formatted_schema = json.dumps(api_response.body, indent=2)
+        openapi_target_file = os.path.join(args.schema_dir, f"{prefix}_openapi.json")
 
         try:
-            old_schema.remove(target_file)
+            old_schema.remove(openapi_target_file)
         except KeyError:
             pass
 
-        with open(target_file, "a+") as f:
+        with open(openapi_target_file, "a+") as f:
             f.seek(0)
             previous = f.read()
             if previous != formatted_schema:
-                LOG.debug("Writing schema to {}".format(target_file))
+                LOG.debug("Writing schema to {}".format(openapi_target_file))
                 f.truncate(0)
                 f.seek(0)
                 f.write(formatted_schema)
-                changed_files.append(target_file)
+                changed_files.append(openapi_target_file)
             else:
-                LOG.debug("Schema matches in {}".format(target_file))
+                LOG.debug("Schema matches in {}".format(openapi_target_file))
 
         try:
             openapi_spec_validator.validate_spec(api_response.body)

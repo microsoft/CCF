@@ -77,4 +77,14 @@ namespace nonstd
       return std::tolower(c);
     });
   }
+
+  static inline std::string remove_prefix(const std::string& s, const std::string& prefix)
+  {
+    if (s.find(prefix) == 0)
+    {
+      return s.substr(prefix.size());
+    }
+
+    return s;
+  }
 }
