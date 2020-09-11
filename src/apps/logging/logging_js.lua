@@ -11,11 +11,11 @@ return {
         if (k == "id") {
           try
           {
-            return {msg: tables.data.get(JSON.parse(v).toString())};
+            return { body: {msg: tables.data.get(JSON.parse(v).toString())} };
           }
           catch (err)
           {
-            return {error: err.message}
+            return { body: {error: err.message} };
           }
         }
       }
@@ -32,11 +32,11 @@ return {
         if (k == "id") {
           try
           {
-            return {msg: tables.data.get(JSON.parse(v).toString())};
+            return { body: {msg: tables.data.get(JSON.parse(v).toString())} };
           }
           catch (err)
           {
-            return {error: err.message}
+            return { body: {error: err.message} }
           }
         }
       }
@@ -49,7 +49,7 @@ return {
     {
       let params = request.body.json();
       tables.data.put(params.id.toString(), params.msg);
-      return true;
+      return { body: true };
     }
   ]],
 
@@ -58,7 +58,7 @@ return {
     {
       let params = request.body.json();
       tables.data.put(params.id.toString(), params.msg);
-      return true;
+      return { body: true };
     }
   ]],
 
@@ -69,7 +69,7 @@ return {
       for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
-          return tables.data.remove(JSON.parse(v).toString());
+          return { body: tables.data.remove(JSON.parse(v).toString()) };
         }
       }
       throw "Could not find 'id' in query";
@@ -83,7 +83,7 @@ return {
       for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
-          return tables.data.remove(JSON.parse(v).toString());
+          return { body: tables.data.remove(JSON.parse(v).toString()) };
         }
       }
       throw "Could not find 'id' in query";

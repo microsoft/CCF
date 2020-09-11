@@ -3,30 +3,35 @@ import * as rs  from 'jsrsasign';
 // Importing the browser bundle works around https://github.com/protobufjs/protobuf.js/issues/1402.
 import protobuf from 'protobufjs/dist/protobuf.js'
 
-interface CCFBody {
+interface CCFBody<T> {
     text: () => string
-    json: () => any
+    json: () => T
     arrayBuffer: () => ArrayBuffer
 };
-interface CCFRequest {
+interface CCFRequest<T=any> {
     headers: { [key: string]: string; }
     params: { [key: string]: string; }
     query: string
-    body: CCFBody
+    body: CCFBody<T>
+}
+interface CCFResponse<T=any> {
+    statusCode?: number
+    headers?: { [key: string]: string; }
+    body?: T
 }
 
-type PartitionRequest = [any]
+type PartitionRequest = any[]
 type PartitionResponse = [any[], any[]]
 
-export function partition(request: CCFRequest): PartitionResponse {
+export function partition(request: CCFRequest<PartitionRequest>): CCFResponse<PartitionResponse> {
     // Example from https://lodash.com.
-    let arr: PartitionRequest = request.body.json();
-    return _.partition(arr, n => n % 2);
+    let arr = request.body.json();
+    return { body: _.partition(arr, n => n % 2) };
 }
 
 type ProtoResponse = Uint8Array
 
-export function proto(request: CCFRequest): ProtoResponse {
+export function proto(request: CCFRequest): CCFResponse<ProtoResponse> {
     // Example from https://github.com/protobufjs/protobuf.js.
     let Type  = protobuf.Type;
     let Field = protobuf.Field;
@@ -35,20 +40,22 @@ export function proto(request: CCFRequest): ProtoResponse {
     
     let message = AwesomeMessage.create({ awesomeField: request.body.text() });
     let arr = AwesomeMessage.encode(message).finish();
-    return arr;
+    return { 
+        body: arr,
+        headers: {
+            'content-type': 'application/x-protobuf'
+        }
+    };
 }
 
 interface CryptoResponse {
     available: boolean
 }
 
-export function crypto(request: CCFRequest): CryptoResponse {
+export function crypto(request: CCFRequest): CCFResponse<CryptoResponse> {
     // Most functionality of jsrsasign requires keys.
     // Generating a key here is too slow, so we'll just check if the
     // JS API got exported correctly.
-    if (rs.KEYUTIL.generateKeypair) {
-        return { available: true };
-    } else {
-        return { available: false };
-    }
+    let available = rs.KEYUTIL.generateKeypair ? true : false;
+    return { body: { available: available } };
 }

@@ -42,7 +42,7 @@ return {
     import {bar} from "./app/bar.js";
     export default function()
     {
-      return bar();
+      return { body: bar(), statusCode: 201 };
     }
   ]]
 }
@@ -154,7 +154,7 @@ def test_module_import(network, args):
 
     with primary.client("user0") as c:
         r = c.post("/app/test_module", {})
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.status_code == http.HTTPStatus.CREATED, r.status_code
         assert r.body == MODULE_RETURN_1
 
     return network
@@ -196,6 +196,7 @@ def test_npm_app(network, args):
 
         r = c.post("/app/npm/proto", body)
         assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.headers['content-type'] == 'application/x-protobuf'
         # We could now decode the protobuf message but given all the machinery
         # involved to make it happen (code generation with protoc) we'll leave it at that.
         assert len(r.body) == 14, len(r.body)

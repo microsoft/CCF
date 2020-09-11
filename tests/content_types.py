@@ -19,7 +19,7 @@ return {
       const text = request.body.text();
       if (text !== 'text')
         throw new Error('unexpected body: ' + text);
-      return 'text';
+      return { body: 'text' };
     }
   ]],
   ["POST json"] = [[
@@ -30,7 +30,7 @@ return {
       const obj = request.body.json();
       if (obj.foo !== 'bar')
         throw new Error('unexpected body: ' + obj);
-      return { foo: 'bar' };
+      return { body: { foo: 'bar' } };
     }
   ]],
   ["POST binary"] = [[
@@ -41,7 +41,7 @@ return {
       const buf = request.body.arrayBuffer();
       if (buf.byteLength !== 42)
         throw new Error(`unexpected body size: ${buf.byteLength}`);
-      return new ArrayBuffer(42);
+      return { body: new ArrayBuffer(42) };
     }
   ]],
   ["POST custom"] = [[
@@ -52,7 +52,7 @@ return {
       const text = request.body.text();
       if (text !== 'text')
         throw new Error('unexpected body: ' + text);
-      return 'text';
+      return { body: 'text' };
     }
   ]]
 }
