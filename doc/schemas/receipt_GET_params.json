@@ -1,0 +1,14 @@
+{
+  "properties": {
+    "commit": {
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "commit"
+  ],
+  "title": "receipt/params",
+  "type": "object"
+}

@@ -1,0 +1,17 @@
+{
+  "properties": {
+    "status": {
+      "enum": [
+        "UNKNOWN",
+        "PENDING",
+        "COMMITTED",
+        "INVALID"
+      ]
+    }
+  },
+  "required": [
+    "status"
+  ],
+  "title": "tx/result",
+  "type": "object"
+}

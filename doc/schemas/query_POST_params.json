@@ -1,0 +1,17 @@
+{
+  "properties": {
+    "bytecode": {
+      "items": {
+        "maximum": 255,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "type": "array"
+    },
+    "text": {
+      "type": "string"
+    }
+  },
+  "title": "query/params",
+  "type": "object"
+}

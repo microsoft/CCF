@@ -1,0 +1,12 @@
+{
+  "properties": {
+    "method": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "method"
+  ],
+  "title": "api/schema/params",
+  "type": "object"
+}

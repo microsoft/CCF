@@ -1,0 +1,16 @@
+{
+  "properties": {
+    "id": {
+      "type": "number"
+    },
+    "msg": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "msg"
+  ],
+  "title": "log/public/params",
+  "type": "object"
+}

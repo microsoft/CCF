@@ -1,0 +1,12 @@
+{
+  "properties": {
+    "id": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "title": "log/public/params",
+  "type": "object"
+}

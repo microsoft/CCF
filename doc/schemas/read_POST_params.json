@@ -1,0 +1,14 @@
+{
+  "properties": {
+    "key": {},
+    "table": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "table",
+    "key"
+  ],
+  "title": "read/params",
+  "type": "object"
+}
