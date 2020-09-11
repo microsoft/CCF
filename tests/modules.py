@@ -54,15 +54,15 @@ NPM_APP_SCRIPT = """
 return {
   ["POST npm/partition"] = [[
     import {partition} from "./my-npm-app/src/endpoints.js";
-    export default () => partition();
+    export default (request) => partition(request);
   ]],
   ["POST npm/proto"] = [[
     import {proto} from "./my-npm-app/src/endpoints.js";
-    export default () => proto();
+    export default (request) => proto(request);
   ]],
   ["GET npm/crypto"] = [[
     import {crypto} from "./my-npm-app/src/endpoints.js";
-    export default () => crypto();
+    export default (request) => crypto(request);
   ]]
 }
 """

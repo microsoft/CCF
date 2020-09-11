@@ -12,44 +12,44 @@ import suite.test_requirements as reqs
 APP_SCRIPT = """
 return {
   ["POST text"] = [[
-    export default function()
+    export default function(request)
     {
-      if (headers['content-type'] !== 'text/plain')
-        throw new Error('unexpected content-type: ' + headers['content-type']);
-      const text = body.text();
+      if (request.headers['content-type'] !== 'text/plain')
+        throw new Error('unexpected content-type: ' + request.headers['content-type']);
+      const text = request.body.text();
       if (text !== 'text')
         throw new Error('unexpected body: ' + text);
       return 'text';
     }
   ]],
   ["POST json"] = [[
-    export default function()
+    export default function(request)
     {
-      if (headers['content-type'] !== 'application/json')
-        throw new Error('unexpected content type: ' + headers['content-type']);
-      const obj = body.json();
+      if (request.headers['content-type'] !== 'application/json')
+        throw new Error('unexpected content type: ' + request.headers['content-type']);
+      const obj = request.body.json();
       if (obj.foo !== 'bar')
         throw new Error('unexpected body: ' + obj);
       return { foo: 'bar' };
     }
   ]],
   ["POST binary"] = [[
-    export default function()
+    export default function(request)
     {
-      if (headers['content-type'] !== 'application/octet-stream')
-        throw new Error('unexpected content type: ' + headers['content-type']);
-      const buf = body.arrayBuffer();
+      if (request.headers['content-type'] !== 'application/octet-stream')
+        throw new Error('unexpected content type: ' + request.headers['content-type']);
+      const buf = request.body.arrayBuffer();
       if (buf.byteLength !== 42)
         throw new Error(`unexpected body size: ${buf.byteLength}`);
       return new ArrayBuffer(42);
     }
   ]],
   ["POST custom"] = [[
-    export default function()
+    export default function(request)
     {
-      if (headers['content-type'] !== 'foo/bar')
-        throw new Error('unexpected content type: ' + headers['content-type']);
-      const text = body.text();
+      if (request.headers['content-type'] !== 'foo/bar')
+        throw new Error('unexpected content type: ' + request.headers['content-type']);
+      const text = request.body.text();
       if (text !== 'text')
         throw new Error('unexpected body: ' + text);
       return 'text';

@@ -433,6 +433,8 @@ namespace ccfapp
         JS_SetOpaque(tables_, &args.tx);
         JS_SetPropertyStr(ctx, global_obj, "tables", tables_);
 
+        auto request = JS_NewObject(ctx);
+
         auto headers = JS_NewObject(ctx);
         for (auto& [header_name, header_value] :
              args.rpc_ctx->get_request_headers())
@@ -443,17 +445,29 @@ namespace ccfapp
             header_name.c_str(),
             JS_NewStringLen(ctx, header_value.c_str(), header_value.size()));
         }
-        JS_SetPropertyStr(ctx, global_obj, "headers", headers);
+        JS_SetPropertyStr(ctx, request, "headers", headers);
 
         const auto& request_query = args.rpc_ctx->get_request_query();
         auto query_str =
           JS_NewStringLen(ctx, request_query.c_str(), request_query.size());
-        JS_SetPropertyStr(ctx, global_obj, "query", query_str);
+        JS_SetPropertyStr(ctx, request, "query", query_str);
+
+        auto params = JS_NewObject(ctx);
+        for (auto& [param_name, param_value] :
+             args.rpc_ctx->get_request_path_params())
+        {
+          JS_SetPropertyStr(
+            ctx,
+            params,
+            param_name.c_str(),
+            JS_NewStringLen(ctx, param_value.c_str(), param_value.size()));
+        }
+        JS_SetPropertyStr(ctx, request, "params", params);
 
         const auto& request_body = args.rpc_ctx->get_request_body();
         auto body_ = JS_NewObjectClass(ctx, body_class_id);
         JS_SetOpaque(body_, (void*)&request_body);
-        JS_SetPropertyStr(ctx, global_obj, "body", body_);
+        JS_SetPropertyStr(ctx, request, "body", body_);
 
         JS_FreeValue(ctx, global_obj);
 
@@ -507,9 +521,10 @@ namespace ccfapp
         }
 
         // Call exported function
-        int argc = 0;
-        JSValueConst* argv = nullptr;
+        int argc = 1;
+        JSValueConst* argv = (JSValueConst *)&request;
         auto val = JS_Call(ctx, export_func, JS_UNDEFINED, argc, argv);
+        JS_FreeValue(ctx, request);
         JS_FreeValue(ctx, export_func);
 
         if (JS_IsException(val))

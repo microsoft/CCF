@@ -3,9 +3,9 @@
 
 return {
   ["GET log/private"] = [[
-    export default function()
+    export default function(request)
     {
-      const elements = query.split("&");
+      const elements = request.query.split("&");
       for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
@@ -24,9 +24,9 @@ return {
   ]],
 
   ["GET log/public"] = [[
-    export default function()
+    export default function(request)
     {
-      const elements = query.split("&");
+      const elements = request.query.split("&");
       for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
@@ -45,27 +45,27 @@ return {
   ]],
 
   ["POST log/private"] = [[
-    export default function()
+    export default function(request)
     {
-      let params = body.json();
+      let params = request.body.json();
       tables.data.put(params.id.toString(), params.msg);
       return true;
     }
   ]],
 
   ["POST log/public"] = [[
-    export default function()
+    export default function(request)
     {
-      let params = body.json();
+      let params = request.body.json();
       tables.data.put(params.id.toString(), params.msg);
       return true;
     }
   ]],
 
   ["DELETE log/public"] = [[
-    export default function()
+    export default function(request)
     {
-      const elements = query.split("&");
+      const elements = request.query.split("&");
       for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
@@ -77,9 +77,9 @@ return {
   ]],
 
   ["DELETE log/private"] = [[
-    export default function()
+    export default function(request)
     {
-      const elements = query.split("&");
+      const elements = request.query.split("&");
       for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {

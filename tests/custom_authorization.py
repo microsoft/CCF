@@ -13,10 +13,10 @@ AUTH_VALUE = "Bearer 42"
 APP_SCRIPT = f"""
 return {{
   ["GET custom_auth"] = [[
-    export default function()
+    export default function(request)
     {{
       // Header names become lower-case
-      const auth = headers['authorization'];
+      const auth = request.headers['authorization'];
       return auth === '{AUTH_VALUE}';
     }}
   ]]
