@@ -746,6 +746,17 @@ namespace kv
         {
           success = DeserialiseSuccess::PASS_NEW_VIEW;
         }
+        else if (views.find("ccf.signatures") != views.end())
+        {
+          success = commit_deserialised(views, v, new_maps);
+          if (success == DeserialiseSuccess::FAILED)
+          {
+            return success;
+          }
+          auto h = get_history();
+          h->append(data.data(), data.size());
+          success = DeserialiseSuccess::PASS_SIGNATURE;
+        }
         else if (views.find("ccf.pbft.requests") == views.end())
         {
           // we have deserialised an entry that didn't belong to the pbft

@@ -153,6 +153,13 @@ namespace aft
 
     {
       leader_id = NoNode;
+
+      if (consensus_type == ConsensusType::BFT)
+      {
+        // Initialize view history for bft. We start on view 2 and the first
+        // commit is always 1.
+        state->view_history.update(1, 2);
+      }
     }
 
     NodeId leader()
@@ -280,6 +287,10 @@ namespace aft
 
     std::pair<Term, Index> get_commit_term_and_idx()
     {
+      if (consensus_type == ConsensusType::BFT && is_follower())
+      {
+        return {get_term_internal(state->commit_idx), state->commit_idx};
+      }
       std::lock_guard<SpinLock> guard(state->lock);
       return {get_term_internal(state->commit_idx), state->commit_idx};
     }
@@ -760,14 +771,7 @@ namespace aft
       }
 
       send_append_entries_response(r.from_node, true);
-      if (consensus_type == ConsensusType::BFT && is_follower())
-      {
-        store->compact(state->last_idx);
-      }
-      else
-      {
-        commit_if_possible(r.leader_commit_idx);
-      }
+      commit_if_possible(r.leader_commit_idx);
 
       state->view_history.update(state->commit_idx + 1, r.term_of_idx);
     }
