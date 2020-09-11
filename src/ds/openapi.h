@@ -302,6 +302,18 @@ namespace ds
       schema(media_type(rb, content_type)) = sh.add_schema_component<T>();
     }
 
+    static inline void add_request_parameter_schema(
+      nlohmann::json& document,
+      const std::string& uri,
+      http_method verb,
+      const nlohmann::json& param)
+    {
+      check_path_valid(uri);
+
+      auto& params = parameters(path_operation(path(document, uri), verb));
+      params.push_back(param);
+    }
+
     static inline void add_response_schema(
       nlohmann::json& document,
       const std::string& uri,

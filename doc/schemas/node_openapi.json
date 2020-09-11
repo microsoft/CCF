@@ -1,4 +1,460 @@
 {
+  "components": {
+    "schemas": {
+      "GET /node/api response": {
+        "title": "api/result"
+      },
+      "GET /node/api/schema param:method": {
+        "type": "string"
+      },
+      "GET /node/api/schema response": {
+        "properties": {
+          "params_schema": {
+            "type": "object"
+          },
+          "result_schema": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "params_schema",
+          "result_schema"
+        ],
+        "title": "api/schema/result",
+        "type": "object"
+      },
+      "GET /node/code response": {
+        "properties": {
+          "versions": {
+            "items": {
+              "properties": {
+                "digest": {
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "ACCEPTED",
+                    "RETIRED"
+                  ]
+                }
+              },
+              "required": [
+                "digest",
+                "status"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "versions"
+        ],
+        "title": "code/result",
+        "type": "object"
+      },
+      "GET /node/commit response": {
+        "properties": {
+          "seqno": {
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer"
+          },
+          "view": {
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "view",
+          "seqno"
+        ],
+        "title": "commit/result",
+        "type": "object"
+      },
+      "GET /node/endpoint_metrics response": {
+        "properties": {
+          "metrics": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "properties": {
+                  "calls": {
+                    "maximum": 18446744073709551615,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "errors": {
+                    "maximum": 18446744073709551615,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "failures": {
+                    "maximum": 18446744073709551615,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "calls",
+                  "errors",
+                  "failures"
+                ],
+                "type": "object"
+              },
+              "type": "object"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "metrics"
+        ],
+        "title": "endpoint_metrics/result",
+        "type": "object"
+      },
+      "GET /node/metrics response": {
+        "properties": {
+          "histogram": {
+            "properties": {
+              "buckets": {},
+              "high": {
+                "maximum": 2147483647,
+                "minimum": -2147483648,
+                "type": "integer"
+              },
+              "low": {
+                "maximum": 2147483647,
+                "minimum": -2147483648,
+                "type": "integer"
+              },
+              "overflow": {
+                "maximum": 18446744073709551615,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "underflow": {
+                "maximum": 18446744073709551615,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "low",
+              "high",
+              "overflow",
+              "underflow",
+              "buckets"
+            ],
+            "type": "object"
+          },
+          "tx_rates": {}
+        },
+        "required": [
+          "histogram",
+          "tx_rates"
+        ],
+        "title": "metrics/result",
+        "type": "object"
+      },
+      "GET /node/network_info response": {
+        "properties": {
+          "nodes": {
+            "items": {
+              "properties": {
+                "host": {
+                  "type": "string"
+                },
+                "node_id": {
+                  "maximum": 18446744073709551615,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "port": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "node_id",
+                "host",
+                "port"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "primary_id": {
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "nodes",
+          "primary_id"
+        ],
+        "title": "network_info/result",
+        "type": "object"
+      },
+      "GET /node/node/ids param:host": {
+        "type": "string"
+      },
+      "GET /node/node/ids param:port": {
+        "type": "string"
+      },
+      "GET /node/node/ids response": {
+        "properties": {
+          "nodes": {
+            "items": {
+              "properties": {
+                "node_id": {
+                  "maximum": 18446744073709551615,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "status": {
+                  "enum": [
+                    "PENDING",
+                    "TRUSTED",
+                    "RETIRED"
+                  ]
+                }
+              },
+              "required": [
+                "node_id",
+                "status"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "nodes"
+        ],
+        "title": "node/ids/result",
+        "type": "object"
+      },
+      "GET /node/primary_info response": {
+        "properties": {
+          "current_view": {
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer"
+          },
+          "primary_host": {
+            "type": "string"
+          },
+          "primary_id": {
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "primary_port": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "primary_id",
+          "primary_host",
+          "primary_port",
+          "current_view"
+        ],
+        "title": "primary_info/result",
+        "type": "object"
+      },
+      "GET /node/quote response": {
+        "properties": {
+          "quotes": {
+            "items": {
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "mrenclave": {
+                  "type": "string"
+                },
+                "node_id": {
+                  "maximum": 18446744073709551615,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "raw": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "node_id",
+                "raw"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "quotes"
+        ],
+        "title": "quote/result",
+        "type": "object"
+      },
+      "GET /node/quotes response": {
+        "properties": {
+          "quotes": {
+            "items": {
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "mrenclave": {
+                  "type": "string"
+                },
+                "node_id": {
+                  "maximum": 18446744073709551615,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "raw": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "node_id",
+                "raw"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "quotes"
+        ],
+        "title": "quotes/result",
+        "type": "object"
+      },
+      "GET /node/receipt param:commit": {
+        "maximum": 9223372036854775807,
+        "minimum": -9223372036854775808,
+        "type": "integer"
+      },
+      "GET /node/receipt response": {
+        "properties": {
+          "receipt": {
+            "items": {
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "receipt"
+        ],
+        "title": "receipt/result",
+        "type": "object"
+      },
+      "GET /node/state response": {
+        "properties": {
+          "id": {
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "last_recovered_seqno": {
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer"
+          },
+          "last_signed_seqno": {
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer"
+          },
+          "recovery_target_seqno": {
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "uninitialized",
+              "initialized",
+              "pending",
+              "partOfPublicNetwork",
+              "partOfNetwork",
+              "readingPublicLedger",
+              "readingPrivateLedger"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "last_signed_seqno"
+        ],
+        "title": "state/result",
+        "type": "object"
+      },
+      "GET /node/tx param:seqno": {
+        "maximum": 9223372036854775807,
+        "minimum": -9223372036854775808,
+        "type": "integer"
+      },
+      "GET /node/tx param:view": {
+        "maximum": 9223372036854775807,
+        "minimum": -9223372036854775808,
+        "type": "integer"
+      },
+      "GET /node/tx response": {
+        "properties": {
+          "status": {
+            "enum": [
+              "UNKNOWN",
+              "PENDING",
+              "COMMITTED",
+              "INVALID"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "tx/result",
+        "type": "object"
+      },
+      "POST /node/receipt/verify :request": {
+        "properties": {
+          "receipt": {
+            "items": {
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "receipt"
+        ],
+        "title": "receipt/verify/params",
+        "type": "object"
+      },
+      "POST /node/receipt/verify response": {
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "valid"
+        ],
+        "title": "receipt/verify/result",
+        "type": "object"
+      }
+    }
+  },
   "info": {
     "description": "Placeholder description",
     "title": "Placeholder title",
@@ -13,11 +469,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "api/result"
+                  "$ref": "#/components/schemas/GET /node/api response"
                 }
               }
             },
-            "description": "Auto-generated"
+            "description": "Default response description"
           }
         }
       }
@@ -30,7 +486,7 @@
             "name": "method",
             "required": false,
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/GET /node/api/schema param:method"
             }
           }
         ],
@@ -39,24 +495,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "params_schema": {
-                      "type": "object"
-                    },
-                    "result_schema": {
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "params_schema",
-                    "result_schema"
-                  ],
-                  "title": "api/schema/result",
-                  "type": "object"
+                  "$ref": "#/components/schemas/GET /node/api/schema response"
                 }
               }
             },
-            "description": "Auto-generated"
+            "description": "Default response description"
           }
         }
       }
@@ -68,38 +511,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "versions": {
-                      "items": {
-                        "properties": {
-                          "digest": {
-                            "type": "string"
-                          },
-                          "status": {
-                            "enum": [
-                              "ACCEPTED",
-                              "RETIRED"
-                            ]
-                          }
-                        },
-                        "required": [
-                          "digest",
-                          "status"
-                        ],
-                        "type": "object"
-                      },
-                      "type": "array"
-                    }
-                  },
-                  "required": [
-                    "versions"
-                  ],
-                  "title": "code/result",
-                  "type": "object"
+                  "$ref": "#/components/schemas/GET /node/code response"
                 }
               }
             },
-            "description": "Auto-generated"
+            "description": "Default response description"
           }
         }
       }
@@ -111,28 +527,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "seqno": {
-                      "maximum": 9223372036854775807,
-                      "minimum": -9223372036854775808,
-                      "type": "integer"
-                    },
-                    "view": {
-                      "maximum": 9223372036854775807,
-                      "minimum": -9223372036854775808,
-                      "type": "integer"
-                    }
-                  },
-                  "required": [
-                    "view",
-                    "seqno"
-                  ],
-                  "title": "commit/result",
-                  "type": "object"
+                  "$ref": "#/components/schemas/GET /node/commit response"
                 }
               }
             },
-            "description": "Auto-generated"
+            "description": "Default response description"
           }
         }
       }
@@ -144,60 +543,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "metrics": {
-                      "additionalProperties": {
-                        "additionalProperties": {
-                          "properties": {
-                            "calls": {
-                              "maximum": 18446744073709551615,
-                              "minimum": 0,
-                              "type": "integer"
-                            },
-                            "errors": {
-                              "maximum": 18446744073709551615,
-                              "minimum": 0,
-                              "type": "integer"
-                            },
-                            "failures": {
-                              "maximum": 18446744073709551615,
-                              "minimum": 0,
-                              "type": "integer"
-                            }
-                          },
-                          "required": [
-                            "calls",
-                            "errors",
-                            "failures"
-                          ],
-                          "type": "object"
-                        },
-                        "type": "object"
-                      },
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "metrics"
-                  ],
-                  "title": "endpoint_metrics/result",
-                  "type": "object"
+                  "$ref": "#/components/schemas/GET /node/endpoint_metrics response"
                 }
               }
             },
-            "description": "Auto-generated"
-          }
-        }
-      }
-    },
-    "/node/join": {
-      "post": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {}
-            },
-            "description": "Auto-generated"
+            "description": "Default response description"
           }
         }
       }
@@ -209,64 +559,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "histogram": {
-                      "properties": {
-                        "buckets": {},
-                        "high": {
-                          "maximum": 2147483647,
-                          "minimum": -2147483648,
-                          "type": "integer"
-                        },
-                        "low": {
-                          "maximum": 2147483647,
-                          "minimum": -2147483648,
-                          "type": "integer"
-                        },
-                        "overflow": {
-                          "maximum": 18446744073709551615,
-                          "minimum": 0,
-                          "type": "integer"
-                        },
-                        "underflow": {
-                          "maximum": 18446744073709551615,
-                          "minimum": 0,
-                          "type": "integer"
-                        }
-                      },
-                      "required": [
-                        "low",
-                        "high",
-                        "overflow",
-                        "underflow",
-                        "buckets"
-                      ],
-                      "type": "object"
-                    },
-                    "tx_rates": {}
-                  },
-                  "required": [
-                    "histogram",
-                    "tx_rates"
-                  ],
-                  "title": "metrics/result",
-                  "type": "object"
+                  "$ref": "#/components/schemas/GET /node/metrics response"
                 }
               }
             },
-            "description": "Auto-generated"
-          }
-        }
-      }
-    },
-    "/node/network": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {}
-            },
-            "description": "Auto-generated"
+            "description": "Default response description"
           }
         }
       }
@@ -278,47 +575,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "nodes": {
-                      "items": {
-                        "properties": {
-                          "host": {
-                            "type": "string"
-                          },
-                          "node_id": {
-                            "maximum": 18446744073709551615,
-                            "minimum": 0,
-                            "type": "integer"
-                          },
-                          "port": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "node_id",
-                          "host",
-                          "port"
-                        ],
-                        "type": "object"
-                      },
-                      "type": "array"
-                    },
-                    "primary_id": {
-                      "maximum": 18446744073709551615,
-                      "minimum": 0,
-                      "type": "integer"
-                    }
-                  },
-                  "required": [
-                    "nodes",
-                    "primary_id"
-                  ],
-                  "title": "network_info/result",
-                  "type": "object"
+                  "$ref": "#/components/schemas/GET /node/network_info response"
                 }
               }
             },
-            "description": "Auto-generated"
+            "description": "Default response description"
           }
         }
       }
@@ -331,7 +592,7 @@
             "name": "host",
             "required": false,
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/GET /node/node/ids param:host"
             }
           },
           {
@@ -339,7 +600,7 @@
             "name": "port",
             "required": false,
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/GET /node/node/ids param:port"
             }
           }
         ],
@@ -348,53 +609,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "nodes": {
-                      "items": {
-                        "properties": {
-                          "node_id": {
-                            "maximum": 18446744073709551615,
-                            "minimum": 0,
-                            "type": "integer"
-                          },
-                          "status": {
-                            "enum": [
-                              "PENDING",
-                              "TRUSTED",
-                              "RETIRED"
-                            ]
-                          }
-                        },
-                        "required": [
-                          "node_id",
-                          "status"
-                        ],
-                        "type": "object"
-                      },
-                      "type": "array"
-                    }
-                  },
-                  "required": [
-                    "nodes"
-                  ],
-                  "title": "node/ids/result",
-                  "type": "object"
+                  "$ref": "#/components/schemas/GET /node/node/ids response"
                 }
               }
             },
-            "description": "Auto-generated"
-          }
-        }
-      }
-    },
-    "/node/primary": {
-      "head": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {}
-            },
-            "description": "Auto-generated"
+            "description": "Default response description"
           }
         }
       }
@@ -406,36 +625,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "current_view": {
-                      "maximum": 9223372036854775807,
-                      "minimum": -9223372036854775808,
-                      "type": "integer"
-                    },
-                    "primary_host": {
-                      "type": "string"
-                    },
-                    "primary_id": {
-                      "maximum": 18446744073709551615,
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "primary_port": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "primary_id",
-                    "primary_host",
-                    "primary_port",
-                    "current_view"
-                  ],
-                  "title": "primary_info/result",
-                  "type": "object"
+                  "$ref": "#/components/schemas/GET /node/primary_info response"
                 }
               }
             },
-            "description": "Auto-generated"
+            "description": "Default response description"
           }
         }
       }
@@ -447,43 +641,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "quotes": {
-                      "items": {
-                        "properties": {
-                          "error": {
-                            "type": "string"
-                          },
-                          "mrenclave": {
-                            "type": "string"
-                          },
-                          "node_id": {
-                            "maximum": 18446744073709551615,
-                            "minimum": 0,
-                            "type": "integer"
-                          },
-                          "raw": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "node_id",
-                          "raw"
-                        ],
-                        "type": "object"
-                      },
-                      "type": "array"
-                    }
-                  },
-                  "required": [
-                    "quotes"
-                  ],
-                  "title": "quote/result",
-                  "type": "object"
+                  "$ref": "#/components/schemas/GET /node/quote response"
                 }
               }
             },
-            "description": "Auto-generated"
+            "description": "Default response description"
           }
         }
       }
@@ -495,43 +657,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "quotes": {
-                      "items": {
-                        "properties": {
-                          "error": {
-                            "type": "string"
-                          },
-                          "mrenclave": {
-                            "type": "string"
-                          },
-                          "node_id": {
-                            "maximum": 18446744073709551615,
-                            "minimum": 0,
-                            "type": "integer"
-                          },
-                          "raw": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "node_id",
-                          "raw"
-                        ],
-                        "type": "object"
-                      },
-                      "type": "array"
-                    }
-                  },
-                  "required": [
-                    "quotes"
-                  ],
-                  "title": "quotes/result",
-                  "type": "object"
+                  "$ref": "#/components/schemas/GET /node/quotes response"
                 }
               }
             },
-            "description": "Auto-generated"
+            "description": "Default response description"
           }
         }
       }
@@ -544,9 +674,7 @@
             "name": "commit",
             "required": false,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/GET /node/receipt param:commit"
             }
           }
         ],
@@ -555,25 +683,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "receipt": {
-                      "items": {
-                        "maximum": 255,
-                        "minimum": 0,
-                        "type": "integer"
-                      },
-                      "type": "array"
-                    }
-                  },
-                  "required": [
-                    "receipt"
-                  ],
-                  "title": "receipt/result",
-                  "type": "object"
+                  "$ref": "#/components/schemas/GET /node/receipt response"
                 }
               }
             },
-            "description": "Auto-generated"
+            "description": "Default response description"
           }
         }
       }
@@ -584,44 +698,22 @@
           "content": {
             "application/json": {
               "schema": {
-                "properties": {
-                  "receipt": {
-                    "items": {
-                      "maximum": 255,
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "type": "array"
-                  }
-                },
-                "required": [
-                  "receipt"
-                ],
-                "title": "receipt/verify/params",
-                "type": "object"
+                "$ref": "#/components/schemas/POST /node/receipt/verify :request"
               }
             }
-          }
+          },
+          "description": "Auto-generated request body schema"
         },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "valid": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "valid"
-                  ],
-                  "title": "receipt/verify/result",
-                  "type": "object"
+                  "$ref": "#/components/schemas/POST /node/receipt/verify response"
                 }
               }
             },
-            "description": "Auto-generated"
+            "description": "Default response description"
           }
         }
       }
@@ -633,50 +725,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "id": {
-                      "maximum": 18446744073709551615,
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "last_recovered_seqno": {
-                      "maximum": 9223372036854775807,
-                      "minimum": -9223372036854775808,
-                      "type": "integer"
-                    },
-                    "last_signed_seqno": {
-                      "maximum": 9223372036854775807,
-                      "minimum": -9223372036854775808,
-                      "type": "integer"
-                    },
-                    "recovery_target_seqno": {
-                      "maximum": 9223372036854775807,
-                      "minimum": -9223372036854775808,
-                      "type": "integer"
-                    },
-                    "state": {
-                      "enum": [
-                        "uninitialized",
-                        "initialized",
-                        "pending",
-                        "partOfPublicNetwork",
-                        "partOfNetwork",
-                        "readingPublicLedger",
-                        "readingPrivateLedger"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "state",
-                    "last_signed_seqno"
-                  ],
-                  "title": "state/result",
-                  "type": "object"
+                  "$ref": "#/components/schemas/GET /node/state response"
                 }
               }
             },
-            "description": "Auto-generated"
+            "description": "Default response description"
           }
         }
       }
@@ -689,9 +742,7 @@
             "name": "seqno",
             "required": false,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/GET /node/tx param:seqno"
             }
           },
           {
@@ -699,9 +750,7 @@
             "name": "view",
             "required": false,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/GET /node/tx param:view"
             }
           }
         ],
@@ -710,25 +759,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "status": {
-                      "enum": [
-                        "UNKNOWN",
-                        "PENDING",
-                        "COMMITTED",
-                        "INVALID"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "status"
-                  ],
-                  "title": "tx/result",
-                  "type": "object"
+                  "$ref": "#/components/schemas/GET /node/tx response"
                 }
               }
             },
-            "description": "Auto-generated"
+            "description": "Default response description"
           }
         }
       }

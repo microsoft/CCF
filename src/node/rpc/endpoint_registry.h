@@ -442,6 +442,76 @@ namespace ccf
       return default_endpoint.value();
     }
 
+    static void add_endpoint_to_api_document(
+      nlohmann::json& document,
+      const std::string& path,
+      RESTVerb verb,
+      const Endpoint& endpoint)
+    {
+      const auto http_verb = verb.get_http_method();
+      if (!http_verb.has_value())
+      {
+        // Non-HTTP (ie WebSockets) endpoints are not documented
+        return;
+      }
+
+      // Temporary: All elements get verbose unique names so they can be stored
+      // in components
+      const auto verbose_name = fmt::format("{} {}", verb.c_str(), path);
+
+      if (!endpoint.params_schema.empty())
+      {
+        if (http_verb.value() == HTTP_GET || http_verb.value() == HTTP_DELETE)
+        {
+          // TODO: Should set these as individual parameters, not reparse
+          // them here
+          if (endpoint.params_schema["type"] != "object")
+          {
+            throw std::logic_error(fmt::format(
+              "Unexpected params schema type: {}",
+              endpoint.params_schema.dump()));
+          }
+
+          const auto& required_parameters = endpoint.params_schema["required"];
+          for (const auto& [name, schema] :
+               endpoint.params_schema["properties"].items())
+          {
+            auto parameter = nlohmann::json::object();
+            parameter["name"] = name;
+            parameter["in"] = "query";
+            parameter["required"] =
+              required_parameters.find(name) != required_parameters.end();
+            parameter["schema"] = ds::openapi::add_schema_to_components(
+              document, fmt::format("{} param:{}", verbose_name, name), schema);
+            ds::openapi::add_request_parameter_schema(
+              document, path, http_verb.value(), parameter);
+          }
+        }
+        else
+        {
+          ds::openapi::add_request_body_schema(
+            document,
+            path,
+            http_verb.value(),
+            http::headervalues::contenttype::JSON,
+            fmt::format("{} :request", verbose_name),
+            endpoint.params_schema);
+        }
+      }
+
+      if (!endpoint.result_schema.empty())
+      {
+        ds::openapi::add_response_schema(
+          document,
+          path,
+          http_verb.value(),
+          HTTP_STATUS_OK,
+          http::headervalues::contenttype::JSON,
+          fmt::format("{} response", verbose_name),
+          endpoint.result_schema);
+      }
+    }
+
     /** Populate document with all supported methods
      *
      * This is virtual since derived classes may do their own dispatch
@@ -453,68 +523,23 @@ namespace ccf
       for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
       {
         const auto full_path = fmt::format("/{}/{}", method_prefix, path);
-        auto& path_object = ds::openapi::path(document, full_path);
-        for (const auto& [verb, handler] : verb_endpoints)
+        // auto& path_object = ds::openapi::path(document, full_path);
+        for (const auto& [verb, endpoint] : verb_endpoints)
         {
-          const auto http_verb = verb.get_http_method();
-          if (!http_verb.has_value())
-          {
-            continue;
-          }
-
-          auto& path_operation = ds::openapi::path_operation(path_object, http_verb.value());
-          if (!handler.params_schema.empty())
-          {
-            if (http_verb.value() == HTTP_GET || http_verb.value() == HTTP_DELETE)
-            {
-              // TODO: Should set these as individual parameters, not reparse them here
-              if (handler.params_schema["type"] != "object")
-              {
-                throw std::logic_error(fmt::format("Unexpected params schema type: {}", handler.params_schema.dump()));
-              }
-
-              const auto& required_parameters = handler.params_schema["required"];
-              auto& parameters = ds::openapi::parameters(path_operation);
-              for (const auto& [name, schema]: handler.params_schema["properties"].items())
-              {
-                auto parameter = nlohmann::json::object();
-                parameter["name"] = name;
-                parameter["in"] = "query";
-                parameter["required"] = required_parameters.find(name) != required_parameters.end();
-                parameter["schema"] = schema;
-                parameters.push_back(parameter);
-              }
-            }
-            else
-            {
-              auto& request_body = ds::openapi::request_body(path_operation);
-              auto& request_body_json = ds::openapi::media_type(request_body, http::headervalues::contenttype::JSON);
-              auto& request_body_json_schema = ds::openapi::schema(request_body_json);
-              request_body_json_schema = handler.params_schema;
-            }
-          }
-          
-          auto& response_ok = ds::openapi::response(
-            path_operation, HTTP_STATUS_OK, "Auto-generated");
-          auto& response_ok_json = ds::openapi::media_type(
-            response_ok, http::headervalues::contenttype::JSON);
-          
-          if (!handler.result_schema.empty())
-          {
-            auto& response_ok_json_schema = ds::openapi::schema(response_ok_json);
-            response_ok_json_schema = handler.result_schema;
-          }
+          add_endpoint_to_api_document(document, full_path, verb, endpoint);
         }
       }
 
-      // TODO
-      // for (const auto& [path, verb_endpoints] : templated_endpoints)
-      // {
-        // for (const auto& [verb, endpoint] : verb_endpoints)
-        // {
-          // out.endpoints.push_back({verb.c_str(), path});
-        // }
-      // }
+      for (const auto& [path, verb_endpoints] : templated_endpoints)
+      {
+        const auto full_path = fmt::format("/{}/{}", method_prefix, path);
+        for (const auto& [verb, endpoint] : verb_endpoints)
+        {
+          add_endpoint_to_api_document(document, full_path, verb, endpoint);
+
+          // TODO: Document path template args
+        }
+      }
     }
 
     virtual void endpoint_metrics(kv::Tx&, EndpointMetrics::Out& out)
