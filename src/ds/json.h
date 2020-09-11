@@ -720,6 +720,10 @@ namespace std
 
 #define DECLARE_JSON_ENUM(TYPE, ...) \
   NLOHMANN_JSON_SERIALIZE_ENUM(TYPE, __VA_ARGS__) \
+  inline std::string schema_name(const TYPE&) \
+  { \
+    return #TYPE; \
+  } \
   inline void fill_enum_schema(nlohmann::json& j, const TYPE&) \
   { \
     static const std::pair<TYPE, nlohmann::json> m[] = __VA_ARGS__; \

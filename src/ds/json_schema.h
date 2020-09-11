@@ -85,24 +85,6 @@ namespace ds
           fill_json_schema(schema, t);
         }
       }
-
-      template <typename T, typename TDoc>
-      nlohmann::json add_schema_to_components(TDoc& doc)
-      {
-        T t;
-        const auto name = schema_name(t);
-        const auto ib = doc.components.schemas.try_emplace(name);
-        if (ib.second)
-        {
-          auto& j = ib.first->second;
-          add_schema_components(doc, j, t);
-        }
-
-        auto schema_ref_object = nlohmann::json::object();
-        schema_ref_object["$ref"] =
-          fmt::format("#/components/schemas/{}", name);
-        return schema_ref_object;
-      }
     }
 
     template <typename T>
@@ -191,6 +173,10 @@ namespace ds
       else if constexpr (std::is_same<T, nlohmann::json>::value)
       {
         return "json";
+      }
+      else if constexpr (std::is_same<T, JsonSchema>::value)
+      {
+        return "json_schema";
       }
       else
       {

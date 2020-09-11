@@ -260,8 +260,16 @@ namespace ds
           {
             auto& j = ib.first.value();
             // Use argument-dependent-lookup to call correct functions
+
             T t;
-            add_schema_components(*this, j, t);
+            if constexpr (std::is_enum<T>::value)
+            {
+              fill_enum_schema(j, t);
+            }
+            else
+            {
+              add_schema_components(*this, j, t);
+            }
           }
 
           return components_ref_object(name);

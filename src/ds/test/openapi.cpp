@@ -128,14 +128,28 @@ DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Bar);
 DECLARE_JSON_REQUIRED_FIELDS(Bar, name);
 DECLARE_JSON_OPTIONAL_FIELDS(Bar, f);
 
+enum class Vehicle
+{
+  Car,
+  Pedalo,
+  Submarine,
+};
+
+DECLARE_JSON_ENUM(
+  Vehicle,
+  {{Vehicle::Car, "vroom vroom"},
+   {Vehicle::Pedalo, "splash splash"},
+   {Vehicle::Submarine, "glug glug"}});
+
 struct Baz : public Bar
 {
   uint16_t n;
   double x;
   double y;
+  Vehicle v;
 };
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(Baz, Bar);
-DECLARE_JSON_REQUIRED_FIELDS(Baz, n);
+DECLARE_JSON_REQUIRED_FIELDS(Baz, n, v);
 DECLARE_JSON_OPTIONAL_FIELDS(Baz, x, y);
 
 struct Buzz : public Baz
