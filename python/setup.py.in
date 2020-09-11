@@ -30,7 +30,7 @@ setup(
         "Programming Language :: Python :: 3",
     ],
     packages=[PACKAGE_NAME],
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     install_requires=requirements,
     scripts=[
         path.join(PACKAGE_NAME, "proposal_generator.py"),
