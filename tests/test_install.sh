@@ -15,7 +15,7 @@ INSTALL_PREFIX="$1"
 mkdir -p nested/run
 cd nested/run
 
-python3.7 -m venv env
+python3.8 -m venv env
 source env/bin/activate
 python -m pip install -U -r "$INSTALL_PREFIX"/bin/requirements.txt
 python -m pip install ../../../python

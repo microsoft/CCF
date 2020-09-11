@@ -6,7 +6,7 @@ set -e
 
 if [ ! -f "env/bin/activate" ]
     then
-        python3.7 -m venv env
+        python3.8 -m venv env
 fi
 
 source env/bin/activate

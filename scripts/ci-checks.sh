@@ -26,7 +26,7 @@ else
 fi
 
 echo "Copyright notice headers"
-python3.7 "$SCRIPT_DIR"/notice-check.py
+python3.8 "$SCRIPT_DIR"/notice-check.py
 
 echo "CMake format"
 if [ $FIX -ne 0 ]; then
@@ -38,7 +38,7 @@ fi
 # Virtual Environment w/ dependencies for Python steps
 if [ ! -f "scripts/env/bin/activate" ]
     then
-        python3.7 -m venv scripts/env
+        python3.8 -m venv scripts/env
 fi
 
 source scripts/env/bin/activate

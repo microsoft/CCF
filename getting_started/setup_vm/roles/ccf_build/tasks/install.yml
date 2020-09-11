@@ -1,7 +1,7 @@
 - name: Include vars
   include_vars: common.yml
 
-- name: Add Python 3.7 PPA
+- name: Add Python PPA
   apt_repository:
     repo: ppa:deadsnakes/ppa
   become: true
