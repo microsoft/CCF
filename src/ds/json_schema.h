@@ -230,8 +230,6 @@ namespace ds
             items["type"] = "array";
 
             auto sub_items = nlohmann::json::array();
-            // TODO: OpenAPI doesn't like this tuple for "items", even though
-            // its valid JSON schema. Maybe fixed in a newer spec version?
             sub_items.push_back(schema_element<typename T::key_type>());
             sub_items.push_back(schema_element<typename T::mapped_type>());
             items["items"] = sub_items;
@@ -270,9 +268,6 @@ namespace ds
       }
       else if constexpr (std::is_same<T, JsonSchema>::value)
       {
-        // TODO: OpenAPI validator isn't happy with these $ref elements, so
-        // we're being very vague for now
-        // schema["$ref"] = JsonSchema::hyperschema;
         schema["type"] = "object";
       }
       else

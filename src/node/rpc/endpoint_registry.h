@@ -448,7 +448,6 @@ namespace ccf
      * internally, so must be able to populate the document
      * with the supported endpoints however it defines them.
      */
-    // TODO: May want the entire rpc context, not just tx?
     virtual void build_api(nlohmann::json& document, kv::Tx&)
     {
       for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
