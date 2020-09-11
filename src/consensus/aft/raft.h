@@ -154,7 +154,7 @@ namespace aft
     {
       leader_id = NoNode;
       LOG_INFO_FMT("AAAAA");
-      state->view_history.update(i, r.term_of_idx);
+      state->view_history.update(1, 2);
     }
 
     NodeId leader()
