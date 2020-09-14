@@ -242,7 +242,8 @@ namespace ds
           std::is_same<T, int16_t>::value || std::is_same<T, int32_t>::value ||
           std::is_same<T, int64_t>::value || std::is_same<T, float>::value ||
           std::is_same<T, double>::value ||
-          std::is_same<T, nlohmann::json>::value)
+          std::is_same<T, nlohmann::json>::value ||
+          std::is_same<T, ds::json::JsonSchema>::value)
         {
           ds::json::fill_schema<T>(schema);
           return add_schema_to_components(
@@ -250,7 +251,7 @@ namespace ds
         }
         else
         {
-          const auto name = ds::json::adl::schema_name<T>();
+          const auto name = ds::json::schema_name<T>();
 
           auto& components = access::get_object(document, "components");
           auto& schemas = access::get_object(components, "schemas");
@@ -259,8 +260,8 @@ namespace ds
           if (ib.second)
           {
             auto& j = ib.first.value();
-            // Use argument-dependent-lookup to call correct functions
 
+            // Use argument-dependent-lookup to call correct functions
             T t;
             if constexpr (std::is_enum<T>::value)
             {
