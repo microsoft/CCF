@@ -756,7 +756,8 @@ namespace kv
         {
           // we have deserialised an entry that didn't belong to the bft
           // requests nor the signatures table
-          LOG_FAIL_FMT("Failed to deserialise");
+          LOG_FAIL_FMT(
+            "Failed to deserialise, contains table:{}", views.begin()->first);
         }
       }
 
