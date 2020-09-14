@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "frontend.h"
+#include "lua_interp/lua_json.h"
 #include "lua_interp/tx_script_runner.h"
 #include "node/genesis_gen.h"
 #include "node/members.h"
@@ -10,6 +11,7 @@
 #include "node/secret_share.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
+#include "tls/base64.h"
 #include "tls/key_pair.h"
 
 #include <charconv>
@@ -17,11 +19,97 @@
 #include <initializer_list>
 #include <map>
 #include <memory>
+#include <openenclave/attestation/verifier.h>
 #include <set>
 #include <sstream>
+#if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
+#  include <openenclave/enclave.h>
+#else
+#  include <openenclave/host_verify.h>
+#endif
 
 namespace ccf
 {
+  class MemberTsr : public lua::TxScriptRunner
+  {
+    void setup_environment(
+      lua::Interpreter& li,
+      const std::optional<Script>& env_script) const override
+    {
+      auto l = li.get_state();
+      lua_register(l, "pem_to_der", lua_pem_to_der);
+      lua_register(
+        l, "verify_cert_and_get_claims", lua_verify_cert_and_get_claims);
+
+      TxScriptRunner::setup_environment(li, env_script);
+    }
+
+    static int lua_pem_to_der(lua_State* l)
+    {
+      std::string pem = get_var_string_from_args(l);
+      std::vector<uint8_t> der = tls::make_verifier(pem)->der_cert_data();
+      nlohmann::json json = der;
+      lua::push_raw(l, json);
+      return 1;
+    }
+
+    static oe_result_t oe_verify_attestation_certificate_with_evidence_cb(
+      oe_claim_t* claims, size_t claims_length, void* arg)
+    {
+      auto claims_map = (std::map<std::string, std::vector<uint8_t>>*)arg;
+      for (size_t i = 0; i < claims_length; i++)
+      {
+        std::string claim_name(claims[i].name);
+        std::vector<uint8_t> claim_value(
+          claims[i].value, claims[i].value + claims[i].value_size);
+        claims_map->emplace(std::move(claim_name), std::move(claim_value));
+      }
+      return OE_OK;
+    }
+
+    static int lua_verify_cert_and_get_claims(lua_State* l)
+    {
+      LOG_INFO_FMT("lua_verify_cert_and_get_claims");
+      nlohmann::json json = lua::check_get<nlohmann::json>(l, -1);
+      std::vector<uint8_t> cert_der = json;
+
+      std::map<std::string, std::vector<uint8_t>> claims;
+
+      oe_verifier_initialize();
+      oe_result_t res = oe_verify_attestation_certificate_with_evidence(
+        cert_der.data(),
+        cert_der.size(),
+        oe_verify_attestation_certificate_with_evidence_cb,
+        &claims);
+
+      if (res != OE_OK)
+      {
+        // Validation should happen before the proposal is registered.
+        // See https://github.com/microsoft/CCF/issues/1458.
+        throw std::runtime_error(fmt::format(
+          "Invalid certificate, "
+          "oe_verify_attestation_certificate_with_evidence() returned {}",
+          res));
+      }
+
+      lua_newtable(l);
+      const int table_idx = -2;
+
+      for (auto const& item : claims)
+      {
+        std::string val_hex = fmt::format("{:02x}", fmt::join(item.second, ""));
+        LOG_INFO_FMT("claim[{}] = {}", item.first, val_hex);
+        lua::push_raw(l, val_hex);
+        lua_setfield(l, table_idx, item.first.c_str());
+      }
+
+      return 1;
+    }
+
+  public:
+    MemberTsr(NetworkTables& network) : TxScriptRunner(network) {}
+  };
+
   struct SetUserData
   {
     UserId user_id;
@@ -139,6 +227,26 @@ namespace ccf
         return false;
       }
       code_ids->put(new_code_id, CodeStatus::ACCEPTED);
+      return true;
+    }
+
+    bool retire_code_id(
+      kv::Tx& tx,
+      const CodeDigest& code_id,
+      CodeIDs& code_id_table,
+      ObjectId proposal_id)
+    {
+      auto code_ids = tx.get_view(code_id_table);
+      auto existing_code_id = code_ids->get(code_id);
+      if (!existing_code_id)
+      {
+        LOG_FAIL_FMT(
+          "Proposal {}: No such code id in table: {:02x}",
+          proposal_id,
+          fmt::join(code_id, ""));
+        return false;
+      }
+      code_ids->put(code_id, CodeStatus::RETIRED);
       return true;
     }
 
@@ -306,6 +414,15 @@ namespace ccf
         {"new_node_code",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            return this->add_new_code_id(
+             tx,
+             args.get<CodeDigest>(),
+             this->network.node_code_ids,
+             proposal_id);
+         }},
+        // retire node code ID
+        {"retire_node_code",
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           return this->retire_code_id(
              tx,
              args.get<CodeDigest>(),
              this->network.node_code_ids,
@@ -637,7 +754,7 @@ namespace ccf
     NetworkTables& network;
     AbstractNodeState& node;
     ShareManager& share_manager;
-    const lua::TxScriptRunner tsr;
+    const MemberTsr tsr;
 
   public:
     MemberEndpoints(
@@ -1215,7 +1332,7 @@ namespace ccf
         }
 
 #ifdef GET_QUOTE
-        if (in.consensus_type != ConsensusType::PBFT)
+        if (in.consensus_type != ConsensusType::BFT)
         {
           CodeDigest node_code_id;
           std::copy_n(

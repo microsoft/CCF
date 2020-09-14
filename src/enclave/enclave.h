@@ -12,10 +12,8 @@
 #include "node/network_state.h"
 #include "node/node_state.h"
 #include "node/node_types.h"
-#include "node/notifier.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/node_frontend.h"
-#include "node/timer.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
 
@@ -30,7 +28,6 @@ namespace enclave
     ccf::NetworkState network;
     ccf::ShareManager share_manager;
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
-    ccf::Timers timers;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCSessions> rpcsessions;
     std::unique_ptr<ccf::NodeState> node;
@@ -42,18 +39,11 @@ namespace enclave
 
     struct NodeContext : public ccfapp::AbstractNodeContext
     {
-      ccf::Notifier notifier;
       ccf::historical::StateCache historical_state_cache;
 
-      NodeContext(ccf::Notifier&& n, ccf::historical::StateCache&& hsc) :
-        notifier(std::move(n)),
+      NodeContext(ccf::historical::StateCache&& hsc) :
         historical_state_cache(std::move(hsc))
       {}
-
-      ccf::AbstractNotifier& get_notifier() override
-      {
-        return notifier;
-      }
 
       ccf::historical::AbstractStateCache& get_historical_state() override
       {
@@ -72,15 +62,13 @@ namespace enclave
       writer_factory(basic_writer_factory, enclave_config.writer_config),
       network(consensus_type_),
       share_manager(network),
-      n2n_channels(std::make_shared<ccf::NodeToNode>(writer_factory)),
+      n2n_channels(std::make_shared<ccf::NodeToNodeImpl>(writer_factory)),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpcsessions, n2n_channels, rpc_map)),
-      context(
-        ccf::Notifier(writer_factory),
-        ccf::historical::StateCache(
-          *network.tables, writer_factory.create_writer_to_outside()))
+      context(ccf::historical::StateCache(
+        *network.tables, writer_factory.create_writer_to_outside()))
     {
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
@@ -88,12 +76,7 @@ namespace enclave
       to_host = writer_factory.create_writer_to_outside();
 
       node = std::make_unique<ccf::NodeState>(
-        writer_factory,
-        network,
-        rpcsessions,
-        context.notifier,
-        timers,
-        share_manager);
+        writer_factory, network, rpcsessions, share_manager);
 
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(
@@ -225,7 +208,7 @@ namespace enclave
               std::chrono::milliseconds elapsed_ms(ms_count);
               logger::config::tick(elapsed_ms);
               node->tick(elapsed_ms);
-              timers.tick(elapsed_ms);
+              threading::ThreadMessaging::thread_messaging.tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
               // public ledger is being read
               if (!node->is_reading_public_ledger())

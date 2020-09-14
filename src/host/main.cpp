@@ -11,7 +11,6 @@
 #include "handle_ring_buffer.h"
 #include "load_monitor.h"
 #include "node_connections.h"
-#include "notify_connections.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
 #include "snapshot.h"
@@ -82,7 +81,7 @@ int main(int argc, char** argv)
 
   ConsensusType consensus;
   std::vector<std::pair<std::string, ConsensusType>> consensus_map{
-    {"raft", ConsensusType::RAFT}, {"pbft", ConsensusType::PBFT}};
+    {"cft", ConsensusType::CFT}, {"bft", ConsensusType::BFT}};
   app.add_option("-c,--consensus", consensus, "Consensus")
     ->required()
     ->transform(CLI::CheckedTransformer(consensus_map, CLI::ignore_case));
@@ -215,13 +214,6 @@ int main(int argc, char** argv)
       circuit_size_shift,
       "Size of the internal ringbuffers, as a power of 2")
     ->capture_default_str();
-
-  cli::ParsedAddress notifications_address;
-  cli::add_address_option(
-    app,
-    notifications_address,
-    "--notify-server-address",
-    "Server address to notify progress to");
 
   size_t raft_timeout = 100;
   app
@@ -695,11 +687,6 @@ int main(int argc, char** argv)
     time_updater->behaviour.get_value());
 
   LOG_INFO_FMT("Created new node");
-
-  asynchost::NotifyConnections report(
-    bp.get_dispatcher(),
-    notifications_address.hostname,
-    notifications_address.port);
 
   // Write the node and network certs to disk.
   files::dump(node_cert, node_cert_file);

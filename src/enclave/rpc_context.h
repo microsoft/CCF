@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "http/http_builder.h"
 #include "http/http_consts.h"
 #include "http/ws_consts.h"
 #include "node/client_signatures.h"
@@ -116,6 +117,7 @@ namespace enclave
     std::vector<uint8_t> pbft_raw = {};
 
     bool is_create_request = false;
+    bool execute_on_node = false;
 
     RpcContext(std::shared_ptr<SessionContext> s) : session(s) {}
 
@@ -139,6 +141,7 @@ namespace enclave
     virtual std::string get_method() const = 0;
     virtual void set_method(const std::string_view& method) = 0;
 
+    virtual const http::HeaderMap& get_request_headers() const = 0;
     virtual std::optional<std::string> get_request_header(
       const std::string_view& name) = 0;
 

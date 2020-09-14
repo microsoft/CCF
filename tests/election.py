@@ -62,7 +62,7 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
 def run(args):
     # Three nodes minimum to make sure that the raft network can still make progress
     # if one node stops
-    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 3)
+    hosts = ["localhost"] * (4 if args.consensus == "bft" else 3)
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -74,7 +74,7 @@ def run(args):
 
         # Number of nodes F to stop until network cannot make progress
         nodes_to_stop = math.ceil(len(hosts) / 2)
-        if args.consensus == "pbft":
+        if args.consensus == "bft":
             nodes_to_stop = math.ceil(len(hosts) / 3)
 
         primary_is_known = True
@@ -83,7 +83,7 @@ def run(args):
             LOG.debug("Find freshly elected primary")
             # After a view change in pbft, finding the new primary takes longer
             primary, current_view = network.find_primary(
-                timeout=(30 if args.consensus == "pbft" else 3)
+                timeout=(30 if args.consensus == "bft" else 3)
             )
 
             LOG.debug(

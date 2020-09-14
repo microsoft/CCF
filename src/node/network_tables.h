@@ -7,11 +7,11 @@
 #include "code_id.h"
 #include "config.h"
 #include "consensus.h"
+#include "consensus/aft/raft_tables.h"
+#include "consensus/aft/request.h"
 #include "consensus/pbft/pbft_new_views.h"
 #include "consensus/pbft/pbft_pre_prepares.h"
-#include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_tables.h"
-#include "consensus/raft/raft_tables.h"
 #include "entities.h"
 #include "governance_history.h"
 #include "kv/map.h"
@@ -59,6 +59,8 @@ namespace ccf
     SubmittedShares& submitted_shares;
     Configuration& config;
 
+    CACertDERs& ca_certs;
+
     //
     // User tables
     //
@@ -92,15 +94,15 @@ namespace ccf
     //
     // Pbft related tables
     //
-    pbft::RequestsMap& pbft_requests_map;
+    aft::RequestsMap& pbft_requests_map;
     pbft::PrePreparesMap& pbft_pre_prepares_map;
     pbft::NewViewsMap& pbft_new_views_map;
 
-    NetworkTables(const ConsensusType& consensus_type = ConsensusType::RAFT) :
+    NetworkTables(const ConsensusType& consensus_type = ConsensusType::CFT) :
       tables(
-        (consensus_type == ConsensusType::RAFT) ?
+        (consensus_type == ConsensusType::CFT) ?
           std::make_shared<kv::Store>(
-            raft::replicate_type_raft, raft::replicated_tables_raft) :
+            aft::replicate_type_raft, aft::replicated_tables_raft) :
           std::make_shared<kv::Store>(
             pbft::replicate_type_pbft, pbft::replicated_tables_pbft)),
       members(
@@ -129,6 +131,8 @@ namespace ccf
         Tables::SUBMITTED_SHARES, kv::SecurityDomain::PUBLIC)),
       config(tables->create<Configuration>(
         Tables::CONFIGURATION, kv::SecurityDomain::PUBLIC)),
+      ca_certs(tables->create<CACertDERs>(
+        Tables::CA_CERT_DERS, kv::SecurityDomain::PUBLIC)),
       users(tables->create<Users>(Tables::USERS, kv::SecurityDomain::PUBLIC)),
       user_certs(tables->create<CertDERs>(
         Tables::USER_CERT_DERS, kv::SecurityDomain::PUBLIC)),
@@ -152,7 +156,7 @@ namespace ccf
       snapshot_evidence(tables->create<SnapshotEvidence>(
         Tables::SNAPSHOT_EVIDENCE, kv::SecurityDomain::PUBLIC)),
       pbft_requests_map(
-        tables->create<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
+        tables->create<aft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
       pbft_pre_prepares_map(
         tables->create<pbft::PrePreparesMap>(pbft::Tables::PBFT_PRE_PREPARES)),
       pbft_new_views_map(
@@ -178,6 +182,7 @@ namespace ccf
         std::ref(governance_history),
         std::ref(member_client_signatures),
         std::ref(config),
+        std::ref(ca_certs),
         std::ref(users),
         std::ref(user_certs),
         std::ref(user_client_signatures),

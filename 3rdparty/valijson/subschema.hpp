@@ -40,7 +40,8 @@ public:
      */
     Subschema()
       : allocFn(::operator new)
-      , freeFn(::operator delete) { }
+      , freeFn(::operator delete)
+      , alwaysInvalid(false) { }
 
     /**
      * @brief  Construct a new Subschema using custom memory management
@@ -53,7 +54,8 @@ public:
      */
     Subschema(CustomAlloc allocFn, CustomFree freeFn)
       : allocFn(allocFn)
-      , freeFn(freeFn) { }
+      , freeFn(freeFn)
+      , alwaysInvalid(false) { }
 
     /**
      * @brief  Clean up and free all memory managed by the Subschema
@@ -61,9 +63,8 @@ public:
     virtual ~Subschema()
     {
         try {
-            for (std::vector<const Constraint *>::iterator itr =
-                    constraints.begin(); itr != constraints.end(); ++itr) {
-                Constraint *constraint = const_cast<Constraint *>(*itr);
+            for (auto constConstraint : constraints) {
+                Constraint *constraint = const_cast<Constraint *>(constConstraint);
                 constraint->~Constraint();
                 freeFn(constraint);
             }
@@ -137,6 +138,11 @@ public:
         }
 
         return true;
+    }
+
+    bool getAlwaysInvalid() const
+    {
+        return alwaysInvalid;
     }
 
     /**
@@ -217,6 +223,11 @@ public:
         return static_cast<bool>(title);
     }
 
+    void setAlwaysInvalid(bool value)
+    {
+        alwaysInvalid = value;
+    }
+
     /**
      * @brief  Set the description for this sub-schema
      *
@@ -265,6 +276,8 @@ private:
 
     // Disable copy assignment
     Subschema & operator=(const Subschema &);
+
+    bool alwaysInvalid;
 
     /// List of pointers to constraints that apply to this schema.
     std::vector<const Constraint *> constraints;
