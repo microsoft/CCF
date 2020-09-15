@@ -49,7 +49,7 @@ def run(args):
             schema_found = False
             expected_method_prefix = "/"
             if method.startswith(expected_method_prefix):
-                method = method[len(expected_method_prefix):]
+                method = method[len(expected_method_prefix) :]
             schema_response = client.get(f'/{prefix}/api/schema?method="{method}"')
             check(
                 schema_response,

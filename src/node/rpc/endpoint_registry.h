@@ -109,34 +109,33 @@ namespace ccf
       {
         params_schema = j;
 
-        schema_builders.push_back(
-          [](nlohmann::json& document, const Endpoint& endpoint) {
-            const auto http_verb = endpoint.verb.get_http_method();
-            if (!http_verb.has_value())
-            {
-              return;
-            }
+        schema_builders.push_back([](
+                                    nlohmann::json& document,
+                                    const Endpoint& endpoint) {
+          const auto http_verb = endpoint.verb.get_http_method();
+          if (!http_verb.has_value())
+          {
+            return;
+          }
 
-            using namespace ds::openapi;
+          using namespace ds::openapi;
 
-            if (
-              http_verb.value() == HTTP_GET ||
-              http_verb.value() == HTTP_DELETE)
-            {
-              add_query_parameters(
-                document,
-                endpoint.method,
-                endpoint.params_schema,
-                http_verb.value());
-            }
-            else
-            {
-              auto& rb = request_body(path_operation(
-                ds::openapi::path(document, endpoint.method), http_verb.value()));
-              schema(media_type(rb, http::headervalues::contenttype::JSON)) =
-                endpoint.params_schema;
-            }
-          });
+          if (http_verb.value() == HTTP_GET || http_verb.value() == HTTP_DELETE)
+          {
+            add_query_parameters(
+              document,
+              endpoint.method,
+              endpoint.params_schema,
+              http_verb.value());
+          }
+          else
+          {
+            auto& rb = request_body(path_operation(
+              ds::openapi::path(document, endpoint.method), http_verb.value()));
+            schema(media_type(rb, http::headervalues::contenttype::JSON)) =
+              endpoint.params_schema;
+          }
+        });
 
         return *this;
       }

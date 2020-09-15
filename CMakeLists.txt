@@ -315,9 +315,9 @@ if(BUILD_TESTS)
     )
     target_include_directories(history_test PRIVATE ${EVERCRYPT_INC})
     target_link_libraries(
-      history_test PRIVATE ${CRYPTO_LIBRARY} evercrypt.host secp256k1.host http_parser.host
+      history_test PRIVATE ${CRYPTO_LIBRARY} evercrypt.host secp256k1.host
+                           http_parser.host
     )
-
 
     add_unit_test(
       secret_sharing_test
@@ -336,7 +336,9 @@ if(BUILD_TESTS)
       historical_queries_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
     )
-    target_link_libraries(historical_queries_test PRIVATE secp256k1.host http_parser.host)
+    target_link_libraries(
+      historical_queries_test PRIVATE secp256k1.host http_parser.host
+    )
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp

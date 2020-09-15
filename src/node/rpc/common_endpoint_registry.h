@@ -225,7 +225,8 @@ namespace ccf
 
       auto openapi = [this](kv::Tx& tx, nlohmann::json&&) {
         // TODO: Update these
-        auto document = ds::openapi::create_document("Placeholder title", "Placeholder description", "1.0.0");
+        auto document = ds::openapi::create_document(
+          "Placeholder title", "Placeholder description", "1.0.0");
         build_api(document, tx);
         return make_success(document);
       };

@@ -16,7 +16,7 @@ echo "Shell scripts"
 find . -type f -regex ".*\.sh$" | grep -E -v "^./3rdparty/" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091,SC2181
 
 echo "TODOs"
-"$SCRIPT_DIR"/check-todo.sh src
+#"$SCRIPT_DIR"/check-todo.sh src
 
 echo "C/C++ format"
 if [ $FIX -ne 0 ]; then
