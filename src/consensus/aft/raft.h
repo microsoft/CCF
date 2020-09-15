@@ -592,6 +592,8 @@ namespace aft
       // passes the integrity check. This way, entries containing dynamic
       // topology changes that include adding this new leader can be accepted.
 
+      // First, check append entries term against our own term, becoming
+      // follower if necessary
       if (state->current_view == r.term && replica_state == Candidate)
       {
         // Become a follower in this term.
@@ -615,8 +617,8 @@ namespace aft
         return;
       }
 
+      // Second, check term consistency with the entries we have so far
       const auto prev_term = get_term_internal(r.prev_idx);
-
       if (prev_term != r.prev_term)
       {
         LOG_DEBUG_FMT(
@@ -637,7 +639,7 @@ namespace aft
         {
           LOG_DEBUG_FMT(
             "Recv append entries to {} from {} but our log at {} has the wrong "
-            "term (ours: {}, theirs: {})",
+            "previous term (ours: {}, theirs: {})",
             state->my_node_id,
             r.from_node,
             r.prev_idx,
@@ -648,8 +650,18 @@ namespace aft
         return;
       }
 
+      // If the terms match up, it is sufficient to convince us that the sender
+      // is leader in our term
       restart_election_timeout();
+      if (leader_id != r.from_node)
+      {
+        leader_id = r.from_node;
+        LOG_DEBUG_FMT(
+          "Node {} thinks leader is {}", state->my_node_id, leader_id);
+      }
 
+      // Third, check index consistency, making sure entries are not in the past
+      // or in the future
       if (r.prev_idx < state->commit_idx)
       {
         LOG_DEBUG_FMT(
@@ -661,6 +673,16 @@ namespace aft
           state->commit_idx);
         return;
       }
+      else if (r.prev_idx > state->last_idx)
+      {
+        LOG_DEBUG_FMT(
+          "Recv append entries to {} from {} but prev_idx ({}) > last_idx ({})",
+          state->my_node_id,
+          r.from_node,
+          r.prev_idx,
+          state->last_idx);
+        return;
+      }
 
       LOG_DEBUG_FMT(
         "Recv append entries to {} from {} for index {} and previous index {}",
@@ -669,6 +691,7 @@ namespace aft
         r.idx,
         r.prev_idx);
 
+      // Finally, deserialise each entry in the batch
       for (Index i = r.prev_idx + 1; i <= r.idx; i++)
       {
         if (i <= state->last_idx)
@@ -681,7 +704,6 @@ namespace aft
 
         LOG_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
 
-        state->last_idx = i;
         is_first_entry = false;
         std::vector<uint8_t> entry;
 
@@ -697,10 +719,11 @@ namespace aft
             state->my_node_id,
             r.from_node,
             e.what());
-          state->last_idx = r.prev_idx;
           send_append_entries_response(r.from_node, false);
           return;
         }
+
+        state->last_idx = i;
 
         Term sig_term = 0;
         kv::Tx tx;
@@ -730,8 +753,9 @@ namespace aft
         {
           case kv::DeserialiseSuccess::FAILED:
           {
-            throw std::logic_error(
-              "Follower failed to apply log entry " + std::to_string(i));
+            LOG_FAIL_FMT("Follower failed to apply log entry: {}", i);
+            state->last_idx--;
+            send_append_entries_response(r.from_node, false);
             break;
           }
 
@@ -764,16 +788,12 @@ namespace aft
         }
       }
 
-      // Update the current leader because we accepted entries.
-      if (leader_id != r.from_node)
-      {
-        leader_id = r.from_node;
-      }
+      // After entries have been deserialised, we try to commit the leader's
+      // commit index and update our term history accordingly
+      commit_if_possible(r.leader_commit_idx);
+      state->view_history.update(state->commit_idx + 1, r.term_of_idx);
 
       send_append_entries_response(r.from_node, true);
-      commit_if_possible(r.leader_commit_idx);
-
-      state->view_history.update(state->commit_idx + 1, r.term_of_idx);
     }
 
     void send_append_entries_response(NodeId to, bool answer)
@@ -1250,9 +1270,10 @@ namespace aft
     void commit(Index idx)
     {
       if (idx > state->last_idx)
-        throw std::logic_error(
-          "Tried to commit " + std::to_string(idx) + "but last_idx as " +
-          std::to_string(state->last_idx));
+      {
+        throw std::logic_error(fmt::format(
+          "Tried to commit {} but last_idx is {}", idx, state->last_idx));
+      }
 
       LOG_DEBUG_FMT("Starting commit");
 

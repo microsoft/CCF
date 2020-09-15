@@ -9,9 +9,6 @@
 #include "consensus.h"
 #include "consensus/aft/raft_tables.h"
 #include "consensus/aft/request.h"
-#include "consensus/pbft/pbft_new_views.h"
-#include "consensus/pbft/pbft_pre_prepares.h"
-#include "consensus/pbft/pbft_tables.h"
 #include "entities.h"
 #include "governance_history.h"
 #include "kv/map.h"
@@ -94,8 +91,6 @@ namespace ccf
     // Pbft related tables
     //
     aft::RequestsMap& pbft_requests_map;
-    pbft::PrePreparesMap& pbft_pre_prepares_map;
-    pbft::NewViewsMap& pbft_new_views_map;
 
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::CFT) :
       tables(
@@ -103,7 +98,7 @@ namespace ccf
           std::make_shared<kv::Store>(
             aft::replicate_type_raft, aft::replicated_tables_raft) :
           std::make_shared<kv::Store>(
-            pbft::replicate_type_pbft, pbft::replicated_tables_pbft)),
+            aft::replicate_type_bft, aft::replicated_tables_bft)),
       members(
         tables->create<Members>(Tables::MEMBERS, kv::SecurityDomain::PUBLIC)),
       member_certs(tables->create<CertDERs>(
@@ -152,12 +147,7 @@ namespace ccf
         Tables::CONSENSUS, kv::SecurityDomain::PUBLIC)),
       snapshot_evidence(tables->create<SnapshotEvidence>(
         Tables::SNAPSHOT_EVIDENCE, kv::SecurityDomain::PUBLIC)),
-      pbft_requests_map(
-        tables->create<aft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
-      pbft_pre_prepares_map(
-        tables->create<pbft::PrePreparesMap>(pbft::Tables::PBFT_PRE_PREPARES)),
-      pbft_new_views_map(
-        tables->create<pbft::NewViewsMap>(pbft::Tables::PBFT_NEW_VIEWS))
+      pbft_requests_map(tables->create<aft::RequestsMap>(Tables::AFT_REQUESTS))
     {}
 
     /** Returns a tuple of all tables that are possibly accessible from scripts
