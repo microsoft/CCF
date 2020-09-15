@@ -704,7 +704,6 @@ namespace aft
 
         LOG_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
 
-        state->last_idx = i;
         is_first_entry = false;
         std::vector<uint8_t> entry;
 
