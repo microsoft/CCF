@@ -18,7 +18,7 @@ def run(args):
         scenario = json.load(f)
 
     hosts = scenario.get("hosts", ["localhost", "localhost"])
-    if args.consensus == "pbft":
+    if args.consensus == "bft":
         hosts = ["localhost"] * 3
     args.package = scenario["package"]
     # SNIPPET_END: parsing

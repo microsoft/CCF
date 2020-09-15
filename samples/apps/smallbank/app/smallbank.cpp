@@ -1,8 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "../smallbank_serializer.h"
 #include "enclave/app_interface.h"
-#include "flatbuffer_wrapper.h"
 #include "node/rpc/user_frontend.h"
+
+#include <charconv>
 
 using namespace std;
 using namespace nlohmann;
@@ -62,11 +64,13 @@ namespace ccfapp
 
       auto create = [this](auto& args) {
         // Create an account with a balance from thin air.
-        BankDeserializer bd(args.rpc_ctx->get_request_body().data());
-        auto name = bd.name();
-        auto acc_id = bd.id();
-        int64_t checking_amt = bd.checking_amt();
-        int64_t savings_amt = bd.savings_amt();
+        const auto& body = args.rpc_ctx->get_request_body();
+        auto ai = smallbank::AccountInfo::deserialize(body.data(), body.size());
+        auto name = ai.name;
+        uint64_t acc_id;
+        std::from_chars(name.data(), name.data() + name.size(), acc_id);
+        int64_t checking_amt = ai.checking_amt;
+        int64_t savings_amt = ai.savings_amt;
         auto account_view = args.tx.get_view(tables.accounts);
         auto account_r = account_view->get(name);
 
@@ -108,18 +112,15 @@ namespace ccfapp
 
       auto create_batch = [this](auto& args) {
         // Create N accounts with identical balances from thin air.
-        // Create an account with a balance from thin air.
-        AccountsDeserializer ad(args.rpc_ctx->get_request_body().data());
-        auto from = ad.from();
-        auto to = ad.to();
-        auto checking_amt = ad.checking_amt();
-        auto savings_amt = ad.savings_amt();
+        const auto& body = args.rpc_ctx->get_request_body();
+        auto ac =
+          smallbank::AccountCreation::deserialize(body.data(), body.size());
 
         auto account_view = args.tx.get_view(tables.accounts);
         auto savings_view = args.tx.get_view(tables.savings);
         auto checking_view = args.tx.get_view(tables.checkings);
 
-        for (auto acc_id = from; acc_id < to; ++acc_id)
+        for (auto acc_id = ac.new_id_from; acc_id < ac.new_id_to; ++acc_id)
         {
           std::string name = std::to_string(acc_id);
 
@@ -145,7 +146,7 @@ namespace ccfapp
                 "Account already exists in savings table: '{}'", name));
             return;
           }
-          savings_view->put(acc_id, savings_amt);
+          savings_view->put(acc_id, ac.initial_savings_amt);
 
           auto checking_r = checking_view->get(acc_id);
           if (checking_r.has_value())
@@ -157,7 +158,7 @@ namespace ccfapp
                 "Account already exists in checkings table: '{}'", name));
             return;
           }
-          checking_view->put(acc_id, checking_amt);
+          checking_view->put(acc_id, ac.initial_checking_amt);
         }
 
         set_no_content_status(args);
@@ -165,10 +166,11 @@ namespace ccfapp
 
       auto balance = [this](auto& args) {
         // Check the combined balance of an account
-        BankDeserializer bd(args.rpc_ctx->get_request_body().data());
-        auto name = bd.name();
+        const auto& body = args.rpc_ctx->get_request_body();
+        auto account =
+          smallbank::AccountName::deserialize(body.data(), body.size());
         auto account_view = args.tx.get_view(tables.accounts);
-        auto account_r = account_view->get(name);
+        auto account_r = account_view->get(account.name);
 
         if (!account_r.has_value())
         {
@@ -200,17 +202,19 @@ namespace ccfapp
         auto result = checking_r.value() + savings_r.value();
 
         set_ok_status(args);
-        BalanceSerializer bs(result);
-        auto buff = bs.get_buffer();
-        args.rpc_ctx->set_response_body(
-          std::vector<uint8_t>(buff.p, buff.p + buff.n));
+
+        smallbank::Balance b;
+        b.value = result;
+        args.rpc_ctx->set_response_body(b.serialize());
       };
 
       auto transact_savings = [this](auto& args) {
         // Add or remove money to the savings account
-        TransactionDeserializer td(args.rpc_ctx->get_request_body().data());
-        auto name = td.name();
-        auto value = td.value();
+        const auto& body = args.rpc_ctx->get_request_body();
+        auto transaction =
+          smallbank::Transaction::deserialize(body.data(), body.size());
+        auto name = transaction.name;
+        auto value = transaction.value;
 
         if (name.empty())
         {
@@ -253,9 +257,11 @@ namespace ccfapp
 
       auto deposit_checking = [this](auto& args) {
         // Desposit money into the checking account out of thin air
-        TransactionDeserializer td(args.rpc_ctx->get_request_body().data());
-        auto name = td.name();
-        int64_t value = td.value();
+        const auto& body = args.rpc_ctx->get_request_body();
+        auto transaction =
+          smallbank::Transaction::deserialize(body.data(), body.size());
+        auto name = transaction.name;
+        auto value = transaction.value;
 
         if (name.empty())
         {
@@ -295,9 +301,10 @@ namespace ccfapp
 
       auto amalgamate = [this](auto& args) {
         // Move the contents of one users account to another users account
-        AmalgamateDeserializer ad(args.rpc_ctx->get_request_body().data());
-        auto name_1 = ad.name_src();
-        auto name_2 = ad.name_dest();
+        const auto& body = args.rpc_ctx->get_request_body();
+        auto ad = smallbank::Amalgamate::deserialize(body.data(), body.size());
+        auto name_1 = ad.src;
+        auto name_2 = ad.dst;
         auto account_view = args.tx.get_view(tables.accounts);
         auto account_1_r = account_view->get(name_1);
 
@@ -367,9 +374,11 @@ namespace ccfapp
 
       auto writeCheck = [this](auto& args) {
         // Write a check, if not enough funds then also charge an extra 1 money
-        TransactionDeserializer td(args.rpc_ctx->get_request_body().data());
-        auto name = td.name();
-        uint32_t amount = td.value();
+        const auto& body = args.rpc_ctx->get_request_body();
+        auto transaction =
+          smallbank::Transaction::deserialize(body.data(), body.size());
+        auto name = transaction.name;
+        auto amount = transaction.value;
 
         auto account_view = args.tx.get_view(tables.accounts);
         auto account_r = account_view->get(name);

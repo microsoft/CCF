@@ -3,8 +3,8 @@
 #pragma once
 
 #include "call_types.h"
+#include "consensus/aft/raft_consensus.h"
 #include "consensus/ledger_enclave.h"
-#include "consensus/raft/raft_consensus.h"
 #include "crypto/crypto_box.h"
 #include "ds/logger.h"
 #include "enclave/rpc_sessions.h"
@@ -15,14 +15,12 @@
 #include "network_state.h"
 #include "node/rpc/serdes.h"
 #include "node_to_node.h"
-#include "notifier.h"
 #include "rpc/frontend.h"
 #include "rpc/member_frontend.h"
 #include "rpc/serialization.h"
 #include "secret_share.h"
 #include "share_manager.h"
 #include "snapshotter.h"
-#include "timer.h"
 #include "tls/25519.h"
 #include "tls/client.h"
 #include "tls/entropy.h"
@@ -63,9 +61,8 @@ namespace std
 namespace ccf
 {
   using RaftConsensusType =
-    raft::RaftConsensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
-  using RaftType =
-    raft::Raft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
+    aft::Consensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
+  using RaftType = aft::Aft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
 
   template <typename T>
   class StateMachine
@@ -153,19 +150,12 @@ namespace ccf
     std::shared_ptr<NodeToNode> n2n_channels;
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
-    ccf::Notifier& notifier;
-    Timers& timers;
 
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
     ShareManager& share_manager;
     std::shared_ptr<Snapshotter> snapshotter;
-
-    //
-    // join protocol
-    //
-    std::shared_ptr<Timer> join_timer;
 
     //
     // recovery
@@ -187,8 +177,6 @@ namespace ccf
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
-      ccf::Notifier& notifier,
-      Timers& timers,
       ShareManager& share_manager) :
       sm(State::uninitialized),
       self(INVALID_ID),
@@ -198,8 +186,6 @@ namespace ccf
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
       rpcsessions(rpcsessions),
-      notifier(notifier),
-      timers(timers),
       share_manager(share_manager)
     {
       ::EverCrypt_AutoConfig2_init();
@@ -240,7 +226,7 @@ namespace ccf
         writer_factory, network, args.config.snapshot_tx_interval);
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::PBFT)
+      if (network.consensus_type != ConsensusType::BFT)
       {
         auto quote_opt = QuoteGenerator::get_quote(node_cert);
         if (!quote_opt.has_value())
@@ -515,8 +501,6 @@ namespace ccf
               sm.advance(State::partOfNetwork);
             }
 
-            join_timer.reset();
-
             LOG_INFO_FMT(
               "Node has now joined the network as node {}: {}",
               self,
@@ -564,17 +548,35 @@ namespace ccf
 
       initiate_join(config);
 
-      join_timer = timers.new_timer(
-        std::chrono::milliseconds(config.joining.join_timer),
-        [this, &config]() {
-          if (sm.check(State::pending))
+      struct JoinTimeMsg
+      {
+        JoinTimeMsg(NodeState& self_, CCFConfig& config_) :
+          self(self_),
+          config(config_)
+        {}
+
+        NodeState& self;
+        CCFConfig& config;
+      };
+
+      auto join_timer_msg = std::make_unique<threading::Tmsg<JoinTimeMsg>>(
+        [](std::unique_ptr<threading::Tmsg<JoinTimeMsg>> msg) {
+          if (msg->data.self.sm.check(State::pending))
           {
-            initiate_join(config);
-            return true;
+            msg->data.self.initiate_join(msg->data.config);
+            auto delay =
+              std::chrono::milliseconds(msg->data.config.joining.join_timer);
+
+            threading::ThreadMessaging::thread_messaging.add_task_after(
+              std::move(msg), delay);
           }
-          return false;
-        });
-      join_timer->start();
+        },
+        *this,
+        config);
+
+      threading::ThreadMessaging::thread_messaging.add_task_after(
+        std::move(join_timer_msg),
+        std::chrono::milliseconds(config.joining.join_timer));
     }
 
     //
@@ -655,7 +657,6 @@ namespace ccf
         last_recovered_commit_idx);
 
       network.ledger_secrets->init(last_recovered_commit_idx + 1);
-      setup_encryptor(network.consensus_type);
       // KV term must be set before the first Tx is committed
       LOG_INFO_FMT(
         "Setting term on public recovery KV to {}", term_history.size() + 2);
@@ -671,6 +672,8 @@ namespace ccf
                          quote,
                          node_encrypt_kp->public_key_pem().raw(),
                          NodeStatus::PENDING});
+
+      setup_encryptor(network.consensus_type);
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
@@ -706,7 +709,7 @@ namespace ccf
       g.trust_node(self);
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::PBFT)
+      if (network.consensus_type != ConsensusType::BFT)
       {
         g.trust_node_code_id(node_code_id);
       }
@@ -862,16 +865,16 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       recovery_encryptor = std::make_shared<kv::NullTxEncryptor>();
 #else
-      if (network.consensus_type == ConsensusType::PBFT)
+      if (network.consensus_type == ConsensusType::BFT)
       {
         recovery_encryptor =
           std::make_shared<PbftTxEncryptor>(network.ledger_secrets, true);
       }
-      else if (network.consensus_type == ConsensusType::RAFT)
+      else if (network.consensus_type == ConsensusType::CFT)
       {
         recovery_encryptor =
           std::make_shared<RaftTxEncryptor>(network.ledger_secrets, true);
-        recovery_encryptor->set_iv_id(self); // RaftEncryptor uses node ID as iv
+        recovery_encryptor->set_iv_id(self); // RaftEncryptor uses node ID in iv
       }
       else
       {
@@ -1086,7 +1089,7 @@ namespace ccf
             q.node_id = nid;
             q.raw = fmt::format("{:02x}", fmt::join(ni.quote, ""));
 
-            if (this->network.consensus_type != ConsensusType::PBFT)
+            if (this->network.consensus_type != ConsensusType::BFT)
             {
 #ifdef GET_QUOTE
               auto code_id_opt = QuoteGenerator::get_code_id(ni.quote);
@@ -1123,10 +1126,18 @@ namespace ccf
               san_is_ip};
     }
 
+    std::vector<tls::SubjectAltName> get_subject_alternative_names(
+      const CCFConfig& config)
+    {
+      std::vector<tls::SubjectAltName> sans = config.subject_alternative_names;
+      sans.push_back(get_subject_alt_name(config));
+      return sans;
+    }
+
     void create_node_cert(const CCFConfig& config)
     {
-      node_cert =
-        node_sign_kp->self_sign("CN=CCF node", get_subject_alt_name(config));
+      auto sans = get_subject_alternative_names(config);
+      node_cert = node_sign_kp->self_sign(config.subject_name, sans);
     }
 
     void accept_node_tls_connections()
@@ -1144,10 +1155,11 @@ namespace ccf
       // certificate
       auto nw = tls::make_key_pair({network.identity->priv_key});
 
+      auto sans = get_subject_alternative_names(config);
       auto endorsed_node_cert = nw->sign_csr(
-        node_sign_kp->create_csr(fmt::format("CN=CCF node {}", self)),
+        node_sign_kp->create_csr(config.subject_name),
         fmt::format("CN={}", "CCF Network"),
-        get_subject_alt_name(config));
+        sans);
 
       rpcsessions->set_cert(
         endorsed_node_cert, node_sign_kp->private_key_pem());
@@ -1316,9 +1328,7 @@ namespace ccf
         throw std::logic_error("Unable to get actor for create request");
       }
 
-      std::string preferred_actor_name;
-      const auto actor =
-        rpc_map->resolve(actor_opt.value(), preferred_actor_name);
+      const auto actor = rpc_map->resolve(actor_opt.value());
       auto frontend_opt = this->rpc_map->find(actor);
       if (!frontend_opt.has_value())
       {
@@ -1341,7 +1351,7 @@ namespace ccf
     {
       const auto create_success =
         send_create_request(serialize_create_request(args, quote));
-      if (network.consensus_type == ConsensusType::PBFT)
+      if (network.consensus_type == ConsensusType::BFT)
       {
         return true;
       }
@@ -1572,13 +1582,21 @@ namespace ccf
       setup_n2n_channels();
       setup_cmd_forwarder();
 
+      auto shared_state = std::make_shared<aft::State>(self);
       auto raft = std::make_unique<RaftType>(
-        std::make_unique<raft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
+        network.consensus_type,
+        std::make_unique<aft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
           network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         snapshotter,
-        self,
+        rpcsessions,
+        rpc_map,
+        node_cert.raw(),
+        network.pbft_requests_map,
+        shared_state,
+        std::make_shared<aft::ExecutorImpl>(
+          network.pbft_requests_map, shared_state, rpc_map, rpcsessions),
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         public_only);
@@ -1587,8 +1605,6 @@ namespace ccf
         std::move(raft), network.consensus_type);
 
       network.tables->set_consensus(consensus);
-
-      notifier.set_consensus(consensus);
 
       // When a node is added, even locally, inform raft so that it
       // can add a new active configuration.
@@ -1662,14 +1678,14 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       encryptor = std::make_shared<kv::NullTxEncryptor>();
 #else
-      if (network.consensus_type == ConsensusType::PBFT)
+      if (network.consensus_type == ConsensusType::BFT)
       {
         encryptor = std::make_shared<PbftTxEncryptor>(network.ledger_secrets);
       }
-      else if (network.consensus_type == ConsensusType::RAFT)
+      else if (network.consensus_type == ConsensusType::CFT)
       {
         encryptor = std::make_shared<RaftTxEncryptor>(network.ledger_secrets);
-        encryptor->set_iv_id(self); // RaftEncryptor uses node ID as iv
+        encryptor->set_iv_id(self); // RaftEncryptor uses node ID in iv
       }
       else
       {

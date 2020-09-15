@@ -11,7 +11,6 @@
 #include "handle_ring_buffer.h"
 #include "load_monitor.h"
 #include "node_connections.h"
-#include "notify_connections.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
 #include "snapshot.h"
@@ -82,7 +81,7 @@ int main(int argc, char** argv)
 
   ConsensusType consensus;
   std::vector<std::pair<std::string, ConsensusType>> consensus_map{
-    {"raft", ConsensusType::RAFT}, {"pbft", ConsensusType::PBFT}};
+    {"cft", ConsensusType::CFT}, {"bft", ConsensusType::BFT}};
   app.add_option("-c,--consensus", consensus, "Consensus")
     ->required()
     ->transform(CLI::CheckedTransformer(consensus_map, CLI::ignore_case));
@@ -216,13 +215,6 @@ int main(int argc, char** argv)
       "Size of the internal ringbuffers, as a power of 2")
     ->capture_default_str();
 
-  cli::ParsedAddress notifications_address;
-  cli::add_address_option(
-    app,
-    notifications_address,
-    "--notify-server-address",
-    "Server address to notify progress to");
-
   size_t raft_timeout = 100;
   app
     .add_option(
@@ -300,6 +292,20 @@ int main(int argc, char** argv)
   std::string domain;
   app.add_option(
     "--domain", domain, "DNS to use for TLS certificate validation");
+
+  std::string subject_name("CN=CCF Node");
+  app
+    .add_option(
+      "--sn", subject_name, "Subject Name in node certificate, eg. CN=CCF Node")
+    ->capture_default_str();
+
+  std::vector<tls::SubjectAltName> subject_alternative_names;
+  cli::add_subject_alternative_name_option(
+    app,
+    subject_alternative_names,
+    "--san",
+    "Subject Alternative Name in node certificate. Can be either "
+    "iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld");
 
   size_t memory_reserve_startup = 0;
   app
@@ -610,6 +616,9 @@ int main(int argc, char** argv)
   ccf_config.domain = domain;
   ccf_config.snapshot_tx_interval = snapshot_tx_interval;
 
+  ccf_config.subject_name = subject_name;
+  ccf_config.subject_alternative_names = subject_alternative_names;
+
   if (*start)
   {
     start_type = StartType::New;
@@ -681,11 +690,6 @@ int main(int argc, char** argv)
     time_updater->behaviour.get_value());
 
   LOG_INFO_FMT("Created new node");
-
-  asynchost::NotifyConnections report(
-    bp.get_dispatcher(),
-    notifications_address.hostname,
-    notifications_address.port);
 
   // Write the node and network certs to disk.
   files::dump(node_cert, node_cert_file);

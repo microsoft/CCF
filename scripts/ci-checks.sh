@@ -19,13 +19,14 @@ echo "TODOs"
 "$SCRIPT_DIR"/check-todo.sh src
 
 echo "C/C++ format"
-"$SCRIPT_DIR"/check-format.sh src samples
-if [ $FIX -ne 0 ] && [ $? -ne 0 ]; then
-    "$SCRIPT_DIR"/check-format.sh -f src samples
+if [ $FIX -ne 0 ]; then
+  "$SCRIPT_DIR"/check-format.sh -f src samples
+else
+  "$SCRIPT_DIR"/check-format.sh src samples
 fi
 
 echo "Copyright notice headers"
-python3.7 "$SCRIPT_DIR"/notice-check.py
+python3.8 "$SCRIPT_DIR"/notice-check.py
 
 echo "CMake format"
 if [ $FIX -ne 0 ]; then
@@ -37,11 +38,11 @@ fi
 # Virtual Environment w/ dependencies for Python steps
 if [ ! -f "scripts/env/bin/activate" ]
     then
-        python3.7 -m venv scripts/env
+        python3.8 -m venv scripts/env
 fi
 
 source scripts/env/bin/activate
-pip --disable-pip-version-check install black pylint mypy 1>/dev/null
+pip --disable-pip-version-check install -U black pylint mypy 1>/dev/null
 
 echo "Python format"
 if [ $FIX -ne 0 ]; then

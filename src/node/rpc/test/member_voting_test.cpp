@@ -1708,7 +1708,7 @@ DOCTEST_TEST_CASE("User data")
 DOCTEST_TEST_CASE("Submit recovery shares")
 {
   // Setup original state
-  NetworkState network(ConsensusType::RAFT);
+  NetworkState network(ConsensusType::CFT);
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   network.encryption_key = std::make_unique<NetworkEncryptionKey>(
@@ -1907,7 +1907,7 @@ DOCTEST_TEST_CASE("Maximum number of active members")
 DOCTEST_TEST_CASE("Open network sequence")
 {
   // Setup original state
-  NetworkState network(ConsensusType::RAFT);
+  NetworkState network(ConsensusType::CFT);
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   network.encryption_key = std::make_unique<NetworkEncryptionKey>(

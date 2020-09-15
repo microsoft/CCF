@@ -5,12 +5,18 @@ import argparse
 import collections
 import inspect
 import json
+import glob
 import os
 import sys
 from pathlib import PurePosixPath
 from typing import Union, Optional, Any
 
+from cryptography import x509
+import cryptography.hazmat.backends as crypto_backends
 from loguru import logger as LOG  # type: ignore
+
+
+CERT_OID_SGX_QUOTE = "1.2.840.113556.10.1.1"
 
 
 def dump_to_file(output_path: str, obj: dict, dump_args: dict):
@@ -290,6 +296,40 @@ def remove_module(module_name: str, **kwargs):
 
 
 @cli_proposal
+def update_modules(module_name_prefix: str, modules_path: Optional[str], **kwargs):
+    LOG.debug("Generating update_modules proposal")
+
+    # Validate module name prefix
+    module_name_prefix_ = PurePosixPath(module_name_prefix)
+    if not module_name_prefix_.is_absolute():
+        raise ValueError("module name prefix must be an absolute path")
+    if any(folder in [".", ".."] for folder in module_name_prefix_.parents):
+        raise ValueError("module name prefix must not contain . or .. components")
+    if not module_name_prefix.endswith("/"):
+        raise ValueError("module name prefix must end with /")
+
+    # Read module files and build relative module names
+    modules = []
+    if modules_path:
+        for path in glob.glob(f"{modules_path}/**/*.js", recursive=True):
+            rel_module_name = os.path.relpath(path, modules_path)
+            rel_module_name = rel_module_name.replace("\\", "/")  # Windows support
+            with open(path) as f:
+                js = f.read()
+                modules.append({"rel_name": rel_module_name, "module": {"js": js}})
+
+    proposal_args = {"prefix": module_name_prefix, "modules": modules}
+
+    return build_proposal("update_modules", proposal_args, **kwargs)
+
+
+@cli_proposal
+def remove_modules(module_name_prefix: str, **kwargs):
+    LOG.debug("Generating update_modules proposal (remove only)")
+    return update_modules(module_name_prefix, modules_path=None)
+
+
+@cli_proposal
 def trust_node(node_id: int, **kwargs):
     return build_proposal("trust_node", node_id, **kwargs)
 
@@ -303,6 +343,12 @@ def retire_node(node_id: int, **kwargs):
 def new_node_code(code_digest: str, **kwargs):
     code_digest_bytes = list(bytearray.fromhex(code_digest))
     return build_proposal("new_node_code", code_digest_bytes, **kwargs)
+
+
+@cli_proposal
+def retire_node_code(code_digest: str, **kwargs):
+    code_digest_bytes = list(bytearray.fromhex(code_digest))
+    return build_proposal("retire_node_code", code_digest_bytes, **kwargs)
 
 
 @cli_proposal
@@ -334,6 +380,31 @@ def update_recovery_shares(**kwargs):
 @cli_proposal
 def set_recovery_threshold(threshold: int, **kwargs):
     return build_proposal("set_recovery_threshold", threshold, **kwargs)
+
+
+@cli_proposal
+def update_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
+    with open(cert_path) as f:
+        cert_pem = f.read()
+
+    if not skip_checks:
+        try:
+            cert = x509.load_pem_x509_certificate(
+                cert_pem.encode(), crypto_backends.default_backend()
+            )
+        except Exception as exc:
+            raise ValueError("Cannot parse PEM certificate") from exc
+
+        try:
+            oid = x509.ObjectIdentifier(CERT_OID_SGX_QUOTE)
+            _ = cert.extensions.get_extension_for_oid(oid)
+        except x509.ExtensionNotFound as exc:
+            raise ValueError(
+                "X.509 extension with SGX quote not found in certificate"
+            ) from exc
+
+    args = {"name": cert_name, "cert": cert_pem}
+    return build_proposal("update_ca_cert", args, **kwargs)
 
 
 if __name__ == "__main__":
@@ -393,11 +464,15 @@ if __name__ == "__main__":
                 continue
             if param.annotation == param.empty:
                 param_type = None
-            elif param.annotation == dict:
+            elif param.annotation == dict or param.annotation == Any:
                 param_type = json.loads
             else:
                 param_type = param.annotation
-            subparser.add_argument(param_name, type=param_type)  # type: ignore
+            add_argument_extras = {}
+            if param.default is None:
+                add_argument_extras["nargs"] = "?"
+                add_argument_extras["default"] = param.default  # type: ignore
+            subparser.add_argument(param_name, type=param_type, **add_argument_extras)  # type: ignore
             func_param_names.append(param_name)
         subparser.set_defaults(func=func, param_names=func_param_names)
 

@@ -47,6 +47,10 @@ class CodeIdNotFound(Exception):
     pass
 
 
+class CodeIdRetired(Exception):
+    pass
+
+
 class NodeShutdownError(Exception):
     pass
 
@@ -68,7 +72,6 @@ class Network:
         "pbft_view_change_timeout",
         "consensus",
         "memory_reserve_startup",
-        "notify_server",
         "log_format_json",
         "gov_script",
         "join_timer",
@@ -203,12 +206,11 @@ class Network:
 
         # If the network is opening, node are trusted without consortium approval
         if self.status == ServiceStatus.OPENING:
-            if args.consensus != "pbft":
-                try:
-                    node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
-                except TimeoutError:
-                    LOG.error(f"New node {node.node_id} failed to join the network")
-                    raise
+            try:
+                node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
+            except TimeoutError:
+                LOG.error(f"New node {node.node_id} failed to join the network")
+                raise
             node.network_state = infra.node.NodeNetworkState.joined
 
     def _start_all_nodes(
@@ -269,7 +271,7 @@ class Network:
 
         self.election_duration = (
             args.pbft_view_change_timeout / 1000
-            if args.consensus == "pbft"
+            if args.consensus == "bft"
             else args.raft_election_timeout / 1000
         ) * 2
 
@@ -328,8 +330,7 @@ class Network:
         self.create_users(initial_users, args.participants_curve)
 
         primary = self._start_all_nodes(args)
-        if args.consensus != "pbft":
-            self.wait_for_all_nodes_to_catch_up(primary)
+        self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
 
         self.consortium.activate(primary)
@@ -351,9 +352,8 @@ class Network:
         self.consortium.add_users(primary, initial_users)
         LOG.info("Initial set of users added")
 
-        self.consortium.open_network(
-            remote_node=primary, pbft_open=(args.consensus == "pbft")
-        )
+        self.consortium.open_network(remote_node=primary)
+        self.wait_for_all_nodes_to_catch_up(primary)
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
@@ -405,9 +405,7 @@ class Network:
                 node, "partOfNetwork", timeout=args.ledger_recovery_timeout
             )
 
-        self.consortium.check_for_service(
-            primary, ServiceStatus.OPEN, pbft_open=(args.consensus == "pbft")
-        )
+        self.consortium.check_for_service(primary, ServiceStatus.OPEN)
         LOG.success("***** Recovered network is now open *****")
 
     def store_current_network_encryption_key(self):
@@ -477,6 +475,8 @@ class Network:
                 for error in errors:
                     if "CODE_ID_NOT_FOUND" in error:
                         raise CodeIdNotFound from e
+                    if "CODE_ID_RETIRED" in error:
+                        raise CodeIdRetired from e
             raise
 
         return new_node
@@ -496,19 +496,17 @@ class Network:
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(primary, new_node.node_id)
-            if args.consensus != "pbft":
-                # Here, quote verification has already been run when the node
-                # was added as pending. Only wait for the join timer for the
-                # joining node to retrieve network secrets.
-                new_node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
+            # Here, quote verification has already been run when the node
+            # was added as pending. Only wait for the join timer for the
+            # joining node to retrieve network secrets.
+            new_node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {new_node.node_id} failed to join the network")
             new_node.stop()
             raise
 
         new_node.network_state = infra.node.NodeNetworkState.joined
-        if args.consensus != "pbft":
-            self.wait_for_all_nodes_to_catch_up(primary)
+        self.wait_for_all_nodes_to_catch_up(primary)
 
         return new_node
 
@@ -626,11 +624,12 @@ class Network:
             seqno != 0
         ), f"Primary {primary.node_id} has not made any progress yet (view: {view}, seqno: {seqno})"
 
+        caught_up_nodes = []
         while time.time() < end_time:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.client() as c:
-                    resp = c.get(f"/node/tx?view={view}&seqno={seqno}")
+                    resp = c.get(f"/node/local_tx?view={view}&seqno={seqno}")
                     if resp.status_code != 200:
                         # Node may not have joined the network yet, try again
                         break

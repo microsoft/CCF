@@ -77,6 +77,12 @@ namespace ccf
         .set_auto_schema<GetTxStatus>()
         .install();
 
+      make_command_endpoint(
+        "local_tx", HTTP_GET, json_command_adapter(get_tx_status))
+        .set_auto_schema<GetTxStatus>()
+        .set_execute_locally(true)
+        .install();
+
       auto get_metrics = [this](auto&, nlohmann::json&&) {
         auto result = metrics.get_metrics();
         return make_success(result);

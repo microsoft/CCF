@@ -1,4 +1,5 @@
-oe_ver: "0.10.0"
+oe_ver: "0.11.0-rc1"
+oe_ver_: "0.11.0_rc1"
 
 # Source install
 workspace: "/tmp/"
@@ -9,7 +10,7 @@ oe_playbook: scripts/ansible/oe-contributors-acc-setup-no-driver.yml
 oe_build_opts: ""
 
 # Binary install
-oe_deb: "https://github.com/openenclave/openenclave/releases/download/v{{ oe_ver }}/Ubuntu_1804_open-enclave_{{ oe_ver }}_amd64.deb"
+oe_deb: "https://github.com/openenclave/openenclave/releases/download/v{{ oe_ver }}/Ubuntu_1804_open-enclave_{{ oe_ver_ }}_amd64.deb"
 
 # LVI mitigations
 oe_lvi_scripts_dir: "{{ oe_prefix }}/bin/scripts/lvi-mitigation"

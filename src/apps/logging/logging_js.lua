@@ -3,19 +3,19 @@
 
 return {
   ["GET log/private"] = [[
-    export default function()
+    export default function(request)
     {
-      const elements = query.split("&");
+      const elements = request.query.split("&");
       for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
           try
           {
-            return {msg: tables.data.get(JSON.parse(v).toString())};
+            return { body: {msg: tables.data.get(JSON.parse(v).toString())} };
           }
           catch (err)
           {
-            return {error: err.message}
+            return { body: {error: err.message} };
           }
         }
       }
@@ -24,19 +24,19 @@ return {
   ]],
 
   ["GET log/public"] = [[
-    export default function()
+    export default function(request)
     {
-      const elements = query.split("&");
+      const elements = request.query.split("&");
       for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
           try
           {
-            return {msg: tables.data.get(JSON.parse(v).toString())};
+            return { body: {msg: tables.data.get(JSON.parse(v).toString())} };
           }
           catch (err)
           {
-            return {error: err.message}
+            return { body: {error: err.message} }
           }
         }
       }
@@ -45,31 +45,31 @@ return {
   ]],
 
   ["POST log/private"] = [[
-    export default function()
+    export default function(request)
     {
-      let params = JSON.parse(body);
+      let params = request.body.json();
       tables.data.put(params.id.toString(), params.msg);
-      return true;
+      return { body: true };
     }
   ]],
 
   ["POST log/public"] = [[
-    export default function()
+    export default function(request)
     {
-      let params = JSON.parse(body);
+      let params = request.body.json();
       tables.data.put(params.id.toString(), params.msg);
-      return true;
+      return { body: true };
     }
   ]],
 
   ["DELETE log/public"] = [[
-    export default function()
+    export default function(request)
     {
-      const elements = query.split("&");
+      const elements = request.query.split("&");
       for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
-          return tables.data.remove(JSON.parse(v).toString());
+          return { body: tables.data.remove(JSON.parse(v).toString()) };
         }
       }
       throw "Could not find 'id' in query";
@@ -77,13 +77,13 @@ return {
   ]],
 
   ["DELETE log/private"] = [[
-    export default function()
+    export default function(request)
     {
-      const elements = query.split("&");
+      const elements = request.query.split("&");
       for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
-          return tables.data.remove(JSON.parse(v).toString());
+          return { body: tables.data.remove(JSON.parse(v).toString()) };
         }
       }
       throw "Could not find 'id' in query";

@@ -62,7 +62,7 @@ TEST_CASE(
   encryptor->encrypt(
     plain, additional_data, serialised_header2, cipher2, version);
 
-  // Cipher are different because IV is different
+  // Ciphers are different because IV is different
   REQUIRE(cipher != cipher2);
   REQUIRE(serialised_header != serialised_header2);
 }
@@ -90,7 +90,7 @@ TEST_CASE(
   encryptor_1->encrypt(
     plain, additional_data, serialised_header2, cipher2, version);
 
-  // Cipher are different because IV is different
+  // Ciphers are different because IV is different
   REQUIRE(cipher != cipher2);
   REQUIRE(serialised_header != serialised_header2);
 }
@@ -115,7 +115,37 @@ TEST_CASE("Two ciphers from same plaintext are different - PbftTxEncryptor")
   encryptor->encrypt(
     plain, additional_data, serialised_header2, cipher2, version);
 
-  // Cipher are different because IV is different
+  // Ciphers are different because IV is different
+  REQUIRE(cipher != cipher2);
+  REQUIRE(serialised_header != serialised_header2);
+}
+
+TEST_CASE(
+  "Different node ciphers from same plaintext with and without snapshots - "
+  "PbftTxEncryptor")
+{
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->init();
+  auto encryptor = std::make_shared<ccf::PbftTxEncryptor>(secrets);
+  encryptor->set_iv_id(0x7FFFFFFF);
+
+  std::vector<uint8_t> plain(128, 0x42);
+  std::vector<uint8_t> cipher;
+  std::vector<uint8_t> cipher2;
+  std::vector<uint8_t> serialised_header;
+  std::vector<uint8_t> serialised_header2;
+  std::vector<uint8_t> additional_data; // No additional data
+  kv::Version version = 10;
+
+  bool is_snapshot = false;
+  encryptor->encrypt(
+    plain, additional_data, serialised_header, cipher, version, is_snapshot);
+
+  is_snapshot = true;
+  encryptor->encrypt(
+    plain, additional_data, serialised_header2, cipher2, version, is_snapshot);
+
+  // Ciphers are different because IV is different
   REQUIRE(cipher != cipher2);
   REQUIRE(serialised_header != serialised_header2);
 }

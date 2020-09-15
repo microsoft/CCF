@@ -26,6 +26,12 @@ namespace consensus
   template <typename T>
   struct ConsensusHeader
   {
+    ConsensusHeader() = default;
+    ConsensusHeader(T msg_, ccf::NodeId from_node_) :
+      msg(msg_),
+      from_node(from_node_)
+    {}
+
     T msg;
     ccf::NodeId from_node;
   };

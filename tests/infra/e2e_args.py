@@ -105,8 +105,8 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--consensus",
         help="Consensus",
-        default="raft",
-        choices=("raft", "pbft"),
+        default="cft",
+        choices=("cft", "bft"),
     )
     parser.add_argument(
         "--worker-threads",
@@ -139,6 +139,15 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--domain",
         help="Domain name used for node certificate verification, eg. example.com",
+    )
+    parser.add_argument(
+        "--sn",
+        help="Subject Name in node certificate, eg. CN=CCF Node",
+    )
+    parser.add_argument(
+        "--san",
+        help="Subject Alternative Name in node certificate. Can be either iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld",
+        action="append",
     )
     parser.add_argument(
         "--participants-curve",

@@ -100,7 +100,7 @@ def test_retire_backup(network, args):
 
 
 @reqs.description("Retiring the primary")
-@reqs.at_least_n_nodes(3)
+@reqs.can_kill_n_nodes(1)
 def test_retire_primary(network, args):
     primary, backup = network.find_primary_and_any_backup()
     network.consortium.retire_node(primary, primary)

@@ -6,7 +6,6 @@ import time
 
 import infra.network
 import infra.proc
-import infra.notification
 import infra.net
 import infra.checker
 import suite.test_requirements as reqs

@@ -1,0 +1,5 @@
+steps:
+- task: PublishPipelineArtifact@1
+  inputs:
+    artifactName: 'TLS report'
+    targetPath: build/tls_report.html
