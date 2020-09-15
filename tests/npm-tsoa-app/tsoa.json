@@ -1,0 +1,26 @@
+{
+    "entryFile": "tsoa-support/entry.ts",
+    "noImplicitAdditionalProperties": "throw-on-extras",
+    "controllerPathGlobs": [
+        "src/controllers/*.ts"
+    ],
+    "spec": {
+        "outputDirectory": "dist",
+        "specVersion": 3,
+        "basePath": "/app",
+        "specMerging": "recursive",
+        "spec": {
+            "components": {
+                "schemas": {
+                    "ProtoResponse": {
+                        
+                    }
+                }
+            }
+        }
+    },
+    "routes": {
+        "routesDir": "build",
+        "middlewareTemplate": "tsoa-support/routes.ts.tmpl"
+    }
+}
