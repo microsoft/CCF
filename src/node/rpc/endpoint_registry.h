@@ -47,7 +47,6 @@ namespace ccf
   using CommandEndpointFunction =
     std::function<void(CommandEndpointContext& args)>;
 
-
   enum class ForwardingRequired
   {
     Sometimes,
@@ -77,7 +76,8 @@ namespace ccf
     };
 
     struct Endpoint;
-    using SchemaBuilderFn = std::function<void(nlohmann::json&, const Endpoint&)>;
+    using SchemaBuilderFn =
+      std::function<void(nlohmann::json&, const Endpoint&)>;
 
     /** An Endpoint represents a user-defined resource that can be invoked by
      * authorised users via HTTP requests, over TLS. An Endpoint is accessible
@@ -109,18 +109,34 @@ namespace ccf
       {
         params_schema = j;
 
-        schema_builders.push_back([](nlohmann::json& document, const Endpoint& endpoint) {
-          const auto http_verb = endpoint.verb.get_http_method();
-          if (!http_verb.has_value())
-          {
-            return;
-          }
+        schema_builders.push_back(
+          [](nlohmann::json& document, const Endpoint& endpoint) {
+            const auto http_verb = endpoint.verb.get_http_method();
+            if (!http_verb.has_value())
+            {
+              return;
+            }
 
-          using namespace ds::openapi;
-          auto& rb = request_body(path_operation(
-            ds::openapi::path(document, endpoint.method), http_verb.value()));
-          schema(media_type(rb, http::headervalues::contenttype::JSON)) = endpoint.params_schema;
-        });
+            using namespace ds::openapi;
+
+            if (
+              http_verb.value() == HTTP_GET ||
+              http_verb.value() == HTTP_DELETE)
+            {
+              add_query_parameters(
+                document,
+                endpoint.method,
+                endpoint.params_schema,
+                http_verb.value());
+            }
+            else
+            {
+              auto& rb = request_body(path_operation(
+                ds::openapi::path(document, endpoint.method), http_verb.value()));
+              schema(media_type(rb, http::headervalues::contenttype::JSON)) =
+                endpoint.params_schema;
+            }
+          });
 
         return *this;
       }
@@ -134,18 +150,27 @@ namespace ccf
        */
       Endpoint& set_result_schema(const nlohmann::json& j)
       {
-        schema_builders.push_back([j](nlohmann::json& document, const Endpoint& endpoint) {
-          const auto http_verb = endpoint.verb.get_http_method();
-          if (!http_verb.has_value())
-          {
-            return;
-          }
+        schema_builders.push_back(
+          [j](nlohmann::json& document, const Endpoint& endpoint) {
+            const auto http_verb = endpoint.verb.get_http_method();
+            if (!http_verb.has_value())
+            {
+              return;
+            }
 
-          using namespace ds::openapi;
-          auto& r =
-            response(path_operation(ds::openapi::path(document, endpoint.method), http_verb.value()), HTTP_STATUS_OK);
-          schema(media_type(r, http::headervalues::contenttype::JSON)) = endpoint.result_schema;
-        });
+            using namespace ds::openapi;
+            auto& r = response(
+              path_operation(
+                ds::openapi::path(document, endpoint.method),
+                http_verb.value()),
+              HTTP_STATUS_OK);
+
+            if (endpoint.result_schema != nullptr)
+            {
+              schema(media_type(r, http::headervalues::contenttype::JSON)) =
+                endpoint.result_schema;
+            }
+          });
 
         return *this;
       }
@@ -170,56 +195,34 @@ namespace ccf
         {
           params_schema = ds::json::build_schema<In>(method + "/params");
 
-          schema_builders.push_back([](nlohmann::json& document, const Endpoint& endpoint) {
-            const auto http_verb = endpoint.verb.get_http_method();
-            if (!http_verb.has_value())
-            {
-              // Non-HTTP (ie WebSockets) endpoints are not documented
-              return;
-            }
-
-            if (
-              http_verb.value() == HTTP_GET || http_verb.value() == HTTP_DELETE)
-            {
-              // TODO: Should set these as individual parameters, not reparse
-              // them here
-              if (endpoint.params_schema["type"] != "object")
+          schema_builders.push_back(
+            [](nlohmann::json& document, const Endpoint& endpoint) {
+              const auto http_verb = endpoint.verb.get_http_method();
+              if (!http_verb.has_value())
               {
-                throw std::logic_error(fmt::format(
-                  "Unexpected params schema type: {}",
-                  endpoint.params_schema.dump()));
+                // Non-HTTP (ie WebSockets) endpoints are not documented
+                return;
               }
 
-              //const auto& required_parameters = params_schema["required"];
-              for (const auto& [name, schema] :
-                   endpoint.params_schema["properties"].items())
+              if (
+                http_verb.value() == HTTP_GET ||
+                http_verb.value() == HTTP_DELETE)
               {
-                // TODO: Revive this somehow?
-                LOG_FAIL_FMT("Ignoring parameter {} in {}", name, endpoint.method);
-
-                // auto parameter = nlohmann::json::object();
-                // parameter["name"] = name;
-                // parameter["in"] = "query";
-                // parameter["required"] =
-                //   required_parameters.find(name) !=
-                //   required_parameters.end();
-                // parameter["schema"] = ds::openapi::add_schema_to_components(
-                //   document,
-                //   fmt::format("{} param:{}", verbose_name, name),
-                //   schema);
-                // ds::openapi::add_request_parameter_schema(
-                //   document, path, http_verb.value(), parameter);
+                add_query_parameters(
+                  document,
+                  endpoint.method,
+                  endpoint.params_schema,
+                  http_verb.value());
               }
-            }
-            else
-            {
-              ds::openapi::add_request_body_schema<In>(
-                document,
-                endpoint.method,
-                http_verb.value(),
-                http::headervalues::contenttype::JSON);
-            }
-          });
+              else
+              {
+                ds::openapi::add_request_body_schema<In>(
+                  document,
+                  endpoint.method,
+                  http_verb.value(),
+                  http::headervalues::contenttype::JSON);
+              }
+            });
         }
         else
         {
@@ -228,20 +231,21 @@ namespace ccf
 
         if constexpr (!std::is_same_v<Out, void>)
         {
-          schema_builders.push_back([](nlohmann::json& document, const Endpoint& endpoint) {
-            const auto http_verb = endpoint.verb.get_http_method();
-            if (!http_verb.has_value())
-            {
-              return;
-            }
+          schema_builders.push_back(
+            [](nlohmann::json& document, const Endpoint& endpoint) {
+              const auto http_verb = endpoint.verb.get_http_method();
+              if (!http_verb.has_value())
+              {
+                return;
+              }
 
-            ds::openapi::add_response_schema<Out>(
-              document,
-              endpoint.method,
-              http_verb.value(),
-              HTTP_STATUS_OK,
-              http::headervalues::contenttype::JSON);
-          });
+              ds::openapi::add_response_schema<Out>(
+                document,
+                endpoint.method,
+                http_verb.value(),
+                HTTP_STATUS_OK,
+                http::headervalues::contenttype::JSON);
+            });
         }
         else
         {
@@ -428,6 +432,34 @@ namespace ccf
       return templated;
     }
 
+    // TODO: Don't re-parse this here, set the parameters explicitly and
+    // individually
+    static void add_query_parameters(
+      nlohmann::json& document,
+      const std::string& uri,
+      const nlohmann::json& schema,
+      http_method verb)
+    {
+      if (schema["type"] != "object")
+      {
+        throw std::logic_error(
+          fmt::format("Unexpected params schema type: {}", schema.dump()));
+      }
+
+      const auto& required_parameters = schema["required"];
+      for (const auto& [name, schema] : schema["properties"].items())
+      {
+        auto parameter = nlohmann::json::object();
+        parameter["name"] = name;
+        parameter["in"] = "query";
+        parameter["required"] =
+          required_parameters.find(name) != required_parameters.end();
+        parameter["schema"] = schema;
+        ds::openapi::add_request_parameter_schema(
+          document, uri, verb, parameter);
+      }
+    }
+
   public:
     EndpointRegistry(
       const std::string& method_prefix_,
@@ -572,7 +604,16 @@ namespace ccf
         {
           add_endpoint_to_api_document(document, endpoint);
 
-          // TODO: Document path template args
+          for (const auto& name : endpoint.template_component_names)
+          {
+            auto parameter = nlohmann::json::object();
+            parameter["name"] = name;
+            parameter["in"] = "path";
+            parameter["required"] = true;
+            parameter["schema"] = {{"type", "string"}};
+            ds::openapi::add_path_parameter_schema(
+              document, endpoint.method, parameter);
+          }
         }
       }
     }

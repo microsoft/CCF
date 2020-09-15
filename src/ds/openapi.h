@@ -333,6 +333,15 @@ namespace ds
       }
     }
 
+    static inline void add_path_parameter_schema(
+      nlohmann::json& document,
+      const std::string& uri,
+      const nlohmann::json& param)
+    {
+      auto& params = parameters(path(document, uri));
+      params.push_back(param);
+    }
+
     static inline void add_request_parameter_schema(
       nlohmann::json& document,
       const std::string& uri,

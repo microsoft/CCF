@@ -619,6 +619,16 @@
     },
     "/api/schema": {
       "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "method",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -715,6 +725,24 @@
     },
     "/node/ids": {
       "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "host",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "port",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -785,9 +813,29 @@
             "description": "Default response description"
           }
         }
-      }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "proposal_id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
     },
     "/proposals/{proposal_id}/complete": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "proposal_id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
       "post": {
         "responses": {
           "200": {
@@ -804,6 +852,16 @@
       }
     },
     "/proposals/{proposal_id}/votes": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "proposal_id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
       "post": {
         "requestBody": {
           "content": {
@@ -843,9 +901,37 @@
             "description": "Default response description"
           }
         }
-      }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "proposal_id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "in": "path",
+          "name": "member_id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
     },
     "/proposals/{proposal_id}/withdraw": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "proposal_id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
       "post": {
         "responses": {
           "200": {
@@ -915,6 +1001,18 @@
     },
     "/receipt": {
       "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "commit",
+            "required": false,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": -9223372036854775808,
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -999,6 +1097,28 @@
     },
     "/tx": {
       "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "seqno",
+            "required": false,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": -9223372036854775808,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": -9223372036854775808,
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1015,6 +1135,21 @@
     },
     "/user_id": {
       "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cert",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
