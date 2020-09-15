@@ -47,7 +47,6 @@ namespace ccf
   using CommandEndpointFunction =
     std::function<void(CommandEndpointContext& args)>;
 
-  using SchemaBuilderFn = std::function<void(nlohmann::json&)>;
 
   enum class ForwardingRequired
   {
@@ -76,6 +75,9 @@ namespace ccf
       size_t errors = 0;
       size_t failures = 0;
     };
+
+    struct Endpoint;
+    using SchemaBuilderFn = std::function<void(nlohmann::json&, const Endpoint&)>;
 
     /** An Endpoint represents a user-defined resource that can be invoked by
      * authorised users via HTTP requests, over TLS. An Endpoint is accessible
@@ -107,8 +109,8 @@ namespace ccf
       {
         params_schema = j;
 
-        schema_builders.push_back([this, j](nlohmann::json& document) {
-          const auto http_verb = verb.get_http_method();
+        schema_builders.push_back([](nlohmann::json& document, const Endpoint& endpoint) {
+          const auto http_verb = endpoint.verb.get_http_method();
           if (!http_verb.has_value())
           {
             return;
@@ -116,8 +118,8 @@ namespace ccf
 
           using namespace ds::openapi;
           auto& rb = request_body(path_operation(
-            ds::openapi::path(document, method), http_verb.value()));
-          schema(media_type(rb, http::headervalues::contenttype::JSON)) = j;
+            ds::openapi::path(document, endpoint.method), http_verb.value()));
+          schema(media_type(rb, http::headervalues::contenttype::JSON)) = endpoint.params_schema;
         });
 
         return *this;
@@ -132,10 +134,8 @@ namespace ccf
        */
       Endpoint& set_result_schema(const nlohmann::json& j)
       {
-        result_schema = j;
-
-        schema_builders.push_back([this, j](nlohmann::json& document) {
-          const auto http_verb = verb.get_http_method();
+        schema_builders.push_back([j](nlohmann::json& document, const Endpoint& endpoint) {
+          const auto http_verb = endpoint.verb.get_http_method();
           if (!http_verb.has_value())
           {
             return;
@@ -143,8 +143,8 @@ namespace ccf
 
           using namespace ds::openapi;
           auto& r =
-            response(path_operation(ds::openapi::path(document, method), http_verb.value()), HTTP_STATUS_OK);
-          schema(media_type(r, http::headervalues::contenttype::JSON)) = j;
+            response(path_operation(ds::openapi::path(document, endpoint.method), http_verb.value()), HTTP_STATUS_OK);
+          schema(media_type(r, http::headervalues::contenttype::JSON)) = endpoint.result_schema;
         });
 
         return *this;
@@ -170,8 +170,8 @@ namespace ccf
         {
           params_schema = ds::json::build_schema<In>(method + "/params");
 
-          schema_builders.push_back([this](nlohmann::json& document) {
-            const auto http_verb = verb.get_http_method();
+          schema_builders.push_back([](nlohmann::json& document, const Endpoint& endpoint) {
+            const auto http_verb = endpoint.verb.get_http_method();
             if (!http_verb.has_value())
             {
               // Non-HTTP (ie WebSockets) endpoints are not documented
@@ -183,19 +183,19 @@ namespace ccf
             {
               // TODO: Should set these as individual parameters, not reparse
               // them here
-              if (params_schema["type"] != "object")
+              if (endpoint.params_schema["type"] != "object")
               {
                 throw std::logic_error(fmt::format(
                   "Unexpected params schema type: {}",
-                  params_schema.dump()));
+                  endpoint.params_schema.dump()));
               }
 
               //const auto& required_parameters = params_schema["required"];
               for (const auto& [name, schema] :
-                   params_schema["properties"].items())
+                   endpoint.params_schema["properties"].items())
               {
                 // TODO: Revive this somehow?
-                LOG_FAIL_FMT("Ignoring parameter {} in {}", name, method);
+                LOG_FAIL_FMT("Ignoring parameter {} in {}", name, endpoint.method);
 
                 // auto parameter = nlohmann::json::object();
                 // parameter["name"] = name;
@@ -215,7 +215,7 @@ namespace ccf
             {
               ds::openapi::add_request_body_schema<In>(
                 document,
-                method,
+                endpoint.method,
                 http_verb.value(),
                 http::headervalues::contenttype::JSON);
             }
@@ -228,18 +228,18 @@ namespace ccf
 
         if constexpr (!std::is_same_v<Out, void>)
         {
-          result_schema = ds::json::build_schema<Out>(method + "/result");
-
-          schema_builders.push_back([this](nlohmann::json& document) {
-            const auto http_verb = verb.get_http_method();
+          schema_builders.push_back([](nlohmann::json& document, const Endpoint& endpoint) {
+            const auto http_verb = endpoint.verb.get_http_method();
             if (!http_verb.has_value())
             {
               return;
             }
 
+            LOG_INFO_FMT("ZZZ Adding response schema for {} {}", endpoint.verb.c_str(), endpoint.method);
+
             ds::openapi::add_response_schema<Out>(
               document,
-              method,
+              endpoint.method,
               http_verb.value(),
               HTTP_STATUS_OK,
               http::headervalues::contenttype::JSON);
@@ -546,7 +546,7 @@ namespace ccf
     {
       for (const auto& builder_fn : endpoint.schema_builders)
       {
-        builder_fn(document);
+        builder_fn(document, endpoint);
       }
     }
 
@@ -558,7 +558,7 @@ namespace ccf
      */
     virtual void build_api(nlohmann::json& document, kv::Tx&)
     {
-      // TODO: Add common prefix as relative server element
+      ds::openapi::server(document, fmt::format("/{}", method_prefix));
 
       for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
       {
