@@ -682,16 +682,6 @@ namespace aft
           state->last_idx);
         return;
       }
-      else if (r.prev_idx > last_idx)
-      {
-        LOG_DEBUG_FMT(
-          "Recv append entries to {} from {} but prev_idx ({}) > last_idx ({})",
-          local_id,
-          r.from_node,
-          r.prev_idx,
-          last_idx);
-        return;
-      }
 
       LOG_DEBUG_FMT(
         "Recv append entries to {} from {} for index {} and previous index {}",
