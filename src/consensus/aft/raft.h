@@ -568,7 +568,6 @@ namespace aft
     {
       std::lock_guard<SpinLock> guard(state->lock);
       AppendEntries r;
-      bool is_first_entry = true; // Indicates first entry in batch
 
       try
       {
@@ -703,9 +702,7 @@ namespace aft
 
         LOG_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
 
-        is_first_entry = false;
         std::vector<uint8_t> entry;
-
         try
         {
           entry = ledger->get_entry(data, size);

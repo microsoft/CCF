@@ -93,7 +93,7 @@ def test_share_resilience(network, args):
 
 
 def run(args):
-    hosts = ["localhost", "localhost", "localhost"]
+    hosts = ["localhost", "localhost"]#, "localhost"]
 
     txs = app.LoggingTxs()
 

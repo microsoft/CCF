@@ -331,7 +331,7 @@ namespace ccf
             ledger_idx = network.tables->current_version();
             last_recovered_commit_idx = ledger_idx;
 
-            // TODO: Snapshot interval is not right either
+            // TODO: Snapshot interval is not right
 
             // TODO: Refactor this with join protocol
             kv::ReadOnlyTx tx;
@@ -348,7 +348,7 @@ namespace ccf
             // TODO: Is this right?? What happens if there's more than 1 term beforehand??
             for (size_t i = term_history.size(); i < sig->view; ++i)
             {
-              LOG_FAIL_FMT("Term history: {} for term  {}", ledger_idx, sig->view);
+              LOG_FAIL_FMT("Term history: {} for term {}", ledger_idx, sig->view);
               term_history.push_back(ledger_idx);
             }
 
