@@ -72,7 +72,6 @@ class Network:
         "pbft_view_change_timeout",
         "consensus",
         "memory_reserve_startup",
-        "notify_server",
         "log_format_json",
         "gov_script",
         "join_timer",
@@ -207,12 +206,11 @@ class Network:
 
         # If the network is opening, node are trusted without consortium approval
         if self.status == ServiceStatus.OPENING:
-            if args.consensus != "bft":
-                try:
-                    node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
-                except TimeoutError:
-                    LOG.error(f"New node {node.node_id} failed to join the network")
-                    raise
+            try:
+                node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
+            except TimeoutError:
+                LOG.error(f"New node {node.node_id} failed to join the network")
+                raise
             node.network_state = infra.node.NodeNetworkState.joined
 
     def _start_all_nodes(self, args, recovery=False, ledger_dir=None):
@@ -351,6 +349,7 @@ class Network:
         LOG.info("Initial set of users added")
 
         self.consortium.open_network(remote_node=primary)
+        self.wait_for_all_nodes_to_catch_up(primary)
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
@@ -621,11 +620,12 @@ class Network:
             seqno != 0
         ), f"Primary {primary.node_id} has not made any progress yet (view: {view}, seqno: {seqno})"
 
+        caught_up_nodes = []
         while time.time() < end_time:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.client() as c:
-                    resp = c.get(f"/node/tx?view={view}&seqno={seqno}")
+                    resp = c.get(f"/node/local_tx?view={view}&seqno={seqno}")
                     if resp.status_code != 200:
                         # Node may not have joined the network yet, try again
                         break

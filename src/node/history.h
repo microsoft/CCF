@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/pbft/pbft_types.h"
 #include "crypto/hash.h"
 #include "ds/dl_list.h"
 #include "ds/logger.h"
@@ -629,40 +628,37 @@ namespace ccf
         return;
       }
 
-      if (consensus->type() == ConsensusType::CFT)
-      {
-        auto txid = store.next_txid();
-        auto commit_txid = consensus->get_committed_txid();
+      auto txid = store.next_txid();
+      auto commit_txid = consensus->get_committed_txid();
 
-        LOG_DEBUG_FMT(
-          "Signed at {} in view: {} commit was: {}.{}",
-          txid.version,
-          txid.term,
-          commit_txid.first,
-          commit_txid.second);
+      LOG_DEBUG_FMT(
+        "Signed at {} in view: {} commit was: {}.{}",
+        txid.version,
+        txid.term,
+        commit_txid.first,
+        commit_txid.second);
 
-        store.commit(
-          txid,
-          [txid, commit_txid, this]() {
-            kv::Tx sig(txid.version);
-            auto sig_view = sig.get_view(signatures);
-            crypto::Sha256Hash root = replicated_state_tree.get_root();
+      store.commit(
+        txid,
+        [txid, commit_txid, this]() {
+          kv::Tx sig(txid.version);
+          auto sig_view = sig.get_view(signatures);
+          crypto::Sha256Hash root = replicated_state_tree.get_root();
 
-            Signature sig_value(
-              id,
-              txid.version,
-              txid.term,
-              commit_txid.second,
-              commit_txid.first,
-              root,
-              kp.sign_hash(root.h.data(), root.h.size()),
-              replicated_state_tree.serialise());
+          Signature sig_value(
+            id,
+            txid.version,
+            txid.term,
+            commit_txid.second,
+            commit_txid.first,
+            root,
+            kp.sign_hash(root.h.data(), root.h.size()),
+            replicated_state_tree.serialise());
 
-            sig_view->put(0, sig_value);
-            return sig.commit_reserved();
-          },
-          true);
-      }
+          sig_view->put(0, sig_value);
+          return sig.commit_reserved();
+        },
+        true);
     }
 
     std::vector<uint8_t> get_receipt(kv::Version index) override

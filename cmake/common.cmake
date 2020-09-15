@@ -66,10 +66,7 @@ enable_language(ASM)
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 include_directories(${CCF_DIR}/src)
 
-include_directories(
-  SYSTEM ${CCF_DIR}/3rdparty ${CCF_DIR}/3rdparty/hacl-star
-  ${CCF_DIR}/3rdparty/flatbuffers/include
-)
+include_directories(SYSTEM ${CCF_DIR}/3rdparty ${CCF_DIR}/3rdparty/hacl-star)
 
 find_package(MbedTLS REQUIRED)
 
@@ -187,9 +184,8 @@ function(add_unit_test name)
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
   enable_coverage(${name})
   target_link_libraries(
-    ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehost
-  ) # TODO: replace with openenclave::oehostverify once OE 0.11 is released
-    # (OE#3312)
+    ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehostverify
+  )
   use_client_mbedtls(${name})
   add_san(${name})
 
@@ -551,16 +547,4 @@ function(add_picobench name)
   use_client_mbedtls(${name})
 
   set_property(TEST ${name} PROPERTY LABELS benchmark)
-endfunction()
-
-# flatbuffer generator
-function(generate_flatbuffer path name)
-  add_custom_command(
-    OUTPUT ${CCF_GENERATED_DIR}/${name}_generated.h
-    COMMAND flatc -o "${CCF_GENERATED_DIR}" --cpp ${path}/${name}.fbs
-    DEPENDS ${path}/${name}.fbs
-  )
-  install(FILES ${CCF_GENERATED_DIR}/${name}_generated.h
-          DESTINATION ${CCF_GENERATED_DIR}
-  )
 endfunction()

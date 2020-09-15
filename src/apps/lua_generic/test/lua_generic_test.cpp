@@ -96,13 +96,7 @@ void set_lua_logger()
 
 struct NodeContext : public ccfapp::AbstractNodeContext
 {
-  StubNotifier notifier;
   ccf::historical::StubStateCache historical_state;
-
-  AbstractNotifier& get_notifier() override
-  {
-    return notifier;
-  }
 
   ccf::historical::AbstractStateCache& get_historical_state() override
   {

@@ -7,7 +7,6 @@ import os
 import infra.network
 import infra.path
 import infra.proc
-import infra.notification
 import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
@@ -43,7 +42,7 @@ return {
     import {bar} from "./app/bar.js";
     export default function()
     {
-      return bar();
+      return { body: bar(), statusCode: 201 };
     }
   ]]
 }
@@ -55,15 +54,15 @@ NPM_APP_SCRIPT = """
 return {
   ["POST npm/partition"] = [[
     import {partition} from "./my-npm-app/src/endpoints.js";
-    export default () => partition();
+    export default (request) => partition(request);
   ]],
   ["POST npm/proto"] = [[
     import {proto} from "./my-npm-app/src/endpoints.js";
-    export default () => proto();
+    export default (request) => proto(request);
   ]],
   ["GET npm/crypto"] = [[
     import {crypto} from "./my-npm-app/src/endpoints.js";
-    export default () => crypto();
+    export default (request) => crypto(request);
   ]]
 }
 """
@@ -155,7 +154,7 @@ def test_module_import(network, args):
 
     with primary.client("user0") as c:
         r = c.post("/app/test_module", {})
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.status_code == http.HTTPStatus.CREATED, r.status_code
         assert r.body == MODULE_RETURN_1
 
     return network
@@ -197,6 +196,7 @@ def test_npm_app(network, args):
 
         r = c.post("/app/npm/proto", body)
         assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.headers["content-type"] == "application/x-protobuf"
         # We could now decode the protobuf message but given all the machinery
         # involved to make it happen (code generation with protoc) we'll leave it at that.
         assert len(r.body) == 14, len(r.body)

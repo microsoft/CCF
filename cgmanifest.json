@@ -100,21 +100,12 @@
       }
     },
     {
-      "component": {
-        "type": "git",
-        "git": {
-          "repositoryUrl": "https://github.com/google/flatbuffers",
-          "commitHash": "6df40a2471737b27271bdd9b900ab5f3aec746c7"
-        }
-      }
-    },
-    {
       "Component": {
         "Type": "other",
         "Other": {
           "Name": "QuickJS",
-          "Version": "2020-04-12",
-          "DownloadUrl": "https://bellard.org/quickjs/quickjs-2020-04-12.tar.xz"
+          "Version": "2020-09-06",
+          "DownloadUrl": "https://bellard.org/quickjs/quickjs-2020-09-06.tar.xz"
         }
       }
     },

@@ -1,7 +1,7 @@
 - name: Include vars
   include_vars: common.yml
 
-- name: Add Python 3.7 PPA
+- name: Add Python PPA
   apt_repository:
     repo: ppa:deadsnakes/ppa
   become: true
@@ -59,49 +59,6 @@
   command: make install
   args:
     chdir: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}/build"
-  become: true
-
-- name: Download FlatBuffers source
-  get_url:
-    url: "{{ flatbuffers_url }}"
-    dest: "{{ workspace }}/{{ flatbuffers_src }}"
-    force: yes
-  become: true
-
-- name: Remove Pre-existing FlatBuffers source on the remote
-  file:
-    path: "{{ fb_prefix }}/flatbuffers-{{ fb_ver }}"
-    state: absent
-  become: true
-
-- name: Create directory for FlatBuffers source
-  file:
-    path: "{{ fb_prefix }}/flatbuffers-{{ fb_ver }}"
-    state: directory
-  become: true
-
-- name: Expand FlatBuffers
-  unarchive:
-    src: "{{ workspace }}/{{ flatbuffers_src }}"
-    dest: "{{ fb_prefix }}"
-    copy: no
-    creates: "{{ fb_prefix }}/flatbuffers-{{ fb_ver }}/CMakeLists.txt"
-  become: true
-
-- name: Build flatc
-  shell: |
-    CC=/usr/bin/clang-8 CXX=/usr/bin/clang++-8 cmake -GNinja .
-    ninja
-  args:
-    chdir: "{{ fb_prefix }}/flatbuffers-{{ fb_ver }}"
-  become: true
-
-- name: Install flatc
-  file:
-    src: "{{ fb_prefix }}/flatbuffers-{{ fb_ver }}/flatc"
-    dest: /usr/local/bin/flatc
-    mode: +x
-    state: link
   become: true
 
 - name: Install step-cli

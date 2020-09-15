@@ -3,7 +3,6 @@
 #pragma once
 #include "common_endpoint_registry.h"
 #include "consensus/aft/request.h"
-#include "consensus/pbft/pbft_tables.h"
 #include "ds/buffer.h"
 #include "ds/spin_lock.h"
 #include "enclave/rpc_handler.h"
@@ -349,7 +348,9 @@ namespace ccf
               (ctx->session->is_forwarding &&
                consensus->type() == ConsensusType::CFT) ||
               (consensus->type() != ConsensusType::CFT &&
-               !ctx->execute_on_node))
+               !ctx->execute_on_node &&
+               (endpoint == nullptr ||
+                (endpoint != nullptr && !endpoint->execute_locally))))
             {
               ctx->session->is_forwarding = true;
               return forward_or_redirect_json(ctx, endpoint, caller_id);
@@ -413,14 +414,7 @@ namespace ccf
                   history && consensus->is_primary() &&
                   (cv % sig_tx_interval == sig_tx_interval / 2))
                 {
-                  if (consensus->type() == ConsensusType::CFT)
-                  {
-                    history->emit_signature();
-                  }
-                  else
-                  {
-                    consensus->emit_signature();
-                  }
+                  history->emit_signature();
                 }
               }
 
@@ -486,7 +480,7 @@ namespace ccf
       nodes(tables.get<Nodes>(Tables::NODES)),
       client_signatures(client_sigs_),
       pbft_requests_map(
-        tables.get<aft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
+        tables.get<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS)),
       consensus(nullptr),
       history(nullptr)
     {}
@@ -584,6 +578,14 @@ namespace ccf
       }
       else
       {
+        if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
+        {
+          auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
+          if (rep.has_value())
+          {
+            return rep;
+          }
+        }
         return process_command(ctx, tx, caller_id);
       }
     }
@@ -637,7 +639,10 @@ namespace ccf
 
     void update_merkle_tree() override
     {
-      history->flush_pending();
+      if (history != nullptr)
+      {
+        history->flush_pending();
+      }
     }
 
     /** Process a serialised input forwarded from another node
@@ -662,16 +667,24 @@ namespace ccf
 
       auto tx = tables.create_tx();
 
-      auto rep =
-        process_command(ctx, tx, ctx->session->original_caller->caller_id);
-      if (!rep.has_value())
+      if (consensus->type() == ConsensusType::CFT)
       {
-        // This should never be called when process_command is called with a
-        // forwarded RPC context
-        throw std::logic_error("Forwarded RPC cannot be forwarded");
-      }
+        auto rep =
+          process_command(ctx, tx, ctx->session->original_caller->caller_id);
+        if (!rep.has_value())
+        {
+          // This should never be called when process_command is called with a
+          // forwarded RPC context
+          throw std::logic_error("Forwarded RPC cannot be forwarded");
+        }
 
-      return rep.value();
+        return rep.value();
+      }
+      else
+      {
+        auto rep = process_pbft(ctx, tx, false);
+        return rep.result;
+      }
     }
 
     void tick(std::chrono::milliseconds elapsed) override
@@ -702,14 +715,7 @@ namespace ccf
         ms_to_sig = sig_ms_interval;
         if (history && tables.commit_gap() > 0)
         {
-          if (consensus->type() == ConsensusType::CFT)
-          {
-            history->emit_signature();
-          }
-          else
-          {
-            consensus->emit_signature();
-          }
+          history->emit_signature();
         }
       }
     }

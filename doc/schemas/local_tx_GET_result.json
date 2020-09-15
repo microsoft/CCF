@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "status": {
+      "enum": [
+        "UNKNOWN",
+        "PENDING",
+        "COMMITTED",
+        "INVALID"
+      ]
+    }
+  },
+  "required": [
+    "status"
+  ],
+  "title": "local_tx/result",
+  "type": "object"
+}

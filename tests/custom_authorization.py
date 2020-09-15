@@ -5,7 +5,6 @@ import http
 import infra.network
 import infra.path
 import infra.proc
-import infra.notification
 import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
@@ -14,11 +13,11 @@ AUTH_VALUE = "Bearer 42"
 APP_SCRIPT = f"""
 return {{
   ["GET custom_auth"] = [[
-    export default function()
+    export default function(request)
     {{
       // Header names become lower-case
-      const auth = headers['authorization'];
-      return auth === '{AUTH_VALUE}';
+      const auth = request.headers['authorization'];
+      return {{ body: auth === '{AUTH_VALUE}' }};
     }}
   ]]
 }}

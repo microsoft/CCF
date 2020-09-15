@@ -6,6 +6,7 @@
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
+#include "node/entities.h"
 #include "snapshot.h"
 #include "tx.h"
 #include "view_containers.h"
@@ -729,33 +730,34 @@ namespace kv
       }
       else
       {
-        // Transactions containing a pre prepare or a pbft request should not
-        // contain anything else
-        if (views.size() > 1)
+        // BFT Transactions should only write to 1 table
+        if (views.size() != 1)
         {
           LOG_FAIL_FMT("Failed to deserialise");
-          LOG_DEBUG_FMT("Unexpected contents in pbft transaction {}", v);
+          LOG_DEBUG_FMT(
+            "Unexpected contents in bft transaction {}, size:{}",
+            v,
+            views.size());
           return DeserialiseSuccess::FAILED;
         }
 
-        if (views.find("ccf.pbft.preprepares") != views.end())
+        if (views.find(ccf::Tables::SIGNATURES) != views.end())
         {
-          success = DeserialiseSuccess::PASS_PRE_PREPARE;
+          success = commit_deserialised(views, v, new_maps);
+          if (success == DeserialiseSuccess::FAILED)
+          {
+            return success;
+          }
+          auto h = get_history();
+          h->append(data.data(), data.size());
+          success = DeserialiseSuccess::PASS_SIGNATURE;
         }
-        else if (views.find("ccf.pbft.newviews") != views.end())
+        else if (views.find(ccf::Tables::AFT_REQUESTS) == views.end())
         {
-          success = DeserialiseSuccess::PASS_NEW_VIEW;
-        }
-        else if (views.find("ccf.pbft.requests") == views.end())
-        {
-          // we have deserialised an entry that didn't belong to the pbft
-          // requests, nor the pbft new views, nor the pbft pre prepares table
-
-          // NOTE: we currently do not support signature transactions and said
-          // support will be added in the near future
-          LOG_FAIL_FMT("Failed to deserialise");
-          LOG_DEBUG_FMT(
-            "Unexpected contents in pbft transaction size {}", views.size());
+          // we have deserialised an entry that didn't belong to the bft
+          // requests nor the signatures table
+          LOG_FAIL_FMT(
+            "Failed to deserialise, contains table:{}", views.begin()->first);
         }
       }
 
