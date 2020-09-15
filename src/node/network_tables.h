@@ -68,7 +68,6 @@ namespace ccf
     Users& users;
     CertDERs& user_certs;
 
-    CodeIDs& user_code_ids;
     ClientSignatures& user_client_signatures;
 
     //
@@ -136,8 +135,6 @@ namespace ccf
       users(tables->create<Users>(Tables::USERS, kv::SecurityDomain::PUBLIC)),
       user_certs(tables->create<CertDERs>(
         Tables::USER_CERT_DERS, kv::SecurityDomain::PUBLIC)),
-      user_code_ids(tables->create<CodeIDs>(
-        Tables::USER_CODE_IDS, kv::SecurityDomain::PUBLIC)),
       user_client_signatures(
         tables->create<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
       nodes(tables->create<Nodes>(Tables::NODES, kv::SecurityDomain::PUBLIC)),
@@ -177,7 +174,6 @@ namespace ccf
         std::ref(proposals),
         std::ref(whitelists),
         std::ref(node_code_ids),
-        std::ref(user_code_ids),
         std::ref(member_acks),
         std::ref(governance_history),
         std::ref(member_client_signatures),

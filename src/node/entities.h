@@ -82,7 +82,6 @@ namespace ccf
     static constexpr auto GOV_HISTORY = "ccf.governance.history";
     static constexpr auto SERVICE = "ccf.service";
     static constexpr auto SHARES = "ccf.shares";
-    static constexpr auto USER_CODE_IDS = "ccf.users.code_ids";
     static constexpr auto CONFIGURATION = "ccf.config";
     static constexpr auto SUBMITTED_SHARES = "ccf.submitted_shares";
     static constexpr auto SNAPSHOT_EVIDENCE = "ccf.snapshot_evidence";
