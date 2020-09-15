@@ -16,7 +16,7 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 import struct
 import base64
-from typing import Union, Optional
+from typing import Union, Optional, List
 
 import requests
 from loguru import logger as LOG  # type: ignore
@@ -26,11 +26,26 @@ import websocket  # type: ignore
 import ccf.commit
 
 
-def truncate(string: str, max_len: int = 256):
+def truncate(string: str, max_len: int = 128):
     if len(string) > max_len:
         return f"{string[: max_len]} + {len(string) - max_len} chars"
     else:
         return string
+
+
+def info_or_capture(line, log_capture=None, depth=0):
+    if log_capture is None:
+        LOG.opt(colors=True, depth=depth + 1).info(line)
+    else:
+        log_capture.append(line)
+
+
+def flush_info(lines, log_capture=None, depth=0):
+    for line in lines:
+        if log_capture is None:
+            LOG.opt(colors=True, depth=depth + 1).info(line)
+        else:
+            log_capture.append(line)
 
 
 CCF_TX_SEQNO_HEADER = "x-ccf-tx-seqno"
@@ -59,11 +74,11 @@ class Request:
     headers: dict
 
     def __str__(self):
-        string = f"{self.http_verb} {self.path}"
+        string = f"<cyan>{self.http_verb}</> <green>{self.path}</>"
         if self.headers:
             string += f" {self.headers}"
         if self.body is not None:
-            string += f'{truncate(f"{self.body}")}'
+            string += f' {truncate(f"{self.body}")}'
 
         return string
 
@@ -101,10 +116,11 @@ class Response:
 
     def __str__(self):
         versioned = (self.view, self.seqno) != (None, None)
+        status_color = "red" if self.status_code / 100 in (4, 5) else "green"
         return (
-            f"{self.status_code} "
-            + (f"@{self.view}.{self.seqno} " if versioned else "")
-            + truncate(f"{self.body}")
+            f"<{status_color}>{self.status_code}</> "
+            + (f"@<magenta>{self.view}.{self.seqno}</> " if versioned else "")
+            + f"<yellow>{truncate(str(self.body))}</>"
         )
 
     @staticmethod
@@ -537,7 +553,7 @@ class CCFClient:
         LOG.info(response)
         return response
 
-    def _direct_call(
+    def _call(
         self,
         path: str,
         body: Optional[Union[str, dict, bytes]] = None,
@@ -545,16 +561,22 @@ class CCFClient:
         headers: Optional[dict] = None,
         signed: bool = False,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
+        log_capture: Optional[list] = None,
     ) -> Response:
         description = ""
         if self.description:
-            description = f"({self.description})" + (" [signed]" if signed else "")
+            description = f"{self.description}" + (" (sig)" if signed else "")
+        else:
+            description = self.name
 
         if headers is None:
             headers = {}
         r = Request(path, body, http_verb, headers)
-        LOG.info(f"{self.name} {r} {description}")
-        return self._response(self.client_impl.request(r, signed, timeout))
+
+        info_or_capture(f"{description} {r}", log_capture, 3)
+        response = self.client_impl.request(r, signed, timeout)
+        info_or_capture(str(response), log_capture, 3)
+        return response
 
     def call(
         self,
@@ -564,6 +586,7 @@ class CCFClient:
         headers: Optional[dict] = None,
         signed: bool = False,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
+        log_capture: Optional[list] = None,
     ) -> Response:
         """
         Issues one request, synchronously, and returns the response.
@@ -575,33 +598,40 @@ class CCFClient:
         :param dict headers: HTTP request headers (optional).
         :param bool signed: Sign request with client private key.
         :param int timeout: Maximum time to wait for a response before giving up.
+        :param list log_capture: Rather than emit to default handler, capture log lines to list (optional).
 
         :return: :py:class:`ccf.clients.Response`
         """
         if not path.startswith("/"):
             raise ValueError(f"URL path '{path}' is invalid, must start with /")
 
+        logs: List[str] = []
+
         if self.is_connected:
-            return self._direct_call(path, body, http_verb, headers, signed, timeout)
+            r = self._call(path, body, http_verb, headers, signed, timeout, logs)
+            flush_info(logs, log_capture, 2)
+            return r
 
         end_time = time.time() + self.connection_timeout
         while True:
             try:
-                response = self._direct_call(
-                    path, body, http_verb, headers, signed, timeout
+                logs = []
+                response = self._call(
+                    path, body, http_verb, headers, signed, timeout, logs
                 )
                 # Only the first request gets this timeout logic - future calls
-                # call _direct_call
+                # call _call
                 self.is_connected = True
+                flush_info(logs, log_capture, 2)
                 return response
             except (CCFConnectionException, TimeoutError) as e:
                 # If the initial connection fails (e.g. due to node certificate
                 # not yet being endorsed by the network) sleep briefly and try again
                 if time.time() > end_time:
+                    flush_info(logs, log_capture, 2)
                     raise CCFConnectionException(
                         f"Connection still failing after {self.connection_timeout}s"
                     ) from e
-                LOG.debug(f"Got exception: {e}")
                 time.sleep(0.1)
 
     def get(self, *args, **kwargs) -> Response:

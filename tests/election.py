@@ -34,6 +34,7 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
     """
     Wait for a specific seqno at a specific view to be committed on all nodes.
     """
+    # TODO: this ought to call out to commit.wait_for_commit
     for _ in range(infra.network.Network.replication_delay * 10):
         up_to_date_f = []
         for f in nodes:
