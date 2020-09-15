@@ -7,7 +7,7 @@
           "RETIRED"
         ]
       },
-      "EndpointMetrics::Metric": {
+      "EndpointMetrics__Metric": {
         "properties": {
           "calls": {
             "$ref": "#/components/schemas/uint64"
@@ -26,10 +26,10 @@
         ],
         "type": "object"
       },
-      "EndpointMetrics::Out": {
+      "EndpointMetrics__Out": {
         "properties": {
           "metrics": {
-            "$ref": "#/components/schemas/named_named_EndpointMetrics::Metric"
+            "$ref": "#/components/schemas/named_named_EndpointMetrics__Metric"
           }
         },
         "required": [
@@ -37,10 +37,10 @@
         ],
         "type": "object"
       },
-      "GetCode::Out": {
+      "GetCode__Out": {
         "properties": {
           "versions": {
-            "$ref": "#/components/schemas/GetCode::Version_array"
+            "$ref": "#/components/schemas/GetCode__Version_array"
           }
         },
         "required": [
@@ -48,7 +48,7 @@
         ],
         "type": "object"
       },
-      "GetCode::Version": {
+      "GetCode__Version": {
         "properties": {
           "digest": {
             "$ref": "#/components/schemas/string"
@@ -63,13 +63,13 @@
         ],
         "type": "object"
       },
-      "GetCode::Version_array": {
+      "GetCode__Version_array": {
         "items": {
-          "$ref": "#/components/schemas/GetCode::Version"
+          "$ref": "#/components/schemas/GetCode__Version"
         },
         "type": "array"
       },
-      "GetCommit::Out": {
+      "GetCommit__Out": {
         "properties": {
           "seqno": {
             "$ref": "#/components/schemas/int64"
@@ -84,7 +84,7 @@
         ],
         "type": "object"
       },
-      "GetMetrics::HistogramResults": {
+      "GetMetrics__HistogramResults": {
         "properties": {
           "buckets": {
             "$ref": "#/components/schemas/json"
@@ -111,10 +111,10 @@
         ],
         "type": "object"
       },
-      "GetMetrics::Out": {
+      "GetMetrics__Out": {
         "properties": {
           "histogram": {
-            "$ref": "#/components/schemas/GetMetrics::HistogramResults"
+            "$ref": "#/components/schemas/GetMetrics__HistogramResults"
           },
           "tx_rates": {
             "$ref": "#/components/schemas/json"
@@ -126,7 +126,7 @@
         ],
         "type": "object"
       },
-      "GetNetworkInfo::NodeInfo": {
+      "GetNetworkInfo__NodeInfo": {
         "properties": {
           "host": {
             "$ref": "#/components/schemas/string"
@@ -145,16 +145,16 @@
         ],
         "type": "object"
       },
-      "GetNetworkInfo::NodeInfo_array": {
+      "GetNetworkInfo__NodeInfo_array": {
         "items": {
-          "$ref": "#/components/schemas/GetNetworkInfo::NodeInfo"
+          "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo"
         },
         "type": "array"
       },
-      "GetNetworkInfo::Out": {
+      "GetNetworkInfo__Out": {
         "properties": {
           "nodes": {
-            "$ref": "#/components/schemas/GetNetworkInfo::NodeInfo_array"
+            "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo_array"
           },
           "primary_id": {
             "$ref": "#/components/schemas/uint64"
@@ -166,7 +166,7 @@
         ],
         "type": "object"
       },
-      "GetNodesByRPCAddress::NodeInfo": {
+      "GetNodesByRPCAddress__NodeInfo": {
         "properties": {
           "node_id": {
             "$ref": "#/components/schemas/uint64"
@@ -181,16 +181,16 @@
         ],
         "type": "object"
       },
-      "GetNodesByRPCAddress::NodeInfo_array": {
+      "GetNodesByRPCAddress__NodeInfo_array": {
         "items": {
-          "$ref": "#/components/schemas/GetNodesByRPCAddress::NodeInfo"
+          "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo"
         },
         "type": "array"
       },
-      "GetNodesByRPCAddress::Out": {
+      "GetNodesByRPCAddress__Out": {
         "properties": {
           "nodes": {
-            "$ref": "#/components/schemas/GetNodesByRPCAddress::NodeInfo_array"
+            "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo_array"
           }
         },
         "required": [
@@ -198,7 +198,7 @@
         ],
         "type": "object"
       },
-      "GetPrimaryInfo::Out": {
+      "GetPrimaryInfo__Out": {
         "properties": {
           "current_view": {
             "$ref": "#/components/schemas/int64"
@@ -221,10 +221,10 @@
         ],
         "type": "object"
       },
-      "GetQuotes::Out": {
+      "GetQuotes__Out": {
         "properties": {
           "quotes": {
-            "$ref": "#/components/schemas/GetQuotes::Quote_array"
+            "$ref": "#/components/schemas/GetQuotes__Quote_array"
           }
         },
         "required": [
@@ -232,7 +232,7 @@
         ],
         "type": "object"
       },
-      "GetQuotes::Quote": {
+      "GetQuotes__Quote": {
         "properties": {
           "error": {
             "$ref": "#/components/schemas/string"
@@ -253,13 +253,13 @@
         ],
         "type": "object"
       },
-      "GetQuotes::Quote_array": {
+      "GetQuotes__Quote_array": {
         "items": {
-          "$ref": "#/components/schemas/GetQuotes::Quote"
+          "$ref": "#/components/schemas/GetQuotes__Quote"
         },
         "type": "array"
       },
-      "GetReceipt::Out": {
+      "GetReceipt__Out": {
         "properties": {
           "receipt": {
             "$ref": "#/components/schemas/uint8_array"
@@ -270,7 +270,7 @@
         ],
         "type": "object"
       },
-      "GetSchema::Out": {
+      "GetSchema__Out": {
         "properties": {
           "params_schema": {
             "$ref": "#/components/schemas/json_schema"
@@ -285,7 +285,7 @@
         ],
         "type": "object"
       },
-      "GetState::Out": {
+      "GetState__Out": {
         "properties": {
           "id": {
             "$ref": "#/components/schemas/uint64"
@@ -300,7 +300,7 @@
             "$ref": "#/components/schemas/int64"
           },
           "state": {
-            "$ref": "#/components/schemas/ccf::State"
+            "$ref": "#/components/schemas/ccf__State"
           }
         },
         "required": [
@@ -310,7 +310,7 @@
         ],
         "type": "object"
       },
-      "GetTxStatus::Out": {
+      "GetTxStatus__Out": {
         "properties": {
           "status": {
             "$ref": "#/components/schemas/TxStatus"
@@ -336,7 +336,7 @@
           "INVALID"
         ]
       },
-      "VerifyReceipt::In": {
+      "VerifyReceipt__In": {
         "properties": {
           "receipt": {
             "$ref": "#/components/schemas/uint8_array"
@@ -347,7 +347,7 @@
         ],
         "type": "object"
       },
-      "VerifyReceipt::Out": {
+      "VerifyReceipt__Out": {
         "properties": {
           "valid": {
             "$ref": "#/components/schemas/boolean"
@@ -361,7 +361,7 @@
       "boolean": {
         "type": "boolean"
       },
-      "ccf::State": {
+      "ccf__State": {
         "enum": [
           "uninitialized",
           "initialized",
@@ -386,15 +386,15 @@
       "json_schema": {
         "type": "object"
       },
-      "named_EndpointMetrics::Metric": {
+      "named_EndpointMetrics__Metric": {
         "additionalProperties": {
-          "$ref": "#/components/schemas/EndpointMetrics::Metric"
+          "$ref": "#/components/schemas/EndpointMetrics__Metric"
         },
         "type": "object"
       },
-      "named_named_EndpointMetrics::Metric": {
+      "named_named_EndpointMetrics__Metric": {
         "additionalProperties": {
-          "$ref": "#/components/schemas/named_EndpointMetrics::Metric"
+          "$ref": "#/components/schemas/named_EndpointMetrics__Metric"
         },
         "type": "object"
       },
@@ -426,7 +426,7 @@
   },
   "openapi": "3.0.0",
   "paths": {
-    "api": {
+    "/api": {
       "get": {
         "responses": {
           "200": {
@@ -442,14 +442,14 @@
         }
       }
     },
-    "api/schema": {
+    "/api/schema": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetSchema::Out"
+                  "$ref": "#/components/schemas/GetSchema__Out"
                 }
               }
             },
@@ -458,14 +458,14 @@
         }
       }
     },
-    "code": {
+    "/code": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetCode::Out"
+                  "$ref": "#/components/schemas/GetCode__Out"
                 }
               }
             },
@@ -474,14 +474,14 @@
         }
       }
     },
-    "commit": {
+    "/commit": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetCommit::Out"
+                  "$ref": "#/components/schemas/GetCommit__Out"
                 }
               }
             },
@@ -490,14 +490,14 @@
         }
       }
     },
-    "endpoint_metrics": {
+    "/endpoint_metrics": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EndpointMetrics::Out"
+                  "$ref": "#/components/schemas/EndpointMetrics__Out"
                 }
               }
             },
@@ -506,14 +506,14 @@
         }
       }
     },
-    "metrics": {
+    "/metrics": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetMetrics::Out"
+                  "$ref": "#/components/schemas/GetMetrics__Out"
                 }
               }
             },
@@ -522,14 +522,14 @@
         }
       }
     },
-    "network_info": {
+    "/network_info": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetNetworkInfo::Out"
+                  "$ref": "#/components/schemas/GetNetworkInfo__Out"
                 }
               }
             },
@@ -538,14 +538,14 @@
         }
       }
     },
-    "node/ids": {
+    "/node/ids": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetNodesByRPCAddress::Out"
+                  "$ref": "#/components/schemas/GetNodesByRPCAddress__Out"
                 }
               }
             },
@@ -554,14 +554,14 @@
         }
       }
     },
-    "primary_info": {
+    "/primary_info": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetPrimaryInfo::Out"
+                  "$ref": "#/components/schemas/GetPrimaryInfo__Out"
                 }
               }
             },
@@ -570,14 +570,14 @@
         }
       }
     },
-    "quote": {
+    "/quote": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetQuotes::Out"
+                  "$ref": "#/components/schemas/GetQuotes__Out"
                 }
               }
             },
@@ -586,14 +586,14 @@
         }
       }
     },
-    "quotes": {
+    "/quotes": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetQuotes::Out"
+                  "$ref": "#/components/schemas/GetQuotes__Out"
                 }
               }
             },
@@ -602,14 +602,14 @@
         }
       }
     },
-    "receipt": {
+    "/receipt": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetReceipt::Out"
+                  "$ref": "#/components/schemas/GetReceipt__Out"
                 }
               }
             },
@@ -618,13 +618,13 @@
         }
       }
     },
-    "receipt/verify": {
+    "/receipt/verify": {
       "post": {
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/VerifyReceipt::In"
+                "$ref": "#/components/schemas/VerifyReceipt__In"
               }
             }
           },
@@ -635,7 +635,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VerifyReceipt::Out"
+                  "$ref": "#/components/schemas/VerifyReceipt__Out"
                 }
               }
             },
@@ -644,14 +644,14 @@
         }
       }
     },
-    "state": {
+    "/state": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetState::Out"
+                  "$ref": "#/components/schemas/GetState__Out"
                 }
               }
             },
@@ -660,14 +660,14 @@
         }
       }
     },
-    "tx": {
+    "/tx": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetTxStatus::Out"
+                  "$ref": "#/components/schemas/GetTxStatus__Out"
                 }
               }
             },

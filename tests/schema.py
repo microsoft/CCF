@@ -47,7 +47,7 @@ def run(args):
         # Fetch the schema of each method
         for method, _ in paths.items():
             schema_found = False
-            expected_method_prefix = f"/{prefix}/"
+            expected_method_prefix = "/"
             if method.startswith(expected_method_prefix):
                 method = method[len(expected_method_prefix):]
             schema_response = client.get(f'/{prefix}/api/schema?method="{method}"')

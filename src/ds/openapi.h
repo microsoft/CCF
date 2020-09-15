@@ -48,6 +48,21 @@ namespace ds
       }
     }
 
+    static inline std::string remove_invalid_chars(const std::string_view& s_)
+    {
+      std::string s(s_);
+
+      for (auto& c : s)
+      {
+        if (c == ':')
+        {
+          c = '_';
+        }
+      }
+
+      return s;
+    }
+
     static inline nlohmann::json create_document(
       const std::string& title,
       const std::string& description,
@@ -73,14 +88,14 @@ namespace ds
     static inline nlohmann::json& path(
       nlohmann::json& document, const std::string& path)
     {
-      auto p = path;
+      auto p = remove_invalid_chars(path);
       if (p.find("/") != 0)
       {
         p = fmt::format("/{}", p);
       }
 
       auto& paths = access::get_object(document, "paths");
-      return access::get_object(paths, path);
+      return access::get_object(paths, p);
     }
 
     static inline nlohmann::json& path_operation(
@@ -149,10 +164,12 @@ namespace ds
       const std::string& element_name,
       const nlohmann::json& schema_)
     {
+      const auto name = remove_invalid_chars(element_name);
+
       auto& components = access::get_object(document, "components");
       auto& schemas = access::get_object(components, "schemas");
 
-      const auto schema_it = schemas.find(element_name);
+      const auto schema_it = schemas.find(name);
       if (schema_it != schemas.end())
       {
         // Check that the existing schema matches the new one being added with
@@ -163,17 +180,17 @@ namespace ds
           throw std::logic_error(fmt::format(
             "Adding schema with name '{}'. Does not match previous schema "
             "registered with this name: {} vs {}",
-            element_name,
+            name,
             schema_.dump(),
             existing_schema.dump()));
         }
       }
       else
       {
-        schemas.emplace(element_name, schema_);
+        schemas.emplace(name, schema_);
       }
 
-      return components_ref_object(element_name);
+      return components_ref_object(name);
     }
 
     struct SchemaHelper
@@ -256,7 +273,7 @@ namespace ds
         }
         else
         {
-          const auto name = ds::json::schema_name<T>();
+          const auto name = remove_invalid_chars(ds::json::schema_name<T>());
 
           auto& components = access::get_object(document, "components");
           auto& schemas = access::get_object(components, "schemas");
