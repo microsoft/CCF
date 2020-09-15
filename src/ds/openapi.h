@@ -326,7 +326,11 @@ namespace ds
       rb["description"] = "Auto-generated request body schema";
 
       SchemaHelper sh{document};
-      schema(media_type(rb, content_type)) = sh.add_schema_component<T>();
+      const auto schema_comp = sh.add_schema_component<T>();
+      if (schema_comp != nullptr)
+      {
+        schema(media_type(rb, content_type)) = sh.add_schema_component<T>();
+      }
     }
 
     static inline void add_request_parameter_schema(
@@ -365,7 +369,11 @@ namespace ds
       auto& r = response(path_operation(path(document, uri), verb), status);
 
       SchemaHelper sh{document};
-      schema(media_type(r, content_type)) = sh.add_schema_component<T>();
+      const auto schema_comp = sh.add_schema_component<T>();
+      if (schema_comp != nullptr)
+      {
+        schema(media_type(r, content_type)) = sh.add_schema_component<T>();
+      }
     }
   }
 }

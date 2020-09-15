@@ -382,7 +382,7 @@
         "minimum": -9223372036854775808,
         "type": "integer"
       },
-      "json": null,
+      "json": {},
       "json_schema": {
         "type": "object"
       },

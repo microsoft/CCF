@@ -118,7 +118,9 @@ def run(args):
         except Exception as e:
             LOG.error(f"Validation of {prefix} schema failed")
             LOG.error(e)
-            documents_valid = False
+            return False
+
+        return True
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes
@@ -130,15 +132,18 @@ def run(args):
 
         with primary.client("user0") as user_client:
             LOG.info("user frontend")
-            fetch_schema(user_client, "app")
+            if not fetch_schema(user_client, "app"):
+                documents_valid = False
 
         with primary.client() as node_client:
             LOG.info("node frontend")
-            fetch_schema(node_client, "node")
+            if not fetch_schema(node_client, "node"):
+                documents_valid = False
 
         with primary.client("member0") as member_client:
             LOG.info("member frontend")
-            fetch_schema(member_client, "gov")
+            if not fetch_schema(member_client, "gov"):
+                documents_valid = False
 
     made_changes = False
 

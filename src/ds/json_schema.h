@@ -243,6 +243,7 @@ namespace ds
       {
         // Any field that contains more json is completely unconstrained, so we
         // do not add a type or any other fields
+        schema = nlohmann::json::object();
       }
       else if constexpr (std::is_integral<T>::value)
       {

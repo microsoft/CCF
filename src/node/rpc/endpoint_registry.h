@@ -235,8 +235,6 @@ namespace ccf
               return;
             }
 
-            LOG_INFO_FMT("ZZZ Adding response schema for {} {}", endpoint.verb.c_str(), endpoint.method);
-
             ds::openapi::add_response_schema<Out>(
               document,
               endpoint.method,
