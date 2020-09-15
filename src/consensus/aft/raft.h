@@ -441,7 +441,8 @@ namespace aft
           break;
 
         default:
-        {}
+        {
+        }
       }
     }
 
@@ -650,12 +651,13 @@ namespace aft
       }
 
       // If the terms match up, it is sufficient to convince us that the sender
-      // (leader) is legit in our term
+      // is leader in our term
       restart_election_timeout();
       if (leader_id != r.from_node)
       {
         leader_id = r.from_node;
-        LOG_DEBUG_FMT("Node {} thinks leader is {}", local_id, leader_id);
+        LOG_DEBUG_FMT(
+          "Node {} thinks leader is {}", state->my_node_id, leader_id);
       }
 
       // Third, check index consistency, making sure entries are not in the past
@@ -671,14 +673,14 @@ namespace aft
           state->commit_idx);
         return;
       }
-      else if (r.prev_idx > last_idx)
+      else if (r.prev_idx > state->last_idx)
       {
         LOG_DEBUG_FMT(
           "Recv append entries to {} from {} but prev_idx ({}) > last_idx ({})",
-          local_id,
+          state->my_node_id,
           r.from_node,
           r.prev_idx,
-          last_idx);
+          state->last_idx);
         return;
       }
 
@@ -1268,7 +1270,7 @@ namespace aft
 
     void commit(Index idx)
     {
-      if (idx > last_idx)
+      if (idx > state->last_idx)
       {
         throw std::logic_error(fmt::format(
           "Tried to commit {} but last_idx is {}", idx, state->last_idx));
