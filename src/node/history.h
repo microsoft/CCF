@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/pbft/pbft_types.h"
 #include "crypto/hash.h"
 #include "ds/dl_list.h"
 #include "ds/logger.h"
