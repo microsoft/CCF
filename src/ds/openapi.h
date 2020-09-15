@@ -73,7 +73,12 @@ namespace ds
     static inline nlohmann::json& path(
       nlohmann::json& document, const std::string& path)
     {
-      check_path_valid(path);
+      auto p = path;
+      if (p.find("/") != 0)
+      {
+        p = fmt::format("/{}", p);
+      }
+
       auto& paths = access::get_object(document, "paths");
       return access::get_object(paths, path);
     }
@@ -286,8 +291,6 @@ namespace ds
       const std::string& schema_name,
       const nlohmann::json& schema_)
     {
-      check_path_valid(uri);
-
       auto& rb = request_body(path_operation(path(document, uri), verb));
       rb["description"] = "Auto-generated request body schema";
 
@@ -302,8 +305,6 @@ namespace ds
       http_method verb,
       const std::string& content_type)
     {
-      check_path_valid(uri);
-
       auto& rb = request_body(path_operation(path(document, uri), verb));
       rb["description"] = "Auto-generated request body schema";
 
@@ -317,8 +318,6 @@ namespace ds
       http_method verb,
       const nlohmann::json& param)
     {
-      check_path_valid(uri);
-
       auto& params = parameters(path_operation(path(document, uri), verb));
       params.push_back(param);
     }
@@ -332,8 +331,6 @@ namespace ds
       const std::string& schema_name,
       const nlohmann::json& schema_)
     {
-      check_path_valid(uri);
-
       auto& r = response(path_operation(path(document, uri), verb), status);
 
       schema(media_type(r, content_type)) =
@@ -348,8 +345,6 @@ namespace ds
       http_status status,
       const std::string& content_type)
     {
-      check_path_valid(uri);
-
       auto& r = response(path_operation(path(document, uri), verb), status);
 
       SchemaHelper sh{document};
