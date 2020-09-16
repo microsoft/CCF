@@ -17,28 +17,27 @@ namespace aft
   class ViewHistory
   {
     // Entry i stores the first version in view i+1
-    std::vector<kv::Version> versions_per_view;
+    std::vector<kv::Version> views;
 
   public:
     static constexpr kv::Consensus::View InvalidView = ccf::VIEW_UNKNOWN;
 
     void initialise(const std::vector<kv::Version>& terms_)
     {
-      versions_per_view.clear();
+      views.clear();
       for (size_t i = 0; i < terms_.size(); ++i)
       {
         update(terms_[i], i + 1);
       }
-      LOG_DEBUG_FMT(
-        "Initialised views: {}", fmt::join(versions_per_view, ", "));
+      LOG_DEBUG_FMT("Initialised views: {}", fmt::join(views, ", "));
     }
 
     void update(kv::Version idx, kv::Consensus::View view)
     {
       LOG_DEBUG_FMT("Updating view to: {} at version: {}", view, idx);
-      if (!versions_per_view.empty())
+      if (!views.empty())
       {
-        const auto current_latest_index = versions_per_view.back();
+        const auto current_latest_index = views.back();
         if (idx < current_latest_index)
         {
           throw std::logic_error(fmt::format(
@@ -48,33 +47,30 @@ namespace aft
         }
       }
 
-      for (int64_t i = versions_per_view.size(); i < view; ++i)
+      for (int64_t i = views.size(); i < view; ++i)
       {
-        versions_per_view.push_back(idx);
+        views.push_back(idx);
       }
-      LOG_DEBUG_FMT("Resulting views: {}", fmt::join(versions_per_view, ", "));
+      LOG_DEBUG_FMT("Resulting views: {}", fmt::join(views, ", "));
     }
 
     kv::Consensus::View view_at(kv::Version idx)
     {
-      auto it =
-        upper_bound(versions_per_view.begin(), versions_per_view.end(), idx);
+      auto it = upper_bound(views.begin(), views.end(), idx);
 
       // Indices before the version of the first view are unknown
-      if (it == versions_per_view.begin())
+      if (it == views.begin())
       {
         return InvalidView;
       }
 
-      return (it - versions_per_view.begin());
+      return (it - views.begin());
     }
 
     std::vector<kv::Version> get_history_until(
       kv::Version idx = std::numeric_limits<kv::Version>::max())
     {
-      return {versions_per_view.begin(),
-              std::upper_bound(
-                versions_per_view.begin(), versions_per_view.end(), idx)};
+      return {views.begin(), std::upper_bound(views.begin(), views.end(), idx)};
     }
   };
 

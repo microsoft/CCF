@@ -120,7 +120,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
         target_store.deserialise_snapshot(serialised_snapshot) ==
         kv::DeserialiseSuccess::PASS);
 
-      // Merkle history and view history thus far is restored when applying
+      // Merkle history and view history thus far are restored when applying
       // snapshot
       REQUIRE(
         source_history->get_replicated_state_root() ==

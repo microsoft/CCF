@@ -69,12 +69,6 @@ namespace kv
       current_writer->template append_pre_serialised<T>(raw);
     }
 
-    template <typename T>
-    void serialise_internal_pre_serialised(const T* data, size_t size)
-    {
-      current_writer->template append_pre_serialised<T>(data, size);
-    }
-
     void set_current_domain(SecurityDomain domain)
     {
       switch (domain)

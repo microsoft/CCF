@@ -32,9 +32,8 @@ namespace kv
       {
         replica.push_back(entry);
 
-        static kv::Version last_view = 4;
         // Simplification: all entries are replicated in the same term
-        view_history.update(std::get<0>(entry), last_view++ * 2);
+        view_history.update(std::get<0>(entry), 2);
       }
       return true;
     }
