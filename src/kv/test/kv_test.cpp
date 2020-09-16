@@ -1035,8 +1035,11 @@ TEST_CASE("Mid-tx compaction")
   increment_vals();
 
   {
-    INFO("No increments while executing");
+    INFO("Compaction before get_views");
     kv::Tx tx;
+
+    increment_vals();
+    kv_store.compact(kv_store.current_version());
 
     auto view_a = tx.get_view(map_a);
     auto view_b = tx.get_view(map_b);
@@ -1051,12 +1054,13 @@ TEST_CASE("Mid-tx compaction")
   }
 
   {
-    INFO("Non-compacted increment while executing");
+    INFO("Compaction after get_views");
     kv::Tx tx;
 
     auto view_a = tx.get_view(map_a);
     increment_vals();
     auto view_b = tx.get_view(map_b);
+    kv_store.compact(kv_store.current_version());
 
     auto a_opt = view_a->get(key_a);
     auto b_opt = view_b->get(key_b);
@@ -1068,7 +1072,10 @@ TEST_CASE("Mid-tx compaction")
   }
 
   {
-    INFO("Compacted increment while executing");
+    INFO("Compaction between get_views");
+    bool threw = false;
+
+    try{
     kv::Tx tx;
 
     auto view_a = tx.get_view(map_a);
@@ -1089,5 +1096,13 @@ TEST_CASE("Mid-tx compaction")
 
     const auto result = tx.commit();
     REQUIRE(result == kv::CommitSuccess::OK);
+    }
+    catch (const kv::CompactedVersionConflict& e)
+    {
+      threw = true;
+    }
+
+    REQUIRE(threw);
+    // In real operation, this transaction would be re-executed and hope to not intersect a compaction
   }
 }

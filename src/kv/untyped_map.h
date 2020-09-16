@@ -831,16 +831,8 @@ namespace kv::untyped
           break;
         }
       }
-
-      if (view == nullptr)
-      {
-        view = new TView(
-          *this,
-          roll.rollback_counter,
-          roll.commits->get_head()->state,
-          roll.commits->get_head()->state,
-          roll.commits->get_head()->version);
-      }
+      
+      // Returning nullptr is allowed, and indicates that we have no suitable version - the version requested is _earlier_ than anything in the roll
 
       unlock();
       return view;
