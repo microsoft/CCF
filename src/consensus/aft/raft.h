@@ -252,8 +252,6 @@ namespace aft
       state->last_idx = index;
       state->commit_idx = index;
 
-      state->view_history.update(index, term);
-
       ledger->init(index);
       snapshotter->set_last_snapshot_idx(index);
 
@@ -307,13 +305,13 @@ namespace aft
 
     std::vector<Index> get_term_history(Index idx)
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      // This should only be called when the spin lock is held.
       return state->view_history.get_history_until(idx);
     }
 
     void initialise_term_history(const std::vector<Index>& term_history)
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      // This should only be called when the spin lock is held.
       return state->view_history.initialise(term_history);
     }
 
