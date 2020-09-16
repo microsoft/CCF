@@ -5,19 +5,9 @@
         "src/controllers/*.ts"
     ],
     "spec": {
-        "outputDirectory": "dist",
+        "outputDirectory": "build",
         "specVersion": 3,
-        "basePath": "/app",
-        "specMerging": "recursive",
-        "spec": {
-            "components": {
-                "schemas": {
-                    "ProtoResponse": {
-                        
-                    }
-                }
-            }
-        }
+        "basePath": "/app"
     },
     "routes": {
         "routesDir": "build",

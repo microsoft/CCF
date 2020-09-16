@@ -30,7 +30,22 @@
         "execute_locally": false,
         "require_client_signature": false,
         "require_client_identity": true,
-        "readonly": false
+        "readonly": false,
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "text/plain": {}
+            }
+          },
+          "responses": {
+            "200": {
+              "content": {
+                "application/x-protobuf": {}
+              }
+            }
+          }
+        }
       }
     }
   }

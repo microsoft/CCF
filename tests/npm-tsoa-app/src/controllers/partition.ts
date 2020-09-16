@@ -18,7 +18,6 @@ export class PartitionController extends Controller {
     public computePartition(
         @Body() body: PartitionRequest
     ): PartitionResponse {
-        console.log('body:', body)
         return _.partition(body, n => n % 2);
     }
 }

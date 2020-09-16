@@ -1,7 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "build": "del-cli -f dist/ build/ && mkdir build/ && tsoa spec-and-routes && node tsoa-support/gen.js && rollup --config && del-cli dist/build/endpoints.js",
+    "build": "del-cli -f dist/ build/ && tsoa spec-and-routes && node tsoa-support/postprocess.js && rollup --config && del-cli dist/build/endpoints.js",
     "demo": "npm run build && http-server -o demo/index.html"
   },
   "type": "module",
@@ -13,6 +13,7 @@
     "protobufjs": "^6.10.1"
   },
   "devDependencies": {
+    "@apidevtools/swagger-parser": "^10.0.2",
     "@rollup/plugin-commonjs": "^14.0.0",
     "@rollup/plugin-node-resolve": "^8.4.0",
     "@rollup/plugin-typescript": "^5.0.2",

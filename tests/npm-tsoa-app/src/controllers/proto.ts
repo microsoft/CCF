@@ -8,8 +8,10 @@ import {
 // Importing the browser bundle works around https://github.com/protobufjs/protobuf.js/issues/1402.
 import protobuf from 'protobufjs/dist/protobuf.js'
 
-//type ProtoRequest = any
-type ProtoResponse = any // should be Uint8Array, but not supported
+// The OpenAPI spec is overridden in endpoints.json
+// as tsoa only supports application/json.
+// We use @Request and 'any' types as backdoor to get access to CCF's
+// request object without applying any validation in advance.
 
 @Route("proto")
 export class ProtoController extends Controller {
@@ -17,7 +19,7 @@ export class ProtoController extends Controller {
   @Post()
   public wrapInProtobuf(
     @Request() request: any
-  ): ProtoResponse {
+  ): any {
     // Example from https://github.com/protobufjs/protobuf.js.
     let Type = protobuf.Type;
     let Field = protobuf.Field;
