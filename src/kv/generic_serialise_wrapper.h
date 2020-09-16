@@ -126,10 +126,9 @@ namespace kv
       serialise_internal_pre_serialised(raw);
     }
 
-    template <typename T>
-    void serialise_raw(const T* data, size_t size)
+    void serialise_view_history(const std::vector<Version>& view_history)
     {
-      serialise_internal_pre_serialised(data, size);
+      serialise_internal(view_history);
     }
 
     template <class Version>
@@ -418,6 +417,11 @@ namespace kv
     {
       return current_reader
         ->template read_next_pre_serialised<std::vector<uint8_t>>();
+    }
+
+    std::vector<Version> deserialise_view_history()
+    {
+      return current_reader->template read_next<std::vector<Version>>();
     }
 
     uint64_t deserialise_remove_header()

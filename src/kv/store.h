@@ -380,6 +380,13 @@ namespace kv
         hash_at_snapshot = d.deserialise_raw();
       }
 
+      std::vector<Version> view_history;
+      auto c = get_consensus();
+      if (c)
+      {
+        view_history = d.deserialise_view_history();
+      }
+
       OrderedViews views;
       MapCollection new_maps;
 
@@ -439,9 +446,9 @@ namespace kv
       // Each map is committed at a different version, independently of the
       // overall snapshot version. The commit versions for each map are
       // contained in the snapshot and applied when the snapshot is committed.
-      auto c = apply_views(
+      auto r = apply_views(
         views, []() { return NoVersion; }, new_maps);
-      if (!c.has_value())
+      if (!r.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised snapshot at version {}", v);
         return DeserialiseSuccess::FAILED;
@@ -460,6 +467,11 @@ namespace kv
         {
           return DeserialiseSuccess::FAILED;
         }
+      }
+
+      if (c)
+      {
+        c->initialise_view_history(view_history);
       }
 
       return DeserialiseSuccess::PASS;

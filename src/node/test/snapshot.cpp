@@ -91,6 +91,9 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       auto target_history = std::make_shared<ccf::MerkleTxHistory>(
         target_store, 0, *target_node_kp, *target_signatures, *target_nodes);
       target_store.set_history(target_history);
+
+      auto target_consensus = std::make_shared<kv::StubConsensus>();
+      target_store.set_consensus(target_consensus);
     }
 
     auto target_history = target_store.get_history();

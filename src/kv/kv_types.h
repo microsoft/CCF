@@ -261,7 +261,7 @@ namespace kv
     }
 
     virtual void force_become_primary(
-      SeqNo, View, const std::vector<Version>&, SeqNo)
+      SeqNo, View, const std::vector<SeqNo>&, SeqNo)
     {
       state = Primary;
     }
@@ -277,6 +277,7 @@ namespace kv
     virtual View get_view(SeqNo seqno) = 0;
     virtual View get_view() = 0;
     virtual std::vector<SeqNo> get_view_history(SeqNo) = 0;
+    virtual void initialise_view_history(const std::vector<SeqNo>&) = 0;
     virtual SeqNo get_committed_seqno() = 0;
     virtual NodeId primary() = 0;
 

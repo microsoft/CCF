@@ -19,6 +19,8 @@ namespace kv
     std::vector<kv::BatchVector::value_type> replica;
     ConsensusType consensus_type;
 
+    aft::ViewHistory view_history;
+
   public:
     StubConsensus(ConsensusType consensus_type_ = ConsensusType::CFT) :
       Consensus(0),
@@ -31,6 +33,9 @@ namespace kv
       for (const auto& entry : entries)
       {
         replica.push_back(entry);
+
+        // All entries are replicated in the same term
+        view_history.update(std::get<0>(entry), 2);
       }
       return true;
     }
@@ -117,13 +122,13 @@ namespace kv
 
     std::vector<SeqNo> get_view_history(SeqNo seqno) override
     {
-      aft::ViewHistory view_history;
-      view_history.update(1, 1);
-      view_history.update(1, 2);
-      view_history.update(10, 3);
-      view_history.update(20, 4);
-
       return view_history.get_history_until(seqno);
+    }
+
+    void initialise_view_history(
+      const std::vector<SeqNo>& view_history_) override
+    {
+      view_history.initialise(view_history_);
     }
 
     void recv_message(OArray&& oa) override {}

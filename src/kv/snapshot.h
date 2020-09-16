@@ -50,8 +50,7 @@ namespace kv
 
       if (view_history.has_value())
       {
-        auto vh = view_history.value();
-        serialiser.serialise_raw(vh.data(), vh.size());
+        serialiser.serialise_view_history(view_history.value());
       }
 
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
