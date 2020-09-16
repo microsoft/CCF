@@ -24,6 +24,7 @@ from requests_http_signature import HTTPSignatureAuth  # type: ignore
 import websocket  # type: ignore
 
 import ccf.commit
+from ccf.log_capture import flush_info, info_or_capture
 
 
 def truncate(string: str, max_len: int = 128):
@@ -31,21 +32,6 @@ def truncate(string: str, max_len: int = 128):
         return f"{string[: max_len]} + {len(string) - max_len} chars"
     else:
         return string
-
-
-def info_or_capture(line, log_capture=None, depth=0):
-    if log_capture is None:
-        LOG.opt(colors=True, depth=depth + 1).info(line)
-    else:
-        log_capture.append(line)
-
-
-def flush_info(lines, log_capture=None, depth=0):
-    for line in lines:
-        if log_capture is None:
-            LOG.opt(colors=True, depth=depth + 1).info(line)
-        else:
-            log_capture.append(line)
 
 
 CCF_TX_SEQNO_HEADER = "x-ccf-tx-seqno"
@@ -565,7 +551,7 @@ class CCFClient:
     ) -> Response:
         description = ""
         if self.description:
-            description = f"{self.description}" + (" (sig)" if signed else "")
+            description = f"{self.description}{signed * 's'}"
         else:
             description = self.name
 

@@ -4,22 +4,15 @@
 import http
 import time
 
-from typing import Optional
+from typing import Optional, List
 
 from ccf.tx_status import TxStatus
-
-from loguru import logger as LOG  # type: ignore
-
-
-def flush_info(lines, log_capture=None, depth=0):
-    for line in lines:
-        if log_capture is None:
-            LOG.opt(colors=True, depth=depth + 1).info(line)
-        else:
-            log_capture.append(line)
+from ccf.log_capture import flush_info
 
 
-def wait_for_commit(client, seqno: int, view: int, timeout: int = 3, log_capture: Optional[list] = None) -> None:
+def wait_for_commit(
+    client, seqno: int, view: int, timeout: int = 3, log_capture: Optional[list] = None
+) -> None:
     """
     Waits for a specific seqno/view pair to be committed by the network,
     as per the node to which client is connected to.
@@ -32,7 +25,7 @@ def wait_for_commit(client, seqno: int, view: int, timeout: int = 3, log_capture
 
     A TimeoutError exception is raised if the commit index is not committed within the given timeout.
     """
-    logs = []
+    logs: List[str] = []
     end_time = time.time() + timeout
     while time.time() < end_time:
         logs = []
