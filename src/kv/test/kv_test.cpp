@@ -866,8 +866,21 @@ TEST_CASE("Private recovery map swap")
     tx.commit();
   }
   s2.compact(s2.current_version());
+  {
+    kv::Tx tx;
+    auto v = tx.get_view(priv2);
+    v->put(14, 14);
+    tx.commit();
+  }
+  {
+    kv::Tx tx;
+    auto v = tx.get_view(priv2);
+    v->put(15, 15);
+    tx.commit();
+  }
 
   INFO("Swap in private maps");
+  REQUIRE(s1.current_version() == s2.current_version());
   REQUIRE_NOTHROW(s1.swap_private_maps(s2));
 
   INFO("Check state looks as expected in s1");
@@ -890,13 +903,12 @@ TEST_CASE("Private recovery map swap")
       REQUIRE(s1.commit_version() == 3);
     }
     {
-      auto val = priv->get(12);
-      REQUIRE(val.has_value());
-      REQUIRE(val.value() == 12);
-
-      val = priv->get(13);
-      REQUIRE(val.has_value());
-      REQUIRE(val.value() == 13);
+      for (size_t i : {12, 13, 14, 15})
+      {
+        auto val = priv->get(i);
+        REQUIRE(val.has_value());
+        REQUIRE(val.value() == i);
+      }
     }
   }
 
