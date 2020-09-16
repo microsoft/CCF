@@ -4,6 +4,8 @@ This folder contains a sample CCF app written in TypeScript with [tsoa](https://
 See the [README.md](../npm-app/README.md) file of the `npm-app` folder for a general introduction to CCF's JavaScript environment and npm.
 
 tsoa generates OpenAPI definitions from TypeScript types and JSDoc annotations.
+It also uses the generated schemas to validate the request data.
+
 Note that tsoa currently focuses on JSON as content type.
 Using other content types is possible but requires to manually specify the OpenAPI definition.
 See [`proto.ts`](src/controllers/proto.ts) for details.
