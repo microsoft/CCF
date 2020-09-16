@@ -206,6 +206,8 @@ def test_npm_app(network, args):
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body["available"], r.body
 
+    return network
+
 
 @reqs.description("Test tsoa-based Node.js/npm app")
 def test_npm_tsoa_app(network, args):
@@ -266,6 +268,8 @@ def test_npm_tsoa_app(network, args):
         r = c.get("/app/crypto")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body["available"], r.body
+
+    return network
 
 
 def run(args):
