@@ -33,11 +33,15 @@ namespace kv
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
 
     template <typename MapView>
-    std::tuple<MapView*> check_and_store_view(MapView* typed_view, const std::string& map_name, const std::shared_ptr<AbstractMap>& abstract_map)
+    std::tuple<MapView*> check_and_store_view(
+      MapView* typed_view,
+      const std::string& map_name,
+      const std::shared_ptr<AbstractMap>& abstract_map)
     {
       if (typed_view == nullptr)
       {
-        throw CompactedVersionConflict(fmt::format("Unable to retrieve view over {} at {}", map_name, read_version));
+        throw CompactedVersionConflict(fmt::format(
+          "Unable to retrieve view over {} at {}", map_name, read_version));
       }
 
       auto abstract_view = dynamic_cast<AbstractTxView*>(typed_view);
@@ -92,7 +96,8 @@ namespace kv
       }
 
       MapView* typed_view = m.template create_view<MapView>(read_version);
-      return check_and_store_view(typed_view, m.get_name(), m.shared_from_this());
+      return check_and_store_view(
+        typed_view, m.get_name(), m.shared_from_this());
     }
 
     template <class M>

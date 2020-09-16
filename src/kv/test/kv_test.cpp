@@ -1027,8 +1027,7 @@ TEST_CASE("Mid-tx compaction")
   constexpr auto key_a = "a";
   constexpr auto key_b = "b";
 
-  auto increment_vals = [&]()
-  {
+  auto increment_vals = [&]() {
     kv::Tx tx;
     auto [view_a, view_b] = tx.get_view(map_a, map_b);
 
@@ -1060,7 +1059,7 @@ TEST_CASE("Mid-tx compaction")
 
     auto a_opt = view_a->get(key_a);
     auto b_opt = view_b->get(key_b);
-    
+
     REQUIRE(a_opt == b_opt);
 
     const auto result = tx.commit();
@@ -1078,7 +1077,7 @@ TEST_CASE("Mid-tx compaction")
 
     auto a_opt = view_a->get(key_a);
     auto b_opt = view_b->get(key_b);
-    
+
     REQUIRE(a_opt == b_opt);
 
     const auto result = tx.commit();
@@ -1089,27 +1088,29 @@ TEST_CASE("Mid-tx compaction")
     INFO("Compaction between get_views");
     bool threw = false;
 
-    try{
-    kv::Tx tx;
+    try
+    {
+      kv::Tx tx;
 
-    auto view_a = tx.get_view(map_a);
-    // This transaction does something slow. Meanwhile...
+      auto view_a = tx.get_view(map_a);
+      // This transaction does something slow. Meanwhile...
 
-    // ...another transaction commits...
-    increment_vals();
-    // ...and is compacted...
-    kv_store.compact(kv_store.current_version());
+      // ...another transaction commits...
+      increment_vals();
+      // ...and is compacted...
+      kv_store.compact(kv_store.current_version());
 
-    // ...then the original transaction proceeds, expecting to read a single version
-    auto view_b = tx.get_view(map_b);
+      // ...then the original transaction proceeds, expecting to read a single
+      // version
+      auto view_b = tx.get_view(map_b);
 
-    auto a_opt = view_a->get(key_a);
-    auto b_opt = view_b->get(key_b);
-    
-    REQUIRE(a_opt == b_opt);
+      auto a_opt = view_a->get(key_a);
+      auto b_opt = view_b->get(key_b);
 
-    const auto result = tx.commit();
-    REQUIRE(result == kv::CommitSuccess::OK);
+      REQUIRE(a_opt == b_opt);
+
+      const auto result = tx.commit();
+      REQUIRE(result == kv::CommitSuccess::OK);
     }
     catch (const kv::CompactedVersionConflict& e)
     {
@@ -1117,6 +1118,7 @@ TEST_CASE("Mid-tx compaction")
     }
 
     REQUIRE(threw);
-    // In real operation, this transaction would be re-executed and hope to not intersect a compaction
+    // In real operation, this transaction would be re-executed and hope to not
+    // intersect a compaction
   }
 }

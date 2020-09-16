@@ -831,8 +831,9 @@ namespace kv::untyped
           break;
         }
       }
-      
-      // Returning nullptr is allowed, and indicates that we have no suitable version - the version requested is _earlier_ than anything in the roll
+
+      // Returning nullptr is allowed, and indicates that we have no suitable
+      // version - the version requested is _earlier_ than anything in the roll
 
       unlock();
       return view;
