@@ -359,12 +359,6 @@ class Consortium:
         proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
-    def add_new_user_code(self, remote_node, new_code_id):
-        proposal_body, careful_vote = self.make_proposal("new_user_code", new_code_id)
-        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        proposal.vote_for = careful_vote
-        return self.vote_using_majority(remote_node, proposal)
-
     def check_for_service(self, remote_node, status):
         """
         Check via the member frontend of the given node that the certificate

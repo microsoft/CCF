@@ -428,15 +428,6 @@ namespace ccf
              this->network.node_code_ids,
              proposal_id);
          }},
-        // accept new user code ID
-        {"new_user_code",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
-           return this->add_new_code_id(
-             tx,
-             args.get<CodeDigest>(),
-             this->network.user_code_ids,
-             proposal_id);
-         }},
         // For now, members can propose to accept a recovery with shares. In
         // that case, members will have to submit their shares after this
         // proposal is accepted.
