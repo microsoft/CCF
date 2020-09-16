@@ -149,6 +149,8 @@ namespace ccf
        */
       Endpoint& set_result_schema(const nlohmann::json& j)
       {
+        result_schema = j;
+
         schema_builders.push_back(
           [j](nlohmann::json& document, const Endpoint& endpoint) {
             const auto http_verb = endpoint.verb.get_http_method();
@@ -230,6 +232,8 @@ namespace ccf
 
         if constexpr (!std::is_same_v<Out, void>)
         {
+          result_schema = ds::json::build_schema<Out>(method + "/result");
+
           schema_builders.push_back(
             [](nlohmann::json& document, const Endpoint& endpoint) {
               const auto http_verb = endpoint.verb.get_http_method();
