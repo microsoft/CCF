@@ -513,7 +513,7 @@ TEST_CASE("Swapping dynamic maps" * doctest::test_suite("dynamic"))
       tx.get_view2<MapTypes::StringString, MapTypes::NumString>("foo", "bar");
     v0->put("hello", "world");
     v1->put(42, "everything");
-    tx.commit();
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
   {
@@ -522,7 +522,7 @@ TEST_CASE("Swapping dynamic maps" * doctest::test_suite("dynamic"))
       tx.get_view2<MapTypes::StringString, MapTypes::StringNum>("foo", "baz");
     v0->put("hello", "goodbye");
     v1->put("saluton", 100);
-    tx.commit();
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
   {
@@ -530,18 +530,20 @@ TEST_CASE("Swapping dynamic maps" * doctest::test_suite("dynamic"))
     auto tx = s1.create_tx();
     auto v0 = tx.get_view2<MapTypes::StringString>("public:source_state");
     v0->put("store", "source");
-    tx.commit();
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
   kv::Store s2;
   s2.set_encryptor(encryptor);
 
+  // Ensure target store is at the same version as source store
+  while (s2.current_version() < s1.current_version())
   {
     // Create public state in target store, to confirm it is unaffected
     auto tx = s2.create_tx();
     auto v0 = tx.get_view2<MapTypes::StringString>("public:target_state");
     v0->put("store", "target");
-    tx.commit();
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
   s1.compact(s1.current_version());

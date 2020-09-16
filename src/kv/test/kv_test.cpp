@@ -750,21 +750,23 @@ TEST_CASE("Map swap between stores")
     kv::Tx tx;
     auto v = tx.get_view(d1);
     v->put(42, 42);
-    tx.commit();
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
   {
     kv::Tx tx;
     auto v = tx.get_view(pd1);
     v->put(14, 14);
-    tx.commit();
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
+  const auto target_version = s1.current_version();
+  while (s2.current_version() < target_version)
   {
     kv::Tx tx;
     auto v = tx.get_view(d2);
     v->put(41, 41);
-    tx.commit();
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
   s2.swap_private_maps(s1);
