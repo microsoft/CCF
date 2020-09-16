@@ -723,7 +723,7 @@ namespace kv
 
         auto h = get_history();
 
-        auto search = views.find("ccf.signatures");
+        auto search = views.find(ccf::Tables::SIGNATURES);
         if (search != views.end())
         {
           // Transactions containing a signature must only contain
@@ -773,6 +773,14 @@ namespace kv
             return success;
           }
           auto h = get_history();
+          if (!h->verify(term_))
+          {
+            LOG_FAIL_FMT("Failed to deserialise");
+            LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
+            throw std::logic_error(
+              "Failed to verify signature, view-changes not implemented");
+            return DeserialiseSuccess::FAILED;
+          }
           h->append(data.data(), data.size());
           success = DeserialiseSuccess::PASS_SIGNATURE;
         }
