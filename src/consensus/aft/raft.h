@@ -311,6 +311,12 @@ namespace aft
       return state->view_history.get_history_until(idx);
     }
 
+    void initialise_term_history(const std::vector<Index>& term_history)
+    {
+      std::lock_guard<SpinLock> guard(state->lock);
+      return state->view_history.initialise(term_history);
+    }
+
     void add_configuration(Index idx, const Configuration::Nodes& conf)
     {
       // This should only be called when the spin lock is held.
@@ -515,7 +521,7 @@ namespace aft
       if (idx > state->last_idx)
         return ccf::VIEW_UNKNOWN;
 
-      return state->view_history.term_at(idx);
+      return state->view_history.view_at(idx);
     }
 
     void send_append_entries(NodeId to, Index start_idx)

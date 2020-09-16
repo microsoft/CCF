@@ -55,7 +55,7 @@ namespace aft
       LOG_DEBUG_FMT("Resulting views: {}", fmt::join(versions_per_view, ", "));
     }
 
-    kv::Consensus::View term_at(kv::Version idx)
+    kv::Consensus::View view_at(kv::Version idx)
     {
       auto it =
         upper_bound(versions_per_view.begin(), versions_per_view.end(), idx);
