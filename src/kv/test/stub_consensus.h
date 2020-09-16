@@ -2,11 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/aft/impl/state.h"
 #include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
-
-// TODO: Delete
-#include "consensus/aft/impl/state.h"
 
 #include <algorithm>
 #include <iostream>
@@ -19,9 +17,9 @@ namespace kv
     std::vector<kv::BatchVector::value_type> replica;
     ConsensusType consensus_type;
 
+  public:
     aft::ViewHistory view_history;
 
-  public:
     StubConsensus(ConsensusType consensus_type_ = ConsensusType::CFT) :
       Consensus(0),
       replica(),
@@ -34,8 +32,9 @@ namespace kv
       {
         replica.push_back(entry);
 
-        // All entries are replicated in the same term
-        view_history.update(std::get<0>(entry), 2);
+        static kv::Version last_view = 4;
+        // Simplification: all entries are replicated in the same term
+        view_history.update(std::get<0>(entry), last_view++ * 2);
       }
       return true;
     }

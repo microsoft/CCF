@@ -169,3 +169,42 @@ TEST_CASE("Initialised term histories" * doctest::test_suite("termhistory"))
     CHECK(history.term_at(20) == 6);
   }
 }
+
+TEST_CASE(
+  "Retrieving view history up to a specific version" *
+  doctest::test_suite("termhistory"))
+{
+  ViewHistory history;
+
+  {
+    INFO("Populate view history");
+    history.update(1, 1);
+    history.update(2, 2);
+    history.update(5, 3);
+    history.update(5, 4);
+    history.update(10, 5);
+  }
+
+  {
+    INFO("Test that view history is correct");
+
+    REQUIRE(history.get_history_until(kv::NoVersion).size() == 0);
+    REQUIRE(history.get_history_until(1) == std::vector<kv::Version>({1}));
+    REQUIRE(history.get_history_until(2) == std::vector<kv::Version>({1, 2}));
+    REQUIRE(history.get_history_until(3) == std::vector<kv::Version>({1, 2}));
+    REQUIRE(history.get_history_until(4) == std::vector<kv::Version>({1, 2}));
+    REQUIRE(
+      history.get_history_until(5) == std::vector<kv::Version>({1, 2, 5, 5}));
+    REQUIRE(
+      history.get_history_until(9) == std::vector<kv::Version>({1, 2, 5, 5}));
+    REQUIRE(
+      history.get_history_until(10) ==
+      std::vector<kv::Version>({1, 2, 5, 5, 10}));
+    REQUIRE(
+      history.get_history_until(11) ==
+      std::vector<kv::Version>({1, 2, 5, 5, 10}));
+    REQUIRE(
+      history.get_history_until() ==
+      std::vector<kv::Version>({1, 2, 5, 5, 10}));
+  }
+}
