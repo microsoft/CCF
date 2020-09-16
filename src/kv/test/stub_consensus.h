@@ -5,6 +5,9 @@
 #include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
 
+// TODO: Delete
+#include "consensus/aft/impl/state.h"
+
 #include <algorithm>
 #include <iostream>
 
@@ -110,6 +113,17 @@ namespace kv
     View get_view() override
     {
       return 2;
+    }
+
+    std::vector<SeqNo> get_view_history(SeqNo seqno) override
+    {
+      aft::ViewHistory view_history;
+      view_history.update(1, 1);
+      view_history.update(1, 2);
+      view_history.update(10, 3);
+      view_history.update(20, 4);
+
+      return view_history.get_history_until(seqno);
     }
 
     void recv_message(OArray&& oa) override {}

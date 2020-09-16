@@ -37,14 +37,22 @@ namespace kv
     // Parsers are expected to know the type of the Ks and Vs for the tables
     // they care about, and skip over any others
     template <typename T>
+    void append_pre_serialised(const T* data, size_t size)
+    {
+      static_assert(std::is_standard_layout<T>::value);
+
+      sb.write(reinterpret_cast<char const*>(&size), sizeof(size));
+      if (size > 0)
+      {
+        sb.write(reinterpret_cast<char const*>(data), size);
+      }
+    }
+
+    template <typename T>
     void append_pre_serialised(const T& entry)
     {
-      const uint64_t size = entry.size();
-      sb.write(reinterpret_cast<char const*>(&size), sizeof(size));
-      if (entry.size() > 0)
-      {
-        sb.write(reinterpret_cast<char const*>(entry.data()), entry.size());
-      }
+      append_pre_serialised(
+        reinterpret_cast<char const*>(entry.data()), entry.size());
     }
 
     void clear()

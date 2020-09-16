@@ -79,6 +79,11 @@ namespace aft
       return aft->get_term();
     }
 
+    std::vector<SeqNo> get_view_history(SeqNo seqno) override
+    {
+      return aft->get_term_history(seqno);
+    }
+
     SeqNo get_committed_seqno() override
     {
       return aft->get_commit_idx();

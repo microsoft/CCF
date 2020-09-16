@@ -17,6 +17,7 @@ namespace aft
   class ViewHistory
   {
     // Entry i stores the first version in view i+1
+    // TODO: Rename this
     std::vector<kv::Version> views;
 
   public:
@@ -65,6 +66,11 @@ namespace aft
       }
 
       return (it - views.begin());
+    }
+
+    std::vector<kv::Version> get_history_until(kv::Version idx)
+    {
+      return {views.begin(), std::upper_bound(views.begin(), views.end(), idx)};
     }
   };
 

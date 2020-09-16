@@ -305,6 +305,12 @@ namespace aft
       return get_term_internal(idx);
     }
 
+    std::vector<Index> get_term_history(Index idx)
+    {
+      std::lock_guard<SpinLock> guard(state->lock);
+      return state->view_history.get_history_until(idx);
+    }
+
     void add_configuration(Index idx, const Configuration::Nodes& conf)
     {
       // This should only be called when the spin lock is held.
