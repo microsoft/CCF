@@ -199,16 +199,6 @@ namespace kv
         get_tuple2<M>(map_names), get_tuple2<Ms...>(names...));
     }
 
-    void reset()
-    {
-      view_list.clear();
-      committed = false;
-      success = false;
-      read_version = NoVersion;
-      version = NoVersion;
-      term = 0;
-    }
-
   public:
     BaseTx() : view_list() {}
     BaseTx(AbstractStore* _store) : store(_store) {}
@@ -444,6 +434,17 @@ namespace kv
 
       committed = true;
       return {CommitSuccess::OK, {0, 0, 0}, serialise()};
+    }
+
+    // Used to clear the Tx to its initial state, to retry after a conflict
+    void reset()
+    {
+      view_list.clear();
+      committed = false;
+      success = false;
+      read_version = NoVersion;
+      version = NoVersion;
+      term = 0;
     }
   };
 

@@ -436,6 +436,13 @@ namespace ccf
             }
           }
         }
+        catch (const kv::CompactedVersionConflict& e)
+        {
+          // The executing transaction failed because of a conflicting
+          // compaction. Reset and retry
+          tx.reset();
+          continue;
+        }
         catch (const RpcException& e)
         {
           ctx->set_response_status(e.status);
