@@ -479,6 +479,44 @@
         }
       }
     },
+    "/local_tx": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "seqno",
+            "required": false,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": -9223372036854775808,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": -9223372036854775808,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetTxStatus__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
     "/log/private": {
       "delete": {
         "parameters": [
@@ -661,6 +699,22 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "msg": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "msg"
+                  ],
+                  "title": "log/public/result",
+                  "type": "object"
+                }
+              }
+            },
             "description": "Default response description"
           }
         }
@@ -690,6 +744,14 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "log/public/result",
+                  "type": "boolean"
+                }
+              }
+            },
             "description": "Default response description"
           }
         }

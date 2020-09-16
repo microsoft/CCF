@@ -12,6 +12,6 @@
   "required": [
     "status"
   ],
-  "title": "local_tx/result",
+  "title": "tx/result",
   "type": "object"
 }

@@ -1,0 +1,30 @@
+{
+  "properties": {
+    "versions": {
+      "items": {
+        "properties": {
+          "digest": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ACCEPTED",
+              "RETIRED"
+            ]
+          }
+        },
+        "required": [
+          "digest",
+          "status"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "versions"
+  ],
+  "title": "code/result",
+  "type": "object"
+}

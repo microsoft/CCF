@@ -1,0 +1,12 @@
+{
+  "properties": {
+    "msg": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "msg"
+  ],
+  "title": "log/private/result",
+  "type": "object"
+}
