@@ -1001,3 +1001,93 @@ TEST_CASE("Conflict resolution")
   REQUIRE_THROWS(tx1.commit());
   REQUIRE_THROWS(tx2.commit());
 }
+
+TEST_CASE("Mid-tx compaction")
+{
+  kv::Store kv_store;
+  auto& map_a =
+    kv_store.create<MapTypes::StringNum>("A", kv::SecurityDomain::PUBLIC);
+  auto& map_b =
+    kv_store.create<MapTypes::StringNum>("B", kv::SecurityDomain::PUBLIC);
+
+  constexpr auto key_a = "a";
+  constexpr auto key_b = "b";
+
+  auto increment_vals = [&]()
+  {
+    kv::Tx tx;
+    auto [view_a, view_b] = tx.get_view(map_a, map_b);
+
+    auto a_opt = view_a->get(key_a);
+    auto b_opt = view_b->get(key_b);
+
+    REQUIRE(a_opt == b_opt);
+
+    const auto new_val = a_opt.has_value() ? *a_opt + 1 : 0;
+
+    view_a->put(key_a, new_val);
+    view_b->put(key_b, new_val);
+
+    const auto result = tx.commit();
+    REQUIRE(result == kv::CommitSuccess::OK);
+  };
+
+  increment_vals();
+
+  {
+    INFO("No increments while executing");
+    kv::Tx tx;
+
+    auto view_a = tx.get_view(map_a);
+    auto view_b = tx.get_view(map_b);
+
+    auto a_opt = view_a->get(key_a);
+    auto b_opt = view_b->get(key_b);
+    
+    REQUIRE(a_opt == b_opt);
+
+    const auto result = tx.commit();
+    REQUIRE(result == kv::CommitSuccess::OK);
+  }
+
+  {
+    INFO("Non-compacted increment while executing");
+    kv::Tx tx;
+
+    auto view_a = tx.get_view(map_a);
+    increment_vals();
+    auto view_b = tx.get_view(map_b);
+
+    auto a_opt = view_a->get(key_a);
+    auto b_opt = view_b->get(key_b);
+    
+    REQUIRE(a_opt == b_opt);
+
+    const auto result = tx.commit();
+    REQUIRE(result == kv::CommitSuccess::OK);
+  }
+
+  {
+    INFO("Compacted increment while executing");
+    kv::Tx tx;
+
+    auto view_a = tx.get_view(map_a);
+    // This transaction does something slow. Meanwhile...
+
+    // ...another transaction commits...
+    increment_vals();
+    // ...and is compacted...
+    kv_store.compact(kv_store.current_version());
+
+    // ...then the original transaction proceeds, expecting to read a single version
+    auto view_b = tx.get_view(map_b);
+
+    auto a_opt = view_a->get(key_a);
+    auto b_opt = view_b->get(key_b);
+    
+    REQUIRE(a_opt == b_opt);
+
+    const auto result = tx.commit();
+    REQUIRE(result == kv::CommitSuccess::OK);
+  }
+}
