@@ -46,7 +46,7 @@ Some of these subcommands require additional arguments, such as the node ID or u
     $ cat trust_node_vote_for.json 
     {"ballot": {"text": "tables, calls = ...; if not #calls == 1 then return false end; call = calls[1]; if not call.func == \"trust_node\" then return false end; args = call.args; if args == nil then return false end; if not args == [====[5]====] then return false end; return true"}}
 
-    $python -m ccf.proposal_generator --pretty-print --proposal-output-file add_pedro.json --vote-output-file vote_for_pedro.json new_user pedro_cert.pem 
+    $ python -m ccf.proposal_generator --pretty-print --proposal-output-file add_pedro.json --vote-output-file vote_for_pedro.json new_user pedro_cert.pem 
     SUCCESS | Writing proposal to ./add_pedro.json
     SUCCESS | Wrote vote to ./vote_for_pedro.json
     
