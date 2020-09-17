@@ -1102,6 +1102,7 @@ TEST_CASE("Mid-tx compaction")
 
       // ...then the original transaction proceeds, expecting to read a single
       // version
+      // This should throw a CompactedVersionConflict error
       auto view_b = tx.get_view(map_b);
 
       auto a_opt = view_a->get(key_a);
