@@ -287,19 +287,23 @@ namespace kv
 
     std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
     {
-      CCF_ASSERT_FMT(
-        v >= commit_version(),
-        "Cannot snapshot at version {} which is earlier than committed "
-        "version {} ",
-        v,
-        commit_version());
+      if (v < commit_version())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot snapshot at version {} which is earlier than committed "
+          "version {} ",
+          v,
+          commit_version()));
+      }
 
-      CCF_ASSERT_FMT(
-        v <= current_version(),
-        "Cannot snapshot at version {} which is later than current "
-        "version {} ",
-        v,
-        current_version());
+      if (v > current_version())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot snapshot at version {} which is later than current "
+          "version {} ",
+          v,
+          current_version()));
+      }
 
       auto snapshot = std::make_unique<StoreSnapshot>(v);
 
@@ -322,6 +326,12 @@ namespace kv
         if (h)
         {
           snapshot->add_hash_at_snapshot(h->get_raw_leaf(v));
+        }
+
+        auto c = get_consensus();
+        if (c)
+        {
+          snapshot->add_view_history(c->get_view_history(v));
         }
 
         for (auto& it : maps)
@@ -368,6 +378,13 @@ namespace kv
       if (h)
       {
         hash_at_snapshot = d.deserialise_raw();
+      }
+
+      std::vector<Version> view_history;
+      auto c = get_consensus();
+      if (c)
+      {
+        view_history = d.deserialise_view_history();
       }
 
       OrderedViews views;
@@ -429,9 +446,9 @@ namespace kv
       // Each map is committed at a different version, independently of the
       // overall snapshot version. The commit versions for each map are
       // contained in the snapshot and applied when the snapshot is committed.
-      auto c = apply_views(
+      auto r = apply_views(
         views, []() { return NoVersion; }, new_maps);
-      if (!c.has_value())
+      if (!r.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised snapshot at version {}", v);
         return DeserialiseSuccess::FAILED;
@@ -450,6 +467,11 @@ namespace kv
         {
           return DeserialiseSuccess::FAILED;
         }
+      }
+
+      if (c)
+      {
+        c->initialise_view_history(view_history);
       }
 
       return DeserialiseSuccess::PASS;
@@ -527,10 +549,12 @@ namespace kv
       }
 
       if (v < commit_version())
+      {
         throw std::logic_error(fmt::format(
           "Attempting rollback to {}, earlier than commit version {}",
           v,
           commit_version()));
+      }
 
       for (auto& it : maps)
       {
@@ -846,9 +870,11 @@ namespace kv
       PendingTx&& pending_tx,
       bool globally_committable) override
     {
-      auto r = get_consensus();
-      if (!r)
+      auto c = get_consensus();
+      if (!c)
+      {
         return CommitSuccess::OK;
+      }
 
       LOG_DEBUG_FMT(
         "Store::commit {}{}",
@@ -924,7 +950,7 @@ namespace kv
         replication_view = term;
       }
 
-      if (r->replicate(batch, replication_view))
+      if (c->replicate(batch, replication_view))
       {
         std::lock_guard<SpinLock> vguard(version_lock);
         if (

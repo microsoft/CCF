@@ -65,7 +65,9 @@ suite_snapshots = [
     e2e_logging.test,
     e2e_logging.test,
     e2e_logging.test,
+    e2e_logging.test,
     reconfiguration.test_add_node_from_snapshot,
+    e2e_logging.test_view_history,
 ]
 suites["snapshots"] = suite_snapshots
 
