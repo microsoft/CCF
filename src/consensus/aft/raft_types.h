@@ -7,10 +7,12 @@
 #include "enclave/rpc_context.h"
 #include "enclave/rpc_handler.h"
 #include "kv/kv_types.h"
+#include "mbedtls/ecdsa.h"
 
 #include <chrono>
 #include <cstdint>
 #include <limits>
+#include <array>
 
 namespace aft
 {
@@ -43,7 +45,8 @@ namespace aft
       const std::vector<uint8_t>& data,
       bool public_only = false,
       kv::Term* term = nullptr,
-      kv::Tx* tx = nullptr) = 0;
+      kv::Tx* tx = nullptr,
+      ccf::Signature* sig = nullptr) = 0;
   };
 
   template <typename T, typename S>
@@ -99,11 +102,12 @@ namespace aft
       const std::vector<uint8_t>& data,
       bool public_only = false,
       kv::Term* term = nullptr,
-      kv::Tx* tx = nullptr) override
+      kv::Tx* tx = nullptr,
+      ccf::Signature* sig = nullptr) override
     {
       auto p = x.lock();
       if (p)
-        return p->deserialise_views(data, public_only, term, tx);
+        return p->deserialise_views(data, public_only, term, tx, sig);
       return S::FAILED;
     }
   };
@@ -112,6 +116,7 @@ namespace aft
   {
     raft_append_entries = 0,
     raft_append_entries_response,
+    raft_append_entries_signed_response,
     raft_request_vote,
     raft_request_vote_response,
 
@@ -139,6 +144,14 @@ namespace aft
     Term term;
     Index last_log_idx;
     bool success;
+  };
+
+  struct SignedAppendEntriesResponse : RaftHeader
+  {
+    Term term;
+    Index last_log_idx;
+    uint32_t signature_size;
+    std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
   };
 
   struct RequestVote : RaftHeader

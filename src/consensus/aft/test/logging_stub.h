@@ -207,7 +207,8 @@ namespace aft
       const std::vector<uint8_t>& data,
       bool public_only = false,
       kv::Term* term = nullptr,
-      kv::Tx* tx = nullptr)
+      kv::Tx* tx = nullptr,
+      ccf::Signature* sig = nullptr)
     {
       return kv::DeserialiseSuccess::PASS;
     }

@@ -13,6 +13,7 @@
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/rpc/tx_status.h"
+#include "node/signatures.h"
 #include "node_state.h"
 #include "raft_types.h"
 
@@ -421,6 +422,10 @@ namespace aft
           recv_append_entries_response(data, size);
           break;
 
+        case raft_append_entries_signed_response:
+          recv_append_entries_signed_response(data, size);
+          break;
+
         case raft_request_vote:
           recv_request_vote(data, size);
           break;
@@ -717,10 +722,11 @@ namespace aft
         Term sig_term = 0;
         kv::Tx tx;
         kv::DeserialiseSuccess deserialise_success;
+        ccf::Signature sig;
         if (consensus_type == ConsensusType::BFT)
         {
           deserialise_success =
-            store->deserialise_views(entry, public_only, &sig_term, &tx);
+            store->deserialise_views(entry, public_only, &sig_term, &tx, &sig);
         }
         else
         {
@@ -760,6 +766,7 @@ namespace aft
               state->view_history.update(state->commit_idx + 1, sig_term);
               commit_if_possible(r.leader_commit_idx);
             }
+            send_append_entries_signed_response(r.from_node, sig);
             break;
           }
 
@@ -804,6 +811,33 @@ namespace aft
 
       channels->send_authenticated(
         ccf::NodeMsgType::consensus_msg, to, response);
+    }
+
+    void send_append_entries_signed_response(NodeId to, ccf::Signature& sig)
+    {
+      LOG_DEBUG_FMT(
+        "Send append entries signed response from {} to {} for index {}",
+        state->my_node_id,
+        to,
+        state->last_idx);
+
+      SignedAppendEntriesResponse response = {
+        {raft_append_entries_signed_response, state->my_node_id},
+        state->current_view,
+        state->last_idx,
+        static_cast<uint32_t>(sig.sig.size()),
+        {}};
+      response.sig.fill(0);
+      std::copy(sig.sig.begin(), sig.sig.end(), response.sig.data());
+
+
+      channels->send_authenticated(
+        ccf::NodeMsgType::consensus_msg, to, response);
+    }
+
+    void recv_append_entries_signed_response(const uint8_t* /*data*/, size_t /*size*/)
+    {
+      // TODO: fill this in
     }
 
     void recv_append_entries_response(const uint8_t* data, size_t size)
