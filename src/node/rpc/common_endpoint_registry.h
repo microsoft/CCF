@@ -245,43 +245,10 @@ namespace ccf
         .set_auto_schema<void, EndpointMetrics::Out>()
         .install();
 
-      auto get_schema = [this](auto&, nlohmann::json&& params) {
+      auto get_schema = [this](kv::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<GetSchema::In>();
 
-        auto j = nlohmann::json::object();
-
-        const auto it = fully_qualified_endpoints.find(in.method);
-        if (it != fully_qualified_endpoints.end())
-        {
-          for (const auto& [verb, endpoint] : it->second)
-          {
-            std::string verb_name = verb.c_str();
-            std::transform(
-              verb_name.begin(),
-              verb_name.end(),
-              verb_name.begin(),
-              [](unsigned char c) { return std::tolower(c); });
-            j[verb_name] =
-              GetSchema::Out{endpoint.params_schema, endpoint.result_schema};
-          }
-        }
-
-        const auto templated_it = templated_endpoints.find(in.method);
-        if (templated_it != templated_endpoints.end())
-        {
-          for (const auto& [verb, endpoint] : templated_it->second)
-          {
-            std::string verb_name = verb.c_str();
-            std::transform(
-              verb_name.begin(),
-              verb_name.end(),
-              verb_name.begin(),
-              [](unsigned char c) { return std::tolower(c); });
-            j[verb_name] =
-              GetSchema::Out{endpoint.params_schema, endpoint.result_schema};
-          }
-        }
-
+        auto j = get_endpoint_schema(tx, in);
         if (j.empty())
         {
           return make_error(
@@ -291,8 +258,8 @@ namespace ccf
 
         return make_success(j);
       };
-      make_command_endpoint(
-        "api/schema", HTTP_GET, json_command_adapter(get_schema))
+      make_endpoint(
+        "api/schema", HTTP_GET, json_adapter(get_schema))
         .set_auto_schema<GetSchema>()
         .install();
 

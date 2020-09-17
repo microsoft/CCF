@@ -104,7 +104,10 @@ namespace ds
       // HTTP_GET becomes the string "get"
       std::string s = http_method_str(verb);
       nonstd::to_lower(s);
-      return access::get_object(path, s);
+      auto& po = access::get_object(path, s);
+      // responses is required field in a path_operation
+      access::get_object(po, "responses");
+      return po;
     }
 
     static inline nlohmann::json& parameters(nlohmann::json& path_operation)

@@ -621,6 +621,37 @@ namespace ccf
       }
     }
 
+    virtual nlohmann::json get_endpoint_schema(kv::Tx&, const GetSchema::In& in)
+    {
+      auto j = nlohmann::json::object();
+      
+      const auto it = fully_qualified_endpoints.find(in.method);
+      if (it != fully_qualified_endpoints.end())
+      {
+        for (const auto& [verb, endpoint] : it->second)
+        {
+          std::string verb_name = verb.c_str();
+          nonstd::to_lower(verb_name);
+          j[verb_name] =
+            GetSchema::Out{endpoint.params_schema, endpoint.result_schema};
+        }
+      }
+
+      const auto templated_it = templated_endpoints.find(in.method);
+      if (templated_it != templated_endpoints.end())
+      {
+        for (const auto& [verb, endpoint] : templated_it->second)
+        {
+          std::string verb_name = verb.c_str();
+          nonstd::to_lower(verb_name);
+          j[verb_name] =
+            GetSchema::Out{endpoint.params_schema, endpoint.result_schema};
+        }
+      }
+
+      return j;
+    }
+
     virtual void endpoint_metrics(kv::Tx&, EndpointMetrics::Out& out)
     {
       for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
