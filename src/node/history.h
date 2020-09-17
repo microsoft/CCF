@@ -726,16 +726,7 @@ namespace ccf
       kv::Version version,
       std::shared_ptr<std::vector<uint8_t>> replicated) override
     {
-      auto consensus = store.get_consensus();
-      if (consensus->type() == ConsensusType::CFT)
-      {
-        add_result(id, version, replicated->data(), replicated->size());
-      }
-      else
-      {
-        std::lock_guard<SpinLock> vguard(version_lock);
-        pending_inserts.insert_back(new PendingInsert(id, version, replicated));
-      }
+      add_result(id, version, replicated->data(), replicated->size());
     }
 
     void flush_pending() override

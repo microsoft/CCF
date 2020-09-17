@@ -252,8 +252,6 @@ namespace aft
       state->last_idx = index;
       state->commit_idx = index;
 
-      state->view_history.update(index, term);
-
       ledger->init(index);
       snapshotter->set_last_snapshot_idx(index);
 
@@ -303,6 +301,18 @@ namespace aft
       }
       std::lock_guard<SpinLock> guard(state->lock);
       return get_term_internal(idx);
+    }
+
+    std::vector<Index> get_term_history(Index idx)
+    {
+      // This should only be called when the spin lock is held.
+      return state->view_history.get_history_until(idx);
+    }
+
+    void initialise_term_history(const std::vector<Index>& term_history)
+    {
+      // This should only be called when the spin lock is held.
+      return state->view_history.initialise(term_history);
     }
 
     void add_configuration(Index idx, const Configuration::Nodes& conf)
@@ -509,7 +519,7 @@ namespace aft
       if (idx > state->last_idx)
         return ccf::VIEW_UNKNOWN;
 
-      return state->view_history.term_at(idx);
+      return state->view_history.view_at(idx);
     }
 
     void send_append_entries(NodeId to, Index start_idx)
