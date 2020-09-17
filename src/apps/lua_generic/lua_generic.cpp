@@ -185,27 +185,61 @@ namespace ccfapp
       set_default(json_adapter(default_handler));
     }
 
+    static std::pair<http_method, std::string> split_script_key(const std::string& key)
+    {
+      size_t s = key.find(' ');
+      if (s != std::string::npos)
+      {
+        return std::make_pair(
+          http::http_method_from_str(key.substr(0, s).c_str()),
+          key.substr(s + 1, key.size() - (s + 1)));
+      }
+      else
+      {
+        return std::make_pair(HTTP_POST, key);
+      }
+    }
+
     // Since we do our own dispatch within the default handler, report the
     // supported methods here
     void build_api(nlohmann::json& document, kv::Tx& tx) override
     {
       UserEndpointRegistry::build_api(document, tx);
 
-      // TODO
-      // auto scripts = tx.get_view(this->network.app_scripts);
-      // scripts->foreach([&out](const auto& key, const auto&) {
-      //   if (key != UserScriptIds::ENV_HANDLER)
-      //   {
-      //     out.methods.push_back(key);
-      //   }
-      //   return true;
-      // });
+      auto scripts = tx.get_view(this->network.app_scripts);
+      scripts->foreach([&document](const auto& key, const auto&) {
+        const auto [verb, method] = split_script_key(key);
 
-      // auto scripts = tx.get_view(this->network.app_scripts);
-      // scripts->foreach([&out](const auto& key, const auto&) {
-      // out.endpoints.push_back({"POST", key});
-      // return true;
-      // });
+        ds::openapi::path_operation(ds::openapi::path(document, method), verb);
+        return true;
+      });
+    }
+
+    nlohmann::json get_endpoint_schema(
+      kv::Tx& tx, const GetSchema::In& in) override
+    {
+      auto j = UserEndpointRegistry::get_endpoint_schema(tx, in);
+
+      auto scripts = tx.get_view(this->network.app_scripts);
+      scripts->foreach([&j, &in](const auto& key, const auto&) {
+        const auto [verb, method] = split_script_key(key);
+
+        if (in.method == method)
+        {
+          std::string verb_name = http_method_str(verb);
+          nonstd::to_lower(verb_name);
+          // We have no schema for JS endpoints, but populate the object if we
+          // know about them
+          GetSchema::Out out;
+          out.params_schema.schema = nullptr;
+          out.result_schema.schema = nullptr;
+          j[verb_name] = out;
+        }
+
+        return true;
+      });
+
+      return j;
     }
   };
 
