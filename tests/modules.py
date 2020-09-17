@@ -167,7 +167,7 @@ def test_npm_app(network, args):
 
     LOG.info("Building npm app")
     app_dir = os.path.join(THIS_DIR, "npm-app")
-    subprocess.run(["npm", "ci"], cwd=app_dir, check=True)
+    subprocess.run(["npm", "install"], cwd=app_dir, check=True)
     subprocess.run(["npm", "run", "build"], cwd=app_dir, check=True)
 
     LOG.info("Deploying npm app modules")
@@ -215,7 +215,7 @@ def test_npm_tsoa_app(network, args):
 
     LOG.info("Building npm app")
     app_dir = os.path.join(THIS_DIR, "npm-tsoa-app")
-    subprocess.run(["npm", "ci"], cwd=app_dir, check=True)
+    subprocess.run(["npm", "install"], cwd=app_dir, check=True)
     subprocess.run(["npm", "run", "build"], cwd=app_dir, check=True)
 
     LOG.info("Deploying npm app modules")
