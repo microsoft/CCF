@@ -54,7 +54,7 @@ class TxRates:
     def process_next(self):
         with self.primary.client() as client:
             rv = client.get("/node/commit")
-            next_commit = rv.body["seqno"]
+            next_commit = rv.body.json()["seqno"]
             more_to_process = self.commit != next_commit
             self.commit = next_commit
 
@@ -63,7 +63,7 @@ class TxRates:
     def get_metrics(self):
         with self.primary.client() as client:
             rv = client.get("/node/metrics")
-            self.all_metrics = rv.body
+            self.all_metrics = rv.body.json()
 
             all_rates = []
             all_durations = []

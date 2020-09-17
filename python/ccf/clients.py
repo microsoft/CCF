@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import abc
 import contextlib
 import json
 import time
@@ -16,7 +17,7 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 import struct
 import base64
-from typing import Union, Optional
+from typing import Union, Optional, Any
 
 import requests
 from loguru import logger as LOG  # type: ignore
@@ -79,6 +80,56 @@ class FakeSocket:
     def makefile(self, *args, **kwargs):
         return self.file
 
+class ResponseBody(abc.ABC):
+    @abc.abstractmethod
+    def data(self) -> bytes:
+        pass
+    
+    @abc.abstractmethod
+    def text(self) -> str:
+        pass
+    
+    @abc.abstractmethod
+    def json(self) -> Any:
+        pass
+
+    def __len__(self):
+        return len(self.data())
+    
+    def __str__(self):
+        try:
+            return self.text()
+        except:
+            return f'{self.data()}'
+
+    def __repr__(self):
+        return f'ResponseBody({repr(self.data)})'
+
+class RequestsResponseBody(ResponseBody):
+    def __init__(self, response: requests.Response):
+        self._response = response
+
+    def data(self):
+        return self._response.content
+
+    def text(self):
+        return self._response.text
+
+    def json(self):
+        return self._response.json()
+
+class RawResponseBody(ResponseBody):
+    def __init__(self, data: bytes):
+        self._data = data
+
+    def data(self):
+        return self._data
+
+    def text(self):
+        return self._data.decode()
+
+    def json(self):
+        return json.loads(self._data)
 
 @dataclass
 class Response:
@@ -89,7 +140,7 @@ class Response:
     #: Response HTTP status code
     status_code: int
     #: Response body
-    body: Optional[Union[str, dict, bytes]]
+    body: Optional[ResponseBody]
     #: CCF sequence number
     seqno: Optional[int]
     #: CCF consensus view
@@ -109,17 +160,9 @@ class Response:
 
     @staticmethod
     def from_requests_response(rr):
-        content_type = rr.headers.get("content-type")
-        if content_type == CONTENT_TYPE_JSON:
-            parsed_body = rr.json()
-        elif content_type == CONTENT_TYPE_TEXT:
-            parsed_body = rr.text
-        else:
-            parsed_body = rr.content
-
         return Response(
             status_code=rr.status_code,
-            body=parsed_body,
+            body=RequestsResponseBody(rr),
             seqno=int_or_none(rr.headers.get(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(rr.headers.get(CCF_TX_VIEW_HEADER)),
             global_commit=int_or_none(rr.headers.get(CCF_GLOBAL_COMMIT_HEADER)),
@@ -133,17 +176,9 @@ class Response:
         response.begin()
         raw_body = response.read(raw)
 
-        content_type = response.headers.get("content-type")
-        if content_type == CONTENT_TYPE_JSON:
-            parsed_body = json.loads(raw_body)
-        elif content_type == CONTENT_TYPE_TEXT:
-            parsed_body = raw_body.decode()
-        else:
-            parsed_body = raw_body
-
         return Response(
             response.status,
-            body=parsed_body,
+            body=RawResponseBody(raw_body),
             seqno=int_or_none(response.getheader(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(response.getheader(CCF_TX_VIEW_HEADER)),
             global_commit=int_or_none(response.getheader(CCF_GLOBAL_COMMIT_HEADER)),
@@ -471,17 +506,7 @@ class WSClient:
         view = unpack_seqno_or_view(out[10:18])
         global_commit = unpack_seqno_or_view(out[18:26])
         payload = out[26:]
-        if status_code == 200:
-            if payload:
-                # Ideally, the content type should be sent like for HTTP.
-                try:
-                    body = json.loads(payload)
-                except json.JSONDecodeError:
-                    body = payload
-            else:
-                body = None
-        else:
-            body = payload.decode()
+        body = RawResponseBody(payload)
         return Response(status_code, body, seqno, view, global_commit, headers={})
 
 

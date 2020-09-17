@@ -48,7 +48,7 @@ def test_add_member(network, args):
         )
         assert False, "New accepted members are not given recovery shares"
     except infra.member.NoRecoveryShareFound as e:
-        assert e.response.body == "Only active members are given recovery shares"
+        assert e.response.body.text() == "Only active members are given recovery shares"
 
     new_member.ack(primary)
 
@@ -290,7 +290,7 @@ def run(args):
                 assert False, "Retired member cannot make a new proposal"
             except infra.proposal.ProposalNotCreated as e:
                 assert e.response.status_code == http.HTTPStatus.FORBIDDEN.value
-                assert e.response.body == "Member is not active"
+                assert e.response.body.text() == "Member is not active"
 
             LOG.debug("New member should still be able to make a new proposal")
             new_proposal = new_member.propose(primary, proposal_trust_0)

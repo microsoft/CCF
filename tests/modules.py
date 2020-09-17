@@ -92,7 +92,7 @@ def test_module_set_and_remove(network, args):
     ) as c:
         r = c.post("/gov/read", {"table": "ccf.modules", "key": MODULE_PATH_1})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body["js"] == MODULE_CONTENT_1, r.body
+        assert r.body.json()["js"] == MODULE_CONTENT_1, r.body
 
     LOG.info("Member makes a module remove proposal")
     proposal_body, _ = ccf.proposal_generator.remove_module(MODULE_PATH_1)
@@ -121,7 +121,7 @@ def test_modules_remove(network, args):
     ) as c:
         r = c.post("/gov/read", {"table": "ccf.modules", "key": MODULE_PATH_1})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body["js"] == MODULE_CONTENT_1, r.body
+        assert r.body.json()["js"] == MODULE_CONTENT_1, r.body
 
     LOG.info("Member makes a prefix-based modules remove proposal")
     proposal_body, _ = ccf.proposal_generator.remove_modules(MODULE_PREFIX_1)
@@ -155,7 +155,7 @@ def test_module_import(network, args):
     with primary.client("user0") as c:
         r = c.post("/app/test_module", {})
         assert r.status_code == http.HTTPStatus.CREATED, r.status_code
-        assert r.body == MODULE_RETURN_1
+        assert r.body.text() == MODULE_RETURN_1
 
     return network
 
@@ -192,7 +192,7 @@ def test_npm_app(network, args):
         body = [1, 2, 3, 4]
         r = c.post("/app/npm/partition", body)
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body == [[1, 3], [2, 4]], r.body
+        assert r.body.json() == [[1, 3], [2, 4]], r.body
 
         r = c.post("/app/npm/proto", body)
         assert r.status_code == http.HTTPStatus.OK, r.status_code
@@ -203,7 +203,7 @@ def test_npm_app(network, args):
 
         r = c.get("/app/npm/crypto")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body["available"], r.body
+        assert r.body.json()["available"], r.body
 
 
 def run(args):

@@ -38,10 +38,10 @@ def test(network, args):
             )
             r = c.get(f"/app/receipt?commit={r.seqno}")
             check(
-                c.post("/app/receipt/verify", {"receipt": r.body["receipt"]}),
+                c.post("/app/receipt/verify", {"receipt": r.body.json()["receipt"]}),
                 result={"valid": True},
             )
-            invalid = r.body["receipt"]
+            invalid = r.body.json()["receipt"]
             invalid[-3] += 1
             check(
                 c.post("/app/receipt/verify", {"receipt": invalid}),

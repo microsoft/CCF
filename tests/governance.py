@@ -38,7 +38,7 @@ def test_quote(network, args, verify=True):
         expected_mrenclave = lines[0].strip().split("=")[1]
 
         r = c.get("/node/quote")
-        quotes = r.body["quotes"]
+        quotes = r.body.json()["quotes"]
         assert len(quotes) == 1
         primary_quote = quotes[0]
         assert primary_quote["node_id"] == 0
@@ -49,7 +49,7 @@ def test_quote(network, args, verify=True):
         )
 
         r = c.get("/node/quotes")
-        quotes = r.body["quotes"]
+        quotes = r.body.json()["quotes"]
         assert len(quotes) == len(network.find_nodes())
         for quote in quotes:
             mrenclave = quote["mrenclave"]
