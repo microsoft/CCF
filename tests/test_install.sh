@@ -20,6 +20,9 @@ source env/bin/activate
 python -m pip install -U -r "$INSTALL_PREFIX"/bin/requirements.txt
 python -m pip install ../../../python
 
+# Test Python package CLI
+../../test_python_cli.sh > test_python_cli.out
+
 # Start ephemeral network in the background
 network_info_file="network_info.txt"
 
