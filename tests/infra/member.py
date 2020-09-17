@@ -150,7 +150,9 @@ class Member:
             )
 
             nonce_bytes = base64.b64decode(r.body.json()["nonce"])
-            encrypted_share_bytes = base64.b64decode(r.body.json()["encrypted_recovery_share"])
+            encrypted_share_bytes = base64.b64decode(
+                r.body.json()["encrypted_recovery_share"]
+            )
             return ctx.decrypt(encrypted_share_bytes, nonce_bytes)
 
     def get_and_submit_recovery_share(self, remote_node, defunct_network_enc_pubk):

@@ -254,7 +254,9 @@ def test_metrics(network, args):
 
     with primary.client("user0") as c:
         r = c.get("/app/endpoint_metrics")
-        assert r.body.json()["metrics"]["endpoint_metrics"]["GET"]["errors"] == errors + 1
+        assert (
+            r.body.json()["metrics"]["endpoint_metrics"]["GET"]["errors"] == errors + 1
+        )
 
     return network
 

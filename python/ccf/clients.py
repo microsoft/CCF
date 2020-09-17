@@ -81,30 +81,32 @@ class FakeSocket:
     def makefile(self, *args, **kwargs):
         return self.file
 
+
 class ResponseBody(abc.ABC):
     @abc.abstractmethod
     def data(self) -> bytes:
         pass
-    
+
     @abc.abstractmethod
     def text(self) -> str:
         pass
-    
+
     @abc.abstractmethod
     def json(self) -> Any:
         pass
 
     def __len__(self):
         return len(self.data())
-    
+
     def __str__(self):
         try:
             return self.text()
         except:
-            return f'{self.data()}'
+            return f"{self.data()}"
 
     def __repr__(self):
-        return f'ResponseBody({repr(self.data)})'
+        return f"ResponseBody({repr(self.data)})"
+
 
 class RequestsResponseBody(ResponseBody):
     def __init__(self, response: requests.Response):
@@ -119,6 +121,7 @@ class RequestsResponseBody(ResponseBody):
     def json(self):
         return self._response.json()
 
+
 class RawResponseBody(ResponseBody):
     def __init__(self, data: bytes):
         self._data = data
@@ -131,6 +134,7 @@ class RawResponseBody(ResponseBody):
 
     def json(self):
         return json.loads(self._data)
+
 
 @dataclass
 class Response:
