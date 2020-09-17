@@ -536,7 +536,7 @@ TEST_CASE("Swapping dynamic maps" * doctest::test_suite("dynamic"))
   kv::Store s2;
   s2.set_encryptor(encryptor);
 
-  // Ensure target store is at the same version as source store
+  // Ensure source store is at _at least_ the same version as source store
   while (s2.current_version() < s1.current_version())
   {
     // Create public state in target store, to confirm it is unaffected

@@ -1026,7 +1026,7 @@ namespace kv
       {
         const auto source_version = store.current_version();
         const auto target_version = current_version();
-        if (source_version != target_version)
+        if (source_version > target_version)
         {
           throw std::runtime_error(fmt::format(
             "Invalid call to swap_private_maps. Source is at version {} while "
