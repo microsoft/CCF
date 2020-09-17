@@ -5,7 +5,7 @@ import time
 import logging
 from contextlib import contextmanager
 from enum import Enum, IntEnum
-from ccf.clients import CCFConnectionException
+from ccf.clients import CCFConnectionException, flush_info
 import infra.path
 import infra.proc
 import infra.node
@@ -550,7 +550,7 @@ class Network:
     def _get_node_by_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
-    def find_primary(self, timeout=3):
+    def find_primary(self, timeout=3, log_capture=None):
         """
         Find the identity of the primary in the network and return its identity
         and the current view.
@@ -558,12 +558,15 @@ class Network:
         primary_id = None
         view = None
 
+        logs = []
+
         end_time = time.time() + timeout
         while time.time() < end_time:
             for node in self.get_joined_nodes():
                 with node.client() as c:
                     try:
-                        res = c.get("/node/primary_info")
+                        logs = []
+                        res = c.get("/node/primary_info", log_capture=logs)
                         if res.status_code == 200:
                             body = res.body.json()
                             primary_id = body["primary_id"]
@@ -571,7 +574,6 @@ class Network:
                             break
                         else:
                             assert "Primary unknown" in res.body.text(), res
-                            LOG.warning("Primary unknown. Retrying...")
                     except CCFConnectionException:
                         LOG.warning(
                             f"Could not successful connect to node {node.node_id}. Retrying..."
@@ -581,7 +583,10 @@ class Network:
             time.sleep(0.1)
 
         if primary_id is None:
+            flush_info(logs, log_capture, 0)
             raise PrimaryNotFound
+
+        flush_info(logs, log_capture, 0)
         return (self._get_node_by_id(primary_id), view)
 
     def find_backups(self, primary=None, timeout=3):
@@ -675,16 +680,20 @@ class Network:
         )
         end_time = time.time() + timeout
         error = TimeoutError
+        logs = []
         while time.time() < end_time:
             try:
-                new_primary, new_term = self.find_primary()
+                logs = []
+                new_primary, new_term = self.find_primary(log_capture=logs)
                 if new_primary.node_id != old_primary_id:
+                    flush_info(logs, None)
                     return (new_primary, new_term)
             except PrimaryNotFound:
                 error = PrimaryNotFound
             except Exception:
                 pass
             time.sleep(0.1)
+        flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")
 
 

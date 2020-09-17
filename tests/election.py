@@ -11,6 +11,7 @@ import http
 import suite.test_requirements as reqs
 
 from ccf.tx_status import TxStatus
+from ccf.log_capture import flush_info
 from loguru import logger as LOG
 
 # This test starts from a given number of nodes (hosts), commits
@@ -36,9 +37,13 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
     """
     for _ in range(infra.network.Network.replication_delay * 10):
         up_to_date_f = []
+        logs = {}
         for f in nodes:
             with f.client() as c:
-                r = c.get(f"/node/tx?view={view}&seqno={seqno}")
+                logs[f.node_id] = []
+                r = c.get(
+                    f"/node/tx?view={view}&seqno={seqno}", log_capture=logs[f.node_id]
+                )
                 assert (
                     r.status_code == http.HTTPStatus.OK
                 ), f"tx request returned HTTP status {r.status_code}"
@@ -46,6 +51,7 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
                 if status == TxStatus.Committed:
                     up_to_date_f.append(f.node_id)
                 elif status == TxStatus.Invalid:
+                    flush_info(logs[f.node_id], None, 0)
                     raise RuntimeError(
                         f"Node {f.node_id} reports transaction ID {view}.{seqno} is invalid and will never be committed"
                     )
@@ -54,6 +60,8 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
         if len(up_to_date_f) == len(nodes):
             break
         time.sleep(0.1)
+    for lines in logs.values():
+        flush_info(lines, None, 0)
     assert len(up_to_date_f) == len(
         nodes
     ), "Only {} out of {} nodes are up to date".format(len(up_to_date_f), len(nodes))
