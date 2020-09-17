@@ -266,7 +266,7 @@ class Node:
             if identity
             else None,
             "ca": os.path.join(self.common_dir, "networkcert.pem"),
-            "description": f"node {self.node_id} as {identity or 'unauthenticated'}",
+            "description": f"[{self.node_id}{'|' + identity if identity is not None else ''}]",
         }
         akwargs.update(kwargs)
         return ccf.clients.client(self.pubhost, self.rpc_port, **akwargs)
