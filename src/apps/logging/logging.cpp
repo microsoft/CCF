@@ -27,7 +27,6 @@ namespace loggingapp
   private:
     Table& records;
     Table& public_records;
-    ccf::CodeIDs& user_code_ids;
 
     const nlohmann::json record_public_params_schema;
     const nlohmann::json record_public_result_schema;
@@ -65,7 +64,6 @@ namespace loggingapp
       public_records(nwt.tables->create<Table>(
         "public_records", kv::SecurityDomain::PUBLIC)),
       // SNIPPET_END: constructor
-      user_code_ids(*nwt.tables->get<ccf::CodeIDs>(ccf::Tables::USER_CODE_IDS)),
       record_public_params_schema(nlohmann::json::parse(j_record_public_in)),
       record_public_result_schema(nlohmann::json::parse(j_record_public_out)),
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
