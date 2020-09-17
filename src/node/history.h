@@ -108,6 +108,11 @@ namespace ccf
     void append(const std::vector<uint8_t>&) override {}
 
     void append(const uint8_t*, size_t) override {}
+    
+    bool verify_and_sign(Signature&, kv::Term*) override
+    {
+      return true;
+    }
 
     bool verify(kv::Term*) override
     {
@@ -572,8 +577,26 @@ namespace ccf
       log_hash(rh, APPEND);
       replicated_state_tree.append(rh);
     }
+    
+    bool verify_and_sign(Signature& sig, kv::Term* term = nullptr) override
+    {
+      if (!verify(term, &sig))
+      {
+        return false;
+      }
+
+      sig.node = id;
+      sig.sig = kp.sign_hash(sig.root.h.data(), sig.root.h.size());
+
+      return true;
+    }
 
     bool verify(kv::Term* term = nullptr) override
+    {
+      return verify(term, nullptr);
+    }
+    
+    bool verify(kv::Term* term = nullptr, Signature* signature = nullptr)
     {
       kv::Tx tx;
       auto [sig_tv, ni_tv] = tx.get_view(signatures, nodes);
@@ -587,6 +610,11 @@ namespace ccf
       if (term)
       {
         *term = sig_value.view;
+      }
+
+      if (signature)
+      {
+        *signature = sig_value;
       }
 
       auto ni = ni_tv->get(sig_value.node);

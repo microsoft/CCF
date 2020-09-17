@@ -493,6 +493,7 @@ if(BUILD_TESTS)
   add_picobench(
     kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmetric_key.cpp
                   src/enclave/thread_local.cpp
+    LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
   )
   add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
 

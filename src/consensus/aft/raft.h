@@ -13,6 +13,7 @@
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/rpc/tx_status.h"
+#include "node_state.h"
 #include "raft_types.h"
 
 #include <algorithm>
@@ -36,28 +37,6 @@ namespace aft
       Follower,
       Candidate,
       Retired
-    };
-
-    struct NodeState
-    {
-      Configuration::NodeInfo node_info;
-
-      // the highest index sent to the node
-      Index sent_idx;
-
-      // the highest matching index with the node that was confirmed
-      Index match_idx;
-
-      NodeState() = default;
-
-      NodeState(
-        const Configuration::NodeInfo& node_info_,
-        Index sent_idx_,
-        Index match_idx_ = 0) :
-        node_info(node_info_),
-        sent_idx(sent_idx_),
-        match_idx(match_idx_)
-      {}
     };
 
     ConsensusType consensus_type;
@@ -774,6 +753,8 @@ namespace aft
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
             committable_indices.push_back(i);
 
+            // TODO: we need to produce a signature here
+
             if (sig_term)
             {
               state->view_history.update(state->commit_idx + 1, sig_term);
@@ -888,6 +869,7 @@ namespace aft
           return;
       }
 
+      // TODO: this is where we set the certificate
       // Update next and match for the responding node.
       node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
 
@@ -1233,6 +1215,7 @@ namespace aft
           }
         }
 
+        // TODO: this is where we are checking if we 
         sort(match.begin(), match.end());
         auto confirmed = match.at((match.size() - 1) / 2);
 
