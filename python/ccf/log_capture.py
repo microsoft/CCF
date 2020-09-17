@@ -11,10 +11,3 @@ def flush_info(lines, log_capture=None, depth=0):
             LOG.opt(colors=True, depth=depth + 1).info(line)
         else:
             log_capture.append(line)
-
-
-def info_or_capture(line, log_capture=None, depth=0):
-    if log_capture is None:
-        LOG.opt(colors=True, depth=depth + 1).info(line)
-    else:
-        log_capture.append(line)

@@ -24,7 +24,7 @@ from requests_http_signature import HTTPSignatureAuth  # type: ignore
 import websocket  # type: ignore
 
 import ccf.commit
-from ccf.log_capture import flush_info, info_or_capture
+from ccf.log_capture import flush_info
 
 
 def truncate(string: str, max_len: int = 128):
@@ -559,9 +559,9 @@ class CCFClient:
             headers = {}
         r = Request(path, body, http_verb, headers)
 
-        info_or_capture(f"{description} {r}", log_capture, 3)
+        flush_info([f"{description} {r}"], log_capture, 3)
         response = self.client_impl.request(r, signed, timeout)
-        info_or_capture(str(response), log_capture, 3)
+        flush_info([str(response)], log_capture, 3)
         return response
 
     def call(
