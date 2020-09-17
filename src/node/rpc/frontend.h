@@ -440,6 +440,7 @@ namespace ccf
         {
           // The executing transaction failed because of a conflicting
           // compaction. Reset and retry
+          LOG_DEBUG_FMT("Transaction execution conflicted with compaction: {}", e.what());
           tx.reset();
           continue;
         }

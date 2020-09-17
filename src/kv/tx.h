@@ -9,9 +9,18 @@
 
 namespace kv
 {
-  class CompactedVersionConflict : public std::runtime_error
+  class CompactedVersionConflict
   {
-    using runtime_error::runtime_error;
+  private:
+    std::string msg;
+
+  public:
+    CompactedVersionConflict(const std::string& s) : msg(s) {}
+
+    char const* what() const
+    {
+      return msg.c_str();
+    }
   };
 
   // Manages a collection of TxViews. Derived implementations call get_tuple to
