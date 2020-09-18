@@ -102,10 +102,10 @@ class ResponseBody(abc.ABC):
         try:
             return self.text()
         except UnicodeDecodeError:
-            return f"{self.data()}"
+            return self.__repr__()
 
     def __repr__(self):
-        return f"{repr(self.data())}"
+        return repr(self.data())
 
 
 class RequestsResponseBody(ResponseBody):
