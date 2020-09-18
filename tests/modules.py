@@ -267,7 +267,7 @@ def test_npm_tsoa_app(network, args):
 
         r = c.get("/app/crypto")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body["available"], r.body
+        assert r.body.json()["available"], r.body
 
     return network
 
