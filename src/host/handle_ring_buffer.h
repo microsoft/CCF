@@ -5,7 +5,7 @@
 #include "../ds/files.h"
 #include "../ds/logger.h"
 #include "../enclave/interface.h"
-#include "every_io.h"
+#include "after_io.h"
 
 #include <chrono>
 #include <ctime>
@@ -65,7 +65,7 @@ namespace asynchost
         });
     }
 
-    void every()
+    void after_io()
     {
       // On each uv loop iteration...
 
@@ -77,5 +77,5 @@ namespace asynchost
     }
   };
 
-  using HandleRingbuffer = proxy_ptr<EveryIO<HandleRingbufferImpl>>;
+  using HandleRingbuffer = proxy_ptr<AfterIO<HandleRingbufferImpl>>;
 }
