@@ -59,8 +59,6 @@ extern "C"
       return false;
     }
 
-    stacktrace::init_sig_handlers();
-
     num_pending_threads = (uint16_t)num_worker_threads + 1;
 
     if (
@@ -141,6 +139,12 @@ extern "C"
 
   bool enclave_run()
   {
+    LOG_INFO_FMT("AAA PRE");
+    std::cout << "BBB PRE" << std::endl;
+    stacktrace::print_stacktrace();
+    std::cout << "BBB POST" << std::endl;
+    LOG_INFO_FMT("AAA POST");
+
     if (e.load() != nullptr)
     {
       uint16_t tid;
