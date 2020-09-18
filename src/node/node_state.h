@@ -166,7 +166,7 @@ namespace ccf
     std::shared_ptr<kv::AbstractTxEncryptor> recovery_encryptor;
     kv::Version recovery_v;
     crypto::Sha256Hash recovery_root;
-    std::vector<kv::Version> term_history;
+    std::vector<kv::Version> view_history;
     kv::Version last_recovered_commit_idx = 1;
     std::list<RecoveredLedgerSecret> recovery_ledger_secrets;
 
@@ -320,7 +320,7 @@ namespace ccf
           {
             LOG_FAIL_FMT("Deserialising snapshot on recovery...");
             auto rc = network.tables->deserialise_snapshot(
-              args.config.snapshot, &term_history, true);
+              args.config.snapshot, &view_history, true);
             if (rc != kv::DeserialiseSuccess::PASS)
             {
               throw std::logic_error(
@@ -328,8 +328,8 @@ namespace ccf
             }
 
             LOG_FAIL_FMT(
-              "Term history after recovery snapshot has {} entries",
-              term_history.size());
+              "View history after recovery snapshot has {} entries",
+              view_history.size());
 
             ledger_idx = network.tables->current_version();
             last_recovered_commit_idx = ledger_idx;
@@ -620,11 +620,11 @@ namespace ccf
           // the first node may start in an arbitrarily high view (it does not
           // necessarily start in view 1), it cannot _change_ view before a
           // valid signature.
-          const auto term_start_idx =
-            term_history.empty() ? 1 : last_recovered_commit_idx + 1;
-          for (auto i = term_history.size(); i < last_sig->view; ++i)
+          const auto view_start_idx =
+            view_history.empty() ? 1 : last_recovered_commit_idx + 1;
+          for (auto i = view_history.size(); i < last_sig->view; ++i)
           {
-            term_history.push_back(term_start_idx);
+            view_history.push_back(view_start_idx);
           }
           last_recovered_commit_idx = ledger_idx;
         }
@@ -653,8 +653,8 @@ namespace ccf
       network.ledger_secrets->init(last_recovered_commit_idx + 1);
       // KV term must be set before the first Tx is committed
       LOG_INFO_FMT(
-        "Setting term on public recovery KV to {}", term_history.size() + 2);
-      network.tables->set_term(term_history.size() + 2);
+        "Setting term on public recovery KV to {}", view_history.size() + 2);
+      network.tables->set_term(view_history.size() + 2);
 
       kv::Tx tx;
       GenesisGenerator g(network, tx);
@@ -672,7 +672,7 @@ namespace ccf
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
       kv::Version index = 0;
-      kv::Term term = 0;
+      kv::Term view = 0;
       kv::Version global_commit = 0;
 
       auto ls = g.get_last_signature();
@@ -680,7 +680,7 @@ namespace ccf
       {
         auto s = ls.value();
         index = s.seqno;
-        term = s.view;
+        view = s.view;
         global_commit = s.commit_seqno;
       }
 
@@ -694,10 +694,10 @@ namespace ccf
 
       LOG_DEBUG_FMT(
         "Restarting consensus at view: {} seqno: {} commit_seqno {}",
-        term,
+        view,
         index,
         global_commit);
-      consensus->force_become_primary(index, term, term_history, index);
+      consensus->force_become_primary(index, view, view_history, index);
 
       // Sets itself as trusted
       g.trust_node(self);
