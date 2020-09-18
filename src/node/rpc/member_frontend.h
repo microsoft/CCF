@@ -1233,11 +1233,13 @@ namespace ccf
           submitted_shares_count = share_manager.submit_recovery_share(
             args.tx, args.caller_id, raw_recovery_share);
         }
-        catch (const std::logic_error& e)
+        catch (const std::exception& e)
         {
+          auto error_msg =
+            fmt::format("Failed to submit recovery share: {}", e.what());
+          LOG_FAIL_FMT(error_msg);
           args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          args.rpc_ctx->set_response_body(
-            fmt::format("Could not submit recovery share: {}", e.what()));
+          args.rpc_ctx->set_response_body(std::move(error_msg));
           return;
         }
 
@@ -1260,13 +1262,15 @@ namespace ccf
         {
           node.initiate_private_recovery(args.tx);
         }
-        catch (const std::logic_error& e)
+        catch (const std::exception& e)
         {
           // For now, clear the submitted shares if combination fails.
+          auto error_msg =
+            fmt::format("Failed to initiate private recovery: {}", e.what());
+          LOG_FAIL_FMT(error_msg);
           share_manager.clear_submitted_recovery_shares(args.tx);
           args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          args.rpc_ctx->set_response_body(
-            fmt::format("Failed to initiate private recovery: {}", e.what()));
+          args.rpc_ctx->set_response_body(std::move(error_msg));
           return;
         }
 

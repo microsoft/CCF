@@ -169,6 +169,7 @@ namespace ccf
     std::vector<kv::Version> view_history;
     kv::Version last_recovered_commit_idx = 1;
     std::list<RecoveredLedgerSecret> recovery_ledger_secrets;
+    std::optional<std::vector<uint8_t>> recovery_snapshot = std::nullopt;
 
     consensus::Index ledger_idx = 0;
 
@@ -318,6 +319,8 @@ namespace ccf
 
           if (!args.config.snapshot.empty())
           {
+            recovery_snapshot = args.config.snapshot;
+
             LOG_FAIL_FMT("Deserialising snapshot on recovery...");
             auto rc = network.tables->deserialise_snapshot(
               args.config.snapshot, &view_history, true);
@@ -873,7 +876,7 @@ namespace ccf
       else
       {
         throw std::logic_error(
-          "Unknown consensus type " + std::to_string(network.consensus_type));
+          fmt::format("Unknown consensus type: {}", network.consensus_type));
       }
 #endif
 
@@ -921,8 +924,29 @@ namespace ccf
       // Setup new temporary store and record current version/root
       setup_private_recovery_store();
 
+      if (recovery_snapshot.has_value())
+      {
+        LOG_FAIL_FMT(
+          "Applying snapshot to recovery store... (size: {})",
+          recovery_snapshot.value().size());
+
+        // TODO: Passing a dummy view history here. Sort out interface!
+        std::vector<kv::Version> dummy_view_history;
+        auto rc = recovery_store->deserialise_snapshot(
+          recovery_snapshot.value(), &dummy_view_history);
+        if (rc != kv::DeserialiseSuccess::PASS)
+        {
+          throw std::logic_error(fmt::format(
+            "Could not deserialise snapshot in recovery store: {}", rc));
+        }
+
+        reset_data(recovery_snapshot.value());
+      }
+
       // Start reading private security domain of ledger
-      ledger_idx = 0;
+      ledger_idx = recovery_store->current_version();
+
+      LOG_FAIL_FMT("Private recovery ledger index is {}", ledger_idx);
       read_ledger_idx(++ledger_idx);
 
       recovery_ledger_secrets.clear();

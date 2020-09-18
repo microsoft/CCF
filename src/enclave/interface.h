@@ -40,7 +40,7 @@ struct CCFConfig
   std::string domain;
   size_t snapshot_tx_interval;
 
-  // Only is joining or recovering
+  // Only if joining or recovering
   std::vector<uint8_t> snapshot;
 
   struct SignatureIntervals
