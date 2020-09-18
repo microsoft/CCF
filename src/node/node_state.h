@@ -319,14 +319,17 @@ namespace ccf
           if (!args.config.snapshot.empty())
           {
             LOG_FAIL_FMT("Deserialising snapshot on recovery...");
-            auto rc =
-              network.tables->deserialise_snapshot(args.config.snapshot, true);
-
+            auto rc = network.tables->deserialise_snapshot(
+              args.config.snapshot, &term_history, true);
             if (rc != kv::DeserialiseSuccess::PASS)
             {
               throw std::logic_error(
                 fmt::format("Failed to apply snapshot: {}", rc));
             }
+
+            LOG_FAIL_FMT(
+              "Term history after recovery snapshot has {} entries",
+              term_history.size());
 
             ledger_idx = network.tables->current_version();
             last_recovered_commit_idx = ledger_idx;
@@ -341,15 +344,6 @@ namespace ccf
             {
               throw std::logic_error(
                 fmt::format("No signatures found after applying snapshot"));
-            }
-
-            // TODO: Really ugly. Wish we could use TermHistory directly instead
-            // (same for normal recovery?)
-            // TODO: Is this right?? What happens if there's more than 1 term beforehand??
-            for (size_t i = term_history.size(); i < sig->view; ++i)
-            {
-              LOG_FAIL_FMT("Term history: {} for term {}", ledger_idx, sig->view);
-              term_history.push_back(ledger_idx);
             }
 
             LOG_FAIL_FMT("Current version is {}", ledger_idx);
@@ -993,7 +987,8 @@ namespace ccf
         }
 
         default:
-        {}
+        {
+        }
       }
     }
 
@@ -1643,7 +1638,8 @@ namespace ccf
                 break;
               }
               default:
-              {}
+              {
+              }
             }
           }
 

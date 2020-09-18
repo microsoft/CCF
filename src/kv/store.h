@@ -352,7 +352,9 @@ namespace kv
     }
 
     DeserialiseSuccess deserialise_snapshot(
-      const std::vector<uint8_t>& data, bool public_only = false) override
+      const std::vector<uint8_t>& data,
+      std::vector<Version>* view_history = nullptr,
+      bool public_only = false) override
     {
       auto e = get_encryptor();
       auto d = KvStoreDeserialiser(
@@ -383,11 +385,13 @@ namespace kv
         hash_at_snapshot = d.deserialise_raw();
       }
 
-      std::vector<Version> view_history;
-      auto c = get_consensus();
-      if (c)
+      // std::vector<Version> view_history;
+      // auto c = get_consensus();
+      // if (c)
+      std::vector<Version> view_history_;
+      if (view_history)
       {
-        view_history = d.deserialise_view_history();
+        view_history_ = d.deserialise_view_history();
       }
 
       OrderedViews views;
@@ -472,10 +476,17 @@ namespace kv
         }
       }
 
-      if (c)
+      if (view_history)
       {
-        c->initialise_view_history(view_history);
+        *view_history = std::move(view_history_);
       }
+
+      // TODO: For normal join, set view history manually after this call
+      // TODO: Also update unit test snapshot.cpp
+      // if (c)
+      // {
+      //   c->initialise_view_history(view_history);
+      // }
 
       return DeserialiseSuccess::PASS;
     }
