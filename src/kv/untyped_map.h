@@ -509,13 +509,15 @@ namespace kv::untyped
     }
 
     template <typename TView>
-    TView* deserialise_internal(KvStoreDeserialiser& d, Version version, bool commit)
+    TView* deserialise_internal(
+      KvStoreDeserialiser& d, Version version, bool commit)
     {
       // Create a new change set, and deserialise d's contents into it.
       auto view = create_view<TView>(version);
       if (view == nullptr)
       {
-        LOG_FAIL_FMT("Failed to create view over '{}' at {} - too early", name, version);
+        LOG_FAIL_FMT(
+          "Failed to create view over '{}' at {} - too early", name, version);
         throw std::logic_error("Can't create view");
       }
 
