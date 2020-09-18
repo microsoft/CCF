@@ -10,14 +10,17 @@
 #  include <backward-cpp/backward.hpp>
 // #  pragma clang diagnostic pop
 #else
-# include <execinfo.h>
+#  include <execinfo.h>
 #endif
 
 #include <iostream>
 
 namespace stacktrace
 {
-  /** Print a demangled stack backtrace of the caller function to std out. */
+  /** Print a stack backtrace of the caller function to std out.
+   * In-enclave version will contain mangled names, and uses the standard
+   * ringbuffer logging mechanism.
+   */
   static inline void print_stacktrace()
   {
 #ifndef INSIDE_ENCLAVE
@@ -25,7 +28,7 @@ namespace stacktrace
     backward::StackTrace st;
     st.load_here();
     backward::Printer p;
-    p.print(st);
+    p.print(st, std::cout);
 #else
     static constexpr int max_frames = 32;
     void* frames[max_frames];
