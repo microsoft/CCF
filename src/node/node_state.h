@@ -340,17 +340,7 @@ namespace ccf
             ledger_idx = network.tables->current_version();
             last_recovered_signed_idx = ledger_idx;
 
-            // TODO: Refactor this with join protocol
-            kv::ReadOnlyTx tx;
-            auto sig_view = tx.get_read_only_view(network.signatures);
-            auto sig = sig_view->get(0);
-            if (!sig.has_value())
-            {
-              throw std::logic_error(
-                fmt::format("No signatures found after applying snapshot"));
-            }
-
-            LOG_FAIL_FMT("Current version is {}", ledger_idx);
+            LOG_DEBUG_FMT("Snapshot deserialised at seqno {}", ledger_idx);
           }
 
           accept_network_tls_connections(args.config);
@@ -935,9 +925,7 @@ namespace ccf
       if (recovery_snapshot.has_value())
       {
         LOG_DEBUG_FMT(
-          "Applying snapshot to recovery store... (size: {})",
-          recovery_snapshot.value().size());
-
+          "Deserialising private snapshot ({})", recovery_snapshot->size());
         std::vector<kv::Version> view_history;
         auto rc = recovery_store->deserialise_snapshot(
           recovery_snapshot.value(), &view_history);
@@ -952,8 +940,6 @@ namespace ccf
 
       // Start reading private security domain of ledger
       ledger_idx = recovery_store->current_version();
-
-      LOG_FAIL_FMT("Private recovery ledger index is {}", ledger_idx);
       read_ledger_idx(++ledger_idx);
 
       recovery_ledger_secrets.clear();
