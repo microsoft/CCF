@@ -4,6 +4,7 @@ import tempfile
 import http
 import subprocess
 import os
+import json
 import infra.network
 import infra.path
 import infra.proc
@@ -166,7 +167,7 @@ def test_npm_app(network, args):
 
     LOG.info("Building npm app")
     app_dir = os.path.join(THIS_DIR, "npm-app")
-    subprocess.run(["npm", "ci"], cwd=app_dir, check=True)
+    subprocess.run(["npm", "install"], cwd=app_dir, check=True)
     subprocess.run(["npm", "run", "build"], cwd=app_dir, check=True)
 
     LOG.info("Deploying npm app modules")
@@ -205,6 +206,71 @@ def test_npm_app(network, args):
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json()["available"], r.body
 
+    return network
+
+
+@reqs.description("Test tsoa-based Node.js/npm app")
+def test_npm_tsoa_app(network, args):
+    primary, _ = network.find_nodes()
+
+    LOG.info("Building npm app")
+    app_dir = os.path.join(THIS_DIR, "npm-tsoa-app")
+    subprocess.run(["npm", "install"], cwd=app_dir, check=True)
+    subprocess.run(["npm", "run", "build"], cwd=app_dir, check=True)
+
+    LOG.info("Deploying npm app modules")
+    module_name_prefix = "/my-tsoa-npm-app/"
+    dist_dir = os.path.join(app_dir, "dist")
+
+    proposal_body, _ = ccf.proposal_generator.update_modules(
+        module_name_prefix, dist_dir
+    )
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
+    )
+    network.consortium.vote_using_majority(primary, proposal)
+
+    LOG.info("Deploying endpoint script")
+    metadata_path = os.path.join(dist_dir, "endpoints.json")
+    with open(metadata_path) as f:
+        metadata = json.load(f)
+    # Temporarily only until endpoints can be called directly without proxy.
+    app_script = "return {"
+    for url, methods in metadata["endpoints"].items():
+        for method, cfg in methods.items():
+            app_script += f"""
+            ["{method.upper()} {url[1:]}"] = [[
+                import {{ {cfg["js_function"]} as f }}
+                  from ".{module_name_prefix}{cfg["js_module"]}";
+                export default (request) => f(request);
+            ]],"""
+    app_script = app_script[:-1] + "\n}"
+
+    with tempfile.NamedTemporaryFile("w") as f:
+        f.write(app_script)
+        f.flush()
+        network.consortium.set_js_app(remote_node=primary, app_script_path=f.name)
+
+    LOG.info("Calling npm app endpoints")
+    with primary.client("user0") as c:
+        body = [1, 2, 3, 4]
+        r = c.post("/app/partition", body)
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body == [[1, 3], [2, 4]], r.body
+
+        r = c.post("/app/proto", body)
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.headers["content-type"] == "application/x-protobuf"
+        # We could now decode the protobuf message but given all the machinery
+        # involved to make it happen (code generation with protoc) we'll leave it at that.
+        assert len(r.body) == 14, len(r.body)
+
+        r = c.get("/app/crypto")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body["available"], r.body
+
+    return network
+
 
 def run(args):
     hosts = ["localhost"] * (3 if args.consensus == "bft" else 2)
@@ -217,6 +283,7 @@ def run(args):
         network = test_modules_remove(network, args)
         network = test_module_import(network, args)
         network = test_npm_app(network, args)
+        network = test_npm_tsoa_app(network, args)
 
 
 if __name__ == "__main__":
