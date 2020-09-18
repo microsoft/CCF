@@ -20,7 +20,6 @@ namespace ccf
       Tables::USER_CLIENT_SIGNATURES,
       Tables::MEMBER_CLIENT_SIGNATURES,
       Tables::NODE_CODE_IDS,
-      Tables::USER_CODE_IDS,
       Tables::WHITELISTS,
       Tables::PROPOSALS,
       Tables::GOV_SCRIPTS,
