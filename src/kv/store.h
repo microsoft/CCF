@@ -385,11 +385,9 @@ namespace kv
         hash_at_snapshot = d.deserialise_raw();
       }
 
-      // std::vector<Version> view_history;
-      // auto c = get_consensus();
-      // if (c)
+      auto c = get_consensus();
       std::vector<Version> view_history_;
-      if (view_history)
+      if (c)
       {
         view_history_ = d.deserialise_view_history();
       }
@@ -480,13 +478,6 @@ namespace kv
       {
         *view_history = std::move(view_history_);
       }
-
-      // TODO: For normal join, set view history manually after this call
-      // TODO: Also update unit test snapshot.cpp
-      // if (c)
-      // {
-      //   c->initialise_view_history(view_history);
-      // }
 
       return DeserialiseSuccess::PASS;
     }

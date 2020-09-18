@@ -116,8 +116,9 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       auto serialised_snapshot =
         source_store.serialise_snapshot(std::move(snapshot));
 
+      std::vector<kv::Version> view_history;
       REQUIRE(
-        target_store.deserialise_snapshot(serialised_snapshot) ==
+        target_store.deserialise_snapshot(serialised_snapshot, &view_history) ==
         kv::DeserialiseSuccess::PASS);
 
       // Merkle history and view history thus far are restored when applying
@@ -126,8 +127,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
         source_history->get_replicated_state_root() ==
         target_history->get_replicated_state_root());
       REQUIRE(
-        source_consensus->view_history.get_history_until() ==
-        target_consensus->view_history.get_history_until());
+        source_consensus->view_history.get_history_until() == view_history);
     }
 
     INFO("Deserialise additional transaction after restart");

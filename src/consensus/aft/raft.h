@@ -243,7 +243,8 @@ namespace aft
       become_leader();
     }
 
-    void init_as_follower(Index index, Term term)
+    void init_as_follower(
+      Index index, Term term, const std::vector<Index>& term_history)
     {
       // This should only be called when the node resumes from a snapshot and
       // before it has received any append entries.
@@ -251,6 +252,8 @@ namespace aft
 
       state->last_idx = index;
       state->commit_idx = index;
+
+      state->view_history.initialise(term_history);
 
       ledger->init(index);
       snapshotter->set_last_snapshot_idx(index);
@@ -451,7 +454,8 @@ namespace aft
           break;
 
         default:
-        {}
+        {
+        }
       }
     }
 

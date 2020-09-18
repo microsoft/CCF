@@ -266,7 +266,7 @@ namespace kv
       state = Primary;
     }
 
-    virtual void init_as_backup(SeqNo, View)
+    virtual void init_as_backup(SeqNo, View, const std::vector<SeqNo>&)
     {
       state = Backup;
     }

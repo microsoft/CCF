@@ -453,7 +453,9 @@ namespace ccf
               // ledger secrets have been passed in by the network
               LOG_DEBUG_FMT(
                 "Deserialising snapshot ({})", config.snapshot.size());
-              auto rc = network.tables->deserialise_snapshot(config.snapshot);
+              std::vector<kv::Version> view_history;
+              auto rc = network.tables->deserialise_snapshot(
+                config.snapshot, &view_history);
 
               if (rc != kv::DeserialiseSuccess::PASS)
               {
@@ -471,7 +473,7 @@ namespace ccf
               }
 
               auto seqno = network.tables->current_version();
-              consensus->init_as_backup(seqno, sig->view);
+              consensus->init_as_backup(seqno, sig->view, view_history);
 
               reset_data(config.snapshot);
               LOG_INFO_FMT(
