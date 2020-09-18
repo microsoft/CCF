@@ -54,7 +54,7 @@ namespace aft
       LOG_DEBUG_FMT("Resulting views: {}", fmt::join(views, ", "));
     }
 
-    kv::Consensus::View term_at(kv::Version idx)
+    kv::Consensus::View view_at(kv::Version idx)
     {
       auto it = upper_bound(views.begin(), views.end(), idx);
 
@@ -65,6 +65,12 @@ namespace aft
       }
 
       return (it - views.begin());
+    }
+
+    std::vector<kv::Version> get_history_until(
+      kv::Version idx = std::numeric_limits<kv::Version>::max())
+    {
+      return {views.begin(), std::upper_bound(views.begin(), views.end(), idx)};
     }
   };
 

@@ -13,6 +13,7 @@ namespace kv
 
     std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>> snapshots;
     std::optional<std::vector<uint8_t>> hash_at_snapshot = std::nullopt;
+    std::optional<std::vector<Version>> view_history = std::nullopt;
 
   public:
     StoreSnapshot(Version version_) : version(version_) {}
@@ -25,6 +26,11 @@ namespace kv
     void add_hash_at_snapshot(std::vector<uint8_t>&& hash_at_snapshot_)
     {
       hash_at_snapshot = std::move(hash_at_snapshot_);
+    }
+
+    void add_view_history(std::vector<Version>&& view_history_)
+    {
+      view_history = std::move(view_history_);
     }
 
     Version get_version() const
@@ -40,6 +46,11 @@ namespace kv
       if (hash_at_snapshot.has_value())
       {
         serialiser.serialise_raw(hash_at_snapshot.value());
+      }
+
+      if (view_history.has_value())
+      {
+        serialiser.serialise_view_history(view_history.value());
       }
 
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
