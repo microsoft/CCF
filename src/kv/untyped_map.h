@@ -503,17 +503,26 @@ namespace kv::untyped
     }
 
     AbstractTxView* deserialise(
-      KvStoreDeserialiser& d, Version version) override
+      KvStoreDeserialiser& d, Version version, bool commit) override
     {
-      return deserialise_internal<TxView>(d, version);
+      return deserialise_internal<TxView>(d, version, commit);
     }
 
     template <typename TView>
-    TView* deserialise_internal(KvStoreDeserialiser& d, Version version)
+    TView* deserialise_internal(KvStoreDeserialiser& d, Version version, bool commit)
     {
       // Create a new change set, and deserialise d's contents into it.
       auto view = create_view<TView>(version);
-      view->set_commit_version(version);
+      if (view == nullptr)
+      {
+        LOG_FAIL_FMT("Failed to create view over '{}' at {} - too early", name, version);
+        throw std::logic_error("Can't create view");
+      }
+
+      if (commit)
+      {
+        view->set_commit_version(version);
+      }
 
       auto& change_set = view->get_change_set();
 

@@ -693,11 +693,7 @@ namespace kv
           return DeserialiseSuccess::FAILED;
         }
 
-        // If we are not committing now then use NoVersion to deserialise
-        // otherwise the view will be considered as having a committed
-        // version
-        auto deserialise_version = (commit ? v : NoVersion);
-        auto deserialised_view = map->deserialise(d, deserialise_version);
+        auto deserialised_view = map->deserialise(d, v, commit);
 
         // Take ownership of the produced view, store it to be applied
         // later
