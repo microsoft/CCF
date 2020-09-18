@@ -385,9 +385,8 @@ namespace kv
         hash_at_snapshot = d.deserialise_raw();
       }
 
-      auto c = get_consensus();
       std::vector<Version> view_history_;
-      if (c)
+      if (view_history)
       {
         view_history_ = d.deserialise_view_history();
       }

@@ -79,7 +79,6 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
   INFO("Snapshot at signature");
   {
     kv::Store target_store;
-    auto target_consensus = std::make_shared<kv::StubConsensus>();
     INFO("Setup target store");
     {
       auto target_node_kp = tls::make_key_pair();
@@ -92,8 +91,6 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       auto target_history = std::make_shared<ccf::MerkleTxHistory>(
         target_store, 0, *target_node_kp, *target_signatures, *target_nodes);
       target_store.set_history(target_history);
-
-      target_store.set_consensus(target_consensus);
     }
 
     auto target_history = target_store.get_history();
@@ -105,8 +102,9 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
         source_store.serialise_snapshot(std::move(snapshot));
 
       // There is no signature to read to seed the target history
+      std::vector<kv::Version> view_history;
       REQUIRE(
-        target_store.deserialise_snapshot(serialised_snapshot) ==
+        target_store.deserialise_snapshot(serialised_snapshot, &view_history) ==
         kv::DeserialiseSuccess::FAILED);
     }
 

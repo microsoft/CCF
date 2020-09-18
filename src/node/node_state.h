@@ -167,9 +167,10 @@ namespace ccf
     kv::Version recovery_v;
     crypto::Sha256Hash recovery_root;
     std::vector<kv::Version> view_history;
-    kv::Version last_recovered_commit_idx = 1;
+    kv::Version last_recovered_signed_idx = 1;
     std::list<RecoveredLedgerSecret> recovery_ledger_secrets;
     std::optional<std::vector<uint8_t>> recovery_snapshot = std::nullopt;
+    size_t recovery_snapshot_tx_interval = Snapshotter::max_tx_interval;
 
     consensus::Index ledger_idx = 0;
 
@@ -187,7 +188,8 @@ namespace ccf
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
       rpcsessions(rpcsessions),
-      share_manager(share_manager)
+      share_manager(share_manager),
+      snapshotter(std::make_shared<Snapshotter>(writer_factory, network))
     {
       ::EverCrypt_AutoConfig2_init();
     }
@@ -206,7 +208,6 @@ namespace ccf
 
       consensus_config = consensus_config_;
       n2n_channels = n2n_channels_;
-      // Capture rpc_map to pass to pbft for frontend execution
       rpc_map = rpc_map_;
       cmd_forwarder = cmd_forwarder_;
       sm.advance(State::initialized);
@@ -222,9 +223,6 @@ namespace ccf
 
       create_node_cert(args.config);
       open_node_frontend();
-
-      snapshotter = std::make_shared<Snapshotter>(
-        writer_factory, network, args.config.snapshot_tx_interval);
 
 #ifdef GET_QUOTE
       if (network.consensus_type != ConsensusType::BFT)
@@ -264,6 +262,8 @@ namespace ccf
           setup_consensus();
           setup_history();
 
+          snapshotter->set_tx_interval(args.config.snapshot_tx_interval);
+
           // Become the primary and force replication
           consensus->force_become_primary();
 
@@ -293,6 +293,8 @@ namespace ccf
           // has joined
           accept_node_tls_connections();
 
+          snapshotter->set_tx_interval(args.config.snapshot_tx_interval);
+
           sm.advance(State::pending);
 
           return Success<CreateNew::Out>({node_cert, {}, {}});
@@ -317,27 +319,26 @@ namespace ccf
 
           setup_recovery_hook();
 
+          // Snapshot generation is disabled until private recovery is complete
+          recovery_snapshot_tx_interval = args.config.snapshot_tx_interval;
+
           if (!args.config.snapshot.empty())
           {
+            // Keep a reference to snapshot for private recovery
             recovery_snapshot = args.config.snapshot;
 
-            LOG_FAIL_FMT("Deserialising snapshot on recovery...");
+            LOG_DEBUG_FMT(
+              "Deserialising public snapshot ({})", recovery_snapshot->size());
             auto rc = network.tables->deserialise_snapshot(
-              args.config.snapshot, &view_history, true);
+              recovery_snapshot.value(), &view_history, true);
             if (rc != kv::DeserialiseSuccess::PASS)
             {
               throw std::logic_error(
-                fmt::format("Failed to apply snapshot: {}", rc));
+                fmt::format("Failed to apply public snapshot: {}", rc));
             }
 
-            LOG_FAIL_FMT(
-              "View history after recovery snapshot has {} entries",
-              view_history.size());
-
             ledger_idx = network.tables->current_version();
-            last_recovered_commit_idx = ledger_idx;
-
-            // TODO: Snapshot interval is not right
+            last_recovered_signed_idx = ledger_idx;
 
             // TODO: Refactor this with join protocol
             kv::ReadOnlyTx tx;
@@ -489,8 +490,8 @@ namespace ccf
 
             if (resp.network_info.public_only)
             {
-              last_recovered_commit_idx =
-                resp.network_info.last_recovered_commit_idx;
+              last_recovered_signed_idx =
+                resp.network_info.last_recovered_signed_idx;
               setup_recovery_hook();
               sm.advance(State::partOfPublicNetwork);
             }
@@ -626,12 +627,12 @@ namespace ccf
           // necessarily start in view 1), it cannot _change_ view before a
           // valid signature.
           const auto view_start_idx =
-            view_history.empty() ? 1 : last_recovered_commit_idx + 1;
+            view_history.empty() ? 1 : last_recovered_signed_idx + 1;
           for (auto i = view_history.size(); i < last_sig->view; ++i)
           {
             view_history.push_back(view_start_idx);
           }
-          last_recovered_commit_idx = ledger_idx;
+          last_recovered_signed_idx = ledger_idx;
         }
         else
         {
@@ -648,18 +649,18 @@ namespace ccf
 
       // When reaching the end of the public ledger, truncate to last signed
       // index and promote network secrets to this index
-      network.tables->rollback(last_recovered_commit_idx);
-      ledger_truncate(last_recovered_commit_idx);
+      network.tables->rollback(last_recovered_signed_idx);
+      ledger_truncate(last_recovered_signed_idx);
       LOG_INFO_FMT(
         "End of public ledger recovery - Truncating ledger to last signed "
         "index: {}",
-        last_recovered_commit_idx);
+        last_recovered_signed_idx);
 
-      network.ledger_secrets->init(last_recovered_commit_idx + 1);
+      network.ledger_secrets->init(last_recovered_signed_idx + 1);
       // KV term must be set before the first Tx is committed
-      LOG_INFO_FMT(
-        "Setting term on public recovery KV to {}", view_history.size() + 2);
-      network.tables->set_term(view_history.size() + 2);
+      auto new_term = view_history.size() + 2;
+      LOG_INFO_FMT("Setting term on public recovery KV to {}", new_term);
+      network.tables->set_term(new_term);
 
       kv::Tx tx;
       GenesisGenerator g(network, tx);
@@ -702,6 +703,8 @@ namespace ccf
         view,
         index,
         global_commit);
+
+      // TODO: Surely, the second index should be global commit??
       consensus->force_become_primary(index, view, view_history, index);
 
       // Sets itself as trusted
@@ -793,6 +796,9 @@ namespace ccf
       // Raft should deserialise all security domains when network is opened
       consensus->enable_all_domains();
 
+      // Snapshots can only be generated from now onwards
+      snapshotter->set_tx_interval(recovery_snapshot_tx_interval);
+
       // Open the service
       if (consensus->is_primary())
       {
@@ -801,7 +807,7 @@ namespace ccf
         // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
         share_manager.issue_shares_on_recovery(
-          tx, last_recovered_commit_idx + 1);
+          tx, last_recovered_signed_idx + 1);
         GenesisGenerator g(network, tx);
         if (!g.open_service())
         {
@@ -928,14 +934,13 @@ namespace ccf
 
       if (recovery_snapshot.has_value())
       {
-        LOG_FAIL_FMT(
+        LOG_DEBUG_FMT(
           "Applying snapshot to recovery store... (size: {})",
           recovery_snapshot.value().size());
 
-        // TODO: Passing a dummy view history here. Sort out interface!
-        std::vector<kv::Version> dummy_view_history;
+        std::vector<kv::Version> view_history;
         auto rc = recovery_store->deserialise_snapshot(
-          recovery_snapshot.value(), &dummy_view_history);
+          recovery_snapshot.value(), &view_history);
         if (rc != kv::DeserialiseSuccess::PASS)
         {
           throw std::logic_error(fmt::format(
@@ -1520,7 +1525,7 @@ namespace ccf
       });
     }
 
-    kv::Version get_last_recovered_commit_idx() override
+    kv::Version get_last_recovered_signed_idx() override
     {
       // On recovery, only one node recovers the public ledger and is thus aware
       // of the version at which the new ledger secret is applicable from. If
@@ -1528,7 +1533,7 @@ namespace ccf
       // should also know at which version the new ledger secret is applicable
       // from.
       std::lock_guard<SpinLock> guard(lock);
-      return last_recovered_commit_idx;
+      return last_recovered_signed_idx;
     }
 
     void setup_recovery_hook()
