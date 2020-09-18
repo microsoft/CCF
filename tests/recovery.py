@@ -11,11 +11,15 @@ from loguru import logger as LOG
 
 @reqs.description("Recovering a network")
 @reqs.recover(number_txs=2)
-def test(network, args):
+def test(network, args, from_snapshot=False):
     primary, _ = network.find_primary()
+
+    # Retrieve ledger and snapshots
     ledger_dir = primary.get_ledger()
-    snapshot_dir = primary.get_snapshots()
-    LOG.warning(f"Ledger dir is: {snapshot_dir}")
+    snapshot_dir = None
+    if from_snapshot:
+        snapshot_dir = primary.get_snapshots()
+
     defunct_network_enc_pubk = network.store_current_network_encryption_key()
 
     recovered_network = infra.network.Network(
@@ -132,7 +136,14 @@ checked. Note that the key for each logging message is unique (per table).
             type=int,
             default=5,
         )
+        parser.add_argument(
+            "--use-snapshots",
+            help="Use snapshots for faster recovery procedure",
+            action="store_true",
+            default=False,
+        )
 
+    # TODO: Create snapshot flavoured version of the test
     args = infra.e2e_args.cli_args(add)
     args.package = "liblogging"
 
