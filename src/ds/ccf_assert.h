@@ -28,13 +28,6 @@
 #    define CCF_ASSERT(expr, msg) ((void)0)
 #  endif /* NDEBUG */
 
-#  define PBFT_FAIL(msg) \
-    do \
-    { \
-      LOG_FAIL_FMT("FATAL_ERROR: {}", (msg)); \
-      stacktrace::print_stacktrace(); \
-      std::terminate(); \
-    } while (0)
 #else
 #  ifndef NDEBUG
 #    define CCF_ASSERT(expr, msg) \
@@ -50,10 +43,4 @@
 #    define CCF_ASSERT(expr, msg) ((void)0)
 #  endif /* NDEBUG */
 
-#  define PBFT_FAIL(msg) \
-    do \
-    { \
-      LOG_FAIL_FMT("FATAL_ERROR: {}", (msg)); \
-      std::terminate(); \
-    } while (0)
 #endif
