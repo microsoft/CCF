@@ -256,7 +256,7 @@ def test_npm_tsoa_app(network, args):
         body = [1, 2, 3, 4]
         r = c.post("/app/partition", body)
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body == [[1, 3], [2, 4]], r.body
+        assert r.body.json() == [[1, 3], [2, 4]], r.body
 
         r = c.post("/app/proto", body)
         assert r.status_code == http.HTTPStatus.OK, r.status_code
