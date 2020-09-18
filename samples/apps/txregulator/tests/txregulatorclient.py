@@ -25,7 +25,7 @@ class AppUser:
         network.consortium.add_users(primary, [self.name])
 
         with primary.client(f"user{self.name}") as client:
-            self.ccf_id = client.get("/app/user_id").body["caller_id"]
+            self.ccf_id = client.get("/app/user_id").body.json()["caller_id"]
 
     def __str__(self):
         return f"{self.ccf_id} ({self.name})"

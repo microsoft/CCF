@@ -67,7 +67,9 @@ def test_cert_store(network, args):
             cert_pem_str.encode(), crypto_backends.default_backend()
         )
         cert_kv = x509.load_der_x509_certificate(
-            r.body.data(), crypto_backends.default_backend()
+            # Note that this should be r.body.data() but CCF currently
+            # does not return raw binary data via /gov/read.
+            bytes(r.body.json()), crypto_backends.default_backend()
         )
         assert (
             cert_ref == cert_kv
