@@ -105,7 +105,7 @@ class ResponseBody(abc.ABC):
             return f"{self.data()}"
 
     def __repr__(self):
-        return f"ResponseBody({repr(self.data)})"
+        return f"{repr(self.data())}"
 
 
 class RequestsResponseBody(ResponseBody):

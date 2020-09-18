@@ -26,7 +26,7 @@ class Checker:
             if callable(result):
                 assert result(rpc_result.body), rpc_result.body
             else:
-                assert rpc_result.body == result, "Expected {}, got {}".format(
+                assert rpc_result.body.json() == result, "Expected {}, got {}".format(
                     result, rpc_result.body
                 )
 
