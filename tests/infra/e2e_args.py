@@ -6,6 +6,8 @@ import infra.path
 import infra.network
 import sys
 
+from loguru import logger as LOG
+
 
 def absolute_path_to_existing_file(arg):
     if not os.path.isabs(arg):
@@ -16,6 +18,12 @@ def absolute_path_to_existing_file(arg):
 
 
 def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
+    LOG.remove()
+    LOG.add(
+        sys.stdout,
+        format="<green>{time:HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    )
+
     if parser is None:
         parser = argparse.ArgumentParser(
             formatter_class=argparse.ArgumentDefaultsHelpFormatter
