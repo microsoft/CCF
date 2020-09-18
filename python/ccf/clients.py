@@ -101,7 +101,7 @@ class ResponseBody(abc.ABC):
     def __str__(self):
         try:
             return self.text()
-        except:
+        except UnicodeDecodeError:
             return f"{self.data()}"
 
     def __repr__(self):
