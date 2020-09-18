@@ -240,7 +240,7 @@ def run(args):
                 # assert that the flagged txs that we poll for are correct
                 resp = c.post("/app/REG_poll_flagged")
                 poll_flagged_ids = []
-                for poll_flagged in resp.body:
+                for poll_flagged in resp.body.json():
                     # poll flagged is a list [tx_id, regulator_id]
                     poll_flagged_ids.append(poll_flagged[0])
                 poll_flagged_ids.sort()
