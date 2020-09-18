@@ -145,7 +145,7 @@ class Response:
     #: Response HTTP status code
     status_code: int
     #: Response body
-    body: Optional[ResponseBody]
+    body: ResponseBody
     #: CCF sequence number
     seqno: Optional[int]
     #: CCF consensus view
