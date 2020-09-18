@@ -9,6 +9,8 @@
 // #  pragma clang diagnostic ignored "-Wundef"
 #  include <backward-cpp/backward.hpp>
 // #  pragma clang diagnostic pop
+#else
+# include <execinfo.h>
 #endif
 
 #include <iostream>
@@ -24,6 +26,21 @@ namespace stacktrace
     st.load_here();
     backward::Printer p;
     p.print(st);
+#else
+    static constexpr int max_frames = 32;
+    void* frames[max_frames];
+
+    const int num_frames = backtrace(frames, max_frames);
+    char** symbols = backtrace_symbols(frames, num_frames);
+    if (symbols != NULL)
+    {
+      LOG_INFO_FMT("Printing {} stack frames:", num_frames);
+      for (int i = 0; i < num_frames; ++i)
+      {
+        LOG_INFO_FMT("[{:>2}]: {}", i, symbols[i]);
+      }
+    }
+    free(symbols);
 #endif
   }
 
@@ -38,11 +55,9 @@ namespace stacktrace
     signal(signo, SIG_DFL);
     raise(signo);
   }
-#endif
 
   static inline void init_sig_handlers()
   {
-#ifndef INSIDE_ENCLAVE
     // This is based on the constructor of backward::SignalHandling, but avoids
     // infinitely recursing stacktraces
     constexpr size_t stack_size = 1024 * 1024 * 8;
@@ -101,6 +116,6 @@ namespace stacktrace
         LOG_FATAL_FMT("Error installing signal {} ({})", signal, r);
       }
     }
-#endif
   }
+#endif
 }
