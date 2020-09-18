@@ -22,8 +22,8 @@
  */
 
 
-#ifndef __EverCrypt_Cipher_H
-#define __EverCrypt_Cipher_H
+#ifndef __Hacl_IntTypes_Intrinsics_H
+#define __Hacl_IntTypes_Intrinsics_H
 
 #if defined(__cplusplus)
 extern "C" {
@@ -36,21 +36,39 @@ extern "C" {
 #include "kremlin/internal/target.h"
 
 
-#include "Hacl_Chacha20.h"
+#include "Hacl_Kremlib.h"
 
-void
-EverCrypt_Cipher_chacha20(
-  uint32_t len,
-  uint8_t *dst,
-  uint8_t *src,
-  uint8_t *key,
-  uint8_t *iv,
-  uint32_t ctr
-);
+static inline uint64_t
+Hacl_IntTypes_Intrinsics_add_carry_u64(uint64_t cin, uint64_t x, uint64_t y, uint64_t *result1)
+{
+  uint64_t res = x + cin + y;
+  uint64_t
+  c = (~FStar_UInt64_gte_mask(res, x) | (FStar_UInt64_eq_mask(res, x) & cin)) & (uint64_t)1U;
+  result1[0U] = res;
+  return c;
+}
+
+static inline uint64_t
+Hacl_IntTypes_Intrinsics_sub_borrow_u64(
+  uint64_t cin,
+  uint64_t x,
+  uint64_t y,
+  uint64_t *result1
+)
+{
+  uint64_t res = x - y - cin;
+  uint64_t eqlty = FStar_UInt64_eq_mask(res, x);
+  uint64_t
+  c1 =
+    ((FStar_UInt64_gte_mask(res, x) & ~FStar_UInt64_eq_mask(res, x)) | (eqlty & cin))
+    & (uint64_t)1U;
+  result1[0U] = res;
+  return c1;
+}
 
 #if defined(__cplusplus)
 }
 #endif
 
-#define __EverCrypt_Cipher_H_DEFINED
+#define __Hacl_IntTypes_Intrinsics_H_DEFINED
 #endif

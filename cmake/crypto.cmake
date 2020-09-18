@@ -17,7 +17,9 @@ file(GLOB_RECURSE EVERCRYPT_SRC "${EVERCRYPT_PREFIX}/*.[cS]")
 # We need two versions of EverCrypt, because it depends on libc
 
 if("sgx" IN_LIST COMPILE_TARGETS)
-  add_library(evercrypt.enclave STATIC ${EVERCRYPT_SRC})
+  add_library(
+    evercrypt.enclave STATIC ${EVERCRYPT_SRC} ${CCF_DIR}/3rdparty/stub/stub.c
+  )
   target_compile_options(
     evercrypt.enclave PRIVATE -Wno-implicit-function-declaration
                               -Wno-return-type

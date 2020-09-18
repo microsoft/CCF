@@ -22,8 +22,8 @@
  */
 
 
-#ifndef __EverCrypt_Cipher_H
-#define __EverCrypt_Cipher_H
+#ifndef __Lib_Memzero0_H
+#define __Lib_Memzero0_H
 
 #if defined(__cplusplus)
 extern "C" {
@@ -36,21 +36,13 @@ extern "C" {
 #include "kremlin/internal/target.h"
 
 
-#include "Hacl_Chacha20.h"
 
-void
-EverCrypt_Cipher_chacha20(
-  uint32_t len,
-  uint8_t *dst,
-  uint8_t *src,
-  uint8_t *key,
-  uint8_t *iv,
-  uint32_t ctr
-);
+
+extern void Lib_Memzero0_memzero(void *x0, uint64_t x1);
 
 #if defined(__cplusplus)
 }
 #endif
 
-#define __EverCrypt_Cipher_H_DEFINED
+#define __Lib_Memzero0_H_DEFINED
 #endif
