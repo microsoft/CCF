@@ -79,6 +79,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
   INFO("Snapshot at signature");
   {
     kv::Store target_store;
+    auto target_consensus = std::make_shared<kv::StubConsensus>();
     INFO("Setup target store");
     {
       auto target_node_kp = tls::make_key_pair();
@@ -91,6 +92,8 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       auto target_history = std::make_shared<ccf::MerkleTxHistory>(
         target_store, 0, *target_node_kp, *target_signatures, *target_nodes);
       target_store.set_history(target_history);
+
+      target_store.set_consensus(target_consensus);
     }
 
     auto target_history = target_store.get_history();
@@ -116,11 +119,16 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       REQUIRE(
         target_store.deserialise_snapshot(serialised_snapshot) ==
         kv::DeserialiseSuccess::PASS);
-    }
 
-    REQUIRE(
-      source_history->get_replicated_state_root() ==
-      target_history->get_replicated_state_root());
+      // Merkle history and view history thus far are restored when applying
+      // snapshot
+      REQUIRE(
+        source_history->get_replicated_state_root() ==
+        target_history->get_replicated_state_root());
+      REQUIRE(
+        source_consensus->view_history.get_history_until() ==
+        target_consensus->view_history.get_history_until());
+    }
 
     INFO("Deserialise additional transaction after restart");
     {

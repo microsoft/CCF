@@ -106,7 +106,7 @@ endforeach()
 
 # Copy utilities from tests directory
 set(CCF_TEST_UTILITIES tests.sh cimetrics_env.sh upload_pico_metrics.py
-                       test_install.sh
+                       test_install.sh test_python_cli.sh
 )
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(

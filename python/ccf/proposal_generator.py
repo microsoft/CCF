@@ -352,12 +352,6 @@ def retire_node_code(code_digest: str, **kwargs):
 
 
 @cli_proposal
-def new_user_code(code_digest: str, **kwargs):
-    code_digest_bytes = list(bytearray.fromhex(code_digest))
-    return build_proposal("new_user_code", code_digest_bytes, **kwargs)
-
-
-@cli_proposal
 def accept_recovery(**kwargs):
     return build_proposal("accept_recovery", **kwargs)
 
