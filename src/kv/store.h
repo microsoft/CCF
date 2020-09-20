@@ -8,6 +8,7 @@
 #include "map.h"
 #include "node/entities.h"
 #include "node/signatures.h"
+#include "node/commitment_evidence.h"
 #include "snapshot.h"
 #include "tx.h"
 #include "view_containers.h"
@@ -29,6 +30,7 @@ namespace kv
 
     std::shared_ptr<Consensus> consensus = nullptr;
     std::shared_ptr<TxHistory> history = nullptr;
+    std::shared_ptr<ccf::Commitment> commitment = nullptr;
     EncryptorPtr encryptor = nullptr;
     Version version = 0;
     Version compacted = 0;
@@ -125,6 +127,16 @@ namespace kv
     void set_history(std::shared_ptr<TxHistory> history_)
     {
       history = history_;
+    }
+
+    std::shared_ptr<ccf::Commitment> get_commitment_state()
+    {
+      return commitment;
+    }
+
+    void set_commitment_state(std::shared_ptr<ccf::Commitment> commitment_)
+    {
+      commitment = commitment_;
     }
 
     void set_encryptor(const EncryptorPtr& encryptor_)

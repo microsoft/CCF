@@ -108,7 +108,7 @@ namespace ccf
     void append(const std::vector<uint8_t>&) override {}
 
     void append(const uint8_t*, size_t) override {}
-    
+
     bool verify_and_sign(Signature&, kv::Term*) override
     {
       return true;
@@ -462,8 +462,6 @@ namespace ccf
     Signatures& signatures;
     Nodes& nodes;
 
-    std::shared_ptr<kv::Consensus> consensus;
-
     std::map<RequestID, std::vector<uint8_t>> requests;
     std::map<RequestID, std::pair<kv::Version, crypto::Sha256Hash>> results;
     std::map<RequestID, std::vector<uint8_t>> responses;
@@ -577,7 +575,7 @@ namespace ccf
       log_hash(rh, APPEND);
       replicated_state_tree.append(rh);
     }
-    
+
     bool verify_and_sign(Signature& sig, kv::Term* term = nullptr) override
     {
       if (!verify(term, &sig))
@@ -595,7 +593,7 @@ namespace ccf
     {
       return verify(term, nullptr);
     }
-    
+
     bool verify(kv::Term* term = nullptr, Signature* signature = nullptr)
     {
       kv::Tx tx;
@@ -678,6 +676,12 @@ namespace ccf
           kv::Tx sig(txid.version);
           auto sig_view = sig.get_view(signatures);
           crypto::Sha256Hash root = replicated_state_tree.get_root();
+
+          auto commitment_state = store.get_commitment_state();
+          if (commitment_state)
+          {
+            commitment_state->record_primary(txid.term, txid.version, root);
+          }
 
           Signature sig_value(
             id,

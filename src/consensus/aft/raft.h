@@ -16,6 +16,7 @@
 #include "node/signatures.h"
 #include "node_state.h"
 #include "raft_types.h"
+#include "node/commitment_evidence.h"
 
 #include <algorithm>
 #include <deque>
@@ -42,6 +43,7 @@ namespace aft
 
     ConsensusType consensus_type;
     std::unique_ptr<Store<kv::DeserialiseSuccess>> store;
+    ccf::Commitment commitment_state;
 
     // Persistent
     NodeId voted_for;
@@ -835,9 +837,34 @@ namespace aft
         ccf::NodeMsgType::consensus_msg, to, response);
     }
 
-    void recv_append_entries_signed_response(const uint8_t* /*data*/, size_t /*size*/)
+    void recv_append_entries_signed_response(const uint8_t* data, size_t size)
     {
-      // TODO: fill this in
+      SignedAppendEntriesResponse r;
+
+      try
+      {
+        r = channels->template recv_authenticated<SignedAppendEntriesResponse>(
+          data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_FMT(err.what());
+        return;
+      }
+
+      auto node = nodes.find(r.from_node);
+      if (node == nodes.end())
+      {
+        // Ignore if we don't recognise the node.
+        LOG_FAIL_FMT(
+          "Recv append entries response to {} from {}: unknown node",
+          state->my_node_id,
+          r.from_node);
+        return;
+      }
+
+      commitment_state.add_signature(
+        r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig);
     }
 
     void recv_append_entries_response(const uint8_t* data, size_t size)

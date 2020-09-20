@@ -14,6 +14,7 @@
 #include "history.h"
 #include "network_state.h"
 #include "node/rpc/serdes.h"
+#include "node/commitment_evidence.h"
 #include "node_to_node.h"
 #include "rpc/frontend.h"
 #include "rpc/member_frontend.h"
@@ -152,6 +153,7 @@ namespace ccf
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
 
     std::shared_ptr<kv::TxHistory> history;
+    std::shared_ptr<ccf::Commitment> commitment_state;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
     ShareManager& share_manager;
@@ -260,6 +262,7 @@ namespace ccf
           self = 0; // The first node id is always 0
 
           setup_encryptor(network.consensus_type);
+          setup_commitment_state();
           setup_consensus();
           setup_history();
 
@@ -408,6 +411,7 @@ namespace ccf
             }
 
             setup_encryptor(resp.network_info.consensus_type);
+            setup_commitment_state();
             setup_consensus(resp.network_info.public_only);
             setup_history();
 
@@ -1664,6 +1668,12 @@ namespace ccf
     void setup_consensus(bool public_only = false)
     {
       setup_raft(public_only);
+    }
+
+    void setup_commitment_state()
+    {
+      commitment_state = std::make_shared<ccf::Commitment>();
+      network.tables->set_commitment_state(commitment_state);
     }
 
     void read_ledger_idx(consensus::Index idx)
