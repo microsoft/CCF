@@ -262,8 +262,8 @@ namespace ccf
           self = 0; // The first node id is always 0
 
           setup_encryptor(network.consensus_type);
-          setup_commitment_state();
           setup_consensus();
+          setup_commitment_state();
           setup_history();
 
           // Become the primary and force replication
@@ -310,6 +310,7 @@ namespace ccf
             tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
 
           setup_history();
+          setup_consensus();
 
           // It is necessary to give an encryptor to the store for it to
           // deserialise the public domain when recovering the public ledger.
@@ -411,8 +412,8 @@ namespace ccf
             }
 
             setup_encryptor(resp.network_info.consensus_type);
-            setup_commitment_state();
             setup_consensus(resp.network_info.public_only);
+            setup_commitment_state();
             setup_history();
 
             if (!config.joining.snapshot.empty())
@@ -660,6 +661,12 @@ namespace ccf
       if (h)
       {
         h->set_node_id(self);
+      }
+
+      auto c = dynamic_cast<ccf::Commitment*>(commitment_state.get());
+      if (c)
+      {
+        c->set_node_id(self);
       }
 
       setup_raft(true);
@@ -1674,7 +1681,7 @@ namespace ccf
     {
       if (network.consensus_type == ConsensusType::BFT)
       {
-        commitment_state = std::make_shared<ccf::Commitment>();
+        commitment_state = std::make_shared<ccf::Commitment>(self, network.nodes);
         network.tables->set_commitment_state(commitment_state);
       }
     }

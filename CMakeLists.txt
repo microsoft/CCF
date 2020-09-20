@@ -288,7 +288,7 @@ if(BUILD_TESTS)
       raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
     )
-    target_link_libraries(raft_test PRIVATE ${CRYPTO_LIBRARY})
+    target_link_libraries(raft_test PRIVATE ${CRYPTO_LIBRARY} secp256k1.host )
 
     add_unit_test(
       raft_enclave_test
@@ -446,7 +446,7 @@ if(BUILD_TESTS)
     add_executable(
       raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
     )
-    target_link_libraries(raft_driver PRIVATE ccfcrypto.host)
+    target_link_libraries(raft_driver PRIVATE ccfcrypto.host secp256k1.host)
     use_client_mbedtls(raft_driver)
     target_include_directories(raft_driver PRIVATE src/aft)
 
@@ -495,7 +495,7 @@ if(BUILD_TESTS)
     kv_bench
     SRCS src/kv/test/kv_bench.cpp src/crypto/symmetric_key.cpp
          src/enclave/thread_local.cpp
-    LINK_LIBS ccfcrypto.host
+    LINK_LIBS ccfcrypto.host secp256k1.host
   )
   add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
 

@@ -786,7 +786,10 @@ namespace aft
               state->view_history.update(state->commit_idx + 1, sig_term);
               commit_if_possible(r.leader_commit_idx);
             }
-            send_append_entries_signed_response(r.from_node, sig);
+            if (consensus_type == ConsensusType::BFT)
+            {
+              send_append_entries_signed_response(r.from_node, sig);
+            }
             break;
           }
 
