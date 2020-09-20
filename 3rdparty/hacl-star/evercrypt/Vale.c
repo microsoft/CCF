@@ -24,5 +24,5 @@
 
 #include "Vale.h"
 
-typedef uint64_t K___uint64_t___;
+typedef uint64_t als_ret;
 

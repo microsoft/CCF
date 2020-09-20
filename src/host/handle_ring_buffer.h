@@ -5,7 +5,7 @@
 #include "../ds/files.h"
 #include "../ds/logger.h"
 #include "../enclave/interface.h"
-#include "every_io.h"
+#include "timer.h"
 
 #include <chrono>
 #include <ctime>
@@ -65,11 +65,9 @@ namespace asynchost
         });
     }
 
-    void every()
+    void on_timer()
     {
-      // On each uv loop iteration...
-
-      // ...read (and process) some outbound ringbuffer messages...
+      // Regularly read (and process) some outbound ringbuffer messages...
       bp.read_n(max_messages, r);
 
       // ...flush any pending inbound messages...
@@ -77,5 +75,5 @@ namespace asynchost
     }
   };
 
-  using HandleRingbuffer = proxy_ptr<EveryIO<HandleRingbufferImpl>>;
+  using HandleRingbuffer = proxy_ptr<Timer<HandleRingbufferImpl>>;
 }
