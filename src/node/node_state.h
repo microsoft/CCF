@@ -1672,8 +1672,11 @@ namespace ccf
 
     void setup_commitment_state()
     {
-      commitment_state = std::make_shared<ccf::Commitment>();
-      network.tables->set_commitment_state(commitment_state);
+      if (network.consensus_type == ConsensusType::BFT)
+      {
+        commitment_state = std::make_shared<ccf::Commitment>();
+        network.tables->set_commitment_state(commitment_state);
+      }
     }
 
     void read_ledger_idx(consensus::Index idx)

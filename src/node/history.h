@@ -578,7 +578,7 @@ namespace ccf
 
     bool verify_and_sign(Signature& sig, kv::Term* term = nullptr) override
     {
-      if (!verify(term, &sig))
+      if (!verify(term))
       {
         return false;
       }
@@ -590,11 +590,6 @@ namespace ccf
     }
 
     bool verify(kv::Term* term = nullptr) override
-    {
-      return verify(term, nullptr);
-    }
-
-    bool verify(kv::Term* term = nullptr, Signature* signature = nullptr)
     {
       kv::Tx tx;
       auto [sig_tv, ni_tv] = tx.get_view(signatures, nodes);
@@ -610,11 +605,6 @@ namespace ccf
         *term = sig_value.view;
       }
 
-      if (signature)
-      {
-        *signature = sig_value;
-      }
-
       auto ni = ni_tv->get(sig_value.node);
       if (!ni.has_value())
       {
@@ -625,11 +615,24 @@ namespace ccf
       tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
       crypto::Sha256Hash root = replicated_state_tree.get_root();
       log_hash(root, VERIFY);
-      return from_cert->verify_hash(
+      bool result = from_cert->verify_hash(
         root.h.data(),
         root.h.size(),
         sig_value.sig.data(),
         sig_value.sig.size());
+
+      if (!result)
+      {
+        return false;
+      }
+
+      auto commitment_state = store.get_commitment_state();
+      if (commitment_state)
+      {
+        commitment_state->record_primary(sig_value.view, sig_value.seqno, root);
+      }
+
+      return true;
     }
 
     void rollback(kv::Version v) override

@@ -212,6 +212,12 @@ namespace aft
     {
       return kv::DeserialiseSuccess::PASS;
     }
+
+    std::shared_ptr<ccf::Commitment> get_commitment_state()
+    {
+      return nullptr;
+    }
+
   };
 
   class LoggingStubStoreSig : public LoggingStubStore

@@ -8,11 +8,12 @@
 #include "enclave/rpc_handler.h"
 #include "kv/kv_types.h"
 #include "mbedtls/ecdsa.h"
+#include "node/commitment_evidence.h"
 
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <limits>
-#include <array>
 
 namespace aft
 {
@@ -47,6 +48,7 @@ namespace aft
       kv::Term* term = nullptr,
       kv::Tx* tx = nullptr,
       ccf::Signature* sig = nullptr) = 0;
+    virtual std::shared_ptr<ccf::Commitment> get_commitment_state() = 0;
   };
 
   template <typename T, typename S>
@@ -96,6 +98,16 @@ namespace aft
       {
         p->set_term(t);
       }
+    }
+
+    std::shared_ptr<ccf::Commitment> get_commitment_state() override
+    {
+      auto p = x.lock();
+      if (p)
+      {
+        return p->get_commitment_state();
+      }
+      return nullptr;
     }
 
     S deserialise_views(

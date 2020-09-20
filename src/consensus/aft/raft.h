@@ -14,7 +14,6 @@
 #include "node/node_types.h"
 #include "node/rpc/tx_status.h"
 #include "node/signatures.h"
-#include "node_state.h"
 #include "raft_types.h"
 #include "node/commitment_evidence.h"
 
@@ -41,9 +40,30 @@ namespace aft
       Retired
     };
 
+    struct NodeState
+    {
+      Configuration::NodeInfo node_info;
+
+      // the highest index sent to the node
+      Index sent_idx;
+
+      // the highest matching index with the node that was confirmed
+      Index match_idx;
+
+      NodeState() = default;
+
+      NodeState(
+        const Configuration::NodeInfo& node_info_,
+        Index sent_idx_,
+        Index match_idx_ = 0) :
+        node_info(node_info_),
+        sent_idx(sent_idx_),
+        match_idx(match_idx_)
+      {}
+    };
+
     ConsensusType consensus_type;
     std::unique_ptr<Store<kv::DeserialiseSuccess>> store;
-    ccf::Commitment commitment_state;
 
     // Persistent
     NodeId voted_for;
@@ -761,8 +781,6 @@ namespace aft
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
             committable_indices.push_back(i);
 
-            // TODO: we need to produce a signature here
-
             if (sig_term)
             {
               state->view_history.update(state->commit_idx + 1, sig_term);
@@ -823,18 +841,24 @@ namespace aft
         to,
         state->last_idx);
 
-      SignedAppendEntriesResponse response = {
+      SignedAppendEntriesResponse r = {
         {raft_append_entries_signed_response, state->my_node_id},
         state->current_view,
         state->last_idx,
         static_cast<uint32_t>(sig.sig.size()),
         {}};
-      response.sig.fill(0);
-      std::copy(sig.sig.begin(), sig.sig.end(), response.sig.data());
+      r.sig.fill(0);
+      std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
 
+      auto commitment_state = store->get_commitment_state();
+      if(commitment_state != nullptr)
+      {
+        commitment_state->add_signature(
+          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig);
+      }
 
       channels->send_authenticated(
-        ccf::NodeMsgType::consensus_msg, to, response);
+        ccf::NodeMsgType::consensus_msg, to, r);
     }
 
     void recv_append_entries_signed_response(const uint8_t* data, size_t size)
@@ -863,8 +887,12 @@ namespace aft
         return;
       }
 
-      commitment_state.add_signature(
-        r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig);
+      auto commitment_state = store->get_commitment_state();
+      if (commitment_state != nullptr)
+      {
+        commitment_state->add_signature(
+          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig);
+      }
     }
 
     void recv_append_entries_response(const uint8_t* data, size_t size)
