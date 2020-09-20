@@ -10,12 +10,12 @@
 #include "impl/state.h"
 #include "kv/kv_types.h"
 #include "kv/tx.h"
+#include "node/commitment_evidence.h"
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/rpc/tx_status.h"
 #include "node/signatures.h"
 #include "raft_types.h"
-#include "node/commitment_evidence.h"
 
 #include <algorithm>
 #include <deque>
@@ -851,14 +851,13 @@ namespace aft
       std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
 
       auto commitment_state = store->get_commitment_state();
-      if(commitment_state != nullptr)
+      if (commitment_state != nullptr)
       {
         commitment_state->add_signature(
           r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig);
       }
 
-      channels->send_authenticated(
-        ccf::NodeMsgType::consensus_msg, to, r);
+      channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, r);
     }
 
     void recv_append_entries_signed_response(const uint8_t* data, size_t size)
@@ -958,7 +957,6 @@ namespace aft
           return;
       }
 
-      // TODO: this is where we set the certificate
       // Update next and match for the responding node.
       node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
 
@@ -1304,7 +1302,6 @@ namespace aft
           }
         }
 
-        // TODO: this is where we are checking if we 
         sort(match.begin(), match.end());
         auto confirmed = match.at((match.size() - 1) / 2);
 

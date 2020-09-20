@@ -217,7 +217,6 @@ namespace aft
     {
       return nullptr;
     }
-
   };
 
   class LoggingStubStoreSig : public LoggingStubStore

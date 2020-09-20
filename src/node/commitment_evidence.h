@@ -24,11 +24,11 @@ namespace ccf
       auto it = certificates.find(CertKey(view, seqno));
       if (it == certificates.end())
       {
-        // We currently do not know what the root is, so lets save this signature and
-        // and we will verify the root when we get it from the primary
-        auto r = certificates.insert(std::pair<CertKey, Certificate>(
-          CertKey(view, seqno),
-          Certificate()));
+        // We currently do not know what the root is, so lets save this
+        // signature and and we will verify the root when we get it from the
+        // primary
+        auto r = certificates.insert(
+          std::pair<CertKey, Certificate>(CertKey(view, seqno), Certificate()));
         it = r.first;
       }
       else
@@ -46,7 +46,8 @@ namespace ccf
       sig_vec.assign(sig.begin(), sig.begin() + signature_size);
 
       auto& cert = it->second;
-      cert.sigs.insert(std::pair<kv::NodeId, std::vector<uint8_t>>(node_id, std::move(sig_vec)));
+      cert.sigs.insert(std::pair<kv::NodeId, std::vector<uint8_t>>(
+        node_id, std::move(sig_vec)));
     }
 
     void record_primary(
@@ -58,8 +59,7 @@ namespace ccf
       if (it == certificates.end())
       {
         certificates.insert(std::pair<CertKey, Certificate>(
-          CertKey(view, seqno),
-          Certificate(root)));
+          CertKey(view, seqno), Certificate(root)));
         return;
       }
       else
@@ -68,11 +68,11 @@ namespace ccf
         // verify the signatures
       }
 
-
       auto& cert = it->second;
       if (cert.root != root)
       {
-        // NOTE: At this point we have cryptographic proof that someone is being dishonest
+        // NOTE: At this point we have cryptographic proof that someone is being
+        // dishonest
         //       we need to work out what to do.
         throw ccf::ccf_logic_error("We have proof someone is being dishonest");
       }
@@ -89,13 +89,14 @@ namespace ccf
     struct CertKey
     {
       CertKey(kv::Consensus::View view_, kv::Consensus::SeqNo seqno_) :
-        view(view_), seqno(seqno_)
+        view(view_),
+        seqno(seqno_)
       {}
 
       kv::Consensus::View view;
       kv::Consensus::SeqNo seqno;
 
-      bool operator< (const CertKey& rhs) const
+      bool operator<(const CertKey& rhs) const
       {
         if (seqno == rhs.seqno)
         {
