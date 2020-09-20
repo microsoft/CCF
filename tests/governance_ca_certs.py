@@ -67,7 +67,11 @@ def test_cert_store(network, args):
             cert_pem_str.encode(), crypto_backends.default_backend()
         )
         cert_kv = x509.load_der_x509_certificate(
-            bytes(r.body), crypto_backends.default_backend()
+            # Note that /gov/read returns all data as JSON.
+            # Here, the stored data is a uint8 array, therefore it
+            # is returned as an array of integers.
+            bytes(r.body.json()),
+            crypto_backends.default_backend(),
         )
         assert (
             cert_ref == cert_kv

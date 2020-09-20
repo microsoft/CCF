@@ -94,7 +94,7 @@ def run(args):
             ).withdraw(primary, new_member_proposal)
             infra.checker.Checker(c)(response)
         assert response.status_code == http.HTTPStatus.OK.value
-        assert response.body["state"] == ProposalState.Withdrawn.value
+        assert response.body.json()["state"] == ProposalState.Withdrawn.value
         withdrawals_issued += 1
 
     # Refresh ledger to beginning

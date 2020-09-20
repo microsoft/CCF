@@ -42,7 +42,7 @@ def update_view_info(network, view_info):
 def get_node_local_commit(node):
     with node.client() as c:
         r = c.get("/node/commit")
-        return r.body["seqno"], r.global_commit
+        return r.body.json()["seqno"], r.global_commit
 
 
 def wait_for_late_joiner(old_node, late_joiner, strict=False, timeout=60):

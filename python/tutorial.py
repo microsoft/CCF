@@ -64,10 +64,10 @@ anonymous_client.wait_for_commit(r)
 # SNIPPET_START: authenticated_get_requests
 r = user_client.get("/app/log/private?id=0")
 assert r.status_code == http.HTTPStatus.OK
-assert r.body == {"msg": "Private message"}
+assert r.body.json() == {"msg": "Private message"}
 r = user_client.get("/app/log/public?id=0")
 assert r.status_code == http.HTTPStatus.OK
-assert r.body == {"msg": "Public message"}
+assert r.body.json() == {"msg": "Public message"}
 # SNIPPET_END: authenticated_get_requests
 
 # SNIPPET: import_ledger

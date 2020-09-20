@@ -38,7 +38,7 @@ def test_custom_auth(network, args):
             "/app/custom_auth", headers={"Authorization": AUTH_VALUE}, signed=False
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body
+        assert r.body.json()
 
     return network
 

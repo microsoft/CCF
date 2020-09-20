@@ -16,7 +16,7 @@ def check_can_progress(node, timeout=3):
             uc.post("/app/log/private", {"id": 42, "msg": "Hello world"})
         end_time = time.time() + timeout
         while time.time() < end_time:
-            if c.get("/node/commit").body["seqno"] > r.body["seqno"]:
+            if c.get("/node/commit").body.json()["seqno"] > r.body.json()["seqno"]:
                 return
             time.sleep(0.1)
         assert False, f"Stuck at {r}"
@@ -27,7 +27,7 @@ def test_add_node(network, args):
     new_node = network.create_and_trust_node(args.package, "localhost", args)
     with new_node.client() as c:
         s = c.get("/node/state")
-        assert s.body["id"] == new_node.node_id
+        assert s.body.json()["id"] == new_node.node_id
     assert new_node
     return network
 
