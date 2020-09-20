@@ -47,7 +47,7 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
                 assert (
                     r.status_code == http.HTTPStatus.OK
                 ), f"tx request returned HTTP status {r.status_code}"
-                status = TxStatus(r.body["status"])
+                status = TxStatus(r.body.json()["status"])
                 if status == TxStatus.Committed:
                     up_to_date_f.append(f.node_id)
                 elif status == TxStatus.Invalid:
