@@ -584,7 +584,8 @@ namespace ccf
       }
 
       sig.node = id;
-      sig.sig = kp.sign_hash(sig.root.h.data(), sig.root.h.size());
+      crypto::Sha256Hash root = replicated_state_tree.get_root();
+      sig.sig = kp.sign_hash(root.h.data(), root.h.size());
 
       return true;
     }

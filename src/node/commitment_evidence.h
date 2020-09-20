@@ -41,11 +41,13 @@ namespace ccf
       {
         if (node_id != id && !verify_signature(node_id, it->second.root, signature_size, sig))
         {
-          LOG_FAIL_FMT(
+          // NOTE: We need to handle this case but for now having this make a
+          // test fail will be very handy
+          throw ccf::ccf_logic_error(fmt::format(
             "Signature verification from {} FAILED, view:{}, seqno:{}",
             node_id,
             view,
-            seqno);
+            seqno));
           return;
         }
         LOG_TRACE_FMT(
