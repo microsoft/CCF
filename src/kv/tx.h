@@ -9,6 +9,20 @@
 
 namespace kv
 {
+  class CompactedVersionConflict
+  {
+  private:
+    std::string msg;
+
+  public:
+    CompactedVersionConflict(const std::string& s) : msg(s) {}
+
+    char const* what() const
+    {
+      return msg.c_str();
+    }
+  };
+
   // Manages a collection of TxViews. Derived implementations call get_tuple to
   // retrieve views over target maps.
   class BaseTx : public AbstractViewContainer
@@ -26,6 +40,30 @@ namespace kv
     kv::TxHistory::RequestID req_id;
 
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
+
+    template <typename MapView>
+    std::tuple<MapView*> check_and_store_view(
+      MapView* typed_view,
+      const std::string& map_name,
+      const std::shared_ptr<AbstractMap>& abstract_map)
+    {
+      if (typed_view == nullptr)
+      {
+        throw CompactedVersionConflict(fmt::format(
+          "Unable to retrieve view over {} at {}", map_name, read_version));
+      }
+
+      auto abstract_view = dynamic_cast<AbstractTxView*>(typed_view);
+      if (abstract_view == nullptr)
+      {
+        throw std::logic_error(
+          fmt::format("View over map {} is not an AbstractTxView", map_name));
+      }
+      view_list[map_name] = {abstract_map,
+                             std::unique_ptr<AbstractTxView>(abstract_view)};
+
+      return std::make_tuple(typed_view);
+    }
 
     template <class M>
     std::tuple<typename M::TxView*> get_tuple(M& m)
@@ -67,15 +105,8 @@ namespace kv
       }
 
       MapView* typed_view = m.template create_view<MapView>(read_version);
-      auto abstract_view = dynamic_cast<AbstractTxView*>(typed_view);
-      if (abstract_view == nullptr)
-      {
-        throw std::logic_error(fmt::format(
-          "View over map {} is not an AbstractTxView", m.get_name()));
-      }
-      view_list[m.get_name()] = {
-        m.shared_from_this(), std::unique_ptr<AbstractTxView>(abstract_view)};
-      return std::make_tuple(typed_view);
+      return check_and_store_view(
+        typed_view, m.get_name(), m.shared_from_this());
     }
 
     template <class M>
@@ -164,15 +195,7 @@ namespace kv
         }
       }
 
-      auto abstract_view = dynamic_cast<AbstractTxView*>(typed_view);
-      if (abstract_view == nullptr)
-      {
-        throw std::logic_error(
-          fmt::format("View over map {} is not an AbstractTxView", map_name));
-      }
-      view_list[map_name] = {abstract_map,
-                             std::unique_ptr<AbstractTxView>(abstract_view)};
-      return std::make_tuple(typed_view);
+      return check_and_store_view(typed_view, map_name, abstract_map);
     }
 
     template <class M, class... Ms>
@@ -188,16 +211,6 @@ namespace kv
     {
       return std::tuple_cat(
         get_tuple2<M>(map_names), get_tuple2<Ms...>(names...));
-    }
-
-    void reset()
-    {
-      view_list.clear();
-      committed = false;
-      success = false;
-      read_version = NoVersion;
-      version = NoVersion;
-      term = 0;
     }
 
   public:
@@ -435,6 +448,17 @@ namespace kv
 
       committed = true;
       return {CommitSuccess::OK, {0, 0, 0}, serialise()};
+    }
+
+    // Used to clear the Tx to its initial state, to retry after a conflict
+    void reset()
+    {
+      view_list.clear();
+      committed = false;
+      success = false;
+      read_version = NoVersion;
+      version = NoVersion;
+      term = 0;
     }
   };
 

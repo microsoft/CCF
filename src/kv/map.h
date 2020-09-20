@@ -63,9 +63,9 @@ namespace kv
     }
 
     AbstractTxView* deserialise(
-      KvStoreDeserialiser& d, Version version) override
+      KvStoreDeserialiser& d, Version version, bool commit) override
     {
-      return untyped_map.deserialise_internal<TxView>(d, version);
+      return untyped_map.deserialise_internal<TxView>(d, version, commit);
     }
 
     AbstractTxView* deserialise_snapshot(KvStoreDeserialiser& d) override

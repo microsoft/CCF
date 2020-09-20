@@ -371,8 +371,13 @@ namespace ccf
 
       tx_count++;
 
-      while (true)
+      size_t attempts = 0;
+      constexpr auto max_attempts = 30;
+
+      while (attempts < max_attempts)
       {
+        ++attempts;
+
         try
         {
           if (pre_exec)
@@ -436,6 +441,15 @@ namespace ccf
             }
           }
         }
+        catch (const kv::CompactedVersionConflict& e)
+        {
+          // The executing transaction failed because of a conflicting
+          // compaction. Reset and retry
+          LOG_DEBUG_FMT(
+            "Transaction execution conflicted with compaction: {}", e.what());
+          tx.reset();
+          continue;
+        }
         catch (const RpcException& e)
         {
           ctx->set_response_status(e.status);
@@ -468,6 +482,11 @@ namespace ccf
           return ctx->serialise_response();
         }
       }
+
+      ctx->set_response_status(HTTP_STATUS_CONFLICT);
+      ctx->set_response_body(fmt::format(
+        "Transaction continued to conflict after {} attempts.", max_attempts));
+      return ctx->serialise_response();
     }
 
   public:
