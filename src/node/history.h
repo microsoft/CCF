@@ -211,16 +211,16 @@ namespace ccf
 
     struct Path
     {
-      hash_vec* raw;
+      path* raw;
 
       Path()
       {
-        raw = init_path();
+        raw = mt_init_path(crypto::Sha256Hash::SIZE);
       }
 
       ~Path()
       {
-        free_path(raw);
+        mt_free_path(raw);
       }
     };
 
@@ -244,7 +244,7 @@ namespace ccf
       s -= root.h.size();
       for (size_t i = 0; i < s; i += root.SIZE)
       {
-        path_insert(path->raw, const_cast<uint8_t*>(buf + i));
+        mt_path_insert(path->raw, const_cast<uint8_t*>(buf + i));
       }
     }
 
@@ -277,16 +277,20 @@ namespace ccf
 
     std::vector<uint8_t> to_v() const
     {
+      size_t path_length = mt_get_path_length(path->raw);
       size_t vs = sizeof(index) + sizeof(max_index) + root.h.size() +
-        (root.h.size() * path->raw->sz);
+        (root.h.size() * path_length);
       std::vector<uint8_t> v(vs);
       uint8_t* buf = v.data();
       serialized::write(buf, vs, index);
       serialized::write(buf, vs, max_index);
       serialized::write(buf, vs, root.h.data(), root.h.size());
-      for (size_t i = 0; i < path->raw->sz; ++i)
+      for (size_t i = 0; i < path_length; ++i)
       {
-        serialized::write(buf, vs, *(path->raw->vs + i), root.h.size());
+        if (!mt_get_path_step_pre(path->raw, i))
+          throw std::logic_error("Precondition to mt_get_path_step violated");
+        uint8_t* step = mt_get_path_step(path->raw, i);
+        serialized::write(buf, vs, step, root.h.size());
       }
       return v;
     }
@@ -301,7 +305,8 @@ namespace ccf
 
     MerkleTreeHistory(const std::vector<uint8_t>& serialised)
     {
-      tree = mt_deserialize(serialised.data(), serialised.size());
+      tree = mt_deserialize(
+        serialised.data(), serialised.size(), mt_sha256_compress);
     }
 
     MerkleTreeHistory(crypto::Sha256Hash first_hash = {})
@@ -317,7 +322,8 @@ namespace ccf
     void deserialise(const std::vector<uint8_t>& serialised)
     {
       mt_free(tree);
-      tree = mt_deserialize(serialised.data(), serialised.size());
+      tree = mt_deserialize(
+        serialised.data(), serialised.size(), mt_sha256_compress);
     }
 
     void append(crypto::Sha256Hash& hash)
