@@ -38,7 +38,7 @@ def run(args):
 
         with primary.client() as uc:
             r = uc.get("/node/code")
-            assert r.body == {
+            assert r.body.json() == {
                 "versions": [{"digest": first_code_id, "status": "ACCEPTED"}],
             }, r.body
 
@@ -70,7 +70,7 @@ def run(args):
 
         with primary.client() as uc:
             r = uc.get("/node/code")
-            versions = sorted(r.body["versions"], key=lambda x: x["digest"])
+            versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
             expected = sorted(
                 [
                     {"digest": first_code_id, "status": "ACCEPTED"},
@@ -115,7 +115,7 @@ def run(args):
 
         with new_node.client() as uc:
             r = uc.get("/node/code")
-            versions = sorted(r.body["versions"], key=lambda x: x["digest"])
+            versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
             expected = sorted(
                 [
                     {"digest": first_code_id, "status": "RETIRED"},

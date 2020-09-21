@@ -693,11 +693,7 @@ namespace kv
           return DeserialiseSuccess::FAILED;
         }
 
-        // If we are not committing now then use NoVersion to deserialise
-        // otherwise the view will be considered as having a committed
-        // version
-        auto deserialise_version = (commit ? v : NoVersion);
-        auto deserialised_view = map->deserialise(d, deserialise_version);
+        auto deserialised_view = map->deserialise(d, v, commit);
 
         // Take ownership of the produced view, store it to be applied
         // later
@@ -1023,6 +1019,19 @@ namespace kv
      **/
     void swap_private_maps(Store& store)
     {
+      {
+        const auto source_version = store.current_version();
+        const auto target_version = current_version();
+        if (source_version > target_version)
+        {
+          throw std::runtime_error(fmt::format(
+            "Invalid call to swap_private_maps. Source is at version {} while "
+            "target is at {}",
+            source_version,
+            target_version));
+        }
+      }
+
       std::lock_guard<SpinLock> this_maps_guard(maps_lock);
       std::lock_guard<SpinLock> other_maps_guard(store.maps_lock);
 
