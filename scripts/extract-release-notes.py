@@ -9,13 +9,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument("out_path")
 args = parser.parse_args()
 
-git_version = subprocess.run(['git', 'describe', '--tags'],
-    capture_output=True, universal_newlines=True).stdout.strip()
+git_version = subprocess.run(
+    ["git", "describe", "--tags"], capture_output=True, universal_newlines=True
+).stdout.strip()
 git_version = git_version.replace("ccf-", "")
 
-version_header = re.compile(r'## \[(.+)\]')
+version_header = re.compile(r"## \[(.+)\]")
 
-release_notes = ''
+release_notes = ""
 found_version = False
 with open("CHANGELOG.md") as f:
     while line := f.readline():
