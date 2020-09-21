@@ -24,7 +24,6 @@ namespace stacktrace
   static inline void print_stacktrace()
   {
 #ifndef INSIDE_ENCLAVE
-    std::cout << "stack trace:" << std::endl;
     backward::StackTrace st;
     st.load_here();
     backward::Printer p;
