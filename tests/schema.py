@@ -41,7 +41,8 @@ def run(args):
             api_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
         )
 
-        paths = api_response.body["paths"]
+        response_body = api_response.body.json()
+        paths = response_body["paths"]
         all_methods.extend(paths.keys())
 
         # Fetch the schema of each method
@@ -93,7 +94,7 @@ def run(args):
             else:
                 methods_without_schema.add(method)
 
-        formatted_schema = json.dumps(api_response.body, indent=2)
+        formatted_schema = json.dumps(response_body, indent=2)
         openapi_target_file = os.path.join(args.schema_dir, f"{prefix}_openapi.json")
 
         try:
@@ -114,7 +115,7 @@ def run(args):
                 LOG.debug("Schema matches in {}".format(openapi_target_file))
 
         try:
-            openapi_spec_validator.validate_spec(api_response.body)
+            openapi_spec_validator.validate_spec(response_body)
         except Exception as e:
             LOG.error(f"Validation of {prefix} schema failed")
             LOG.error(e)
