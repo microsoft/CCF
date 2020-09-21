@@ -42,7 +42,8 @@ namespace ccf
       {
         if (
           node_id != id &&
-          !verify_signature(node_id, it->second.root, signature_size, sig.data()))
+          !verify_signature(
+            node_id, it->second.root, signature_size, sig.data()))
         {
           // NOTE: We need to handle this case but for now having this make a
           // test fail will be very handy
@@ -91,7 +92,7 @@ namespace ccf
         // We received some entries before we got the root so we now need to
         // verify the signatures
         auto& cert = it->second;
-        for(auto sig : cert.sigs)
+        for (auto& sig : cert.sigs)
         {
           if (!verify_signature(
                 sig.first, cert.root, sig.second.size(), sig.second.data()))
