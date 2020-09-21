@@ -145,9 +145,9 @@ class Network:
 
         with primary.client() as nc:
             r = nc.get("/node/primary_info")
-            first_node_id = r.body["primary_id"]
-            assert (r.body["primary_host"] == primary.host) and (
-                int(r.body["primary_port"]) == primary.rpc_port
+            first_node_id = r.body.json()["primary_id"]
+            assert (r.body.json()["primary_host"] == primary.host) and (
+                int(r.body.json()["primary_port"]) == primary.rpc_port
             ), "Primary is not the node that just started"
             for n in self.nodes:
                 n.node_id = n.node_id + first_node_id
@@ -535,7 +535,7 @@ class Network:
             try:
                 with node.client(connection_timeout=timeout) as c:
                     r = c.get("/node/state")
-                    if r.body["state"] == state:
+                    if r.body.json()["state"] == state:
                         break
             except ConnectionRefusedError:
                 pass
@@ -568,11 +568,12 @@ class Network:
                         logs = []
                         res = c.get("/node/primary_info", log_capture=logs)
                         if res.status_code == 200:
-                            primary_id = res.body["primary_id"]
-                            view = res.body["current_view"]
+                            body = res.body.json()
+                            primary_id = body["primary_id"]
+                            view = body["current_view"]
                             break
                         else:
-                            assert "Primary unknown" in res.body, res
+                            assert "Primary unknown" in res.body.text(), res
                     except CCFConnectionException:
                         LOG.warning(
                             f"Could not successful connect to node {node.node_id}. Retrying..."
@@ -616,8 +617,9 @@ class Network:
         while time.time() < end_time:
             with primary.client() as c:
                 resp = c.get("/node/commit")
-                seqno = resp.body["seqno"]
-                view = resp.body["view"]
+                body = resp.body.json()
+                seqno = body["seqno"]
+                view = body["view"]
                 if seqno != 0:
                     break
             time.sleep(0.1)
@@ -634,7 +636,7 @@ class Network:
                     if resp.status_code != 200:
                         # Node may not have joined the network yet, try again
                         break
-                    status = TxStatus(resp.body["status"])
+                    status = TxStatus(resp.body.json()["status"])
                     if status == TxStatus.Committed:
                         caught_up_nodes.append(node)
                     elif status == TxStatus.Invalid:

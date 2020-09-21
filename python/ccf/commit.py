@@ -33,8 +33,7 @@ def wait_for_commit(
         assert (
             r.status_code == http.HTTPStatus.OK
         ), f"tx request returned HTTP status {r.status_code}"
-        assert isinstance(r.body, dict), "/node/tx should return a JSON object"
-        status = TxStatus(r.body["status"])
+        status = TxStatus(r.body.json()["status"])
         if status == TxStatus.Committed:
             flush_info(logs, log_capture, 1)
             return

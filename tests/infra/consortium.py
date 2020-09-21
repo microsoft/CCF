@@ -59,7 +59,7 @@ class Consortium:
                         """
                     },
                 )
-                for m in r.body or []:
+                for m in r.body.json():
                     new_member = infra.member.Member(
                         m[0], curve, self.common_dir, share_script
                     )
@@ -79,7 +79,7 @@ class Consortium:
                         """
                     },
                 )
-                self.recovery_threshold = r.body["recovery_threshold"]
+                self.recovery_threshold = r.body.json()["recovery_threshold"]
 
     def make_proposal(self, proposal_name, *args, **kwargs):
         func = getattr(ccf.proposal_generator, proposal_name)
@@ -180,7 +180,7 @@ class Consortium:
                 wait_for_global_commit=wait_for_global_commit,
             )
             assert response.status_code == http.HTTPStatus.OK.value
-            proposal.state = infra.proposal.ProposalState(response.body["state"])
+            proposal.state = infra.proposal.ProposalState(response.body.json()["state"])
             proposal.increment_votes_for()
 
         if proposal.state is not ProposalState.Accepted:
@@ -201,7 +201,7 @@ class Consortium:
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
             r = c.post("/gov/query", {"text": script})
             assert r.status_code == http.HTTPStatus.OK.value
-            for proposal_id, attr in r.body.items():
+            for proposal_id, attr in r.body.json().items():
                 has_proposer_voted_for = False
                 for vote in attr["votes"]:
                     if attr["proposer"] == vote[0]:
@@ -229,7 +229,7 @@ class Consortium:
             r = c.post(
                 "/gov/read", {"table": "ccf.nodes", "key": node_to_retire.node_id}
             )
-            assert r.body["status"] == infra.node.NodeStatus.RETIRED.name
+            assert r.body.json()["status"] == infra.node.NodeStatus.RETIRED.name
 
     def trust_node(self, remote_node, node_id):
         if not self._check_node_exists(
@@ -333,10 +333,10 @@ class Consortium:
                 check_commit(r)
 
                 if submitted_shares_count >= self.recovery_threshold:
-                    assert "End of recovery procedure initiated" in r.body
+                    assert "End of recovery procedure initiated" in r.body.text()
                     break
                 else:
-                    assert "End of recovery procedure initiated" not in r.body
+                    assert "End of recovery procedure initiated" not in r.body.text()
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
         proposal_body, careful_vote = self.make_proposal(
@@ -391,8 +391,8 @@ class Consortium:
                 },
                 timeout=3,
             )
-            current_status = r.body["status"]
-            current_cert = r.body["cert"]
+            current_status = r.body.json()["status"]
+            current_cert = r.body.json()["cert"]
 
             expected_cert = open(
                 os.path.join(self.common_dir, "networkcert.pem"), "rb"
@@ -410,7 +410,7 @@ class Consortium:
             r = c.post("/gov/read", {"table": "ccf.nodes", "key": node_id})
 
             if r.status_code != http.HTTPStatus.OK.value or (
-                node_status and r.body["status"] != node_status.name
+                node_status and r.body.json()["status"] != node_status.name
             ):
                 return False
 

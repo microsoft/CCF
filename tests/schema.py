@@ -42,7 +42,7 @@ def run(args):
         )
 
         paths = api_response.body["paths"]
-        all_methods.extend([key for key in paths.keys()])
+        all_methods.extend(paths.keys())
 
         # Fetch the schema of each method
         for method, _ in paths.items():
@@ -56,8 +56,8 @@ def run(args):
                 error=lambda status, msg: status == http.HTTPStatus.OK.value,
             )
 
-            if schema_response.body is not None:
-                for verb, schema_element in schema_response.body.items():
+            if schema_response.body:
+                for verb, schema_element in schema_response.body.json().items():
                     for schema_type in ["params", "result"]:
                         element_name = "{}_schema".format(schema_type)
                         element = schema_element[element_name]

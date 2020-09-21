@@ -21,47 +21,56 @@
  * SOFTWARE.
  */
 
+
+#ifndef __Hacl_Kremlib_H
+#define __Hacl_Kremlib_H
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include "evercrypt_targetconfig.h"
 #include "kremlin/internal/types.h"
 #include "kremlin/lowstar_endianness.h"
 #include <string.h>
 #include "kremlin/internal/target.h"
 
-#ifndef __Hacl_Kremlib_H
-#define __Hacl_Kremlib_H
 
 
 
+static inline uint8_t FStar_UInt8_eq_mask(uint8_t a, uint8_t b);
 
-inline static uint8_t FStar_UInt8_eq_mask(uint8_t a, uint8_t b);
+static inline uint64_t FStar_UInt64_eq_mask(uint64_t a, uint64_t b);
 
-inline static uint64_t FStar_UInt64_eq_mask(uint64_t a, uint64_t b);
+static inline uint64_t FStar_UInt64_gte_mask(uint64_t a, uint64_t b);
 
-inline static uint64_t FStar_UInt64_gte_mask(uint64_t a, uint64_t b);
+static inline uint128_t FStar_UInt128_add(uint128_t a, uint128_t b);
 
-inline static uint128_t FStar_UInt128_add(uint128_t a, uint128_t b);
+static inline uint128_t FStar_UInt128_add_mod(uint128_t a, uint128_t b);
 
-inline static uint128_t FStar_UInt128_add_mod(uint128_t a, uint128_t b);
+static inline uint128_t FStar_UInt128_logor(uint128_t a, uint128_t b);
 
-inline static uint128_t FStar_UInt128_logor(uint128_t a, uint128_t b);
+static inline uint128_t FStar_UInt128_shift_left(uint128_t a, uint32_t s);
 
-inline static uint128_t FStar_UInt128_shift_left(uint128_t a, uint32_t s);
+static inline uint128_t FStar_UInt128_shift_right(uint128_t a, uint32_t s);
 
-inline static uint128_t FStar_UInt128_shift_right(uint128_t a, uint32_t s);
+static inline uint128_t FStar_UInt128_uint64_to_uint128(uint64_t a);
 
-inline static uint128_t FStar_UInt128_uint64_to_uint128(uint64_t a);
+static inline uint64_t FStar_UInt128_uint128_to_uint64(uint128_t a);
 
-inline static uint64_t FStar_UInt128_uint128_to_uint64(uint128_t a);
+static inline uint128_t FStar_UInt128_mul_wide(uint64_t x, uint64_t y);
 
-inline static uint128_t FStar_UInt128_mul_wide(uint64_t x, uint64_t y);
+static inline void store128_le(uint8_t *x0, uint128_t x1);
 
-inline static void store128_le(uint8_t *x0, uint128_t x1);
+static inline void store128_be(uint8_t *x0, uint128_t x1);
 
-inline static void store128_be(uint8_t *x0, uint128_t x1);
-
-inline static uint128_t load128_be(uint8_t *x0);
+static inline uint128_t load128_be(uint8_t *x0);
 
 uint32_t LowStar_Vector_new_capacity(uint32_t cap);
+
+#if defined(__cplusplus)
+}
+#endif
 
 #define __Hacl_Kremlib_H_DEFINED
 #endif

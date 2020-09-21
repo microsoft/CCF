@@ -21,7 +21,7 @@ def test(network, args):
     with primary.client("user0", ws=True) as c:
         for i in [1, 50, 500]:
             r = c.post("/app/log/private", {"id": 42, "msg": msg * i})
-            assert r.body == True, r
+            assert r.body.json() == True, r
 
     # Before we start sending transactions to the secondary,
     # we want to wait for its app frontend to be open, which is
@@ -41,7 +41,7 @@ def test(network, args):
     with other.client("user0", ws=True) as c:
         for i in [1, 50, 500]:
             r = c.post("/app/log/private", {"id": 42, "msg": msg * i})
-            assert r.body == True, r
+            assert r.body.json() == True, r
 
     return network
 

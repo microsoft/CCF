@@ -750,21 +750,23 @@ TEST_CASE("Map swap between stores")
     kv::Tx tx;
     auto v = tx.get_view(d1);
     v->put(42, 42);
-    tx.commit();
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
   {
     kv::Tx tx;
     auto v = tx.get_view(pd1);
     v->put(14, 14);
-    tx.commit();
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
+  const auto target_version = s1.current_version();
+  while (s2.current_version() < target_version)
   {
     kv::Tx tx;
     auto v = tx.get_view(d2);
     v->put(41, 41);
-    tx.commit();
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
   s2.swap_private_maps(s1);
@@ -864,8 +866,21 @@ TEST_CASE("Private recovery map swap")
     tx.commit();
   }
   s2.compact(s2.current_version());
+  {
+    kv::Tx tx;
+    auto v = tx.get_view(priv2);
+    v->put(14, 14);
+    tx.commit();
+  }
+  {
+    kv::Tx tx;
+    auto v = tx.get_view(priv2);
+    v->put(15, 15);
+    tx.commit();
+  }
 
   INFO("Swap in private maps");
+  REQUIRE(s1.current_version() == s2.current_version());
   REQUIRE_NOTHROW(s1.swap_private_maps(s2));
 
   INFO("Check state looks as expected in s1");
@@ -888,13 +903,12 @@ TEST_CASE("Private recovery map swap")
       REQUIRE(s1.commit_version() == 3);
     }
     {
-      auto val = priv->get(12);
-      REQUIRE(val.has_value());
-      REQUIRE(val.value() == 12);
-
-      val = priv->get(13);
-      REQUIRE(val.has_value());
-      REQUIRE(val.value() == 13);
+      for (size_t i : {12, 13, 14, 15})
+      {
+        auto val = priv->get(i);
+        REQUIRE(val.has_value());
+        REQUIRE(val.value() == i);
+      }
     }
   }
 
@@ -1000,4 +1014,112 @@ TEST_CASE("Conflict resolution")
   // Re-running a _committed_ transaction is exceptionally bad
   REQUIRE_THROWS(tx1.commit());
   REQUIRE_THROWS(tx2.commit());
+}
+
+TEST_CASE("Mid-tx compaction")
+{
+  kv::Store kv_store;
+  auto& map_a =
+    kv_store.create<MapTypes::StringNum>("A", kv::SecurityDomain::PUBLIC);
+  auto& map_b =
+    kv_store.create<MapTypes::StringNum>("B", kv::SecurityDomain::PUBLIC);
+
+  constexpr auto key_a = "a";
+  constexpr auto key_b = "b";
+
+  auto increment_vals = [&]() {
+    kv::Tx tx;
+    auto [view_a, view_b] = tx.get_view(map_a, map_b);
+
+    auto a_opt = view_a->get(key_a);
+    auto b_opt = view_b->get(key_b);
+
+    REQUIRE(a_opt == b_opt);
+
+    const auto new_val = a_opt.has_value() ? *a_opt + 1 : 0;
+
+    view_a->put(key_a, new_val);
+    view_b->put(key_b, new_val);
+
+    const auto result = tx.commit();
+    REQUIRE(result == kv::CommitSuccess::OK);
+  };
+
+  increment_vals();
+
+  {
+    INFO("Compaction before get_views");
+    kv::Tx tx;
+
+    increment_vals();
+    kv_store.compact(kv_store.current_version());
+
+    auto view_a = tx.get_view(map_a);
+    auto view_b = tx.get_view(map_b);
+
+    auto a_opt = view_a->get(key_a);
+    auto b_opt = view_b->get(key_b);
+
+    REQUIRE(a_opt == b_opt);
+
+    const auto result = tx.commit();
+    REQUIRE(result == kv::CommitSuccess::OK);
+  }
+
+  {
+    INFO("Compaction after get_views");
+    kv::Tx tx;
+
+    auto view_a = tx.get_view(map_a);
+    increment_vals();
+    auto view_b = tx.get_view(map_b);
+    kv_store.compact(kv_store.current_version());
+
+    auto a_opt = view_a->get(key_a);
+    auto b_opt = view_b->get(key_b);
+
+    REQUIRE(a_opt == b_opt);
+
+    const auto result = tx.commit();
+    REQUIRE(result == kv::CommitSuccess::OK);
+  }
+
+  {
+    INFO("Compaction between get_views");
+    bool threw = false;
+
+    try
+    {
+      kv::Tx tx;
+
+      auto view_a = tx.get_view(map_a);
+      // This transaction does something slow. Meanwhile...
+
+      // ...another transaction commits...
+      increment_vals();
+      // ...and is compacted...
+      kv_store.compact(kv_store.current_version());
+
+      // ...then the original transaction proceeds, expecting to read a single
+      // version
+      // This should throw a CompactedVersionConflict error
+      auto view_b = tx.get_view(map_b);
+
+      auto a_opt = view_a->get(key_a);
+      auto b_opt = view_b->get(key_b);
+
+      REQUIRE(a_opt == b_opt);
+
+      const auto result = tx.commit();
+      REQUIRE(result == kv::CommitSuccess::OK);
+    }
+    catch (const kv::CompactedVersionConflict& e)
+    {
+      threw = true;
+    }
+
+    REQUIRE(threw);
+    // In real operation, this transaction would be re-executed and hope to not
+    // intersect a compaction
+  }
 }
