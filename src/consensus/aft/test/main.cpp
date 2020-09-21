@@ -1042,12 +1042,9 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   DOCTEST_REQUIRE(r2.ledger->ledger.size() == individual_entries);
 }
 
-// Reproduces issue described here: https://github.com/microsoft/CCF/issues/521
-// Once this is fixed test will need to be modified since right now it
-// DOCTEST_CHECKs that the issue stands
 DOCTEST_TEST_CASE(
-  "Primary gets invalidated if it compacts right before a term change that it "
-  "doesn't participate in")
+  "Primary is isolated after advancing commit index but before secondaries are "
+  "notified")
 {
   auto kv_store0 = std::make_shared<StoreSig>(0);
   auto kv_store1 = std::make_shared<StoreSig>(1);
@@ -1281,6 +1278,7 @@ DOCTEST_TEST_CASE(
           DOCTEST_REQUIRE(msg.term == 2);
           DOCTEST_REQUIRE(msg.last_commit_idx == 1);
           DOCTEST_REQUIRE(msg.last_commit_term == 1);
+          DOCTEST_REQUIRE(msg.last_committable_idx == 2);
         }));
 
     DOCTEST_INFO("Node 2 votes for Node 1, Node 0 is suspended");
@@ -1305,9 +1303,9 @@ DOCTEST_TEST_CASE(
         nodes,
         ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries,
         [](const auto& msg) {
-          DOCTEST_REQUIRE(msg.idx == 1);
+          DOCTEST_REQUIRE(msg.idx == 2);
           DOCTEST_REQUIRE(msg.term == 2);
-          DOCTEST_REQUIRE(msg.prev_idx == 1);
+          DOCTEST_REQUIRE(msg.prev_idx == 2);
           DOCTEST_REQUIRE(msg.prev_term == 1);
           DOCTEST_REQUIRE(msg.leader_commit_idx == 1);
         }));
@@ -1323,12 +1321,10 @@ DOCTEST_TEST_CASE(
           ->sent_append_entries_response));
   }
 
-  DOCTEST_INFO(
-    "Node 1 and Node 2 proceed to compact at idx 2, where Node 0 has "
-    "compacted for a previous term");
+  DOCTEST_INFO("Node 1 resumes replication");
   {
-    DOCTEST_REQUIRE(r1.replicate(kv::BatchVector{{2, second_entry, true}}, 2));
-    DOCTEST_REQUIRE(r1.ledger->ledger.size() == 2);
+    DOCTEST_REQUIRE(r1.replicate(kv::BatchVector{{3, third_entry, true}}, 2));
+    DOCTEST_REQUIRE(r1.ledger->ledger.size() == 3);
     r1.periodic(ms(10));
     DOCTEST_REQUIRE(
       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries.size() ==
@@ -1346,20 +1342,23 @@ DOCTEST_TEST_CASE(
 
     DOCTEST_REQUIRE(
       1 ==
-      dispatch_all(
+      dispatch_all_and_DOCTEST_CHECK(
         nodes,
         ((aft::ChannelStubProxy*)r2.channels.get())
-          ->sent_append_entries_response));
+          ->sent_append_entries_response,
+        [](const auto& msg) { DOCTEST_REQUIRE(msg.success); }));
 
-    // Node 0 will not respond here since it received an append entries it can
-    // not process [prev_idex (1) < commit_idx (2)]
     DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r0.channels.get())
-        ->sent_append_entries_response.size() == 0);
+      1 ==
+      dispatch_all_and_DOCTEST_CHECK(
+        nodes,
+        ((aft::ChannelStubProxy*)r0.channels.get())
+          ->sent_append_entries_response,
+        [](const auto& msg) { DOCTEST_REQUIRE(msg.success); }));
 
     DOCTEST_INFO("Another entry from Node 1 so that Node 2 can also compact");
-    DOCTEST_REQUIRE(r1.replicate(kv::BatchVector{{3, third_entry, true}}, 2));
-    DOCTEST_REQUIRE(r1.ledger->ledger.size() == 3);
+    DOCTEST_REQUIRE(r1.replicate(kv::BatchVector{{4, third_entry, true}}, 2));
+    DOCTEST_REQUIRE(r1.ledger->ledger.size() == 4);
     r1.periodic(ms(10));
     DOCTEST_REQUIRE(
       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries.size() ==
@@ -1374,32 +1373,5 @@ DOCTEST_TEST_CASE(
     DOCTEST_REQUIRE(
       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries.size() ==
       0);
-
-    // Node 0 will now have an ae response which will return false because
-    // its log for index 2 has the wrong term (ours: 1, theirs: 2)
-    DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r0.channels.get())
-        ->sent_append_entries_response.size() == 1);
-    DOCTEST_REQUIRE(
-      1 ==
-      dispatch_all_and_DOCTEST_CHECK(
-        nodes,
-        ((aft::ChannelStubProxy*)r0.channels.get())
-          ->sent_append_entries_response,
-        [](const auto& msg) {
-          DOCTEST_REQUIRE(msg.last_log_idx == 2);
-          DOCTEST_REQUIRE(!msg.success);
-        }));
-
-    DOCTEST_REQUIRE(r1.ledger->ledger.size() == 3);
-    DOCTEST_REQUIRE(r2.ledger->ledger.size() == 3);
-
-    DOCTEST_CHECK(r1.get_term() == 2);
-    DOCTEST_CHECK(r1.get_commit_idx() == 2);
-    DOCTEST_CHECK(r1.get_last_idx() == 3);
-
-    DOCTEST_CHECK(r2.get_term() == 2);
-    DOCTEST_CHECK(r2.get_commit_idx() == 2);
-    DOCTEST_CHECK(r2.get_last_idx() == 3);
   }
 }
