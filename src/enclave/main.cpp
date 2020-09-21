@@ -139,12 +139,6 @@ extern "C"
 
   bool enclave_run()
   {
-    LOG_INFO_FMT("AAA PRE");
-    std::cout << "BBB PRE" << std::endl;
-    stacktrace::print_stacktrace();
-    std::cout << "BBB POST" << std::endl;
-    LOG_INFO_FMT("AAA POST");
-
     if (e.load() != nullptr)
     {
       uint16_t tid;
