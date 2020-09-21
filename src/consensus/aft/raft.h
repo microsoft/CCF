@@ -10,7 +10,7 @@
 #include "impl/state.h"
 #include "kv/kv_types.h"
 #include "kv/tx.h"
-#include "node/commitment_evidence.h"
+#include "node/progress_tracker.h"
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/rpc/tx_status.h"
@@ -853,10 +853,10 @@ namespace aft
       r.sig.fill(0);
       std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
 
-      auto commitment_state = store->get_commitment_state();
-      if (commitment_state != nullptr)
+      auto progress_tracker = store->get_progress_tracker();
+      if (progress_tracker != nullptr)
       {
-        commitment_state->add_signature(
+        progress_tracker->add_signature(
           r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig);
       }
 
@@ -889,10 +889,10 @@ namespace aft
         return;
       }
 
-      auto commitment_state = store->get_commitment_state();
-      if (commitment_state != nullptr)
+      auto progress_tracker = store->get_progress_tracker();
+      if (progress_tracker != nullptr)
       {
-        commitment_state->add_signature(
+        progress_tracker->add_signature(
           r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig);
       }
     }

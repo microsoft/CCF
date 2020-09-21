@@ -213,7 +213,7 @@ namespace aft
       return kv::DeserialiseSuccess::PASS;
     }
 
-    std::shared_ptr<ccf::Commitment> get_commitment_state()
+    std::shared_ptr<ccf::ProgressTracker> get_progress_tracker()
     {
       return nullptr;
     }

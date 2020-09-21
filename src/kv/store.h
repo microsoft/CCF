@@ -6,7 +6,7 @@
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
-#include "node/commitment_evidence.h"
+#include "node/progress_tracker.h"
 #include "node/entities.h"
 #include "node/signatures.h"
 #include "snapshot.h"
@@ -30,7 +30,7 @@ namespace kv
 
     std::shared_ptr<Consensus> consensus = nullptr;
     std::shared_ptr<TxHistory> history = nullptr;
-    std::shared_ptr<ccf::Commitment> commitment = nullptr;
+    std::shared_ptr<ccf::ProgressTracker> progress_tracker = nullptr;
     EncryptorPtr encryptor = nullptr;
     Version version = 0;
     Version compacted = 0;
@@ -129,14 +129,14 @@ namespace kv
       history = history_;
     }
 
-    std::shared_ptr<ccf::Commitment> get_commitment_state()
+    std::shared_ptr<ccf::ProgressTracker> get_progress_tracker()
     {
-      return commitment;
+      return progress_tracker;
     }
 
-    void set_commitment_state(std::shared_ptr<ccf::Commitment> commitment_)
+    void set_progress_tracker(std::shared_ptr<ccf::ProgressTracker> progress_tracker_)
     {
-      commitment = commitment_;
+      progress_tracker = progress_tracker_;
     }
 
     void set_encryptor(const EncryptorPtr& encryptor_)

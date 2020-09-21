@@ -13,7 +13,7 @@
 #include "genesis_gen.h"
 #include "history.h"
 #include "network_state.h"
-#include "node/commitment_evidence.h"
+#include "node/progress_tracker.h"
 #include "node/rpc/serdes.h"
 #include "node_to_node.h"
 #include "rpc/frontend.h"
@@ -153,7 +153,7 @@ namespace ccf
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
 
     std::shared_ptr<kv::TxHistory> history;
-    std::shared_ptr<ccf::Commitment> commitment_state;
+    std::shared_ptr<ccf::ProgressTracker> progress_tracker;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
     ShareManager& share_manager;
@@ -263,7 +263,7 @@ namespace ccf
 
           setup_encryptor(network.consensus_type);
           setup_consensus();
-          setup_commitment_state();
+          setup_progress_tracker();
           setup_history();
 
           // Become the primary and force replication
@@ -413,7 +413,7 @@ namespace ccf
 
             setup_encryptor(resp.network_info.consensus_type);
             setup_consensus(resp.network_info.public_only);
-            setup_commitment_state();
+            setup_progress_tracker();
             setup_history();
 
             if (!config.joining.snapshot.empty())
@@ -663,10 +663,10 @@ namespace ccf
         h->set_node_id(self);
       }
 
-      auto c = dynamic_cast<ccf::Commitment*>(commitment_state.get());
-      if (c)
+      auto p = dynamic_cast<ccf::ProgressTracker*>(progress_tracker.get());
+      if (p)
       {
-        c->set_node_id(self);
+        p->set_node_id(self);
       }
 
       setup_raft(true);
@@ -1677,12 +1677,12 @@ namespace ccf
       setup_raft(public_only);
     }
 
-    void setup_commitment_state()
+    void setup_progress_tracker()
     {
       if (network.consensus_type == ConsensusType::BFT)
       {
-        commitment_state = std::make_shared<ccf::Commitment>(self, network.nodes);
-        network.tables->set_commitment_state(commitment_state);
+        progress_tracker = std::make_shared<ccf::ProgressTracker>(self, network.nodes);
+        network.tables->set_progress_tracker(progress_tracker);
       }
     }
 
