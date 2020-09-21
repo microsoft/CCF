@@ -288,7 +288,7 @@ if(BUILD_TESTS)
       raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
     )
-    target_link_libraries(raft_test PRIVATE ${CRYPTO_LIBRARY} secp256k1.host )
+    target_link_libraries(raft_test PRIVATE ${CRYPTO_LIBRARY} secp256k1.host)
 
     add_unit_test(
       raft_enclave_test

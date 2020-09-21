@@ -6,8 +6,8 @@
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
-#include "node/progress_tracker.h"
 #include "node/entities.h"
+#include "node/progress_tracker.h"
 #include "node/signatures.h"
 #include "snapshot.h"
 #include "tx.h"
@@ -134,7 +134,8 @@ namespace kv
       return progress_tracker;
     }
 
-    void set_progress_tracker(std::shared_ptr<ccf::ProgressTracker> progress_tracker_)
+    void set_progress_tracker(
+      std::shared_ptr<ccf::ProgressTracker> progress_tracker_)
     {
       progress_tracker = progress_tracker_;
     }
