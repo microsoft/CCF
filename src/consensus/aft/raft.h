@@ -182,6 +182,12 @@ namespace aft
       return replica_state == Follower;
     }
 
+    Index last_committable_index() const
+    {
+      return committable_indices.empty() ? state->commit_idx :
+                                           committable_indices.back();
+    }
+
     void enable_all_domains()
     {
       // When receiving append entries as a follower, all security domains will
@@ -914,10 +920,14 @@ namespace aft
     {
       LOG_INFO_FMT("Send request vote from {} to {}", state->my_node_id, to);
 
+      auto last_committable_idx = last_committable_index();
+      CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
+
       RequestVote rv = {{raft_request_vote, state->my_node_id},
                         state->current_view,
                         state->commit_idx,
-                        get_term_internal(state->commit_idx)};
+                        get_term_internal(state->commit_idx),
+                        last_committable_idx};
 
       channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, rv);
     }
@@ -989,7 +999,8 @@ namespace aft
 
       auto answer = (r.last_commit_term > last_commit_term) ||
         ((r.last_commit_term == last_commit_term) &&
-         (r.last_commit_idx >= state->commit_idx));
+         (r.last_commit_idx >= state->commit_idx) &&
+         (r.last_committable_idx >= last_committable_index()));
 
       if (answer)
       {
@@ -1126,12 +1137,12 @@ namespace aft
 
     void become_leader()
     {
-      // Discard any un-committed updates we may hold,
+      // Discard any un-committable updates we may hold,
       // since we have no signature for them. Except at startup,
       // where we do not want to roll back the genesis transaction.
       if (state->commit_idx)
       {
-        rollback(state->commit_idx);
+        rollback(last_committable_index());
       }
       else
       {
@@ -1180,8 +1191,7 @@ namespace aft
       votes_for_me.clear();
 
       // Rollback unreplicated commits.
-      rollback(state->commit_idx);
-      committable_indices.clear();
+      rollback(last_committable_index());
 
       LOG_INFO_FMT(
         "Becoming follower {}: {}", state->my_node_id, state->current_view);
