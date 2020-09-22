@@ -9,21 +9,41 @@
 // #  pragma clang diagnostic ignored "-Wundef"
 #  include <backward-cpp/backward.hpp>
 // #  pragma clang diagnostic pop
+#else
+#  include <execinfo.h>
 #endif
 
 #include <iostream>
 
 namespace stacktrace
 {
-  /** Print a demangled stack backtrace of the caller function to std out. */
+  /** Print a stack backtrace of the caller function to std out.
+   * In-enclave version will contain mangled names, and uses the standard
+   * ringbuffer logging mechanism.
+   */
   static inline void print_stacktrace()
   {
 #ifndef INSIDE_ENCLAVE
-    std::cout << "stack trace:" << std::endl;
     backward::StackTrace st;
     st.load_here();
     backward::Printer p;
-    p.print(st);
+    p.print(st, std::cout);
+#else
+    static constexpr int max_frames = 32;
+    void* frames[max_frames];
+
+    const int num_frames = backtrace(frames, max_frames);
+    char** symbols = backtrace_symbols(frames, num_frames);
+    if (symbols != NULL)
+    {
+      auto s = fmt::format("Printing {} stack frames:\n", num_frames);
+      for (int i = 0; i < num_frames; ++i)
+      {
+        s += fmt::format(" [{:>2}]: {}\n", i, symbols[i]);
+      }
+      LOG_INFO_FMT(s);
+    }
+    free(symbols);
 #endif
   }
 
@@ -38,11 +58,9 @@ namespace stacktrace
     signal(signo, SIG_DFL);
     raise(signo);
   }
-#endif
 
   static inline void init_sig_handlers()
   {
-#ifndef INSIDE_ENCLAVE
     // This is based on the constructor of backward::SignalHandling, but avoids
     // infinitely recursing stacktraces
     constexpr size_t stack_size = 1024 * 1024 * 8;
@@ -101,6 +119,6 @@ namespace stacktrace
         LOG_FATAL_FMT("Error installing signal {} ({})", signal, r);
       }
     }
-#endif
   }
+#endif
 }
