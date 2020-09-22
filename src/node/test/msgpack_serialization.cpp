@@ -175,14 +175,14 @@ TEST_CASE("Signature")
 
   {
     INFO("Empty sig");
-    Signature sig;
+    PrimarySignature sig;
     const auto converted = msgpack_roundtrip(sig);
     CHECK(sig == converted);
   }
 
   {
     INFO("Simple sig");
-    Signature sig;
+    PrimarySignature sig;
     sig.sig.push_back(0);
     sig.node = 0;
     sig.seqno = 1;
@@ -194,7 +194,7 @@ TEST_CASE("Signature")
 
   {
     INFO("Rand sig");
-    Signature sig;
+    PrimarySignature sig;
     fill_rand(sig.sig, 256);
     sig.node = rand();
     sig.seqno = rand();

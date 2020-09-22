@@ -627,7 +627,7 @@ namespace kv
       bool public_only = false,
       Term* term_ = nullptr,
       AbstractViewContainer* tx = nullptr,
-      ccf::Signature* sig = nullptr)
+      ccf::PrimarySignature* sig = nullptr)
     {
       // If we pass in a transaction we don't want to commit, just deserialise
       // and put the views into that transaction.

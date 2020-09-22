@@ -18,7 +18,7 @@
 
 namespace ccf
 {
-  struct Signature;
+  struct PrimarySignature;
 }
 
 namespace kv
@@ -152,7 +152,7 @@ namespace kv
     virtual void append(const std::vector<uint8_t>& replicated) = 0;
     virtual void append(const uint8_t* replicated, size_t replicated_size) = 0;
     virtual bool verify_and_sign(
-      ccf::Signature& signature, Term* term = nullptr) = 0;
+      ccf::PrimarySignature& signature, Term* term = nullptr) = 0;
     virtual bool verify(Term* term = nullptr) = 0;
     virtual void emit_signature() = 0;
     virtual crypto::Sha256Hash get_replicated_state_root() = 0;

@@ -47,7 +47,7 @@ namespace aft
       bool public_only = false,
       kv::Term* term = nullptr,
       kv::Tx* tx = nullptr,
-      ccf::Signature* sig = nullptr) = 0;
+      ccf::PrimarySignature* sig = nullptr) = 0;
     virtual std::shared_ptr<ccf::ProgressTracker> get_progress_tracker() = 0;
   };
 
@@ -115,7 +115,7 @@ namespace aft
       bool public_only = false,
       kv::Term* term = nullptr,
       kv::Tx* tx = nullptr,
-      ccf::Signature* sig = nullptr) override
+      ccf::PrimarySignature* sig = nullptr) override
     {
       auto p = x.lock();
       if (p)

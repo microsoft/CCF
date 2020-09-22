@@ -208,7 +208,7 @@ namespace aft
       bool public_only = false,
       kv::Term* term = nullptr,
       kv::Tx* tx = nullptr,
-      ccf::Signature* sig = nullptr)
+      ccf::PrimarySignature* sig = nullptr)
     {
       return kv::DeserialiseSuccess::PASS;
     }

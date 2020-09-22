@@ -744,7 +744,7 @@ namespace aft
         Term sig_term = 0;
         kv::Tx tx;
         kv::DeserialiseSuccess deserialise_success;
-        ccf::Signature sig;
+        ccf::PrimarySignature sig;
         if (consensus_type == ConsensusType::BFT)
         {
           deserialise_success =
@@ -836,7 +836,8 @@ namespace aft
         ccf::NodeMsgType::consensus_msg, to, response);
     }
 
-    void send_append_entries_signed_response(NodeId to, ccf::Signature& sig)
+    void send_append_entries_signed_response(
+      NodeId to, ccf::PrimarySignature& sig)
     {
       LOG_DEBUG_FMT(
         "Send append entries signed response from {} to {} for index {}",

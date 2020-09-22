@@ -109,7 +109,7 @@ namespace ccf
 
     void append(const uint8_t*, size_t) override {}
 
-    bool verify_and_sign(Signature&, kv::Term*) override
+    bool verify_and_sign(PrimarySignature&, kv::Term*) override
     {
       return true;
     }
@@ -142,7 +142,7 @@ namespace ccf
         [txid, this]() {
           kv::Tx sig(txid.version);
           auto sig_view = sig.get_view(signatures);
-          Signature sig_value(id, txid.version);
+          PrimarySignature sig_value(id, txid.version);
           sig_view->put(0, sig_value);
           return sig.commit_reserved();
         },
@@ -576,7 +576,8 @@ namespace ccf
       replicated_state_tree.append(rh);
     }
 
-    bool verify_and_sign(Signature& sig, kv::Term* term = nullptr) override
+    bool verify_and_sign(
+      PrimarySignature& sig, kv::Term* term = nullptr) override
     {
       if (!verify(term))
       {
@@ -687,7 +688,7 @@ namespace ccf
             progress_tracker->record_primary(txid.term, txid.version, root);
           }
 
-          Signature sig_value(
+          PrimarySignature sig_value(
             id,
             txid.version,
             txid.term,
