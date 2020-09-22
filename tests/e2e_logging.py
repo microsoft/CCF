@@ -644,11 +644,9 @@ def run(args):
         network = test(
             network,
             args,
-            verify=args.package is not "libjs_generic",
+            verify=args.package != "libjs_generic",
         )
-        network = test_illegal(
-            network, args, verify=args.package is not "libjs_generic"
-        )
+        network = test_illegal(network, args, verify=args.package != "libjs_generic")
         network = test_large_messages(network, args)
         network = test_remove(network, args)
         network = test_forwarding_frontends(network, args)
