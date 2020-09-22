@@ -77,32 +77,40 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
       // Keep trying until you're able to commit it
       while (true)
       {
-        // Start a transaction over selected maps
-        kv::Tx tx;
-
-        std::vector<MapType::TxView*> views;
-        for (const auto map : args->maps)
+        try
         {
-          views.push_back(tx.get_view(*map));
+          // Start a transaction over selected maps
+          kv::Tx tx;
+
+          std::vector<MapType::TxView*> views;
+          for (const auto map : args->maps)
+          {
+            views.push_back(tx.get_view(*map));
+          }
+
+          for (const auto& [from_map, from_k, to_map, to_k] : writes)
+          {
+            auto from_view = views[from_map];
+            const auto v = from_view->get(from_k).value_or(from_k);
+
+            auto to_view = views[to_map];
+            to_view->put(to_k, v);
+          }
+
+          // Yield now, to increase the chance of conflicts
+          std::this_thread::yield();
+
+          // Try to commit
+          const auto result = tx.commit();
+          if (result == kv::CommitSuccess::OK)
+          {
+            break;
+          }
         }
-
-        for (const auto& [from_map, from_k, to_map, to_k] : writes)
+        catch (const kv::CompactedVersionConflict& e)
         {
-          auto from_view = views[from_map];
-          const auto v = from_view->get(from_k).value_or(from_k);
-
-          auto to_view = views[to_map];
-          to_view->put(to_k, v);
-        }
-
-        // Yield now, to increase the chance of conflicts
-        std::this_thread::yield();
-
-        // Try to commit
-        const auto result = tx.commit();
-        if (result == kv::CommitSuccess::OK)
-        {
-          break;
+          // Retry on conflict
+          continue;
         }
       }
     }

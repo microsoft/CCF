@@ -338,7 +338,7 @@ namespace enclave
 
           if ((time_now - idling_start_time) > timeout)
           {
-            std::this_thread::sleep_for(timeout);
+            std::this_thread::sleep_for(timeout * 10);
           }
           else
           {

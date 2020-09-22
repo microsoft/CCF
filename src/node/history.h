@@ -109,6 +109,11 @@ namespace ccf
 
     void append(const uint8_t*, size_t) override {}
 
+    bool verify_and_sign(PrimarySignature&, kv::Term*) override
+    {
+      return true;
+    }
+
     bool verify(kv::Term*) override
     {
       return true;
@@ -137,7 +142,7 @@ namespace ccf
         [txid, this]() {
           kv::Tx sig(txid.version);
           auto sig_view = sig.get_view(signatures);
-          Signature sig_value(id, txid.version);
+          PrimarySignature sig_value(id, txid.version);
           sig_view->put(0, sig_value);
           return sig.commit_reserved();
         },
@@ -211,16 +216,16 @@ namespace ccf
 
     struct Path
     {
-      hash_vec* raw;
+      path* raw;
 
       Path()
       {
-        raw = init_path();
+        raw = mt_init_path(crypto::Sha256Hash::SIZE);
       }
 
       ~Path()
       {
-        free_path(raw);
+        mt_free_path(raw);
       }
     };
 
@@ -244,7 +249,7 @@ namespace ccf
       s -= root.h.size();
       for (size_t i = 0; i < s; i += root.SIZE)
       {
-        path_insert(path->raw, const_cast<uint8_t*>(buf + i));
+        mt_path_insert(path->raw, const_cast<uint8_t*>(buf + i));
       }
     }
 
@@ -277,16 +282,20 @@ namespace ccf
 
     std::vector<uint8_t> to_v() const
     {
+      size_t path_length = mt_get_path_length(path->raw);
       size_t vs = sizeof(index) + sizeof(max_index) + root.h.size() +
-        (root.h.size() * path->raw->sz);
+        (root.h.size() * path_length);
       std::vector<uint8_t> v(vs);
       uint8_t* buf = v.data();
       serialized::write(buf, vs, index);
       serialized::write(buf, vs, max_index);
       serialized::write(buf, vs, root.h.data(), root.h.size());
-      for (size_t i = 0; i < path->raw->sz; ++i)
+      for (size_t i = 0; i < path_length; ++i)
       {
-        serialized::write(buf, vs, *(path->raw->vs + i), root.h.size());
+        if (!mt_get_path_step_pre(path->raw, i))
+          throw std::logic_error("Precondition to mt_get_path_step violated");
+        uint8_t* step = mt_get_path_step(path->raw, i);
+        serialized::write(buf, vs, step, root.h.size());
       }
       return v;
     }
@@ -301,7 +310,8 @@ namespace ccf
 
     MerkleTreeHistory(const std::vector<uint8_t>& serialised)
     {
-      tree = mt_deserialize(serialised.data(), serialised.size());
+      tree = mt_deserialize(
+        serialised.data(), serialised.size(), mt_sha256_compress);
     }
 
     MerkleTreeHistory(crypto::Sha256Hash first_hash = {})
@@ -317,7 +327,8 @@ namespace ccf
     void deserialise(const std::vector<uint8_t>& serialised)
     {
       mt_free(tree);
-      tree = mt_deserialize(serialised.data(), serialised.size());
+      tree = mt_deserialize(
+        serialised.data(), serialised.size(), mt_sha256_compress);
     }
 
     void append(crypto::Sha256Hash& hash)
@@ -451,8 +462,6 @@ namespace ccf
     Signatures& signatures;
     Nodes& nodes;
 
-    std::shared_ptr<kv::Consensus> consensus;
-
     std::map<RequestID, std::vector<uint8_t>> requests;
     std::map<RequestID, std::pair<kv::Version, crypto::Sha256Hash>> results;
     std::map<RequestID, std::vector<uint8_t>> responses;
@@ -567,6 +576,21 @@ namespace ccf
       replicated_state_tree.append(rh);
     }
 
+    bool verify_and_sign(
+      PrimarySignature& sig, kv::Term* term = nullptr) override
+    {
+      if (!verify(term))
+      {
+        return false;
+      }
+
+      sig.node = id;
+      crypto::Sha256Hash root = replicated_state_tree.get_root();
+      sig.sig = kp.sign_hash(root.h.data(), root.h.size());
+
+      return true;
+    }
+
     bool verify(kv::Term* term = nullptr) override
     {
       kv::Tx tx;
@@ -593,11 +617,24 @@ namespace ccf
       tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
       crypto::Sha256Hash root = replicated_state_tree.get_root();
       log_hash(root, VERIFY);
-      return from_cert->verify_hash(
+      bool result = from_cert->verify_hash(
         root.h.data(),
         root.h.size(),
         sig_value.sig.data(),
         sig_value.sig.size());
+
+      if (!result)
+      {
+        return false;
+      }
+
+      auto progress_tracker = store.get_progress_tracker();
+      if (progress_tracker)
+      {
+        progress_tracker->record_primary(sig_value.view, sig_value.seqno, root);
+      }
+
+      return true;
     }
 
     void rollback(kv::Version v) override
@@ -645,7 +682,13 @@ namespace ccf
           auto sig_view = sig.get_view(signatures);
           crypto::Sha256Hash root = replicated_state_tree.get_root();
 
-          Signature sig_value(
+          auto progress_tracker = store.get_progress_tracker();
+          if (progress_tracker)
+          {
+            progress_tracker->record_primary(txid.term, txid.version, root);
+          }
+
+          PrimarySignature sig_value(
             id,
             txid.version,
             txid.term,
