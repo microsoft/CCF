@@ -21,7 +21,7 @@ jobs:
 
     - template: test.yml
       parameters:
-        ctest_filter: ${{ parameters.ctest_filter }}
+        ctest_filter: '-L tlstest'
         suite_name_suffix: '${{ parameters.target }} ${{ parameters.suffix }}'
         ctest_timeout: ${{ parameters.ctest_timeout }}
 
