@@ -35,7 +35,7 @@ namespace ccf
         // signature and and we will verify the root when we get it from the
         // primary
         auto r = certificates.insert(
-          std::pair<CertKey, Certificate>(CertKey(view, seqno), Certificate()));
+          std::pair<CertKey, CommitCert>(CertKey(view, seqno), CommitCert()));
         it = r.first;
       }
       else
@@ -83,8 +83,8 @@ namespace ccf
       auto it = certificates.find(CertKey(view, seqno));
       if (it == certificates.end())
       {
-        certificates.insert(std::pair<CertKey, Certificate>(
-          CertKey(view, seqno), Certificate(root)));
+        certificates.insert(std::pair<CertKey, CommitCert>(
+          CertKey(view, seqno), CommitCert(root)));
         return;
       }
       else
@@ -145,15 +145,15 @@ namespace ccf
       }
     };
 
-    struct Certificate
+    struct CommitCert
     {
-      Certificate(crypto::Sha256Hash& root_) : root(root_) {}
-      Certificate() = default;
+      CommitCert(crypto::Sha256Hash& root_) : root(root_) {}
+      CommitCert() = default;
 
       crypto::Sha256Hash root;
       std::map<kv::NodeId, std::vector<uint8_t>> sigs;
     };
-    std::map<CertKey, Certificate> certificates;
+    std::map<CertKey, CommitCert> certificates;
 
     bool verify_signature(
       kv::NodeId node_id,

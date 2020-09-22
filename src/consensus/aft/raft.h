@@ -883,7 +883,7 @@ namespace aft
       {
         // Ignore if we don't recognise the node.
         LOG_FAIL_FMT(
-          "Recv append entries response to {} from {}: unknown node",
+          "Recv signed append entries response to {} from {}: unknown node",
           state->my_node_id,
           r.from_node);
         return;
