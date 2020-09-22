@@ -12,7 +12,9 @@
 #include "kv/tx.h"
 #include "node/node_to_node.h"
 #include "node/node_types.h"
+#include "node/progress_tracker.h"
 #include "node/rpc/tx_status.h"
+#include "node/signatures.h"
 #include "raft_types.h"
 
 #include <algorithm>
@@ -448,6 +450,10 @@ namespace aft
           recv_append_entries_response(data, size);
           break;
 
+        case raft_append_entries_signed_response:
+          recv_append_entries_signed_response(data, size);
+          break;
+
         case raft_request_vote:
           recv_request_vote(data, size);
           break;
@@ -744,10 +750,11 @@ namespace aft
         Term sig_term = 0;
         kv::Tx tx;
         kv::DeserialiseSuccess deserialise_success;
+        ccf::PrimarySignature sig;
         if (consensus_type == ConsensusType::BFT)
         {
           deserialise_success =
-            store->deserialise_views(entry, public_only, &sig_term, &tx);
+            store->deserialise_views(entry, public_only, &sig_term, &tx, &sig);
         }
         else
         {
@@ -784,6 +791,10 @@ namespace aft
             {
               state->view_history.update(state->commit_idx + 1, sig_term);
               commit_if_possible(r.leader_commit_idx);
+            }
+            if (consensus_type == ConsensusType::BFT)
+            {
+              send_append_entries_signed_response(r.from_node, sig);
             }
             break;
           }
@@ -829,6 +840,68 @@ namespace aft
 
       channels->send_authenticated(
         ccf::NodeMsgType::consensus_msg, to, response);
+    }
+
+    void send_append_entries_signed_response(
+      NodeId to, ccf::PrimarySignature& sig)
+    {
+      LOG_DEBUG_FMT(
+        "Send append entries signed response from {} to {} for index {}",
+        state->my_node_id,
+        to,
+        state->last_idx);
+
+      SignedAppendEntriesResponse r = {
+        {raft_append_entries_signed_response, state->my_node_id},
+        state->current_view,
+        state->last_idx,
+        static_cast<uint32_t>(sig.sig.size()),
+        {}};
+      std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
+
+      auto progress_tracker = store->get_progress_tracker();
+      if (progress_tracker != nullptr)
+      {
+        progress_tracker->add_signature(
+          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig);
+      }
+
+      channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, r);
+    }
+
+    void recv_append_entries_signed_response(const uint8_t* data, size_t size)
+    {
+      SignedAppendEntriesResponse r;
+
+      try
+      {
+        r = channels->template recv_authenticated<SignedAppendEntriesResponse>(
+          data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_FMT("Error in recv_authenticated message");
+        LOG_DEBUG_FMT("Error in recv_authenticated message: {}", err.what());
+        return;
+      }
+
+      auto node = nodes.find(r.from_node);
+      if (node == nodes.end())
+      {
+        // Ignore if we don't recognise the node.
+        LOG_FAIL_FMT(
+          "Recv signed append entries response to {} from {}: unknown node",
+          state->my_node_id,
+          r.from_node);
+        return;
+      }
+
+      auto progress_tracker = store->get_progress_tracker();
+      if (progress_tracker != nullptr)
+      {
+        progress_tracker->add_signature(
+          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig);
+      }
     }
 
     void recv_append_entries_response(const uint8_t* data, size_t size)

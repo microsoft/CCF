@@ -2,6 +2,6 @@
 
 HN=$(hostname)
 
-if [ "$HN" == "ccf-ci-perf-0" ]; then
-    echo "-n 10.0.0.8 -n 10.0.0.9 -n 10.0.0.10"
+if [ "$HN" == "ccf-perf-uk-0" ]; then
+    echo "-n 10.1.0.7 -n 10.1.0.4 -n 10.1.0.5"
 fi

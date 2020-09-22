@@ -59,8 +59,6 @@ extern "C"
       return false;
     }
 
-    stacktrace::init_sig_handlers();
-
     num_pending_threads = (uint16_t)num_worker_threads + 1;
 
     if (

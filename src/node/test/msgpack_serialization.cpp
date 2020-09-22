@@ -113,20 +113,20 @@ void fill_rand(std::vector<uint8_t>& v, size_t n)
   }
 }
 
-TEST_CASE("RawSignature")
+TEST_CASE("NodeSignature")
 {
   using namespace ccf;
 
   {
     INFO("Empty signature");
-    RawSignature rs;
+    NodeSignature rs;
     const auto converted = msgpack_roundtrip(rs);
     CHECK(rs == converted);
   }
 
   {
     INFO("Byte signature");
-    RawSignature rs;
+    NodeSignature rs;
     rs.sig.push_back(42);
     const auto converted = msgpack_roundtrip(rs);
     CHECK(rs == converted);
@@ -134,7 +134,7 @@ TEST_CASE("RawSignature")
 
   {
     INFO("Large signature");
-    RawSignature rs;
+    NodeSignature rs;
     fill_rand(rs.sig, 256);
     const auto converted = msgpack_roundtrip(rs);
     CHECK(rs == converted);
@@ -175,14 +175,14 @@ TEST_CASE("Signature")
 
   {
     INFO("Empty sig");
-    Signature sig;
+    PrimarySignature sig;
     const auto converted = msgpack_roundtrip(sig);
     CHECK(sig == converted);
   }
 
   {
     INFO("Simple sig");
-    Signature sig;
+    PrimarySignature sig;
     sig.sig.push_back(0);
     sig.node = 0;
     sig.seqno = 1;
@@ -194,7 +194,7 @@ TEST_CASE("Signature")
 
   {
     INFO("Rand sig");
-    Signature sig;
+    PrimarySignature sig;
     fill_rand(sig.sig, 256);
     sig.node = rand();
     sig.seqno = rand();
