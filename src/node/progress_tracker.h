@@ -6,6 +6,7 @@
 #include "ds/ccf_exception.h"
 #include "kv/kv_types.h"
 #include "kv/tx.h"
+#include "node_signature.h"
 #include "nodes.h"
 #include "tls/tls.h"
 #include "tls/verifier.h"
@@ -71,8 +72,8 @@ namespace ccf
       sig_vec.assign(sig.begin(), sig.begin() + signature_size);
 
       auto& cert = it->second;
-      cert.sigs.insert(std::pair<kv::NodeId, std::vector<uint8_t>>(
-        node_id, std::move(sig_vec)));
+      cert.sigs.insert(std::pair<kv::NodeId, ccf::NodeSignature>(
+        node_id, {std::move(sig_vec), node_id}));
     }
 
     void record_primary(
@@ -95,7 +96,10 @@ namespace ccf
         for (auto& sig : cert.sigs)
         {
           if (!verify_signature(
-                sig.first, cert.root, sig.second.size(), sig.second.data()))
+                sig.second.node,
+                cert.root,
+                sig.second.sig.size(),
+                sig.second.sig.data()))
           {
             // NOTE: We need to handle this case but for now having this make a
             // test fail will be very handy
@@ -151,7 +155,8 @@ namespace ccf
       CommitCert() = default;
 
       crypto::Sha256Hash root;
-      std::map<kv::NodeId, std::vector<uint8_t>> sigs;
+      // std::map<kv::NodeId, std::vector<uint8_t>> sigs;
+      std::map<kv::NodeId, ccf::NodeSignature> sigs;
     };
     std::map<CertKey, CommitCert> certificates;
 

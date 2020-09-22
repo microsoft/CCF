@@ -2,9 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "crypto/hash.h"
-#include "entities.h"
 #include "kv/map.h"
-#include "raw_signature.h"
+#include "node_signature.h"
 
 #include <msgpack/msgpack.hpp>
 #include <string>
@@ -12,9 +11,8 @@
 
 namespace ccf
 {
-  struct Signature : public RawSignature
+  struct Signature : public NodeSignature
   {
-    NodeId node;
     ObjectId seqno = 0;
     ObjectId view = 0;
     ObjectId commit_seqno = 0;
@@ -23,8 +21,7 @@ namespace ccf
     std::vector<uint8_t> tree = {0};
 
     MSGPACK_DEFINE(
-      MSGPACK_BASE(RawSignature),
-      node,
+      MSGPACK_BASE(NodeSignature),
       seqno,
       view,
       commit_seqno,
@@ -34,12 +31,15 @@ namespace ccf
 
     Signature() {}
 
-    Signature(NodeId node_, ObjectId seqno_) : node(node_), seqno(seqno_) {}
+    Signature(ccf::NodeId node_, ObjectId seqno_) :
+      NodeSignature(node_),
+      seqno(seqno_)
+    {}
 
     Signature(const crypto::Sha256Hash& root_) : root(root_) {}
 
     Signature(
-      NodeId node_,
+      ccf::NodeId node_,
       ObjectId seqno_,
       ObjectId view_,
       ObjectId commit_seqno_,
@@ -47,8 +47,7 @@ namespace ccf
       const crypto::Sha256Hash root_,
       const std::vector<uint8_t>& sig_,
       const std::vector<uint8_t>& tree_) :
-      RawSignature{sig_},
-      node(node_),
+      NodeSignature(sig_, node_),
       seqno(seqno_),
       view(view_),
       commit_seqno(commit_seqno_),
@@ -57,8 +56,8 @@ namespace ccf
       tree(tree_)
     {}
   };
-  DECLARE_JSON_TYPE_WITH_BASE(Signature, RawSignature)
+  DECLARE_JSON_TYPE_WITH_BASE(Signature, NodeSignature)
   DECLARE_JSON_REQUIRED_FIELDS(
-    Signature, node, seqno, view, commit_seqno, commit_view, root)
+    Signature, seqno, view, commit_seqno, commit_view, root)
   using Signatures = kv::Map<ObjectId, Signature>;
 }
