@@ -21,11 +21,11 @@ steps:
   workingDirectory: python
   displayName: Build wheel
 
-# - script: |
-#     sudo apt -y install ./$(pkgname)
-#     cat /tmp/install_prefix | xargs ./test_install.sh
-#   workingDirectory: build
-#   displayName: Test installed CCF
+- script: |
+    sudo apt -y install ./$(pkgname)
+    cat /tmp/install_prefix | xargs ./test_install.sh
+  workingDirectory: build
+  displayName: Test installed CCF
 
 - task: PublishPipelineArtifact@1
   inputs:
