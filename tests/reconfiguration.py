@@ -9,6 +9,26 @@ import time
 from loguru import logger as LOG
 
 
+def node_configs(network):
+    configs = {}
+    for node in network.nodes:
+        try:
+            with node.client() as nc:
+                configs[node.node_id] = nc.get("/node/config").body.json()
+        except Exception:
+            pass
+    return configs
+
+
+def count_nodes(configs):
+    nodes = set(str(k) for k in configs.keys())
+    for node_id, node_config in configs.items():
+        assert nodes == set(
+            node_config.keys()
+        ), f"{nodes} {set(node_config.keys())} {node_id}"
+    return len(nodes)
+
+
 def check_can_progress(node, timeout=3):
     with node.client() as c:
         r = c.get("/node/commit")
@@ -102,6 +122,8 @@ def test_retire_backup(network, args):
 @reqs.description("Retiring the primary")
 @reqs.can_kill_n_nodes(1)
 def test_retire_primary(network, args):
+    pre_count = count_nodes(node_configs(network))
+
     primary, backup = network.find_primary_and_any_backup()
     network.consortium.retire_node(primary, primary)
     LOG.debug(
@@ -112,6 +134,9 @@ def test_retire_primary(network, args):
     assert new_primary.node_id != primary.node_id
     LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
     check_can_progress(backup)
+    network.nodes.remove(primary)
+    post_count = count_nodes(node_configs(network))
+    assert pre_count == post_count + 1
     primary.stop()
     return network
 

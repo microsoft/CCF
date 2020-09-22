@@ -354,6 +354,30 @@ namespace ccf
       make_read_only_endpoint("primary", HTTP_HEAD, is_primary)
         .set_forwarding_required(ForwardingRequired::Never)
         .install();
+
+      auto consensus_config = [this](CommandEndpointContext& args) {
+        // Query node for configurations, separate current from pending
+        if (consensus != nullptr)
+        {
+          auto cfg = consensus->get_latest_configuration();
+          nlohmann::json c;
+          for (auto& [nid, ninfo] : cfg)
+          {
+            nlohmann::json n;
+            n["address"] = fmt::format("{}:{}", ninfo.hostname, ninfo.port);
+            c[fmt::format("{}", nid)] = n;
+          }
+          args.rpc_ctx->set_response_body(c.dump());
+        }
+        else
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+        }
+      };
+
+      make_command_endpoint("config", HTTP_GET, consensus_config)
+        .set_forwarding_required(ForwardingRequired::Never)
+        .install();
     }
   };
 
