@@ -1321,6 +1321,18 @@ DOCTEST_TEST_CASE(
           ->sent_append_entries_response));
   }
 
+  DOCTEST_CHECK(r0.get_term() == 1);
+  DOCTEST_CHECK(r0.get_commit_idx() == 2);
+  DOCTEST_CHECK(r0.get_last_idx() == 2);
+
+  DOCTEST_CHECK(r1.get_term() == 2);
+  DOCTEST_CHECK(r1.get_commit_idx() == 1);
+  DOCTEST_CHECK(r1.get_last_idx() == 2);
+
+  DOCTEST_CHECK(r2.get_term() == 2);
+  DOCTEST_CHECK(r2.get_commit_idx() == 1);
+  DOCTEST_CHECK(r2.get_last_idx() == 2);
+
   DOCTEST_INFO("Node 1 resumes replication");
   {
     DOCTEST_REQUIRE(r1.replicate(kv::BatchVector{{3, third_entry, true}}, 2));
@@ -1373,5 +1385,17 @@ DOCTEST_TEST_CASE(
     DOCTEST_REQUIRE(
       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries.size() ==
       0);
+
+    DOCTEST_CHECK(r0.get_term() == 2);
+    DOCTEST_CHECK(r0.get_commit_idx() == 3);
+    DOCTEST_CHECK(r0.get_last_idx() == 4);
+
+    DOCTEST_CHECK(r1.get_term() == 2);
+    DOCTEST_CHECK(r1.get_commit_idx() == 3);
+    DOCTEST_CHECK(r1.get_last_idx() == 4);
+
+    DOCTEST_CHECK(r2.get_term() == 2);
+    DOCTEST_CHECK(r2.get_commit_idx() == 3);
+    DOCTEST_CHECK(r2.get_last_idx() == 4);
   }
 }
