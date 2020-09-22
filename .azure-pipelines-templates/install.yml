@@ -33,8 +33,8 @@ steps:
     artifact: $(pkgname)
     displayName: 'Publish CCF Debian Package'
 
-- task: PublishPipelineArtifact@1
-  inputs:
-    path: $(Build.ArtifactStagingDirectory)/$(wheel)
-    artifact: $(wheel)
-    displayName: 'Publish CCF Wheel'
+# - task: PublishPipelineArtifact@1
+#   inputs:
+#     path: $(Build.ArtifactStagingDirectory)/$(wheel)
+#     artifact: $(wheel)
+#     displayName: 'Publish CCF Wheel'
