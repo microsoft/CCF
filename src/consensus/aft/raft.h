@@ -334,6 +334,11 @@ namespace aft
       return configurations.back().nodes;
     }
 
+    uint32_t node_count() const
+    {
+      return nodes.size();
+    }
+
     template <typename T>
     bool replicate(
       const std::vector<std::tuple<Index, T, bool>>& entries, Term term)
@@ -455,6 +460,9 @@ namespace aft
         case raft_request_vote_response:
           recv_request_vote_response(data, size);
           break;
+
+        case bft_signature_received_ack:
+          LOG_INFO_FMT("AAAAAAA");
 
         default:
         {
@@ -857,10 +865,17 @@ namespace aft
       if (progress_tracker != nullptr)
       {
         progress_tracker->add_signature(
-          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig);
+          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig, nodes.size());
       }
 
-      channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, r);
+      for (auto it = nodes.begin(); it != nodes.end(); ++it)
+      {
+        auto send_to = it->first;
+        if (send_to != state->my_node_id)
+        {
+          channels->send_authenticated(ccf::NodeMsgType::consensus_msg, send_to, r);
+        }
+      }
     }
 
     void recv_append_entries_signed_response(const uint8_t* data, size_t size)
@@ -893,9 +908,42 @@ namespace aft
       auto progress_tracker = store->get_progress_tracker();
       if (progress_tracker != nullptr)
       {
-        progress_tracker->add_signature(
-          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig);
+        auto result = progress_tracker->add_signature(
+          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig, nodes.size());
+        try_send_sig_ack(r.term, r.last_log_idx, result);
       }
+    }
+
+    void try_send_sig_ack(kv::Consensus::View view, kv::Consensus::SeqNo seqno, ccf::ProgressTracker::Result r)
+    {
+      switch (r)
+      {
+        case ccf::ProgressTracker::Result::OK:
+        case ccf::ProgressTracker::Result::FAIL:
+        {
+          break;
+        }
+        case ccf::ProgressTracker::Result::SEND_SIG_RECEIPT_ACK:
+        {
+          SignaturesReceivedAck r = {
+            {bft_signature_received_ack, state->my_node_id}, view, seqno};
+          for (auto it = nodes.begin(); it != nodes.end(); ++it)
+          {
+            auto send_to = it->first;
+            if (send_to != state->my_node_id)
+            {
+              channels->send_authenticated(
+                ccf::NodeMsgType::consensus_msg, send_to, r);
+            }
+          }
+          break;
+        }
+          default:
+          {
+            throw ccf::ccf_logic_error(fmt::format("Unknown enum type: {}", r));
+          }
+      }
+
     }
 
     void recv_append_entries_response(const uint8_t* data, size_t size)
@@ -1487,13 +1535,13 @@ namespace aft
           auto index = state->last_idx + 1;
           nodes.try_emplace(node_info.first, node_info.second, index, 0);
 
-          if (replica_state == Leader)
-          {
             channels->create_channel(
               node_info.first,
               node_info.second.hostname,
               node_info.second.port);
 
+          if (replica_state == Leader)
+          {
             send_append_entries(node_info.first, index);
           }
 

@@ -133,6 +133,7 @@ namespace aft
     raft_request_vote_response,
 
     bft_request,
+    bft_signature_received_ack
   };
 
 #pragma pack(push, 1)
@@ -164,6 +165,12 @@ namespace aft
     Index last_log_idx;
     uint32_t signature_size;
     std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
+  };
+
+  struct SignaturesReceivedAck : RaftHeader
+  {
+    Term term;
+    Index idx;
   };
 
   struct RequestVote : RaftHeader

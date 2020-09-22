@@ -631,7 +631,11 @@ namespace ccf
       auto progress_tracker = store.get_progress_tracker();
       if (progress_tracker)
       {
-        progress_tracker->record_primary(sig_value.view, sig_value.seqno, root);
+        progress_tracker->record_primary(
+          sig_value.view,
+          sig_value.seqno,
+          root,
+          store.get_consensus()->node_count());
       }
 
       return true;
@@ -685,7 +689,11 @@ namespace ccf
           auto progress_tracker = store.get_progress_tracker();
           if (progress_tracker)
           {
-            progress_tracker->record_primary(txid.term, txid.version, root);
+            progress_tracker->record_primary(
+              txid.term,
+              txid.version,
+              root,
+              store.get_consensus()->node_count());
           }
 
           PrimarySignature sig_value(

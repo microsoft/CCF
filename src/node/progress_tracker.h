@@ -22,12 +22,20 @@ namespace ccf
     ProgressTracker(kv::NodeId id_, ccf::Nodes& nodes_) : id(id_), nodes(nodes_)
     {}
 
-    void add_signature(
+    enum class Result
+    {
+      OK,
+      FAIL,
+      SEND_SIG_RECEIPT_ACK
+    };
+
+    Result add_signature(
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
       kv::NodeId node_id,
       uint32_t signature_size,
-      std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig)
+      std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
+      uint32_t node_count)
     {
       auto it = certificates.find(CertKey(view, seqno));
       if (it == certificates.end())
@@ -53,7 +61,7 @@ namespace ccf
             node_id,
             view,
             seqno));
-          return;
+          return Result::FAIL;
         }
         LOG_TRACE_FMT(
           "Signature verification from {} passed, view:{}, seqno:{}",
@@ -74,19 +82,27 @@ namespace ccf
       auto& cert = it->second;
       cert.sigs.insert(std::pair<kv::NodeId, ccf::NodeSignature>(
         node_id, {std::move(sig_vec), node_id}));
+
+      if (can_send_sig_ack(cert, node_count))
+      {
+        return Result::SEND_SIG_RECEIPT_ACK;
+      }
+      return Result::OK;
     }
 
-    void record_primary(
+    Result record_primary(
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
-      crypto::Sha256Hash& root)
+      crypto::Sha256Hash& root,
+      uint32_t node_count)
     {
       auto it = certificates.find(CertKey(view, seqno));
       if (it == certificates.end())
       {
         certificates.insert(std::pair<CertKey, CommitCert>(
           CertKey(view, seqno), CommitCert(root)));
-        return;
+        LOG_TRACE_FMT("Adding new root for view:{}, seqno:{}", view, seqno);
+        return Result::OK;
       }
       else
       {
@@ -109,15 +125,27 @@ namespace ccf
               view,
               seqno));
           }
+          LOG_TRACE_FMT(
+            "Signature verification from {} passed, view:{}, seqno:{}",
+            sig.second.node,
+            view,
+            seqno);
         }
       }
 
-      if (it->second.root != root)
+      auto& cert = it->second;
+      if (cert.root != root)
       {
         // NOTE: At this point we have cryptographic proof that someone is being
         // dishonest we need to work out what to do.
         throw ccf::ccf_logic_error("We have proof someone is being dishonest");
       }
+
+      if (can_send_sig_ack(cert, node_count))
+      {
+        return Result::SEND_SIG_RECEIPT_ACK;
+      }
+      return Result::OK;
     }
 
     void set_node_id(kv::NodeId id_)
@@ -155,8 +183,8 @@ namespace ccf
       CommitCert() = default;
 
       crypto::Sha256Hash root;
-      // std::map<kv::NodeId, std::vector<uint8_t>> sigs;
       std::map<kv::NodeId, ccf::NodeSignature> sigs;
+      bool ack_sent = false;
     };
     std::map<CertKey, CommitCert> certificates;
 
@@ -179,6 +207,17 @@ namespace ccf
       tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
       return from_cert->verify_hash(
         root.h.data(), root.h.size(), sig, sig_size);
+    }
+
+    bool can_send_sig_ack(CommitCert& cert, uint32_t node_count)
+    {
+      // TODO: this should not be node count but 2f+1
+      if(cert.sigs.size() >= node_count)
+      {
+        cert.ack_sent = true;
+        return true;
+      }
+      return false;
     }
   };
 }
