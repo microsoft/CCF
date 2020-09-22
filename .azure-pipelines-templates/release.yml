@@ -11,7 +11,7 @@ jobs:
     - task: DownloadPipelineArtifact@2
       inputs:
         source: current
-        patterns: '**/*'
+        patterns: '**'
         path: $(Build.ArtifactStagingDirectory)
 
     # - task: GitHubRelease@0
