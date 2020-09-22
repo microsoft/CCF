@@ -850,7 +850,6 @@ namespace aft
         state->last_idx,
         static_cast<uint32_t>(sig.sig.size()),
         {}};
-      r.sig.fill(0);
       std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
 
       auto progress_tracker = store->get_progress_tracker();
@@ -874,7 +873,8 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT(err.what());
+        LOG_FAIL_FMT("Error in recv_authenticated message");
+        LOG_DEBUG_FMT("Error in recv_authenticated message: {}", err.what());
         return;
       }
 
