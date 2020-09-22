@@ -5,6 +5,7 @@
 #include "../non_blocking.h"
 #include "../ring_buffer.h"
 #include "../serialized.h"
+#include "../thread_messaging.h"
 
 #include <array>
 #include <doctest/doctest.h>
@@ -16,6 +17,8 @@
 
 using namespace messaging;
 using namespace ringbuffer;
+
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 template <typename Ex, typename F>
 void require_throws_with(

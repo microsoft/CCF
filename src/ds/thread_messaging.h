@@ -267,7 +267,7 @@ namespace threading
 
     void run()
     {
-      Task& task = tasks[get_current_thread_id()];
+      Task& task = get_task(get_current_thread_id());
 
       while (!is_finished())
       {
@@ -275,8 +275,13 @@ namespace threading
       }
     }
 
-    Task& get_task(uint16_t tid)
+    inline Task& get_task(uint16_t tid)
     {
+      CCF_ASSERT_FMT(
+        tid <= thread_count,
+        "Attempting to add task to tid > thread_count, tid:{}, thread_count:{}",
+        tid,
+        thread_count);
       return tasks[tid];
     }
 
@@ -288,7 +293,7 @@ namespace threading
     template <typename Payload>
     void add_task(uint16_t tid, std::unique_ptr<Tmsg<Payload>> msg)
     {
-      Task& task = tasks[tid];
+      Task& task = get_task(tid);
 
       task.add_task(reinterpret_cast<ThreadMsg*>(msg.release()));
     }
@@ -297,7 +302,7 @@ namespace threading
     void add_task_after(
       std::unique_ptr<Tmsg<Payload>> msg, std::chrono::milliseconds ms)
     {
-      Task& task = tasks[get_current_thread_id()];
+      Task& task = get_task(get_current_thread_id());
       task.add_task_after(std::move(msg), ms);
     }
 
@@ -321,7 +326,7 @@ namespace threading
     {
       for (auto i = 0; i < thread_count; ++i)
       {
-        auto& task = tasks[i];
+        auto& task = get_task(i);
         auto msg = std::make_unique<Tmsg<TickMsg>>(&tick_cb, elapsed, task);
         task.add_task(msg.release());
       }
