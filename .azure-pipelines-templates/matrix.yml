@@ -73,5 +73,5 @@ jobs:
 
     - template: release.yml
       parameters:
-        env: ${{ parameters.env.NoSGX }}
+        env: ${{ parameters.env.Hosted }}
         depends_on: 'SGX_Release'
