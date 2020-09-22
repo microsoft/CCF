@@ -372,6 +372,7 @@ namespace ccf
         else
         {
           args.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+          args.rpc_ctx->set_response_body("No configured consensus");
         }
       };
 

@@ -1263,7 +1263,6 @@ namespace aft
       voted_for = NoNode;
       votes_for_me.clear();
 
-      // Rollback unreplicated commits.
       rollback(last_committable_index());
 
       LOG_INFO_FMT(
