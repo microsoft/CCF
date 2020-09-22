@@ -7,6 +7,8 @@
 #include "kv_types.h"
 #include "map.h"
 #include "node/entities.h"
+#include "node/progress_tracker.h"
+#include "node/signatures.h"
 #include "snapshot.h"
 #include "tx.h"
 #include "view_containers.h"
@@ -28,6 +30,7 @@ namespace kv
 
     std::shared_ptr<Consensus> consensus = nullptr;
     std::shared_ptr<TxHistory> history = nullptr;
+    std::shared_ptr<ccf::ProgressTracker> progress_tracker = nullptr;
     EncryptorPtr encryptor = nullptr;
     Version version = 0;
     Version compacted = 0;
@@ -124,6 +127,17 @@ namespace kv
     void set_history(std::shared_ptr<TxHistory> history_)
     {
       history = history_;
+    }
+
+    std::shared_ptr<ccf::ProgressTracker> get_progress_tracker()
+    {
+      return progress_tracker;
+    }
+
+    void set_progress_tracker(
+      std::shared_ptr<ccf::ProgressTracker> progress_tracker_)
+    {
+      progress_tracker = progress_tracker_;
     }
 
     void set_encryptor(const EncryptorPtr& encryptor_)
@@ -612,7 +626,8 @@ namespace kv
       const std::vector<uint8_t>& data,
       bool public_only = false,
       Term* term_ = nullptr,
-      AbstractViewContainer* tx = nullptr)
+      AbstractViewContainer* tx = nullptr,
+      ccf::PrimarySignature* sig = nullptr)
     {
       // If we pass in a transaction we don't want to commit, just deserialise
       // and put the views into that transaction.
@@ -768,8 +783,19 @@ namespace kv
           {
             return success;
           }
+
           auto h = get_history();
-          if (!h->verify(term_))
+          bool result;
+          if (sig != nullptr)
+          {
+            result = h->verify_and_sign(*sig, term_);
+          }
+          else
+          {
+            result = h->verify(term_);
+          }
+
+          if (!result)
           {
             LOG_FAIL_FMT("Failed to deserialise");
             LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);

@@ -4,7 +4,7 @@
 #include "client_signatures.h"
 #include "ds/hash.h"
 #include "entities.h"
-#include "raw_signature.h"
+#include "node_signature.h"
 #include "tls/pem.h"
 
 #include <msgpack/msgpack.hpp>
