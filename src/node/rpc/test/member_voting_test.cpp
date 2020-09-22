@@ -619,7 +619,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
         // ack's depend on that
         kv::Tx tx;
         auto sig_view = tx.get_view(network.signatures);
-        Signature sig_value;
+        PrimarySignature sig_value;
         sig_view->put(0, sig_value);
         DOCTEST_REQUIRE(tx.commit() == kv::CommitSuccess::OK);
       }

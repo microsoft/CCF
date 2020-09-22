@@ -207,9 +207,15 @@ namespace aft
       const std::vector<uint8_t>& data,
       bool public_only = false,
       kv::Term* term = nullptr,
-      kv::Tx* tx = nullptr)
+      kv::Tx* tx = nullptr,
+      ccf::PrimarySignature* sig = nullptr)
     {
       return kv::DeserialiseSuccess::PASS;
+    }
+
+    std::shared_ptr<ccf::ProgressTracker> get_progress_tracker()
+    {
+      return nullptr;
     }
   };
 
