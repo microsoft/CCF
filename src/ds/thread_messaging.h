@@ -301,25 +301,29 @@ namespace threading
       task.add_task_after(std::move(msg), ms);
     }
 
+    struct TickMsg
+    {
+      TickMsg(std::chrono::milliseconds elapsed_, Task& task_) :
+        elapsed(elapsed_),
+        task(task_)
+      {}
+
+      std::chrono::milliseconds elapsed;
+      Task& task;
+    };
+
+    static void tick_cb(std::unique_ptr<Tmsg<TickMsg>> msg)
+    {
+      msg->data.task.tick(msg->data.elapsed);
+    }
+
     void tick(std::chrono::milliseconds elapsed)
     {
-      struct TickMsg
+      for (auto i = 0; i < thread_count; ++i)
       {
-        TickMsg(std::chrono::milliseconds elapsed_, Task& task_) :
-          elapsed(elapsed_),
-          task(task_)
-        {}
-
-        std::chrono::milliseconds elapsed;
-        Task& task;
-      };
-
-      for (auto& task : tasks)
-      {
+        auto& task = tasks[i];
         auto msg = std::make_unique<Tmsg<TickMsg>>(
-          [](std::unique_ptr<Tmsg<TickMsg>> msg) {
-            msg->data.task.tick(msg->data.elapsed);
-          },
+          &tick_cb,
           elapsed,
           task);
         task.add_task(msg.release());
