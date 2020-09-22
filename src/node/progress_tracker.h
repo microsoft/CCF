@@ -22,14 +22,7 @@ namespace ccf
     ProgressTracker(kv::NodeId id_, ccf::Nodes& nodes_) : id(id_), nodes(nodes_)
     {}
 
-    enum class Result
-    {
-      OK,
-      FAIL,
-      SEND_SIG_RECEIPT_ACK
-    };
-
-    Result add_signature(
+    kv::TxHistory::Result add_signature(
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
       kv::NodeId node_id,
@@ -61,7 +54,7 @@ namespace ccf
             node_id,
             view,
             seqno));
-          return Result::FAIL;
+          return kv::TxHistory::Result::FAIL;
         }
         LOG_TRACE_FMT(
           "Signature verification from {} passed, view:{}, seqno:{}",
@@ -85,16 +78,16 @@ namespace ccf
 
       if (can_send_sig_ack(cert, node_count))
       {
-        return Result::SEND_SIG_RECEIPT_ACK;
+        return kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK;
       }
-      return Result::OK;
+      return kv::TxHistory::Result::OK;
     }
 
-    Result record_primary(
+    kv::TxHistory::Result record_primary(
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
       crypto::Sha256Hash& root,
-      uint32_t node_count)
+      uint32_t node_count = 0)
     {
       auto it = certificates.find(CertKey(view, seqno));
       if (it == certificates.end())
@@ -102,7 +95,7 @@ namespace ccf
         certificates.insert(std::pair<CertKey, CommitCert>(
           CertKey(view, seqno), CommitCert(root)));
         LOG_TRACE_FMT("Adding new root for view:{}, seqno:{}", view, seqno);
-        return Result::OK;
+        return kv::TxHistory::Result::OK;
       }
       else
       {
@@ -141,11 +134,11 @@ namespace ccf
         throw ccf::ccf_logic_error("We have proof someone is being dishonest");
       }
 
-      if (can_send_sig_ack(cert, node_count))
+      if (node_count > 0 && can_send_sig_ack(cert, node_count))
       {
-        return Result::SEND_SIG_RECEIPT_ACK;
+        return kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK;
       }
-      return Result::OK;
+      return kv::TxHistory::Result::OK;
     }
 
     void set_node_id(kv::NodeId id_)

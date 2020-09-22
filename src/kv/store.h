@@ -783,12 +783,22 @@ namespace kv
           {
             return success;
           }
+          success = DeserialiseSuccess::PASS_SIGNATURE;
 
           auto h = get_history();
-          bool result;
+          bool result = true;
           if (sig != nullptr)
           {
-            result = h->verify_and_sign(*sig, term_);
+            auto r = h->verify_and_sign(*sig, term_);
+            if (r == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
+            {
+              // TODO: consume this in raft.h
+              success = DeserialiseSuccess::PASS_SIGNATURE_SEND_ACK;
+            }
+            else if (r != kv::TxHistory::Result::OK)
+            {
+              result = false;
+            }
           }
           else
           {
@@ -804,7 +814,6 @@ namespace kv
             return DeserialiseSuccess::FAILED;
           }
           h->append(data.data(), data.size());
-          success = DeserialiseSuccess::PASS_SIGNATURE;
         }
         else if (views.find(ccf::Tables::AFT_REQUESTS) == views.end())
         {

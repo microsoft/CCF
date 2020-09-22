@@ -109,7 +109,7 @@ namespace ccf
 
     void append(const uint8_t*, size_t) override {}
 
-    bool verify_and_sign(PrimarySignature&, kv::Term*) override
+    kv::TxHistory::Result verify_and_sign(PrimarySignature&, kv::Term*) override
     {
       return true;
     }
@@ -576,19 +576,30 @@ namespace ccf
       replicated_state_tree.append(rh);
     }
 
-    bool verify_and_sign(
+    kv::TxHistory::Result verify_and_sign(
       PrimarySignature& sig, kv::Term* term = nullptr) override
     {
       if (!verify(term))
       {
-        return false;
+        return kv::TxHistory::Result::FAIL;
       }
 
       sig.node = id;
-      crypto::Sha256Hash root = replicated_state_tree.get_root();
-      sig.sig = kp.sign_hash(root.h.data(), root.h.size());
+      sig.root = replicated_state_tree.get_root();
+      sig.sig = kp.sign_hash(sig.root.h.data(), sig.root.h.size());
+      kv::TxHistory::Result result = kv::TxHistory::Result::OK;
 
-      return true;
+      auto progress_tracker = store.get_progress_tracker();
+      if (progress_tracker)
+      {
+        result = progress_tracker->record_primary(
+          sig_value.view,
+          sig_value.seqno,
+          sig.root,
+          store.get_consensus()->node_count());
+      }
+
+      return result;
     }
 
     bool verify(kv::Term* term = nullptr) override
@@ -626,16 +637,6 @@ namespace ccf
       if (!result)
       {
         return false;
-      }
-
-      auto progress_tracker = store.get_progress_tracker();
-      if (progress_tracker)
-      {
-        progress_tracker->record_primary(
-          sig_value.view,
-          sig_value.seqno,
-          root,
-          store.get_consensus()->node_count());
       }
 
       return true;
@@ -689,11 +690,17 @@ namespace ccf
           auto progress_tracker = store.get_progress_tracker();
           if (progress_tracker)
           {
-            progress_tracker->record_primary(
+            auto r = progress_tracker->record_primary(
               txid.term,
               txid.version,
-              root,
-              store.get_consensus()->node_count());
+              root);
+            CCF_ASSERT_FMT(
+              r == kv::TxHistory::Result::OK,
+              "Expected success when primary added signature to the progress "
+              "tracker. r:{}, view:{}, seqno:{}",
+              r,
+              txid.term,
+              txid.version);
           }
 
           PrimarySignature sig_value(

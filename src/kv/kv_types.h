@@ -84,8 +84,9 @@ namespace kv
     FAILED = 0,
     PASS = 1,
     PASS_SIGNATURE = 2,
-    PASS_PRE_PREPARE = 3,
-    PASS_NEW_VIEW = 4
+    PASS_SIGNATURE_SEND_ACK = 3,
+    PASS_PRE_PREPARE = 4,
+    PASS_NEW_VIEW = 5
   };
 
   enum ReplicateType
@@ -146,13 +147,20 @@ namespace kv
       std::vector<uint8_t> response;
     };
 
+    enum class Result
+    {
+      OK,
+      FAIL,
+      SEND_SIG_RECEIPT_ACK
+    };
+
     using ResultCallbackHandler = std::function<bool(ResultCallbackArgs)>;
     using ResponseCallbackHandler = std::function<bool(ResponseCallbackArgs)>;
 
     virtual ~TxHistory() {}
     virtual void append(const std::vector<uint8_t>& replicated) = 0;
     virtual void append(const uint8_t* replicated, size_t replicated_size) = 0;
-    virtual bool verify_and_sign(
+    virtual Result verify_and_sign(
       ccf::PrimarySignature& signature, Term* term = nullptr) = 0;
     virtual bool verify(Term* term = nullptr) = 0;
     virtual void emit_signature() = 0;

@@ -864,8 +864,9 @@ namespace aft
       auto progress_tracker = store->get_progress_tracker();
       if (progress_tracker != nullptr)
       {
-        progress_tracker->add_signature(
+        auto result = progress_tracker->add_signature(
           r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig, nodes.size());
+        try_send_sig_ack(r.term, r.last_log_idx, result);
       }
 
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
@@ -914,16 +915,16 @@ namespace aft
       }
     }
 
-    void try_send_sig_ack(kv::Consensus::View view, kv::Consensus::SeqNo seqno, ccf::ProgressTracker::Result r)
+    void try_send_sig_ack(kv::Consensus::View view, kv::Consensus::SeqNo seqno, kv::TxHistory::Result r)
     {
       switch (r)
       {
-        case ccf::ProgressTracker::Result::OK:
-        case ccf::ProgressTracker::Result::FAIL:
+        case kv::TxHistory::Result::OK:
+        case kv::TxHistory::Result::FAIL:
         {
           break;
         }
-        case ccf::ProgressTracker::Result::SEND_SIG_RECEIPT_ACK:
+        case kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK:
         {
           SignaturesReceivedAck r = {
             {bft_signature_received_ack, state->my_node_id}, view, seqno};
