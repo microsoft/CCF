@@ -23,7 +23,7 @@ jobs:
         # tagSource: 'auto'
         tagSource: 'manual' # TODO: Delete
         tag: 'test' # TODO: Delete
-        assets: $(Build.ArtifactStagingDirectory)/*
+        assets: $(Build.ArtifactStagingDirectory)/**/*
         assetUploadMode: 'delete'
         isDraft: true
         isPreRelease: true
