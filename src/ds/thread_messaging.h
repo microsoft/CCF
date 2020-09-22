@@ -322,10 +322,7 @@ namespace threading
       for (auto i = 0; i < thread_count; ++i)
       {
         auto& task = tasks[i];
-        auto msg = std::make_unique<Tmsg<TickMsg>>(
-          &tick_cb,
-          elapsed,
-          task);
+        auto msg = std::make_unique<Tmsg<TickMsg>>(&tick_cb, elapsed, task);
         task.add_task(msg.release());
       }
     }
