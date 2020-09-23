@@ -8,8 +8,10 @@ import json
 import glob
 import os
 import sys
+import shutil
+import tempfile
 from pathlib import PurePosixPath
-from typing import Union, Optional, Any
+from typing import Union, Optional, Any, List
 
 from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
@@ -18,6 +20,7 @@ from loguru import logger as LOG  # type: ignore
 
 CERT_OID_SGX_QUOTE = "1.2.840.113556.10.1.1"
 
+ROOT_JS_APP_NAME = "__root__"
 
 def dump_to_file(output_path: str, obj: dict, dump_args: dict):
     with open(output_path, "w") as f:
@@ -275,6 +278,50 @@ def set_js_app(app_script_path: str, **kwargs):
 
 
 @cli_proposal
+def deploy_js_app(bundle_path: str, app_name=ROOT_JS_APP_NAME, **kwargs):
+    # read modules
+    if os.path.isfile(bundle_path):
+        tmp_dir = tempfile.TemporaryDirectory(prefix="ccf")
+        shutil.unpack_archive(bundle_path, tmp_dir.name)
+        bundle_path = tmp_dir.name
+    modules_path = os.path.join(bundle_path, "src")
+    modules = read_modules(modules_path)
+
+    # read metadata
+    metadata_path = os.path.join(bundle_path, "endpoints.json")
+    with open(metadata_path) as f:
+        metadata = json.load(f)
+    
+    # sanity checks
+    module_paths = set(module["rel_name"] for module in modules)
+    for url, methods in metadata["endpoints"].items():
+        for method, endpoint in methods.items():
+            module_path = endpoint["js_module"]
+            if module_path not in module_paths:
+                raise ValueError(
+                    f"{method} {url}: module '{module_path}' not found in bundle"
+                )
+
+    proposal_args = {
+        "name": app_name,
+        "bundle": {
+            "metadata": metadata,
+            "modules": modules
+        }
+    }
+
+    return build_proposal("deploy_js_app", proposal_args, **kwargs)
+
+
+@cli_proposal
+def delete_js_app(app_name=ROOT_JS_APP_NAME, **kwargs):
+    proposal_args = {
+        "name": app_name
+    }
+    return build_proposal("delete_js_app", proposal_args, **kwargs)
+
+
+@cli_proposal
 def set_module(module_name: str, module_path: str, **kwargs):
     module_name_ = PurePosixPath(module_name)
     if not module_name_.is_absolute():
@@ -295,6 +342,17 @@ def remove_module(module_name: str, **kwargs):
     return build_proposal("remove_module", module_name, **kwargs)
 
 
+def read_modules(modules_path: str) -> List[dict]:
+    modules = []
+    for path in glob.glob(f"{modules_path}/**/*.js", recursive=True):
+        rel_module_name = os.path.relpath(path, modules_path)
+        rel_module_name = rel_module_name.replace("\\", "/")  # Windows support
+        with open(path) as f:
+            js = f.read()
+            modules.append({"rel_name": rel_module_name, "module": {"js": js}})
+    return modules
+
+
 @cli_proposal
 def update_modules(module_name_prefix: str, modules_path: Optional[str], **kwargs):
     LOG.debug("Generating update_modules proposal")
@@ -311,12 +369,7 @@ def update_modules(module_name_prefix: str, modules_path: Optional[str], **kwarg
     # Read module files and build relative module names
     modules = []
     if modules_path:
-        for path in glob.glob(f"{modules_path}/**/*.js", recursive=True):
-            rel_module_name = os.path.relpath(path, modules_path)
-            rel_module_name = rel_module_name.replace("\\", "/")  # Windows support
-            with open(path) as f:
-                js = f.read()
-                modules.append({"rel_name": rel_module_name, "module": {"js": js}})
+        modules = read_modules(modules_path)
 
     proposal_args = {"prefix": module_name_prefix, "modules": modules}
 

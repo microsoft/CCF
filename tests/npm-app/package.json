@@ -1,7 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "build": "del-cli -f dist/ && rollup --config",
+    "build": "del-cli -f dist/ && rollup --config && cp endpoints.json dist/",
     "demo": "npm run build && http-server -o demo/index.html"
   },
   "type": "module",
