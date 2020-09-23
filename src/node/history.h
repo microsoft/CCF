@@ -591,10 +591,14 @@ namespace ccf
       auto progress_tracker = store.get_progress_tracker();
       if (progress_tracker)
       {
+        // TODO: set the nonce correctly
+        uint64_t hashed_nonce = 0;
         result = progress_tracker->record_primary(
           sig.view,
           sig.seqno,
+          sig.node,
           sig.root,
+          hashed_nonce,
           store.get_consensus()->node_count());
       }
 
@@ -694,10 +698,14 @@ namespace ccf
           auto progress_tracker = store.get_progress_tracker();
           if (progress_tracker)
           {
+            // TODO: set the nonce correctly
+            uint64_t hashed_nonce = 0;
             auto r = progress_tracker->record_primary(
               txid.term,
               txid.version,
-              root);
+              id,
+              root,
+              hashed_nonce);
             CCF_ASSERT_FMT(
               r == kv::TxHistory::Result::OK,
               "Expected success when primary added signature to the progress "

@@ -149,10 +149,10 @@ namespace kv
 
     enum class Result
     {
-      OK = 0,
-      FAIL,
-      SEND_SIG_RECEIPT_ACK,
-      SEND_REPLY_AND_NONCE
+      FAIL = 0,
+      OK = 1,
+      SEND_SIG_RECEIPT_ACK = 2,
+      SEND_REPLY_AND_NONCE = 4
     };
 
     using ResultCallbackHandler = std::function<bool(ResultCallbackArgs)>;

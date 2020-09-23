@@ -77,6 +77,13 @@ namespace ccf
       cert.sigs.insert(std::pair<kv::NodeId, BftNodeSignature>(
         node_id, {std::move(sig_vec), node_id, hashed_nonce}));
 
+      auto it_unmatched_nonce = cert.unmatched_nonces.find(node_id);
+      if (it_unmatched_nonce != cert.unmatched_nonces.end())
+      {
+        add_nonce_reveal(view, seqno, it_unmatched_nonce->second, node_id, node_count);
+        cert.unmatched_nonces.erase(it_unmatched_nonce);
+      }
+
       if (can_send_sig_ack(cert, node_count))
       {
         return kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK;
@@ -87,14 +94,16 @@ namespace ccf
     kv::TxHistory::Result record_primary(
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
+      kv::NodeId node_id,
       crypto::Sha256Hash& root,
+      uint64_t hashed_nonce,
       uint32_t node_count = 0)
     {
       auto it = certificates.find(CertKey(view, seqno));
       if (it == certificates.end())
       {
         certificates.insert(std::pair<CertKey, CommitCert>(
-          CertKey(view, seqno), CommitCert(root)));
+          CertKey(view, seqno), CommitCert(root, hashed_nonce, node_id)));
         LOG_TRACE_FMT("Adding new root for view:{}, seqno:{}", view, seqno);
         return kv::TxHistory::Result::OK;
       }
@@ -135,6 +144,15 @@ namespace ccf
         throw ccf::ccf_logic_error("We have proof someone is being dishonest");
       }
 
+      auto it_unmatched_nonce = cert.unmatched_nonces.find(node_id);
+      if (it_unmatched_nonce != cert.unmatched_nonces.end())
+      {
+        add_nonce_reveal(view, seqno, it_unmatched_nonce->second, node_id, node_count);
+        cert.unmatched_nonces.erase(it_unmatched_nonce);
+      }
+
+
+      // TODO: we should be returning the possibility of sending multiple messages
       if (node_count > 0 && can_send_sig_ack(cert, node_count))
       {
         return kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK;
@@ -181,7 +199,7 @@ namespace ccf
       kv::Consensus::SeqNo seqno,
       uint64_t nonce,
       kv::NodeId node_id,
-      uint32_t node_count = 0)
+      uint32_t /*node_count = 0*/)
     {
       auto it = certificates.find(CertKey(view, seqno));
       if (it == certificates.end())
@@ -197,8 +215,15 @@ namespace ccf
       auto& cert = it->second;
       auto it_node_sig = cert.sigs.find(node_id);
       if (it_node_sig == cert.sigs.end())
+      {
+        // TODO: keep unmatched nonces separate
+        cert.unmatched_nonces.insert(std::pair<kv::NodeId, uint64_t>(node_id, nonce));
+        return;
+      }
 
-      // TODO: we need to do noncy thing here
+      BftNodeSignature& sig = it_node_sig->second;
+      // TODO: we need to hash the nonce here to make sure it is correct
+      sig.nonce = nonce;
     }
 
     void set_node_id(kv::NodeId id_)
@@ -234,23 +259,34 @@ namespace ccf
     {
       uint64_t nonce;
       uint64_t hashed_nonce;
+      bool is_primary;
 
       BftNodeSignature(
         const std::vector<uint8_t>& sig_,
         NodeId node_,
         uint64_t hashed_nonce_) :
-        NodeSignature(sig_, node_), hashed_nonce(hashed_nonce_)
+        NodeSignature(sig_, node_), hashed_nonce(hashed_nonce_), is_primary(false)
+      {}
+
+      BftNodeSignature(NodeId node_, uint64_t hashed_nonce_) :
+        NodeSignature({}, node_), hashed_nonce(hashed_nonce_), is_primary(true)
       {}
     };
 
     struct CommitCert
     {
-      CommitCert(crypto::Sha256Hash& root_) : root(root_) {}
+      CommitCert(crypto::Sha256Hash& root_, uint64_t hashed_nonce, kv::NodeId node_id) : root(root_)
+      {
+        sigs.insert(std::pair<kv::NodeId, BftNodeSignature>(
+          node_id, {node_id, hashed_nonce}));
+      }
+
       CommitCert() = default;
 
       crypto::Sha256Hash root;
       std::map<kv::NodeId, BftNodeSignature> sigs;
       std::set<kv::NodeId> sig_acks;
+      std::map<kv::NodeId, uint64_t> unmatched_nonces;
       bool ack_sent = false;
       bool reply_and_nonce_sent = false;
     };
@@ -291,7 +327,9 @@ namespace ccf
     bool can_send_reply_and_nonce(CommitCert& cert, uint32_t node_count)
     {
       // TODO: this should not be node count but 2f+1
-      if(cert.sig_acks.size() >= node_count && !cert.reply_and_nonce_sent)
+      if (
+        cert.sig_acks.size() >= node_count && !cert.reply_and_nonce_sent &&
+        cert.ack_sent)
       {
         cert.reply_and_nonce_sent = true;
         return true;
