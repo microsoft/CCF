@@ -629,7 +629,7 @@ namespace ccf
     virtual nlohmann::json get_endpoint_schema(kv::Tx&, const GetSchema::In& in)
     {
       auto j = nlohmann::json::object();
-      
+
       const auto it = fully_qualified_endpoints.find(in.method);
       if (it != fully_qualified_endpoints.end())
       {

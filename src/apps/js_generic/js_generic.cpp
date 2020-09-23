@@ -655,7 +655,8 @@ namespace ccfapp
       set_default(default_handler);
     }
 
-    static std::pair<http_method, std::string> split_script_key(const std::string& key)
+    static std::pair<http_method, std::string> split_script_key(
+      const std::string& key)
     {
       size_t s = key.find(' ');
       if (s != std::string::npos)
