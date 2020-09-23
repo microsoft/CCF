@@ -278,7 +278,7 @@ namespace threading
     inline Task& get_task(uint16_t tid)
     {
       CCF_ASSERT_FMT(
-        tid <= thread_count,
+        tid < thread_count,
         "Attempting to add task to tid > thread_count, tid:{}, thread_count:{}",
         tid,
         thread_count);
