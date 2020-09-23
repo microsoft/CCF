@@ -133,7 +133,8 @@ namespace aft
     raft_request_vote_response,
 
     bft_request,
-    bft_signature_received_ack
+    bft_signature_received_ack,
+    bft_nonce_reveal
   };
 
 #pragma pack(push, 1)
@@ -171,6 +172,13 @@ namespace aft
   {
     Term term;
     Index idx;
+  };
+
+  struct NonceRevealMsg : RaftHeader
+  {
+    Term term;
+    Index idx;
+    uint64_t nonce;
   };
 
   struct RequestVote : RaftHeader

@@ -111,10 +111,10 @@ namespace ccf
 
     kv::TxHistory::Result verify_and_sign(PrimarySignature&, kv::Term*) override
     {
-      return true;
+      return kv::TxHistory::Result::OK;
     }
 
-    bool verify(kv::Term*) override
+    bool verify(kv::Term*, ccf::PrimarySignature*) override
     {
       return true;
     }
@@ -579,13 +579,12 @@ namespace ccf
     kv::TxHistory::Result verify_and_sign(
       PrimarySignature& sig, kv::Term* term = nullptr) override
     {
-      if (!verify(term))
+      if (!verify(term, &sig))
       {
         return kv::TxHistory::Result::FAIL;
       }
 
       sig.node = id;
-      sig.root = replicated_state_tree.get_root();
       sig.sig = kp.sign_hash(sig.root.h.data(), sig.root.h.size());
       kv::TxHistory::Result result = kv::TxHistory::Result::OK;
 
@@ -593,8 +592,8 @@ namespace ccf
       if (progress_tracker)
       {
         result = progress_tracker->record_primary(
-          sig_value.view,
-          sig_value.seqno,
+          sig.view,
+          sig.seqno,
           sig.root,
           store.get_consensus()->node_count());
       }
@@ -602,7 +601,7 @@ namespace ccf
       return result;
     }
 
-    bool verify(kv::Term* term = nullptr) override
+    bool verify(kv::Term* term = nullptr, PrimarySignature* signature = nullptr) override
     {
       kv::Tx tx;
       auto [sig_tv, ni_tv] = tx.get_view(signatures, nodes);
@@ -612,10 +611,15 @@ namespace ccf
         LOG_FAIL_FMT("No signature found in signatures map");
         return false;
       }
-      auto sig_value = sig.value();
+      auto& sig_value = sig.value();
       if (term)
       {
         *term = sig_value.view;
+      }
+
+      if  (signature)
+      {
+        *signature = sig_value;
       }
 
       auto ni = ni_tv->get(sig_value.node);

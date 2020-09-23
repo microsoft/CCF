@@ -462,7 +462,11 @@ namespace aft
           break;
 
         case bft_signature_received_ack:
-          LOG_INFO_FMT("AAAAAAA");
+          recv_signature_received_ack(data, size);
+          break;
+
+        case bft_nonce_reveal:
+          LOG_INFO_FMT("AAAAAA got a nonce");
 
         default:
         {
@@ -784,6 +788,7 @@ namespace aft
             break;
           }
 
+          case kv::DeserialiseSuccess::PASS_SIGNATURE_SEND_ACK:
           case kv::DeserialiseSuccess::PASS_SIGNATURE:
           {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
@@ -798,6 +803,14 @@ namespace aft
             {
               send_append_entries_signed_response(r.from_node, sig);
             }
+
+            try_send_sig_ack(
+              sig.view,
+              sig.seqno,
+              deserialise_success ==
+                  kv::DeserialiseSuccess::PASS_SIGNATURE_SEND_ACK ?
+                kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK :
+                kv::TxHistory::Result::OK);
             break;
           }
 
@@ -864,8 +877,9 @@ namespace aft
       auto progress_tracker = store->get_progress_tracker();
       if (progress_tracker != nullptr)
       {
+        uint64_t hashed_nonce = 0; // TODO: fix this
         auto result = progress_tracker->add_signature(
-          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig, nodes.size());
+          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig, hashed_nonce, nodes.size());
         try_send_sig_ack(r.term, r.last_log_idx, result);
       }
 
@@ -909,8 +923,9 @@ namespace aft
       auto progress_tracker = store->get_progress_tracker();
       if (progress_tracker != nullptr)
       {
+        uint64_t hashed_nonce = 0; // TODO: fix this
         auto result = progress_tracker->add_signature(
-          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig, nodes.size());
+          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig, hashed_nonce, nodes.size());
         try_send_sig_ack(r.term, r.last_log_idx, result);
       }
     }
@@ -937,14 +952,145 @@ namespace aft
                 ccf::NodeMsgType::consensus_msg, send_to, r);
             }
           }
+
+          auto progress_tracker = store->get_progress_tracker();
+          if (progress_tracker != nullptr)
+          {
+            auto result = progress_tracker->add_signature_ack(
+              view, seqno, state->my_node_id, nodes.size());
+            try_send_reply_and_nonce(view, seqno, result);
+          }
           break;
         }
-          default:
-          {
-            throw ccf::ccf_logic_error(fmt::format("Unknown enum type: {}", r));
-          }
+        default:
+        {
+          throw ccf::ccf_logic_error(fmt::format("Unknown enum type: {}", r));
+        }
+      }
+    }
+
+    void recv_signature_received_ack(const uint8_t* data, size_t size)
+    {
+      SignaturesReceivedAck r;
+
+      try
+      {
+        r = channels->template recv_authenticated<SignaturesReceivedAck>(
+          data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_FMT("Error in recv_signature_received_ack message");
+        LOG_DEBUG_FMT("Error in recv_signature_received_ack message: {}", err.what());
+        return;
       }
 
+      auto node = nodes.find(r.from_node);
+      if (node == nodes.end())
+      {
+        // Ignore if we don't recognise the node.
+        LOG_FAIL_FMT(
+          "Recv signature received ack to {} from {}: unknown node",
+          state->my_node_id,
+          r.from_node);
+        return;
+      }
+
+      auto progress_tracker = store->get_progress_tracker();
+      if (progress_tracker != nullptr)
+      {
+        LOG_TRACE_FMT(
+          "processing recv_signature_received_ack, from:{} view:{}, seqno:{}",
+          r.from_node,
+          r.term,
+          r.idx);
+        auto result = progress_tracker->add_signature_ack(
+          r.term, r.idx, r.from_node, nodes.size());
+        try_send_reply_and_nonce(r.term, r.idx, result);
+      }
+    }
+
+    void try_send_reply_and_nonce(
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      kv::TxHistory::Result r)
+    {
+      switch (r)
+      {
+        case kv::TxHistory::Result::OK:
+        case kv::TxHistory::Result::FAIL:
+        {
+          break;
+        }
+        case kv::TxHistory::Result::SEND_REPLY_AND_NONCE:
+        {
+          // TODO: Set the nonce correctly
+          uint64_t nonce = 0;
+          NonceRevealMsg r = {
+            {bft_nonce_reveal, state->my_node_id}, view, seqno, nonce};
+
+          for (auto it = nodes.begin(); it != nodes.end(); ++it)
+          {
+            auto send_to = it->first;
+            if (send_to != state->my_node_id)
+            {
+              channels->send_authenticated(
+                ccf::NodeMsgType::consensus_msg, send_to, r);
+            }
+          }
+          auto progress_tracker = store->get_progress_tracker();
+          if (progress_tracker != nullptr)
+          {
+            progress_tracker->add_nonce_reveal(
+              view, seqno, nonce, state->my_node_id, nodes.size());
+          }
+          break;
+        }
+        default:
+        {
+          throw ccf::ccf_logic_error(fmt::format("Unknown enum type: {}", r));
+        }
+      }
+    }
+
+    void recv_nonce_reveal(const uint8_t* data, size_t size)
+    {
+      NonceRevealMsg r;
+
+      try
+      {
+        r = channels->template recv_authenticated<NonceRevealMsg>(
+          data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_FMT("Error in recv_signature_received_ack message");
+        LOG_DEBUG_FMT("Error in recv_signature_received_ack message: {}", err.what());
+        return;
+      }
+
+      auto node = nodes.find(r.from_node);
+      if (node == nodes.end())
+      {
+        // Ignore if we don't recognise the node.
+        LOG_FAIL_FMT(
+          "Recv nonce reveal to {} from {}: unknown node",
+          state->my_node_id,
+          r.from_node);
+        return;
+      }
+
+      auto progress_tracker = store->get_progress_tracker();
+      if (progress_tracker != nullptr)
+      {
+        LOG_TRACE_FMT(
+          "processing nonce_reveal, from:{} view:{}, seqno:{}",
+          r.from_node,
+          r.term,
+          r.idx);
+        progress_tracker->add_nonce_reveal(
+          r.term, r.idx, r.nonce, r.from_node, nodes.size());
+      }
     }
 
     void recv_append_entries_response(const uint8_t* data, size_t size)
@@ -1510,7 +1656,7 @@ namespace aft
 
       for (auto node_id : to_remove)
       {
-        if (replica_state == Leader)
+        if (replica_state == Leader || consensus_type == ConsensusType::BFT)
         {
           channels->destroy_channel(node_id);
         }
@@ -1536,10 +1682,13 @@ namespace aft
           auto index = state->last_idx + 1;
           nodes.try_emplace(node_info.first, node_info.second, index, 0);
 
+          if (replica_state == Leader || consensus_type == ConsensusType::BFT)
+          {
             channels->create_channel(
               node_info.first,
               node_info.second.hostname,
               node_info.second.port);
+          }
 
           if (replica_state == Leader)
           {

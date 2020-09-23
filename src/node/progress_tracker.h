@@ -28,6 +28,7 @@ namespace ccf
       kv::NodeId node_id,
       uint32_t signature_size,
       std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
+      uint64_t hashed_nonce,
       uint32_t node_count)
     {
       auto it = certificates.find(CertKey(view, seqno));
@@ -73,8 +74,8 @@ namespace ccf
       sig_vec.assign(sig.begin(), sig.begin() + signature_size);
 
       auto& cert = it->second;
-      cert.sigs.insert(std::pair<kv::NodeId, ccf::NodeSignature>(
-        node_id, {std::move(sig_vec), node_id}));
+      cert.sigs.insert(std::pair<kv::NodeId, BftNodeSignature>(
+        node_id, {std::move(sig_vec), node_id, hashed_nonce}));
 
       if (can_send_sig_ack(cert, node_count))
       {
@@ -141,6 +142,65 @@ namespace ccf
       return kv::TxHistory::Result::OK;
     }
 
+    kv::TxHistory::Result add_signature_ack(
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      kv::NodeId node_id,
+      uint32_t node_count = 0)
+    {
+
+      auto it = certificates.find(CertKey(view, seqno));
+      if (it == certificates.end())
+      {
+        // We currently do not know what the root is, so lets save this
+        // signature and and we will verify the root when we get it from the
+        // primary
+        auto r = certificates.insert(
+          std::pair<CertKey, CommitCert>(CertKey(view, seqno), CommitCert()));
+        it = r.first;
+      }
+
+      LOG_TRACE_FMT(
+        "processing recv_signature_received_ack, from:{} view:{}, seqno:{}",
+        node_id,
+        view,
+        seqno);
+
+      auto& cert = it->second;
+      cert.sig_acks.insert(node_id);
+
+      if (can_send_reply_and_nonce(cert, node_count))
+      {
+        return kv::TxHistory::Result::SEND_REPLY_AND_NONCE;
+      }
+      return kv::TxHistory::Result::OK;
+    }
+
+    void add_nonce_reveal(
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      uint64_t nonce,
+      kv::NodeId node_id,
+      uint32_t node_count = 0)
+    {
+      auto it = certificates.find(CertKey(view, seqno));
+      if (it == certificates.end())
+      {
+        // We currently do not know what the root is, so lets save this
+        // signature and and we will verify the root when we get it from the
+        // primary
+        auto r = certificates.insert(
+          std::pair<CertKey, CommitCert>(CertKey(view, seqno), CommitCert()));
+        it = r.first;
+      }
+
+      auto& cert = it->second;
+      auto it_node_sig = cert.sigs.find(node_id);
+      if (it_node_sig == cert.sigs.end())
+
+      // TODO: we need to do noncy thing here
+    }
+
     void set_node_id(kv::NodeId id_)
     {
       id = id_;
@@ -170,14 +230,29 @@ namespace ccf
       }
     };
 
+    struct BftNodeSignature : public ccf::NodeSignature
+    {
+      uint64_t nonce;
+      uint64_t hashed_nonce;
+
+      BftNodeSignature(
+        const std::vector<uint8_t>& sig_,
+        NodeId node_,
+        uint64_t hashed_nonce_) :
+        NodeSignature(sig_, node_), hashed_nonce(hashed_nonce_)
+      {}
+    };
+
     struct CommitCert
     {
       CommitCert(crypto::Sha256Hash& root_) : root(root_) {}
       CommitCert() = default;
 
       crypto::Sha256Hash root;
-      std::map<kv::NodeId, ccf::NodeSignature> sigs;
+      std::map<kv::NodeId, BftNodeSignature> sigs;
+      std::set<kv::NodeId> sig_acks;
       bool ack_sent = false;
+      bool reply_and_nonce_sent = false;
     };
     std::map<CertKey, CommitCert> certificates;
 
@@ -205,9 +280,20 @@ namespace ccf
     bool can_send_sig_ack(CommitCert& cert, uint32_t node_count)
     {
       // TODO: this should not be node count but 2f+1
-      if(cert.sigs.size() >= node_count)
+      if(cert.sigs.size() >= node_count && !cert.ack_sent)
       {
         cert.ack_sent = true;
+        return true;
+      }
+      return false;
+    }
+
+    bool can_send_reply_and_nonce(CommitCert& cert, uint32_t node_count)
+    {
+      // TODO: this should not be node count but 2f+1
+      if(cert.sig_acks.size() >= node_count && !cert.reply_and_nonce_sent)
+      {
+        cert.reply_and_nonce_sent = true;
         return true;
       }
       return false;

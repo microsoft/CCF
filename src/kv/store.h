@@ -792,7 +792,6 @@ namespace kv
             auto r = h->verify_and_sign(*sig, term_);
             if (r == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
             {
-              // TODO: consume this in raft.h
               success = DeserialiseSuccess::PASS_SIGNATURE_SEND_ACK;
             }
             else if (r != kv::TxHistory::Result::OK)
