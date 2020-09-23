@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+- Fixed infinite memory growth issue (#1639)
     
 ## [0.13.3] - 2020-09-18
 ### Added
