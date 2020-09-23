@@ -7,8 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-### Fixed
+## [0.13.4] - 2020-09-23
+### Changed
 - Fixed infinite memory growth issue (#1639)
+- Step CLI updated to 0.15.2 (#1636)
     
 ## [0.13.3] - 2020-09-18
 ### Added
