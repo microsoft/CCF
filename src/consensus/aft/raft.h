@@ -999,7 +999,7 @@ namespace aft
       RequestVote rv = {{raft_request_vote, state->my_node_id},
                         state->current_view,
                         last_committable_idx,
-                        get_term_internal(state->commit_idx)};
+                        get_term_internal(last_committable_idx)};
 
       channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, rv);
     }
