@@ -760,7 +760,12 @@ namespace ccf
       node(node),
       share_manager(share_manager),
       tsr(network)
-    {}
+    {
+      openapi_info.title = "CCF Governance API";
+      openapi_info.description =
+        "This API is used to submit and query proposals which affect CCF's "
+        "public governance tables.";
+    }
 
     void init_handlers(kv::Store& tables_) override
     {

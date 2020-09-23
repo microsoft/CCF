@@ -68,6 +68,13 @@ namespace ccf
 
     const std::string method_prefix;
 
+    struct OpenApiInfo
+    {
+      std::string title = "Empty title";
+      std::string description = "Empty description";
+      std::string document_version = "0.0.1";
+    } openapi_info;
+
     struct Metrics
     {
       size_t calls = 0;
@@ -435,8 +442,6 @@ namespace ccf
       return templated;
     }
 
-    // TODO: Don't re-parse this here, set the parameters explicitly and
-    // individually
     static void add_query_parameters(
       nlohmann::json& document,
       const std::string& uri,

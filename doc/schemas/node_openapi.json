@@ -420,9 +420,9 @@
     }
   },
   "info": {
-    "description": "Placeholder description",
-    "title": "Placeholder title",
-    "version": "1.0.0"
+    "description": "This API provides public, uncredentialed access to service and node state.",
+    "title": "CCF Public Node API",
+    "version": "0.0.1"
   },
   "openapi": "3.0.0",
   "paths": {

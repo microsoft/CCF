@@ -224,9 +224,10 @@ namespace ccf
         .install();
 
       auto openapi = [this](kv::Tx& tx, nlohmann::json&&) {
-        // TODO: Update these
         auto document = ds::openapi::create_document(
-          "Placeholder title", "Placeholder description", "1.0.0");
+          openapi_info.title,
+          openapi_info.description,
+          openapi_info.document_version);
         build_api(document, tx);
         return make_success(document);
       };
@@ -258,8 +259,7 @@ namespace ccf
 
         return make_success(j);
       };
-      make_endpoint(
-        "api/schema", HTTP_GET, json_adapter(get_schema))
+      make_endpoint("api/schema", HTTP_GET, json_adapter(get_schema))
         .set_auto_schema<GetSchema>()
         .install();
 
