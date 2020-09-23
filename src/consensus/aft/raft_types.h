@@ -169,9 +169,8 @@ namespace aft
   struct RequestVote : RaftHeader
   {
     Term term;
-    Index last_commit_idx;
-    Term last_commit_term;
     Index last_committable_idx;
+    Term term_of_last_committable_idx;
   };
 
   struct RequestVoteResponse : RaftHeader

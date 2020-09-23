@@ -195,8 +195,9 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(get<0>(rv) == node_id1);
   auto rvc = get<1>(rv);
   DOCTEST_REQUIRE(rvc.term == 1);
-  DOCTEST_REQUIRE(rvc.last_commit_idx == 0);
-  DOCTEST_REQUIRE(rvc.last_commit_term == aft::ViewHistory::InvalidView);
+  DOCTEST_REQUIRE(rvc.last_committable_idx == 0);
+  DOCTEST_REQUIRE(
+    rvc.term_of_last_committable_idx == aft::ViewHistory::InvalidView);
 
   r1.recv_message(reinterpret_cast<uint8_t*>(&rvc), sizeof(rvc));
 
@@ -207,8 +208,9 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(get<0>(rv) == node_id2);
   rvc = get<1>(rv);
   DOCTEST_REQUIRE(rvc.term == 1);
-  DOCTEST_REQUIRE(rvc.last_commit_idx == 0);
-  DOCTEST_REQUIRE(rvc.last_commit_term == aft::ViewHistory::InvalidView);
+  DOCTEST_REQUIRE(rvc.last_committable_idx == 0);
+  DOCTEST_REQUIRE(
+    rvc.term_of_last_committable_idx == aft::ViewHistory::InvalidView);
 
   r2.recv_message(reinterpret_cast<uint8_t*>(&rvc), sizeof(rvc));
 
@@ -1276,8 +1278,7 @@ DOCTEST_TEST_CASE(
         ((aft::ChannelStubProxy*)r1.channels.get())->sent_request_vote,
         [](const auto& msg) {
           DOCTEST_REQUIRE(msg.term == 2);
-          DOCTEST_REQUIRE(msg.last_commit_idx == 1);
-          DOCTEST_REQUIRE(msg.last_commit_term == 1);
+          DOCTEST_REQUIRE(msg.term_of_last_committable_idx == 1);
           DOCTEST_REQUIRE(msg.last_committable_idx == 2);
         }));
 

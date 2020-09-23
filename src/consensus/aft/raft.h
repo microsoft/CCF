@@ -998,9 +998,8 @@ namespace aft
 
       RequestVote rv = {{raft_request_vote, state->my_node_id},
                         state->current_view,
-                        state->commit_idx,
-                        get_term_internal(state->commit_idx),
-                        last_committable_idx};
+                        last_committable_idx,
+                        get_term_internal(state->commit_idx)};
 
       channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, rv);
     }
@@ -1068,12 +1067,15 @@ namespace aft
       }
 
       // If the candidate's log is at least as up-to-date as ours, vote yes
-      auto last_commit_term = get_term_internal(state->commit_idx);
 
-      auto answer = (r.last_commit_term > last_commit_term) ||
-        ((r.last_commit_term == last_commit_term) &&
-         (r.last_commit_idx >= state->commit_idx) &&
-         (r.last_committable_idx >= last_committable_index()));
+      auto last_committable_idx = last_committable_index();
+      auto term_of_last_committable_index =
+        get_term_internal(last_committable_idx);
+
+      auto answer =
+        (r.term_of_last_committable_idx > term_of_last_committable_index) ||
+        ((r.term_of_last_committable_idx == term_of_last_committable_index) &&
+         (r.last_committable_idx >= last_committable_idx));
 
       if (answer)
       {
