@@ -115,8 +115,6 @@ TEST_CASE("Simple custom types")
     http::headervalues::contenttype::JSON);
 
   required_doc_elements(doc);
-
-  print_doc("SIMPLE", doc);
 }
 
 struct Bar
@@ -213,6 +211,4 @@ TEST_CASE("Complex custom types")
     http::headervalues::contenttype::JSON);
 
   required_doc_elements(doc);
-
-  print_doc("COMPLEX", doc);
 }
