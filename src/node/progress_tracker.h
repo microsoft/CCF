@@ -32,6 +32,7 @@ namespace ccf
       uint64_t hashed_nonce,
       uint32_t node_count)
     {
+      LOG_INFO_FMT("GGGGGGGG add_signature node_id:{}, seqno:{}", node_id, seqno);
       auto it = certificates.find(CertKey(view, seqno));
       if (it == certificates.end())
       {
@@ -74,16 +75,11 @@ namespace ccf
           sig.size()));
       sig_vec.assign(sig.begin(), sig.begin() + signature_size);
 
+      LOG_INFO_FMT("OOOOOOOOOOO node_id:{}, seqno:{}, hashed_nonce:{}", node_id, seqno, hashed_nonce);
+
       auto& cert = it->second;
       cert.sigs.insert(std::pair<kv::NodeId, BftNodeSignature>(
-        node_id, {std::move(sig_vec), node_id, hashed_nonce}));
-
-      auto it_unmatched_nonce = cert.unmatched_nonces.find(node_id);
-      if (it_unmatched_nonce != cert.unmatched_nonces.end())
-      {
-        add_nonce_reveal(view, seqno, it_unmatched_nonce->second, node_id, node_count);
-        cert.unmatched_nonces.erase(it_unmatched_nonce);
-      }
+        node_id, BftNodeSignature(std::move(sig_vec), node_id, hashed_nonce)));
 
       if (can_send_sig_ack(cert, node_count))
       {
@@ -100,6 +96,7 @@ namespace ccf
       uint64_t hashed_nonce = 0,
       uint32_t node_count = 0)
     {
+      LOG_INFO_FMT("GGGGGGGG record_primary node_id:{}, seqno:{}", node_id, seqno);
       uint64_t my_nonce = entropy->random64();
       LOG_INFO_FMT("BBBBBB Generating nonce seqno:{}, nonce:{}", seqno, my_nonce);
       if (node_id == id)
@@ -114,7 +111,7 @@ namespace ccf
       auto it = certificates.find(CertKey(view, seqno));
       if (it == certificates.end())
       {
-        ;
+        LOG_INFO_FMT("OOOOOOOOOOO node_id:{}, seqno:{}, hashed_nonce:{}", node_id, seqno, hashed_nonce);
         certificates.insert(std::pair<CertKey, CommitCert>(
           CertKey(view, seqno),
           CommitCert(root, hashed_nonce, my_nonce)));
@@ -127,6 +124,7 @@ namespace ccf
         // verify the signatures
         auto& cert = it->second;
         cert.root = root;
+        LOG_INFO_FMT("OOOOOOOOOOO hashed_nonce:{}", hashed_nonce);
         cert.primary_hashed_nonce = hashed_nonce;
         cert.my_nonce = my_nonce;
         cert.have_primary_signature = true;
@@ -161,14 +159,6 @@ namespace ccf
         // dishonest we need to work out what to do.
         throw ccf::ccf_logic_error("We have proof someone is being dishonest");
       }
-
-      auto it_unmatched_nonce = cert.unmatched_nonces.find(node_id);
-      if (it_unmatched_nonce != cert.unmatched_nonces.end())
-      {
-        add_nonce_reveal(view, seqno, it_unmatched_nonce->second, node_id, node_count);
-        cert.unmatched_nonces.erase(it_unmatched_nonce);
-      }
-
 
       if (node_count > 0 && can_send_sig_ack(cert, node_count))
       {
@@ -218,6 +208,7 @@ namespace ccf
       kv::NodeId node_id,
       uint32_t /*node_count = 0*/)
     {
+      bool did_add = false;
       auto it = certificates.find(CertKey(view, seqno));
       if (it == certificates.end())
       {
@@ -227,7 +218,10 @@ namespace ccf
         auto r = certificates.insert(
           std::pair<CertKey, CommitCert>(CertKey(view, seqno), CommitCert()));
         it = r.first;
+        did_add = true;
       }
+
+      // TODO: try to match any unmatched nonces here
 
       auto& cert = it->second;
       auto it_node_sig = cert.sigs.find(node_id);
@@ -238,6 +232,15 @@ namespace ccf
       }
 
       BftNodeSignature& sig = it_node_sig->second;
+      LOG_INFO_FMT(
+        "TTTTTTTTT add_nonce_reveal view:{}, seqno:{}, node_id:{}, sig.hashed_nonce:{}, "
+        " received.nonce:{}, did_add:{}",
+        view,
+        seqno,
+        node_id,
+        sig.hashed_nonce,
+        nonce,
+        did_add);
       // TODO: we need to hash the nonce here to make sure it is correct
       sig.nonce = nonce;
     }
@@ -287,18 +290,18 @@ namespace ccf
 
     struct BftNodeSignature : public ccf::NodeSignature
     {
-      uint64_t nonce;
       bool is_primary;
+      uint64_t nonce;
 
       BftNodeSignature(
         const std::vector<uint8_t>& sig_,
         NodeId node_,
         uint64_t hashed_nonce_) :
-        NodeSignature(sig_, node_, hashed_nonce_), is_primary(false)
+        NodeSignature(sig_, node_, hashed_nonce_), is_primary(false), nonce(-1)
       {}
 
       BftNodeSignature(NodeId node_, uint64_t hashed_nonce_) :
-        NodeSignature({}, node_, hashed_nonce_), is_primary(true)
+        NodeSignature({}, node_, hashed_nonce_), is_primary(true), nonce(-1)
       {}
     };
 
