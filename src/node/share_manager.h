@@ -323,8 +323,8 @@ namespace ccf
 
       std::list<LedgerSecrets::VersionedLedgerSecret> restored_ledger_secrets;
 
-      // For now, we keep track of the restored versions so that the recovered
-      // ledger secrets can be broadcast to backups
+      // We keep track of the restored versions so that the recovered ledger
+      // secrets can be broadcast to backups
       std::vector<kv::Version> restored_versions;
       restored_versions.push_back(
         encrypted_recovery_secrets.back().next_version);
@@ -332,22 +332,35 @@ namespace ccf
       auto restored_ls = ls_wrapping_key.unwrap(
         recovery_shares_info->wrapped_latest_ledger_secret.encrypted_data);
 
+      LOG_FAIL_FMT(
+        "# restored encrypted LS: {}", encrypted_recovery_secrets.size());
+
+      LOG_FAIL_FMT(
+        "Previous ledger secret version: {}",
+        encrypted_recovery_secrets.back().next_version);
+
       restored_ledger_secrets.push_back(
         {encrypted_recovery_secrets.back().next_version, restored_ls});
 
       auto decryption_key = restored_ls.master;
-      for (auto i = encrypted_recovery_secrets.rbegin();
-           i != encrypted_recovery_secrets.rend();
-           i++)
+      for (auto it = encrypted_recovery_secrets.rbegin();
+           it != encrypted_recovery_secrets.rend();
+           it++)
       {
-        if (i->encrypted_ledger_secret.size() == 0)
+        LOG_FAIL_FMT("Once!");
+
+        // TODO: Is this still required as the hook prevents us from writing
+        // anything is there's no encrypted ledger secret. We assume that all
+        // ledger secrets are always passed here. So that
+        // std::next(it)->next_version is 1 when we get to the end of this??
+        if (it->encrypted_ledger_secret.size() == 0)
         {
           // First entry does not encrypt any other ledger secret (i.e. genesis)
           break;
         }
 
         crypto::GcmCipher encrypted_ls;
-        encrypted_ls.deserialise(i->encrypted_ledger_secret);
+        encrypted_ls.deserialise(it->encrypted_ledger_secret);
         std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
 
         if (!crypto::KeyAesGcm(decryption_key)
@@ -360,13 +373,13 @@ namespace ccf
         {
           throw std::logic_error(fmt::format(
             "Decryption of ledger secret at {} failed",
-            std::next(i)->next_version));
+            std::next(it)->next_version));
         }
 
         restored_ledger_secrets.push_back(
-          {std::next(i)->next_version, LedgerSecret(decrypted_ls)});
+          {std::next(it)->next_version, LedgerSecret(decrypted_ls)});
 
-        restored_versions.push_back(std::next(i)->next_version);
+        restored_versions.push_back(std::next(it)->next_version);
         decryption_key = decrypted_ls;
       }
 

@@ -172,6 +172,7 @@ class Network:
         target_node=None,
         recovery=False,
         from_snapshot=False,
+        snapshot_dir=None,
     ):
         forwarded_args = {
             arg: getattr(args, arg)
@@ -184,12 +185,11 @@ class Network:
                 timeout=args.ledger_recovery_timeout if recovery else 3
             )
 
-        snapshot_dir = None
-        if from_snapshot:
-            LOG.info("Joining from snapshot")
+        # Only retrieve snapshot from target node if the snapshot directory is not
+        # specified
+        if from_snapshot and snapshot_dir is not None:
             snapshot_dir = target_node.get_snapshots()
-            # For now, we must have a snapshot to resume from when attempting
-            # to join from one
+            LOG.info(f"Joining from snapshot: {snapshot_dir}")
             assert (
                 len(os.listdir(snapshot_dir)) > 0
             ), f"There are no snapshots to resume from in directory {snapshot_dir}"
@@ -263,8 +263,13 @@ class Network:
                             )
                             self._adjust_local_node_ids(node)
                 else:
-                    # TODO: Start from snapshot as well here!!
-                    self._add_node(node, args.package, args, recovery=recovery)
+                    self._add_node(
+                        node,
+                        args.package,
+                        args,
+                        recovery=recovery,
+                        snapshot_dir=snapshot_dir,
+                    )
             except Exception:
                 LOG.exception("Failed to start node {}".format(node.node_id))
                 raise
@@ -358,7 +363,11 @@ class Network:
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(
-        self, args, ledger_dir, snapshot_dir=None, common_dir=None,
+        self,
+        args,
+        ledger_dir,
+        snapshot_dir=None,
+        common_dir=None,
     ):
         """
         Starts a CCF network in recovery mode.
@@ -449,9 +458,8 @@ class Network:
         still needs to be trusted by members to complete the join protocol.
         """
         new_node = self.create_node(host)
-        self._add_node(
-            new_node, lib_name, args, target_node, from_snapshot=from_snapshot
-        )
+
+        self._add_node(new_node, lib_name, args, target_node, snapshot_dir=snapshot_dir)
         primary, _ = self.find_primary()
         try:
             self.consortium.wait_for_node_to_exist_in_store(

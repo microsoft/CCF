@@ -846,7 +846,7 @@ namespace asynchost
           }
           else
           {
-            LOG_FAIL_FMT("No entry for: {}", idx);
+            LOG_FAIL_FMT("No entry for {}", idx);
             RINGBUFFER_WRITE_MESSAGE(
               consensus::ledger_no_entry, to_enclave, idx, purpose);
           }

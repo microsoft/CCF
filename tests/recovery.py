@@ -12,13 +12,36 @@ from loguru import logger as LOG
 @reqs.description("Recovering a network")
 @reqs.recover(number_txs=2)
 def test(network, args, from_snapshot=False):
-    primary, _ = network.find_primary()
+    old_primary, _ = network.find_primary()
 
     # Retrieve ledger and snapshots
-    ledger_dir = primary.get_ledger()
+    ledger_dir = old_primary.get_ledger()
     snapshot_dir = None
     if from_snapshot:
-        snapshot_dir = primary.get_snapshots()
+        snapshot_dir = old_primary.get_snapshots()
+
+    defunct_network_enc_pubk = network.store_current_network_encryption_key()
+
+    recovered_network = infra.network.Network(
+        network.hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, network
+    )
+
+    recovered_network.start_in_recovery(
+        args, ledger_dir=ledger_dir, snapshot_dir=snapshot_dir
+    )
+    recovered_network.recover(args, defunct_network_enc_pubk)
+    return recovered_network
+
+
+@reqs.description("Recovering a network, kill one node while submitting shares")
+@reqs.recover(number_txs=2)
+def test_share_resilience(network, args, from_snapshot=False):
+    old_primary, _ = network.find_primary()
+
+    ledger_dir = old_primary.get_ledger()
+    snapshot_dir = None
+    if from_snapshot:
+        snapshot_dir = old_primary.get_snapshots()
 
     defunct_network_enc_pubk = network.store_current_network_encryption_key()
 
@@ -26,21 +49,6 @@ def test(network, args, from_snapshot=False):
         network.hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
     recovered_network.start_in_recovery(args, ledger_dir, snapshot_dir)
-    recovered_network.recover(args, defunct_network_enc_pubk)
-    return recovered_network
-
-
-@reqs.description("Recovering a network, kill one node while submitting shares")
-@reqs.recover(number_txs=2)
-def test_share_resilience(network, args):
-    old_primary, _ = network.find_primary()
-    ledger = old_primary.get_ledger()
-    defunct_network_enc_pubk = network.store_current_network_encryption_key()
-
-    recovered_network = infra.network.Network(
-        network.hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, network
-    )
-    recovered_network.start_in_recovery(args, ledger)
     primary, _ = recovered_network.find_primary()
     recovered_network.consortium.accept_recovery(primary)
 
@@ -97,7 +105,8 @@ def test_share_resilience(network, args):
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]#, "localhost"]
+    # hosts = ["localhost", "localhost", "localhost"]
+    hosts = ["localhost", "localhost"]
 
     txs = app.LoggingTxs()
 
@@ -109,9 +118,9 @@ def run(args):
         for i in range(args.recovery):
             # Alternate between recovery with primary change and stable primary-ship
             # if i % 2 == 0:
-                # recovered_network = test_share_resilience(network, args)
+            # recovered_network = test_share_resilience(network, args, args.use_snapshot)
             # else:
-            recovered_network = test(network, args)
+            recovered_network = test(network, args, args.use_snapshot)
             # network.stop_all_nodes()
             network = recovered_network
             LOG.success("Recovery complete on all nodes")
@@ -137,13 +146,12 @@ checked. Note that the key for each logging message is unique (per table).
             default=5,
         )
         parser.add_argument(
-            "--use-snapshots",
-            help="Use snapshots for faster recovery procedure",
+            "--use-snapshot",
+            help="Use latest snapshot for faster recovery procedure",
             action="store_true",
             default=False,
         )
 
-    # TODO: Create snapshot flavoured version of the test
     args = infra.e2e_args.cli_args(add)
     args.package = "liblogging"
 

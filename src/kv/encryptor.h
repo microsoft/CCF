@@ -48,6 +48,7 @@ namespace kv
         version,
         [](kv::Version a, EncryptionKey const& b) { return b.version <= a; });
 
+      LOG_FAIL_FMT("Using encryption key at {}", search->version);
       if (search == encryption_keys.rend())
       {
         throw std::logic_error(fmt::format(
