@@ -127,9 +127,10 @@ class Network:
         self.perf_nodes = perf_nodes
 
         try:
-            os.remove(os.path.join(self.binary_dir, "vscode-gdb.sh"))
+            os.remove("/tmp/vscode-gdb.sh")
         except FileNotFoundError:
             pass
+
         for host in hosts:
             self.create_node(host)
 
