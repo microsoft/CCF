@@ -10,6 +10,7 @@ import os
 import sys
 import shutil
 import tempfile
+import re
 from pathlib import PurePosixPath
 from typing import Union, Optional, Any, List
 
@@ -280,6 +281,10 @@ def set_js_app(app_script_path: str, **kwargs):
 
 @cli_proposal
 def deploy_js_app(bundle_path: str, app_name=ROOT_JS_APP_NAME, **kwargs):
+    app_name_re = r"[a-zA-Z0-9_-]+"
+    if not re.match(app_name_re, app_name):
+        raise ValueError(f"app name has an invalid name, must be {app_name_re}")
+
     # read modules
     if os.path.isfile(bundle_path):
         tmp_dir = tempfile.TemporaryDirectory(prefix="ccf")
@@ -289,7 +294,7 @@ def deploy_js_app(bundle_path: str, app_name=ROOT_JS_APP_NAME, **kwargs):
     modules = read_modules(modules_path)
 
     # read metadata
-    metadata_path = os.path.join(bundle_path, "endpoints.json")
+    metadata_path = os.path.join(bundle_path, "app.json")
     with open(metadata_path) as f:
         metadata = json.load(f)
 

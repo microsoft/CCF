@@ -16,10 +16,10 @@ export interface Response<T=any> {
     body?: T
 }
 
-export interface Table<K=any,V=any> {
-    get: (key: K) => V
-    put: (key: K, value: V) => void
-    remove: (key: K) => void
+export interface Table {
+    get: (key: string) => string
+    put: (key: string, value: string) => void
+    remove: (key: string) => void
 }
 
 type Tables = { [key: string]: Table; }

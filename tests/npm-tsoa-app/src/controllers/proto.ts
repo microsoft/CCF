@@ -10,7 +10,7 @@ import protobuf from 'protobufjs/dist/protobuf.js'
 
 import * as ccf from '../ccf'
 
-// The OpenAPI spec is overridden in endpoints.json
+// The OpenAPI spec is overridden in app.json
 // as tsoa only supports application/json.
 // We use @Request as backdoor to get access to CCF's
 // request object without applying any validation in advance.
