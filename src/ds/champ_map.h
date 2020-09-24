@@ -149,6 +149,23 @@ namespace champ
       return 0;
     }
 
+    size_t remove_mut(Hash hash, const K& k)
+    {
+      const auto idx = mask(hash, collision_depth);
+      auto& bin = bins[idx];
+      for (size_t i = 0; i < bin.size(); ++i)
+      {
+        const auto& entry = bin[i];
+        if (k == entry->key)
+        {
+          bin.erase(bin.begin() + i);
+          return champ::get_size<K>(entry->key) +
+            champ::get_size<V>(entry->value);
+        }
+      }
+      return 0;
+    }
+
     template <class F>
     bool foreach(F&& f) const
     {
@@ -165,6 +182,8 @@ namespace champ
   template <class K, class V, class H>
   struct SubNodes
   {
+    // TODO: Reduce node size by replacing vector with `Node<K, V, H>*`, since
+    // the length is equal to `node_map.pop() + data_map.pop()`
     std::vector<Node<K, V, H>> nodes;
     Bitmap node_map;
     Bitmap data_map;
@@ -174,9 +193,7 @@ namespace champ
     SubNodes(std::vector<Node<K, V, H>>&& ns) : nodes(std::move(ns)) {}
 
     SubNodes(std::vector<Node<K, V, H>>&& ns, Bitmap nm, Bitmap dm) :
-      nodes(std::move(ns)),
-      node_map(nm),
-      data_map(dm)
+      nodes(std::move(ns)), node_map(nm), data_map(dm)
     {}
 
     SmallIndex compressed_idx(SmallIndex idx) const
@@ -294,6 +311,49 @@ namespace champ
         std::make_shared<SubNodes<K, V, H>>(std::move(node)), r);
     }
 
+    size_t remove_mut(SmallIndex depth, Hash hash, const K& k)
+    {
+      const auto idx = mask(hash, depth);
+      const auto c_idx = compressed_idx(idx);
+
+      if (c_idx == (SmallIndex)-1)
+        return 0;
+
+      if (data_map.check(idx))
+      {
+        const auto& entry = node_as<Entry<K, V>>(c_idx);
+        if (entry->key != k)
+          return 0;
+
+        const auto diff = get_size_with_padding<K, V>(entry->key, entry->value);
+        nodes.erase(nodes.begin() + c_idx);
+        data_map = data_map.clear(idx);
+        return diff;
+      }
+
+      if (depth == (collision_depth - 1))
+      {
+        auto sn = *node_as<Collisions<K, V, H>>(c_idx);
+        const auto diff = sn.remove_mut(hash, k);
+        nodes[c_idx] = std::make_shared<Collisions<K, V, H>>(std::move(sn));
+        return diff;
+      }
+
+      auto sn = *node_as<SubNodes<K, V, H>>(c_idx);
+      const auto diff = sn.remove_mut(depth + 1, hash, k);
+      nodes[c_idx] = std::make_shared<SubNodes<K, V, H>>(std::move(sn));
+      return diff;
+    }
+
+    std::pair<std::shared_ptr<SubNodes<K, V, H>>, size_t> remove(
+      SmallIndex depth, Hash hash, const K& k) const
+    {
+      auto node = *this;
+      auto r = node.remove_mut(depth, hash, k);
+      return std::make_pair(
+        std::make_shared<SubNodes<K, V, H>>(std::move(node)), r);
+    }
+
     template <class F>
     bool foreach(SmallIndex depth, F&& f) const
     {
@@ -341,9 +401,7 @@ namespace champ
       std::shared_ptr<SubNodes<K, V, H>>&& root_,
       size_t size_,
       size_t serialized_size_) :
-      root(std::move(root_)),
-      map_size(size_),
-      serialized_size(serialized_size_)
+      root(std::move(root_)), map_size(size_), serialized_size(serialized_size_)
     {}
 
   public:
@@ -408,12 +466,20 @@ namespace champ
       auto r = root->put(0, H()(key), key, value);
       auto size_ = map_size;
       if (r.second == 0)
-      {
         size_++;
-      }
 
       int64_t size_change = get_size_with_padding<K, V>(key, value) - r.second;
       return Map(std::move(r.first), size_, size_change + serialized_size);
+    }
+
+    const Map<K, V, H> remove(const K& key) const
+    {
+      auto r = root->remove(0, H()(key), key);
+      auto size_ = map_size;
+      if (r.second > 0)
+        size_--;
+
+      return Map(std::move(r.first), size_, serialized_size - r.second);
     }
 
     template <class F>

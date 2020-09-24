@@ -44,6 +44,13 @@ public:
     next.internal[key] = value;
     return next;
   }
+
+  Model remove(const K& key) const
+  {
+    auto next = *this;
+    next.internal.erase(key);
+    return next;
+  }
 };
 
 struct Op
@@ -84,8 +91,7 @@ struct Remove : public Op
   pair<const Model, const champ::Map<K, V, H>> apply(
     const Model& a, const champ::Map<K, V, H>& b)
   {
-    // return make_pair(a.remove(k), b.remove(k));
-    return make_pair(a, b);
+    return make_pair(a.remove(k), b.remove(k));
   }
 
   string str()
@@ -101,14 +107,14 @@ vector<unique_ptr<Op>> gen_ops(size_t n)
   random_device rand_dev;
   auto seed = rand_dev();
   mt19937 gen(seed);
-  uniform_int_distribution<> gen_op(0, 2); // TODO: 3
+  uniform_int_distribution<> gen_op(0, 3);
 
   vector<unique_ptr<Op>> ops;
   vector<K> keys;
   for (V v = 0; v < n; ++v)
   {
     unique_ptr<Op> op;
-    auto op_i = ops.empty() ? 0 : gen_op(gen);
+    auto op_i = keys.empty() ? 0 : gen_op(gen);
     switch (op_i)
     {
       case 0:
@@ -128,17 +134,16 @@ vector<unique_ptr<Op>> gen_ops(size_t n)
 
         break;
       }
-      // case 3: // remove
-      // {
-      //   if (keys.empty())
-      //     break;
+      case 3: // remove
+      {
+        uniform_int_distribution<> gen_idx(0, keys.size() - 1);
+        auto i = gen_idx(gen);
+        auto k = keys[i];
+        keys.erase(keys.begin() + i);
+        op = make_unique<Remove>(k);
 
-      //   uniform_int_distribution<> gen_idx(0, keys.size() - 1);
-      //   auto k = keys[gen_idx(gen)];
-      //   op = make_unique<Remove>(k);
-
-      //   break;
-      // }
+        break;
+      }
       default:
         throw logic_error("bad op number");
     }
@@ -156,7 +161,7 @@ TEST_CASE("persistent map operations")
   auto ops = gen_ops(500);
   for (auto& op : ops)
   {
-    INFO(op->str());
+    std::cout << op->str() << std::endl;
     auto r = op->apply(model, champ);
     auto model_new = r.first;
     auto champ_new = r.second;
@@ -166,9 +171,9 @@ TEST_CASE("persistent map operations")
       size_t n = 0;
       champ_new.foreach([&](const auto& k, const auto& v) {
         n++;
-        auto p = model_new.get(k);
-        REQUIRE(p.has_value());
-        REQUIRE(p.value() == v);
+        auto model_value = model_new.get(k);
+        REQUIRE(model_value.has_value());
+        REQUIRE(model_value.value() == v);
         return true;
       });
       REQUIRE(n == champ_new.size());
@@ -179,9 +184,9 @@ TEST_CASE("persistent map operations")
       size_t n = 0;
       champ.foreach([&](const auto& k, const auto& v) {
         n++;
-        auto p = model.get(k);
-        REQUIRE(p.has_value());
-        REQUIRE(p.value() == v);
+        auto model_value = model.get(k);
+        REQUIRE(model_value.has_value());
+        REQUIRE(model_value.value() == v);
         return true;
       });
       REQUIRE(n == champ.size());
@@ -286,7 +291,6 @@ TEST_CASE("serialize map")
     using SerialisedKey = champ::serialisers::SerialisedEntry;
     using SerialisedValue = champ::serialisers::SerialisedEntry;
 
-    uint32_t num_elements = 100;
     champ::Map<SerialisedKey, SerialisedValue> map;
     SerialisedKey key(16);
     SerialisedValue value(8);
