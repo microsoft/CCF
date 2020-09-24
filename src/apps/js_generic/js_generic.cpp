@@ -359,7 +359,9 @@ namespace ccfapp
           if (!handler_script)
           {
             const auto verb_prefixed_root_app = fmt::format(
-              "{} __root__/{}", args.rpc_ctx->get_request_verb().c_str(), local_method);
+              "{} __root__/{}",
+              args.rpc_ctx->get_request_verb().c_str(),
+              local_method);
             handler_script = scripts->get(verb_prefixed_root_app);
             if (!handler_script)
             {

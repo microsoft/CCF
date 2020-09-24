@@ -22,6 +22,7 @@ CERT_OID_SGX_QUOTE = "1.2.840.113556.10.1.1"
 
 ROOT_JS_APP_NAME = "__root__"
 
+
 def dump_to_file(output_path: str, obj: dict, dump_args: dict):
     with open(output_path, "w") as f:
         json.dump(obj, f, **dump_args)
@@ -291,7 +292,7 @@ def deploy_js_app(bundle_path: str, app_name=ROOT_JS_APP_NAME, **kwargs):
     metadata_path = os.path.join(bundle_path, "endpoints.json")
     with open(metadata_path) as f:
         metadata = json.load(f)
-    
+
     # sanity checks
     module_paths = set(module["name"] for module in modules)
     for url, methods in metadata["endpoints"].items():
@@ -304,10 +305,7 @@ def deploy_js_app(bundle_path: str, app_name=ROOT_JS_APP_NAME, **kwargs):
 
     proposal_args = {
         "name": app_name,
-        "bundle": {
-            "metadata": metadata,
-            "modules": modules
-        }
+        "bundle": {"metadata": metadata, "modules": modules},
     }
 
     return build_proposal("deploy_js_app", proposal_args, **kwargs)

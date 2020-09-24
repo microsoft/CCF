@@ -154,9 +154,7 @@ def test_npm_app(network, args):
     LOG.info("Deploying npm app")
     bundle_dir = os.path.join(app_dir, "dist")
 
-    proposal_body, _ = ccf.proposal_generator.deploy_js_app(
-        bundle_dir
-    )
+    proposal_body, _ = ccf.proposal_generator.deploy_js_app(bundle_dir)
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
@@ -208,14 +206,11 @@ def test_npm_tsoa_app(network, args):
     bundle_dir = os.path.join(app_dir, "dist")
     app_name = "tsoa"
 
-    proposal_body, _ = ccf.proposal_generator.deploy_js_app(
-        bundle_dir, app_name
-    )
+    proposal_body, _ = ccf.proposal_generator.deploy_js_app(bundle_dir, app_name)
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
     network.consortium.vote_using_majority(primary, proposal)
-
 
     LOG.info("Calling tsoa npm app endpoints")
     with primary.client("user0") as c:
@@ -245,9 +240,9 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        #network = test_module_set_and_remove(network, args)
-        #network = test_modules_remove(network, args)
-        #network = test_module_import(network, args)
+        # network = test_module_set_and_remove(network, args)
+        # network = test_modules_remove(network, args)
+        # network = test_module_import(network, args)
         network = test_npm_app(network, args)
         network = test_npm_tsoa_app(network, args)
 

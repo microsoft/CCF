@@ -19,8 +19,8 @@
 #include <initializer_list>
 #include <map>
 #include <memory>
-#include <regex>
 #include <openenclave/attestation/verifier.h>
+#include <regex>
 #include <set>
 #include <sstream>
 #if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
@@ -153,11 +153,11 @@ namespace ccf
   DECLARE_JSON_TYPE(JsBundleEndpointMethod)
   DECLARE_JSON_REQUIRED_FIELDS(JsBundleEndpointMethod, js_module, js_function)
 
-  using JsBundleEndpoint = std::map<std::string,JsBundleEndpointMethod>;
+  using JsBundleEndpoint = std::map<std::string, JsBundleEndpointMethod>;
 
   struct JsBundleMetadata
   {
-    std::map<std::string,JsBundleEndpoint> endpoints;
+    std::map<std::string, JsBundleEndpoint> endpoints;
   };
   DECLARE_JSON_TYPE(JsBundleMetadata)
   DECLARE_JSON_REQUIRED_FIELDS(JsBundleMetadata, endpoints)
@@ -229,27 +229,29 @@ namespace ccf
     bool deploy_js_app(kv::Tx& tx, std::string name, const JsBundle& bundle)
     {
       std::regex name_pattern("[a-zA-Z0-9_-]+");
-      if (!std::regex_match(name, name_pattern)) {
+      if (!std::regex_match(name, name_pattern))
+      {
         LOG_FAIL_FMT("app name is invalid");
         return false;
       }
 
       std::string module_prefix = fmt::format("/{}/", name);
       std::string url_prefix = name;
-      
+
       remove_modules(tx, module_prefix);
       set_modules(tx, module_prefix, bundle.modules);
 
       remove_endpoints(tx, url_prefix);
 
       // CCF currently requires each endpoint to have an inline JS module.
-      auto tx_scripts = tx.get_view(network.app_scripts);      
-      for (auto& [url,endpoint] : bundle.metadata.endpoints)
+      auto tx_scripts = tx.get_view(network.app_scripts);
+      for (auto& [url, endpoint] : bundle.metadata.endpoints)
       {
-        for (auto& [method,info] : endpoint)
+        for (auto& [method, info] : endpoint)
         {
           std::string method_uppercase = toupper(method);
-          std::string key = fmt::format("{} {}{}", method_uppercase, url_prefix, url);
+          std::string key =
+            fmt::format("{} {}{}", method_uppercase, url_prefix, url);
           std::string script = "import {" + info.js_function + " as f}" +
             "from '." + module_prefix + info.js_module + "';" +
             "export default (request) => f(request);";
@@ -264,7 +266,7 @@ namespace ccf
     {
       std::string module_prefix = fmt::format("/{}/", name);
       std::string url_prefix = name;
-      
+
       remove_modules(tx, module_prefix);
       remove_endpoints(tx, url_prefix);
 
@@ -275,7 +277,7 @@ namespace ccf
     {
       auto tx_scripts = tx.get_view(network.app_scripts);
       tx_scripts->foreach(
-        [&tx_scripts,&url_prefix](const std::string& name, const Script&) {
+        [&tx_scripts, &url_prefix](const std::string& name, const Script&) {
           // endpoints are named "POST ..."
           if (contains(name, " " + url_prefix))
             tx_scripts->remove(name);
@@ -283,16 +285,16 @@ namespace ccf
         });
     }
 
-    void set_modules(kv::Tx& tx, std::string prefix, const std::vector<SetModule>& modules)
+    void set_modules(
+      kv::Tx& tx, std::string prefix, const std::vector<SetModule>& modules)
     {
       for (auto& set_module_ : modules)
       {
         std::string full_name = prefix + set_module_.name;
         if (!set_module(tx, full_name, set_module_.module))
         {
-          throw std::logic_error(fmt::format(
-                "Unexpected error while setting module {}",
-                full_name));
+          throw std::logic_error(
+            fmt::format("Unexpected error while setting module {}", full_name));
         }
       }
     }
@@ -319,10 +321,11 @@ namespace ccf
       return s.rfind(needle) != std::string::npos;
     }
 
-    static std::string toupper(std::string s) {
-      std::transform(s.begin(), s.end(), s.begin(), 
-                    [](unsigned char c){ return std::toupper(c); }
-                    );
+    static std::string toupper(std::string s)
+    {
+      std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
+        return std::toupper(c);
+      });
       return s;
     }
 
@@ -330,14 +333,13 @@ namespace ccf
     {
       auto tx_modules = tx.get_view(network.modules);
       tx_modules->foreach(
-        [&tx_modules,&prefix](const std::string& name, const Module&) {
+        [&tx_modules, &prefix](const std::string& name, const Module&) {
           if (startswith(name, prefix))
           {
             if (!tx_modules->remove(name))
             {
-              throw std::logic_error(fmt::format(
-                "Unexpected error while removing module {}",
-                name));
+              throw std::logic_error(
+                fmt::format("Unexpected error while removing module {}", name));
             }
           }
           return true;
