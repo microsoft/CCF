@@ -19,6 +19,7 @@
 #include <initializer_list>
 #include <map>
 #include <memory>
+#include <regex>
 #include <openenclave/attestation/verifier.h>
 #include <set>
 #include <sstream>
@@ -144,6 +145,39 @@ namespace ccf
   DECLARE_JSON_TYPE(SetModule)
   DECLARE_JSON_REQUIRED_FIELDS(SetModule, name, module)
 
+  struct JsBundleEndpointMethod
+  {
+    std::string js_module;
+    std::string js_function;
+  };
+  DECLARE_JSON_TYPE(JsBundleEndpointMethod)
+  DECLARE_JSON_REQUIRED_FIELDS(JsBundleEndpointMethod, js_module, js_function)
+
+  using JsBundleEndpoint = std::map<std::string,JsBundleEndpointMethod>;
+
+  struct JsBundleMetadata
+  {
+    std::map<std::string,JsBundleEndpoint> endpoints;
+  };
+  DECLARE_JSON_TYPE(JsBundleMetadata)
+  DECLARE_JSON_REQUIRED_FIELDS(JsBundleMetadata, endpoints)
+
+  struct JsBundle
+  {
+    JsBundleMetadata metadata;
+    std::vector<SetModule> modules;
+  };
+  DECLARE_JSON_TYPE(JsBundle)
+  DECLARE_JSON_REQUIRED_FIELDS(JsBundle, metadata, modules)
+
+  struct DeployJsApp
+  {
+    std::string name;
+    JsBundle bundle;
+  };
+  DECLARE_JSON_TYPE(DeployJsApp)
+  DECLARE_JSON_REQUIRED_FIELDS(DeployJsApp, name, bundle)
+
   class MemberEndpoints : public CommonEndpointRegistry
   {
   private:
@@ -192,6 +226,77 @@ namespace ccf
       }
     }
 
+    bool deploy_js_app(kv::Tx& tx, std::string name, const JsBundle& bundle)
+    {
+      std::regex name_pattern("[a-zA-Z0-9_-]+");
+      if (!std::regex_match(name, name_pattern)) {
+        LOG_FAIL_FMT("app name is invalid");
+        return false;
+      }
+
+      std::string module_prefix = fmt::format("/{}/", name);
+      std::string url_prefix = name;
+      
+      remove_modules(tx, module_prefix);
+      set_modules(tx, module_prefix, bundle.modules);
+
+      remove_endpoints(tx, url_prefix);
+
+      // CCF currently requires each endpoint to have an inline JS module.
+      auto tx_scripts = tx.get_view(network.app_scripts);      
+      for (auto& [url,endpoint] : bundle.metadata.endpoints)
+      {
+        for (auto& [method,info] : endpoint)
+        {
+          std::string method_uppercase = toupper(method);
+          std::string key = fmt::format("{} {}{}", method_uppercase, url_prefix, url);
+          std::string script = "import {" + info.js_function + " as f}" +
+            "from '." + module_prefix + info.js_module + "';" +
+            "export default (request) => f(request);";
+          tx_scripts->put(key, {script});
+        }
+      }
+
+      return true;
+    }
+
+    bool remove_js_app(kv::Tx& tx, std::string name)
+    {
+      std::string module_prefix = fmt::format("/{}/", name);
+      std::string url_prefix = name;
+      
+      remove_modules(tx, module_prefix);
+      remove_endpoints(tx, url_prefix);
+
+      return true;
+    }
+
+    void remove_endpoints(kv::Tx& tx, std::string url_prefix)
+    {
+      auto tx_scripts = tx.get_view(network.app_scripts);
+      tx_scripts->foreach(
+        [&tx_scripts,&url_prefix](const std::string& name, const Script&) {
+          // endpoints are named "POST ..."
+          if (contains(name, " " + url_prefix))
+            tx_scripts->remove(name);
+          return true;
+        });
+    }
+
+    void set_modules(kv::Tx& tx, std::string prefix, const std::vector<SetModule>& modules)
+    {
+      for (auto& set_module_ : modules)
+      {
+        std::string full_name = prefix + set_module_.name;
+        if (!set_module(tx, full_name, set_module_.module))
+        {
+          throw std::logic_error(fmt::format(
+                "Unexpected error while setting module {}",
+                full_name));
+        }
+      }
+    }
+
     bool set_module(kv::Tx& tx, std::string name, Module module)
     {
       if (name.empty() || name[0] != '/')
@@ -202,6 +307,41 @@ namespace ccf
       auto tx_modules = tx.get_view(network.modules);
       tx_modules->put(name, module);
       return true;
+    }
+
+    static bool startswith(const std::string& s, const std::string& prefix)
+    {
+      return s.rfind(prefix, 0) == 0;
+    }
+
+    static bool contains(const std::string& s, const std::string& needle)
+    {
+      return s.rfind(needle) != std::string::npos;
+    }
+
+    static std::string toupper(std::string s) {
+      std::transform(s.begin(), s.end(), s.begin(), 
+                    [](unsigned char c){ return std::toupper(c); }
+                    );
+      return s;
+    }
+
+    void remove_modules(kv::Tx& tx, std::string prefix)
+    {
+      auto tx_modules = tx.get_view(network.modules);
+      tx_modules->foreach(
+        [&tx_modules,&prefix](const std::string& name, const Module&) {
+          if (startswith(name, prefix))
+          {
+            if (!tx_modules->remove(name))
+            {
+              throw std::logic_error(fmt::format(
+                "Unexpected error while removing module {}",
+                name));
+            }
+          }
+          return true;
+        });
     }
 
     bool remove_module(kv::Tx& tx, std::string name)
@@ -269,6 +409,18 @@ namespace ccf
            const std::string app = args;
            set_js_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
            return true;
+         }},
+        // deploy the js application bundle
+        {"deploy_js_app",
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
+           const auto parsed = args.get<DeployJsApp>();
+           return deploy_js_app(tx, parsed.name, parsed.bundle);
+         }},
+        // undeploy/remove the js application
+        {"remove_js_app",
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
+           std::string name = args;
+           return remove_js_app(tx, name);
          }},
         // add/update a module
         {"set_module",

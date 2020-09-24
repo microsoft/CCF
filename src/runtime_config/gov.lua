@@ -112,7 +112,7 @@ return {
   end
   function add_modules_with_prefix(prefix, modules)
     for _, module in pairs(modules) do
-      module_name = prefix .. module.rel_name
+      module_name = prefix .. module.name
       tables["ccf.modules"]:put(module_name, module.module)
     end
   end

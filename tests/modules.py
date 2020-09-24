@@ -153,10 +153,9 @@ def test_npm_app(network, args):
 
     LOG.info("Deploying npm app")
     bundle_dir = os.path.join(app_dir, "dist")
-    app_name = None # root app
 
     proposal_body, _ = ccf.proposal_generator.deploy_js_app(
-        bundle_dir, app_name
+        bundle_dir
     )
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
@@ -181,16 +180,14 @@ def test_npm_app(network, args):
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json()["available"], r.body
 
-    LOG.info("Deleting npm app")
-    proposal_body, _ = ccf.proposal_generator.delete_js_app(
-        app_name
-    )
+    LOG.info("Removing npm app")
+    proposal_body, _ = ccf.proposal_generator.remove_js_app()
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
     network.consortium.vote_using_majority(primary, proposal)
 
-    LOG.info("Calling npm app endpoints of deleted app")
+    LOG.info("Calling npm app endpoints of removed app")
     with primary.client("user0") as c:
         r = c.get("/app/crypto")
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
@@ -206,39 +203,6 @@ def test_npm_tsoa_app(network, args):
     app_dir = os.path.join(THIS_DIR, "npm-tsoa-app")
     subprocess.run(["npm", "install"], cwd=app_dir, check=True)
     subprocess.run(["npm", "run", "build"], cwd=app_dir, check=True)
-
-    # LOG.info("Deploying npm app modules")
-    # module_name_prefix = "/my-tsoa-npm-app/"
-    # dist_dir = os.path.join(app_dir, "dist")
-
-    # proposal_body, _ = ccf.proposal_generator.update_modules(
-    #     module_name_prefix, dist_dir
-    # )
-    # proposal = network.consortium.get_any_active_member().propose(
-    #     primary, proposal_body
-    # )
-    # network.consortium.vote_using_majority(primary, proposal)
-
-    # LOG.info("Deploying endpoint script")
-    # metadata_path = os.path.join(dist_dir, "endpoints.json")
-    # with open(metadata_path) as f:
-    #     metadata = json.load(f)
-    # # Temporarily only until endpoints can be called directly without proxy.
-    # app_script = "return {"
-    # for url, methods in metadata["endpoints"].items():
-    #     for method, cfg in methods.items():
-    #         app_script += f"""
-    #         ["{method.upper()} {url[1:]}"] = [[
-    #             import {{ {cfg["js_function"]} as f }}
-    #               from ".{module_name_prefix}{cfg["js_module"]}";
-    #             export default (request) => f(request);
-    #         ]],"""
-    # app_script = app_script[:-1] + "\n}"
-
-    # with tempfile.NamedTemporaryFile("w") as f:
-    #     f.write(app_script)
-    #     f.flush()
-    #     network.consortium.set_js_app(remote_node=primary, app_script_path=f.name)
 
     LOG.info("Deploying tsoa npm app")
     bundle_dir = os.path.join(app_dir, "dist")
@@ -281,9 +245,9 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        network = test_module_set_and_remove(network, args)
-        network = test_modules_remove(network, args)
-        network = test_module_import(network, args)
+        #network = test_module_set_and_remove(network, args)
+        #network = test_modules_remove(network, args)
+        #network = test_module_import(network, args)
         network = test_npm_app(network, args)
         network = test_npm_tsoa_app(network, args)
 

@@ -293,7 +293,7 @@ def deploy_js_app(bundle_path: str, app_name=ROOT_JS_APP_NAME, **kwargs):
         metadata = json.load(f)
     
     # sanity checks
-    module_paths = set(module["rel_name"] for module in modules)
+    module_paths = set(module["name"] for module in modules)
     for url, methods in metadata["endpoints"].items():
         for method, endpoint in methods.items():
             module_path = endpoint["js_module"]
@@ -314,11 +314,8 @@ def deploy_js_app(bundle_path: str, app_name=ROOT_JS_APP_NAME, **kwargs):
 
 
 @cli_proposal
-def delete_js_app(app_name=ROOT_JS_APP_NAME, **kwargs):
-    proposal_args = {
-        "name": app_name
-    }
-    return build_proposal("delete_js_app", proposal_args, **kwargs)
+def remove_js_app(app_name=ROOT_JS_APP_NAME, **kwargs):
+    return build_proposal("remove_js_app", app_name, **kwargs)
 
 
 @cli_proposal
@@ -349,7 +346,7 @@ def read_modules(modules_path: str) -> List[dict]:
         rel_module_name = rel_module_name.replace("\\", "/")  # Windows support
         with open(path) as f:
             js = f.read()
-            modules.append({"rel_name": rel_module_name, "module": {"js": js}})
+            modules.append({"name": rel_module_name, "module": {"js": js}})
     return modules
 
 
