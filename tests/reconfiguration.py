@@ -126,12 +126,7 @@ def test_retire_primary(network, args):
 
     primary, backup = network.find_primary_and_any_backup()
     network.consortium.retire_node(primary, primary)
-    LOG.debug(
-        f"Waiting {network.election_duration}s for a new primary to be elected..."
-    )
-    time.sleep(network.election_duration)
-    new_primary, new_term = network.find_primary()
-    assert new_primary.node_id != primary.node_id
+    new_primary, new_term = network.wait_for_new_primary(primary.node_id)
     LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
     check_can_progress(backup)
     network.nodes.remove(primary)
