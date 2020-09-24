@@ -868,8 +868,8 @@ namespace aft
         state->last_idx);
 
       auto progress_tracker = store->get_progress_tracker();
-      // TODO: Should hash the nonce
-      uint64_t hashed_nonce = progress_tracker->get_my_nonce(state->current_view, state->last_idx);
+      uint64_t hashed_nonce = progress_tracker->get_my_hashed_nonce(
+        state->current_view, state->last_idx);
 
       SignedAppendEntriesResponse r = {
         {raft_append_entries_signed_response, state->my_node_id},

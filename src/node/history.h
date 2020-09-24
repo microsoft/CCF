@@ -711,8 +711,7 @@ namespace ccf
               txid.term,
               txid.version);
 
-            // TODO: Should hash the nonce
-            hashed_nonce = progress_tracker->get_my_nonce(txid.term, txid.version);
+            hashed_nonce = progress_tracker->get_my_hashed_nonce(txid.term, txid.version);
           }
 
           PrimarySignature sig_value(
