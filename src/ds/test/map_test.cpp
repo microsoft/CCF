@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "../champ_map.h"
-#include "../rb_map.h"
 
 #include <doctest/doctest.h>
 #include <random>
+#include <unordered_map>
 
 using namespace std;
 
@@ -24,11 +24,33 @@ using V = uint64_t;
 // using H = std::hash<K>;
 using H = CollisionHash<K>;
 
+class Model
+{
+  unordered_map<K, V> internal;
+
+public:
+  optional<V> get(const K& key) const
+  {
+    auto it = internal.find(key);
+    if (it == internal.end())
+      return {};
+
+    return it->second;
+  }
+
+  Model put(const K& key, const V& value) const
+  {
+    auto next = *this;
+    next.internal[key] = value;
+    return next;
+  }
+};
+
 struct Op
 {
   virtual ~Op() = default;
-  virtual pair<const RBMap<K, V>, const champ::Map<K, V, H>> apply(
-    const RBMap<K, V>& a, const champ::Map<K, V, H>& b) = 0;
+  virtual pair<const Model, const champ::Map<K, V, H>> apply(
+    const Model& a, const champ::Map<K, V, H>& b) = 0;
   virtual string str() = 0;
 };
 
@@ -39,8 +61,8 @@ struct Put : public Op
 
   Put(K k_, V v_) : k(k_), v(v_) {}
 
-  pair<const RBMap<K, V>, const champ::Map<K, V, H>> apply(
-    const RBMap<K, V>& a, const champ::Map<K, V, H>& b)
+  pair<const Model, const champ::Map<K, V, H>> apply(
+    const Model& a, const champ::Map<K, V, H>& b)
   {
     return make_pair(a.put(k, v), b.put(k, v));
   }
@@ -53,12 +75,33 @@ struct Put : public Op
   }
 };
 
+struct Remove : public Op
+{
+  K k;
+
+  Remove(K k_) : k(k_) {}
+
+  pair<const Model, const champ::Map<K, V, H>> apply(
+    const Model& a, const champ::Map<K, V, H>& b)
+  {
+    // return make_pair(a.remove(k), b.remove(k));
+    return make_pair(a, b);
+  }
+
+  string str()
+  {
+    auto ss = stringstream();
+    ss << "Remove(" << H()(k) << ")";
+    return ss.str();
+  }
+};
+
 vector<unique_ptr<Op>> gen_ops(size_t n)
 {
   random_device rand_dev;
   auto seed = rand_dev();
   mt19937 gen(seed);
-  uniform_int_distribution<> gen_op(0, 2);
+  uniform_int_distribution<> gen_op(0, 2); // TODO: 3
 
   vector<unique_ptr<Op>> ops;
   vector<K> keys;
@@ -85,6 +128,17 @@ vector<unique_ptr<Op>> gen_ops(size_t n)
 
         break;
       }
+      // case 3: // remove
+      // {
+      //   if (keys.empty())
+      //     break;
+
+      //   uniform_int_distribution<> gen_idx(0, keys.size() - 1);
+      //   auto k = keys[gen_idx(gen)];
+      //   op = make_unique<Remove>(k);
+
+      //   break;
+      // }
       default:
         throw logic_error("bad op number");
     }
@@ -96,14 +150,15 @@ vector<unique_ptr<Op>> gen_ops(size_t n)
 
 TEST_CASE("persistent map operations")
 {
-  RBMap<K, V> rb;
+  Model model;
   champ::Map<K, V, H> champ;
 
   auto ops = gen_ops(500);
   for (auto& op : ops)
   {
-    auto r = op->apply(rb, champ);
-    auto rb_new = r.first;
+    INFO(op->str());
+    auto r = op->apply(model, champ);
+    auto model_new = r.first;
     auto champ_new = r.second;
 
     INFO("check consistency of persistent maps");
@@ -111,7 +166,7 @@ TEST_CASE("persistent map operations")
       size_t n = 0;
       champ_new.foreach([&](const auto& k, const auto& v) {
         n++;
-        auto p = rb_new.get(k);
+        auto p = model_new.get(k);
         REQUIRE(p.has_value());
         REQUIRE(p.value() == v);
         return true;
@@ -124,7 +179,7 @@ TEST_CASE("persistent map operations")
       size_t n = 0;
       champ.foreach([&](const auto& k, const auto& v) {
         n++;
-        auto p = rb.get(k);
+        auto p = model.get(k);
         REQUIRE(p.has_value());
         REQUIRE(p.value() == v);
         return true;
@@ -132,7 +187,7 @@ TEST_CASE("persistent map operations")
       REQUIRE(n == champ.size());
     }
 
-    rb = rb_new;
+    model = model_new;
     champ = champ_new;
   }
 }
