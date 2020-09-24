@@ -4,7 +4,6 @@ import tempfile
 import http
 import subprocess
 import os
-import json
 import infra.network
 import infra.path
 import infra.proc
