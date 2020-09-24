@@ -867,22 +867,28 @@ namespace aft
         to,
         state->last_idx);
 
+      auto progress_tracker = store->get_progress_tracker();
+      // TODO: Should hash the nonce
+      uint64_t hashed_nonce = progress_tracker->get_my_nonce(state->current_view, state->last_idx);
+
       SignedAppendEntriesResponse r = {
         {raft_append_entries_signed_response, state->my_node_id},
         state->current_view,
         state->last_idx,
+        hashed_nonce,
         static_cast<uint32_t>(sig.sig.size()),
         {}};
       std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
 
-      auto progress_tracker = store->get_progress_tracker();
-      if (progress_tracker != nullptr)
-      {
-        uint64_t hashed_nonce = 0; // TODO: fix this
-        auto result = progress_tracker->add_signature(
-          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig, hashed_nonce, nodes.size());
-        try_send_sig_ack(r.term, r.last_log_idx, result);
-      }
+      auto result = progress_tracker->add_signature(
+        r.term,
+        r.last_log_idx,
+        r.from_node,
+        r.signature_size,
+        r.sig,
+        hashed_nonce,
+        nodes.size());
+      try_send_sig_ack(r.term, r.last_log_idx, result);
 
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
       {
@@ -924,9 +930,8 @@ namespace aft
       auto progress_tracker = store->get_progress_tracker();
       if (progress_tracker != nullptr)
       {
-        uint64_t hashed_nonce = 0; // TODO: fix this
         auto result = progress_tracker->add_signature(
-          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig, hashed_nonce, nodes.size());
+          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig, r.hashed_nonce, nodes.size());
         try_send_sig_ack(r.term, r.last_log_idx, result);
       }
     }
