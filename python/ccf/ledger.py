@@ -232,7 +232,7 @@ class Transaction:
             raise StopIteration() from e
 
 
-class Ledgerchunk:
+class LedgerChunk:
     """
     Class used to parse and iterate over :py:class:`ccf.ledger.Transaction` in a CCF ledger chunk.
 
@@ -251,7 +251,7 @@ class Ledgerchunk:
         try:
             return next(self._current_tx)
         except StopIteration:
-            LOG.debug(f"\nCompleted verifying Txns in {self._filename}.")
+            LOG.debug(f"Completed verifying Txns in {self._filename}.")
             raise
     
     def __iter__(self):
@@ -259,14 +259,14 @@ class Ledgerchunk:
 
 class Ledger:
     """
-    Class used to iterate over all :py:class:`ccf.ledger.Ledgerchunk` stored in a CCF ledger folder.
+    Class used to iterate over all :py:class:`ccf.ledger.LedgerChunk` stored in a CCF ledger folder.
 
     :param str name: Ledger directory for a single CCF node.
     """
 
     _filenames: list
     _fileindex: int
-    _current_chunk: Ledgerchunk
+    _current_chunk: LedgerChunk
 
     def __init__(self, directory: str):
 
@@ -289,10 +289,10 @@ class Ledger:
                     LOG.warning(f"The file {chunk} has not been committed")
                 self._filenames.append(os.path.join(directory, chunk))
 
-    def __next__(self) -> Ledgerchunk:
+    def __next__(self) -> LedgerChunk:
         self._fileindex += 1
         if len(self._filenames) > self._fileindex:
-            self._current_chunk = Ledgerchunk(self._filenames[self._fileindex])
+            self._current_chunk = LedgerChunk(self._filenames[self._fileindex])
             return self._current_chunk
         else:
             raise StopIteration
