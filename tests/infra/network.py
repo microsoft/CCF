@@ -608,7 +608,7 @@ class Network:
         backup = random.choice(backups)
         return primary, backup
 
-    def wait_for_all_nodes_to_catch_up(self, primary, timeout=3):
+    def wait_for_all_nodes_to_catch_up(self, primary, timeout=10):
         """
         Wait for all nodes to have joined the network and globally replicated
         all transactions globally executed on the primary (including transactions

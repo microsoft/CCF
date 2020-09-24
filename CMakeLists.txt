@@ -529,7 +529,7 @@ if(BUILD_TESTS)
     NAME recovery_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS cft
-    LABEL suite
+    LABEL long_test
     ADDITIONAL_ARGS
       --test-duration
       150
@@ -544,7 +544,7 @@ if(BUILD_TESTS)
     NAME reconfiguration_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS cft
-    LABEL suite
+    LABEL long_test
     ADDITIONAL_ARGS
       --test-duration
       150
@@ -576,7 +576,7 @@ if(BUILD_TESTS)
     NAME full_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS cft
-    LABEL suite
+    LABEL long_test
     ADDITIONAL_ARGS
       --ledger-recovery-timeout
       20
