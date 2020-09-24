@@ -240,9 +240,9 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        # network = test_module_set_and_remove(network, args)
-        # network = test_modules_remove(network, args)
-        # network = test_module_import(network, args)
+        network = test_module_set_and_remove(network, args)
+        network = test_modules_remove(network, args)
+        network = test_module_import(network, args)
         network = test_npm_app(network, args)
         network = test_npm_tsoa_app(network, args)
 

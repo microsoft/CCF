@@ -181,6 +181,24 @@ namespace ccf
   class MemberEndpoints : public CommonEndpointRegistry
   {
   private:
+    static bool startswith(const std::string& s, const std::string& prefix)
+    {
+      return s.rfind(prefix, 0) == 0;
+    }
+
+    static bool contains(const std::string& s, const std::string& needle)
+    {
+      return s.rfind(needle) != std::string::npos;
+    }
+
+    static std::string toupper(std::string s)
+    {
+      std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
+        return std::toupper(c);
+      });
+      return s;
+    }
+
     Script get_script(kv::Tx& tx, std::string name)
     {
       const auto s = tx.get_view(network.gov_scripts)->get(name);
@@ -243,12 +261,28 @@ namespace ccf
 
       remove_endpoints(tx, url_prefix);
 
-      // CCF currently requires each endpoint to have an inline JS module.
       auto tx_scripts = tx.get_view(network.app_scripts);
       for (auto& [url, endpoint] : bundle.metadata.endpoints)
       {
         for (auto& [method, info] : endpoint)
         {
+          const std::string& js_module = info.js_module;
+          if (std::none_of(
+                bundle.modules.cbegin(),
+                bundle.modules.cend(),
+                [&js_module](const SetModule& item) {
+                  return item.name == js_module;
+                }))
+          {
+            LOG_FAIL_FMT(
+              "{} {}: module '{}' not found in bundle",
+              method,
+              url,
+              info.js_module);
+            return false;
+          }
+
+          // CCF currently requires each endpoint to have an inline JS module.
           std::string method_uppercase = toupper(method);
           std::string key =
             fmt::format("{} {}{}", method_uppercase, url_prefix, url);
@@ -309,24 +343,6 @@ namespace ccf
       auto tx_modules = tx.get_view(network.modules);
       tx_modules->put(name, module);
       return true;
-    }
-
-    static bool startswith(const std::string& s, const std::string& prefix)
-    {
-      return s.rfind(prefix, 0) == 0;
-    }
-
-    static bool contains(const std::string& s, const std::string& needle)
-    {
-      return s.rfind(needle) != std::string::npos;
-    }
-
-    static std::string toupper(std::string s)
-    {
-      std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
-        return std::toupper(c);
-      });
-      return s;
     }
 
     void remove_modules(kv::Tx& tx, std::string prefix)
