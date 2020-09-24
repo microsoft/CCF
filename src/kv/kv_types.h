@@ -152,7 +152,7 @@ namespace kv
       FAIL = 0,
       OK = 1,
       SEND_SIG_RECEIPT_ACK = 2,
-      SEND_REPLY_AND_NONCE = 4
+      SEND_REPLY_AND_NONCE = 3
     };
 
     using ResultCallbackHandler = std::function<bool(ResultCallbackArgs)>;

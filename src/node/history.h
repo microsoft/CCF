@@ -142,7 +142,7 @@ namespace ccf
         [txid, this]() {
           kv::Tx sig(txid.version);
           auto sig_view = sig.get_view(signatures);
-          PrimarySignature sig_value(id, txid.version);
+          PrimarySignature sig_value(id, txid.version, 0);
           sig_view->put(0, sig_value);
           return sig.commit_reserved();
         },
@@ -584,23 +584,22 @@ namespace ccf
         return kv::TxHistory::Result::FAIL;
       }
 
-      sig.node = id;
-      sig.sig = kp.sign_hash(sig.root.h.data(), sig.root.h.size());
       kv::TxHistory::Result result = kv::TxHistory::Result::OK;
 
       auto progress_tracker = store.get_progress_tracker();
       if (progress_tracker)
       {
-        // TODO: set the nonce correctly
-        uint64_t hashed_nonce = 0;
         result = progress_tracker->record_primary(
           sig.view,
           sig.seqno,
           sig.node,
           sig.root,
-          hashed_nonce,
+          sig.hashed_nonce,
           store.get_consensus()->node_count());
       }
+
+      sig.node = id;
+      sig.sig = kp.sign_hash(sig.root.h.data(), sig.root.h.size());
 
       return result;
     }
@@ -695,17 +694,15 @@ namespace ccf
           auto sig_view = sig.get_view(signatures);
           crypto::Sha256Hash root = replicated_state_tree.get_root();
 
+          uint64_t hashed_nonce = 0;
           auto progress_tracker = store.get_progress_tracker();
           if (progress_tracker)
           {
-            // TODO: set the nonce correctly
-            uint64_t hashed_nonce = 0;
             auto r = progress_tracker->record_primary(
               txid.term,
               txid.version,
               id,
-              root,
-              hashed_nonce);
+              root);
             CCF_ASSERT_FMT(
               r == kv::TxHistory::Result::OK,
               "Expected success when primary added signature to the progress "
@@ -713,6 +710,9 @@ namespace ccf
               r,
               txid.term,
               txid.version);
+
+            // TODO: Should hash the nonce
+            hashed_nonce = progress_tracker->get_my_nonce(txid.term, txid.version);
           }
 
           PrimarySignature sig_value(
@@ -722,6 +722,7 @@ namespace ccf
             commit_txid.second,
             commit_txid.first,
             root,
+            hashed_nonce,
             kp.sign_hash(root.h.data(), root.h.size()),
             replicated_state_tree.serialise());
 

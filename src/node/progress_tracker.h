@@ -19,7 +19,8 @@ namespace ccf
   class ProgressTracker
   {
   public:
-    ProgressTracker(kv::NodeId id_, ccf::Nodes& nodes_) : id(id_), nodes(nodes_)
+    ProgressTracker(kv::NodeId id_, ccf::Nodes& nodes_) :
+      id(id_), nodes(nodes_), entropy(tls::create_entropy())
     {}
 
     kv::TxHistory::Result add_signature(
@@ -96,14 +97,27 @@ namespace ccf
       kv::Consensus::SeqNo seqno,
       kv::NodeId node_id,
       crypto::Sha256Hash& root,
-      uint64_t hashed_nonce,
+      uint64_t hashed_nonce = 0,
       uint32_t node_count = 0)
     {
+      uint64_t my_nonce = entropy->random64();
+      LOG_INFO_FMT("BBBBBB Generating nonce seqno:{}, nonce:{}", seqno, my_nonce);
+      if (node_id == id)
+      {
+        CCF_ASSERT(
+          hashed_nonce == 0,
+          "Hashed nonce should not be set when we are the primary");
+        // TODO: We should hash the nonce here
+        hashed_nonce = my_nonce;
+      }
+
       auto it = certificates.find(CertKey(view, seqno));
       if (it == certificates.end())
       {
+        ;
         certificates.insert(std::pair<CertKey, CommitCert>(
-          CertKey(view, seqno), CommitCert(root, hashed_nonce, node_id)));
+          CertKey(view, seqno),
+          CommitCert(root, hashed_nonce, my_nonce)));
         LOG_TRACE_FMT("Adding new root for view:{}, seqno:{}", view, seqno);
         return kv::TxHistory::Result::OK;
       }
@@ -112,6 +126,10 @@ namespace ccf
         // We received some entries before we got the root so we now need to
         // verify the signatures
         auto& cert = it->second;
+        cert.root = root;
+        cert.primary_hashed_nonce = hashed_nonce;
+        cert.my_nonce = my_nonce;
+        cert.have_primary_signature = true;
         for (auto& sig : cert.sigs)
         {
           if (!verify_signature(
@@ -152,7 +170,6 @@ namespace ccf
       }
 
 
-      // TODO: we should be returning the possibility of sending multiple messages
       if (node_count > 0 && can_send_sig_ack(cert, node_count))
       {
         return kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK;
@@ -216,7 +233,6 @@ namespace ccf
       auto it_node_sig = cert.sigs.find(node_id);
       if (it_node_sig == cert.sigs.end())
       {
-        // TODO: keep unmatched nonces separate
         cert.unmatched_nonces.insert(std::pair<kv::NodeId, uint64_t>(node_id, nonce));
         return;
       }
@@ -224,6 +240,19 @@ namespace ccf
       BftNodeSignature& sig = it_node_sig->second;
       // TODO: we need to hash the nonce here to make sure it is correct
       sig.nonce = nonce;
+    }
+
+    uint64_t get_my_nonce(kv::Consensus::View view, kv::Consensus::SeqNo seqno)
+    {
+      auto it = certificates.find(CertKey(view, seqno));
+      if (it == certificates.end())
+      {
+        throw ccf::ccf_logic_error(fmt::format(
+          "Attempting to access unknown nonce, view:{}, seqno:{}",
+          view,
+          seqno));
+      }
+      return it->second.my_nonce;
     }
 
     void set_node_id(kv::NodeId id_)
@@ -234,6 +263,7 @@ namespace ccf
   private:
     kv::NodeId id;
     ccf::Nodes& nodes;
+    std::shared_ptr<tls::Entropy> entropy;
 
     struct CertKey
     {
@@ -258,35 +288,41 @@ namespace ccf
     struct BftNodeSignature : public ccf::NodeSignature
     {
       uint64_t nonce;
-      uint64_t hashed_nonce;
       bool is_primary;
 
       BftNodeSignature(
         const std::vector<uint8_t>& sig_,
         NodeId node_,
         uint64_t hashed_nonce_) :
-        NodeSignature(sig_, node_), hashed_nonce(hashed_nonce_), is_primary(false)
+        NodeSignature(sig_, node_, hashed_nonce_), is_primary(false)
       {}
 
       BftNodeSignature(NodeId node_, uint64_t hashed_nonce_) :
-        NodeSignature({}, node_), hashed_nonce(hashed_nonce_), is_primary(true)
+        NodeSignature({}, node_, hashed_nonce_), is_primary(true)
       {}
     };
 
     struct CommitCert
     {
-      CommitCert(crypto::Sha256Hash& root_, uint64_t hashed_nonce, kv::NodeId node_id) : root(root_)
-      {
-        sigs.insert(std::pair<kv::NodeId, BftNodeSignature>(
-          node_id, {node_id, hashed_nonce}));
-      }
+      CommitCert(
+        crypto::Sha256Hash& root_,
+        uint64_t hashed_nonce_,
+        uint64_t my_nonce_) :
+        root(root_),
+        primary_hashed_nonce(hashed_nonce_),
+        my_nonce(my_nonce_),
+        have_primary_signature(true)
+      { }
 
       CommitCert() = default;
 
       crypto::Sha256Hash root;
+      uint64_t primary_hashed_nonce;
       std::map<kv::NodeId, BftNodeSignature> sigs;
       std::set<kv::NodeId> sig_acks;
       std::map<kv::NodeId, uint64_t> unmatched_nonces;
+      uint64_t my_nonce;
+      bool have_primary_signature = false;
       bool ack_sent = false;
       bool reply_and_nonce_sent = false;
     };
@@ -316,7 +352,9 @@ namespace ccf
     bool can_send_sig_ack(CommitCert& cert, uint32_t node_count)
     {
       // TODO: this should not be node count but 2f+1
-      if(cert.sigs.size() >= node_count && !cert.ack_sent)
+      if (
+        cert.sigs.size() >= node_count && !cert.ack_sent &&
+        cert.have_primary_signature)
       {
         cert.ack_sent = true;
         return true;

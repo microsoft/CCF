@@ -12,21 +12,22 @@ namespace ccf
   {
     std::vector<uint8_t> sig;
     ccf::NodeId node;
+    uint64_t hashed_nonce = 0;
 
-    NodeSignature(const std::vector<uint8_t>& sig_, NodeId node_) :
-      sig(sig_),
-      node(node_)
+    NodeSignature(
+      const std::vector<uint8_t>& sig_, NodeId node_, uint64_t hashed_nonce_) :
+      sig(sig_), node(node_), hashed_nonce(hashed_nonce_)
     {}
-    NodeSignature(ccf::NodeId node_) : node(node_) {}
+    NodeSignature(ccf::NodeId node_, uint64_t hashed_nonce_) : node(node_), hashed_nonce(hashed_nonce_) {}
     NodeSignature() = default;
 
     bool operator==(const NodeSignature& o) const
     {
-      return sig == o.sig;
+      return sig == o.sig && node == o.node && hashed_nonce == o.hashed_nonce;
     }
 
-    MSGPACK_DEFINE(sig, node);
+    MSGPACK_DEFINE(sig, node, hashed_nonce);
   };
   DECLARE_JSON_TYPE(NodeSignature);
-  DECLARE_JSON_REQUIRED_FIELDS(NodeSignature, sig, node);
+  DECLARE_JSON_REQUIRED_FIELDS(NodeSignature, sig, node, hashed_nonce);
 }

@@ -466,7 +466,8 @@ namespace aft
           break;
 
         case bft_nonce_reveal:
-          LOG_INFO_FMT("AAAAAA got a nonce");
+          recv_nonce_reveal(data, size);
+          break;
 
         default:
         {
@@ -1024,8 +1025,12 @@ namespace aft
         }
         case kv::TxHistory::Result::SEND_REPLY_AND_NONCE:
         {
-          // TODO: Set the nonce correctly
           uint64_t nonce = 0;
+          auto progress_tracker = store->get_progress_tracker();
+          if (progress_tracker != nullptr)
+          {
+            nonce = progress_tracker->get_my_nonce(view, seqno);
+          }
           NonceRevealMsg r = {
             {bft_nonce_reveal, state->my_node_id}, view, seqno, nonce};
 
@@ -1038,7 +1043,6 @@ namespace aft
                 ccf::NodeMsgType::consensus_msg, send_to, r);
             }
           }
-          auto progress_tracker = store->get_progress_tracker();
           if (progress_tracker != nullptr)
           {
             progress_tracker->add_nonce_reveal(
@@ -1068,6 +1072,8 @@ namespace aft
         LOG_DEBUG_FMT("Error in recv_signature_received_ack message: {}", err.what());
         return;
       }
+
+      LOG_INFO_FMT("AAAAAA got a nonce, from:{}, seqno:{}, nonce:{}", r.from_node, r.idx, r.nonce);
 
       auto node = nodes.find(r.from_node);
       if (node == nodes.end())

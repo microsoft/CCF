@@ -31,8 +31,8 @@ namespace ccf
 
     PrimarySignature() {}
 
-    PrimarySignature(ccf::NodeId node_, ObjectId seqno_) :
-      NodeSignature(node_),
+    PrimarySignature(ccf::NodeId node_, ObjectId seqno_, uint64_t hashed_nonce) :
+      NodeSignature(node_, hashed_nonce),
       seqno(seqno_)
     {}
 
@@ -45,9 +45,10 @@ namespace ccf
       ObjectId commit_seqno_,
       ObjectId commit_view_,
       const crypto::Sha256Hash root_,
+      uint64_t hashed_nonce_,
       const std::vector<uint8_t>& sig_,
       const std::vector<uint8_t>& tree_) :
-      NodeSignature(sig_, node_),
+      NodeSignature(sig_, node_, hashed_nonce_),
       seqno(seqno_),
       view(view_),
       commit_seqno(commit_seqno_),
