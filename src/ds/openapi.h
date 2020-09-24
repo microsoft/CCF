@@ -260,13 +260,7 @@ namespace ds
             document, ds::json::schema_name<T>(), schema);
         }
         else if constexpr (
-          std::is_same<T, std::string>::value || std::is_same<T, bool>::value ||
-          std::is_same<T, uint8_t>::value || std::is_same<T, uint16_t>::value ||
-          std::is_same<T, uint32_t>::value ||
-          std::is_same<T, uint64_t>::value || std::is_same<T, int8_t>::value ||
-          std::is_same<T, int16_t>::value || std::is_same<T, int32_t>::value ||
-          std::is_same<T, int64_t>::value || std::is_same<T, float>::value ||
-          std::is_same<T, double>::value ||
+          std::is_same<T, std::string>::value || std::is_arithmetic_v<T> ||
           std::is_same<T, nlohmann::json>::value ||
           std::is_same<T, ds::json::JsonSchema>::value)
         {
