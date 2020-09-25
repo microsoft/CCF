@@ -915,6 +915,23 @@ namespace ccf
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
       recovery_root = h->get_replicated_state_root();
 
+      if (recovery_snapshot)
+      {
+        LOG_DEBUG_FMT(
+          "Deserialising private snapshot for recovery ({})",
+          recovery_snapshot->size());
+        std::vector<kv::Version> view_history;
+        auto rc = recovery_store->deserialise_snapshot(
+          *recovery_snapshot, &view_history);
+        if (rc != kv::DeserialiseSuccess::PASS)
+        {
+          throw std::logic_error(fmt::format(
+            "Could not deserialise snapshot in recovery store: {}", rc));
+        }
+
+        reset_data(*recovery_snapshot);
+      }
+
       LOG_DEBUG_FMT("Recovery store successfully setup: {}", recovery_v);
     }
 
@@ -948,24 +965,7 @@ namespace ccf
           tx, network.ledger_secrets->get_secret(v).value(), v, true);
       }
 
-      // Setup new temporary store and record current version/root
       setup_private_recovery_store();
-
-      if (recovery_snapshot)
-      {
-        LOG_DEBUG_FMT(
-          "Deserialising private snapshot ({})", recovery_snapshot->size());
-        std::vector<kv::Version> view_history;
-        auto rc = recovery_store->deserialise_snapshot(
-          *recovery_snapshot, &view_history);
-        if (rc != kv::DeserialiseSuccess::PASS)
-        {
-          throw std::logic_error(fmt::format(
-            "Could not deserialise snapshot in recovery store: {}", rc));
-        }
-
-        reset_data(*recovery_snapshot);
-      }
 
       // Start reading private security domain of ledger
       ledger_idx = recovery_store->current_version();
@@ -1425,25 +1425,7 @@ namespace ccf
 
       LOG_INFO_FMT("Initiating end of recovery (backup)");
 
-      // Setup new temporary store and record current version/root
       setup_private_recovery_store();
-
-      // TODO: Refactor with primary code
-      if (recovery_snapshot)
-      {
-        LOG_DEBUG_FMT(
-          "Deserialising private snapshot ({})", recovery_snapshot->size());
-        std::vector<kv::Version> view_history;
-        auto rc = recovery_store->deserialise_snapshot(
-          *recovery_snapshot, &view_history);
-        if (rc != kv::DeserialiseSuccess::PASS)
-        {
-          throw std::logic_error(fmt::format(
-            "Could not deserialise snapshot in recovery store: {}", rc));
-        }
-
-        reset_data(*recovery_snapshot);
-      }
 
       // Start reading private security domain of ledger
       ledger_idx = recovery_store->current_version();

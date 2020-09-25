@@ -187,12 +187,14 @@ class Network:
 
         # Only retrieve snapshot from target node if the snapshot directory is not
         # specified
-        if from_snapshot and snapshot_dir is not None:
+        if from_snapshot and snapshot_dir is None:
             snapshot_dir = target_node.get_snapshots()
-            LOG.info(f"Joining from snapshot: {snapshot_dir}")
             assert (
                 len(os.listdir(snapshot_dir)) > 0
             ), f"There are no snapshots to resume from in directory {snapshot_dir}"
+
+        if snapshot_dir is not None:
+            LOG.info(f"Joining from snapshot: {snapshot_dir}")
 
         node.join(
             lib_name=lib_name,
