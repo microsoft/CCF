@@ -1,0 +1,90 @@
+{
+  "endpoints": {
+    "/compute": {
+      "post": {
+        "js_module": "math.js",
+        "js_function": "compute",
+        "forwarding_required": "never",
+        "execute_locally": true,
+        "require_client_signature": false,
+        "require_client_identity": true,
+        "readonly": true,
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "op": {
+                      "type": "string",
+                      "enum": [
+                        "add",
+                        "sub",
+                        "mul"
+                      ]
+                    },
+                    "left": {
+                      "type": "number"
+                    },
+                    "right": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "op",
+                    "left",
+                    "right"
+                  ],
+                  "type": "object",
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Compute result",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "result": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "result"
+                    ],
+                    "type": "object",
+                    "additionalProperties": false
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Client-side error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "error": {
+                        "description": "Error message",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "error"
+                    ],
+                    "type": "object",
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

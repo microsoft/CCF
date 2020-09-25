@@ -4,6 +4,7 @@ import tempfile
 import http
 import subprocess
 import os
+import shutil
 import infra.network
 import infra.path
 import infra.proc
@@ -141,7 +142,65 @@ def test_module_import(network, args):
     return network
 
 
-@reqs.description("Test Node.js/npm app with prefix-based modules update")
+@reqs.description("Test js app bundle")
+def test_app_bundle(network, args):
+    primary, _ = network.find_nodes()
+
+    LOG.info("Deploying js app bundle archive as root app")
+    # Testing the bundle archive support of the Python client here.
+    # Plain bundle folders are tested in the npm-based app tests.
+    bundle_dir = os.path.join(THIS_DIR, "js-app-bundle")
+    with tempfile.TemporaryDirectory(prefix='ccf') as tmp_dir:
+        bundle_path = shutil.make_archive(os.path.join(tmp_dir, "bundle"), "zip", bundle_dir)
+        proposal_body, _ = ccf.proposal_generator.deploy_js_app(bundle_path)
+
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
+    )
+    network.consortium.vote_using_majority(primary, proposal)
+
+    LOG.info("Verifying that modules and endpoints were added")
+    with primary.client(
+        f"member{network.consortium.get_any_active_member().member_id}"
+    ) as c:
+        r = c.post("/gov/read", {"table": "ccf.modules", "key": "/__root__/math.js"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+    with primary.client("user0") as c:
+        valid_body = {"op": "sub", "left": 82, "right": 40}
+        r = c.post("/app/compute", valid_body)
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.headers["content-type"] == "application/json"
+        assert r.body.json() == {"result": 42}, r.body
+
+        invalid_body = {"op": "add", "left": "1", "right": 2}
+        r = c.post("/app/compute", invalid_body)
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+        assert r.headers["content-type"] == "application/json"
+        assert r.body.json() == {"error": "invalid operand type"}, r.body
+
+    LOG.info("Removing js app")
+    proposal_body, _ = ccf.proposal_generator.remove_js_app()
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
+    )
+    network.consortium.vote_using_majority(primary, proposal)
+
+    LOG.info("Verifying that modules and endpoints were removed")
+    with primary.client("user0") as c:
+        r = c.post("/app/compute", valid_body)
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
+
+    with primary.client(
+        f"member{network.consortium.get_any_active_member().member_id}"
+    ) as c:
+        r = c.post("/gov/read", {"table": "ccf.modules", "key": "/__root__/math.js"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+
+    return network
+
+
+@reqs.description("Test basic Node.js/npm app")
 def test_npm_app(network, args):
     primary, _ = network.find_nodes()
 
@@ -176,18 +235,6 @@ def test_npm_app(network, args):
         r = c.get("/app/crypto")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json()["available"], r.body
-
-    LOG.info("Removing npm app")
-    proposal_body, _ = ccf.proposal_generator.remove_js_app()
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
-    network.consortium.vote_using_majority(primary, proposal)
-
-    LOG.info("Calling npm app endpoints of removed app")
-    with primary.client("user0") as c:
-        r = c.get("/app/crypto")
-        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 
     return network
 
@@ -242,6 +289,7 @@ def run(args):
         network = test_module_set_and_remove(network, args)
         network = test_modules_remove(network, args)
         network = test_module_import(network, args)
+        network = test_app_bundle(network, args)
         network = test_npm_app(network, args)
         network = test_npm_tsoa_app(network, args)
 
