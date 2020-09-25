@@ -27,7 +27,6 @@ def test(network, args, from_snapshot=False):
     snapshot_dir = None
     if from_snapshot:
         snapshot_dir = old_primary.get_snapshots()
-
         if not os.listdir(snapshot_dir):
             raise RuntimeError(f"No snapshot found in {snapshot_dir}")
 
@@ -53,6 +52,8 @@ def test_share_resilience(network, args, from_snapshot=False):
     snapshot_dir = None
     if from_snapshot:
         snapshot_dir = old_primary.get_snapshots()
+        if not os.listdir(snapshot_dir):
+            raise RuntimeError(f"No snapshot found in {snapshot_dir}")
 
     defunct_network_enc_pubk = network.store_current_network_encryption_key()
 
