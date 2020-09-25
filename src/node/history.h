@@ -604,7 +604,8 @@ namespace ccf
       return result;
     }
 
-    bool verify(kv::Term* term = nullptr, PrimarySignature* signature = nullptr) override
+    bool verify(
+      kv::Term* term = nullptr, PrimarySignature* signature = nullptr) override
     {
       kv::Tx tx;
       auto [sig_tv, ni_tv] = tx.get_view(signatures, nodes);
@@ -620,7 +621,7 @@ namespace ccf
         *term = sig_value.view;
       }
 
-      if  (signature)
+      if (signature)
       {
         *signature = sig_value;
       }
@@ -694,16 +695,12 @@ namespace ccf
           auto sig_view = sig.get_view(signatures);
           crypto::Sha256Hash root = replicated_state_tree.get_root();
 
-          std::array<uint8_t, 32> hashed_nonce;
+          Nonce hashed_nonce;
           auto progress_tracker = store.get_progress_tracker();
           if (progress_tracker)
           {
             auto r = progress_tracker->record_primary(
-              txid.term,
-              txid.version,
-              id,
-              root,
-              hashed_nonce);
+              txid.term, txid.version, id, root, hashed_nonce);
             CCF_ASSERT_FMT(
               r == kv::TxHistory::Result::OK,
               "Expected success when primary added signature to the progress "

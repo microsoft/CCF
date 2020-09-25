@@ -163,7 +163,8 @@ namespace kv
     virtual void append(const uint8_t* replicated, size_t replicated_size) = 0;
     virtual Result verify_and_sign(
       ccf::PrimarySignature& signature, Term* term = nullptr) = 0;
-    virtual bool verify(Term* term = nullptr, ccf::PrimarySignature* sig = nullptr) = 0;
+    virtual bool verify(
+      Term* term = nullptr, ccf::PrimarySignature* sig = nullptr) = 0;
     virtual void emit_signature() = 0;
     virtual crypto::Sha256Hash get_replicated_state_root() = 0;
     virtual std::vector<uint8_t> get_receipt(Version v) = 0;

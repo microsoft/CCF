@@ -871,7 +871,7 @@ namespace aft
       auto h = progress_tracker->get_my_hashed_nonce(
         state->current_view, state->last_idx);
 
-      std::array<uint8_t, 32> hashed_nonce;
+      Nonce hashed_nonce;
       std::copy(h.begin(), h.end(), hashed_nonce.begin());
 
       SignedAppendEntriesResponse r = {
@@ -898,7 +898,8 @@ namespace aft
         auto send_to = it->first;
         if (send_to != state->my_node_id)
         {
-          channels->send_authenticated(ccf::NodeMsgType::consensus_msg, send_to, r);
+          channels->send_authenticated(
+            ccf::NodeMsgType::consensus_msg, send_to, r);
         }
       }
     }
@@ -934,12 +935,21 @@ namespace aft
       if (progress_tracker != nullptr)
       {
         auto result = progress_tracker->add_signature(
-          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig, r.hashed_nonce, nodes.size());
+          r.term,
+          r.last_log_idx,
+          r.from_node,
+          r.signature_size,
+          r.sig,
+          r.hashed_nonce,
+          nodes.size());
         try_send_sig_ack(r.term, r.last_log_idx, result);
       }
     }
 
-    void try_send_sig_ack(kv::Consensus::View view, kv::Consensus::SeqNo seqno, kv::TxHistory::Result r)
+    void try_send_sig_ack(
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      kv::TxHistory::Result r)
     {
       switch (r)
       {
@@ -990,7 +1000,8 @@ namespace aft
       catch (const std::logic_error& err)
       {
         LOG_FAIL_FMT("Error in recv_signature_received_ack message");
-        LOG_DEBUG_FMT("Error in recv_signature_received_ack message: {}", err.what());
+        LOG_DEBUG_FMT(
+          "Error in recv_signature_received_ack message: {}", err.what());
         return;
       }
 
@@ -1033,7 +1044,7 @@ namespace aft
         }
         case kv::TxHistory::Result::SEND_REPLY_AND_NONCE:
         {
-          std::array<uint8_t, 32> nonce;
+          Nonce nonce;
           auto progress_tracker = store->get_progress_tracker();
           if (progress_tracker != nullptr)
           {
@@ -1071,17 +1082,15 @@ namespace aft
 
       try
       {
-        r = channels->template recv_authenticated<NonceRevealMsg>(
-          data, size);
+        r = channels->template recv_authenticated<NonceRevealMsg>(data, size);
       }
       catch (const std::logic_error& err)
       {
         LOG_FAIL_FMT("Error in recv_signature_received_ack message");
-        LOG_DEBUG_FMT("Error in recv_signature_received_ack message: {}", err.what());
+        LOG_DEBUG_FMT(
+          "Error in recv_signature_received_ack message: {}", err.what());
         return;
       }
-
-      LOG_INFO_FMT("AAAAAA got a nonce, from:{}, seqno:{}, nonce:{}", r.from_node, r.idx, r.nonce);
 
       auto node = nodes.find(r.from_node);
       if (node == nodes.end())

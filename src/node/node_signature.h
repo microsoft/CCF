@@ -9,17 +9,24 @@
 
 namespace ccf
 {
+  using Nonce = std::array<uint8_t, 32>;
+
   struct NodeSignature
   {
     std::vector<uint8_t> sig;
     ccf::NodeId node;
-    std::array<uint8_t, 32> hashed_nonce;
+    Nonce hashed_nonce;
 
     NodeSignature(
-      const std::vector<uint8_t>& sig_, NodeId node_, std::array<uint8_t, 32> hashed_nonce_) :
-      sig(sig_), node(node_), hashed_nonce(hashed_nonce_)
+      const std::vector<uint8_t>& sig_, NodeId node_, Nonce hashed_nonce_) :
+      sig(sig_),
+      node(node_),
+      hashed_nonce(hashed_nonce_)
     {}
-    NodeSignature(ccf::NodeId node_, std::array<uint8_t, 32> hashed_nonce_) : node(node_), hashed_nonce(hashed_nonce_) {}
+    NodeSignature(ccf::NodeId node_, Nonce hashed_nonce_) :
+      node(node_),
+      hashed_nonce(hashed_nonce_)
+    {}
     NodeSignature() = default;
 
     bool operator==(const NodeSignature& o) const

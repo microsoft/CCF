@@ -16,8 +16,8 @@
 #include <array>
 #include <fmt/format.h>
 #include <msgpack/msgpack.hpp>
-#include <vector>
 #include <sstream>
+#include <vector>
 
 namespace fmt
 {
@@ -52,7 +52,7 @@ namespace fmt
   };
 
   template <>
-  struct formatter<std::array<uint8_t, 32>>
+  struct formatter<ccf::Nonce>
   {
     template <typename ParseContext>
     constexpr auto parse(ParseContext& ctx)
@@ -61,9 +61,10 @@ namespace fmt
     }
 
     template <typename FormatContext>
-    auto format(const std::array<uint8_t, 32>& p, FormatContext& ctx)
+    auto format(const ccf::Nonce& p, FormatContext& ctx)
     {
-      return format_to(ctx.out(), uint8_vector_to_hex_string({p.begin(), p.end()}));
+      return format_to(
+        ctx.out(), uint8_vector_to_hex_string({p.begin(), p.end()}));
     }
   };
 }
@@ -74,7 +75,9 @@ namespace ccf
   {
   public:
     ProgressTracker(kv::NodeId id_, ccf::Nodes& nodes_) :
-      id(id_), nodes(nodes_), entropy(tls::create_entropy())
+      id(id_),
+      nodes(nodes_),
+      entropy(tls::create_entropy())
     {}
 
     kv::TxHistory::Result add_signature(
@@ -83,7 +86,7 @@ namespace ccf
       kv::NodeId node_id,
       uint32_t signature_size,
       std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
-      std::array<uint8_t, 32>& hashed_nonce,
+      Nonce& hashed_nonce,
       uint32_t node_count)
     {
       LOG_TRACE_FMT("add_signature node_id:{}, seqno:{}", node_id, seqno);
@@ -147,11 +150,11 @@ namespace ccf
       kv::Consensus::SeqNo seqno,
       kv::NodeId node_id,
       crypto::Sha256Hash& root,
-      std::array<uint8_t, 32>& hashed_nonce,
+      Nonce& hashed_nonce,
       uint32_t node_count = 0)
     {
       auto n = entropy->random(32);
-      std::array<uint8_t, 32> my_nonce;
+      Nonce my_nonce;
       std::copy(n.begin(), n.end(), my_nonce.begin());
       if (node_id == id)
       {
@@ -163,16 +166,14 @@ namespace ccf
       if (it == certificates.end())
       {
         CommitCert cert(root, my_nonce);
-        BftNodeSignature bft_node_sig(
-          {}, node_id, hashed_nonce);
+        BftNodeSignature bft_node_sig({}, node_id, hashed_nonce);
         bft_node_sig.is_primary = true;
         try_match_unmatched_nonces(cert, bft_node_sig, view, seqno, node_id);
         cert.sigs.insert(
           std::pair<kv::NodeId, BftNodeSignature>(node_id, bft_node_sig));
 
-        certificates.insert(std::pair<CertKey, CommitCert>(
-          CertKey(view, seqno),
-          cert));
+        certificates.insert(
+          std::pair<CertKey, CommitCert>(CertKey(view, seqno), cert));
 
         LOG_TRACE_FMT("Adding new root for view:{}, seqno:{}", view, seqno);
         return kv::TxHistory::Result::OK;
@@ -183,8 +184,7 @@ namespace ccf
         // verify the signatures
         auto& cert = it->second;
         cert.root = root;
-        BftNodeSignature bft_node_sig(
-          {}, node_id, hashed_nonce);
+        BftNodeSignature bft_node_sig({}, node_id, hashed_nonce);
         bft_node_sig.is_primary = true;
         try_match_unmatched_nonces(cert, bft_node_sig, view, seqno, node_id);
         cert.sigs.insert(
@@ -236,7 +236,6 @@ namespace ccf
       kv::NodeId node_id,
       uint32_t node_count = 0)
     {
-
       auto it = certificates.find(CertKey(view, seqno));
       if (it == certificates.end())
       {
@@ -267,7 +266,7 @@ namespace ccf
     void add_nonce_reveal(
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
-      std::array<uint8_t, 32> nonce,
+      Nonce nonce,
       kv::NodeId node_id,
       uint32_t /*node_count = 0*/)
     {
@@ -288,7 +287,8 @@ namespace ccf
       auto it_node_sig = cert.sigs.find(node_id);
       if (it_node_sig == cert.sigs.end())
       {
-        cert.unmatched_nonces.insert(std::pair<kv::NodeId, std::array<uint8_t, 32>>(node_id, nonce));
+        cert.unmatched_nonces.insert(
+          std::pair<kv::NodeId, Nonce>(node_id, nonce));
         return;
       }
 
@@ -328,7 +328,7 @@ namespace ccf
       sig.nonce = nonce;
     }
 
-    std::array<uint8_t, 32> get_my_nonce(kv::Consensus::View view, kv::Consensus::SeqNo seqno)
+    Nonce get_my_nonce(kv::Consensus::View view, kv::Consensus::SeqNo seqno)
     {
       auto it = certificates.find(CertKey(view, seqno));
       if (it == certificates.end())
@@ -341,9 +341,10 @@ namespace ccf
       return it->second.my_nonce;
     }
 
-    std::vector<uint8_t> get_my_hashed_nonce(kv::Consensus::View view, kv::Consensus::SeqNo seqno)
+    std::vector<uint8_t> get_my_hashed_nonce(
+      kv::Consensus::View view, kv::Consensus::SeqNo seqno)
     {
-      std::array<uint8_t, 32> nonce = get_my_nonce(view, seqno);
+      Nonce nonce = get_my_nonce(view, seqno);
       return hash_data(nonce);
     }
 
@@ -380,33 +381,30 @@ namespace ccf
     struct BftNodeSignature : public ccf::NodeSignature
     {
       bool is_primary;
-      std::array<uint8_t, 32> nonce;
+      Nonce nonce;
 
       BftNodeSignature(
-        const std::vector<uint8_t>& sig_,
-        NodeId node_,
-        std::array<uint8_t, 32> hashed_nonce_) :
-        NodeSignature(sig_, node_, hashed_nonce_), is_primary(false)
+        const std::vector<uint8_t>& sig_, NodeId node_, Nonce hashed_nonce_) :
+        NodeSignature(sig_, node_, hashed_nonce_),
+        is_primary(false)
       {}
     };
 
     struct CommitCert
     {
-      CommitCert(
-        crypto::Sha256Hash& root_,
-        std::array<uint8_t, 32> my_nonce_) :
+      CommitCert(crypto::Sha256Hash& root_, Nonce my_nonce_) :
         root(root_),
         my_nonce(my_nonce_),
         have_primary_signature(true)
-      { }
+      {}
 
       CommitCert() = default;
 
       crypto::Sha256Hash root;
       std::map<kv::NodeId, BftNodeSignature> sigs;
       std::set<kv::NodeId> sig_acks;
-      std::map<kv::NodeId, std::array<uint8_t, 32>> unmatched_nonces;
-      std::array<uint8_t, 32> my_nonce;
+      std::map<kv::NodeId, Nonce> unmatched_nonces;
+      Nonce my_nonce;
       bool have_primary_signature = false;
       bool ack_sent = false;
       bool reply_and_nonce_sent = false;
@@ -434,15 +432,14 @@ namespace ccf
         root.h.data(), root.h.size(), sig, sig_size);
     }
 
-    std::vector<uint8_t> hash_data(std::array<uint8_t, 32> data)
+    std::vector<uint8_t> hash_data(Nonce data)
     {
       tls::HashBytes hash;
       int r = tls::do_hash(
         reinterpret_cast<const uint8_t*>(&data),
         data.size(),
         hash,
-        MBEDTLS_MD_SHA256
-      );
+        MBEDTLS_MD_SHA256);
       CCF_ASSERT_FMT(r == 0, "Failed to hash, r:{}", r);
       return hash;
     }
@@ -457,7 +454,9 @@ namespace ccf
       auto it_unmatched_nonces = cert.unmatched_nonces.find(node_id);
       if (it_unmatched_nonces != cert.unmatched_nonces.end())
       {
-        if (!match_nonces(hash_data(it_unmatched_nonces->second), bft_node_sig.hashed_nonce))
+        if (!match_nonces(
+              hash_data(it_unmatched_nonces->second),
+              bft_node_sig.hashed_nonce))
         {
           // NOTE: We need to handle this case but for now having this make a
           // test fail will be very handy
@@ -484,7 +483,7 @@ namespace ccf
       }
     }
 
-    bool match_nonces(std::vector<uint8_t> n_1, std::array<uint8_t, 32> n_2)
+    bool match_nonces(std::vector<uint8_t> n_1, Nonce n_2)
     {
       if (n_1.size() != n_2.size())
       {
@@ -494,13 +493,21 @@ namespace ccf
       return std::equal(n_1.begin(), n_1.end(), n_2.begin());
     }
 
+    uint32_t get_message_threshold(uint32_t node_count)
+    {
+      uint32_t f = 0;
+      for (; 3 * f + 1 < node_count; ++f)
+        ;
+
+      LOG_INFO_FMT("AAAAAAAA node_count:{} f:{}", node_count, f);
+      return 2 * f + 1;
+    }
 
     bool can_send_sig_ack(CommitCert& cert, uint32_t node_count)
     {
-      // TODO: this should not be node count but 2f+1
       if (
-        cert.sigs.size() >= node_count && !cert.ack_sent &&
-        cert.have_primary_signature)
+        cert.sigs.size() >= get_message_threshold(node_count) &&
+        !cert.ack_sent && cert.have_primary_signature)
       {
         cert.ack_sent = true;
         return true;
@@ -510,10 +517,9 @@ namespace ccf
 
     bool can_send_reply_and_nonce(CommitCert& cert, uint32_t node_count)
     {
-      // TODO: this should not be node count but 2f+1
       if (
-        cert.sig_acks.size() >= node_count && !cert.reply_and_nonce_sent &&
-        cert.ack_sent)
+        cert.sig_acks.size() >= get_message_threshold(node_count) &&
+        !cert.reply_and_nonce_sent && cert.ack_sent)
       {
         cert.reply_and_nonce_sent = true;
         return true;
