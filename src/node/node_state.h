@@ -510,7 +510,8 @@ namespace ccf
             {
               last_recovered_signed_idx =
                 resp.network_info.last_recovered_signed_idx;
-              setup_recovery_hook(false); // TODO: From snapshot??
+              setup_recovery_hook(
+                !config.snapshot.empty()); // TODO: From snapshot??
               sm.advance(State::partOfPublicNetwork);
             }
             else
@@ -1559,10 +1560,9 @@ namespace ccf
 
     void setup_recovery_hook(bool from_snapshot)
     {
-      // TODO: When recovering from a snapshot, the secret version is given by
-      // the ...
-      // TODO: Still required????
-      static bool is_first_shares = !from_snapshot;
+      // On snapshot, the version at which the first ledger secret is applicable
+      // from
+      static bool is_first_secret = !from_snapshot;
 
       network.shares.set_local_hook(
         [this](kv::Version version, const Shares::Write& w) {
@@ -1579,15 +1579,12 @@ namespace ccf
             const auto& v = opt_v.value();
 
             kv::Version ledger_secret_version;
-            if (is_first_shares)
+            if (is_first_secret)
             {
               // Special case for the first recovery share issuing (at network
-              // open), which is applicable from the very first transaction
+              // open), which is applicable from the very first transaction.
               ledger_secret_version = 1;
-              is_first_shares = false;
-
-              LOG_FAIL_FMT(
-                "Is first share, version: {}", ledger_secret_version);
+              is_first_secret = false;
             }
             else
             {
@@ -1598,8 +1595,6 @@ namespace ccf
                 v.wrapped_latest_ledger_secret.version == kv::NoVersion ?
                 (version + 1) :
                 v.wrapped_latest_ledger_secret.version;
-
-              LOG_FAIL_FMT("Normal version: {}", ledger_secret_version);
             }
 
             // No encrypted ledger secret are stored in the case of a pure
