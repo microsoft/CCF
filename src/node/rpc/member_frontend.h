@@ -266,7 +266,8 @@ namespace ccf
           }
 
           // CCF currently requires each endpoint to have an inline JS module.
-          std::string method_uppercase = nonstd::toupper(method);
+          std::string method_uppercase = method;
+          nonstd::to_upper(method_uppercase);
           std::string key =
             fmt::format("{} {}{}", method_uppercase, url_prefix, url);
           std::string script = "import {" + info.js_function + " as f}" +
