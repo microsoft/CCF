@@ -347,7 +347,7 @@ namespace ccf
         }
 
         crypto::GcmCipher encrypted_ls;
-        encrypted_ls.deserialise(it->encrypted_ledger_secret);
+        encrypted_ls.deserialise(i->encrypted_ledger_secret);
         std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
 
         if (!crypto::KeyAesGcm(decryption_key)
