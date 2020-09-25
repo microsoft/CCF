@@ -14,7 +14,14 @@ return {
 
   -- defines which of the members are operators
   function is_operator(member)
-    return member == "0"
+    member_info = tables["ccf.members"]:get(member)
+    if member_info then
+      member_data = member_info.member_data
+      if member_data then
+        return member_data.is_operator == true
+      end
+    end
+    return false
   end
 
   -- defines calls that can be passed with sole operator input
@@ -30,7 +37,7 @@ return {
 
   for member, vote in pairs(votes) do
     if vote then
-      if is_operator(member) then
+      if is_operator(tonumber(member)) then
         operator_votes = operator_votes + 1
       else
         member_votes = member_votes + 1
@@ -42,7 +49,7 @@ return {
   members_active = 0
 
   tables["ccf.members"]:foreach(function(member, details)
-    if details["status"] == STATE_ACTIVE and not is_operator(tostring(member)) then
+    if details["status"] == STATE_ACTIVE and not is_operator(member) then
       members_active = members_active + 1
     end
   end)

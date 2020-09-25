@@ -1283,7 +1283,15 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
   }
 }
 
-DOCTEST_TEST_CASE("Passing members ballot with operator")
+nlohmann::json operator_member_data()
+{
+  auto md = nlohmann::json::object();
+  md["is_operator"] = true;
+  return md;
+}
+
+DOCTEST_TEST_CASE(
+  "Passing members ballot with operator" * doctest::test_suite("operator"))
 {
   // Members pass a ballot with a constitution that includes an operator
   // Operator votes, but is _not_ taken into consideration
@@ -1294,9 +1302,10 @@ DOCTEST_TEST_CASE("Passing members ballot with operator")
   gen.init_values();
   gen.create_service({});
 
-  // Operating member, as set in operator_gov.lua
+  // Operating member, as indicated by member data
   const auto operator_cert = get_cert(0, kp);
-  const auto operator_id = gen.add_member(operator_cert, {});
+  const auto operator_id =
+    gen.add_member(operator_cert, {}, operator_member_data());
   gen.activate_member(operator_id);
 
   // Non-operating members
@@ -1393,7 +1402,7 @@ DOCTEST_TEST_CASE("Passing members ballot with operator")
   }
 }
 
-DOCTEST_TEST_CASE("Passing operator vote")
+DOCTEST_TEST_CASE("Passing operator vote" * doctest::test_suite("operator"))
 {
   // Operator issues a proposal that only requires its own vote
   // and gets it through without member votes
@@ -1409,9 +1418,10 @@ DOCTEST_TEST_CASE("Passing operator vote")
   ni.cert = new_ca;
   gen.add_node(ni);
 
-  // Operating member, as set in operator_gov.lua
+  // Operating member, as indicated by member data
   const auto operator_cert = get_cert(0, kp);
-  const auto operator_id = gen.add_member(operator_cert, {});
+  const auto operator_id =
+    gen.add_member(operator_cert, {}, operator_member_data());
   gen.activate_member(operator_id);
 
   // Non-operating members
@@ -1480,7 +1490,8 @@ DOCTEST_TEST_CASE("Passing operator vote")
   }
 }
 
-DOCTEST_TEST_CASE("Members passing an operator vote")
+DOCTEST_TEST_CASE(
+  "Members passing an operator vote" * doctest::test_suite("operator"))
 {
   // Operator proposes a vote, but does not vote for it
   // A majority of members pass the vote
@@ -1496,9 +1507,10 @@ DOCTEST_TEST_CASE("Members passing an operator vote")
   ni.cert = new_ca;
   gen.add_node(ni);
 
-  // Operating member, as set in operator_gov.lua
+  // Operating member, as indicated by member data
   const auto operator_cert = get_cert(0, kp);
-  const auto operator_id = gen.add_member(operator_cert, {});
+  const auto operator_id =
+    gen.add_member(operator_cert, {}, operator_member_data());
   gen.activate_member(operator_id);
 
   // Non-operating members
