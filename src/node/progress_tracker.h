@@ -142,37 +142,7 @@ namespace ccf
         BftNodeSignature bft_node_sig(
           {}, node_id, hashed_nonce);
         bft_node_sig.is_primary = true;
-
-        // TODO: try to match any unmatched nonces here
-        auto it_unmatched_nonces = cert.unmatched_nonces.find(node_id);
-        if (it_unmatched_nonces != cert.unmatched_nonces.end())
-        {
-          if (
-            bft_node_sig.hashed_nonce != hash_data(it_unmatched_nonces->second))
-          {
-            // NOTE: We need to handle this case but for now having this make a
-            // test fail will be very handy
-            LOG_FAIL_FMT(
-              "Nonces do not match add_nonce_reveal view:{}, seqno:{}, "
-              "node_id:{}, "
-              "sig.hashed_nonce:{}, "
-              " received.nonce:{}, hash(received.nonce):{}",
-              view,
-              seqno,
-              node_id,
-              bft_node_sig.hashed_nonce,
-              it_unmatched_nonces->second,
-              hash_data(it_unmatched_nonces->second));
-            throw ccf::ccf_logic_error(fmt::format(
-              "nonces do not match verification from {} FAILED, view:{}, "
-              "seqno:{}",
-              node_id,
-              view,
-              seqno));
-          }
-          bft_node_sig.nonce = it_unmatched_nonces->second;
-        }
-
+        try_match_unmatched_nonces(cert, bft_node_sig, view, seqno, node_id);
         cert.sigs.insert(
           std::pair<kv::NodeId, BftNodeSignature>(node_id, bft_node_sig));
 
@@ -192,40 +162,9 @@ namespace ccf
         BftNodeSignature bft_node_sig(
           {}, node_id, hashed_nonce);
         bft_node_sig.is_primary = true;
-
-        // TODO: try to match any unmatched nonces here
-        auto it_unmatched_nonces = cert.unmatched_nonces.find(node_id);
-        if (it_unmatched_nonces != cert.unmatched_nonces.end())
-        {
-          if (
-            bft_node_sig.hashed_nonce != hash_data(it_unmatched_nonces->second))
-          {
-            // NOTE: We need to handle this case but for now having this make a
-            // test fail will be very handy
-            LOG_FAIL_FMT(
-              "Nonces do not match add_nonce_reveal view:{}, seqno:{}, "
-              "node_id:{}, "
-              "sig.hashed_nonce:{}, "
-              " received.nonce:{}, hash(received.nonce):{}",
-              view,
-              seqno,
-              node_id,
-              bft_node_sig.hashed_nonce,
-              it_unmatched_nonces->second,
-              hash_data(it_unmatched_nonces->second));
-            throw ccf::ccf_logic_error(fmt::format(
-              "nonces do not match verification from {} FAILED, view:{}, "
-              "seqno:{}",
-              node_id,
-              view,
-              seqno));
-          }
-          bft_node_sig.nonce = it_unmatched_nonces->second;
-        }
-
+        try_match_unmatched_nonces(cert, bft_node_sig, view, seqno, node_id);
         cert.sigs.insert(
           std::pair<kv::NodeId, BftNodeSignature>(node_id, bft_node_sig));
-
         cert.my_nonce = my_nonce;
         cert.have_primary_signature = true;
         for (auto& sig : cert.sigs)
@@ -484,6 +423,43 @@ namespace ccf
       CCF_ASSERT_FMT(r == 0, "FAiled to hash, r:{}", r);
       // TODO: make the nonce take all the required bytes
       return *reinterpret_cast<uint64_t*>(hash.data());
+    }
+
+    void try_match_unmatched_nonces(
+      CommitCert& cert,
+      BftNodeSignature& bft_node_sig,
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      kv::NodeId node_id)
+    {
+      auto it_unmatched_nonces = cert.unmatched_nonces.find(node_id);
+      if (it_unmatched_nonces != cert.unmatched_nonces.end())
+      {
+        if (bft_node_sig.hashed_nonce != hash_data(it_unmatched_nonces->second))
+        {
+          // NOTE: We need to handle this case but for now having this make a
+          // test fail will be very handy
+          LOG_FAIL_FMT(
+            "Nonces do not match add_nonce_reveal view:{}, seqno:{}, "
+            "node_id:{}, "
+            "sig.hashed_nonce:{}, "
+            " received.nonce:{}, hash(received.nonce):{}",
+            view,
+            seqno,
+            node_id,
+            bft_node_sig.hashed_nonce,
+            it_unmatched_nonces->second,
+            hash_data(it_unmatched_nonces->second));
+          throw ccf::ccf_logic_error(fmt::format(
+            "nonces do not match verification from {} FAILED, view:{}, "
+            "seqno:{}",
+            node_id,
+            view,
+            seqno));
+        }
+        bft_node_sig.nonce = it_unmatched_nonces->second;
+        cert.unmatched_nonces.erase(it_unmatched_nonces);
+      }
     }
 
     bool can_send_sig_ack(CommitCert& cert, uint32_t node_count)
