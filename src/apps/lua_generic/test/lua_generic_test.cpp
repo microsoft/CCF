@@ -313,15 +313,9 @@ TEST_CASE("simple lua apps")
       {"0",
        {active_members[0], dummy_key_share, nullptr, MemberStatus::ACCEPTED}},
       {"1",
-       {active_members[1],
-        dummy_key_share,
-        "Some interesting member data",
-        MemberStatus::ACCEPTED}},
+       {active_members[1], dummy_key_share, nullptr, MemberStatus::ACCEPTED}},
       {"2",
-       {active_members[2],
-        dummy_key_share,
-        {{"structured", "data"}, {"nested", "here"}},
-        MemberStatus::ACCEPTED}}};
+       {active_members[2], dummy_key_share, nullptr, MemberStatus::ACCEPTED}}};
     check_success(frontend->process(get_ctx).value(), expected);
 
     // (2) try to write to members table
