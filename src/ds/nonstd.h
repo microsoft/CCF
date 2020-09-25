@@ -64,7 +64,8 @@ namespace nonstd
 
   /** a more generic std::string member function is present in C++20
    */
-  static inline bool starts_with(const std::string& s, const std::string& prefix)
+  static inline bool starts_with(
+    const std::string& s, const std::string& prefix)
   {
     return s.rfind(prefix, 0) == 0;
   }
@@ -92,6 +93,7 @@ namespace nonstd
     {
       return s.substr(prefix.size());
     }
+
     return s;
   }
 }
