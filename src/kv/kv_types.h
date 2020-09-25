@@ -16,6 +16,11 @@
 #include <unordered_set>
 #include <vector>
 
+namespace ccf
+{
+  struct PrimarySignature;
+}
+
 namespace kv
 {
   // Version indexes modifications to the local kv store. Negative values
@@ -146,6 +151,8 @@ namespace kv
     virtual ~TxHistory() {}
     virtual void append(const std::vector<uint8_t>& replicated) = 0;
     virtual void append(const uint8_t* replicated, size_t replicated_size) = 0;
+    virtual bool verify_and_sign(
+      ccf::PrimarySignature& signature, Term* term = nullptr) = 0;
     virtual bool verify(Term* term = nullptr) = 0;
     virtual void emit_signature() = 0;
     virtual crypto::Sha256Hash get_replicated_state_root() = 0;
@@ -406,7 +413,7 @@ namespace kv
     virtual void serialise(
       const AbstractTxView* view, KvStoreSerialiser& s, bool include_reads) = 0;
     virtual AbstractTxView* deserialise(
-      KvStoreDeserialiser& d, Version version) = 0;
+      KvStoreDeserialiser& d, Version version, bool commit) = 0;
     virtual AbstractTxView* deserialise_snapshot(KvStoreDeserialiser& d) = 0;
     virtual const std::string& get_name() const = 0;
     virtual void compact(Version v) = 0;

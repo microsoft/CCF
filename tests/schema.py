@@ -8,6 +8,8 @@ import infra.network
 import infra.proc
 import infra.e2e_args
 import infra.checker
+import openapi_spec_validator
+
 
 from loguru import logger as LOG
 
@@ -29,26 +31,34 @@ def run(args):
         for filename in filenames
     )
 
+    documents_valid = True
+
     all_methods = []
 
     def fetch_schema(client, prefix):
-        list_response = client.get(f"/{prefix}/api")
+        api_response = client.get(f"/{prefix}/api")
         check(
-            list_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
+            api_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
         )
-        methods = list_response.body["endpoints"]
-        all_methods.extend([m["path"] for m in methods])
 
-        for method in [m["path"] for m in methods]:
+        response_body = api_response.body.json()
+        paths = response_body["paths"]
+        all_methods.extend(paths.keys())
+
+        # Fetch the schema of each method
+        for method, _ in paths.items():
             schema_found = False
+            expected_method_prefix = "/"
+            if method.startswith(expected_method_prefix):
+                method = method[len(expected_method_prefix) :]
             schema_response = client.get(f'/{prefix}/api/schema?method="{method}"')
             check(
                 schema_response,
                 error=lambda status, msg: status == http.HTTPStatus.OK.value,
             )
 
-            if schema_response.body is not None:
-                for verb, schema_element in schema_response.body.items():
+            if schema_response.body:
+                for verb, schema_element in schema_response.body.json().items():
                     for schema_type in ["params", "result"]:
                         element_name = "{}_schema".format(schema_type)
                         element = schema_element[element_name]
@@ -84,6 +94,35 @@ def run(args):
             else:
                 methods_without_schema.add(method)
 
+        formatted_schema = json.dumps(response_body, indent=2)
+        openapi_target_file = os.path.join(args.schema_dir, f"{prefix}_openapi.json")
+
+        try:
+            old_schema.remove(openapi_target_file)
+        except KeyError:
+            pass
+
+        with open(openapi_target_file, "a+") as f:
+            f.seek(0)
+            previous = f.read()
+            if previous != formatted_schema:
+                LOG.debug("Writing schema to {}".format(openapi_target_file))
+                f.truncate(0)
+                f.seek(0)
+                f.write(formatted_schema)
+                changed_files.append(openapi_target_file)
+            else:
+                LOG.debug("Schema matches in {}".format(openapi_target_file))
+
+        try:
+            openapi_spec_validator.validate_spec(response_body)
+        except Exception as e:
+            LOG.error(f"Validation of {prefix} schema failed")
+            LOG.error(e)
+            return False
+
+        return True
+
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes
     ) as network:
@@ -94,20 +133,18 @@ def run(args):
 
         with primary.client("user0") as user_client:
             LOG.info("user frontend")
-            fetch_schema(user_client, "app")
+            if not fetch_schema(user_client, "app"):
+                documents_valid = False
 
         with primary.client() as node_client:
             LOG.info("node frontend")
-            fetch_schema(node_client, "node")
+            if not fetch_schema(node_client, "node"):
+                documents_valid = False
 
         with primary.client("member0") as member_client:
             LOG.info("member frontend")
-            fetch_schema(member_client, "gov")
-
-    if len(methods_without_schema) > 0:
-        LOG.info("The following methods have no schema:")
-        for m in sorted(methods_without_schema):
-            LOG.info(" " + m)
+            if not fetch_schema(member_client, "gov"):
+                documents_valid = False
 
     made_changes = False
 
@@ -134,7 +171,7 @@ def run(args):
         for method in sorted(set(all_methods)):
             LOG.info(f"  {method}")
 
-    if made_changes:
+    if made_changes or not documents_valid:
         sys.exit(1)
 
 

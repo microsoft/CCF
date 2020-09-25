@@ -17,7 +17,7 @@ class Checker:
                     rpc_result.status_code, rpc_result.body
                 ), f"{rpc_result.status_code}: {rpc_result.body}"
             else:
-                assert rpc_result.body == error, "Expected {}, got {}".format(
+                assert rpc_result.body.text() == error, "Expected {}, got {}".format(
                     error, rpc_result.body
                 )
             return
@@ -26,7 +26,7 @@ class Checker:
             if callable(result):
                 assert result(rpc_result.body), rpc_result.body
             else:
-                assert rpc_result.body == result, "Expected {}, got {}".format(
+                assert rpc_result.body.json() == result, "Expected {}, got {}".format(
                     result, rpc_result.body
                 )
 

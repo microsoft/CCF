@@ -112,11 +112,6 @@ namespace ccf
   DECLARE_JSON_TYPE(GetUserId::In)
   DECLARE_JSON_REQUIRED_FIELDS(GetUserId::In, cert)
 
-  DECLARE_JSON_TYPE(ListMethods::Endpoint)
-  DECLARE_JSON_REQUIRED_FIELDS(ListMethods::Endpoint, verb, path)
-  DECLARE_JSON_TYPE(ListMethods::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(ListMethods::Out, endpoints)
-
   DECLARE_JSON_TYPE(EndpointMetrics::Metric)
   DECLARE_JSON_REQUIRED_FIELDS(EndpointMetrics::Metric, calls, errors, failures)
   DECLARE_JSON_TYPE(EndpointMetrics::Out)

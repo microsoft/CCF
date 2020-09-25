@@ -1,5 +1,4 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "log/private/admin_only/result",
   "type": "boolean"
 }

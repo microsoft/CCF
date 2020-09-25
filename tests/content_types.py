@@ -72,23 +72,22 @@ def test_content_types(network, args):
         r = c.post("/app/text", body="text")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.headers["content-type"] == "text/plain"
-        assert r.body == "text"
+        assert r.body.text() == "text"
 
         r = c.post("/app/json", body={"foo": "bar"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.headers["content-type"] == "application/json"
-        assert r.body == {"foo": "bar"}
+        assert r.body.json() == {"foo": "bar"}
 
         r = c.post("/app/binary", body=b"\x00" * 42)
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.headers["content-type"] == "application/octet-stream"
-        assert type(r.body) == bytes, type(r.body)
-        assert r.body == b"\x00" * 42, r.body
+        assert r.body.data() == b"\x00" * 42, r.body
 
         r = c.post("/app/custom", body="text", headers={"content-type": "foo/bar"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.headers["content-type"] == "text/plain"
-        assert r.body == "text"
+        assert r.body.text() == "text"
 
     return network
 

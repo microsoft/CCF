@@ -164,7 +164,7 @@ def test_cert_prefix(network, args):
                 msg = "This message will be prefixed"
                 c.post("/app/log/private/prefix_cert", {"id": log_id, "msg": msg})
                 r = c.get(f"/app/log/private?id={log_id}")
-                assert f"CN=user{user_id}" in r.body["msg"], r
+                assert f"CN=user{user_id}" in r.body.json()["msg"], r
 
     else:
         LOG.warning(
@@ -187,13 +187,13 @@ def test_anonymous_caller(network, args):
         msg = "This message is anonymous"
         with primary.client("user4") as c:
             r = c.post("/app/log/private/anonymous", {"id": log_id, "msg": msg})
-            assert r.body == True
+            assert r.body.json() == True
             r = c.get(f"/app/log/private?id={log_id}")
             assert r.status_code == http.HTTPStatus.FORBIDDEN.value, r
 
         with primary.client("user0") as c:
             r = c.get(f"/app/log/private?id={log_id}")
-            assert msg in r.body["msg"], r
+            assert msg in r.body.json()["msg"], r
 
     else:
         LOG.warning(
@@ -219,7 +219,7 @@ def test_raw_text(network, args):
             )
             assert r.status_code == http.HTTPStatus.OK.value
             r = c.get(f"/app/log/private?id={log_id}")
-            assert msg in r.body["msg"], r
+            assert msg in r.body.json()["msg"], r
 
     else:
         LOG.warning(
@@ -238,15 +238,15 @@ def test_metrics(network, args):
     errors = 0
     with primary.client("user0") as c:
         r = c.get("/app/endpoint_metrics")
-        m = r.body["metrics"]["endpoint_metrics"]["GET"]
+        m = r.body.json()["metrics"]["endpoint_metrics"]["GET"]
         calls = m["calls"]
         errors = m["errors"]
 
     with primary.client("user0") as c:
         r = c.get("/app/endpoint_metrics")
-        assert r.body["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 1
+        assert r.body.json()["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 1
         r = c.get("/app/endpoint_metrics")
-        assert r.body["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 2
+        assert r.body.json()["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 2
 
     with primary.client() as c:
         r = c.get("/app/endpoint_metrics")
@@ -254,7 +254,9 @@ def test_metrics(network, args):
 
     with primary.client("user0") as c:
         r = c.get("/app/endpoint_metrics")
-        assert r.body["metrics"]["endpoint_metrics"]["GET"]["errors"] == errors + 1
+        assert (
+            r.body.json()["metrics"]["endpoint_metrics"]["GET"]["errors"] == errors + 1
+        )
 
     return network
 
@@ -308,7 +310,7 @@ def test_historical_query(network, args):
                         retry_after = int(retry_after)
                         time.sleep(retry_after)
                     elif get_response.status_code == http.HTTPStatus.OK:
-                        assert get_response.body["msg"] == msg, get_response
+                        assert get_response.body.json()["msg"] == msg, get_response
                         found = True
                         break
                     elif get_response.status_code == http.HTTPStatus.NO_CONTENT:
@@ -467,8 +469,8 @@ def test_view_history(network, args):
             r = c.get("/node/commit")
             check(c)
 
-            commit_view = r.body["view"]
-            commit_seqno = r.body["seqno"]
+            commit_view = r.body.json()["view"]
+            commit_seqno = r.body.json()["seqno"]
 
             # Retrieve status for all possible Tx IDs
             seqno_to_views = {}
@@ -477,7 +479,7 @@ def test_view_history(network, args):
                 for view in range(1, commit_view + 1):
                     r = c.get(f"/node/tx?view={view}&seqno={seqno}")
                     check(r)
-                    status = TxStatus(r.body["status"])
+                    status = TxStatus(r.body.json()["status"])
                     if status == TxStatus.Committed:
                         views.append(view)
                 seqno_to_views[seqno] = views
@@ -590,7 +592,7 @@ def test_tx_statuses(network, args):
             for view, seqno in SentTxs.get_all_tx_ids():
                 r = c.get(f"/node/tx?view={view}&seqno={seqno}")
                 check(r)
-                status = TxStatus(r.body["status"])
+                status = TxStatus(r.body.json()["status"])
                 SentTxs.update_status(view, seqno, status)
                 if (
                     status == TxStatus.Committed
@@ -642,11 +644,9 @@ def run(args):
         network = test(
             network,
             args,
-            verify=args.package is not "libjs_generic",
+            verify=args.package != "libjs_generic",
         )
-        network = test_illegal(
-            network, args, verify=args.package is not "libjs_generic"
-        )
+        network = test_illegal(network, args, verify=args.package != "libjs_generic")
         network = test_large_messages(network, args)
         network = test_remove(network, args)
         network = test_forwarding_frontends(network, args)

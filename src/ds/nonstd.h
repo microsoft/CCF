@@ -2,7 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include <algorithm>
 #include <array>
+#include <cctype>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -59,4 +61,31 @@ namespace nonstd
 
   template <class T>
   using remove_cvref_t = typename remove_cvref<T>::type;
+
+  /** converts strings to upper or lower case, in-place
+   */
+  static inline void to_upper(std::string& s)
+  {
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
+      return std::toupper(c);
+    });
+  }
+
+  static inline void to_lower(std::string& s)
+  {
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
+      return std::tolower(c);
+    });
+  }
+
+  static inline std::string remove_prefix(
+    const std::string& s, const std::string& prefix)
+  {
+    if (s.find(prefix) == 0)
+    {
+      return s.substr(prefix.size());
+    }
+
+    return s;
+  }
 }

@@ -7,6 +7,8 @@
 #include "kv_types.h"
 #include "map.h"
 #include "node/entities.h"
+#include "node/progress_tracker.h"
+#include "node/signatures.h"
 #include "snapshot.h"
 #include "tx.h"
 #include "view_containers.h"
@@ -28,6 +30,7 @@ namespace kv
 
     std::shared_ptr<Consensus> consensus = nullptr;
     std::shared_ptr<TxHistory> history = nullptr;
+    std::shared_ptr<ccf::ProgressTracker> progress_tracker = nullptr;
     EncryptorPtr encryptor = nullptr;
     Version version = 0;
     Version compacted = 0;
@@ -124,6 +127,17 @@ namespace kv
     void set_history(std::shared_ptr<TxHistory> history_)
     {
       history = history_;
+    }
+
+    std::shared_ptr<ccf::ProgressTracker> get_progress_tracker()
+    {
+      return progress_tracker;
+    }
+
+    void set_progress_tracker(
+      std::shared_ptr<ccf::ProgressTracker> progress_tracker_)
+    {
+      progress_tracker = progress_tracker_;
     }
 
     void set_encryptor(const EncryptorPtr& encryptor_)
@@ -616,7 +630,8 @@ namespace kv
       const std::vector<uint8_t>& data,
       bool public_only = false,
       Term* term_ = nullptr,
-      AbstractViewContainer* tx = nullptr)
+      AbstractViewContainer* tx = nullptr,
+      ccf::PrimarySignature* sig = nullptr)
     {
       // If we pass in a transaction we don't want to commit, just deserialise
       // and put the views into that transaction.
@@ -697,11 +712,7 @@ namespace kv
           return DeserialiseSuccess::FAILED;
         }
 
-        // If we are not committing now then use NoVersion to deserialise
-        // otherwise the view will be considered as having a committed
-        // version
-        auto deserialise_version = (commit ? v : NoVersion);
-        auto deserialised_view = map->deserialise(d, deserialise_version);
+        auto deserialised_view = map->deserialise(d, v, commit);
 
         // Take ownership of the produced view, store it to be applied
         // later
@@ -776,8 +787,19 @@ namespace kv
           {
             return success;
           }
+
           auto h = get_history();
-          if (!h->verify(term_))
+          bool result;
+          if (sig != nullptr)
+          {
+            result = h->verify_and_sign(*sig, term_);
+          }
+          else
+          {
+            result = h->verify(term_);
+          }
+
+          if (!result)
           {
             LOG_FAIL_FMT("Failed to deserialise");
             LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
@@ -1027,6 +1049,19 @@ namespace kv
      **/
     void swap_private_maps(Store& store)
     {
+      {
+        const auto source_version = store.current_version();
+        const auto target_version = current_version();
+        if (source_version > target_version)
+        {
+          throw std::runtime_error(fmt::format(
+            "Invalid call to swap_private_maps. Source is at version {} while "
+            "target is at {}",
+            source_version,
+            target_version));
+        }
+      }
+
       std::lock_guard<SpinLock> this_maps_guard(maps_lock);
       std::lock_guard<SpinLock> other_maps_guard(store.maps_lock);
 

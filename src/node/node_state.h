@@ -13,6 +13,7 @@
 #include "genesis_gen.h"
 #include "history.h"
 #include "network_state.h"
+#include "node/progress_tracker.h"
 #include "node/rpc/serdes.h"
 #include "node_to_node.h"
 #include "rpc/frontend.h"
@@ -152,6 +153,7 @@ namespace ccf
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
 
     std::shared_ptr<kv::TxHistory> history;
+    std::shared_ptr<ccf::ProgressTracker> progress_tracker;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
     ShareManager& share_manager;
@@ -265,6 +267,7 @@ namespace ccf
 
           setup_encryptor(network.consensus_type);
           setup_consensus();
+          setup_progress_tracker();
           setup_history();
 
           snapshotter->set_tx_interval(args.config.snapshot_tx_interval);
@@ -313,6 +316,7 @@ namespace ccf
             tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
 
           setup_history();
+          setup_consensus();
 
           // It is necessary to give an encryptor to the store for it to
           // deserialise the public domain when recovering the public ledger.
@@ -443,6 +447,7 @@ namespace ccf
 
             setup_encryptor(resp.network_info.consensus_type);
             setup_consensus(resp.network_info.public_only);
+            setup_progress_tracker();
             setup_history();
 
             bool from_snapshot = !config.snapshot.empty();
@@ -713,6 +718,12 @@ namespace ccf
       if (h)
       {
         h->set_node_id(self);
+      }
+
+      auto p = dynamic_cast<ccf::ProgressTracker*>(progress_tracker.get());
+      if (p)
+      {
+        p->set_node_id(self);
       }
 
       setup_raft(true);
@@ -1742,6 +1753,16 @@ namespace ccf
     void setup_consensus(bool public_only = false)
     {
       setup_raft(public_only);
+    }
+
+    void setup_progress_tracker()
+    {
+      if (network.consensus_type == ConsensusType::BFT)
+      {
+        progress_tracker =
+          std::make_shared<ccf::ProgressTracker>(self, network.nodes);
+        network.tables->set_progress_tracker(progress_tracker);
+      }
     }
 
     void read_ledger_idx(consensus::Index idx)

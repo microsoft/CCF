@@ -91,7 +91,8 @@ namespace ccf::historical
       pending_fetches.insert(idx);
     }
 
-    std::optional<ccf::Signature> get_signature(const StorePtr& sig_store)
+    std::optional<ccf::PrimarySignature> get_signature(
+      const StorePtr& sig_store)
     {
       kv::Tx tx;
       auto sig_table = sig_store->get<ccf::Signatures>(ccf::Tables::SIGNATURES);
