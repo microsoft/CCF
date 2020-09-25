@@ -69,6 +69,11 @@ namespace aft
       return aft->get_commit_term_and_idx();
     }
 
+    std::optional<std::pair<View, SeqNo>> get_signable_txid() override
+    {
+      return aft->get_signable_commit_term_and_idx();
+    }
+
     View get_view(SeqNo seqno) override
     {
       return aft->get_term(seqno);

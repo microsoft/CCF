@@ -665,43 +665,48 @@ namespace ccf
         return;
       }
 
-      auto txid = store.next_txid();
-      auto commit_txid = consensus->get_committed_txid();
+      auto signable_txid = consensus->get_signable_txid();
 
-      LOG_DEBUG_FMT(
-        "Signed at {} in view: {} commit was: {}.{}",
-        txid.version,
-        txid.term,
-        commit_txid.first,
-        commit_txid.second);
+      if (signable_txid.has_value())
+      {
+        auto commit_txid = signable_txid.value();
+        auto txid = store.next_txid();
+        
+        LOG_DEBUG_FMT(
+          "Signed at {} in view: {} commit was: {}.{}",
+          txid.version,
+          txid.term,
+          commit_txid.first,
+          commit_txid.second);
 
-      store.commit(
-        txid,
-        [txid, commit_txid, this]() {
-          kv::Tx sig(txid.version);
-          auto sig_view = sig.get_view(signatures);
-          crypto::Sha256Hash root = replicated_state_tree.get_root();
+        store.commit(
+          txid,
+          [txid, commit_txid, this]() {
+            kv::Tx sig(txid.version);
+            auto sig_view = sig.get_view(signatures);
+            crypto::Sha256Hash root = replicated_state_tree.get_root();
 
-          auto progress_tracker = store.get_progress_tracker();
-          if (progress_tracker)
-          {
-            progress_tracker->record_primary(txid.term, txid.version, root);
-          }
+            auto progress_tracker = store.get_progress_tracker();
+            if (progress_tracker)
+            {
+              progress_tracker->record_primary(txid.term, txid.version, root);
+            }
 
-          PrimarySignature sig_value(
-            id,
-            txid.version,
-            txid.term,
-            commit_txid.second,
-            commit_txid.first,
-            root,
-            kp.sign_hash(root.h.data(), root.h.size()),
-            replicated_state_tree.serialise());
+            PrimarySignature sig_value(
+              id,
+              txid.version,
+              txid.term,
+              commit_txid.second,
+              commit_txid.first,
+              root,
+              kp.sign_hash(root.h.data(), root.h.size()),
+              replicated_state_tree.serialise());
 
-          sig_view->put(0, sig_value);
-          return sig.commit_reserved();
-        },
-        true);
+            sig_view->put(0, sig_value);
+            return sig.commit_reserved();
+          },
+          true);
+      }
     }
 
     std::vector<uint8_t> get_receipt(kv::Version index) override

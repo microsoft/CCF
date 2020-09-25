@@ -93,6 +93,11 @@ namespace kv
       return {2, 0};
     }
 
+    std::optional<std::pair<View, SeqNo>> get_signable_txid() override
+    {
+      return get_committed_txid();
+    }
+
     SeqNo get_committed_seqno() override
     {
       return 0;

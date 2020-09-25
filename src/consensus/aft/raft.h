@@ -74,6 +74,7 @@ namespace aft
 
     ReplicaState replica_state;
     std::chrono::milliseconds timeout_elapsed;
+    kv::Version election_index = 0;
 
     // BFT
     RequestsMap& pbft_requests_map;
@@ -299,6 +300,19 @@ namespace aft
       }
       std::lock_guard<SpinLock> guard(state->lock);
       return {get_term_internal(state->commit_idx), state->commit_idx};
+    }
+
+    std::optional<std::pair<Term, Index>> get_signable_commit_term_and_idx()
+    {
+      std::lock_guard<SpinLock> guard(state->lock);
+      if (state->commit_idx >= election_index)
+      {
+        return std::pair<Term, Index>{get_term_internal(state->commit_idx), state->commit_idx};
+      }
+      else
+      {
+        return std::nullopt;
+      }
     }
 
     Term get_term(Index idx)
@@ -1220,12 +1234,13 @@ namespace aft
 
     void become_leader()
     {
+      election_index = last_committable_index();
       // Discard any un-committable updates we may hold,
       // since we have no signature for them. Except at startup,
       // where we do not want to roll back the genesis transaction.
       if (state->commit_idx)
       {
-        rollback(last_committable_index());
+        rollback(election_index);
       }
       else
       {
