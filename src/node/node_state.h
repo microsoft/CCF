@@ -298,8 +298,6 @@ namespace ccf
           // has joined
           accept_node_tls_connections();
 
-          snapshotter->set_tx_interval(args.config.snapshot_tx_interval);
-
           sm.advance(State::pending);
 
           return Success<CreateNew::Out>({node_cert, {}, {}});
@@ -347,6 +345,7 @@ namespace ccf
 
             ledger_idx = network.tables->current_version();
             last_recovered_signed_idx = ledger_idx;
+            snapshotter->set_last_snapshot_idx(ledger_idx);
 
             LOG_DEBUG_FMT("Snapshot deserialised at seqno {}", ledger_idx);
           }
@@ -457,18 +456,14 @@ namespace ccf
               LOG_DEBUG_FMT(
                 "Deserialising snapshot ({})", config.snapshot.size());
               std::vector<kv::Version> view_history;
-
               auto rc = network.tables->deserialise_snapshot(
                 config.snapshot, &view_history, resp.network_info.public_only);
 
               if (rc != kv::DeserialiseSuccess::PASS)
               {
                 throw std::logic_error(
-                  fmt::format("Failed to apply snapshot: {}", rc));
+                  fmt::format("Failed to apply snapshot on join: {}", rc));
               }
-
-              recovery_snapshot =
-                std::make_unique<std::vector<uint8_t>>(config.snapshot);
 
               kv::ReadOnlyTx tx;
               auto sig_view = tx.get_read_only_view(network.signatures);
@@ -485,10 +480,21 @@ namespace ccf
               if (!resp.network_info.public_only)
               {
                 // Only clear snapshot if not recovering. On recovery, the
-                // snapshot is used later to initiate the recovery store.
+                // snapshot is used later to initialise the recovery store.
                 reset_data(config.snapshot);
+                snapshotter->set_tx_interval(config.snapshot_tx_interval);
+              }
+              else
+              {
+                recovery_snapshot =
+                  std::make_unique<std::vector<uint8_t>>(config.snapshot);
+                recovery_snapshot_tx_interval = config.snapshot_tx_interval;
               }
 
+              // For now, deserialising the snapshot is sufficient to resume
+              // from it. Instead, the evidence of the snapshot should be
+              // verified for the joiner to effectively join.
+              // https://github.com/microsoft/CCF/issues/1539
               LOG_INFO_FMT(
                 "Joiner successfully resumed from snapshot at seqno {} and "
                 "view {}",
@@ -667,9 +673,7 @@ namespace ccf
       // When reaching the end of the public ledger, truncate to last signed
       // index and promote network secrets to this index
       network.tables->rollback(last_recovered_signed_idx);
-      ledger_truncate(
-        last_recovered_signed_idx); // TODO: Is this actually required? We do it
-                                    // later on force_become_primary too
+      ledger_truncate(last_recovered_signed_idx);
       LOG_INFO_FMT(
         "End of public ledger recovery - Truncating ledger to last signed "
         "index: {}",
@@ -723,7 +727,6 @@ namespace ccf
         index,
         global_commit);
 
-      // TODO: Surely, the second index should be global commit??
       consensus->force_become_primary(index, view, view_history, index);
 
       // Sets itself as trusted
@@ -1558,6 +1561,7 @@ namespace ccf
     {
       // TODO: When recovering from a snapshot, the secret version is given by
       // the ...
+      // TODO: Still required????
       static bool is_first_shares = !from_snapshot;
 
       network.shares.set_local_hook(

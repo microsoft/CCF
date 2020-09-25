@@ -8,12 +8,19 @@ import suite.test_requirements as reqs
 
 from loguru import logger as LOG
 import os
+import time
 
 
 @reqs.description("Recovering a network")
 @reqs.recover(number_txs=2)
 def test(network, args, from_snapshot=False):
     old_primary, _ = network.find_primary()
+
+    # Until https://github.com/microsoft/CCF/issues/1539, pause for a
+    # little while to make sure the evidence of the snapshot is committed
+    if from_snapshot:
+        LOG.warning("Pausing for the snapshot evidence to be committed...")
+        time.sleep(2)
 
     # Retrieve ledger and snapshots
     ledger_dir = old_primary.get_ledger()

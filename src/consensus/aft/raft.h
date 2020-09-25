@@ -205,23 +205,6 @@ namespace aft
       become_leader();
     }
 
-    void force_become_leader(Index index, Term term, Index commit_idx_)
-    {
-      // This is unsafe and should only be called when the node is certain
-      // there is no leader and no other node will attempt to force leadership.
-      if (leader_id != NoNode)
-        throw std::logic_error(
-          "Can't force leadership if there is already a leader");
-
-      std::lock_guard<SpinLock> guard(state->lock);
-      state->current_view = term;
-      state->last_idx = index;
-      state->commit_idx = commit_idx_;
-      state->view_history.update(index, term);
-      state->current_view += 2;
-      become_leader();
-    }
-
     void force_become_leader(
       Index index,
       Term term,
