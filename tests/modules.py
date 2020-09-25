@@ -150,8 +150,10 @@ def test_app_bundle(network, args):
     # Testing the bundle archive support of the Python client here.
     # Plain bundle folders are tested in the npm-based app tests.
     bundle_dir = os.path.join(THIS_DIR, "js-app-bundle")
-    with tempfile.TemporaryDirectory(prefix='ccf') as tmp_dir:
-        bundle_path = shutil.make_archive(os.path.join(tmp_dir, "bundle"), "zip", bundle_dir)
+    with tempfile.TemporaryDirectory(prefix="ccf") as tmp_dir:
+        bundle_path = shutil.make_archive(
+            os.path.join(tmp_dir, "bundle"), "zip", bundle_dir
+        )
         proposal_body, _ = ccf.proposal_generator.deploy_js_app(bundle_path)
 
     proposal = network.consortium.get_any_active_member().propose(
