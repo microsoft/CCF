@@ -142,7 +142,7 @@ namespace ccf
         [txid, this]() {
           kv::Tx sig(txid.version);
           auto sig_view = sig.get_view(signatures);
-          PrimarySignature sig_value(id, txid.version, 0);
+          PrimarySignature sig_value(id, txid.version, {0});
           sig_view->put(0, sig_value);
           return sig.commit_reserved();
         },
@@ -694,7 +694,7 @@ namespace ccf
           auto sig_view = sig.get_view(signatures);
           crypto::Sha256Hash root = replicated_state_tree.get_root();
 
-          uint64_t hashed_nonce = 0;
+          std::array<uint8_t, 32> hashed_nonce;
           auto progress_tracker = store.get_progress_tracker();
           if (progress_tracker)
           {
@@ -702,7 +702,8 @@ namespace ccf
               txid.term,
               txid.version,
               id,
-              root);
+              root,
+              hashed_nonce);
             CCF_ASSERT_FMT(
               r == kv::TxHistory::Result::OK,
               "Expected success when primary added signature to the progress "
@@ -711,7 +712,9 @@ namespace ccf
               txid.term,
               txid.version);
 
-            hashed_nonce = progress_tracker->get_my_hashed_nonce(txid.term, txid.version);
+            auto h =
+              progress_tracker->get_my_hashed_nonce(txid.term, txid.version);
+            std::copy(h.begin(), h.end(), hashed_nonce.begin());
           }
 
           PrimarySignature sig_value(

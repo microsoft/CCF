@@ -3,6 +3,7 @@
 #pragma once
 #include "ds/json.h"
 #include "entities.h"
+#include "tls/hash.h"
 
 #include <vector>
 
@@ -12,13 +13,13 @@ namespace ccf
   {
     std::vector<uint8_t> sig;
     ccf::NodeId node;
-    uint64_t hashed_nonce = 0;
+    std::array<uint8_t, 32> hashed_nonce;
 
     NodeSignature(
-      const std::vector<uint8_t>& sig_, NodeId node_, uint64_t hashed_nonce_) :
+      const std::vector<uint8_t>& sig_, NodeId node_, std::array<uint8_t, 32> hashed_nonce_) :
       sig(sig_), node(node_), hashed_nonce(hashed_nonce_)
     {}
-    NodeSignature(ccf::NodeId node_, uint64_t hashed_nonce_) : node(node_), hashed_nonce(hashed_nonce_) {}
+    NodeSignature(ccf::NodeId node_, std::array<uint8_t, 32> hashed_nonce_) : node(node_), hashed_nonce(hashed_nonce_) {}
     NodeSignature() = default;
 
     bool operator==(const NodeSignature& o) const

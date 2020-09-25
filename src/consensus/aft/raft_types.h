@@ -164,7 +164,7 @@ namespace aft
   {
     Term term;
     Index last_log_idx;
-    uint64_t hashed_nonce;
+    std::array<uint8_t, 32> hashed_nonce;
     uint32_t signature_size;
     std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
   };

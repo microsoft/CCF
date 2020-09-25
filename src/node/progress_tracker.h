@@ -12,8 +12,61 @@
 #include "tls/tls.h"
 #include "tls/verifier.h"
 
+#define FMT_HEADER_ONLY
 #include <array>
+#include <fmt/format.h>
+#include <msgpack/msgpack.hpp>
 #include <vector>
+#include <sstream>
+
+namespace fmt
+{
+  inline std::string uint8_vector_to_hex_string(const std::vector<uint8_t>& v)
+  {
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+    std::vector<uint8_t>::const_iterator it;
+
+    for (it = v.begin(); it != v.end(); it++)
+    {
+      ss << std::hex << std::setw(2) << static_cast<unsigned>(*it);
+    }
+
+    return ss.str();
+  }
+
+  template <>
+  struct formatter<std::vector<uint8_t>>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const std::vector<uint8_t>& p, FormatContext& ctx)
+    {
+      return format_to(ctx.out(), uint8_vector_to_hex_string(p));
+    }
+  };
+
+  template <>
+  struct formatter<std::array<uint8_t, 32>>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const std::array<uint8_t, 32>& p, FormatContext& ctx)
+    {
+      return format_to(ctx.out(), uint8_vector_to_hex_string({p.begin(), p.end()}));
+    }
+  };
+}
 
 namespace ccf
 {
@@ -30,7 +83,7 @@ namespace ccf
       kv::NodeId node_id,
       uint32_t signature_size,
       std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
-      uint64_t hashed_nonce,
+      std::array<uint8_t, 32>& hashed_nonce,
       uint32_t node_count)
     {
       LOG_TRACE_FMT("add_signature node_id:{}, seqno:{}", node_id, seqno);
@@ -78,38 +131,9 @@ namespace ccf
 
       auto& cert = it->second;
       BftNodeSignature bft_node_sig(std::move(sig_vec), node_id, hashed_nonce);
-
-      // TODO: try to match any unmatched nonces here
-      auto it_unmatched_nonces = cert.unmatched_nonces.find(node_id);
-      if(it_unmatched_nonces != cert.unmatched_nonces.end())
-      {
-        if (bft_node_sig.hashed_nonce != hash_data(it_unmatched_nonces->second))
-        {
-          // NOTE: We need to handle this case but for now having this make a
-          // test fail will be very handy
-          LOG_FAIL_FMT(
-            "Nonces do not match add_nonce_reveal view:{}, seqno:{}, "
-            "node_id:{}, "
-            "sig.hashed_nonce:{}, "
-            " received.nonce:{}, hash(received.nonce):{}",
-            view,
-            seqno,
-            node_id,
-            bft_node_sig.hashed_nonce,
-            it_unmatched_nonces->second,
-            hash_data(it_unmatched_nonces->second));
-          throw ccf::ccf_logic_error(fmt::format(
-            "nonces do not match verification from {} FAILED, view:{}, "
-            "seqno:{}",
-            node_id,
-            view,
-            seqno));
-        }
-        bft_node_sig.nonce = it_unmatched_nonces->second;
-      }
+      try_match_unmatched_nonces(cert, bft_node_sig, view, seqno, node_id);
       cert.sigs.insert(std::pair<kv::NodeId, BftNodeSignature>(
         node_id, std::move(bft_node_sig)));
-
 
       if (can_send_sig_ack(cert, node_count))
       {
@@ -123,16 +147,14 @@ namespace ccf
       kv::Consensus::SeqNo seqno,
       kv::NodeId node_id,
       crypto::Sha256Hash& root,
-      uint64_t hashed_nonce = 0,
+      std::array<uint8_t, 32>& hashed_nonce,
       uint32_t node_count = 0)
     {
       uint64_t my_nonce = entropy->random64();
       if (node_id == id)
       {
-        CCF_ASSERT(
-          hashed_nonce == 0,
-          "Hashed nonce should not be set when we are the primary");
-        hashed_nonce = hash_data(my_nonce);
+        auto h = hash_data(my_nonce);
+        std::copy(h.begin(), h.end(), hashed_nonce.begin());
       }
 
       auto it = certificates.find(CertKey(view, seqno));
@@ -190,8 +212,6 @@ namespace ccf
             seqno);
         }
       }
-
-      // TODO: try to match any unmatched nonces here
 
       auto& cert = it->second;
       if (cert.root != root)
@@ -282,7 +302,7 @@ namespace ccf
         hash_data(nonce),
         did_add);
 
-      if (sig.hashed_nonce != hash_data(nonce))
+      if (!match_nonces(hash_data(nonce), sig.hashed_nonce))
       {
         // NOTE: We need to handle this case but for now having this make a
         // test fail will be very handy
@@ -319,7 +339,7 @@ namespace ccf
       return it->second.my_nonce;
     }
 
-    uint64_t get_my_hashed_nonce(kv::Consensus::View view, kv::Consensus::SeqNo seqno)
+    std::vector<uint8_t> get_my_hashed_nonce(kv::Consensus::View view, kv::Consensus::SeqNo seqno)
     {
       uint64_t nonce = get_my_nonce(view, seqno);
       return hash_data(nonce);
@@ -363,7 +383,7 @@ namespace ccf
       BftNodeSignature(
         const std::vector<uint8_t>& sig_,
         NodeId node_,
-        uint64_t hashed_nonce_) :
+        std::array<uint8_t, 32> hashed_nonce_) :
         NodeSignature(sig_, node_, hashed_nonce_), is_primary(false), nonce(-1)
       {}
     };
@@ -412,17 +432,17 @@ namespace ccf
         root.h.data(), root.h.size(), sig, sig_size);
     }
 
-    uint64_t hash_data(uint64_t data)
+    std::vector<uint8_t> hash_data(uint64_t data)
     {
       tls::HashBytes hash;
       int r = tls::do_hash(
         reinterpret_cast<const uint8_t*>(&data),
         sizeof(data),
         hash,
-        MBEDTLS_MD_SHA1);
-      CCF_ASSERT_FMT(r == 0, "FAiled to hash, r:{}", r);
-      // TODO: make the nonce take all the required bytes
-      return *reinterpret_cast<uint64_t*>(hash.data());
+        MBEDTLS_MD_SHA256
+      );
+      CCF_ASSERT_FMT(r == 0, "Failed to hash, r:{}", r);
+      return hash;
     }
 
     void try_match_unmatched_nonces(
@@ -435,7 +455,7 @@ namespace ccf
       auto it_unmatched_nonces = cert.unmatched_nonces.find(node_id);
       if (it_unmatched_nonces != cert.unmatched_nonces.end())
       {
-        if (bft_node_sig.hashed_nonce != hash_data(it_unmatched_nonces->second))
+        if (!match_nonces(hash_data(it_unmatched_nonces->second), bft_node_sig.hashed_nonce))
         {
           // NOTE: We need to handle this case but for now having this make a
           // test fail will be very handy
@@ -461,6 +481,17 @@ namespace ccf
         cert.unmatched_nonces.erase(it_unmatched_nonces);
       }
     }
+
+    bool match_nonces(std::vector<uint8_t> n_1, std::array<uint8_t, 32> n_2)
+    {
+      if (n_1.size() != n_2.size())
+      {
+        return false;
+      }
+
+      return std::equal(n_1.begin(), n_1.end(), n_2.begin());
+    }
+
 
     bool can_send_sig_ack(CommitCert& cert, uint32_t node_count)
     {
