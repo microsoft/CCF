@@ -1,5 +1,4 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
     "current_view": {
       "maximum": 9223372036854775807,
