@@ -604,11 +604,12 @@ namespace aft
       }
 
       LOG_DEBUG_FMT(
-        "Received pt: {} pi: {} t: {} i: {}",
+        "Received pt: {} pi: {} t: {} i: {} toi: {}",
         r.prev_term,
         r.prev_idx,
         r.term,
-        r.idx);
+        r.idx,
+        r.term_of_idx);
 
       // Don't check that the sender node ID is valid. Accept anything that
       // passes the integrity check. This way, entries containing dynamic
@@ -818,7 +819,7 @@ namespace aft
       // After entries have been deserialised, we try to commit the leader's
       // commit index and update our term history accordingly
       commit_if_possible(r.leader_commit_idx);
-      state->view_history.update(state->commit_idx + 1, r.term_of_idx);
+      state->view_history.update(last_committable_index() + 1, r.term_of_idx);
 
       send_append_entries_response(r.from_node, true);
     }
