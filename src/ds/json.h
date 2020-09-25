@@ -373,6 +373,35 @@ namespace std
 #define FILL_SCHEMA_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
   FILL_SCHEMA_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, FIELD)
 
+#define ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT( \
+  TYPE, C_FIELD, JSON_FIELD) \
+  j["properties"][#JSON_FIELD] = \
+    doc.template add_schema_component<decltype(TYPE::C_FIELD)>(); \
+  j["required"].push_back(#JSON_FIELD);
+#define ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL( \
+  TYPE, C_FIELD, JSON_FIELD) \
+  ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT( \
+    TYPE, C_FIELD, JSON_FIELD)
+
+#define ADD_SCHEMA_COMPONENTS_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD) \
+  ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, FIELD)
+#define ADD_SCHEMA_COMPONENTS_REQUIRED_FOR_JSON_FINAL(TYPE, FIELD) \
+  ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, FIELD)
+
+#define ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT( \
+  TYPE, C_FIELD, JSON_FIELD) \
+  j["properties"][#JSON_FIELD] = \
+    doc.template add_schema_component<decltype(TYPE::C_FIELD)>();
+#define ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL( \
+  TYPE, C_FIELD, JSON_FIELD) \
+  ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT( \
+    TYPE, C_FIELD, JSON_FIELD)
+
+#define ADD_SCHEMA_COMPONENTS_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD) \
+  ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, FIELD)
+#define ADD_SCHEMA_COMPONENTS_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
+  ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, FIELD)
+
 #define JSON_FIELD_FOR_JSON_NEXT(TYPE, FIELD) \
   JsonField<decltype(TYPE::FIELD)>{#FIELD},
 #define JSON_FIELD_FOR_JSON_FINAL(TYPE, FIELD) \
@@ -381,16 +410,24 @@ namespace std
 #    FIELD \
   }
 
-/** Defines from_json, to_json, and fill_json_schema functions for struct/class
- * types, converting member fields to JSON elements. Missing elements will cause
- * errors to be raised. This assumes that from_json, to_json, and
- * fill_json_schema are implemented for each member field type, either manually
- * or through these macros.
+/** Defines from_json, to_json, fill_json_schema, and schema_name functions for
+ * struct/class types, converting member fields to JSON elements. Missing
+ * elements will cause errors to be raised. This assumes that from_json,
+ * to_json, and fill_json_schema are implemented for each member field type,
+ * either manually or through these macros.
+ * // clang-format off
  *  ie, the following must compile, for each foo in T:
  *    T t; nlohmann::json j, schema;
  *    j["foo"] = t.foo;
  *    t.foo = j["foo"].get<decltype(T::foo)>();
  *    fill_json_schema(schema, t);
+ *    std::string s = schema_name(t.foo);
+ * // clang-format on
+ *
+ * Optional fields will be inserted into the JSON object iff their value differs
+ * from the value in a default-constructed instance of T. So if optional fields
+ * are present, then T must be default-constructible and the optional fields
+ * must be distinguishable (have operator!= defined)
  *
  * To use:
  *  - Declare struct as normal
@@ -479,13 +516,21 @@ namespace std
   PRE_FROM_JSON, \
   POST_FROM_JSON, \
   PRE_FILL_SCHEMA, \
-  POST_FILL_SCHEMA) \
+  POST_FILL_SCHEMA, \
+  PRE_ADD_SCHEMA, \
+  POST_ADD_SCHEMA) \
   void to_json_required_fields(nlohmann::json& j, const TYPE& t); \
   void to_json_optional_fields(nlohmann::json& j, const TYPE& t); \
   void from_json_required_fields(const nlohmann::json& j, TYPE& t); \
   void from_json_optional_fields(const nlohmann::json& j, TYPE& t); \
   void fill_json_schema_required_fields(nlohmann::json& j, const TYPE& t); \
   void fill_json_schema_optional_fields(nlohmann::json& j, const TYPE& t); \
+  template <typename T> \
+  void add_schema_components_required_fields( \
+    T& doc, nlohmann::json& j, const TYPE& t); \
+  template <typename T> \
+  void add_schema_components_optional_fields( \
+    T& doc, nlohmann::json& j, const TYPE& t); \
   inline void to_json(nlohmann::json& j, const TYPE& t) \
   { \
     PRE_TO_JSON; \
@@ -503,9 +548,20 @@ namespace std
     PRE_FILL_SCHEMA; \
     fill_json_schema_required_fields(j, t); \
     POST_FILL_SCHEMA; \
+  } \
+  inline std::string schema_name(const TYPE&) \
+  { \
+    return #TYPE; \
+  } \
+  template <typename T> \
+  void add_schema_components(T& doc, nlohmann::json& j, const TYPE& t) \
+  { \
+    PRE_ADD_SCHEMA; \
+    add_schema_components_required_fields(doc, j, t); \
+    POST_ADD_SCHEMA; \
   }
 
-#define DECLARE_JSON_TYPE(TYPE) DECLARE_JSON_TYPE_IMPL(TYPE, , , , , , )
+#define DECLARE_JSON_TYPE(TYPE) DECLARE_JSON_TYPE_IMPL(TYPE, , , , , , , , )
 
 #define DECLARE_JSON_TYPE_WITH_BASE(TYPE, BASE) \
   DECLARE_JSON_TYPE_IMPL( \
@@ -514,7 +570,9 @@ namespace std
     , \
     from_json(j, static_cast<BASE&>(t)), \
     , \
-    fill_json_schema(j, static_cast<const BASE&>(t)), )
+    fill_json_schema(j, static_cast<const BASE&>(t)), \
+    , \
+    add_schema_components(doc, j, static_cast<const BASE&>(t)), )
 
 #define DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(TYPE) \
   DECLARE_JSON_TYPE_IMPL( \
@@ -524,7 +582,9 @@ namespace std
     , \
     from_json_optional_fields(j, t), \
     , \
-    fill_json_schema_optional_fields(j, t))
+    fill_json_schema_optional_fields(j, t), \
+    , \
+    add_schema_components_optional_fields(doc, j, t))
 
 #define DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(TYPE, BASE) \
   DECLARE_JSON_TYPE_IMPL( \
@@ -534,10 +594,13 @@ namespace std
     from_json(j, static_cast<BASE&>(t)), \
     from_json_optional_fields(j, t), \
     fill_json_schema(j, static_cast<const BASE&>(t)), \
-    fill_json_schema_optional_fields(j, t))
+    fill_json_schema_optional_fields(j, t), \
+    add_schema_components(doc, j, static_cast<const BASE&>(t)), \
+    add_schema_components_optional_fields(doc, j, t))
 
 #define DECLARE_JSON_REQUIRED_FIELDS(TYPE, ...) \
-  inline void to_json_required_fields(nlohmann::json& j, const TYPE& t) \
+  inline void to_json_required_fields( \
+    nlohmann::json& j, [[maybe_unused]] const TYPE& t) \
   { \
     if (!j.is_object()) \
     { \
@@ -545,7 +608,8 @@ namespace std
     } \
     _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)(WRITE_REQUIRED, TYPE, ##__VA_ARGS__) \
   } \
-  inline void from_json_required_fields(const nlohmann::json& j, TYPE& t) \
+  inline void from_json_required_fields( \
+    const nlohmann::json& j, [[maybe_unused]] TYPE& t) \
   { \
     if (!j.is_object()) \
     { \
@@ -553,11 +617,22 @@ namespace std
     } \
     _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)(READ_REQUIRED, TYPE, ##__VA_ARGS__) \
   } \
-  inline void fill_json_schema_required_fields(nlohmann::json& j, const TYPE&) \
+  inline void fill_json_schema_required_fields( \
+    nlohmann::json& j, [[maybe_unused]] const TYPE& t) \
   { \
     j["type"] = "object"; \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP1)(FILL_SCHEMA_REQUIRED, TYPE, ##__VA_ARGS__) \
+  } \
+  template <typename T> \
+  void add_schema_components_required_fields( \
+    [[maybe_unused]] T& doc, \
+    nlohmann::json& j, \
+    [[maybe_unused]] const TYPE& t) \
+  { \
+    j["type"] = "object"; \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__) \
+    (POP1)(ADD_SCHEMA_COMPONENTS_REQUIRED, TYPE, ##__VA_ARGS__); \
   }
 
 #define DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(TYPE, ...) \
@@ -584,6 +659,14 @@ namespace std
     j["type"] = "object"; \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP2)(FILL_SCHEMA_REQUIRED_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
+  } \
+  template <typename T> \
+  void add_schema_components_required_fields( \
+    T& doc, nlohmann::json& j, const TYPE& t) \
+  { \
+    j["type"] = "object"; \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__) \
+    (POP2)(ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES, TYPE, ##__VA_ARGS__); \
   }
 
 #define DECLARE_JSON_OPTIONAL_FIELDS(TYPE, ...) \
@@ -600,6 +683,13 @@ namespace std
   { \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP1)(FILL_SCHEMA_OPTIONAL, TYPE, ##__VA_ARGS__) \
+  } \
+  template <typename T> \
+  void add_schema_components_optional_fields( \
+    T& doc, nlohmann::json& j, const TYPE&) \
+  { \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__) \
+    (POP1)(ADD_SCHEMA_COMPONENTS_OPTIONAL, TYPE, ##__VA_ARGS__); \
   }
 
 #define DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(TYPE, ...) \
@@ -619,10 +709,21 @@ namespace std
   { \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP2)(FILL_SCHEMA_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
+  } \
+  template <typename T> \
+  void add_schema_components_optional_fields( \
+    T& doc, nlohmann::json& j, const TYPE& t) \
+  { \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__) \
+    (POP2)(ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__); \
   }
 
 #define DECLARE_JSON_ENUM(TYPE, ...) \
   NLOHMANN_JSON_SERIALIZE_ENUM(TYPE, __VA_ARGS__) \
+  inline std::string schema_name(const TYPE&) \
+  { \
+    return #TYPE; \
+  } \
   inline void fill_enum_schema(nlohmann::json& j, const TYPE&) \
   { \
     static const std::pair<TYPE, nlohmann::json> m[] = __VA_ARGS__; \
