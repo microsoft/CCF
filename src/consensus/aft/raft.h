@@ -786,11 +786,13 @@ namespace aft
           case kv::DeserialiseSuccess::PASS_SIGNATURE:
           {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
+            auto prev_lci = last_committable_index();
             committable_indices.push_back(i);
 
             if (sig_term)
             {
-              state->view_history.update(state->commit_idx + 1, sig_term);
+              LOG_DEBUG_FMT("Found sig_term", sig_term);
+              state->view_history.update(prev_lci + 1, sig_term);
               commit_if_possible(r.leader_commit_idx);
             }
             if (consensus_type == ConsensusType::BFT)
@@ -819,7 +821,12 @@ namespace aft
       // After entries have been deserialised, we try to commit the leader's
       // commit index and update our term history accordingly
       commit_if_possible(r.leader_commit_idx);
-      state->view_history.update(last_committable_index() + 1, r.term_of_idx);
+      if (r.term_of_idx > r.prev_term)
+      {
+        auto lci = last_committable_index();
+        CCF_ASSERT(lci >= r.prev_idx, fmt::format("lci: {} !> r.prev_idx", lci, r.prev_idx));
+        state->view_history.update(lci + 1, r.term_of_idx);
+      }
 
       send_append_entries_response(r.from_node, true);
     }

@@ -5,6 +5,7 @@ import infra.network
 import infra.proc
 import suite.test_requirements as reqs
 import reconfiguration
+import e2e_logging
 
 from loguru import logger as LOG
 
@@ -30,14 +31,21 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
+        """
+        reconfiguration.test_add_node(network, args)
+        e2e_logging.test_view_history(network, args)
+        reconfiguration.test_retire_primary(network, args)
+        e2e_logging.test_view_history(network, args)
+        """
         # Replace primary repeatedly and check the network still operates
-        for _ in range(5):
+        for _ in range(10):
             reconfiguration.test_add_node(network, args)
             reconfiguration.test_retire_primary(network, args)
 
+        
         reconfiguration.test_add_node(network, args)
         # Suspend primary repeatedly and check the network still operates
-        for _ in range(5):
+        for _ in range(10):
             test_suspend_primary(network, args)
 
 
