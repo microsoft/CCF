@@ -238,6 +238,7 @@ create_patched_enclave_lib(
 )
 
 set(OE_SIGN_PATH ${OE_BINDIR}/oesign)
+set(OE_HOST_VERIFY_PATH ${OE_BINDIR}/host_verify)
 
 if(BUILD_TESTS)
   enable_testing()
@@ -642,7 +643,7 @@ if(BUILD_TESTS)
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
       CONSENSUS cft
-      ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --raft-election-timeout 20000
+      ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --hostverify ${OE_HOST_VERIFY_PATH} --raft-election-timeout 20000
     )
 
     add_e2e_test(
