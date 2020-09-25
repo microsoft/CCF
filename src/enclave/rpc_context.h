@@ -35,6 +35,16 @@ namespace ccf
     RESTVerb(const http_method& hm) : verb(hm) {}
     RESTVerb(const ws::Verb& wv) : verb(wv) {}
 
+    std::optional<http_method> get_http_method() const
+    {
+      if (verb == ws::WEBSOCKET)
+      {
+        return std::nullopt;
+      }
+
+      return static_cast<http_method>(verb);
+    }
+
     const char* c_str() const
     {
       if (verb == ws::WEBSOCKET)
