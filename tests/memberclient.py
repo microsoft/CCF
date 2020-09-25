@@ -41,7 +41,9 @@ def test_add_member(network, args):
     member_data = {"name": "test_added_member", "roles": ["OWNER", "CONTRIBUTOR"]}
 
     new_member = network.consortium.generate_and_add_new_member(
-        primary, curve=infra.network.ParticipantsCurve(args.participants_curve).next(), member_data=member_data
+        primary,
+        curve=infra.network.ParticipantsCurve(args.participants_curve).next(),
+        member_data=member_data,
     )
 
     try:

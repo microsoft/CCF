@@ -110,6 +110,15 @@ namespace ccf
     MemberTsr(NetworkTables& network) : TxScriptRunner(network) {}
   };
 
+  struct SetMemberData
+  {
+    MemberId member_id;
+    nlohmann::json member_data = nullptr;
+  };
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SetMemberData)
+  DECLARE_JSON_REQUIRED_FIELDS(SetMemberData, member_id)
+  DECLARE_JSON_OPTIONAL_FIELDS(SetMemberData, member_data)
+
   struct SetUserData
   {
     UserId user_id;
@@ -321,6 +330,24 @@ namespace ccf
              }
            }
 
+           return true;
+         }},
+        {"set_member_data",
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const auto parsed = args.get<SetMemberData>();
+           auto members_view = tx.get_view(this->network.members);
+           auto member_info = members_view->get(parsed.member_id);
+           if (!member_info.has_value())
+           {
+             LOG_FAIL_FMT(
+               "Proposal {}: {} is not a valid member ID",
+               proposal_id,
+               parsed.member_id);
+             return false;
+           }
+
+           member_info->member_data = parsed.member_data;
+           members_view->put(parsed.member_id, member_info.value());
            return true;
          }},
         {"new_user",

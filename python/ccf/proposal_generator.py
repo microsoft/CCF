@@ -242,6 +242,12 @@ def retire_member(member_id: int, **kwargs):
 
 
 @cli_proposal
+def set_member_data(member_id: int, member_data: Any, **kwargs):
+    proposal_args = {"member_id": member_id, "member_data": member_data}
+    return build_proposal("set_member_data", proposal_args, **kwargs)
+
+
+@cli_proposal
 def new_user(user_cert_path: str, user_data: Any = None, **kwargs):
     user_info = {"cert": open(user_cert_path).read()}
     if user_data is not None:
