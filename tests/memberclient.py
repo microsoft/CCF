@@ -38,8 +38,10 @@ def test_set_recovery_threshold(network, args, recovery_threshold=None):
 def test_add_member(network, args):
     primary, _ = network.find_primary()
 
+    member_data = {"name": "test_added_member", "roles": ["OWNER", "CONTRIBUTOR"]}
+
     new_member = network.consortium.generate_and_add_new_member(
-        primary, curve=infra.network.ParticipantsCurve(args.participants_curve).next()
+        primary, curve=infra.network.ParticipantsCurve(args.participants_curve).next(), member_data
     )
 
     try:

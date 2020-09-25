@@ -287,7 +287,7 @@ namespace ccf
          [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<MemberPubInfo>();
            GenesisGenerator g(this->network, tx);
-           g.add_member(parsed.cert, parsed.keyshare);
+           g.add_member(parsed);
 
            return true;
          }},
@@ -1300,9 +1300,9 @@ namespace ccf
         g.init_values();
         g.create_service(in.network_cert);
 
-        for (auto& [cert, k_encryption_key] : in.members_info)
+        for (const auto& info : in.members_info)
         {
-          g.add_member(cert, k_encryption_key);
+          g.add_member(info);
         }
 
         g.set_recovery_threshold(in.recovery_threshold);
