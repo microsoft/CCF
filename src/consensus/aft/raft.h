@@ -791,7 +791,9 @@ namespace aft
 
             if (sig_term)
             {
-              LOG_DEBUG_FMT("Found sig_term", sig_term);
+              // A signature for sig_term tells us that all transactions from the
+              // previous signature onwards (at least, if not further back) happened
+              // in sig_term. We reflect this in the history.
               state->view_history.update(prev_lci + 1, sig_term);
               commit_if_possible(r.leader_commit_idx);
             }
@@ -821,12 +823,10 @@ namespace aft
       // After entries have been deserialised, we try to commit the leader's
       // commit index and update our term history accordingly
       commit_if_possible(r.leader_commit_idx);
-      if (r.term_of_idx > r.prev_term)
-      {
-        auto lci = last_committable_index();
-        CCF_ASSERT(lci >= r.prev_idx, fmt::format("lci: {} !> r.prev_idx", lci, r.prev_idx));
-        state->view_history.update(lci + 1, r.term_of_idx);
-      }
+
+      // The term may have changed, but we may not have seen a signature yet.
+      auto lci = last_committable_index();
+      state->view_history.update(lci + 1, r.term_of_idx);
 
       send_append_entries_response(r.from_node, true);
     }
@@ -1074,7 +1074,7 @@ namespace aft
         return;
       }
 
-      // If the candidate's log is at least as up-to-date as ours, vote yes
+      // If the candidate's committable log is at least as up-to-date as ours, vote yes
 
       auto last_committable_idx = last_committable_index();
       auto term_of_last_committable_index =
