@@ -178,7 +178,9 @@ def cli_proposal(func):
 
 
 @cli_proposal
-def new_member(member_cert_path: str, member_enc_pubk_path: str, member_data: Any = None, **kwargs):
+def new_member(
+    member_cert_path: str, member_enc_pubk_path: str, member_data: Any = None, **kwargs
+):
     LOG.debug("Generating new_member proposal")
 
     # Read certs
@@ -193,7 +195,11 @@ def new_member(member_cert_path: str, member_enc_pubk_path: str, member_data: An
 
     # Proposal object (request body for POST /gov/proposals) containing this member's info as parameter
     proposal = {
-        "parameter": {"cert": member_cert, "keyshare": member_keyshare_encryptor, "member_data": member_data},
+        "parameter": {
+            "cert": member_cert,
+            "keyshare": member_keyshare_encryptor,
+            "member_data": member_data,
+        },
         "script": {"text": proposal_script_text},
     }
 
