@@ -1434,6 +1434,9 @@ DOCTEST_TEST_CASE("Passing operator vote" * doctest::test_suite("operator"))
     members[id] = cert;
   }
 
+  // Set a recovery threshold (otherwise retiring a member throws)
+  gen.set_recovery_threshold(1);
+
   set_whitelists(gen);
   gen.set_gov_scripts(
     lua::Interpreter().invoke<json>(operator_gov_script_file));
@@ -1487,6 +1490,56 @@ DOCTEST_TEST_CASE("Passing operator vote" * doctest::test_suite("operator"))
     const auto proposer_vote = votes.find(operator_id);
     DOCTEST_CHECK(proposer_vote != votes.end());
     DOCTEST_CHECK(proposer_vote->second == vote_for);
+  }
+
+  auto new_operator_kp = tls::make_key_pair();
+  const auto new_operator_cert = get_cert(42, new_operator_kp);
+
+  {
+    DOCTEST_INFO("Operator adds another operator");
+    Propose::In proposal;
+    proposal.script = std::string(R"xxx(
+      local tables, member_info = ...
+      return Calls:call("new_member", member_info)
+    )xxx");
+
+    proposal.parameter["cert"] = new_operator_cert;
+    proposal.parameter["keyshare"] = dummy_key_share;
+    proposal.parameter["member_data"] = operator_member_data();
+
+    const auto propose = create_signed_request(proposal, "proposals", kp);
+    const auto r = parse_response_body<Propose::Out>(
+      frontend_process(frontend, propose, operator_cert));
+
+    DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
+
+    {
+      DOCTEST_INFO("New operator acks to become active");
+      const auto state_digest_req =
+        create_request(nullptr, "ack/update_state_digest");
+      const auto ack = parse_response_body<StateDigest>(
+        frontend_process(frontend, state_digest_req, new_operator_cert));
+
+      StateDigest params;
+      params.state_digest = ack.state_digest;
+      const auto ack_req =
+        create_signed_request(params, "ack", new_operator_kp);
+      const auto resp = frontend_process(frontend, ack_req, new_operator_cert);
+    }
+  }
+
+  {
+    DOCTEST_INFO("New operator retires original operator");
+    Propose::In proposal;
+    proposal.script = fmt::format(
+      R"xxx(return Calls:call("retire_member", {}))xxx", operator_id);
+
+    const auto propose =
+      create_signed_request(proposal, "proposals", new_operator_kp);
+    const auto r = parse_response_body<Propose::Out>(
+      frontend_process(frontend, propose, new_operator_cert));
+
+    DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
   }
 }
 
