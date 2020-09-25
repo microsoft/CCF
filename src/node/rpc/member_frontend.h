@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "ds/nonstd.h"
 #include "frontend.h"
 #include "lua_interp/lua_json.h"
 #include "lua_interp/tx_script_runner.h"
@@ -181,24 +182,6 @@ namespace ccf
   class MemberEndpoints : public CommonEndpointRegistry
   {
   private:
-    static bool startswith(const std::string& s, const std::string& prefix)
-    {
-      return s.rfind(prefix, 0) == 0;
-    }
-
-    static bool contains(const std::string& s, const std::string& needle)
-    {
-      return s.rfind(needle) != std::string::npos;
-    }
-
-    static std::string toupper(std::string s)
-    {
-      std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
-        return std::toupper(c);
-      });
-      return s;
-    }
-
     Script get_script(kv::Tx& tx, std::string name)
     {
       const auto s = tx.get_view(network.gov_scripts)->get(name);
@@ -283,7 +266,7 @@ namespace ccf
           }
 
           // CCF currently requires each endpoint to have an inline JS module.
-          std::string method_uppercase = toupper(method);
+          std::string method_uppercase = nonstd::toupper(method);
           std::string key =
             fmt::format("{} {}{}", method_uppercase, url_prefix, url);
           std::string script = "import {" + info.js_function + " as f}" +
@@ -313,7 +296,7 @@ namespace ccf
       tx_scripts->foreach(
         [&tx_scripts, &url_prefix](const std::string& name, const Script&) {
           // endpoints are named "POST ..."
-          if (contains(name, " " + url_prefix))
+          if (name.find(" " + url_prefix) != std::string::npos)
             tx_scripts->remove(name);
           return true;
         });
@@ -350,7 +333,7 @@ namespace ccf
       auto tx_modules = tx.get_view(network.modules);
       tx_modules->foreach(
         [&tx_modules, &prefix](const std::string& name, const Module&) {
-          if (startswith(name, prefix))
+          if (nonstd::starts_with(name, prefix))
           {
             if (!tx_modules->remove(name))
             {
