@@ -349,7 +349,6 @@ namespace ccfapp
         // Try find script for method
         // - First try a script called "foo"
         // - If that fails, try a script called "POST foo"
-        // - If that fails, try a script called "POST __root__/foo"
         auto handler_script = scripts->get(local_method);
         if (!handler_script)
         {
@@ -358,18 +357,10 @@ namespace ccfapp
           handler_script = scripts->get(verb_prefixed);
           if (!handler_script)
           {
-            const auto verb_prefixed_root_app = fmt::format(
-              "{} __root__/{}",
-              args.rpc_ctx->get_request_verb().c_str(),
-              local_method);
-            handler_script = scripts->get(verb_prefixed_root_app);
-            if (!handler_script)
-            {
-              args.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-              args.rpc_ctx->set_response_body(fmt::format(
-                "No handler script found for method '{}'", verb_prefixed));
-              return;
-            }
+            args.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+            args.rpc_ctx->set_response_body(fmt::format(
+              "No handler script found for method '{}'", verb_prefixed));
+            return;
           }
         }
 

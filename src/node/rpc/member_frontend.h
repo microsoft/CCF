@@ -21,7 +21,6 @@
 #include <map>
 #include <memory>
 #include <openenclave/attestation/verifier.h>
-#include <regex>
 #include <set>
 #include <sstream>
 #if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
@@ -173,11 +172,10 @@ namespace ccf
 
   struct DeployJsApp
   {
-    std::string name;
     JsBundle bundle;
   };
   DECLARE_JSON_TYPE(DeployJsApp)
-  DECLARE_JSON_REQUIRED_FIELDS(DeployJsApp, name, bundle)
+  DECLARE_JSON_REQUIRED_FIELDS(DeployJsApp, bundle)
 
   class MemberEndpoints : public CommonEndpointRegistry
   {
@@ -227,24 +225,13 @@ namespace ccf
       }
     }
 
-    bool deploy_js_app(kv::Tx& tx, std::string name, const JsBundle& bundle)
+    bool deploy_js_app(kv::Tx& tx, const JsBundle& bundle)
     {
-      std::regex name_pattern("[a-zA-Z0-9_-]+");
-      if (!std::regex_match(name, name_pattern))
-      {
-        LOG_FAIL_FMT("app name is invalid");
-        return false;
-      }
-
-      std::string module_prefix = fmt::format("/{}/", name);
-      std::string url_prefix = name;
-
+      std::string module_prefix = "/";
       remove_modules(tx, module_prefix);
       set_modules(tx, module_prefix, bundle.modules);
 
-      remove_endpoints(tx, url_prefix);
-
-      auto tx_scripts = tx.get_view(network.app_scripts);
+      std::map<std::string, std::string> scripts;
       for (auto& [url, endpoint] : bundle.metadata.endpoints)
       {
         for (auto& [method, info] : endpoint)
@@ -268,39 +255,29 @@ namespace ccf
           // CCF currently requires each endpoint to have an inline JS module.
           std::string method_uppercase = method;
           nonstd::to_upper(method_uppercase);
+          std::string url_without_leading_slash = url.substr(1);
           std::string key =
-            fmt::format("{} {}{}", method_uppercase, url_prefix, url);
-          std::string script = "import {" + info.js_function + " as f}" +
-            "from '." + module_prefix + info.js_module + "';" +
-            "export default (request) => f(request);";
-          tx_scripts->put(key, {script});
+            fmt::format("{} {}", method_uppercase, url_without_leading_slash);
+          std::string script = fmt::format(
+            "import {{ {} as f }} from '.{}{}'; export default (r) => f(r);",
+            info.js_function,
+            module_prefix,
+            info.js_module);
+          scripts.emplace(key, script);
         }
       }
 
-      return true;
-    }
-
-    bool remove_js_app(kv::Tx& tx, std::string name)
-    {
-      std::string module_prefix = fmt::format("/{}/", name);
-      std::string url_prefix = name;
-
-      remove_modules(tx, module_prefix);
-      remove_endpoints(tx, url_prefix);
+      set_js_scripts(tx, scripts);
 
       return true;
     }
 
-    void remove_endpoints(kv::Tx& tx, std::string url_prefix)
+    bool remove_js_app(kv::Tx& tx)
     {
-      auto tx_scripts = tx.get_view(network.app_scripts);
-      tx_scripts->foreach(
-        [&tx_scripts, &url_prefix](const std::string& name, const Script&) {
-          // endpoints are named "POST ..."
-          if (name.find(" " + url_prefix) != std::string::npos)
-            tx_scripts->remove(name);
-          return true;
-        });
+      remove_modules(tx, "/");
+      set_js_scripts(tx, {});
+
+      return true;
     }
 
     void set_modules(
@@ -416,13 +393,12 @@ namespace ccf
         {"deploy_js_app",
          [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<DeployJsApp>();
-           return deploy_js_app(tx, parsed.name, parsed.bundle);
+           return deploy_js_app(tx, parsed.bundle);
          }},
         // undeploy/remove the js application
         {"remove_js_app",
-         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
-           std::string name = args;
-           return remove_js_app(tx, name);
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json&) {
+           return remove_js_app(tx);
          }},
         // add/update a module
         {"set_module",

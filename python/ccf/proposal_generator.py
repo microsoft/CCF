@@ -10,7 +10,6 @@ import os
 import sys
 import shutil
 import tempfile
-import re
 from pathlib import PurePosixPath
 from typing import Union, Optional, Any, List
 
@@ -20,8 +19,6 @@ from loguru import logger as LOG  # type: ignore
 
 
 CERT_OID_SGX_QUOTE = "1.2.840.113556.10.1.1"
-
-ROOT_JS_APP_NAME = "__root__"
 
 
 def dump_to_file(output_path: str, obj: dict, dump_args: dict):
@@ -280,11 +277,7 @@ def set_js_app(app_script_path: str, **kwargs):
 
 
 @cli_proposal
-def deploy_js_app(bundle_path: str, app_name=ROOT_JS_APP_NAME, **kwargs):
-    app_name_re = r"[a-zA-Z0-9_-]+"
-    if not re.match(app_name_re, app_name):
-        raise ValueError(f"app name has an invalid name, must be {app_name_re}")
-
+def deploy_js_app(bundle_path: str, **kwargs):
     # read modules
     if os.path.isfile(bundle_path):
         tmp_dir = tempfile.TemporaryDirectory(prefix="ccf")
@@ -309,7 +302,6 @@ def deploy_js_app(bundle_path: str, app_name=ROOT_JS_APP_NAME, **kwargs):
                 )
 
     proposal_args = {
-        "name": app_name,
         "bundle": {"metadata": metadata, "modules": modules},
     }
 
@@ -317,8 +309,8 @@ def deploy_js_app(bundle_path: str, app_name=ROOT_JS_APP_NAME, **kwargs):
 
 
 @cli_proposal
-def remove_js_app(app_name=ROOT_JS_APP_NAME, **kwargs):
-    return build_proposal("remove_js_app", app_name, **kwargs)
+def remove_js_app(**kwargs):
+    return build_proposal("remove_js_app", **kwargs)
 
 
 @cli_proposal

@@ -146,7 +146,7 @@ def test_module_import(network, args):
 def test_app_bundle(network, args):
     primary, _ = network.find_nodes()
 
-    LOG.info("Deploying js app bundle archive as root app")
+    LOG.info("Deploying js app bundle archive")
     # Testing the bundle archive support of the Python client here.
     # Plain bundle folders are tested in the npm-based app tests.
     bundle_dir = os.path.join(THIS_DIR, "js-app-bundle")
@@ -165,7 +165,7 @@ def test_app_bundle(network, args):
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
-        r = c.post("/gov/read", {"table": "ccf.modules", "key": "/__root__/math.js"})
+        r = c.post("/gov/read", {"table": "ccf.modules", "key": "/math.js"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
     with primary.client("user0") as c:
@@ -196,7 +196,7 @@ def test_app_bundle(network, args):
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
-        r = c.post("/gov/read", {"table": "ccf.modules", "key": "/__root__/math.js"})
+        r = c.post("/gov/read", {"table": "ccf.modules", "key": "/math.js"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
 
     return network
@@ -252,9 +252,8 @@ def test_npm_tsoa_app(network, args):
 
     LOG.info("Deploying tsoa npm app")
     bundle_dir = os.path.join(app_dir, "dist")
-    app_name = "tsoa"
 
-    proposal_body, _ = ccf.proposal_generator.deploy_js_app(bundle_dir, app_name)
+    proposal_body, _ = ccf.proposal_generator.deploy_js_app(bundle_dir)
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
@@ -263,18 +262,18 @@ def test_npm_tsoa_app(network, args):
     LOG.info("Calling tsoa npm app endpoints")
     with primary.client("user0") as c:
         body = [1, 2, 3, 4]
-        r = c.post("/app/tsoa/partition", body)
+        r = c.post("/app/partition", body)
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json() == [[1, 3], [2, 4]], r.body
 
-        r = c.post("/app/tsoa/proto", body)
+        r = c.post("/app/proto", body)
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.headers["content-type"] == "application/x-protobuf"
         # We could now decode the protobuf message but given all the machinery
         # involved to make it happen (code generation with protoc) we'll leave it at that.
         assert len(r.body) == 14, len(r.body)
 
-        r = c.get("/app/tsoa/crypto")
+        r = c.get("/app/crypto")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json()["available"], r.body
 
