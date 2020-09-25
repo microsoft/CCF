@@ -332,28 +332,15 @@ namespace ccf
       auto restored_ls = ls_wrapping_key.unwrap(
         recovery_shares_info->wrapped_latest_ledger_secret.encrypted_data);
 
-      LOG_FAIL_FMT(
-        "# restored encrypted LS: {}", encrypted_recovery_secrets.size());
-
-      LOG_FAIL_FMT(
-        "Previous ledger secret version: {}",
-        encrypted_recovery_secrets.back().next_version);
-
       restored_ledger_secrets.push_back(
         {encrypted_recovery_secrets.back().next_version, restored_ls});
 
       auto decryption_key = restored_ls.master;
-      for (auto it = encrypted_recovery_secrets.rbegin();
-           it != encrypted_recovery_secrets.rend();
-           it++)
+      for (auto i = encrypted_recovery_secrets.rbegin();
+           i != encrypted_recovery_secrets.rend();
+           i++)
       {
-        LOG_FAIL_FMT("Once!");
-
-        // TODO: Is this still required as the hook prevents us from writing
-        // anything is there's no encrypted ledger secret. We assume that all
-        // ledger secrets are always passed here. So that
-        // std::next(it)->next_version is 1 when we get to the end of this??
-        if (it->encrypted_ledger_secret.size() == 0)
+        if (i->encrypted_ledger_secret.size() == 0)
         {
           // First entry does not encrypt any other ledger secret (i.e. genesis)
           break;
@@ -373,13 +360,13 @@ namespace ccf
         {
           throw std::logic_error(fmt::format(
             "Decryption of ledger secret at {} failed",
-            std::next(it)->next_version));
+            std::next(i)->next_version));
         }
 
         restored_ledger_secrets.push_back(
-          {std::next(it)->next_version, LedgerSecret(decrypted_ls)});
+          {std::next(i)->next_version, LedgerSecret(decrypted_ls)});
 
-        restored_versions.push_back(std::next(it)->next_version);
+        restored_versions.push_back(std::next(i)->next_version);
         decryption_key = decrypted_ls;
       }
 

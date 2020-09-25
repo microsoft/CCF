@@ -116,8 +116,7 @@ def test_share_resilience(network, args, from_snapshot=False):
 
 
 def run(args):
-    # hosts = ["localhost", "localhost", "localhost"]
-    hosts = ["localhost", "localhost"]
+    hosts = ["localhost", "localhost", "localhost"]
 
     txs = app.LoggingTxs()
 
@@ -128,11 +127,13 @@ def run(args):
 
         for i in range(args.recovery):
             # Alternate between recovery with primary change and stable primary-ship
-            # if i % 2 == 0:
-            # recovered_network = test_share_resilience(network, args, args.use_snapshot)
-            # else:
-            recovered_network = test(network, args, args.use_snapshot)
-            # network.stop_all_nodes()
+            if i % 2 == 0:
+                recovered_network = test_share_resilience(
+                    network, args, args.use_snapshot
+                )
+            else:
+                recovered_network = test(network, args, args.use_snapshot)
+            network.stop_all_nodes()
             network = recovered_network
             LOG.success("Recovery complete on all nodes")
 

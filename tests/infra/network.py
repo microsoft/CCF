@@ -461,7 +461,9 @@ class Network:
         """
         new_node = self.create_node(host)
 
-        self._add_node(new_node, lib_name, args, target_node, snapshot_dir=snapshot_dir)
+        self._add_node(
+            new_node, lib_name, args, target_node, from_snapshot=from_snapshot
+        )
         primary, _ = self.find_primary()
         try:
             self.consortium.wait_for_node_to_exist_in_store(

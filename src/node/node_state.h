@@ -445,11 +445,8 @@ namespace ccf
             setup_consensus(resp.network_info.public_only);
             setup_history();
 
-            LOG_FAIL_FMT(
-              "Ledger secrets size: {}",
-              resp.network_info.ledger_secrets.secrets_list.size());
-
-            if (!config.snapshot.empty())
+            bool from_snapshot = !config.snapshot.empty();
+            if (from_snapshot)
             {
               // It is only possible to deserialise the snapshot then, once the
               // ledger secrets have been passed in by the network
@@ -510,8 +507,7 @@ namespace ccf
             {
               last_recovered_signed_idx =
                 resp.network_info.last_recovered_signed_idx;
-              setup_recovery_hook(
-                !config.snapshot.empty()); // TODO: From snapshot??
+              setup_recovery_hook(from_snapshot);
               sm.advance(State::partOfPublicNetwork);
             }
             else
@@ -606,7 +602,6 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::readingPublicLedger);
       LOG_INFO_FMT("Starting public recovery");
-
       read_ledger_idx(++ledger_idx);
     }
 
@@ -819,7 +814,7 @@ namespace ccf
       // Raft should deserialise all security domains when network is opened
       consensus->enable_all_domains();
 
-      // Snapshots can only be generated from now onwards
+      // Snapshots are only generated after recovery is complete
       snapshotter->set_tx_interval(recovery_snapshot_tx_interval);
 
       // Open the service
@@ -1253,7 +1248,6 @@ namespace ccf
       secret_set.primary_public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
 
-      LOG_FAIL_FMT("Broadcast ledger secret at version: {}", version);
       for (auto [nid, ni] : trusted_nodes)
       {
         ccf::EncryptedLedgerSecret secret_for_node;
@@ -1512,9 +1506,6 @@ namespace ccf
 
               if (is_part_of_public_network())
               {
-                LOG_FAIL_FMT(
-                  "Got restore secret while in public recovery for version {}",
-                  secret_version);
                 restored_secrets.push_back(
                   {secret_version, LedgerSecret(plain_secret)});
               }
@@ -1560,16 +1551,14 @@ namespace ccf
 
     void setup_recovery_hook(bool from_snapshot)
     {
-      // On snapshot, the version at which the first ledger secret is applicable
-      // from
+      // When recoverying from a snapshot, the first secret is valid from the
+      // version at which it was recorded
       static bool is_first_secret = !from_snapshot;
 
       network.shares.set_local_hook(
         [this](kv::Version version, const Shares::Write& w) {
           for (const auto& [k, opt_v] : w)
           {
-            LOG_FAIL_FMT("One ledger secret written at {}", version);
-
             if (!opt_v.has_value())
             {
               throw std::logic_error(
