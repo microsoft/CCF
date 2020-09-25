@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -63,18 +64,34 @@ namespace nonstd
 
   /** a more generic std::string member function is present in C++20
    */
-  inline bool starts_with(const std::string& s, const std::string& prefix)
+  static inline bool starts_with(const std::string& s, const std::string& prefix)
   {
     return s.rfind(prefix, 0) == 0;
   }
 
-  /** not part of any C++ standard
+  /** converts strings to upper or lower case, in-place
    */
-  inline std::string toupper(std::string s)
+  static inline void to_upper(std::string& s)
   {
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
       return std::toupper(c);
     });
+  }
+
+  static inline void to_lower(std::string& s)
+  {
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
+      return std::tolower(c);
+    });
+  }
+
+  static inline std::string remove_prefix(
+    const std::string& s, const std::string& prefix)
+  {
+    if (s.find(prefix) == 0)
+    {
+      return s.substr(prefix.size());
+    }
     return s;
   }
 }
