@@ -1,11 +1,10 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
     "params_schema": {
-      "$ref": "http://json-schema.org/draft-07/schema#"
+      "type": "object"
     },
     "result_schema": {
-      "$ref": "http://json-schema.org/draft-07/schema#"
+      "type": "object"
     }
   },
   "required": [

@@ -1,52 +1,35 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
     "metrics": {
-      "items": {
-        "items": [
-          {
-            "type": "string"
-          },
-          {
-            "items": {
-              "items": [
-                {
-                  "type": "string"
-                },
-                {
-                  "properties": {
-                    "calls": {
-                      "maximum": 18446744073709551615,
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "errors": {
-                      "maximum": 18446744073709551615,
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "failures": {
-                      "maximum": 18446744073709551615,
-                      "minimum": 0,
-                      "type": "integer"
-                    }
-                  },
-                  "required": [
-                    "calls",
-                    "errors",
-                    "failures"
-                  ],
-                  "type": "object"
-                }
-              ],
-              "type": "array"
+      "additionalProperties": {
+        "additionalProperties": {
+          "properties": {
+            "calls": {
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
             },
-            "type": "array"
-          }
-        ],
-        "type": "array"
+            "errors": {
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "failures": {
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "calls",
+            "errors",
+            "failures"
+          ],
+          "type": "object"
+        },
+        "type": "object"
       },
-      "type": "array"
+      "type": "object"
     }
   },
   "required": [
