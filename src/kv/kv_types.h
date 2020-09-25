@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/nonstd.h"
 #include "crypto/hash.h"
 #include "enclave/consensus_type.h"
 #include "serialiser_declare.h"
@@ -67,7 +68,7 @@ namespace kv
   {
     constexpr auto public_domain_prefix = "public:";
 
-    if (name.rfind(public_domain_prefix, 0) == 0)
+    if (nonstd::starts_with(name, public_domain_prefix))
     {
       return SecurityDomain::PUBLIC;
     }
