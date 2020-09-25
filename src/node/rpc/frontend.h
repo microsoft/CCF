@@ -2,8 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "common_endpoint_registry.h"
-#include "consensus/pbft/pbft_requests.h"
-#include "consensus/pbft/pbft_tables.h"
+#include "consensus/aft/request.h"
 #include "ds/buffer.h"
 #include "ds/spin_lock.h"
 #include "enclave/rpc_handler.h"
@@ -46,14 +45,14 @@ namespace ccf
 
     Nodes* nodes;
     ClientSignatures* client_signatures;
-    pbft::RequestsMap* pbft_requests_map;
+    aft::RequestsMap* pbft_requests_map;
     kv::Consensus* consensus;
     std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder;
     kv::TxHistory* history;
 
-    size_t sig_max_tx = 1000;
+    size_t sig_tx_interval = 5000;
     std::atomic<size_t> tx_count = 0;
-    std::chrono::milliseconds sig_max_ms = std::chrono::milliseconds(1000);
+    std::chrono::milliseconds sig_ms_interval = std::chrono::milliseconds(1000);
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
     bool request_storing_disabled = false;
 
@@ -313,7 +312,7 @@ namespace ccf
         if (
           (!ctx->is_create_request &&
            (!(consensus != nullptr &&
-              consensus->type() == ConsensusType::RAFT) ||
+              consensus->type() == ConsensusType::CFT) ||
             !ctx->session->original_caller.has_value())) &&
           !verify_client_signature(
             ctx->session->caller_cert, caller_id, signed_request.value()))
@@ -331,7 +330,10 @@ namespace ccf
 
       update_history();
 
-      if (!is_primary && consensus->type() == ConsensusType::RAFT)
+      if ((!is_primary &&
+           (consensus->type() == ConsensusType::CFT ||
+            (consensus->type() != ConsensusType::CFT &&
+             !ctx->execute_on_node))))
       {
         switch (endpoint->forwarding_required)
         {
@@ -342,8 +344,15 @@ namespace ccf
 
           case ForwardingRequired::Sometimes:
           {
-            if (ctx->session->is_forwarding)
+            if (
+              (ctx->session->is_forwarding &&
+               consensus->type() == ConsensusType::CFT) ||
+              (consensus->type() != ConsensusType::CFT &&
+               !ctx->execute_on_node &&
+               (endpoint == nullptr ||
+                (endpoint != nullptr && !endpoint->execute_locally))))
             {
+              ctx->session->is_forwarding = true;
               return forward_or_redirect_json(ctx, endpoint, caller_id);
             }
             break;
@@ -362,8 +371,13 @@ namespace ccf
 
       tx_count++;
 
-      while (true)
+      size_t attempts = 0;
+      constexpr auto max_attempts = 30;
+
+      while (attempts < max_attempts)
       {
+        ++attempts;
+
         try
         {
           if (pre_exec)
@@ -403,16 +417,9 @@ namespace ccf
 
                 if (
                   history && consensus->is_primary() &&
-                  (cv % sig_max_tx == sig_max_tx / 2))
+                  (cv % sig_tx_interval == sig_tx_interval / 2))
                 {
-                  if (consensus->type() == ConsensusType::RAFT)
-                  {
-                    history->emit_signature();
-                  }
-                  else
-                  {
-                    consensus->emit_signature();
-                  }
+                  history->emit_signature();
                 }
               }
 
@@ -433,6 +440,15 @@ namespace ccf
               return ctx->serialise_response();
             }
           }
+        }
+        catch (const kv::CompactedVersionConflict& e)
+        {
+          // The executing transaction failed because of a conflicting
+          // compaction. Reset and retry
+          LOG_DEBUG_FMT(
+            "Transaction execution conflicted with compaction: {}", e.what());
+          tx.reset();
+          continue;
         }
         catch (const RpcException& e)
         {
@@ -466,6 +482,11 @@ namespace ccf
           return ctx->serialise_response();
         }
       }
+
+      ctx->set_response_status(HTTP_STATUS_CONFLICT);
+      ctx->set_response_body(fmt::format(
+        "Transaction continued to conflict after {} attempts.", max_attempts));
+      return ctx->serialise_response();
     }
 
   public:
@@ -478,16 +499,17 @@ namespace ccf
       nodes(tables.get<Nodes>(Tables::NODES)),
       client_signatures(client_sigs_),
       pbft_requests_map(
-        tables.get<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
+        tables.get<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS)),
       consensus(nullptr),
       history(nullptr)
     {}
 
-    void set_sig_intervals(size_t sig_max_tx_, size_t sig_max_ms_) override
+    void set_sig_intervals(
+      size_t sig_tx_interval_, size_t sig_ms_interval_) override
     {
-      sig_max_tx = sig_max_tx_;
-      sig_max_ms = std::chrono::milliseconds(sig_max_ms_);
-      ms_to_sig = sig_max_ms;
+      sig_tx_interval = sig_tx_interval_;
+      sig_ms_interval = std::chrono::milliseconds(sig_ms_interval_);
+      ms_to_sig = sig_ms_interval;
     }
 
     void set_cmd_forwarder(
@@ -526,11 +548,13 @@ namespace ccf
     {
       update_consensus();
 
-      kv::Tx tx;
+      auto tx = tables.create_tx();
 
       auto caller_id = endpoints.get_caller_id(tx, ctx->session->caller_cert);
 
-      if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
+      if (
+        consensus != nullptr && consensus->type() == ConsensusType::BFT &&
+        (ctx->execute_on_node || consensus->is_primary()))
       {
         auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
         if (rep.has_value())
@@ -573,6 +597,14 @@ namespace ccf
       }
       else
       {
+        if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
+        {
+          auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
+          if (rep.has_value())
+          {
+            return rep;
+          }
+        }
         return process_command(ctx, tx, caller_id);
       }
     }
@@ -584,7 +616,7 @@ namespace ccf
     ProcessPbftResp process_pbft(
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
-      kv::Tx tx;
+      auto tx = tables.create_tx();
       return process_pbft(ctx, tx, false);
     }
 
@@ -606,9 +638,9 @@ namespace ccf
           req_view->put(
             0,
             {ctx.session->original_caller.value().caller_id,
+             tx.get_req_id(),
              ctx.session->caller_cert,
-             ctx.get_serialised_request(),
-             ctx.pbft_raw});
+             ctx.get_serialised_request()});
         };
       }
 
@@ -626,7 +658,10 @@ namespace ccf
 
     void update_merkle_tree() override
     {
-      history->flush_pending();
+      if (history != nullptr)
+      {
+        history->flush_pending();
+      }
     }
 
     /** Process a serialised input forwarded from another node
@@ -649,18 +684,26 @@ namespace ccf
 
       update_consensus();
 
-      kv::Tx tx;
+      auto tx = tables.create_tx();
 
-      auto rep =
-        process_command(ctx, tx, ctx->session->original_caller->caller_id);
-      if (!rep.has_value())
+      if (consensus->type() == ConsensusType::CFT)
       {
-        // This should never be called when process_command is called with a
-        // forwarded RPC context
-        throw std::logic_error("Forwarded RPC cannot be forwarded");
-      }
+        auto rep =
+          process_command(ctx, tx, ctx->session->original_caller->caller_id);
+        if (!rep.has_value())
+        {
+          // This should never be called when process_command is called with a
+          // forwarded RPC context
+          throw std::logic_error("Forwarded RPC cannot be forwarded");
+        }
 
-      return rep.value();
+        return rep.value();
+      }
+      else
+      {
+        auto rep = process_pbft(ctx, tx, false);
+        return rep.result;
+      }
     }
 
     void tick(std::chrono::milliseconds elapsed) override
@@ -688,17 +731,10 @@ namespace ccf
           return;
         }
 
-        ms_to_sig = sig_max_ms;
+        ms_to_sig = sig_ms_interval;
         if (history && tables.commit_gap() > 0)
         {
-          if (consensus->type() == ConsensusType::RAFT)
-          {
-            history->emit_signature();
-          }
-          else
-          {
-            consensus->emit_signature();
-          }
+          history->emit_signature();
         }
       }
     }

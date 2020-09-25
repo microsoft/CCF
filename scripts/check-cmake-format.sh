@@ -30,15 +30,15 @@ fi
 
 if [ ! -f "scripts/env/bin/activate" ]
     then
-        python3.7 -m venv scripts/env
+        python3.8 -m venv scripts/env
 fi
 
 source scripts/env/bin/activate
-pip install --disable-pip-version-check cmake_format 1>/dev/null
+pip install --disable-pip-version-check cmake_format==0.6.11 1>/dev/null
 
 unformatted_files=""
 for file in $(find "$@" -name "*.cmake" -o -name "CMakeLists.txt"); do
-  cmake-format --check "$file"
+  cmake-format --check "$file" > /dev/null
   d=$?
   if $fix ; then
     cmake-format -i "$file"

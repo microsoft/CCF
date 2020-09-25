@@ -7,7 +7,6 @@ import infra.proc
 import os
 import subprocess
 import sys
-import time
 from loguru import logger as LOG
 
 
@@ -39,7 +38,7 @@ def run(args):
 
         with primary.client() as uc:
             r = uc.get("/node/code")
-            assert r.body == {
+            assert r.body.json() == {
                 "versions": [{"digest": first_code_id, "status": "ACCEPTED"}],
             }, r.body
 
@@ -71,7 +70,7 @@ def run(args):
 
         with primary.client() as uc:
             r = uc.get("/node/code")
-            versions = sorted(r.body["versions"], key=lambda x: x["digest"])
+            versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
             expected = sorted(
                 [
                     {"digest": first_code_id, "status": "ACCEPTED"},
@@ -101,15 +100,45 @@ def run(args):
             LOG.debug(f"Stopping old node {node.node_id}")
             node.stop()
 
-        LOG.info(
-            f"Waiting {network.election_duration}s for a new primary to be elected..."
-        )
-        time.sleep(network.election_duration)
-
-        new_primary, _ = network.find_primary()
-        LOG.info(f"Waited, new_primary is {new_primary.node_id}")
+        new_primary, _ = network.wait_for_new_primary(primary.node_id)
+        LOG.info(f"New_primary is {new_primary.node_id}")
 
         LOG.info("Adding another node to the network")
+        new_node = network.create_and_trust_node(
+            args.patched_file_name, "localhost", args
+        )
+        assert new_node
+        network.wait_for_node_commit_sync(args.consensus)
+
+        LOG.info("Remove first code id")
+        network.consortium.retire_code(new_node, first_code_id)
+
+        with new_node.client() as uc:
+            r = uc.get("/node/code")
+            versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
+            expected = sorted(
+                [
+                    {"digest": first_code_id, "status": "RETIRED"},
+                    {"digest": new_code_id, "status": "ACCEPTED"},
+                ],
+                key=lambda x: x["digest"],
+            )
+            assert versions == expected, versions
+
+        LOG.info(f"Adding a node with retired code id {first_code_id}")
+        code_not_found_exception = None
+        try:
+            network.create_and_add_pending_node(
+                args.package, "localhost", args, timeout=3
+            )
+        except infra.network.CodeIdRetired as err:
+            code_not_found_exception = err
+
+        assert (
+            code_not_found_exception is not None
+        ), f"Adding a node with unsupported code id {new_code_id} should fail"
+
+        LOG.info("Adding another node with the new code to the network")
         new_node = network.create_and_trust_node(
             args.patched_file_name, "localhost", args
         )

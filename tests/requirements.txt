@@ -1,11 +1,8 @@
 wheel
 paramiko
-msgpack
 loguru
 coincurve
 psutil
 cimetrics>=0.2.1
-requests-http-signature
-flatbuffers
-websocket-client
 pynacl
+openapi-spec-validator

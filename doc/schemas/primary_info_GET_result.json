@@ -1,9 +1,8 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
     "current_view": {
-      "maximum": 18446744073709551615,
-      "minimum": 0,
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
       "type": "integer"
     },
     "primary_host": {

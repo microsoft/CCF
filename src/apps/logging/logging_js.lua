@@ -3,94 +3,90 @@
 
 return {
   ["GET log/private"] = [[
-    function get(query)
+    export default function(request)
     {
-      const elements = query.split("&");
-      for (kv of elements) {
+      const elements = request.query.split("&");
+      for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
           try
           {
-            return {msg: tables.data.get(JSON.parse(v).toString())};
+            return { body: {msg: tables.data.get(JSON.parse(v).toString())} };
           }
           catch (err)
           {
-            return {error: err.message}
+            return { body: {error: err.message} };
           }
         }
       }
       throw "Could not find 'id' in query";
     }
-    get(query)
   ]],
 
   ["GET log/public"] = [[
-    function get(query)
+    export default function(request)
     {
-      const elements = query.split("&");
-      for (kv of elements) {
+      const elements = request.query.split("&");
+      for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
           try
           {
-            return {msg: tables.data.get(JSON.parse(v).toString())};
+            return { body: {msg: tables.data.get(JSON.parse(v).toString())} };
           }
           catch (err)
           {
-            return {error: err.message}
+            return { body: {error: err.message} }
           }
         }
       }
       throw "Could not find 'id' in query";
     }
-    get(query)
   ]],
 
   ["POST log/private"] = [[
-    function record(params)
+    export default function(request)
     {
+      let params = request.body.json();
       tables.data.put(params.id.toString(), params.msg);
-      return true;
+      return { body: true };
     }
-    record(JSON.parse(body))
   ]],
 
   ["POST log/public"] = [[
-    function record(params)
+    export default function(request)
     {
+      let params = request.body.json();
       tables.data.put(params.id.toString(), params.msg);
-      return true;
+      return { body: true };
     }
-    record(JSON.parse(body))
   ]],
 
   ["DELETE log/public"] = [[
-    function remove(query)
+    export default function(request)
     {
-      const elements = query.split("&");
-      for (kv of elements) {
+      const elements = request.query.split("&");
+      for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
-          return tables.data.remove(JSON.parse(v).toString());
+          return { body: tables.data.remove(JSON.parse(v).toString()) };
         }
       }
       throw "Could not find 'id' in query";
     }
-    remove(query)
   ]],
 
   ["DELETE log/private"] = [[
-    function remove(query)
+    export default function(request)
     {
-      const elements = query.split("&");
-      for (kv of elements) {
+      const elements = request.query.split("&");
+      for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
-          return tables.data.remove(JSON.parse(v).toString());
+          return { body: tables.data.remove(JSON.parse(v).toString()) };
         }
       }
       throw "Could not find 'id' in query";
     }
-    remove(query)
   ]]
 }

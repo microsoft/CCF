@@ -32,10 +32,7 @@ namespace http
       if (f == auth::SIGN_HEADER_REQUEST_TARGET)
       {
         // Store verb as lowercase
-        std::transform(
-          verb.begin(), verb.end(), verb.begin(), [](unsigned char c) {
-            return std::tolower(c);
-          });
+        nonstd::to_lower(verb);
         value = fmt::format("{} {}", verb, path);
         if (!query.empty())
         {
@@ -176,7 +173,6 @@ namespace http
       auto auth_scheme = auth_header_value.substr(0, next_space);
       if (auth_scheme != auth::AUTH_SCHEME)
       {
-        LOG_FAIL_FMT("{} is the only supported scheme", auth::AUTH_SCHEME);
         return false;
       }
       auth_header_value = auth_header_value.substr(next_space + 1);
@@ -350,10 +346,8 @@ namespace http
 
         if (!parse_auth_scheme(authz_header))
         {
-          throw std::logic_error(fmt::format(
-            "Error parsing {} scheme. Only {} is supported",
-            headers::AUTHORIZATION,
-            auth::AUTH_SCHEME));
+          // The request does not have the correct authorization scheme
+          return std::nullopt;
         }
 
         std::string verify_error_reason;

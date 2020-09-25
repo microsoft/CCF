@@ -5,7 +5,7 @@
 #include "../ds/files.h"
 #include "../ds/logger.h"
 #include "../enclave/interface.h"
-#include "every_io.h"
+#include "timer.h"
 
 #include <chrono>
 #include <ctime>
@@ -20,7 +20,9 @@ namespace asynchost
   class HandleRingbufferImpl
   {
   private:
-    static constexpr size_t max_messages = 128;
+    // Maximum number of outbound ringbuffer messages which will be processed in
+    // a single iteration
+    static constexpr size_t max_messages = 256;
 
     messaging::BufferProcessor& bp;
     ringbuffer::Reader& r;
@@ -63,20 +65,15 @@ namespace asynchost
         });
     }
 
-    void every()
+    void on_timer()
     {
-      // On each uv loop iteration...
-
-      // ...read (and process) all outbound ringbuffer messages...
-      while (bp.read_n(max_messages, r) > 0)
-      {
-        continue;
-      }
+      // Regularly read (and process) some outbound ringbuffer messages...
+      bp.read_n(max_messages, r);
 
       // ...flush any pending inbound messages...
       nbwf.flush_all_inbound();
     }
   };
 
-  using HandleRingbuffer = proxy_ptr<EveryIO<HandleRingbufferImpl>>;
+  using HandleRingbuffer = proxy_ptr<Timer<HandleRingbufferImpl>>;
 }

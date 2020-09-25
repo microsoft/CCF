@@ -122,11 +122,12 @@ public:
     return last_idx;
   }
 
-  void write(bool is_committable)
+  void write(bool is_committable, bool force_chunk = false)
   {
     auto e = TestLedgerEntry(++last_idx);
     REQUIRE(
-      ledger.write_entry(e.data(), sizeof(TestLedgerEntry), is_committable) ==
+      ledger.write_entry(
+        e.data(), sizeof(TestLedgerEntry), is_committable, force_chunk) ==
       last_idx);
   }
 
@@ -240,6 +241,40 @@ TEST_CASE("Regular chunking")
     }
     REQUIRE(
       number_of_files_in_ledger_dir() == chunk_count + number_of_files_before);
+  }
+
+  INFO("Forcing early chunk from a committable entry");
+  {
+    size_t number_of_files_before = number_of_files_in_ledger_dir();
+
+    // Write committable entries until a new chunk with one entry is created
+    is_committable = true;
+    while (number_of_files_in_ledger_dir() == number_of_files_before)
+    {
+      entry_submitter.write(is_committable);
+    }
+
+    size_t number_of_files_after = number_of_files_in_ledger_dir();
+
+    // Write a new committable entry that forces a new ledger chunk
+    is_committable = true;
+    bool force_new_chunk = true;
+    entry_submitter.write(is_committable, force_new_chunk);
+    REQUIRE(number_of_files_in_ledger_dir() == number_of_files_after);
+
+    // Because of forcing a new chunk, the next entry will create a new chunk
+    is_committable = false;
+    entry_submitter.write(is_committable);
+
+    // A new chunk is created as the entry is committable _and_ forced
+    REQUIRE(number_of_files_in_ledger_dir() == number_of_files_after + 1);
+
+    is_committable = true;
+    force_new_chunk = true;
+    entry_submitter.write(is_committable, force_new_chunk);
+    // No new chunk is created as the entry is committable but doesn't force a
+    // new chunk
+    REQUIRE(number_of_files_in_ledger_dir() == number_of_files_after + 1);
   }
 
   INFO("Reading entries across all chunks");

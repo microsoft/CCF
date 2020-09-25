@@ -5,7 +5,7 @@ import time
 import logging
 from contextlib import contextmanager
 from enum import Enum, IntEnum
-from ccf.clients import CCFConnectionException
+from ccf.clients import CCFConnectionException, flush_info
 import infra.path
 import infra.proc
 import infra.node
@@ -47,6 +47,10 @@ class CodeIdNotFound(Exception):
     pass
 
 
+class CodeIdRetired(Exception):
+    pass
+
+
 class NodeShutdownError(Exception):
     pass
 
@@ -62,19 +66,19 @@ class Network:
     node_args_to_forward = [
         "enclave_type",
         "host_log_level",
-        "sig_max_tx",
-        "sig_max_ms",
+        "sig_tx_interval",
+        "sig_ms_interval",
         "raft_election_timeout",
         "pbft_view_change_timeout",
         "consensus",
         "memory_reserve_startup",
-        "notify_server",
         "log_format_json",
         "gov_script",
         "join_timer",
         "worker_threads",
-        "ledger_chunk_max_bytes",
+        "ledger_chunk_bytes",
         "domain",
+        "snapshot_tx_interval",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -123,9 +127,10 @@ class Network:
         self.perf_nodes = perf_nodes
 
         try:
-            os.remove(os.path.join(self.binary_dir, "vscode-gdb.sh"))
+            os.remove("/tmp/vscode-gdb.sh")
         except FileNotFoundError:
             pass
+
         for host in hosts:
             self.create_node(host)
 
@@ -141,9 +146,9 @@ class Network:
 
         with primary.client() as nc:
             r = nc.get("/node/primary_info")
-            first_node_id = r.body["primary_id"]
-            assert (r.body["primary_host"] == primary.host) and (
-                int(r.body["primary_port"]) == primary.rpc_port
+            first_node_id = r.body.json()["primary_id"]
+            assert (r.body.json()["primary_host"] == primary.host) and (
+                int(r.body.json()["primary_port"]) == primary.rpc_port
             ), "Primary is not the node that just started"
             for n in self.nodes:
                 n.node_id = n.node_id + first_node_id
@@ -160,7 +165,15 @@ class Network:
         self.nodes.append(node)
         return node
 
-    def _add_node(self, node, lib_name, args, target_node=None, recovery=False):
+    def _add_node(
+        self,
+        node,
+        lib_name,
+        args,
+        target_node=None,
+        recovery=False,
+        from_snapshot=False,
+    ):
         forwarded_args = {
             arg: getattr(args, arg)
             for arg in infra.network.Network.node_args_to_forward
@@ -172,23 +185,33 @@ class Network:
                 timeout=args.ledger_recovery_timeout if recovery else 3
             )
 
+        snapshot_dir = None
+        if from_snapshot:
+            LOG.info("Joining from snapshot")
+            snapshot_dir = target_node.get_snapshots()
+            # For now, we must have a snapshot to resume from when attempting
+            # to join from one
+            assert (
+                len(os.listdir(snapshot_dir)) > 0
+            ), f"There are no snapshots to resume from in directory {snapshot_dir}"
+
         node.join(
             lib_name=lib_name,
             workspace=args.workspace,
             label=args.label,
             common_dir=self.common_dir,
             target_rpc_address=f"{target_node.host}:{target_node.rpc_port}",
+            snapshot_dir=snapshot_dir,
             **forwarded_args,
         )
 
         # If the network is opening, node are trusted without consortium approval
         if self.status == ServiceStatus.OPENING:
-            if args.consensus != "pbft":
-                try:
-                    node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
-                except TimeoutError:
-                    LOG.error(f"New node {node.node_id} failed to join the network")
-                    raise
+            try:
+                node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
+            except TimeoutError:
+                LOG.error(f"New node {node.node_id} failed to join the network")
+                raise
             node.network_state = infra.node.NodeNetworkState.joined
 
     def _start_all_nodes(self, args, recovery=False, ledger_dir=None):
@@ -245,9 +268,9 @@ class Network:
 
         self.election_duration = (
             args.pbft_view_change_timeout / 1000
-            if args.consensus == "pbft"
+            if args.consensus == "bft"
             else args.raft_election_timeout / 1000
-        )
+        ) * 2
 
         LOG.info("All nodes started")
 
@@ -304,8 +327,7 @@ class Network:
         self.create_users(initial_users, args.participants_curve)
 
         primary = self._start_all_nodes(args)
-        if args.consensus != "pbft":
-            self.wait_for_all_nodes_to_catch_up(primary)
+        self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
 
         self.consortium.activate(primary)
@@ -327,14 +349,16 @@ class Network:
         self.consortium.add_users(primary, initial_users)
         LOG.info("Initial set of users added")
 
-        self.consortium.open_network(
-            remote_node=primary, pbft_open=(args.consensus == "pbft")
-        )
+        self.consortium.open_network(remote_node=primary)
+        self.wait_for_all_nodes_to_catch_up(primary)
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(
-        self, args, ledger_dir, common_dir=None,
+        self,
+        args,
+        ledger_dir,
+        common_dir=None,
     ):
         """
         Starts a CCF network in recovery mode.
@@ -378,9 +402,7 @@ class Network:
                 node, "partOfNetwork", timeout=args.ledger_recovery_timeout
             )
 
-        self.consortium.check_for_service(
-            primary, ServiceStatus.OPEN, pbft_open=(args.consensus == "pbft")
-        )
+        self.consortium.check_for_service(primary, ServiceStatus.OPEN)
         LOG.success("***** Recovered network is now open *****")
 
     def store_current_network_encryption_key(self):
@@ -411,14 +433,22 @@ class Network:
                 raise NodeShutdownError("Fatal error found during node shutdown")
 
     def create_and_add_pending_node(
-        self, lib_name, host, args, target_node=None, timeout=JOIN_TIMEOUT
+        self,
+        lib_name,
+        host,
+        args,
+        target_node=None,
+        from_snapshot=False,
+        timeout=JOIN_TIMEOUT,
     ):
         """
         Create a new node and add it to the network. Note that the new node
         still needs to be trusted by members to complete the join protocol.
         """
         new_node = self.create_node(host)
-        self._add_node(new_node, lib_name, args, target_node)
+        self._add_node(
+            new_node, lib_name, args, target_node, from_snapshot=from_snapshot
+        )
         primary, _ = self.find_primary()
         try:
             self.consortium.wait_for_node_to_exist_in_store(
@@ -431,7 +461,7 @@ class Network:
                     else infra.node.NodeStatus.TRUSTED
                 ),
             )
-        except TimeoutError:
+        except TimeoutError as e:
             # The node can be safely discarded since it has not been
             # attributed a unique node_id by CCF
             LOG.error(f"New pending node {new_node.node_id} failed to join the network")
@@ -441,35 +471,39 @@ class Network:
                 # Throw accurate exceptions if known errors found in
                 for error in errors:
                     if "CODE_ID_NOT_FOUND" in error:
-                        raise CodeIdNotFound
+                        raise CodeIdNotFound from e
+                    if "CODE_ID_RETIRED" in error:
+                        raise CodeIdRetired from e
             raise
 
         return new_node
 
-    def create_and_trust_node(self, lib_name, host, args, target_node=None):
+    def create_and_trust_node(
+        self, lib_name, host, args, target_node=None, from_snapshot=False
+    ):
         """
         Create a new node, add it to the network and let members vote to trust
         it so that it becomes part of the consensus protocol.
         """
-        new_node = self.create_and_add_pending_node(lib_name, host, args, target_node)
+        new_node = self.create_and_add_pending_node(
+            lib_name, host, args, target_node, from_snapshot
+        )
 
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(primary, new_node.node_id)
-            if args.consensus != "pbft":
-                # Here, quote verification has already been run when the node
-                # was added as pending. Only wait for the join timer for the
-                # joining node to retrieve network secrets.
-                new_node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
+            # Here, quote verification has already been run when the node
+            # was added as pending. Only wait for the join timer for the
+            # joining node to retrieve network secrets.
+            new_node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {new_node.node_id} failed to join the network")
             new_node.stop()
             raise
 
         new_node.network_state = infra.node.NodeNetworkState.joined
-        if args.consensus != "pbft":
-            self.wait_for_all_nodes_to_catch_up(primary)
+        self.wait_for_all_nodes_to_catch_up(primary)
 
         return new_node
 
@@ -502,7 +536,7 @@ class Network:
             try:
                 with node.client(connection_timeout=timeout) as c:
                     r = c.get("/node/state")
-                    if r.body["state"] == state:
+                    if r.body.json()["state"] == state:
                         break
             except ConnectionRefusedError:
                 pass
@@ -517,7 +551,7 @@ class Network:
     def _get_node_by_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
-    def find_primary(self, timeout=3):
+    def find_primary(self, timeout=3, log_capture=None):
         """
         Find the identity of the primary in the network and return its identity
         and the current view.
@@ -525,19 +559,22 @@ class Network:
         primary_id = None
         view = None
 
+        logs = []
+
         end_time = time.time() + timeout
         while time.time() < end_time:
             for node in self.get_joined_nodes():
                 with node.client() as c:
                     try:
-                        res = c.get("/node/primary_info")
+                        logs = []
+                        res = c.get("/node/primary_info", log_capture=logs)
                         if res.status_code == 200:
-                            primary_id = res.body["primary_id"]
-                            view = res.body["current_view"]
+                            body = res.body.json()
+                            primary_id = body["primary_id"]
+                            view = body["current_view"]
                             break
                         else:
-                            assert "Primary unknown" in res.body, res
-                            LOG.warning("Primary unknown. Retrying...")
+                            assert "Primary unknown" in res.body.text(), res
                     except CCFConnectionException:
                         LOG.warning(
                             f"Could not successful connect to node {node.node_id}. Retrying..."
@@ -547,7 +584,10 @@ class Network:
             time.sleep(0.1)
 
         if primary_id is None:
+            flush_info(logs, log_capture, 0)
             raise PrimaryNotFound
+
+        flush_info(logs, log_capture, 0)
         return (self._get_node_by_id(primary_id), view)
 
     def find_backups(self, primary=None, timeout=3):
@@ -578,8 +618,9 @@ class Network:
         while time.time() < end_time:
             with primary.client() as c:
                 resp = c.get("/node/commit")
-                seqno = resp.body["seqno"]
-                view = resp.body["view"]
+                body = resp.body.json()
+                seqno = body["seqno"]
+                view = body["view"]
                 if seqno != 0:
                     break
             time.sleep(0.1)
@@ -587,15 +628,16 @@ class Network:
             seqno != 0
         ), f"Primary {primary.node_id} has not made any progress yet (view: {view}, seqno: {seqno})"
 
+        caught_up_nodes = []
         while time.time() < end_time:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.client() as c:
-                    resp = c.get(f"/node/tx?view={view}&seqno={seqno}")
+                    resp = c.get(f"/node/local_tx?view={view}&seqno={seqno}")
                     if resp.status_code != 200:
                         # Node may not have joined the network yet, try again
                         break
-                    status = TxStatus(resp.body["status"])
+                    status = TxStatus(resp.body.json()["status"])
                     if status == TxStatus.Committed:
                         caught_up_nodes.append(node)
                     elif status == TxStatus.Invalid:
@@ -629,6 +671,31 @@ class Network:
             time.sleep(0.1)
         expected = [commits[0]] * len(commits)
         assert expected == commits, f"{commits} != {expected}"
+
+    def wait_for_new_primary(self, old_primary_id):
+        # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
+        # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
+        timeout = self.election_duration * 2
+        LOG.info(
+            f"Waiting up to {timeout}s for a new primary (different from {old_primary_id}) to be elected..."
+        )
+        end_time = time.time() + timeout
+        error = TimeoutError
+        logs = []
+        while time.time() < end_time:
+            try:
+                logs = []
+                new_primary, new_term = self.find_primary(log_capture=logs)
+                if new_primary.node_id != old_primary_id:
+                    flush_info(logs, None)
+                    return (new_primary, new_term)
+            except PrimaryNotFound:
+                error = PrimaryNotFound
+            except Exception:
+                pass
+            time.sleep(0.1)
+        flush_info(logs, None)
+        raise error(f"A new primary was not elected after {timeout} seconds")
 
 
 @contextmanager

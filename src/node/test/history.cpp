@@ -113,7 +113,7 @@ TEST_CASE("Check signature verification")
   {
     kv::Tx txs;
     auto tx = txs.get_view(primary_signatures);
-    ccf::Signature bogus(0, 0);
+    ccf::PrimarySignature bogus(0, 0);
     bogus.sig = std::vector<uint8_t>(MBEDTLS_ECDSA_MAX_LEN, 1);
     tx->put(0, bogus);
     REQUIRE(txs.commit() == kv::CommitSuccess::NO_REPLICATE);
@@ -176,7 +176,7 @@ TEST_CASE("Check signing works across rollback")
   }
 
   primary_store.rollback(1);
-  if (consensus->type() == ConsensusType::PBFT)
+  if (consensus->type() == ConsensusType::BFT)
   {
     backup_store.rollback(1);
   }
@@ -184,7 +184,7 @@ TEST_CASE("Check signing works across rollback")
   INFO("Issue signature, and verify successfully on backup");
   {
     primary_history->emit_signature();
-    if (consensus->type() == ConsensusType::PBFT)
+    if (consensus->type() == ConsensusType::BFT)
     {
       REQUIRE(backup_store.current_version() == 1);
     }

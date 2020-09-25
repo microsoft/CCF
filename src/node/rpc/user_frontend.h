@@ -28,7 +28,9 @@ namespace ccf
         h,
         tables.get<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
       users(tables.get<Users>(Tables::USERS))
-    {}
+    {
+      h.openapi_info.title = "CCF Application API";
+    }
 
     void open() override
     {
@@ -81,17 +83,17 @@ namespace ccf
   {
   public:
     UserEndpointRegistry(kv::Store& store) :
-      CommonEndpointRegistry(store, Tables::USER_CERT_DERS)
+      CommonEndpointRegistry(
+        get_actor_prefix(ActorsType::users), store, Tables::USER_CERT_DERS)
     {}
 
     UserEndpointRegistry(NetworkTables& network) :
-      CommonEndpointRegistry(*network.tables, Tables::USER_CERT_DERS)
+      CommonEndpointRegistry(
+        get_actor_prefix(ActorsType::users),
+        *network.tables,
+        Tables::USER_CERT_DERS)
     {}
   };
-
-  using UserHandlerRegistry CCF_DEPRECATED(
-    "Handlers have been renamed to Endpoints. Please use "
-    "UserEndpointRegistry") = UserEndpointRegistry;
 
   class SimpleUserRpcFrontend : public UserRpcFrontend
   {

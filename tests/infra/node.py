@@ -82,8 +82,7 @@ class Node:
             workspace,
             label,
             common_dir,
-            None,
-            members_info,
+            members_info=members_info,
             **kwargs,
         )
         self.network_state = NodeNetworkState.joined
@@ -96,6 +95,7 @@ class Node:
         label,
         common_dir,
         target_rpc_address,
+        snapshot_dir,
         **kwargs,
     ):
         self._start(
@@ -105,7 +105,8 @@ class Node:
             workspace,
             label,
             common_dir,
-            target_rpc_address,
+            target_rpc_address=target_rpc_address,
+            snapshot_dir=snapshot_dir,
             **kwargs,
         )
 
@@ -130,6 +131,7 @@ class Node:
         label,
         common_dir,
         target_rpc_address=None,
+        snapshot_dir=None,
         members_info=None,
         **kwargs,
     ):
@@ -161,13 +163,14 @@ class Node:
             common_dir,
             target_rpc_address,
             members_info,
+            snapshot_dir,
             binary_dir=self.binary_dir,
             **kwargs,
         )
         self.remote.setup()
         self.network_state = NodeNetworkState.started
         if self.debug:
-            with open(os.path.join(self.binary_dir, "vscode-gdb.sh"), "a") as f:
+            with open("/tmp/vscode-gdb.sh", "a") as f:
                 f.write(f"if [ $1 -eq {self.remote.local_node_id} ]; then\n")
                 f.write(f"cd {self.remote.remote.root}\n")
                 f.write(f"{' '.join(self.remote.remote.cmd)}\n")
@@ -238,17 +241,21 @@ class Node:
         """
         # Until the node has joined, the SSL handshake will fail as the node
         # is not yet endorsed by the network certificate
+
         try:
             with self.client(connection_timeout=timeout) as nc:
                 rep = nc.get("/node/commit")
                 assert (
                     rep.status_code == 200
                 ), f"An error occured after node {self.node_id} joined the network: {rep.body}"
-        except ccf.clients.CCFConnectionException:
-            raise TimeoutError(f"Node {self.node_id} failed to join the network")
+        except ccf.clients.CCFConnectionException as e:
+            raise TimeoutError(f"Node {self.node_id} failed to join the network") from e
 
     def get_ledger(self):
         return self.remote.get_ledger()
+
+    def get_snapshots(self):
+        return self.remote.get_snapshots()
 
     def client(self, identity=None, **kwargs):
         akwargs = {
@@ -259,7 +266,7 @@ class Node:
             if identity
             else None,
             "ca": os.path.join(self.common_dir, "networkcert.pem"),
-            "description": f"node {self.node_id} as {identity or 'unauthenticated'}",
+            "description": f"[{self.node_id}{'|' + identity if identity is not None else ''}]",
         }
         akwargs.update(kwargs)
         return ccf.clients.client(self.pubhost, self.rpc_port, **akwargs)

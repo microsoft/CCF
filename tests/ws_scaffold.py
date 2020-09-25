@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import infra.network
 import infra.proc
-import infra.notification
 import infra.net
 import suite.test_requirements as reqs
 import infra.e2e_args
@@ -14,7 +13,7 @@ from loguru import logger as LOG
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("log/private")
 @reqs.at_least_n_nodes(2)
-def test(network, args, notifications_queue=None):
+def test(network, args):
     primary, other = network.find_primary_and_any_backup()
 
     msg = "Hello world"
@@ -22,7 +21,7 @@ def test(network, args, notifications_queue=None):
     with primary.client("user0", ws=True) as c:
         for i in [1, 50, 500]:
             r = c.post("/app/log/private", {"id": 42, "msg": msg * i})
-            assert r.body == True, r
+            assert r.body.json() == True, r
 
     # Before we start sending transactions to the secondary,
     # we want to wait for its app frontend to be open, which is
@@ -42,26 +41,19 @@ def test(network, args, notifications_queue=None):
     with other.client("user0", ws=True) as c:
         for i in [1, 50, 500]:
             r = c.post("/app/log/private", {"id": 42, "msg": msg * i})
-            assert r.body == True, r
+            assert r.body.json() == True, r
 
     return network
 
 
 def run(args):
-    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
+    hosts = ["localhost"] * (4 if args.consensus == "bft" else 2)
 
-    with infra.notification.notification_server(args.notify_server) as notifications:
-        notifications_queue = (
-            notifications.get_queue()
-            if (args.package == "liblogging" and args.consensus == "raft")
-            else None
-        )
-
-        with infra.network.network(
-            hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
-        ) as network:
-            network.start_and_join(args)
-            test(network, args, notifications_queue)
+    with infra.network.network(
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_join(args)
+        test(network, args)
 
 
 if __name__ == "__main__":
@@ -69,10 +61,4 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.package = args.app_script or "liblogging"
 
-    notify_server_host = "localhost"
-    args.notify_server = (
-        notify_server_host
-        + ":"
-        + str(infra.net.probably_free_local_port(notify_server_host))
-    )
     run(args)

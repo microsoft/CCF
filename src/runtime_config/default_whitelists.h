@@ -20,13 +20,14 @@ namespace ccf
       Tables::USER_CLIENT_SIGNATURES,
       Tables::MEMBER_CLIENT_SIGNATURES,
       Tables::NODE_CODE_IDS,
-      Tables::USER_CODE_IDS,
       Tables::WHITELISTS,
       Tables::PROPOSALS,
       Tables::GOV_SCRIPTS,
       Tables::APP_SCRIPTS,
+      Tables::MODULES,
       Tables::SERVICE,
-      Tables::CONFIGURATION}},
+      Tables::CONFIGURATION,
+      Tables::CA_CERT_DERS}},
 
     {MEMBER_CAN_PROPOSE,
      {Tables::USERS,
@@ -35,7 +36,9 @@ namespace ccf
       Tables::WHITELISTS,
       Tables::GOV_SCRIPTS,
       Tables::APP_SCRIPTS,
-      Tables::CONFIGURATION}},
+      Tables::MODULES,
+      Tables::CONFIGURATION,
+      Tables::CA_CERT_DERS}},
 
     {USER_APP_CAN_READ_ONLY,
      {Tables::MEMBERS,
@@ -45,5 +48,7 @@ namespace ccf
       Tables::WHITELISTS,
       Tables::GOV_SCRIPTS,
       Tables::APP_SCRIPTS,
-      Tables::GOV_HISTORY}}};
+      Tables::MODULES,
+      Tables::GOV_HISTORY,
+      Tables::CA_CERT_DERS}}};
 }

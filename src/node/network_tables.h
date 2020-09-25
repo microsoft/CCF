@@ -7,16 +7,14 @@
 #include "code_id.h"
 #include "config.h"
 #include "consensus.h"
-#include "consensus/pbft/pbft_new_views.h"
-#include "consensus/pbft/pbft_pre_prepares.h"
-#include "consensus/pbft/pbft_requests.h"
-#include "consensus/pbft/pbft_tables.h"
-#include "consensus/raft/raft_tables.h"
+#include "consensus/aft/raft_tables.h"
+#include "consensus/aft/request.h"
 #include "entities.h"
 #include "governance_history.h"
 #include "kv/map.h"
 #include "kv/store.h"
 #include "members.h"
+#include "modules.h"
 #include "nodes.h"
 #include "proposals.h"
 #include "scripts.h"
@@ -24,6 +22,7 @@
 #include "service.h"
 #include "shares.h"
 #include "signatures.h"
+#include "snapshot_evidence.h"
 #include "submitted_shares.h"
 #include "users.h"
 #include "values.h"
@@ -46,6 +45,7 @@ namespace ccf
     CertDERs& member_certs;
 
     Scripts& gov_scripts;
+    Modules& modules;
     Proposals& proposals;
     Whitelists& whitelists;
     CodeIDs& node_code_ids;
@@ -56,6 +56,8 @@ namespace ccf
     SubmittedShares& submitted_shares;
     Configuration& config;
 
+    CACertDERs& ca_certs;
+
     //
     // User tables
     //
@@ -63,7 +65,6 @@ namespace ccf
     Users& users;
     CertDERs& user_certs;
 
-    CodeIDs& user_code_ids;
     ClientSignatures& user_client_signatures;
 
     //
@@ -84,27 +85,28 @@ namespace ccf
     Secrets& secrets;
     Signatures& signatures;
     ConsensusTable& consensus;
+    SnapshotEvidence& snapshot_evidence;
 
     //
     // Pbft related tables
     //
-    pbft::RequestsMap& pbft_requests_map;
-    pbft::PrePreparesMap& pbft_pre_prepares_map;
-    pbft::NewViewsMap& pbft_new_views_map;
+    aft::RequestsMap& pbft_requests_map;
 
-    NetworkTables(const ConsensusType& consensus_type = ConsensusType::RAFT) :
+    NetworkTables(const ConsensusType& consensus_type = ConsensusType::CFT) :
       tables(
-        (consensus_type == ConsensusType::RAFT) ?
+        (consensus_type == ConsensusType::CFT) ?
           std::make_shared<kv::Store>(
-            raft::replicate_type_raft, raft::replicated_tables_raft) :
+            aft::replicate_type_raft, aft::replicated_tables_raft) :
           std::make_shared<kv::Store>(
-            pbft::replicate_type_pbft, pbft::replicated_tables_pbft)),
+            aft::replicate_type_bft, aft::replicated_tables_bft)),
       members(
         tables->create<Members>(Tables::MEMBERS, kv::SecurityDomain::PUBLIC)),
       member_certs(tables->create<CertDERs>(
         Tables::MEMBER_CERT_DERS, kv::SecurityDomain::PUBLIC)),
       gov_scripts(tables->create<Scripts>(
         Tables::GOV_SCRIPTS, kv::SecurityDomain::PUBLIC)),
+      modules(
+        tables->create<Modules>(Tables::MODULES, kv::SecurityDomain::PUBLIC)),
       proposals(tables->create<Proposals>(
         Tables::PROPOSALS, kv::SecurityDomain::PUBLIC)),
       whitelists(tables->create<Whitelists>(
@@ -123,11 +125,11 @@ namespace ccf
         Tables::SUBMITTED_SHARES, kv::SecurityDomain::PUBLIC)),
       config(tables->create<Configuration>(
         Tables::CONFIGURATION, kv::SecurityDomain::PUBLIC)),
+      ca_certs(tables->create<CACertDERs>(
+        Tables::CA_CERT_DERS, kv::SecurityDomain::PUBLIC)),
       users(tables->create<Users>(Tables::USERS, kv::SecurityDomain::PUBLIC)),
       user_certs(tables->create<CertDERs>(
         Tables::USER_CERT_DERS, kv::SecurityDomain::PUBLIC)),
-      user_code_ids(tables->create<CodeIDs>(
-        Tables::USER_CODE_IDS, kv::SecurityDomain::PUBLIC)),
       user_client_signatures(
         tables->create<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
       nodes(tables->create<Nodes>(Tables::NODES, kv::SecurityDomain::PUBLIC)),
@@ -143,12 +145,9 @@ namespace ccf
         Tables::SIGNATURES, kv::SecurityDomain::PUBLIC)),
       consensus(tables->create<ConsensusTable>(
         Tables::CONSENSUS, kv::SecurityDomain::PUBLIC)),
-      pbft_requests_map(
-        tables->create<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
-      pbft_pre_prepares_map(
-        tables->create<pbft::PrePreparesMap>(pbft::Tables::PBFT_PRE_PREPARES)),
-      pbft_new_views_map(
-        tables->create<pbft::NewViewsMap>(pbft::Tables::PBFT_NEW_VIEWS))
+      snapshot_evidence(tables->create<SnapshotEvidence>(
+        Tables::SNAPSHOT_EVIDENCE, kv::SecurityDomain::PUBLIC)),
+      pbft_requests_map(tables->create<aft::RequestsMap>(Tables::AFT_REQUESTS))
     {}
 
     /** Returns a tuple of all tables that are possibly accessible from scripts
@@ -161,14 +160,15 @@ namespace ccf
         std::ref(members),
         std::ref(member_certs),
         std::ref(gov_scripts),
+        std::ref(modules),
         std::ref(proposals),
         std::ref(whitelists),
         std::ref(node_code_ids),
-        std::ref(user_code_ids),
         std::ref(member_acks),
         std::ref(governance_history),
         std::ref(member_client_signatures),
         std::ref(config),
+        std::ref(ca_certs),
         std::ref(users),
         std::ref(user_certs),
         std::ref(user_client_signatures),

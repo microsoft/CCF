@@ -24,3 +24,4 @@ latex/
 env/
 *.egg-info
 **/dist
+python/setup.py

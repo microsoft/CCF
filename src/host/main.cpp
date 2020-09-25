@@ -9,10 +9,11 @@
 #include "ds/stacktrace_utils.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
+#include "load_monitor.h"
 #include "node_connections.h"
-#include "notify_connections.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
+#include "snapshot.h"
 #include "ticker.h"
 #include "time_updater.h"
 #include "version.h"
@@ -31,6 +32,8 @@ using namespace std::string_literals;
 using namespace std::chrono_literals;
 
 ::timespec logger::config::start{0, 0};
+
+size_t asynchost::TCPImpl::remaining_read_quota;
 
 void print_version(size_t)
 {
@@ -78,7 +81,7 @@ int main(int argc, char** argv)
 
   ConsensusType consensus;
   std::vector<std::pair<std::string, ConsensusType>> consensus_map{
-    {"raft", ConsensusType::RAFT}, {"pbft", ConsensusType::PBFT}};
+    {"cft", ConsensusType::CFT}, {"bft", ConsensusType::BFT}};
   app.add_option("-c,--consensus", consensus, "Consensus")
     ->required()
     ->transform(CLI::CheckedTransformer(consensus_map, CLI::ignore_case));
@@ -133,14 +136,27 @@ int main(int argc, char** argv)
   app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
     ->capture_default_str();
 
-  size_t ledger_chunk_threshold = 5'000'000;
+  std::string snapshot_dir("snapshots");
+  app.add_option("--snapshot-dir", snapshot_dir, "Snapshots directory")
+    ->capture_default_str();
+
+  size_t ledger_chunk_bytes = 5'000'000;
   app
     .add_option(
-      "--ledger-chunk-max-bytes",
-      ledger_chunk_threshold,
-      "Minimum size (bytes) at which a new ledger chunk is created.")
+      "--ledger-chunk-bytes",
+      ledger_chunk_bytes,
+      "Size (bytes) at which a new ledger chunk is created")
     ->capture_default_str()
     ->transform(CLI::AsSizeValue(true)); // 1000 is kb
+
+  size_t snapshot_tx_interval = std::numeric_limits<std::size_t>::max();
+  app
+    .add_option(
+      "--snapshot-tx-interval",
+      snapshot_tx_interval,
+      "Number of transactions between snapshots (experimental). "
+      "Defaults to no snapshot.")
+    ->capture_default_str();
 
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
@@ -177,18 +193,18 @@ int main(int argc, char** argv)
       "Path to which the node PID will be written")
     ->capture_default_str();
 
-  size_t sig_max_tx = 5000;
+  size_t sig_tx_interval = 5000;
   app
     .add_option(
-      "--sig-max-tx",
-      sig_max_tx,
-      "Maximum number of transactions between signatures")
+      "--sig-tx-interval",
+      sig_tx_interval,
+      "Number of transactions between signatures")
     ->capture_default_str();
 
-  size_t sig_max_ms = 1000;
+  size_t sig_ms_interval = 1000;
   app
     .add_option(
-      "--sig-max-ms", sig_max_ms, "Maximum milliseconds between signatures")
+      "--sig-ms-interval", sig_ms_interval, "Milliseconds between signatures")
     ->capture_default_str();
 
   size_t circuit_size_shift = 22;
@@ -198,13 +214,6 @@ int main(int argc, char** argv)
       circuit_size_shift,
       "Size of the internal ringbuffers, as a power of 2")
     ->capture_default_str();
-
-  cli::ParsedAddress notifications_address;
-  cli::add_address_option(
-    app,
-    notifications_address,
-    "--notify-server-address",
-    "Server address to notify progress to");
 
   size_t raft_timeout = 100;
   app
@@ -284,6 +293,20 @@ int main(int argc, char** argv)
   app.add_option(
     "--domain", domain, "DNS to use for TLS certificate validation");
 
+  std::string subject_name("CN=CCF Node");
+  app
+    .add_option(
+      "--sn", subject_name, "Subject Name in node certificate, eg. CN=CCF Node")
+    ->capture_default_str();
+
+  std::vector<tls::SubjectAltName> subject_alternative_names;
+  cli::add_subject_alternative_name_option(
+    app,
+    subject_alternative_names,
+    "--san",
+    "Subject Alternative Name in node certificate. Can be either "
+    "iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld");
+
   size_t memory_reserve_startup = 0;
   app
     .add_option(
@@ -341,7 +364,7 @@ int main(int argc, char** argv)
     "key)")
     ->required();
 
-  std::optional<size_t> recovery_threshold;
+  std::optional<size_t> recovery_threshold = std::nullopt;
   start
     ->add_option(
       "--recovery-threshold",
@@ -425,7 +448,8 @@ int main(int argc, char** argv)
     if ((*start || *join) && files::exists(ledger_dir))
     {
       throw std::logic_error(fmt::format(
-        "On start/join, ledger directory should not exist ({})", ledger_dir));
+        "On start and join, ledger directory should not exist ({})",
+        ledger_dir));
     }
     else if (*recover && !files::exists(ledger_dir))
     {
@@ -508,30 +532,38 @@ int main(int argc, char** argv)
   oversized::FragmentReconstructor fr(bp.get_dispatcher());
 
   // provide regular ticks to the enclave
-  asynchost::Ticker ticker(tick_period_ms, writer_factory, [](auto s) {
-    logger::config::set_start(s);
-  });
+  const std::chrono::milliseconds tick_period(tick_period_ms);
+  asynchost::Ticker ticker(
+    tick_period, writer_factory, [](auto s) { logger::config::set_start(s); });
+
+  // reset the inbound-TCP processing quota each iteration
+  asynchost::ResetTCPReadQuota reset_tcp_quota;
 
   // regularly update the time given to the enclave
-  asynchost::TimeUpdater time_updater(1);
+  asynchost::TimeUpdater time_updater(1ms);
+
+  // regularly record some load statistics
+  asynchost::LoadMonitor load_monitor(500ms, bp);
 
   // handle outbound messages from the enclave
   asynchost::HandleRingbuffer handle_ringbuffer(
-    bp, circuit.read_from_inside(), non_blocking_factory);
+    1ms, bp, circuit.read_from_inside(), non_blocking_factory);
 
   // graceful shutdown on sigterm
   asynchost::Sigterm sigterm(writer_factory);
 
-  // write to a ledger
-  asynchost::Ledger ledger(ledger_dir, writer_factory, ledger_chunk_threshold);
+  asynchost::Ledger ledger(ledger_dir, writer_factory, ledger_chunk_bytes);
   ledger.register_message_handlers(bp.get_dispatcher());
+
+  asynchost::SnapshotManager snapshots(snapshot_dir);
+  snapshots.register_message_handlers(bp.get_dispatcher());
 
   // Begin listening for node-to-node and RPC messages.
   // This includes DNS resolution and potentially dynamic port assignment (if
   // requesting port 0). The hostname and port may be modified - after calling
   // it holds the final assigned values.
   asynchost::NodeConnectionsTickingReconnect node(
-    20, //< Flush reconnections every 20ms
+    20ms, //< Flush reconnections every 20ms
     bp.get_dispatcher(),
     ledger,
     writer_factory,
@@ -575,13 +607,17 @@ int main(int argc, char** argv)
                                  raft_election_timeout,
                                  pbft_view_change_timeout,
                                  pbft_status_interval};
-  ccf_config.signature_intervals = {sig_max_tx, sig_max_ms};
+  ccf_config.signature_intervals = {sig_tx_interval, sig_ms_interval};
   ccf_config.node_info_network = {rpc_address.hostname,
                                   public_rpc_address.hostname,
                                   node_address.hostname,
                                   node_address.port,
                                   rpc_address.port};
   ccf_config.domain = domain;
+  ccf_config.snapshot_tx_interval = snapshot_tx_interval;
+
+  ccf_config.subject_name = subject_name;
+  ccf_config.subject_alternative_names = subject_alternative_names;
 
   if (*start)
   {
@@ -612,6 +648,21 @@ int main(int argc, char** argv)
     ccf_config.joining.target_port = target_rpc_address.port;
     ccf_config.joining.network_cert = files::slurp(network_cert_file);
     ccf_config.joining.join_timer = join_timer;
+
+    auto snapshot_file = snapshots.find_latest_snapshot();
+    if (snapshot_file.has_value())
+    {
+      ccf_config.joining.snapshot = files::slurp(snapshot_file.value());
+      LOG_INFO_FMT(
+        "Found latest snapshot file: {} (size: {})",
+        snapshot_file.value(),
+        ccf_config.joining.snapshot.size());
+    }
+    else
+    {
+      LOG_INFO_FMT(
+        "No snapshot found, node will request transactions from the beginning");
+    }
   }
   else if (*recover)
   {
@@ -636,11 +687,6 @@ int main(int argc, char** argv)
     time_updater->behaviour.get_value());
 
   LOG_INFO_FMT("Created new node");
-
-  asynchost::NotifyConnections report(
-    bp.get_dispatcher(),
-    notifications_address.hostname,
-    notifications_address.port);
 
   // Write the node and network certs to disk.
   files::dump(node_cert, node_cert_file);

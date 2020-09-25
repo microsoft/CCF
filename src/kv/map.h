@@ -63,9 +63,14 @@ namespace kv
     }
 
     AbstractTxView* deserialise(
-      KvStoreDeserialiser& d, Version version) override
+      KvStoreDeserialiser& d, Version version, bool commit) override
     {
-      return untyped_map.deserialise_internal<TxView>(d, version);
+      return untyped_map.deserialise_internal<TxView>(d, version, commit);
+    }
+
+    AbstractTxView* deserialise_snapshot(KvStoreDeserialiser& d) override
+    {
+      return untyped_map.deserialise_snapshot(d);
     }
 
     const std::string& get_name() const override
@@ -81,12 +86,6 @@ namespace kv
     std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
     {
       return untyped_map.snapshot(v);
-    }
-
-    void apply_snapshot(
-      Version v, const std::vector<uint8_t>& snapshot) override
-    {
-      untyped_map.apply_snapshot(v, snapshot);
     }
 
     void post_compact() override

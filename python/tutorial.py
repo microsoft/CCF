@@ -27,8 +27,13 @@ common_dir = client_info["common_dir"]
 ca = os.path.join(common_dir, "networkcert.pem")
 cert = os.path.join(common_dir, "user0_cert.pem")
 key = os.path.join(common_dir, "user0_privk.pem")
-# Client info loaded. Tutorial starts below.
+# User client info loaded.
 
+member_cert = os.path.join(common_dir, "member0_cert.pem")
+member_key = os.path.join(common_dir, "member0_privk.pem")
+# Member client info loaded.
+
+# Tutorial starts below.
 
 # SNIPPET: anonymous_client
 anonymous_client = ccf.clients.CCFClient(host, port, ca)
@@ -59,10 +64,10 @@ anonymous_client.wait_for_commit(r)
 # SNIPPET_START: authenticated_get_requests
 r = user_client.get("/app/log/private?id=0")
 assert r.status_code == http.HTTPStatus.OK
-assert r.body == {"msg": "Private message"}
+assert r.body.json() == {"msg": "Private message"}
 r = user_client.get("/app/log/public?id=0")
 assert r.status_code == http.HTTPStatus.OK
-assert r.body == {"msg": "Public message"}
+assert r.body.json() == {"msg": "Public message"}
 # SNIPPET_END: authenticated_get_requests
 
 # SNIPPET: import_ledger
@@ -86,3 +91,31 @@ for transaction in ledger:
         for key, value in public_tables[target_table].items():
             target_table_changes += 1  # A key was changed
 # SNIPPET_END: iterate_over_ledger
+
+# SNIPPET: import_proposal_generator
+import ccf.proposal_generator
+
+# SNIPPET_START: dict_proposal
+proposal, vote = ccf.proposal_generator.open_network()
+# >>> proposal
+# {'script': {'text': 'return Calls:call("open_network")'}}
+
+member_client = ccf.clients.CCFClient(host, port, ca, member_cert, member_key)
+response = member_client.post(
+    "/gov/proposals",
+    body=proposal,
+    signed=True,
+)
+# SNIPPET_END: dict_proposal
+
+# SNIPPET_START: json_proposal_with_file
+with open("my_open_network_proposal.json", "w") as f:
+    f.write(json.dumps(proposal, indent=2))
+
+# The contents of `my_open_network_proposal.json` are submitted as the request body.
+response = member_client.post(
+    "/gov/proposals",
+    body="@my_open_network_proposal.json",
+    signed=True,
+)
+# SNIPPET_END: json_proposal_with_file

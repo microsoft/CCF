@@ -96,13 +96,7 @@ void set_lua_logger()
 
 struct NodeContext : public ccfapp::AbstractNodeContext
 {
-  StubNotifier notifier;
   ccf::historical::StubStateCache historical_state;
-
-  AbstractNotifier& get_notifier() override
-  {
-    return notifier;
-  }
 
   ccf::historical::AbstractStateCache& get_historical_state() override
   {
@@ -123,7 +117,7 @@ auto init_frontend(
   std::vector<tls::Pem>* created_members = nullptr)
 {
   for (uint8_t i = 0; i < n_users; i++)
-    gen.add_user(user_caller);
+    gen.add_user({user_caller});
 
   std::vector<tls::Pem> member_certs;
   for (uint8_t i = 0; i < n_members; i++)

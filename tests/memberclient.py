@@ -48,7 +48,7 @@ def test_add_member(network, args):
         )
         assert False, "New accepted members are not given recovery shares"
     except infra.member.NoRecoveryShareFound as e:
-        assert e.response.body == "Only active members are given recovery shares"
+        assert e.response.body.text() == "Only active members are given recovery shares"
 
     new_member.ack(primary)
 
@@ -136,7 +136,7 @@ def assert_recovery_shares_update(func, network, args, **kwargs):
 
 
 def run(args):
-    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
+    hosts = ["localhost"] * (4 if args.consensus == "bft" else 2)
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -276,7 +276,7 @@ def run(args):
 
         # Membership changes trigger re-sharing and re-keying and are
         # only supported with Raft
-        if args.consensus == "raft":
+        if args.consensus == "cft":
             LOG.debug("New member proposes to retire member 0")
             network.consortium.retire_member(
                 primary, network.consortium.get_member_by_id(0)
@@ -290,7 +290,7 @@ def run(args):
                 assert False, "Retired member cannot make a new proposal"
             except infra.proposal.ProposalNotCreated as e:
                 assert e.response.status_code == http.HTTPStatus.FORBIDDEN.value
-                assert e.response.body == "Member is not active"
+                assert e.response.body.text() == "Member is not active"
 
             LOG.debug("New member should still be able to make a new proposal")
             new_proposal = new_member.propose(primary, proposal_trust_0)
@@ -314,7 +314,9 @@ def run(args):
             test_set_recovery_threshold, network, args, recovery_threshold=1
         )
         test_set_recovery_threshold(
-            network, args, recovery_threshold=network.consortium.recovery_threshold,
+            network,
+            args,
+            recovery_threshold=network.consortium.recovery_threshold,
         )
 
         LOG.info(

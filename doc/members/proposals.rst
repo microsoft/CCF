@@ -24,7 +24,7 @@ Assuming the CCF Python package has been installed in the current Python environ
     usage: proposal_generator.py [-h] [-po PROPOSAL_OUTPUT_FILE]
                              [-vo VOTE_OUTPUT_FILE] [-pp] [-i]
                              [--vote-against] [-v]
-                             {accept_recovery,new_member,new_node_code,new_user,new_user_code,open_network,rekey_ledger,remove_user,retire_member,retire_node,set_js_app,set_lua_app,set_recovery_threshold,set_user_data,trust_node,update_recovery_shares}
+                             {accept_recovery,new_member,new_node_code,new_user,open_network,rekey_ledger,remove_user,retire_member,retire_node,set_js_app,set_lua_app,set_recovery_threshold,set_user_data,trust_node,update_recovery_shares}
 
 Additional detail is available from the ``--help`` option. You can also find the script in a checkout of CCF:
 
@@ -46,7 +46,7 @@ Some of these subcommands require additional arguments, such as the node ID or u
     $ cat trust_node_vote_for.json 
     {"ballot": {"text": "tables, calls = ...; if not #calls == 1 then return false end; call = calls[1]; if not call.func == \"trust_node\" then return false end; args = call.args; if args == nil then return false end; if not args == [====[5]====] then return false end; return true"}}
 
-    $python -m ccf.proposal_generator --pretty-print --proposal-output-file add_pedro.json --vote-output-file vote_for_pedro.json new_user pedro_cert.pem 
+    $ python -m ccf.proposal_generator --pretty-print --proposal-output-file add_pedro.json --vote-output-file vote_for_pedro.json new_user pedro_cert.pem 
     SUCCESS | Writing proposal to ./add_pedro.json
     SUCCESS | Wrote vote to ./vote_for_pedro.json
     
@@ -66,6 +66,29 @@ Some of these subcommands require additional arguments, such as the node ID or u
     }
 
 These proposals and votes should be sent as the body of HTTP requests as described below.
+
+Creating Proposals in Python
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``ccf.proposal_generator`` can also be imported and used in a Python application instead of as a command-line tool.
+
+.. literalinclude:: ../../python/tutorial.py
+    :language: py
+    :start-after: SNIPPET: import_proposal_generator
+    :lines: 1
+
+The proposal generation functions return dictionaries that can be submitted to a ``CCFClient``.
+
+.. literalinclude:: ../../python/tutorial.py
+    :language: py
+    :start-after: SNIPPET_START: dict_proposal
+    :end-before: SNIPPET_END: dict_proposal
+
+You may wish to write these proposals to files so they can be examined or modified further. These proposal files can be submitted directly --- ``CCFClient`` will treat string request bodies beginning with an ``@`` as file paths in the same way that ``curl`` does, and use the content of the file when sending.
+
+.. literalinclude:: ../../python/tutorial.py
+    :language: py
+    :start-after: SNIPPET_START: json_proposal_with_file
+    :end-before: SNIPPET_END: json_proposal_with_file
 
 Submitting a New Proposal
 -------------------------

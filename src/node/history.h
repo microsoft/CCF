@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/pbft/pbft_types.h"
 #include "crypto/hash.h"
 #include "ds/dl_list.h"
 #include "ds/logger.h"
@@ -110,6 +109,11 @@ namespace ccf
 
     void append(const uint8_t*, size_t) override {}
 
+    bool verify_and_sign(PrimarySignature&, kv::Term*) override
+    {
+      return true;
+    }
+
     bool verify(kv::Term*) override
     {
       return true;
@@ -118,6 +122,16 @@ namespace ccf
     void rollback(kv::Version) override {}
 
     void compact(kv::Version) override {}
+
+    bool init_from_snapshot(const std::vector<uint8_t>&) override
+    {
+      return true;
+    }
+
+    std::vector<uint8_t> get_raw_leaf(uint64_t) override
+    {
+      return {};
+    }
 
     void emit_signature() override
     {
@@ -128,7 +142,7 @@ namespace ccf
         [txid, this]() {
           kv::Tx sig(txid.version);
           auto sig_view = sig.get_view(signatures);
-          Signature sig_value(id, txid.version);
+          PrimarySignature sig_value(id, txid.version);
           sig_view->put(0, sig_value);
           return sig.commit_reserved();
         },
@@ -202,16 +216,16 @@ namespace ccf
 
     struct Path
     {
-      hash_vec* raw;
+      path* raw;
 
       Path()
       {
-        raw = init_path();
+        raw = mt_init_path(crypto::Sha256Hash::SIZE);
       }
 
       ~Path()
       {
-        free_path(raw);
+        mt_free_path(raw);
       }
     };
 
@@ -235,7 +249,7 @@ namespace ccf
       s -= root.h.size();
       for (size_t i = 0; i < s; i += root.SIZE)
       {
-        path_insert(path->raw, const_cast<uint8_t*>(buf + i));
+        mt_path_insert(path->raw, const_cast<uint8_t*>(buf + i));
       }
     }
 
@@ -268,16 +282,20 @@ namespace ccf
 
     std::vector<uint8_t> to_v() const
     {
+      size_t path_length = mt_get_path_length(path->raw);
       size_t vs = sizeof(index) + sizeof(max_index) + root.h.size() +
-        (root.h.size() * path->raw->sz);
+        (root.h.size() * path_length);
       std::vector<uint8_t> v(vs);
       uint8_t* buf = v.data();
       serialized::write(buf, vs, index);
       serialized::write(buf, vs, max_index);
       serialized::write(buf, vs, root.h.data(), root.h.size());
-      for (size_t i = 0; i < path->raw->sz; ++i)
+      for (size_t i = 0; i < path_length; ++i)
       {
-        serialized::write(buf, vs, *(path->raw->vs + i), root.h.size());
+        if (!mt_get_path_step_pre(path->raw, i))
+          throw std::logic_error("Precondition to mt_get_path_step violated");
+        uint8_t* step = mt_get_path_step(path->raw, i);
+        serialized::write(buf, vs, step, root.h.size());
       }
       return v;
     }
@@ -292,7 +310,8 @@ namespace ccf
 
     MerkleTreeHistory(const std::vector<uint8_t>& serialised)
     {
-      tree = mt_deserialize(serialised.data(), serialised.size());
+      tree = mt_deserialize(
+        serialised.data(), serialised.size(), mt_sha256_compress);
     }
 
     MerkleTreeHistory(crypto::Sha256Hash first_hash = {})
@@ -303,6 +322,13 @@ namespace ccf
     ~MerkleTreeHistory()
     {
       mt_free(tree);
+    }
+
+    void deserialise(const std::vector<uint8_t>& serialised)
+    {
+      mt_free(tree);
+      tree = mt_deserialize(
+        serialised.data(), serialised.size(), mt_sha256_compress);
     }
 
     void append(crypto::Sha256Hash& hash)
@@ -436,8 +462,6 @@ namespace ccf
     Signatures& signatures;
     Nodes& nodes;
 
-    std::shared_ptr<kv::Consensus> consensus;
-
     std::map<RequestID, std::vector<uint8_t>> requests;
     std::map<RequestID, std::pair<kv::Version, crypto::Sha256Hash>> results;
     std::map<RequestID, std::vector<uint8_t>> responses;
@@ -507,6 +531,34 @@ namespace ccf
       id = id_;
     }
 
+    bool init_from_snapshot(
+      const std::vector<uint8_t>& hash_at_snapshot) override
+    {
+      // The history can be initialised after a snapshot has been applied by
+      // deserialising the tree in the signatures table and then applying the
+      // hash of the transaction at which the snapshot was taken
+      kv::ReadOnlyTx tx;
+      auto sig_tv = tx.get_read_only_view(signatures);
+      auto sig = sig_tv->get(0);
+      if (!sig.has_value())
+      {
+        LOG_FAIL_FMT("No signature found in signatures map");
+        return false;
+      }
+
+      CCF_ASSERT_FMT(
+        !replicated_state_tree.in_range(1),
+        "Tree is not empty before initialising from snapshot");
+
+      replicated_state_tree.deserialise(sig->tree);
+
+      crypto::Sha256Hash hash;
+      std::copy_n(
+        hash_at_snapshot.begin(), crypto::Sha256Hash::SIZE, hash.h.begin());
+      replicated_state_tree.append(hash);
+      return true;
+    }
+
     crypto::Sha256Hash get_replicated_state_root() override
     {
       return replicated_state_tree.get_root();
@@ -522,6 +574,21 @@ namespace ccf
       crypto::Sha256Hash rh({replicated, replicated_size});
       log_hash(rh, APPEND);
       replicated_state_tree.append(rh);
+    }
+
+    bool verify_and_sign(
+      PrimarySignature& sig, kv::Term* term = nullptr) override
+    {
+      if (!verify(term))
+      {
+        return false;
+      }
+
+      sig.node = id;
+      crypto::Sha256Hash root = replicated_state_tree.get_root();
+      sig.sig = kp.sign_hash(root.h.data(), root.h.size());
+
+      return true;
     }
 
     bool verify(kv::Term* term = nullptr) override
@@ -550,11 +617,24 @@ namespace ccf
       tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
       crypto::Sha256Hash root = replicated_state_tree.get_root();
       log_hash(root, VERIFY);
-      return from_cert->verify_hash(
+      bool result = from_cert->verify_hash(
         root.h.data(),
         root.h.size(),
         sig_value.sig.data(),
         sig_value.sig.size());
+
+      if (!result)
+      {
+        return false;
+      }
+
+      auto progress_tracker = store.get_progress_tracker();
+      if (progress_tracker)
+      {
+        progress_tracker->record_primary(sig_value.view, sig_value.seqno, root);
+      }
+
+      return true;
     }
 
     void rollback(kv::Version v) override
@@ -585,36 +665,60 @@ namespace ccf
         return;
       }
 
-      if (consensus->type() == ConsensusType::RAFT)
-      {
-        auto txid = store.next_txid();
-        auto commit_txid = consensus->get_committed_txid();
-        LOG_DEBUG_FMT(
-          "Signed at {} in view: {} commit was: {}.{}",
-          txid.version,
-          txid.term,
-          commit_txid.first,
-          commit_txid.second);
-        store.commit(
-          txid,
-          [txid, commit_txid, this]() {
-            kv::Tx sig(txid.version);
-            auto sig_view = sig.get_view(signatures);
-            crypto::Sha256Hash root = replicated_state_tree.get_root();
-            Signature sig_value(
-              id,
-              txid.version,
-              txid.term,
-              commit_txid.second,
-              commit_txid.first,
-              root,
-              kp.sign_hash(root.h.data(), root.h.size()),
-              replicated_state_tree.serialise());
-            sig_view->put(0, sig_value);
-            return sig.commit_reserved();
-          },
-          true);
-      }
+      auto txid = store.next_txid();
+      auto commit_txid = consensus->get_committed_txid();
+
+      LOG_DEBUG_FMT(
+        "Signed at {} in view: {} commit was: {}.{}",
+        txid.version,
+        txid.term,
+        commit_txid.first,
+        commit_txid.second);
+
+      store.commit(
+        txid,
+        [txid, commit_txid, this]() {
+          kv::Tx sig(txid.version);
+          auto sig_view = sig.get_view(signatures);
+          crypto::Sha256Hash root = replicated_state_tree.get_root();
+
+          auto progress_tracker = store.get_progress_tracker();
+          if (progress_tracker)
+          {
+            progress_tracker->record_primary(txid.term, txid.version, root);
+          }
+
+          PrimarySignature sig_value(
+            id,
+            txid.version,
+            txid.term,
+            commit_txid.second,
+            commit_txid.first,
+            root,
+            kp.sign_hash(root.h.data(), root.h.size()),
+            replicated_state_tree.serialise());
+
+          sig_view->put(0, sig_value);
+          return sig.commit_reserved();
+        },
+        true);
+    }
+
+    std::vector<uint8_t> get_receipt(kv::Version index) override
+    {
+      return replicated_state_tree.get_receipt(index).to_v();
+    }
+
+    bool verify_receipt(const std::vector<uint8_t>& v) override
+    {
+      Receipt r(v);
+      return replicated_state_tree.verify(r);
+    }
+
+    std::vector<uint8_t> get_raw_leaf(uint64_t index) override
+    {
+      auto leaf = replicated_state_tree.get_leaf(index);
+      return {leaf.h.begin(), leaf.h.end()};
     }
 
     bool add_request(
@@ -665,16 +769,7 @@ namespace ccf
       kv::Version version,
       std::shared_ptr<std::vector<uint8_t>> replicated) override
     {
-      auto consensus = store.get_consensus();
-      if (consensus->type() == ConsensusType::RAFT)
-      {
-        add_result(id, version, replicated->data(), replicated->size());
-      }
-      else
-      {
-        std::lock_guard<SpinLock> vguard(version_lock);
-        pending_inserts.insert_back(new PendingInsert(id, version, replicated));
-      }
+      add_result(id, version, replicated->data(), replicated->size());
     }
 
     void flush_pending() override
@@ -711,7 +806,7 @@ namespace ccf
 
       auto consensus = store.get_consensus();
 
-      if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
+      if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
       {
         if (on_result.has_value())
         {
@@ -727,7 +822,7 @@ namespace ccf
     {
       auto consensus = store.get_consensus();
 
-      if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
+      if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
       {
         if (on_result.has_value())
         {
@@ -745,17 +840,6 @@ namespace ccf
     {
       LOG_DEBUG_FMT("HISTORY: add_response {0}", id);
       responses[id] = response;
-    }
-
-    std::vector<uint8_t> get_receipt(kv::Version index) override
-    {
-      return replicated_state_tree.get_receipt(index).to_v();
-    }
-
-    bool verify_receipt(const std::vector<uint8_t>& v) override
-    {
-      Receipt r(v);
-      return replicated_state_tree.verify(r);
     }
   };
 

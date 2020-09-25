@@ -13,9 +13,9 @@ namespace ws
   static std::vector<uint8_t> serialise(
     size_t code,
     const std::vector<uint8_t>& body,
-    kv::Version seqno = 0,
-    kv::Consensus::View view = 0,
-    kv::Version global_commit = 0)
+    kv::Version seqno = kv::NoVersion,
+    kv::Consensus::View view = ccf::VIEW_UNKNOWN,
+    kv::Version global_commit = kv::NoVersion)
   {
     return make_out_frame(code, seqno, view, global_commit, body);
   };
@@ -35,6 +35,8 @@ namespace ws
 
     std::string path = {};
     std::string method = {};
+
+    http::HeaderMap request_headers = {};
 
     std::vector<uint8_t> request_body = {};
     enclave::PathParams path_params = {};
@@ -126,6 +128,11 @@ namespace ws
     virtual void set_method(const std::string_view& p) override
     {
       method = p;
+    }
+
+    virtual const http::HeaderMap& get_request_headers() const override
+    {
+      return request_headers;
     }
 
     virtual std::optional<std::string> get_request_header(

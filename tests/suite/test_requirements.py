@@ -38,7 +38,7 @@ def ensure_reqs(check_reqs):
                 except Exception as e:
                     raise TestRequirementsNotMet(
                         f"Could not check if test requirements were met: {e}"
-                    )
+                    ) from e
 
             return func(network, args, *nargs, **kwargs)
 
@@ -48,12 +48,20 @@ def ensure_reqs(check_reqs):
 
 
 def supports_methods(*methods):
+    def remove_prefix(s, prefix):
+        if s.startswith(prefix):
+            return s[len(prefix) :]
+        return s
+
     def check(network, args, *nargs, **kwargs):
         primary, _ = network.find_primary()
         with primary.client("user0") as c:
             response = c.get("/app/api")
-            supported_methods = response.body["endpoints"]
-            missing = {*methods}.difference([sm["path"] for sm in supported_methods])
+            supported_methods = response.body.json()["paths"]
+            LOG.warning(f"Supported methods are: {supported_methods.keys()}")
+            missing = {*methods}.difference(
+                [remove_prefix(key, "/") for key in supported_methods.keys()]
+            )
             if missing:
                 concat = ", ".join(missing)
                 raise TestRequirementsNotMet(f"Missing required methods: {concat}")
@@ -106,11 +114,11 @@ def can_kill_n_nodes(nodes_to_kill_count):
                 },
             )
 
-            trusted_nodes_count = r.body
+            trusted_nodes_count = r.body.json()
             running_nodes_count = len(network.get_joined_nodes())
             would_leave_nodes_count = running_nodes_count - nodes_to_kill_count
             minimum_nodes_to_run_count = ceil((trusted_nodes_count + 1) / 2)
-            if args.consensus == "raft" and (
+            if args.consensus == "cft" and (
                 would_leave_nodes_count < minimum_nodes_to_run_count
             ):
                 raise TestRequirementsNotMet(

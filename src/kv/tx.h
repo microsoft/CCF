@@ -9,11 +9,27 @@
 
 namespace kv
 {
+  class CompactedVersionConflict
+  {
+  private:
+    std::string msg;
+
+  public:
+    CompactedVersionConflict(const std::string& s) : msg(s) {}
+
+    char const* what() const
+    {
+      return msg.c_str();
+    }
+  };
+
   // Manages a collection of TxViews. Derived implementations call get_tuple to
   // retrieve views over target maps.
   class BaseTx : public AbstractViewContainer
   {
   protected:
+    AbstractStore* store = nullptr;
+
     OrderedViews view_list;
     bool committed = false;
     bool success = false;
@@ -22,6 +38,32 @@ namespace kv
     Term term = 0;
 
     kv::TxHistory::RequestID req_id;
+
+    std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
+
+    template <typename MapView>
+    std::tuple<MapView*> check_and_store_view(
+      MapView* typed_view,
+      const std::string& map_name,
+      const std::shared_ptr<AbstractMap>& abstract_map)
+    {
+      if (typed_view == nullptr)
+      {
+        throw CompactedVersionConflict(fmt::format(
+          "Unable to retrieve view over {} at {}", map_name, read_version));
+      }
+
+      auto abstract_view = dynamic_cast<AbstractTxView*>(typed_view);
+      if (abstract_view == nullptr)
+      {
+        throw std::logic_error(
+          fmt::format("View over map {} is not an AbstractTxView", map_name));
+      }
+      view_list[map_name] = {abstract_map,
+                             std::unique_ptr<AbstractTxView>(abstract_view)};
+
+      return std::make_tuple(typed_view);
+    }
 
     template <class M>
     std::tuple<typename M::TxView*> get_tuple(M& m)
@@ -63,15 +105,97 @@ namespace kv
       }
 
       MapView* typed_view = m.template create_view<MapView>(read_version);
-      auto abstract_view = dynamic_cast<AbstractTxView*>(typed_view);
-      if (abstract_view == nullptr)
+      return check_and_store_view(
+        typed_view, m.get_name(), m.shared_from_this());
+    }
+
+    template <class M>
+    std::tuple<typename M::TxView*> get_tuple2(const std::string& map_name)
+    {
+      if (store == nullptr)
       {
-        throw std::logic_error(fmt::format(
-          "View over map {} is not an AbstractTxView", m.get_name()));
+        throw std::logic_error("New form called on old-style Tx");
       }
-      view_list[m.get_name()] = {
-        &m, std::unique_ptr<AbstractTxView>(abstract_view)};
-      return std::make_tuple(typed_view);
+
+      using MapView = typename M::TxView;
+
+      // If the M is present, its AbstractTxView should be an M::TxView. This
+      // invariant could be broken by set_view_list, which will produce an error
+      // here
+      auto search = view_list.find(map_name);
+      if (search != view_list.end())
+      {
+        auto view = dynamic_cast<MapView*>(search->second.view.get());
+
+        if (view == nullptr)
+        {
+          throw std::logic_error(
+            fmt::format("View over map {} is not of expected type", map_name));
+        }
+
+        return std::make_tuple(view);
+      }
+
+      if (read_version == NoVersion)
+      {
+        // Grab opacity version that all Maps should be queried at.
+        auto txid = store->current_txid();
+        term = txid.term;
+        read_version = txid.version;
+      }
+
+      MapView* typed_view = nullptr;
+
+      auto abstract_map = store->get_map(read_version, map_name);
+      if (abstract_map == nullptr)
+      {
+        // Store doesn't know this map yet - create it dynamically
+        {
+          const auto map_it = created_maps.find(map_name);
+          if (map_it != created_maps.end())
+          {
+            throw std::logic_error("Created map without creating view over it");
+          }
+        }
+
+        // NB: The created maps are always untyped. Only the views over them are
+        // typed
+        auto new_map = std::make_shared<kv::untyped::Map>(
+          store,
+          map_name,
+          kv::get_security_domain(map_name),
+          store->is_map_replicated(map_name));
+        created_maps[map_name] = new_map;
+        LOG_DEBUG_FMT("Creating new map '{}'", map_name);
+
+        abstract_map = new_map;
+        typed_view = new_map->template create_view<MapView>(read_version);
+      }
+      else
+      {
+        auto* am = abstract_map.get();
+        auto typed_map = dynamic_cast<M*>(am);
+        if (typed_map == nullptr)
+        {
+          auto untyped_map = dynamic_cast<kv::untyped::Map*>(am);
+          if (untyped_map == nullptr)
+          {
+            throw std::logic_error(
+              fmt::format("Map {} has unexpected type", map_name));
+          }
+          else
+          {
+            typed_view =
+              untyped_map->template create_view<MapView>(read_version);
+          }
+        }
+        else
+        {
+          typed_view = typed_map->template create_view<MapView>(read_version);
+        }
+      }
+
+      return check_and_store_view(typed_view, map_name, abstract_map);
     }
 
     template <class M, class... Ms>
@@ -81,18 +205,17 @@ namespace kv
       return std::tuple_cat(get_tuple(m), get_tuple(ms...));
     }
 
-    void reset()
+    template <class M, class... Ms, class... Ts>
+    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_tuple2(
+      const std::string& map_names, const Ts&... names)
     {
-      view_list.clear();
-      committed = false;
-      success = false;
-      read_version = NoVersion;
-      version = NoVersion;
-      term = 0;
+      return std::tuple_cat(
+        get_tuple2<M>(map_names), get_tuple2<Ms...>(names...));
     }
 
   public:
     BaseTx() : view_list() {}
+    BaseTx(AbstractStore* _store) : store(_store) {}
 
     BaseTx(const BaseTx& that) = delete;
 
@@ -107,6 +230,11 @@ namespace kv
     void set_req_id(const kv::TxHistory::RequestID& req_id_)
     {
       req_id = req_id_;
+    }
+
+    const kv::TxHistory::RequestID& get_req_id()
+    {
+      return req_id;
     }
 
     /** Version for the transaction set
@@ -152,8 +280,18 @@ namespace kv
       }
 
       auto store = view_list.begin()->second.map->get_store();
-      auto c =
-        apply_views(view_list, [store]() { return store->next_version(); });
+
+      // If this transaction may create maps, ensure that commit gets a
+      // consistent view of the existing maps
+      if (!created_maps.empty())
+        this->store->lock();
+
+      auto c = apply_views(
+        view_list, [store]() { return store->next_version(); }, created_maps);
+
+      if (!created_maps.empty())
+        this->store->unlock();
+
       success = c.has_value();
 
       if (!success)
@@ -311,6 +449,17 @@ namespace kv
       committed = true;
       return {CommitSuccess::OK, {0, 0, 0}, serialise()};
     }
+
+    // Used to clear the Tx to its initial state, to retry after a conflict
+    void reset()
+    {
+      view_list.clear();
+      committed = false;
+      success = false;
+      read_version = NoVersion;
+      version = NoVersion;
+      term = 0;
+    }
   };
 
   class ReadOnlyTx : public BaseTx
@@ -360,6 +509,14 @@ namespace kv
       return std::get<0>(get_tuple(m));
     }
 
+    // EXPERIMENTAL - DO NOT USE
+    // This API is for internal testing only, and may change or be removed
+    template <class M>
+    typename M::TxView* get_view2(const std::string& map_name)
+    {
+      return std::get<0>(get_tuple2<M>(map_name));
+    }
+
     /** Get transaction views over multiple maps.
      *
      * @param m Map
@@ -370,6 +527,51 @@ namespace kv
       M& m, Ms&... ms)
     {
       return std::tuple_cat(get_tuple(m), get_tuple(ms...));
+    }
+
+    // EXPERIMENTAL - DO NOT USE
+    // This API is for internal testing only, and may change or be removed
+    template <class M, class... Ms, class... Ts>
+    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_view2(
+      const std::string& map_name, const Ts&... names)
+    {
+      return std::tuple_cat(
+        get_tuple2<M>(map_name), get_tuple2<Ms...>(names...));
+    }
+  };
+
+  // Used by frontend for reserved transactions. These are constructed with a
+  // pre-reserved Version, and _must succeed_ to fulfil this version, else
+  // creating a hole in the history
+  class ReservedTx : public Tx
+  {
+  public:
+    ReservedTx(AbstractStore* _store, Version reserved)
+    {
+      store = _store;
+      committed = false;
+      success = false;
+      read_version = reserved - 1;
+      version = reserved;
+    }
+
+    // Used by frontend to commit reserved transactions
+    PendingTxInfo commit_reserved()
+    {
+      if (committed)
+        throw std::logic_error("Transaction already committed");
+
+      if (view_list.empty())
+        throw std::logic_error("Reserved transaction cannot be empty");
+
+      auto c = apply_views(view_list, [this]() { return version; });
+      success = c.has_value();
+
+      if (!success)
+        throw std::logic_error("Failed to commit reserved transaction");
+
+      committed = true;
+      return {CommitSuccess::OK, {0, 0, 0}, serialise()};
     }
   };
 }

@@ -50,6 +50,7 @@ namespace kv
     W private_writer;
     W* current_writer;
     Version version;
+    bool is_snapshot;
 
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
 
@@ -90,12 +91,13 @@ namespace kv
       std::shared_ptr<AbstractTxEncryptor> e,
       const Version& version_,
       bool is_snapshot_ = false) :
+      version(version_),
+      is_snapshot(is_snapshot_),
       crypto_util(e)
     {
       set_current_domain(SecurityDomain::PUBLIC);
-      serialise_internal(is_snapshot_);
-      serialise_internal(version_);
-      version = version_;
+      serialise_internal(is_snapshot);
+      serialise_internal(version);
     }
 
     void start_map(const std::string& name, SecurityDomain domain)
@@ -113,9 +115,14 @@ namespace kv
       serialise_internal(name);
     }
 
-    void serialise_snapshot(const std::vector<uint8_t>& snapshot)
+    void serialise_raw(const std::vector<uint8_t>& raw)
     {
-      serialise_internal_pre_serialised(snapshot);
+      serialise_internal_pre_serialised(raw);
+    }
+
+    void serialise_view_history(const std::vector<Version>& view_history)
+    {
+      serialise_internal(view_history);
     }
 
     template <class Version>
@@ -198,7 +205,8 @@ namespace kv
         serialised_public_domain,
         serialised_hdr,
         encrypted_private_domain,
-        version);
+        version,
+        is_snapshot);
 
       // Serialise entire tx
       // Format: gcm hdr (iv + tag) + len of public domain + public domain +
@@ -403,6 +411,11 @@ namespace kv
     {
       return current_reader
         ->template read_next_pre_serialised<std::vector<uint8_t>>();
+    }
+
+    std::vector<Version> deserialise_view_history()
+    {
+      return current_reader->template read_next<std::vector<Version>>();
     }
 
     uint64_t deserialise_remove_header()

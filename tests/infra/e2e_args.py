@@ -6,6 +6,8 @@ import infra.path
 import infra.network
 import sys
 
+from loguru import logger as LOG
+
 
 def absolute_path_to_existing_file(arg):
     if not os.path.isabs(arg):
@@ -16,6 +18,12 @@ def absolute_path_to_existing_file(arg):
 
 
 def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
+    LOG.remove()
+    LOG.add(
+        sys.stdout,
+        format="<green>{time:HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    )
+
     if parser is None:
         parser = argparse.ArgumentParser(
             formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -74,13 +82,16 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         action="store_true",
     )
     parser.add_argument(
-        "--sig-max-tx", help="Max transactions between signatures", type=int
+        "--sig-tx-interval",
+        help="Number of transactions between signatures",
+        type=int,
+        default=5000,
     )
     parser.add_argument(
-        "--sig-max-ms",
-        help="Max milliseconds between signatures",
+        "--sig-ms-interval",
+        help="Milliseconds between signatures",
         type=int,
-        default=100,
+        default=1000,
     )
     parser.add_argument(
         "--memory-reserve-startup",
@@ -100,7 +111,10 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=5000,
     )
     parser.add_argument(
-        "--consensus", help="Consensus", default="raft", choices=("raft", "pbft"),
+        "--consensus",
+        help="Consensus",
+        default="cft",
+        choices=("cft", "bft"),
     )
     parser.add_argument(
         "--worker-threads",
@@ -135,6 +149,15 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Domain name used for node certificate verification, eg. example.com",
     )
     parser.add_argument(
+        "--sn",
+        help="Subject Name in node certificate, eg. CN=CCF Node",
+    )
+    parser.add_argument(
+        "--san",
+        help="Subject Alternative Name in node certificate. Can be either iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld",
+        action="append",
+    )
+    parser.add_argument(
         "--participants-curve",
         help="Curve to use for member and user identities",
         default=infra.network.ParticipantsCurve.secp384r1.name,
@@ -166,9 +189,14 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=30,
     )
     parser.add_argument(
-        "--ledger-chunk-max-bytes",
-        help="Minimum size (bytes) at which a new ledger chunk is created.",
+        "--ledger-chunk-bytes",
+        help="Size (bytes) at which a new ledger chunk is created",
         default="20KB",
+    )
+    parser.add_argument(
+        "--snapshot-tx-interval",
+        help="Number of transactions between two snapshots",
+        default=None,
     )
 
     add(parser)

@@ -14,6 +14,7 @@
 #include "node/members.h"
 #include "node/node_info_network.h"
 #include "start_type.h"
+#include "tls/san.h"
 #include "tls/tls.h"
 
 #include <chrono>
@@ -37,12 +38,13 @@ struct CCFConfig
   consensus::Config consensus_config = {};
   ccf::NodeInfoNetwork node_info_network = {};
   std::string domain;
+  size_t snapshot_tx_interval;
 
   struct SignatureIntervals
   {
-    size_t sig_max_tx;
-    size_t sig_max_ms;
-    MSGPACK_DEFINE(sig_max_tx, sig_max_ms);
+    size_t sig_tx_interval;
+    size_t sig_ms_interval;
+    MSGPACK_DEFINE(sig_tx_interval, sig_ms_interval);
   };
   SignatureIntervals signature_intervals = {};
 
@@ -61,17 +63,25 @@ struct CCFConfig
     std::string target_port;
     std::vector<uint8_t> network_cert;
     size_t join_timer;
-    MSGPACK_DEFINE(target_host, target_port, network_cert, join_timer);
+    std::vector<uint8_t> snapshot;
+    MSGPACK_DEFINE(
+      target_host, target_port, network_cert, join_timer, snapshot);
   };
   Joining joining = {};
+
+  std::string subject_name;
+  std::vector<tls::SubjectAltName> subject_alternative_names;
 
   MSGPACK_DEFINE(
     consensus_config,
     node_info_network,
     domain,
+    snapshot_tx_interval,
     signature_intervals,
     genesis,
-    joining);
+    joining,
+    subject_name,
+    subject_alternative_names);
 };
 
 /// General administrative messages
@@ -89,11 +99,11 @@ enum AdminMessage : ringbuffer::Message
   /// Stopped processing messages. Enclave -> Host
   DEFINE_RINGBUFFER_MSG_TYPE(stopped),
 
-  /// Send notification data. Enclave -> Host
-  DEFINE_RINGBUFFER_MSG_TYPE(notification),
-
   /// Periodically update based on current time. Host -> Enclave
-  DEFINE_RINGBUFFER_MSG_TYPE(tick)
+  DEFINE_RINGBUFFER_MSG_TYPE(tick),
+
+  /// Notify the host of work done since last message. Enclave -> Host
+  DEFINE_RINGBUFFER_MSG_TYPE(work_stats)
 };
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
@@ -107,6 +117,5 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::fatal_error_msg, std::string);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stop);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stopped);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  AdminMessage::notification, std::vector<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::tick, size_t);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::work_stats, std::string);

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "node/entities.h"
-#include "node/nodetypes.h"
+#include "node/node_types.h"
 
 #include <vector>
 

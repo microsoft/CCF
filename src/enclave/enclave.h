@@ -11,11 +11,9 @@
 #include "node/historical_queries.h"
 #include "node/network_state.h"
 #include "node/node_state.h"
-#include "node/nodetypes.h"
-#include "node/notifier.h"
+#include "node/node_types.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/node_frontend.h"
-#include "node/timer.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
 
@@ -30,29 +28,22 @@ namespace enclave
     ccf::NetworkState network;
     ccf::ShareManager share_manager;
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
-    ccf::Timers timers;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCSessions> rpcsessions;
     std::unique_ptr<ccf::NodeState> node;
     std::shared_ptr<ccf::Forwarder<ccf::NodeToNode>> cmd_forwarder;
+    ringbuffer::WriterPtr to_host = nullptr;
 
     CCFConfig ccf_config;
     StartType start_type;
 
     struct NodeContext : public ccfapp::AbstractNodeContext
     {
-      ccf::Notifier notifier;
       ccf::historical::StateCache historical_state_cache;
 
-      NodeContext(ccf::Notifier&& n, ccf::historical::StateCache&& hsc) :
-        notifier(std::move(n)),
+      NodeContext(ccf::historical::StateCache&& hsc) :
         historical_state_cache(std::move(hsc))
       {}
-
-      ccf::AbstractNotifier& get_notifier() override
-      {
-        return notifier;
-      }
 
       ccf::historical::AbstractStateCache& get_historical_state() override
       {
@@ -62,51 +53,46 @@ namespace enclave
 
   public:
     Enclave(
-      EnclaveConfig* enclave_config,
+      const EnclaveConfig& enclave_config,
       const CCFConfig::SignatureIntervals& signature_intervals,
       const ConsensusType& consensus_type_,
       const consensus::Config& consensus_config) :
-      circuit(enclave_config->circuit),
+      circuit(enclave_config.circuit),
       basic_writer_factory(*circuit),
-      writer_factory(basic_writer_factory, enclave_config->writer_config),
+      writer_factory(basic_writer_factory, enclave_config.writer_config),
       network(consensus_type_),
       share_manager(network),
-      n2n_channels(std::make_shared<ccf::NodeToNode>(writer_factory)),
+      n2n_channels(std::make_shared<ccf::NodeToNodeImpl>(writer_factory)),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpcsessions, n2n_channels, rpc_map)),
-      context(
-        ccf::Notifier(writer_factory),
-        ccf::historical::StateCache(
-          *network.tables, writer_factory.create_writer_to_outside()))
+      context(ccf::historical::StateCache(
+        *network.tables, writer_factory.create_writer_to_outside()))
     {
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
 
+      to_host = writer_factory.create_writer_to_outside();
+
       node = std::make_unique<ccf::NodeState>(
-        writer_factory,
-        network,
-        rpcsessions,
-        context.notifier,
-        timers,
-        share_manager);
+        writer_factory, network, rpcsessions, share_manager);
 
       rpc_map->register_frontend<ccf::ActorsType::members>(
-        {"members"},
         std::make_unique<ccf::MemberRpcFrontend>(
           network, *node, share_manager));
 
       rpc_map->register_frontend<ccf::ActorsType::users>(
-        {"users"}, ccfapp::get_rpc_handler(network, context));
+        ccfapp::get_rpc_handler(network, context));
 
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
-        {"nodes"}, std::make_unique<ccf::NodeRpcFrontend>(network, *node));
+        std::make_unique<ccf::NodeRpcFrontend>(network, *node));
 
       for (auto& [actor, fe] : rpc_map->get_map())
       {
         fe->set_sig_intervals(
-          signature_intervals.sig_max_tx, signature_intervals.sig_max_ms);
+          signature_intervals.sig_tx_interval,
+          signature_intervals.sig_ms_interval);
         fe->set_cmd_forwarder(cmd_forwarder);
       }
 
@@ -204,16 +190,25 @@ namespace enclave
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
-          bp, AdminMessage::tick, [this](const uint8_t* data, size_t size) {
+          bp,
+          AdminMessage::tick,
+          [this, &bp](const uint8_t* data, size_t size) {
             auto [ms_count] =
               ringbuffer::read_message<AdminMessage::tick>(data, size);
 
             if (ms_count > 0)
             {
+              const auto message_counts =
+                bp.get_dispatcher().retrieve_message_counts();
+              const auto j =
+                bp.get_dispatcher().convert_message_counts(message_counts);
+              RINGBUFFER_WRITE_MESSAGE(
+                AdminMessage::work_stats, to_host, j.dump());
+
               std::chrono::milliseconds elapsed_ms(ms_count);
               logger::config::tick(elapsed_ms);
               node->tick(elapsed_ms);
-              timers.tick(elapsed_ms);
+              threading::ThreadMessaging::thread_messaging.tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
               // public ledger is being read
               if (!node->is_reading_public_ledger())
@@ -306,7 +301,7 @@ namespace enclave
 
         if (start_type == StartType::Join)
         {
-          node->join({ccf_config});
+          node->join(ccf_config);
         }
         else if (start_type == StartType::Recover)
         {
@@ -343,7 +338,7 @@ namespace enclave
 
           if ((time_now - idling_start_time) > timeout)
           {
-            std::this_thread::sleep_for(timeout);
+            std::this_thread::sleep_for(timeout * 10);
           }
           else
           {
@@ -351,18 +346,16 @@ namespace enclave
           }
         });
 
-        auto w = writer_factory.create_writer_to_outside();
         LOG_INFO_FMT("Enclave stopped successfully. Stopping host...");
-        RINGBUFFER_WRITE_MESSAGE(AdminMessage::stopped, w);
+        RINGBUFFER_WRITE_MESSAGE(AdminMessage::stopped, to_host);
 
         return true;
       }
 #ifndef VIRTUAL_ENCLAVE
       catch (const std::exception& e)
       {
-        auto w = writer_factory.create_writer_to_outside();
         RINGBUFFER_WRITE_MESSAGE(
-          AdminMessage::fatal_error_msg, w, std::string(e.what()));
+          AdminMessage::fatal_error_msg, to_host, std::string(e.what()));
         return false;
       }
 #endif
@@ -387,7 +380,7 @@ namespace enclave
       {
         auto msg = std::make_unique<threading::Tmsg<Msg>>(&init_thread_cb);
         msg->data.tid = threading::get_current_thread_id();
-        threading::ThreadMessaging::thread_messaging.add_task<Msg>(
+        threading::ThreadMessaging::thread_messaging.add_task(
           msg->data.tid, std::move(msg));
 
         threading::ThreadMessaging::thread_messaging.run();
@@ -395,9 +388,8 @@ namespace enclave
 #ifndef VIRTUAL_ENCLAVE
       catch (const std::exception& e)
       {
-        auto w = writer_factory.create_writer_to_outside();
         RINGBUFFER_WRITE_MESSAGE(
-          AdminMessage::fatal_error_msg, w, std::string(e.what()));
+          AdminMessage::fatal_error_msg, to_host, std::string(e.what()));
         return false;
       }
 #endif

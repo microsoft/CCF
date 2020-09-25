@@ -204,8 +204,7 @@ namespace ccf
             }
 
             const auto& actor_s = actor_opt.value();
-            std::string preferred_actor_s;
-            auto actor = rpc_map->resolve(actor_s, preferred_actor_s);
+            auto actor = rpc_map->resolve(actor_s);
             auto handler = rpc_map->find(actor);
             if (actor == ccf::ActorsType::unknown || !handler.has_value())
             {

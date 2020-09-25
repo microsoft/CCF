@@ -5,7 +5,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nlohmann/json.git",
-          "commitHash": "e7b3b40b5a95bc74b9a7f662830a27c49ffc01b4"
+          "commitHash": "db78ac1d7716f56fc9f1b030b715f872f93964e4"
         }
       }
     },
@@ -23,7 +23,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/onqtam/doctest.git",
-          "commitHash": "7d42bd0fab6c44010c8aed9338bd02bea5feba41"
+          "commitHash": "1c8da00c978c19e00a434b2b1f854fcffc9fba35"
         }
       }
     },
@@ -41,7 +41,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/CLIUtils/CLI11.git",
-          "commitHash": "dd0d8e4fe729e5b1110232c7a5c9566dad884686"
+          "commitHash": "5cb3efabce007c3a0230e4cc2e27da491c646b6c"
         }
       }
     },
@@ -59,7 +59,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/msgpack/msgpack-c.git",
-          "commitHash": "8085ab8721090a447cf98bb802d1406ad7afe420"
+          "commitHash": "6e7deb809120881634b3ca895e66b2a946084f34"
         }
       }
     },
@@ -68,7 +68,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/fmtlib/fmt",
-          "commitHash": "9bdd1596cef1b57b9556f8bef32dc4a32322ef3e"
+          "commitHash": "cd4af11efc9c622896a3e4cb599fa28668ca3d05"
         }
       }
     },
@@ -77,7 +77,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/tristanpenman/valijson",
-          "commitHash": "0abf633bc06571df51d9641eb485c7a4e5c97bdf"
+          "commitHash": "7a52fc88cdffd6678c009ca2fad700151f7363c6"
         }
       }
     },
@@ -91,30 +91,11 @@
       }
     },
     {
-      "Component": {
-        "Type": "other",
-        "Other": {
-          "Name": "PBFT",
-          "Version": "na",
-          "DownloadUrl": "http://www.pmg.csail.mit.edu/bft/bft.tar.gz"
-        }
-      }
-    },
-    {
       "component": {
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/project-everest/hacl-star",
-          "commitHash": "ed8c28dcbc1c4b6846145686f81b063e80f601b1"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
-          "repositoryUrl": "https://github.com/google/flatbuffers",
-          "commitHash": "6df40a2471737b27271bdd9b900ab5f3aec746c7"
+          "commitHash": "983baba407d2c91134ee270656a3d2c35683e1ff"
         }
       }
     },
@@ -123,8 +104,8 @@
         "Type": "other",
         "Other": {
           "Name": "QuickJS",
-          "Version": "2020-04-12",
-          "DownloadUrl": "https://bellard.org/quickjs/quickjs-2020-04-12.tar.xz"
+          "Version": "2020-09-06",
+          "DownloadUrl": "https://bellard.org/quickjs/quickjs-2020-09-06.tar.xz"
         }
       }
     },

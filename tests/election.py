@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+from infra.network import PrimaryNotFound
 import time
 import math
 import infra.network
@@ -10,6 +11,7 @@ import http
 import suite.test_requirements as reqs
 
 from ccf.tx_status import TxStatus
+from ccf.log_capture import flush_info
 from loguru import logger as LOG
 
 # This test starts from a given number of nodes (hosts), commits
@@ -20,16 +22,11 @@ from loguru import logger as LOG
 
 @reqs.description("Stopping current primary and waiting for a new one to be elected")
 @reqs.can_kill_n_nodes(1)
-def test_kill_primary(network, args, find_new_primary=True):
+def test_kill_primary(network, args):
     primary, _ = network.find_primary()
     primary.stop()
-    LOG.debug(
-        f"Waiting {network.election_duration}s for a new primary to be elected..."
-    )
-    time.sleep(network.election_duration)
-    if find_new_primary:
-        new_primary, new_term = network.find_primary()
-        LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
+    new_primary, new_term = network.wait_for_new_primary(primary.node_id)
+    LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
 
     return network
 
@@ -40,16 +37,21 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
     """
     for _ in range(infra.network.Network.replication_delay * 10):
         up_to_date_f = []
+        logs = {}
         for f in nodes:
             with f.client() as c:
-                r = c.get(f"/node/tx?view={view}&seqno={seqno}")
+                logs[f.node_id] = []
+                r = c.get(
+                    f"/node/tx?view={view}&seqno={seqno}", log_capture=logs[f.node_id]
+                )
                 assert (
                     r.status_code == http.HTTPStatus.OK
                 ), f"tx request returned HTTP status {r.status_code}"
-                status = TxStatus(r.body["status"])
+                status = TxStatus(r.body.json()["status"])
                 if status == TxStatus.Committed:
                     up_to_date_f.append(f.node_id)
                 elif status == TxStatus.Invalid:
+                    flush_info(logs[f.node_id], None, 0)
                     raise RuntimeError(
                         f"Node {f.node_id} reports transaction ID {view}.{seqno} is invalid and will never be committed"
                     )
@@ -58,6 +60,8 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
         if len(up_to_date_f) == len(nodes):
             break
         time.sleep(0.1)
+    for lines in logs.values():
+        flush_info(lines, None, 0)
     assert len(up_to_date_f) == len(
         nodes
     ), "Only {} out of {} nodes are up to date".format(len(up_to_date_f), len(nodes))
@@ -66,7 +70,7 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
 def run(args):
     # Three nodes minimum to make sure that the raft network can still make progress
     # if one node stops
-    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 3)
+    hosts = ["localhost"] * (4 if args.consensus == "bft" else 3)
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -78,15 +82,16 @@ def run(args):
 
         # Number of nodes F to stop until network cannot make progress
         nodes_to_stop = math.ceil(len(hosts) / 2)
-        if args.consensus == "pbft":
+        if args.consensus == "bft":
             nodes_to_stop = math.ceil(len(hosts) / 3)
 
-        for _ in range(nodes_to_stop):
+        primary_is_known = True
+        for node_to_stop in range(nodes_to_stop):
             # Note that for the first iteration, the primary is known in advance anyway
             LOG.debug("Find freshly elected primary")
             # After a view change in pbft, finding the new primary takes longer
             primary, current_view = network.find_primary(
-                timeout=(30 if args.consensus == "pbft" else 3)
+                timeout=(30 if args.consensus == "bft" else 3)
             )
 
             LOG.debug(
@@ -108,23 +113,15 @@ def run(args):
             LOG.debug("Waiting for transaction to be committed by all nodes")
             wait_for_seqno_to_commit(seqno, current_view, network.get_joined_nodes())
 
-            test_kill_primary(network, args, find_new_primary=False)
+            try:
+                test_kill_primary(network, args)
+            except PrimaryNotFound:
+                if node_to_stop < nodes_to_stop - 1:
+                    raise
+                else:
+                    primary_is_known = False
 
-        # More than F nodes have been stopped, trying to commit any message
-        LOG.debug(
-            "No progress can be made as more than {} nodes have stopped".format(
-                nodes_to_stop
-            )
-        )
-        try:
-            primary, _ = network.find_primary()
-            assert False, "Primary should not be found"
-        except infra.network.PrimaryNotFound:
-            pass
-
-        LOG.success(
-            f"As expected, primary could not be found after election duration ({network.election_duration}s)."
-        )
+        assert not primary_is_known, "Primary is still known"
         LOG.success("Test ended successfully.")
 
 

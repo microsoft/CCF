@@ -94,15 +94,17 @@ def run(args):
             ).withdraw(primary, new_member_proposal)
             infra.checker.Checker(c)(response)
         assert response.status_code == http.HTTPStatus.OK.value
-        assert response.body["state"] == ProposalState.Withdrawn.value
+        assert response.body.json()["state"] == ProposalState.Withdrawn.value
         withdrawals_issued += 1
 
     # Refresh ledger to beginning
     ledger = ccf.ledger.Ledger(ledger_directory)
 
-    (final_proposals, final_votes, final_withdrawals,) = count_governance_operations(
-        ledger
-    )
+    (
+        final_proposals,
+        final_votes,
+        final_withdrawals,
+    ) = count_governance_operations(ledger)
 
     assert (
         final_proposals == original_proposals + proposals_issued

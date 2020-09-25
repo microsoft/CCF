@@ -20,12 +20,14 @@ schedules:
 resources:
   containers:
     - container: nosgx
-      image: ccfciteam/ccf-ci:oe0.10-lvi
+      image: ccfciteam/ccf-ci:oe0.11.0
       options: --publish-all --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache
 
     - container: sgx
-      image: ccfciteam/ccf-ci:oe0.10-lvi
+      image: ccfciteam/ccf-ci:oe0.11.0
       options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
 
 jobs:
 - template: .azure-pipelines-templates/daily-matrix.yml
+
+ 

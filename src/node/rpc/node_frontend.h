@@ -87,7 +87,7 @@ namespace ccf
       }
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::PBFT)
+      if (network.consensus_type != ConsensusType::BFT)
       {
         QuoteVerificationResult verify_result =
           QuoteVerifier::verify_quote_against_store(
@@ -136,10 +136,16 @@ namespace ccf
 
   public:
     NodeEndpoints(NetworkState& network, AbstractNodeState& node) :
-      CommonEndpointRegistry(*network.tables),
+      CommonEndpointRegistry(
+        get_actor_prefix(ActorsType::nodes), *network.tables),
       network(network),
       node(node)
-    {}
+    {
+      openapi_info.title = "CCF Public Node API";
+      openapi_info.description =
+        "This API provides public, uncredentialed access to service and node "
+        "state.";
+    }
 
     void init_handlers(kv::Store& tables_) override
     {
@@ -259,6 +265,7 @@ namespace ccf
       auto get_state = [this](auto& args, nlohmann::json&&) {
         GetState::Out result;
         auto [s, rts, lrs] = this->node.state();
+        result.id = this->node.get_node_id();
         result.state = s;
         result.recovery_target_seqno = rts;
         result.last_recovered_seqno = lrs;
@@ -279,6 +286,7 @@ namespace ccf
       make_read_only_endpoint(
         "state", HTTP_GET, json_read_only_adapter(get_state))
         .set_auto_schema<GetState>()
+        .set_forwarding_required(ForwardingRequired::Never)
         .install();
 
       auto get_quote = [this](auto& args, nlohmann::json&&) {
@@ -287,11 +295,19 @@ namespace ccf
         filter.insert(this->node.get_node_id());
         this->node.node_quotes(args.tx, result, filter);
 
-        return make_success(result);
+        if (result.quotes.size() > 0)
+        {
+          return make_success(result);
+        }
+        else
+        {
+          return make_error(HTTP_STATUS_NOT_FOUND, "Could not find node quote");
+        }
       };
       make_read_only_endpoint(
         "quote", HTTP_GET, json_read_only_adapter(get_quote))
         .set_auto_schema<GetQuotes>()
+        .set_forwarding_required(ForwardingRequired::Never)
         .install();
 
       auto get_quotes = [this](auto& args, nlohmann::json&&) {

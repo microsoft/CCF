@@ -28,5 +28,5 @@ jobs:
       - name: Push App CI container
         run: docker push ccfciteam/ccf-app-ci:${{steps.tref.outputs.tag}}
 
-      - name: Build App Run container
+      - name: Push App Run container
         run: docker push ccfciteam/ccf-app-run:${{steps.tref.outputs.tag}}

@@ -17,6 +17,8 @@ set(ENV{BETTER_EXCEPTIONS} 1)
 message(STATUS "CCF version=${CCF_VERSION}")
 message(STATUS "CCF release version=${CCF_RELEASE_VERSION}")
 
+include(${CCF_DIR}/cmake/cpack_settings.cmake)
+
 # Set the default install prefix for CCF. Users may override this value with the
 # cmake command. For example:
 #
@@ -36,17 +38,14 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake
 )
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pbft.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/aft.cmake)
 
 configure_file(
   ${CCF_DIR}/src/host/version.h.in ${CCF_GENERATED_DIR}/version.h @ONLY
 )
+configure_file(${CCF_DIR}/python/setup.py.in ${CCF_DIR}/python/setup.py @ONLY)
 
-if(PBFT_TESTS)
-  set(CONSENSUSES raft pbft)
-else()
-  set(CONSENSUSES raft)
-endif()
+set(CONSENSUSES cft bft)
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
@@ -91,8 +90,8 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            http_parser.enclave
            lua.enclave
            secp256k1.enclave
+           aft.enclave
            sss.enclave
-           byz.enclave
   )
 
   set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -145,8 +144,9 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            http_parser.host
            lua.host
            secp256k1.host
+           aft.virtual
            sss.host
-           byz.host
+           openenclave::oehostverify
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
@@ -184,15 +184,6 @@ install(
   FILES_MATCHING
   PATTERN "*.h"
   PATTERN "*/test*" EXCLUDE
-)
-
-# Install CCF Python tools
-install(
-  DIRECTORY python/ccf
-  DESTINATION bin/
-  FILES_MATCHING
-  PATTERN "*.py"
-  PATTERN "*/__pycache__*" EXCLUDE
 )
 
 # Install CCF Python infrastructure
@@ -260,6 +251,11 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      openapi_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/openapi.cpp
+    )
+    target_link_libraries(openapi_test PRIVATE http_parser.host)
+
+    add_unit_test(
       logger_json_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/logger_json_test.cpp
     )
@@ -270,10 +266,11 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_serialisation.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_snapshot.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_dynamic_tables.cpp
     )
     use_client_mbedtls(kv_test)
     target_link_libraries(
-      kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
+      kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host http_parser.host
     )
 
     add_unit_test(
@@ -293,14 +290,14 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/main.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/term_history.cpp
+      raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
     )
-    target_link_libraries(raft_test PRIVATE ${CRYPTO_LIBRARY})
+    target_link_libraries(raft_test PRIVATE ${CRYPTO_LIBRARY} secp256k1.host)
 
     add_unit_test(
       raft_enclave_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/enclave.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/enclave.cpp
     )
     target_include_directories(raft_enclave_test PRIVATE ${CCFCRYPTO_INC})
     target_link_libraries(
@@ -319,6 +316,7 @@ if(BUILD_TESTS)
     target_include_directories(history_test PRIVATE ${EVERCRYPT_INC})
     target_link_libraries(
       history_test PRIVATE ${CRYPTO_LIBRARY} evercrypt.host secp256k1.host
+                           http_parser.host
     )
 
     add_unit_test(
@@ -338,7 +336,14 @@ if(BUILD_TESTS)
       historical_queries_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
     )
-    target_link_libraries(historical_queries_test PRIVATE secp256k1.host)
+    target_link_libraries(
+      historical_queries_test PRIVATE secp256k1.host http_parser.host
+    )
+
+    add_unit_test(
+      snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
+    )
+    target_link_libraries(snapshot_test PRIVATE secp256k1.host)
 
     add_unit_test(
       msgpack_serialization_test
@@ -348,6 +353,11 @@ if(BUILD_TESTS)
     add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
     target_link_libraries(
       tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
+    )
+
+    add_test_bin(cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/cert.cpp)
+    target_link_libraries(
+      cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
     )
 
     add_unit_test(
@@ -425,7 +435,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_kv.cpp
     )
     target_include_directories(lua_test PRIVATE ${LUA_DIR})
-    target_link_libraries(lua_test PRIVATE lua.host)
+    target_link_libraries(lua_test PRIVATE lua.host http_parser.host)
 
     add_unit_test(
       merkle_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/merkle_test.cpp
@@ -442,11 +452,11 @@ if(BUILD_TESTS)
 
     # Raft driver and scenario test
     add_executable(
-      raft_driver
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/driver.cpp
+      raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
     )
+    target_link_libraries(raft_driver PRIVATE ccfcrypto.host secp256k1.host)
     use_client_mbedtls(raft_driver)
-    target_include_directories(raft_driver PRIVATE src/raft)
+    target_include_directories(raft_driver PRIVATE src/aft)
 
     add_test(
       NAME raft_scenario_test
@@ -456,6 +466,15 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}
     )
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
+
+    add_test(NAME csr_test COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/certs.py
+                                   ./cert_test
+    )
+    set_property(
+      TEST csr_test
+      APPEND
+      PROPERTY LABELS unit_test
+    )
   endif()
 
   # Picobench benchmarks
@@ -481,8 +500,10 @@ if(BUILD_TESTS)
     INCLUDE_DIRS ${EVERCRYPT_INC}
   )
   add_picobench(
-    kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmetric_key.cpp
-                  src/enclave/thread_local.cpp
+    kv_bench
+    SRCS src/kv/test/kv_bench.cpp src/crypto/symmetric_key.cpp
+         src/enclave/thread_local.cpp
+    LINK_LIBS ccfcrypto.host secp256k1.host
   )
   add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
 
@@ -490,15 +511,13 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME governance_history_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_history.py
-    CONSENSUS raft
-    ADDITIONAL_ARGS # https://github.com/microsoft/CCF/issues/1275
-                    --ledger-chunk-max-bytes 20MB
+    CONSENSUS cft
   )
 
   add_e2e_test(
     NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-    CONSENSUS raft
+    CONSENSUS cft
     ADDITIONAL_ARGS
       --recovery
       2
@@ -511,13 +530,13 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME rekey_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rekey.py
-    CONSENSUS raft
+    CONSENSUS cft
   )
 
   add_e2e_test(
     NAME recovery_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-    CONSENSUS raft
+    CONSENSUS cft
     LABEL suite
     ADDITIONAL_ARGS
       --test-duration
@@ -532,7 +551,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME reconfiguration_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-    CONSENSUS raft
+    CONSENSUS cft
     LABEL suite
     ADDITIONAL_ARGS
       --test-duration
@@ -545,9 +564,26 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME snapshots_test_suite
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+    CONSENSUS cft
+    LABEL suite
+    ADDITIONAL_ARGS
+      --test-duration
+      150
+      --enforce-reqs
+      --test-suite
+      snapshots
+      --raft-election-timeout
+      4000
+      --snapshot-tx-interval
+      5
+  )
+
+  add_e2e_test(
     NAME full_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-    CONSENSUS raft
+    CONSENSUS cft
     LABEL suite
     ADDITIONAL_ARGS
       --ledger-recovery-timeout
@@ -564,30 +600,71 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME lua_e2e_batched
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
-    CONSENSUS raft
+    CONSENSUS cft
     ADDITIONAL_ARGS --app-script
                     ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua
+  )
+
+  add_e2e_test(
+    NAME modules_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/modules.py
+    CONSENSUS cft
+  )
+
+  add_e2e_test(
+    NAME custom_authorization_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/custom_authorization.py
+    CONSENSUS cft
+  )
+
+  add_e2e_test(
+    NAME content_types_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/content_types.py
+    CONSENSUS cft
   )
 
   if(QUOTES_ENABLED)
     add_e2e_test(
       NAME reconfiguration_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-      CONSENSUS raft
+      CONSENSUS cft
+      ADDITIONAL_ARGS --raft-election-timeout 4000
+    )
+
+    add_e2e_test(
+      NAME reconfiguration_snapshot_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS --snapshot-tx-interval 10 --raft-election-timeout 4000
     )
 
     add_e2e_test(
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-      CONSENSUS raft
+      CONSENSUS cft
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --raft-election-timeout 20000
     )
 
     add_e2e_test(
       NAME governance_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-      CONSENSUS raft
+      CONSENSUS cft
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
+    )
+
+    add_e2e_test(
+      NAME governance_ca_certs_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_ca_certs.py GOV_SCRIPT
+                    ${CCF_DIR}/src/runtime_config/gov_ca_certs.lua
+      CONSENSUS cft
+    )
+
+    add_e2e_test(
+      NAME governance_ca_cert_mismatch_test
+      PYTHON_SCRIPT
+        ${CMAKE_SOURCE_DIR}/tests/governance_ca_cert_mismatch.py GOV_SCRIPT
+        ${CCF_DIR}/src/runtime_config/gov_ca_cert_mismatch.lua
+      CONSENSUS cft
     )
   endif()
 
@@ -604,131 +681,105 @@ if(BUILD_TESTS)
     )
   endif()
 
+  # Lua sample app (tx regulator) end to end test
+  add_e2e_test(
+    NAME lua_txregulator_test_raft
+    PYTHON_SCRIPT
+      ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS
+      --app-script
+      ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
+      --datafile
+      ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv
+  )
+
+  add_e2e_test(
+    NAME js_e2e_logging_raft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --js-app-script
+                    ${CMAKE_SOURCE_DIR}/src/apps/logging/logging_js.lua
+  )
+
+  add_e2e_test(
+    NAME e2e_scenario_raft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --scenario
+                    ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
+  )
+
+  add_e2e_test(
+    NAME ws_logging_raft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/ws_scaffold.py
+    CONSENSUS cft
+  )
+
+  add_e2e_test(
+    NAME lua_e2e_logging_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --app-script
+                    ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
+  )
+
+  add_e2e_test(
+    NAME member_client_test_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
+    CONSENSUS cft
+  )
+
+  if(NOT SAN)
+    add_e2e_test(
+      NAME connections_cft
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+      CONSENSUS cft
+    )
+  endif()
+
+  add_e2e_test(
+    NAME receipts_test_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
+    CONSENSUS cft
+  )
+
+  if(TLS_TEST)
+    add_e2e_test(
+      NAME tlstest_cft
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tlstest.py
+      CONSENSUS cft
+      LABEL tlstest
+    )
+  endif()
+
+  add_e2e_test(
+    NAME schema_test_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS -p liblogging --schema-dir ${CMAKE_SOURCE_DIR}/doc/schemas
+  )
+
+  add_e2e_test(
+    NAME election_test_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS "--raft-election-timeout" "4000"
+  )
+
   foreach(CONSENSUS ${CONSENSUSES})
-    # Lua sample app (tx regulator) end to end test
-    add_e2e_test(
-      NAME lua_txregulator_test_${CONSENSUS}
-      PYTHON_SCRIPT
-        ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS
-        --app-script
-        ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
-        --datafile
-        ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv
-    )
-
-    add_e2e_test(
-      NAME js_e2e_logging_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS --js-app-script
-                      ${CMAKE_SOURCE_DIR}/src/apps/logging/logging_js.lua
-    )
-
-    add_e2e_test(
-      NAME e2e_scenario_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS --scenario
-                      ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
-    )
-
-    add_e2e_test(
-      NAME ws_scaffold_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/ws_scaffold.py
-      CONSENSUS ${CONSENSUS}
-    )
-
-    add_e2e_test(
-      NAME lua_e2e_logging_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS --app-script
-                      ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
-    )
-
-    add_e2e_test(
-      NAME member_client_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
-      CONSENSUS ${CONSENSUS}
-    )
-
-    if(NOT SAN)
-      add_e2e_test(
-        NAME connections_${CONSENSUS}
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-        CONSENSUS ${CONSENSUS}
-      )
-    endif()
-
-    add_e2e_test(
-      NAME receipts_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
-      CONSENSUS ${CONSENSUS}
-    )
-
-    if(TLS_TEST AND ${CONSENSUS} STREQUAL raft)
-      add_e2e_test(
-        NAME tlstest_${CONSENSUS}
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tlstest.py
-        CONSENSUS ${CONSENSUS}
-        LABEL tlstest
-      )
-    endif()
-
-    add_e2e_test(
-      NAME schema_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS -p liblogging --schema-dir
-                      ${CMAKE_SOURCE_DIR}/doc/schemas
-    )
-
     add_e2e_test(
       NAME cpp_e2e_logging_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       CURL_CLIENT TRUE
       CONSENSUS ${CONSENSUS}
     )
-
-    if(${CONSENSUS} STREQUAL pbft)
-      set(ELECTION_TIMEOUT_ARG "--pbft-view-change-timeout" "4000")
-    else()
-      set(ELECTION_TIMEOUT_ARG "--raft-election-timeout" "4000")
-    endif()
-
-    add_e2e_test(
-      NAME election_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS ${ELECTION_TIMEOUT_ARG}
-    )
-
-    if(${CONSENSUS} STREQUAL pbft)
-      add_e2e_test(
-        NAME suspend_nodes_pbft
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/suspend_nodes.py
-        CONSENSUS pbft
-        LABEL long_test
-        ADDITIONAL_ARGS --seed 42
-      )
-
-      add_e2e_test(
-        NAME replay_new_view_pbft
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/replay_new_view.py
-        CONSENSUS pbft
-        LABEL long_test
-        ADDITIONAL_ARGS --seed 42
-      )
-    endif()
-
   endforeach()
 
   add_perf_test(
     NAME logging_scenario_perf_test
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-    CONSENSUS raft
+    CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
     LABEL log_scenario
     ADDITIONAL_ARGS
@@ -745,7 +796,7 @@ if(BUILD_TESTS)
   add_perf_test(
     NAME logging_scenario_ws_perf_test
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-    CONSENSUS raft
+    CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
     LABEL log_scenario_ws
     ADDITIONAL_ARGS

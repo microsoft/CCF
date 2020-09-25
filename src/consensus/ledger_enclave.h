@@ -3,11 +3,8 @@
 #pragma once
 
 #include "consensus/ledger_enclave_types.h"
+#include "ds/ccf_assert.h"
 #include "ds/serialized.h"
-
-#include <algorithm>
-#include <cassert>
-#include <sstream>
 
 namespace consensus
 {
@@ -29,10 +26,15 @@ namespace consensus
      *
      * @param entry Serialised entry
      * @param globally_committable True is entry is signature transaction
+     * @param force_chunk Force new ledger chunk to be created after this entry
+     * (only if globally_committable)
      */
-    void put_entry(const std::vector<uint8_t>& entry, bool globally_committable)
+    void put_entry(
+      const std::vector<uint8_t>& entry,
+      bool globally_committable,
+      bool force_chunk = false)
     {
-      put_entry(entry.data(), entry.size(), globally_committable);
+      put_entry(entry.data(), entry.size(), globally_committable, force_chunk);
     }
 
     /**
@@ -41,13 +43,26 @@ namespace consensus
      * @param data Serialised entry start
      * @param size Serialised entry size
      * @param globally_committable True is entry is signature transaction
+     * @param force_chunk Force new ledger chunk to be created after this entry
+     * (only if globally_committable)
      */
-    void put_entry(const uint8_t* data, size_t size, bool globally_committable)
+    void put_entry(
+      const uint8_t* data,
+      size_t size,
+      bool globally_committable,
+      bool force_chunk = false)
     {
+      CCF_ASSERT_FMT(
+        globally_committable || !force_chunk,
+        "Only globally committable entries can force new ledger chunk");
+
       serializer::ByteRange byte_range = {data, size};
-      // write the message
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::ledger_append, to_host, globally_committable, byte_range);
+        consensus::ledger_append,
+        to_host,
+        globally_committable,
+        force_chunk,
+        byte_range);
     }
 
     /**
@@ -98,6 +113,16 @@ namespace consensus
     void commit(Index idx)
     {
       RINGBUFFER_WRITE_MESSAGE(consensus::ledger_commit, to_host, idx);
+    }
+
+    /**
+     * Initialise ledger at a given index (e.g. after a snapshot)
+     *
+     * @param idx Index to start ledger from
+     */
+    void init(Index idx)
+    {
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_init, to_host, idx);
     }
   };
 }

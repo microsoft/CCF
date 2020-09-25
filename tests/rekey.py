@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.network
-import infra.notification
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import infra.e2e_args
@@ -20,20 +19,28 @@ def run(args):
     hosts = ["localhost", "localhost"]
 
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
+        hosts,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
     ) as network:
         network.start_and_join(args)
 
         txs = app.LoggingTxs()
         txs.issue(
-            network=network, number_txs=3, consensus=args.consensus,
+            network=network,
+            number_txs=3,
+            consensus=args.consensus,
         )
         txs.verify(network=network)
 
         network = test(network, args)
 
         txs.issue(
-            network=network, number_txs=3, consensus=args.consensus,
+            network=network,
+            number_txs=3,
+            consensus=args.consensus,
         )
         txs.verify(network=network)
 

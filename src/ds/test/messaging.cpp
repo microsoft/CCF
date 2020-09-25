@@ -5,6 +5,7 @@
 #include "../non_blocking.h"
 #include "../ring_buffer.h"
 #include "../serialized.h"
+#include "../thread_messaging.h"
 
 #include <array>
 #include <doctest/doctest.h>
@@ -16,6 +17,8 @@
 
 using namespace messaging;
 using namespace ringbuffer;
+
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
 
 template <typename Ex, typename F>
 void require_throws_with(
@@ -194,12 +197,21 @@ TEST_CASE("Basic message loop" * doctest::test_suite("messaging"))
   {
     test_filler.write(echo_out);
     REQUIRE_THROWS_AS(bp.run(loop_src), messaging::no_handler);
+
+    const auto counts = bp.get_dispatcher().retrieve_message_counts();
+    REQUIRE(counts.empty());
   }
 
   SUBCASE("Message handlers can finish the loop")
   {
     test_filler.write(finish);
     REQUIRE(bp.run(loop_src) == 1);
+
+    const auto counts = bp.get_dispatcher().retrieve_message_counts();
+    REQUIRE(counts.size() == 1);
+    REQUIRE(counts.find(finish) != counts.end());
+    REQUIRE(counts.at(finish).messages == 1);
+    REQUIRE(counts.at(finish).bytes == 0);
   }
 
   SUBCASE("Message handlers can affect external state")
@@ -209,6 +221,15 @@ TEST_CASE("Basic message loop" * doctest::test_suite("messaging"))
     test_filler.write(finish);
     REQUIRE(bp.run(loop_src) == 2);
     REQUIRE(x == new_x);
+
+    const auto counts = bp.get_dispatcher().retrieve_message_counts();
+    REQUIRE(counts.size() == 2);
+    REQUIRE(counts.find(set_x) != counts.end());
+    REQUIRE(counts.at(set_x).messages == 1);
+    REQUIRE(counts.at(set_x).bytes == sizeof(new_x));
+    REQUIRE(counts.find(finish) != counts.end());
+    REQUIRE(counts.at(finish).messages == 1);
+    REQUIRE(counts.at(finish).bytes == 0);
   }
 
   SUBCASE("Message handlers can communicate through the writer")
@@ -228,6 +249,15 @@ TEST_CASE("Basic message loop" * doctest::test_suite("messaging"))
             REQUIRE(data[i] == actual[i]);
           }
         }) == 1);
+
+    const auto counts = bp.get_dispatcher().retrieve_message_counts();
+    REQUIRE(counts.size() == 2);
+    REQUIRE(counts.find(echo) != counts.end());
+    REQUIRE(counts.at(echo).messages == 1);
+    REQUIRE(counts.at(echo).bytes == actual.size());
+    REQUIRE(counts.find(finish) != counts.end());
+    REQUIRE(counts.at(finish).messages == 1);
+    REQUIRE(counts.at(finish).bytes == 0);
   }
 
   SUBCASE("Dispatcher can be accessed directly")
@@ -249,6 +279,12 @@ TEST_CASE("Basic message loop" * doctest::test_suite("messaging"))
       dispatcher.remove_message_handler(set_x), messaging::no_handler);
     REQUIRE_THROWS_AS(
       dispatcher.dispatch(set_x, nullptr, 0), messaging::no_handler);
+
+    const auto counts = bp.get_dispatcher().retrieve_message_counts();
+    REQUIRE(counts.size() == 1);
+    REQUIRE(counts.find(set_x) != counts.end());
+    REQUIRE(counts.at(set_x).messages == 1);
+    REQUIRE(counts.at(set_x).bytes == 0);
   }
 }
 

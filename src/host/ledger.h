@@ -647,6 +647,11 @@ namespace asynchost
 
     Ledger(const Ledger& that) = delete;
 
+    void init_idx(size_t idx)
+    {
+      last_idx = idx;
+    }
+
     std::optional<std::vector<uint8_t>> read_entry(size_t idx)
     {
       auto f = get_file_from_idx(idx);
@@ -690,7 +695,8 @@ namespace asynchost
       return entries;
     }
 
-    size_t write_entry(const uint8_t* data, size_t size, bool committable)
+    size_t write_entry(
+      const uint8_t* data, size_t size, bool committable, bool force_chunk)
     {
       if (require_new_file)
       {
@@ -701,9 +707,14 @@ namespace asynchost
       last_idx = f->write_entry(data, size, committable);
 
       LOG_DEBUG_FMT(
-        "Wrote entry at {} [committable: {}]", last_idx, committable);
+        "Wrote entry at {} [committable: {}, forced: {}]",
+        last_idx,
+        committable,
+        force_chunk);
 
-      if (committable && f->get_current_size() >= chunk_threshold)
+      if (
+        committable &&
+        (force_chunk || f->get_current_size() >= chunk_threshold))
       {
         f->complete();
         require_new_file = true;
@@ -791,11 +802,18 @@ namespace asynchost
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {
       DISPATCHER_SET_MESSAGE_HANDLER(
+        disp, consensus::ledger_init, [this](const uint8_t* data, size_t size) {
+          auto idx = serialized::read<consensus::Index>(data, size);
+          init_idx(idx);
+        });
+
+      DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
         consensus::ledger_append,
         [this](const uint8_t* data, size_t size) {
           auto committable = serialized::read<bool>(data, size);
-          write_entry(data, size, committable);
+          auto force_chunk = serialized::read<bool>(data, size);
+          write_entry(data, size, committable, force_chunk);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(

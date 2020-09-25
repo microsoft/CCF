@@ -7,6 +7,10 @@
  * F* version: 15104ff8
  * KreMLin version: 318b7fa8
  */
+
+#ifndef FSTAR_UINT128_MSVC
+#define FSTAR_UINT128_MSVC
+
 #include "kremlin/internal/types.h"
 #include "FStar_UInt128.h"
 #include "FStar_UInt_8_16_32_64.h"
@@ -14,6 +18,10 @@
 #ifndef _MSC_VER
 #  error This file only works with the MSVC compiler
 #endif
+
+/* JP: need to rip out HAS_OPTIMIZED since the header guards in types.h are now
+ * done properly and only include this file when we know for sure we are on
+ * 64-bit MSVC. */
 
 #if defined(_M_X64) && !defined(KRML_VERIFIED_UINT128)
 #define HAS_OPTIMIZED 1
@@ -90,9 +98,7 @@ FStar_UInt128_add_underspec(FStar_UInt128_uint128 a, FStar_UInt128_uint128 b) {
 #else
   return ((FStar_UInt128_uint128){
       .low = a.low + b.low,
-      .high = FStar_UInt64_add_underspec(
-          FStar_UInt64_add_underspec(a.high, b.high),
-          FStar_UInt128_carry(a.low + b.low, b.low)) });
+      .high = a.high + b.high + FStar_UInt128_carry(a.low + b.low, b.low)});
 #endif
 }
 
@@ -129,9 +135,7 @@ FStar_UInt128_sub_underspec(FStar_UInt128_uint128 a, FStar_UInt128_uint128 b) {
 #else
   return ((FStar_UInt128_uint128){
       .low = a.low - b.low,
-      .high = FStar_UInt64_sub_underspec(
-          FStar_UInt64_sub_underspec(a.high, b.high),
-          FStar_UInt128_carry(a.low, a.low - b.low)) });
+      .high = a.high - b.high - FStar_UInt128_carry(a.low, a.low - b.low)});
 #endif
 }
 
@@ -465,3 +469,8 @@ FStar_UInt128_uint128 FStar_UInt128_mul_wide(uint64_t x, uint64_t y) {
   return FStar_UInt128_mul_wide_impl(x, y);
 #endif
 }
+
+#undef low
+#undef high
+
+#endif

@@ -6,7 +6,6 @@ import time
 
 import infra.network
 import infra.proc
-import infra.notification
 import infra.net
 import infra.checker
 import suite.test_requirements as reqs
@@ -127,7 +126,9 @@ def run_to_destruction(args):
                     break
 
             if time.time() > end_time:
-                raise TimeoutError(f"Node took longer than {timeout}s to terminate")
+                raise TimeoutError(
+                    f"Node took longer than {timeout}s to terminate"
+                ) from e
 
             network.ignore_errors_on_shutdown()
 

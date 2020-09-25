@@ -1,8 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import abc
 import contextlib
 import json
 import time
+import sys
 import os
 import subprocess
 import tempfile
@@ -15,7 +17,7 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 import struct
 import base64
-from typing import Union, Optional
+from typing import Union, Optional, List, Any
 
 import requests
 from loguru import logger as LOG  # type: ignore
@@ -23,9 +25,10 @@ from requests_http_signature import HTTPSignatureAuth  # type: ignore
 import websocket  # type: ignore
 
 import ccf.commit
+from ccf.log_capture import flush_info
 
 
-def truncate(string: str, max_len: int = 256):
+def truncate(string: str, max_len: int = 128):
     if len(string) > max_len:
         return f"{string[: max_len]} + {len(string) - max_len} chars"
     else:
@@ -38,8 +41,12 @@ CCF_TX_VIEW_HEADER = "x-ccf-tx-view"
 CCF_GLOBAL_COMMIT_HEADER = "x-ccf-global-commit"
 
 DEFAULT_CONNECTION_TIMEOUT_SEC = 3
-DEFAULT_REQUEST_TIMEOUT_SEC = 3
+DEFAULT_REQUEST_TIMEOUT_SEC = 10
 DEFAULT_COMMIT_TIMEOUT_SEC = 3
+
+CONTENT_TYPE_TEXT = "text/plain"
+CONTENT_TYPE_JSON = "application/json"
+CONTENT_TYPE_BINARY = "application/octet-stream"
 
 
 @dataclass
@@ -47,18 +54,18 @@ class Request:
     #: Resource path (with optional query string)
     path: str
     #: Body of request
-    body: Optional[Union[dict, str]]
+    body: Optional[Union[dict, str, bytes]]
     #: HTTP verb
     http_verb: str
     #: HTTP headers
     headers: dict
 
     def __str__(self):
-        string = f"{self.http_verb} {self.path}"
+        string = f"<cyan>{self.http_verb}</> <green>{self.path}</>"
         if self.headers:
             string += f" {self.headers}"
         if self.body is not None:
-            string += f'{truncate(f"{self.body}")}'
+            string += f' {truncate(f"{self.body}")}'
 
         return string
 
@@ -75,6 +82,60 @@ class FakeSocket:
         return self.file
 
 
+class ResponseBody(abc.ABC):
+    @abc.abstractmethod
+    def data(self) -> bytes:
+        pass
+
+    @abc.abstractmethod
+    def text(self) -> str:
+        pass
+
+    @abc.abstractmethod
+    def json(self) -> Any:
+        pass
+
+    def __len__(self):
+        return len(self.data())
+
+    def __str__(self):
+        try:
+            return self.text()
+        except UnicodeDecodeError:
+            return self.__repr__()
+
+    def __repr__(self):
+        return repr(self.data())
+
+
+class RequestsResponseBody(ResponseBody):
+    def __init__(self, response: requests.Response):
+        self._response = response
+
+    def data(self):
+        return self._response.content
+
+    def text(self):
+        return self._response.text
+
+    def json(self):
+        return self._response.json()
+
+
+class RawResponseBody(ResponseBody):
+    def __init__(self, data: bytes):
+        self._data = data
+
+    def data(self):
+        return self._data
+
+    def text(self):
+        return self._data.decode()
+
+    def json(self):
+        return json.loads(self._data)
+
+
 @dataclass
 class Response:
     """
@@ -84,7 +145,7 @@ class Response:
     #: Response HTTP status code
     status_code: int
     #: Response body
-    body: Optional[Union[str, dict]]
+    body: ResponseBody
     #: CCF sequence number
     seqno: Optional[int]
     #: CCF consensus view
@@ -96,27 +157,18 @@ class Response:
 
     def __str__(self):
         versioned = (self.view, self.seqno) != (None, None)
+        status_color = "red" if self.status_code / 100 in (4, 5) else "green"
         return (
-            f"{self.status_code} "
-            + (f"@{self.view}.{self.seqno} " if versioned else "")
-            + truncate(f"{self.body}")
+            f"<{status_color}>{self.status_code}</> "
+            + (f"@<magenta>{self.view}.{self.seqno}</> " if versioned else "")
+            + f"<yellow>{truncate(str(self.body))}</>"
         )
 
     @staticmethod
     def from_requests_response(rr):
-        content_type = rr.headers.get("content-type")
-        if content_type == "application/json":
-            parsed_body = rr.json()
-        elif content_type == "text/plain":
-            parsed_body = rr.text
-        elif content_type is None:
-            parsed_body = None
-        else:
-            raise ValueError(f"Unhandled content type: {content_type}")
-
         return Response(
             status_code=rr.status_code,
-            body=parsed_body,
+            body=RequestsResponseBody(rr),
             seqno=int_or_none(rr.headers.get(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(rr.headers.get(CCF_TX_VIEW_HEADER)),
             global_commit=int_or_none(rr.headers.get(CCF_GLOBAL_COMMIT_HEADER)),
@@ -130,19 +182,9 @@ class Response:
         response.begin()
         raw_body = response.read(raw)
 
-        content_type = response.headers.get("content-type")
-        if content_type == "application/json":
-            parsed_body = json.loads(raw_body)
-        elif content_type == "text/plain":
-            parsed_body = raw_body.decode()
-        elif content_type is None:
-            parsed_body = None
-        else:
-            raise ValueError(f"Unhandled content type: {content_type}")
-
         return Response(
             response.status,
-            body=parsed_body,
+            body=RawResponseBody(raw_body),
             seqno=int_or_none(response.getheader(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(response.getheader(CCF_TX_VIEW_HEADER)),
             global_commit=int_or_none(response.getheader(CCF_GLOBAL_COMMIT_HEADER)),
@@ -172,6 +214,13 @@ def get_curve(ca_file):
     return (
         x509.load_pem_x509_certificate(ca_bytes, default_backend()).public_key().curve
     )
+
+
+def unpack_seqno_or_view(data):
+    (value,) = struct.unpack("<q", data)
+    if value == -sys.maxsize - 1:
+        return None
+    return value
 
 
 class CurlClient:
@@ -215,18 +264,27 @@ class CurlClient:
                 if isinstance(request.body, str) and request.body.startswith("@"):
                     # Request is already a file path - pass it directly
                     cmd.extend(["--data-binary", request.body])
+                    if request.body.lower().endswith(".json"):
+                        content_type = CONTENT_TYPE_JSON
+                    else:
+                        content_type = CONTENT_TYPE_BINARY
                 else:
                     # Write request body to temp file
-                    if isinstance(request.body, bytes):
+                    if isinstance(request.body, str):
+                        msg_bytes = request.body.encode()
+                        content_type = CONTENT_TYPE_TEXT
+                    elif isinstance(request.body, bytes):
                         msg_bytes = request.body
+                        content_type = CONTENT_TYPE_BINARY
                     else:
                         msg_bytes = json.dumps(request.body).encode()
+                        content_type = CONTENT_TYPE_JSON
                     LOG.debug(f"Writing request body: {truncate(msg_bytes)}")
                     nf.write(msg_bytes)
                     nf.flush()
                     cmd.extend(["--data-binary", f"@{nf.name}"])
                 if not "content-type" in request.headers:
-                    request.headers["content-type"] = "application/json"
+                    request.headers["content-type"] = content_type
 
             # Set requested headers first - so they take precedence over defaults
             for k, v in request.headers.items():
@@ -335,32 +393,38 @@ class RequestClient:
                 headers=["(request-target)", "Digest", "Content-Length"],
             )
 
-        request_args = {
-            "method": request.http_verb,
-            "url": f"https://{self.host}:{self.port}{request.path}",
-            "auth": auth_value,
-            "headers": extra_headers,
-            "allow_redirects": False,
-        }
-
         request_body = None
         if request.body is not None:
             if isinstance(request.body, str) and request.body.startswith("@"):
-                # Request is a file path - read contents, assume json
-                request_body = json.load(open(request.body[1:]))
-            else:
+                # Request is a file path - read contents
+                with open(request.body[1:], "rb") as f:
+                    request_body = f.read()
+                if request.body.lower().endswith(".json"):
+                    content_type = CONTENT_TYPE_JSON
+                else:
+                    content_type = CONTENT_TYPE_BINARY
+            elif isinstance(request.body, str):
+                request_body = request.body.encode()
+                content_type = CONTENT_TYPE_TEXT
+            elif isinstance(request.body, bytes):
                 request_body = request.body
-            request_args["json"] = request_body
+                content_type = CONTENT_TYPE_BINARY
+            else:
+                request_body = json.dumps(request.body).encode()
+                content_type = CONTENT_TYPE_JSON
+
+            if not "content-type" in request.headers:
+                extra_headers["content-type"] = content_type
 
         try:
             response = self.session.request(
-                method=request.http_verb,
+                request.http_verb,
                 url=f"https://{self.host}:{self.port}{request.path}",
                 auth=auth_value,
                 headers=extra_headers,
                 allow_redirects=False,
-                json=request_body,
                 timeout=timeout,
+                data=request_body,
             )
         except requests.exceptions.ReadTimeout as exc:
             raise TimeoutError from exc
@@ -429,7 +493,12 @@ class WSClient:
 
         assert self.ws is not None
 
-        payload = json.dumps(request.body).encode()
+        if isinstance(request.body, str):
+            payload = request.body.encode()
+        elif isinstance(request.body, bytes):
+            payload = request.body
+        else:
+            payload = json.dumps(request.body).encode()
         path = (request.path).encode()
         header = struct.pack("<h", len(path)) + path
         # FIN, no RSV, BIN, UNMASKED every time, because it's all we support right now
@@ -439,14 +508,11 @@ class WSClient:
         self.ws.send_frame(frame)
         out = self.ws.recv_frame().data
         (status_code,) = struct.unpack("<h", out[:2])
-        (seqno,) = struct.unpack("<Q", out[2:10])
-        (view,) = struct.unpack("<Q", out[10:18])
-        (global_commit,) = struct.unpack("<Q", out[18:26])
+        seqno = unpack_seqno_or_view(out[2:10])
+        view = unpack_seqno_or_view(out[10:18])
+        global_commit = unpack_seqno_or_view(out[18:26])
         payload = out[26:]
-        if status_code == 200:
-            body = json.loads(payload) if payload else None
-        else:
-            body = payload.decode()
+        body = RawResponseBody(payload)
         return Response(status_code, body, seqno, view, global_commit, headers={})
 
 
@@ -502,70 +568,85 @@ class CCFClient:
         LOG.info(response)
         return response
 
-    def _direct_call(
+    def _call(
         self,
         path: str,
-        body: Optional[Union[str, dict]] = None,
+        body: Optional[Union[str, dict, bytes]] = None,
         http_verb: str = "POST",
         headers: Optional[dict] = None,
         signed: bool = False,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
+        log_capture: Optional[list] = None,
     ) -> Response:
         description = ""
         if self.description:
-            description = f"({self.description})" + (" [signed]" if signed else "")
+            description = f"{self.description}{signed * 's'}"
+        else:
+            description = self.name
 
         if headers is None:
             headers = {}
         r = Request(path, body, http_verb, headers)
-        LOG.info(f"{self.name} {r} {description}")
-        return self._response(self.client_impl.request(r, signed, timeout))
+
+        flush_info([f"{description} {r}"], log_capture, 3)
+        response = self.client_impl.request(r, signed, timeout)
+        flush_info([str(response)], log_capture, 3)
+        return response
 
     def call(
         self,
         path: str,
-        body: Optional[Union[str, dict]] = None,
+        body: Optional[Union[str, dict, bytes]] = None,
         http_verb: str = "POST",
         headers: Optional[dict] = None,
         signed: bool = False,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
+        log_capture: Optional[list] = None,
     ) -> Response:
         """
         Issues one request, synchronously, and returns the response.
 
         :param str path: URI of the targeted resource. Must begin with '/'
-        :param dict body: Request body (optional).
+        :param body: Request body (optional).
+        :type body: str or dict or bytes
         :param str http_verb: HTTP verb (e.g. "POST" or "GET").
         :param dict headers: HTTP request headers (optional).
         :param bool signed: Sign request with client private key.
         :param int timeout: Maximum time to wait for a response before giving up.
+        :param list log_capture: Rather than emit to default handler, capture log lines to list (optional).
 
         :return: :py:class:`ccf.clients.Response`
         """
         if not path.startswith("/"):
             raise ValueError(f"URL path '{path}' is invalid, must start with /")
 
+        logs: List[str] = []
+
         if self.is_connected:
-            return self._direct_call(path, body, http_verb, headers, signed, timeout)
+            r = self._call(path, body, http_verb, headers, signed, timeout, logs)
+            flush_info(logs, log_capture, 2)
+            return r
 
         end_time = time.time() + self.connection_timeout
         while True:
             try:
-                response = self._direct_call(
-                    path, body, http_verb, headers, signed, timeout
+                logs = []
+                response = self._call(
+                    path, body, http_verb, headers, signed, timeout, logs
                 )
                 # Only the first request gets this timeout logic - future calls
-                # call _direct_call
+                # call _call
                 self.is_connected = True
+                flush_info(logs, log_capture, 2)
                 return response
             except (CCFConnectionException, TimeoutError) as e:
                 # If the initial connection fails (e.g. due to node certificate
                 # not yet being endorsed by the network) sleep briefly and try again
                 if time.time() > end_time:
+                    flush_info(logs, log_capture, 2)
                     raise CCFConnectionException(
                         f"Connection still failing after {self.connection_timeout}s"
                     ) from e
-                LOG.debug(f"Got exception: {e}")
                 time.sleep(0.1)
 
     def get(self, *args, **kwargs) -> Response:

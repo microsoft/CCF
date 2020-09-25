@@ -5,12 +5,18 @@ import argparse
 import collections
 import inspect
 import json
+import glob
 import os
 import sys
-import functools
+from pathlib import PurePosixPath
 from typing import Union, Optional, Any
 
+from cryptography import x509
+import cryptography.hazmat.backends as crypto_backends
 from loguru import logger as LOG  # type: ignore
+
+
+CERT_OID_SGX_QUOTE = "1.2.840.113556.10.1.1"
 
 
 def dump_to_file(output_path: str, obj: dict, dump_args: dict):
@@ -236,9 +242,11 @@ def retire_member(member_id: int, **kwargs):
 
 
 @cli_proposal
-def new_user(user_cert_path: str, **kwargs):
-    user_cert = open(user_cert_path).read()
-    return build_proposal("new_user", user_cert, **kwargs)
+def new_user(user_cert_path: str, user_data: Any = None, **kwargs):
+    user_info = {"cert": open(user_cert_path).read()}
+    if user_data is not None:
+        user_info["user_data"] = user_data
+    return build_proposal("new_user", user_info, **kwargs)
 
 
 @cli_proposal
@@ -247,7 +255,7 @@ def remove_user(user_id: int, **kwargs):
 
 
 @cli_proposal
-def set_user_data(user_id: int, user_data: dict, **kwargs):
+def set_user_data(user_id: int, user_data: Any, **kwargs):
     proposal_args = {"user_id": user_id, "user_data": user_data}
     return build_proposal("set_user_data", proposal_args, **kwargs)
 
@@ -267,6 +275,61 @@ def set_js_app(app_script_path: str, **kwargs):
 
 
 @cli_proposal
+def set_module(module_name: str, module_path: str, **kwargs):
+    module_name_ = PurePosixPath(module_name)
+    if not module_name_.is_absolute():
+        raise ValueError("module name must be an absolute path")
+    if any(folder in [".", ".."] for folder in module_name_.parents):
+        raise ValueError("module name must not contain . or .. components")
+    if module_name_.suffix == ".js":
+        with open(module_path) as f:
+            js = f.read()
+        proposal_args = {"name": module_name, "module": {"js": js}}
+    else:
+        raise ValueError("module name must end with .js")
+    return build_proposal("set_module", proposal_args, **kwargs)
+
+
+@cli_proposal
+def remove_module(module_name: str, **kwargs):
+    return build_proposal("remove_module", module_name, **kwargs)
+
+
+@cli_proposal
+def update_modules(module_name_prefix: str, modules_path: Optional[str], **kwargs):
+    LOG.debug("Generating update_modules proposal")
+
+    # Validate module name prefix
+    module_name_prefix_ = PurePosixPath(module_name_prefix)
+    if not module_name_prefix_.is_absolute():
+        raise ValueError("module name prefix must be an absolute path")
+    if any(folder in [".", ".."] for folder in module_name_prefix_.parents):
+        raise ValueError("module name prefix must not contain . or .. components")
+    if not module_name_prefix.endswith("/"):
+        raise ValueError("module name prefix must end with /")
+
+    # Read module files and build relative module names
+    modules = []
+    if modules_path:
+        for path in glob.glob(f"{modules_path}/**/*.js", recursive=True):
+            rel_module_name = os.path.relpath(path, modules_path)
+            rel_module_name = rel_module_name.replace("\\", "/")  # Windows support
+            with open(path) as f:
+                js = f.read()
+                modules.append({"rel_name": rel_module_name, "module": {"js": js}})
+
+    proposal_args = {"prefix": module_name_prefix, "modules": modules}
+
+    return build_proposal("update_modules", proposal_args, **kwargs)
+
+
+@cli_proposal
+def remove_modules(module_name_prefix: str, **kwargs):
+    LOG.debug("Generating update_modules proposal (remove only)")
+    return update_modules(module_name_prefix, modules_path=None)
+
+
+@cli_proposal
 def trust_node(node_id: int, **kwargs):
     return build_proposal("trust_node", node_id, **kwargs)
 
@@ -277,17 +340,15 @@ def retire_node(node_id: int, **kwargs):
 
 
 @cli_proposal
-def new_node_code(code_digest: Union[str, list], **kwargs):
-    if isinstance(code_digest, str):
-        code_digest = list(bytearray.fromhex(code_digest))
-    return build_proposal("new_node_code", code_digest, **kwargs)
+def new_node_code(code_digest: str, **kwargs):
+    code_digest_bytes = list(bytearray.fromhex(code_digest))
+    return build_proposal("new_node_code", code_digest_bytes, **kwargs)
 
 
 @cli_proposal
-def new_user_code(code_digest: Union[str, list], **kwargs):
-    if isinstance(code_digest, str):
-        code_digest = list(bytearray.fromhex(code_digest))
-    return build_proposal("new_user_code", code_digest, **kwargs)
+def retire_node_code(code_digest: str, **kwargs):
+    code_digest_bytes = list(bytearray.fromhex(code_digest))
+    return build_proposal("retire_node_code", code_digest_bytes, **kwargs)
 
 
 @cli_proposal
@@ -315,51 +376,29 @@ def set_recovery_threshold(threshold: int, **kwargs):
     return build_proposal("set_recovery_threshold", threshold, **kwargs)
 
 
-class ProposalGenerator:
-    def __init__(self, common_dir: str = "."):
-        self.common_dir = common_dir
+@cli_proposal
+def update_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
+    with open(cert_path) as f:
+        cert_pem = f.read()
 
-        # Auto-generate methods wrapping inspected functions, dumping outputs to file
-        def wrapper(func):
-            @functools.wraps(func)
-            def wrapper_func(
-                *args,
-                proposal_output_path_: Optional[str] = None,
-                vote_output_path_: Optional[str] = None,
-                **kwargs,
-            ):
-                proposal_output_path = complete_proposal_output_path(
-                    func.__name__,
-                    proposal_output_path=proposal_output_path_,
-                    common_dir=self.common_dir,
-                )
+    if not skip_checks:
+        try:
+            cert = x509.load_pem_x509_certificate(
+                cert_pem.encode(), crypto_backends.default_backend()
+            )
+        except Exception as exc:
+            raise ValueError("Cannot parse PEM certificate") from exc
 
-                vote_output_path = complete_vote_output_path(
-                    func.__name__,
-                    vote_output_path=vote_output_path_,
-                    common_dir=self.common_dir,
-                )
+        try:
+            oid = x509.ObjectIdentifier(CERT_OID_SGX_QUOTE)
+            _ = cert.extensions.get_extension_for_oid(oid)
+        except x509.ExtensionNotFound as exc:
+            raise ValueError(
+                "X.509 extension with SGX quote not found in certificate"
+            ) from exc
 
-                proposal_object, vote_object = func(*args, **kwargs)
-                dump_args = {"indent": 2}
-
-                LOG.debug(f"Writing proposal to {proposal_output_path}")
-                dump_to_file(proposal_output_path, proposal_object, dump_args)
-
-                LOG.debug(f"Writing vote to {vote_output_path}")
-                dump_to_file(vote_output_path, vote_object, dump_args)
-
-                return f"@{proposal_output_path}", f"@{vote_output_path}"
-
-            return wrapper_func
-
-        module = inspect.getmodule(inspect.currentframe())
-        proposal_generators = inspect.getmembers(module, predicate=inspect.isfunction)
-
-        for func_name, func in proposal_generators:
-            # Only wrap decorated functions
-            if hasattr(func, "is_cli_proposal"):
-                setattr(self, func_name, wrapper(func))
+    args = {"name": cert_name, "cert": cert_pem}
+    return build_proposal("update_ca_cert", args, **kwargs)
 
 
 if __name__ == "__main__":
@@ -417,7 +456,17 @@ if __name__ == "__main__":
         for param_name, param in parameters.items():
             if param.kind == param.VAR_POSITIONAL or param.kind == param.VAR_KEYWORD:
                 continue
-            subparser.add_argument(param_name)
+            if param.annotation == param.empty:
+                param_type = None
+            elif param.annotation == dict or param.annotation == Any:
+                param_type = json.loads
+            else:
+                param_type = param.annotation
+            add_argument_extras = {}
+            if param.default is None:
+                add_argument_extras["nargs"] = "?"
+                add_argument_extras["default"] = param.default  # type: ignore
+            subparser.add_argument(param_name, type=param_type, **add_argument_extras)  # type: ignore
             func_param_names.append(param_name)
         subparser.set_defaults(func=func, param_names=func_param_names)
 

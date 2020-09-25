@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/aft/impl/state.h"
 #include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
 
@@ -17,7 +18,9 @@ namespace kv
     ConsensusType consensus_type;
 
   public:
-    StubConsensus(ConsensusType consensus_type_ = ConsensusType::RAFT) :
+    aft::ViewHistory view_history;
+
+    StubConsensus(ConsensusType consensus_type_ = ConsensusType::CFT) :
       Consensus(0),
       replica(),
       consensus_type(consensus_type_)
@@ -28,6 +31,9 @@ namespace kv
       for (const auto& entry : entries)
       {
         replica.push_back(entry);
+
+        // Simplification: all entries are replicated in the same term
+        view_history.update(std::get<0>(entry), 2);
       }
       return true;
     }
@@ -112,6 +118,17 @@ namespace kv
       return 2;
     }
 
+    std::vector<SeqNo> get_view_history(SeqNo seqno) override
+    {
+      return view_history.get_history_until(seqno);
+    }
+
+    void initialise_view_history(
+      const std::vector<SeqNo>& view_history_) override
+    {
+      view_history.initialise(view_history_);
+    }
+
     void recv_message(OArray&& oa) override {}
 
     void add_configuration(
@@ -123,7 +140,7 @@ namespace kv
       return {};
     }
 
-    void set_f(size_t) override
+    void open_network() override
     {
       return;
     }
@@ -142,7 +159,7 @@ namespace kv
   class BackupStubConsensus : public StubConsensus
   {
   public:
-    BackupStubConsensus(ConsensusType consensus_type = ConsensusType::RAFT) :
+    BackupStubConsensus(ConsensusType consensus_type = ConsensusType::CFT) :
       StubConsensus(consensus_type)
     {}
 
@@ -160,7 +177,7 @@ namespace kv
   class PrimaryStubConsensus : public StubConsensus
   {
   public:
-    PrimaryStubConsensus(ConsensusType consensus_type = ConsensusType::RAFT) :
+    PrimaryStubConsensus(ConsensusType consensus_type = ConsensusType::CFT) :
       StubConsensus(consensus_type)
     {}
 

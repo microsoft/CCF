@@ -15,10 +15,13 @@ INSTALL_PREFIX="$1"
 mkdir -p nested/run
 cd nested/run
 
-python3.7 -m venv env
+python3.8 -m venv env
 source env/bin/activate
 python -m pip install -U -r "$INSTALL_PREFIX"/bin/requirements.txt
-pip freeze > "$INSTALL_PREFIX"/bin/requirements.txt
+python -m pip install ../../../python
+
+# Test Python package CLI
+../../test_python_cli.sh > test_python_cli.out
 
 # Start ephemeral network in the background
 network_info_file="network_info.txt"

@@ -7,7 +7,7 @@ trigger:
 
 jobs:
 - job: build_and_publish_docs
-  container: ccfciteam/ccf-ci:oe0.10-lvi
+  container: ccfciteam/ccf-ci:oe0.11.0
   pool:
     vmImage: ubuntu-18.04
 
@@ -22,8 +22,13 @@ jobs:
         git checkout -b master $(git rev-parse HEAD)
       displayName: Prepare repo
 
+    # Used to generate setup.py
+    - template: .azure-pipelines-templates/cmake.yml
+      parameters:
+        cmake_args: ''
+
     - script: |
-        python3.7 -m venv env
+        python3.8 -m venv env
         source env/bin/activate
         pip install wheel
         pip install -U -r doc/requirements.txt

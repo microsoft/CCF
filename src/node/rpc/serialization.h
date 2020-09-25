@@ -18,7 +18,7 @@ namespace ccf
      {ccf::State::readingPublicLedger, "readingPublicLedger"},
      {ccf::State::readingPrivateLedger, "readingPrivateLedger"}})
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetState::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetState::Out, state, last_signed_seqno)
+  DECLARE_JSON_REQUIRED_FIELDS(GetState::Out, id, state, last_signed_seqno)
   DECLARE_JSON_OPTIONAL_FIELDS(
     GetState::Out, recovery_target_seqno, last_recovered_seqno)
 
@@ -111,11 +111,6 @@ namespace ccf
 
   DECLARE_JSON_TYPE(GetUserId::In)
   DECLARE_JSON_REQUIRED_FIELDS(GetUserId::In, cert)
-
-  DECLARE_JSON_TYPE(ListMethods::Endpoint)
-  DECLARE_JSON_REQUIRED_FIELDS(ListMethods::Endpoint, verb, path)
-  DECLARE_JSON_TYPE(ListMethods::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(ListMethods::Out, endpoints)
 
   DECLARE_JSON_TYPE(EndpointMetrics::Metric)
   DECLARE_JSON_REQUIRED_FIELDS(EndpointMetrics::Metric, calls, errors, failures)

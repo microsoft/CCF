@@ -29,35 +29,6 @@ if(VERBOSE_LOGGING)
   set(TEST_HOST_LOGGING_LEVEL "debug")
 endif()
 
-option(LVI_MITIGATIONS "Enable LVI mitigations" ON)
-if(LVI_MITIGATIONS)
-  set(OE_TARGET_LIBC openenclave::oelibc-lvi-cfg)
-  set(OE_TARGET_ENCLAVE_AND_STD
-      openenclave::oeenclave-lvi-cfg openenclave::oelibcxx-lvi-cfg
-      openenclave::oelibc-lvi-cfg
-  )
-  set(OE_TARGET_ENCLAVE_CORE_LIBS
-      openenclave::oeenclave-lvi-cfg openenclave::oesnmalloc-lvi-cfg
-      openenclave::oecore-lvi-cfg openenclave::oesyscall-lvi-cfg
-  )
-else()
-  set(OE_TARGET_LIBC openenclave::oelibc)
-  set(OE_TARGET_ENCLAVE_AND_STD openenclave::oeenclave openenclave::oelibcxx
-                                openenclave::oelibc
-  )
-  # These oe libraries must be linked in specific order
-  set(OE_TARGET_ENCLAVE_CORE_LIBS
-      openenclave::oeenclave openenclave::oesnmalloc openenclave::oecore
-      openenclave::oesyscall
-  )
-endif()
-
-function(add_lvi_mitigations name)
-  if(LVI_MITIGATIONS)
-    apply_lvi_mitigation(${name})
-  endif()
-endfunction()
-
 option(NO_STRICT_TLS_CIPHERSUITES
        "Disable strict list of valid TLS ciphersuites" OFF
 )
@@ -95,10 +66,7 @@ enable_language(ASM)
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 include_directories(${CCF_DIR}/src)
 
-include_directories(
-  SYSTEM ${CCF_DIR}/3rdparty ${CCF_DIR}/3rdparty/hacl-star
-  ${CCF_DIR}/3rdparty/flatbuffers/include
-)
+include_directories(SYSTEM ${CCF_DIR}/3rdparty ${CCF_DIR}/3rdparty/hacl-star)
 
 find_package(MbedTLS REQUIRED)
 
@@ -107,6 +75,13 @@ set(CLIENT_MBEDTLS_LIBRARIES "${MBEDTLS_LIBRARIES}")
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
+
+if(SAN AND LVI_MITIGATIONS)
+  message(
+    FATAL_ERROR
+      "Building with both SAN and LVI mitigations is unsafe and deadlocks - choose one"
+  )
+endif()
 
 add_custom_command(
   COMMAND
@@ -131,7 +106,7 @@ endforeach()
 
 # Copy utilities from tests directory
 set(CCF_TEST_UTILITIES tests.sh cimetrics_env.sh upload_pico_metrics.py
-                       test_install.sh
+                       test_install.sh test_python_cli.sh
 )
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
@@ -208,7 +183,9 @@ function(add_unit_test name)
   target_compile_options(${name} PRIVATE -stdlib=libc++)
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
   enable_coverage(${name})
-  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host)
+  target_link_libraries(
+    ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehostverify
+  )
   use_client_mbedtls(${name})
   add_san(${name})
 
@@ -218,6 +195,17 @@ function(add_unit_test name)
     APPEND
     PROPERTY LABELS unit_test
   )
+endfunction()
+
+# Test binary wrapper
+function(add_test_bin name)
+  add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
+  target_compile_options(${name} PRIVATE -stdlib=libc++)
+  target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
+  enable_coverage(${name})
+  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host)
+  use_client_mbedtls(${name})
+  add_san(${name})
 endfunction()
 
 if("sgx" IN_LIST COMPILE_TARGETS)
@@ -344,9 +332,9 @@ set(WORKER_THREADS
     CACHE STRING "Number of worker threads to start on each CCF node"
 )
 
-set(CCF_NETWORK_TEST_ARGS
-    -l ${TEST_HOST_LOGGING_LEVEL} -g ${CCF_DIR}/src/runtime_config/gov.lua
-    --worker-threads ${WORKER_THREADS}
+set(CCF_NETWORK_TEST_DEFAULT_GOV ${CCF_DIR}/src/runtime_config/gov.lua)
+set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
+                          ${WORKER_THREADS}
 )
 
 # SNIPPET_START: Lua generic application
@@ -393,16 +381,21 @@ endfunction()
 function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;CONSENSUS;" "ADDITIONAL_ARGS"
+    "NAME;PYTHON_SCRIPT;GOV_SCRIPT;LABEL;CURL_CLIENT;CONSENSUS;"
+    "ADDITIONAL_ARGS"
   )
+
+  if(NOT PARSED_ARGS_GOV_SCRIPT)
+    set(PARSED_ARGS_GOV_SCRIPT ${CCF_NETWORK_TEST_DEFAULT_GOV})
+  endif()
 
   if(BUILD_END_TO_END_TESTS)
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
-        ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS}
-        ${PARSED_ARGS_ADDITIONAL_ARGS}
+        ${CCF_NETWORK_TEST_ARGS} -g ${PARSED_ARGS_GOV_SCRIPT} --consensus
+        ${PARSED_ARGS_CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
     )
 
     # Make python test client framework importable
@@ -459,9 +452,13 @@ function(add_perf_test)
 
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;CLIENT_BIN;VERIFICATION_FILE;LABEL;CONSENSUS"
+    "NAME;PYTHON_SCRIPT;GOV_SCRIPT;CLIENT_BIN;VERIFICATION_FILE;LABEL;CONSENSUS"
     "ADDITIONAL_ARGS"
   )
+
+  if(NOT PARSED_ARGS_GOV_SCRIPT)
+    set(PARSED_ARGS_GOV_SCRIPT ${CCF_NETWORK_TEST_DEFAULT_GOV})
+  endif()
 
   if(PARSED_ARGS_VERIFICATION_FILE)
     set(VERIFICATION_ARG "--verify ${PARSED_ARGS_VERIFICATION_FILE}")
@@ -473,9 +470,9 @@ function(add_perf_test)
   if("sgx" IN_LIST COMPILE_TARGETS)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_SGX")
   endif()
-  if("raft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+  if("cft" STREQUAL ${PARSED_ARGS_CONSENSUS})
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_CFT")
-  elseif("pbft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+  elseif("bft" STREQUAL ${PARSED_ARGS_CONSENSUS})
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_BFT")
   endif()
 
@@ -489,9 +486,9 @@ function(add_perf_test)
     NAME ${PARSED_ARGS_NAME}
     COMMAND
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
-      ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS}
-      --write-tx-times ${VERIFICATION_ARG} --label ${LABEL_ARG}
-      ${PARSED_ARGS_ADDITIONAL_ARGS} ${NODES}
+      ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS} -g
+      ${PARSED_ARGS_GOV_SCRIPT} --write-tx-times ${VERIFICATION_ARG} --label
+      ${LABEL_ARG} ${PARSED_ARGS_ADDITIONAL_ARGS} ${NODES}
   )
 
   # Make python test client framework importable
@@ -550,16 +547,4 @@ function(add_picobench name)
   use_client_mbedtls(${name})
 
   set_property(TEST ${name} PROPERTY LABELS benchmark)
-endfunction()
-
-# flatbuffer generator
-function(generate_flatbuffer path name)
-  add_custom_command(
-    OUTPUT ${CCF_GENERATED_DIR}/${name}_generated.h
-    COMMAND flatc -o "${CCF_GENERATED_DIR}" --cpp ${path}/${name}.fbs
-    DEPENDS ${path}/${name}.fbs
-  )
-  install(FILES ${CCF_GENERATED_DIR}/${name}_generated.h
-          DESTINATION ${CCF_GENERATED_DIR}
-  )
 endfunction()

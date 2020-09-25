@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.network
-import infra.notification
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import infra.e2e_args
@@ -22,13 +21,18 @@ from loguru import logger as LOG
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("log/private", "log/public")
 @reqs.at_least_n_nodes(2)
-def test(network, args, notifications_queue=None, verify=True):
-    txs = app.LoggingTxs(notifications_queue=notifications_queue)
+def test(network, args, verify=True):
+    txs = app.LoggingTxs()
     txs.issue(
-        network=network, number_txs=1, consensus=args.consensus,
+        network=network,
+        number_txs=1,
+        consensus=args.consensus,
     )
     txs.issue(
-        network=network, number_txs=1, on_backup=True, consensus=args.consensus,
+        network=network,
+        number_txs=1,
+        on_backup=True,
+        consensus=args.consensus,
     )
     if verify:
         txs.verify(network)
@@ -41,7 +45,7 @@ def test(network, args, notifications_queue=None, verify=True):
 @reqs.description("Protocol-illegal traffic")
 @reqs.supports_methods("log/private", "log/public")
 @reqs.at_least_n_nodes(2)
-def test_illegal(network, args, notifications_queue=None, verify=True):
+def test_illegal(network, args, verify=True):
     # Send malformed HTTP traffic and check the connection is closed
     cafile = cafile = os.path.join(network.common_dir, "networkcert.pem")
     context = ssl.create_default_context(cafile=cafile)
@@ -59,12 +63,17 @@ def test_illegal(network, args, notifications_queue=None, verify=True):
     rv = conn.recv(1024)
     assert rv == b"", rv
     # Valid transactions are still accepted
-    txs = app.LoggingTxs(notifications_queue=notifications_queue)
+    txs = app.LoggingTxs()
     txs.issue(
-        network=network, number_txs=1, consensus=args.consensus,
+        network=network,
+        number_txs=1,
+        consensus=args.consensus,
     )
     txs.issue(
-        network=network, number_txs=1, on_backup=True, consensus=args.consensus,
+        network=network,
+        number_txs=1,
+        on_backup=True,
+        consensus=args.consensus,
     )
     if verify:
         txs.verify(network)
@@ -85,7 +94,7 @@ def test_large_messages(network, args):
 
         with primary.client("user0") as c:
             log_id = 44
-            for p in range(14, 20) if args.consensus == "raft" else range(10, 13):
+            for p in range(14, 20) if args.consensus == "cft" else range(10, 13):
                 long_msg = "X" * (2 ** p)
                 check_commit(
                     c.post("/app/log/private", {"id": log_id, "msg": long_msg}),
@@ -115,16 +124,19 @@ def test_remove(network, args):
                 for table in ["private", "public"]:
                     resource = f"/app/log/{table}"
                     check_commit(
-                        c.post(resource, {"id": log_id, "msg": msg}), result=True,
+                        c.post(resource, {"id": log_id, "msg": msg}),
+                        result=True,
                     )
                     check(c.get(f"{resource}?id={log_id}"), result={"msg": msg})
                     check(
-                        c.delete(f"{resource}?id={log_id}"), result=None,
+                        c.delete(f"{resource}?id={log_id}"),
+                        result=None,
                     )
                     get_r = c.get(f"{resource}?id={log_id}")
                     if args.package == "libjs_generic":
                         check(
-                            get_r, result={"error": "No such key"},
+                            get_r,
+                            result={"error": "No such key"},
                         )
                     else:
                         check(
@@ -152,7 +164,7 @@ def test_cert_prefix(network, args):
                 msg = "This message will be prefixed"
                 c.post("/app/log/private/prefix_cert", {"id": log_id, "msg": msg})
                 r = c.get(f"/app/log/private?id={log_id}")
-                assert f"CN=user{user_id}" in r.body["msg"], r
+                assert f"CN=user{user_id}" in r.body.json()["msg"], r
 
     else:
         LOG.warning(
@@ -175,13 +187,13 @@ def test_anonymous_caller(network, args):
         msg = "This message is anonymous"
         with primary.client("user4") as c:
             r = c.post("/app/log/private/anonymous", {"id": log_id, "msg": msg})
-            assert r.body == True
+            assert r.body.json() == True
             r = c.get(f"/app/log/private?id={log_id}")
             assert r.status_code == http.HTTPStatus.FORBIDDEN.value, r
 
         with primary.client("user0") as c:
             r = c.get(f"/app/log/private?id={log_id}")
-            assert msg in r.body["msg"], r
+            assert msg in r.body.json()["msg"], r
 
     else:
         LOG.warning(
@@ -207,7 +219,7 @@ def test_raw_text(network, args):
             )
             assert r.status_code == http.HTTPStatus.OK.value
             r = c.get(f"/app/log/private?id={log_id}")
-            assert msg in r.body["msg"], r
+            assert msg in r.body.json()["msg"], r
 
     else:
         LOG.warning(
@@ -226,15 +238,15 @@ def test_metrics(network, args):
     errors = 0
     with primary.client("user0") as c:
         r = c.get("/app/endpoint_metrics")
-        m = r.body["metrics"]["endpoint_metrics"]["GET"]
+        m = r.body.json()["metrics"]["endpoint_metrics"]["GET"]
         calls = m["calls"]
         errors = m["errors"]
 
     with primary.client("user0") as c:
         r = c.get("/app/endpoint_metrics")
-        assert r.body["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 1
+        assert r.body.json()["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 1
         r = c.get("/app/endpoint_metrics")
-        assert r.body["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 2
+        assert r.body.json()["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 2
 
     with primary.client() as c:
         r = c.get("/app/endpoint_metrics")
@@ -242,7 +254,9 @@ def test_metrics(network, args):
 
     with primary.client("user0") as c:
         r = c.get("/app/endpoint_metrics")
-        assert r.body["metrics"]["endpoint_metrics"]["GET"]["errors"] == errors + 1
+        assert (
+            r.body.json()["metrics"]["endpoint_metrics"]["GET"]["errors"] == errors + 1
+        )
 
     return network
 
@@ -250,7 +264,7 @@ def test_metrics(network, args):
 @reqs.description("Read historical state")
 @reqs.supports_methods("log/private", "log/private/historical")
 def test_historical_query(network, args):
-    if args.consensus == "pbft":
+    if args.consensus == "bft":
         LOG.warning("Skipping historical queries in PBFT")
         return network
 
@@ -296,7 +310,7 @@ def test_historical_query(network, args):
                         retry_after = int(retry_after)
                         time.sleep(retry_after)
                     elif get_response.status_code == http.HTTPStatus.OK:
-                        assert get_response.body["msg"] == msg, get_response
+                        assert get_response.body.json()["msg"] == msg, get_response
                         found = True
                         break
                     elif get_response.status_code == http.HTTPStatus.NO_CONTENT:
@@ -338,7 +352,8 @@ def test_forwarding_frontends(network, args):
         msg = "forwarded_msg"
         log_id = 123
         check_commit(
-            c.post("/app/log/private", {"id": log_id, "msg": msg}), result=True,
+            c.post("/app/log/private", {"id": log_id, "msg": msg}),
+            result=True,
         )
         check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg})
 
@@ -399,7 +414,8 @@ def test_user_data_ACL(network, args):
 
         # Give isAdmin permissions to a single user
         proposal_body, careful_vote = ccf.proposal_generator.set_user_data(
-            user_id, {"isAdmin": True},
+            user_id,
+            {"isAdmin": True},
         )
         proposal = proposing_member.propose(primary, proposal_body)
         proposal.vote_for = careful_vote
@@ -412,7 +428,8 @@ def test_user_data_ACL(network, args):
 
         # Remove permission
         proposal_body, careful_vote = ccf.proposal_generator.set_user_data(
-            user_id, {"isAdmin": False},
+            user_id,
+            {"isAdmin": False},
         )
         proposal = proposing_member.propose(primary, proposal_body)
         proposal.vote_for = careful_vote
@@ -433,7 +450,7 @@ def test_user_data_ACL(network, args):
 
 @reqs.description("Check for commit of every prior transaction")
 def test_view_history(network, args):
-    if args.consensus == "pbft":
+    if args.consensus == "bft":
         # This appears to work in PBFT, but it is unacceptably slow:
         # - Each /tx request is a write, with a non-trivial roundtrip response time
         # - Since each read (eg - /tx and /commit) has produced writes and a unique tx ID,
@@ -445,13 +462,15 @@ def test_view_history(network, args):
 
     check = infra.checker.Checker()
 
+    previous_node = None
+    previous_tx_ids = ""
     for node in network.get_joined_nodes():
         with node.client("user0") as c:
             r = c.get("/node/commit")
             check(c)
 
-            commit_view = r.body["view"]
-            commit_seqno = r.body["seqno"]
+            commit_view = r.body.json()["view"]
+            commit_seqno = r.body.json()["seqno"]
 
             # Retrieve status for all possible Tx IDs
             seqno_to_views = {}
@@ -460,7 +479,7 @@ def test_view_history(network, args):
                 for view in range(1, commit_view + 1):
                     r = c.get(f"/node/tx?view={view}&seqno={seqno}")
                     check(r)
-                    status = TxStatus(r.body["status"])
+                    status = TxStatus(r.body.json()["status"])
                     if status == TxStatus.Committed:
                         views.append(view)
                 seqno_to_views[seqno] = views
@@ -490,6 +509,18 @@ def test_view_history(network, args):
                 raise RuntimeError(
                     f"Node {node.node_id}: Incomplete or inconsistent view history"
                 )
+
+            # Compare view history between nodes
+            if previous_tx_ids:
+                # Some nodes may have a slightly longer view history so only compare the common prefix
+                min_tx_ids_len = min(len(previous_tx_ids), len(tx_ids_condensed))
+                assert (
+                    tx_ids_condensed[:min_tx_ids_len]
+                    == previous_tx_ids[:min_tx_ids_len]
+                ), f"Tx IDs don't match between node {node.node_id} and node {previous_node.node_id}: {tx_ids_condensed[:min_tx_ids_len]} and {previous_tx_ids[:min_tx_ids_len]}"
+
+            previous_tx_ids = tx_ids_condensed
+            previous_node = node
 
     return network
 
@@ -561,7 +592,7 @@ def test_tx_statuses(network, args):
             for view, seqno in SentTxs.get_all_tx_ids():
                 r = c.get(f"/node/tx?view={view}&seqno={seqno}")
                 check(r)
-                status = TxStatus(r.body["status"])
+                status = TxStatus(r.body.json()["status"])
                 SentTxs.update_status(view, seqno, status)
                 if (
                     status == TxStatus.Committed
@@ -579,7 +610,7 @@ def test_tx_statuses(network, args):
 
 @reqs.description("Primary and redirection")
 @reqs.at_least_n_nodes(2)
-def test_primary(network, args, notifications_queue=None, verify=True):
+def test_primary(network, args, verify=True):
     LOG.error(network.nodes)
     primary, _ = network.find_primary()
     LOG.error(f"PRIMARY {primary.pubhost}")
@@ -600,47 +631,34 @@ def test_primary(network, args, notifications_queue=None, verify=True):
 
 
 def run(args):
-    # hosts = ["localhost"] * (3 if args.consensus == "pbft" else 2)
-    hosts = ["localhost"]
+    hosts = ["localhost"] * (3 if args.consensus == "bft" else 2)
 
-
-    with infra.notification.notification_server(args.notify_server) as notifications:
-        # Lua apps do not support notifications
-        # https://github.com/microsoft/CCF/issues/415
-        notifications_queue = (
-            notifications.get_queue()
-            if (args.package == "liblogging" and args.consensus == "raft")
-            else None
+    with infra.network.network(
+        hosts,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_join(args)
+        network = test(
+            network,
+            args,
+            verify=args.package != "libjs_generic",
         )
-
-        with infra.network.network(
-            hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
-        ) as network:
-            network.start_and_join(args)
-
-            import time
-            time.sleep(250)
-            # network = test(
-            #     network,
-            #     args,
-            #     notifications_queue,
-            #     verify=args.package is not "libjs_generic",
-            # )
-            # network = test_illegal(
-            #     network, args, verify=args.package is not "libjs_generic"
-            # )
-            # network = test_large_messages(network, args)
-            # network = test_remove(network, args)
-            # network = test_forwarding_frontends(network, args)
-            # network = test_update_lua(network, args)
-            # network = test_user_data_ACL(network, args)
-            # network = test_cert_prefix(network, args)
-            # network = test_anonymous_caller(network, args)
-            # network = test_raw_text(network, args)
-            # network = test_historical_query(network, args)
-            # network = test_view_history(network, args)
-            # network = test_primary(network, args)
-            # network = test_metrics(network, args)
+        network = test_illegal(network, args, verify=args.package != "libjs_generic")
+        network = test_large_messages(network, args)
+        network = test_remove(network, args)
+        network = test_forwarding_frontends(network, args)
+        network = test_update_lua(network, args)
+        network = test_user_data_ACL(network, args)
+        network = test_cert_prefix(network, args)
+        network = test_anonymous_caller(network, args)
+        network = test_raw_text(network, args)
+        network = test_historical_query(network, args)
+        network = test_view_history(network, args)
+        network = test_primary(network, args)
+        network = test_metrics(network, args)
 
 
 if __name__ == "__main__":
@@ -653,10 +671,4 @@ if __name__ == "__main__":
     else:
         args.package = "liblogging"
 
-    notify_server_host = "localhost"
-    args.notify_server = (
-        notify_server_host
-        + ":"
-        + str(infra.net.probably_free_local_port(notify_server_host))
-    )
     run(args)
