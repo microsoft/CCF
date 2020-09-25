@@ -69,6 +69,12 @@ namespace loggingapp
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
+      openapi_info.title = "CCF Sample Logging App";
+      openapi_info.description =
+        "This CCF sample app implements a simple logging application, securely "
+        "recording messages at client-specified IDs. It demonstrates most of "
+        "the features available to CCF apps.";
+
       // SNIPPET_START: record
       auto record = [this](kv::Tx& tx, nlohmann::json&& params) {
         // SNIPPET_START: macro_validation_record

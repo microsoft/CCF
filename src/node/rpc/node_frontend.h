@@ -136,10 +136,16 @@ namespace ccf
 
   public:
     NodeEndpoints(NetworkState& network, AbstractNodeState& node) :
-      CommonEndpointRegistry(*network.tables),
+      CommonEndpointRegistry(
+        get_actor_prefix(ActorsType::nodes), *network.tables),
       network(network),
       node(node)
-    {}
+    {
+      openapi_info.title = "CCF Public Node API";
+      openapi_info.description =
+        "This API provides public, uncredentialed access to service and node "
+        "state.";
+    }
 
     void init_handlers(kv::Store& tables_) override
     {
