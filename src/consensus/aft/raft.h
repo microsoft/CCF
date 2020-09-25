@@ -1033,7 +1033,7 @@ namespace aft
         }
         case kv::TxHistory::Result::SEND_REPLY_AND_NONCE:
         {
-          uint64_t nonce = 0;
+          std::array<uint8_t, 32> nonce;
           auto progress_tracker = store->get_progress_tracker();
           if (progress_tracker != nullptr)
           {

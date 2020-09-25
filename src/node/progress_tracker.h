@@ -150,7 +150,9 @@ namespace ccf
       std::array<uint8_t, 32>& hashed_nonce,
       uint32_t node_count = 0)
     {
-      uint64_t my_nonce = entropy->random64();
+      auto n = entropy->random(32);
+      std::array<uint8_t, 32> my_nonce;
+      std::copy(n.begin(), n.end(), my_nonce.begin());
       if (node_id == id)
       {
         auto h = hash_data(my_nonce);
@@ -265,7 +267,7 @@ namespace ccf
     void add_nonce_reveal(
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
-      uint64_t nonce,
+      std::array<uint8_t, 32> nonce,
       kv::NodeId node_id,
       uint32_t /*node_count = 0*/)
     {
@@ -286,7 +288,7 @@ namespace ccf
       auto it_node_sig = cert.sigs.find(node_id);
       if (it_node_sig == cert.sigs.end())
       {
-        cert.unmatched_nonces.insert(std::pair<kv::NodeId, uint64_t>(node_id, nonce));
+        cert.unmatched_nonces.insert(std::pair<kv::NodeId, std::array<uint8_t, 32>>(node_id, nonce));
         return;
       }
 
@@ -326,7 +328,7 @@ namespace ccf
       sig.nonce = nonce;
     }
 
-    uint64_t get_my_nonce(kv::Consensus::View view, kv::Consensus::SeqNo seqno)
+    std::array<uint8_t, 32> get_my_nonce(kv::Consensus::View view, kv::Consensus::SeqNo seqno)
     {
       auto it = certificates.find(CertKey(view, seqno));
       if (it == certificates.end())
@@ -341,7 +343,7 @@ namespace ccf
 
     std::vector<uint8_t> get_my_hashed_nonce(kv::Consensus::View view, kv::Consensus::SeqNo seqno)
     {
-      uint64_t nonce = get_my_nonce(view, seqno);
+      std::array<uint8_t, 32> nonce = get_my_nonce(view, seqno);
       return hash_data(nonce);
     }
 
@@ -378,13 +380,13 @@ namespace ccf
     struct BftNodeSignature : public ccf::NodeSignature
     {
       bool is_primary;
-      uint64_t nonce;
+      std::array<uint8_t, 32> nonce;
 
       BftNodeSignature(
         const std::vector<uint8_t>& sig_,
         NodeId node_,
         std::array<uint8_t, 32> hashed_nonce_) :
-        NodeSignature(sig_, node_, hashed_nonce_), is_primary(false), nonce(-1)
+        NodeSignature(sig_, node_, hashed_nonce_), is_primary(false)
       {}
     };
 
@@ -392,7 +394,7 @@ namespace ccf
     {
       CommitCert(
         crypto::Sha256Hash& root_,
-        uint64_t my_nonce_) :
+        std::array<uint8_t, 32> my_nonce_) :
         root(root_),
         my_nonce(my_nonce_),
         have_primary_signature(true)
@@ -403,8 +405,8 @@ namespace ccf
       crypto::Sha256Hash root;
       std::map<kv::NodeId, BftNodeSignature> sigs;
       std::set<kv::NodeId> sig_acks;
-      std::map<kv::NodeId, uint64_t> unmatched_nonces;
-      uint64_t my_nonce;
+      std::map<kv::NodeId, std::array<uint8_t, 32>> unmatched_nonces;
+      std::array<uint8_t, 32> my_nonce;
       bool have_primary_signature = false;
       bool ack_sent = false;
       bool reply_and_nonce_sent = false;
@@ -432,12 +434,12 @@ namespace ccf
         root.h.data(), root.h.size(), sig, sig_size);
     }
 
-    std::vector<uint8_t> hash_data(uint64_t data)
+    std::vector<uint8_t> hash_data(std::array<uint8_t, 32> data)
     {
       tls::HashBytes hash;
       int r = tls::do_hash(
         reinterpret_cast<const uint8_t*>(&data),
-        sizeof(data),
+        data.size(),
         hash,
         MBEDTLS_MD_SHA256
       );

@@ -179,7 +179,7 @@ namespace aft
   {
     Term term;
     Index idx;
-    uint64_t nonce;
+    std::array<uint8_t, 32> nonce;
   };
 
   struct RequestVote : RaftHeader
