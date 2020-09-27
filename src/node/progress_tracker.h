@@ -14,60 +14,7 @@
 
 #define FMT_HEADER_ONLY
 #include <array>
-#include <fmt/format.h>
-#include <msgpack/msgpack.hpp>
-#include <sstream>
 #include <vector>
-
-namespace fmt
-{
-  inline std::string uint8_vector_to_hex_string(const std::vector<uint8_t>& v)
-  {
-    std::stringstream ss;
-    ss << std::hex << std::setfill('0');
-    std::vector<uint8_t>::const_iterator it;
-
-    for (it = v.begin(); it != v.end(); it++)
-    {
-      ss << std::hex << std::setw(2) << static_cast<unsigned>(*it);
-    }
-
-    return ss.str();
-  }
-
-  template <>
-  struct formatter<std::vector<uint8_t>>
-  {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
-
-    template <typename FormatContext>
-    auto format(const std::vector<uint8_t>& p, FormatContext& ctx)
-    {
-      return format_to(ctx.out(), uint8_vector_to_hex_string(p));
-    }
-  };
-
-  template <>
-  struct formatter<ccf::Nonce>
-  {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
-
-    template <typename FormatContext>
-    auto format(const ccf::Nonce& p, FormatContext& ctx)
-    {
-      return format_to(
-        ctx.out(), uint8_vector_to_hex_string({p.begin(), p.end()}));
-    }
-  };
-}
 
 namespace ccf
 {
@@ -125,7 +72,7 @@ namespace ccf
 
       std::vector<uint8_t> sig_vec;
       CCF_ASSERT(
-        signature_size < sig.size(),
+        signature_size <= sig.size(),
         fmt::format(
           "Invalid signature size, signature_size:{}, sig.size:{}",
           signature_size,
@@ -153,7 +100,7 @@ namespace ccf
       Nonce& hashed_nonce,
       uint32_t node_count = 0)
     {
-      auto n = entropy->random(32);
+      auto n = entropy->random(hashed_nonce.size());
       Nonce my_nonce;
       std::copy(n.begin(), n.end(), my_nonce.begin());
       if (node_id == id)
@@ -267,8 +214,7 @@ namespace ccf
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
       Nonce nonce,
-      kv::NodeId node_id,
-      uint32_t /*node_count = 0*/)
+      kv::NodeId node_id)
     {
       bool did_add = false;
       auto it = certificates.find(CertKey(view, seqno));
@@ -499,7 +445,6 @@ namespace ccf
       for (; 3 * f + 1 < node_count; ++f)
         ;
 
-      LOG_INFO_FMT("AAAAAAAA node_count:{} f:{}", node_count, f);
       return 2 * f + 1;
     }
 

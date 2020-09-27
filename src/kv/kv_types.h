@@ -84,7 +84,6 @@ namespace kv
     FAILED = 0,
     PASS = 1,
     PASS_SIGNATURE = 2,
-    PASS_SIGNATURE_SEND_ACK = 3,
     PASS_PRE_PREPARE = 4,
     PASS_NEW_VIEW = 5
   };

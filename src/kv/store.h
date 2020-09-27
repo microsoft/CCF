@@ -790,11 +790,9 @@ namespace kv
           if (sig != nullptr)
           {
             auto r = h->verify_and_sign(*sig, term_);
-            if (r == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
-            {
-              success = DeserialiseSuccess::PASS_SIGNATURE_SEND_ACK;
-            }
-            else if (r != kv::TxHistory::Result::OK)
+            if (
+              r != kv::TxHistory::Result::OK &&
+              r != kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
             {
               result = false;
             }

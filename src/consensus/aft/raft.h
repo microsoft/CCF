@@ -789,7 +789,6 @@ namespace aft
             break;
           }
 
-          case kv::DeserialiseSuccess::PASS_SIGNATURE_SEND_ACK:
           case kv::DeserialiseSuccess::PASS_SIGNATURE:
           {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
@@ -804,14 +803,6 @@ namespace aft
             {
               send_append_entries_signed_response(r.from_node, sig);
             }
-
-            try_send_sig_ack(
-              sig.view,
-              sig.seqno,
-              deserialise_success ==
-                  kv::DeserialiseSuccess::PASS_SIGNATURE_SEND_ACK ?
-                kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK :
-                kv::TxHistory::Result::OK);
             break;
           }
 
@@ -1065,7 +1056,7 @@ namespace aft
           if (progress_tracker != nullptr)
           {
             progress_tracker->add_nonce_reveal(
-              view, seqno, nonce, state->my_node_id, nodes.size());
+              view, seqno, nonce, state->my_node_id);
           }
           break;
         }
@@ -1112,7 +1103,7 @@ namespace aft
           r.term,
           r.idx);
         progress_tracker->add_nonce_reveal(
-          r.term, r.idx, r.nonce, r.from_node, nodes.size());
+          r.term, r.idx, r.nonce, r.from_node);
       }
     }
 

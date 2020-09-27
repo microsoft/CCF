@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ring_buffer.h"
+#include "logger_formatters.h"
 #include "thread_ids.h"
 
 #include <chrono>
