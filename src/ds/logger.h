@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ring_buffer.h"
 #include "logger_formatters.h"
+#include "ring_buffer.h"
 #include "thread_ids.h"
 
 #include <chrono>

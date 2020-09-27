@@ -882,8 +882,6 @@ namespace aft
         r.sig,
         hashed_nonce,
         nodes.size());
-      try_send_sig_ack(r.term, r.last_log_idx, result);
-
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
       {
         auto send_to = it->first;
@@ -893,6 +891,8 @@ namespace aft
             ccf::NodeMsgType::consensus_msg, send_to, r);
         }
       }
+
+      try_send_sig_ack(r.term, r.last_log_idx, result);
     }
 
     void recv_append_entries_signed_response(const uint8_t* data, size_t size)
@@ -1102,8 +1102,7 @@ namespace aft
           r.from_node,
           r.term,
           r.idx);
-        progress_tracker->add_nonce_reveal(
-          r.term, r.idx, r.nonce, r.from_node);
+        progress_tracker->add_nonce_reveal(r.term, r.idx, r.nonce, r.from_node);
       }
     }
 

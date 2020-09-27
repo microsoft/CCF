@@ -12,12 +12,9 @@ namespace fmt
   inline std::string uint8_vector_to_hex_string(const std::vector<uint8_t>& v)
   {
     std::stringstream ss;
-    ss << std::hex << std::setfill('0');
-    std::vector<uint8_t>::const_iterator it;
-
-    for (it = v.begin(); it != v.end(); it++)
+    for (auto it = v.begin(); it != v.end(); it++)
     {
-      ss << std::hex << std::setw(2) << static_cast<unsigned>(*it);
+      ss << std::hex << static_cast<unsigned>(*it);
     }
 
     return ss.str();
