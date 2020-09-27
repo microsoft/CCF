@@ -84,8 +84,8 @@ namespace kv
     FAILED = 0,
     PASS = 1,
     PASS_SIGNATURE = 2,
-    PASS_PRE_PREPARE = 4,
-    PASS_NEW_VIEW = 5
+    PASS_PRE_PREPARE = 3,
+    PASS_NEW_VIEW = 4
   };
 
   enum ReplicateType
@@ -149,9 +149,9 @@ namespace kv
     enum class Result
     {
       FAIL = 0,
-      OK = 1,
-      SEND_SIG_RECEIPT_ACK = 2,
-      SEND_REPLY_AND_NONCE = 3
+      OK,
+      SEND_SIG_RECEIPT_ACK,
+      SEND_REPLY_AND_NONCE
     };
 
     using ResultCallbackHandler = std::function<bool(ResultCallbackArgs)>;

@@ -783,7 +783,6 @@ namespace kv
           {
             return success;
           }
-          success = DeserialiseSuccess::PASS_SIGNATURE;
 
           auto h = get_history();
           bool result = true;
@@ -811,6 +810,7 @@ namespace kv
             return DeserialiseSuccess::FAILED;
           }
           h->append(data.data(), data.size());
+          success = DeserialiseSuccess::PASS_SIGNATURE;
         }
         else if (views.find(ccf::Tables::AFT_REQUESTS) == views.end())
         {

@@ -12,7 +12,6 @@
 #include "tls/tls.h"
 #include "tls/verifier.h"
 
-#define FMT_HEADER_ONLY
 #include <array>
 #include <vector>
 

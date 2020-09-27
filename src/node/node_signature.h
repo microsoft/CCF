@@ -31,7 +31,7 @@ namespace ccf
 
     bool operator==(const NodeSignature& o) const
     {
-      return sig == o.sig && node == o.node && hashed_nonce == o.hashed_nonce;
+      return sig == o.sig && hashed_nonce == o.hashed_nonce;
     }
 
     MSGPACK_DEFINE(sig, node, hashed_nonce);
