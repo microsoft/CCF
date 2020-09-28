@@ -236,9 +236,6 @@ namespace ds
               items["type"] = "array";
 
               auto sub_items = nlohmann::json::array();
-              // NB: OpenAPI doesn't like this tuple for "items", even though
-              // its valid JSON schema. May need to switch this to oneOf to
-              // satisfy some validators
               sub_items.push_back(add_schema_component<typename T::key_type>());
               sub_items.push_back(
                 add_schema_component<typename T::mapped_type>());
