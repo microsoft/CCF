@@ -71,7 +71,7 @@ The recovery share retrieval, decryption and submission steps are conveniently p
     x-ccf-tx-view: 4
     2/2 recovery shares successfully submitted. End of recovery procedure initiated.
 
-When the recovery threshold is reached, the ``recovery_share/submit`` RPC returns that the end of the recovery procedure is initiated and the private ledger is now being recovered.
+When the recovery threshold is reached, the ``POST recovery_share`` RPC returns that the end of the recovery procedure is initiated and the private ledger is now being recovered.
 
 .. note:: While all nodes are recovering the private ledger, no new transaction can be executed by the network.
 
@@ -102,13 +102,13 @@ Summary Diagram
         Member 0->>+Node 2: GET recovery_share
         Node 2-->>Member 0: Encrypted recovery share for Member 0
         Note over Member 0: Decrypts recovery share
-        Member 0->>+Node 2: POST recovery_share/submit: {"recovery_share": ...}
+        Member 0->>+Node 2: POST recovery_share: "<recovery_share_0>"
         Node 2-->>Member 0: False
 
         Member 1->>+Node 2: GET recovery_share
         Node 2-->>Member 1: Encrypted recovery share for Member 1
         Note over Member 1: Decrypts recovery share
-        Member 1->>+Node 2: POST recovery_share/submit: {"recovery_share": ...}
+        Member 1->>+Node 2: POST recovery_share: "<recovery_share_1>"
         Node 2-->>Member 1: True
 
         Note over Node 2, Node 3: Reading Private Ledger...
