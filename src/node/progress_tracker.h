@@ -380,12 +380,11 @@ namespace ccf
     std::vector<uint8_t> hash_data(Nonce data)
     {
       tls::HashBytes hash;
-      int r = tls::do_hash(
+      tls::do_hash(
         reinterpret_cast<const uint8_t*>(&data),
         data.size(),
         hash,
         MBEDTLS_MD_SHA256);
-      CCF_ASSERT_FMT(r == 0, "Failed to hash, r:{}", r);
       return hash;
     }
 

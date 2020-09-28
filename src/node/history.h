@@ -701,13 +701,16 @@ namespace ccf
           {
             auto r = progress_tracker->record_primary(
               txid.term, txid.version, id, root, hashed_nonce);
-            CCF_ASSERT_FMT(
-              r == kv::TxHistory::Result::OK,
-              "Expected success when primary added signature to the progress "
-              "tracker. r:{}, view:{}, seqno:{}",
-              r,
-              txid.term,
-              txid.version);
+            if (r != kv::TxHistory::Result::OK)
+            {
+              throw ccf::ccf_logic_error(fmt::format(
+                "Expected success when primary added signature to the "
+                "progress "
+                "tracker. r:{}, view:{}, seqno:{}",
+                r,
+                txid.term,
+                txid.version));
+            }
 
             auto h =
               progress_tracker->get_my_hashed_nonce(txid.term, txid.version);
