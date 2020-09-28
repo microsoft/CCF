@@ -242,7 +242,10 @@ namespace ds
               sub_items.push_back(add_schema_component<typename T::key_type>());
               sub_items.push_back(
                 add_schema_component<typename T::mapped_type>());
-              items["items"] = sub_items;
+
+              items["items"]["oneOf"] = sub_items;
+              items["minItems"] = 2;
+              items["maxItems"] = 2;
             }
             schema["items"] = items;
           }
