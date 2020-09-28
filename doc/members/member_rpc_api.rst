@@ -44,7 +44,7 @@ Get an existing proposal
 
 .. literalinclude:: ../schemas/proposals/{proposal_id}_GET_result.json
     :language: json
-    
+
 POST /gov/proposals/{proposal_id}/withdraw
 ------------------------------------------
 
@@ -99,12 +99,12 @@ Retrieve encrypted recovery share of current member
 .. literalinclude:: ../schemas/recovery_share_GET_result.json
     :language: json
 
-POST /gov/recovery_share/submit
+POST /gov/recovery_share
 -------------------------------
 
 Submit recovery share of current member
 
-.. literalinclude:: ../schemas/recovery_share/submit_POST_params.json
+.. literalinclude:: ../schemas/recovery_share_POST_params.json
     :language: json
-.. literalinclude:: ../schemas/recovery_share/submit_POST_result.json
+.. literalinclude:: ../schemas/recovery_share_POST_result.json
     :language: json

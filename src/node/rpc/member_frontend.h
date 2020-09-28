@@ -1444,7 +1444,7 @@ namespace ccf
           submitted_shares_count,
           g.get_recovery_threshold()));
       };
-      make_endpoint("recovery_share/submit", HTTP_POST, submit_recovery_share)
+      make_endpoint("recovery_share", HTTP_POST, submit_recovery_share)
         .set_auto_schema<std::string, std::string>()
         .install();
 
