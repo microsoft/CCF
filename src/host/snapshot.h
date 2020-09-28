@@ -18,11 +18,49 @@ namespace asynchost
   private:
     const std::string snapshot_dir;
     static constexpr auto snapshot_file_prefix = "snapshot";
+    static constexpr auto snapshot_idx_delimiter = "_";
+    static constexpr auto snapshot_committed_suffix = "committed";
+
+    bool is_uncommitted_snapshot_file(const std::string& file_name)
+    {
+      // Snapshot file should start with known prefix but not be committed yet
+      auto pos = file_name.find(snapshot_file_prefix);
+      if (pos == std::string::npos || pos != 0)
+      {
+        return false;
+      }
+
+      LOG_FAIL_FMT("Here");
+
+      if (file_name.find(snapshot_committed_suffix, pos) == std::string::npos)
+      {
+        LOG_FAIL_FMT("Hey");
+        return true;
+      }
+      else
+      {
+        LOG_FAIL_FMT("Ney");
+        return false;
+      }
+    }
+
+    size_t get_snapshot_idx_from_file_name(const std::string& file_name)
+    {
+      auto pos = file_name.find(snapshot_idx_delimiter);
+      if (pos == std::string::npos)
+      {
+        throw std::logic_error(
+          fmt::format("Snapshot file name {} does not contain idx", file_name));
+      }
+
+      return std::stol(file_name.substr(pos + 1));
+    }
 
     void write_snapshot(
       consensus::Index idx, const uint8_t* snapshot_data, size_t snapshot_size)
     {
-      auto snapshot_file_name = fmt::format("{}.{}", snapshot_file_prefix, idx);
+      auto snapshot_file_name = fmt::format(
+        "{}{}{}", snapshot_file_prefix, snapshot_idx_delimiter, idx);
       auto full_snapshot_path =
         fs::path(snapshot_dir) / fs::path(snapshot_file_name);
 
@@ -41,6 +79,29 @@ namespace asynchost
         full_snapshot_path, std::ios::out | std::ios::binary);
       snapshot_file.write(
         reinterpret_cast<const char*>(snapshot_data), snapshot_size);
+    }
+
+    void commit_snapshot(consensus::Index idx)
+    {
+      for (auto const& f : fs::directory_iterator(snapshot_dir))
+      {
+        auto file_name = f.path().filename().string();
+        if (
+          is_uncommitted_snapshot_file(file_name) &&
+          get_snapshot_idx_from_file_name(file_name) == idx)
+        {
+          LOG_INFO_FMT("Committing snapshot file {}", file_name);
+
+          const auto committed_file_name =
+            fmt::format("{}.{}", file_name, snapshot_committed_suffix);
+
+          fs::rename(
+            fs::path(snapshot_dir) / fs::path(file_name),
+            fs::path(snapshot_dir) / fs::path(committed_file_name));
+
+          return;
+        }
+      }
     }
 
   public:
@@ -67,7 +128,8 @@ namespace asynchost
       for (auto& f : fs::directory_iterator(snapshot_dir))
       {
         auto file_name = f.path().filename().string();
-        auto pos = file_name.find(fmt::format("{}.", snapshot_file_prefix));
+        auto pos = file_name.find(
+          fmt::format("{}{}", snapshot_file_prefix, snapshot_idx_delimiter));
         if (pos == std::string::npos)
         {
           LOG_FAIL_FMT(
@@ -77,7 +139,7 @@ namespace asynchost
           continue;
         }
 
-        pos = file_name.find(".");
+        pos = file_name.find(snapshot_idx_delimiter);
         size_t snapshot_idx = std::stol(file_name.substr(pos + 1));
         if (snapshot_idx > latest_idx)
         {
@@ -93,12 +155,17 @@ namespace asynchost
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {
       DISPATCHER_SET_MESSAGE_HANDLER(
+        disp, consensus::snapshot, [this](const uint8_t* data, size_t size) {
+          auto idx = serialized::read<consensus::Index>(data, size);
+          write_snapshot(idx, data, size);
+        });
+
+      DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
-        consensus::ledger_snapshot,
+        consensus::snapshot_commit,
         [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
-
-          write_snapshot(idx, data, size);
+          commit_snapshot(idx);
         });
     }
   };

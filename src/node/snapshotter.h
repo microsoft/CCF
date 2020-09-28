@@ -25,6 +25,15 @@ namespace ccf
 
     size_t snapshot_tx_interval;
 
+    // TODO: Keep track of snapshot evidence seqnos. On compact(idx), commit all
+    // evidences. On rollback(idx), remove all evidences.
+    struct SnapshotInfo
+    {
+      consensus::Index idx;
+      consensus::Index evidence_idx;
+    };
+    std::deque<SnapshotInfo> snapshot_evidence_indices;
+
     // Index at which the lastest snapshot was generated
     consensus::Index last_snapshot_idx = 0;
 
@@ -51,7 +60,12 @@ namespace ccf
       consensus::Index idx, const std::vector<uint8_t>& serialised_snapshot)
     {
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::ledger_snapshot, to_host, idx, serialised_snapshot);
+        consensus::snapshot, to_host, idx, serialised_snapshot);
+    }
+
+    void commit_snapshot(consensus::Index idx)
+    {
+      RINGBUFFER_WRITE_MESSAGE(consensus::snapshot_commit, to_host, idx);
     }
 
     struct SnapshotMsg
@@ -68,7 +82,7 @@ namespace ccf
     void snapshot_(
       std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot)
     {
-      auto snapshot_idx = snapshot->get_version();
+      auto snapshot_v = snapshot->get_version();
 
       auto serialised_snapshot =
         network.tables->serialise_snapshot(std::move(snapshot));
@@ -76,19 +90,24 @@ namespace ccf
       kv::Tx tx;
       auto view = tx.get_view(network.snapshot_evidence);
       auto snapshot_hash = crypto::Sha256Hash(serialised_snapshot);
-      view->put(0, {snapshot_hash, snapshot_idx});
+      view->put(0, {snapshot_hash, snapshot_v});
 
       auto rc = tx.commit();
       if (rc != kv::CommitSuccess::OK)
       {
         LOG_FAIL_FMT(
-          "Could not commit snapshot evidence for idx {}: {}",
-          snapshot_idx,
-          rc);
+          "Could not commit snapshot evidence for idx {}: {}", snapshot_v, rc);
         return;
       }
 
-      record_snapshot(snapshot_idx, serialised_snapshot);
+      record_snapshot(snapshot_v, serialised_snapshot);
+      consensus::Index snapshot_idx = static_cast<consensus::Index>(snapshot_v);
+      consensus::Index snapshot_evidence_idx =
+        static_cast<consensus::Index>(tx.commit_version());
+      snapshot_evidence_indices.push_back(
+        {snapshot_idx, snapshot_evidence_idx});
+
+      LOG_FAIL_FMT("Snapshot evidence generated at {}", tx.commit_version());
 
       LOG_DEBUG_FMT(
         "Snapshot successfully generated for idx {}: {}",
@@ -163,6 +182,13 @@ namespace ccf
       {
         next_snapshot_indices.push_back(last_snapshot_idx);
       }
+
+      while (!snapshot_evidence_indices.empty() &&
+             (snapshot_evidence_indices.front().evidence_idx <= idx))
+      {
+        commit_snapshot(snapshot_evidence_indices.front().idx);
+        snapshot_evidence_indices.pop_front();
+      }
     }
 
     bool requires_snapshot(consensus::Index idx)
@@ -191,6 +217,12 @@ namespace ccf
       if (next_snapshot_indices.empty())
       {
         next_snapshot_indices.push_back(last_snapshot_idx);
+      }
+
+      while (!snapshot_evidence_indices.empty() &&
+             (snapshot_evidence_indices.back().evidence_idx > idx))
+      {
+        snapshot_evidence_indices.pop_back();
       }
     }
   };
