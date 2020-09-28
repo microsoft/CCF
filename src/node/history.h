@@ -671,6 +671,8 @@ namespace ccf
       {
         auto commit_txid = signable_txid.value();
         auto txid = store.next_txid();
+
+        LOG_DEBUG_FMT("Signable TXID: {}.{}", commit_txid.first, commit_txid.second);
         
         LOG_DEBUG_FMT(
           "Signed at {} in view: {} commit was: {}.{}",

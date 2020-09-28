@@ -1180,22 +1180,31 @@ DOCTEST_TEST_CASE(
       dispatch_all(
         nodes,
         ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries));
+
     DOCTEST_REQUIRE(
       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size() ==
       0);
 
     DOCTEST_REQUIRE(
       1 ==
-      dispatch_all(
+      dispatch_all_and_DOCTEST_CHECK(
         nodes,
         ((aft::ChannelStubProxy*)r1.channels.get())
-          ->sent_append_entries_response));
+          ->sent_append_entries_response,
+          [](const auto& msg) {
+          DOCTEST_REQUIRE(msg.success);
+          DOCTEST_REQUIRE(msg.last_log_idx == 1);
+        }));
     DOCTEST_REQUIRE(
       1 ==
-      dispatch_all(
+      dispatch_all_and_DOCTEST_CHECK(
         nodes,
         ((aft::ChannelStubProxy*)r2.channels.get())
-          ->sent_append_entries_response));
+          ->sent_append_entries_response,
+          [](const auto& msg) {
+          DOCTEST_REQUIRE(msg.success);
+          DOCTEST_REQUIRE(msg.last_log_idx == 1);
+        }));
 
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, second_entry, true}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 2);
@@ -1217,16 +1226,25 @@ DOCTEST_TEST_CASE(
 
     DOCTEST_REQUIRE(
       1 ==
-      dispatch_all(
+      dispatch_all_and_DOCTEST_CHECK(
         nodes,
         ((aft::ChannelStubProxy*)r1.channels.get())
-          ->sent_append_entries_response));
+          ->sent_append_entries_response,
+          [](const auto& msg) {
+
+          DOCTEST_REQUIRE(msg.success);
+          DOCTEST_REQUIRE(msg.last_log_idx == 2);
+        }));
     DOCTEST_REQUIRE(
       1 ==
-      dispatch_all(
+      dispatch_all_and_DOCTEST_CHECK(
         nodes,
         ((aft::ChannelStubProxy*)r2.channels.get())
-          ->sent_append_entries_response));
+          ->sent_append_entries_response,
+          [](const auto& msg) {
+          DOCTEST_REQUIRE(msg.success);
+          DOCTEST_REQUIRE(msg.last_log_idx == 2);
+        }));
 
     DOCTEST_CHECK(r0.get_term() == 1);
     DOCTEST_CHECK(r0.get_commit_idx() == 2);

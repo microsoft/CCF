@@ -617,7 +617,7 @@ namespace aft
         return;
       }
 
-      LOG_DEBUG_FMT(
+      LOG_INFO_FMT(
         "Received pt: {} pi: {} t: {} i: {} toi: {}",
         r.prev_term,
         r.prev_idx,
@@ -665,7 +665,7 @@ namespace aft
         // whose term is r.prev_term.
         if (prev_term == 0)
         {
-          LOG_DEBUG_FMT(
+          LOG_INFO_FMT(
             "Recv append entries to {} from {} but our log does not yet "
             "contain index {}",
             state->my_node_id,
@@ -674,7 +674,7 @@ namespace aft
         }
         else
         {
-          LOG_DEBUG_FMT(
+          LOG_INFO_FMT(
             "Recv append entries to {} from {} but our log at {} has the wrong "
             "previous term (ours: {}, theirs: {})",
             state->my_node_id,
@@ -808,7 +808,10 @@ namespace aft
               // A signature for sig_term tells us that all transactions from the
               // previous signature onwards (at least, if not further back) happened
               // in sig_term. We reflect this in the history.
-              state->view_history.update(prev_lci + 1, sig_term);
+              if (r.term_of_idx == aft::ViewHistory::InvalidView)
+                state->view_history.update(1, r.term);
+              else
+                state->view_history.update(prev_lci + 1, sig_term);
               commit_if_possible(r.leader_commit_idx);
             }
             if (consensus_type == ConsensusType::BFT)
@@ -838,9 +841,12 @@ namespace aft
       // commit index and update our term history accordingly
       commit_if_possible(r.leader_commit_idx);
 
-      // The term may have changed, but we may not have seen a signature yet.
+      // The term may have changed, and we have not have seen a signature yet.
       auto lci = last_committable_index();
-      state->view_history.update(lci + 1, r.term_of_idx);
+      if (r.term_of_idx == aft::ViewHistory::InvalidView)
+        state->view_history.update(1, r.term);
+      else
+        state->view_history.update(lci + 1, r.term_of_idx);
 
       send_append_entries_response(r.from_node, true);
     }
@@ -1235,6 +1241,7 @@ namespace aft
     void become_leader()
     {
       election_index = last_committable_index();
+      LOG_DEBUG_FMT("Election index is {}", election_index);
       // Discard any un-committable updates we may hold,
       // since we have no signature for them. Except at startup,
       // where we do not want to roll back the genesis transaction.
@@ -1248,7 +1255,6 @@ namespace aft
         store->set_term(state->current_view);
       }
 
-      committable_indices.clear();
       replica_state = Leader;
       leader_id = state->my_node_id;
 
@@ -1365,6 +1371,7 @@ namespace aft
 
     void commit_if_possible(Index idx)
     {
+      LOG_DEBUG_FMT("Commit if possible {} (ci: {}) (ti {})", idx, state->commit_idx, get_term_internal(idx));
       if (
         (idx > state->commit_idx) &&
         (get_term_internal(idx) <= state->current_view))
