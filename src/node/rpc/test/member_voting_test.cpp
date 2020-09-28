@@ -1541,6 +1541,48 @@ DOCTEST_TEST_CASE("Passing operator vote" * doctest::test_suite("operator"))
 
     DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
   }
+
+  {
+    DOCTEST_INFO("New operator cannot add non-operator member");
+
+    auto new_member_kp = tls::make_key_pair();
+    const auto new_member_cert = get_cert(100, new_member_kp);
+
+    Propose::In proposal;
+    proposal.script = std::string(R"xxx(
+      local tables, member_info = ...
+      return Calls:call("new_member", member_info)
+    )xxx");
+
+    proposal.parameter["cert"] = new_member_cert;
+    proposal.parameter["keyshare"] = dummy_key_share;
+    proposal.parameter["member_data"] =
+      nullptr; // blank member_data => not an operator
+
+    const auto propose =
+      create_signed_request(proposal, "proposals", new_operator_kp);
+    const auto r = parse_response_body<Propose::Out>(
+      frontend_process(frontend, propose, new_operator_cert));
+
+    DOCTEST_CHECK(r.state == ProposalState::OPEN);
+  }
+
+  {
+    DOCTEST_INFO("New operator cannot retire non-operator member");
+
+    const auto normal_member_id = members.begin()->first;
+
+    Propose::In proposal;
+    proposal.script = fmt::format(
+      R"xxx(return Calls:call("retire_member", {}))xxx", normal_member_id);
+
+    const auto propose =
+      create_signed_request(proposal, "proposals", new_operator_kp);
+    const auto r = parse_response_body<Propose::Out>(
+      frontend_process(frontend, propose, new_operator_cert));
+
+    DOCTEST_CHECK(r.state == ProposalState::OPEN);
+  }
 }
 
 DOCTEST_TEST_CASE(
