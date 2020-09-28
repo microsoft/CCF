@@ -3,6 +3,7 @@
 #pragma once
 
 #include "crypto/hash.h"
+#include "ds/nonstd.h"
 #include "enclave/consensus_type.h"
 #include "serialiser_declare.h"
 #include "tls/pem.h"
@@ -67,7 +68,7 @@ namespace kv
   {
     constexpr auto public_domain_prefix = "public:";
 
-    if (name.rfind(public_domain_prefix, 0) == 0)
+    if (nonstd::starts_with(name, public_domain_prefix))
     {
       return SecurityDomain::PUBLIC;
     }
