@@ -1,0 +1,108 @@
+{
+    "endpoints": {
+      "/crypto": {
+        "get": {
+          "js_module": "src/endpoints.js",
+          "js_function": "crypto",
+          "forwarding_required": "always",
+          "execute_locally": false,
+          "require_client_signature": false,
+          "require_client_identity": true,
+          "readonly": true,
+          "openapi": {
+            "responses": {
+              "200": {
+                "description": "Ok",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "properties": {
+                        "available": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "available"
+                      ],
+                      "type": "object",
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            },
+            "security": [],
+            "parameters": []
+          }
+        }
+      },
+      "/partition": {
+        "post": {
+          "js_module": "src/endpoints.js",
+          "js_function": "partition",
+          "forwarding_required": "always",
+          "execute_locally": false,
+          "require_client_signature": false,
+          "require_client_identity": true,
+          "readonly": false,
+          "openapi": {
+            "responses": {
+              "200": {
+                "description": "Ok",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "items": {
+                        "items": {},
+                        "type": "array"
+                      },
+                      "type": "array"
+                    }
+                  }
+                }
+              }
+            },
+            "security": [],
+            "parameters": [],
+            "requestBody": {
+              "required": true,
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "items": {},
+                    "type": "array"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/proto": {
+        "post": {
+          "js_module": "src/endpoints.js",
+          "js_function": "proto",
+          "forwarding_required": "always",
+          "execute_locally": false,
+          "require_client_signature": false,
+          "require_client_identity": true,
+          "readonly": false,
+          "openapi": {
+            "requestBody": {
+              "required": true,
+              "content": {
+                "text/plain": {}
+              }
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application/x-protobuf": {}
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
