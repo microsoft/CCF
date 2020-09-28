@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "ds/nonstd.h"
 #include "frontend.h"
 #include "lua_interp/lua_json.h"
 #include "lua_interp/tx_script_runner.h"
@@ -144,6 +145,38 @@ namespace ccf
   DECLARE_JSON_TYPE(SetModule)
   DECLARE_JSON_REQUIRED_FIELDS(SetModule, name, module)
 
+  struct JsBundleEndpointMethod
+  {
+    std::string js_module;
+    std::string js_function;
+  };
+  DECLARE_JSON_TYPE(JsBundleEndpointMethod)
+  DECLARE_JSON_REQUIRED_FIELDS(JsBundleEndpointMethod, js_module, js_function)
+
+  using JsBundleEndpoint = std::map<std::string, JsBundleEndpointMethod>;
+
+  struct JsBundleMetadata
+  {
+    std::map<std::string, JsBundleEndpoint> endpoints;
+  };
+  DECLARE_JSON_TYPE(JsBundleMetadata)
+  DECLARE_JSON_REQUIRED_FIELDS(JsBundleMetadata, endpoints)
+
+  struct JsBundle
+  {
+    JsBundleMetadata metadata;
+    std::vector<SetModule> modules;
+  };
+  DECLARE_JSON_TYPE(JsBundle)
+  DECLARE_JSON_REQUIRED_FIELDS(JsBundle, metadata, modules)
+
+  struct DeployJsApp
+  {
+    JsBundle bundle;
+  };
+  DECLARE_JSON_TYPE(DeployJsApp)
+  DECLARE_JSON_REQUIRED_FIELDS(DeployJsApp, bundle)
+
   class MemberEndpoints : public CommonEndpointRegistry
   {
   private:
@@ -192,6 +225,75 @@ namespace ccf
       }
     }
 
+    bool deploy_js_app(kv::Tx& tx, const JsBundle& bundle)
+    {
+      std::string module_prefix = "/";
+      remove_modules(tx, module_prefix);
+      set_modules(tx, module_prefix, bundle.modules);
+
+      std::map<std::string, std::string> scripts;
+      for (auto& [url, endpoint] : bundle.metadata.endpoints)
+      {
+        for (auto& [method, info] : endpoint)
+        {
+          const std::string& js_module = info.js_module;
+          if (std::none_of(
+                bundle.modules.cbegin(),
+                bundle.modules.cend(),
+                [&js_module](const SetModule& item) {
+                  return item.name == js_module;
+                }))
+          {
+            LOG_FAIL_FMT(
+              "{} {}: module '{}' not found in bundle",
+              method,
+              url,
+              info.js_module);
+            return false;
+          }
+
+          // CCF currently requires each endpoint to have an inline JS module.
+          std::string method_uppercase = method;
+          nonstd::to_upper(method_uppercase);
+          std::string url_without_leading_slash = url.substr(1);
+          std::string key =
+            fmt::format("{} {}", method_uppercase, url_without_leading_slash);
+          std::string script = fmt::format(
+            "import {{ {} as f }} from '.{}{}'; export default (r) => f(r);",
+            info.js_function,
+            module_prefix,
+            info.js_module);
+          scripts.emplace(key, script);
+        }
+      }
+
+      set_js_scripts(tx, scripts);
+
+      return true;
+    }
+
+    bool remove_js_app(kv::Tx& tx)
+    {
+      remove_modules(tx, "/");
+      set_js_scripts(tx, {});
+
+      return true;
+    }
+
+    void set_modules(
+      kv::Tx& tx, std::string prefix, const std::vector<SetModule>& modules)
+    {
+      for (auto& set_module_ : modules)
+      {
+        std::string full_name = prefix + set_module_.name;
+        if (!set_module(tx, full_name, set_module_.module))
+        {
+          throw std::logic_error(
+            fmt::format("Unexpected error while setting module {}", full_name));
+        }
+      }
+    }
+
     bool set_module(kv::Tx& tx, std::string name, Module module)
     {
       if (name.empty() || name[0] != '/')
@@ -202,6 +304,23 @@ namespace ccf
       auto tx_modules = tx.get_view(network.modules);
       tx_modules->put(name, module);
       return true;
+    }
+
+    void remove_modules(kv::Tx& tx, std::string prefix)
+    {
+      auto tx_modules = tx.get_view(network.modules);
+      tx_modules->foreach(
+        [&tx_modules, &prefix](const std::string& name, const Module&) {
+          if (nonstd::starts_with(name, prefix))
+          {
+            if (!tx_modules->remove(name))
+            {
+              throw std::logic_error(
+                fmt::format("Unexpected error while removing module {}", name));
+            }
+          }
+          return true;
+        });
     }
 
     bool remove_module(kv::Tx& tx, std::string name)
@@ -269,6 +388,17 @@ namespace ccf
            const std::string app = args;
            set_js_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
            return true;
+         }},
+        // deploy the js application bundle
+        {"deploy_js_app",
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
+           const auto parsed = args.get<DeployJsApp>();
+           return deploy_js_app(tx, parsed.bundle);
+         }},
+        // undeploy/remove the js application
+        {"remove_js_app",
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json&) {
+           return remove_js_app(tx);
          }},
         // add/update a module
         {"set_module",

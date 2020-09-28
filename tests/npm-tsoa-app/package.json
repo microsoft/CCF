@@ -1,7 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "build": "del-cli -f dist/ build/ && tsoa spec-and-routes && node tsoa-support/postprocess.js && rollup --config && del-cli dist/build/endpoints.js",
+    "build": "del-cli -f dist/ build/ && tsoa spec-and-routes && node tsoa-support/postprocess.js && rollup --config && del-cli dist/src/build/endpoints.js",
     "demo": "npm run build && http-server -o demo/index.html"
   },
   "type": "module",
