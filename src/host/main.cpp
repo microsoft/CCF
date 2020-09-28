@@ -626,7 +626,9 @@ int main(int argc, char** argv)
     for (auto const& m_info : members_info)
     {
       ccf_config.genesis.members_info.emplace_back(
-        files::slurp(m_info.cert_file), files::slurp(m_info.keyshare_pub_file));
+        files::slurp(m_info.cert_file),
+        files::slurp(m_info.keyshare_pub_file),
+        nullptr);
     }
     ccf_config.genesis.gov_script = files::slurp_string(gov_script);
     ccf_config.genesis.recovery_threshold = recovery_threshold.value();
