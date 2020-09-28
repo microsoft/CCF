@@ -1105,9 +1105,7 @@
             "description": "Default response description"
           }
         }
-      }
-    },
-    "/recovery_share/submit": {
+      },
       "post": {
         "requestBody": {
           "content": {

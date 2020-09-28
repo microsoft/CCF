@@ -41,7 +41,7 @@ namespace ds
 
     static inline void check_path_valid(const std::string& s)
     {
-      if (s.rfind("/", 0) != 0)
+      if (!nonstd::starts_with(s, "/"))
       {
         throw std::logic_error(
           fmt::format("'{}' is not a valid path - must begin with '/'", s));

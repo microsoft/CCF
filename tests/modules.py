@@ -4,7 +4,7 @@ import tempfile
 import http
 import subprocess
 import os
-import json
+import shutil
 import infra.network
 import infra.path
 import infra.proc
@@ -45,25 +45,6 @@ return {
     {
       return { body: bar(), statusCode: 201 };
     }
-  ]]
-}
-"""
-
-# Eventually, the npm app will contain these modules as well
-# together with an API description.
-NPM_APP_SCRIPT = """
-return {
-  ["POST npm/partition"] = [[
-    import {partition} from "./my-npm-app/src/endpoints.js";
-    export default (request) => partition(request);
-  ]],
-  ["POST npm/proto"] = [[
-    import {proto} from "./my-npm-app/src/endpoints.js";
-    export default (request) => proto(request);
-  ]],
-  ["GET npm/crypto"] = [[
-    import {crypto} from "./my-npm-app/src/endpoints.js";
-    export default (request) => crypto(request);
   ]]
 }
 """
@@ -161,7 +142,67 @@ def test_module_import(network, args):
     return network
 
 
-@reqs.description("Test Node.js/npm app with prefix-based modules update")
+@reqs.description("Test js app bundle")
+def test_app_bundle(network, args):
+    primary, _ = network.find_nodes()
+
+    LOG.info("Deploying js app bundle archive")
+    # Testing the bundle archive support of the Python client here.
+    # Plain bundle folders are tested in the npm-based app tests.
+    bundle_dir = os.path.join(THIS_DIR, "js-app-bundle")
+    with tempfile.TemporaryDirectory(prefix="ccf") as tmp_dir:
+        bundle_path = shutil.make_archive(
+            os.path.join(tmp_dir, "bundle"), "zip", bundle_dir
+        )
+        proposal_body, _ = ccf.proposal_generator.deploy_js_app(bundle_path)
+
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
+    )
+    network.consortium.vote_using_majority(primary, proposal)
+
+    LOG.info("Verifying that modules and endpoints were added")
+    with primary.client(
+        f"member{network.consortium.get_any_active_member().member_id}"
+    ) as c:
+        r = c.post("/gov/read", {"table": "ccf.modules", "key": "/math.js"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+    with primary.client("user0") as c:
+        valid_body = {"op": "sub", "left": 82, "right": 40}
+        r = c.post("/app/compute", valid_body)
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.headers["content-type"] == "application/json"
+        assert r.body.json() == {"result": 42}, r.body
+
+        invalid_body = {"op": "add", "left": "1", "right": 2}
+        r = c.post("/app/compute", invalid_body)
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+        assert r.headers["content-type"] == "application/json"
+        assert r.body.json() == {"error": "invalid operand type"}, r.body
+
+    LOG.info("Removing js app")
+    proposal_body, _ = ccf.proposal_generator.remove_js_app()
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
+    )
+    network.consortium.vote_using_majority(primary, proposal)
+
+    LOG.info("Verifying that modules and endpoints were removed")
+    with primary.client("user0") as c:
+        r = c.post("/app/compute", valid_body)
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
+
+    with primary.client(
+        f"member{network.consortium.get_any_active_member().member_id}"
+    ) as c:
+        r = c.post("/gov/read", {"table": "ccf.modules", "key": "/math.js"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+
+    return network
+
+
+@reqs.description("Test basic Node.js/npm app")
 def test_npm_app(network, args):
     primary, _ = network.find_nodes()
 
@@ -170,39 +211,30 @@ def test_npm_app(network, args):
     subprocess.run(["npm", "install"], cwd=app_dir, check=True)
     subprocess.run(["npm", "run", "build"], cwd=app_dir, check=True)
 
-    LOG.info("Deploying npm app modules")
-    module_name_prefix = "/my-npm-app/"
-    dist_dir = os.path.join(app_dir, "dist")
+    LOG.info("Deploying npm app")
+    bundle_dir = os.path.join(app_dir, "dist")
 
-    proposal_body, _ = ccf.proposal_generator.update_modules(
-        module_name_prefix, dist_dir
-    )
+    proposal_body, _ = ccf.proposal_generator.deploy_js_app(bundle_dir)
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
     network.consortium.vote_using_majority(primary, proposal)
 
-    LOG.info("Deploying endpoint script")
-    with tempfile.NamedTemporaryFile("w") as f:
-        f.write(NPM_APP_SCRIPT)
-        f.flush()
-        network.consortium.set_js_app(remote_node=primary, app_script_path=f.name)
-
     LOG.info("Calling npm app endpoints")
     with primary.client("user0") as c:
         body = [1, 2, 3, 4]
-        r = c.post("/app/npm/partition", body)
+        r = c.post("/app/partition", body)
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json() == [[1, 3], [2, 4]], r.body
 
-        r = c.post("/app/npm/proto", body)
+        r = c.post("/app/proto", body)
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.headers["content-type"] == "application/x-protobuf"
         # We could now decode the protobuf message but given all the machinery
         # involved to make it happen (code generation with protoc) we'll leave it at that.
         assert len(r.body) == 14, len(r.body)
 
-        r = c.get("/app/npm/crypto")
+        r = c.get("/app/crypto")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json()["available"], r.body
 
@@ -213,45 +245,21 @@ def test_npm_app(network, args):
 def test_npm_tsoa_app(network, args):
     primary, _ = network.find_nodes()
 
-    LOG.info("Building npm app")
+    LOG.info("Building tsoa npm app")
     app_dir = os.path.join(THIS_DIR, "npm-tsoa-app")
     subprocess.run(["npm", "install"], cwd=app_dir, check=True)
     subprocess.run(["npm", "run", "build"], cwd=app_dir, check=True)
 
-    LOG.info("Deploying npm app modules")
-    module_name_prefix = "/my-tsoa-npm-app/"
-    dist_dir = os.path.join(app_dir, "dist")
+    LOG.info("Deploying tsoa npm app")
+    bundle_dir = os.path.join(app_dir, "dist")
 
-    proposal_body, _ = ccf.proposal_generator.update_modules(
-        module_name_prefix, dist_dir
-    )
+    proposal_body, _ = ccf.proposal_generator.deploy_js_app(bundle_dir)
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
     network.consortium.vote_using_majority(primary, proposal)
 
-    LOG.info("Deploying endpoint script")
-    metadata_path = os.path.join(dist_dir, "endpoints.json")
-    with open(metadata_path) as f:
-        metadata = json.load(f)
-    # Temporarily only until endpoints can be called directly without proxy.
-    app_script = "return {"
-    for url, methods in metadata["endpoints"].items():
-        for method, cfg in methods.items():
-            app_script += f"""
-            ["{method.upper()} {url[1:]}"] = [[
-                import {{ {cfg["js_function"]} as f }}
-                  from ".{module_name_prefix}{cfg["js_module"]}";
-                export default (request) => f(request);
-            ]],"""
-    app_script = app_script[:-1] + "\n}"
-
-    with tempfile.NamedTemporaryFile("w") as f:
-        f.write(app_script)
-        f.flush()
-        network.consortium.set_js_app(remote_node=primary, app_script_path=f.name)
-
-    LOG.info("Calling npm app endpoints")
+    LOG.info("Calling tsoa npm app endpoints")
     with primary.client("user0") as c:
         body = [1, 2, 3, 4]
         r = c.post("/app/partition", body)
@@ -282,6 +290,7 @@ def run(args):
         network = test_module_set_and_remove(network, args)
         network = test_modules_remove(network, args)
         network = test_module_import(network, args)
+        network = test_app_bundle(network, args)
         network = test_npm_app(network, args)
         network = test_npm_tsoa_app(network, args)
 

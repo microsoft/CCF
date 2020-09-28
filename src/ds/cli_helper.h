@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/nonstd.h"
 #include "tls/san.h"
 
 #include <CLI11/CLI11.hpp>
@@ -134,11 +135,11 @@ namespace cli
     CLI::callback_t fun = [&parsed, option_name](CLI::results_t results) {
       for (auto& result : results)
       {
-        if (result.rfind(IP_ADDRESS_PREFIX, 0) == 0)
+        if (nonstd::starts_with(result, IP_ADDRESS_PREFIX))
         {
           parsed.push_back({result.substr(IP_ADDRESS_PREFIX.size()), true});
         }
-        else if (result.rfind(DNS_NAME_PREFIX, 0) == 0)
+        else if (nonstd::starts_with(result, DNS_NAME_PREFIX))
         {
           parsed.push_back({result.substr(DNS_NAME_PREFIX.size()), false});
         }
