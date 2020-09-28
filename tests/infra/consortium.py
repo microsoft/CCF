@@ -108,7 +108,7 @@ class Consortium:
         for m in self.members:
             m.ack(remote_node)
 
-    def generate_and_propose_new_member(self, remote_node, curve):
+    def generate_and_propose_new_member(self, remote_node, curve, member_data=None):
         # The Member returned by this function is in state ACCEPTED. The new Member
         # should ACK to become active.
         new_member_id = len(self.members)
@@ -120,6 +120,7 @@ class Consortium:
             "new_member",
             os.path.join(self.common_dir, f"member{new_member_id}_cert.pem"),
             os.path.join(self.common_dir, f"member{new_member_id}_enc_pubk.pem"),
+            member_data,
         )
 
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
@@ -130,7 +131,7 @@ class Consortium:
             new_member,
         )
 
-    def generate_and_add_new_member(self, remote_node, curve):
+    def generate_and_add_new_member(self, remote_node, curve, member_data=None):
         proposal, new_member = self.generate_and_propose_new_member(remote_node, curve)
         self.vote_using_majority(remote_node, proposal)
 

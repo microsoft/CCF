@@ -1283,7 +1283,15 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
   }
 }
 
-DOCTEST_TEST_CASE("Passing members ballot with operator")
+nlohmann::json operator_member_data()
+{
+  auto md = nlohmann::json::object();
+  md["is_operator"] = true;
+  return md;
+}
+
+DOCTEST_TEST_CASE(
+  "Passing members ballot with operator" * doctest::test_suite("operator"))
 {
   // Members pass a ballot with a constitution that includes an operator
   // Operator votes, but is _not_ taken into consideration
@@ -1294,9 +1302,10 @@ DOCTEST_TEST_CASE("Passing members ballot with operator")
   gen.init_values();
   gen.create_service({});
 
-  // Operating member, as set in operator_gov.lua
+  // Operating member, as indicated by member data
   const auto operator_cert = get_cert(0, kp);
-  const auto operator_id = gen.add_member(operator_cert, {});
+  const auto operator_id =
+    gen.add_member(operator_cert, {}, operator_member_data());
   gen.activate_member(operator_id);
 
   // Non-operating members
@@ -1393,7 +1402,7 @@ DOCTEST_TEST_CASE("Passing members ballot with operator")
   }
 }
 
-DOCTEST_TEST_CASE("Passing operator vote")
+DOCTEST_TEST_CASE("Passing operator vote" * doctest::test_suite("operator"))
 {
   // Operator issues a proposal that only requires its own vote
   // and gets it through without member votes
@@ -1409,9 +1418,10 @@ DOCTEST_TEST_CASE("Passing operator vote")
   ni.cert = new_ca;
   gen.add_node(ni);
 
-  // Operating member, as set in operator_gov.lua
+  // Operating member, as indicated by member data
   const auto operator_cert = get_cert(0, kp);
-  const auto operator_id = gen.add_member(operator_cert, {});
+  const auto operator_id =
+    gen.add_member(operator_cert, {}, operator_member_data());
   gen.activate_member(operator_id);
 
   // Non-operating members
@@ -1423,6 +1433,9 @@ DOCTEST_TEST_CASE("Passing operator vote")
     gen.activate_member(id);
     members[id] = cert;
   }
+
+  // Set a recovery threshold (otherwise retiring a member throws)
+  gen.set_recovery_threshold(1);
 
   set_whitelists(gen);
   gen.set_gov_scripts(
@@ -1478,9 +1491,102 @@ DOCTEST_TEST_CASE("Passing operator vote")
     DOCTEST_CHECK(proposer_vote != votes.end());
     DOCTEST_CHECK(proposer_vote->second == vote_for);
   }
+
+  auto new_operator_kp = tls::make_key_pair();
+  const auto new_operator_cert = get_cert(42, new_operator_kp);
+
+  {
+    DOCTEST_INFO("Operator adds another operator");
+    Propose::In proposal;
+    proposal.script = std::string(R"xxx(
+      local tables, member_info = ...
+      return Calls:call("new_member", member_info)
+    )xxx");
+
+    proposal.parameter["cert"] = new_operator_cert;
+    proposal.parameter["keyshare"] = dummy_key_share;
+    proposal.parameter["member_data"] = operator_member_data();
+
+    const auto propose = create_signed_request(proposal, "proposals", kp);
+    const auto r = parse_response_body<Propose::Out>(
+      frontend_process(frontend, propose, operator_cert));
+
+    DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
+
+    {
+      DOCTEST_INFO("New operator acks to become active");
+      const auto state_digest_req =
+        create_request(nullptr, "ack/update_state_digest");
+      const auto ack = parse_response_body<StateDigest>(
+        frontend_process(frontend, state_digest_req, new_operator_cert));
+
+      StateDigest params;
+      params.state_digest = ack.state_digest;
+      const auto ack_req =
+        create_signed_request(params, "ack", new_operator_kp);
+      const auto resp = frontend_process(frontend, ack_req, new_operator_cert);
+    }
+  }
+
+  {
+    DOCTEST_INFO("New operator retires original operator");
+    Propose::In proposal;
+    proposal.script = fmt::format(
+      R"xxx(return Calls:call("retire_member", {}))xxx", operator_id);
+
+    const auto propose =
+      create_signed_request(proposal, "proposals", new_operator_kp);
+    const auto r = parse_response_body<Propose::Out>(
+      frontend_process(frontend, propose, new_operator_cert));
+
+    DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
+  }
+
+  {
+    DOCTEST_INFO("New operator cannot add non-operator member");
+
+    auto new_member_kp = tls::make_key_pair();
+    const auto new_member_cert = get_cert(100, new_member_kp);
+
+    Propose::In proposal;
+    proposal.script = std::string(R"xxx(
+      local tables, member_info = ...
+      return Calls:call("new_member", member_info)
+    )xxx");
+
+    proposal.parameter["cert"] = new_member_cert;
+    proposal.parameter["keyshare"] = dummy_key_share;
+    proposal.parameter["member_data"] =
+      nullptr; // blank member_data => not an operator
+
+    const auto propose =
+      create_signed_request(proposal, "proposals", new_operator_kp);
+    const auto r = parse_response_body<Propose::Out>(
+      frontend_process(frontend, propose, new_operator_cert));
+
+    DOCTEST_CHECK(r.state == ProposalState::OPEN);
+  }
+
+  {
+    DOCTEST_INFO("New operator cannot retire non-operator member");
+
+    const auto normal_member_id = members.begin()->first;
+
+    Propose::In proposal;
+    proposal.script = fmt::format(
+      R"xxx(return Calls:call("retire_member", {}))xxx", normal_member_id);
+
+    const auto propose =
+      create_signed_request(proposal, "proposals", new_operator_kp);
+    const auto r = parse_response_body<Propose::Out>(
+      frontend_process(frontend, propose, new_operator_cert));
+
+    DOCTEST_CHECK(r.state == ProposalState::OPEN);
+  }
 }
 
-DOCTEST_TEST_CASE("Members passing an operator vote")
+DOCTEST_TEST_CASE(
+  "Members passing an operator vote" * doctest::test_suite("operator"))
 {
   // Operator proposes a vote, but does not vote for it
   // A majority of members pass the vote
@@ -1496,9 +1602,10 @@ DOCTEST_TEST_CASE("Members passing an operator vote")
   ni.cert = new_ca;
   gen.add_node(ni);
 
-  // Operating member, as set in operator_gov.lua
+  // Operating member, as indicated by member data
   const auto operator_cert = get_cert(0, kp);
-  const auto operator_id = gen.add_member(operator_cert, {});
+  const auto operator_id =
+    gen.add_member(operator_cert, {}, operator_member_data());
   gen.activate_member(operator_id);
 
   // Non-operating members

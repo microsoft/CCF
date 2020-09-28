@@ -16,6 +16,8 @@ python -m ccf.proposal_generator --help
 
 python -m ccf.proposal_generator new_member --help
 python -m ccf.proposal_generator new_member bob_cert.pem bob_enc_pubk.pem
+python -m ccf.proposal_generator new_member bob_cert.pem bob_enc_pubk.pem '"Arbitrary data"'
+python -m ccf.proposal_generator new_member bob_cert.pem bob_enc_pubk.pem '{"Interesting": {"nested": ["da", "ta"]}}'
 
 python -m ccf.proposal_generator new_user --help
 python -m ccf.proposal_generator new_user alice_cert.pem

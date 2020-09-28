@@ -87,7 +87,9 @@ namespace ccf
     }
 
     auto add_member(
-      const tls::Pem& member_cert, const tls::Pem& member_keyshare_pub)
+      const tls::Pem& member_cert,
+      const tls::Pem& member_keyshare_pub,
+      const nlohmann::json& member_data = nullptr)
     {
       auto [m, mc, v, ma, sig] = tx.get_view(
         tables.members,
@@ -110,7 +112,11 @@ namespace ccf
       const auto id = get_next_id(v, ValueIds::NEXT_MEMBER_ID);
       m->put(
         id,
-        MemberInfo(member_cert, member_keyshare_pub, MemberStatus::ACCEPTED));
+        MemberInfo(
+          member_cert,
+          member_keyshare_pub,
+          member_data,
+          MemberStatus::ACCEPTED));
       mc->put(member_cert_der, id);
 
       auto s = sig->get(0);
@@ -123,6 +129,11 @@ namespace ccf
         ma->put(id, MemberAck(s->root));
       }
       return id;
+    }
+
+    auto add_member(const MemberPubInfo& info)
+    {
+      return add_member(info.cert, info.keyshare, info.member_data);
     }
 
     void activate_member(MemberId member_id)
