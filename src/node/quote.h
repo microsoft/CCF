@@ -34,7 +34,8 @@ namespace ccf
   class QuoteGenerator
   {
   private:
-    static constexpr oe_uuid_t sgx_remote_uuid = {OE_FORMAT_UUID_SGX_ECDSA};
+    static constexpr oe_uuid_t sgx_remote_uuid = {
+      OE_FORMAT_UUID_LEGACY_REPORT_REMOTE};
 
   public:
     static std::optional<CodeDigest> get_code_id(
@@ -58,47 +59,47 @@ namespace ccf
       std::vector<uint8_t> raw_quote;
       crypto::Sha256Hash h{cert.raw()};
 
-      // auto rc = oe_attester_initialize();
-      // if (rc != OE_OK)
-      // {
-      //   LOG_FAIL_FMT(
-      //     "Failed to initialise attester format: {}", oe_result_str(rc));
-      //   return std::nullopt;
-      // }
+      auto rc = oe_attester_initialize();
+      if (rc != OE_OK)
+      {
+        LOG_FAIL_FMT(
+          "Failed to initialise attester format: {}", oe_result_str(rc));
+        return std::nullopt;
+      }
 
-      // uint8_t* evidence = NULL;
-      // size_t evidence_size = 0;
-      // uint8_t* endorsements = NULL;
-      // size_t endorsements_size = 0;
+      uint8_t* evidence = NULL;
+      size_t evidence_size = 0;
+      uint8_t* endorsements = NULL;
+      size_t endorsements_size = 0;
 
-      // LOG_FAIL_FMT("Get quote");
+      LOG_FAIL_FMT("Get quote");
 
-      // // TODO: Add custom claims!!
+      // TODO: Add custom claims!!
 
-      // rc = oe_get_evidence(
-      //   &sgx_remote_uuid,
-      //   0,
-      //   nullptr,
-      //   0,
-      //   nullptr,
-      //   0,
-      //   &evidence,
-      //   &evidence_size,
-      //   &endorsements,
-      //   &endorsements_size);
-      // if (rc != OE_OK)
-      // {
-      //   LOG_FAIL_FMT("Failed to get evidence: {}", oe_result_str(rc));
+      rc = oe_get_evidence(
+        &sgx_remote_uuid,
+        0,
+        nullptr,
+        0,
+        nullptr,
+        0,
+        &evidence,
+        &evidence_size,
+        &endorsements,
+        &endorsements_size);
+      if (rc != OE_OK)
+      {
+        LOG_FAIL_FMT("Failed to get evidence: {}", oe_result_str(rc));
 
-      //   // TODO: Do we actually need to free this???
-      //   oe_free_evidence(evidence);
-      //   oe_free_endorsements(endorsements);
-      //   return std::nullopt;
-      // }
+        // TODO: Do we actually need to free this???
+        oe_free_evidence(evidence);
+        oe_free_endorsements(endorsements);
+        return std::nullopt;
+      }
 
-      // raw_quote.assign(evidence, evidence + evidence_size);
-      // oe_free_report(evidence);
-      // oe_free_endorsements(endorsements);
+      raw_quote.assign(evidence, evidence + evidence_size);
+      oe_free_report(evidence);
+      oe_free_endorsements(endorsements);
 
       return raw_quote;
     }

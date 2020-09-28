@@ -6,6 +6,7 @@ import infra.path
 import infra.proc
 import suite.test_requirements as reqs
 import ccf.clients
+import tempfile
 
 import os
 import subprocess
@@ -35,7 +36,16 @@ def test_verify_quotes(network, args):
         r = c.get("/node/quotes")
         # LOG.error(r.body.json())
         for quote in r.body.json()["quotes"]:
-            LOG.success(quote["node_id"])
+            LOG.success(quote["raw"])
+            with tempfile.NamedTemporaryFile() as nf:
+                nf.write(bytes.fromhex(quote["raw"]))
+                nf.flush()
+                LOG.error(f"Wrote quote to {nf.name}")
+                input("")
+
+            ret = subprocess.run(
+                [args.hostverify, "-r", quote_path], capture_output=True, check=True
+            )
 
 
 @reqs.description("Update all nodes with new code version")

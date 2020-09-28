@@ -230,12 +230,12 @@ namespace ccf
 #ifdef GET_QUOTE
       if (network.consensus_type != ConsensusType::BFT)
       {
-        // auto quote_opt = QuoteGenerator::get_quote(node_cert);
-        // if (!quote_opt.has_value())
-        // {
-        //   return Fail<CreateNew::Out>("Quote could not be retrieved");
-        // }
-        // quote = quote_opt.value();
+        auto quote_opt = QuoteGenerator::get_quote(node_cert);
+        if (!quote_opt.has_value())
+        {
+          return Fail<CreateNew::Out>("Quote could not be retrieved");
+        }
+        quote = quote_opt.value();
         // auto node_code_id_opt = QuoteGenerator::get_code_id(quote);
         // if (!node_code_id_opt.has_value())
         // {
