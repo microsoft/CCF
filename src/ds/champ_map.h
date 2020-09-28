@@ -191,7 +191,9 @@ namespace champ
     SubNodes(std::vector<Node<K, V, H>>&& ns) : nodes(std::move(ns)) {}
 
     SubNodes(std::vector<Node<K, V, H>>&& ns, Bitmap nm, Bitmap dm) :
-      nodes(std::move(ns)), node_map(nm), data_map(dm)
+      nodes(std::move(ns)),
+      node_map(nm),
+      data_map(dm)
     {}
 
     SmallIndex compressed_idx(SmallIndex idx) const
@@ -399,7 +401,9 @@ namespace champ
       std::shared_ptr<SubNodes<K, V, H>>&& root_,
       size_t size_,
       size_t serialized_size_) :
-      root(std::move(root_)), map_size(size_), serialized_size(serialized_size_)
+      root(std::move(root_)),
+      map_size(size_),
+      serialized_size(serialized_size_)
     {}
 
   public:
