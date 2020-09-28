@@ -1191,7 +1191,7 @@ DOCTEST_TEST_CASE(
         nodes,
         ((aft::ChannelStubProxy*)r1.channels.get())
           ->sent_append_entries_response,
-          [](const auto& msg) {
+        [](const auto& msg) {
           DOCTEST_REQUIRE(msg.success);
           DOCTEST_REQUIRE(msg.last_log_idx == 1);
         }));
@@ -1201,7 +1201,7 @@ DOCTEST_TEST_CASE(
         nodes,
         ((aft::ChannelStubProxy*)r2.channels.get())
           ->sent_append_entries_response,
-          [](const auto& msg) {
+        [](const auto& msg) {
           DOCTEST_REQUIRE(msg.success);
           DOCTEST_REQUIRE(msg.last_log_idx == 1);
         }));
@@ -1230,8 +1230,7 @@ DOCTEST_TEST_CASE(
         nodes,
         ((aft::ChannelStubProxy*)r1.channels.get())
           ->sent_append_entries_response,
-          [](const auto& msg) {
-
+        [](const auto& msg) {
           DOCTEST_REQUIRE(msg.success);
           DOCTEST_REQUIRE(msg.last_log_idx == 2);
         }));
@@ -1241,7 +1240,7 @@ DOCTEST_TEST_CASE(
         nodes,
         ((aft::ChannelStubProxy*)r2.channels.get())
           ->sent_append_entries_response,
-          [](const auto& msg) {
+        [](const auto& msg) {
           DOCTEST_REQUIRE(msg.success);
           DOCTEST_REQUIRE(msg.last_log_idx == 2);
         }));

@@ -307,7 +307,8 @@ namespace aft
       std::lock_guard<SpinLock> guard(state->lock);
       if (state->commit_idx >= election_index)
       {
-        return std::pair<Term, Index>{get_term_internal(state->commit_idx), state->commit_idx};
+        return std::pair<Term, Index>{get_term_internal(state->commit_idx),
+                                      state->commit_idx};
       }
       else
       {
@@ -617,7 +618,7 @@ namespace aft
         return;
       }
 
-      LOG_INFO_FMT(
+      LOG_DEBUG_FMT(
         "Received pt: {} pi: {} t: {} i: {} toi: {}",
         r.prev_term,
         r.prev_idx,
@@ -644,7 +645,7 @@ namespace aft
       else if (state->current_view > r.term)
       {
         // Reply false, since our term is later than the received term.
-        LOG_DEBUG_FMT(
+        LOG_INFO_FMT(
           "Recv append entries to {} from {} but our term is later ({} > {})",
           state->my_node_id,
           r.from_node,
@@ -665,7 +666,7 @@ namespace aft
         // whose term is r.prev_term.
         if (prev_term == 0)
         {
-          LOG_INFO_FMT(
+          LOG_DEBUG_FMT(
             "Recv append entries to {} from {} but our log does not yet "
             "contain index {}",
             state->my_node_id,
@@ -674,7 +675,7 @@ namespace aft
         }
         else
         {
-          LOG_INFO_FMT(
+          LOG_DEBUG_FMT(
             "Recv append entries to {} from {} but our log at {} has the wrong "
             "previous term (ours: {}, theirs: {})",
             state->my_node_id,
@@ -805,9 +806,9 @@ namespace aft
 
             if (sig_term)
             {
-              // A signature for sig_term tells us that all transactions from the
-              // previous signature onwards (at least, if not further back) happened
-              // in sig_term. We reflect this in the history.
+              // A signature for sig_term tells us that all transactions from
+              // the previous signature onwards (at least, if not further back)
+              // happened in sig_term. We reflect this in the history.
               if (r.term_of_idx == aft::ViewHistory::InvalidView)
                 state->view_history.update(1, r.term);
               else
@@ -1094,7 +1095,8 @@ namespace aft
         return;
       }
 
-      // If the candidate's committable log is at least as up-to-date as ours, vote yes
+      // If the candidate's committable log is at least as up-to-date as ours,
+      // vote yes
 
       auto last_committable_idx = last_committable_index();
       auto term_of_last_committable_index =
@@ -1371,7 +1373,11 @@ namespace aft
 
     void commit_if_possible(Index idx)
     {
-      LOG_DEBUG_FMT("Commit if possible {} (ci: {}) (ti {})", idx, state->commit_idx, get_term_internal(idx));
+      LOG_DEBUG_FMT(
+        "Commit if possible {} (ci: {}) (ti {})",
+        idx,
+        state->commit_idx,
+        get_term_internal(idx));
       if (
         (idx > state->commit_idx) &&
         (get_term_internal(idx) <= state->current_view))
