@@ -649,7 +649,7 @@ int main(int argc, char** argv)
     ccf_config.joining.network_cert = files::slurp(network_cert_file);
     ccf_config.joining.join_timer = join_timer;
 
-    auto snapshot_file = snapshots.find_latest_snapshot();
+    auto snapshot_file = snapshots.find_latest_committed_snapshot();
     if (snapshot_file.has_value())
     {
       ccf_config.joining.snapshot = files::slurp(snapshot_file.value());

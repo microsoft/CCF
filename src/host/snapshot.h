@@ -21,27 +21,17 @@ namespace asynchost
     static constexpr auto snapshot_idx_delimiter = "_";
     static constexpr auto snapshot_committed_suffix = "committed";
 
-    bool is_uncommitted_snapshot_file(const std::string& file_name)
+    bool is_committed_snapshot_file(const std::string& file_name)
     {
-      // Snapshot file should start with known prefix but not be committed yet
+      // Snapshot file should start with known prefix and end with committed
+      // suffix
       auto pos = file_name.find(snapshot_file_prefix);
       if (pos == std::string::npos || pos != 0)
       {
         return false;
       }
-
-      LOG_FAIL_FMT("Here");
-
-      if (file_name.find(snapshot_committed_suffix, pos) == std::string::npos)
-      {
-        LOG_FAIL_FMT("Hey");
-        return true;
-      }
-      else
-      {
-        LOG_FAIL_FMT("Ney");
-        return false;
-      }
+      return (
+        file_name.find(snapshot_committed_suffix, pos) != std::string::npos);
     }
 
     size_t get_snapshot_idx_from_file_name(const std::string& file_name)
@@ -87,7 +77,7 @@ namespace asynchost
       {
         auto file_name = f.path().filename().string();
         if (
-          is_uncommitted_snapshot_file(file_name) &&
+          !is_committed_snapshot_file(file_name) &&
           get_snapshot_idx_from_file_name(file_name) == idx)
         {
           LOG_INFO_FMT("Committing snapshot file {}", file_name);
@@ -120,7 +110,7 @@ namespace asynchost
       }
     }
 
-    std::optional<std::string> find_latest_snapshot()
+    std::optional<std::string> find_latest_committed_snapshot()
     {
       std::optional<std::string> snapshot_file = std::nullopt;
       size_t latest_idx = 0;
@@ -130,12 +120,11 @@ namespace asynchost
         auto file_name = f.path().filename().string();
         auto pos = file_name.find(
           fmt::format("{}{}", snapshot_file_prefix, snapshot_idx_delimiter));
-        if (pos == std::string::npos)
+        if (pos == std::string::npos || !is_committed_snapshot_file(file_name))
         {
-          LOG_FAIL_FMT(
-            "Ignoring \"{}\" because it does not start with {}",
-            file_name,
-            snapshot_file_prefix);
+          LOG_INFO_FMT(
+            "Ignoring \"{}\" because it is not a committed snapshot file",
+            file_name);
           continue;
         }
 
