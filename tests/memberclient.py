@@ -38,7 +38,10 @@ def test_set_recovery_threshold(network, args, recovery_threshold=None):
 def test_add_member(network, args):
     primary, _ = network.find_primary()
 
-    member_data = {"name": "test_added_member", "roles": ["OWNER", "CONTRIBUTOR"]}
+    member_data = {
+        "example": "of",
+        "structured": ["and", {"nested": "arbitrary data"}],
+    }
 
     new_member = network.consortium.generate_and_add_new_member(
         primary,
