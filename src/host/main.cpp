@@ -660,11 +660,11 @@ int main(int argc, char** argv)
     auto snapshot_file = snapshots.find_latest_snapshot();
     if (snapshot_file.has_value())
     {
-      ccf_config.snapshot = files::slurp(snapshot_file.value());
+      ccf_config.startup_snapshot = files::slurp(snapshot_file.value());
       LOG_INFO_FMT(
         "Found latest snapshot file: {} (size: {})",
         snapshot_file.value(),
-        ccf_config.snapshot.size());
+        ccf_config.startup_snapshot.size());
     }
     else
     {

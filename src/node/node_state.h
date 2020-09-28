@@ -324,7 +324,7 @@ namespace ccf
           // replaced with a new one initialised with recovered ledger secrets.
           setup_encryptor(network.consensus_type);
 
-          bool from_snapshot = !args.config.snapshot.empty();
+          bool from_snapshot = !args.config.startup_snapshot.empty();
 
           setup_recovery_hook(from_snapshot);
 
@@ -334,8 +334,8 @@ namespace ccf
           if (from_snapshot)
           {
             // Keep a reference to snapshot for private recovery
-            recovery_snapshot =
-              std::make_unique<std::vector<uint8_t>>(args.config.snapshot);
+            recovery_snapshot = std::make_unique<std::vector<uint8_t>>(
+              args.config.startup_snapshot);
 
             LOG_DEBUG_FMT(
               "Deserialising public snapshot ({})", recovery_snapshot->size());
@@ -450,16 +450,18 @@ namespace ccf
             setup_progress_tracker();
             setup_history();
 
-            bool from_snapshot = !config.snapshot.empty();
+            bool from_snapshot = !config.startup_snapshot.empty();
             if (from_snapshot)
             {
               // It is only possible to deserialise the snapshot then, once the
               // ledger secrets have been passed in by the network
               LOG_DEBUG_FMT(
-                "Deserialising snapshot ({})", config.snapshot.size());
+                "Deserialising snapshot ({})", config.startup_snapshot.size());
               std::vector<kv::Version> view_history;
               auto rc = network.tables->deserialise_snapshot(
-                config.snapshot, &view_history, resp.network_info.public_only);
+                config.startup_snapshot,
+                &view_history,
+                resp.network_info.public_only);
 
               if (rc != kv::DeserialiseSuccess::PASS)
               {
@@ -483,13 +485,13 @@ namespace ccf
               {
                 // Only clear snapshot if not recovering. On recovery, the
                 // snapshot is used later to initialise the recovery store.
-                reset_data(config.snapshot);
+                reset_data(config.startup_snapshot);
                 snapshotter->set_tx_interval(config.snapshot_tx_interval);
               }
               else
               {
-                recovery_snapshot =
-                  std::make_unique<std::vector<uint8_t>>(config.snapshot);
+                recovery_snapshot = std::make_unique<std::vector<uint8_t>>(
+                  config.startup_snapshot);
                 recovery_snapshot_tx_interval = config.snapshot_tx_interval;
               }
 

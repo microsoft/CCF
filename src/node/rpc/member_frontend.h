@@ -1373,9 +1373,9 @@ namespace ccf
         }
         catch (const std::exception& e)
         {
-          auto error_msg =
-            fmt::format("Failed to submit recovery share: {}", e.what());
+          auto error_msg = "Error submitting recovery shares";
           LOG_FAIL_FMT(error_msg);
+          LOG_DEBUG_FMT("Error: {}", e.what());
           args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
           args.rpc_ctx->set_response_body(std::move(error_msg));
           return;
@@ -1402,10 +1402,11 @@ namespace ccf
         }
         catch (const std::exception& e)
         {
-          // For now, clear the submitted shares if combination fails.
-          auto error_msg =
-            fmt::format("Failed to initiate private recovery: {}", e.what());
+          // Clear the submitted shares if combination fails so that members can
+          // start over.
+          auto error_msg = "Failed to initiate private recovery";
           LOG_FAIL_FMT(error_msg);
+          LOG_DEBUG_FMT("Error: {}", e.what());
           share_manager.clear_submitted_recovery_shares(args.tx);
           args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
           args.rpc_ctx->set_response_body(std::move(error_msg));

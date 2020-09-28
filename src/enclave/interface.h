@@ -41,7 +41,7 @@ struct CCFConfig
   size_t snapshot_tx_interval;
 
   // Only if joining or recovering
-  std::vector<uint8_t> snapshot;
+  std::vector<uint8_t> startup_snapshot;
 
   struct SignatureIntervals
   {
@@ -78,7 +78,7 @@ struct CCFConfig
     node_info_network,
     domain,
     snapshot_tx_interval,
-    snapshot,
+    startup_snapshot,
     signature_intervals,
     genesis,
     joining,
