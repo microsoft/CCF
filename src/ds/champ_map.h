@@ -182,8 +182,6 @@ namespace champ
   template <class K, class V, class H>
   struct SubNodes
   {
-    // TODO: Reduce node size by replacing vector with `Node<K, V, H>*`, since
-    // the length is equal to `node_map.pop() + data_map.pop()`
     std::vector<Node<K, V, H>> nodes;
     Bitmap node_map;
     Bitmap data_map;
