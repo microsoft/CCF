@@ -21,6 +21,7 @@ namespace aft
   using Term = int64_t;
   using NodeId = uint64_t;
   using Node2NodeMsg = uint64_t;
+  using Nonce = std::array<uint8_t, 32>;
 
   using ReplyCallback = std::function<bool(
     void* owner,
@@ -133,6 +134,8 @@ namespace aft
     raft_request_vote_response,
 
     bft_request,
+    bft_signature_received_ack,
+    bft_nonce_reveal
   };
 
 #pragma pack(push, 1)
@@ -162,8 +165,22 @@ namespace aft
   {
     Term term;
     Index last_log_idx;
+    Nonce hashed_nonce;
     uint32_t signature_size;
     std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
+  };
+
+  struct SignaturesReceivedAck : RaftHeader
+  {
+    Term term;
+    Index idx;
+  };
+
+  struct NonceRevealMsg : RaftHeader
+  {
+    Term term;
+    Index idx;
+    Nonce nonce;
   };
 
   struct RequestVote : RaftHeader
