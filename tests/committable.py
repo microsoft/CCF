@@ -41,7 +41,7 @@ def run(args):
         LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
         assert new_primary.node_id == backups[0].node_id
 
-        # Check that uncommitted but committsble suffix is preserved
+        # Check that uncommitted but committable suffix is preserved
         with new_primary.client("user0") as uc:
             check_commit = infra.checker.Checker(uc)
             for tx in txs:
