@@ -49,9 +49,11 @@ API
 .. autoclass:: ccf.ledger.Ledger
     :members:
 
+.. autoclass:: ccf.ledger.LedgerChunk
+    :members:
+
 .. autoclass:: ccf.ledger.Transaction
     :members:
 
 .. autoclass:: ccf.ledger.PublicDomain
     :members:
-
