@@ -320,13 +320,8 @@ namespace enclave
           // If we have pending thread messages, handle them now (and don't
           // sleep)
           {
-            uint16_t tid = threading::get_current_thread_id();
-            threading::Task& task =
-              threading::ThreadMessaging::thread_messaging.get_task(tid);
-
             bool task_run =
-              threading::ThreadMessaging::thread_messaging.run_one(task);
-
+              threading::ThreadMessaging::thread_messaging.run_one();
             if (task_run)
             {
               return;

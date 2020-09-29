@@ -285,11 +285,6 @@ namespace threading
       return tasks[tid];
     }
 
-    bool run_one(Task& task)
-    {
-      return task.run_next_task();
-    }
-
     bool run_one()
     {
       Task& task = get_task(get_current_thread_id());

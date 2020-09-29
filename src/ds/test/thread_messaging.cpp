@@ -44,8 +44,7 @@ TEST_CASE("Unpopped messages are freed")
     tm.add_task<Foo>(0, std::move(m1));
 
     // Task payload (and TMsg) is freed after running
-    threading::Task& task = tm.get_task(0);
-    tm.run_one(task);
+    tm.run_one();
     CHECK(Foo::count == 0);
 
     auto m2 = std::make_unique<threading::Tmsg<Foo>>(&never);
