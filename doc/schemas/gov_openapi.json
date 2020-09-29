@@ -527,14 +527,18 @@
       },
       "uint64_to_Script": {
         "items": {
-          "items": [
-            {
-              "$ref": "#/components/schemas/uint64"
-            },
-            {
-              "$ref": "#/components/schemas/Script"
-            }
-          ],
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/uint64"
+              },
+              {
+                "$ref": "#/components/schemas/Script"
+              }
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
           "type": "array"
         },
         "type": "array"
