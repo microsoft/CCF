@@ -232,21 +232,47 @@ class Transaction:
             raise StopIteration() from e
 
 
+class LedgerChunk:
+    """
+    Class used to parse and iterate over :py:class:`ccf.ledger.Transaction` in a CCF ledger chunk.
+
+    :param str name: Name for a single ledger chunk.
+    """
+
+    _current_tx: Transaction
+    _filename: str
+
+    def __init__(self, name: str):
+
+        self._current_tx = Transaction(name)
+        self._filename = name
+
+    def __next__(self) -> Transaction:
+        try:
+            return next(self._current_tx)
+        except StopIteration:
+            LOG.debug(f"Completed verifying Txns in {self._filename}.")
+            raise
+
+    def __iter__(self):
+        return self
+
+
 class Ledger:
     """
-    Class used to parse and iterate over all :py:class:`ccf.ledger.Transaction` stored in a CCF ledger.
+    Class used to iterate over all :py:class:`ccf.ledger.LedgerChunk` stored in a CCF ledger folder.
 
     :param str name: Ledger directory for a single CCF node.
     """
 
     _filenames: list
     _fileindex: int
-    _current_tx: Transaction
+    _current_chunk: LedgerChunk
 
     def __init__(self, directory: str):
 
         self._filenames = []
-        self._fileindex = 0
+        self._fileindex = -1
 
         ledgers = os.listdir(directory)
         # Sorts the list based off the first number after ledger_ so that
@@ -264,18 +290,13 @@ class Ledger:
                     LOG.warning(f"The file {chunk} has not been committed")
                 self._filenames.append(os.path.join(directory, chunk))
 
-        self._current_tx = Transaction(self._filenames[0])
-
-    def __next__(self) -> Transaction:
-        try:
-            return next(self._current_tx)
-        except StopIteration:
-            self._fileindex += 1
-            if len(self._filenames) > self._fileindex:
-                self._current_tx = Transaction(self._filenames[self._fileindex])
-                return next(self._current_tx)
-            else:
-                raise
+    def __next__(self) -> LedgerChunk:
+        self._fileindex += 1
+        if len(self._filenames) > self._fileindex:
+            self._current_chunk = LedgerChunk(self._filenames[self._fileindex])
+            return self._current_chunk
+        else:
+            raise StopIteration
 
     def __iter__(self):
         return self
