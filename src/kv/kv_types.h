@@ -283,7 +283,7 @@ namespace kv
       state = Primary;
     }
 
-    virtual void init_as_backup(SeqNo, View)
+    virtual void init_as_backup(SeqNo, View, const std::vector<SeqNo>&)
     {
       state = Backup;
     }
@@ -489,7 +489,9 @@ namespace kv
     virtual std::vector<uint8_t> serialise_snapshot(
       std::unique_ptr<AbstractSnapshot> snapshot) = 0;
     virtual DeserialiseSuccess deserialise_snapshot(
-      const std::vector<uint8_t>& data) = 0;
+      const std::vector<uint8_t>& data,
+      std::vector<Version>* view_history = nullptr,
+      bool public_only = false) = 0;
 
     virtual size_t commit_gap() = 0;
   };
