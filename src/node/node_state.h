@@ -486,7 +486,6 @@ namespace ccf
                 // Only clear snapshot if not recovering. On recovery, the
                 // snapshot is used later to initialise the recovery store.
                 reset_data(config.startup_snapshot);
-                snapshotter->set_tx_interval(config.snapshot_tx_interval);
               }
               else
               {
@@ -519,6 +518,7 @@ namespace ccf
             }
             else
             {
+              snapshotter->set_tx_interval(config.snapshot_tx_interval);
               reset_data(quote);
               sm.advance(State::partOfNetwork);
             }
