@@ -253,9 +253,10 @@ class LedgerChunk:
         except StopIteration:
             LOG.debug(f"Completed verifying Txns in {self._filename}.")
             raise
-    
+
     def __iter__(self):
         return self
+
 
 class Ledger:
     """
