@@ -37,24 +37,39 @@ namespace ccf
   {
     tls::Pem cert;
     tls::Pem keyshare;
+    nlohmann::json member_data = nullptr;
 
     MemberPubInfo() {}
 
-    MemberPubInfo(const tls::Pem& cert_, const tls::Pem& keyshare_) :
+    MemberPubInfo(
+      const tls::Pem& cert_,
+      const tls::Pem& keyshare_,
+      const nlohmann::json& member_data_) :
       cert(cert_),
-      keyshare(keyshare_)
+      keyshare(keyshare_),
+      member_data(member_data_)
     {}
 
     MemberPubInfo(
-      std::vector<uint8_t>&& cert_, std::vector<uint8_t>&& keyshare_) :
+      std::vector<uint8_t>&& cert_,
+      std::vector<uint8_t>&& keyshare_,
+      nlohmann::json&& member_data_) :
       cert(std::move(cert_)),
-      keyshare(std::move(keyshare_))
+      keyshare(std::move(keyshare_)),
+      member_data(std::move(member_data_))
     {}
 
-    MSGPACK_DEFINE(cert, keyshare);
+    bool operator==(const MemberPubInfo& rhs) const
+    {
+      return cert == rhs.cert && keyshare == rhs.keyshare &&
+        member_data == rhs.member_data;
+    }
+
+    MSGPACK_DEFINE(cert, keyshare, member_data);
   };
-  DECLARE_JSON_TYPE(MemberPubInfo)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(MemberPubInfo)
   DECLARE_JSON_REQUIRED_FIELDS(MemberPubInfo, cert, keyshare)
+  DECLARE_JSON_OPTIONAL_FIELDS(MemberPubInfo, member_data)
 
   struct MemberInfo : public MemberPubInfo
   {
@@ -63,21 +78,23 @@ namespace ccf
     MemberInfo() {}
 
     MemberInfo(
-      const tls::Pem& cert_, const tls::Pem& keyshare_, MemberStatus status_) :
-      MemberPubInfo(cert_, keyshare_),
+      const tls::Pem& cert_,
+      const tls::Pem& keyshare_,
+      const nlohmann::json& member_data_,
+      MemberStatus status_) :
+      MemberPubInfo(cert_, keyshare_, member_data_),
       status(status_)
     {}
 
     bool operator==(const MemberInfo& rhs) const
     {
-      return cert == rhs.cert && keyshare == rhs.keyshare &&
-        status == rhs.status;
+      return MemberPubInfo::operator==(rhs) && status == rhs.status;
     }
 
     MSGPACK_DEFINE(MSGPACK_BASE(MemberPubInfo), status);
   };
-  DECLARE_JSON_TYPE(MemberInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(MemberInfo, cert, keyshare, status)
+  DECLARE_JSON_TYPE_WITH_BASE(MemberInfo, MemberPubInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(MemberInfo, status)
   using Members = kv::Map<MemberId, MemberInfo>;
 
   /** Records a signed signature containing the last state digest and the next

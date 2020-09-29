@@ -29,7 +29,7 @@ def run(args):
         LOG.remove()
         LOG.add(
             sys.stdout,
-            format="<green>[{time:YYYY-MM-DD HH:mm:ss.SSS}]</green> {message}",
+            format="<green>[{time:HH:mm:ss.SSS}]</green> {message}",
         )
         LOG.disable("infra")
         LOG.disable("ccf")
@@ -44,12 +44,20 @@ def run(args):
         if args.recover:
             args.label = args.label + "_recover"
             LOG.info("Recovering network from:")
-            LOG.info(f" - Ledger: {args.ledger_dir}")
             LOG.info(
                 f" - Defunct network public encryption key: {args.network_enc_pubk}"
             )
             LOG.info(f" - Common directory: {args.common_dir}")
-            network.start_in_recovery(args, args.ledger_dir, args.common_dir)
+            LOG.info(f" - Ledger: {args.ledger_dir}")
+            if args.snapshot_dir:
+                LOG.info(f" - Snapshots: {args.snapshot_dir}")
+            else:
+                LOG.warning(
+                    "No available snapshot to recover from. Entire transaction history will be replayed."
+                )
+            network.start_in_recovery(
+                args, args.ledger_dir, args.snapshot_dir, args.common_dir
+            )
             network.recover(args, args.network_enc_pubk)
         else:
             network.start_and_join(args)
@@ -75,7 +83,7 @@ def run(args):
             f"Keys and certificates have been copied to the common folder: {network.common_dir}"
         )
         LOG.info(
-            "See https://microsoft.github.io/CCF/users/issue_commands.html for more information."
+            "See https://microsoft.github.io/CCF/master/users/issue_commands.html for more information."
         )
         LOG.warning("Press Ctrl+C to shutdown the network.")
 
@@ -128,6 +136,10 @@ if __name__ == "__main__":
             help="Ledger directory to recover from",
         )
         parser.add_argument(
+            "--snapshot-dir",
+            help="Snapshot directory to recover from (optional)",
+        )
+        parser.add_argument(
             "--network-enc-pubk",
             help="Defunct network public encryption key (used by members to decrypt recovery shares)",
         )
@@ -143,7 +155,7 @@ if __name__ == "__main__":
         or args.network_enc_pubk is None
     ):
         print(
-            "Error: --recover requires --ledger, --network-enc-pubk and --common-dir arguments."
+            "Error: --recover requires --ledger-dir, --network-enc-pubk and --common-dir arguments."
         )
         sys.exit(1)
 

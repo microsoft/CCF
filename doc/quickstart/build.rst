@@ -57,15 +57,15 @@ You can quickly spin up a CCF network and start :ref:`issuing commands to the de
     $ ../start_test_network.sh --package ./liblogging.enclave.so.signed
     Setting up Python environment...
     Python environment successfully setup
-    [2019-10-29 14:47:41.562] Starting 3 CCF nodes...
-    [2019-10-29 14:48:12.138] Started CCF network with the following nodes:
-    [2019-10-29 14:48:12.138]   Node [ 0] = 127.177.10.108:37765
-    [2019-10-29 14:48:12.138]   Node [ 1] = 127.169.74.37:58343
-    [2019-10-29 14:48:12.138]   Node [ 2] = 127.131.108.179:50532
-    [2019-10-29 14:48:12.138] You can now issue business transactions to the ./liblogging.enclave.so.signed application.
-    [2019-10-29 14:48:12.138] Keys and certificates have been copied to the common folder: /data/src/CCF/build/workspace/test_network_common
-    [2019-10-29 14:48:12.138] See https://microsoft.github.io/CCF/users/issue_commands.html for more information.
-    [2019-10-29 14:48:12.138] Press Ctrl+C to shutdown the network.
+    [14:47:41.562] Starting 3 CCF nodes...
+    [14:48:12.138] Started CCF network with the following nodes:
+    [14:48:12.138]   Node [ 0] = 127.177.10.108:37765
+    [14:48:12.138]   Node [ 1] = 127.169.74.37:58343
+    [14:48:12.138]   Node [ 2] = 127.131.108.179:50532
+    [14:48:12.138] You can now issue business transactions to the ./liblogging.enclave.so.signed application.
+    [14:48:12.138] Keys and certificates have been copied to the common folder: /data/src/CCF/build/workspace/test_network_common
+    [14:48:12.138] See https://microsoft.github.io/CCF/master/users/issue_commands.html for more information.
+    [14:48:12.138] Press Ctrl+C to shutdown the network.
 
 Running Tests
 -------------
