@@ -132,18 +132,9 @@ namespace ccf
     using Out = CallerInfo;
   };
 
-  struct ListMethods
+  struct GetAPI
   {
-    struct Endpoint
-    {
-      std::string verb;
-      std::string path;
-    };
-
-    struct Out
-    {
-      std::vector<Endpoint> endpoints;
-    };
+    using Out = nlohmann::json;
   };
 
   struct EndpointMetrics

@@ -4,6 +4,8 @@
 
 #include "ds/nonstd.h"
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <nlohmann/json.hpp>
 
 namespace ds
@@ -37,6 +39,9 @@ namespace ds
     }
 
     template <typename T>
+    std::string schema_name();
+
+    template <typename T>
     void fill_schema(nlohmann::json& schema);
 
     template <typename T>
@@ -50,8 +55,23 @@ namespace ds
       return element;
     }
 
+    template <typename T, typename Doc>
+    nlohmann::json schema_element()
+    {
+      auto element = nlohmann::json::object();
+      fill_schema<T>(element);
+      return element;
+    }
+
     namespace adl
     {
+      template <typename T>
+      std::string schema_name()
+      {
+        T t;
+        return schema_name(t);
+      }
+
       template <typename T>
       void fill_schema(nlohmann::json& schema)
       {
@@ -64,6 +84,103 @@ namespace ds
         {
           fill_json_schema(schema, t);
         }
+      }
+    }
+
+    template <typename T>
+    inline std::string schema_name()
+    {
+      if constexpr (nonstd::is_specialization<T, std::optional>::value)
+      {
+        return schema_name<typename T::value_type>();
+      }
+      else if constexpr (nonstd::is_specialization<T, std::vector>::value)
+      {
+        return fmt::format("{}_array", schema_name<typename T::value_type>());
+      }
+      else if constexpr (
+        nonstd::is_specialization<T, std::map>::value ||
+        nonstd::is_specialization<T, std::unordered_map>::value)
+      {
+        if (std::is_same<typename T::key_type, std::string>::value)
+        {
+          return fmt::format(
+            "named_{}", schema_name<typename T::mapped_type>());
+        }
+        else
+        {
+          return fmt::format(
+            "{}_to_{}",
+            schema_name<typename T::key_type>(),
+            schema_name<typename T::mapped_type>());
+        }
+      }
+      else if constexpr (nonstd::is_specialization<T, std::pair>::value)
+      {
+        return fmt::format(
+          "{}_and_{}",
+          schema_name<typename T::first_type>(),
+          schema_name<typename T::second_type>());
+      }
+      else if constexpr (std::is_same<T, std::string>::value)
+      {
+        return "string";
+      }
+      else if constexpr (std::is_same<T, bool>::value)
+      {
+        return "boolean";
+      }
+      else if constexpr (std::is_same<T, uint8_t>::value)
+      {
+        return "uint8";
+      }
+      else if constexpr (std::is_same<T, uint16_t>::value)
+      {
+        return "uint16";
+      }
+      else if constexpr (std::is_same<T, uint32_t>::value)
+      {
+        return "uint32";
+      }
+      else if constexpr (std::is_same<T, uint64_t>::value)
+      {
+        return "uint64";
+      }
+      else if constexpr (std::is_same<T, int8_t>::value)
+      {
+        return "int8";
+      }
+      else if constexpr (std::is_same<T, int16_t>::value)
+      {
+        return "int16";
+      }
+      else if constexpr (std::is_same<T, int32_t>::value)
+      {
+        return "int32";
+      }
+      else if constexpr (std::is_same<T, int64_t>::value)
+      {
+        return "int64";
+      }
+      else if constexpr (std::is_same<T, float>::value)
+      {
+        return "float";
+      }
+      else if constexpr (std::is_same<T, double>::value)
+      {
+        return "double";
+      }
+      else if constexpr (std::is_same<T, nlohmann::json>::value)
+      {
+        return "json";
+      }
+      else if constexpr (std::is_same<T, JsonSchema>::value)
+      {
+        return "json_schema";
+      }
+      else
+      {
+        return adl::schema_name<T>();
       }
     }
 
@@ -83,18 +200,28 @@ namespace ds
         nonstd::is_specialization<T, std::map>::value ||
         nonstd::is_specialization<T, std::unordered_map>::value)
       {
-        // Nlohmann serialises maps to an array of (K, V) pairs
-        schema["type"] = "array";
-        auto items = nlohmann::json::object();
+        // Nlohmann serialises maps to an array of (K, V) pairs...
+        if (std::is_same<typename T::key_type, std::string>::value)
         {
-          items["type"] = "array";
-
-          auto sub_items = nlohmann::json::array();
-          sub_items.push_back(schema_element<typename T::key_type>());
-          sub_items.push_back(schema_element<typename T::mapped_type>());
-          items["items"] = sub_items;
+          // ...unless the keys are strings!
+          schema["type"] = "object";
+          schema["additionalProperties"] =
+            schema_element<typename T::mapped_type>();
         }
-        schema["items"] = items;
+        else
+        {
+          schema["type"] = "array";
+          auto items = nlohmann::json::object();
+          {
+            items["type"] = "array";
+
+            auto sub_items = nlohmann::json::array();
+            sub_items.push_back(schema_element<typename T::key_type>());
+            sub_items.push_back(schema_element<typename T::mapped_type>());
+            items["items"] = sub_items;
+          }
+          schema["items"] = items;
+        }
       }
       else if constexpr (nonstd::is_specialization<T, std::pair>::value)
       {
@@ -116,6 +243,7 @@ namespace ds
       {
         // Any field that contains more json is completely unconstrained, so we
         // do not add a type or any other fields
+        schema = nlohmann::json::object();
       }
       else if constexpr (std::is_integral<T>::value)
       {
@@ -127,7 +255,7 @@ namespace ds
       }
       else if constexpr (std::is_same<T, JsonSchema>::value)
       {
-        schema["$ref"] = JsonSchema::hyperschema;
+        schema["type"] = "object";
       }
       else
       {
@@ -139,7 +267,6 @@ namespace ds
     inline nlohmann::json build_schema(const std::string& title)
     {
       nlohmann::json schema;
-      schema["$schema"] = JsonSchema::hyperschema;
       schema["title"] = title;
 
       fill_schema<T>(schema);

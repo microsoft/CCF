@@ -31,8 +31,8 @@ const markerControllerEnd = '// CCF:CONTROLLER-END'
 const helpersPath = './build/helpers.ts';
 const controllerProxyPath = './build/{}Proxy.ts';
 const endpointsPath = './build/endpoints.ts';
-const metadataPath = './endpoints.json';
-const finalMetadataPath = `${distDir}/endpoints.json`;
+const metadataPath = './app.tmpl.json';
+const finalMetadataPath = `${distDir}/app.json`;
 
 // read generated routes.ts
 const file = fs.readFileSync(routesPath, 'utf8');

@@ -170,7 +170,7 @@ class Node:
         self.remote.setup()
         self.network_state = NodeNetworkState.started
         if self.debug:
-            with open(os.path.join(self.binary_dir, "vscode-gdb.sh"), "a") as f:
+            with open("/tmp/vscode-gdb.sh", "a") as f:
                 f.write(f"if [ $1 -eq {self.remote.local_node_id} ]; then\n")
                 f.write(f"cd {self.remote.remote.root}\n")
                 f.write(f"{' '.join(self.remote.remote.cmd)}\n")
