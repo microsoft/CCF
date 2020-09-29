@@ -823,6 +823,11 @@ namespace aft
             }
             break;
           }
+          
+          case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE:
+          {
+            break;
+          }
 
           case kv::DeserialiseSuccess::PASS:
           {

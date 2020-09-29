@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "backup_signatures.h"
 #include "ds/ccf_assert.h"
 #include "ds/ccf_exception.h"
 #include "kv/kv_types.h"
@@ -20,9 +21,13 @@ namespace ccf
   class ProgressTracker
   {
   public:
-    ProgressTracker(kv::NodeId id_, ccf::Nodes& nodes_) :
+    ProgressTracker(
+      kv::NodeId id_,
+      ccf::Nodes& nodes_,
+      ccf::BackupSignaturesMap& backup_signatures_) :
       id(id_),
       nodes(nodes_),
+      backup_signatures(backup_signatures_),
       entropy(tls::create_entropy())
     {}
 
@@ -86,6 +91,31 @@ namespace ccf
 
       if (can_send_sig_ack(cert, node_count))
       {
+        if (id == 0) // TODO: fix this
+        {
+          // TODO: Add the backup signatures to the ledger
+          kv::Tx tx;
+          auto backup_sig_view = tx.get_view(backup_signatures);
+
+          const CertKey& key = it->first;
+          ccf::BackupSignatures sig_value(key.view, key.seqno, cert.root);
+
+          for (const auto& sig : cert.sigs)
+          {
+            if (!sig.second.is_primary)
+            {
+              sig_value.signatures.push_back(ccf::NodeSignature(
+                sig.second.sig, sig.second.node, sig.second.hashed_nonce));
+            }
+          }
+
+          backup_sig_view->put(0, sig_value);
+          auto r = tx.commit();
+          CCF_ASSERT_FMT(
+            r == kv::CommitSuccess::OK,
+            "Commiting backup signatures failed r:{}",
+            r);
+        }
         return kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK;
       }
       return kv::TxHistory::Result::OK;
@@ -301,6 +331,7 @@ namespace ccf
   private:
     kv::NodeId id;
     ccf::Nodes& nodes;
+    ccf::BackupSignaturesMap& backup_signatures;
     std::shared_ptr<tls::Entropy> entropy;
 
     struct CertKey

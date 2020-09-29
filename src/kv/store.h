@@ -835,11 +835,28 @@ namespace kv
           h->append(data.data(), data.size());
           success = DeserialiseSuccess::PASS_SIGNATURE;
         }
+        else if (views.find(ccf::Tables::BACKUP_SIGNATURES) != views.end())
+        {
+          success = commit_deserialised(views, v, new_maps);
+          if (success == DeserialiseSuccess::FAILED)
+          {
+            return success;
+          }
+
+          // TODO: verify the signatures here
+          LOG_INFO_FMT("AAAAAA Got the signatures");
+
+          auto h = get_history();
+          h->append(data.data(), data.size());
+          success = DeserialiseSuccess::PASS_BACKUP_SIGNATURE;
+        }
         else if (views.find(ccf::Tables::AFT_REQUESTS) == views.end())
         {
           // we have deserialised an entry that didn't belong to the bft
           // requests nor the signatures table
           LOG_FAIL_FMT(
+            "Failed to deserialise, contains table:{}", views.begin()->first);
+          CCF_ASSERT_FMT_FAIL(
             "Failed to deserialise, contains table:{}", views.begin()->first);
         }
       }

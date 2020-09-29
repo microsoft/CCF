@@ -27,6 +27,7 @@
 #include "users.h"
 #include "values.h"
 #include "whitelists.h"
+#include "backup_signatures.h"
 
 #include <memory>
 #include <tuple>
@@ -88,9 +89,10 @@ namespace ccf
     SnapshotEvidence& snapshot_evidence;
 
     //
-    // Pbft related tables
+    // bft related tables
     //
     aft::RequestsMap& pbft_requests_map;
+    BackupSignaturesMap& backup_signatures_map;
 
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::CFT) :
       tables(
@@ -147,7 +149,9 @@ namespace ccf
         Tables::CONSENSUS, kv::SecurityDomain::PUBLIC)),
       snapshot_evidence(tables->create<SnapshotEvidence>(
         Tables::SNAPSHOT_EVIDENCE, kv::SecurityDomain::PUBLIC)),
-      pbft_requests_map(tables->create<aft::RequestsMap>(Tables::AFT_REQUESTS))
+      pbft_requests_map(tables->create<aft::RequestsMap>(Tables::AFT_REQUESTS)),
+      backup_signatures_map(tables->create<BackupSignaturesMap>(
+        Tables::BACKUP_SIGNATURES, kv::SecurityDomain::PUBLIC))
     {}
 
     /** Returns a tuple of all tables that are possibly accessible from scripts

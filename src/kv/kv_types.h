@@ -84,8 +84,7 @@ namespace kv
     FAILED = 0,
     PASS = 1,
     PASS_SIGNATURE = 2,
-    PASS_PRE_PREPARE = 3,
-    PASS_NEW_VIEW = 4
+    PASS_BACKUP_SIGNATURE = 3
   };
 
   enum ReplicateType
