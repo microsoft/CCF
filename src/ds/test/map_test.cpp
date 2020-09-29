@@ -106,6 +106,7 @@ vector<unique_ptr<Op>> gen_ops(size_t n)
 {
   random_device rand_dev;
   auto seed = rand_dev();
+  std::cout << "seed: " << seed << std::endl;
   mt19937 gen(seed);
   uniform_int_distribution<> gen_op(0, 3);
 

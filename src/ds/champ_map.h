@@ -158,9 +158,10 @@ namespace champ
         const auto& entry = bin[i];
         if (k == entry->key)
         {
+          const auto diff =
+            champ::get_size<K>(entry->key) + champ::get_size<V>(entry->value);
           bin.erase(bin.begin() + i);
-          return champ::get_size<K>(entry->key) +
-            champ::get_size<V>(entry->value);
+          return diff;
         }
       }
       return 0;
