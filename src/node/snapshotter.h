@@ -25,8 +25,6 @@ namespace ccf
 
     size_t snapshot_tx_interval;
 
-    // TODO: Keep track of snapshot evidence seqnos. On compact(idx), commit all
-    // evidences. On rollback(idx), remove all evidences.
     struct SnapshotInfo
     {
       consensus::Index idx;
