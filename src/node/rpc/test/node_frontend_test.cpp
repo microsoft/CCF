@@ -150,7 +150,7 @@ TEST_CASE("Add a node to an opening service")
     CHECK(response.node_status == NodeStatus::TRUSTED);
     CHECK(response.network_info.public_only == false);
 
-    kv::Tx tx;
+    auto tx = store.create_tx();
     const NodeId node_id = response.node_id;
     auto nodes_view = tx.get_view(network.nodes);
     auto node_info = nodes_view->get(node_id);
@@ -227,7 +227,7 @@ TEST_CASE("Add a node to an open service")
   const auto caller = kp->self_sign(fmt::format("CN=nodes"));
 
   std::optional<NodeInfo> node_info;
-  kv::Tx tx;
+  auto tx = store.create_tx();
 
   JoinNetworkNodeToNode::In join_input;
 

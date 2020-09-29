@@ -742,7 +742,7 @@ namespace aft
         state->last_idx = i;
 
         Term sig_term = 0;
-        kv::Tx tx;
+        auto tx = store->create_tx();
         kv::DeserialiseSuccess deserialise_success;
         ccf::PrimarySignature sig;
         if (consensus_type == ConsensusType::BFT)
