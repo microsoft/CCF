@@ -42,7 +42,7 @@ auto read_ringbuffer_out(ringbuffer::Circuit& circuit)
   return idx;
 }
 
-void initialise_store(ccf::NetworkState& network, size_t tx_count)
+void issue_transactions(ccf::NetworkState& network, size_t tx_count)
 {
   for (size_t i = 0; i < tx_count; i++)
   {
@@ -65,7 +65,7 @@ TEST_CASE("Regular snapshotting")
   size_t snapshot_tx_interval = 10;
   size_t interval_count = 3;
 
-  initialise_store(network, snapshot_tx_interval * interval_count);
+  issue_transactions(network, snapshot_tx_interval * interval_count);
 
   auto snapshotter =
     std::make_shared<ccf::Snapshotter>(*writer_factory, network);
@@ -102,7 +102,7 @@ TEST_CASE("Commit snapshot evidence")
     std::make_unique<ringbuffer::WriterFactory>(eio);
 
   size_t snapshot_tx_interval = 10;
-  initialise_store(network, snapshot_tx_interval);
+  issue_transactions(network, snapshot_tx_interval);
 
   auto snapshotter =
     std::make_shared<ccf::Snapshotter>(*writer_factory, network);
@@ -139,7 +139,7 @@ TEST_CASE("Rollback before evidence is committed")
     std::make_unique<ringbuffer::WriterFactory>(eio);
 
   size_t snapshot_tx_interval = 10;
-  initialise_store(network, snapshot_tx_interval);
+  issue_transactions(network, snapshot_tx_interval);
 
   auto snapshotter =
     std::make_shared<ccf::Snapshotter>(*writer_factory, network);
@@ -165,5 +165,21 @@ TEST_CASE("Rollback before evidence is committed")
 
     // Snapshot previously generated is not committed
     REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
+  }
+
+  INFO("Snapshot again and commit evidence");
+  {
+    issue_transactions(network, snapshot_tx_interval);
+
+    size_t snapshot_idx = network.tables->current_version();
+    snapshotter->snapshot(snapshot_idx);
+    threading::ThreadMessaging::thread_messaging.run_one();
+    REQUIRE(
+      read_ringbuffer_out(eio) == rb_msg({consensus::snapshot, snapshot_idx}));
+
+    snapshotter->compact(snapshot_idx + 1);
+    REQUIRE(
+      read_ringbuffer_out(eio) ==
+      rb_msg({consensus::snapshot_commit, snapshot_idx}));
   }
 }
