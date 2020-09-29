@@ -49,6 +49,7 @@ namespace aft
       kv::Tx* tx = nullptr,
       ccf::PrimarySignature* sig = nullptr) = 0;
     virtual std::shared_ptr<ccf::ProgressTracker> get_progress_tracker() = 0;
+    virtual kv::Tx create_tx() = 0;
   };
 
   template <typename T, typename S>
@@ -108,6 +109,16 @@ namespace aft
         return p->get_progress_tracker();
       }
       return nullptr;
+    }
+
+    kv::Tx create_tx() override
+    {
+      auto p = x.lock();
+      if (p)
+      {
+        return p->create_tx();
+      }
+      throw std::logic_error("Can't create a tx without a store");
     }
 
     S deserialise_views(

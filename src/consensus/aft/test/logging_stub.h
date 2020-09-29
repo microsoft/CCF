@@ -217,6 +217,11 @@ namespace aft
     {
       return nullptr;
     }
+
+    kv::Tx create_tx()
+    {
+      throw std::logic_error("Stub has no real store to create Tx from");
+    }
   };
 
   class LoggingStubStoreSig : public LoggingStubStore
