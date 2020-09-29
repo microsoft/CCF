@@ -676,8 +676,8 @@ namespace ccf
         return;
       }
 
-      // Signatures are only emitted when the consensus is establishing commit over
-      // the node's own transactions
+      // Signatures are only emitted when the consensus is establishing commit
+      // over the node's own transactions
       auto signable_txid = consensus->get_signable_txid();
       if (!signable_txid.has_value())
       {
