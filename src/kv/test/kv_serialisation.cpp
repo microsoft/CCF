@@ -41,7 +41,7 @@ TEST_CASE(
 
   INFO("Commit to public map in source store");
   {
-    kv::Tx tx;
+    auto tx = kv_store.create_tx();
     auto view0 = tx.get_view(pub_map);
     view0->put("pubk1", "pubv1");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -56,7 +56,7 @@ TEST_CASE(
       kv_store_target.deserialise(latest_data.value()) ==
       kv::DeserialiseSuccess::PASS);
 
-    kv::Tx tx_target;
+    auto tx_target = kv_store_target.create_tx();
     auto view_target = tx_target.get_view(*target_map);
     REQUIRE(view_target->get("pubk1") == "pubv1");
   }
@@ -81,7 +81,7 @@ TEST_CASE(
   SUBCASE(
     "Commit a private transaction without an encryptor throws an exception")
   {
-    kv::Tx tx;
+    auto tx = kv_store.create_tx();
     auto view0 = tx.get_view(priv_map);
     view0->put("privk1", "privv1");
     REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
@@ -92,7 +92,7 @@ TEST_CASE(
     kv_store.set_encryptor(encryptor);
     INFO("Commit to private map in source store");
     {
-      kv::Tx tx;
+      auto tx = kv_store.create_tx();
       auto view0 = tx.get_view(priv_map);
       view0->put("privk1", "privv1");
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -106,7 +106,7 @@ TEST_CASE(
         kv_store_target.deserialise(latest_data.value()) ==
         kv::DeserialiseSuccess::PASS);
 
-      kv::Tx tx_target;
+      auto tx_target = kv_store_target.create_tx();
       auto view_target = tx_target.get_view(*target_map);
       REQUIRE(view_target->get("privk1") == "privv1");
     }
@@ -129,14 +129,14 @@ TEST_CASE(
   kv::Store kv_store_target;
   kv_store_target.set_encryptor(encryptor);
   kv_store_target.clone_schema(kv_store);
-  auto* target_priv_map = kv_store.get<MapTypes::StringString>("priv_map");
-  auto* target_pub_map = kv_store.get<MapTypes::StringString>("pub_map");
+  auto* target_priv_map = kv_store_target.get<MapTypes::StringString>("priv_map");
+  auto* target_pub_map = kv_store_target.get<MapTypes::StringString>("pub_map");
   REQUIRE(target_priv_map != nullptr);
   REQUIRE(target_pub_map != nullptr);
 
   INFO("Commit to public and private map in source store");
   {
-    kv::Tx tx;
+    auto tx = kv_store.create_tx();
     auto [view_priv, view_pub] = tx.get_view(priv_map, pub_map);
 
     view_priv->put("privk1", "privv1");
@@ -153,8 +153,9 @@ TEST_CASE(
       kv_store_target.deserialise(latest_data.value()) !=
       kv::DeserialiseSuccess::FAILED);
 
-    kv::Tx tx;
-    auto [view_priv, view_pub] = tx.get_view(*target_priv_map, *target_pub_map);
+    auto tx_target = kv_store_target.create_tx();
+    auto [view_priv, view_pub] =
+      tx_target.get_view(*target_priv_map, *target_pub_map);
 
     REQUIRE(view_priv->get("privk1") == "privv1");
     REQUIRE(view_pub->get("pubk1") == "pubv1");
@@ -179,7 +180,7 @@ TEST_CASE(
 
   INFO("Commit a new key in source store and deserialise in target store");
   {
-    kv::Tx tx;
+    auto tx = kv_store.create_tx();
     auto view_priv = tx.get_view(priv_map);
     view_priv->put("privk1", "privv1");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -190,20 +191,20 @@ TEST_CASE(
       kv_store_target.deserialise(latest_data.value()) !=
       kv::DeserialiseSuccess::FAILED);
 
-    kv::Tx tx_target;
+    auto tx_target = kv_store_target.create_tx();
     auto view_priv_target = tx_target.get_view(*target_priv_map);
     REQUIRE(view_priv_target->get("privk1") == "privv1");
   }
 
   INFO("Commit key removal in source store and deserialise in target store");
   {
-    kv::Tx tx;
+    auto tx = kv_store.create_tx();
     auto view_priv = tx.get_view(priv_map);
     view_priv->remove("privk1");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     // Make sure it has been marked as deleted in source store
-    kv::Tx tx2;
+    auto tx2 = kv_store.create_tx();
     auto view_priv2 = tx2.get_view(priv_map);
     REQUIRE(view_priv2->get("privk1").has_value() == false);
 
@@ -213,7 +214,7 @@ TEST_CASE(
       kv_store_target.deserialise(latest_data.value()) !=
       kv::DeserialiseSuccess::FAILED);
 
-    kv::Tx tx_target;
+    auto tx_target = kv_store_target.create_tx();
     auto view_priv_target = tx_target.get_view(*target_priv_map);
     REQUIRE(view_priv_target->get("privk1").has_value() == false);
   }
@@ -379,7 +380,7 @@ TEST_CASE_TEMPLATE(
     kv::Store kv_store2;
     auto& map2 = kv_store2.create<MapType>("map", kv::SecurityDomain::PUBLIC);
 
-    kv::Tx tx(kv_store.next_version());
+    auto tx = kv_store.create_reserved_tx(kv_store.next_version());
     auto view = tx.get_view(map);
     view->put(k1, v1);
     view->put(k2, v2);
@@ -389,7 +390,7 @@ TEST_CASE_TEMPLATE(
     kv_store.compact(kv_store.current_version());
 
     REQUIRE(kv_store2.deserialise(data) == kv::DeserialiseSuccess::PASS);
-    kv::Tx tx2;
+    auto tx2 = kv_store2.create_tx();
     auto view2 = tx2.get_view(map2);
 
     // operator== does not need to be defined for custom types. In this case it
@@ -461,7 +462,7 @@ TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
 
     kv_store_target.clone_schema(kv_store);
 
-    kv::Tx tx;
+    auto tx = kv_store.create_tx();
     auto [public_view, private_view] = tx.get_view(public_map, private_map);
     std::string pub_value = "pubv1";
     public_view->put("pubk1", pub_value);
@@ -496,7 +497,7 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC);
     s1.create<Table>("t");
 
-    kv::Tx tx;
+    auto tx = s0.create_tx();
     tx.get_view(t)->put(k1, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
@@ -514,7 +515,7 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC);
     s1.create<Table>("t");
 
-    kv::Tx tx;
+    auto tx = s0.create_tx();
     tx.get_view(t)->put(k0, v0);
     tx.get_view(t)->put(k1, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -561,7 +562,7 @@ TEST_CASE(
   REQUIRE(second_data_derived_private != nullptr);
 
   {
-    kv::Tx tx(store.next_version());
+    auto tx = store.create_reserved_tx(store.next_version());
 
     auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] = tx.get_view(
       data_replicated,
@@ -581,7 +582,7 @@ TEST_CASE(
     {
       REQUIRE(
         kv_store_target.deserialise(data) == kv::DeserialiseSuccess::PASS);
-      kv::Tx tx;
+      auto tx = kv_store_target.create_tx();
       auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] =
         tx.get_view(
           *second_data_replicated,
@@ -642,13 +643,13 @@ TEST_CASE("Exceptional serdes" * doctest::test_suite("serialisation"))
     NonSerialiser>>("bad_map_v");
 
   {
-    kv::Tx tx;
+    auto tx = store.create_tx();
     auto bad_view = tx.get_view(bad_map_k);
     REQUIRE_THROWS(bad_view->put({}, 0));
   }
 
   {
-    kv::Tx tx;
+    auto tx = store.create_tx();
     auto bad_view = tx.get_view(bad_map_v);
     REQUIRE_THROWS(bad_view->put(0, {}));
   }
