@@ -94,7 +94,7 @@ namespace ccf
       struct NetworkInfo
       {
         bool public_only = false;
-        kv::Version last_recovered_commit_idx = kv::NoVersion;
+        kv::Version last_recovered_signed_idx = kv::NoVersion;
         ConsensusType consensus_type = ConsensusType::CFT;
 
         LedgerSecrets ledger_secrets;
@@ -104,7 +104,7 @@ namespace ccf
         bool operator==(const NetworkInfo& other) const
         {
           return public_only == other.public_only &&
-            last_recovered_commit_idx == other.last_recovered_commit_idx &&
+            last_recovered_signed_idx == other.last_recovered_signed_idx &&
             consensus_type == other.consensus_type &&
             ledger_secrets == other.ledger_secrets &&
             identity == other.identity &&
