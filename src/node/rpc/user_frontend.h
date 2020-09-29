@@ -32,8 +32,8 @@ namespace ccf
 
     void open() override
     {
-      endpoints.openapi_info.title = "CCF Application API";
       RpcFrontend::open();
+      endpoints.openapi_info.title = "CCF Application API";
     }
 
     bool lookup_forwarded_caller_cert(
