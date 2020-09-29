@@ -2,7 +2,7 @@ Ledger
 ======
 
 All network state is contained in the ledger. A single up-to-date copy of the ledger is enough to start a successor
-service if necessary, following the :ref:`operators/recovery:Catastrophic Recovery` procedure.
+service if necessary, following the :ref:`operators/recovery:Disaster Recovery` procedure.
 
 Each node in a network creates and maintains its own local copy of the ledger. Committed entries are always identical,
 but a node may be more or less up to date, and uncommitted entries may differ.
