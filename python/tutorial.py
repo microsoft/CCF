@@ -82,14 +82,15 @@ target_table = "ccf.nodes"
 # SNIPPET_START: iterate_over_ledger
 target_table_changes = 0  # Simple counter
 
-for transaction in ledger:
-    # Retrieve all public tables changed in transaction
-    public_tables = transaction.get_public_domain().get_tables()
+for chunk in ledger:
+    for transaction in chunk:
+        # Retrieve all public tables changed in transaction
+        public_tables = transaction.get_public_domain().get_tables()
 
-    # If target_table was changed, count the number of keys changed
-    if target_table in public_tables:
-        for key, value in public_tables[target_table].items():
-            target_table_changes += 1  # A key was changed
+        # If target_table was changed, count the number of keys changed
+        if target_table in public_tables:
+            for key, value in public_tables[target_table].items():
+                target_table_changes += 1  # A key was changed
 # SNIPPET_END: iterate_over_ledger
 
 # SNIPPET: import_proposal_generator
