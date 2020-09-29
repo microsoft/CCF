@@ -90,6 +90,12 @@ TEST_CASE("Regular snapshotting")
         rb_msg({consensus::snapshot, (i * snapshot_tx_interval)}));
     }
   }
+
+  INFO("Cannot snapshot before latest snapshot");
+  {
+    REQUIRE_THROWS_AS(
+      snapshotter->snapshot(snapshot_tx_interval - 1), std::logic_error);
+  }
 }
 
 TEST_CASE("Commit snapshot evidence")

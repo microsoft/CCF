@@ -109,11 +109,10 @@ namespace ccf
       snapshot_evidence_indices.push_back(
         {snapshot_idx, snapshot_evidence_idx});
 
-      LOG_FAIL_FMT("Snapshot evidence generated at {}", tx.commit_version());
-
       LOG_DEBUG_FMT(
-        "Snapshot successfully generated for idx {}: {}",
+        "Snapshot successfully generated for idx {}, with evidence idx {}: {}",
         snapshot_idx,
+        snapshot_evidence_idx,
         snapshot_hash);
     }
 
@@ -155,12 +154,14 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      CCF_ASSERT_FMT(
-        idx >= last_snapshot_idx,
-        "Cannot snapshot at idx {} which is earlier than last snapshot idx "
-        "{}",
-        idx,
-        last_snapshot_idx);
+      if (idx < last_snapshot_idx)
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot snapshot at idx {} which is earlier than last snapshot idx "
+          "{}",
+          idx,
+          last_snapshot_idx));
+      }
 
       if (idx - last_snapshot_idx >= snapshot_tx_interval)
       {
