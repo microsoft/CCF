@@ -16,12 +16,6 @@ import time
 def test(network, args, from_snapshot=False):
     old_primary, _ = network.find_primary()
 
-    # Until https://github.com/microsoft/CCF/issues/1539, pause for a
-    # little while to make sure the evidence of the snapshot is committed
-    if from_snapshot:
-        LOG.warning("Pausing for the snapshot evidence to be committed...")
-        time.sleep(2)
-
     # Retrieve ledger and snapshots
     ledger_dir = old_primary.get_ledger()
     snapshot_dir = None
