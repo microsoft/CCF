@@ -146,15 +146,24 @@ namespace kv
       std::vector<uint8_t> response;
     };
 
+    enum class Result
+    {
+      FAIL = 0,
+      OK,
+      SEND_SIG_RECEIPT_ACK,
+      SEND_REPLY_AND_NONCE
+    };
+
     using ResultCallbackHandler = std::function<bool(ResultCallbackArgs)>;
     using ResponseCallbackHandler = std::function<bool(ResponseCallbackArgs)>;
 
     virtual ~TxHistory() {}
     virtual void append(const std::vector<uint8_t>& replicated) = 0;
     virtual void append(const uint8_t* replicated, size_t replicated_size) = 0;
-    virtual bool verify_and_sign(
+    virtual Result verify_and_sign(
       ccf::PrimarySignature& signature, Term* term = nullptr) = 0;
-    virtual bool verify(Term* term = nullptr) = 0;
+    virtual bool verify(
+      Term* term = nullptr, ccf::PrimarySignature* sig = nullptr) = 0;
     virtual void emit_signature() = 0;
     virtual crypto::Sha256Hash get_replicated_state_root() = 0;
     virtual std::vector<uint8_t> get_receipt(Version v) = 0;
@@ -314,6 +323,7 @@ namespace kv
     }
     virtual void enable_all_domains() {}
 
+    virtual uint32_t node_count() = 0;
     virtual void open_network() = 0;
     virtual void emit_signature() = 0;
     virtual ConsensusType type() = 0;

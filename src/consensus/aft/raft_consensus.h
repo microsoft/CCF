@@ -129,6 +129,11 @@ namespace aft
       aft->enable_all_domains();
     }
 
+    uint32_t node_count() override
+    {
+      return aft->node_count();
+    }
+
     void open_network() override
     {
       is_open = true;
