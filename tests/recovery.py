@@ -17,12 +17,12 @@ def test(network, args, from_snapshot=False):
     old_primary, _ = network.find_primary()
 
     # Retrieve ledger and snapshots
-    ledger_dir = old_primary.get_ledger()
     snapshot_dir = None
     if from_snapshot:
         snapshot_dir = old_primary.get_snapshots()
         if not os.listdir(snapshot_dir):
             raise RuntimeError(f"No snapshot found in {snapshot_dir}")
+    ledger_dir = old_primary.get_ledger()
 
     defunct_network_enc_pubk = network.store_current_network_encryption_key()
 
@@ -42,12 +42,12 @@ def test(network, args, from_snapshot=False):
 def test_share_resilience(network, args, from_snapshot=False):
     old_primary, _ = network.find_primary()
 
-    ledger_dir = old_primary.get_ledger()
     snapshot_dir = None
     if from_snapshot:
         snapshot_dir = old_primary.get_snapshots()
         if not os.listdir(snapshot_dir):
             raise RuntimeError(f"No snapshot found in {snapshot_dir}")
+    ledger_dir = old_primary.get_ledger()
 
     defunct_network_enc_pubk = network.store_current_network_encryption_key()
 
