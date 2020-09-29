@@ -207,23 +207,6 @@ namespace aft
       become_leader();
     }
 
-    void force_become_leader(Index index, Term term, Index commit_idx_)
-    {
-      // This is unsafe and should only be called when the node is certain
-      // there is no leader and no other node will attempt to force leadership.
-      if (leader_id != NoNode)
-        throw std::logic_error(
-          "Can't force leadership if there is already a leader");
-
-      std::lock_guard<SpinLock> guard(state->lock);
-      state->current_view = term;
-      state->last_idx = index;
-      state->commit_idx = commit_idx_;
-      state->view_history.update(index, term);
-      state->current_view += 2;
-      become_leader();
-    }
-
     void force_become_leader(
       Index index,
       Term term,
@@ -245,7 +228,8 @@ namespace aft
       become_leader();
     }
 
-    void init_as_follower(Index index, Term term)
+    void init_as_follower(
+      Index index, Term term, const std::vector<Index>& term_history)
     {
       // This should only be called when the node resumes from a snapshot and
       // before it has received any append entries.
@@ -253,6 +237,8 @@ namespace aft
 
       state->last_idx = index;
       state->commit_idx = index;
+
+      state->view_history.initialise(term_history);
 
       ledger->init(index);
       snapshotter->set_last_snapshot_idx(index);
@@ -598,7 +584,6 @@ namespace aft
     {
       std::lock_guard<SpinLock> guard(state->lock);
       AppendEntries r;
-      bool is_first_entry = true; // Indicates first entry in batch
 
       try
       {
@@ -733,9 +718,7 @@ namespace aft
 
         LOG_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
 
-        is_first_entry = false;
         std::vector<uint8_t> entry;
-
         try
         {
           entry = ledger->get_entry(data, size);

@@ -323,8 +323,8 @@ namespace ccf
 
       std::list<LedgerSecrets::VersionedLedgerSecret> restored_ledger_secrets;
 
-      // For now, we keep track of the restored versions so that the recovered
-      // ledger secrets can be broadcast to backups
+      // We keep track of the restored versions so that the recovered ledger
+      // secrets can be broadcast to backups
       std::vector<kv::Version> restored_versions;
       restored_versions.push_back(
         encrypted_recovery_secrets.back().next_version);
