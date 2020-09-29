@@ -7,6 +7,7 @@ pr:
       - .daily.yml
       - .azure-pipelines-templates/*
 
+
 trigger: none
 
 schedules:
