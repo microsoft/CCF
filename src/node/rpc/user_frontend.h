@@ -28,12 +28,11 @@ namespace ccf
         h,
         tables.get<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
       users(tables.get<Users>(Tables::USERS))
-    {
-      h.openapi_info.title = "CCF Application API";
-    }
+    {}
 
     void open() override
     {
+      endpoints.openapi_info.title = "CCF Application API";
       RpcFrontend::open();
     }
 
