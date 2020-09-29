@@ -111,6 +111,15 @@ namespace ccf
     MemberTsr(NetworkTables& network) : TxScriptRunner(network) {}
   };
 
+  struct SetMemberData
+  {
+    MemberId member_id;
+    nlohmann::json member_data = nullptr;
+  };
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SetMemberData)
+  DECLARE_JSON_REQUIRED_FIELDS(SetMemberData, member_id)
+  DECLARE_JSON_OPTIONAL_FIELDS(SetMemberData, member_data)
+
   struct SetUserData
   {
     UserId user_id;
@@ -417,7 +426,7 @@ namespace ccf
          [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<MemberPubInfo>();
            GenesisGenerator g(this->network, tx);
-           g.add_member(parsed.cert, parsed.keyshare);
+           g.add_member(parsed);
 
            return true;
          }},
@@ -451,6 +460,24 @@ namespace ccf
              }
            }
 
+           return true;
+         }},
+        {"set_member_data",
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const auto parsed = args.get<SetMemberData>();
+           auto members_view = tx.get_view(this->network.members);
+           auto member_info = members_view->get(parsed.member_id);
+           if (!member_info.has_value())
+           {
+             LOG_FAIL_FMT(
+               "Proposal {}: {} is not a valid member ID",
+               proposal_id,
+               parsed.member_id);
+             return false;
+           }
+
+           member_info->member_data = parsed.member_data;
+           members_view->put(parsed.member_id, member_info.value());
            return true;
          }},
         {"new_user",
@@ -1371,11 +1398,13 @@ namespace ccf
           submitted_shares_count = share_manager.submit_recovery_share(
             args.tx, args.caller_id, raw_recovery_share);
         }
-        catch (const std::logic_error& e)
+        catch (const std::exception& e)
         {
+          auto error_msg = "Error submitting recovery shares";
+          LOG_FAIL_FMT(error_msg);
+          LOG_DEBUG_FMT("Error: {}", e.what());
           args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          args.rpc_ctx->set_response_body(
-            fmt::format("Could not submit recovery share: {}", e.what()));
+          args.rpc_ctx->set_response_body(std::move(error_msg));
           return;
         }
 
@@ -1398,13 +1427,16 @@ namespace ccf
         {
           node.initiate_private_recovery(args.tx);
         }
-        catch (const std::logic_error& e)
+        catch (const std::exception& e)
         {
-          // For now, clear the submitted shares if combination fails.
+          // Clear the submitted shares if combination fails so that members can
+          // start over.
+          auto error_msg = "Failed to initiate private recovery";
+          LOG_FAIL_FMT(error_msg);
+          LOG_DEBUG_FMT("Error: {}", e.what());
           share_manager.clear_submitted_recovery_shares(args.tx);
           args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          args.rpc_ctx->set_response_body(
-            fmt::format("Failed to initiate private recovery: {}", e.what()));
+          args.rpc_ctx->set_response_body(std::move(error_msg));
           return;
         }
 
@@ -1417,7 +1449,7 @@ namespace ccf
           submitted_shares_count,
           g.get_recovery_threshold()));
       };
-      make_endpoint("recovery_share/submit", HTTP_POST, submit_recovery_share)
+      make_endpoint("recovery_share", HTTP_POST, submit_recovery_share)
         .set_auto_schema<std::string, std::string>()
         .install();
 
@@ -1438,9 +1470,9 @@ namespace ccf
         g.init_values();
         g.create_service(in.network_cert);
 
-        for (auto& [cert, k_encryption_key] : in.members_info)
+        for (const auto& info : in.members_info)
         {
-          g.add_member(cert, k_encryption_key);
+          g.add_member(info);
         }
 
         g.set_recovery_threshold(in.recovery_threshold);

@@ -320,6 +320,16 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      progress_tracker_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/progress_tracker.cpp
+    )
+    target_include_directories(progress_tracker_test PRIVATE ${EVERCRYPT_INC})
+    target_link_libraries(
+      progress_tracker_test PRIVATE ${CRYPTO_LIBRARY} evercrypt.host
+                                    secp256k1.host
+    )
+
+    add_unit_test(
       secret_sharing_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/secret_share.cpp
     )
@@ -530,6 +540,22 @@ if(BUILD_TESTS)
       # purpose to check that a recovery network is robust to a view change.
       --raft-election-timeout
       4000
+  )
+
+  add_e2e_test(
+    NAME recovery_snapshot_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS
+      --recovery
+      2
+      # Shorten Raft election timeout to speed up test when it kills a node on
+      # purpose to check that a recovery network is robust to a view change.
+      --raft-election-timeout
+      4000
+      --snapshot-tx-interval
+      5
+      --use-snapshot
   )
 
   add_e2e_test(

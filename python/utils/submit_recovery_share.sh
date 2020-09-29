@@ -82,4 +82,4 @@ encrypted_share_b64_url=$(echo "${encrypted_share}" | sed 's/+/-/g; s/\//_/g')
 
 # Decrypt encrypted share with nonce, member private key and defunct network public key and submit share
 # All in one line so that the recovery share is not exposed
-echo "${encrypted_share_b64_url}" | step crypto nacl box open base64:"${nonce}" "${tmp_dir}/network_enc_pubk.raw" "${tmp_dir}/member_enc_privk.raw" | openssl base64 -A | curl -i -sS --fail https://"${node_rpc_address}"/gov/recovery_share/submit "${@}" -d @-
+echo "${encrypted_share_b64_url}" | step crypto nacl box open base64:"${nonce}" "${tmp_dir}/network_enc_pubk.raw" "${tmp_dir}/member_enc_privk.raw" | openssl base64 -A | curl -i -sS --fail https://"${node_rpc_address}"/gov/recovery_share "${@}" -d @-

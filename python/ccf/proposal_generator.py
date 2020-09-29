@@ -180,7 +180,9 @@ def cli_proposal(func):
 
 
 @cli_proposal
-def new_member(member_cert_path: str, member_enc_pubk_path: str, **kwargs):
+def new_member(
+    member_cert_path: str, member_enc_pubk_path: str, member_data: Any = None, **kwargs
+):
     LOG.debug("Generating new_member proposal")
 
     # Read certs
@@ -195,7 +197,11 @@ def new_member(member_cert_path: str, member_enc_pubk_path: str, **kwargs):
 
     # Proposal object (request body for POST /gov/proposals) containing this member's info as parameter
     proposal = {
-        "parameter": {"cert": member_cert, "keyshare": member_keyshare_encryptor},
+        "parameter": {
+            "cert": member_cert,
+            "keyshare": member_keyshare_encryptor,
+            "member_data": member_data,
+        },
         "script": {"text": proposal_script_text},
     }
 
@@ -241,6 +247,12 @@ def new_member(member_cert_path: str, member_enc_pubk_path: str, **kwargs):
 @cli_proposal
 def retire_member(member_id: int, **kwargs):
     return build_proposal("retire_member", member_id, **kwargs)
+
+
+@cli_proposal
+def set_member_data(member_id: int, member_data: Any, **kwargs):
+    proposal_args = {"member_id": member_id, "member_data": member_data}
+    return build_proposal("set_member_data", proposal_args, **kwargs)
 
 
 @cli_proposal
