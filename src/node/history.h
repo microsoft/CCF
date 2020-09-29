@@ -694,13 +694,12 @@ namespace ccf
           crypto::Sha256Hash root = replicated_state_tree.get_root();
 
           Nonce hashed_nonce;
-          auto progress_tracker = store.get_progress_tracker();
-          CCF_ASSERT(
-            progress_tracker != nullptr, "progress_tracker is not set");
           auto consensus = store.get_consensus();
-
           if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
           {
+            auto progress_tracker = store.get_progress_tracker();
+            CCF_ASSERT(
+              progress_tracker != nullptr, "progress_tracker is not set");
             auto r = progress_tracker->record_primary(
               txid.term, txid.version, id, root, hashed_nonce);
             if (r != kv::TxHistory::Result::OK)
