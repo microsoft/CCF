@@ -55,14 +55,14 @@ Compared to a CCF app bundle, there are a few additional files:
     This in turn may improve load time and/or memory consumption, for example if not all endpoints
     share the same npm package dependencies.
 
-.. _ts-ccf-types:
-
 Metadata
 --------
 
 :ref:`App metadata <js-app-bundle-metadata>` is stored in an ``app.json`` file in the root of the app project.
 This file is copied as-is to the ``dist/`` folder during the :ref:`build step <ts-app-bundle-conversion>`.
 Note that paths must be relative to the ``dist/src/`` folder and end with ``.js`` instead of ``.ts``.
+
+.. _ts-ccf-types:
 
 Type definitions
 ----------------
