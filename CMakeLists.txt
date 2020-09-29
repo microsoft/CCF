@@ -320,6 +320,16 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      progress_tracker_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/progress_tracker.cpp
+    )
+    target_include_directories(progress_tracker_test PRIVATE ${EVERCRYPT_INC})
+    target_link_libraries(
+      progress_tracker_test PRIVATE ${CRYPTO_LIBRARY} evercrypt.host
+                                    secp256k1.host
+    )
+
+    add_unit_test(
       secret_sharing_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/secret_share.cpp
     )

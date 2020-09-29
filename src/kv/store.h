@@ -785,10 +785,16 @@ namespace kv
           }
 
           auto h = get_history();
-          bool result;
+          bool result = true;
           if (sig != nullptr)
           {
-            result = h->verify_and_sign(*sig, term_);
+            auto r = h->verify_and_sign(*sig, term_);
+            if (
+              r != kv::TxHistory::Result::OK &&
+              r != kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
+            {
+              result = false;
+            }
           }
           else
           {
