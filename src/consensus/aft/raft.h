@@ -336,7 +336,7 @@ namespace aft
 
     uint32_t node_count() const
     {
-      return nodes.size();
+      return get_latest_configuration().size();
     }
 
     template <typename T>
@@ -859,6 +859,7 @@ namespace aft
         state->last_idx);
 
       auto progress_tracker = store->get_progress_tracker();
+      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
       auto h = progress_tracker->get_my_hashed_nonce(
         state->current_view, state->last_idx);
 
@@ -881,7 +882,7 @@ namespace aft
         r.signature_size,
         r.sig,
         hashed_nonce,
-        nodes.size());
+        node_count());
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
       {
         auto send_to = it->first;
@@ -923,18 +924,16 @@ namespace aft
       }
 
       auto progress_tracker = store->get_progress_tracker();
-      if (progress_tracker != nullptr)
-      {
-        auto result = progress_tracker->add_signature(
-          r.term,
-          r.last_log_idx,
-          r.from_node,
-          r.signature_size,
-          r.sig,
-          r.hashed_nonce,
-          nodes.size());
-        try_send_sig_ack(r.term, r.last_log_idx, result);
-      }
+      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
+      auto result = progress_tracker->add_signature(
+        r.term,
+        r.last_log_idx,
+        r.from_node,
+        r.signature_size,
+        r.sig,
+        r.hashed_nonce,
+        node_count());
+      try_send_sig_ack(r.term, r.last_log_idx, result);
     }
 
     void try_send_sig_ack(
@@ -964,12 +963,11 @@ namespace aft
           }
 
           auto progress_tracker = store->get_progress_tracker();
-          if (progress_tracker != nullptr)
-          {
-            auto result = progress_tracker->add_signature_ack(
-              view, seqno, state->my_node_id, nodes.size());
-            try_send_reply_and_nonce(view, seqno, result);
-          }
+          CCF_ASSERT(
+            progress_tracker != nullptr, "progress_tracker is not set");
+          auto result = progress_tracker->add_signature_ack(
+            view, seqno, state->my_node_id, node_count());
+          try_send_reply_and_nonce(view, seqno, result);
           break;
         }
         default:
@@ -1008,17 +1006,15 @@ namespace aft
       }
 
       auto progress_tracker = store->get_progress_tracker();
-      if (progress_tracker != nullptr)
-      {
-        LOG_TRACE_FMT(
-          "processing recv_signature_received_ack, from:{} view:{}, seqno:{}",
-          r.from_node,
-          r.term,
-          r.idx);
-        auto result = progress_tracker->add_signature_ack(
-          r.term, r.idx, r.from_node, nodes.size());
-        try_send_reply_and_nonce(r.term, r.idx, result);
-      }
+      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
+      LOG_TRACE_FMT(
+        "processing recv_signature_received_ack, from:{} view:{}, seqno:{}",
+        r.from_node,
+        r.term,
+        r.idx);
+      auto result = progress_tracker->add_signature_ack(
+        r.term, r.idx, r.from_node, node_count());
+      try_send_reply_and_nonce(r.term, r.idx, result);
     }
 
     void try_send_reply_and_nonce(
@@ -1037,10 +1033,9 @@ namespace aft
         {
           Nonce nonce;
           auto progress_tracker = store->get_progress_tracker();
-          if (progress_tracker != nullptr)
-          {
-            nonce = progress_tracker->get_my_nonce(view, seqno);
-          }
+          CCF_ASSERT(
+            progress_tracker != nullptr, "progress_tracker is not set");
+          nonce = progress_tracker->get_my_nonce(view, seqno);
           NonceRevealMsg r = {
             {bft_nonce_reveal, state->my_node_id}, view, seqno, nonce};
 
@@ -1053,11 +1048,8 @@ namespace aft
                 ccf::NodeMsgType::consensus_msg, send_to, r);
             }
           }
-          if (progress_tracker != nullptr)
-          {
-            progress_tracker->add_nonce_reveal(
-              view, seqno, nonce, state->my_node_id);
-          }
+          progress_tracker->add_nonce_reveal(
+            view, seqno, nonce, state->my_node_id);
           break;
         }
         default:
@@ -1095,15 +1087,13 @@ namespace aft
       }
 
       auto progress_tracker = store->get_progress_tracker();
-      if (progress_tracker != nullptr)
-      {
-        LOG_TRACE_FMT(
-          "processing nonce_reveal, from:{} view:{}, seqno:{}",
-          r.from_node,
-          r.term,
-          r.idx);
-        progress_tracker->add_nonce_reveal(r.term, r.idx, r.nonce, r.from_node);
-      }
+      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
+      LOG_TRACE_FMT(
+        "processing nonce_reveal, from:{} view:{}, seqno:{}",
+        r.from_node,
+        r.term,
+        r.idx);
+      progress_tracker->add_nonce_reveal(r.term, r.idx, r.nonce, r.from_node);
     }
 
     void recv_append_entries_response(const uint8_t* data, size_t size)

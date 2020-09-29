@@ -587,16 +587,14 @@ namespace ccf
       kv::TxHistory::Result result = kv::TxHistory::Result::OK;
 
       auto progress_tracker = store.get_progress_tracker();
-      if (progress_tracker)
-      {
-        result = progress_tracker->record_primary(
-          sig.view,
-          sig.seqno,
-          sig.node,
-          sig.root,
-          sig.hashed_nonce,
-          store.get_consensus()->node_count());
-      }
+      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
+      result = progress_tracker->record_primary(
+        sig.view,
+        sig.seqno,
+        sig.node,
+        sig.root,
+        sig.hashed_nonce,
+        store.get_consensus()->node_count());
 
       sig.node = id;
       sig.sig = kp.sign_hash(sig.root.h.data(), sig.root.h.size());
@@ -697,7 +695,11 @@ namespace ccf
 
           Nonce hashed_nonce;
           auto progress_tracker = store.get_progress_tracker();
-          if (progress_tracker)
+          CCF_ASSERT(
+            progress_tracker != nullptr, "progress_tracker is not set");
+          auto consensus = store.get_consensus();
+
+          if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
           {
             auto r = progress_tracker->record_primary(
               txid.term, txid.version, id, root, hashed_nonce);
@@ -715,6 +717,10 @@ namespace ccf
             auto h =
               progress_tracker->get_my_hashed_nonce(txid.term, txid.version);
             std::copy(h.begin(), h.end(), hashed_nonce.begin());
+          }
+          else
+          {
+            hashed_nonce.fill(0);
           }
 
           PrimarySignature sig_value(

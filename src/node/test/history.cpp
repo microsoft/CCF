@@ -61,6 +61,7 @@ TEST_CASE("Check signature verification")
 {
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv::Store primary_store;
+
   primary_store.set_encryptor(encryptor);
   auto& primary_nodes = primary_store.create<ccf::Nodes>(
     ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
