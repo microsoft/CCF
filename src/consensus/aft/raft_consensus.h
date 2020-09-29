@@ -54,9 +54,12 @@ namespace aft
       aft->force_become_leader(seqno, view, terms, commit_seqno);
     }
 
-    void init_as_backup(SeqNo seqno, View view) override
+    void init_as_backup(
+      SeqNo seqno,
+      View view,
+      const std::vector<kv::Version>& view_history) override
     {
-      aft->init_as_follower(seqno, view);
+      aft->init_as_follower(seqno, view, view_history);
     }
 
     bool replicate(const kv::BatchVector& entries, View view) override

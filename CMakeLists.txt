@@ -538,6 +538,22 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME recovery_snapshot_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS
+      --recovery
+      2
+      # Shorten Raft election timeout to speed up test when it kills a node on
+      # purpose to check that a recovery network is robust to a view change.
+      --raft-election-timeout
+      4000
+      --snapshot-tx-interval
+      5
+      --use-snapshot
+  )
+
+  add_e2e_test(
     NAME rekey_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rekey.py
     CONSENSUS cft
