@@ -189,7 +189,14 @@ class SSHRemote(CmdMixin):
             LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, path))
         session.close()
 
-    def get(self, file_name, dst_path, timeout=FILE_TIMEOUT, target_name=None):
+    def get(
+        self,
+        file_name,
+        dst_path,
+        timeout=FILE_TIMEOUT,
+        target_name=None,
+        pre_condition_func=None,
+    ):
         """
         Get file called `file_name` under the root of the remote. If the
         file is missing, wait for timeout, and raise an exception.
@@ -213,6 +220,10 @@ class SSHRemote(CmdMixin):
                         if os.path.exists(dst_dir):
                             shutil.rmtree(dst_dir)
                         os.makedirs(dst_dir)
+                        if pre_condition_func is not None:
+                            pre_condition_func(
+                                src_dir, lambda src_dir: session.listdir(src_dir)
+                            )
                         for f in session.listdir(src_dir):
                             session.get(
                                 os.path.join(src_dir, f),
@@ -438,7 +449,14 @@ class LocalRemote(CmdMixin):
             dst_path = os.path.join(self.root, os.path.basename(path))
             self._cp(path, dst_path)
 
-    def get(self, src_path, dst_path, timeout=FILE_TIMEOUT, target_name=None):
+    def get(
+        self,
+        src_path,
+        dst_path,
+        timeout=FILE_TIMEOUT,
+        target_name=None,
+        pre_condition_func=None,
+    ):
         path = os.path.join(self.root, src_path)
         end_time = time.time() + timeout
         while time.time() < end_time:
@@ -447,6 +465,8 @@ class LocalRemote(CmdMixin):
             time.sleep(0.1)
         else:
             raise ValueError(path)
+        if pre_condition_func is not None:
+            pre_condition_func(path, lambda src_dir: os.listdir(src_dir))
         if target_name is not None:
             self._cp(path, os.path.join(dst_path, target_name))
         else:
@@ -751,8 +771,12 @@ class CCFRemote(object):
         self.remote.get(self.ledger_dir_name, self.common_dir)
         return os.path.join(self.common_dir, self.ledger_dir_name)
 
-    def get_snapshots(self):
-        self.remote.get(self.snapshot_dir_name, self.common_dir)
+    def get_snapshots(self, pre_condition_func=None):
+        self.remote.get(
+            self.snapshot_dir_name,
+            self.common_dir,
+            pre_condition_func=pre_condition_func,
+        )
         return os.path.join(self.common_dir, self.snapshot_dir_name)
 
     def ledger_path(self):
