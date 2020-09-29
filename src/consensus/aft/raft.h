@@ -74,6 +74,12 @@ namespace aft
 
     ReplicaState replica_state;
     std::chrono::milliseconds timeout_elapsed;
+    // Last (committable) index preceding the node's election, this is
+    // used to decide when to start issuing signatures. While commit_idx
+    // hasn't caught up with election_index, a newly elected leader is
+    // effectively finishing establishing commit over the previous term
+    // or even previous terms, and can therefore not meaningfully sign
+    // over the commit level.
     kv::Version election_index = 0;
 
     // BFT
