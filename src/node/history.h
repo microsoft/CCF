@@ -676,72 +676,75 @@ namespace ccf
         return;
       }
 
+      // Signatures are only emitted when the consensus is establishing commit over
+      // the node's own transactions
       auto signable_txid = consensus->get_signable_txid();
-
-      if (signable_txid.has_value())
+      if (!signable_txid.has_value())
       {
-        auto commit_txid = signable_txid.value();
-        auto txid = store.next_txid();
-
-        LOG_DEBUG_FMT(
-          "Signed at {} in view: {} commit was: {}.{}",
-          txid.version,
-          txid.term,
-          commit_txid.first,
-          commit_txid.second);
-
-        store.commit(
-          txid,
-          [txid, commit_txid, this]() {
-            kv::Tx sig(txid.version);
-            auto sig_view = sig.get_view(signatures);
-            crypto::Sha256Hash root = replicated_state_tree.get_root();
-
-            Nonce hashed_nonce;
-            auto consensus = store.get_consensus();
-            if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
-            {
-              auto progress_tracker = store.get_progress_tracker();
-              CCF_ASSERT(
-                progress_tracker != nullptr, "progress_tracker is not set");
-              auto r = progress_tracker->record_primary(
-                txid.term, txid.version, id, root, hashed_nonce);
-              if (r != kv::TxHistory::Result::OK)
-              {
-                throw ccf::ccf_logic_error(fmt::format(
-                  "Expected success when primary added signature to the "
-                  "progress "
-                  "tracker. r:{}, view:{}, seqno:{}",
-                  r,
-                  txid.term,
-                  txid.version));
-              }
-
-              auto h =
-                progress_tracker->get_my_hashed_nonce(txid.term, txid.version);
-              std::copy(h.begin(), h.end(), hashed_nonce.begin());
-            }
-            else
-            {
-              hashed_nonce.fill(0);
-            }
-
-            PrimarySignature sig_value(
-              id,
-              txid.version,
-              txid.term,
-              commit_txid.second,
-              commit_txid.first,
-              root,
-              hashed_nonce,
-              kp.sign_hash(root.h.data(), root.h.size()),
-              replicated_state_tree.serialise());
-
-            sig_view->put(0, sig_value);
-            return sig.commit_reserved();
-          },
-          true);
+        return;
       }
+
+      auto commit_txid = signable_txid.value();
+      auto txid = store.next_txid();
+
+      LOG_DEBUG_FMT(
+        "Signed at {} in view: {} commit was: {}.{}",
+        txid.version,
+        txid.term,
+        commit_txid.first,
+        commit_txid.second);
+
+      store.commit(
+        txid,
+        [txid, commit_txid, this]() {
+          kv::Tx sig(txid.version);
+          auto sig_view = sig.get_view(signatures);
+          crypto::Sha256Hash root = replicated_state_tree.get_root();
+
+          Nonce hashed_nonce;
+          auto consensus = store.get_consensus();
+          if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
+          {
+            auto progress_tracker = store.get_progress_tracker();
+            CCF_ASSERT(
+              progress_tracker != nullptr, "progress_tracker is not set");
+            auto r = progress_tracker->record_primary(
+              txid.term, txid.version, id, root, hashed_nonce);
+            if (r != kv::TxHistory::Result::OK)
+            {
+              throw ccf::ccf_logic_error(fmt::format(
+                "Expected success when primary added signature to the "
+                "progress "
+                "tracker. r:{}, view:{}, seqno:{}",
+                r,
+                txid.term,
+                txid.version));
+            }
+
+            auto h =
+              progress_tracker->get_my_hashed_nonce(txid.term, txid.version);
+            std::copy(h.begin(), h.end(), hashed_nonce.begin());
+          }
+          else
+          {
+            hashed_nonce.fill(0);
+          }
+
+          PrimarySignature sig_value(
+            id,
+            txid.version,
+            txid.term,
+            commit_txid.second,
+            commit_txid.first,
+            root,
+            hashed_nonce,
+            kp.sign_hash(root.h.data(), root.h.size()),
+            replicated_state_tree.serialise());
+
+          sig_view->put(0, sig_value);
+          return sig.commit_reserved();
+        },
+        true);
     }
 
     std::vector<uint8_t> get_receipt(kv::Version index) override
