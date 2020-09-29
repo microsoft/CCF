@@ -290,6 +290,12 @@ namespace threading
       return task.run_next_task();
     }
 
+    bool run_one()
+    {
+      Task& task = get_task(get_current_thread_id());
+      return task.run_next_task();
+    }
+
     template <typename Payload>
     void add_task(uint16_t tid, std::unique_ptr<Tmsg<Payload>> msg)
     {
