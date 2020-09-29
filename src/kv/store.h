@@ -366,10 +366,15 @@ namespace kv
     }
 
     DeserialiseSuccess deserialise_snapshot(
-      const std::vector<uint8_t>& data) override
+      const std::vector<uint8_t>& data,
+      std::vector<Version>* view_history = nullptr,
+      bool public_only = false) override
     {
       auto e = get_encryptor();
-      auto d = KvStoreDeserialiser(e);
+      auto d = KvStoreDeserialiser(
+        e,
+        public_only ? kv::SecurityDomain::PUBLIC :
+                      std::optional<kv::SecurityDomain>());
 
       auto v_ = d.init(data.data(), data.size());
       if (!v_.has_value())
@@ -394,11 +399,10 @@ namespace kv
         hash_at_snapshot = d.deserialise_raw();
       }
 
-      std::vector<Version> view_history;
-      auto c = get_consensus();
-      if (c)
+      std::vector<Version> view_history_;
+      if (view_history)
       {
-        view_history = d.deserialise_view_history();
+        view_history_ = d.deserialise_view_history();
       }
 
       OrderedViews views;
@@ -483,9 +487,9 @@ namespace kv
         }
       }
 
-      if (c)
+      if (view_history)
       {
-        c->initialise_view_history(view_history);
+        *view_history = std::move(view_history_);
       }
 
       return DeserialiseSuccess::PASS;
@@ -785,10 +789,16 @@ namespace kv
           }
 
           auto h = get_history();
-          bool result;
+          bool result = true;
           if (sig != nullptr)
           {
-            result = h->verify_and_sign(*sig, term_);
+            auto r = h->verify_and_sign(*sig, term_);
+            if (
+              r != kv::TxHistory::Result::OK &&
+              r != kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
+            {
+              result = false;
+            }
           }
           else
           {
@@ -916,7 +926,7 @@ namespace kv
           // This can happen when a transaction started before a view change,
           // but tries to commit after the view change is complete.
           LOG_DEBUG_FMT(
-            "Want to commit for term {}, term is {}", txid.term, term);
+            "Want to commit for term {} but term is {}", txid.term, term);
 
           return CommitSuccess::NO_REPLICATE;
         }

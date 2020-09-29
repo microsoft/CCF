@@ -207,23 +207,6 @@ namespace aft
       become_leader();
     }
 
-    void force_become_leader(Index index, Term term, Index commit_idx_)
-    {
-      // This is unsafe and should only be called when the node is certain
-      // there is no leader and no other node will attempt to force leadership.
-      if (leader_id != NoNode)
-        throw std::logic_error(
-          "Can't force leadership if there is already a leader");
-
-      std::lock_guard<SpinLock> guard(state->lock);
-      state->current_view = term;
-      state->last_idx = index;
-      state->commit_idx = commit_idx_;
-      state->view_history.update(index, term);
-      state->current_view += 2;
-      become_leader();
-    }
-
     void force_become_leader(
       Index index,
       Term term,
@@ -245,7 +228,8 @@ namespace aft
       become_leader();
     }
 
-    void init_as_follower(Index index, Term term)
+    void init_as_follower(
+      Index index, Term term, const std::vector<Index>& term_history)
     {
       // This should only be called when the node resumes from a snapshot and
       // before it has received any append entries.
@@ -253,6 +237,8 @@ namespace aft
 
       state->last_idx = index;
       state->commit_idx = index;
+
+      state->view_history.initialise(term_history);
 
       ledger->init(index);
       snapshotter->set_last_snapshot_idx(index);
@@ -332,6 +318,11 @@ namespace aft
       }
 
       return configurations.back().nodes;
+    }
+
+    uint32_t node_count() const
+    {
+      return get_latest_configuration().size();
     }
 
     template <typename T>
@@ -454,6 +445,14 @@ namespace aft
 
         case raft_request_vote_response:
           recv_request_vote_response(data, size);
+          break;
+
+        case bft_signature_received_ack:
+          recv_signature_received_ack(data, size);
+          break;
+
+        case bft_nonce_reveal:
+          recv_nonce_reveal(data, size);
           break;
 
         default:
@@ -585,7 +584,6 @@ namespace aft
     {
       std::lock_guard<SpinLock> guard(state->lock);
       AppendEntries r;
-      bool is_first_entry = true; // Indicates first entry in batch
 
       try
       {
@@ -720,9 +718,7 @@ namespace aft
 
         LOG_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
 
-        is_first_entry = false;
         std::vector<uint8_t> entry;
-
         try
         {
           entry = ledger->get_entry(data, size);
@@ -845,22 +841,42 @@ namespace aft
         to,
         state->last_idx);
 
+      auto progress_tracker = store->get_progress_tracker();
+      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
+      auto h = progress_tracker->get_my_hashed_nonce(
+        state->current_view, state->last_idx);
+
+      Nonce hashed_nonce;
+      std::copy(h.begin(), h.end(), hashed_nonce.begin());
+
       SignedAppendEntriesResponse r = {
         {raft_append_entries_signed_response, state->my_node_id},
         state->current_view,
         state->last_idx,
+        hashed_nonce,
         static_cast<uint32_t>(sig.sig.size()),
         {}};
       std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
 
-      auto progress_tracker = store->get_progress_tracker();
-      if (progress_tracker != nullptr)
+      auto result = progress_tracker->add_signature(
+        r.term,
+        r.last_log_idx,
+        r.from_node,
+        r.signature_size,
+        r.sig,
+        hashed_nonce,
+        node_count());
+      for (auto it = nodes.begin(); it != nodes.end(); ++it)
       {
-        progress_tracker->add_signature(
-          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig);
+        auto send_to = it->first;
+        if (send_to != state->my_node_id)
+        {
+          channels->send_authenticated(
+            ccf::NodeMsgType::consensus_msg, send_to, r);
+        }
       }
 
-      channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, r);
+      try_send_sig_ack(r.term, r.last_log_idx, result);
     }
 
     void recv_append_entries_signed_response(const uint8_t* data, size_t size)
@@ -891,11 +907,176 @@ namespace aft
       }
 
       auto progress_tracker = store->get_progress_tracker();
-      if (progress_tracker != nullptr)
+      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
+      auto result = progress_tracker->add_signature(
+        r.term,
+        r.last_log_idx,
+        r.from_node,
+        r.signature_size,
+        r.sig,
+        r.hashed_nonce,
+        node_count());
+      try_send_sig_ack(r.term, r.last_log_idx, result);
+    }
+
+    void try_send_sig_ack(
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      kv::TxHistory::Result r)
+    {
+      switch (r)
       {
-        progress_tracker->add_signature(
-          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig);
+        case kv::TxHistory::Result::OK:
+        case kv::TxHistory::Result::FAIL:
+        {
+          break;
+        }
+        case kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK:
+        {
+          SignaturesReceivedAck r = {
+            {bft_signature_received_ack, state->my_node_id}, view, seqno};
+          for (auto it = nodes.begin(); it != nodes.end(); ++it)
+          {
+            auto send_to = it->first;
+            if (send_to != state->my_node_id)
+            {
+              channels->send_authenticated(
+                ccf::NodeMsgType::consensus_msg, send_to, r);
+            }
+          }
+
+          auto progress_tracker = store->get_progress_tracker();
+          CCF_ASSERT(
+            progress_tracker != nullptr, "progress_tracker is not set");
+          auto result = progress_tracker->add_signature_ack(
+            view, seqno, state->my_node_id, node_count());
+          try_send_reply_and_nonce(view, seqno, result);
+          break;
+        }
+        default:
+        {
+          throw ccf::ccf_logic_error(fmt::format("Unknown enum type: {}", r));
+        }
       }
+    }
+
+    void recv_signature_received_ack(const uint8_t* data, size_t size)
+    {
+      SignaturesReceivedAck r;
+
+      try
+      {
+        r = channels->template recv_authenticated<SignaturesReceivedAck>(
+          data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_FMT("Error in recv_signature_received_ack message");
+        LOG_DEBUG_FMT(
+          "Error in recv_signature_received_ack message: {}", err.what());
+        return;
+      }
+
+      auto node = nodes.find(r.from_node);
+      if (node == nodes.end())
+      {
+        // Ignore if we don't recognise the node.
+        LOG_FAIL_FMT(
+          "Recv signature received ack to {} from {}: unknown node",
+          state->my_node_id,
+          r.from_node);
+        return;
+      }
+
+      auto progress_tracker = store->get_progress_tracker();
+      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
+      LOG_TRACE_FMT(
+        "processing recv_signature_received_ack, from:{} view:{}, seqno:{}",
+        r.from_node,
+        r.term,
+        r.idx);
+      auto result = progress_tracker->add_signature_ack(
+        r.term, r.idx, r.from_node, node_count());
+      try_send_reply_and_nonce(r.term, r.idx, result);
+    }
+
+    void try_send_reply_and_nonce(
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      kv::TxHistory::Result r)
+    {
+      switch (r)
+      {
+        case kv::TxHistory::Result::OK:
+        case kv::TxHistory::Result::FAIL:
+        {
+          break;
+        }
+        case kv::TxHistory::Result::SEND_REPLY_AND_NONCE:
+        {
+          Nonce nonce;
+          auto progress_tracker = store->get_progress_tracker();
+          CCF_ASSERT(
+            progress_tracker != nullptr, "progress_tracker is not set");
+          nonce = progress_tracker->get_my_nonce(view, seqno);
+          NonceRevealMsg r = {
+            {bft_nonce_reveal, state->my_node_id}, view, seqno, nonce};
+
+          for (auto it = nodes.begin(); it != nodes.end(); ++it)
+          {
+            auto send_to = it->first;
+            if (send_to != state->my_node_id)
+            {
+              channels->send_authenticated(
+                ccf::NodeMsgType::consensus_msg, send_to, r);
+            }
+          }
+          progress_tracker->add_nonce_reveal(
+            view, seqno, nonce, state->my_node_id);
+          break;
+        }
+        default:
+        {
+          throw ccf::ccf_logic_error(fmt::format("Unknown enum type: {}", r));
+        }
+      }
+    }
+
+    void recv_nonce_reveal(const uint8_t* data, size_t size)
+    {
+      NonceRevealMsg r;
+
+      try
+      {
+        r = channels->template recv_authenticated<NonceRevealMsg>(data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_FMT("Error in recv_signature_received_ack message");
+        LOG_DEBUG_FMT(
+          "Error in recv_signature_received_ack message: {}", err.what());
+        return;
+      }
+
+      auto node = nodes.find(r.from_node);
+      if (node == nodes.end())
+      {
+        // Ignore if we don't recognise the node.
+        LOG_FAIL_FMT(
+          "Recv nonce reveal to {} from {}: unknown node",
+          state->my_node_id,
+          r.from_node);
+        return;
+      }
+
+      auto progress_tracker = store->get_progress_tracker();
+      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
+      LOG_TRACE_FMT(
+        "processing nonce_reveal, from:{} view:{}, seqno:{}",
+        r.from_node,
+        r.term,
+        r.idx);
+      progress_tracker->add_nonce_reveal(r.term, r.idx, r.nonce, r.from_node);
     }
 
     void recv_append_entries_response(const uint8_t* data, size_t size)
@@ -1461,7 +1642,7 @@ namespace aft
 
       for (auto node_id : to_remove)
       {
-        if (replica_state == Leader)
+        if (replica_state == Leader || consensus_type == ConsensusType::BFT)
         {
           channels->destroy_channel(node_id);
         }
@@ -1487,13 +1668,16 @@ namespace aft
           auto index = state->last_idx + 1;
           nodes.try_emplace(node_info.first, node_info.second, index, 0);
 
-          if (replica_state == Leader)
+          if (replica_state == Leader || consensus_type == ConsensusType::BFT)
           {
             channels->create_channel(
               node_info.first,
               node_info.second.hostname,
               node_info.second.port);
+          }
 
+          if (replica_state == Leader)
+          {
             send_append_entries(node_info.first, index);
           }
 

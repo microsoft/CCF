@@ -62,7 +62,7 @@ namespace ccf
       share_manager.restore_recovery_shares_info(tx, {});
     }
 
-    kv::Version get_last_recovered_commit_idx() override
+    kv::Version get_last_recovered_signed_idx() override
     {
       return kv::NoVersion;
     }
