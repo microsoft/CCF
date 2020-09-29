@@ -173,6 +173,7 @@ class Network:
         target_node=None,
         recovery=False,
         from_snapshot=False,
+        snapshot_dir=None,
     ):
         forwarded_args = {
             arg: getattr(args, arg)
@@ -185,15 +186,16 @@ class Network:
                 timeout=args.ledger_recovery_timeout if recovery else 3
             )
 
-        snapshot_dir = None
-        if from_snapshot:
-            LOG.info("Joining from snapshot")
+        # Only retrieve snapshot from target node if the snapshot directory is not
+        # specified
+        if from_snapshot and snapshot_dir is None:
             snapshot_dir = target_node.get_snapshots()
-            # For now, we must have a snapshot to resume from when attempting
-            # to join from one
             assert (
                 len(os.listdir(snapshot_dir)) > 0
             ), f"There are no snapshots to resume from in directory {snapshot_dir}"
+
+        if snapshot_dir is not None:
+            LOG.info(f"Joining from snapshot: {snapshot_dir}")
 
         node.join(
             lib_name=lib_name,
@@ -214,7 +216,9 @@ class Network:
                 raise
             node.network_state = infra.node.NodeNetworkState.joined
 
-    def _start_all_nodes(self, args, recovery=False, ledger_dir=None):
+    def _start_all_nodes(
+        self, args, recovery=False, ledger_dir=None, snapshot_dir=None
+    ):
         hosts = self.hosts
 
         if not args.package:
@@ -243,10 +247,11 @@ class Network:
                     else:
                         node.recover(
                             lib_name=args.package,
-                            ledger_dir=ledger_dir,
                             workspace=args.workspace,
                             label=args.label,
                             common_dir=self.common_dir,
+                            ledger_dir=ledger_dir,
+                            snapshot_dir=snapshot_dir,
                             **forwarded_args,
                         )
                         # When a recovery network in started without an existing network,
@@ -261,7 +266,13 @@ class Network:
                             )
                             self._adjust_local_node_ids(node)
                 else:
-                    self._add_node(node, args.package, args, recovery=recovery)
+                    self._add_node(
+                        node,
+                        args.package,
+                        args,
+                        recovery=recovery,
+                        snapshot_dir=snapshot_dir,
+                    )
             except Exception:
                 LOG.exception("Failed to start node {}".format(node.node_id))
                 raise
@@ -358,19 +369,23 @@ class Network:
         self,
         args,
         ledger_dir,
+        snapshot_dir=None,
         common_dir=None,
     ):
         """
         Starts a CCF network in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
         :param ledger_dir: ledger directory to recover from.
+        :param snapshot_dir: snapshot directory to recover from.
         :param common_dir: common directory containing member and user keys and certs.
         """
         self.common_dir = common_dir or get_common_folder_name(
             args.workspace, args.label
         )
 
-        primary = self._start_all_nodes(args, recovery=True, ledger_dir=ledger_dir)
+        primary = self._start_all_nodes(
+            args, recovery=True, ledger_dir=ledger_dir, snapshot_dir=snapshot_dir
+        )
 
         # If a common directory was passed in, initialise the consortium from it
         if common_dir is not None:
@@ -446,6 +461,7 @@ class Network:
         still needs to be trusted by members to complete the join protocol.
         """
         new_node = self.create_node(host)
+
         self._add_node(
             new_node, lib_name, args, target_node, from_snapshot=from_snapshot
         )

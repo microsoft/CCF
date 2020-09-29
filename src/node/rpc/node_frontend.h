@@ -125,7 +125,7 @@ namespace ccf
       {
         rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo{
           node.is_part_of_public_network(),
-          node.get_last_recovered_commit_idx(),
+          node.get_last_recovered_signed_idx(),
           this->network.consensus_type,
           *this->network.ledger_secrets.get(),
           *this->network.identity.get(),
@@ -207,7 +207,7 @@ namespace ccf
             rep.node_status = joining_node_status;
             rep.node_id = existing_node_id.value();
             rep.network_info = {node.is_part_of_public_network(),
-                                node.get_last_recovered_commit_idx(),
+                                node.get_last_recovered_signed_idx(),
                                 this->network.consensus_type,
                                 *this->network.ledger_secrets.get(),
                                 *this->network.identity.get(),
@@ -236,7 +236,7 @@ namespace ccf
           if (node_status == NodeStatus::TRUSTED)
           {
             rep.network_info = {node.is_part_of_public_network(),
-                                node.get_last_recovered_commit_idx(),
+                                node.get_last_recovered_signed_idx(),
                                 this->network.consensus_type,
                                 *this->network.ledger_secrets.get(),
                                 *this->network.identity.get(),

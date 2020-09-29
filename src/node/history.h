@@ -109,12 +109,12 @@ namespace ccf
 
     void append(const uint8_t*, size_t) override {}
 
-    bool verify_and_sign(PrimarySignature&, kv::Term*) override
+    kv::TxHistory::Result verify_and_sign(PrimarySignature&, kv::Term*) override
     {
-      return true;
+      return kv::TxHistory::Result::OK;
     }
 
-    bool verify(kv::Term*) override
+    bool verify(kv::Term*, ccf::PrimarySignature*) override
     {
       return true;
     }
@@ -142,7 +142,7 @@ namespace ccf
         [txid, this]() {
           kv::Tx sig(txid.version);
           auto sig_view = sig.get_view(signatures);
-          PrimarySignature sig_value(id, txid.version);
+          PrimarySignature sig_value(id, txid.version, {0});
           sig_view->put(0, sig_value);
           return sig.commit_reserved();
         },
@@ -576,22 +576,34 @@ namespace ccf
       replicated_state_tree.append(rh);
     }
 
-    bool verify_and_sign(
+    kv::TxHistory::Result verify_and_sign(
       PrimarySignature& sig, kv::Term* term = nullptr) override
     {
-      if (!verify(term))
+      if (!verify(term, &sig))
       {
-        return false;
+        return kv::TxHistory::Result::FAIL;
       }
 
-      sig.node = id;
-      crypto::Sha256Hash root = replicated_state_tree.get_root();
-      sig.sig = kp.sign_hash(root.h.data(), root.h.size());
+      kv::TxHistory::Result result = kv::TxHistory::Result::OK;
 
-      return true;
+      auto progress_tracker = store.get_progress_tracker();
+      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
+      result = progress_tracker->record_primary(
+        sig.view,
+        sig.seqno,
+        sig.node,
+        sig.root,
+        sig.hashed_nonce,
+        store.get_consensus()->node_count());
+
+      sig.node = id;
+      sig.sig = kp.sign_hash(sig.root.h.data(), sig.root.h.size());
+
+      return result;
     }
 
-    bool verify(kv::Term* term = nullptr) override
+    bool verify(
+      kv::Term* term = nullptr, PrimarySignature* signature = nullptr) override
     {
       kv::Tx tx;
       auto [sig_tv, ni_tv] = tx.get_view(signatures, nodes);
@@ -601,10 +613,15 @@ namespace ccf
         LOG_FAIL_FMT("No signature found in signatures map");
         return false;
       }
-      auto sig_value = sig.value();
+      auto& sig_value = sig.value();
       if (term)
       {
         *term = sig_value.view;
+      }
+
+      if (signature)
+      {
+        *signature = sig_value;
       }
 
       auto ni = ni_tv->get(sig_value.node);
@@ -626,12 +643,6 @@ namespace ccf
       if (!result)
       {
         return false;
-      }
-
-      auto progress_tracker = store.get_progress_tracker();
-      if (progress_tracker)
-      {
-        progress_tracker->record_primary(sig_value.view, sig_value.seqno, root);
       }
 
       return true;
@@ -673,9 +684,6 @@ namespace ccf
         auto txid = store.next_txid();
 
         LOG_DEBUG_FMT(
-          "Signable TXID: {}.{}", commit_txid.first, commit_txid.second);
-
-        LOG_DEBUG_FMT(
           "Signed at {} in view: {} commit was: {}.{}",
           txid.version,
           txid.term,
@@ -689,10 +697,33 @@ namespace ccf
             auto sig_view = sig.get_view(signatures);
             crypto::Sha256Hash root = replicated_state_tree.get_root();
 
-            auto progress_tracker = store.get_progress_tracker();
-            if (progress_tracker)
+            Nonce hashed_nonce;
+            auto consensus = store.get_consensus();
+            if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
             {
-              progress_tracker->record_primary(txid.term, txid.version, root);
+              auto progress_tracker = store.get_progress_tracker();
+              CCF_ASSERT(
+                progress_tracker != nullptr, "progress_tracker is not set");
+              auto r = progress_tracker->record_primary(
+                txid.term, txid.version, id, root, hashed_nonce);
+              if (r != kv::TxHistory::Result::OK)
+              {
+                throw ccf::ccf_logic_error(fmt::format(
+                  "Expected success when primary added signature to the "
+                  "progress "
+                  "tracker. r:{}, view:{}, seqno:{}",
+                  r,
+                  txid.term,
+                  txid.version));
+              }
+
+              auto h =
+                progress_tracker->get_my_hashed_nonce(txid.term, txid.version);
+              std::copy(h.begin(), h.end(), hashed_nonce.begin());
+            }
+            else
+            {
+              hashed_nonce.fill(0);
             }
 
             PrimarySignature sig_value(
@@ -702,6 +733,7 @@ namespace ccf
               commit_txid.second,
               commit_txid.first,
               root,
+              hashed_nonce,
               kp.sign_hash(root.h.data(), root.h.size()),
               replicated_state_tree.serialise());
 

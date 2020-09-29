@@ -310,15 +310,18 @@ TEST_CASE("simple lua apps")
     auto get_ctx = enclave::make_rpc_context(user_session, packed);
     // expect to see 3 members in state active
     map<string, MemberInfo> expected = {
-      {"0", {active_members[0], dummy_key_share, MemberStatus::ACCEPTED}},
-      {"1", {active_members[1], dummy_key_share, MemberStatus::ACCEPTED}},
-      {"2", {active_members[2], dummy_key_share, MemberStatus::ACCEPTED}}};
+      {"0",
+       {active_members[0], dummy_key_share, nullptr, MemberStatus::ACCEPTED}},
+      {"1",
+       {active_members[1], dummy_key_share, nullptr, MemberStatus::ACCEPTED}},
+      {"2",
+       {active_members[2], dummy_key_share, nullptr, MemberStatus::ACCEPTED}}};
     check_success(frontend->process(get_ctx).value(), expected);
 
     // (2) try to write to members table
     const auto put_packed = make_pc(
       "put_member",
-      {{"k", 99}, {"v", MemberInfo{{}, {}, MemberStatus::ACCEPTED}}});
+      {{"k", 99}, {"v", MemberInfo{{}, {}, nullptr, MemberStatus::ACCEPTED}}});
     auto put_ctx = enclave::make_rpc_context(user_session, put_packed);
     check_error(
       frontend->process(put_ctx).value(), HTTP_STATUS_INTERNAL_SERVER_ERROR);

@@ -146,15 +146,24 @@ namespace kv
       std::vector<uint8_t> response;
     };
 
+    enum class Result
+    {
+      FAIL = 0,
+      OK,
+      SEND_SIG_RECEIPT_ACK,
+      SEND_REPLY_AND_NONCE
+    };
+
     using ResultCallbackHandler = std::function<bool(ResultCallbackArgs)>;
     using ResponseCallbackHandler = std::function<bool(ResponseCallbackArgs)>;
 
     virtual ~TxHistory() {}
     virtual void append(const std::vector<uint8_t>& replicated) = 0;
     virtual void append(const uint8_t* replicated, size_t replicated_size) = 0;
-    virtual bool verify_and_sign(
+    virtual Result verify_and_sign(
       ccf::PrimarySignature& signature, Term* term = nullptr) = 0;
-    virtual bool verify(Term* term = nullptr) = 0;
+    virtual bool verify(
+      Term* term = nullptr, ccf::PrimarySignature* sig = nullptr) = 0;
     virtual void emit_signature() = 0;
     virtual crypto::Sha256Hash get_replicated_state_root() = 0;
     virtual std::vector<uint8_t> get_receipt(Version v) = 0;
@@ -274,7 +283,7 @@ namespace kv
       state = Primary;
     }
 
-    virtual void init_as_backup(SeqNo, View)
+    virtual void init_as_backup(SeqNo, View, const std::vector<SeqNo>&)
     {
       state = Backup;
     }
@@ -315,6 +324,7 @@ namespace kv
     }
     virtual void enable_all_domains() {}
 
+    virtual uint32_t node_count() = 0;
     virtual void open_network() = 0;
     virtual void emit_signature() = 0;
     virtual ConsensusType type() = 0;
@@ -480,7 +490,9 @@ namespace kv
     virtual std::vector<uint8_t> serialise_snapshot(
       std::unique_ptr<AbstractSnapshot> snapshot) = 0;
     virtual DeserialiseSuccess deserialise_snapshot(
-      const std::vector<uint8_t>& data) = 0;
+      const std::vector<uint8_t>& data,
+      std::vector<Version>* view_history = nullptr,
+      bool public_only = false) = 0;
 
     virtual size_t commit_gap() = 0;
   };

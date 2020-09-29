@@ -40,6 +40,9 @@ struct CCFConfig
   std::string domain;
   size_t snapshot_tx_interval;
 
+  // Only if joining or recovering
+  std::vector<uint8_t> startup_snapshot;
+
   struct SignatureIntervals
   {
     size_t sig_tx_interval;
@@ -63,9 +66,7 @@ struct CCFConfig
     std::string target_port;
     std::vector<uint8_t> network_cert;
     size_t join_timer;
-    std::vector<uint8_t> snapshot;
-    MSGPACK_DEFINE(
-      target_host, target_port, network_cert, join_timer, snapshot);
+    MSGPACK_DEFINE(target_host, target_port, network_cert, join_timer);
   };
   Joining joining = {};
 
@@ -77,6 +78,7 @@ struct CCFConfig
     node_info_network,
     domain,
     snapshot_tx_interval,
+    startup_snapshot,
     signature_intervals,
     genesis,
     joining,
