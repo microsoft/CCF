@@ -1,8 +1,6 @@
 Concepts
 ========
 
-This page provides a broad overview of the key concepts and components of CCF.
-
 The following diagram shows a CCF network made of 3 nodes, running the same application inside an enclave. The effects of user and member transactions are eventually committed to a replicated encrypted ledger. A consortium of members is in charge of governing the network.
 
 .. image:: img/ccf_concepts.svg
@@ -10,27 +8,27 @@ The following diagram shows a CCF network made of 3 nodes, running the same appl
 Network and Nodes
 -----------------
 
-A CCF network consists of several nodes, each running on top of a Trusted Execution Environment (:term:`TEE`), or enclave, such as :term:`SGX`. As such, a CCF network is decentralised and highly-available.
+A CCF network consists of several nodes, each running on top of a Trusted Execution Environment (:term:`TEE`), or enclave, such as :term:`SGX`. A CCF network is decentralised and highly-available.
 
 Nodes are run and maintained by :term:`Operators`. However, nodes must be trusted by the consortium of members before participating in a CCF network.
 
 Application
 -----------
 
-Each node runs the same application (a.k.a. transaction engine). An application is a collection of endpoints that can be triggered by trusted :term:`Users`' commands over :term:`TLS`.
+Each node runs the same application, written in JavaScript or C++. An application is a collection of endpoints that can be triggered by trusted :term:`Users`' HTTP commands over :term:`TLS`.
 
-Each endpoint mutates an in-enclave-memory Key-Value Store that is replicated across all nodes in the network. Changes to the Key-Value Store must be agreed by a variable number of nodes, depending on the consensus algorithm selected (either Raft or PBFT), before being applied.
+Each endpoint mutates an in-enclave-memory Key-Value Store that is replicated across all nodes in the network. Changes to the Key-Value Store must be agreed by a variable number of nodes, depending on the consensus algorithm selected (either Raft or BFT), before being applied.
 
-The Key-Value Store is a collection of maps (associating a key to a value) that are defined by the application. These maps can be private (encrypted in the ledger) or public (visible by anyone that has access to the ledger).
+The Key-Value Store is a collection of maps (associating a key to a value) that are defined by the application. These maps can be private (encrypted in the ledger) or public (integrity-protected and visible by anyone that has access to the ledger).
 
 .. note:: Since all nodes in the CCF network can read the content of private maps, it is up to the application logic to control the access to such maps. Since every application endpoint has access to the identity of the user triggering it, it is easy to restrict which maps (and entries in those maps) a user can read or write to.
 
 Ledger
 ------
 
-All changes to the Key-Value Store are encrypted and recorded by each node of the network to disk to a decentralised ledger.
+All changes to the Key-Value Store are encrypted and recorded by each node of the network to disk to a decentralised auditable ledger.
 
-The integrity of the ledger is guaranteed by a Merkle tree whose root is periodically signed by the current primary/leader node.
+The integrity of the ledger is guaranteed by a :term:`Merkle tree` whose root is periodically signed by the current primary/leader node.
 
 Governance
 ----------

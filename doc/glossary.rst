@@ -21,6 +21,9 @@ Glossary
   Members
     Constitute the consortium governing a CCF network. Their public identity should be registered in CCF.
 
+  Merkle Tree
+    `Tree structure <https://en.wikipedia.org/wiki/Merkle_tree>`_ which records the hash of every transaction and guarantees the integrity of the CCF ledger.
+
   Microsoft Azure
     `Microsoft Azure <https://azure.microsoft.com>`_ is a cloud computing service created by Microsoft for building, testing, deploying, and managing applications and services through Microsoft-managed data centers.
 
