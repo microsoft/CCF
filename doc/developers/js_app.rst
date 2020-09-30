@@ -9,8 +9,6 @@ CCF's JavaScript environment is similar to that in browsers, with the following 
 - no `Web APIs <https://developer.mozilla.org/en-US/docs/Web/API>`_ are available,
 - module imports cannot be URLs and must be relative paths.
 
-.. _js-app-bundle:
-
 App bundle
 ----------
 
@@ -25,8 +23,7 @@ The most basic CCF JavaScript app has the following folder structure:
     └── app.json
 
 We also call this a `JavaScript app bundle` since it is the format used for deployment.
-It consists of metadata (``app.json``) and one or more JavaScript modules (``src/``)
--- more details in later sections.
+It consists of :ref:`metadata <developers/js_app:Metadata>` (``app.json``) and one or more :ref:`JavaScript modules <developers/js_app:JavaScript modules>` (``src/``).
 
 You can find an example app bundle in the
 `tests/js-app-bundle <https://github.com/microsoft/CCF/tree/master/tests/js-app-bundle>`_
@@ -60,8 +57,6 @@ how JavaScript modules can export application endpoint handlers.
 
       js_app_ts_npm
       js_app_tsoa_npm
-
-.. _js-app-bundle-metadata:
 
 Metadata
 --------
@@ -107,7 +102,7 @@ You can find an example metadata file at
 in the CCF git repository.
 
 .. note::
-    See the :ref:`tsoa-based app example <tsoa-app>` on how to generate OpenAPI definitions with TypeScript.
+    See the :ref:`tsoa-based app example <developers/js_app_tsoa_npm:TypeScript Application using Node.js, npm, and tsoa>` on how to generate OpenAPI definitions with TypeScript.
 
 JavaScript modules
 ------------------
@@ -163,5 +158,5 @@ It validates the request body and returns the result of a mathematical operation
    :language: js
 
 .. note::
-    See the :ref:`tsoa-based app example <tsoa-app>` on how to automatically validate
+    See the :ref:`tsoa-based app example <developers/js_app_tsoa_npm:TypeScript Application using Node.js, npm, and tsoa>` on how to automatically validate
     JSON request data using TypeScript types.

@@ -1,7 +1,7 @@
 TypeScript Application using Node.js and npm
 ============================================
 
-CCF's native JavaScript application format is an :ref:`app bundle <js-app-bundle>`.
+CCF's native JavaScript application format is an :ref:`app bundle <developers/js_app:App Bundle>`.
 However, this does not prevent us from using standard app development tools.
 In the following we show how to build a CCF JavaScript app using TypeScript, Node.js, and npm.
 
@@ -42,9 +42,9 @@ The sample app has the following folder layout:
 Compared to a CCF app bundle, there are a few additional files:
 
 - ``package.json``: Dependencies and build command.
-- ``rollup.config.js``: Rollup configuration, see :ref:`ts-app-bundle-conversion` for more details.
+- ``rollup.config.js``: Rollup configuration, see :ref:`developers/js_app_ts_npm:Conversion to an app bundle` for more details.
 - ``tsconfig.json``: TypeScript compiler configuration.
-- ``src/types/ccf.ts``: Types for CCF objects, see :ref:`ts-ccf-types` for more details.
+- ``src/types/ccf.ts``: Types for CCF objects, see :ref:`developers/js_app_ts_npm:Type definitions` for more details.
 
 .. note::
     Rollup requires exactly one entry-point module.
@@ -58,11 +58,9 @@ Compared to a CCF app bundle, there are a few additional files:
 Metadata
 --------
 
-:ref:`App metadata <js-app-bundle-metadata>` is stored in an ``app.json`` file in the root of the app project.
-This file is copied as-is to the ``dist/`` folder during the :ref:`build step <ts-app-bundle-conversion>`.
+:ref:`App metadata <developers/js_app:Metadata>` is stored in an ``app.json`` file in the root of the app project.
+This file is copied as-is to the ``dist/`` folder during the :ref:`build step <developers/js_app_ts_npm:Conversion to an app bundle>`.
 Note that paths must be relative to the ``dist/src/`` folder and end with ``.js`` instead of ``.ts``.
-
-.. _ts-ccf-types:
 
 Type definitions
 ----------------
@@ -74,8 +72,6 @@ Instead, the definitions are part of the sample app in
 `src/types/ccf.ts <https://github.com/microsoft/CCF/tree/master/tests/npm-app/src/types/ccf.ts>`_.
 See `src/endpoints <https://github.com/microsoft/CCF/tree/master/tests/npm-app/src/endpoints>`_
 on how the types can be imported and used.
-
-.. _ts-app-bundle-conversion:
 
 Conversion to an app bundle
 ---------------------------
