@@ -41,7 +41,8 @@ namespace ccf
       uint32_t signature_size,
       std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
       Nonce& hashed_nonce,
-      uint32_t node_count)
+      uint32_t node_count,
+      bool is_primary)
     {
       LOG_TRACE_FMT("add_signature node_id:{}, seqno:{}", node_id, seqno);
       auto it = certificates.find(CertKey(view, seqno));
@@ -94,7 +95,7 @@ namespace ccf
 
       if (can_send_sig_ack(cert, node_count))
       {
-        if (id == 0) // TODO: fix this
+        if (is_primary)
         {
           kv::Tx tx;
           auto backup_sig_view = tx.get_view(backup_signatures);
@@ -113,6 +114,7 @@ namespace ccf
 
           backup_sig_view->put(0, sig_value);
           auto r = tx.commit();
+          LOG_TRACE_FMT("Adding signatures to ledger, result:{}", r);
           CCF_ASSERT_FMT(
             r == kv::CommitSuccess::OK,
             "Commiting backup signatures failed r:{}",
@@ -209,7 +211,7 @@ namespace ccf
     }
 
     kv::TxHistory::Result receive_backup_signatures(
-      kv::Consensus::View& view, kv::Consensus::SeqNo& seqno)
+      kv::Consensus::View& view, kv::Consensus::SeqNo& seqno, uint32_t node_count, bool is_primary)
     {
       kv::Tx tx;
       auto sigs_tv = tx.get_view(backup_signatures);
@@ -252,7 +254,6 @@ namespace ccf
           std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
           std::copy(backup_sig.sig.begin(), backup_sig.sig.end(), sig.begin());
 
-          // TODO: Send the result here and workout what to do with the node_count
           kv::TxHistory::Result r = add_signature(
             sigs_value.view,
             sigs_value.seqno,
@@ -260,7 +261,8 @@ namespace ccf
             backup_sig.sig.size(),
             sig,
             backup_sig.hashed_nonce,
-            10); // TODO: putting 10 here is wrong
+            node_count,
+            is_primary);
           if (r == kv::TxHistory::Result::FAIL)
           {
             return kv::TxHistory::Result::FAIL;
@@ -389,9 +391,10 @@ namespace ccf
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
       Nonce nonce,
-      kv::NodeId node_id)
+      kv::NodeId node_id,
+      uint32_t node_count,
+      bool is_primary)
     {
-      uint32_t node_count = 3; // TODO: fix this
       bool did_add = false;
       auto it = certificates.find(CertKey(view, seqno));
       if (it == certificates.end())
@@ -450,7 +453,7 @@ namespace ccf
       sig.nonce = nonce;
       cert.nonce_set.insert(node_id);
 
-      if (id == 0 && should_append_nonces_to_ledger(cert, node_count)) // TODO: fix this
+      if (is_primary && should_append_nonces_to_ledger(cert, node_count))
       {
         kv::Tx tx;
         auto nonces_tv = tx.get_view(revealed_nonces);

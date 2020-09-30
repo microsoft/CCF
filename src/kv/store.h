@@ -844,7 +844,8 @@ namespace kv
             return success;
           }
 
-          auto r = progress_tracker->receive_backup_signatures(*term_, *index_);
+          auto r = progress_tracker->receive_backup_signatures(
+            *term_, *index_, consensus->node_count(), consensus->is_primary());
           if (r == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
           {
             success = DeserialiseSuccess::PASS_BACKUP_SIGNATURE_SEND_ACK;

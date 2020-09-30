@@ -18,7 +18,7 @@ TEST_CASE("Ordered Execution")
   auto& backup_signatures_map = store.create<ccf::BackupSignaturesMap>(
     ccf::Tables::BACKUP_SIGNATURES, kv::SecurityDomain::PUBLIC);
   auto& revealed_nonces_map = store.create<aft::RevealedNoncesMap>(
-    ccf::Tables::BACKUP_SIGNATURES, kv::SecurityDomain::PUBLIC);
+    ccf::Tables::NONCES, kv::SecurityDomain::PUBLIC);
 
   kv::Consensus::View view = 0;
   kv::Consensus::SeqNo seqno = 0;
@@ -33,7 +33,7 @@ TEST_CASE("Ordered Execution")
     auto pt = std::make_unique<ccf::ProgressTracker>(
       0, nodes, backup_signatures_map, revealed_nonces_map);
     auto result = pt->add_signature(
-      view, seqno, 1, MBEDTLS_ECDSA_MAX_LEN, sig, nonce, node_count);
+      view, seqno, 1, MBEDTLS_ECDSA_MAX_LEN, sig, nonce, node_count, true);
     REQUIRE(result == kv::TxHistory::Result::OK);
     REQUIRE_THROWS(pt->record_primary(view, seqno, 0, root, nonce, node_count));
   }
