@@ -772,8 +772,8 @@ namespace aft
         ccf::PrimarySignature sig;
         if (consensus_type == ConsensusType::BFT)
         {
-          deserialise_success =
-            store->deserialise_views(entry, public_only, &sig_term, &sig_index, &tx, &sig);
+          deserialise_success = store->deserialise_views(
+            entry, public_only, &sig_term, &sig_index, &tx, &sig);
         }
         else
         {
@@ -824,7 +824,7 @@ namespace aft
             }
             break;
           }
-          
+
           case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE:
           {
             break;
@@ -1137,7 +1137,8 @@ namespace aft
         r.from_node,
         r.term,
         r.idx);
-      progress_tracker->add_nonce_reveal(r.term, r.idx, r.nonce, r.from_node, node_count(), is_leader());
+      progress_tracker->add_nonce_reveal(
+        r.term, r.idx, r.nonce, r.from_node, node_count(), is_leader());
     }
 
     void recv_append_entries_response(const uint8_t* data, size_t size)

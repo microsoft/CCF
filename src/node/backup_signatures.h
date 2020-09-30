@@ -18,25 +18,18 @@ namespace ccf
     crypto::Sha256Hash root;
     std::vector<NodeSignature> signatures;
 
-    MSGPACK_DEFINE(
-      view,
-      seqno,
-      root,
-      signatures);
+    MSGPACK_DEFINE(view, seqno, root, signatures);
 
     BackupSignatures() = default;
 
     BackupSignatures(
-      ObjectId view_,
-      ObjectId seqno_,
-      const crypto::Sha256Hash root_) :
+      ObjectId view_, ObjectId seqno_, const crypto::Sha256Hash root_) :
       view(view_),
       seqno(seqno_),
       root(root_)
     {}
   };
   DECLARE_JSON_TYPE(BackupSignatures);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    BackupSignatures, view, seqno, root, signatures)
+  DECLARE_JSON_REQUIRED_FIELDS(BackupSignatures, view, seqno, root, signatures)
   using BackupSignaturesMap = kv::Map<ObjectId, BackupSignatures>;
 }

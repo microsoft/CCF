@@ -18,7 +18,8 @@ namespace aft
     MSGPACK_DEFINE(node_id, nonce);
 
     RevealedNonce(ccf::NodeId node_id_, Nonce nonce_) :
-      node_id(node_id_), nonce(nonce_)
+      node_id(node_id_),
+      nonce(nonce_)
     {}
 
     RevealedNonce() = default;
@@ -37,7 +38,8 @@ namespace aft
     RevealedNonces() = default;
 
     RevealedNonces(ccf::ObjectId view_, ccf::ObjectId seqno_) :
-      view(view_), seqno(seqno_)
+      view(view_),
+      seqno(seqno_)
     {}
   };
   DECLARE_JSON_TYPE(RevealedNonces);

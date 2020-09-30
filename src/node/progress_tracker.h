@@ -3,6 +3,7 @@
 #pragma once
 
 #include "backup_signatures.h"
+#include "consensus/aft/revealed_nonces.h"
 #include "ds/ccf_assert.h"
 #include "ds/ccf_exception.h"
 #include "kv/kv_types.h"
@@ -12,7 +13,6 @@
 #include "tls/hash.h"
 #include "tls/tls.h"
 #include "tls/verifier.h"
-#include "consensus/aft/revealed_nonces.h"
 
 #include <array>
 #include <vector>
@@ -211,7 +211,10 @@ namespace ccf
     }
 
     kv::TxHistory::Result receive_backup_signatures(
-      kv::Consensus::View& view, kv::Consensus::SeqNo& seqno, uint32_t node_count, bool is_primary)
+      kv::Consensus::View& view,
+      kv::Consensus::SeqNo& seqno,
+      uint32_t node_count,
+      bool is_primary)
     {
       kv::Tx tx;
       auto sigs_tv = tx.get_view(backup_signatures);
@@ -224,7 +227,7 @@ namespace ccf
       ccf::BackupSignatures& sigs_value = sigs.value();
 
       auto it = certificates.find(CertKey(sigs_value.view, sigs_value.seqno));
-      if(it == certificates.end())
+      if (it == certificates.end())
       {
         LOG_FAIL_FMT(
           "Primary send backup signatures before sending the primary "
@@ -235,7 +238,8 @@ namespace ccf
       }
 
       auto& cert = it->second;
-      if (!std::equal(cert.root.h.begin(), cert.root.h.end(), sigs_value.root.h.begin()))
+      if (!std::equal(
+            cert.root.h.begin(), cert.root.h.end(), sigs_value.root.h.begin()))
       {
         LOG_FAIL_FMT(
           "Roots do not matche signature view:{}, seqno:{}",
@@ -274,10 +278,14 @@ namespace ccf
         }
         else
         {
-          if (!std::equal(backup_sig.sig.begin(), backup_sig.sig.end(), it->second.sig.begin()))
+          if (!std::equal(
+                backup_sig.sig.begin(),
+                backup_sig.sig.end(),
+                it->second.sig.begin()))
           {
             LOG_FAIL_FMT(
-              "Signatures do not matche signature view:{}, seqno:{}, node_id:{}",
+              "Signatures do not matche signature view:{}, seqno:{}, "
+              "node_id:{}",
               sigs_value.view,
               sigs_value.seqno,
               backup_sig.node);
@@ -304,8 +312,9 @@ namespace ccf
       }
       aft::RevealedNonces& nonces_value = nonces.value();
 
-      auto it = certificates.find(CertKey(nonces_value.view, nonces_value.seqno));
-      if(it == certificates.end())
+      auto it =
+        certificates.find(CertKey(nonces_value.view, nonces_value.seqno));
+      if (it == certificates.end())
       {
         LOG_FAIL_FMT(
           "Primary send backup signatures before sending the primary "
@@ -322,7 +331,8 @@ namespace ccf
         if (it == cert.sigs.end())
         {
           LOG_FAIL_FMT(
-            "Primary sent revealed nonce before sending a signature view:{}, seqno:{}",
+            "Primary sent revealed nonce before sending a signature view:{}, "
+            "seqno:{}",
             nonces_value.view,
             nonces_value.seqno);
           return kv::TxHistory::Result::FAIL;
@@ -343,16 +353,11 @@ namespace ccf
         if (cert.nonce_set.find(revealed_nonce.node_id) == cert.nonce_set.end())
         {
           cert.nonce_set.insert(revealed_nonce.node_id);
-          std::copy(
-            h.begin(),
-            h.end(),
-            commit_cert.nonce.begin());
+          std::copy(h.begin(), h.end(), commit_cert.nonce.begin());
         }
-
       }
       return kv::TxHistory::Result::OK;
     }
-    
 
     kv::TxHistory::Result add_signature_ack(
       kv::Consensus::View view,
@@ -463,7 +468,10 @@ namespace ccf
         for (auto nonce_node_id : cert.nonce_set)
         {
           auto it = cert.sigs.find(nonce_node_id);
-          CCF_ASSERT_FMT(it != cert.sigs.end(), "Expected cert not found, node_id:{}", nonce_node_id);
+          CCF_ASSERT_FMT(
+            it != cert.sigs.end(),
+            "Expected cert not found, node_id:{}",
+            nonce_node_id);
           revealed_nonces.nonces.push_back(
             aft::RevealedNonce(nonce_node_id, it->second.nonce));
         }

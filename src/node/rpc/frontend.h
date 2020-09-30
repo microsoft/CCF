@@ -498,8 +498,7 @@ namespace ccf
       endpoints(handlers_),
       nodes(tables.get<Nodes>(Tables::NODES)),
       client_signatures(client_sigs_),
-      bft_requests_map(
-        tables.get<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS)),
+      bft_requests_map(tables.get<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS)),
       consensus(nullptr),
       history(nullptr)
     {}
