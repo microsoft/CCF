@@ -1,11 +1,9 @@
-TypeScript Application using Node.js and npm
-============================================
+TypeScript Application
+======================
 
-CCF's native JavaScript application format is an :ref:`app bundle <developers/js_app:App Bundle>`.
-However, this does not prevent us from using standard app development tools.
-In the following we show how to build a CCF JavaScript app using TypeScript, Node.js, and npm.
+This guide shows how to build a TypeScript application using Node.js and npm.
 
-You can find the example TypeScript app in the
+The source code for the example app can be found in the
 `tests/npm-app <https://github.com/microsoft/CCF/tree/master/tests/npm-app>`_
 folder of the CCF git repository.
 
@@ -39,12 +37,14 @@ The sample app has the following folder layout:
     ├── rollup.config.js
     └── tsconfig.json
 
-Compared to a CCF app bundle, there are a few additional files:
+It contains these files:
 
+- ``src/endpoints/*.ts``: :ref:`developers/js_app_ts:Endpoint handlers`.
+- ``src/types/ccf.ts``: :ref:`developers/js_app_ts:Type definitions` for CCF objects.
+- ``app.json``: :ref:`App metadata <developers/js_app_ts:Metadata>`.
 - ``package.json``: Dependencies and build command.
-- ``rollup.config.js``: Rollup configuration, see :ref:`developers/js_app_ts_npm:Conversion to an app bundle` for more details.
+- ``rollup.config.js``: Rollup configuration, see :ref:`developers/js_app_ts:Conversion to an app bundle` for more details.
 - ``tsconfig.json``: TypeScript compiler configuration.
-- ``src/types/ccf.ts``: Types for CCF objects, see :ref:`developers/js_app_ts_npm:Type definitions` for more details.
 
 .. note::
     Rollup requires exactly one entry-point module.
@@ -55,39 +55,91 @@ Compared to a CCF app bundle, there are a few additional files:
     This in turn may improve load time and/or memory consumption, for example if not all endpoints
     share the same npm package dependencies.
 
-Metadata
---------
+Endpoint handlers
+-----------------
 
-:ref:`App metadata <developers/js_app:Metadata>` is stored in an ``app.json`` file in the root of the app project.
-This file is copied as-is to the ``dist/`` folder during the :ref:`build step <developers/js_app_ts_npm:Conversion to an app bundle>`.
-Note that paths must be relative to the ``dist/src/`` folder and end with ``.js`` instead of ``.ts``.
+An endpoint handler, here named ``abc``, has the following structure:
+
+.. code-block:: ts
+
+    interface AbcRequest {
+        ...
+    }
+
+    interface AbcResponse {
+        ...
+    }
+
+    export function abc(request: ccf.Request<AbcRequest>): ccf.Response<AbcResponse> {
+        // access request details
+        const data = request.body.json();
+        
+        // process request
+        // ...
+
+        // return response
+        return {
+            body: ...,
+            headers: ...,
+            statusCode: ...
+        }
+    }
+
+``AbcRequest`` and ``AbcResponse`` define the JSON schema of the request and response body, respectively.
+If an endpoint has no request or response body, the type parameters of ``ccf.Request``/``ccf.Response`` can be omitted.
+
+As an example, the ``/partition`` endpoint of the sample app is implemented as:
+
+.. literalinclude:: ../../tests/npm-app/src/endpoints/partition.ts
+   :language: ts
+
+Here, the request body is a JSON array with elements of arbitrary type,
+and the response body is an even/odd partitioning of those elements as nested JSON array.
+The example also shows how an external library, here ``lodash``, is imported and used.
+
+See the :ref:`JavaScript API reference <developers/js_app_bundle:JavaScript API>` for more details on the request and response object fields.
+
+.. note::
+    Even though request body schemas can be defined as part of the OpenAPI :ref:`metadata <developers/js_app_ts:Metadata>`,
+    CCF does not validate incoming request data against those schemas.
+    It is up to the application to perform any necessary validation. 
 
 Type definitions
 ----------------
 
 CCF currently does not provide an npm package with TypeScript definitions
-for the ``Request`` and ``Response`` objects and the globals.
+for CCF's ``Request``/``Response`` objects and globals.
 
 Instead, the definitions are part of the sample app in
 `src/types/ccf.ts <https://github.com/microsoft/CCF/tree/master/tests/npm-app/src/types/ccf.ts>`_.
 See `src/endpoints <https://github.com/microsoft/CCF/tree/master/tests/npm-app/src/endpoints>`_
 on how the types can be imported and used.
 
+Metadata
+--------
+
+App metadata is stored in an ``app.json`` file in the root of the app project.
+It is copied as-is to the ``dist/`` folder during the :ref:`build step <developers/js_app_ts:Conversion to an app bundle>`.
+The file follows the :ref:`metadata format <developers/js_app_bundle:Metadata>` used by app bundles.
+
+Note that module paths must be relative to the ``dist/src/`` folder and end with ``.js`` instead of ``.ts``.
+
 Conversion to an app bundle
 ---------------------------
 
-Preparing the app for deployment relies on a build step that
+Preparing the app for deployment means converting it to CCF's native JavaScript application format, an :ref:`app bundle <developers/js_app_bundle:JavaScript Application Bundle>`.
+This involves the following steps:
 
-- transforms TypeScript into JavaScript,
-- transforms bare imports (``lodash``) into relative imports (``./node_modules/lodash/lodash.js``),
-- transforms old-style CommonJS modules into native JavaScript modules, and
-- stores all files according to the CCF app bundle folder structure.
+- transform TypeScript into JavaScript,
+- transform bare imports (``lodash``) into relative imports (``./node_modules/lodash/lodash.js``),
+- transform old-style CommonJS modules into native JavaScript modules, and
+- store all files according to the app bundle folder structure.
 
 For this, the sample app relies on the `TypeScript compiler <https://www.npmjs.com/package/typescript>`_ and
 `rollup <https://rollupjs.org>`_. Rollup also offers tree shaking support
 to avoid deploying unused modules. See ``package.json`` and ``rollup.config.js`` for details.
 
-The build step is invoked with
+The conversion command is invoked with
 
 .. code-block:: bash
 
@@ -95,12 +147,18 @@ The build step is invoked with
 
 The app bundle can now be found in the ``dist/`` folder and is ready to be deployed.
 
+Deployment
+----------
+
+After the app was converted to an app bundle, it can be wrapped into a proposal and deployed.
+See the :ref:`Deployment section of the app bundle page <developers/js_app_bundle:Deployment>` for further details.
+
 A note on CommonJS modules
 --------------------------
 
 The sample project uses the
 `@rollup/plugin-commonjs <https://github.com/rollup/plugins/tree/master/packages/commonjs>`_
-package to automatically convert packages with CommonJS modules to native JavaScript modules
+package to automatically convert npm packages with CommonJS modules to native JavaScript modules
 so that they can be used in CCF.
 
 For some packages this conversion may fail, for example when the package has circular module dependencies.
