@@ -63,7 +63,7 @@ This supports dynamic creation of maps - if the requested map did not exist prev
 
 .. note::
 
-    When accessing a ``Map`` by name, the confidentiality is encoded in the map's name with a "public:" prefix. For example "public:foo" refers to a public ``Map`` while "foo" is a private ``Map``. The latter is encrypted before writing to the ledger, whereas the former is written unencrypted so can be read by external tools with access to the ledger. These maps are distinct; writes to "public:foo" have no impact on "foo".
+    When accessing a ``Map`` by name, the confidentiality is encoded in the map's name with a "public:" prefix. For example "public:foo" refers to a public ``Map`` while "foo" is a private ``Map``. The latter is encrypted before writing to the ledger and all access to the table must happen through application code. The former is written unencrypted so can be read by external tools with access to the ledger. These maps are distinct; writes to "public:foo" have no impact on "foo".
 
 
 Modifying a ``View``
@@ -200,4 +200,3 @@ By default CCF decides which transactions are successful (so should be applied t
 
      // Apply this, even though it has an error response
     args.rpc_ctx->set_apply_writes(true);
-
