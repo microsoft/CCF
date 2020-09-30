@@ -73,7 +73,7 @@ static std::vector<uint8_t> kv_serialized_data(std::vector<uint8_t>& data)
 
   auto& map0 = kv_store.create<aft::RequestsMap>("map0");
 
-  kv::Tx tx(kv_store.next_version());
+  auto tx = kv_store.create_reserved_tx(kv_store.next_version());
   auto tx0 = tx.get_view(map0);
 
   tx0->put(0, {0, {}, data, {}});

@@ -91,7 +91,7 @@ namespace ccf
       auto serialised_snapshot =
         network.tables->serialise_snapshot(std::move(snapshot));
 
-      kv::Tx tx;
+      auto tx = network.tables->create_tx();
       auto view = tx.get_view(network.snapshot_evidence);
       auto snapshot_hash = crypto::Sha256Hash(serialised_snapshot);
       view->put(0, {snapshot_hash, snapshot_v});

@@ -94,7 +94,7 @@ namespace ccf::historical
     std::optional<ccf::PrimarySignature> get_signature(
       const StorePtr& sig_store)
     {
-      kv::Tx tx;
+      auto tx = sig_store->create_tx();
       auto sig_table = sig_store->get<ccf::Signatures>(ccf::Tables::SIGNATURES);
       if (sig_table == nullptr)
       {
@@ -112,7 +112,7 @@ namespace ccf::historical
       // This only works while entries are never deleted from this table, and
       // makes no check that the signing node was active at the point it
       // produced this signature
-      kv::Tx tx;
+      auto tx = source_store.create_tx();
 
       auto nodes_table = source_store.get<ccf::Nodes>(ccf::Tables::NODES);
       if (nodes_table == nullptr)

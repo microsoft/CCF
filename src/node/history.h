@@ -140,7 +140,7 @@ namespace ccf
       store.commit(
         txid,
         [txid, this]() {
-          kv::Tx sig(txid.version);
+          auto sig = store.create_reserved_tx(txid.version);
           auto sig_view = sig.get_view(signatures);
           PrimarySignature sig_value(id, txid.version, {0});
           sig_view->put(0, sig_value);
@@ -537,7 +537,7 @@ namespace ccf
       // The history can be initialised after a snapshot has been applied by
       // deserialising the tree in the signatures table and then applying the
       // hash of the transaction at which the snapshot was taken
-      kv::ReadOnlyTx tx;
+      auto tx = store.create_read_only_tx();
       auto sig_tv = tx.get_read_only_view(signatures);
       auto sig = sig_tv->get(0);
       if (!sig.has_value())
@@ -605,7 +605,7 @@ namespace ccf
     bool verify(
       kv::Term* term = nullptr, PrimarySignature* signature = nullptr) override
     {
-      kv::Tx tx;
+      auto tx = store.create_tx();
       auto [sig_tv, ni_tv] = tx.get_view(signatures, nodes);
       auto sig = sig_tv->get(0);
       if (!sig.has_value())
@@ -697,7 +697,7 @@ namespace ccf
       store.commit(
         txid,
         [txid, commit_txid, this]() {
-          kv::Tx sig(txid.version);
+          auto sig = store.create_reserved_tx(txid.version);
           auto sig_view = sig.get_view(signatures);
           crypto::Sha256Hash root = replicated_state_tree.get_root();
 
