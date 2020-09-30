@@ -20,12 +20,12 @@ def node_configs(network):
     return configs
 
 
-def count_nodes(configs):
+def count_nodes(configs, network):
     nodes = set(str(k) for k in configs.keys())
+    stopped = {str(n.node_id) for n in network.nodes if n.is_stopped()}
     for node_id, node_config in configs.items():
-        assert nodes == set(
-            node_config.keys()
-        ), f"{nodes} {set(node_config.keys())} {node_id}"
+        nodes_in_config = set(node_config.keys()) - stopped
+        assert nodes == nodes_in_config, f"{nodes} {nodes_in_config} {node_id}"
     return len(nodes)
 
 
@@ -122,7 +122,7 @@ def test_retire_backup(network, args):
 @reqs.description("Retiring the primary")
 @reqs.can_kill_n_nodes(1)
 def test_retire_primary(network, args):
-    pre_count = count_nodes(node_configs(network))
+    pre_count = count_nodes(node_configs(network), network)
 
     primary, backup = network.find_primary_and_any_backup()
     network.consortium.retire_node(primary, primary)
@@ -130,7 +130,7 @@ def test_retire_primary(network, args):
     LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
     check_can_progress(backup)
     network.nodes.remove(primary)
-    post_count = count_nodes(node_configs(network))
+    post_count = count_nodes(node_configs(network), network)
     assert pre_count == post_count + 1
     primary.stop()
     return network
