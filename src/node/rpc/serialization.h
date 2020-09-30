@@ -53,7 +53,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     JoinNetworkNodeToNode::Out::NetworkInfo,
     public_only,
-    last_recovered_commit_idx,
+    last_recovered_signed_idx,
     consensus_type,
     ledger_secrets,
     identity,

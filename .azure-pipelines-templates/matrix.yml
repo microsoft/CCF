@@ -39,6 +39,7 @@ jobs:
   - template: checks.yml
     parameters:
       env: ${{ parameters.env.Hosted }}
+      perf_or_release: ${{ parameters.perf_or_release }}
 
   # Debug
   - ${{ each target in parameters.target }}:
@@ -74,4 +75,6 @@ jobs:
     - template: release.yml
       parameters:
         env: ${{ parameters.env.Hosted }}
-        depends_on: 'SGX_Release'
+        depends_on:
+          - Checks
+          - SGX_Release

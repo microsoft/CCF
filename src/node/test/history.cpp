@@ -61,6 +61,7 @@ TEST_CASE("Check signature verification")
 {
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv::Store primary_store;
+
   primary_store.set_encryptor(encryptor);
   auto& primary_nodes = primary_store.create<ccf::Nodes>(
     ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
@@ -113,7 +114,7 @@ TEST_CASE("Check signature verification")
   {
     auto txs = primary_store.create_tx();
     auto tx = txs.get_view(primary_signatures);
-    ccf::PrimarySignature bogus(0, 0);
+    ccf::PrimarySignature bogus(0, 0, {0});
     bogus.sig = std::vector<uint8_t>(MBEDTLS_ECDSA_MAX_LEN, 1);
     tx->put(0, bogus);
     REQUIRE(txs.commit() == kv::CommitSuccess::NO_REPLICATE);

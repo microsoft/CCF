@@ -28,15 +28,15 @@ The following command will run a simple 3-node test network on a single machine:
     Setting up Python environment...
     ...
     Python environment successfully setup
-    [2020-07-17 15:27:41.759] Starting 3 CCF nodes...
-    [2020-07-17 15:27:46.643] Started CCF network with the following nodes:
-    [2020-07-17 15:27:46.643]   Node [ 0] = 127.251.192.205:36981
-    [2020-07-17 15:27:46.643]   Node [ 1] = 127.98.174.190:36795
-    [2020-07-17 15:27:46.643]   Node [ 2] = 127.113.40.231:33227
-    [2020-07-17 15:27:46.644] You can now issue business transactions to the ./liblogging.enclave.so.signed application.
-    [2020-07-17 15:27:46.644] Keys and certificates have been copied to the common folder: /data/src/CCF/build/workspace/test_network_common
-    [2020-07-17 15:27:46.644] See https://microsoft.github.io/CCF/users/issue_commands.html for more information.
-    [2020-07-17 15:27:46.644] Press Ctrl+C to shutdown the network.
+    [15:27:41.759] Starting 3 CCF nodes...
+    [15:27:46.643] Started CCF network with the following nodes:
+    [15:27:46.643]   Node [ 0] = 127.251.192.205:36981
+    [15:27:46.643]   Node [ 1] = 127.98.174.190:36795
+    [15:27:46.643]   Node [ 2] = 127.113.40.231:33227
+    [15:27:46.644] You can now issue business transactions to the ./liblogging.enclave.so.signed application.
+    [15:27:46.644] Keys and certificates have been copied to the common folder: /data/src/CCF/build/workspace/test_network_common
+    [15:27:46.644] See https://microsoft.github.io/CCF/master/users/issue_commands.html for more information.
+    [15:27:46.644] Press Ctrl+C to shutdown the network.
 
 The command output shows the addresses of the CCF nodes where commands may be submitted (eg, in this case, via ``curl https://127.251.192.205:36981/...``). The output and error logs of each node can be found in the node-specific directory in the workspace (eg, ``workspace/test_network_0/err`` is node 0's stderr).
 

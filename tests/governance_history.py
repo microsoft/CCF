@@ -19,31 +19,34 @@ def count_governance_operations(ledger):
     verified_proposals = 0
     verified_withdrawals = 0
 
-    for tr in ledger:
-        tables = tr.get_public_domain().get_tables()
-        if "ccf.member_cert_ders" in tables:
-            members_table = tables["ccf.member_cert_ders"]
-            for cert, member_id in members_table.items():
-                members[member_id] = cert
+    for chunk in ledger:
+        for tr in chunk:
+            tables = tr.get_public_domain().get_tables()
+            if "ccf.member_cert_ders" in tables:
+                members_table = tables["ccf.member_cert_ders"]
+                for cert, member_id in members_table.items():
+                    members[member_id] = cert
 
-        if "ccf.governance.history" in tables:
-            governance_history_table = tables["ccf.governance.history"]
-            for member_id, signed_request in governance_history_table.items():
-                assert member_id in members
-                cert = members[member_id]
-                sig = signed_request[0][0]
-                req = signed_request[0][1]
-                request_body = signed_request[0][2]
-                digest = signed_request[0][3]
-                infra.crypto.verify_request_sig(cert, sig, req, request_body, digest)
-                request_target_line = req.decode().splitlines()[0]
-                if "/gov/proposals" in request_target_line:
-                    if request_target_line.endswith("/votes"):
-                        verified_votes += 1
-                    elif request_target_line.endswith("/withdraw"):
-                        verified_withdrawals += 1
-                    else:
-                        verified_proposals += 1
+            if "ccf.governance.history" in tables:
+                governance_history_table = tables["ccf.governance.history"]
+                for member_id, signed_request in governance_history_table.items():
+                    assert member_id in members
+                    cert = members[member_id]
+                    sig = signed_request[0][0]
+                    req = signed_request[0][1]
+                    request_body = signed_request[0][2]
+                    digest = signed_request[0][3]
+                    infra.crypto.verify_request_sig(
+                        cert, sig, req, request_body, digest
+                    )
+                    request_target_line = req.decode().splitlines()[0]
+                    if "/gov/proposals" in request_target_line:
+                        if request_target_line.endswith("/votes"):
+                            verified_votes += 1
+                        elif request_target_line.endswith("/withdraw"):
+                            verified_withdrawals += 1
+                        else:
+                            verified_proposals += 1
 
     return (verified_proposals, verified_votes, verified_withdrawals)
 

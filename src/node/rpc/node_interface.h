@@ -29,7 +29,7 @@ namespace ccf
       GetQuotes::Out& result,
       const std::optional<std::set<NodeId>>& filter = std::nullopt) = 0;
     virtual NodeId get_node_id() const = 0;
-    virtual kv::Version get_last_recovered_commit_idx() = 0;
+    virtual kv::Version get_last_recovered_signed_idx() = 0;
     virtual void initiate_private_recovery(kv::Tx& tx) = 0;
     virtual ExtendedState state() = 0;
   };

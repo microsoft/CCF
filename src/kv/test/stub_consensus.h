@@ -145,6 +145,11 @@ namespace kv
       return;
     }
 
+    uint32_t node_count() override
+    {
+      return 0;
+    }
+
     void emit_signature() override
     {
       return;
