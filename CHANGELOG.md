@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 - `/api` endpoints return an OpenAPI document rather than a custom response (#1612, #1664)
 - Python ledger types can process individual chunks as well as entire ledger (#1644)
-
+- `POST recovery_share/submit` endpoint is renamed to `POST recovery_share` (#1660).
 ### Fixed
 - Elections will not allow transactions which were reported as globally committed to be rolled back (#1641)
 
