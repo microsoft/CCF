@@ -865,6 +865,20 @@ namespace kv
           auto h = get_history();
           h->append(data.data(), data.size());
         }
+        else if (views.find(ccf::Tables::NONCES) != views.end())
+        {
+          success = commit_deserialised(views, v, new_maps);
+          if (success == DeserialiseSuccess::FAILED)
+          {
+            return success;
+          }
+
+          // TODO: Inspect the nonces here
+
+          auto h = get_history();
+          h->append(data.data(), data.size());
+          success = DeserialiseSuccess::PASS_NONCES;
+        }
         else if (views.find(ccf::Tables::AFT_REQUESTS) == views.end())
         {
           // we have deserialised an entry that didn't belong to the bft

@@ -83,7 +83,7 @@ namespace aft
     kv::Version election_index = 0;
 
     // BFT
-    RequestsMap& pbft_requests_map;
+    RequestsMap& bft_requests_map;
     std::shared_ptr<aft::State> state;
     std::shared_ptr<Executor> executor;
 
@@ -143,7 +143,7 @@ namespace aft
       replica_state(Follower),
       timeout_elapsed(0),
 
-      pbft_requests_map(requests_map),
+      bft_requests_map(requests_map),
       state(state_),
       executor(executor_),
 
@@ -834,6 +834,11 @@ namespace aft
           {
             try_send_sig_ack(
               sig_term, sig_index, kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK);
+            break;
+          }
+
+          case kv::DeserialiseSuccess::PASS_NONCES:
+          {
             break;
           }
 

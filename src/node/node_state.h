@@ -1646,10 +1646,10 @@ namespace ccf
         rpcsessions,
         rpc_map,
         node_cert.raw(),
-        network.pbft_requests_map,
+        network.bft_requests_map,
         shared_state,
         std::make_shared<aft::ExecutorImpl>(
-          network.pbft_requests_map, shared_state, rpc_map, rpcsessions),
+          network.bft_requests_map, shared_state, rpc_map, rpcsessions),
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         public_only);
@@ -1760,8 +1760,11 @@ namespace ccf
     {
       if (network.consensus_type == ConsensusType::BFT)
       {
-        progress_tracker =
-          std::make_shared<ccf::ProgressTracker>(self, network.nodes, network.backup_signatures_map);
+        progress_tracker = std::make_shared<ccf::ProgressTracker>(
+          self,
+          network.nodes,
+          network.backup_signatures_map,
+          network.revealed_nonces_map);
         network.tables->set_progress_tracker(progress_tracker);
       }
     }

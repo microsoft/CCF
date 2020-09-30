@@ -12,6 +12,7 @@
 #include "tls/hash.h"
 #include "tls/tls.h"
 #include "tls/verifier.h"
+#include "consensus/aft/revealed_nonces.h"
 
 #include <array>
 #include <vector>
@@ -24,10 +25,12 @@ namespace ccf
     ProgressTracker(
       kv::NodeId id_,
       ccf::Nodes& nodes_,
-      ccf::BackupSignaturesMap& backup_signatures_) :
+      ccf::BackupSignaturesMap& backup_signatures_,
+      aft::RevealedNoncesMap& revealed_nonces_) :
       id(id_),
       nodes(nodes_),
       backup_signatures(backup_signatures_),
+      revealed_nonces(revealed_nonces_),
       entropy(tls::create_entropy())
     {}
 
@@ -327,6 +330,7 @@ namespace ccf
       Nonce nonce,
       kv::NodeId node_id)
     {
+      uint32_t node_count = 3; // TODO: fix this
       bool did_add = false;
       auto it = certificates.find(CertKey(view, seqno));
       if (it == certificates.end())
@@ -383,6 +387,25 @@ namespace ccf
           seqno));
       }
       sig.nonce = nonce;
+      cert.nonce_set.insert(node_id);
+
+      if (id == 0 && should_append_nonces_to_ledger(cert, node_count)) // TODO: fix this
+      {
+        kv::Tx tx;
+        auto nonces_tv = tx.get_view(revealed_nonces);
+
+        aft::RevealedNonces revealed_nonces(view, seqno);
+
+        nonces_tv->put(0, revealed_nonces);
+        auto r = tx.commit();
+        if (r != kv::CommitSuccess::OK)
+        {
+          LOG_FAIL_FMT(
+            "Failed to write nonces, view:{}, seqno:{}", view, seqno);
+          throw ccf::ccf_logic_error(fmt::format(
+            "Failed to write nonces, view:{}, seqno:{}", view, seqno));
+        }
+      }
     }
 
     Nonce get_my_nonce(kv::Consensus::View view, kv::Consensus::SeqNo seqno)
@@ -414,6 +437,7 @@ namespace ccf
     kv::NodeId id;
     ccf::Nodes& nodes;
     ccf::BackupSignaturesMap& backup_signatures;
+    aft::RevealedNoncesMap& revealed_nonces;
     std::shared_ptr<tls::Entropy> entropy;
 
     struct CertKey
@@ -461,11 +485,13 @@ namespace ccf
       crypto::Sha256Hash root;
       std::map<kv::NodeId, BftNodeSignature> sigs;
       std::set<kv::NodeId> sig_acks;
+      std::set<kv::NodeId> nonce_set;
       std::map<kv::NodeId, Nonce> unmatched_nonces;
       Nonce my_nonce;
       bool have_primary_signature = false;
       bool ack_sent = false;
       bool reply_and_nonce_sent = false;
+      bool nonces_committed_to_ledger = false;
     };
     std::map<CertKey, CommitCert> certificates;
 
@@ -536,6 +562,7 @@ namespace ccf
             seqno));
         }
         bft_node_sig.nonce = it_unmatched_nonces->second;
+        cert.nonce_set.insert(node_id);
         cert.unmatched_nonces.erase(it_unmatched_nonces);
       }
     }
@@ -578,6 +605,19 @@ namespace ccf
         !cert.reply_and_nonce_sent && cert.ack_sent)
       {
         cert.reply_and_nonce_sent = true;
+        return true;
+      }
+      return false;
+    }
+
+    bool should_append_nonces_to_ledger(CommitCert& cert, uint32_t node_count)
+    {
+      if (
+        cert.nonce_set.size() >= get_message_threshold(node_count) &&
+        cert.reply_and_nonce_sent && cert.ack_sent &&
+        !cert.nonces_committed_to_ledger)
+      {
+        cert.nonces_committed_to_ledger = true;
         return true;
       }
       return false;

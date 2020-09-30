@@ -45,7 +45,7 @@ namespace ccf
 
     Nodes* nodes;
     ClientSignatures* client_signatures;
-    aft::RequestsMap* pbft_requests_map;
+    aft::RequestsMap* bft_requests_map;
     kv::Consensus* consensus;
     std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder;
     kv::TxHistory* history;
@@ -498,7 +498,7 @@ namespace ccf
       endpoints(handlers_),
       nodes(tables.get<Nodes>(Tables::NODES)),
       client_signatures(client_sigs_),
-      pbft_requests_map(
+      bft_requests_map(
         tables.get<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS)),
       consensus(nullptr),
       history(nullptr)
@@ -634,7 +634,7 @@ namespace ccf
       if (!playback)
       {
         fn = [](kv::Tx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend) {
-          auto req_view = tx.get_view(*frontend.pbft_requests_map);
+          auto req_view = tx.get_view(*frontend.bft_requests_map);
           req_view->put(
             0,
             {ctx.session->original_caller.value().caller_id,

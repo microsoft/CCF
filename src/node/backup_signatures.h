@@ -19,8 +19,8 @@ namespace ccf
     std::vector<NodeSignature> signatures;
 
     MSGPACK_DEFINE(
-      seqno,
       view,
+      seqno,
       root,
       signatures);
 
@@ -37,6 +37,6 @@ namespace ccf
   };
   DECLARE_JSON_TYPE(BackupSignatures);
   DECLARE_JSON_REQUIRED_FIELDS(
-    BackupSignatures, seqno, view, root, signatures)
+    BackupSignatures, view, seqno, root, signatures)
   using BackupSignaturesMap = kv::Map<ObjectId, BackupSignatures>;
 }

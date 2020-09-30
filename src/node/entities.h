@@ -69,6 +69,7 @@ namespace ccf
     static constexpr auto VALUES = "ccf.values";
     static constexpr auto SIGNATURES = "ccf.signatures";
     static constexpr auto BACKUP_SIGNATURES = "ccf.backup_signatures";
+    static constexpr auto NONCES = "ccf.nonces";
     static constexpr auto CONSENSUS = "ccf.consensus";
     static constexpr auto USER_CLIENT_SIGNATURES = "ccf.user_client_signatures";
     static constexpr auto MEMBER_CLIENT_SIGNATURES =
