@@ -9,6 +9,7 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     start_network
     recovery
+    deploy_app
     node_output
     operator_rpc_api
     resource_usage
