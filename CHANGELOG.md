@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.14.0] - 2020-09-30
+### Added
+- Nodes can recover rapidly from a snapshot, rather than needing to reprocess an entire ledger (#1656)
+- Python client code wraps creation and replacement of an entire JS app bundle in a single operation (#1651)
+
+### Changed
+- `/api` endpoints return an OpenAPI document rather than a custom response (#1612, #1664)
+- Python ledger types can process individual chunks as well as entire ledger (#1644)
+
+### Deprecated
+- `lua_generic` app is deprecated and will be removed in a future release. Please migrate old Lua apps to JS
+
 ## [0.13.4] - 2020-09-23
 ### Changed
 - Fixed infinite memory growth issue (#1639)
@@ -357,7 +369,9 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 Initial pre-release
 
 
-[Unreleased]: https://github.com/microsoft/CCF/compare/ccf-0.13.3...HEAD
+[Unreleased]: https://github.com/microsoft/CCF/compare/ccf-0.14.0...HEAD
+[0.14.0]: https://github.com/microsoft/CCF/compare/ccf-0.13.4...ccf-0.14.0
+[0.13.4]: https://github.com/microsoft/CCF/compare/ccf-0.13.3...ccf-0.13.4
 [0.13.3]: https://github.com/microsoft/CCF/compare/ccf-0.13.2...ccf-0.13.3
 [0.13.2]: https://github.com/microsoft/CCF/compare/ccf-0.13.1...ccf-0.13.2
 [0.13.1]: https://github.com/microsoft/CCF/compare/ccf-0.13.0...ccf-0.13.1
