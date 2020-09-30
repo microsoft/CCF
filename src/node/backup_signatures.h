@@ -24,6 +24,8 @@ namespace ccf
       root,
       signatures);
 
+    BackupSignatures() = default;
+
     BackupSignatures(
       ObjectId view_,
       ObjectId seqno_,

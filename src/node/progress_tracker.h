@@ -206,6 +206,88 @@ namespace ccf
       return kv::TxHistory::Result::OK;
     }
 
+    kv::TxHistory::Result receive_backup_signatures(
+      kv::Consensus::View& view, kv::Consensus::SeqNo& seqno)
+    {
+      kv::Tx tx;
+      auto sigs_tv = tx.get_view(backup_signatures);
+      auto sigs = sigs_tv->get(0);
+      if (!sigs.has_value())
+      {
+        LOG_FAIL_FMT("No signatures found in signatures map");
+        return kv::TxHistory::Result::FAIL;
+      }
+      ccf::BackupSignatures& sigs_value = sigs.value();
+
+      auto it = certificates.find(CertKey(sigs_value.view, sigs_value.seqno));
+      if(it == certificates.end())
+      {
+        LOG_FAIL_FMT(
+          "Primary send backup signatures before sending the primary "
+          "signature view:{}, seqno:{}",
+          sigs_value.view,
+          sigs_value.seqno);
+        return kv::TxHistory::Result::FAIL;
+      }
+
+      auto& cert = it->second;
+      if (!std::equal(cert.root.h.begin(), cert.root.h.end(), sigs_value.root.h.begin()))
+      {
+        LOG_FAIL_FMT(
+          "Roots do not matche signature view:{}, seqno:{}",
+          sigs_value.view,
+          sigs_value.seqno);
+        return kv::TxHistory::Result::FAIL;
+      }
+
+      kv::TxHistory::Result success = kv::TxHistory::Result::OK;
+
+      for (auto& backup_sig : sigs_value.signatures)
+      {
+        auto it = cert.sigs.find(backup_sig.node);
+        if (it == cert.sigs.end())
+        {
+          std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
+          std::copy(backup_sig.sig.begin(), backup_sig.sig.end(), sig.begin());
+
+          // TODO: Send the result here and workout what to do with the node_count
+          kv::TxHistory::Result r = add_signature(
+            sigs_value.view,
+            sigs_value.seqno,
+            backup_sig.node,
+            backup_sig.sig.size(),
+            sig,
+            backup_sig.hashed_nonce,
+            10); // TODO: putting 10 here is wrong
+          if (r == kv::TxHistory::Result::FAIL)
+          {
+            return kv::TxHistory::Result::FAIL;
+          }
+          else if (r == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
+          {
+            success = kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK;
+          }
+        }
+        else
+        {
+          if (!std::equal(backup_sig.sig.begin(), backup_sig.sig.end(), it->second.sig.begin()))
+          {
+            LOG_FAIL_FMT(
+              "Signatures do not matche signature view:{}, seqno:{}, node_id:{}",
+              sigs_value.view,
+              sigs_value.seqno,
+              backup_sig.node);
+            return kv::TxHistory::Result::FAIL;
+          }
+        }
+      }
+
+      view = sigs_value.view;
+      seqno = sigs_value.seqno;
+
+      return success;
+    }
+
     kv::TxHistory::Result add_signature_ack(
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,

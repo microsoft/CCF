@@ -649,6 +649,7 @@ namespace kv
       const std::vector<uint8_t>& data,
       bool public_only = false,
       Term* term_ = nullptr,
+      Version* index_ = nullptr,
       AbstractViewContainer* tx = nullptr,
       ccf::PrimarySignature* sig = nullptr)
     {
@@ -843,12 +844,26 @@ namespace kv
             return success;
           }
 
-          // TODO: verify the signatures here
-          LOG_INFO_FMT("AAAAAA Got the signatures");
+          auto r = progress_tracker->receive_backup_signatures(*term_, *index_);
+          if (r == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
+          {
+            success = DeserialiseSuccess::PASS_BACKUP_SIGNATURE_SEND_ACK;
+          }
+          else if (r == kv::TxHistory::Result::OK)
+          {
+            success = DeserialiseSuccess::PASS_BACKUP_SIGNATURE;
+          }
+          else
+          {
+            LOG_FAIL_FMT("receive_backup_signatures Failed");
+            LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
+            throw std::logic_error(
+              "Failed to verify signature, view-changes not implemented");
+            return DeserialiseSuccess::FAILED;
+          }
 
           auto h = get_history();
           h->append(data.data(), data.size());
-          success = DeserialiseSuccess::PASS_BACKUP_SIGNATURE;
         }
         else if (views.find(ccf::Tables::AFT_REQUESTS) == views.end())
         {

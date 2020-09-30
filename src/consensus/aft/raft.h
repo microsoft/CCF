@@ -766,13 +766,14 @@ namespace aft
         state->last_idx = i;
 
         Term sig_term = 0;
+        Index sig_index = 0;
         auto tx = store->create_tx();
         kv::DeserialiseSuccess deserialise_success;
         ccf::PrimarySignature sig;
         if (consensus_type == ConsensusType::BFT)
         {
           deserialise_success =
-            store->deserialise_views(entry, public_only, &sig_term, &tx, &sig);
+            store->deserialise_views(entry, public_only, &sig_term, &sig_index, &tx, &sig);
         }
         else
         {
@@ -826,6 +827,13 @@ namespace aft
           
           case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE:
           {
+            break;
+          }
+
+          case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
+          {
+            try_send_sig_ack(
+              sig_term, sig_index, kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK);
             break;
           }
 
