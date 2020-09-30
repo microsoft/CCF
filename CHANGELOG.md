@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Nodes can recover rapidly from a snapshot, rather than needing to reprocess an entire ledger (#1656)
 - Python client code wraps creation and replacement of an entire JS app bundle in a single operation (#1651)
+- Snapshots are only usable when the corresponding evidence is committed (#1668). 
+- JSON data associated to each consortium member to facilitate flexible member roles (#1657).
 
 ### Changed
 - `/api` endpoints return an OpenAPI document rather than a custom response (#1612, #1664)
