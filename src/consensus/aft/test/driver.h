@@ -88,8 +88,8 @@ public:
     aft::NodeId node_id, aft::NodeId tgt_node_id, aft::RequestVote rv)
   {
     std::ostringstream s;
-    s << "request_vote t: " << rv.term << ", lli: " << rv.last_commit_idx
-      << ", llt: " << rv.last_commit_term;
+    s << "request_vote t: " << rv.term << ", lci: " << rv.last_committable_idx
+      << ", tolci: " << rv.term_of_last_committable_idx;
     log(node_id, tgt_node_id, s.str());
   }
 
