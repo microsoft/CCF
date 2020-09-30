@@ -220,7 +220,7 @@ namespace aft
 
     kv::Tx create_tx()
     {
-      throw std::logic_error("Stub has no real store to create Tx from");
+      return kv::Tx();
     }
   };
 
