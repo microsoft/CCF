@@ -59,11 +59,11 @@ A :cpp:class:`kv::Map::TxView` can also be retrieved purely by name, without ref
     auto [view_map2, view_map3] =
         tx.get_view<kv::Map<string, string>, kv::Map<uint64_t, string>>("public:map2", "map3");
 
-This supports dynamic creation of maps - if the requested map did not exist previously, it will be created during this transaction. Any writes to a newly created ``Map`` will be persisted when the transaction commits, and future transactions will be able to access this ``Map`` by name.
+This supports dynamic creation of maps - if the requested map did not exist previously, it will be created by this transaction. Any writes to a newly created ``Map`` will be persisted when the transaction commits, and future transactions will be able to access this ``Map`` by name.
 
 .. note::
 
-    When accessing a ``Map`` by name, the confidentiality is encoded in the map's name with a "public:" prefix. For example "public:foo" refers to a public ``Map`` while "foo" is a private ``Map``. The latter is encrypted before writing to the ledger, whereas the former is written unencrypted so can be read by external tools with access to the ledger. These maps are distinct; writes to "public:foo" have no impact on "foo".
+    When accessing a ``Map`` by name, the confidentiality is encoded in the map's name with a "public:" prefix. For example "public:foo" refers to a public ``Map`` while "foo" is a private ``Map``. The latter is encrypted before writing to the ledger and all access to the table must happen through application code. The former is written unencrypted so can be read by external tools with access to the ledger. These maps are distinct; writes to "public:foo" have no impact on "foo" and vice versa.
 
 
 Modifying a ``View``
@@ -200,4 +200,3 @@ By default CCF decides which transactions are successful (so should be applied t
 
      // Apply this, even though it has an error response
     args.rpc_ctx->set_apply_writes(true);
-
