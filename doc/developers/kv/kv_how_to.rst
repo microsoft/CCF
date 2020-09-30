@@ -59,7 +59,7 @@ A :cpp:class:`kv::Map::TxView` can also be retrieved purely by name, without ref
     auto [view_map2, view_map3] =
         tx.get_view<kv::Map<string, string>, kv::Map<uint64_t, string>>("public:map2", "map3");
 
-This supports dynamic creation of maps - if the requested map did not exist previously, it will be created during this transaction. Any writes to a newly created ``Map`` will be persisted when the transaction commits, and future transactions will be able to access this ``Map`` by name.
+This supports dynamic creation of maps - if the requested map did not exist previously, it will be created by this transaction. Any writes to a newly created ``Map`` will be persisted when the transaction commits, and future transactions will be able to access this ``Map`` by name.
 
 .. note::
 
