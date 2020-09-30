@@ -18,7 +18,6 @@ Before issuing business transactions to CCF, the certificates of trusted users n
     :maxdepth: 2
     :caption: Contents:
 
-    deploy_app
     issue_commands
     verify_quote
     python_tutorial

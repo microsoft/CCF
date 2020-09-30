@@ -1,7 +1,7 @@
-Deploying an Application
-========================
+Starting a Test Network
+=======================
 
-The quickest way to deploy a CCF application is to use the `start_test_network.sh <https://github.com/microsoft/CCF/blob/master/start_test_network.sh>`_ test script, specifying the :ref:`enclave image <developers/index:Building Apps>` to run.
+The quickest way to start a CCF test network is to use the `start_test_network.sh <https://github.com/microsoft/CCF/blob/master/start_test_network.sh>`_ test script, specifying the :ref:`enclave image <developers/index:Building Apps>` to run.
 
 The script creates a new test CCF network composed of 3 nodes running locally. All the governance requests required to open the network to users are automatically issued.
 
@@ -29,7 +29,7 @@ For example, deploying the ``liblogging`` example application:
     - The ``--verbose`` argument can be used to display all commands issued by operators and members to start the network.
     - Snapshots can be generated at regular intervals by the primary node of the service using the ``--snapshot-tx-interval <interval>`` option.
 
-The log files (``out`` and ``err``) and ledger (``<node_id>.ledger``) for each CCF node can be found under ``CCF/build/workspace/test_network_<node_id>``.
+The log files (``out`` and ``err``) and ledger directory (``<node_id>.ledger``) for each CCF node can be found under ``./workspace/test_network_<node_id>``.
 
 .. note:: The first time the command is run, a Python virtual environment will be created. This may take a few seconds. It will not be run the next time the ``start_test_network.sh`` script is started.
 

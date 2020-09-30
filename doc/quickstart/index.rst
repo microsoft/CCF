@@ -1,6 +1,12 @@
 Start Here
 ==========
 
+.. toctree::
+    :maxdepth: 1
+    :hidden:
+
+    build
+
 Container
 ---------
 
@@ -110,8 +116,6 @@ Running CCF with full security guarantees requires :term:`SGX` hardware with :te
 Releases
 --------
 
-CCF releases (``ccf.tar.gz``) are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases>`_.
-Once downloaded, the extracted install directory can be copied to a long-lived path, e.g. under ``/opt/``.
+CCF releases (``ccf_<version>_amd64.deb``) are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases>`_.
 
-To setup a CI for your CCF application, you may want to use the :ref:`developers/build_app:Build Container`. If you are running
-CCF nodes in containers, the :ref:`operators/container:Runtime Container` is a good place to start.
+To setup a CI for your CCF application, you may want to use the :ref:`developers/build_app:Build Container`. If you are running CCF nodes in containers, the :ref:`operators/container:Runtime Container` is a good place to start.
