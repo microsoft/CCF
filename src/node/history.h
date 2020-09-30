@@ -537,7 +537,7 @@ namespace ccf
       // The history can be initialised after a snapshot has been applied by
       // deserialising the tree in the signatures table and then applying the
       // hash of the transaction at which the snapshot was taken
-      kv::ReadOnlyTx tx;
+      auto tx = store.create_read_only_tx();
       auto sig_tv = tx.get_read_only_view(signatures);
       auto sig = sig_tv->get(0);
       if (!sig.has_value())

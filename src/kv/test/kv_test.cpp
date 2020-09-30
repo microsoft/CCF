@@ -362,7 +362,7 @@ TEST_CASE("Read-only tx")
 
   INFO("Read with read-only tx");
   {
-    kv::ReadOnlyTx tx;
+    auto tx = kv_store.create_read_only_tx();
     auto view = tx.get_read_only_view(map);
     const auto v = view->get(k);
     REQUIRE(v.has_value());
