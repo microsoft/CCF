@@ -240,8 +240,19 @@ namespace kv
       return *result;
     }
 
-    // EXPERIMENTAL - DO NOT USE
-    // This API is for internal testing only, and may change or be removed
+    /** Get a map by name, iff it exists at the given version.
+     *
+     * This means a prior transaction must have created the map, and
+     * successfully committed at a version <= v. If this has not happened (the
+     * map has never been created, or never been committed, or committed at a
+     * later version) this will return nullptr.
+     *
+     * @param v Version at which the map must exist
+     * @param map_name Name of requested map
+     *
+     * @return Abstract shared-owning pointer to requested map, or nullptr if no
+     * such map exists
+     */
     std::shared_ptr<AbstractMap> get_map(
       kv::Version v, const std::string& map_name) override
     {
@@ -258,8 +269,16 @@ namespace kv
       return nullptr;
     }
 
-    // EXPERIMENTAL - DO NOT USE
-    // This API is for internal testing only, and may change or be removed
+    /** Transfer ownership of a dynamically created map to this Store.
+     *
+     * Should be called as part of the commit process, once a transaction is
+     * known to be conflict-free and has been assigned a unique Version. This
+     * publishes dynamically created Maps so they can be retrieved via get_map
+     * in future transactions.
+     *
+     * @param v Version at which map is being committed/created
+     * @param map Map to add
+     */
     void add_dynamic_map(
       kv::Version v, const std::shared_ptr<AbstractMap>& map) override
     {

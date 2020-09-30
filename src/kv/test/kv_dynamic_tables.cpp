@@ -84,8 +84,8 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
 
     auto [v1, v2] = tx.get_view<MapTypes::StringString, MapTypes::StringNum>(
       new_map1, new_map2);
-    auto [v2a, v3] = tx.get_view<MapTypes::StringNum, MapTypes::NumString>(
-      new_map2, new_map3);
+    auto [v2a, v3] =
+      tx.get_view<MapTypes::StringNum, MapTypes::NumString>(new_map2, new_map3);
 
     REQUIRE(v2 == v2a);
 
@@ -576,9 +576,8 @@ TEST_CASE("Swapping dynamic maps" * doctest::test_suite("dynamic"))
     INFO("Public state is untouched");
     auto tx = s2.create_tx();
 
-    auto [v0, v1] =
-      tx.get_view<MapTypes::StringString, MapTypes::StringString>(
-        "public:source_state", "public:target_state");
+    auto [v0, v1] = tx.get_view<MapTypes::StringString, MapTypes::StringString>(
+      "public:source_state", "public:target_state");
 
     const auto val0 = v0->get("store");
     REQUIRE_FALSE(val0.has_value());

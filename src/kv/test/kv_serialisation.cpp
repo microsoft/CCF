@@ -129,7 +129,8 @@ TEST_CASE(
   kv::Store kv_store_target;
   kv_store_target.set_encryptor(encryptor);
   kv_store_target.clone_schema(kv_store);
-  auto* target_priv_map = kv_store_target.get<MapTypes::StringString>("priv_map");
+  auto* target_priv_map =
+    kv_store_target.get<MapTypes::StringString>("priv_map");
   auto* target_pub_map = kv_store_target.get<MapTypes::StringString>("pub_map");
   REQUIRE(target_priv_map != nullptr);
   REQUIRE(target_pub_map != nullptr);

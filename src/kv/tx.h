@@ -115,8 +115,8 @@ namespace kv
     {
       if (store == nullptr)
       {
-        CCF_ASSERT(false, "New form called on old-style Tx");
-        throw std::logic_error("New form called on old-style Tx");
+        CCF_ASSERT(
+          false, "Cannot retrieve view: New form called on old-style Tx");
       }
 
       using MapView = typename M::TxView;
@@ -498,6 +498,19 @@ namespace kv
       return std::get<0>(get_view_tuple_by_name<M>(m.get_name()));
     }
 
+    /** Get a read-only transaction view on a map by name.
+     *
+     * This adds the map to the transaction set if it is not yet present, and
+     * creates the map if it does not yet exist.
+     *
+     * @param map_name Name of map
+     */
+    template <class M>
+    typename M::ReadOnlyTxView* get_read_only_view(const std::string& map_name)
+    {
+      return std::get<0>(get_view_tuple_by_name<M>(map_name));
+    }
+
     /** Get read-only transaction views over multiple maps.
      *
      * @param m Map
@@ -512,7 +525,20 @@ namespace kv
         get_view_tuple_by_types(ms...));
     }
 
-    // TODO: get_read_only variants which take map name, like get_view
+    /** Get read-only transaction views over multiple maps by name. This will
+     * create the maps if they do not exist.
+     *
+     * @param map_name Name of first map to retrieve
+     * @param names Names of additional maps
+     */
+    template <class M, class... Ms, class... Ts>
+    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_read_only_view(
+      const std::string& map_name, const Ts&... names)
+    {
+      return std::tuple_cat(
+        get_view_tuple_by_name<M>(map_name),
+        get_view_tuple_by_names<Ms...>(names...));
+    }
   };
 
   class Tx : public ReadOnlyTx
@@ -539,8 +565,13 @@ namespace kv
       return std::get<0>(get_view_tuple_by_name<M>(m.get_name()));
     }
 
-    // EXPERIMENTAL - DO NOT USE
-    // This API is for internal testing only, and may change or be removed
+    /** Get a transaction view on a map by name
+     *
+     * This adds the map to the transaction set if it is not yet present, and
+     * creates the map if it does not yet exist.
+     *
+     * @param map_name Name of map
+     */
     template <class M>
     typename M::TxView* get_view(const std::string& map_name)
     {
@@ -561,8 +592,12 @@ namespace kv
         get_view_tuple_by_types(ms...));
     }
 
-    // EXPERIMENTAL - DO NOT USE
-    // This API is for internal testing only, and may change or be removed
+    /** Get transaction views over multiple maps by name. This will create the
+     * maps if they do not exist.
+     *
+     * @param map_name Name of first map to retrieve
+     * @param names Names of additional maps
+     */
     template <class M, class... Ms, class... Ts>
     std::tuple<typename M::TxView*, typename Ms::TxView*...> get_view(
       const std::string& map_name, const Ts&... names)
