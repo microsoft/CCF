@@ -23,10 +23,12 @@ namespace ccf
   {
   public:
     ProgressTracker(
+      kv::AbstractStore& store_,
       kv::NodeId id_,
       ccf::Nodes& nodes_,
       ccf::BackupSignaturesMap& backup_signatures_,
       aft::RevealedNoncesMap& revealed_nonces_) :
+      store(store_),
       id(id_),
       nodes(nodes_),
       backup_signatures(backup_signatures_),
@@ -97,7 +99,7 @@ namespace ccf
       {
         if (is_primary)
         {
-          kv::Tx tx;
+          kv::Tx tx(&store);
           auto backup_sig_view = tx.get_view(backup_signatures);
 
           const CertKey& key = it->first;
@@ -216,7 +218,7 @@ namespace ccf
       uint32_t node_count,
       bool is_primary)
     {
-      kv::Tx tx;
+      kv::Tx tx(&store);
       auto sigs_tv = tx.get_view(backup_signatures);
       auto sigs = sigs_tv->get(0);
       if (!sigs.has_value())
@@ -302,7 +304,7 @@ namespace ccf
 
     kv::TxHistory::Result receive_nonces()
     {
-      kv::Tx tx;
+      kv::Tx tx(&store);
       auto nonces_tv = tx.get_view(revealed_nonces);
       auto nonces = nonces_tv->get(0);
       if (!nonces.has_value())
@@ -460,7 +462,7 @@ namespace ccf
 
       if (is_primary && should_append_nonces_to_ledger(cert, node_count))
       {
-        kv::Tx tx;
+        kv::Tx tx(&store);
         auto nonces_tv = tx.get_view(revealed_nonces);
 
         aft::RevealedNonces revealed_nonces(view, seqno);
@@ -514,6 +516,7 @@ namespace ccf
     }
 
   private:
+    kv::AbstractStore& store;
     kv::NodeId id;
     ccf::Nodes& nodes;
     ccf::BackupSignaturesMap& backup_signatures;

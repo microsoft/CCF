@@ -31,7 +31,7 @@ TEST_CASE("Ordered Execution")
   INFO("Adding signature");
   {
     auto pt = std::make_unique<ccf::ProgressTracker>(
-      0, nodes, backup_signatures_map, revealed_nonces_map);
+      store, 0, nodes, backup_signatures_map, revealed_nonces_map);
     auto result = pt->add_signature(
       view, seqno, 1, MBEDTLS_ECDSA_MAX_LEN, sig, nonce, node_count, true);
     REQUIRE(result == kv::TxHistory::Result::OK);
@@ -41,7 +41,7 @@ TEST_CASE("Ordered Execution")
   INFO("Waits for signature tx");
   {
     auto pt = std::make_unique<ccf::ProgressTracker>(
-      0, nodes, backup_signatures_map, revealed_nonces_map);
+      store, 0, nodes, backup_signatures_map, revealed_nonces_map);
     for (size_t i = 0; i < node_count; ++i)
     {
       auto result = pt->add_signature_ack(view, seqno, i, node_count);
