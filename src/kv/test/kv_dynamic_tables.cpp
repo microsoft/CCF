@@ -289,8 +289,9 @@ TEST_CASE("Read only views" * doctest::test_suite("dynamic"))
 
   {
     auto tx = kv_store.create_read_only_tx();
-    auto [va, vb] = tx.get_read_only_view<MapTypes::StringString, MapTypes::StringString>(
-      dynamic_map_a, dynamic_map_b);
+    auto [va, vb] =
+      tx.get_read_only_view<MapTypes::StringString, MapTypes::StringString>(
+        dynamic_map_a, dynamic_map_b);
 
     const auto foo_a = va->get("foo");
     REQUIRE(foo_a.has_value());
