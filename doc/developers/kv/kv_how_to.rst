@@ -48,6 +48,23 @@ For each ``Map`` that a Transaction wants to write to or read from, a :cpp:class
     // Two Views created at the same time on map_pub and map_priv_int, respectively
     auto [view_map2, view_map3] = tx.get_view(map_pub, map_priv_int);
 
+A :cpp:class:`kv::Map::TxView` can also be retrieved purely by name, without reference to an existing ``Map``.
+
+.. code-block:: cpp
+
+    // View on map1
+    auto view_map1 = tx.get_view<kv::Map<string, string>>("map1");
+    
+    // Two Views created at the same time, over different public and private maps
+    auto [view_map2, view_map3] =
+        tx.get_view<kv::Map<string, string>, kv::Map<uint64_t, string>>("public:map2", "map3");
+
+This supports dynamic creation of maps - if the requested map did not exist previously, it will be created during this transaction. Any writes to a newly created ``Map`` will be persisted when the transaction commits, and future transactions will be able to access this ``Map`` by name.
+
+.. note::
+
+    When accessing a ``Map`` by name, the confidentiality is encoded in the map's name with a "public:" prefix. For example "public:foo" refers to a public ``Map`` while "foo" is a private ``Map``. The latter is encrypted before writing to the ledger, whereas the former is written unencrypted so can be read by external tools with access to the ledger. These maps are distinct; writes to "public:foo" have no impact on "foo".
+
 
 Modifying a ``View``
 --------------------
