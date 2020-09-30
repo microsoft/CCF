@@ -362,7 +362,6 @@ namespace ccf
       uint32_t sig_size,
       uint8_t* sig)
     {
-      // TODO: Create this tx from a Store, somehow...
       kv::Tx tx;
       auto ni_tv = tx.get_view_old(nodes);
 
