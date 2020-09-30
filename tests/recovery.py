@@ -82,12 +82,6 @@ def test_share_resilience(network, args, from_snapshot=False):
             )
             submitted_shares_count += 1
 
-    # In theory, check_commit should be sufficient to guarantee that the new primary
-    # will know about all the recovery shares submitted so far. However, because of
-    # https://github.com/microsoft/CCF/issues/589, we have to wait for all nodes
-    # to have committed all transactions.
-    recovered_network.wait_for_all_nodes_to_catch_up(primary)
-
     # Here, we kill the current primary instead of just suspending it.
     # However, because of https://github.com/microsoft/CCF/issues/99#issuecomment-630875387,
     # the new primary will most likely be the previous primary, which defies the point of this test.
