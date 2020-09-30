@@ -217,6 +217,11 @@ namespace aft
     {
       return nullptr;
     }
+
+    kv::Tx create_tx()
+    {
+      return kv::Tx();
+    }
   };
 
   class LoggingStubStoreSig : public LoggingStubStore

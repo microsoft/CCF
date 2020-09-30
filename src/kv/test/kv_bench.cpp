@@ -62,7 +62,7 @@ static void serialise(picobench::state& s)
 
   auto& map0 = kv_store.create<MapType>("map0", SD);
   auto& map1 = kv_store.create<MapType>("map1", SD);
-  kv::Tx tx;
+  auto tx = kv_store.create_tx();
   auto [tx0, tx1] = tx.get_view(map0, map1);
 
   for (int i = 0; i < s.iterations(); i++)
@@ -99,7 +99,7 @@ static void deserialise(picobench::state& s)
   auto& map1 = kv_store.create<MapType>("map1", SD);
   kv_store2.clone_schema(kv_store);
 
-  kv::Tx tx;
+  auto tx = kv_store.create_tx();
   auto [tx0, tx1] = tx.get_view(map0, map1);
 
   for (int i = 0; i < s.iterations(); i++)
@@ -135,7 +135,7 @@ static void commit_latency(picobench::state& s)
 
   for (int i = 0; i < s.iterations(); i++)
   {
-    kv::Tx tx;
+    auto tx = kv_store.create_tx();
     auto [tx0, tx1] = tx.get_view(map0, map1);
     for (int iTx = 0; iTx < S; iTx++)
     {
@@ -174,7 +174,7 @@ static void ser_snap(picobench::state& s)
       fmt::format("map{}", i), kv::SecurityDomain::PRIVATE);
   }
 
-  kv::Tx tx;
+  auto tx = kv_store.create_tx();
   for (int i = 0; i < s.iterations(); i++)
   {
     auto view = tx.get_view(*kv_store.get<MapType>(fmt::format("map{}", i)));
@@ -218,7 +218,7 @@ static void des_snap(picobench::state& s)
 
   kv_store2.clone_schema(kv_store);
 
-  kv::Tx tx;
+  auto tx = kv_store.create_tx();
   for (int i = 0; i < s.iterations(); i++)
   {
     auto view = tx.get_view(*kv_store.get<MapType>(fmt::format("map{}", i)));
