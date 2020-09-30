@@ -356,7 +356,8 @@ if(BUILD_TESTS)
     target_link_libraries(snapshot_test PRIVATE secp256k1.host)
 
     add_unit_test(
-      snapshotter_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshotter.cpp
+      snapshotter_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshotter.cpp
     )
     target_link_libraries(snapshotter_test PRIVATE secp256k1.host)
 

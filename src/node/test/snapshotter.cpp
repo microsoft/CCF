@@ -5,7 +5,6 @@
 
 #include "ds/logger.h"
 #include "kv/test/null_encryptor.h"
-#include "node/network_state.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
