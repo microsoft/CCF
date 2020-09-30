@@ -689,10 +689,10 @@ class Network:
         expected = [commits[0]] * len(commits)
         assert expected == commits, f"{commits} != {expected}"
 
-    def wait_for_new_primary(self, old_primary_id):
+    def wait_for_new_primary(self, old_primary_id, timeout_multiplier=2):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
-        timeout = self.election_duration * 2
+        timeout = self.election_duration * timeout_multiplier
         LOG.info(
             f"Waiting up to {timeout}s for a new primary (different from {old_primary_id}) to be elected..."
         )
