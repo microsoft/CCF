@@ -630,6 +630,20 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME rotation_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --raft-election-timeout 4000
+  )
+
+  add_e2e_test(
+    NAME committable_suffix_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --raft-election-timeout 4000
+  )
+
+  add_e2e_test(
     NAME lua_e2e_batched
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
     CONSENSUS cft

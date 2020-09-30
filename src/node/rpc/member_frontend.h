@@ -958,7 +958,7 @@ namespace ccf
       };
       make_endpoint("read", HTTP_POST, json_adapter(read))
         // This can be executed locally, but can't currently take ReadOnlyTx due
-        // to restristions in our lua wrappers
+        // to restrictions in our lua wrappers
         .set_forwarding_required(ForwardingRequired::Sometimes)
         .set_auto_schema<KVRead>()
         .install();
