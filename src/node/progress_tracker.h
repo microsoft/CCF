@@ -96,7 +96,6 @@ namespace ccf
       {
         if (id == 0) // TODO: fix this
         {
-          // TODO: Add the backup signatures to the ledger
           kv::Tx tx;
           auto backup_sig_view = tx.get_view(backup_signatures);
 
@@ -291,6 +290,68 @@ namespace ccf
       return success;
     }
 
+    kv::TxHistory::Result receive_nonces()
+    {
+      kv::Tx tx;
+      auto nonces_tv = tx.get_view(revealed_nonces);
+      auto nonces = nonces_tv->get(0);
+      if (!nonces.has_value())
+      {
+        LOG_FAIL_FMT("No signatures found in signatures map");
+        return kv::TxHistory::Result::FAIL;
+      }
+      aft::RevealedNonces& nonces_value = nonces.value();
+
+      auto it = certificates.find(CertKey(nonces_value.view, nonces_value.seqno));
+      if(it == certificates.end())
+      {
+        LOG_FAIL_FMT(
+          "Primary send backup signatures before sending the primary "
+          "signature view:{}, seqno:{}",
+          nonces_value.view,
+          nonces_value.seqno);
+        return kv::TxHistory::Result::FAIL;
+      }
+
+      auto& cert = it->second;
+      for (auto& revealed_nonce : nonces_value.nonces)
+      {
+        auto it = cert.sigs.find(revealed_nonce.node_id);
+        if (it == cert.sigs.end())
+        {
+          LOG_FAIL_FMT(
+            "Primary sent revealed nonce before sending a signature view:{}, seqno:{}",
+            nonces_value.view,
+            nonces_value.seqno);
+          return kv::TxHistory::Result::FAIL;
+        }
+
+        BftNodeSignature& commit_cert = it->second;
+        auto h = hash_data(revealed_nonce.nonce);
+        if (!match_nonces(h, commit_cert.hashed_nonce))
+        {
+          LOG_FAIL_FMT(
+            "Hashed nonces does not match with nonce view:{}, seqno:{}, "
+            "node_id:{}",
+            nonces_value.view,
+            nonces_value.seqno,
+            revealed_nonce.node_id);
+          return kv::TxHistory::Result::FAIL;
+        }
+        if (cert.nonce_set.find(revealed_nonce.node_id) == cert.nonce_set.end())
+        {
+          cert.nonce_set.insert(revealed_nonce.node_id);
+          std::copy(
+            h.begin(),
+            h.end(),
+            commit_cert.nonce.begin());
+        }
+
+      }
+      return kv::TxHistory::Result::OK;
+    }
+    
+
     kv::TxHistory::Result add_signature_ack(
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
@@ -395,6 +456,14 @@ namespace ccf
         auto nonces_tv = tx.get_view(revealed_nonces);
 
         aft::RevealedNonces revealed_nonces(view, seqno);
+
+        for (auto nonce_node_id : cert.nonce_set)
+        {
+          auto it = cert.sigs.find(nonce_node_id);
+          CCF_ASSERT_FMT(it != cert.sigs.end(), "Expected cert not found, node_id:{}", nonce_node_id);
+          revealed_nonces.nonces.push_back(
+            aft::RevealedNonce(nonce_node_id, it->second.nonce));
+        }
 
         nonces_tv->put(0, revealed_nonces);
         auto r = tx.commit();
