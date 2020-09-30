@@ -244,6 +244,64 @@ TEST_CASE(
   REQUIRE(view4->get("foo").has_value());
 }
 
+TEST_CASE("Read only views" * doctest::test_suite("dynamic"))
+{
+  kv::Store kv_store;
+
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+
+  constexpr auto dynamic_map_a = "dynamic_map_a";
+  constexpr auto dynamic_map_b = "dynamic_map_b";
+
+  {
+    auto tx = kv_store.create_read_only_tx();
+    auto va = tx.get_read_only_view<MapTypes::StringString>(dynamic_map_a);
+    auto [vaa, vb, vbb] = tx.get_read_only_view<
+      MapTypes::StringString,
+      MapTypes::StringString,
+      MapTypes::StringString>(dynamic_map_a, dynamic_map_b, dynamic_map_b);
+
+    REQUIRE(va != nullptr);
+    REQUIRE(vaa != nullptr);
+    REQUIRE(vb != nullptr);
+    REQUIRE(vbb != nullptr);
+
+    REQUIRE(va == vaa);
+    REQUIRE(vb == vbb);
+
+    REQUIRE(!va->get("foo").has_value());
+    REQUIRE(!vb->get("foo").has_value());
+
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+
+  {
+    auto tx = kv_store.create_tx();
+    auto [va, vb] = tx.get_view<MapTypes::StringString, MapTypes::StringString>(
+      dynamic_map_a, dynamic_map_b);
+
+    va->put("foo", "bar");
+    vb->put("foo", "baz");
+
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+
+  {
+    auto tx = kv_store.create_read_only_tx();
+    auto [va, vb] = tx.get_read_only_view<MapTypes::StringString, MapTypes::StringString>(
+      dynamic_map_a, dynamic_map_b);
+
+    const auto foo_a = va->get("foo");
+    REQUIRE(foo_a.has_value());
+    REQUIRE(*foo_a == "bar");
+
+    const auto foo_b = vb->get("foo");
+    REQUIRE(foo_b.has_value());
+    REQUIRE(*foo_b == "baz");
+  }
+}
+
 TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
 {
   kv::Store kv_store;
