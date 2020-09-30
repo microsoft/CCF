@@ -60,14 +60,15 @@ namespace ccf
       else
       {
         if (
-          node_id != id &&
+          node_id != id && it->second.have_primary_signature &&
           !verify_signature(
             node_id, it->second.root, signature_size, sig.data()))
         {
           // NOTE: We need to handle this case but for now having this make a
           // test fail will be very handy
           throw ccf::ccf_logic_error(fmt::format(
-            "Signature verification from {} FAILED, view:{}, seqno:{}",
+            "add_signatures: Signature verification from {} FAILED, view:{}, "
+            "seqno:{}",
             node_id,
             view,
             seqno));
@@ -148,6 +149,7 @@ namespace ccf
       if (it == certificates.end())
       {
         CommitCert cert(root, my_nonce);
+        cert.have_primary_signature = true;
         BftNodeSignature bft_node_sig({}, node_id, hashed_nonce);
         bft_node_sig.is_primary = true;
         try_match_unmatched_nonces(cert, bft_node_sig, view, seqno, node_id);
@@ -169,22 +171,23 @@ namespace ccf
         BftNodeSignature bft_node_sig({}, node_id, hashed_nonce);
         bft_node_sig.is_primary = true;
         try_match_unmatched_nonces(cert, bft_node_sig, view, seqno, node_id);
-        cert.sigs.insert(
-          std::pair<kv::NodeId, BftNodeSignature>(node_id, bft_node_sig));
         cert.my_nonce = my_nonce;
         cert.have_primary_signature = true;
         for (auto& sig : cert.sigs)
         {
-          if (!verify_signature(
-                sig.second.node,
-                cert.root,
-                sig.second.sig.size(),
-                sig.second.sig.data()))
+          if (
+            !sig.second.is_primary &&
+            !verify_signature(
+              sig.second.node,
+              cert.root,
+              sig.second.sig.size(),
+              sig.second.sig.data()))
           {
             // NOTE: We need to handle this case but for now having this make a
             // test fail will be very handy
             throw ccf::ccf_logic_error(fmt::format(
-              "Signature verification from {} FAILED, view:{}, seqno:{}",
+              "record_primary: Signature verification from {} FAILED, view:{}, "
+              "seqno:{}",
               sig.first,
               view,
               seqno));
@@ -195,6 +198,8 @@ namespace ccf
             view,
             seqno);
         }
+        cert.sigs.insert(
+          std::pair<kv::NodeId, BftNodeSignature>(node_id, bft_node_sig));
       }
 
       auto& cert = it->second;
