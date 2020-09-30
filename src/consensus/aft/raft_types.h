@@ -197,12 +197,8 @@ namespace aft
   struct RequestVote : RaftHeader
   {
     Term term;
-    // last_log_idx in vanilla raft but last_commit_idx here to preserve
-    // verifiability
-    Index last_commit_idx;
-    // last_log_term in vanilla raft but last_commit_term here to preserve
-    // verifiability
-    Term last_commit_term;
+    Index last_committable_idx;
+    Term term_of_last_committable_idx;
   };
 
   struct RequestVoteResponse : RaftHeader
