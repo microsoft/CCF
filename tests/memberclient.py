@@ -57,7 +57,10 @@ def test_add_member(network, args):
     except infra.member.NoRecoveryShareFound as e:
         assert e.response.body.text() == "Only active members are given recovery shares"
 
-    new_member.ack(primary)
+    r = new_member.ack(primary)
+    with primary.client() as nc:
+        check_commit = infra.checker.Checker(nc)
+        check_commit(r)
 
     return network
 

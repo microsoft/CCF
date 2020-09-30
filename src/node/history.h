@@ -676,8 +676,16 @@ namespace ccf
         return;
       }
 
+      // Signatures are only emitted when the consensus is establishing commit
+      // over the node's own transactions
+      auto signable_txid = consensus->get_signable_txid();
+      if (!signable_txid.has_value())
+      {
+        return;
+      }
+
+      auto commit_txid = signable_txid.value();
       auto txid = store.next_txid();
-      auto commit_txid = consensus->get_committed_txid();
 
       LOG_DEBUG_FMT(
         "Signed at {} in view: {} commit was: {}.{}",
