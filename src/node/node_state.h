@@ -469,7 +469,7 @@ namespace ccf
                   fmt::format("Failed to apply snapshot on join: {}", rc));
               }
 
-              kv::ReadOnlyTx tx;
+              auto tx = network.tables->create_read_only_tx();
               auto sig_view = tx.get_read_only_view(network.signatures);
               auto sig = sig_view->get(0);
               if (!sig.has_value())
