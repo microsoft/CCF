@@ -115,6 +115,7 @@ namespace kv
     {
       if (store == nullptr)
       {
+        CCF_ASSERT(false, "New form called on old-style Tx");
         throw std::logic_error("New form called on old-style Tx");
       }
 
@@ -511,7 +512,7 @@ namespace kv
         get_view_tuple_by_types(ms...));
     }
 
-    // TODO: get_read_only variants which take map name, like get_view2
+    // TODO: get_read_only variants which take map name, like get_view
   };
 
   class Tx : public ReadOnlyTx
@@ -541,7 +542,7 @@ namespace kv
     // EXPERIMENTAL - DO NOT USE
     // This API is for internal testing only, and may change or be removed
     template <class M>
-    typename M::TxView* get_view2(const std::string& map_name)
+    typename M::TxView* get_view(const std::string& map_name)
     {
       return std::get<0>(get_view_tuple_by_name<M>(map_name));
     }
@@ -563,7 +564,7 @@ namespace kv
     // EXPERIMENTAL - DO NOT USE
     // This API is for internal testing only, and may change or be removed
     template <class M, class... Ms, class... Ts>
-    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_view2(
+    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_view(
       const std::string& map_name, const Ts&... names)
     {
       return std::tuple_cat(
