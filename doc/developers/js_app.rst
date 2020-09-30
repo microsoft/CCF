@@ -29,7 +29,7 @@ You can find an example app bundle in the
 `tests/js-app-bundle <https://github.com/microsoft/CCF/tree/master/tests/js-app-bundle>`_
 folder of the CCF git repository.
 
-An app bundle can be turned into a proposal with the Python client:
+An app bundle can be wrapped into a governance proposal with the Python client for deployment:
 
 .. code-block:: bash
 
