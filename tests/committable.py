@@ -37,7 +37,9 @@ def run(args):
         primary.stop()
         backups[1].resume()
         backups[2].resume()
-        new_primary, new_term = network.wait_for_new_primary(primary.node_id, timeout_multiplier=6)
+        new_primary, new_term = network.wait_for_new_primary(
+            primary.node_id, timeout_multiplier=6
+        )
         LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
         assert new_primary.node_id == backups[0].node_id
 
