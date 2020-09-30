@@ -9,6 +9,7 @@ import infra.path
 import ccf.clients
 import os
 import socket
+import time
 
 from loguru import logger as LOG
 
@@ -255,7 +256,30 @@ class Node:
         return self.remote.get_ledger()
 
     def get_snapshots(self):
-        return self.remote.get_snapshots()
+        # Wait for all available snapshot files to be committed before
+        # copying snapshot directory
+        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=3):
+            end_time = time.time() + timeout
+            committed = True
+            uncommitted_snapshots = []
+            while time.time() < end_time:
+                committed = True
+                uncommitted_snapshots = []
+                for f in list_src_dir_func(src_dir):
+                    is_committed = f.endswith(".committed")
+                    if not is_committed:
+                        uncommitted_snapshots.append(f)
+                    committed &= is_committed
+                if committed:
+                    break
+                time.sleep(0.1)
+            if not committed:
+                LOG.error(
+                    f"Error: Not all snapshots were committed after {timeout}s in {src_dir}: {uncommitted_snapshots}"
+                )
+            return committed
+
+        return self.remote.get_snapshots(wait_for_snapshots_to_be_committed)
 
     def client(self, identity=None, **kwargs):
         akwargs = {

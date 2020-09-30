@@ -659,7 +659,7 @@ int main(int argc, char** argv)
 
   if (*join || *recover)
   {
-    auto snapshot_file = snapshots.find_latest_snapshot();
+    auto snapshot_file = snapshots.find_latest_committed_snapshot();
     if (snapshot_file.has_value())
     {
       ccf_config.startup_snapshot = files::slurp(snapshot_file.value());
