@@ -195,7 +195,7 @@ class SSHRemote(CmdMixin):
         dst_path,
         timeout=FILE_TIMEOUT,
         target_name=None,
-        pre_condition_func=None,
+        pre_condition_func=lambda src_dir, _: True,
     ):
         """
         Get file called `file_name` under the root of the remote. If the
@@ -220,9 +220,9 @@ class SSHRemote(CmdMixin):
                         if os.path.exists(dst_dir):
                             shutil.rmtree(dst_dir)
                         os.makedirs(dst_dir)
-                        if pre_condition_func is not None:
-                            pre_condition_func(
-                                src_dir, lambda src_dir: session.listdir(src_dir)
+                        if not pre_condition_func(src_dir, session.listdir):
+                            raise RuntimeError(
+                                "Pre-condition for getting remote files failed"
                             )
                         for f in session.listdir(src_dir):
                             session.get(
@@ -455,7 +455,7 @@ class LocalRemote(CmdMixin):
         dst_path,
         timeout=FILE_TIMEOUT,
         target_name=None,
-        pre_condition_func=None,
+        pre_condition_func=lambda src_dir, _: True,
     ):
         path = os.path.join(self.root, src_path)
         end_time = time.time() + timeout
@@ -465,8 +465,8 @@ class LocalRemote(CmdMixin):
             time.sleep(0.1)
         else:
             raise ValueError(path)
-        if pre_condition_func is not None:
-            pre_condition_func(path, lambda src_dir: os.listdir(src_dir))
+        if not pre_condition_func(path, os.listdir):
+            raise RuntimeError("Pre-condition for getting remote files failed")
         if target_name is not None:
             self._cp(path, os.path.join(dst_path, target_name))
         else:
@@ -769,7 +769,7 @@ class CCFRemote(object):
         self.remote.get(self.ledger_dir_name, self.common_dir)
         return os.path.join(self.common_dir, self.ledger_dir_name)
 
-    def get_snapshots(self, pre_condition_func=None):
+    def get_snapshots(self, pre_condition_func=lambda src_dir, _: True):
         self.remote.get(
             self.snapshot_dir_name,
             self.common_dir,

@@ -264,6 +264,7 @@ class Node:
             uncommitted_snapshots = []
             while time.time() < end_time:
                 committed = True
+                uncommitted_snapshots = []
                 for f in list_src_dir_func(src_dir):
                     is_committed = f.endswith(".committed")
                     if not is_committed:
@@ -273,9 +274,10 @@ class Node:
                     break
                 time.sleep(0.1)
             if not committed:
-                raise RuntimeError(
-                    f"Not all snapshots were committed after {timeout}s in {src_dir}: {uncommitted_snapshots}"
+                LOG.error(
+                    f"Error: Not all snapshots were committed after {timeout}s in {src_dir}: {uncommitted_snapshots}"
                 )
+            return committed
 
         return self.remote.get_snapshots(wait_for_snapshots_to_be_committed)
 

@@ -8,7 +8,6 @@ import suite.test_requirements as reqs
 
 from loguru import logger as LOG
 import os
-import time
 
 
 @reqs.description("Recovering a network")
