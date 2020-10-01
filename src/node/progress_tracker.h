@@ -70,8 +70,12 @@ namespace ccf
   {
   public:
     ProgressTrackerStoreAdapter(
-      kv::AbstractStore& store_, ccf::BackupSignaturesMap& backup_signatures_) :
-      store(store_), backup_signatures(backup_signatures_)
+      kv::AbstractStore& store_,
+      ccf::BackupSignaturesMap& backup_signatures_,
+      aft::RevealedNoncesMap& revealed_nonces_) :
+      store(store_),
+      backup_signatures(backup_signatures_),
+      revealed_nonces(revealed_nonces_)
     {}
 
     void write_backup_signatures(
@@ -102,9 +106,43 @@ namespace ccf
       return sigs;
     }
 
+    void write_nonces(aft::RevealedNonces& nonces)
+    {
+      kv::Tx tx(&store);
+      auto nonces_tv = tx.get_view(revealed_nonces);
+
+      nonces_tv->put(0, nonces);
+      auto r = tx.commit();
+      if (r != kv::CommitSuccess::OK)
+      {
+        LOG_FAIL_FMT(
+          "Failed to write nonces, view:{}, seqno:{}",
+          nonces.tx_id.term,
+          nonces.tx_id.version);
+        throw ccf::ccf_logic_error(fmt::format(
+          "Failed to write nonces, view:{}, seqno:{}",
+          nonces.tx_id.term,
+          nonces.tx_id.version));
+      }
+    }
+
+    std::optional<aft::RevealedNonces> get_nonces()
+    {
+      kv::Tx tx(&store);
+      auto nonces_tv = tx.get_view(revealed_nonces);
+      auto nonces = nonces_tv->get(0);
+      if (!nonces.has_value())
+      {
+        LOG_FAIL_FMT("No signatures found in signatures map");
+        throw ccf::ccf_logic_error("No signatures found in signatures map");
+      }
+      return nonces;
+    }
+
   public:
     kv::AbstractStore& store;
     ccf::BackupSignaturesMap& backup_signatures;
+    aft::RevealedNoncesMap& revealed_nonces;
   };
 
   class ProgressTracker
@@ -116,11 +154,10 @@ namespace ccf
       ccf::Nodes& nodes_,
       ccf::BackupSignaturesMap& backup_signatures_,
       aft::RevealedNoncesMap& revealed_nonces_) :
-      store_adapter(store_, backup_signatures_),
+      store_adapter(store_, backup_signatures_, revealed_nonces_),
       store(store_),
       id(id_),
       nodes(nodes_),
-      revealed_nonces(revealed_nonces_),
       entropy(tls::create_entropy())
     {}
 
@@ -306,7 +343,7 @@ namespace ccf
       kv::TxID& tx_id, uint32_t node_count, bool is_primary)
     {
       std::optional<ccf::BackupSignatures> sigs = store_adapter.get_backup_signatures();
-      CCF_ASSERT(sigs.has_value(), "sigs does no have a value");
+      CCF_ASSERT(sigs.has_value(), "sigs does not have a value");
       auto sigs_value = sigs.value();
 
       auto it = certificates.find(CertKey({sigs_value.view, sigs_value.seqno}));
@@ -384,14 +421,8 @@ namespace ccf
 
     kv::TxHistory::Result receive_nonces()
     {
-      kv::Tx tx(&store);
-      auto nonces_tv = tx.get_view(revealed_nonces);
-      auto nonces = nonces_tv->get(0);
-      if (!nonces.has_value())
-      {
-        LOG_FAIL_FMT("No signatures found in signatures map");
-        return kv::TxHistory::Result::FAIL;
-      }
+      std::optional<aft::RevealedNonces> nonces = store_adapter.get_nonces();
+      CCF_ASSERT(nonces.has_value(), "nonces does not have a value");
       aft::RevealedNonces& nonces_value = nonces.value();
 
       auto it = certificates.find(CertKey(nonces_value.tx_id));
@@ -537,9 +568,6 @@ namespace ccf
 
       if (is_primary && should_append_nonces_to_ledger(cert, node_count))
       {
-        kv::Tx tx(&store);
-        auto nonces_tv = tx.get_view(revealed_nonces);
-
         aft::RevealedNonces revealed_nonces(tx_id);
 
         for (auto nonce_node_id : cert.nonce_set)
@@ -553,19 +581,7 @@ namespace ccf
             aft::RevealedNonce(nonce_node_id, it->second.nonce));
         }
 
-        nonces_tv->put(0, revealed_nonces);
-        auto r = tx.commit();
-        if (r != kv::CommitSuccess::OK)
-        {
-          LOG_FAIL_FMT(
-            "Failed to write nonces, view:{}, seqno:{}",
-            tx_id.term,
-            tx_id.version);
-          throw ccf::ccf_logic_error(fmt::format(
-            "Failed to write nonces, view:{}, seqno:{}",
-            tx_id.term,
-            tx_id.version));
-        }
+        store_adapter.write_nonces(revealed_nonces);
       }
     }
 
@@ -597,7 +613,6 @@ namespace ccf
     kv::AbstractStore& store;
     kv::NodeId id;
     ccf::Nodes& nodes;
-    aft::RevealedNoncesMap& revealed_nonces;
     std::shared_ptr<tls::Entropy> entropy;
 
     std::map<CertKey, CommitCert> certificates;
