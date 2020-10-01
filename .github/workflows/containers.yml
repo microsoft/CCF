@@ -17,10 +17,10 @@ jobs:
         id: tref
 
       - name: Build App CI container
-        run: docker build -f docker/app_ci . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}}" -t ccfciteam/ccf-app-ci:${{steps.tref.outputs.tag}}
+        run: docker build -f docker/app_ci . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}}" -t ccfciteam/ccf-app-ci:${{steps.tref.outputs.tag}} -t ccfciteam/ccf-app-ci:latest
         
       - name: Build App Run container
-        run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}}" -t ccfciteam/ccf-app-run:${{steps.tref.outputs.tag}}
+        run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}}" -t ccfciteam/ccf-app-run:${{steps.tref.outputs.tag}} -t ccfciteam/ccf-app-run:latest
 
       - name: Log in
         run: docker login -u amchamay -p ${{ secrets.DOCKER_HUB_TOKEN }}
@@ -30,12 +30,6 @@ jobs:
 
       - name: Push App Run container
         run: docker push ccfciteam/ccf-app-run:${{steps.tref.outputs.tag}}
-
-      - name: Tag latest CI container
-        run: docker tag ccfciteam/ccf-app-ci:${{steps.tref.outputs.tag}} ccfciteam/ccf-app-ci:latest
-
-      - name: Tag latest App Run container
-        run: docker tag ccfciteam/ccf-app-run:${{steps.tref.outputs.tag} ccfciteam/ccf-app-run:latest
 
       - name: Push App CI latest container
         run: docker push ccfciteam/ccf-app-ci:latest
