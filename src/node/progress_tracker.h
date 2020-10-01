@@ -19,6 +19,94 @@
 
 namespace ccf
 {
+  struct CertKey
+  {
+    CertKey(kv::TxID tx_id_) : tx_id(tx_id_) {}
+
+    kv::TxID tx_id;
+
+    bool operator<(const CertKey& rhs) const
+    {
+      if (tx_id.version == rhs.tx_id.version)
+      {
+        return tx_id.term < rhs.tx_id.term;
+      }
+      return tx_id.version < rhs.tx_id.version;
+    }
+  };
+
+  struct BftNodeSignature : public ccf::NodeSignature
+  {
+    bool is_primary;
+    Nonce nonce;
+
+    BftNodeSignature(
+      const std::vector<uint8_t>& sig_, NodeId node_, Nonce hashed_nonce_) :
+      NodeSignature(sig_, node_, hashed_nonce_), is_primary(false)
+    {}
+  };
+
+  struct CommitCert
+  {
+    CommitCert(crypto::Sha256Hash& root_, Nonce my_nonce_) :
+      root(root_), my_nonce(my_nonce_), have_primary_signature(true)
+    {}
+
+    CommitCert() = default;
+
+    crypto::Sha256Hash root;
+    std::map<kv::NodeId, BftNodeSignature> sigs;
+    std::set<kv::NodeId> sig_acks;
+    std::set<kv::NodeId> nonce_set;
+    std::map<kv::NodeId, Nonce> unmatched_nonces;
+    Nonce my_nonce;
+    bool have_primary_signature = false;
+    bool ack_sent = false;
+    bool reply_and_nonce_sent = false;
+    bool nonces_committed_to_ledger = false;
+  };
+
+  class ProgressTrackerStoreAdapter
+  {
+  public:
+    ProgressTrackerStoreAdapter(
+      kv::AbstractStore& store_, ccf::BackupSignaturesMap& backup_signatures_) :
+      store(store_), backup_signatures(backup_signatures_)
+    {}
+
+    void write_backup_signatures(
+      ccf::BackupSignatures& sig_value)
+    {
+      kv::Tx tx(&store);
+      auto backup_sig_view = tx.get_view(backup_signatures);
+
+      backup_sig_view->put(0, sig_value);
+      auto r = tx.commit();
+      LOG_TRACE_FMT("Adding signatures to ledger, result:{}", r);
+      CCF_ASSERT_FMT(
+        r == kv::CommitSuccess::OK,
+        "Commiting backup signatures failed r:{}",
+        r);
+    }
+
+    std::optional<ccf::BackupSignatures> get_backup_signatures()
+    {
+      kv::Tx tx(&store);
+      auto sigs_tv = tx.get_view(backup_signatures);
+      auto sigs = sigs_tv->get(0);
+      if (!sigs.has_value())
+      {
+        LOG_FAIL_FMT("No signatures found in signatures map");
+        throw ccf::ccf_logic_error("No signatures found in signatures map");
+      }
+      return sigs;
+    }
+
+  public:
+    kv::AbstractStore& store;
+    ccf::BackupSignaturesMap& backup_signatures;
+  };
+
   class ProgressTracker
   {
   public:
@@ -28,13 +116,15 @@ namespace ccf
       ccf::Nodes& nodes_,
       ccf::BackupSignaturesMap& backup_signatures_,
       aft::RevealedNoncesMap& revealed_nonces_) :
+      store_adapter(store_, backup_signatures_),
       store(store_),
       id(id_),
       nodes(nodes_),
-      backup_signatures(backup_signatures_),
       revealed_nonces(revealed_nonces_),
       entropy(tls::create_entropy())
     {}
+
+    ProgressTrackerStoreAdapter store_adapter;
 
     kv::TxHistory::Result add_signature(
       kv::TxID tx_id,
@@ -101,9 +191,6 @@ namespace ccf
       {
         if (is_primary)
         {
-          kv::Tx tx(&store);
-          auto backup_sig_view = tx.get_view(backup_signatures);
-
           const CertKey& key = it->first;
           ccf::BackupSignatures sig_value(
             key.tx_id.term, key.tx_id.version, cert.root);
@@ -117,13 +204,7 @@ namespace ccf
             }
           }
 
-          backup_sig_view->put(0, sig_value);
-          auto r = tx.commit();
-          LOG_TRACE_FMT("Adding signatures to ledger, result:{}", r);
-          CCF_ASSERT_FMT(
-            r == kv::CommitSuccess::OK,
-            "Commiting backup signatures failed r:{}",
-            r);
+          store_adapter.write_backup_signatures(sig_value);
         }
         return kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK;
       }
@@ -224,15 +305,9 @@ namespace ccf
     kv::TxHistory::Result receive_backup_signatures(
       kv::TxID& tx_id, uint32_t node_count, bool is_primary)
     {
-      kv::Tx tx(&store);
-      auto sigs_tv = tx.get_view(backup_signatures);
-      auto sigs = sigs_tv->get(0);
-      if (!sigs.has_value())
-      {
-        LOG_FAIL_FMT("No signatures found in signatures map");
-        return kv::TxHistory::Result::FAIL;
-      }
-      ccf::BackupSignatures& sigs_value = sigs.value();
+      std::optional<ccf::BackupSignatures> sigs = store_adapter.get_backup_signatures();
+      CCF_ASSERT(sigs.has_value(), "sigs does no have a value");
+      auto sigs_value = sigs.value();
 
       auto it = certificates.find(CertKey({sigs_value.view, sigs_value.seqno}));
       if (it == certificates.end())
@@ -522,59 +597,9 @@ namespace ccf
     kv::AbstractStore& store;
     kv::NodeId id;
     ccf::Nodes& nodes;
-    ccf::BackupSignaturesMap& backup_signatures;
     aft::RevealedNoncesMap& revealed_nonces;
     std::shared_ptr<tls::Entropy> entropy;
 
-    struct CertKey
-    {
-      CertKey(kv::TxID tx_id_) : tx_id(tx_id_) {}
-
-      kv::TxID tx_id;
-
-      bool operator<(const CertKey& rhs) const
-      {
-        if (tx_id.version == rhs.tx_id.version)
-        {
-          return tx_id.term < rhs.tx_id.term;
-        }
-        return tx_id.version < rhs.tx_id.version;
-      }
-    };
-
-    struct BftNodeSignature : public ccf::NodeSignature
-    {
-      bool is_primary;
-      Nonce nonce;
-
-      BftNodeSignature(
-        const std::vector<uint8_t>& sig_, NodeId node_, Nonce hashed_nonce_) :
-        NodeSignature(sig_, node_, hashed_nonce_),
-        is_primary(false)
-      {}
-    };
-
-    struct CommitCert
-    {
-      CommitCert(crypto::Sha256Hash& root_, Nonce my_nonce_) :
-        root(root_),
-        my_nonce(my_nonce_),
-        have_primary_signature(true)
-      {}
-
-      CommitCert() = default;
-
-      crypto::Sha256Hash root;
-      std::map<kv::NodeId, BftNodeSignature> sigs;
-      std::set<kv::NodeId> sig_acks;
-      std::set<kv::NodeId> nonce_set;
-      std::map<kv::NodeId, Nonce> unmatched_nonces;
-      Nonce my_nonce;
-      bool have_primary_signature = false;
-      bool ack_sent = false;
-      bool reply_and_nonce_sent = false;
-      bool nonces_committed_to_ledger = false;
-    };
     std::map<CertKey, CommitCert> certificates;
 
     bool verify_signature(
