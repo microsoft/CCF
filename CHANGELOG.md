@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## Unreleased
 
 ## [0.14.0]
 ### Added
@@ -375,31 +375,30 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 Initial pre-release
 
 
-[Unreleased]: https://github.com/microsoft/CCF/compare/ccf-0.14.0...HEAD
-[0.14.0]: https://github.com/microsoft/CCF/compare/ccf-0.13.4...ccf-0.14.0
-[0.13.4]: https://github.com/microsoft/CCF/compare/ccf-0.13.3...ccf-0.13.4
-[0.13.3]: https://github.com/microsoft/CCF/compare/ccf-0.13.2...ccf-0.13.3
-[0.13.2]: https://github.com/microsoft/CCF/compare/ccf-0.13.1...ccf-0.13.2
-[0.13.1]: https://github.com/microsoft/CCF/compare/ccf-0.13.0...ccf-0.13.1
-[0.13.0]: https://github.com/microsoft/CCF/compare/ccf-0.12.2...ccf-0.13.0
-[0.12.2]: https://github.com/microsoft/CCF/compare/ccf-0.12.1...ccf-0.12.2
-[0.12.1]: https://github.com/microsoft/CCF/compare/ccf-0.12.0...ccf-0.12.1
-[0.12.0]: https://github.com/microsoft/CCF/compare/ccf-0.11.7...ccf-0.12.0
-[0.11.7]: https://github.com/microsoft/CCF/compare/ccf-0.11.4...ccf-0.11.7
-[0.11.4]: https://github.com/microsoft/CCF/compare/ccf-0.11.1...ccf-0.11.4
-[0.11.1]: https://github.com/microsoft/CCF/compare/0.11...ccf-0.11.1
-[0.11]: https://github.com/microsoft/CCF/compare/v0.10...0.11
-[0.10]: https://github.com/microsoft/CCF/compare/v0.9.3...v0.10
-[0.9.3]: https://github.com/microsoft/CCF/compare/v0.9.2...v0.9.3
-[0.9.2]: https://github.com/microsoft/CCF/compare/v0.9.1...v0.9.2
-[0.9.1]: https://github.com/microsoft/CCF/compare/v0.9...v0.9.1
-[0.9]: https://github.com/microsoft/CCF/compare/v0.8.2...v0.9
-[0.8.2]: https://github.com/microsoft/CCF/compare/v0.8.1...v0.8.2
-[0.8.1]: https://github.com/microsoft/CCF/compare/v0.8...v0.8.1
-[0.8]: https://github.com/microsoft/CCF/compare/v0.7.1...v0.8
-[0.7.1]: https://github.com/microsoft/CCF/compare/v0.7...v0.7.1
-[0.7]: https://github.com/microsoft/CCF/compare/v0.6...v0.7
-[0.6]: https://github.com/microsoft/CCF/compare/v0.5...v0.6
-[0.5]: https://github.com/microsoft/CCF/compare/v0.4...v0.5
-[0.4]: https://github.com/microsoft/CCF/compare/v0.3...v0.4
-[0.3]: https://github.com/microsoft/CCF/compare/v0.2...v0.3
+[0.14.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.14.0
+[0.13.4]: https://github.com/microsoft/CCF/releases/tag/ccf-0.13.4
+[0.13.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.13.3
+[0.13.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.13.2
+[0.13.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.13.1
+[0.13.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.13.0
+[0.12.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.12.2
+[0.12.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.12.1
+[0.12.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.12.0
+[0.11.7]: https://github.com/microsoft/CCF/releases/tag/ccf-0.11.7
+[0.11.4]: https://github.com/microsoft/CCF/releases/tag/ccf-0.11.4
+[0.11.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.11.1
+[0.11]: https://github.com/microsoft/CCF/releases/tag/0.11
+[0.10]: https://github.com/microsoft/CCF/releases/tag/v0.10
+[0.9.3]: https://github.com/microsoft/CCF/releases/tag/v0.9.3
+[0.9.2]: https://github.com/microsoft/CCF/releases/tag/v0.9.2
+[0.9.1]: https://github.com/microsoft/CCF/releases/tag/v0.9.1
+[0.9]: https://github.com/microsoft/CCF/releases/tag/v0.9
+[0.8.2]: https://github.com/microsoft/CCF/releases/tag/v0.8.2
+[0.8.1]: https://github.com/microsoft/CCF/releases/tag/v0.8.1
+[0.8]: https://github.com/microsoft/CCF/releases/tag/v0.8
+[0.7.1]: https://github.com/microsoft/CCF/releases/tag/v0.7.1
+[0.7]: https://github.com/microsoft/CCF/releases/tag/v0.7
+[0.6]: https://github.com/microsoft/CCF/releases/tag/v0.6
+[0.5]: https://github.com/microsoft/CCF/releases/tag/v0.5
+[0.4]: https://github.com/microsoft/CCF/releases/tag/v0.4
+[0.3]: https://github.com/microsoft/CCF/releases/tag/v0.3
