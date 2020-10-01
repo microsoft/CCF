@@ -640,7 +640,7 @@ if(BUILD_TESTS)
     NAME committable_suffix_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --raft-election-timeout 4000
+    ADDITIONAL_ARGS --raft-election-timeout 4000 --sig-ms-interval 100
   )
 
   add_e2e_test(
