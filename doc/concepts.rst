@@ -14,14 +14,14 @@ TODO: Add blurb about HTTP and JavaScript applications.
 Core Concepts
 -------------
 
-The following diagram shows a basic CCF network made of 3 nodes, running the same application inside an enclave. The effects of user and member transactions are eventually committed to a replicated encrypted ledger. A consortium of members is in charge of governing the network.
+The following diagram shows a basic CCF network made of 3 nodes. All nodes run the same application inside an enclave. The effects of user and member transactions are eventually committed to a replicated encrypted ledger. A consortium of members is in charge of governing the network.
 
 .. image:: img/ccf_concepts.svg
 
 Network and Nodes
 ~~~~~~~~~~~~~~~~~
 
-A CCF network consists of several nodes, each running on top of a Trusted Execution Environment (:term:`TEE`), or enclave, such as :term:`SGX`. A CCF network is decentralised and highly-available.
+A CCF network consists of several nodes, each running on top of a Trusted Execution Environment (:term:`TEE`), such as Intel :term:`SGX`. A CCF network is decentralised and highly-available.
 
 Nodes are run and maintained by :term:`Operators`. However, nodes must be trusted by the consortium of members before participating in a CCF network.
 
@@ -52,7 +52,7 @@ TODO: Link to Audit section
 Governance
 ~~~~~~~~~~
 
-A CCF network is governed by a consortium of :term:`Members`. The :term:`Constitution`, recorded in the ledger itself, defines a set of rules that members must follow.
+A CCF network is governed by a consortium of :term:`Members`. The scriptable :term:`Constitution`, recorded in the ledger itself, defines a set of rules that members must follow.
 
 Members can submit proposals to modify the state of the Key-Value Store. For example, members can vote to allow a new trusted user to issue requests to the application or to add a new member to the consortium.
 

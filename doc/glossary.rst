@@ -12,7 +12,7 @@ Glossary
   Constitution
     Set of rules written as a Lua script that define how members' proposals are accepted.
 
-  DCAP
+  Azure DCAP
     Intel SGX Data Centre Attestation Primitives which allows SGX attestation to be used within Microsoft Azure.
 
   FLC

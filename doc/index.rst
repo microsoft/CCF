@@ -9,26 +9,49 @@ Welcome to the Confidential Consortium Framework (CCF) documentation.
 
 TODO: Fancy css, see https://github.com/apache/couchdb-documentation/blob/1433b3c4c713998fa0707463e15c304845d93120/templates/pages/index.html#L52
 
+TODO: Explain ``cchost`` as host utility that will start an enclave
 
 First Steps
 -----------
 
-.. toctree::
-    :maxdepth: 1
-
-    concepts
-    quickstart/install
-
 - :ref:`CCF overview <concepts:CCF Overview>`
-- Install CCF
+- :ref:`Install CCF <quickstart/install:Install CCF>`
 - Start a sample CCF application
 - How to use a sample CCF service (Python library as well)
+
 
 Build a CCF application
 -----------------------
 
+- Maybe create a SGX VM: :ref:`quickstart/create_vm:Create Azure SGX VM`
+- First, setup a CCF development environment. :ref:`quickstart/setup:Setup CCF Development Environment`
+
 - Link to JavaScript/TypeScript application
 - Link to C++ application
+
+
+Contribute
+----------
+
+- :ref:`Contribute to CCF <quickstart/contribute:Contribute to CCF>`
+- Link to contribution guidelines
+- Setup a CCF environment, build CCF.
+
+
+Next Steps
+----------
+
+Once your setup is complete, you may want to get familiar with some of CCF's :ref:`Concepts <concepts:Concepts>`. You will then be able to:
+
+1. :ref:`Create a consortium and agree on the constitution <members/index:Governance>`
+2. :ref:`Develop a CCF application, based on the example logging application <developers/example:Example Application>`
+3. :ref:`Start a new CCF network to deploy the application <operators/start_network:Starting a New Network>`
+4. :ref:`Let the consortium configure and open the network to users <members/open_network:Opening a Network>`
+5. :ref:`Have users issue business transactions to the application <users/index:Using Apps>`
+
+
+
+
 
 CCF roles
 ---------
@@ -57,11 +80,6 @@ In-depth version of the concepts:
 
 TODO: Link to crypto, ACID guarantees, etc.
 
-Contribute
-----------
-
-- Link to contribution guidelines
-- Setup a CCF environment, build CCF.
 
 
 

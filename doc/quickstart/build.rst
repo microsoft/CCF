@@ -1,7 +1,13 @@
 Building CCF from Source
-=========================
+========================
 
-Once you have cloned the CCF repository, setup your VM and installed all dependencies, you will be able to successfully build and run the CCF test suite that will deploy a local CCF network.
+Once you have setup your VM and installed all dependencies, you will be able to successfully build and run the CCF test suite that will deploy a local CCF network.
+
+First, checkout the CCF repository:
+
+.. code-block:: bash
+
+    $ git clone git@github.com:microsoft/CCF.git
 
 To build CCF from source on a SGX-enabled machine, run the following:
 
@@ -25,9 +31,7 @@ Alternatively, on a non-SGX machine, you can build a `virtual` instance of CCF:
 
 .. note:::
 
-    CCF defaults to building RelWithDebInfo_.
-
-.. _RelWithDebInfo: https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html
+    CCF defaults to building in the `RelWithDebInfo <https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html>`_ configuration.
 
 Build Switches
 --------------
@@ -37,6 +41,8 @@ The full list of build switches can be obtained by running:
 .. code-block:: bash
 
     $ cmake -L ..
+
+The most common build switches include:
 
 * **BUILD_TESTS**: Boolean. Build all tests for CCF. Default to ON.
 * **BUILD_SMALLBANK**: Boolean. Build SmallBank performance benchmark. Default to OFF.
@@ -49,17 +55,17 @@ The full list of build switches can be obtained by running:
 Running Tests
 -------------
 
-Tests can be started through the ``tests.sh`` wrapper for ctest:
+Tests can be started through the ``tests.sh`` wrapper for ``ctest``.
 
 .. code-block:: bash
 
     $ cd build
-    $ ./tests.sh -VV
+    $ ./tests.sh -
 
 Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end tests that start a network require some Python infrastructure. `tests.sh <https://github.com/microsoft/CCF/blob/master/tests/tests.sh>`_ will set up a virtual environment with these dependencies and activate it before running ``ctest``. Further runs will re-use that virtual environment.
 
 .. note::
-    On a full build of CCF, it is also possible to run tests with virtual enclaves by setting ``TEST_ENCLAVE``:
+    On a full build of CCF, it is also possible to run tests with virtual enclaves by setting the ``TEST_ENCLAVE`` environment variable:
 
     .. code-block:: bash
 

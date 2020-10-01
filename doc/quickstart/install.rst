@@ -11,7 +11,7 @@ Running CCF with full security guarantees requires :term:`SGX` hardware with :te
 
     A `virtual` version of CCF can also be run on hardware that does not support SGX. The `virtual` mode provides no security guarantee and is only useful for development and prototyping.
 
-CCF requires the following dependencies to be first installed:
+CCF requires the following dependencies to be first installed on your system:
 
 - :term:`Intel SGX PSW`
 - :term:`Azure DCAP`
@@ -42,12 +42,14 @@ The CCF debian package (``ccf_<version>_amd64.deb``) contains the libraries and 
     $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_${CCF_VERSION}_amd64.deb
     $ sudo apt install ./ccf_${CCF_VERSION}_amd64.deb
 
-Assuming that CCF was installed under ``/opt``, the following command can be run to verify that CCF was intalled successfully:
+Assuming that CCF was installed under ``/opt``, the following command can be run to verify that CCF was installed successfully:
 
 .. code-block:: bash
 
     $ /opt/ccf-${CCF_VERSION}/bin/cchost --version
     CCF host: ccf-<version>
+
+# TODO: Also include sufficient Python to start a test network. Also `tree` the install and explain the different things in it.
 
 Python Package
 ~~~~~~~~~~~~~~
@@ -84,8 +86,10 @@ To uninstall the CCF Python package, run:
 
     $ pip uninstall ccf
 
+
 Container
 ---------
+# TODO: Move this, this is only for deploying existing applications??
 
 The ``ccfciteam/ccf-app-run`` container can be run to setup an environment containing the ``cchost`` binary (as per the `latest release of CCF <https://github.com/microsoft/CCF/releases/latest>`_) and the associated dependencies:
 
@@ -94,3 +98,7 @@ The ``ccfciteam/ccf-app-run`` container can be run to setup an environment conta
     $ docker run -ti ccfciteam/ccf-app-run
     root@6fc0cfa4b9e1:/# cchost --version
     CCF host: ccf-<version>
+
+CCF applications can be mounted to the container and deployed with the ``cchost`` binary.
+
+# TODO: Link to building and running app
