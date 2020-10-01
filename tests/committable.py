@@ -49,8 +49,8 @@ def run(args):
 
         txs = []
         # Run some transactions that can't be committed
-        for i in range(3):
-            with primary.client("user0") as uc:
+        with primary.client("user0") as uc:
+            for i in range(3):
                 txs.append(
                     uc.post("/app/log/private", {"id": 100 + i, "msg": "Hello world"})
                 )
