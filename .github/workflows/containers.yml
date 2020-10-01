@@ -30,3 +30,15 @@ jobs:
 
       - name: Push App Run container
         run: docker push ccfciteam/ccf-app-run:${{steps.tref.outputs.tag}}
+
+      - name: Tag latest CI container
+        run: docker tag ccfciteam/ccf-app-ci:${{steps.tref.outputs.tag}} ccfciteam/ccf-app-ci:latest
+
+      - name: Tag latest App Run container
+        run: docker tag ccfciteam/ccf-app-run:${{steps.tref.outputs.tag} ccfciteam/ccf-app-run:latest
+
+      - name: Push App CI latest container
+        run: docker push ccfciteam/ccf-app-ci:latest
+
+      - name: Push App Run latest container
+        run: docker push ccfciteam/ccf-app-run:latest
