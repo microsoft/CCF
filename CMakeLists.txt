@@ -356,6 +356,12 @@ if(BUILD_TESTS)
     target_link_libraries(snapshot_test PRIVATE secp256k1.host)
 
     add_unit_test(
+      snapshotter_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshotter.cpp
+    )
+    target_link_libraries(snapshotter_test PRIVATE secp256k1.host)
+
+    add_unit_test(
       msgpack_serialization_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/msgpack_serialization.cpp
     )
@@ -634,7 +640,7 @@ if(BUILD_TESTS)
     NAME committable_suffix_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --raft-election-timeout 4000
+    ADDITIONAL_ARGS --raft-election-timeout 4000 --sig-ms-interval 100
   )
 
   add_e2e_test(

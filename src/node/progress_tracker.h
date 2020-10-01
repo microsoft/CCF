@@ -363,7 +363,7 @@ namespace ccf
       uint8_t* sig)
     {
       kv::Tx tx;
-      auto ni_tv = tx.get_view(nodes);
+      auto ni_tv = tx.get_view_old(nodes);
 
       auto ni = ni_tv->get(node_id);
       if (!ni.has_value())

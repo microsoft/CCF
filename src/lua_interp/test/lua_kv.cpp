@@ -34,7 +34,7 @@ namespace ccf
     kv::Store tables;
     auto& table = tables.create<TableIS>("test", kv::SecurityDomain::PUBLIC);
 
-    kv::Tx txs;
+    auto txs = tables.create_tx();
 
     const auto a = "Alice";
     const auto b = "Bob";
@@ -129,7 +129,7 @@ namespace ccf
       {
         tables.compact(tables.current_version());
 
-        kv::Tx next_txs;
+        auto next_txs = tables.create_tx();
         auto next_tx = next_txs.get_view(table);
 
         REQUIRE(next_tx->put(k, s1));
@@ -166,7 +166,7 @@ namespace ccf
     auto& is = tables.create<TableIS>("test_is", kv::SecurityDomain::PUBLIC);
     auto& sb = tables.create<TableSB>("test_sb", kv::SecurityDomain::PUBLIC);
 
-    kv::Tx txs;
+    auto txs = tables.create_tx();
     auto tx = txs.get_view(ii, is, sb);
     auto tx_ii = get<0>(tx);
     auto tx_is = get<1>(tx);
@@ -233,7 +233,7 @@ namespace ccf
 
     kv::Store tables;
     auto& table = tables.create<TableVI>("v");
-    kv::Tx txs;
+    auto txs = tables.create_tx();
     auto tx = txs.get_view(table);
     tx->put(vector<uint8_t>(100, 1), 123);
 
@@ -337,7 +337,7 @@ namespace ccf
 
     kv::Store tables;
     auto& table = tables.create<TableII>("t", kv::SecurityDomain::PUBLIC);
-    kv::Tx txs;
+    auto txs = tables.create_tx();
     auto tx = txs.get_view(table);
 
     auto create = [tx](int dst, int amt) {
@@ -397,7 +397,7 @@ namespace ccf
 
     kv::Store tables;
     auto& table = tables.create<TableII>("t", kv::SecurityDomain::PUBLIC);
-    kv::Tx txs;
+    auto txs = tables.create_tx();
     auto tx = txs.get_view(table);
 
     Interpreter li;

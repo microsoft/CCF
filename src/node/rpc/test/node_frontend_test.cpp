@@ -79,7 +79,7 @@ T parse_response_body(const TResponse& r)
 TEST_CASE("Add a node to an opening service")
 {
   NetworkState network;
-  kv::Tx gen_tx;
+  auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
 
@@ -150,7 +150,7 @@ TEST_CASE("Add a node to an opening service")
     CHECK(response.node_status == NodeStatus::TRUSTED);
     CHECK(response.network_info.public_only == false);
 
-    kv::Tx tx;
+    auto tx = network.tables->create_tx();
     const NodeId node_id = response.node_id;
     auto nodes_view = tx.get_view(network.nodes);
     auto node_info = nodes_view->get(node_id);
@@ -200,7 +200,7 @@ TEST_CASE("Add a node to an opening service")
 TEST_CASE("Add a node to an open service")
 {
   NetworkState network;
-  kv::Tx gen_tx;
+  auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
 
@@ -227,7 +227,7 @@ TEST_CASE("Add a node to an open service")
   const auto caller = kp->self_sign(fmt::format("CN=nodes"));
 
   std::optional<NodeInfo> node_info;
-  kv::Tx tx;
+  auto tx = network.tables->create_tx();
 
   JoinNetworkNodeToNode::In join_input;
 
