@@ -650,7 +650,13 @@ namespace ccf
           // valid signature.
           const auto view_start_idx =
             view_history.empty() ? 1 : last_recovered_signed_idx + 1;
-          for (auto i = view_history.size(); i < last_sig->view; ++i)
+          CCF_ASSERT_FMT(
+            last_sig->view >= 0,
+            "last_sig->view is invalid, {}",
+            last_sig->view);
+          for (auto i = view_history.size();
+               i < static_cast<size_t>(last_sig->view);
+               ++i)
           {
             view_history.push_back(view_start_idx);
           }

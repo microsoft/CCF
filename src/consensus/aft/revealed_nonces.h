@@ -29,20 +29,16 @@ namespace aft
 
   struct RevealedNonces
   {
-    ccf::ObjectId view = 0;
-    ccf::ObjectId seqno = 0;
+    kv::TxID tx_id;
     std::vector<RevealedNonce> nonces;
 
-    MSGPACK_DEFINE(view, seqno, nonces);
+    MSGPACK_DEFINE(tx_id, nonces);
 
     RevealedNonces() = default;
 
-    RevealedNonces(ccf::ObjectId view_, ccf::ObjectId seqno_) :
-      view(view_),
-      seqno(seqno_)
-    {}
+    RevealedNonces(kv::TxID tx_id_) : tx_id(tx_id_) {}
   };
   DECLARE_JSON_TYPE(RevealedNonces);
-  DECLARE_JSON_REQUIRED_FIELDS(RevealedNonces, view, seqno)
+  DECLARE_JSON_REQUIRED_FIELDS(RevealedNonces, tx_id, nonces)
   using RevealedNoncesMap = kv::Map<ccf::ObjectId, RevealedNonces>;
 }

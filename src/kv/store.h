@@ -844,8 +844,10 @@ namespace kv
             return success;
           }
 
+          kv::TxID tx_id;
+
           auto r = progress_tracker->receive_backup_signatures(
-            *term_, *index_, consensus->node_count(), consensus->is_primary());
+            tx_id, consensus->node_count(), consensus->is_primary());
           if (r == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
           {
             success = DeserialiseSuccess::PASS_BACKUP_SIGNATURE_SEND_ACK;
@@ -862,6 +864,9 @@ namespace kv
               "Failed to verify signature, view-changes not implemented");
             return DeserialiseSuccess::FAILED;
           }
+
+          *term_ = tx_id.term;
+          *index_ = tx_id.version;
 
           auto h = get_history();
           h->append(data.data(), data.size());
@@ -892,9 +897,9 @@ namespace kv
           // we have deserialised an entry that didn't belong to the bft
           // requests nor the signatures table
           LOG_FAIL_FMT(
-            "Failed to deserialise, contains table:{}", views.begin()->first);
+            "Request contains unexpected table - {}", views.begin()->first);
           CCF_ASSERT_FMT_FAIL(
-            "Failed to deserialise, contains table:{}", views.begin()->first);
+            "Request contains unexpected table - {}", views.begin()->first);
         }
       }
 

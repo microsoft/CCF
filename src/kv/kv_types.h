@@ -45,7 +45,10 @@ namespace kv
   {
     Term term = 0;
     Version version = 0;
+    MSGPACK_DEFINE(term, version);
   };
+  DECLARE_JSON_TYPE(TxID);
+  DECLARE_JSON_REQUIRED_FIELDS(TxID, term, version)
 
   using BatchVector = std::vector<
     std::tuple<kv::Version, std::shared_ptr<std::vector<uint8_t>>, bool>>;
