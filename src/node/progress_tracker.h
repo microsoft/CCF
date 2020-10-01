@@ -66,20 +66,37 @@ namespace ccf
     bool nonces_committed_to_ledger = false;
   };
 
-  class ProgressTrackerStoreAdapter
+  class ProgressTrackerStore
+  {
+  public:
+    virtual ~ProgressTrackerStore() = default;
+    virtual void write_backup_signatures(ccf::BackupSignatures& sig_value) = 0;
+    virtual std::optional<ccf::BackupSignatures> get_backup_signatures() = 0;
+    virtual void write_nonces(aft::RevealedNonces& nonces) = 0;
+    virtual std::optional<aft::RevealedNonces> get_nonces() = 0;
+    virtual bool verify_signature(
+      kv::NodeId node_id,
+      crypto::Sha256Hash& root,
+      uint32_t sig_size,
+      uint8_t* sig) = 0;
+  };
+
+  class ProgressTrackerStoreAdapter : public ProgressTrackerStore
   {
   public:
     ProgressTrackerStoreAdapter(
       kv::AbstractStore& store_,
+      ccf::Nodes& nodes_,
       ccf::BackupSignaturesMap& backup_signatures_,
       aft::RevealedNoncesMap& revealed_nonces_) :
       store(store_),
+      nodes(nodes_),
       backup_signatures(backup_signatures_),
       revealed_nonces(revealed_nonces_)
     {}
 
     void write_backup_signatures(
-      ccf::BackupSignatures& sig_value)
+      ccf::BackupSignatures& sig_value) override
     {
       kv::Tx tx(&store);
       auto backup_sig_view = tx.get_view(backup_signatures);
@@ -93,7 +110,7 @@ namespace ccf
         r);
     }
 
-    std::optional<ccf::BackupSignatures> get_backup_signatures()
+    std::optional<ccf::BackupSignatures> get_backup_signatures() override
     {
       kv::Tx tx(&store);
       auto sigs_tv = tx.get_view(backup_signatures);
@@ -106,7 +123,7 @@ namespace ccf
       return sigs;
     }
 
-    void write_nonces(aft::RevealedNonces& nonces)
+    void write_nonces(aft::RevealedNonces& nonces) override
     {
       kv::Tx tx(&store);
       auto nonces_tv = tx.get_view(revealed_nonces);
@@ -126,7 +143,7 @@ namespace ccf
       }
     }
 
-    std::optional<aft::RevealedNonces> get_nonces()
+    std::optional<aft::RevealedNonces> get_nonces() override
     {
       kv::Tx tx(&store);
       auto nonces_tv = tx.get_view(revealed_nonces);
@@ -139,8 +156,30 @@ namespace ccf
       return nonces;
     }
 
-  public:
+    bool verify_signature(
+      kv::NodeId node_id,
+      crypto::Sha256Hash& root,
+      uint32_t sig_size,
+      uint8_t* sig) override
+    {
+      kv::Tx tx(&store);
+      auto ni_tv = tx.get_view_old(nodes);
+
+      auto ni = ni_tv->get(node_id);
+      if (!ni.has_value())
+      {
+        LOG_FAIL_FMT(
+          "No node info, and therefore no cert for node {}", node_id);
+        return false;
+      }
+      tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
+      return from_cert->verify_hash(
+        root.h.data(), root.h.size(), sig, sig_size);
+    }
+
+  private:
     kv::AbstractStore& store;
+    ccf::Nodes& nodes;
     ccf::BackupSignaturesMap& backup_signatures;
     aft::RevealedNoncesMap& revealed_nonces;
   };
@@ -149,19 +188,14 @@ namespace ccf
   {
   public:
     ProgressTracker(
-      kv::AbstractStore& store_,
-      kv::NodeId id_,
-      ccf::Nodes& nodes_,
-      ccf::BackupSignaturesMap& backup_signatures_,
-      aft::RevealedNoncesMap& revealed_nonces_) :
-      store_adapter(store_, backup_signatures_, revealed_nonces_),
-      store(store_),
+      std::unique_ptr<ProgressTrackerStore> store_,
+      kv::NodeId id_) :
+      store(std::move(store_)),
       id(id_),
-      nodes(nodes_),
       entropy(tls::create_entropy())
     {}
 
-    ProgressTrackerStoreAdapter store_adapter;
+    std::unique_ptr<ProgressTrackerStore> store;
 
     kv::TxHistory::Result add_signature(
       kv::TxID tx_id,
@@ -188,7 +222,7 @@ namespace ccf
       {
         if (
           node_id != id && it->second.have_primary_signature &&
-          !verify_signature(
+          !store->verify_signature(
             node_id, it->second.root, signature_size, sig.data()))
         {
           // NOTE: We need to handle this case but for now having this make a
@@ -241,7 +275,7 @@ namespace ccf
             }
           }
 
-          store_adapter.write_backup_signatures(sig_value);
+          store->write_backup_signatures(sig_value);
         }
         return kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK;
       }
@@ -299,7 +333,7 @@ namespace ccf
         {
           if (
             !sig.second.is_primary &&
-            !verify_signature(
+            !store->verify_signature(
               sig.second.node,
               cert.root,
               sig.second.sig.size(),
@@ -342,7 +376,7 @@ namespace ccf
     kv::TxHistory::Result receive_backup_signatures(
       kv::TxID& tx_id, uint32_t node_count, bool is_primary)
     {
-      std::optional<ccf::BackupSignatures> sigs = store_adapter.get_backup_signatures();
+      std::optional<ccf::BackupSignatures> sigs = store->get_backup_signatures();
       CCF_ASSERT(sigs.has_value(), "sigs does not have a value");
       auto sigs_value = sigs.value();
 
@@ -421,7 +455,7 @@ namespace ccf
 
     kv::TxHistory::Result receive_nonces()
     {
-      std::optional<aft::RevealedNonces> nonces = store_adapter.get_nonces();
+      std::optional<aft::RevealedNonces> nonces = store->get_nonces();
       CCF_ASSERT(nonces.has_value(), "nonces does not have a value");
       aft::RevealedNonces& nonces_value = nonces.value();
 
@@ -581,7 +615,7 @@ namespace ccf
             aft::RevealedNonce(nonce_node_id, it->second.nonce));
         }
 
-        store_adapter.write_nonces(revealed_nonces);
+        store->write_nonces(revealed_nonces);
       }
     }
 
@@ -610,33 +644,10 @@ namespace ccf
     }
 
   private:
-    kv::AbstractStore& store;
     kv::NodeId id;
-    ccf::Nodes& nodes;
     std::shared_ptr<tls::Entropy> entropy;
 
     std::map<CertKey, CommitCert> certificates;
-
-    bool verify_signature(
-      kv::NodeId node_id,
-      crypto::Sha256Hash& root,
-      uint32_t sig_size,
-      uint8_t* sig)
-    {
-      kv::Tx tx;
-      auto ni_tv = tx.get_view_old(nodes);
-
-      auto ni = ni_tv->get(node_id);
-      if (!ni.has_value())
-      {
-        LOG_FAIL_FMT(
-          "No node info, and therefore no cert for node {}", node_id);
-        return false;
-      }
-      tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
-      return from_cert->verify_hash(
-        root.h.data(), root.h.size(), sig, sig_size);
-    }
 
     std::vector<uint8_t> hash_data(Nonce data)
     {

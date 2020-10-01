@@ -12,13 +12,6 @@
 
 TEST_CASE("Ordered Execution")
 {
-  kv::Store store;
-  auto& nodes =
-    store.create<ccf::Nodes>(ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& backup_signatures_map = store.create<ccf::BackupSignaturesMap>(
-    ccf::Tables::BACKUP_SIGNATURES, kv::SecurityDomain::PUBLIC);
-  auto& revealed_nonces_map = store.create<aft::RevealedNoncesMap>(
-    ccf::Tables::NONCES, kv::SecurityDomain::PUBLIC);
 
   kv::Consensus::View view = 0;
   kv::Consensus::SeqNo seqno = 0;
@@ -30,8 +23,7 @@ TEST_CASE("Ordered Execution")
 
   INFO("Adding signature");
   {
-    auto pt = std::make_unique<ccf::ProgressTracker>(
-      store, 0, nodes, backup_signatures_map, revealed_nonces_map);
+    auto pt = std::make_unique<ccf::ProgressTracker>(nullptr, 0);
     auto result = pt->add_signature(
       {view, seqno}, 1, MBEDTLS_ECDSA_MAX_LEN, sig, nonce, node_count, true);
     REQUIRE(result == kv::TxHistory::Result::OK);
@@ -41,8 +33,7 @@ TEST_CASE("Ordered Execution")
 
   INFO("Waits for signature tx");
   {
-    auto pt = std::make_unique<ccf::ProgressTracker>(
-      store, 0, nodes, backup_signatures_map, revealed_nonces_map);
+    auto pt = std::make_unique<ccf::ProgressTracker>(nullptr, 0);
     for (size_t i = 0; i < node_count; ++i)
     {
       auto result = pt->add_signature_ack({view, seqno}, i, node_count);
