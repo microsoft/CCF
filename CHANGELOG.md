@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-## [0.14.0] - 2020-09-30
+## [0.14.0] - 2020-10-01
 ### Added
 - Nodes can recover rapidly from a snapshot, rather than needing to reprocess an entire ledger (#1656)
 - Python client code wraps creation and replacement of an entire JS app bundle in a single operation (#1651)
