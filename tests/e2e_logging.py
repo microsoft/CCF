@@ -57,9 +57,7 @@ def test_illegal(network, args, verify=True):
         keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
     )
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    conn = context.wrap_socket(
-        sock, server_side=False, server_hostname=primary.host
-    )
+    conn = context.wrap_socket(sock, server_side=False, server_hostname=primary.host)
     conn.connect((primary.host, primary.rpc_port))
     conn.sendall(b"NOTAVERB ")
     rv = conn.recv(1024)
