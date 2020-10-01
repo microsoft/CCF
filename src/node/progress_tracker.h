@@ -207,7 +207,7 @@ namespace ccf
       bool is_primary)
     {
       LOG_TRACE_FMT(
-        "add_signature node_id:{}, seqno:{}", node_id, tx_id.version);
+        "add_signature node_id:{}, seqno:{}, hashed_nonce:{}", node_id, tx_id.version, hashed_nonce);
       auto it = certificates.find(CertKey(tx_id));
       if (it == certificates.end())
       {
@@ -643,13 +643,7 @@ namespace ccf
       id = id_;
     }
 
-  private:
-    kv::NodeId id;
-    std::shared_ptr<tls::Entropy> entropy;
-
-    std::map<CertKey, CommitCert> certificates;
-
-    std::vector<uint8_t> hash_data(Nonce data)
+    std::vector<uint8_t> hash_data(Nonce& data)
     {
       tls::HashBytes hash;
       tls::do_hash(
@@ -657,8 +651,16 @@ namespace ccf
         data.size(),
         hash,
         MBEDTLS_MD_SHA256);
+      LOG_INFO_FMT("AAAAA:{} - {}", data, hash);
       return hash;
     }
+
+
+  private:
+    kv::NodeId id;
+    std::shared_ptr<tls::Entropy> entropy;
+
+    std::map<CertKey, CommitCert> certificates;
 
     void try_match_unmatched_nonces(
       CommitCert& cert,
