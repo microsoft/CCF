@@ -87,6 +87,11 @@ in the CCF git repository.
 .. note::
     See the :ref:`tsoa-based app example <developers/js_app_tsoa:TypeScript Application using tsoa>` on how to generate OpenAPI definitions with TypeScript.
 
+.. warning::
+    CCF currently ignores all fields except ``"js_module"`` and ``"js_function"``.
+    This will be addressed in the near future, see
+    `#1460 <https://github.com/microsoft/CCF/issues/1460>`_ and `#1565 <https://github.com/microsoft/CCF/issues/1565>`_.
+
 JavaScript API
 --------------
 
@@ -158,5 +163,5 @@ An app bundle can be wrapped into a governance proposal with the Python client f
     SUCCESS | Writing proposal to ./deploy_js_app_proposal.json
     SUCCESS | Wrote vote to ./deploy_js_app_vote_for.json
 
-Once accepted, a ``deploy_js_app`` proposal atomically (re-)deploys the complete JavaScript application.
+Once :ref:`submitted and accepted <members/proposals:Submitting a New Proposal>`, a ``deploy_js_app`` proposal atomically (re-)deploys the complete JavaScript application.
 Any existing application endpoints and JavaScript modules are removed.

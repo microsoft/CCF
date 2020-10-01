@@ -108,7 +108,7 @@ Type definitions
 ----------------
 
 CCF currently does not provide an npm package with TypeScript definitions
-for CCF's ``Request``/``Response`` objects and globals.
+for :ref:`CCF's JavaScript API <developers/js_app_bundle:JavaScript API>`.
 
 Instead, the definitions are part of the sample app in
 `src/types/ccf.ts <https://github.com/microsoft/CCF/tree/master/tests/npm-app/src/types/ccf.ts>`_.

@@ -2,7 +2,7 @@ TypeScript Application using tsoa
 =================================
 
 This guide shows how to build a TypeScript application using Node.js, npm, and tsoa.
-It is recommended to read through the :ref:`developers/js_app_ts` page first.
+It is recommended to read through the :ref:`developers/js_app_ts:TypeScript Application` page first.
 
 Using `tsoa <https://github.com/lukeautry/tsoa>`_ as framework provides the following advantages over not using a framework:
 
@@ -104,20 +104,21 @@ Type definitions
 ----------------
 
 CCF currently does not provide an npm package with TypeScript definitions
-for CCF's ``Request``/``Response`` objects and globals.
+for :ref:`CCF's JavaScript API <developers/js_app_bundle:JavaScript API>`.
 
 Instead, the definitions are part of the sample app in
-`src/types/ccf.ts <https://github.com/microsoft/CCF/tree/master/tests/npm-app/src/types/ccf.ts>`_.
-See `src/endpoints <https://github.com/microsoft/CCF/tree/master/tests/npm-app/src/endpoints>`_
-on how the types can be imported and used.
+`src/types/ccf.ts <https://github.com/microsoft/CCF/tree/master/tests/npm-tsoa-app/src/types/ccf.ts>`_.
 
-Note that ``Response`` is not needed when using tsoa.
+Using CCF's ``Response`` object is not needed when using tsoa because the return value always has to be the body itself.
+Headers and the status code can be set using `Controller methods <https://tsoa-community.github.io/reference/classes/_tsoa_runtime.controller-1.html>`_.
 
-TODO rewrite/move the following, too dense
+Sometimes though it is necessary to access CCF's ``Request`` object, for example when the request body is not JSON.
+In this case, instead of using ``@Body() body: MyType`` as function argument, ``@Request() request: ccf.Request`` can be used.
+See `src/controllers/proto.ts <https://github.com/microsoft/CCF/tree/master/tests/npm-tsoa-app/src/controllers/proto.ts>`_
+for a concrete example.
 
-``Request`` is needed when not using JSON, as tsoa's ``@Body`` decorator cannot be used then
-and instead ``@Request() request: ccf.Request`` would give access to CCF's ``Request`` object.
-In that case, no request body validation takes place.
+.. warning::
+    Requesting CCF's ``Request`` object via ``@Request()`` instead of using ``@Body()`` disables automatic schema validation.
 
 Metadata
 --------
