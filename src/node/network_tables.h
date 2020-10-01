@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "backup_signatures.h"
 #include "call_types.h"
 #include "certs.h"
 #include "client_signatures.h"
@@ -9,6 +10,7 @@
 #include "consensus.h"
 #include "consensus/aft/raft_tables.h"
 #include "consensus/aft/request.h"
+#include "consensus/aft/revealed_nonces.h"
 #include "entities.h"
 #include "governance_history.h"
 #include "kv/map.h"
@@ -88,9 +90,11 @@ namespace ccf
     SnapshotEvidence& snapshot_evidence;
 
     //
-    // Pbft related tables
+    // bft related tables
     //
-    aft::RequestsMap& pbft_requests_map;
+    aft::RequestsMap& bft_requests_map;
+    BackupSignaturesMap& backup_signatures_map;
+    aft::RevealedNoncesMap& revealed_nonces_map;
 
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::CFT) :
       tables(
@@ -147,7 +151,11 @@ namespace ccf
         Tables::CONSENSUS, kv::SecurityDomain::PUBLIC)),
       snapshot_evidence(tables->create<SnapshotEvidence>(
         Tables::SNAPSHOT_EVIDENCE, kv::SecurityDomain::PUBLIC)),
-      pbft_requests_map(tables->create<aft::RequestsMap>(Tables::AFT_REQUESTS))
+      bft_requests_map(tables->create<aft::RequestsMap>(Tables::AFT_REQUESTS)),
+      backup_signatures_map(tables->create<BackupSignaturesMap>(
+        Tables::BACKUP_SIGNATURES, kv::SecurityDomain::PUBLIC)),
+      revealed_nonces_map(tables->create<aft::RevealedNoncesMap>(
+        Tables::NONCES, kv::SecurityDomain::PUBLIC))
     {}
 
     /** Returns a tuple of all tables that are possibly accessible from scripts

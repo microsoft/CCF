@@ -101,7 +101,7 @@ namespace aft
 
   kv::Version ExecutorImpl::commit_replayed_request(kv::Tx& tx)
   {
-    auto tx_view = tx.get_view(pbft_requests_map);
+    auto tx_view = tx.get_view(bft_requests_map);
     auto req_v = tx_view->get(0);
     CCF_ASSERT(
       req_v.has_value(),

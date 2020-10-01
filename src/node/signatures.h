@@ -13,8 +13,8 @@ namespace ccf
 {
   struct PrimarySignature : public NodeSignature
   {
-    ObjectId seqno = 0;
-    ObjectId view = 0;
+    kv::Consensus::SeqNo seqno = 0;
+    kv::Consensus::View view = 0;
     ObjectId commit_seqno = 0;
     ObjectId commit_view = 0;
     crypto::Sha256Hash root;
@@ -31,7 +31,8 @@ namespace ccf
 
     PrimarySignature() {}
 
-    PrimarySignature(ccf::NodeId node_, ObjectId seqno_, Nonce hashed_nonce) :
+    PrimarySignature(
+      ccf::NodeId node_, kv::Consensus::SeqNo seqno_, Nonce hashed_nonce) :
       NodeSignature(node_, hashed_nonce),
       seqno(seqno_)
     {}
@@ -40,10 +41,10 @@ namespace ccf
 
     PrimarySignature(
       ccf::NodeId node_,
-      ObjectId seqno_,
-      ObjectId view_,
-      ObjectId commit_seqno_,
-      ObjectId commit_view_,
+      kv::Consensus::SeqNo seqno_,
+      kv::Consensus::View view_,
+      kv::Consensus::SeqNo commit_seqno_,
+      kv::Consensus::View commit_view_,
       const crypto::Sha256Hash root_,
       Nonce hashed_nonce_,
       const std::vector<uint8_t>& sig_,

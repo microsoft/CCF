@@ -509,8 +509,8 @@ TEST_CASE("process_pbft")
   frontend.process_pbft(ctx);
 
   auto tx = pbft_network.tables->create_tx();
-  auto pbft_requests_map = tx.get_view(pbft_network.pbft_requests_map);
-  auto request_value = pbft_requests_map->get(0);
+  auto bft_requests_map = tx.get_view(pbft_network.bft_requests_map);
+  auto request_value = bft_requests_map->get(0);
   REQUIRE(request_value.has_value());
 
   aft::Request deserialised_req = request_value.value();
