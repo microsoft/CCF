@@ -624,7 +624,7 @@ class Network:
         backup = random.choice(backups)
         return primary, backup
 
-    def wait_for_all_nodes_to_catch_up(self, primary, timeout=3):
+    def wait_for_all_nodes_to_catch_up(self, primary, timeout=10):
         """
         Wait for all nodes to have joined the network and globally replicated
         all transactions globally executed on the primary (including transactions
@@ -649,6 +649,7 @@ class Network:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.client() as c:
+                    c.get("/node/commit")
                     resp = c.get(f"/node/local_tx?view={view}&seqno={seqno}")
                     if resp.status_code != 200:
                         # Node may not have joined the network yet, try again
@@ -688,10 +689,10 @@ class Network:
         expected = [commits[0]] * len(commits)
         assert expected == commits, f"{commits} != {expected}"
 
-    def wait_for_new_primary(self, old_primary_id):
+    def wait_for_new_primary(self, old_primary_id, timeout_multiplier=2):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
-        timeout = self.election_duration * 2
+        timeout = self.election_duration * timeout_multiplier
         LOG.info(
             f"Waiting up to {timeout}s for a new primary (different from {old_primary_id}) to be elected..."
         )

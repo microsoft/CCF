@@ -66,7 +66,7 @@ namespace kv
     }
 
     template <class M>
-    std::tuple<typename M::TxView*> get_tuple(M& m)
+    std::tuple<typename M::TxView*> get_tuple_old(M& m)
     {
       using MapView = typename M::TxView;
 
@@ -110,11 +110,13 @@ namespace kv
     }
 
     template <class M>
-    std::tuple<typename M::TxView*> get_tuple2(const std::string& map_name)
+    std::tuple<typename M::TxView*> get_view_tuple_by_name(
+      const std::string& map_name)
     {
       if (store == nullptr)
       {
-        throw std::logic_error("New form called on old-style Tx");
+        CCF_ASSERT(
+          false, "Cannot retrieve view: New form called on old-style Tx");
       }
 
       using MapView = typename M::TxView;
@@ -199,18 +201,35 @@ namespace kv
     }
 
     template <class M, class... Ms>
-    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_tuple(
-      M& m, Ms&... ms)
+    std::tuple<typename M::TxView*, typename Ms::TxView*...>
+    get_view_tuple_by_types(M& m, Ms&... ms)
     {
-      return std::tuple_cat(get_tuple(m), get_tuple(ms...));
+      if constexpr (sizeof...(Ms) == 0)
+      {
+        return get_view_tuple_by_name<M>(m.get_name());
+      }
+      else
+      {
+        return std::tuple_cat(
+          get_view_tuple_by_name<M>(m.get_name()),
+          get_view_tuple_by_types(ms...));
+      }
     }
 
     template <class M, class... Ms, class... Ts>
-    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_tuple2(
-      const std::string& map_names, const Ts&... names)
+    std::tuple<typename M::TxView*, typename Ms::TxView*...>
+    get_view_tuple_by_names(const std::string& map_name, const Ts&... names)
     {
-      return std::tuple_cat(
-        get_tuple2<M>(map_names), get_tuple2<Ms...>(names...));
+      if constexpr (sizeof...(Ts) == 0)
+      {
+        return get_view_tuple_by_name<M>(map_name);
+      }
+      else
+      {
+        return std::tuple_cat(
+          get_view_tuple_by_name<M>(map_name),
+          get_view_tuple_by_names<Ms...>(names...));
+      }
     }
 
   public:
@@ -476,7 +495,20 @@ namespace kv
     template <class M>
     typename M::ReadOnlyTxView* get_read_only_view(M& m)
     {
-      return std::get<0>(get_tuple(m));
+      return std::get<0>(get_view_tuple_by_name<M>(m.get_name()));
+    }
+
+    /** Get a read-only transaction view on a map by name.
+     *
+     * This adds the map to the transaction set if it is not yet present, and
+     * creates the map if it does not yet exist.
+     *
+     * @param map_name Name of map
+     */
+    template <class M>
+    typename M::ReadOnlyTxView* get_read_only_view(const std::string& map_name)
+    {
+      return std::get<0>(get_view_tuple_by_name<M>(map_name));
     }
 
     /** Get read-only transaction views over multiple maps.
@@ -488,7 +520,24 @@ namespace kv
     std::tuple<typename M::ReadOnlyTxView*, typename Ms::ReadOnlyTxView*...>
     get_read_only_view(M& m, Ms&... ms)
     {
-      return std::tuple_cat(get_tuple(m), get_tuple(ms...));
+      return std::tuple_cat(
+        get_view_tuple_by_name<M>(m.get_name()),
+        get_view_tuple_by_types(ms...));
+    }
+
+    /** Get read-only transaction views over multiple maps by name. This will
+     * create the maps if they do not exist.
+     *
+     * @param map_name Name of first map to retrieve
+     * @param names Names of additional maps
+     */
+    template <class M, class... Ms, class... Ts>
+    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_read_only_view(
+      const std::string& map_name, const Ts&... names)
+    {
+      return std::tuple_cat(
+        get_view_tuple_by_name<M>(map_name),
+        get_view_tuple_by_names<Ms...>(names...));
     }
   };
 
@@ -496,6 +545,13 @@ namespace kv
   {
   public:
     using ReadOnlyTx::ReadOnlyTx;
+
+    // TEMPORARY - DO NOT USE
+    template <class M>
+    typename M::TxView* get_view_old(M& m)
+    {
+      return std::get<0>(get_tuple_old(m));
+    }
 
     /** Get a transaction view on a map.
      *
@@ -506,15 +562,20 @@ namespace kv
     template <class M>
     typename M::TxView* get_view(M& m)
     {
-      return std::get<0>(get_tuple(m));
+      return std::get<0>(get_view_tuple_by_name<M>(m.get_name()));
     }
 
-    // EXPERIMENTAL - DO NOT USE
-    // This API is for internal testing only, and may change or be removed
+    /** Get a transaction view on a map by name
+     *
+     * This adds the map to the transaction set if it is not yet present, and
+     * creates the map if it does not yet exist.
+     *
+     * @param map_name Name of map
+     */
     template <class M>
-    typename M::TxView* get_view2(const std::string& map_name)
+    typename M::TxView* get_view(const std::string& map_name)
     {
-      return std::get<0>(get_tuple2<M>(map_name));
+      return std::get<0>(get_view_tuple_by_name<M>(map_name));
     }
 
     /** Get transaction views over multiple maps.
@@ -526,17 +587,24 @@ namespace kv
     std::tuple<typename M::TxView*, typename Ms::TxView*...> get_view(
       M& m, Ms&... ms)
     {
-      return std::tuple_cat(get_tuple(m), get_tuple(ms...));
+      return std::tuple_cat(
+        get_view_tuple_by_name<M>(m.get_name()),
+        get_view_tuple_by_types(ms...));
     }
 
-    // EXPERIMENTAL - DO NOT USE
-    // This API is for internal testing only, and may change or be removed
+    /** Get transaction views over multiple maps by name. This will create the
+     * maps if they do not exist.
+     *
+     * @param map_name Name of first map to retrieve
+     * @param names Names of additional maps
+     */
     template <class M, class... Ms, class... Ts>
-    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_view2(
+    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_view(
       const std::string& map_name, const Ts&... names)
     {
       return std::tuple_cat(
-        get_tuple2<M>(map_name), get_tuple2<Ms...>(names...));
+        get_view_tuple_by_name<M>(map_name),
+        get_view_tuple_by_names<Ms...>(names...));
     }
   };
 

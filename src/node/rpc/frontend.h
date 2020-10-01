@@ -144,7 +144,7 @@ namespace ccf
         if ((nodes != nullptr) && (consensus != nullptr))
         {
           NodeId primary_id = consensus->primary();
-          kv::Tx tx;
+          auto tx = tables.create_tx();
           auto nodes_view = tx.get_view(*nodes);
           auto info = nodes_view->get(primary_id);
 

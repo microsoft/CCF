@@ -178,7 +178,7 @@ namespace ccfapp
     LOG_TRACE_FMT("Looking for table '{}'", property_name);
 
     auto tx_ptr = static_cast<kv::Tx*>(JS_GetOpaque(this_val, tables_class_id));
-    auto view = tx_ptr->get_view2<Table>(property_name);
+    auto view = tx_ptr->get_view<Table>(property_name);
 
     auto view_val = JS_NewObjectClass(ctx, view_class_id);
     JS_SetOpaque(view_val, view);

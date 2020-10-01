@@ -74,6 +74,13 @@ namespace aft
 
     ReplicaState replica_state;
     std::chrono::milliseconds timeout_elapsed;
+    // Last (committable) index preceding the node's election, this is
+    // used to decide when to start issuing signatures. While commit_idx
+    // hasn't caught up with election_index, a newly elected leader is
+    // effectively finishing establishing commit over the previous term
+    // or even previous terms, and can therefore not meaningfully sign
+    // over the commit level.
+    kv::Version election_index = 0;
 
     // BFT
     RequestsMap& pbft_requests_map;
@@ -184,6 +191,12 @@ namespace aft
       return replica_state == Follower;
     }
 
+    Index last_committable_index() const
+    {
+      return committable_indices.empty() ? state->commit_idx :
+                                           committable_indices.back();
+    }
+
     void enable_all_domains()
     {
       // When receiving append entries as a follower, all security domains will
@@ -279,6 +292,20 @@ namespace aft
       }
       std::lock_guard<SpinLock> guard(state->lock);
       return {get_term_internal(state->commit_idx), state->commit_idx};
+    }
+
+    std::optional<std::pair<Term, Index>> get_signable_commit_term_and_idx()
+    {
+      std::lock_guard<SpinLock> guard(state->lock);
+      if (state->commit_idx >= election_index)
+      {
+        return std::pair<Term, Index>{get_term_internal(state->commit_idx),
+                                      state->commit_idx};
+      }
+      else
+      {
+        return std::nullopt;
+      }
     }
 
     Term get_term(Index idx)
@@ -596,11 +623,12 @@ namespace aft
       }
 
       LOG_DEBUG_FMT(
-        "Received pt: {} pi: {} t: {} i: {}",
+        "Received pt: {} pi: {} t: {} i: {} toi: {}",
         r.prev_term,
         r.prev_idx,
         r.term,
-        r.idx);
+        r.idx,
+        r.term_of_idx);
 
       // Don't check that the sender node ID is valid. Accept anything that
       // passes the integrity check. This way, entries containing dynamic
@@ -621,7 +649,7 @@ namespace aft
       else if (state->current_view > r.term)
       {
         // Reply false, since our term is later than the received term.
-        LOG_DEBUG_FMT(
+        LOG_INFO_FMT(
           "Recv append entries to {} from {} but our term is later ({} > {})",
           state->my_node_id,
           r.from_node,
@@ -738,7 +766,7 @@ namespace aft
         state->last_idx = i;
 
         Term sig_term = 0;
-        kv::Tx tx;
+        auto tx = store->create_tx();
         kv::DeserialiseSuccess deserialise_success;
         ccf::PrimarySignature sig;
         if (consensus_type == ConsensusType::BFT)
@@ -775,11 +803,18 @@ namespace aft
           case kv::DeserialiseSuccess::PASS_SIGNATURE:
           {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
+            auto prev_lci = last_committable_index();
             committable_indices.push_back(i);
 
             if (sig_term)
             {
-              state->view_history.update(state->commit_idx + 1, sig_term);
+              // A signature for sig_term tells us that all transactions from
+              // the previous signature onwards (at least, if not further back)
+              // happened in sig_term. We reflect this in the history.
+              if (r.term_of_idx == aft::ViewHistory::InvalidView)
+                state->view_history.update(1, r.term);
+              else
+                state->view_history.update(prev_lci + 1, sig_term);
               commit_if_possible(r.leader_commit_idx);
             }
             if (consensus_type == ConsensusType::BFT)
@@ -808,7 +843,13 @@ namespace aft
       // After entries have been deserialised, we try to commit the leader's
       // commit index and update our term history accordingly
       commit_if_possible(r.leader_commit_idx);
-      state->view_history.update(state->commit_idx + 1, r.term_of_idx);
+
+      // The term may have changed, and we have not have seen a signature yet.
+      auto lci = last_committable_index();
+      if (r.term_of_idx == aft::ViewHistory::InvalidView)
+        state->view_history.update(1, r.term);
+      else
+        state->view_history.update(lci + 1, r.term_of_idx);
 
       send_append_entries_response(r.from_node, true);
     }
@@ -1168,10 +1209,13 @@ namespace aft
     {
       LOG_INFO_FMT("Send request vote from {} to {}", state->my_node_id, to);
 
+      auto last_committable_idx = last_committable_index();
+      CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
+
       RequestVote rv = {{raft_request_vote, state->my_node_id},
                         state->current_view,
-                        state->commit_idx,
-                        get_term_internal(state->commit_idx)};
+                        last_committable_idx,
+                        get_term_internal(last_committable_idx)};
 
       channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, rv);
     }
@@ -1238,12 +1282,17 @@ namespace aft
         return;
       }
 
-      // If the candidate's log is at least as up-to-date as ours, vote yes
-      auto last_commit_term = get_term_internal(state->commit_idx);
+      // If the candidate's committable log is at least as up-to-date as ours,
+      // vote yes
 
-      auto answer = (r.last_commit_term > last_commit_term) ||
-        ((r.last_commit_term == last_commit_term) &&
-         (r.last_commit_idx >= state->commit_idx));
+      auto last_committable_idx = last_committable_index();
+      auto term_of_last_committable_index =
+        get_term_internal(last_committable_idx);
+
+      auto answer =
+        (r.term_of_last_committable_idx > term_of_last_committable_index) ||
+        ((r.term_of_last_committable_idx == term_of_last_committable_index) &&
+         (r.last_committable_idx >= last_committable_idx));
 
       if (answer)
       {
@@ -1380,12 +1429,14 @@ namespace aft
 
     void become_leader()
     {
-      // Discard any un-committed updates we may hold,
+      election_index = last_committable_index();
+      LOG_DEBUG_FMT("Election index is {}", election_index);
+      // Discard any un-committable updates we may hold,
       // since we have no signature for them. Except at startup,
       // where we do not want to roll back the genesis transaction.
       if (state->commit_idx)
       {
-        rollback(state->commit_idx);
+        rollback(election_index);
       }
       else
       {
@@ -1393,7 +1444,6 @@ namespace aft
         store->set_term(state->current_view);
       }
 
-      committable_indices.clear();
       replica_state = Leader;
       leader_id = state->my_node_id;
 
@@ -1433,9 +1483,7 @@ namespace aft
       voted_for = NoNode;
       votes_for_me.clear();
 
-      // Rollback unreplicated commits.
-      rollback(state->commit_idx);
-      committable_indices.clear();
+      rollback(last_committable_index());
 
       LOG_INFO_FMT(
         "Becoming follower {}: {}", state->my_node_id, state->current_view);
@@ -1512,6 +1560,11 @@ namespace aft
 
     void commit_if_possible(Index idx)
     {
+      LOG_DEBUG_FMT(
+        "Commit if possible {} (ci: {}) (ti {})",
+        idx,
+        state->commit_idx,
+        get_term_internal(idx));
       if (
         (idx > state->commit_idx) &&
         (get_term_internal(idx) <= state->current_view))
