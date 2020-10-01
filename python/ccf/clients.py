@@ -33,7 +33,7 @@ loguru_tag_regex = regex.compile(r"\\?</?((?:[fb]g\s)?[^<>\s]*)>")
 
 
 def escape_loguru_tags(s):
-    return loguru_tag_regex.sub(lambda match: f"\{match[0]}", s)
+    return loguru_tag_regex.sub(lambda match: f"\\{match[0]}", s)
 
 
 def truncate(string: str, max_len: int = 128):
