@@ -46,6 +46,8 @@ def test(network, args, verify=True):
 @reqs.supports_methods("log/private", "log/public")
 @reqs.at_least_n_nodes(2)
 def test_illegal(network, args, verify=True):
+    primary, _ = network.find_primary()
+
     # Send malformed HTTP traffic and check the connection is closed
     cafile = cafile = os.path.join(network.common_dir, "networkcert.pem")
     context = ssl.create_default_context(cafile=cafile)
@@ -56,9 +58,9 @@ def test_illegal(network, args, verify=True):
     )
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     conn = context.wrap_socket(
-        sock, server_side=False, server_hostname=network.nodes[0].host
+        sock, server_side=False, server_hostname=primary.host
     )
-    conn.connect((network.nodes[0].host, network.nodes[0].rpc_port))
+    conn.connect((primary.host, primary.rpc_port))
     conn.sendall(b"NOTAVERB ")
     rv = conn.recv(1024)
     assert rv == b"", rv
