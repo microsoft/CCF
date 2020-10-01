@@ -314,6 +314,11 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
+    
+    def deploy_js_app(self, remote_node, app_bundle_path):
+        proposal_body, _ = self.make_proposal("deploy_js_app", app_bundle_path)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal)
 
     def accept_recovery(self, remote_node):
         proposal_body, careful_vote = self.make_proposal("accept_recovery")
