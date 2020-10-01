@@ -4,8 +4,33 @@ import infra.e2e_args
 import infra.network
 import infra.proc
 import time
+import http
+from ccf.tx_status import TxStatus
 
 from loguru import logger as LOG
+
+
+def wait_for_pending(client, view, seqno, timeout=3):
+    end_time = time.time() + timeout
+    while time.time() < end_time:
+        r = client.get(f"/node/tx?view={view}&seqno={seqno}")
+        assert (
+            r.status_code == http.HTTPStatus.OK
+        ), f"tx request returned HTTP status {r.status_code}"
+        status = TxStatus(r.body.json()["status"])
+        if status == TxStatus.Pending:
+            return
+        elif status == TxStatus.Invalid:
+            raise RuntimeError(
+                f"Transaction ID {view}.{seqno} is marked invalid and will never be committed"
+            )
+        elif status == TxStatus.Committed:
+            raise RuntimeError(
+                f"Transaction ID {view}.{seqno} is unexpectedly marked committed"
+            )
+        else:
+            time.sleep(0.1)
+    raise TimeoutError("Timed out waiting for commit")
 
 
 def run(args):
@@ -25,13 +50,14 @@ def run(args):
         txs = []
         # Run some transactions that can't be committed
         with primary.client("user0") as uc:
-            for i in range(10):
+            for i in range(3):
                 txs.append(
                     uc.post("/app/log/private", {"id": 100 + i, "msg": "Hello world"})
                 )
 
-        # Wait for a signature to ensure those transactions are committable
-        time.sleep(args.sig_tx_interval * 2 / 1000)
+        sig_view, sig_seqno = txs[-1].view, txs[-1].seqno + 1
+        with backups[0].client() as bc:
+            wait_for_pending(bc, sig_view, sig_seqno)
 
         # Kill the primary, restore other backups
         primary.stop()
@@ -41,7 +67,6 @@ def run(args):
             primary.node_id, timeout_multiplier=6
         )
         LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
-        assert new_primary.node_id == backups[0].node_id
 
         # Check that uncommitted but committable suffix is preserved
         with new_primary.client("user0") as uc:
