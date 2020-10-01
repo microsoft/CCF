@@ -202,7 +202,7 @@ namespace ccf
       kv::NodeId node_id,
       uint32_t signature_size,
       std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
-      Nonce& hashed_nonce,
+      Nonce hashed_nonce,
       uint32_t node_count,
       bool is_primary)
     {
@@ -286,7 +286,7 @@ namespace ccf
       kv::TxID tx_id,
       kv::NodeId node_id,
       crypto::Sha256Hash& root,
-      Nonce& hashed_nonce,
+      Nonce hashed_nonce,
       uint32_t node_count = 0)
     {
       auto n = entropy->random(hashed_nonce.size());
@@ -651,7 +651,6 @@ namespace ccf
         data.size(),
         hash,
         MBEDTLS_MD_SHA256);
-      LOG_INFO_FMT("AAAAA:{} - {}", data, hash);
       return hash;
     }
 

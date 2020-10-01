@@ -33,10 +33,11 @@ public:
   }
 };
 
-TEST_CASE("Ordered Execution")
+void run_ordered_execution(uint32_t my_node_id)
 {
   auto store = std::make_unique<Store>();
-  auto pt = std::make_unique<ccf::ProgressTracker>(std::move(store), 0);
+  auto pt =
+    std::make_unique<ccf::ProgressTracker>(std::move(store), my_node_id);
 
   kv::Consensus::View view = 0;
   kv::Consensus::SeqNo seqno = 0;
@@ -48,18 +49,25 @@ TEST_CASE("Ordered Execution")
   nonce.fill(1);
   auto h = pt->hash_data(nonce);
   ccf::Nonce hashed_nonce;
+
   std::copy(h.begin(), h.end(), hashed_nonce.begin());
 
   INFO("Adding signatures");
   {
-    ccf::Nonce nonce_tmp;
-    auto result = pt->record_primary({view, seqno}, 0, root, nonce_tmp, node_count);
+    auto result =
+      pt->record_primary({view, seqno}, 0, root, hashed_nonce, node_count);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
     for (uint32_t i = 1; i < node_count; ++i)
     {
       auto result = pt->add_signature(
-        {view, seqno}, i, MBEDTLS_ECDSA_MAX_LEN, sig, hashed_nonce, node_count, true);
+        {view, seqno},
+        i,
+        MBEDTLS_ECDSA_MAX_LEN,
+        sig,
+        hashed_nonce,
+        node_count,
+        true);
       REQUIRE(
         ((result == kv::TxHistory::Result::OK && i != 2) ||
          (result == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK && i == 2)));
@@ -70,8 +78,7 @@ TEST_CASE("Ordered Execution")
   {
     for (uint32_t i = 0; i < node_count; ++i)
     {
-      auto result = pt->add_signature_ack(
-        {view, seqno}, i, node_count);
+      auto result = pt->add_signature_ack({view, seqno}, i, node_count);
       REQUIRE(
         ((result == kv::TxHistory::Result::OK && i != 2) ||
          (result == kv::TxHistory::Result::SEND_REPLY_AND_NONCE && i == 2)));
@@ -80,11 +87,25 @@ TEST_CASE("Ordered Execution")
 
   INFO("Add nonces here");
   {
-    pt->add_nonce_reveal(
-      {view, seqno}, pt->get_my_nonce({view, seqno}), 0, node_count, true);
-    for (uint32_t i = 1; i < node_count; ++i)
+    for (uint32_t i = 0; i < node_count; ++i)
     {
-      pt->add_nonce_reveal({view, seqno}, nonce, i, node_count, true);
+      if (my_node_id == i)
+      {
+        pt->add_nonce_reveal(
+          {view, seqno}, pt->get_my_nonce({view, seqno}), 0, node_count, true);
+      }
+      else
+      {
+        pt->add_nonce_reveal({view, seqno}, nonce, i, node_count, true);
+      }
     }
+  }
+}
+
+TEST_CASE("Ordered Execution")
+{
+  for (uint32_t i = 0; i < 4; ++i)
+  {
+    run_ordered_execution(0);
   }
 }
