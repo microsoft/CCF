@@ -16,7 +16,8 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../python'))
+
+sys.path.insert(0, os.path.abspath("../python"))
 
 
 # -- Project information -----------------------------------------------------
@@ -51,7 +52,7 @@ extensions = [
     "sphinx.ext.githubpages",
     "sphinx_multiversion",
     "sphinx_copybutton",
-    "sphinx.ext.autodoc"
+    "sphinx.ext.autodoc",
 ]
 
 autosectionlabel_prefix_document = True
@@ -208,9 +209,8 @@ html_context = {
 
 # Python autodoc options
 autodoc_default_options = {
-    'member-order':    'bysource',
+    "member-order": "bysource",
 }
-
 
 
 def setup(self):
@@ -220,4 +220,4 @@ def setup(self):
     srcdir = pathlib.Path(self.srcdir)
 
     breathe_projects["CCF"] = str(srcdir / breathe_projects["CCF"])
-    subprocess.run(["doxygen"], cwd=srcdir / '..', check=True)
+    # subprocess.run(["doxygen"], cwd=srcdir / '..', check=True)

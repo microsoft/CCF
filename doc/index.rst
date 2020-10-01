@@ -5,12 +5,65 @@ CCF documentation
   :width: 250
   :align: right
 
-The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly available,
-and performant applications that focus on multi-party compute and data.
-CCF can enable high-scale, confidential networks that meet key enterprise requirements
-— providing a means to accelerate production and enterprise adoption of consortium based blockchain and multi-party compute technology.
+Welcome to the Confidential Consortium Framework (CCF) documentation.
 
-Leveraging the power of trusted execution environments (TEEs), decentralized systems concepts, and cryptography, CCF enables enterprise-ready multiparty computation or blockchains.
+TODO: Fancy css, see https://github.com/apache/couchdb-documentation/blob/1433b3c4c713998fa0707463e15c304845d93120/templates/pages/index.html#L52
+
+
+First Steps
+-----------
+
+.. toctree::
+    :maxdepth: 1
+
+    concepts
+    quickstart/install
+
+- :ref:`CCF overview <concepts:CCF Overview>`
+- Install CCF
+- Start a sample CCF application
+- How to use a sample CCF service (Python library as well)
+
+Build a CCF application
+-----------------------
+
+- Link to JavaScript/TypeScript application
+- Link to C++ application
+
+CCF roles
+---------
+
+(Not mutually exclusive)
+
+- Operations
+- Governance
+- Users: commit + receipt + new network identity on recovery
+- Audit [new?]: ledger chunks, snapshots
+
+
+Technical Overview
+------------------
+
+In-depth version of the concepts:
+- Architecture:
+  - Ledger
+  - Constitution
+  - Replication and Consensus
+
+- Guarantees
+  - ACID
+  - Crypto
+
+
+TODO: Link to crypto, ACID guarantees, etc.
+
+Contribute
+----------
+
+- Link to contribution guidelines
+- Setup a CCF environment, build CCF.
+
+
 
 .. toctree::
     :maxdepth: 1

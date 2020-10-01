@@ -12,8 +12,14 @@ Glossary
   Constitution
     Set of rules written as a Lua script that define how members' proposals are accepted.
 
+  DCAP
+    Intel SGX Data Centre Attestation Primitives which allows SGX attestation to be used within Microsoft Azure.
+
   FLC
     `Flexible Launch Control <https://github.com/intel/linux-sgx/blob/master/psw/ae/ref_le/ref_le.md#flexible-launch-control>`_ is a feature of the Intel :term:`SGX` architecture.
+
+  Intel SGX PSW
+    Intel SGX Platform SoftWare which manages SGX enclaves loading as well as communication with architectural enclaves. More details `here <https://github.com/intel/linux-sgx>`_.
 
   JSON-RPC
     `JSON-RPC <https://en.wikipedia.org/wiki/JSON-RPC>`_ is a remote procedure call protocol encoded in JSON.

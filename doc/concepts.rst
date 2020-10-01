@@ -1,19 +1,34 @@
-Concepts
-========
+CCF Overview
+============
 
-The following diagram shows a CCF network made of 3 nodes, running the same application inside an enclave. The effects of user and member transactions are eventually committed to a replicated encrypted ledger. A consortium of members is in charge of governing the network.
+CCF in a Hundred Words
+----------------------
+
+The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly available, and performant applications that focus on multi-party compute and data.
+CCF enables high-scale, confidential networks that meet key enterprise requirements — providing a means to accelerate production and enterprise adoption of consortium based blockchain and multi-party compute technology.
+
+Leveraging the power of trusted execution environments (:term:`TEE`, or enclave), decentralised systems concepts, and cryptography, CCF enables enterprise-ready multiparty computation or blockchains.
+
+TODO: Add blurb about HTTP and JavaScript applications.
+
+Core Concepts
+-------------
+
+The following diagram shows a basic CCF network made of 3 nodes, running the same application inside an enclave. The effects of user and member transactions are eventually committed to a replicated encrypted ledger. A consortium of members is in charge of governing the network.
 
 .. image:: img/ccf_concepts.svg
 
 Network and Nodes
------------------
+~~~~~~~~~~~~~~~~~
 
 A CCF network consists of several nodes, each running on top of a Trusted Execution Environment (:term:`TEE`), or enclave, such as :term:`SGX`. A CCF network is decentralised and highly-available.
 
 Nodes are run and maintained by :term:`Operators`. However, nodes must be trusted by the consortium of members before participating in a CCF network.
 
+TODO: Link to operators section
+
 Application
------------
+~~~~~~~~~~~
 
 Each node runs the same application, written in JavaScript or C++. An application is a collection of endpoints that can be triggered by trusted :term:`Users`' HTTP commands over :term:`TLS`.
 
@@ -23,18 +38,24 @@ The Key-Value Store is a collection of maps (associating a key to a value) that 
 
 .. note:: Since all nodes in the CCF network can read the content of private maps, it is up to the application logic to control the access to such maps. Since every application endpoint has access to the identity of the user triggering it, it is easy to restrict which maps (and entries in those maps) a user can read or write to.
 
+TODO: Link to Users section
+
 Ledger
-------
+~~~~~~
 
 All changes to the Key-Value Store are encrypted and recorded by each node of the network to disk to a decentralised auditable ledger.
 
 The integrity of the ledger is guaranteed by a :term:`Merkle tree` whose root is periodically signed by the current primary/leader node.
 
+TODO: Link to Audit section
+
 Governance
-----------
+~~~~~~~~~~
 
 A CCF network is governed by a consortium of :term:`Members`. The :term:`Constitution`, recorded in the ledger itself, defines a set of rules that members must follow.
 
 Members can submit proposals to modify the state of the Key-Value Store. For example, members can vote to allow a new trusted user to issue requests to the application or to add a new member to the consortium.
 
 Proposals are executed only when the conditions defined in the constitution are met (e.g. a majority of members have voted favourably for that proposal).
+
+TODO: Link to Governance section
