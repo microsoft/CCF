@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-## [0.14.0] - 2020-10-01
+## [0.14.0]
 ### Added
 - Nodes can recover rapidly from a snapshot, rather than needing to reprocess an entire ledger (#1656)
 - Python client code wraps creation and replacement of an entire JS app bundle in a single operation (#1651)
@@ -25,12 +25,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Deprecated
 - `lua_generic` app is deprecated and will be removed in a future release. Please migrate old Lua apps to JS
 
-## [0.13.4] - 2020-09-23
+## [0.13.4]
 ### Changed
 - Fixed infinite memory growth issue (#1639)
 - Step CLI updated to 0.15.2 (#1636)
     
-## [0.13.3] - 2020-09-18
+## [0.13.3]
 ### Added
 - Sample TypeScript application (#1614, #1596)
 
@@ -47,17 +47,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 - Notification server (#1582)
     
-## [0.13.2] - 2020-09-02
+## [0.13.2]
 ### Added
 - retire_node_code proposal (#1558)
 - Ability to update a collection of JS modules in a single proposal (#1557)
     
-## [0.13.1] - 2020-09-01
+## [0.13.1]
 ### Fixed
 - Handle setting multiple subject alternative names correctly in node certificate (#1552)
 - Fix host memory check on startup ecall (#1553)
     
-## [0.13.0] - 2020-08-28
+## [0.13.0]
 ### Added
 - Experimental
   - New CCF nodes can now join from a [snapshot](https://microsoft.github.io/CCF/ccf-0.13.0/operators/start_network.html#resuming-from-existing-snapshot) (#1500, #1532)
@@ -85,18 +85,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - Removed redirection from legacy frontend names (`members` -> `gov`, `nodes` -> `node`, `users` -> `app`) (#1543)
   - Removed old `install()` API, replaced by `make_endpoint()` in [0.11.1](https://github.com/microsoft/CCF/releases/tag/ccf-0.11.1) (#1541)
     
-## [0.12.2] - 2020-07-31
+## [0.12.2]
 ### Fixed
 - Fix published containers
     
-## [0.12.1] - 2020-07-31
+## [0.12.1]
 ### Changed
 - Release tarball replaced by a .deb
 
 ### Fixed
 - Fix LVI build for applications using CCF (#1466)
     
-## [0.12.0] - 2020-07-29
+## [0.12.0]
 ### Added
 - Tooling
   - New Python proposal and vote generator (#1370). See [docs](https://microsoft.github.io/CCF/ccf-0.12.0/members/proposals.html#creating-a-proposal).
@@ -127,7 +127,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 - `mkSign` endpoint (#1398).
     
-## [0.11.7] - 2020-07-01
+## [0.11.7]
 ### Changed
 1. Fix a bug that could cause signatures not to be recorded on transactions hitting conflicts (#1346)
 2. Fix a bug that could allow transactions to be executed by members before a recovered network was fully opened (#1347)
@@ -137,7 +137,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 1. All format and linting checks are now covered by `scripts/ci-checks.sh` (#1359)
 2. `node/code` RPC returns all code versions and their status (#1351)
     
-## [0.11.4] - 2020-06-26
+## [0.11.4]
 ### Changed
 - Add clang-format to the application CI container, to facilitate application development (#1340)
 - Websocket handlers are now distinct, and can be defined by passing `ws::Verb::WEBSOCKET` as a verb to `make_endpoint()` (#1333)
@@ -146,7 +146,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 - Fix application runtime container, which had been missing a dependency in the previous release (#1340)
     
-## [0.11.1] - 2020-06-25
+## [0.11.1]
 ### Added
 - CLI tool for managing recovery shares (#1295). [usage](https://microsoft.github.io/CCF/master/members/accept_recovery.html#submitting-recovery-shares)
 - New standard endpoint `node/ids` for retrieving node ID from IP address (#1319).
@@ -160,7 +160,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Member ACKs are required, even when the service is opening (#1318).
 - The naming scheme for releases has changed to be more consistent. The tags will now be in the form `ccf-X.Y.Z`.
     
-## [0.11] - 2020-06-15
+## [0.11]
 ### Changed
 - KV reorganisation to enable app-defined serialisation (#1179, #1216, #1234)
 
@@ -189,7 +189,7 @@ CCF now deals internally only with serialised data in its tables, mapping byte-v
 ### Removed
 - `ccf::Store` and `ccf::Tx` typdefs, in favour of `kv::Store` and `kv::Tx`.
     
-## [0.10] - 2020-05-01
+## [0.10]
 ### Added
 - Brand new versioned documentation: https://microsoft.github.io/CCF.
 - New `/tx` endpoint to check that a transaction is committed (#1111). See [docs](https://microsoft.github.io/CCF/master/users/issue_commands.html#checking-for-commit).
@@ -213,12 +213,12 @@ CCF now deals internally only with serialised data in its tables, mapping byte-v
 ### Removed
 - `cchost` no longer outputs a sealed secrets file to be used for recovery (#1101).
     
-## [0.9.3] - 2020-04-16
+## [0.9.3]
 ### Added
 1. Install artifacts include `virtual` build (#1072)
 2. `add_enclave_library_c` is exposed in `ccp_app.cmake` (#1073)
     
-## [0.9.2] - 2020-04-15
+## [0.9.2]
 ### Added
 - Handlers can decide if transaction writes are applied independently from error status (#1054)
 - Scenario Perf Client is now part of the CCF install to facilitate performance tests (#1058)
@@ -228,11 +228,11 @@ CCF now deals internally only with serialised data in its tables, mapping byte-v
 - Member tables are no longer whitelisted for raw_puts (#1041)
 - Projects including CCF's CMake files now use the same build type default (#1057)
     
-## [0.9.1] - 2020-04-01
+## [0.9.1]
 ### Added
 - `cchost` now supports [file-based configuration](https://microsoft.github.io/CCF/operators/start_network.html#using-a-configuration-file), as well as command-line switches (#1013, #1019)
     
-## [0.9] - 2020-03-27
+## [0.9]
 
 This pre-release improves support for handling HTTP requests.
 
@@ -254,13 +254,13 @@ This pre-release improves support for handling HTTP requests.
 - API for installing handlers has changed (#960). See the logging app or [documentation](https://microsoft.github.io/CCF/developers/logging_cpp.html#rpc-handler) for the current style.
 - Several standard endpoints are now GET-only, and must be passed a URL query (ie `GET /users/getCommit?id=42`).
     
-## [0.8.2] - 2020-03-13
+## [0.8.2]
 ### Changed
 - CCF install can now be installed anywhere (#950).
 - PBFT messages are now authenticated (#947).
 - Miscellaneous performance improvements (#946).
     
-## [0.8.1] - 2020-03-12
+## [0.8.1]
 ### Added
 - PBFT timers can be set from`cchost` CLI (#929). See [docs](https://microsoft.github.io/CCF/developers/consensus.html#consensus-protocols).
 - Nodes output their PID in a `cchost.pid` file on start-up (#927).
@@ -274,7 +274,7 @@ This pre-release improves support for handling HTTP requests.
 - PBFT performance improvements (#940, #942).
 - PBFT ledger private tables are now encrypted (#939).
     
-## [0.8] - 2020-03-04
+## [0.8]
 
 This pre-release enables experimental support for running CCF with the PBFT consensus protocol. In providing an experimental release of CCF with PBFT we hope to get feedback from early adopters.
 
@@ -297,12 +297,12 @@ This pre-release enables experimental support for running CCF with the PBFT cons
 ### Removed
 - FramedTCP support
     
-## [0.7.1] - 2020-02-11
+## [0.7.1]
 ### Added
 - Installed Python infrastructure can now be used to launch test networks of external builds (#809)
 - Initial threading support, Raft nodes now execute transactions on multiple worker threads (#773, #822)
     
-## [0.7] - 2020-01-30
+## [0.7]
 
 This pre-release enables experimental support for Javascript as a CCF runtime, and switches the default transport to HTTP. FramedTCP is still supported in this release (`-DFTCP=ON`) but is deprecated and will be dropped in the next release.
 
@@ -319,7 +319,7 @@ This pre-release enables experimental support for Javascript as a CCF runtime, a
 ### Deprecated
 - FramedTCP support. Please use the ccf_FTCP.tar.gz release bundle or build CCF with `-DFTCP=ON` if you require FTCP support.
     
-## [0.6] - 2019-12-10
+## [0.6]
 
 This pre-release enables support for HTTP in CCF
 
@@ -338,7 +338,7 @@ This pre-release enables support for HTTP in CCF
 
 Binaries for `cchost` and `libluagenericenc.so` are attached to this release. Note that libluagenericenc.so should be signed before being deployed by CCF (see https://microsoft.github.io/CCF/developers/build_app.html#standalone-signing).
     
-## [0.5] - 2019-11-14
+## [0.5]
 
 This pre-release fixes minor issues and clarifies some of `cchost` command line options. 
 
@@ -358,19 +358,19 @@ This pre-release fixes minor issues and clarifies some of `cchost` command line 
 The `cchost`, `libluagenericenc.so`, `keygenerator` and `memberclient` are also attached to this release to start a CCF network with lua application. 
 Note that `libluagenericenc.so` should be signed before being deployed by CCF (see https://microsoft.github.io/CCF/developers/build_app.html#standalone-signing). 
     
-## [0.4] - 2019-11-04
+## [0.4]
 
 In this preview release, it is possible to run CCF with the PBFT consensus algorithm, albeit with significant limitations.
 
 The evercrypt submodule has been removed, the code is instead imported, to make release tarballs easier to use.
     
-## [0.3] - 2019-10-07
+## [0.3]
 
 This pre-release implements the genesis model described in the TR, with a distinct service opening phase. See https://microsoft.github.io/CCF/start_network.html for details.
 
 Some discrepancies with the TR remain, and are being tracked under https://github.com/microsoft/CCF/milestone/2
 
-## 0.2 - 2019-06-07
+## 0.2
 
 Initial pre-release
 
