@@ -28,7 +28,7 @@ A CCF network consists of several nodes, each running on top of a Trusted Execut
 
 Nodes are run and maintained by :term:`Operators`. However, nodes must be trusted by the consortium of members before participating in a CCF network.
 
-.. note:: Find out more about Operators in the :ref:`Operations <operators/index:Operations>` section.
+.. note:: Find out more about Operators in the :doc:`operators/index` section.
 
 Application
 ~~~~~~~~~~~
@@ -41,7 +41,7 @@ The Key-Value Store is a collection of maps (associating a key to a value) that 
 
 Since all nodes in the CCF network can read the content of private maps, it is up to the application logic to control the access to such maps. Since every application endpoint has access to the identity of the user triggering it, it is easy to restrict which maps (and entries in those maps) a user can read or write to.
 
-.. note:: Find out how to build CCF applications in the :ref:`Building Apps <developers/index:Building Apps>` section.
+.. note:: Find out how to build CCF applications in the :doc:`developers/index` section.
 
 Ledger
 ~~~~~~
@@ -50,7 +50,7 @@ All changes to the Key-Value Store are encrypted and recorded by each node of th
 
 The integrity of the ledger is guaranteed by a :term:`Merkle tree` whose root is periodically signed by the current primary/leader node.
 
-.. TODO: Link to Audit section
+.. note:: Find out how to audit the CCF ledger in the :doc:`audit/index` section.
 
 Governance
 ~~~~~~~~~~
@@ -61,4 +61,4 @@ Members can submit proposals to modify the state of the Key-Value Store. For exa
 
 Proposals are executed only when the conditions defined in the constitution are met (e.g. a majority of members have voted favourably for that proposal).
 
-.. note:: Find out more about member governance in the :ref:`Governance <members/index:Governance>` section.
+.. note:: Find out more about member governance in the :doc:`members/index` section.

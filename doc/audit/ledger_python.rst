@@ -43,6 +43,19 @@ Finally, the ledger can be iterated over. For each transaction in the ledger, th
     :start-after: SNIPPET_START: iterate_over_ledger
     :end-before: SNIPPET_END: iterate_over_ledger
 
+Example
+-------
+
+An example of how to read and verify entries on the ledger can be found in `governance_history.py <https://github.com/microsoft/CCF/blob/master/tests/governance_history.py>`_, which verifies the member voting history for a short-lived service.
+
+Since every vote request is signed by the voting member, verified by the primary node and then stored on the ledger, the test performs the following (this sequence of operations is performed sequentially per transaction):
+
+ 1. Read and store the member certificates
+ 2. Read an entry from the ``ccf.governance.history`` table (each entry in the table contains the member id of the voting member, along with the signed request)
+ 3. Create a public key using the certificate of the voting member (which was stored on step 1)
+ 4. Verify the signature using the public key and the raw request
+ 5. Repeat steps 2 - 4 until all voting history entries have been read
+
 API
 ---
 

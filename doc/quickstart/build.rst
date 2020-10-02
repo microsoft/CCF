@@ -1,5 +1,5 @@
-Building CCF from Source
-========================
+Build CCF from Source
+=====================
 
 Once you have setup your VM and installed all dependencies, you will be able to successfully build and run the CCF test suite that will deploy a local CCF network.
 

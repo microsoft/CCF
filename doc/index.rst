@@ -32,7 +32,7 @@ CCF Roles
 - :doc:`Operating CCF <operators/index>`
 - :doc:`Governance <members/index>`
 - :doc:`Using CCF <users/index>`
-.. TODO: - Audit [new?]: ledger chunks
+- :doc:`Offline audit <audit/index>`
 
 Contribute
 ----------
@@ -46,12 +46,8 @@ Technical Overview
 
 - :doc:`design/architecture`
 - :doc:`design/constitution`
-- :doc:`design/ledger`
 - :doc:`design/consensus`
 - :doc:`design/cryptography`
-
-.. TODO: Fancy css, see https://github.com/apache/couchdb-documentation/blob/1433b3c4c713998fa0707463e15c304845d93120/templates/pages/index.html#L52
-
 
 .. toctree::
     :maxdepth: 1
@@ -63,6 +59,6 @@ Technical Overview
     users/index.rst
     operators/index.rst
     members/index.rst
+    audit/index.rst
     design/index.rst
-
     glossary

@@ -12,6 +12,5 @@ This section describes how :term:`Operators` manage the different nodes constitu
     snapshots
     recovery
     node_output
-    operator_rpc_api
     resource_usage
-    ledger_python
+    operator_rpc_api
