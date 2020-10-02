@@ -217,17 +217,6 @@ namespace ccf
       ctx->set_response_body(std::move(msg));
     }
 
-    std::optional<std::vector<uint8_t>> process_if_local_node_rpc(
-      std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx, CallerId caller_id)
-    {
-      auto endpoint = endpoints.find_endpoint(*ctx);
-      if (endpoint != nullptr && endpoint->execute_locally)
-      {
-        return process_command(ctx, tx, caller_id);
-      }
-      return std::nullopt;
-    }
-
     std::optional<std::vector<uint8_t>> process_command(
       std::shared_ptr<enclave::RpcContext> ctx,
       kv::Tx& tx,
@@ -551,15 +540,16 @@ namespace ccf
 
       auto caller_id = endpoints.get_caller_id(tx, ctx->session->caller_cert);
 
-      if (
-        consensus != nullptr && consensus->type() == ConsensusType::BFT &&
-        (ctx->execute_on_node || consensus->is_primary()))
+      auto endpoint = endpoints.find_endpoint(*ctx);
+
+      const bool is_bft =
+        consensus != nullptr && consensus->type() == ConsensusType::BFT;
+      const bool is_local = endpoint != nullptr && endpoint->execute_locally;
+      const bool should_bft_distribute = is_bft && !is_local &&
+        (ctx->execute_on_node || consensus->is_primary());
+
+      if (should_bft_distribute)
       {
-        auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
-        if (rep.has_value())
-        {
-          return rep;
-        }
         kv::TxHistory::RequestID reqid;
 
         update_history();
@@ -594,18 +584,8 @@ namespace ccf
           return ctx->serialise_response();
         }
       }
-      else
-      {
-        if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
-        {
-          auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
-          if (rep.has_value())
-          {
-            return rep;
-          }
-        }
-        return process_command(ctx, tx, caller_id);
-      }
+
+      return process_command(ctx, tx, caller_id);
     }
 
     /** Process a serialised command with the associated RPC context via PBFT
@@ -616,20 +596,21 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
       auto tx = tables.create_tx();
-      
+
       kv::Version version = kv::NoVersion;
 
       update_consensus();
 
-      PreExec fn = [](kv::Tx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend) {
-        auto req_view = tx.get_view(*frontend.bft_requests_map);
-        req_view->put(
-          0,
-          {ctx.session->original_caller.value().caller_id,
-            tx.get_req_id(),
-            ctx.session->caller_cert,
-            ctx.get_serialised_request()});
-      };
+      PreExec fn =
+        [](kv::Tx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend) {
+          auto req_view = tx.get_view(*frontend.bft_requests_map);
+          req_view->put(
+            0,
+            {ctx.session->original_caller.value().caller_id,
+             tx.get_req_id(),
+             ctx.session->caller_cert,
+             ctx.get_serialised_request()});
+        };
 
       auto rep =
         process_command(ctx, tx, ctx->session->original_caller->caller_id, fn);
@@ -670,7 +651,6 @@ namespace ccf
       }
 
       update_consensus();
-
 
       if (consensus->type() == ConsensusType::CFT)
       {
