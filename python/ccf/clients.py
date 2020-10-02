@@ -17,7 +17,7 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 import struct
 import base64
-import regex # type: ignore
+import regex  # type: ignore
 from typing import Union, Optional, List, Any
 
 import requests
