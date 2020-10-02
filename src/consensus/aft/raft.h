@@ -83,7 +83,7 @@ namespace aft
     kv::Version election_index = 0;
 
     // BFT
-    RequestsMap& pbft_requests_map;
+    RequestsMap& bft_requests_map;
     std::shared_ptr<aft::State> state;
     std::shared_ptr<Executor> executor;
 
@@ -143,7 +143,7 @@ namespace aft
       replica_state(Follower),
       timeout_elapsed(0),
 
-      pbft_requests_map(requests_map),
+      bft_requests_map(requests_map),
       state(state_),
       executor(executor_),
 
@@ -766,13 +766,14 @@ namespace aft
         state->last_idx = i;
 
         Term sig_term = 0;
+        Index sig_index = 0;
         auto tx = store->create_tx();
         kv::DeserialiseSuccess deserialise_success;
         ccf::PrimarySignature sig;
         if (consensus_type == ConsensusType::BFT)
         {
-          deserialise_success =
-            store->deserialise_views(entry, public_only, &sig_term, &tx, &sig);
+          deserialise_success = store->deserialise_views(
+            entry, public_only, &sig_term, &sig_index, &tx, &sig);
         }
         else
         {
@@ -821,6 +822,24 @@ namespace aft
             {
               send_append_entries_signed_response(r.from_node, sig);
             }
+            break;
+          }
+
+          case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE:
+          {
+            break;
+          }
+
+          case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
+          {
+            try_send_sig_ack(
+              {sig_term, sig_index},
+              kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK);
+            break;
+          }
+
+          case kv::DeserialiseSuccess::PASS_NONCES:
+          {
             break;
           }
 
@@ -885,7 +904,7 @@ namespace aft
       auto progress_tracker = store->get_progress_tracker();
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
       auto h = progress_tracker->get_my_hashed_nonce(
-        state->current_view, state->last_idx);
+        {state->current_view, state->last_idx});
 
       Nonce hashed_nonce;
       std::copy(h.begin(), h.end(), hashed_nonce.begin());
@@ -900,13 +919,13 @@ namespace aft
       std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
 
       auto result = progress_tracker->add_signature(
-        r.term,
-        r.last_log_idx,
+        {r.term, r.last_log_idx},
         r.from_node,
         r.signature_size,
         r.sig,
         hashed_nonce,
-        node_count());
+        node_count(),
+        is_leader());
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
       {
         auto send_to = it->first;
@@ -917,7 +936,7 @@ namespace aft
         }
       }
 
-      try_send_sig_ack(r.term, r.last_log_idx, result);
+      try_send_sig_ack({r.term, r.last_log_idx}, result);
     }
 
     void recv_append_entries_signed_response(const uint8_t* data, size_t size)
@@ -950,20 +969,17 @@ namespace aft
       auto progress_tracker = store->get_progress_tracker();
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
       auto result = progress_tracker->add_signature(
-        r.term,
-        r.last_log_idx,
+        {r.term, r.last_log_idx},
         r.from_node,
         r.signature_size,
         r.sig,
         r.hashed_nonce,
-        node_count());
-      try_send_sig_ack(r.term, r.last_log_idx, result);
+        node_count(),
+        is_leader());
+      try_send_sig_ack({r.term, r.last_log_idx}, result);
     }
 
-    void try_send_sig_ack(
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno,
-      kv::TxHistory::Result r)
+    void try_send_sig_ack(kv::TxID tx_id, kv::TxHistory::Result r)
     {
       switch (r)
       {
@@ -975,7 +991,9 @@ namespace aft
         case kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK:
         {
           SignaturesReceivedAck r = {
-            {bft_signature_received_ack, state->my_node_id}, view, seqno};
+            {bft_signature_received_ack, state->my_node_id},
+            tx_id.term,
+            tx_id.version};
           for (auto it = nodes.begin(); it != nodes.end(); ++it)
           {
             auto send_to = it->first;
@@ -990,8 +1008,8 @@ namespace aft
           CCF_ASSERT(
             progress_tracker != nullptr, "progress_tracker is not set");
           auto result = progress_tracker->add_signature_ack(
-            view, seqno, state->my_node_id, node_count());
-          try_send_reply_and_nonce(view, seqno, result);
+            tx_id, state->my_node_id, node_count());
+          try_send_reply_and_nonce(tx_id, result);
           break;
         }
         default:
@@ -1037,14 +1055,11 @@ namespace aft
         r.term,
         r.idx);
       auto result = progress_tracker->add_signature_ack(
-        r.term, r.idx, r.from_node, node_count());
-      try_send_reply_and_nonce(r.term, r.idx, result);
+        {r.term, r.idx}, r.from_node, node_count());
+      try_send_reply_and_nonce({r.term, r.idx}, result);
     }
 
-    void try_send_reply_and_nonce(
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno,
-      kv::TxHistory::Result r)
+    void try_send_reply_and_nonce(kv::TxID tx_id, kv::TxHistory::Result r)
     {
       switch (r)
       {
@@ -1059,9 +1074,11 @@ namespace aft
           auto progress_tracker = store->get_progress_tracker();
           CCF_ASSERT(
             progress_tracker != nullptr, "progress_tracker is not set");
-          nonce = progress_tracker->get_my_nonce(view, seqno);
-          NonceRevealMsg r = {
-            {bft_nonce_reveal, state->my_node_id}, view, seqno, nonce};
+          nonce = progress_tracker->get_my_nonce(tx_id);
+          NonceRevealMsg r = {{bft_nonce_reveal, state->my_node_id},
+                              tx_id.term,
+                              tx_id.version,
+                              nonce};
 
           for (auto it = nodes.begin(); it != nodes.end(); ++it)
           {
@@ -1073,7 +1090,7 @@ namespace aft
             }
           }
           progress_tracker->add_nonce_reveal(
-            view, seqno, nonce, state->my_node_id);
+            tx_id, nonce, state->my_node_id, node_count(), is_leader());
           break;
         }
         default:
@@ -1117,7 +1134,8 @@ namespace aft
         r.from_node,
         r.term,
         r.idx);
-      progress_tracker->add_nonce_reveal(r.term, r.idx, r.nonce, r.from_node);
+      progress_tracker->add_nonce_reveal(
+        {r.term, r.idx}, r.nonce, r.from_node, node_count(), is_leader());
     }
 
     void recv_append_entries_response(const uint8_t* data, size_t size)
