@@ -8,7 +8,7 @@ import {
 // Importing the browser bundle works around https://github.com/protobufjs/protobuf.js/issues/1402.
 import protobuf from 'protobufjs/dist/protobuf.js'
 
-import * as ccf from '../ccf'
+import * as ccf from '../types/ccf'
 
 // The OpenAPI spec is overridden in app.json
 // as tsoa only supports application/json.

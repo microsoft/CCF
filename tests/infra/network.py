@@ -357,6 +357,11 @@ class Network:
                 remote_node=primary, app_script_path=args.js_app_script
             )
 
+        if args.js_app_bundle:
+            self.consortium.deploy_js_app(
+                remote_node=primary, app_bundle_path=args.js_app_bundle
+            )
+
         self.consortium.add_users(primary, initial_users)
         LOG.info("Initial set of users added")
 

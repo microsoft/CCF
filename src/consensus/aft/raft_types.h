@@ -47,6 +47,7 @@ namespace aft
       const std::vector<uint8_t>& data,
       bool public_only = false,
       kv::Term* term = nullptr,
+      kv::Version* index_ = nullptr,
       kv::Tx* tx = nullptr,
       ccf::PrimarySignature* sig = nullptr) = 0;
     virtual std::shared_ptr<ccf::ProgressTracker> get_progress_tracker() = 0;
@@ -126,12 +127,13 @@ namespace aft
       const std::vector<uint8_t>& data,
       bool public_only = false,
       kv::Term* term = nullptr,
+      kv::Version* index = nullptr,
       kv::Tx* tx = nullptr,
       ccf::PrimarySignature* sig = nullptr) override
     {
       auto p = x.lock();
       if (p)
-        return p->deserialise_views(data, public_only, term, tx, sig);
+        return p->deserialise_views(data, public_only, term, index, tx, sig);
       return S::FAILED;
     }
   };

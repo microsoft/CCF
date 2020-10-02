@@ -8,10 +8,6 @@
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
-#include <valijson/adapters/nlohmann_json_adapter.hpp>
-#include <valijson/schema.hpp>
-#include <valijson/schema_parser.hpp>
-#include <valijson/validator.hpp>
 
 using namespace std;
 using namespace nlohmann;
@@ -33,26 +29,6 @@ namespace loggingapp
 
     const nlohmann::json get_public_params_schema;
     const nlohmann::json get_public_result_schema;
-
-    std::optional<std::string> validate(
-      const nlohmann::json& params, const nlohmann::json& j_schema)
-    {
-      valijson::Schema schema;
-      valijson::SchemaParser parser;
-      valijson::adapters::NlohmannJsonAdapter schema_adapter(j_schema);
-      parser.populateSchema(schema_adapter, schema);
-
-      valijson::Validator validator;
-      valijson::ValidationResults results;
-      valijson::adapters::NlohmannJsonAdapter params_adapter(params);
-
-      if (!validator.validate(schema, params_adapter, &results))
-      {
-        return fmt::format("Error during validation:\n\t{}", results);
-      }
-
-      return std::nullopt;
-    }
 
   public:
     // SNIPPET_START: constructor
@@ -133,65 +109,40 @@ namespace loggingapp
 
       // SNIPPET_START: record_public
       auto record_public = [this](kv::Tx& tx, nlohmann::json&& params) {
-        // SNIPPET_START: valijson_record_public
-        const auto validation_error =
-          validate(params, record_public_params_schema);
+        const auto in = params.get<LoggingRecord::In>();
 
-        if (validation_error.has_value())
-        {
-          return ccf::make_error(HTTP_STATUS_BAD_REQUEST, *validation_error);
-        }
-
-        const auto msg = params["msg"].get<std::string>();
-        // SNIPPET_END: valijson_record_public
-
-        if (msg.empty())
+        if (in.msg.empty())
         {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
         }
 
         auto view = tx.get_view(public_records);
-        view->put(params["id"], msg);
+        view->put(params["id"], in.msg);
         return ccf::make_success(true);
       };
       // SNIPPET_END: record_public
       make_endpoint("log/public", HTTP_POST, ccf::json_adapter(record_public))
-        .set_params_schema(record_public_params_schema)
-        .set_result_schema(record_public_result_schema)
+        .set_auto_schema<LoggingRecord::In, bool>()
         .install();
 
       // SNIPPET_START: get_public
       auto get_public =
         [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&& params) {
-          const auto validation_error =
-            validate(params, get_public_params_schema);
-
-          if (validation_error.has_value())
-          {
-            return ccf::make_error(HTTP_STATUS_BAD_REQUEST, *validation_error);
-          }
-
+          const auto in = params.get<LoggingGet::In>();
           auto view = args.tx.get_read_only_view(public_records);
-          const auto id = params["id"];
-          auto r = view->get(id);
+          auto r = view->get(in.id);
 
           if (r.has_value())
-          {
-            auto result = nlohmann::json::object();
-            result["msg"] = r.value();
-            return ccf::make_success(result);
-          }
+            return ccf::make_success(LoggingGet::Out{r.value()});
 
           return ccf::make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            fmt::format("No such record: {}", id.dump()));
+            HTTP_STATUS_BAD_REQUEST, fmt::format("No such record: {}", in.id));
         };
       // SNIPPET_END: get_public
       make_read_only_endpoint(
         "log/public", HTTP_GET, ccf::json_read_only_adapter(get_public))
-        .set_params_schema(get_public_params_schema)
-        .set_result_schema(get_public_result_schema)
+        .set_auto_schema<LoggingGet>()
         .install();
 
       auto remove_public = [this](kv::Tx& tx, nlohmann::json&& params) {

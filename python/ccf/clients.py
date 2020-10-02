@@ -17,6 +17,7 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 import struct
 import base64
+import re
 from typing import Union, Optional, List, Any
 
 import requests
@@ -26,6 +27,13 @@ import websocket  # type: ignore
 
 import ccf.commit
 from ccf.log_capture import flush_info
+
+
+loguru_tag_regex = re.compile(r"\\?</?((?:[fb]g\s)?[^<>\s]*)>")
+
+
+def escape_loguru_tags(s):
+    return loguru_tag_regex.sub(lambda match: f"\\{match[0]}", s)
 
 
 def truncate(string: str, max_len: int = 128):
@@ -161,7 +169,7 @@ class Response:
         return (
             f"<{status_color}>{self.status_code}</> "
             + (f"@<magenta>{self.view}.{self.seqno}</> " if versioned else "")
-            + f"<yellow>{truncate(str(self.body))}</>"
+            + f"<yellow>{escape_loguru_tags(truncate(str(self.body)))}</>"
         )
 
     @staticmethod
