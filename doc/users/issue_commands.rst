@@ -3,7 +3,7 @@ Issuing Commands
 
 Clients communicate with CCF using HTTP requests, over TLS.
 
-For example, to record a message at a specific id with the :ref:`developers/example:Example Application`, using curl:
+For example, to record a message at a specific id with the :doc:`C++ sample logging application </developers/example>` using curl:
 
 .. code-block:: bash
 

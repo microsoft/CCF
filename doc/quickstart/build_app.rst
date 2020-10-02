@@ -1,4 +1,0 @@
-Build CCF applications
-======================
-
-WIP

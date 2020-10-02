@@ -1,5 +1,5 @@
-Governance
-==========
+Member Governance
+=================
 
 This section describes how a consortium of trusted :term:`Members` governs an existing CCF network. It explains how members can submit proposals to CCF and how these proposals are accepted based on the rules defined in the :term:`Constitution`.
 

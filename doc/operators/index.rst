@@ -7,7 +7,7 @@ This section describes how :term:`Operators` manage the different nodes constitu
     :maxdepth: 2
     :caption: Contents:
 
-    run_setup
+    /quickstart/run_setup
     start_network
     snapshots
     recovery

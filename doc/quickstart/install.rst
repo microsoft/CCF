@@ -53,7 +53,7 @@ The CCF install notably contains:
 
 - The ``cchost`` binary required to spin up a CCF application
 - The ``cmake`` files required to build CCF applications
-- Azure and ``ansible`` scripts required to :ref:`create a SGX VM <quickstart/create_vm:Create Azure SGX VM>` and :ref:`setup a development environment <quickstart/build_setup::Setup CCF Development Environment>` (under ``getting_started/``)
+- Azure and ``ansible`` scripts required to :doc:`create_vm` and :doc:`build_setup` (under ``getting_started/``)
 - Header files and libraries to build CCF applications (under ``include/`` and ``lib/``)
 - A limited set of Python utilities to start a basic CCF service for local testing
 - Various utility scripts

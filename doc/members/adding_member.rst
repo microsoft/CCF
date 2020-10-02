@@ -25,7 +25,7 @@ The ``keygenerator.sh`` script can be used to generate the member’s certificat
 
 The member’s private keys (e.g. ``member_name_privk.pem`` and ``member_name_enc_privk.pem``) should be stored on a trusted device while the certificate (e.g. ``member_name_cert.pem``) and public encryption key (e.g. ``member_name_enc_pubk.pem``) should be registered in CCF by members.
 
-.. note:: See :ref:`developers/cryptography:Algorithms and Curves` for the list of supported cryptographic curves for member identity.
+.. note:: See :ref:`design/cryptography:Algorithms and Curves` for the list of supported cryptographic curves for member identity.
 
 Registering a New Member
 ------------------------

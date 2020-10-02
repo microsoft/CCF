@@ -48,7 +48,7 @@ Ledger
 
 All changes to the Key-Value Store are encrypted and recorded by each node of the network to disk to a decentralised auditable ledger.
 
-The integrity of the ledger is guaranteed by a :term:`Merkle tree` whose root is periodically signed by the current primary/leader node.
+The integrity of the ledger is guaranteed by a :term:`Merkle Tree` whose root is periodically signed by the current primary/leader node.
 
 .. note:: Find out how to audit the CCF ledger in the :doc:`audit/index` section.
 

@@ -28,4 +28,4 @@ The pre-built container can be obtained from `ccfciteam/ccf-app-run <https://hub
 
 The container does not contain any particular CCF enclave application, and may be helpful when deploying CCF nodes via docker, k8s, etc. It is up to the operator(s) to mount the appropriate CCF enclave application and start and manage the CCF node.
 
-.. note:: That image is optimised for size above all. If you need an image that comes with peripheral utilities, you probably want the :ref:`Build Container <quickstart/build_app:Build Container>` instead.
+.. note:: That image is optimised for size above all. If you need an image that comes with peripheral utilities, you probably want the :ref:`Build Container <quickstart/build_setup:Build Container>` instead.

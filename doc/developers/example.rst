@@ -1,5 +1,5 @@
-Example C++ Application
-=======================
+C++ Application
+===============
 
 Description
 -----------

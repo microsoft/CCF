@@ -5,18 +5,18 @@ The CCF ledger is the persistent replicated append-only record of the transactio
 
 .. note:: A node writes its ledger to a directory as specified by the ``--ledger-dir`` command line argument.
 
-The entire service state is contained in the ledger (including both governance and application transactions). A single up-to-date copy of the ledger is enough to start a successor service if necessary, following the :doc:`operators/recovery` procedure.
+The entire service state is contained in the ledger (including both governance and application transactions). A single up-to-date copy of the ledger is enough to start a successor service if necessary, following the :doc:`/operators/recovery` procedure.
 
 The ledger contains regular signature transactions (``ccf.signatures`` map) which sign the root of the :term:`Merkle Tree` at the time the signature transaction is emitted.
 
 .. note:: The frequency of the signatures is set by the ``--sig-tx-interval`` and ``--sig-ms-interval`` command line options to ``cchost``.
 
-File layout
+File Layout
 -----------
 
 The ledger directory contains a series of ledger files (or chunks). The size of each ledger file is controlled by the ``--ledger-chunk-bytes`` command line option.
 
-.. note:: When a new node joins from a snapshot (see :ref:`operators/start_network:Resuming from Existing Snapshot`), it is important that subsequent ledger files are the same on all nodes. To do so, a new ledger file is created every time a snapshot is generated, even if the specified size of the file has not yet been reached.
+.. note:: When a new node joins from a snapshot (see :doc:`/operators/snapshots`), it is important that subsequent ledger files are the same on all nodes. To do so, a new ledger file is created every time a snapshot is generated, even if the specified size of the file has not yet been reached.
 
 Files containing only committed entries are named ``ledger_$STARTSEQNO-$ENDSEQNO.committed``. These files are closed and immutable, it is safe to replicate them to backup storage. They are identical across nodes, provided ``--ledger-chunk-bytes`` has been set to the same value.
 
@@ -45,6 +45,6 @@ Each entry in the ledger corresponds to a transaction committed by the primary n
 
 When a transaction is committed, each affected ``Store::Map`` is serialised in different security domains (i.e. public or private), based on the policy set when the ``Store::Map`` was created (default is private). A public ``Store::Map`` is serialised and stored in the ledger as plaintext while aprivate ``Store::Map`` is serialised and encrypted before being stored.
 
-Ledger entries are integrity-protected and encrypted using a symmetric key shared by all trusted nodes (see :ref:`developers/cryptography:Algorithms and Curves`). This key is kept secure inside each enclave. See :ref:`members/common_member_operations:Rekeying Ledger` for details on how members can rotate the ledger encryption key.
+Ledger entries are integrity-protected and encrypted using a symmetric key shared by all trusted nodes (see :doc:`/design/cryptography`). This key is kept secure inside each enclave. See :ref:`members/common_member_operations:Rekeying Ledger` for details on how members can rotate the ledger encryption key.
 
-Note that even if a transaction only affects a private ``Store::Map``, unencrypted information such as the version number is always present in the serialised entry. More information about the ledger entry format is available in the :doc:`developers/kv/kv_serialisation` section.
+Note that even if a transaction only affects a private ``Store::Map``, unencrypted information such as the version number is always present in the serialised entry. More information about the ledger entry format is available in the :doc:`/developers/kv/kv_serialisation` section.

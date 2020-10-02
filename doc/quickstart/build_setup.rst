@@ -14,12 +14,12 @@ Then, to quickly set up the dependencies necessary to build CCF itself and CCF a
     $ ./run.sh driver.yml # Only on SGX-enabled hardware
     $ ./run.sh ccf-dev.yml
 
-Once this is complete, you can proceed to :ref:`quickstart/build:Building CCF from Source`.
+Once this is complete, you can proceed to :ref:`quickstart/build:Build CCF from Source`.
 
 Build Container
 ---------------
 
-The quickest way to get started building CCF applications is to use the :ref:`developers/build_app:Build Container`. It contains all the dependencies needed to build and test CCF itself as well as CCF applications.
+The quickest way to get started building CCF applications is to use the CCF build container. It contains all the dependencies needed to build and test CCF itself as well as CCF applications.
 
 .. code-block:: bash
 

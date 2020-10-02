@@ -21,12 +21,12 @@ Raft parameters can be configured when starting up a network (see :ref:`here <op
 - ``raft-timeout-ms`` is the Raft heartbeat timeout in millisecons. The Raft leader sends heartbeats to its followers at regular intervals defined by this timeout. This should be set to a significantly lower value than ``--raft-election-timeout-ms``.
 - ``raft-election-timeout-ms`` is the Raft election timeout in milliseconds. If a follower does not receive any heartbeat from the leader after this timeout, the follower triggers a new election.
 
-PBFT Consensus Protocol
------------------------
+BFT Consensus Protocol
+----------------------
 
-There is an option of enabling CCF with PBFT as a consensus protocol providing Byzantine Fault Tolerance.
+.. warning:: BFT consensus protocol is experimental in CCF
 
-For more information on the PBFT protocol please see the original `PBFT paper <http://pmg.csail.mit.edu/papers/osdi99.pdf>`_.
+There is an option of enabling CCF with BFT as a consensus protocol providing Byzantine Fault Tolerance.
 
 PBFT parameters can be configured when starting up a network (see :ref:`here <operators/start_network:Starting a New Network>`). The paramters that can be set via the CLI are:
 

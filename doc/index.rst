@@ -2,7 +2,7 @@ CCF documentation
 =================
 
 .. image:: img/ccf.svg
-  :width: 250
+  :width: 330
   :align: right
 
 Welcome to the Confidential Consortium Framework (CCF) documentation.
@@ -10,11 +10,11 @@ Welcome to the Confidential Consortium Framework (CCF) documentation.
 Start Here
 ----------
 
-- :doc:`concepts`
-- :doc:`quickstart/install`
-- :doc:`Start a sample CCF application <quickstart/test_network>`
-- :doc:`Use CCF <users/index>`
-- :doc:`quickstart/create_vm`
+- :doc:`/concepts`
+- :doc:`/quickstart/install`
+- :doc:`Run a sample CCF application </quickstart/test_network>`
+- :doc:`Use CCF </users/index>`
+- :doc:`/quickstart/create_vm`
 - `What's new in the latest version of CCF? <https://github.com/microsoft/CCF/releases/latest>`_
 
 
@@ -22,17 +22,19 @@ Build Applications
 ------------------
 
 - :doc:`quickstart/build_setup`
+- :doc:`developers/js_app`
 - :doc:`developers/example`
 - :doc:`developers/build_app`
 - :doc:`developers/run_app`
+- :doc:`developers/api`
 
 CCF Roles
 ---------
 
 - :doc:`Operating CCF <operators/index>`
-- :doc:`Governance <members/index>`
+- :doc:`members/index`
 - :doc:`Using CCF <users/index>`
-- :doc:`Offline audit <audit/index>`
+- :doc:`Offline Audit <audit/index>`
 
 Contribute
 ----------
@@ -52,8 +54,9 @@ Technical Overview
 .. toctree::
     :maxdepth: 1
     :hidden:
+    :titlesonly:
 
-    Home <index.rst>
+    quickstart/index.rst
     concepts
     developers/index.rst
     users/index.rst
