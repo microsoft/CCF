@@ -57,12 +57,6 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-p",
-        "--package",
-        help="The enclave package to patch (e.g., liblogging.enclave.so)",
-        required=True,
-    )
-    parser.add_argument(
         "-f",
         "--function",
         help="The name of the symbol to patch",
