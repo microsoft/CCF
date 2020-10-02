@@ -650,7 +650,13 @@ namespace ccf
           // valid signature.
           const auto view_start_idx =
             view_history.empty() ? 1 : last_recovered_signed_idx + 1;
-          for (auto i = view_history.size(); i < last_sig->view; ++i)
+          CCF_ASSERT_FMT(
+            last_sig->view >= 0,
+            "last_sig->view is invalid, {}",
+            last_sig->view);
+          for (auto i = view_history.size();
+               i < static_cast<size_t>(last_sig->view);
+               ++i)
           {
             view_history.push_back(view_start_idx);
           }
@@ -1646,10 +1652,10 @@ namespace ccf
         rpcsessions,
         rpc_map,
         node_cert.raw(),
-        network.pbft_requests_map,
+        network.bft_requests_map,
         shared_state,
         std::make_shared<aft::ExecutorImpl>(
-          network.pbft_requests_map, shared_state, rpc_map, rpcsessions),
+          network.bft_requests_map, shared_state, rpc_map, rpcsessions),
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         public_only);
@@ -1760,8 +1766,12 @@ namespace ccf
     {
       if (network.consensus_type == ConsensusType::BFT)
       {
-        progress_tracker =
-          std::make_shared<ccf::ProgressTracker>(self, network.nodes);
+        progress_tracker = std::make_shared<ccf::ProgressTracker>(
+          *network.tables.get(),
+          self,
+          network.nodes,
+          network.backup_signatures_map,
+          network.revealed_nonces_map);
         network.tables->set_progress_tracker(progress_tracker);
       }
     }

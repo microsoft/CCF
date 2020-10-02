@@ -45,7 +45,10 @@ namespace kv
   {
     Term term = 0;
     Version version = 0;
+    MSGPACK_DEFINE(term, version);
   };
+  DECLARE_JSON_TYPE(TxID);
+  DECLARE_JSON_REQUIRED_FIELDS(TxID, term, version)
 
   using BatchVector = std::vector<
     std::tuple<kv::Version, std::shared_ptr<std::vector<uint8_t>>, bool>>;
@@ -84,8 +87,9 @@ namespace kv
     FAILED = 0,
     PASS = 1,
     PASS_SIGNATURE = 2,
-    PASS_PRE_PREPARE = 3,
-    PASS_NEW_VIEW = 4
+    PASS_BACKUP_SIGNATURE = 3,
+    PASS_BACKUP_SIGNATURE_SEND_ACK = 4,
+    PASS_NONCES = 5
   };
 
   enum ReplicateType
