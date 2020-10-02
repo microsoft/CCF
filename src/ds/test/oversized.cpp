@@ -198,7 +198,10 @@ TEST_CASE("Writing" * doctest::test_suite("oversized"))
 {
   constexpr size_t buf_size = 1 << 8;
 
-  ringbuffer::Reader rr(buf_size);
+  std::vector<uint8_t> buffer(buf_size);
+  ringbuffer::Const def(buffer.data(), buffer.size());
+
+  ringbuffer::Reader rr(def);
 
   constexpr auto fragment_max = buf_size / 8;
   constexpr auto total_max = buf_size / 3;
@@ -464,7 +467,14 @@ TEST_CASE("Non-blocking" * doctest::test_suite("oversized"))
   using namespace ringbuffer;
 
   constexpr auto circuit_size = 1 << 8;
-  Circuit circuit(circuit_size);
+
+  std::vector<uint8_t> in_buffer(circuit_size);
+  ringbuffer::Const in_def(in_buffer.data(), in_buffer.size());
+
+  std::vector<uint8_t> out_buffer(circuit_size);
+  ringbuffer::Const out_def(out_buffer.data(), out_buffer.size());
+
+  Circuit circuit(in_def, out_def);
 
   constexpr auto max_fragment_size = circuit_size / 5;
   constexpr auto max_total_size = circuit_size * 4;

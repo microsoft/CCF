@@ -162,10 +162,16 @@ TEST_CASE("Basic message loop" * doctest::test_suite("messaging"))
 
   BufferProcessor bp;
 
-  Reader loop_src(1 << 10);
+  constexpr auto buffer_size = 1 << 10;
+
+  std::vector<uint8_t> in_buffer(buffer_size);
+  ringbuffer::Const in_def(in_buffer.data(), in_buffer.size());
+  Reader loop_src(in_def);
   Writer test_filler(loop_src);
 
-  Reader out_reader(1 << 10);
+  std::vector<uint8_t> out_buffer(buffer_size);
+  ringbuffer::Const out_def(out_buffer.data(), out_buffer.size());
+  Reader out_reader(out_def);
   Writer out_writer(out_reader);
 
   size_t x = 0;
@@ -374,9 +380,18 @@ TEST_CASE("Multiple threads" * doctest::test_suite("messaging"))
 
   SUBCASE("Message loops run until stopped")
   {
+    constexpr auto buffer_size = 1 << 10;
+
+    std::vector<uint8_t> in_buffer(buffer_size);
+    ringbuffer::Const in_def(in_buffer.data(), in_buffer.size());
+
+    std::vector<uint8_t> out_buffer(buffer_size);
+    ringbuffer::Const out_def(out_buffer.data(), out_buffer.size());
+
+    Circuit circuit(in_def, out_def);
+
     size_t reads_inside = 0;
     size_t reads_outside = 0;
-    Circuit circuit(1 << 10);
 
     // Prepare a single message from outside to inside, telling it to finish
     circuit.write_to_inside().write(finish);
@@ -388,9 +403,18 @@ TEST_CASE("Multiple threads" * doctest::test_suite("messaging"))
 
   SUBCASE("Both loops can send data")
   {
+    constexpr auto buffer_size = 1 << 10;
+
+    std::vector<uint8_t> in_buffer(buffer_size);
+    ringbuffer::Const in_def(in_buffer.data(), in_buffer.size());
+
+    std::vector<uint8_t> out_buffer(buffer_size);
+    ringbuffer::Const out_def(out_buffer.data(), out_buffer.size());
+
+    Circuit circuit(in_def, out_def);
+
     size_t reads_inside = 0;
     size_t reads_outside = 0;
-    Circuit circuit(1 << 10);
 
     // Both sides send some empty messages
     constexpr auto count_inbound = 2u;
@@ -431,9 +455,18 @@ TEST_CASE("Multiple threads" * doctest::test_suite("messaging"))
       const auto& pings_in = pc.in;
       const auto& pings_out = pc.out;
 
+      constexpr auto buffer_size = 1 << 10;
+
+      std::vector<uint8_t> in_buffer(buffer_size);
+      ringbuffer::Const in_def(in_buffer.data(), in_buffer.size());
+
+      std::vector<uint8_t> out_buffer(buffer_size);
+      ringbuffer::Const out_def(out_buffer.data(), out_buffer.size());
+
+      Circuit circuit(in_def, out_def);
+
       size_t reads_inside = 0;
       size_t reads_outside = 0;
-      Circuit circuit(1 << 10);
 
       circuit.write_to_inside().write(ping, pings_in);
       circuit.write_to_outside().write(ping, pings_out);
@@ -461,7 +494,14 @@ TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
   };
 
   constexpr auto circuit_size = 1 << 6;
-  Circuit circuit(circuit_size);
+
+  std::vector<uint8_t> in_buffer(circuit_size);
+  ringbuffer::Const in_def(in_buffer.data(), in_buffer.size());
+
+  std::vector<uint8_t> out_buffer(circuit_size);
+  ringbuffer::Const out_def(out_buffer.data(), out_buffer.size());
+
+  Circuit circuit(in_def, out_def);
 
   BufferProcessor processor_inside;
 

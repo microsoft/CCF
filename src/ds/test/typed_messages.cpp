@@ -32,7 +32,10 @@ TEST_CASE(
 {
   constexpr size_t buf_size = 1 << 8;
 
-  ringbuffer::Reader rr(buf_size);
+  std::vector<uint8_t> buffer(buf_size);
+  ringbuffer::Const def(buffer.data(), buffer.size());
+
+  ringbuffer::Reader rr(def);
 
   constexpr auto fragment_max = buf_size / 8;
   constexpr auto total_max = buf_size / 3;
