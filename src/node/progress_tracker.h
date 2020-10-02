@@ -243,15 +243,22 @@ namespace ccf
       }
 
       std::vector<uint8_t> sig_vec;
-      CCF_ASSERT(
+      CCF_ASSERT_FMT(
         signature_size <= sig.size(),
-        fmt::format(
-          "Invalid signature size, signature_size:{}, sig.size:{}",
-          signature_size,
-          sig.size()));
+        "Invalid signature size, signature_size:{}, sig.size:{}",
+        signature_size,
+        sig.size());
       sig_vec.assign(sig.begin(), sig.begin() + signature_size);
 
       auto& cert = it->second;
+      CCF_ASSERT(
+        node_id != id ||
+          std::equal(
+            hashed_nonce.begin(),
+            hashed_nonce.end(),
+            get_my_hashed_nonce(tx_id).begin()),
+        "hashed_nonce does not match my nonce");
+
       BftNodeSignature bft_node_sig(std::move(sig_vec), node_id, hashed_nonce);
       try_match_unmatched_nonces(
         cert, bft_node_sig, tx_id.term, tx_id.version, node_id);
@@ -289,6 +296,8 @@ namespace ccf
       Nonce hashed_nonce,
       uint32_t node_count = 0)
     {
+      LOG_TRACE_FMT(
+        "record_primary node_id:{}, seqno:{}, hashed_nonce:{}", node_id, tx_id.version, hashed_nonce);
       auto n = entropy->random(hashed_nonce.size());
       Nonce my_nonce;
       std::copy(n.begin(), n.end(), my_nonce.begin());
@@ -297,6 +306,9 @@ namespace ccf
         auto h = hash_data(my_nonce);
         std::copy(h.begin(), h.end(), hashed_nonce.begin());
       }
+
+      LOG_TRACE_FMT(
+        "record_primary node_id:{}, seqno:{}, hashed_nonce:{}", node_id, tx_id.version, hashed_nonce);
 
       auto it = certificates.find(CertKey(tx_id));
       if (it == certificates.end())

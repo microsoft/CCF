@@ -42,14 +42,13 @@ void run_ordered_execution(uint32_t my_node_id)
   kv::Consensus::View view = 0;
   kv::Consensus::SeqNo seqno = 0;
   uint32_t node_count = 4;
+  uint32_t node_count_quorum = 2; // Takes into account that counting starts at 0
 
   crypto::Sha256Hash root;
   std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
   ccf::Nonce nonce;
-  nonce.fill(1);
   auto h = pt->hash_data(nonce);
   ccf::Nonce hashed_nonce;
-
   std::copy(h.begin(), h.end(), hashed_nonce.begin());
 
   INFO("Adding signatures");
@@ -60,6 +59,16 @@ void run_ordered_execution(uint32_t my_node_id)
 
     for (uint32_t i = 1; i < node_count; ++i)
     {
+      if (i == my_node_id)
+      {
+        auto h = pt->get_my_hashed_nonce({view, seqno});
+        std::copy(h.begin(), h.end(), hashed_nonce.begin());
+      }
+      else
+      {
+        std::copy(h.begin(), h.end(), hashed_nonce.begin());
+      }
+
       auto result = pt->add_signature(
         {view, seqno},
         i,
@@ -69,8 +78,8 @@ void run_ordered_execution(uint32_t my_node_id)
         node_count,
         true);
       REQUIRE(
-        ((result == kv::TxHistory::Result::OK && i != 2) ||
-         (result == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK && i == 2)));
+        ((result == kv::TxHistory::Result::OK && i != node_count_quorum) ||
+         (result == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK && i == node_count_quorum)));
     }
   }
 
@@ -80,8 +89,8 @@ void run_ordered_execution(uint32_t my_node_id)
     {
       auto result = pt->add_signature_ack({view, seqno}, i, node_count);
       REQUIRE(
-        ((result == kv::TxHistory::Result::OK && i != 2) ||
-         (result == kv::TxHistory::Result::SEND_REPLY_AND_NONCE && i == 2)));
+        ((result == kv::TxHistory::Result::OK && i != node_count_quorum) ||
+         (result == kv::TxHistory::Result::SEND_REPLY_AND_NONCE && i == node_count_quorum)));
     }
   }
 
@@ -92,7 +101,7 @@ void run_ordered_execution(uint32_t my_node_id)
       if (my_node_id == i)
       {
         pt->add_nonce_reveal(
-          {view, seqno}, pt->get_my_nonce({view, seqno}), 0, node_count, true);
+          {view, seqno}, pt->get_my_nonce({view, seqno}), i, node_count, true);
       }
       else
       {
@@ -106,6 +115,6 @@ TEST_CASE("Ordered Execution")
 {
   for (uint32_t i = 0; i < 4; ++i)
   {
-    run_ordered_execution(0);
+    run_ordered_execution(i);
   }
 }
