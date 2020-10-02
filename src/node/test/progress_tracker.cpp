@@ -9,40 +9,36 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #include <string>
+#include <trompeloeil/include/doctest/trompeloeil.hpp>
 
-class Store : public ccf::ProgressTrackerStore
+class StoreMock : public ccf::ProgressTrackerStore
 {
 public:
-  void write_backup_signatures(ccf::BackupSignatures& sig_value) override {}
-  std::optional<ccf::BackupSignatures> get_backup_signatures() override
-  {
-    return std::optional<ccf::BackupSignatures>();
-  }
-  void write_nonces(aft::RevealedNonces& nonces) override {}
-  std::optional<aft::RevealedNonces> get_nonces() override
-  {
-    return std::optional<aft::RevealedNonces>();
-  }
-  bool verify_signature(
-    kv::NodeId node_id,
-    crypto::Sha256Hash& root,
-    uint32_t sig_size,
-    uint8_t* sig) override
-  {
-    return true;
-  }
+  MAKE_MOCK1(write_backup_signatures, void(ccf::BackupSignatures&), override);
+  MAKE_MOCK0(
+    get_backup_signatures, std::optional<ccf::BackupSignatures>(), override);
+  MAKE_MOCK1(write_nonces, void(aft::RevealedNonces&), override);
+  MAKE_MOCK0(get_nonces, std::optional<aft::RevealedNonces>(), override);
+  MAKE_MOCK4(
+    verify_signature,
+    bool(kv::NodeId, crypto::Sha256Hash&, uint32_t, uint8_t*),
+    override);
 };
 
 void run_ordered_execution(uint32_t my_node_id)
 {
-  auto store = std::make_unique<Store>();
+  using trompeloeil::_;
+
+  auto store = std::make_unique<StoreMock>();
+  StoreMock& store_mock = *store.get();
   auto pt =
     std::make_unique<ccf::ProgressTracker>(std::move(store), my_node_id);
 
   kv::Consensus::View view = 0;
   kv::Consensus::SeqNo seqno = 0;
   uint32_t node_count = 4;
-  uint32_t node_count_quorum = 2; // Takes into account that counting starts at 0
+  uint32_t node_count_quorum =
+    2; // Takes into account that counting starts at 0
 
   crypto::Sha256Hash root;
   std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
@@ -50,6 +46,12 @@ void run_ordered_execution(uint32_t my_node_id)
   auto h = pt->hash_data(nonce);
   ccf::Nonce hashed_nonce;
   std::copy(h.begin(), h.end(), hashed_nonce.begin());
+
+  REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
+    .RETURN(true)
+    .TIMES(AT_LEAST(2));
+  REQUIRE_CALL(store_mock, write_backup_signatures(_)).TIMES(1);
+  REQUIRE_CALL(store_mock, write_nonces(_)).TIMES(1);
 
   INFO("Adding signatures");
   {
@@ -79,7 +81,8 @@ void run_ordered_execution(uint32_t my_node_id)
         true);
       REQUIRE(
         ((result == kv::TxHistory::Result::OK && i != node_count_quorum) ||
-         (result == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK && i == node_count_quorum)));
+         (result == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK &&
+          i == node_count_quorum)));
     }
   }
 
@@ -90,7 +93,8 @@ void run_ordered_execution(uint32_t my_node_id)
       auto result = pt->add_signature_ack({view, seqno}, i, node_count);
       REQUIRE(
         ((result == kv::TxHistory::Result::OK && i != node_count_quorum) ||
-         (result == kv::TxHistory::Result::SEND_REPLY_AND_NONCE && i == node_count_quorum)));
+         (result == kv::TxHistory::Result::SEND_REPLY_AND_NONCE &&
+          i == node_count_quorum)));
     }
   }
 

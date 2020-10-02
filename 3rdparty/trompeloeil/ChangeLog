@@ -1,0 +1,626 @@
+v38 2020-06-08
+
+	* Fixed bug where ALLOW_CALL only worked with sequences
+	  if called at least once
+
+	* Fixed bug to support IMPLEMENT_MOCKx and IMPLEMENT_CONST_MOCKx
+	  constexpr
+
+	* More fixes to Conan packaging. Thank you Kai Bernhard.
+
+	* Support OK-reporters from the runtime reporter registration
+	  API. Thank you Moritz Haase.
+
+	* Rewrites to not trigger deprecation warnings in C++17 builds.
+	  Thank you Kasper Laudrup.
+
+v37 2020-02-09
+
+	* Added adapter for the Criterion unit testing framework. Thanks you
+
+	  Etienne Barbier <etienne.barbier@atos.net>
+
+	* Fixes to Conan packaging. Thank you kert
+
+	* Fix issue 180 for GCC and MSVC, where the presence of a type
+	  like Qt5/QChar broke compilation of unrelated mock signatures.
+
+	* Fix TROMPELOEIL_CONCAT macro issue to restore compiling with MSVC
+	  when traditional preprocessor is enabled.
+
+	* Fix issue 173 for GCC 4.x by performing testing to confirm
+	  correctness of existing code.
+
+v36 2019-12-29
+
+	* Status reporting of passed expectation calls as sucessful assertions in
+	  DOCTEST and Catch2. Thanks to:
+
+	    Tore Martin Hagen <tore@instanes.name> for Catch2
+	    Cristian Morales Vega <cristian@samknows.com> for DOCTEST
+
+	  You get the support via the provided headers
+
+	    #include <catch2/trompeloeil.hpp>
+	    #include <doctest/trompeloeil.hpp>
+
+	  See the CookBook for information about adding such hooks for other unit
+	  testing frame works.
+
+	* Fixed issue 172 where THROW() would not compile if the function returns
+	  a type that is not default constructible.
+
+	* Partially fixed issue 173, where an object constructible from nullptr
+	  but not comparable with nullptr, would be constructed when printed
+	  (for example when an expectation failed.)
+
+	  Unfortunately this fix does not work for gcc versions 4.x or MSVC 14.
+
+v35 2019-04-01
+
+	* Improvements to documentation. Thanks to:
+
+	    Robert Dailey <rcdailey@gmail.com>
+	    Yuri Timenkov <yuri@timenkov.ru>
+	    Viatorus <lutztonineubert@gmail.com>
+
+	* Improved DocTest integration. Thanks to:
+
+	    Cristian Morales Vega <cristian@samknows.com>
+
+	* CMakeLists.txt honours CMAKE_INSTALL_LIBDIR. Thanks to:
+
+	    Cristian Morales Vega <cristian@samknows.com>
+
+	* Partially fixed issue 155, where an unfulfilled expectation, when
+	  built with the default throwing reporter, terminated without a
+	  message when compiled with gcc and optimization. With the partial
+	  fix the program still terminates, but with the correct violation
+	  message displayed.
+
+	* Fixed issue 157 where it was impossible to place an expectation on a
+	  reference to a non-copyable type. This fix also resolved a number of
+	  problems with older compilers. See docs/Backward.md for details.
+
+	* Fixed clang-tidy warning, misc-non-private-member-variables-in-classes
+	  that leaks into application code from the Trompeloeil header.
+
+v34 2019-04-01
+
+	* Rearranged include directory structure to make it easier to use, and
+	  to write, adapters for unit test frame works. Now, if you want to
+	  use Trompeloeil with, for example, the 'doctest' unit testing frame
+	  work, you include
+
+	  #include <doctest.h>
+	  #include <doctest/trompeloeil.hpp>
+
+	  The old adaptation mechanisms still work. See issue #118
+
+	* Support compilation without RTTI support. This makes error reporting
+	  from deathwatched<> violations less informative (it cannot mention
+	  the name of the type of the object) but has no other impact on
+	  functionality.
+
+	* Silenced g++-4.9 -Wmissing-field-initializers warning with libc++.
+
+	* Fixed issue #121 where mutexes were created in each translation unit
+
+	* Fixed issue #124 where sequence objects were not properly protected
+	  against access from several threads.
+
+	* Silenced several warnings in the Trompeloeil self test programs.
+
+v33 2019-01-21
+
+	* Silenced noisy g++-7 -Wuseless-cast warning
+
+	* Fixed a bug where a mocked function would not compile if a parameter
+	  had an operator==(nullptr) returning a type that is not convertible
+	  to bool.
+
+	* Fixed a bug where a mocked function would not compile if a parameter
+	  was a range with iterators to rvalue proxy objects, like vector<bool>.
+
+	* Mock objects can be move constructed if they have a static constexpr
+	  bool member named trompeloeil_movable_mock with value = true.
+
+	* ANY() matcher gives a short descriptive compilation error message
+	  when the type is an array type (it would silently decay into a
+	  pointer type, which can be very confusing.)
+
+	* When compiled with preprocessor macro
+	  TROMPELOEIL_USER_DEFINED_COMPILE_TIME_REPORTER, a `extern`
+	  `trompeloeil::reporter` is declared from `trompeloeil.hpp`.
+	  Thanks @rcdailey
+
+	* Minor documentation updates.
+
+	* Update pattern in expectation_with_wrong_type.cpp to match
+	  new error message from GCC '9' at svn revision 264700.
+
+v32 2018-07-23
+
+	* Fix issue #95: check_errors.sh typo and detect failure in Travis
+
+	* Update unit test framework to Catch 2.2.3.
+
+	* Fix documentation of sanitize flags
+
+	* Enable destructor override warning in self_test build for Clang 5.0
+	  or later
+
+	* Update unit test framework to Catch 2.2.1.
+
+	* Worked around clang++-6 bugs 38010 and 38033
+
+	* Improve support for compiler modes:
+	  GCC and Clang: -std=c++17; MSVC: /std:c++17
+	  GCC and Clang: -std=c++2a; MSVC: /std:c++latest
+
+	* Fix issue #87: C4355 warning from VS Release builds.  Thanks @Neargye
+
+	* Fix issue #69: work around C4702 warning from VS Release builds.
+
+	* Fix issue #88: work around C2066 error from VS 2017 15.7.1.
+
+v31 2018-05-11
+
+	* Issue #83: Add AppVeyor support for VS 2015 and VS 2017
+
+	* Fix issue #82: restore compilation with VS 2015.
+
+
+v30 2018-04-02
+
+	* mock_interface<T> provides a convenient short cut when implementing
+	  mocks from interfaces. It is used together with the macros
+	  IMPLEMENT_MOCKn(func_name) and IMPLEMENT_CONST_MOCKn(func_name).
+	  The signature of the function is deduced. It is not possible to use
+	  mock_interface<T> with multiple inheritance, and it is not possible
+	  to mock overloads with IMPLEMENT_MOCKn(func_name) or
+	  IMPLEMENT_CONST_MOCKn(func_name)
+
+	* Used markdownlint to make documentation more consistent. Thanks @AndrewPaxie
+
+	* Silenced 2 clang++-5 warnings about missing "override"
+
+	Back ported Trompeloeil to C++11. Thanks @AndrewPaxie!
+	Changes by file and directory:
+	* Cleaned up `.travis.yml`
+	* Cleaned up `CMakeLists.txt` and bumped kcov for travis builds
+	* `README.md`
+	  * Updated supported compiler list.
+	  * Added link to `docs/Backward.md`.
+	  * Added link to `docs/PlatformAndLibraries.md`.
+	* `check_errors.sh` require `CXXFLAGS` with either `-std=c++11` or `-std=c++14`.
+	* `docs/FAQ.md`
+	  * Updated supported compilers list.
+	  * Updated answer regarding C++11 support.
+	* `docs/`
+	  * New: "Backward compatibility with earlier versions of C++".
+	  * New: "Platform and library support for Trompeloeil".
+	* `compilation_errors/`
+	  * Support for C++11 expectation syntax in test cases.
+	* `test/`
+	  * Split `compiling_tests.cpp` into separately compilable files,
+	    for Catch main, C++11 test cases and C++14 test cases.
+
+	* Fixed whitespace and a minor spelling error in trompeloeil.hpp.
+	* Tidy up test cases in compilation_errors.
+
+v29 2017-07-23
+
+	* Fix Issue #54: Exception thrown exit - fixed static dtor fiasco
+	* Fix Issue #48: Move "re" in lambda capture list in "regex_check".
+	* Fix Issue #55: Restore warnings for Clang builds.
+	* Correct spelling of SANITIZE for clang Xcode builds.
+	* Fix Issue #57: Avoid uneeded-member-function warning from Clang.
+	* Allow only standard C++ dialects in Trompeloeil test programs.
+	* Lightly edited documentation.
+
+v28 2017-07-24
+
+	* You can place expectations on types multiply inheriting several
+	  mock types.
+
+	* Changed directory structure. "trompeloeil.hpp" now resides in
+	  directory "include". Self test programs "compiling_tests.cpp"
+	  and "thread_terror.cpp" resides in directory "test".
+
+	* Major work on CMake support
+	  - "make install" - works as before and also includes a package
+	  - For CMake based project you can use
+	    . "find_package(trompeloeil 28 REQUIRED)" and add
+	      "target_link_libraries(<test_program> trompeloeil)" for your test
+	      target
+	    . use "add_subdirectory(trompeloeil)" if you prefer to track
+	      the trompeloeil git repository and also here add
+	      "target_link_libraries(<test_program> trompeloeil)" for your test
+	      target
+	  - "cmake -DBUILD_TYPE=Debug <trompeloeil-dir>" enables the test
+	    targets "self_test" and "thread_terror"
+	    . "-DSANITIZE" enables ASAN and UBSAN for "self_test", and TSAN and
+	      UBSAN for "thread_terror"
+
+v27 2017-06-27
+
+	* Fixed a regression where NAMED_REQUIRE_DESTRUCTION(obj) accidentally
+	  resulted in a std::unique_ptr<trompeloeil::expectation> instead
+	  of std::unique_ptr<trompeloeil::lifetime_monitor> as documented.
+
+	* Added a rudimentary CMakeLists.txt file. Thanks Harald Achitz.
+
+v26 2017-06-12
+
+	* Support for threaded semi-integration tests by allowing
+	  queries if a sequence object "is_completed()", if an
+	  expectation objet "is_satisfied()" or "is_saturated()".
+
+	  See FAQ and reference manual for details.
+
+	* Internal restructuring for reduced code size.
+
+v25 2017-04-17
+
+	* Changed the expectation macros such that you can now have a
+	  macro that expands into several REQUIRE_CALL() (and the likes)
+
+	* Fixed macro expansion bugs causing name clashes.
+
+	* Documented clang++ 4 compatibility
+
+	* Sequence objects are now movable and can, for example, be
+	  returned from functions.
+
+v24 2017-03-10
+
+	* Worked around VS2017 bug. Thanks mlimber and xiangfan-ms
+
+v23 2017-01-29
+
+	* Matchers can be negated using the logical not operator !.
+
+	  Example:
+
+	  struct Mock {
+	    MAKE_MOCK1(func, void(const std::string&));
+	  };
+
+	  TEST(...)
+	  {
+	    using trompeloeil::re; // match regular expressions
+	    Mock m;
+	    REQUIRE_CALL(m, func(!re("^foo")));
+	      // calls to func with strings not matching the regex /^foo/
+	    ...
+	  }
+
+	* Made sequence and its dependencies moveable. (mlimber)
+
+	  This means it's now possible to use tha Almost Always Auto
+	  style for sequence objects:
+
+	  auto seq = trompeloeil::sequence{};
+
+	* Internal refactoring for substantially reduced compilation time.
+
+v22 2016-12-13
+
+	* Messages from violations of expectations now print collections
+	  member wise. This goes for std::pair<>, std::tuple<> and any data
+	  type for which a range based for loop is possible. This is done
+	  recursively for the contents of the collections.
+
+	* Worked around gcc bug 78446
+	  https://gcc.gnu.org/bugzilla/show_bug.cgi?id=78446
+
+	* Cleaned up -Wshadow warnings from gcc
+
+v21 2016-11-13
+
+	* Tracing now includes return values and exceptions thrown.
+	  For exception types inherited from std::exception, the
+	  what() string is printed.
+
+	* Fixed a bug when a member function in a mocked class calls
+	  a mocked function. This is now explicitly allowed, even
+	  when an expectation recursively calls the same function
+	  as a side effect.
+
+	* Worked around VisualStudio 2015 update 3 issue where trailing
+	  return type for lambdas is not respected in template deduction
+	  context. This caused compilation errors when using matchers
+	  in expectations to overloaded functions.
+
+	* Worked around VisualStudio 2015 update 3 issue with evaluating
+	  regex_search() in trailing return type spec for auto deduced
+	  string type.
+
+v20 2016-10-05
+
+	* Fixed harmless but very very annoying warning from clang++
+
+v19 2016-10-03
+
+	* Fixed obscure bug when placing an expectation using a value implicitly
+	  convertible to the target type, but not equal comparable with it.
+
+	  Example:
+
+	  struct S
+	  {
+	    S(const char* s_) : s(s_) {}
+	    bool operator(const char*) = delete;
+	    bool operator==(const S& rh) const
+	    {
+              return s == rh.s;
+	    }
+	    std::string s;
+	  };
+
+	  struct mock {
+	    MAKE_MOCK1(func, void(S));
+	  };
+
+	  TEST(...)
+	  {
+	    mock m;
+	    REQUIRE_CALL(m, func("string"));
+	    // now compiles and compares the function call parameter value
+	    // with S("string")
+	  }
+
+	* Improved compilation error messages for type-mismatch
+	  situations in .RETURN()
+
+v18 2016-08-18
+
+	* Writing custom matchers is much simplified through the use
+	  of function template make_matcher<>, which accepts lambdas
+	  for predicate and printing error message.
+
+	  The old technique of inheriting form trompeloeil::matcher
+	  or trompeloeil::typed_matcher<T> still works.
+
+	* Further internal restructuring for yet reduced test program
+	  build time.
+
+v17 2016-06-11
+
+	* Use template specialization when writing adapter code for unit
+	  testing frame works.
+
+	* Internal restructuring for shorter compilation times.
+
+v16 2016-05-16
+
+	* class trompeloeil::lifetime_monitor now inherits from
+	  class trompeloeil::expectation, so using
+
+	  std::unique_ptr<expectation> p = NAMED_REQUIRE_DESTRUCTION(obj);
+
+	  instead of
+
+	  std::unique_ptr<lifetime_monitor> p = NAMED_REQUIRE_DESTRUCTION(obj);
+
+	  works equally well, reduces the cognitive load a bit, and seems to
+	  build slightly faster.
+
+	* .IN_SEQUENCE(...) can now be used with REQUIRE_DESTRUCTION(...)
+	  and NAMED_REQUIRE_DESTRUCTION(...) to ensure objects are
+	  destroyed in the intended order. Example:
+
+	  auto p1 = new trompeloeil::deathwatched<mock1>;
+	  auto p2 = new trompeloeil::deathwatched<mock2>;
+
+	  trompeloeil::sequence s;
+	  REQUIRE_DESTRUCTION(*p1)
+	    .IN_SEQUENCE(s);
+	  REQUIRE_DESTRUCTION(*p2)
+	    .IN_SEQUENCE(s);
+	  call_destroyer(p1, p2); // both must be destroyed, p1 before p2.
+
+v15 2016-04-29
+
+	* Fixed macro bug that caused warnings with g++ and clang++ when
+	  compiling with strict C++ standards compliance.
+
+v14 2016-04-27
+
+	* Fixed bug when the destruction of a sequence object with still
+	  living expectations caused call to abort().
+
+	* You can now add extra trailing specifiers to a mock function,
+	  such as the "override" context sensitive specifier, and/or the
+	  keyword "noexcept" (careful with the latter if your registered
+	  reporter can/does throw.)
+
+	  Example:
+
+	  struct D : public B {
+	    MAKE_MOCK1(func, int(int), override);
+	  };
+
+
+v13 2016-03-07
+
+	* Mock functions and their expectations are thread safe, using
+	  a global recursive mutex.
+
+	* Silenced warnings from g++ -Wshadow.
+
+v12 2016-02-01
+
+	* Built in matchers are duck tuped by default, i.e. eq, ne, gt, ge,
+	  lt, le do by default match any parameter that supports operators
+	  ==, !=, >, >=, <, <= with the value provided. If needed for
+	  disambiguation of overloads an explicit type can be provided. Example:
+
+	    REQUIRE_CALL(obj, numfunc(gt(3)));
+	    REQUIRE_CALL(obj, strfunc(eq<std::string&>("foo")));
+
+	  The expectation on numfunc will match a function numfunc with
+	  any parameter type that can be compared as > 3. The expectation on
+	  strfunc will only match an overload with std::string& (if there are
+	  competing overloads, e.g. strfunc(const char*) and
+	  strfunc(const std::string).)
+
+	* Fixed a bug with return type deduction where an array type expression
+	  was used. E.g. returning a string literal when the return type was
+	  const char* or std::string caused a compilation error.
+
+	* Fixed a bug when the eq(nullptr) matcher actually checked if !=
+	  comparison with nullptr was allowed.
+
+	* Reluctantly reverted use of std::tuple_element_t<> for
+	  typename tuppe_element<>::type, to support g++ 4.9.0 (4.9.1 does have
+	  std::tuple_element_t<>.)
+
+v11 2016-01-04
+
+	* Added regular expression matcher for std::string and c-strings
+
+	* Added specialization eq<nullptr> for pointer-like parameters and
+	  pointer-to-member parameters. This is mostly useful for
+	  pointer to pointer parameters, e.g.:
+
+	    REQUIRE_CALL(obj, func(*trompeloeil::eq(nullptr)));
+
+	* Improved accuracy of compilation error message when attempting
+	  to place expectation that does not uniquely match any function
+	  signature.
+
+	* Added specialization eq<nullptr> for pointer-like parameters and
+v10 2015-12-11
+
+	* Fixed bug when wildcard _ could not match std::ostream&
+
+	* Fixed ADL bugs
+
+	* Added functionality to use the dereference operator (prefix
+	  operator*) on any matcher to instead match a pointer to the
+	  value to check.
+
+	* Documented adapter for VisualStudio MSTest
+
+	* Corrected documentation bug for how to write report formatting
+	  function trompeloeil::print<>(std::ostream&, T const&).
+
+v9  2015-11-29
+
+	* Fixed bug with accepting std::unique_ptr<> by value.
+
+	* Signed/unsigned compilation warnings in expectations are attributed
+	  to correct file/line with clang++ and VisualStudio 2015
+
+	* Complete documentation overhaul. Now with:
+	  - Cook book
+	  - FAQ
+	  - reference manual
+
+	* Better compilation error message when illegal argument is
+	  used in expectation.
+
+	* Addressed clang++ and VisualStudio warnings
+
+v8  2015-10-30
+
+	* Fixed bug when mock object was destroyed with a saturated
+	  expecation in scope.
+
+	* Further improved compilation error messages.
+
+v7  2015-10-24
+
+	* Report error if live expectations remain when a mock object is
+	  destroyed
+
+	* Reduced clutter in compilation errors
+
+	* Allow mock objects to be templates. E.g.
+
+		template <typename T>
+		struct mock
+		{
+			MAKE_MOCK1(func, void(T));
+		};
+
+	  Note that member function templates are still not supported.
+
+
+v6  2015-09-22
+
+	* Verified support for released Visual Studio 2015
+
+	* trompeloeil::ne(nullptr) works for all pointer types
+
+	* Fixed a few issues reported by clang 3.7 sanitizers
+
+	* line number in reporter_func is unsigned long to match
+	  type of __LINE__
+
+
+v5  2015-06-19
+
+	* Support for Visual Studio 2015 RC
+
+	* 5 parameter value matchers are included. These are
+	  (in namespace trompeloeil):
+	  - ne(x) - not equal to x
+	  - lt(x) - less than x
+	  - le(x) - less than or equal to x
+	  - gt(x) - greater than x
+	  - ge(x) - greater than or equal to x
+
+	  These are used in expectations as e.g.:
+
+	    REQUIRE_CALL(obj, foo(ne(5)));
+
+	  which matches calls to foo with a value not equal to 5.
+
+	* Support and documentation for how to write custom matchers.
+
+	* The function registered to set_reporter() now must accept
+	  the source location as file, line instead of location as
+	  a combined string. Apologies for breaking existing code,
+	  but since this is more in line with how other frame works
+	  refers to source code locations, it improves compatibility.
+
+v4  2015-05-01
+
+	* Expectations of death do not follow move-constructed and
+	  copy-constructed deathwatched<T> objects.
+
+	* Internal rewrites to reduce compilation times
+
+v3   2015-04-02
+
+	* Fixed compiler dependent reference binding SNAFU
+
+v2   2015-04-02
+
+	* Improved compilation time performance. 20% drop in compilation time
+	  has been seen in some test programs.
+
+	* Improved the compiler's chance to provide good warning messages
+	  when values in expectations don't quite the types used in the
+	  function signature (for example signed/unsigned mismatch.)
+
+	* Added support for tracing matching calls. This is an aid when
+	  doing exploratory tests of legacy code. A trace can often
+	  drastically reduce the time required to understand how the legacy
+	  code works.
+
+	  To use it, create an object of a tracer type, for example:
+
+	    TEST(atest)
+	    {
+	      trompeloeil::stream_tracer trace(std::cout);
+
+	      // normal test code
+	    }
+
+v1   2015-01-10
+
+	First official release.
