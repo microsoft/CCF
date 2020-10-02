@@ -19,7 +19,7 @@ if [ -f "${VERSION_FILE}" ]; then
     # install tree
     START_NETWORK_SCRIPT="${PATH_HERE}"/start_network.py
     VERSION=$(<"${VERSION_FILE}")
-    pip install -q -U ccf==$VERSION
+    pip install -q -U ccf=="$VERSION"
     pip install -q -U -r "${PATH_HERE}"/requirements.txt
 else
     # source tree
