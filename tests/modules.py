@@ -157,13 +157,7 @@ def test_app_bundle(network, args):
         bundle_path = shutil.make_archive(
             os.path.join(tmp_dir, "bundle"), "zip", bundle_dir
         )
-        proposal_body, careful_vote = ccf.proposal_generator.deploy_js_app(bundle_path)
-
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
-    proposal.vote_for = careful_vote
-    network.consortium.vote_using_majority(primary, proposal)
+        network.consortium.deploy_js_app(primary, bundle_path)
 
     LOG.info("Verifying that modules and endpoints were added")
     with primary.client(
@@ -218,13 +212,7 @@ def test_npm_app(network, args):
 
     LOG.info("Deploying npm app")
     bundle_dir = os.path.join(app_dir, "dist")
-
-    proposal_body, careful_vote = ccf.proposal_generator.deploy_js_app(bundle_dir)
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
-    proposal.vote_for = careful_vote
-    network.consortium.vote_using_majority(primary, proposal)
+    network.consortium.deploy_js_app(primary, bundle_dir)
 
     LOG.info("Calling npm app endpoints")
     with primary.client("user0") as c:
@@ -258,13 +246,7 @@ def test_npm_tsoa_app(network, args):
 
     LOG.info("Deploying tsoa npm app")
     bundle_dir = os.path.join(app_dir, "dist")
-
-    proposal_body, careful_vote = ccf.proposal_generator.deploy_js_app(bundle_dir)
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
-    proposal.vote_for = careful_vote
-    network.consortium.vote_using_majority(primary, proposal)
+    network.consortium.deploy_js_app(primary, bundle_dir)
 
     LOG.info("Calling tsoa npm app endpoints")
     with primary.client("user0") as c:
