@@ -12,7 +12,14 @@
 using frame_header_type = uint32_t;
 static constexpr size_t frame_header_size = sizeof(frame_header_type);
 static constexpr auto ledger_dir = "ledger_dir";
-ringbuffer::Circuit eio(1024);
+
+constexpr auto buffer_size = 1024;
+std::vector<uint8_t> in_buffer(buffer_size);
+ringbuffer::Const in_span(in_buffer.data(), in_buffer.size());
+std::vector<uint8_t> out_buffer(buffer_size);
+ringbuffer::Const out_span(out_buffer.data(), out_buffer.size());
+Circuit eio(in_span, out_span);
+
 auto wf = ringbuffer::WriterFactory(eio);
 
 // Ledger entry type

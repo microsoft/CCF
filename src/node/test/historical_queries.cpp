@@ -170,7 +170,11 @@ TEST_CASE("StateCache")
 
   constexpr size_t buffer_size = 1 << 12;
 
-  ringbuffer::Reader rr(buffer_size);
+  std::vector<uint8_t> buffer(buffer_size);
+  ringbuffer::Const span(buffer.data(), buffer.size());
+
+  ringbuffer::Reader rr(span);
+
   auto rw = std::make_shared<ringbuffer::Writer>(rr);
   ccf::historical::StateCache cache(store, rw);
 
