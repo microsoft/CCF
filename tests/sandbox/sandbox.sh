@@ -4,16 +4,18 @@
 
 set -e
 
+VENV_DIR=${VENV_DIR:-.venv_ccf_sandbox}
+
 PATH_HERE=$(dirname "$(realpath -s "$0")")
 VERSION_FILE="${PATH_HERE}"/../share/VERSION
 GOV_SCRIPT="${PATH_HERE}"/sandbox_gov.lua
 
 echo "Setting up Python environment..."
 
-if [ ! -f "sandbox_env/bin/activate" ]; then
-    python3.8 -m venv sandbox_env
+if [ ! -f "${VENV_DIR}/bin/activate" ]; then
+    python3.8 -m venv "${VENV_DIR}"
 fi
-source sandbox_env/bin/activate
+source "${VENV_DIR}"/bin/activate
 
 if [ -f "${VERSION_FILE}" ]; then
     # install tree
