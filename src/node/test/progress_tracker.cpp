@@ -9,7 +9,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #include <string>
-#include <trompeloeil/include/doctest/trompeloeil.hpp>
+#include <trompeloeil/include/trompeloeil.hpp>
 
 class StoreMock : public ccf::ProgressTrackerStore
 {
