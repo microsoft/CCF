@@ -5,43 +5,9 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <mbedtls/asn1.h>
-#include <valijson/validator.hpp>
 
 namespace fmt
 {
-  template <>
-  struct formatter<valijson::ValidationResults::Error>
-  {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
-
-    template <typename FormatContext>
-    auto format(const valijson::ValidationResults::Error& e, FormatContext& ctx)
-    {
-      return format_to(
-        ctx.out(), "[{}] {}", fmt::join(e.context, ""), e.description);
-    }
-  };
-
-  template <>
-  struct formatter<valijson::ValidationResults>
-  {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
-
-    template <typename FormatContext>
-    auto format(const valijson::ValidationResults& vr, FormatContext& ctx)
-    {
-      return format_to(ctx.out(), "{}", fmt::join(vr, "\n\t"));
-    }
-  };
-
   template <>
   struct formatter<mbedtls_asn1_named_data>
   {
