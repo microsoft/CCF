@@ -12,12 +12,12 @@ on:
     # The branches below must be a subset of the branches above
     branches: [master]
   schedule:
-    - cron: '0 10 * * *'
+    - cron: '30 10 * * *'
 
 jobs:
   analyze:
     name: Analyze
-    runs-on: ubuntu-1804
+    runs-on: ubuntu-18.04
 
     strategy:
       fail-fast: false
