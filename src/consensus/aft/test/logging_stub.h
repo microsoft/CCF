@@ -207,6 +207,7 @@ namespace aft
       const std::vector<uint8_t>& data,
       bool public_only = false,
       kv::Term* term = nullptr,
+      kv::Version* index = nullptr,
       kv::Tx* tx = nullptr,
       ccf::PrimarySignature* sig = nullptr)
     {

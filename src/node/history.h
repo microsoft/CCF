@@ -589,8 +589,7 @@ namespace ccf
       auto progress_tracker = store.get_progress_tracker();
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
       result = progress_tracker->record_primary(
-        sig.view,
-        sig.seqno,
+        {sig.view, sig.seqno},
         sig.node,
         sig.root,
         sig.hashed_nonce,
@@ -708,8 +707,8 @@ namespace ccf
             auto progress_tracker = store.get_progress_tracker();
             CCF_ASSERT(
               progress_tracker != nullptr, "progress_tracker is not set");
-            auto r = progress_tracker->record_primary(
-              txid.term, txid.version, id, root, hashed_nonce);
+            auto r =
+              progress_tracker->record_primary(txid, id, root, hashed_nonce);
             if (r != kv::TxHistory::Result::OK)
             {
               throw ccf::ccf_logic_error(fmt::format(
@@ -721,8 +720,7 @@ namespace ccf
                 txid.version));
             }
 
-            auto h =
-              progress_tracker->get_my_hashed_nonce(txid.term, txid.version);
+            auto h = progress_tracker->get_my_hashed_nonce(txid);
             std::copy(h.begin(), h.end(), hashed_nonce.begin());
           }
           else
