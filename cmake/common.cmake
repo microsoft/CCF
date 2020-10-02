@@ -118,7 +118,11 @@ endforeach()
 install(PROGRAMS ${CCF_DIR}/tests/sgxinfo.sh DESTINATION bin)
 
 # Install getting_started scripts for VM creation and setup
-install(DIRECTORY ${CCF_DIR}/getting_started/ DESTINATION getting_started)
+install(
+  DIRECTORY ${CCF_DIR}/getting_started/
+  DESTINATION getting_started
+  USE_SOURCE_PERMISSIONS
+)
 
 if("sgx" IN_LIST COMPILE_TARGETS)
   if(NOT DISABLE_QUOTE_VERIFICATION)
