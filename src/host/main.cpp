@@ -58,7 +58,7 @@ int main(int argc, char** argv)
   app.require_subcommand(1, 1);
 
   std::string enclave_file;
-  app.add_option("-e,--enclave-file", enclave_file, "CCF transaction engine")
+  app.add_option("-e,--enclave-file", enclave_file, "CCF application")
     ->required()
     ->check(CLI::ExistingFile);
 

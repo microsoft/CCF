@@ -1,29 +1,30 @@
 Setup CCF Development Environment
 =================================
 
-VM Setup
---------
+Environment Setup
+-----------------
 
 First, on your development VM, checkout the CCF repository or :ref:`install the latest CCF release <quickstart/install:Install CCF>`.
 
-To quickly set up the dependencies necessary to build CCF itself and CCF applications, simply run:
+Then, to quickly set up the dependencies necessary to build CCF itself and CCF applications, simply run:
 
 .. code-block:: bash
 
-    $ cd CCF/getting_started/setup_vm
+    $ cd <ccf_path>/getting_started/setup_vm
     $ ./run.sh driver.yml # Only on SGX-enabled hardware
     $ ./run.sh ccf-dev.yml
 
 Once this is complete, you can proceed to :ref:`quickstart/build:Building CCF from Source`.
 
-Container
----------
+Build Container
+---------------
 
-The quickest way to get started building CCF applications is to use the :ref:`developers/build_app:Build Container`.
+The quickest way to get started building CCF applications is to use the :ref:`developers/build_app:Build Container`. It contains all the dependencies needed to build and test CCF itself as well as CCF applications.
 
 .. code-block:: bash
 
-    $ docker run -it ccfciteam/ccf-app-ci:latest [--device /dev/sgx:/dev/sgx]
+    $ docker pull ccfciteam/ccf-app-ci:latest # Latest CCF release
+    $ docker pull ccfciteam/ccf-app-ci:X.YZ   # Specific CCF release
 
 The container contains the latest release of CCF along with a complete build toolchain, and startup scripts.
 
@@ -31,7 +32,8 @@ If your hardware does support SGX, and has the appropriate driver installed and 
 
 .. note::
 
-    `virtual` mode provides no security guarantee. It is only useful for development and prototyping.
+    - When running the build container on SGX-enabled hardware, pass the ``--device /dev/sgx:/dev/sgx`` command to use SGX in the container.
+    - `virtual` mode provides no security guarantee. It is only useful for development and prototyping.
 
 Visual Studio Code Setup
 ~~~~~~~~~~~~~~~~~~~~~~~~

@@ -52,4 +52,4 @@ Glossary
     `Transport Layer Security <https://en.wikipedia.org/wiki/Transport_Layer_Security>`_ is an IETF cryptographic protocol standard designed to secure communications between a client and a server over a computer network.
 
   Users
-    Directly interact with the transaction engine/application running in CCF. Their public identity should be voted in by members before they are allowed to issue requests.
+    Directly interact with the application running in CCF. Their public identity should be voted in by members before they are allowed to issue requests.

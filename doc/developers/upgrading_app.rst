@@ -7,7 +7,7 @@ The sample `logging application <https://github.com/microsoft/CCF/tree/master/sr
 
 .. note::
 
-    GitHub offers a convenient way to compare two releases via the following url ``https://github.com/microsoft/CCF/compare/<old_release>...<new_release>``, e.g. `<https://github.com/microsoft/CCF/compare/v0.13...v0.12>`_. The changes to the ``logging.cpp`` file should display the changes required to upgrade your application, including new features.
+    GitHub offers a convenient way to compare two releases via the following url ``https://github.com/microsoft/CCF/compare/<old_release>...<new_release>``, e.g. `<https://github.com/microsoft/CCF/compare/ccf-0.14.0..ccf-0.13.4>`_. The changes to the ``logging.cpp`` file should display the changes required to upgrade your application, including new features.
 
 .. warning::
 

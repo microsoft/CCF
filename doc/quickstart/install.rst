@@ -49,7 +49,14 @@ Assuming that CCF was installed under ``/opt``, the following command can be run
     $ /opt/ccf-${CCF_VERSION}/bin/cchost --version
     CCF host: ccf-<version>
 
-# TODO: Also include sufficient Python to start a test network. Also `tree` the install and explain the different things in it.
+The CCF install notably contains:
+
+- The ``cchost`` binary required to spin up a CCF application
+- The ``cmake`` files required to build CCF applications
+- Azure and ``ansible`` scripts required to :ref:`create a SGX VM <quickstart/create_vm:Create Azure SGX VM>` and :ref:`setup a development environment <quickstart/build_setup::Setup CCF Development Environment>` (under ``getting_started/``)
+- Header files and libraries to build CCF applications (under ``include/`` and ``lib/``)
+- A limited set of Python utilities to start a basic CCF service for local testing
+- Various utility scripts
 
 Python Package
 ~~~~~~~~~~~~~~
@@ -66,10 +73,9 @@ The latest version of the CCF Python tools package can be installed as follows:
 
     $ pip install ccf
 
-
 .. note:: The CCF Python tools package does `not` provide utilities to build and deploy CCF applications.
 
-# TODO: Link to tutorial
+A step-by-step tutorial on how to use the CCF Python package is available :ref:`here <users/python_tutorial:Python Client Tutorial>`.
 
 Uninstall
 ---------
@@ -85,20 +91,3 @@ To uninstall the CCF Python package, run:
 .. code-block:: bash
 
     $ pip uninstall ccf
-
-
-Container
----------
-# TODO: Move this, this is only for deploying existing applications??
-
-The ``ccfciteam/ccf-app-run`` container can be run to setup an environment containing the ``cchost`` binary (as per the `latest release of CCF <https://github.com/microsoft/CCF/releases/latest>`_) and the associated dependencies:
-
-.. code-block:: bash
-
-    $ docker run -ti ccfciteam/ccf-app-run
-    root@6fc0cfa4b9e1:/# cchost --version
-    CCF host: ccf-<version>
-
-CCF applications can be mounted to the container and deployed with the ``cchost`` binary.
-
-# TODO: Link to building and running app

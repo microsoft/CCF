@@ -19,6 +19,7 @@ Before issuing business transactions to CCF, the certificates of trusted users n
     :caption: Contents:
 
     issue_commands
+    verify_tx
     verify_quote
     python_tutorial
     python_api

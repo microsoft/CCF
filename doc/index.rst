@@ -7,24 +7,21 @@ CCF documentation
 
 Welcome to the Confidential Consortium Framework (CCF) documentation.
 
-TODO: Fancy css, see https://github.com/apache/couchdb-documentation/blob/1433b3c4c713998fa0707463e15c304845d93120/templates/pages/index.html#L52
-
-TODO: Explain ``cchost`` as host utility that will start an enclave
-
 First Steps
 -----------
 
 - :ref:`CCF overview <concepts:CCF Overview>`
 - :ref:`Install CCF <quickstart/install:Install CCF>`
-- Start a sample CCF application
+- :ref:`Start a sample CCF application <quickstart/test_network:Starting a Test Network>`
 - How to use a sample CCF service (Python library as well)
+- `What's new in the latest version of CCF? <https://github.com/microsoft/CCF/releases/latest>`_
 
 
 Build a CCF application
 -----------------------
 
 - Maybe create a SGX VM: :ref:`quickstart/create_vm:Create Azure SGX VM`
-- First, setup a CCF development environment. :ref:`quickstart/setup:Setup CCF Development Environment`
+- First, setup a CCF development environment. :ref:`quickstart/build_setup:Setup CCF Development Environment`
 
 - Link to JavaScript/TypeScript application
 - Link to C++ application
@@ -81,17 +78,21 @@ In-depth version of the concepts:
 TODO: Link to crypto, ACID guarantees, etc.
 
 
+TODO: Fancy css, see https://github.com/apache/couchdb-documentation/blob/1433b3c4c713998fa0707463e15c304845d93120/templates/pages/index.html#L52
+
+TODO: Explain ``cchost`` as host utility that will start an enclave
 
 
 .. toctree::
     :maxdepth: 1
     :hidden:
 
+    Home <index.rst>
     concepts
-    quickstart/index.rst
     members/index.rst
     developers/index.rst
     operators/index.rst
     users/index.rst
+    design/index.rst
 
     glossary

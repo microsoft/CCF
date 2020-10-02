@@ -1,10 +1,10 @@
-Example Application
-===================
+Example C++ Application
+=======================
 
 Description
 -----------
 
-The repository contains equivalent C++ and a Lua implementations of a simple example application for logging. These are meant to serve as templates for building more useful applications and to showcase core features.
+The repository contains a C++ implementation of a simple example application for logging. These are meant to serve as templates for building more useful applications and to showcase core features.
 
 .. note::
 
@@ -58,11 +58,10 @@ The Logging application implements a trivial protocol, made up of four transacti
 Implementations
 ---------------
 
-The C++ and Lua implementations of the Logging application are located in the `src/apps <https://github.com/microsoft/CCF/tree/master/src/apps>`_ folder. They are discussed in detail on the following pages:
+The C++ implementation of the Logging application is located in the `src/apps <https://github.com/microsoft/CCF/tree/master/src/apps>`_ folder. They are discussed in detail on the following pages:
 
 .. toctree::
    :maxdepth: 2
 
    logging_cpp
-   logging_lua
    logging_rpc_api

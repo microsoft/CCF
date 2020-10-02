@@ -1,15 +1,18 @@
 CCF Overview
 ============
 
+.. note:: Find more technical details in the :ref:`Technical Overview section <design/index:Technical Overview>`.
+
 CCF in a Hundred Words
 ----------------------
 
-The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly available, and performant applications that focus on multi-party compute and data.
+The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly-available, and performant applications that focus on multi-party compute and data.
+
 CCF enables high-scale, confidential networks that meet key enterprise requirements — providing a means to accelerate production and enterprise adoption of consortium based blockchain and multi-party compute technology.
 
 Leveraging the power of trusted execution environments (:term:`TEE`, or enclave), decentralised systems concepts, and cryptography, CCF enables enterprise-ready multiparty computation or blockchains.
 
-TODO: Add blurb about HTTP and JavaScript applications.
+CCF is based on web technologies: clients interact with CCF JavaScript applications over HTTPS.
 
 Core Concepts
 -------------
@@ -25,20 +28,20 @@ A CCF network consists of several nodes, each running on top of a Trusted Execut
 
 Nodes are run and maintained by :term:`Operators`. However, nodes must be trusted by the consortium of members before participating in a CCF network.
 
-TODO: Link to operators section
+.. note:: Find out more about Operators in the :ref:`Operations <operators/index:Operations>` section.
 
 Application
 ~~~~~~~~~~~
 
 Each node runs the same application, written in JavaScript or C++. An application is a collection of endpoints that can be triggered by trusted :term:`Users`' HTTP commands over :term:`TLS`.
 
-Each endpoint mutates an in-enclave-memory Key-Value Store that is replicated across all nodes in the network. Changes to the Key-Value Store must be agreed by a variable number of nodes, depending on the consensus algorithm selected (either Raft or BFT), before being applied.
+Each endpoint can mutate or read the in-enclave-memory Key-Value Store that is replicated across all nodes in the network. Changes to the Key-Value Store must be agreed by a variable number of nodes, depending on the consensus algorithm selected (either Raft or BFT), before being applied.
 
 The Key-Value Store is a collection of maps (associating a key to a value) that are defined by the application. These maps can be private (encrypted in the ledger) or public (integrity-protected and visible by anyone that has access to the ledger).
 
-.. note:: Since all nodes in the CCF network can read the content of private maps, it is up to the application logic to control the access to such maps. Since every application endpoint has access to the identity of the user triggering it, it is easy to restrict which maps (and entries in those maps) a user can read or write to.
+Since all nodes in the CCF network can read the content of private maps, it is up to the application logic to control the access to such maps. Since every application endpoint has access to the identity of the user triggering it, it is easy to restrict which maps (and entries in those maps) a user can read or write to.
 
-TODO: Link to Users section
+.. note:: Find out how to build CCF applications in the :ref:`Building Apps <developers/index:Building Apps>` section.
 
 Ledger
 ~~~~~~
@@ -47,7 +50,7 @@ All changes to the Key-Value Store are encrypted and recorded by each node of th
 
 The integrity of the ledger is guaranteed by a :term:`Merkle tree` whose root is periodically signed by the current primary/leader node.
 
-TODO: Link to Audit section
+.. TODO: Link to Audit section
 
 Governance
 ~~~~~~~~~~
@@ -58,4 +61,4 @@ Members can submit proposals to modify the state of the Key-Value Store. For exa
 
 Proposals are executed only when the conditions defined in the constitution are met (e.g. a majority of members have voted favourably for that proposal).
 
-TODO: Link to Governance section
+.. note:: Find out more about member governance in the :ref:`Governance <members/index:Governance>` section.

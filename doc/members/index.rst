@@ -10,7 +10,6 @@ Before creating a new CCF network, the identity of the initial member(s) of the 
     :maxdepth: 2
     :caption: Contents:
 
-    constitution
     proposals
     open_network
     accept_recovery
