@@ -18,7 +18,7 @@ std::vector<uint8_t> in_buffer(buffer_size);
 ringbuffer::Const in_span(in_buffer.data(), in_buffer.size());
 std::vector<uint8_t> out_buffer(buffer_size);
 ringbuffer::Const out_span(out_buffer.data(), out_buffer.size());
-Circuit eio(in_span, out_span);
+ringbuffer::Circuit eio(in_span, out_span);
 
 auto wf = ringbuffer::WriterFactory(eio);
 

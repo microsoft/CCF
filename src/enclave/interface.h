@@ -21,7 +21,12 @@
 
 struct EnclaveConfig
 {
-  ringbuffer::Circuit* circuit = nullptr;
+  uint8_t* to_enclave_buffer_start;
+  size_t to_enclave_buffer_size;
+
+  uint8_t* from_enclave_buffer_start;
+  size_t from_enclave_buffer_size;
+
   oversized::WriterConfig writer_config = {};
 
 #ifdef DEBUG_CONFIG

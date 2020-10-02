@@ -86,19 +86,20 @@ extern "C"
     EnclaveConfig ec = *static_cast<EnclaveConfig*>(enclave_config);
 
     {
-      if (!oe_is_outside_enclave(ec.circuit, sizeof(ringbuffer::Circuit)))
+      // Check that ringbuffer memory ranges are entirely outside of the enclave
+      if (!oe_is_outside_enclave(
+            ec.to_enclave_buffer_start, ec.to_enclave_buffer_size))
+      {
+        return false;
+      }
+
+      if (!oe_is_outside_enclave(
+            ec.from_enclave_buffer_start, ec.from_enclave_buffer_size))
       {
         return false;
       }
 
       oe_lfence();
-
-      const auto& reader = ec.circuit->read_from_outside();
-      auto [data, size] = reader.get_memory_range();
-      if (!oe_is_outside_enclave(data, size))
-      {
-        return false;
-      }
     }
 
     if (!oe_is_outside_enclave(ccf_config, ccf_config_size))

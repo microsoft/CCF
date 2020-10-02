@@ -22,7 +22,7 @@ namespace enclave
   class Enclave
   {
   private:
-    ringbuffer::Circuit* circuit;
+    ringbuffer::Circuit circuit;
     ringbuffer::WriterFactory basic_writer_factory;
     oversized::WriterFactory writer_factory;
     ccf::NetworkState network;
@@ -53,13 +53,17 @@ namespace enclave
 
   public:
     Enclave(
-      const EnclaveConfig& enclave_config,
+      const EnclaveConfig& ec,
       const CCFConfig::SignatureIntervals& signature_intervals,
       const ConsensusType& consensus_type_,
       const consensus::Config& consensus_config) :
-      circuit(enclave_config.circuit),
-      basic_writer_factory(*circuit),
-      writer_factory(basic_writer_factory, enclave_config.writer_config),
+      circuit(
+        ringbuffer::Const{ec.to_enclave_buffer_start,
+                          ec.to_enclave_buffer_size},
+        ringbuffer::Const{ec.from_enclave_buffer_start,
+                          ec.from_enclave_buffer_size}),
+      basic_writer_factory(circuit),
+      writer_factory(basic_writer_factory, ec.writer_config),
       network(consensus_type_),
       share_manager(network),
       n2n_channels(std::make_shared<ccf::NodeToNodeImpl>(writer_factory)),
@@ -308,7 +312,7 @@ namespace enclave
           node->start_ledger_recovery();
         }
 
-        bp.run(circuit->read_from_outside(), [](size_t num_consecutive_idles) {
+        bp.run(circuit.read_from_outside(), [](size_t num_consecutive_idles) {
           static std::chrono::microseconds idling_start_time;
           const auto time_now = enclave::get_enclave_time();
 
