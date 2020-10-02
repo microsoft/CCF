@@ -30,8 +30,8 @@ def as_lua_literal(arg):
     if isinstance(arg, str):
         # This long string swallows any initial newline. This means if we
         # had an actual newline, it will be lost. To work around this, we
-        # insert a new-line to every string. If there was originally a
-        # new-line at the start, its now the second character, and is kept.
+        # insert a newline to every string. If there was originally a
+        # newline at the start, its now the second character, and is kept.
         return f"[====[\n{arg}]====]"
     elif isinstance(arg, bool):
         return str(arg).lower()
