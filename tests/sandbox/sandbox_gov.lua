@@ -11,6 +11,10 @@ return {
   PENDING = 0
   REJECTED = -1
 
+  -- The constitution in a real CCF application deployment would at least
+  -- count votes and compare to a threshold of members, but in the sandbox sample,
+  -- all votes pass automatically.
+
   return PASSED]],
 
   environment_proposal = [[
