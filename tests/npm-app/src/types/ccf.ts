@@ -22,6 +22,6 @@ export interface Table {
     remove: (key: string) => void
 }
 
-type Tables = { [key: string]: Table; }
+export type Tables = { [key: string]: Table; }
 
 export declare const tables: Tables;
