@@ -616,32 +616,20 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
       auto tx = tables.create_tx();
-      return process_pbft(ctx, tx, false);
-    }
-
-    ProcessPbftResp process_pbft(
-      std::shared_ptr<enclave::RpcContext> ctx,
-      kv::Tx& tx,
-      bool playback) override
-    {
+      
       kv::Version version = kv::NoVersion;
 
       update_consensus();
 
-      PreExec fn = {};
-
-      if (!playback)
-      {
-        fn = [](kv::Tx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend) {
-          auto req_view = tx.get_view(*frontend.bft_requests_map);
-          req_view->put(
-            0,
-            {ctx.session->original_caller.value().caller_id,
-             tx.get_req_id(),
-             ctx.session->caller_cert,
-             ctx.get_serialised_request()});
-        };
-      }
+      PreExec fn = [](kv::Tx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend) {
+        auto req_view = tx.get_view(*frontend.bft_requests_map);
+        req_view->put(
+          0,
+          {ctx.session->original_caller.value().caller_id,
+            tx.get_req_id(),
+            ctx.session->caller_cert,
+            ctx.get_serialised_request()});
+      };
 
       auto rep =
         process_command(ctx, tx, ctx->session->original_caller->caller_id, fn);
@@ -683,10 +671,10 @@ namespace ccf
 
       update_consensus();
 
-      auto tx = tables.create_tx();
 
       if (consensus->type() == ConsensusType::CFT)
       {
+        auto tx = tables.create_tx();
         auto rep =
           process_command(ctx, tx, ctx->session->original_caller->caller_id);
         if (!rep.has_value())
@@ -700,7 +688,7 @@ namespace ccf
       }
       else
       {
-        auto rep = process_pbft(ctx, tx, false);
+        auto rep = process_pbft(ctx);
         return rep.result;
       }
     }
