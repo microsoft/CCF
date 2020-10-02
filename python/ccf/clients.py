@@ -17,7 +17,7 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 import struct
 import base64
-import regex  # type: ignore
+import re
 from typing import Union, Optional, List, Any
 
 import requests
@@ -29,7 +29,7 @@ import ccf.commit
 from ccf.log_capture import flush_info
 
 
-loguru_tag_regex = regex.compile(r"\\?</?((?:[fb]g\s)?[^<>\s]*)>")
+loguru_tag_regex = re.compile(r"\\?</?((?:[fb]g\s)?[^<>\s]*)>")
 
 
 def escape_loguru_tags(s):
