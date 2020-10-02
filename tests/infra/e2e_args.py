@@ -68,6 +68,11 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=False,
     )
     parser.add_argument(
+        "-p",
+        "--package",
+        help="The enclave package to load (e.g., liblogging)",
+    )
+    parser.add_argument(
         "-g",
         "--gov-script",
         help="Path to governance script",
@@ -203,6 +208,11 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     add(parser)
 
     if accept_unknown:
-        return parser.parse_known_args()
+        args = parser.parse_known_args()
     else:
-        return parser.parse_args()
+        args = parser.parse_args()
+    
+    if not args.package and (args.js_app_script or args.js_app_bundle):
+        args.package = "libjs_generic"
+
+    return args
