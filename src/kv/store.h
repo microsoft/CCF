@@ -240,8 +240,19 @@ namespace kv
       return *result;
     }
 
-    // EXPERIMENTAL - DO NOT USE
-    // This API is for internal testing only, and may change or be removed
+    /** Get a map by name, iff it exists at the given version.
+     *
+     * This means a prior transaction must have created the map, and
+     * successfully committed at a version <= v. If this has not happened (the
+     * map has never been created, or never been committed, or committed at a
+     * later version) this will return nullptr.
+     *
+     * @param v Version at which the map must exist
+     * @param map_name Name of requested map
+     *
+     * @return Abstract shared-owning pointer to requested map, or nullptr if no
+     * such map exists
+     */
     std::shared_ptr<AbstractMap> get_map(
       kv::Version v, const std::string& map_name) override
     {
@@ -258,8 +269,16 @@ namespace kv
       return nullptr;
     }
 
-    // EXPERIMENTAL - DO NOT USE
-    // This API is for internal testing only, and may change or be removed
+    /** Transfer ownership of a dynamically created map to this Store.
+     *
+     * Should be called as part of the commit process, once a transaction is
+     * known to be conflict-free and has been assigned a unique Version. This
+     * publishes dynamically created Maps so they can be retrieved via get_map
+     * in future transactions.
+     *
+     * @param v Version at which map is being committed/created
+     * @param map Map to add
+     */
     void add_dynamic_map(
       kv::Version v, const std::shared_ptr<AbstractMap>& map) override
     {
@@ -630,6 +649,7 @@ namespace kv
       const std::vector<uint8_t>& data,
       bool public_only = false,
       Term* term_ = nullptr,
+      Version* index_ = nullptr,
       AbstractViewContainer* tx = nullptr,
       ccf::PrimarySignature* sig = nullptr)
     {
@@ -816,12 +836,70 @@ namespace kv
           h->append(data.data(), data.size());
           success = DeserialiseSuccess::PASS_SIGNATURE;
         }
+        else if (views.find(ccf::Tables::BACKUP_SIGNATURES) != views.end())
+        {
+          success = commit_deserialised(views, v, new_maps);
+          if (success == DeserialiseSuccess::FAILED)
+          {
+            return success;
+          }
+
+          kv::TxID tx_id;
+
+          auto r = progress_tracker->receive_backup_signatures(
+            tx_id, consensus->node_count(), consensus->is_primary());
+          if (r == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
+          {
+            success = DeserialiseSuccess::PASS_BACKUP_SIGNATURE_SEND_ACK;
+          }
+          else if (r == kv::TxHistory::Result::OK)
+          {
+            success = DeserialiseSuccess::PASS_BACKUP_SIGNATURE;
+          }
+          else
+          {
+            LOG_FAIL_FMT("receive_backup_signatures Failed");
+            LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
+            throw std::logic_error(
+              "Failed to verify signature, view-changes not implemented");
+            return DeserialiseSuccess::FAILED;
+          }
+
+          *term_ = tx_id.term;
+          *index_ = tx_id.version;
+
+          auto h = get_history();
+          h->append(data.data(), data.size());
+        }
+        else if (views.find(ccf::Tables::NONCES) != views.end())
+        {
+          success = commit_deserialised(views, v, new_maps);
+          if (success == DeserialiseSuccess::FAILED)
+          {
+            return success;
+          }
+
+          auto r = progress_tracker->receive_nonces();
+          if (r != kv::TxHistory::Result::OK)
+          {
+            LOG_FAIL_FMT("receive_nonces Failed");
+            throw std::logic_error(
+              "Failed to verify nonces, view-changes not implemented");
+            return DeserialiseSuccess::FAILED;
+          }
+
+          auto h = get_history();
+          h->append(data.data(), data.size());
+          success = DeserialiseSuccess::PASS_NONCES;
+        }
         else if (views.find(ccf::Tables::AFT_REQUESTS) == views.end())
         {
           // we have deserialised an entry that didn't belong to the bft
           // requests nor the signatures table
           LOG_FAIL_FMT(
-            "Failed to deserialise, contains table:{}", views.begin()->first);
+            "Request contains unexpected table - {}", views.begin()->first);
+          CCF_ASSERT_FMT_FAIL(
+            "Request contains unexpected table - {}", views.begin()->first);
         }
       }
 

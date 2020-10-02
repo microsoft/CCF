@@ -451,7 +451,9 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_kv.cpp
     )
     target_include_directories(lua_test PRIVATE ${LUA_DIR})
-    target_link_libraries(lua_test PRIVATE lua.host http_parser.host)
+    target_link_libraries(
+      lua_test PRIVATE lua.host http_parser.host secp256k1.host
+    )
 
     add_unit_test(
       merkle_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/merkle_test.cpp
@@ -640,7 +642,7 @@ if(BUILD_TESTS)
     NAME committable_suffix_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --raft-election-timeout 4000
+    ADDITIONAL_ARGS --raft-election-timeout 4000 --sig-ms-interval 100
   )
 
   add_e2e_test(

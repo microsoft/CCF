@@ -357,6 +357,11 @@ class Network:
                 remote_node=primary, app_script_path=args.js_app_script
             )
 
+        if args.js_app_bundle:
+            self.consortium.deploy_js_app(
+                remote_node=primary, app_bundle_path=args.js_app_bundle
+            )
+
         self.consortium.add_users(primary, initial_users)
         LOG.info("Initial set of users added")
 
@@ -689,10 +694,10 @@ class Network:
         expected = [commits[0]] * len(commits)
         assert expected == commits, f"{commits} != {expected}"
 
-    def wait_for_new_primary(self, old_primary_id):
+    def wait_for_new_primary(self, old_primary_id, timeout_multiplier=2):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
-        timeout = self.election_duration * 2
+        timeout = self.election_duration * timeout_multiplier
         LOG.info(
             f"Waiting up to {timeout}s for a new primary (different from {old_primary_id}) to be elected..."
         )

@@ -340,8 +340,8 @@ namespace loggingapp
 
         const auto in = params.get<LoggingGetHistorical::In>();
 
-        kv::Tx historical_tx;
-        auto view = historical_tx.get_view(*historical_map);
+        auto historical_tx = historical_store->create_read_only_tx();
+        auto view = historical_tx.get_read_only_view(*historical_map);
         const auto v = view->get(in.id);
 
         if (v.has_value())

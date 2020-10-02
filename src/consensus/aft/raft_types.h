@@ -47,9 +47,11 @@ namespace aft
       const std::vector<uint8_t>& data,
       bool public_only = false,
       kv::Term* term = nullptr,
+      kv::Version* index_ = nullptr,
       kv::Tx* tx = nullptr,
       ccf::PrimarySignature* sig = nullptr) = 0;
     virtual std::shared_ptr<ccf::ProgressTracker> get_progress_tracker() = 0;
+    virtual kv::Tx create_tx() = 0;
   };
 
   template <typename T, typename S>
@@ -111,16 +113,27 @@ namespace aft
       return nullptr;
     }
 
+    kv::Tx create_tx() override
+    {
+      auto p = x.lock();
+      if (p)
+      {
+        return p->create_tx();
+      }
+      throw std::logic_error("Can't create a tx without a store");
+    }
+
     S deserialise_views(
       const std::vector<uint8_t>& data,
       bool public_only = false,
       kv::Term* term = nullptr,
+      kv::Version* index = nullptr,
       kv::Tx* tx = nullptr,
       ccf::PrimarySignature* sig = nullptr) override
     {
       auto p = x.lock();
       if (p)
-        return p->deserialise_views(data, public_only, term, tx, sig);
+        return p->deserialise_views(data, public_only, term, index, tx, sig);
       return S::FAILED;
     }
   };

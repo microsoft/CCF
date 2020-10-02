@@ -174,25 +174,25 @@ namespace ccf
 
       static int lua_log_trace(lua_State* l)
       {
-        LOG_TRACE_FMT(get_var_string_from_args(l));
+        LOG_TRACE_FMT("{}", get_var_string_from_args(l));
         return 0;
       }
 
       static int lua_log_debug(lua_State* l)
       {
-        LOG_DEBUG_FMT(get_var_string_from_args(l));
+        LOG_DEBUG_FMT("{}", get_var_string_from_args(l));
         return 0;
       }
 
       static int lua_log_info(lua_State* l)
       {
-        LOG_INFO_FMT(get_var_string_from_args(l));
+        LOG_INFO_FMT("{}", get_var_string_from_args(l));
         return 0;
       }
 
       static int lua_log_fail(lua_State* l)
       {
-        LOG_FAIL_FMT(get_var_string_from_args(l));
+        LOG_FAIL_FMT("{}", get_var_string_from_args(l));
         return 0;
       }
 

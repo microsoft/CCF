@@ -14,6 +14,7 @@ These endpoints can read or mutate the state of a unique :ref:`developers/kv/ind
   :caption: Contents:
 
   example
+  js_app
   build_app
   run_app
   demo

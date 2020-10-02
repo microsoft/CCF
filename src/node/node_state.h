@@ -469,7 +469,7 @@ namespace ccf
                   fmt::format("Failed to apply snapshot on join: {}", rc));
               }
 
-              kv::ReadOnlyTx tx;
+              auto tx = network.tables->create_read_only_tx();
               auto sig_view = tx.get_read_only_view(network.signatures);
               auto sig = sig_view->get(0);
               if (!sig.has_value())
@@ -634,7 +634,7 @@ namespace ccf
       if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
       {
         network.tables->compact(ledger_idx);
-        kv::Tx tx;
+        auto tx = network.tables->create_tx();
         GenesisGenerator g(network, tx);
         auto last_sig = g.get_last_signature();
         if (last_sig.has_value())
@@ -650,7 +650,13 @@ namespace ccf
           // valid signature.
           const auto view_start_idx =
             view_history.empty() ? 1 : last_recovered_signed_idx + 1;
-          for (auto i = view_history.size(); i < last_sig->view; ++i)
+          CCF_ASSERT_FMT(
+            last_sig->view >= 0,
+            "last_sig->view is invalid, {}",
+            last_sig->view);
+          for (auto i = view_history.size();
+               i < static_cast<size_t>(last_sig->view);
+               ++i)
           {
             view_history.push_back(view_start_idx);
           }
@@ -688,7 +694,7 @@ namespace ccf
       LOG_INFO_FMT("Setting term on public recovery KV to {}", new_term);
       network.tables->set_term(new_term);
 
-      kv::Tx tx;
+      auto tx = network.tables->create_tx();
       GenesisGenerator g(network, tx);
       g.create_service(network.identity->cert);
       g.retire_active_nodes();
@@ -722,10 +728,9 @@ namespace ccf
         h->set_node_id(self);
       }
 
-      auto p = dynamic_cast<ccf::ProgressTracker*>(progress_tracker.get());
-      if (p)
+      if (progress_tracker != nullptr)
       {
-        p->set_node_id(self);
+        progress_tracker->set_node_id(self);
       }
 
       setup_raft(true);
@@ -833,7 +838,7 @@ namespace ccf
       // Open the service
       if (consensus->is_primary())
       {
-        kv::Tx tx;
+        auto tx = network.tables->create_tx();
 
         // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
@@ -1647,10 +1652,10 @@ namespace ccf
         rpcsessions,
         rpc_map,
         node_cert.raw(),
-        network.pbft_requests_map,
+        network.bft_requests_map,
         shared_state,
         std::make_shared<aft::ExecutorImpl>(
-          network.pbft_requests_map, shared_state, rpc_map, rpcsessions),
+          network.bft_requests_map, shared_state, rpc_map, rpcsessions),
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         public_only);
@@ -1761,8 +1766,12 @@ namespace ccf
     {
       if (network.consensus_type == ConsensusType::BFT)
       {
-        progress_tracker =
-          std::make_shared<ccf::ProgressTracker>(self, network.nodes);
+        progress_tracker = std::make_shared<ccf::ProgressTracker>(
+          *network.tables.get(),
+          self,
+          network.nodes,
+          network.backup_signatures_map,
+          network.revealed_nonces_map);
         network.tables->set_progress_tracker(progress_tracker);
       }
     }

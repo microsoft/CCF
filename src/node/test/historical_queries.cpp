@@ -98,7 +98,7 @@ TEST_CASE("StateCache")
 
     {
       INFO("Store the signing node's key");
-      kv::Tx tx;
+      auto tx = store.create_tx();
       auto view = tx.get_view(nodes);
       ccf::NodeInfo ni;
       ni.cert = kp->self_sign("CN=Test node");
@@ -124,7 +124,7 @@ TEST_CASE("StateCache")
         }
         else
         {
-          kv::Tx tx;
+          auto tx = store.create_tx();
           auto [public_view, private_view] =
             tx.get_view(public_table, private_table);
           const auto s = std::to_string(i);
@@ -259,7 +259,7 @@ TEST_CASE("StateCache")
       auto& public_table = *store_at_index->get<NumToString>("public");
       auto& private_table = *store_at_index->get<NumToString>("private");
 
-      kv::Tx tx;
+      auto tx = store_at_index->create_tx();
       auto [public_view, private_view] =
         tx.get_view(public_table, private_table);
 
