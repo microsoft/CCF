@@ -5,8 +5,8 @@ It is possible for existing members to add new members to the consortium after a
 
 .. note:: The maximum number of active consortium members at any given time is 255.
 
-Generating Member Keys and Certificate
---------------------------------------
+Generating Member Keys and Certificates
+---------------------------------------
 
 First, the identity and encryption public and private key pairs of the new member should be created.
 

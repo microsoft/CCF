@@ -9,6 +9,7 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     run_setup
     start_network
+    snapshots
     recovery
     node_output
     operator_rpc_api

@@ -7,80 +7,50 @@ CCF documentation
 
 Welcome to the Confidential Consortium Framework (CCF) documentation.
 
-First Steps
------------
+Start Here
+----------
 
-- :ref:`CCF overview <concepts:CCF Overview>`
-- :ref:`Install CCF <quickstart/install:Install CCF>`
-- :ref:`Start a sample CCF application <quickstart/test_network:Starting a Test Network>`
-- How to use a sample CCF service (Python library as well)
+- :doc:`concepts`
+- :doc:`quickstart/install`
+- :doc:`Start a sample CCF application <quickstart/test_network>`
+- :doc:`Use CCF <users/index>`
+- :doc:`quickstart/create_vm`
 - `What's new in the latest version of CCF? <https://github.com/microsoft/CCF/releases/latest>`_
 
 
-Build a CCF application
------------------------
+Build Applications
+------------------
 
-- Maybe create a SGX VM: :ref:`quickstart/create_vm:Create Azure SGX VM`
-- First, setup a CCF development environment. :ref:`quickstart/build_setup:Setup CCF Development Environment`
+- :doc:`quickstart/build_setup`
+- :doc:`developers/example`
+- :doc:`developers/build_app`
+- :doc:`developers/run_app`
 
-- Link to JavaScript/TypeScript application
-- Link to C++ application
+CCF Roles
+---------
 
+- :doc:`Operating CCF <operators/index>`
+- :doc:`Governance <members/index>`
+- :doc:`Using CCF <users/index>`
+.. TODO: - Audit [new?]: ledger chunks
 
 Contribute
 ----------
 
-- :ref:`Contribute to CCF <quickstart/contribute:Contribute to CCF>`
-- Link to contribution guidelines
-- Setup a CCF environment, build CCF.
-
-
-Next Steps
-----------
-
-Once your setup is complete, you may want to get familiar with some of CCF's :ref:`Concepts <concepts:Concepts>`. You will then be able to:
-
-1. :ref:`Create a consortium and agree on the constitution <members/index:Governance>`
-2. :ref:`Develop a CCF application, based on the example logging application <developers/example:Example Application>`
-3. :ref:`Start a new CCF network to deploy the application <operators/start_network:Starting a New Network>`
-4. :ref:`Let the consortium configure and open the network to users <members/open_network:Opening a Network>`
-5. :ref:`Have users issue business transactions to the application <users/index:Using Apps>`
-
-
-
-
-
-CCF roles
----------
-
-(Not mutually exclusive)
-
-- Operations
-- Governance
-- Users: commit + receipt + new network identity on recovery
-- Audit [new?]: ledger chunks, snapshots
+- :doc:`quickstart/contribute`
+- `Contribution Guidelines <https://github.com/microsoft/CCF/blob/master/.github/CONTRIBUTING.md>`_
 
 
 Technical Overview
 ------------------
 
-In-depth version of the concepts:
-- Architecture:
-  - Ledger
-  - Constitution
-  - Replication and Consensus
+- :doc:`design/architecture`
+- :doc:`design/constitution`
+- :doc:`design/ledger`
+- :doc:`design/consensus`
+- :doc:`design/cryptography`
 
-- Guarantees
-  - ACID
-  - Crypto
-
-
-TODO: Link to crypto, ACID guarantees, etc.
-
-
-TODO: Fancy css, see https://github.com/apache/couchdb-documentation/blob/1433b3c4c713998fa0707463e15c304845d93120/templates/pages/index.html#L52
-
-TODO: Explain ``cchost`` as host utility that will start an enclave
+.. TODO: Fancy css, see https://github.com/apache/couchdb-documentation/blob/1433b3c4c713998fa0707463e15c304845d93120/templates/pages/index.html#L52
 
 
 .. toctree::
@@ -89,10 +59,10 @@ TODO: Explain ``cchost`` as host utility that will start an enclave
 
     Home <index.rst>
     concepts
-    members/index.rst
     developers/index.rst
-    operators/index.rst
     users/index.rst
+    operators/index.rst
+    members/index.rst
     design/index.rst
 
     glossary
