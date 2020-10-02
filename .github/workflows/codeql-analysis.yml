@@ -69,7 +69,10 @@ jobs:
         mkdir build
         cd build
         cmake -GNinja -DCOMPILE_TARGETS=virtual -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF ..
-        ninja -j2
+        
+    - run: |
+        cd build
+        ninja -j1
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v1
