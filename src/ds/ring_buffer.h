@@ -106,20 +106,15 @@ namespace ringbuffer
   {
     friend class Writer;
 
-    std::vector<uint8_t> buffer;
     Const c;
     Var v;
 
   public:
-    Reader(const size_t size) :
-      buffer(size, 0),
-      c(buffer.data(), size),
-      v{{0}, {0}, {0}}
-    {}
+    Reader(const Const& c_) : c(c_), v{{0}, {0}, {0}} {}
 
     std::pair<const uint8_t*, size_t> get_memory_range() const
     {
-      return std::make_pair(buffer.data(), buffer.size());
+      return std::make_pair(c.buffer, c.size);
     }
 
     size_t read(size_t limit, Handler f)
@@ -430,7 +425,10 @@ namespace ringbuffer
     ringbuffer::Reader from_inside;
 
   public:
-    Circuit(size_t size) : from_outside(size), from_inside(size) {}
+    Circuit(const Const& from_outside_buffer, const Const& from_inside_buffer) :
+      from_outside(from_outside_buffer),
+      from_inside(from_inside_buffer)
+    {}
 
     ringbuffer::Reader& read_from_outside()
     {
