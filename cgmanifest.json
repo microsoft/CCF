@@ -135,6 +135,15 @@
           "commitHash": "83da75636cef3ee6e0c83cf8651e2929e1b87261"
         }
       }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/rollbear/trompeloeil",
+          "commitHash": "08cba57ed7207c8ad5c94fd2a20dc0bfecabe878"
+        }
+      }
     }
   ],
   "Version": 1

@@ -12,7 +12,7 @@ namespace aft
   using Nonce = std::array<uint8_t, 32>;
   struct RevealedNonce
   {
-    ccf::NodeId node_id;
+    kv::NodeId node_id;
     Nonce nonce;
 
     MSGPACK_DEFINE(node_id, nonce);
