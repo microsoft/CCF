@@ -12,6 +12,7 @@ These endpoints mutate the state of a unique :ref:`developers/kv/index:Key-Value
   :caption: Contents:
 
   example
+  js_app
   build_app
   demo
   kv/index.rst

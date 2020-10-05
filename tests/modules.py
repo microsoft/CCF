@@ -55,10 +55,11 @@ def make_module_set_proposal(path, content, network):
     with tempfile.NamedTemporaryFile("w") as f:
         f.write(content)
         f.flush()
-        proposal_body, _ = ccf.proposal_generator.set_module(path, f.name)
+        proposal_body, careful_vote = ccf.proposal_generator.set_module(path, f.name)
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
+    proposal.vote_for = careful_vote
     network.consortium.vote_using_majority(primary, proposal)
 
 
@@ -77,10 +78,11 @@ def test_module_set_and_remove(network, args):
         assert r.body.json()["js"] == MODULE_CONTENT_1, r.body
 
     LOG.info("Member makes a module remove proposal")
-    proposal_body, _ = ccf.proposal_generator.remove_module(MODULE_PATH_1)
+    proposal_body, careful_vote = ccf.proposal_generator.remove_module(MODULE_PATH_1)
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
+    proposal.vote_for = careful_vote
     network.consortium.vote_using_majority(primary, proposal)
 
     with primary.client(
@@ -106,10 +108,11 @@ def test_modules_remove(network, args):
         assert r.body.json()["js"] == MODULE_CONTENT_1, r.body
 
     LOG.info("Member makes a prefix-based modules remove proposal")
-    proposal_body, _ = ccf.proposal_generator.remove_modules(MODULE_PREFIX_1)
+    proposal_body, careful_vote = ccf.proposal_generator.remove_modules(MODULE_PREFIX_1)
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
+    proposal.vote_for = careful_vote
     network.consortium.vote_using_majority(primary, proposal)
 
     with primary.client(
@@ -177,10 +180,11 @@ def test_app_bundle(network, args):
         assert r.body.json() == {"error": "invalid operand type"}, r.body
 
     LOG.info("Removing js app")
-    proposal_body, _ = ccf.proposal_generator.remove_js_app()
+    proposal_body, careful_vote = ccf.proposal_generator.remove_js_app()
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
+    proposal.vote_for = careful_vote
     network.consortium.vote_using_majority(primary, proposal)
 
     LOG.info("Verifying that modules and endpoints were removed")
