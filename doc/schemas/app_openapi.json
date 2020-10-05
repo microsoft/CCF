@@ -693,7 +693,9 @@
             "name": "id",
             "required": false,
             "schema": {
-              "type": "number"
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
             }
           }
         ],
@@ -702,16 +704,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "msg": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "msg"
-                  ],
-                  "title": "log/public/result",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LoggingGet__Out"
                 }
               }
             },
@@ -724,31 +717,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "properties": {
-                  "id": {
-                    "type": "number"
-                  },
-                  "msg": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "id",
-                  "msg"
-                ],
-                "title": "log/public/params",
-                "type": "object"
+                "$ref": "#/components/schemas/LoggingRecord__In"
               }
             }
-          }
+          },
+          "description": "Auto-generated request body schema"
         },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "log/public/result",
-                  "type": "boolean"
+                  "$ref": "#/components/schemas/boolean"
                 }
               }
             },

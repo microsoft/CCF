@@ -3,7 +3,7 @@ import commonjs from '@rollup/plugin-commonjs';
 import typescript from '@rollup/plugin-typescript';
 
 export default {
-  input: 'src/endpoints.ts',
+  input: 'src/endpoints/all.ts',
   output: {
     dir: 'dist/src',
     format: 'es',
