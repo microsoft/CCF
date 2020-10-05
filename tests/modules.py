@@ -91,35 +91,6 @@ def test_module_set_and_remove(network, args):
     return network
 
 
-@reqs.description("Test prefix-based modules remove")
-def test_modules_remove(network, args):
-    primary, _ = network.find_nodes()
-
-    LOG.info("Member makes a module set proposal")
-    make_module_set_proposal(MODULE_PATH_1, MODULE_CONTENT_1, network)
-
-    with primary.client(
-        f"member{network.consortium.get_any_active_member().member_id}"
-    ) as c:
-        r = c.post("/gov/read", {"table": "ccf.modules", "key": MODULE_PATH_1})
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json()["js"] == MODULE_CONTENT_1, r.body
-
-    LOG.info("Member makes a prefix-based modules remove proposal")
-    proposal_body, _ = ccf.proposal_generator.remove_modules(MODULE_PREFIX_1)
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
-    network.consortium.vote_using_majority(primary, proposal)
-
-    with primary.client(
-        f"member{network.consortium.get_any_active_member().member_id}"
-    ) as c:
-        r = c.post("/gov/read", {"table": "ccf.modules", "key": MODULE_PATH_1})
-        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
-    return network
-
-
 @reqs.description("Test module import")
 def test_module_import(network, args):
     primary, _ = network.find_nodes()
@@ -273,7 +244,6 @@ def run(args):
     ) as network:
         network.start_and_join(args)
         network = test_module_set_and_remove(network, args)
-        network = test_modules_remove(network, args)
         network = test_module_import(network, args)
         network = test_app_bundle(network, args)
         network = test_npm_app(network, args)
