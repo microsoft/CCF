@@ -76,15 +76,6 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/tristanpenman/valijson",
-          "commitHash": "7a52fc88cdffd6678c009ca2fad700151f7363c6"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
           "repositoryUrl": "https://github.com/nodejs/http-parser",
           "commitHash": "2343fd6b5214b2ded2cdcf76de2bf60903bb90cd"
         }

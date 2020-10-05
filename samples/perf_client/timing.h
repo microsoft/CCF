@@ -15,7 +15,6 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <mbedtls/asn1.h>
-#include <valijson/validator.hpp>
 
 namespace timing
 {
