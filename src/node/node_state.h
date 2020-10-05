@@ -1766,12 +1766,14 @@ namespace ccf
     {
       if (network.consensus_type == ConsensusType::BFT)
       {
-        progress_tracker = std::make_shared<ccf::ProgressTracker>(
+        auto store = std::make_unique<ccf::ProgressTrackerStoreAdapter>(
           *network.tables.get(),
-          self,
           network.nodes,
           network.backup_signatures_map,
           network.revealed_nonces_map);
+
+        progress_tracker =
+          std::make_shared<ccf::ProgressTracker>(std::move(store), self);
         network.tables->set_progress_tracker(progress_tracker);
       }
     }
