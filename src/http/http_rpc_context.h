@@ -19,7 +19,7 @@ namespace http
     const auto second_slash = path.find_first_of('/', first_slash + 1);
 
     if (
-      first_slash != 0 || first_slash == std::string::npos ||
+      first_slash != 0 ||
       second_slash == std::string::npos)
     {
       return std::nullopt;
