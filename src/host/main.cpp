@@ -505,34 +505,33 @@ int main(int argc, char** argv)
     return static_cast<int>(CLI::ExitCodes::ValidationError);
   }
 
+  // Write PID to disk
+  files::dump(fmt::format("{}", ::getpid()), node_pid_file);
+
+  // set the host log level
+  logger::config::level() = host_log_level;
+
+  // create the enclave
+  host::Enclave enclave(enclave_file, oe_flags);
+
+  // messaging ring buffers
+  ringbuffer::Circuit circuit(1 << circuit_size_shift);
+  messaging::BufferProcessor bp("Host");
+
+  // To prevent deadlock, all blocking writes from the host to the ringbuffer
+  // will be queued if the ringbuffer is full
+  ringbuffer::WriterFactory base_factory(circuit);
+  ringbuffer::NonBlockingWriterFactory non_blocking_factory(base_factory);
+
+  // Factory for creating writers which will handle writing of large messages
+  oversized::WriterConfig writer_config{(size_t)(1 << max_fragment_size),
+                                        (size_t)(1 << max_msg_size)};
+  oversized::WriterFactory writer_factory(non_blocking_factory, writer_config);
+
+  // reconstruct oversized messages sent to the host
+  oversized::FragmentReconstructor fr(bp.get_dispatcher());
+
   {
-    // Write PID to disk
-    files::dump(fmt::format("{}", ::getpid()), node_pid_file);
-
-    // set the host log level
-    logger::config::level() = host_log_level;
-
-    // create the enclave
-    host::Enclave enclave(enclave_file, oe_flags);
-
-    // messaging ring buffers
-    ringbuffer::Circuit circuit(1 << circuit_size_shift);
-    messaging::BufferProcessor bp("Host");
-
-    // To prevent deadlock, all blocking writes from the host to the ringbuffer
-    // will be queued if the ringbuffer is full
-    ringbuffer::WriterFactory base_factory(circuit);
-    ringbuffer::NonBlockingWriterFactory non_blocking_factory(base_factory);
-
-    // Factory for creating writers which will handle writing of large messages
-    oversized::WriterConfig writer_config{(size_t)(1 << max_fragment_size),
-                                          (size_t)(1 << max_msg_size)};
-    oversized::WriterFactory writer_factory(
-      non_blocking_factory, writer_config);
-
-    // reconstruct oversized messages sent to the host
-    oversized::FragmentReconstructor fr(bp.get_dispatcher());
-
     // provide regular ticks to the enclave
     const std::chrono::milliseconds tick_period(tick_period_ms);
     asynchost::Ticker ticker(tick_period, writer_factory, [](auto s) {
@@ -745,12 +744,16 @@ int main(int argc, char** argv)
   // callbacks to be despatched, so as to avoid memory being
   // leaked by handles. Capped out of abundance of caution.
   size_t close_iterations = 100;
-  while (close_iterations > 0 && uv_loop_alive(uv_default_loop()))
+  while (uv_loop_alive(uv_default_loop()) && close_iterations > 0)
   {
-    uv_run(uv_default_loop(), UV_RUN_ONCE);
+    uv_run(uv_default_loop(), UV_RUN_NOWAIT);
     close_iterations--;
   }
-  LOG_DEBUG_FMT("Ran an extra {} cleanup iteration(s)", 100 - close_iterations);
+  LOG_INFO_FMT("Ran an extra {} cleanup iteration(s)", 100 - close_iterations);
 
-  return 0;
+  auto rc = uv_loop_close(uv_default_loop());
+  if (rc)
+    LOG_FAIL_FMT("Failed to close uv loop cleanly: {}", uv_err_name(rc));
+
+  return rc;
 }
