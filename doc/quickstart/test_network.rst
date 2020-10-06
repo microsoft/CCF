@@ -1,7 +1,12 @@
 Starting a Test Network
 =======================
 
-The quickest way to start a CCF test network is to use the `start_test_network.sh <https://github.com/microsoft/CCF/blob/master/start_test_network.sh>`_ test script, specifying the :ref:`enclave image <developers/index:Building Apps>` to run.
+.. note:: Before starting a CCF test network, make sure that:
+
+    - The CCF runtime environment has successfully been setup (see :ref:`environment setup instructions <quickstart/run_setup:Setup CCF Runtime Environment>`).
+    - CCF is installed (see :ref:`installation steps <quickstart/install:Install>`)
+
+The quickest way to start a CCF test network is to use the `start_test_network.sh <https://github.com/microsoft/CCF/blob/master/start_test_network.sh>`_ test script, specifying the :doc:`enclave image </developers/index>` to run.
 
 The script creates a new test CCF network composed of 3 nodes running locally. All the governance requests required to open the network to users are automatically issued.
 
