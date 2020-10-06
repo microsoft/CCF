@@ -164,14 +164,12 @@ TEST_CASE("Basic message loop" * doctest::test_suite("messaging"))
 
   constexpr auto buffer_size = 1 << 10;
 
-  std::vector<uint8_t> in_buffer(buffer_size);
-  ringbuffer::Const in_span(in_buffer.data(), in_buffer.size());
-  Reader loop_src(in_span);
+  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  Reader loop_src(in_buffer->bd);
   Writer test_filler(loop_src);
 
-  std::vector<uint8_t> out_buffer(buffer_size);
-  ringbuffer::Const out_span(out_buffer.data(), out_buffer.size());
-  Reader out_reader(out_span);
+  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  Reader out_reader(out_buffer->bd);
   Writer out_writer(out_reader);
 
   size_t x = 0;
@@ -382,13 +380,10 @@ TEST_CASE("Multiple threads" * doctest::test_suite("messaging"))
   {
     constexpr auto buffer_size = 1 << 10;
 
-    std::vector<uint8_t> in_buffer(buffer_size);
-    ringbuffer::Const in_span(in_buffer.data(), in_buffer.size());
+    auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+    auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
 
-    std::vector<uint8_t> out_buffer(buffer_size);
-    ringbuffer::Const out_span(out_buffer.data(), out_buffer.size());
-
-    Circuit circuit(in_span, out_span);
+    ringbuffer::Circuit circuit(in_buffer->bd, out_buffer->bd);
 
     size_t reads_inside = 0;
     size_t reads_outside = 0;
@@ -405,13 +400,10 @@ TEST_CASE("Multiple threads" * doctest::test_suite("messaging"))
   {
     constexpr auto buffer_size = 1 << 10;
 
-    std::vector<uint8_t> in_buffer(buffer_size);
-    ringbuffer::Const in_span(in_buffer.data(), in_buffer.size());
+    auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+    auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
 
-    std::vector<uint8_t> out_buffer(buffer_size);
-    ringbuffer::Const out_span(out_buffer.data(), out_buffer.size());
-
-    Circuit circuit(in_span, out_span);
+    ringbuffer::Circuit circuit(in_buffer->bd, out_buffer->bd);
 
     size_t reads_inside = 0;
     size_t reads_outside = 0;
@@ -457,13 +449,10 @@ TEST_CASE("Multiple threads" * doctest::test_suite("messaging"))
 
       constexpr auto buffer_size = 1 << 10;
 
-      std::vector<uint8_t> in_buffer(buffer_size);
-      ringbuffer::Const in_span(in_buffer.data(), in_buffer.size());
+      auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+      auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
 
-      std::vector<uint8_t> out_buffer(buffer_size);
-      ringbuffer::Const out_span(out_buffer.data(), out_buffer.size());
-
-      Circuit circuit(in_span, out_span);
+      ringbuffer::Circuit circuit(in_buffer->bd, out_buffer->bd);
 
       size_t reads_inside = 0;
       size_t reads_outside = 0;
@@ -495,13 +484,10 @@ TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
 
   constexpr auto circuit_size = 1 << 6;
 
-  std::vector<uint8_t> in_buffer(circuit_size);
-  ringbuffer::Const in_span(in_buffer.data(), in_buffer.size());
+  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(circuit_size);
+  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(circuit_size);
 
-  std::vector<uint8_t> out_buffer(circuit_size);
-  ringbuffer::Const out_span(out_buffer.data(), out_buffer.size());
-
-  Circuit circuit(in_span, out_span);
+  ringbuffer::Circuit circuit(in_buffer->bd, out_buffer->bd);
 
   BufferProcessor processor_inside;
 

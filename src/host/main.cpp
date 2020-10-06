@@ -518,14 +518,17 @@ int main(int argc, char** argv)
   const auto buffer_size = 1 << circuit_size_shift;
 
   std::vector<uint8_t> to_enclave_buffer(buffer_size);
-  ringbuffer::Const to_enclave_span(
-    to_enclave_buffer.data(), to_enclave_buffer.size());
+  ringbuffer::Offsets to_enclave_offsets;
+  ringbuffer::BufferDef to_enclave_def{
+    to_enclave_buffer.data(), to_enclave_buffer.size(), &to_enclave_offsets};
 
   std::vector<uint8_t> from_enclave_buffer(buffer_size);
-  ringbuffer::Const from_enclave_span(
-    from_enclave_buffer.data(), from_enclave_buffer.size());
+  ringbuffer::Offsets from_enclave_offsets;
+  ringbuffer::BufferDef from_enclave_def{from_enclave_buffer.data(),
+                                         from_enclave_buffer.size(),
+                                         &from_enclave_offsets};
 
-  ringbuffer::Circuit circuit(to_enclave_span, from_enclave_span);
+  ringbuffer::Circuit circuit(to_enclave_def, from_enclave_def);
   messaging::BufferProcessor bp("Host");
 
   // To prevent deadlock, all blocking writes from the host to the ringbuffer
@@ -606,10 +609,13 @@ int main(int argc, char** argv)
   StartType start_type = StartType::Unknown;
 
   EnclaveConfig enclave_config;
-  enclave_config.to_enclave_buffer_start = to_enclave_span.buffer;
-  enclave_config.to_enclave_buffer_size = to_enclave_span.size;
-  enclave_config.from_enclave_buffer_start = from_enclave_span.buffer;
-  enclave_config.from_enclave_buffer_size = from_enclave_span.size;
+  enclave_config.to_enclave_buffer_start = to_enclave_buffer.data();
+  enclave_config.to_enclave_buffer_size = to_enclave_buffer.size();
+  enclave_config.to_enclave_buffer_offsets = &to_enclave_offsets;
+  enclave_config.from_enclave_buffer_start = from_enclave_buffer.data();
+  enclave_config.from_enclave_buffer_size = from_enclave_buffer.size();
+  enclave_config.from_enclave_buffer_offsets = &from_enclave_offsets;
+
   enclave_config.writer_config = writer_config;
 #ifdef DEBUG_CONFIG
   enclave_config.debug_config = {memory_reserve_startup};

@@ -58,10 +58,10 @@ namespace enclave
       const ConsensusType& consensus_type_,
       const consensus::Config& consensus_config) :
       circuit(
-        ringbuffer::Const{ec.to_enclave_buffer_start,
-                          ec.to_enclave_buffer_size},
-        ringbuffer::Const{ec.from_enclave_buffer_start,
-                          ec.from_enclave_buffer_size}),
+        ringbuffer::BufferDef{ec.to_enclave_buffer_start,
+                          ec.to_enclave_buffer_size, ec.to_enclave_buffer_offsets},
+        ringbuffer::BufferDef{ec.from_enclave_buffer_start,
+                          ec.from_enclave_buffer_size, ec.from_enclave_buffer_offsets}),
       basic_writer_factory(circuit),
       writer_factory(basic_writer_factory, ec.writer_config),
       network(consensus_type_),

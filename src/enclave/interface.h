@@ -23,9 +23,11 @@ struct EnclaveConfig
 {
   uint8_t* to_enclave_buffer_start;
   size_t to_enclave_buffer_size;
+  ringbuffer::Offsets* to_enclave_buffer_offsets;
 
   uint8_t* from_enclave_buffer_start;
   size_t from_enclave_buffer_size;
+  ringbuffer::Offsets* from_enclave_buffer_offsets;
 
   oversized::WriterConfig writer_config = {};
 

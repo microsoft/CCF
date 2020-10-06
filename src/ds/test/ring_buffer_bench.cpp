@@ -38,10 +38,8 @@ static void write_impl(
   size_t writer_count,
   size_t total_messages)
 {
-  std::vector<uint8_t> buffer(buf_size);
-  ringbuffer::Const span(buffer.data(), buffer.size());
-
-  Reader r(span);
+  auto buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
+  Reader r(buffer->bd);
 
   std::vector<std::thread> writer_threads;
 

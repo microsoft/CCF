@@ -4,7 +4,6 @@
 
 #include "ring_buffer_types.h"
 
-#include <atomic>
 #include <cstring>
 #include <functional>
 
@@ -29,19 +28,9 @@ namespace ringbuffer
 {
   using Handler = std::function<void(Message, const uint8_t*, size_t)>;
 
-  // Align by cacheline to avoid false sharing
-  static constexpr size_t CACHELINE_SIZE = 64;
-
   // High bit of message size is used to indicate a pending message
   static constexpr uint32_t pending_write_flag = 1 << 31;
   static constexpr uint32_t length_mask = ~pending_write_flag;
-
-  struct alignas(CACHELINE_SIZE) Offsets
-  {
-    std::atomic<size_t> head_cache = {0};
-    std::atomic<size_t> tail = {0};
-    alignas(CACHELINE_SIZE) std::atomic<size_t> head = {0};
-  };
 
   struct Const
   {
