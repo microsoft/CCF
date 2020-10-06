@@ -5,8 +5,6 @@ CCF Documentation
   :width: 330
   :align: right
 
-Welcome to the Confidential Consortium Framework (CCF) documentation.
-
 Start Here
 ----------
 
@@ -31,10 +29,18 @@ Build Applications
 CCF Roles
 ---------
 
-- :doc:`Operate CCF <operators/index>`
+- :doc:`operators/index`
 - :doc:`members/index`
-- :doc:`Use CCF <users/index>`
+- :doc:`users/index`
 - :doc:`Offline Audit <audit/index>`
+
+More Concepts
+-------------
+
+- :doc:`design/constitution`
+- :doc:`design/consensus`
+- :doc:`design/cryptography`
+- :doc:`design/performance` and :doc:`design/threading`
 
 Contribute
 ----------
@@ -43,25 +49,15 @@ Contribute
 - `Contribution Guidelines <https://github.com/microsoft/CCF/blob/master/.github/CONTRIBUTING.md>`_
 
 
-Technical Overview
-------------------
-
-- :doc:`design/constitution`
-- :doc:`design/consensus`
-- :doc:`design/cryptography`
-- :doc:`design/performance` and :doc:`design/threading`.
-
 .. toctree::
     :maxdepth: 1
     :hidden:
     :titlesonly:
 
-    quickstart/index.rst
     concepts
     developers/index.rst
     users/index.rst
     operators/index.rst
     members/index.rst
     audit/index.rst
-    design/index.rst
     glossary
