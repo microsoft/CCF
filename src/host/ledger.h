@@ -454,8 +454,11 @@ namespace asynchost
   private:
     ringbuffer::WriterPtr to_enclave;
 
-    // Ledger directory
+    // Ledger directory (rw)
     const std::string ledger_dir;
+
+    // Ledger directory (r)
+    const std::optional<std::string> read_ledger_dir = std::nullopt;
 
     // Keep tracks of all ledger files for writing.
     // Current ledger file is always the last one
@@ -578,11 +581,13 @@ namespace asynchost
       const std::string& ledger_dir,
       ringbuffer::AbstractWriterFactory& writer_factory,
       size_t chunk_threshold,
+      std::optional<std::string> read_ledger_dir = std::nullopt,
       size_t max_read_cache_files = max_read_cache_files_default) :
       to_enclave(writer_factory.create_writer_to_inside()),
       ledger_dir(ledger_dir),
       max_read_cache_files(max_read_cache_files),
-      chunk_threshold(chunk_threshold)
+      chunk_threshold(chunk_threshold),
+      read_ledger_dir(read_ledger_dir),
     {
       if (chunk_threshold == 0 || chunk_threshold > max_chunk_threshold_size)
       {

@@ -1,9 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "../ledger.h"
-
 #include "../ds/serialized.h"
+#include "../ledger.h"
 
 #include <doctest/doctest.h>
 #include <string>
@@ -723,4 +722,9 @@ TEST_CASE("Limit number of open files")
     read_entries_range_from_ledger(ledger2, 1, last_idx);
     REQUIRE(number_open_fd() == initial_number_fd + max_read_cache_size);
   }
+}
+
+TEST_CASE("Multiple ledger paths")
+{
+  fs::remove_all(ledger_dir);
 }
