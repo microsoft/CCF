@@ -14,11 +14,9 @@ static constexpr size_t frame_header_size = sizeof(frame_header_type);
 static constexpr auto ledger_dir = "ledger_dir";
 
 constexpr auto buffer_size = 1024;
-std::vector<uint8_t> in_buffer(buffer_size);
-ringbuffer::Const in_span(in_buffer.data(), in_buffer.size());
-std::vector<uint8_t> out_buffer(buffer_size);
-ringbuffer::Const out_span(out_buffer.data(), out_buffer.size());
-ringbuffer::Circuit eio(in_span, out_span);
+auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
 
 auto wf = ringbuffer::WriterFactory(eio);
 

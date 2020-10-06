@@ -12,17 +12,13 @@ std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 constexpr auto buffer_size = 1024 * 16;
 
-std::vector<uint8_t> in_buffer_1(buffer_size);
-ringbuffer::Const in_span_1(in_buffer_1.data(), in_buffer_1.size());
-std::vector<uint8_t> out_buffer_1(buffer_size);
-ringbuffer::Const out_span_1(out_buffer_1.data(), out_buffer_1.size());
-ringbuffer::Circuit eio1(in_span_1, out_span_1);
+auto in_buffer_1 = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+auto out_buffer_1 = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+ringbuffer::Circuit eio1(in_buffer_1->bd, out_buffer_1->bd);
 
-std::vector<uint8_t> in_buffer_2(buffer_size);
-ringbuffer::Const in_span_2(in_buffer_2.data(), in_buffer_2.size());
-std::vector<uint8_t> out_buffer_2(buffer_size);
-ringbuffer::Const out_span_2(out_buffer_2.data(), out_buffer_2.size());
-ringbuffer::Circuit eio2(in_span_2, out_span_2);
+auto in_buffer_2 = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+auto out_buffer_2 = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+ringbuffer::Circuit eio2(in_buffer_1->bd, out_buffer_2->bd);
 
 auto wf1 = ringbuffer::WriterFactory(eio1);
 auto wf2 = ringbuffer::WriterFactory(eio2);
