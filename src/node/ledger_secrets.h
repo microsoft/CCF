@@ -51,12 +51,6 @@ namespace ccf
 
     LedgerSecrets() = default;
 
-    // Called when a node joins the network and get given the ledger secrets
-    // since the beginning of time
-    LedgerSecrets(const LedgerSecrets& ledger_secrets_) :
-      secrets_list(ledger_secrets_.secrets_list)
-    {}
-
     bool operator==(const LedgerSecrets& other) const
     {
       return secrets_list == other.secrets_list;
