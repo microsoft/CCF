@@ -157,14 +157,6 @@ def run(args):
 
 if __name__ == "__main__":
 
-    def add(parser):
-        parser.add_argument(
-            "-p",
-            "--package",
-            help="The enclave package to load (e.g., liblogging)",
-            default="liblogging",
-        )
-
-    args = infra.e2e_args.cli_args(add)
+    args = infra.e2e_args.cli_args()
     args.package = args.app_script and "liblua_generic" or "liblogging"
     run(args)

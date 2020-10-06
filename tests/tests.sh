@@ -4,6 +4,7 @@
 
 set -e
 
+echo "Setting up Python environment..."
 if [ ! -f "env/bin/activate" ]
     then
         python3.8 -m venv env
@@ -12,5 +13,6 @@ fi
 source env/bin/activate
 pip install -q -U -e ../python/
 pip install -q -U -r ../tests/requirements.txt
+echo "Python environment successfully setup"
 
 ctest "$@"

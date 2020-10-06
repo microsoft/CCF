@@ -195,6 +195,8 @@ install(
   PATTERN "*/__pycache__*" EXCLUDE
 )
 
+install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
+install(FILES tests/sandbox/sandbox_gov.lua DESTINATION bin)
 install(FILES tests/start_network.py DESTINATION bin)
 install(FILES tests/requirements.txt DESTINATION bin)
 
@@ -728,19 +730,6 @@ if(BUILD_TESTS)
         ${CMAKE_CURRENT_BINARY_DIR}/testssl
     )
   endif()
-
-  # Lua sample app (tx regulator) end to end test
-  add_e2e_test(
-    NAME lua_txregulator_test_raft
-    PYTHON_SCRIPT
-      ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS
-      --app-script
-      ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
-      --datafile
-      ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv
-  )
 
   add_e2e_test(
     NAME js_e2e_logging_raft
