@@ -80,9 +80,9 @@ namespace ccfapp
     JS_FreeValue(ctx, exception_val);
   }
 
-  static void js_free_arraybuffer_cstring(JSRuntime *, void *opaque, void *ptr)
+  static void js_free_arraybuffer_cstring(JSRuntime*, void* opaque, void* ptr)
   {
-    JS_FreeCString((JSContext*) opaque, (char*) ptr);
+    JS_FreeCString((JSContext*)opaque, (char*)ptr);
   }
 
   static JSValue js_str_to_buf(
@@ -91,7 +91,7 @@ namespace ccfapp
     if (argc != 1)
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 1", argc);
-    
+
     if (!JS_IsString(argv[0]))
       return JS_ThrowTypeError(ctx, "Argument must be a string");
 
@@ -104,7 +104,8 @@ namespace ccfapp
       return JS_EXCEPTION;
     }
 
-    JSValue buf = JS_NewArrayBuffer(ctx, (uint8_t*)str, str_size, js_free_arraybuffer_cstring, ctx, false);
+    JSValue buf = JS_NewArrayBuffer(
+      ctx, (uint8_t*)str, str_size, js_free_arraybuffer_cstring, ctx, false);
 
     if (JS_IsException(buf))
       js_dump_error(ctx);
@@ -165,7 +166,7 @@ namespace ccfapp
       return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
 
     JSValue obj = JS_ParseJSON(ctx, (char*)buf, buf_size, "<json>");
-    
+
     if (JS_IsException(obj))
       js_dump_error(ctx);
 
@@ -192,8 +193,9 @@ namespace ccfapp
 
     if (!val.has_value())
       return JS_ThrowRangeError(ctx, "No such key");
-    
-    JSValue buf = JS_NewArrayBufferCopy(ctx, val.value().data(), val.value().size());
+
+    JSValue buf =
+      JS_NewArrayBufferCopy(ctx, val.value().data(), val.value().size());
 
     if (JS_IsException(buf))
       js_dump_error(ctx);
@@ -221,7 +223,7 @@ namespace ccfapp
 
     if (!val)
       return JS_ThrowRangeError(ctx, "Failed to remove at key");
-    
+
     return JS_UNDEFINED;
   }
 
@@ -266,9 +268,15 @@ namespace ccfapp
     JS_SetOpaque(view_val, view);
 
     JS_SetPropertyStr(
-      ctx, view_val, "get", JS_NewCFunction(ctx, ccfapp::js_kv_map_get, "get", 1));
+      ctx,
+      view_val,
+      "get",
+      JS_NewCFunction(ctx, ccfapp::js_kv_map_get, "get", 1));
     JS_SetPropertyStr(
-      ctx, view_val, "set", JS_NewCFunction(ctx, ccfapp::js_kv_map_set, "set", 2));
+      ctx,
+      view_val,
+      "set",
+      JS_NewCFunction(ctx, ccfapp::js_kv_map_set, "set", 2));
     JS_SetPropertyStr(
       ctx,
       view_val,
@@ -470,7 +478,8 @@ namespace ccfapp
 
         // Register class for KV map views
         {
-          auto ret = JS_NewClass(rt, kv_map_view_class_id, &kv_map_view_class_def);
+          auto ret =
+            JS_NewClass(rt, kv_map_view_class_id, &kv_map_view_class_def);
           if (ret != 0)
           {
             throw std::logic_error(
@@ -503,19 +512,33 @@ namespace ccfapp
           ctx,
           console,
           "log",
-          JS_NewCFunction(ctx, ccfapp::js_print, "log", 1));        
+          JS_NewCFunction(ctx, ccfapp::js_print, "log", 1));
 
         auto ccf = JS_NewObject(ctx);
         JS_SetPropertyStr(ctx, global_obj, "ccf", ccf);
 
-        JS_SetPropertyStr(ctx, ccf, "strToBuf", 
+        JS_SetPropertyStr(
+          ctx,
+          ccf,
+          "strToBuf",
           JS_NewCFunction(ctx, ccfapp::js_str_to_buf, "strToBuf", 1));
-        JS_SetPropertyStr(ctx, ccf, "bufToStr", 
+        JS_SetPropertyStr(
+          ctx,
+          ccf,
+          "bufToStr",
           JS_NewCFunction(ctx, ccfapp::js_buf_to_str, "bufToStr", 1));
-        JS_SetPropertyStr(ctx, ccf, "jsonCompatibleToBuf", 
-          JS_NewCFunction(ctx, ccfapp::js_json_compatible_to_buf, "jsonCompatibleToBuf", 1));
-        JS_SetPropertyStr(ctx, ccf, "bufToJsonCompatible", 
-          JS_NewCFunction(ctx, ccfapp::js_buf_to_json_compatible, "bufToJsonCompatible", 1));
+        JS_SetPropertyStr(
+          ctx,
+          ccf,
+          "jsonCompatibleToBuf",
+          JS_NewCFunction(
+            ctx, ccfapp::js_json_compatible_to_buf, "jsonCompatibleToBuf", 1));
+        JS_SetPropertyStr(
+          ctx,
+          ccf,
+          "bufToJsonCompatible",
+          JS_NewCFunction(
+            ctx, ccfapp::js_buf_to_json_compatible, "bufToJsonCompatible", 1));
 
         auto kv = JS_NewObjectClass(ctx, kv_class_id);
         JS_SetPropertyStr(ctx, ccf, "kv", kv);
