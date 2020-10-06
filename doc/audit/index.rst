@@ -1,7 +1,7 @@
 Audit
 =====
 
-The high-integrity guarantees of CCF are enforced by a unique :term:`Merkle Tree` which records all transactions that mutate the key-value store. The root of the Merkle Tree is regularly signed by the primary node and the signature is recorded in the ``ccf.signatures`` key-value map. Like any other transaction, the signature transaction is also recorded in the ledger, which allows for offline auditability of the service.
+The high-integrity guarantees of CCF are enforced by a single :term:`Merkle Tree` which records all transactions that mutate the key-value store. The root of the Merkle Tree is regularly signed by the primary node and the signature is recorded in the ``ccf.signatures`` key-value map. Like any other transaction, the signature transaction is also recorded in the ledger, which allows for offline auditability of the service.
 
 .. note:: The :ref:`CCF Python package <quickstart/install:Python Package>` provides the ``ledger`` module to easily parse the ledger. More details :doc:`here <ledger_python>`.
 

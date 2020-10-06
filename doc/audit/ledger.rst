@@ -1,7 +1,7 @@
 Ledger
 ======
 
-The CCF ledger is the persistent replicated append-only record of the transactions that have been executed by the network. It is written by the primary node when a transaction is committed and replicated to all backups which maintain their own duplicated copy. Each node in a network creates and maintains its own local copy of the ledger. Committed entries are always identical, but a node may be more or less up to date, and uncommitted entries may differ.
+The CCF ledger is the persistent replicated append-only record of the transactions that have been executed by the network. It is written by the primary node when a transaction is executed and replicated to all backups which maintain their own duplicated copy. Each node in a network creates and maintains its own local copy of the ledger. Committed entries are always identical, but a node may be more or less up to date, and uncommitted entries may differ.
 
 .. note:: A node writes its ledger to a directory as specified by the ``--ledger-dir`` command line argument.
 
