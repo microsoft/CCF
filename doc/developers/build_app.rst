@@ -24,7 +24,7 @@ The :term:`Open Enclave` configuration file (``oe_sign.conf``) should be placed 
 Standalone Signing
 ------------------
 
-It is also possible to sign an existing enclave application (e.g. ``libjs_generic.enclave.so``) manually, using a personal signing key (specified by ``--key-file``):
+It is also possible to sign an existing enclave application (e.g. ``libjs_generic.enclave.so``) manually, using a signing key (specified by ``--key-file``):
 
 .. code-block:: bash
 

@@ -208,8 +208,6 @@ html_context = {
     "doc_path": "doc/",
 }
 
-html_additional_pages = {"test": "test.html"}
-
 # Python autodoc options
 autodoc_default_options = {
     "member-order": "bysource",

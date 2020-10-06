@@ -1,4 +1,0 @@
-Architecture
-============
-
-.. warning:: In Progress

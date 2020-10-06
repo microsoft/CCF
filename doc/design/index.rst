@@ -10,7 +10,6 @@ Technical overview of CCF.
     constitution
     consensus
     cryptography
-    architecture
     performance
     threading
 

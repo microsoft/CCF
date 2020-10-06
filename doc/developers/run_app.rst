@@ -7,9 +7,9 @@ Running CCF Applications
 Debugging
 ---------
 
-To connect a debugger to a CCF node, the configuration passed to `oesign sign` must have debugging enabled  (``Debug=1``). This should be disabled for production enclaves, to ensure confidentiality is maintained. If using the ``sign_app_library`` function defined in ``ccf_app.cmake``, 2 variants will be produced for each enclave. ``name.enclave.so.debuggable`` will have debugging enabled (meaning a debugger may be attached - the optimisation level is handled indepdently), while ``name.enclave.so.signed`` produces a final debugging-disabled enclave. The produced binaries are otherwise identical.
+To connect a debugger to a CCF node, the configuration passed to `oesign sign` must have debugging enabled  (``Debug=1``). This `must` be disabled for production enclaves, to ensure confidentiality is maintained. If using the ``sign_app_library`` function defined in ``ccf_app.cmake``, two variants will be produced for each enclave. ``name.enclave.so.debuggable`` will have debugging enabled (meaning a debugger may be attached - the optimisation level is handled independently), while ``name.enclave.so.signed`` produces a final debugging-disabled enclave. The produced binaries are otherwise identical.
 
-Additionally, the `cchost` binary must be told that the enclave type is debug:
+Additionally, the ``cchost`` binary must be told that the enclave type is debug:
 
 .. code-block:: bash
 

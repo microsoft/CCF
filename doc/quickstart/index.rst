@@ -13,10 +13,10 @@ Start Here
     :titlesonly:
     :hidden:
 
-    build
-    build_app
-    build_setup
-    contribute
-    create_vm
     install
     test_network
+    build
+    create_vm
+    build_setup
+    build_app
+    contribute

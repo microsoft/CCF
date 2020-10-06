@@ -1,4 +1,4 @@
-CCF documentation
+CCF Documentation
 =================
 
 .. image:: img/ccf.svg
@@ -31,9 +31,9 @@ Build Applications
 CCF Roles
 ---------
 
-- :doc:`Operating CCF <operators/index>`
+- :doc:`Operate CCF <operators/index>`
 - :doc:`members/index`
-- :doc:`Using CCF <users/index>`
+- :doc:`Use CCF <users/index>`
 - :doc:`Offline Audit <audit/index>`
 
 Contribute
@@ -46,10 +46,10 @@ Contribute
 Technical Overview
 ------------------
 
-- :doc:`design/architecture`
 - :doc:`design/constitution`
 - :doc:`design/consensus`
 - :doc:`design/cryptography`
+- :doc:`design/performance` and :doc:`design/threading`.
 
 .. toctree::
     :maxdepth: 1

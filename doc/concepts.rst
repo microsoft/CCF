@@ -35,7 +35,7 @@ Application
 
 Each node runs the same application, written in JavaScript or C++. An application is a collection of endpoints that can be triggered by trusted :term:`Users`' HTTP commands over :term:`TLS`.
 
-Each endpoint can mutate or read the in-enclave-memory Key-Value Store that is replicated across all nodes in the network. Changes to the Key-Value Store must be agreed by a variable number of nodes, depending on the consensus algorithm selected (either Raft or BFT), before being applied.
+Each endpoint can mutate or read the in-enclave-memory Key-Value Store that is replicated across all nodes in the network. Changes to the Key-Value Store must be agreed by a variable number of nodes, depending on the consensus algorithm selected (either CFT or BFT), before being applied.
 
 The Key-Value Store is a collection of maps (associating a key to a value) that are defined by the application. These maps can be private (encrypted in the ledger) or public (integrity-protected and visible by anyone that has access to the ledger).
 
