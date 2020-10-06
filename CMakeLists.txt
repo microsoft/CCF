@@ -195,6 +195,8 @@ install(
   PATTERN "*/__pycache__*" EXCLUDE
 )
 
+install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
+install(FILES tests/sandbox/sandbox_gov.lua DESTINATION bin)
 install(FILES tests/start_network.py DESTINATION bin)
 install(FILES tests/requirements.txt DESTINATION bin)
 

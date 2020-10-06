@@ -122,12 +122,6 @@ if __name__ == "__main__":
 
     def add(parser):
         parser.add_argument(
-            "-p",
-            "--package",
-            help="The enclave package to load (e.g., liblogging)",
-            required=True,
-        )
-        parser.add_argument(
             "--schema-dir",
             help="Path to directory where retrieved schema should be saved",
             required=True,

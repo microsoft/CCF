@@ -74,15 +74,7 @@ def run(*args, **kwargs):
 
 if __name__ == "__main__":
 
-    def add(parser):
-        parser.add_argument(
-            "-p",
-            "--package",
-            help="The enclave package to load (e.g., liblogging)",
-            required=True,
-        )
-
-    args, unknown_args = cli_args(add, accept_unknown=True)
+    args, unknown_args = cli_args(accept_unknown=True)
 
     unknown_args = [term for arg in unknown_args for term in arg.split(" ")]
 

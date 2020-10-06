@@ -23,7 +23,7 @@ def dump_network_info(path, network, node):
 
 
 def run(args):
-    hosts = args.node or ["localhost"] * 3
+    hosts = args.node or ["localhost"]
 
     if not args.verbose:
         LOG.remove()
@@ -105,12 +105,6 @@ if __name__ == "__main__":
             "--node",
             help="List of hostnames[,pub_hostnames:ports]. If empty, two nodes are spawned locally",
             action="append",
-        )
-        parser.add_argument(
-            "-p",
-            "--package",
-            help="The enclave package to load (e.g., liblogging)",
-            required=True,
         )
         parser.add_argument(
             "-v",
