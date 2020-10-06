@@ -2,17 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "backup_signatures.h"
-#include "consensus/aft/revealed_nonces.h"
 #include "ds/ccf_assert.h"
 #include "ds/ccf_exception.h"
 #include "kv/kv_types.h"
 #include "kv/tx.h"
-#include "node_signature.h"
 #include "nodes.h"
-#include "tls/hash.h"
-#include "tls/tls.h"
-#include "tls/verifier.h"
+#include "progress_tracker_types.h"
 
 #include <array>
 #include <vector>
@@ -23,30 +18,28 @@ namespace ccf
   {
   public:
     ProgressTracker(
-      kv::AbstractStore& store_,
-      kv::NodeId id_,
-      ccf::Nodes& nodes_,
-      ccf::BackupSignaturesMap& backup_signatures_,
-      aft::RevealedNoncesMap& revealed_nonces_) :
-      store(store_),
+      std::unique_ptr<ProgressTrackerStore> store_, kv::NodeId id_) :
+      store(std::move(store_)),
       id(id_),
-      nodes(nodes_),
-      backup_signatures(backup_signatures_),
-      revealed_nonces(revealed_nonces_),
       entropy(tls::create_entropy())
     {}
+
+    std::unique_ptr<ProgressTrackerStore> store;
 
     kv::TxHistory::Result add_signature(
       kv::TxID tx_id,
       kv::NodeId node_id,
       uint32_t signature_size,
       std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
-      Nonce& hashed_nonce,
+      Nonce hashed_nonce,
       uint32_t node_count,
       bool is_primary)
     {
       LOG_TRACE_FMT(
-        "add_signature node_id:{}, seqno:{}", node_id, tx_id.version);
+        "add_signature node_id:{}, seqno:{}, hashed_nonce:{}",
+        node_id,
+        tx_id.version,
+        hashed_nonce);
       auto it = certificates.find(CertKey(tx_id));
       if (it == certificates.end())
       {
@@ -61,7 +54,7 @@ namespace ccf
       {
         if (
           node_id != id && it->second.have_primary_signature &&
-          !verify_signature(
+          !store->verify_signature(
             node_id, it->second.root, signature_size, sig.data()))
         {
           // NOTE: We need to handle this case but for now having this make a
@@ -82,15 +75,22 @@ namespace ccf
       }
 
       std::vector<uint8_t> sig_vec;
-      CCF_ASSERT(
+      CCF_ASSERT_FMT(
         signature_size <= sig.size(),
-        fmt::format(
-          "Invalid signature size, signature_size:{}, sig.size:{}",
-          signature_size,
-          sig.size()));
+        "Invalid signature size, signature_size:{}, sig.size:{}",
+        signature_size,
+        sig.size());
       sig_vec.assign(sig.begin(), sig.begin() + signature_size);
 
       auto& cert = it->second;
+      CCF_ASSERT(
+        node_id != id ||
+          std::equal(
+            hashed_nonce.begin(),
+            hashed_nonce.end(),
+            get_my_hashed_nonce(tx_id).begin()),
+        "hashed_nonce does not match my nonce");
+
       BftNodeSignature bft_node_sig(std::move(sig_vec), node_id, hashed_nonce);
       try_match_unmatched_nonces(
         cert, bft_node_sig, tx_id.term, tx_id.version, node_id);
@@ -101,9 +101,6 @@ namespace ccf
       {
         if (is_primary)
         {
-          kv::Tx tx(&store);
-          auto backup_sig_view = tx.get_view(backup_signatures);
-
           const CertKey& key = it->first;
           ccf::BackupSignatures sig_value(
             key.tx_id.term, key.tx_id.version, cert.root);
@@ -117,13 +114,7 @@ namespace ccf
             }
           }
 
-          backup_sig_view->put(0, sig_value);
-          auto r = tx.commit();
-          LOG_TRACE_FMT("Adding signatures to ledger, result:{}", r);
-          CCF_ASSERT_FMT(
-            r == kv::CommitSuccess::OK,
-            "Commiting backup signatures failed r:{}",
-            r);
+          store->write_backup_signatures(sig_value);
         }
         return kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK;
       }
@@ -134,9 +125,14 @@ namespace ccf
       kv::TxID tx_id,
       kv::NodeId node_id,
       crypto::Sha256Hash& root,
-      Nonce& hashed_nonce,
+      Nonce hashed_nonce,
       uint32_t node_count = 0)
     {
+      LOG_TRACE_FMT(
+        "record_primary node_id:{}, seqno:{}, hashed_nonce:{}",
+        node_id,
+        tx_id.version,
+        hashed_nonce);
       auto n = entropy->random(hashed_nonce.size());
       Nonce my_nonce;
       std::copy(n.begin(), n.end(), my_nonce.begin());
@@ -145,6 +141,12 @@ namespace ccf
         auto h = hash_data(my_nonce);
         std::copy(h.begin(), h.end(), hashed_nonce.begin());
       }
+
+      LOG_TRACE_FMT(
+        "record_primary node_id:{}, seqno:{}, hashed_nonce:{}",
+        node_id,
+        tx_id.version,
+        hashed_nonce);
 
       auto it = certificates.find(CertKey(tx_id));
       if (it == certificates.end())
@@ -181,7 +183,7 @@ namespace ccf
         {
           if (
             !sig.second.is_primary &&
-            !verify_signature(
+            !store->verify_signature(
               sig.second.node,
               cert.root,
               sig.second.sig.size(),
@@ -224,15 +226,10 @@ namespace ccf
     kv::TxHistory::Result receive_backup_signatures(
       kv::TxID& tx_id, uint32_t node_count, bool is_primary)
     {
-      kv::Tx tx(&store);
-      auto sigs_tv = tx.get_view(backup_signatures);
-      auto sigs = sigs_tv->get(0);
-      if (!sigs.has_value())
-      {
-        LOG_FAIL_FMT("No signatures found in signatures map");
-        return kv::TxHistory::Result::FAIL;
-      }
-      ccf::BackupSignatures& sigs_value = sigs.value();
+      std::optional<ccf::BackupSignatures> sigs =
+        store->get_backup_signatures();
+      CCF_ASSERT(sigs.has_value(), "sigs does not have a value");
+      auto sigs_value = sigs.value();
 
       auto it = certificates.find(CertKey({sigs_value.view, sigs_value.seqno}));
       if (it == certificates.end())
@@ -309,14 +306,8 @@ namespace ccf
 
     kv::TxHistory::Result receive_nonces()
     {
-      kv::Tx tx(&store);
-      auto nonces_tv = tx.get_view(revealed_nonces);
-      auto nonces = nonces_tv->get(0);
-      if (!nonces.has_value())
-      {
-        LOG_FAIL_FMT("No signatures found in signatures map");
-        return kv::TxHistory::Result::FAIL;
-      }
+      std::optional<aft::RevealedNonces> nonces = store->get_nonces();
+      CCF_ASSERT(nonces.has_value(), "nonces does not have a value");
       aft::RevealedNonces& nonces_value = nonces.value();
 
       auto it = certificates.find(CertKey(nonces_value.tx_id));
@@ -462,9 +453,6 @@ namespace ccf
 
       if (is_primary && should_append_nonces_to_ledger(cert, node_count))
       {
-        kv::Tx tx(&store);
-        auto nonces_tv = tx.get_view(revealed_nonces);
-
         aft::RevealedNonces revealed_nonces(tx_id);
 
         for (auto nonce_node_id : cert.nonce_set)
@@ -478,19 +466,7 @@ namespace ccf
             aft::RevealedNonce(nonce_node_id, it->second.nonce));
         }
 
-        nonces_tv->put(0, revealed_nonces);
-        auto r = tx.commit();
-        if (r != kv::CommitSuccess::OK)
-        {
-          LOG_FAIL_FMT(
-            "Failed to write nonces, view:{}, seqno:{}",
-            tx_id.term,
-            tx_id.version);
-          throw ccf::ccf_logic_error(fmt::format(
-            "Failed to write nonces, view:{}, seqno:{}",
-            tx_id.term,
-            tx_id.version));
-        }
+        store->write_nonces(revealed_nonces);
       }
     }
 
@@ -518,87 +494,7 @@ namespace ccf
       id = id_;
     }
 
-  private:
-    kv::AbstractStore& store;
-    kv::NodeId id;
-    ccf::Nodes& nodes;
-    ccf::BackupSignaturesMap& backup_signatures;
-    aft::RevealedNoncesMap& revealed_nonces;
-    std::shared_ptr<tls::Entropy> entropy;
-
-    struct CertKey
-    {
-      CertKey(kv::TxID tx_id_) : tx_id(tx_id_) {}
-
-      kv::TxID tx_id;
-
-      bool operator<(const CertKey& rhs) const
-      {
-        if (tx_id.version == rhs.tx_id.version)
-        {
-          return tx_id.term < rhs.tx_id.term;
-        }
-        return tx_id.version < rhs.tx_id.version;
-      }
-    };
-
-    struct BftNodeSignature : public ccf::NodeSignature
-    {
-      bool is_primary;
-      Nonce nonce;
-
-      BftNodeSignature(
-        const std::vector<uint8_t>& sig_, NodeId node_, Nonce hashed_nonce_) :
-        NodeSignature(sig_, node_, hashed_nonce_),
-        is_primary(false)
-      {}
-    };
-
-    struct CommitCert
-    {
-      CommitCert(crypto::Sha256Hash& root_, Nonce my_nonce_) :
-        root(root_),
-        my_nonce(my_nonce_),
-        have_primary_signature(true)
-      {}
-
-      CommitCert() = default;
-
-      crypto::Sha256Hash root;
-      std::map<kv::NodeId, BftNodeSignature> sigs;
-      std::set<kv::NodeId> sig_acks;
-      std::set<kv::NodeId> nonce_set;
-      std::map<kv::NodeId, Nonce> unmatched_nonces;
-      Nonce my_nonce;
-      bool have_primary_signature = false;
-      bool ack_sent = false;
-      bool reply_and_nonce_sent = false;
-      bool nonces_committed_to_ledger = false;
-    };
-    std::map<CertKey, CommitCert> certificates;
-
-    bool verify_signature(
-      kv::NodeId node_id,
-      crypto::Sha256Hash& root,
-      uint32_t sig_size,
-      uint8_t* sig)
-    {
-      kv::Tx tx;
-      auto ni_tv = tx.get_view_old(nodes);
-
-      auto ni = ni_tv->get(node_id);
-      if (!ni.has_value())
-      {
-        LOG_FAIL_FMT(
-          "No node info, and therefore no cert for node {}", node_id);
-        return false;
-      }
-      tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
-      return from_cert->verify_hash(
-        root.h.data(), root.h.size(), sig, sig_size);
-    }
-
-    std::vector<uint8_t> hash_data(Nonce data)
+    std::vector<uint8_t> hash_data(Nonce& data)
     {
       tls::HashBytes hash;
       tls::do_hash(
@@ -608,6 +504,12 @@ namespace ccf
         MBEDTLS_MD_SHA256);
       return hash;
     }
+
+  private:
+    kv::NodeId id;
+    std::shared_ptr<tls::Entropy> entropy;
+
+    std::map<CertKey, CommitCert> certificates;
 
     void try_match_unmatched_nonces(
       CommitCert& cert,

@@ -104,17 +104,7 @@ This offers some additional type safety (accidental `put`\s or `remove`\s will b
 API Schema
 ~~~~~~~~~~
 
-These handlers also demonstrate two different ways of defining the type schema for each endpoint, and validating incoming requests against them. The record/get methods operating on public tables have manually defined schema and use [#valijson]_ for validation, returning an error if the input is not compliant with the schema:
-
-.. literalinclude:: ../../src/apps/logging/logging.cpp
-    :language: cpp
-    :start-after: SNIPPET_START: valijson_record_public
-    :end-before: SNIPPET_END: valijson_record_public
-    :dedent: 6
-
-This provides robust, extensible validation using the full JSON schema spec.
-
-The methods operating on private tables use an alternative approach, with a macro-generated schema and parser converting compliant requests into a PoD C++ object:
+Instead of taking and returning `nlohmann::json` objects directly, the endpoint handlers use a macro-generated schema and parser converting compliant requests into a PoD C++ object:
 
 .. literalinclude:: ../../src/apps/logging/logging_schema.h
     :language: cpp
@@ -128,10 +118,4 @@ The methods operating on private tables use an alternative approach, with a macr
     :end-before: SNIPPET_END: macro_validation_record
     :dedent: 6
 
-This produces validation error messages with a lower performance overhead, and ensures the schema and parsing logic stay in sync, but is only suitable for simple schema - an object with some required and some optional fields, each of a supported type.
-
-Both approaches register their endpoint's request and response schema, allowing them to be retrieved at runtime with calls to the ``/api/schema`` endpoint.
-
-.. rubric:: Footnotes
-
-.. [#valijson] `Valijson is a header-only JSON Schema Validation library for C++11 <https://github.com/tristanpenman/valijson>`_.
+This produces validation error messages with a low performance overhead, and ensures the schema and parsing logic stay in sync, but is only suitable for simple schema - an object with some required and some optional fields, each of a supported type.

@@ -2,7 +2,7 @@
     "endpoints": {
       "/crypto": {
         "get": {
-          "js_module": "src/endpoints.js",
+          "js_module": "src/endpoints/crypto.js",
           "js_function": "crypto",
           "forwarding_required": "always",
           "execute_locally": false,
@@ -38,7 +38,7 @@
       },
       "/partition": {
         "post": {
-          "js_module": "src/endpoints.js",
+          "js_module": "src/endpoints/partition.js",
           "js_function": "partition",
           "forwarding_required": "always",
           "execute_locally": false,
@@ -80,7 +80,7 @@
       },
       "/proto": {
         "post": {
-          "js_module": "src/endpoints.js",
+          "js_module": "src/endpoints/proto.js",
           "js_function": "proto",
           "forwarding_required": "always",
           "execute_locally": false,
@@ -106,7 +106,7 @@
       },
       "/log": {
         "get": {
-          "js_module": "src/endpoints.js",
+          "js_module": "src/endpoints/log.js",
           "js_function": "getLogItem",
           "forwarding_required": "always",
           "execute_locally": false,
@@ -137,7 +137,7 @@
           }
         },
         "post": {
-          "js_module": "src/endpoints.js",
+          "js_module": "src/endpoints/log.js",
           "js_function": "setLogItem",
           "forwarding_required": "always",
           "execute_locally": false,

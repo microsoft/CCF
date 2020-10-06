@@ -10,49 +10,12 @@ return {
   PASSED = 1
   PENDING = 0
   REJECTED = -1
-  STATE_ACTIVE = "ACTIVE"
 
-  -- count member votes
-  member_votes = 0
+  -- The constitution in a real CCF application deployment would at least
+  -- count votes and compare to a threshold of members, but in the sandbox sample,
+  -- all votes pass automatically.
 
-  for member, vote in pairs(votes) do
-    if vote then
-      member_votes = member_votes + 1
-    end
-  end
-
-  -- count active members
-  members_active = 0
-
-  tables["ccf.members"]:foreach(function(member, details)
-    if details["status"] == STATE_ACTIVE then
-      members_active = members_active + 1
-    end
-  end)
-
-  -- check for raw_puts to sensitive tables
-  SENSITIVE_TABLES = {"ccf.whitelists", "ccf.governance.scripts"}
-  for _, call in pairs(calls) do
-    if call.func == "raw_puts" then
-      for _, sensitive_table in pairs(SENSITIVE_TABLES) do
-        if call.args[sensitive_table] then
-          -- require unanimity
-          if member_votes == members_active then
-            return PASSED
-          else
-            return PENDING
-          end
-        end
-      end
-    end
-  end
-
-  -- a majority of members can pass votes
-  if member_votes > math.floor(members_active / 2) then
-    return PASSED
-  end
-
-  return PENDING]],
+  return PASSED]],
 
   environment_proposal = [[
   __Puts = {}
