@@ -13,12 +13,12 @@ The install directory contains (under ``getting_started/``) the Azure and Ansibl
 :term:`Azure Confidential Compute` (ACC) offers DC-series VMs using SGX hardware, which can be deployed either through a `Marketplace App`_, or via the following command line instructions.
 On Windows, you can use `WSL <https://docs.microsoft.com/en-us/windows/wsl/install-win10>`_ or `Azure Cloud Shell (Bash) <https://azure.microsoft.com/en-us/features/cloud-shell/>`_ to run these.
 
-First clone the `CCF repository <https://github.com/microsoft/CCF>`_ or download a release tarball `here <https://github.com/microsoft/CCF/releases>`_.
+First clone the `CCF repository <https://github.com/microsoft/CCF>`_ or download the latest release of CCF `here <https://github.com/microsoft/CCF/releases>`_.
 Run the ``pre_make_vm.sh`` script to install the `Azure CLI`_ and the :term:`Open Enclave Engine` (``oe-engine``) that are required to create the DC-series in Azure:
 
 .. code-block:: bash
 
-    $ cd CCF/getting_started/create_vm
+    $ cd <ccf_path>/getting_started/create_vm
     $ ./pre_make_vm.sh # Requires sudo privileges
 
 Then, to get a VM up and running in the UK South region, run the following command:
