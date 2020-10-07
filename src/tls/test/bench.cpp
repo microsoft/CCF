@@ -115,10 +115,6 @@ namespace
 {
   auto sign_384_1byte = benchmark_sign<CurveImpl::secp384r1, 1>;
   PICOBENCH(sign_384_1byte).PICO_SUFFIX(CurveImpl::secp384r1);
-#ifdef MOD_MBEDTLS
-  auto sign_25519_1byte = benchmark_sign<CurveImpl::ed25519, 1>;
-  PICOBENCH(sign_25519_1byte).PICO_SUFFIX(CurveImpl::ed25519);
-#endif
   auto sign_256k1_mbed_1byte = benchmark_sign<CurveImpl::secp256k1_mbedtls, 1>;
   PICOBENCH(sign_256k1_mbed_1byte).PICO_SUFFIX(CurveImpl::secp256k1_mbedtls);
   auto sign_256k1_bitc_1byte = benchmark_sign<CurveImpl::secp256k1_bitcoin, 1>;
@@ -126,10 +122,6 @@ namespace
 
   auto sign_384_1k = benchmark_sign<CurveImpl::secp384r1, 1024>;
   PICOBENCH(sign_384_1k).PICO_SUFFIX(CurveImpl::secp384r1);
-#ifdef MOD_MBEDTLS
-  auto sign_25519_1k = benchmark_sign<CurveImpl::ed25519, 1024>;
-  PICOBENCH(sign_25519_1k).PICO_SUFFIX(CurveImpl::ed25519);
-#endif
   auto sign_256k1_mbed_1k = benchmark_sign<CurveImpl::secp256k1_mbedtls, 1024>;
   PICOBENCH(sign_256k1_mbed_1k).PICO_SUFFIX(CurveImpl::secp256k1_mbedtls);
   auto sign_256k1_bitc_1k = benchmark_sign<CurveImpl::secp256k1_bitcoin, 1024>;
@@ -137,10 +129,6 @@ namespace
 
   auto sign_384_100k = benchmark_sign<CurveImpl::secp384r1, 102400>;
   PICOBENCH(sign_384_100k).PICO_SUFFIX(CurveImpl::secp384r1);
-#ifdef MOD_MBEDTLS
-  auto sign_25519_100k = benchmark_sign<CurveImpl::ed25519, 102400>;
-  PICOBENCH(sign_25519_100k).PICO_SUFFIX(CurveImpl::ed25519);
-#endif
   auto sign_256k1_mbed_100k =
     benchmark_sign<CurveImpl::secp256k1_mbedtls, 102400>;
   PICOBENCH(sign_256k1_mbed_100k).PICO_SUFFIX(CurveImpl::secp256k1_mbedtls);
@@ -154,10 +142,6 @@ namespace
 {
   auto verify_384_1byte = benchmark_verify<CurveImpl::secp384r1, 1>;
   PICOBENCH(verify_384_1byte).PICO_SUFFIX(CurveImpl::secp384r1);
-#ifdef MOD_MBEDTLS
-  auto verify_25519_1byte = benchmark_verify<CurveImpl::ed25519, 1>;
-  PICOBENCH(verify_25519_1byte).PICO_SUFFIX(CurveImpl::ed25519);
-#endif
   auto verify_256k1_mbed_1byte =
     benchmark_verify<CurveImpl::secp256k1_mbedtls, 1>;
   PICOBENCH(verify_256k1_mbed_1byte).PICO_SUFFIX(CurveImpl::secp256k1_mbedtls);
@@ -167,10 +151,6 @@ namespace
 
   auto verify_384_1k = benchmark_verify<CurveImpl::secp384r1, 1024>;
   PICOBENCH(verify_384_1k).PICO_SUFFIX(CurveImpl::secp384r1);
-#ifdef MOD_MBEDTLS
-  auto verify_25519_1k = benchmark_verify<CurveImpl::ed25519, 1024>;
-  PICOBENCH(verify_25519_1k).PICO_SUFFIX(CurveImpl::ed25519);
-#endif
   auto verify_256k1_mbed_1k =
     benchmark_verify<CurveImpl::secp256k1_mbedtls, 1024>;
   PICOBENCH(verify_256k1_mbed_1k).PICO_SUFFIX(CurveImpl::secp256k1_mbedtls);
@@ -180,10 +160,6 @@ namespace
 
   auto verify_384_100k = benchmark_verify<CurveImpl::secp384r1, 102400>;
   PICOBENCH(verify_384_100k).PICO_SUFFIX(CurveImpl::secp384r1);
-#ifdef MOD_MBEDTLS
-  auto verify_25519_100k = benchmark_verify<CurveImpl::ed25519, 102400>;
-  PICOBENCH(verify_25519_100k).PICO_SUFFIX(CurveImpl::ed25519);
-#endif
   auto verify_256k1_mbed_100k =
     benchmark_verify<CurveImpl::secp256k1_mbedtls, 102400>;
   PICOBENCH(verify_256k1_mbed_100k).PICO_SUFFIX(CurveImpl::secp256k1_mbedtls);
@@ -197,10 +173,6 @@ namespace
 {
   auto hash_384_1byte = benchmark_hash<CurveImpl::secp384r1, 1>;
   PICOBENCH(hash_384_1byte).PICO_SUFFIX(CurveImpl::secp384r1);
-#ifdef MOD_MBEDTLS
-  auto hash_25519_1byte = benchmark_hash<CurveImpl::ed25519, 1>;
-  PICOBENCH(hash_25519_1byte).PICO_SUFFIX(CurveImpl::ed25519);
-#endif
   auto hash_256k1_mbed_1byte = benchmark_hash<CurveImpl::secp256k1_mbedtls, 1>;
   PICOBENCH(hash_256k1_mbed_1byte).PICO_SUFFIX(CurveImpl::secp256k1_mbedtls);
   auto hash_256k1_bitc_1byte = benchmark_hash<CurveImpl::secp256k1_bitcoin, 1>;
@@ -208,10 +180,6 @@ namespace
 
   auto hash_384_1k = benchmark_hash<CurveImpl::secp384r1, 1024>;
   PICOBENCH(hash_384_1k).PICO_SUFFIX(CurveImpl::secp384r1);
-#ifdef MOD_MBEDTLS
-  auto hash_25519_1k = benchmark_hash<CurveImpl::ed25519, 1024>;
-  PICOBENCH(hash_25519_1k).PICO_SUFFIX(CurveImpl::ed25519);
-#endif
   auto hash_256k1_mbed_1k = benchmark_hash<CurveImpl::secp256k1_mbedtls, 1024>;
   PICOBENCH(hash_256k1_mbed_1k).PICO_SUFFIX(CurveImpl::secp256k1_mbedtls);
   auto hash_256k1_bitc_1k = benchmark_hash<CurveImpl::secp256k1_bitcoin, 1024>;
@@ -219,10 +187,6 @@ namespace
 
   auto hash_384_100k = benchmark_hash<CurveImpl::secp384r1, 102400>;
   PICOBENCH(hash_384_100k).PICO_SUFFIX(CurveImpl::secp384r1);
-#ifdef MOD_MBEDTLS
-  auto hash_25519_100k = benchmark_hash<CurveImpl::ed25519, 102400>;
-  PICOBENCH(hash_25519_100k).PICO_SUFFIX(CurveImpl::ed25519);
-#endif
   auto hash_256k1_mbed_100k =
     benchmark_hash<CurveImpl::secp256k1_mbedtls, 102400>;
   PICOBENCH(hash_256k1_mbed_100k).PICO_SUFFIX(CurveImpl::secp256k1_mbedtls);
