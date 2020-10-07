@@ -1136,6 +1136,8 @@ namespace aft
         r.idx);
       progress_tracker->add_nonce_reveal(
         {r.term, r.idx}, r.nonce, r.from_node, node_count(), is_leader());
+
+      update_commit();
     }
 
     void recv_append_entries_response(const uint8_t* data, size_t size)
@@ -1532,8 +1534,17 @@ namespace aft
       // If there exists some idx in the current term such that
       // idx > commit_idx and a majority of nodes have replicated it,
       // commit to that idx.
-      auto new_commit_idx = std::numeric_limits<Index>::max();
+      auto new_commit_cft_idx = std::numeric_limits<Index>::max();
+      auto new_commit_bft_idx = std::numeric_limits<Index>::max();
 
+      // Obtain BFT watermarks
+      auto progress_tracker = store->get_progress_tracker();
+      if (progress_tracker != nullptr)
+      {
+        new_commit_bft_idx = progress_tracker->get_highest_committed_nonce();
+      }
+
+      // Obtain CFT watermarks
       for (auto& c : configurations)
       {
         // The majority must be checked separately for each active
@@ -1556,24 +1567,35 @@ namespace aft
         sort(match.begin(), match.end());
         auto confirmed = match.at((match.size() - 1) / 2);
 
-        if (confirmed < new_commit_idx)
+        if (confirmed < new_commit_cft_idx)
         {
-          new_commit_idx = confirmed;
+          new_commit_cft_idx = confirmed;
         }
       }
-
       LOG_DEBUG_FMT(
-        "In update_commit, new_commit_idx: {}, last_idx: {}",
-        new_commit_idx,
+        "In update_commit, new_commit_cft_idx: {}, new_commit_bft_idx:{}. "
+        "last_idx: {}",
+        new_commit_cft_idx,
+        new_commit_bft_idx,
         state->last_idx);
 
-      if (new_commit_idx > state->last_idx)
+      if (new_commit_cft_idx != std::numeric_limits<Index>::max())
+      {
+        state->cft_watermark_idx = new_commit_cft_idx;
+      }
+
+      if (new_commit_bft_idx != std::numeric_limits<Index>::max())
+      {
+        state->bft_watermark_idx = new_commit_bft_idx;
+      }
+
+      if (get_commit_watermark_idx() > state->last_idx)
       {
         throw std::logic_error(
           "Followers appear to have later match indices than leader");
       }
 
-      commit_if_possible(new_commit_idx);
+      commit_if_possible(get_commit_watermark_idx());
     }
 
     void commit_if_possible(Index idx)
@@ -1654,6 +1676,18 @@ namespace aft
       if (changed)
       {
         create_and_remove_node_state();
+      }
+    }
+
+    Index get_commit_watermark_idx()
+    {
+      if (consensus_type == ConsensusType::BFT)
+      {
+        return state->bft_watermark_idx;
+      }
+      else
+      {
+        return state->cft_watermark_idx;
       }
     }
 
