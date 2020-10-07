@@ -2,14 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-//#define USE_MPSCQ
-
 #include "ds/ccf_assert.h"
 #include "ds/logger.h"
 #include "ds/thread_ids.h"
-#ifdef USE_MPSCQ
-#  include "snmalloc/src/ds/mpscq.h"
-#endif
 
 #include <atomic>
 #include <chrono>
@@ -41,23 +36,12 @@ namespace threading
     virtual ~Tmsg() = default;
   };
 
-#ifdef USE_MPSCQ
-  static void init_cb(std::unique_ptr<ThreadMsg> m)
-  {
-    LOG_INFO_FMT("Init was called");
-  }
-#endif
-
   class ThreadMessaging;
 
   class Task
   {
-#ifdef USE_MPSCQ
-    queue::MPSCQ<ThreadMsg> queue;
-#else
     std::atomic<ThreadMsg*> item_head = nullptr;
     ThreadMsg* local_msg = nullptr;
-#endif
 
     struct TimerEntry
     {
@@ -79,32 +63,10 @@ namespace threading
     };
 
   public:
-    Task()
-    {
-#ifdef USE_MPSCQ
-      auto msg = new ThreadMsg;
-      msg->cb = &init_cb;
-      queue.init(msg);
-#endif
-    }
+    Task() = default;
 
     bool run_next_task()
     {
-#ifdef USE_MPSCQ
-      if (queue.is_empty())
-      {
-        return false;
-      }
-
-      ThreadMsg* current;
-      bool result;
-      std::tie(current, result) = queue.dequeue();
-
-      if (result)
-      {
-        current->cb(std::unique_ptr<ThreadMsg>(current));
-      }
-#else
       if (local_msg == nullptr && item_head != nullptr)
       {
         local_msg = item_head.exchange(nullptr);
@@ -120,22 +82,17 @@ namespace threading
       local_msg = local_msg->next;
 
       current->cb(std::unique_ptr<ThreadMsg>(current));
-#endif
       return true;
     }
 
     void add_task(ThreadMsg* item)
     {
-#ifdef USE_MPSCQ
-      queue.enqueue(item, item);
-#else
       ThreadMsg* tmp_head;
       do
       {
         tmp_head = item_head.load();
         item->next = tmp_head;
       } while (!item_head.compare_exchange_strong(tmp_head, item));
-#endif
     }
 
     TimerEntry add_task_after(
@@ -175,7 +132,6 @@ namespace threading
     std::map<TimerEntry, std::unique_ptr<ThreadMsg>, TimerEntryCompare>
       timer_map;
 
-#ifndef USE_MPSCQ
     void reverse_local_messages()
     {
       if (local_msg == nullptr)
@@ -193,22 +149,9 @@ namespace threading
       // now let the head point at the last node (prev)
       local_msg = prev;
     }
-#endif
 
     void drop()
     {
-#ifdef USE_MPSCQ
-      while (!queue.is_empty())
-      {
-        ThreadMsg* current;
-        bool result;
-        std::tie(current, result) = queue.dequeue();
-        if (result)
-        {
-          delete current;
-        }
-      }
-#else
       while (true)
       {
         if (local_msg == nullptr && item_head != nullptr)
@@ -226,7 +169,6 @@ namespace threading
         local_msg = local_msg->next;
         delete current;
       }
-#endif
     }
 
     friend ThreadMessaging;

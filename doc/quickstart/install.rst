@@ -66,7 +66,7 @@ The CCF Python tools package can be used to interact with an existing running se
 - Build custom governance proposals and votes
 - Parse and verify the integrity of a CCF ledger
 
-The latest version of the CCF Python tools package can be installed as follows:
+The latest version of the CCF Python tools package is `available on PyPi <https://pypi.org/project/ccf/>`_ and can be installed as follows:
 
 .. code-block:: bash
 
