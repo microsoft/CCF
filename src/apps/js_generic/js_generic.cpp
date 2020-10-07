@@ -165,7 +165,12 @@ namespace ccfapp
     if (!buf)
       return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
 
-    JSValue obj = JS_ParseJSON(ctx, (char*)buf, buf_size, "<json>");
+    std::vector<uint8_t> buf_null_terminated;
+    buf_null_terminated.reserve(buf_size + 1);
+    buf_null_terminated[buf_size] = 0;
+    buf_null_terminated.assign(buf, buf + buf_size);
+
+    JSValue obj = JS_ParseJSON(ctx, (char*)buf_null_terminated.data(), buf_size, "<json>");
 
     if (JS_IsException(obj))
       js_dump_error(ctx);
