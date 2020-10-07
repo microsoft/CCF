@@ -247,7 +247,3 @@ export class TypedKVMap<K, V> {
         this.kv.delete(this.kt.encode(key));
     }
 }
-
-// Example:
-// let fooMap = new TypedKVMap(kv['foo'], uint32, typedArray(Uint32Array))
-// let barMap = new TypedKVMap(kv['bar'], string, json<string[]>())
