@@ -11,7 +11,7 @@ return {
         if (k == "id") {
           try
           {
-            return { body: {msg: tables.data.get(JSON.parse(v).toString())} };
+            return { body: {msg: ccf.bufToStr(ccf.kv.data.get(ccf.strToBuf(v)))} };
           }
           catch (err)
           {
@@ -32,7 +32,7 @@ return {
         if (k == "id") {
           try
           {
-            return { body: {msg: tables.data.get(JSON.parse(v).toString())} };
+            return { body: {msg: ccf.bufToStr(ccf.kv.data.get(ccf.strToBuf(v)))} };
           }
           catch (err)
           {
@@ -48,7 +48,7 @@ return {
     export default function(request)
     {
       let params = request.body.json();
-      tables.data.put(params.id.toString(), params.msg);
+      ccf.kv.data.set(ccf.strToBuf(params.id.toString()), ccf.strToBuf(params.msg));
       return { body: true };
     }
   ]],
@@ -57,7 +57,7 @@ return {
     export default function(request)
     {
       let params = request.body.json();
-      tables.data.put(params.id.toString(), params.msg);
+      ccf.kv.data.set(ccf.strToBuf(params.id.toString()), ccf.strToBuf(params.msg));
       return { body: true };
     }
   ]],
@@ -69,7 +69,15 @@ return {
       for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
-          return { body: tables.data.remove(JSON.parse(v).toString()) };
+          try
+          {
+            ccf.kv.data.delete(ccf.strToBuf(v));
+          }
+          catch (err)
+          {
+            return { body: {error: err.message} }
+          }
+          return { body: true };
         }
       }
       throw "Could not find 'id' in query";
@@ -83,7 +91,15 @@ return {
       for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
-          return { body: tables.data.remove(JSON.parse(v).toString()) };
+          try
+          {
+            ccf.kv.data.delete(ccf.strToBuf(v));
+          }
+          catch (err)
+          {
+            return { body: {error: err.message} }
+          }
+          return { body: true };
         }
       }
       throw "Could not find 'id' in query";
