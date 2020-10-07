@@ -73,7 +73,7 @@ echo "-- Generating identity private key and certificate for participant \"$name
 echo "Identity curve: $curve"
 
 
-openssl genpkey -out "$privk" -algorithm "$curve"
+openssl ecparam -out "$privk" -name "$curve" -genkey
 openssl req -new -key "$privk" -x509 -nodes -days 365 -out "$cert" -"$digest" -subj=/CN="$name"
 
 echo "Identity private key generated at:   $privk"
