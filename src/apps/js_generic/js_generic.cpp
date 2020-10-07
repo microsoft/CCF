@@ -165,8 +165,7 @@ namespace ccfapp
     if (!buf)
       return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
 
-    std::vector<uint8_t> buf_null_terminated;
-    buf_null_terminated.reserve(buf_size + 1);
+    std::vector<uint8_t> buf_null_terminated(buf_size + 1);
     buf_null_terminated[buf_size] = 0;
     buf_null_terminated.assign(buf, buf + buf_size);
 
