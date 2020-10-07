@@ -451,7 +451,7 @@ namespace ccf
       sig.nonce = nonce;
       cert.nonce_set.insert(node_id);
 
-      if (is_primary && should_append_nonces_to_ledger(cert, node_count))
+      if (should_append_nonces_to_ledger(cert, node_count, is_primary))
       {
         aft::RevealedNonces revealed_nonces(tx_id);
 
@@ -617,7 +617,8 @@ namespace ccf
       return false;
     }
 
-    bool should_append_nonces_to_ledger(CommitCert& cert, uint32_t node_count)
+    bool should_append_nonces_to_ledger(
+      CommitCert& cert, uint32_t node_count, bool is_primary)
     {
       if (
         cert.nonce_set.size() >= get_message_threshold(node_count) &&
@@ -625,7 +626,7 @@ namespace ccf
         !cert.nonces_committed_to_ledger)
       {
         cert.nonces_committed_to_ledger = true;
-        return true;
+        return is_primary;
       }
       return false;
     }
