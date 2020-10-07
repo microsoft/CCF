@@ -1,7 +1,18 @@
-CCF Overview
-============
+Overview
+========
 
-.. note:: Find more technical details in the :ref:`Technical Overview section <design/index:Technical Overview>`.
+This page gives a broad overview of the fundamentals of CCF. This is where you should start if you're new to CCF.
+
+.. note:: The following pages give a more in-depth description of CCF's core concepts and should be explored next:
+
+    .. toctree::
+        :maxdepth: 1
+
+        design/constitution
+        design/consensus
+        design/cryptography
+        design/performance
+        design/threading
 
 CCF in a Hundred Words
 ----------------------
