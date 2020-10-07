@@ -505,7 +505,7 @@ namespace ccf
       return hash;
     }
 
-    kv::Consensus::SeqNo get_highest_commit_level()
+    kv::Consensus::SeqNo get_highest_committed_nonce()
     {
       auto it = certificates.find(highest_commit_level);
       if (it == certificates.end())

@@ -86,7 +86,6 @@ namespace aft
     RequestsMap& bft_requests_map;
     std::shared_ptr<aft::State> state;
     std::shared_ptr<Executor> executor;
-    static constexpr size_t min_bft_node_count = 3;
 
     // Timeouts
     std::chrono::milliseconds request_timeout;
@@ -1535,63 +1534,68 @@ namespace aft
       // If there exists some idx in the current term such that
       // idx > commit_idx and a majority of nodes have replicated it,
       // commit to that idx.
-      auto new_commit_idx = std::numeric_limits<Index>::max();
+      auto new_commit_cft_idx = std::numeric_limits<Index>::max();
+      auto new_commit_bft_idx = std::numeric_limits<Index>::max();
 
-      // Check if we are using BFT consensus and we have at any point at least 3
-      // nodes in the network. The requirement for 3 nodes ensures that we can
-      // start a new network which in the beginning will only start with 1 node.
-      if (
-        consensus_type == ConsensusType::BFT &&
-        (node_count() >= min_bft_node_count ||
-         state->should_start_using_byz_commit))
+      // Obtain BFT watermarks
+      auto progress_tracker = store->get_progress_tracker();
+      if (progress_tracker != nullptr)
       {
-        auto progress_tracker = store->get_progress_tracker();
-        CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
-        new_commit_idx = progress_tracker->get_highest_commit_level();
-        state->should_start_using_byz_commit = true;
+        new_commit_bft_idx = progress_tracker->get_highest_committed_nonce();
       }
-      else
+
+      // Obtain CFT watermarks
+      for (auto& c : configurations)
       {
-        for (auto& c : configurations)
+        // The majority must be checked separately for each active
+        // configuration.
+        std::vector<Index> match;
+        match.reserve(c.nodes.size() + 1);
+
+        for (auto node : c.nodes)
         {
-          // The majority must be checked separately for each active
-          // configuration.
-          std::vector<Index> match;
-          match.reserve(c.nodes.size() + 1);
-
-          for (auto node : c.nodes)
+          if (node.first == state->my_node_id)
           {
-            if (node.first == state->my_node_id)
-            {
-              match.push_back(state->last_idx);
-            }
-            else
-            {
-              match.push_back(nodes.at(node.first).match_idx);
-            }
+            match.push_back(state->last_idx);
           }
-
-          sort(match.begin(), match.end());
-          auto confirmed = match.at((match.size() - 1) / 2);
-
-          if (confirmed < new_commit_idx)
+          else
           {
-            new_commit_idx = confirmed;
+            match.push_back(nodes.at(node.first).match_idx);
           }
+        }
+
+        sort(match.begin(), match.end());
+        auto confirmed = match.at((match.size() - 1) / 2);
+
+        if (confirmed < new_commit_cft_idx)
+        {
+          new_commit_cft_idx = confirmed;
         }
       }
       LOG_DEBUG_FMT(
-        "In update_commit, new_commit_idx: {}, last_idx: {}",
-        new_commit_idx,
+        "In update_commit, new_commit_cft_idx: {}, new_commit_bft_idx:{}. "
+        "last_idx: {}",
+        new_commit_cft_idx,
+        new_commit_bft_idx,
         state->last_idx);
 
-      if (new_commit_idx > state->last_idx)
+      if (new_commit_cft_idx != std::numeric_limits<Index>::max())
+      {
+        state->cft_watermark_idx = new_commit_cft_idx;
+      }
+
+      if (new_commit_bft_idx != std::numeric_limits<Index>::max())
+      {
+        state->bft_watermark_idx = new_commit_bft_idx;
+      }
+
+      if (get_commit_watermark_idx() > state->last_idx)
       {
         throw std::logic_error(
           "Followers appear to have later match indices than leader");
       }
 
-      commit_if_possible(new_commit_idx);
+      commit_if_possible(get_commit_watermark_idx());
     }
 
     void commit_if_possible(Index idx)
@@ -1672,6 +1676,21 @@ namespace aft
       if (changed)
       {
         create_and_remove_node_state();
+      }
+    }
+
+    Index get_commit_watermark_idx()
+    {
+      // Check if we are using BFT consensus and we have at any point at least 3
+      // nodes in the network. The requirement for 3 nodes ensures that we can
+      // start a new network which in the beginning will only start with 1 node.
+      if (consensus_type == ConsensusType::BFT)
+      {
+        return state->bft_watermark_idx;
+      }
+      else
+      {
+        return state->cft_watermark_idx;
       }
     }
 

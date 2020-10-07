@@ -107,11 +107,11 @@ void ordered_execution(
 
       if (i < 2)
       {
-        REQUIRE(pt->get_highest_commit_level() == 0);
+        REQUIRE(pt->get_highest_committed_nonce() == 0);
       }
       else
       {
-        REQUIRE(pt->get_highest_commit_level() == seqno);
+        REQUIRE(pt->get_highest_committed_nonce() == seqno);
       }
     }
   }

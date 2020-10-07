@@ -98,8 +98,7 @@ namespace aft
       my_node_id(my_node_id_),
       current_view(0),
       last_idx(0),
-      commit_idx(0),
-      should_start_using_byz_commit(false)
+      commit_idx(0)
     {}
 
     SpinLock lock;
@@ -110,8 +109,9 @@ namespace aft
     kv::Version last_idx;
     kv::Version commit_idx;
 
-    ViewHistory view_history;
+    kv::Version cft_watermark_idx;
+    kv::Version bft_watermark_idx;
 
-    bool should_start_using_byz_commit;
+    ViewHistory view_history;
   };
 }
