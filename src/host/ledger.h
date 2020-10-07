@@ -511,18 +511,40 @@ namespace asynchost
 
       // If the file is not in the cache, find the file from the ledger
       // directory
+      std::string ledger_dir_;
       std::optional<std::string> match = std::nullopt;
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
         // If any file, based on its name, contains idx. Only committed files
         // (i.e. those with a last idx) are considered here.
-        auto last_idx = get_last_idx_from_file_name(f.path().filename());
-        if (
-          last_idx.has_value() && idx <= last_idx.value() &&
-          idx >= get_start_idx_from_file_name(f.path().filename()))
+        auto f_name = f.path().filename();
+        auto start_idx = get_start_idx_from_file_name(f_name);
+        auto last_idx = get_last_idx_from_file_name(f_name);
+        if (last_idx.has_value() && idx <= last_idx.value() && idx >= start_idx)
         {
-          match = f.path().filename();
+          match = f_name;
+          ledger_dir_ = ledger_dir;
           break;
+        }
+      }
+
+      // Read from read directory if file doesn't exist in main directory
+      if (read_ledger_dir.has_value())
+      {
+        for (auto const& f : fs::directory_iterator(read_ledger_dir.value()))
+        {
+          // If any file, based on its name, contains idx. Only committed files
+          // (i.e. those with a last idx) are considered here.
+          auto f_name = f.path().filename();
+          auto start_idx = get_start_idx_from_file_name(f_name);
+          auto last_idx = get_last_idx_from_file_name(f_name);
+          if (
+            last_idx.has_value() && idx <= last_idx.value() && idx >= start_idx)
+          {
+            match = f_name;
+            ledger_dir_ = read_ledger_dir.value();
+            break;
+          }
         }
       }
 
@@ -531,8 +553,10 @@ namespace asynchost
         return nullptr;
       }
 
-      // Emplace file in the max-sized read cache
-      auto match_file = std::make_shared<LedgerFile>(ledger_dir, match.value());
+      // Emplace file in the max-sized read cache, replacing the oldest entry if
+      // the read cache is full
+      auto match_file =
+        std::make_shared<LedgerFile>(ledger_dir_, match.value());
       if (files_read_cache.size() >= max_read_cache_files)
       {
         files_read_cache.erase(files_read_cache.begin());
@@ -587,7 +611,7 @@ namespace asynchost
       ledger_dir(ledger_dir),
       max_read_cache_files(max_read_cache_files),
       chunk_threshold(chunk_threshold),
-      read_ledger_dir(read_ledger_dir),
+      read_ledger_dir(read_ledger_dir)
     {
       if (chunk_threshold == 0 || chunk_threshold > max_chunk_threshold_size)
       {
@@ -603,6 +627,15 @@ namespace asynchost
         {
           files.push_back(
             std::make_shared<LedgerFile>(ledger_dir, f.path().filename()));
+        }
+
+        if (files.empty())
+        {
+          LOG_TRACE_FMT(
+            "Ledger directory \"{}\" is empty: no ledger file to recover",
+            ledger_dir);
+          require_new_file = true;
+          return;
         }
 
         files.sort([](

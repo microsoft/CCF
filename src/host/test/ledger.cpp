@@ -12,6 +12,7 @@ using frame_header_type = uint32_t;
 static constexpr size_t frame_header_size = sizeof(frame_header_type);
 static constexpr auto ledger_dir = "ledger_dir";
 ringbuffer::Circuit eio(1024);
+static constexpr auto ledger_dir_read = "ledger_dir_read";
 auto wf = ringbuffer::WriterFactory(eio);
 
 // Ledger entry type
@@ -646,7 +647,7 @@ TEST_CASE("Limit number of open files")
   size_t chunk_count = 5;
   size_t max_read_cache_size = 2;
   asynchost::Ledger ledger(
-    ledger_dir, wf, chunk_threshold, max_read_cache_size);
+    ledger_dir, wf, chunk_threshold, ledger_dir_read, max_read_cache_size);
   TestEntrySubmitter entry_submitter(ledger);
 
   size_t initial_number_fd = number_open_fd();
@@ -714,7 +715,7 @@ TEST_CASE("Limit number of open files")
   {
     initial_number_fd = number_open_fd();
     asynchost::Ledger ledger2(
-      ledger_dir, wf, chunk_threshold, max_read_cache_size);
+      ledger_dir, wf, chunk_threshold, ledger_dir_read, max_read_cache_size);
 
     // Committed files are not open for write
     REQUIRE(number_open_fd() == initial_number_fd);
@@ -726,5 +727,58 @@ TEST_CASE("Limit number of open files")
 
 TEST_CASE("Multiple ledger paths")
 {
+  static constexpr auto ledger_dir_2 = "ledger_dir_2";
+
   fs::remove_all(ledger_dir);
+  fs::remove_all(ledger_dir_2);
+
+  size_t chunk_threshold = 30;
+  size_t chunk_count = 5;
+
+  size_t last_committed_idx = 0;
+
+  INFO("Write many entries on first ledger");
+  {
+    asynchost::Ledger ledger(ledger_dir, wf, chunk_threshold);
+    TestEntrySubmitter entry_submitter(ledger);
+
+    // Writing some committed chunks...
+    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    last_committed_idx = entry_submitter.get_last_idx();
+    ledger.commit(last_committed_idx);
+
+    // ... and an uncommitted suffix
+    bool is_committable = true;
+    entry_submitter.write(is_committable);
+    entry_submitter.write(is_committable);
+  }
+
+  INFO("Copy and remove all uncommitted suffix from initial ledger directory");
+  {
+    fs::create_directory(ledger_dir_2);
+    for (auto const& f : fs::directory_iterator(ledger_dir))
+    {
+      if (!asynchost::is_ledger_file_committed(f.path().filename()))
+      {
+        fs::copy(f.path(), ledger_dir_2);
+        fs::remove(f.path());
+      }
+    }
+  }
+
+  INFO("Restored ledger cannot read past uncommitted files");
+  {
+    asynchost::Ledger ledger(ledger_dir_2, wf, chunk_threshold);
+
+    for (size_t i = 1; i <= last_committed_idx; i++)
+    {
+      REQUIRE_FALSE(ledger.read_entry(i).has_value());
+    }
+  }
+
+  INFO("Restore ledger with previous directory");
+  {
+    asynchost::Ledger ledger(ledger_dir_2, wf, chunk_threshold, ledger_dir);
+    read_entries_range_from_ledger(ledger, 1, last_committed_idx);
+  }
 }
