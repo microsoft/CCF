@@ -36,9 +36,8 @@ static constexpr tls::CurveImpl supported_curves[] = {
   tls::CurveImpl::secp256k1_mbedtls,
   tls::CurveImpl::secp256k1_bitcoin};
 
-static constexpr char const* labels[] = {"secp384r1",
-                                         "secp256k1_mbedtls",
-                                         "secp256k1_bitcoin"};
+static constexpr char const* labels[] = {
+  "secp384r1", "secp256k1_mbedtls", "secp256k1_bitcoin"};
 
 TEST_CASE("Sign, verify, with KeyPair")
 {
