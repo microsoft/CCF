@@ -16,9 +16,6 @@
 #include <limits>
 #include <mbedtls/bignum.h>
 #include <mbedtls/pem.h>
-#ifdef MOD_MBEDTLS
-#  include <mbedtls/eddsa.h>
-#endif
 #include <memory>
 
 namespace tls
@@ -407,56 +404,20 @@ namespace tls
       EntropyPtr entropy = create_entropy();
       mbedtls_pk_init(ctx.get());
 
-      int rc = 0;
-
-      switch (ec)
+      int rc = mbedtls_pk_setup(
+        ctx.get(), mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
+      if (rc != 0)
       {
-#ifdef MOD_MBEDTLS
-        case MBEDTLS_ECP_DP_CURVE25519:
-        case MBEDTLS_ECP_DP_CURVE448:
-        {
-          // These curves are technically not ECDSA, but EdDSA.
-          rc = mbedtls_pk_setup(
-            ctx.get(), mbedtls_pk_info_from_type(MBEDTLS_PK_EDDSA));
-          if (rc != 0)
-          {
-            throw std::logic_error(
-              "Could not set up EdDSA context: " + error_string(rc));
-          }
+        throw std::logic_error(
+          "Could not set up ECDSA context: " + error_string(rc));
+      }
 
-          rc = mbedtls_eddsa_genkey(
-            mbedtls_pk_eddsa(*ctx),
-            ec,
-            entropy->get_rng(),
-            entropy->get_data());
-          if (rc != 0)
-          {
-            throw std::logic_error(
-              "Could not generate EdDSA keypair: " + error_string(rc));
-          }
-          break;
-        }
-#endif
-
-        default:
-        {
-          rc = mbedtls_pk_setup(
-            ctx.get(), mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
-          if (rc != 0)
-          {
-            throw std::logic_error(
-              "Could not set up ECDSA context: " + error_string(rc));
-          }
-
-          rc = mbedtls_ecp_gen_key(
-            ec, mbedtls_pk_ec(*ctx), entropy->get_rng(), entropy->get_data());
-          if (rc != 0)
-          {
-            throw std::logic_error(
-              "Could not generate ECDSA keypair: " + error_string(rc));
-          }
-          break;
-        }
+      rc = mbedtls_ecp_gen_key(
+        ec, mbedtls_pk_ec(*ctx), entropy->get_rng(), entropy->get_data());
+      if (rc != 0)
+      {
+        throw std::logic_error(
+          "Could not generate ECDSA keypair: " + error_string(rc));
       }
 
       const auto actual_ec = get_ec_from_context(*ctx);
