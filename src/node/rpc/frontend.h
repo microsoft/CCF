@@ -548,6 +548,9 @@ namespace ccf
       const bool should_bft_distribute = is_bft && !is_local &&
         (ctx->execute_on_node || consensus->is_primary());
 
+      // TODO: This decision is based on several things read from the KV
+      // (cert->caller_id, request->is_local) which are true _now_ but may not
+      // be true when this is actually received/executed
       if (should_bft_distribute)
       {
         kv::TxHistory::RequestID reqid;
