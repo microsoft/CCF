@@ -269,6 +269,9 @@ namespace ccfapp
     auto tx_ptr = static_cast<kv::Tx*>(JS_GetOpaque(this_val, kv_class_id));
     auto view = tx_ptr->get_view<KVMap>(property_name);
 
+    // This follows the interface of Map:
+    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
+    // Keys and values are ArrayBuffers. Keys are matched based on their contents.
     auto view_val = JS_NewObjectClass(ctx, kv_map_view_class_id);
     JS_SetOpaque(view_val, view);
 
