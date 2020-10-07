@@ -33,7 +33,6 @@ class ServiceStatus(Enum):
 class ParticipantsCurve(IntEnum):
     secp384r1 = 0
     secp256k1 = 1
-    # ed25519 = 2 TODO: Unsupported for now
 
     def next(self):
         return ParticipantsCurve((self.value + 1) % len(ParticipantsCurve))
