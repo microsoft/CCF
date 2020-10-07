@@ -11,8 +11,7 @@ return {
         if (k == "id") {
           try
           {
-            const id = JSON.parse(v).toString();
-            return { body: {msg: ccf.bufToStr(ccf.kv.data.get(ccf.strToBuf(id)))} };
+            return { body: {msg: ccf.bufToStr(ccf.kv.data.get(ccf.strToBuf(v)))} };
           }
           catch (err)
           {
@@ -33,8 +32,7 @@ return {
         if (k == "id") {
           try
           {
-            const id = JSON.parse(v).toString();
-            return { body: {msg: ccf.bufToStr(ccf.kv.data.get(ccf.strToBuf(id)))} };
+            return { body: {msg: ccf.bufToStr(ccf.kv.data.get(ccf.strToBuf(v)))} };
           }
           catch (err)
           {
@@ -73,8 +71,7 @@ return {
         if (k == "id") {
           try
           {
-            const id = JSON.parse(v).toString();
-            ccf.kv.data.delete(ccf.strToBuf(id));
+            ccf.kv.data.delete(ccf.strToBuf(v));
           }
           catch (err)
           {
@@ -96,8 +93,7 @@ return {
         if (k == "id") {
           try
           {
-            const id = JSON.parse(v).toString();
-            ccf.kv.data.delete(ccf.strToBuf(id));
+            ccf.kv.data.delete(ccf.strToBuf(v));
           }
           catch (err)
           {
