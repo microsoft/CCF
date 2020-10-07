@@ -258,21 +258,6 @@
         ],
         "type": "object"
       },
-      "GetSchema__Out": {
-        "properties": {
-          "params_schema": {
-            "$ref": "#/components/schemas/json_schema"
-          },
-          "result_schema": {
-            "$ref": "#/components/schemas/json_schema"
-          }
-        },
-        "required": [
-          "params_schema",
-          "result_schema"
-        ],
-        "type": "object"
-      },
       "GetTxStatus__Out": {
         "properties": {
           "status": {
@@ -493,9 +478,6 @@
         "type": "integer"
       },
       "json": {},
-      "json_schema": {
-        "type": "object"
-      },
       "mbedtls_md_type_t": {
         "enum": [
           "MBEDTLS_MD_NONE",
@@ -613,32 +595,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/json"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/api/schema": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "method",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetSchema__Out"
                 }
               }
             },
