@@ -68,4 +68,4 @@ Once operators have established a recovered public network, the existing members
 
 .. rubric:: Footnotes
 
-.. [#crash] When using Raft as consensus algorithm, CCF tolerates up to `N/2 - 1` crashed nodes (where `N` is the number of nodes constituting the network) before having to perform the recovery procedure. For example, in a 5-node network, no more than 2 nodes are allowed to fail.
+.. [#crash] When using CFT as consensus algorithm, CCF tolerates up to `N/2 - 1` crashed nodes (where `N` is the number of nodes constituting the network) before having to perform the recovery procedure. For example, in a 5-node network, no more than 2 nodes are allowed to fail.

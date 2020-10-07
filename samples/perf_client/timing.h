@@ -15,7 +15,6 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <mbedtls/asn1.h>
-#include <valijson/validator.hpp>
 
 namespace timing
 {
@@ -93,9 +92,10 @@ namespace timing
 
     const auto now = Clock::now();
     auto now_tt = Clock::to_time_t(now);
-    auto now_tm = std::localtime(&now_tt);
+    tm now_tm;
+    ::localtime_r(&now_tt, &now_tm);
 
-    ss << "[" << std::put_time(now_tm, "%T.");
+    ss << "[" << std::put_time(&now_tm, "%T.");
 
     const auto remainder =
       duration_cast<microseconds>(now.time_since_epoch()) % seconds(1);

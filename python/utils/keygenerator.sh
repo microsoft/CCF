@@ -5,14 +5,12 @@
 set -e
 
 DEFAULT_CURVE="secp384r1"
-EDWARDS_CURVE="ed25519"
 ENCRYPTION_CURVE="x25519"
 FAST_CURVE="secp256k1"
-SUPPORTED_CURVES="$DEFAULT_CURVE|$EDWARDS_CURVE|$FAST_CURVE"
+SUPPORTED_CURVES="$DEFAULT_CURVE|$FAST_CURVE"
 
 DIGEST_SHA384="sha384"
 DIGEST_SHA256="sha256"
-DIGEST_SHA512="sha512"
 
 curve=$DEFAULT_CURVE
 name=""
@@ -64,8 +62,6 @@ fi
 
 if [ "$curve" == "$DEFAULT_CURVE" ]; then
     digest="$DIGEST_SHA384"
-elif [ "$curve" == "$EDWARDS_CURVE" ]; then
-    digest="$DIGEST_SHA512"
 else
     digest="$DIGEST_SHA256"
 fi
@@ -76,14 +72,8 @@ privk="$name"_privk.pem
 echo "-- Generating identity private key and certificate for participant \"$name\"..."
 echo "Identity curve: $curve"
 
-# Because openssl CLI interface for ec key differs from Ed, detect which
-# interface to use based on first letters of the specified curve
-if ! [ "$curve" == $EDWARDS_CURVE ]; then
-    openssl ecparam -out "$privk" -name "$curve" -genkey
-else
-    openssl genpkey -out "$privk" -algorithm "$curve"
-fi
 
+openssl ecparam -out "$privk" -name "$curve" -genkey
 openssl req -new -key "$privk" -x509 -nodes -days 365 -out "$cert" -"$digest" -subj=/CN="$name"
 
 echo "Identity private key generated at:   $privk"

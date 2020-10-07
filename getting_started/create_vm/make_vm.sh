@@ -11,7 +11,6 @@ fi
 
 # Azure Resource Group
 RG=ccf-dev-rg
-# Region, only uksouth is supports DC*_v2 at the moment
 REGION=uksouth
 CFG=vm.json
 

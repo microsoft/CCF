@@ -150,12 +150,6 @@ if __name__ == "__main__":
 
     def add(parser):
         parser.add_argument(
-            "-p",
-            "--package",
-            help="The enclave package to load (e.g., liblogging)",
-            default="liblogging",
-        )
-        parser.add_argument(
             "--oesign", help="Path to oesign binary", type=str, required=True
         )
 

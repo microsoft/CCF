@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "tls/25519.h"
 #include "tls/entropy.h"
 
 namespace ccf

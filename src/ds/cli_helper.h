@@ -44,7 +44,7 @@ namespace cli
       {
         port_int = std::stoi(port);
       }
-      catch (const std::exception)
+      catch (const std::exception&)
       {
         throw CLI::ValidationError(option_name, "Port is not a number");
       }

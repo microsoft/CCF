@@ -382,7 +382,6 @@ namespace ccf
     struct PathTemplatedEndpoint : public Endpoint
     {
       PathTemplatedEndpoint() = default;
-      PathTemplatedEndpoint(const PathTemplatedEndpoint& pte) = default;
       PathTemplatedEndpoint(const Endpoint& e) : Endpoint(e) {}
 
       std::regex template_regex;
