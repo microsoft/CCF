@@ -1681,9 +1681,6 @@ namespace aft
 
     Index get_commit_watermark_idx()
     {
-      // Check if we are using BFT consensus and we have at any point at least 3
-      // nodes in the network. The requirement for 3 nodes ensures that we can
-      // start a new network which in the beginning will only start with 1 node.
       if (consensus_type == ConsensusType::BFT)
       {
         return state->bft_watermark_idx;
