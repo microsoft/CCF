@@ -65,6 +65,27 @@ namespace asynchost
     return std::stol(file_name.substr(pos + 1));
   }
 
+  std::optional<std::string> get_file_name_with_idx(
+    const std::string& dir, size_t idx)
+  {
+    std::optional<std::string> match = std::nullopt;
+    for (auto const& f : fs::directory_iterator(dir))
+    {
+      // If any file, based on its name, contains idx. Only committed files
+      // (i.e. those with a last idx) are considered here.
+      auto f_name = f.path().filename();
+      auto start_idx = get_start_idx_from_file_name(f_name);
+      auto last_idx = get_last_idx_from_file_name(f_name);
+      if (idx >= start_idx && last_idx.has_value() && idx <= last_idx.value())
+      {
+        match = f_name;
+        break;
+      }
+    }
+
+    return match;
+  }
+
   class LedgerFile
   {
   private:
@@ -510,41 +531,19 @@ namespace asynchost
       }
 
       // If the file is not in the cache, find the file from the ledger
-      // directory
+      // directories, inspecting the main ledger directory first
       std::string ledger_dir_;
-      std::optional<std::string> match = std::nullopt;
-      for (auto const& f : fs::directory_iterator(ledger_dir))
+      auto match = get_file_name_with_idx(ledger_dir, idx);
+      if (match.has_value())
       {
-        // If any file, based on its name, contains idx. Only committed files
-        // (i.e. those with a last idx) are considered here.
-        auto f_name = f.path().filename();
-        auto start_idx = get_start_idx_from_file_name(f_name);
-        auto last_idx = get_last_idx_from_file_name(f_name);
-        if (last_idx.has_value() && idx <= last_idx.value() && idx >= start_idx)
-        {
-          match = f_name;
-          ledger_dir_ = ledger_dir;
-          break;
-        }
+        ledger_dir_ = ledger_dir;
       }
-
-      // Read from read directory if file doesn't exist in main directory
-      if (read_ledger_dir.has_value())
+      else if (read_ledger_dir.has_value())
       {
-        for (auto const& f : fs::directory_iterator(read_ledger_dir.value()))
+        match = get_file_name_with_idx(read_ledger_dir.value(), idx);
+        if (match.has_value())
         {
-          // If any file, based on its name, contains idx. Only committed files
-          // (i.e. those with a last idx) are considered here.
-          auto f_name = f.path().filename();
-          auto start_idx = get_start_idx_from_file_name(f_name);
-          auto last_idx = get_last_idx_from_file_name(f_name);
-          if (
-            last_idx.has_value() && idx <= last_idx.value() && idx >= start_idx)
-          {
-            match = f_name;
-            ledger_dir_ = read_ledger_dir.value();
-            break;
-          }
+          ledger_dir_ = read_ledger_dir.value();
         }
       }
 

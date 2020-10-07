@@ -778,7 +778,11 @@ TEST_CASE("Multiple ledger paths")
 
   INFO("Restore ledger with previous directory");
   {
-    asynchost::Ledger ledger(ledger_dir_2, wf, chunk_threshold, ledger_dir);
-    read_entries_range_from_ledger(ledger, 1, last_committed_idx);
+    asynchost::Ledger ledger(ledger_dir_2, wf, chunk_threshold, ledger_dir, 2);
+
+    for (size_t i = 1; i <= last_committed_idx; i++)
+    {
+      read_entry_from_ledger(ledger, i);
+    }
   }
 }
