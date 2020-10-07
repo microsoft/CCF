@@ -1,26 +1,63 @@
-CCF documentation
+CCF Documentation
 =================
 
 .. image:: img/ccf.svg
-  :width: 250
+  :width: 330
   :align: right
 
-The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly available,
-and performant applications that focus on multi-party compute and data.
-CCF can enable high-scale, confidential networks that meet key enterprise requirements
-— providing a means to accelerate production and enterprise adoption of consortium based blockchain and multi-party compute technology.
+Start Here
+----------
 
-Leveraging the power of trusted execution environments (TEEs), decentralized systems concepts, and cryptography, CCF enables enterprise-ready multiparty computation or blockchains.
+- :doc:`/concepts`
+- :doc:`/quickstart/install`
+- :doc:`Run a sample CCF application </quickstart/test_network>`
+- :doc:`Use CCF </users/index>`
+- :doc:`/quickstart/create_vm`
+- `What's new in the latest version of CCF? <https://github.com/microsoft/CCF/releases/latest>`_
+
+
+Build Applications
+------------------
+
+- :doc:`quickstart/build_setup`
+- :doc:`developers/js_app`
+- :doc:`developers/example`
+- :doc:`developers/build_app`
+- :doc:`developers/run_app`
+- :doc:`developers/api`
+
+CCF Roles
+---------
+
+- :doc:`operators/index`
+- :doc:`members/index`
+- :doc:`users/index`
+- :doc:`Offline Audit <audit/index>`
+
+More Concepts
+-------------
+
+- :doc:`design/constitution`
+- :doc:`design/consensus`
+- :doc:`design/cryptography`
+- :doc:`design/performance` and :doc:`design/threading`
+
+Contribute
+----------
+
+- :doc:`quickstart/contribute`
+- `Contribution Guidelines <https://github.com/microsoft/CCF/blob/master/.github/CONTRIBUTING.md>`_
+
 
 .. toctree::
     :maxdepth: 1
     :hidden:
+    :titlesonly:
 
     concepts
-    quickstart/index.rst
-    members/index.rst
     developers/index.rst
-    operators/index.rst
     users/index.rst
-
+    operators/index.rst
+    members/index.rst
+    audit/index.rst
     glossary

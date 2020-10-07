@@ -6,9 +6,9 @@ This sections assumes that a set of nodes has already been started by :term:`Ope
 Adding Users
 ------------
 
-Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to :term:`Users`. First, :ref:`the identities of trusted users should be generated <users/index:Using Apps>`.
+Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to :term:`Users`. First, :doc:`the identities of trusted users should be generated </users/index>`.
 
-Then, the certificates of trusted users should be registered in CCF via the member governance interface. For example, the first member may decide to make a proposal to add a new user (here, ``user_cert`` is the PEM certificate of the user -- see :ref:`developers/cryptography:Cryptography` for a list of supported algorithms):
+Then, the certificates of trusted users should be registered in CCF via the member governance interface. For example, the first member may decide to make a proposal to add a new user (here, ``user_cert`` is the PEM certificate of the user -- see :ref:`design/cryptography:Cryptography` for a list of supported algorithms):
 
 .. code-block:: bash
 
@@ -86,7 +86,7 @@ Members configure this permission with ``set_user_data`` proposals:
 
 .. code-block:: bash
 
-    $ cat set_user_data_proposal.json 
+    $ cat set_user_data_proposal.json
     {
         "script": {
             "text": "tables, args = ...; return Calls:call(\"set_user_data\", args)"
@@ -166,4 +166,4 @@ Once users are added to the opening network, members should create a proposal to
 
 Other members are then able to vote for the proposal using the returned proposal id (here ``10``).
 
-Once the proposal has received enough votes under the rules of the :term:`Constitution` (``"result":true``), the network is opened to users (see :ref:`developers/example:Example Application` for a simple business logic and transactions). It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).
+Once the proposal has received enough votes under the rules of the :term:`Constitution` (``"result":true``), the network is opened to users. It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).

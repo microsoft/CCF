@@ -1,7 +1,7 @@
 Python Client Tutorial
 ======================
 
-This tutorial describes how a Python client can securely issue requests to a running CCF network. It is assumed that the CCF network has already been started (e.g. after having :ref:`deployed a test network <users/deploy_app:Deploying an Application>`).
+This tutorial describes how a Python client can securely issue requests to a running CCF network. It is assumed that the CCF network has already been started (e.g. after having :ref:`deployed a test network <quickstart/test_network:Starting a Test Network>`).
 
 .. note:: See :ref:`Python Client API <users/python_api:Python Client API>` for the complete API specification.
 
@@ -26,7 +26,7 @@ Set the following CCF node variables:
     port = <node-port>              # Node port (int)
     ca = "<path/to/network/cert>"   # Network certificate path
 
-.. note:: :ref:`When deploying a test network <users/deploy_app:Deploying an Application>`, use any node's IP address and port number. All certificates and keys can be found in the associated ``common_dir`` folder.
+.. note:: :ref:`When starting a test network <quickstart/test_network:Starting a Test Network>`, use any node's IP address and port number. All certificates and keys can be found in the associated ``common_dir`` folder.
 
 Create a new :py:class:`ccf.clients.CCFClient` instance which will create a secure TLS connection to the target node part of the network specified via ``ca``:
 
@@ -85,3 +85,5 @@ Finally, the authenticated client can be used to issue ``GET`` requests and veri
     :language: py
     :start-after: SNIPPET_START: authenticated_get_requests
     :end-before: SNIPPET_END: authenticated_get_requests
+
+.. note:: The CCF Python client module uses `Python Requests <https://requests.readthedocs.io/en/master/>`_ by default, but can be switched to a ``curl``-based client (printing each command to stdout) by running with the environment variable ``CURL_CLIENT`` set.
