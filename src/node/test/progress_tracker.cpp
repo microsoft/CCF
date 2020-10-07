@@ -35,7 +35,7 @@ void run_ordered_execution(uint32_t my_node_id)
     std::make_unique<ccf::ProgressTracker>(std::move(store), my_node_id);
 
   kv::Consensus::View view = 0;
-  kv::Consensus::SeqNo seqno = 0;
+  kv::Consensus::SeqNo seqno = 42;
   uint32_t node_count = 4;
   uint32_t node_count_quorum =
     2; // Takes into account that counting starts at 0
@@ -110,6 +110,15 @@ void run_ordered_execution(uint32_t my_node_id)
       else
       {
         pt->add_nonce_reveal({view, seqno}, nonce, i, node_count, true);
+      }
+
+      if (i < 2)
+      {
+        REQUIRE(pt->get_highest_commit_level() == 0);
+      }
+      else
+      {
+        REQUIRE(pt->get_highest_commit_level() == seqno);
       }
     }
   }

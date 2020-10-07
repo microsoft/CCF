@@ -86,6 +86,7 @@ namespace aft
     RequestsMap& bft_requests_map;
     std::shared_ptr<aft::State> state;
     std::shared_ptr<Executor> executor;
+    static constexpr size_t min_bft_node_count = 3;
 
     // Timeouts
     std::chrono::milliseconds request_timeout;
@@ -1136,6 +1137,8 @@ namespace aft
         r.idx);
       progress_tracker->add_nonce_reveal(
         {r.term, r.idx}, r.nonce, r.from_node, node_count(), is_leader());
+
+      update_commit();
     }
 
     void recv_append_entries_response(const uint8_t* data, size_t size)
@@ -1534,34 +1537,49 @@ namespace aft
       // commit to that idx.
       auto new_commit_idx = std::numeric_limits<Index>::max();
 
-      for (auto& c : configurations)
+      // Check if we are using BFT consensus and we have at any point at least 3
+      // nodes in the network. The requirement for 3 nodes ensures that we can
+      // start a new network which in the beginning will only start with 1 node.
+      if (
+        consensus_type == ConsensusType::BFT &&
+        (node_count() >= min_bft_node_count ||
+         state->should_start_using_byz_commit))
       {
-        // The majority must be checked separately for each active
-        // configuration.
-        std::vector<Index> match;
-        match.reserve(c.nodes.size() + 1);
-
-        for (auto node : c.nodes)
+        auto progress_tracker = store->get_progress_tracker();
+        CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
+        new_commit_idx = progress_tracker->get_highest_commit_level();
+        state->should_start_using_byz_commit = true;
+      }
+      else
+      {
+        for (auto& c : configurations)
         {
-          if (node.first == state->my_node_id)
-          {
-            match.push_back(state->last_idx);
-          }
-          else
-          {
-            match.push_back(nodes.at(node.first).match_idx);
-          }
-        }
+          // The majority must be checked separately for each active
+          // configuration.
+          std::vector<Index> match;
+          match.reserve(c.nodes.size() + 1);
 
-        sort(match.begin(), match.end());
-        auto confirmed = match.at((match.size() - 1) / 2);
+          for (auto node : c.nodes)
+          {
+            if (node.first == state->my_node_id)
+            {
+              match.push_back(state->last_idx);
+            }
+            else
+            {
+              match.push_back(nodes.at(node.first).match_idx);
+            }
+          }
 
-        if (confirmed < new_commit_idx)
-        {
-          new_commit_idx = confirmed;
+          sort(match.begin(), match.end());
+          auto confirmed = match.at((match.size() - 1) / 2);
+
+          if (confirmed < new_commit_idx)
+          {
+            new_commit_idx = confirmed;
+          }
         }
       }
-
       LOG_DEBUG_FMT(
         "In update_commit, new_commit_idx: {}, last_idx: {}",
         new_commit_idx,

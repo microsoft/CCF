@@ -505,9 +505,32 @@ namespace ccf
       return hash;
     }
 
+    kv::Consensus::SeqNo get_highest_commit_level()
+    {
+      auto it = certificates.find(highest_commit_level);
+      if (it == certificates.end())
+      {
+        highest_commit_level = {0, 0};
+        it = certificates.begin();
+      }
+
+      for (; it != certificates.end(); ++it)
+      {
+        CommitCert& cert = it->second;
+        if (cert.nonces_committed_to_ledger == false)
+        {
+          break;
+        }
+        highest_commit_level = it->first.tx_id;
+      }
+
+      return highest_commit_level.version;
+    }
+
   private:
     kv::NodeId id;
     std::shared_ptr<tls::Entropy> entropy;
+    kv::TxID highest_commit_level = {0, 0};
 
     std::map<CertKey, CommitCert> certificates;
 
