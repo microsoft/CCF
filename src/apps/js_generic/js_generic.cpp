@@ -169,7 +169,8 @@ namespace ccfapp
     buf_null_terminated[buf_size] = 0;
     buf_null_terminated.assign(buf, buf + buf_size);
 
-    JSValue obj = JS_ParseJSON(ctx, (char*)buf_null_terminated.data(), buf_size, "<json>");
+    JSValue obj =
+      JS_ParseJSON(ctx, (char*)buf_null_terminated.data(), buf_size, "<json>");
 
     if (JS_IsException(obj))
       js_dump_error(ctx);
@@ -270,7 +271,8 @@ namespace ccfapp
 
     // This follows the interface of Map:
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
-    // Keys and values are ArrayBuffers. Keys are matched based on their contents.
+    // Keys and values are ArrayBuffers. Keys are matched based on their
+    // contents.
     auto view_val = JS_NewObjectClass(ctx, kv_map_view_class_id);
     JS_SetOpaque(view_val, view);
 
