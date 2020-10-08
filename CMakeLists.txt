@@ -699,7 +699,7 @@ if(BUILD_TESTS)
       NAME governance_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
       CONSENSUS cft
-      ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
+      ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --initial-operator-count 1
     )
 
     add_e2e_test(

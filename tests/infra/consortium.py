@@ -37,9 +37,9 @@ class Consortium:
         # If a list of member IDs is passed in, generate fresh member identities.
         # Otherwise, recover the state of the consortium from the state of CCF.
         if member_ids is not None:
-            for m_id in member_ids:
+            for m_id, m_data in member_ids:
                 new_member = infra.member.Member(
-                    m_id, curve, common_dir, share_script, key_generator
+                    m_id, curve, common_dir, share_script, key_generator, m_data
                 )
                 self.members.append(new_member)
             self.recovery_threshold = len(self.members)
@@ -141,9 +141,14 @@ class Consortium:
         return new_member
 
     def get_members_info(self):
-        members_certs = [f"member{m.member_id}_cert.pem" for m in self.members]
-        members_enc_pub = [f"member{m.member_id}_enc_pubk.pem" for m in self.members]
-        return list(zip(members_certs, members_enc_pub))
+        info = []
+        for m in self.members:
+            i = (f"member{m.member_id}_cert.pem", f"member{m.member_id}_enc_pubk.pem")
+            md = f"member{m.member_id}_data.json"
+            if os.path.exists(os.path.join(self.common_dir, md)):
+                i = i + (md,)
+            info.append(i)
+        return info
 
     def get_active_members(self):
         return [member for member in self.members if member.is_active()]

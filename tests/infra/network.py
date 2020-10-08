@@ -325,7 +325,14 @@ class Network:
 
         self._setup_common_folder(args.gov_script)
 
-        initial_member_ids = list(range(max(1, args.initial_member_count)))
+        mc = max(1, args.initial_member_count)
+        initial_member_ids = [(i, None) for i in range(mc)]
+        initial_member_ids.extend(
+            (i, {"is_operator": True})
+            for i in range(mc, mc + args.initial_operator_count)
+        )
+        LOG.info(initial_member_ids)
+
         self.consortium = infra.consortium.Consortium(
             self.common_dir,
             self.key_generator,

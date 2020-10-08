@@ -97,7 +97,7 @@ namespace cli
         std::string chunk;
         std::vector<std::string> chunks;
 
-        while (std::getline(ss, chunk, '_'))
+        while (std::getline(ss, chunk, ','))
         {
           chunks.emplace_back(chunk);
         }
