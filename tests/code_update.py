@@ -143,7 +143,7 @@ def run(args):
             args.patched_file_name, "localhost", args
         )
         assert new_node
-        network.wait_for_node_commit_sync(args.consensus)
+        network.wait_for_node_commit_sync()
 
 
 if __name__ == "__main__":
