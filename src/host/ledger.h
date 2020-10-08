@@ -477,10 +477,10 @@ namespace asynchost
 
     ringbuffer::WriterPtr to_enclave;
 
-    // Ledger directory (rw)
+    // Main ledger directory (write and read)
     const std::string ledger_dir;
 
-    // Ledger directory (r)
+    // Ledger directories (read-only)
     std::vector<std::string> read_ledger_dirs;
 
     // Keep tracks of all ledger files for writing.
