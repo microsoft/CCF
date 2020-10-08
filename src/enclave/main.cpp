@@ -99,6 +99,18 @@ extern "C"
         return false;
       }
 
+      if (!oe_is_outside_enclave(
+            ec.to_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
+      {
+        return false;
+      }
+
+      if (!oe_is_outside_enclave(
+            ec.from_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
+      {
+        return false;
+      }
+
       oe_lfence();
     }
 
