@@ -69,7 +69,7 @@ Each function is installed as the handler for a specific HTTP resource, defined 
 
 This example installs at ``"log/private", HTTP_POST``, so will be invoked for HTTP requests beginning ``POST /app/log/private``.
 
-The return value from ``make_endpoint`` is an ``Endpoint&`` object which can be used to alter how the handler is executed. For example, the handler for ``/log/private`` shown above sets a `schema` declaring the types of its request and response bodies. These will be used in calls to the ``/api/schema`` endpoint to generate JSON documents describing the API. There are other endpoints installed for the URI path ``/log/private`` with different verbs, to handle ``GET`` and ``DELETE`` requests. Any other verbs, without an installed endpoint, will not be accepted - the framework will return a ``405 Method Not Allowed`` response.
+The return value from ``make_endpoint`` is an ``Endpoint&`` object which can be used to alter how the handler is executed. For example, the handler for ``/log/private`` shown above sets a `schema` declaring the types of its request and response bodies. These will be used in calls to the ``/api`` endpoint to populate the relevant parts of the OpenAPI document. There are other endpoints installed for the URI path ``/log/private`` with different verbs, to handle ``GET`` and ``DELETE`` requests. Any other verbs, without an installed endpoint, will not be accepted - the framework will return a ``405 Method Not Allowed`` response.
 
 To process the raw body directly, a handler should use the general lambda signature which takes a single ``EndpointContext&`` parameter. Examples of this are also included in the logging sample app. For instance the ``log_record_text`` handler takes a raw string as the request body:
 
