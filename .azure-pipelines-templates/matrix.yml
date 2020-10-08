@@ -29,11 +29,11 @@ parameters:
 
   test:
     NoSGX:
-      ctest_args: '-L "bft" --repeat-until-fail 50'
+      ctest_args: '-LE "benchmark|perf|tlstest"'
     SGX:
-      ctest_args: '-L "bft" --repeat-until-fail 50'
+      ctest_args: '-LE "benchmark|perf|tlstest"'
     perf:
-      ctest_args: '-L "bft" --repeat-until-fail 50'
+      ctest_args: '-L "benchmark|perf"'
 
 jobs:
   - template: checks.yml
