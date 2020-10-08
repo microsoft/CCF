@@ -149,7 +149,9 @@ namespace ccfapp
       return str;
     }
 
-    return js_str_to_buf(ctx, JS_NULL, 1, &str);
+    JSValue buf = js_str_to_buf(ctx, JS_NULL, 1, &str);
+    JS_FreeValue(ctx, str);
+    return buf;
   }
 
   static JSValue js_buf_to_json_compatible(
