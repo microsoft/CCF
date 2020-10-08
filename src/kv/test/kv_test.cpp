@@ -22,6 +22,33 @@ struct MapTypes
   using StringNum = kv::Map<std::string, size_t>;
 };
 
+TEST_CASE("Map name parsing")
+{
+  using SD = kv::SecurityDomain;
+  using AC = kv::AccessCategory;
+
+  auto parse = kv::parse_map_name;
+  auto mp = std::make_pair<SD, AC>;
+
+  REQUIRE(parse("foo") == mp(SD::PRIVATE, AC::APPLICATION));
+  REQUIRE(parse("public:foo") == mp(SD::PUBLIC, AC::APPLICATION));
+  REQUIRE(parse("ccf.gov.foo") == mp(SD::PRIVATE, AC::GOVERNANCE));
+  REQUIRE(parse("public:ccf.gov.foo") == mp(SD::PUBLIC, AC::GOVERNANCE));
+  REQUIRE(parse("ccf.internal.foo") == mp(SD::PRIVATE, AC::INTERNAL));
+  REQUIRE(parse("public:ccf.internal.foo") == mp(SD::PUBLIC, AC::INTERNAL));
+
+  REQUIRE_THROWS(parse("ccf.foo"));
+  REQUIRE_THROWS(parse("public:ccf.foo"));
+
+  // Typos may lead to unexpected behaviour!
+  REQUIRE(parse("publik:ccf.gov.foo") == mp(SD::PRIVATE, AC::APPLICATION));
+  REQUIRE(parse("PUBLIC:ccf.gov.foo") == mp(SD::PRIVATE, AC::APPLICATION));
+  REQUIRE(parse("public:Ccf.gov.foo") == mp(SD::PUBLIC, AC::APPLICATION));
+
+  REQUIRE(parse("ccf_foo") == mp(SD::PRIVATE, AC::APPLICATION));
+  REQUIRE(parse("public:ccf_foo") == mp(SD::PUBLIC, AC::APPLICATION));
+}
+
 TEST_CASE("Map creation")
 {
   kv::Store kv_store;
