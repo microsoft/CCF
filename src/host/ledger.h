@@ -22,9 +22,8 @@ namespace fs = std::filesystem;
 
 namespace asynchost
 {
-  static constexpr size_t max_chunk_threshold_size =
-    std::numeric_limits<uint32_t>::max(); // 4GB
-  static constexpr size_t max_read_cache_files_default = 5;
+  static constexpr size_t ledger_max_read_cache_files_default = 5;
+
   static constexpr auto ledger_committed_suffix = "committed";
   static constexpr auto ledger_start_idx_delimiter = "_";
   static constexpr auto ledger_last_idx_delimiter = "-";
@@ -473,13 +472,16 @@ namespace asynchost
   class Ledger
   {
   private:
+    static constexpr size_t max_chunk_threshold_size =
+      std::numeric_limits<uint32_t>::max(); // 4GB
+
     ringbuffer::WriterPtr to_enclave;
 
     // Ledger directory (rw)
     const std::string ledger_dir;
 
     // Ledger directory (r)
-    const std::optional<std::string> read_ledger_dir = std::nullopt;
+    std::vector<std::string> read_ledger_dirs;
 
     // Keep tracks of all ledger files for writing.
     // Current ledger file is always the last one
@@ -538,12 +540,15 @@ namespace asynchost
       {
         ledger_dir_ = ledger_dir;
       }
-      else if (read_ledger_dir.has_value())
+
+      for (auto const& dir : read_ledger_dirs)
       {
-        match = get_file_name_with_idx(read_ledger_dir.value(), idx);
+        match = get_file_name_with_idx(dir, idx);
         if (match.has_value())
         {
-          ledger_dir_ = read_ledger_dir.value();
+          LOG_FAIL_FMT("Match in {}", dir);
+          ledger_dir_ = dir;
+          break;
         }
       }
 
@@ -558,6 +563,8 @@ namespace asynchost
         std::make_shared<LedgerFile>(ledger_dir_, match.value());
       if (files_read_cache.size() >= max_read_cache_files)
       {
+        LOG_FAIL_FMT(
+          "Erasing cache in {}", (*files_read_cache.begin())->get_file_name());
         files_read_cache.erase(files_read_cache.begin());
       }
       files_read_cache.emplace_back(match_file);
@@ -604,13 +611,13 @@ namespace asynchost
       const std::string& ledger_dir,
       ringbuffer::AbstractWriterFactory& writer_factory,
       size_t chunk_threshold,
-      std::optional<std::string> read_ledger_dir = std::nullopt,
-      size_t max_read_cache_files = max_read_cache_files_default) :
+      size_t max_read_cache_files = ledger_max_read_cache_files_default,
+      std::vector<std::string> read_ledger_dirs = {}) :
       to_enclave(writer_factory.create_writer_to_inside()),
       ledger_dir(ledger_dir),
+      read_ledger_dirs(read_ledger_dirs),
       max_read_cache_files(max_read_cache_files),
-      chunk_threshold(chunk_threshold),
-      read_ledger_dir(read_ledger_dir)
+      chunk_threshold(chunk_threshold)
     {
       if (chunk_threshold == 0 || chunk_threshold > max_chunk_threshold_size)
       {
