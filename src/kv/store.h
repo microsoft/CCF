@@ -198,21 +198,21 @@ namespace kv
     }
 
     template <class K, class V>
-    CCF_DEPRECATED("SecurityDomain should not be passed explicitly, but encoded in the map's name. 'public:' prefix indicated a PUBLIC table, all others are PRIVATE")
-    Map<K, V>&
-    create(
-      const std::string& name,
-      SecurityDomain security_domain)
+    CCF_DEPRECATED(
+      "SecurityDomain should not be passed explicitly, but encoded in the "
+      "map's name. 'public:' prefix indicated a PUBLIC table, all others are "
+      "PRIVATE")
+    Map<K, V>& create(const std::string& name, SecurityDomain security_domain)
     {
       return create<Map<K, V>>(name, security_domain);
     }
 
     template <class M>
-    CCF_DEPRECATED("SecurityDomain should not be passed explicitly, but encoded in the map's name. 'public:' prefix indicated a PUBLIC table, all others are PRIVATE")
-    M&
-    create(
-      const std::string& name,
-      SecurityDomain security_domain)
+    CCF_DEPRECATED(
+      "SecurityDomain should not be passed explicitly, but encoded in the "
+      "map's name. 'public:' prefix indicated a PUBLIC table, all others are "
+      "PRIVATE")
+    M& create(const std::string& name, SecurityDomain security_domain)
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
@@ -222,7 +222,10 @@ namespace kv
       const auto [sec_dom, acc_cat] = kv::parse_map_name(name);
       if (sec_dom != security_domain)
       {
-        throw std::logic_error(fmt::format("Map '{}' cannot be created with the requested SecurityDomain (public maps must begin with public: prefix)", name));
+        throw std::logic_error(fmt::format(
+          "Map '{}' cannot be created with the requested SecurityDomain "
+          "(public maps must begin with public: prefix)",
+          name));
       }
 
       auto result = std::make_shared<M>(
@@ -241,8 +244,7 @@ namespace kv
      * @return Newly created Map
      */
     template <class K, class V>
-    Map<K, V>& create(
-      const std::string& name)
+    Map<K, V>& create(const std::string& name)
     {
       return create<Map<K, V>>(name);
     }
@@ -257,8 +259,7 @@ namespace kv
      * @return Newly created Map
      */
     template <class M>
-    M& create(
-      const std::string& name)
+    M& create(const std::string& name)
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
