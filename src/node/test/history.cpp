@@ -63,17 +63,15 @@ TEST_CASE("Check signature verification")
   kv::Store primary_store;
 
   primary_store.set_encryptor(encryptor);
-  auto& primary_nodes = primary_store.create<ccf::Nodes>(
-    ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& primary_signatures = primary_store.create<ccf::Signatures>(
-    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
+  auto& primary_nodes = primary_store.create<ccf::Nodes>(ccf::Tables::NODES);
+  auto& primary_signatures =
+    primary_store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
 
   kv::Store backup_store;
   backup_store.set_encryptor(encryptor);
-  auto& backup_nodes = backup_store.create<ccf::Nodes>(
-    ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& backup_signatures = backup_store.create<ccf::Signatures>(
-    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
+  auto& backup_nodes = backup_store.create<ccf::Nodes>(ccf::Tables::NODES);
+  auto& backup_signatures =
+    backup_store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
 
   auto kp = tls::make_key_pair();
 
@@ -126,17 +124,15 @@ TEST_CASE("Check signing works across rollback")
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv::Store primary_store;
   primary_store.set_encryptor(encryptor);
-  auto& primary_nodes = primary_store.create<ccf::Nodes>(
-    ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& primary_signatures = primary_store.create<ccf::Signatures>(
-    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
+  auto& primary_nodes = primary_store.create<ccf::Nodes>(ccf::Tables::NODES);
+  auto& primary_signatures =
+    primary_store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
 
   kv::Store backup_store;
   backup_store.set_encryptor(encryptor);
-  auto& backup_nodes = backup_store.create<ccf::Nodes>(
-    ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& backup_signatures = backup_store.create<ccf::Signatures>(
-    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
+  auto& backup_nodes = backup_store.create<ccf::Nodes>(ccf::Tables::NODES);
+  auto& backup_signatures =
+    backup_store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
 
   auto kp = tls::make_key_pair();
 
@@ -260,10 +256,8 @@ TEST_CASE(
     std::make_shared<CompactingConsensus>(&store);
   store.set_consensus(consensus);
 
-  auto& table =
-    store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
-  auto& other_table =
-    store.create<size_t, size_t>("other_table", kv::SecurityDomain::PUBLIC);
+  auto& table = store.create<size_t, size_t>("public:table");
+  auto& other_table = store.create<size_t, size_t>("public:other_table");
 
   INFO("Write first tx");
   {
@@ -371,8 +365,7 @@ TEST_CASE(
     std::make_shared<RollbackConsensus>(&store, 2, 2);
   store.set_consensus(consensus);
 
-  auto& table =
-    store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
+  auto& table = store.create<size_t, size_t>("public:table");
 
   INFO("Write first tx");
   {
@@ -410,8 +403,7 @@ TEST_CASE(
     std::make_shared<RollbackConsensus>(&store, 2, 1);
   store.set_consensus(consensus);
 
-  auto& table =
-    store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
+  auto& table = store.create<size_t, size_t>("public:table");
 
   INFO("Write first tx");
   {

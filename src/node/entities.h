@@ -89,11 +89,11 @@ namespace ccf
       "public:ccf.gov.snapshot_evidence";
     static constexpr auto CA_CERT_DERS = "public:ccf.gov.ca_cert_ders";
 
-    static constexpr auto SIGNATURES = "public:ccf.gov.signatures";
+    static constexpr auto SIGNATURES = "public:ccf.internal.signatures";
 
     static constexpr auto BACKUP_SIGNATURES =
-      "public:ccf.gov.backup_signatures";
-    static constexpr auto NONCES = "public:ccf.gov.nonces";
+      "public:ccf.internal.backup_signatures";
+    static constexpr auto NONCES = "public:ccf.internal.nonces";
 
     // Consensus specific tables
     static constexpr auto AFT_REQUESTS = "public:ccf.gov.aft.requests";

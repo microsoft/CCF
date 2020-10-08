@@ -35,10 +35,8 @@ namespace loggingapp
     LoggerHandlers(
       ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(nwt),
-      records(
-        nwt.tables->create<Table>("records", kv::SecurityDomain::PRIVATE)),
-      public_records(nwt.tables->create<Table>(
-        "public_records", kv::SecurityDomain::PUBLIC)),
+      records(nwt.tables->create<Table>("records")),
+      public_records(nwt.tables->create<Table>("public:records")),
       // SNIPPET_END: constructor
       record_public_params_schema(nlohmann::json::parse(j_record_public_in)),
       record_public_result_schema(nlohmann::json::parse(j_record_public_out)),
