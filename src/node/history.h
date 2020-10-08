@@ -475,6 +475,9 @@ namespace ccf
     std::optional<ResponseCallbackHandler> on_response;
 
     threading::Task::TimerEntry emit_signature_timer_entry;
+    
+    size_t sig_tx_interval;
+    size_t sig_ms_interval;
 
     void discard_pending(kv::Version v)
     {
@@ -498,12 +501,17 @@ namespace ccf
       NodeId id_,
       tls::KeyPair& kp_,
       Signatures& sig_,
-      Nodes& nodes_) :
+      Nodes& nodes_,
+    size_t sig_tx_interval_ = 0,
+    size_t sig_ms_interval_ = 0
+      ) :
       store(store_),
       id(id_),
       kp(kp_),
       signatures(sig_),
-      nodes(nodes_)
+      nodes(nodes_),
+      sig_tx_interval(sig_tx_interval_),
+      sig_ms_interval(sig_ms_interval_)
     {}
 
     void start_signature_emit_timer(std::shared_ptr<HashedTxHistory<T>> self)
