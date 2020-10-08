@@ -22,18 +22,17 @@ from loguru import logger as LOG
 @reqs.supports_methods("log/private", "log/public")
 @reqs.at_least_n_nodes(2)
 def test(network, args, verify=True):
-    txs = app.LoggingTxs()
-    txs.issue(
+    network.txs.issue(
         network=network,
         number_txs=1,
     )
-    txs.issue(
+    network.txs.issue(
         network=network,
         number_txs=1,
         on_backup=True,
     )
     if verify:
-        txs.verify(network)
+        network.txs.verify(network)
     else:
         LOG.warning("Skipping log messages verification")
 
@@ -61,18 +60,17 @@ def test_illegal(network, args, verify=True):
     rv = conn.recv(1024)
     assert rv == b"", rv
     # Valid transactions are still accepted
-    txs = app.LoggingTxs()
-    txs.issue(
+    network.txs.issue(
         network=network,
         number_txs=1,
     )
-    txs.issue(
+    network.txs.issue(
         network=network,
         number_txs=1,
         on_backup=True,
     )
     if verify:
-        txs.verify(network)
+        network.txs.verify(network)
     else:
         LOG.warning("Skipping log messages verification")
 
@@ -629,12 +627,9 @@ def test_primary(network, args):
 def run(args):
     hosts = ["localhost"] * (3 if args.consensus == "bft" else 2)
 
+    txs = app.LoggingTxs()
     with infra.network.network(
-        hosts,
-        args.binary_dir,
-        args.debug_nodes,
-        args.perf_nodes,
-        pdb=args.pdb,
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb, txs=txs
     ) as network:
         network.start_and_join(args)
         network = test(
