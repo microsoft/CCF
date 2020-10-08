@@ -451,7 +451,7 @@ namespace ccf
       sig.nonce = nonce;
       cert.nonce_set.insert(node_id);
 
-      if (is_primary && should_append_nonces_to_ledger(cert, node_count))
+      if (should_append_nonces_to_ledger(cert, node_count, is_primary))
       {
         aft::RevealedNonces revealed_nonces(tx_id);
 
@@ -505,9 +505,32 @@ namespace ccf
       return hash;
     }
 
+    kv::Consensus::SeqNo get_highest_committed_nonce()
+    {
+      auto it = certificates.find(highest_commit_level);
+      if (it == certificates.end())
+      {
+        highest_commit_level = {0, 0};
+        it = certificates.begin();
+      }
+
+      for (; it != certificates.end(); ++it)
+      {
+        CommitCert& cert = it->second;
+        if (cert.nonces_committed_to_ledger == false)
+        {
+          break;
+        }
+        highest_commit_level = it->first.tx_id;
+      }
+
+      return highest_commit_level.version;
+    }
+
   private:
     kv::NodeId id;
     std::shared_ptr<tls::Entropy> entropy;
+    kv::TxID highest_commit_level = {0, 0};
 
     std::map<CertKey, CommitCert> certificates;
 
@@ -594,7 +617,8 @@ namespace ccf
       return false;
     }
 
-    bool should_append_nonces_to_ledger(CommitCert& cert, uint32_t node_count)
+    bool should_append_nonces_to_ledger(
+      CommitCert& cert, uint32_t node_count, bool is_primary)
     {
       if (
         cert.nonce_set.size() >= get_message_threshold(node_count) &&
@@ -602,7 +626,7 @@ namespace ccf
         !cert.nonces_committed_to_ledger)
       {
         cert.nonces_committed_to_ledger = true;
-        return true;
+        return is_primary;
       }
       return false;
     }

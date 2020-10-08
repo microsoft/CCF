@@ -15,7 +15,10 @@ using WFactory = ringbuffer::WriterFactory;
 
 TEST_CASE("Enclave put")
 {
-  ringbuffer::Circuit eio(1024);
+  constexpr auto buffer_size = 1024;
+  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
   std::unique_ptr<WFactory> writer_factory = std::make_unique<WFactory>(eio);
 
   auto enclave = LedgerEnclave(*writer_factory);
@@ -48,11 +51,22 @@ TEST_CASE("Enclave put")
 
 TEST_CASE("Enclave record")
 {
-  ringbuffer::Circuit eio_leader(1024);
+  constexpr auto buffer_size_leader = 1024;
+  auto in_buffer_leader =
+    std::make_unique<ringbuffer::TestBuffer>(buffer_size_leader);
+  auto out_buffer_leader =
+    std::make_unique<ringbuffer::TestBuffer>(buffer_size_leader);
+  ringbuffer::Circuit eio_leader(in_buffer_leader->bd, out_buffer_leader->bd);
   std::unique_ptr<WFactory> writer_factory_leader =
     std::make_unique<WFactory>(eio_leader);
 
-  ringbuffer::Circuit eio_follower(1024);
+  constexpr auto buffer_size_follower = 1024;
+  auto in_buffer_follower =
+    std::make_unique<ringbuffer::TestBuffer>(buffer_size_follower);
+  auto out_buffer_follower =
+    std::make_unique<ringbuffer::TestBuffer>(buffer_size_follower);
+  ringbuffer::Circuit eio_follower(
+    in_buffer_follower->bd, out_buffer_follower->bd);
   std::unique_ptr<WFactory> writer_factory_follower =
     std::make_unique<WFactory>(eio_follower);
 
