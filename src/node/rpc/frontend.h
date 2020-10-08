@@ -419,8 +419,9 @@ namespace ccf
                   history && consensus->is_primary() &&
                   (cv % sig_tx_interval == sig_tx_interval / 2))
                 {
-                  history->emit_signature();
+                  //history->emit_signature();
                 }
+                  history->try_emit_signature(cv);
               }
 
               update_metrics(ctx, endpoint->metrics);
@@ -722,6 +723,7 @@ namespace ccf
       // reset tx_counter for next tick interval
       tx_count = 0;
 
+      /*
       if ((consensus != nullptr) && consensus->is_primary())
       {
         if (elapsed < ms_to_sig)
@@ -733,9 +735,10 @@ namespace ccf
         ms_to_sig = sig_ms_interval;
         if (history && tables.commit_gap() > 0)
         {
-          history->emit_signature();
+          //history->emit_signature();
         }
       }
+      */
     }
 
     // Return false if frontend believes it should be able to look up caller

@@ -5,6 +5,7 @@
 #include "crypto/hash.h"
 #include "ds/dl_list.h"
 #include "ds/logger.h"
+#include "ds/thread_messaging.h"
 #include "entities.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
@@ -147,6 +148,11 @@ namespace ccf
           return sig.commit_reserved();
         },
         true);
+    }
+    
+    void try_emit_signature(kv::Version) override
+    {
+        emit_signature();
     }
 
     bool add_request(
@@ -468,6 +474,8 @@ namespace ccf
     std::optional<ResultCallbackHandler> on_result;
     std::optional<ResponseCallbackHandler> on_response;
 
+    threading::Task::TimerEntry emit_signature_timer_entry;
+
     void discard_pending(kv::Version v)
     {
       std::lock_guard<SpinLock> vguard(version_lock);
@@ -497,6 +505,71 @@ namespace ccf
       signatures(sig_),
       nodes(nodes_)
     {}
+
+    void start_signature_emit_timer(std::shared_ptr<HashedTxHistory<T>> self)
+    {
+      struct EmitSigMsg
+      {
+        EmitSigMsg(std::shared_ptr<HashedTxHistory<T>> self_) : self(self_) {}
+        std::shared_ptr<HashedTxHistory<T>> self;
+      };
+
+      auto emit_sig_msg = std::make_unique<threading::Tmsg<EmitSigMsg>>(
+        [](std::unique_ptr<threading::Tmsg<EmitSigMsg>> msg) {
+          auto& self = msg->data.self;
+
+          threading::Task::TimerEntry& timer_entry =
+            self->emit_signature_timer_entry;
+
+          auto time = threading::ThreadMessaging::thread_messaging
+                        .get_current_time_offset();
+
+          LOG_INFO_FMT(
+            "AAAAAAA - time based signature, commit_gap:{}, time:{}, "
+            "last_signature:{}",
+            self->store.commit_gap(),
+            time.count(),
+            self->time_of_last_signature.load().count());
+
+          auto consensus = self->store.get_consensus();
+          if (
+            (consensus != nullptr) && consensus->is_primary() &&
+            self->store.commit_gap() > 0 &&
+            time.count() > self->time_of_last_signature.load().count() &&
+            (time.count() - self->time_of_last_signature.load().count())
+                 > 200)
+          {
+            LOG_INFO_FMT("AAAAAAA - time based - calling emit_signature");
+            msg->data.self->emit_signature();
+          }
+
+          auto time_since_last_sig =
+            200 - (time - self->time_of_last_signature.load()).count();
+
+          if (time_since_last_sig <= 0)
+          {
+            time_since_last_sig = 200;
+          }
+
+          LOG_INFO_FMT("AAAAAAA - scheduling time:{}", time_since_last_sig);
+
+          timer_entry =
+            threading::ThreadMessaging::thread_messaging.add_task_after(
+              std::move(msg), std::chrono::milliseconds(time_since_last_sig));
+          //(200)));
+        },
+        self);
+
+      emit_signature_timer_entry =
+        threading::ThreadMessaging::thread_messaging.add_task_after(
+          std::move(emit_sig_msg), std::chrono::milliseconds(200));
+    }
+
+    ~HashedTxHistory()
+    {
+      threading::ThreadMessaging::thread_messaging.cancel_timer_task(
+        emit_signature_timer_entry);
+    }
 
     void register_on_result(ResultCallbackHandler func) override
     {
@@ -666,6 +739,17 @@ namespace ccf
       log_hash(replicated_state_tree.get_root(), COMPACT);
     }
 
+    std::atomic<kv::Version> last_signed_tx = 0;
+    std::atomic<std::chrono::milliseconds> time_of_last_signature;
+
+    void try_emit_signature(kv::Version commit_version) override
+    {
+      if (commit_version - last_signed_tx == 2000) // TODO: fix this
+      {
+        emit_signature();
+      }
+    }
+
     void emit_signature() override
     {
       // Signatures are only emitted when there is a consensus
@@ -686,8 +770,18 @@ namespace ccf
       auto commit_txid = signable_txid.value();
       auto txid = store.next_txid();
 
+
+      if (last_signed_tx == commit_txid.second)
+      {
+        //return;
+      }
+
+      last_signed_tx = commit_txid.second;
+      time_of_last_signature =
+        threading::ThreadMessaging::thread_messaging.get_current_time_offset();
+
       LOG_DEBUG_FMT(
-        "Signed at {} in view: {} commit was: {}.{}",
+        "AAAAAA Signed at {} in view: {} commit was: {}.{}",
         txid.version,
         txid.term,
         commit_txid.first,

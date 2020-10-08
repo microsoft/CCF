@@ -1720,12 +1720,14 @@ namespace ccf
     {
       // This function can be called once the node has started up and before
       // it has joined the service.
-      history = std::make_shared<MerkleTxHistory>(
+      auto tmp = std::make_shared<MerkleTxHistory>(
         *network.tables.get(),
         self,
         *node_sign_kp,
         network.signatures,
         network.nodes);
+      tmp->start_signature_emit_timer(tmp);
+      history = tmp;
 
       network.tables->set_history(history);
     }
