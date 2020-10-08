@@ -26,13 +26,11 @@ def test(network, args, verify=True):
     txs.issue(
         network=network,
         number_txs=1,
-        consensus=args.consensus,
     )
     txs.issue(
         network=network,
         number_txs=1,
         on_backup=True,
-        consensus=args.consensus,
     )
     if verify:
         txs.verify(network)
@@ -67,13 +65,11 @@ def test_illegal(network, args, verify=True):
     txs.issue(
         network=network,
         number_txs=1,
-        consensus=args.consensus,
     )
     txs.issue(
         network=network,
         number_txs=1,
         on_backup=True,
-        consensus=args.consensus,
     )
     if verify:
         txs.verify(network)
@@ -610,7 +606,7 @@ def test_tx_statuses(network, args):
 
 @reqs.description("Primary and redirection")
 @reqs.at_least_n_nodes(2)
-def test_primary(network, args, verify=True):
+def test_primary(network, args):
     LOG.error(network.nodes)
     primary, _ = network.find_primary()
     LOG.error(f"PRIMARY {primary.pubhost}")

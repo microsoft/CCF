@@ -70,7 +70,6 @@ def test_user(network, args, verify=True):
     txs.issue(
         network=network,
         number_txs=1,
-        consensus=args.consensus,
     )
     if verify:
         txs.verify(network)
@@ -82,7 +81,7 @@ def test_user(network, args, verify=True):
 
 
 @reqs.description("Add untrusted node, check no quote is returned")
-def test_no_quote(network, args, notifications_queue=None, verify=True):
+def test_no_quote(network, args):
     untrusted_node = network.create_and_add_pending_node(
         args.package, "localhost", args
     )
