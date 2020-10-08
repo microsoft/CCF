@@ -82,7 +82,7 @@ def test_user(network, args, verify=True):
 
 
 @reqs.description("Add untrusted node, check no quote is returned")
-def test_no_quote(network, args, notifications_queue=None, verify=True):
+def test_no_quote(network, args):
     untrusted_node = network.create_and_add_pending_node(
         args.package, "localhost", args
     )
@@ -93,6 +93,22 @@ def test_no_quote(network, args, notifications_queue=None, verify=True):
         assert r.status_code == http.HTTPStatus.NOT_FOUND
 
 
+@reqs.description("Check member data")
+def test_member_data(network, args):
+    primary, _ = network.find_nodes()
+    with primary.client("member0") as mc:
+
+        def member_info(mid):
+            return mc.post(
+                "/gov/read", {"table": "ccf.members", "key": mid}
+            ).body.json()
+
+        assert "member_data" not in member_info(0)
+        assert "member_data" not in member_info(1)
+        assert "member_data" not in member_info(2)
+        assert member_info(3)["member_data"] == {"is_operator": True}
+
+
 def run(args):
     hosts = ["localhost"] * (3 if args.consensus == "bft" else 2)
 
@@ -100,6 +116,7 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
+        network = test_member_data(network, args)
         network = test_quote(network, args)
         network = test_user(network, args)
         network = test_no_quote(network, args)
