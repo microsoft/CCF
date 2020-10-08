@@ -531,6 +531,7 @@ namespace ccf
 
           auto time = threading::ThreadMessaging::thread_messaging
                         .get_current_time_offset();
+          const int64_t sig_ms_interval = self->sig_ms_interval;
 
           LOG_INFO_FMT(
             "AAAAAAA - time based signature, commit_gap:{}, time:{}, "
@@ -545,18 +546,18 @@ namespace ccf
             self->store.commit_gap() > 0 &&
             time.count() > self->time_of_last_signature.load().count() &&
             (time.count() - self->time_of_last_signature.load().count())
-                 > 1000)
+                 > sig_ms_interval)
           {
             LOG_INFO_FMT("AAAAAAA - time based - calling emit_signature");
             msg->data.self->emit_signature();
           }
 
-          auto time_since_last_sig =
-            1000 - (time - self->time_of_last_signature.load()).count();
+          int64_t time_since_last_sig =
+            sig_ms_interval - (time - self->time_of_last_signature.load()).count();
 
           if (time_since_last_sig <= 0)
           {
-            time_since_last_sig = 1000;
+            time_since_last_sig = sig_ms_interval;
           }
 
           LOG_INFO_FMT("AAAAAAA - scheduling time:{}", time_since_last_sig);
@@ -564,7 +565,6 @@ namespace ccf
           timer_entry =
             threading::ThreadMessaging::thread_messaging.add_task_after(
               std::move(msg), std::chrono::milliseconds(time_since_last_sig));
-          //(200)));
         },
         self);
 
@@ -752,7 +752,7 @@ namespace ccf
 
     void try_emit_signature(kv::Version commit_version) override
     {
-      if (commit_version - last_signed_tx == 2000) // TODO: fix this
+      if ((commit_version - last_signed_tx) == sig_tx_interval / 2)
       {
         emit_signature();
       }
