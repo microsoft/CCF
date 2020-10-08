@@ -1105,7 +1105,8 @@ DOCTEST_TEST_CASE("Complete proposal after initial rejection")
   {
     DOCTEST_INFO("Propose");
     const auto proposal =
-      "return Calls:call('raw_puts', Puts:put('ccf.values', 999, 999))"s;
+      "return Calls:call('raw_puts', Puts:put('public:ccf.gov.values', 999, "
+      "999))"s;
     const auto propose =
       create_signed_request(Propose::In{proposal}, "proposals", kp);
 

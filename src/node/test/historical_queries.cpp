@@ -253,8 +253,8 @@ TEST_CASE("StateCache")
     REQUIRE(store_at_index != nullptr);
 
     {
-      auto& public_table = *store_at_index->get<NumToString>("public");
-      auto& private_table = *store_at_index->get<NumToString>("private");
+      auto& public_table = *store_at_index->get<NumToString>("public:data");
+      auto& private_table = *store_at_index->get<NumToString>("data");
 
       auto tx = store_at_index->create_tx();
       auto [public_view, private_view] =
