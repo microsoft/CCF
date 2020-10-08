@@ -74,7 +74,7 @@ def run(args):
                         else:
                             check_commit(r, result=lambda res: res is not None)
 
-                network.wait_for_node_commit_sync(args.consensus)
+                network.wait_for_node_commit_sync()
 
     if args.network_only:
         LOG.info("Keeping network alive with the following nodes:")
