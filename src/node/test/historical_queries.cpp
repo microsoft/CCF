@@ -169,8 +169,9 @@ TEST_CASE("StateCache")
     });
 
   constexpr size_t buffer_size = 1 << 12;
+  auto buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  ringbuffer::Reader rr(buffer->bd);
 
-  ringbuffer::Reader rr(buffer_size);
   auto rw = std::make_shared<ringbuffer::Writer>(rr);
   ccf::historical::StateCache cache(store, rw);
 

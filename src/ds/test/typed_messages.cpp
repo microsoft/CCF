@@ -32,7 +32,8 @@ TEST_CASE(
 {
   constexpr size_t buf_size = 1 << 8;
 
-  ringbuffer::Reader rr(buf_size);
+  auto buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
+  ringbuffer::Reader rr(buffer->bd);
 
   constexpr auto fragment_max = buf_size / 8;
   constexpr auto total_max = buf_size / 3;
