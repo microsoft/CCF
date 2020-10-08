@@ -807,33 +807,6 @@ namespace ccfapp
         return true;
       });
     }
-
-    nlohmann::json get_endpoint_schema(
-      kv::Tx& tx, const GetSchema::In& in) override
-    {
-      auto j = UserEndpointRegistry::get_endpoint_schema(tx, in);
-
-      auto scripts = tx.get_view(this->network.app_scripts);
-      scripts->foreach([&j, &in](const auto& key, const auto&) {
-        const auto [verb, method] = split_script_key(key);
-
-        if (in.method == method)
-        {
-          std::string verb_name = http_method_str(verb);
-          nonstd::to_lower(verb_name);
-          // We have no schema for JS endpoints, but populate the object if we
-          // know about them
-          GetSchema::Out out;
-          out.params_schema.schema = nullptr;
-          out.result_schema.schema = nullptr;
-          j[verb_name] = out;
-        }
-
-        return true;
-      });
-
-      return j;
-    }
   };
 
 #pragma clang diagnostic pop
