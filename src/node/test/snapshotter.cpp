@@ -58,7 +58,12 @@ TEST_CASE("Regular snapshotting")
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   ccf::NetworkState network;
   network.tables->set_encryptor(encryptor);
-  ringbuffer::Circuit eio(1024 * 16);
+
+  constexpr auto buffer_size = 1024 * 16;
+  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
+
   std::unique_ptr<ringbuffer::WriterFactory> writer_factory =
     std::make_unique<ringbuffer::WriterFactory>(eio);
 
@@ -103,7 +108,12 @@ TEST_CASE("Commit snapshot evidence")
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   ccf::NetworkState network;
   network.tables->set_encryptor(encryptor);
-  ringbuffer::Circuit eio(1024 * 16);
+
+  constexpr auto buffer_size = 1024 * 16;
+  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
+
   std::unique_ptr<ringbuffer::WriterFactory> writer_factory =
     std::make_unique<ringbuffer::WriterFactory>(eio);
 
@@ -140,7 +150,12 @@ TEST_CASE("Rollback before evidence is committed")
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   ccf::NetworkState network;
   network.tables->set_encryptor(encryptor);
-  ringbuffer::Circuit eio(1024 * 16);
+
+  constexpr auto buffer_size = 1024 * 16;
+  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
+
   std::unique_ptr<ringbuffer::WriterFactory> writer_factory =
     std::make_unique<ringbuffer::WriterFactory>(eio);
 

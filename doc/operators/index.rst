@@ -7,12 +7,10 @@ This section describes how :term:`Operators` manage the different nodes constitu
     :maxdepth: 2
     :caption: Contents:
 
+    /quickstart/run_setup
     start_network
+    snapshots
     recovery
-    deploy_app
     node_output
-    operator_rpc_api
     resource_usage
-    ledger
-    ledger_python
-    container
+    operator_rpc_api

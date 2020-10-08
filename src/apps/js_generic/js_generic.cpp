@@ -15,10 +15,10 @@ namespace ccfapp
   using namespace kv;
   using namespace ccf;
 
-  using Table = kv::Map<std::vector<uint8_t>, std::vector<uint8_t>>;
+  using KVMap = kv::Map<std::vector<uint8_t>, std::vector<uint8_t>>;
 
-  JSClassID tables_class_id;
-  JSClassID view_class_id;
+  JSClassID kv_class_id;
+  JSClassID kv_map_view_class_id;
   JSClassID body_class_id;
 
 #pragma clang diagnostic push
@@ -80,12 +80,14 @@ namespace ccfapp
     JS_FreeValue(ctx, exception_val);
   }
 
-  static JSValue js_get(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  static void js_free_arraybuffer_cstring(JSRuntime*, void* opaque, void* ptr)
   {
-    auto table_view =
-      static_cast<Table::TxView*>(JS_GetOpaque(this_val, view_class_id));
+    JS_FreeCString((JSContext*)opaque, (char*)ptr);
+  }
 
+  static JSValue js_str_to_buf(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
     if (argc != 1)
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 1", argc);
@@ -93,105 +95,204 @@ namespace ccfapp
     if (!JS_IsString(argv[0]))
       return JS_ThrowTypeError(ctx, "Argument must be a string");
 
-    size_t sz = 0;
-    auto k = JS_ToCStringLen(ctx, &sz, argv[0]);
-    auto v = table_view->get({k, k + sz});
-    JS_FreeCString(ctx, k);
+    size_t str_size = 0;
+    const char* str = JS_ToCStringLen(ctx, &str_size, argv[0]);
 
-    if (v.has_value())
+    if (!str)
     {
-      return JS_NewStringLen(
-        ctx, (const char*)v.value().data(), v.value().size());
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
     }
-    else
+
+    JSValue buf = JS_NewArrayBuffer(
+      ctx, (uint8_t*)str, str_size, js_free_arraybuffer_cstring, ctx, false);
+
+    if (JS_IsException(buf))
+      js_dump_error(ctx);
+
+    return buf;
+  }
+
+  static JSValue js_buf_to_str(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    size_t buf_size;
+    uint8_t* buf = JS_GetArrayBuffer(ctx, &buf_size, argv[0]);
+
+    if (!buf)
+      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
+
+    JSValue str = JS_NewStringLen(ctx, (char*)buf, buf_size);
+
+    if (JS_IsException(str))
+      js_dump_error(ctx);
+
+    return str;
+  }
+
+  static JSValue js_json_compatible_to_buf(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    JSValue str = JS_JSONStringify(ctx, argv[0], JS_NULL, JS_NULL);
+
+    if (JS_IsException(str))
     {
+      js_dump_error(ctx);
+      return str;
+    }
+
+    JSValue buf = js_str_to_buf(ctx, JS_NULL, 1, &str);
+    JS_FreeValue(ctx, str);
+    return buf;
+  }
+
+  static JSValue js_buf_to_json_compatible(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    size_t buf_size;
+    uint8_t* buf = JS_GetArrayBuffer(ctx, &buf_size, argv[0]);
+
+    if (!buf)
+      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
+
+    std::vector<uint8_t> buf_null_terminated(buf_size + 1);
+    buf_null_terminated[buf_size] = 0;
+    buf_null_terminated.assign(buf, buf + buf_size);
+
+    JSValue obj =
+      JS_ParseJSON(ctx, (char*)buf_null_terminated.data(), buf_size, "<json>");
+
+    if (JS_IsException(obj))
+      js_dump_error(ctx);
+
+    return obj;
+  }
+
+  static JSValue js_kv_map_get(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    auto map_view =
+      static_cast<KVMap::TxView*>(JS_GetOpaque(this_val, kv_map_view_class_id));
+
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    size_t key_size;
+    uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
+
+    if (!key)
+      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
+
+    auto val = map_view->get({key, key + key_size});
+
+    if (!val.has_value())
       return JS_ThrowRangeError(ctx, "No such key");
-    }
+
+    JSValue buf =
+      JS_NewArrayBufferCopy(ctx, val.value().data(), val.value().size());
+
+    if (JS_IsException(buf))
+      js_dump_error(ctx);
+
+    return buf;
   }
 
-  static JSValue js_remove(
+  static JSValue js_kv_map_delete(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    auto table_view =
-      static_cast<Table::TxView*>(JS_GetOpaque(this_val, view_class_id));
+    auto map_view =
+      static_cast<KVMap::TxView*>(JS_GetOpaque(this_val, kv_map_view_class_id));
 
     if (argc != 1)
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 1", argc);
 
-    if (!JS_IsString(argv[0]))
-      return JS_ThrowTypeError(ctx, "Argument must be a string");
+    size_t key_size;
+    uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
 
-    size_t sz = 0;
-    auto k = JS_ToCStringLen(ctx, &sz, argv[0]);
-    auto v = table_view->remove({k, k + sz});
-    JS_FreeCString(ctx, k);
+    if (!key)
+      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
 
-    if (v)
-    {
-      return JS_NULL;
-    }
-    else
-    {
+    auto val = map_view->remove({key, key + key_size});
+
+    if (!val)
       return JS_ThrowRangeError(ctx, "Failed to remove at key");
-    }
+
+    return JS_UNDEFINED;
   }
 
-  static JSValue js_put(
+  static JSValue js_kv_map_set(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    auto table_view =
-      static_cast<Table::TxView*>(JS_GetOpaque(this_val, view_class_id));
+    auto map_view =
+      static_cast<KVMap::TxView*>(JS_GetOpaque(this_val, kv_map_view_class_id));
 
     if (argc != 2)
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 2", argc);
 
-    if (!(JS_IsString(argv[0]) && JS_IsString(argv[0])))
-      return JS_ThrowTypeError(ctx, "Arguments must be strings");
+    size_t key_size;
+    uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
 
-    auto r = JS_NULL;
+    size_t val_size;
+    uint8_t* val = JS_GetArrayBuffer(ctx, &val_size, argv[1]);
 
-    size_t k_sz = 0;
-    auto k = JS_ToCStringLen(ctx, &k_sz, argv[0]);
+    if (!key || !val)
+      return JS_ThrowTypeError(ctx, "Arguments must be ArrayBuffers");
 
-    size_t v_sz = 0;
-    auto v = JS_ToCStringLen(ctx, &v_sz, argv[1]);
+    if (!map_view->put({key, key + key_size}, {val, val + val_size}))
+      return JS_ThrowRangeError(ctx, "Could not insert at key");
 
-    if (!table_view->put({k, k + k_sz}, {v, v + v_sz}))
-    {
-      r = JS_ThrowRangeError(ctx, "Could not insert at key");
-    }
-
-    JS_FreeCString(ctx, k);
-    JS_FreeCString(ctx, v);
-    return r;
+    return JS_UNDEFINED;
   }
 
-  static int js_tables_lookup(
+  static int js_kv_lookup(
     JSContext* ctx,
     JSPropertyDescriptor* desc,
     JSValueConst this_val,
     JSAtom property)
   {
     const auto property_name = JS_AtomToCString(ctx, property);
-    LOG_TRACE_FMT("Looking for table '{}'", property_name);
+    LOG_TRACE_FMT("Looking for kv map '{}'", property_name);
 
-    auto tx_ptr = static_cast<kv::Tx*>(JS_GetOpaque(this_val, tables_class_id));
-    auto view = tx_ptr->get_view<Table>(property_name);
+    auto tx_ptr = static_cast<kv::Tx*>(JS_GetOpaque(this_val, kv_class_id));
+    auto view = tx_ptr->get_view<KVMap>(property_name);
 
-    auto view_val = JS_NewObjectClass(ctx, view_class_id);
+    // This follows the interface of Map:
+    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
+    // Keys and values are ArrayBuffers. Keys are matched based on their
+    // contents.
+    auto view_val = JS_NewObjectClass(ctx, kv_map_view_class_id);
     JS_SetOpaque(view_val, view);
 
     JS_SetPropertyStr(
-      ctx, view_val, "get", JS_NewCFunction(ctx, ccfapp::js_get, "get", 1));
-    JS_SetPropertyStr(
-      ctx, view_val, "put", JS_NewCFunction(ctx, ccfapp::js_put, "put", 2));
+      ctx,
+      view_val,
+      "get",
+      JS_NewCFunction(ctx, ccfapp::js_kv_map_get, "get", 1));
     JS_SetPropertyStr(
       ctx,
       view_val,
-      "remove",
-      JS_NewCFunction(ctx, ccfapp::js_remove, "remove", 1));
+      "set",
+      JS_NewCFunction(ctx, ccfapp::js_kv_map_set, "set", 2));
+    JS_SetPropertyStr(
+      ctx,
+      view_val,
+      "delete",
+      JS_NewCFunction(ctx, ccfapp::js_kv_map_delete, "delete", 1));
 
     desc->flags = 0;
     desc->value = view_val;
@@ -310,10 +411,10 @@ namespace ccfapp
   private:
     NetworkTables& network;
 
-    JSClassDef tables_class_def = {};
-    JSClassExoticMethods tables_exotic_methods = {};
+    JSClassDef kv_class_def = {};
+    JSClassExoticMethods kv_exotic_methods = {};
 
-    JSClassDef view_class_def = {};
+    JSClassDef kv_map_view_class_def = {};
 
     JSClassDef body_class_def = {};
 
@@ -322,13 +423,13 @@ namespace ccfapp
       UserEndpointRegistry(network),
       network(network)
     {
-      JS_NewClassID(&tables_class_id);
-      tables_exotic_methods.get_own_property = js_tables_lookup;
-      tables_class_def.class_name = "KV Tables";
-      tables_class_def.exotic = &tables_exotic_methods;
+      JS_NewClassID(&kv_class_id);
+      kv_exotic_methods.get_own_property = js_kv_lookup;
+      kv_class_def.class_name = "KV";
+      kv_class_def.exotic = &kv_exotic_methods;
 
-      JS_NewClassID(&view_class_id);
-      view_class_def.class_name = "KV View";
+      JS_NewClassID(&kv_map_view_class_id);
+      kv_map_view_class_def.class_name = "KVMap";
 
       JS_NewClassID(&body_class_id);
       body_class_def.class_name = "Body";
@@ -336,17 +437,10 @@ namespace ccfapp
       auto default_handler = [this](EndpointContext& args) {
         const auto method = args.rpc_ctx->get_method();
         const auto local_method = method.substr(method.find_first_not_of('/'));
-        if (local_method == UserScriptIds::ENV_HANDLER)
-        {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-          args.rpc_ctx->set_response_body(
-            fmt::format("Cannot call environment script ('{}')", local_method));
-          return;
-        }
 
         const auto scripts = args.tx.get_view(this->network.app_scripts);
 
-        // Try find script for method
+        // Try to find script for method
         // - First try a script called "foo"
         // - If that fails, try a script called "POST foo"
         auto handler_script = scripts->get(local_method);
@@ -383,27 +477,28 @@ namespace ccfapp
           throw std::runtime_error("Failed to initialise QuickJS context");
         }
 
-        // Register class for tables
+        // Register class for KV
         {
-          auto ret = JS_NewClass(rt, tables_class_id, &tables_class_def);
+          auto ret = JS_NewClass(rt, kv_class_id, &kv_class_def);
           if (ret != 0)
           {
             throw std::logic_error(
-              "Failed to register JS class definition for KV tables");
+              "Failed to register JS class definition for KV");
           }
         }
 
-        // Register class for views
+        // Register class for KV map views
         {
-          auto ret = JS_NewClass(rt, view_class_id, &view_class_def);
+          auto ret =
+            JS_NewClass(rt, kv_map_view_class_id, &kv_map_view_class_def);
           if (ret != 0)
           {
             throw std::logic_error(
-              "Failed to register JS class definition for KV view");
+              "Failed to register JS class definition for KVMap");
           }
         }
 
-        // Register class for body
+        // Register class for request body
         {
           auto ret = JS_NewClass(rt, body_class_id, &body_class_def);
           if (ret != 0)
@@ -422,16 +517,43 @@ namespace ccfapp
         auto global_obj = JS_GetGlobalObject(ctx);
 
         auto console = JS_NewObject(ctx);
+        JS_SetPropertyStr(ctx, global_obj, "console", console);
+
         JS_SetPropertyStr(
           ctx,
           console,
           "log",
           JS_NewCFunction(ctx, ccfapp::js_print, "log", 1));
-        JS_SetPropertyStr(ctx, global_obj, "console", console);
 
-        auto tables_ = JS_NewObjectClass(ctx, tables_class_id);
-        JS_SetOpaque(tables_, &args.tx);
-        JS_SetPropertyStr(ctx, global_obj, "tables", tables_);
+        auto ccf = JS_NewObject(ctx);
+        JS_SetPropertyStr(ctx, global_obj, "ccf", ccf);
+
+        JS_SetPropertyStr(
+          ctx,
+          ccf,
+          "strToBuf",
+          JS_NewCFunction(ctx, ccfapp::js_str_to_buf, "strToBuf", 1));
+        JS_SetPropertyStr(
+          ctx,
+          ccf,
+          "bufToStr",
+          JS_NewCFunction(ctx, ccfapp::js_buf_to_str, "bufToStr", 1));
+        JS_SetPropertyStr(
+          ctx,
+          ccf,
+          "jsonCompatibleToBuf",
+          JS_NewCFunction(
+            ctx, ccfapp::js_json_compatible_to_buf, "jsonCompatibleToBuf", 1));
+        JS_SetPropertyStr(
+          ctx,
+          ccf,
+          "bufToJsonCompatible",
+          JS_NewCFunction(
+            ctx, ccfapp::js_buf_to_json_compatible, "bufToJsonCompatible", 1));
+
+        auto kv = JS_NewObjectClass(ctx, kv_class_id);
+        JS_SetPropertyStr(ctx, ccf, "kv", kv);
+        JS_SetOpaque(kv, &args.tx);
 
         auto request = JS_NewObject(ctx);
 
@@ -684,33 +806,6 @@ namespace ccfapp
         ds::openapi::path_operation(ds::openapi::path(document, method), verb);
         return true;
       });
-    }
-
-    nlohmann::json get_endpoint_schema(
-      kv::Tx& tx, const GetSchema::In& in) override
-    {
-      auto j = UserEndpointRegistry::get_endpoint_schema(tx, in);
-
-      auto scripts = tx.get_view(this->network.app_scripts);
-      scripts->foreach([&j, &in](const auto& key, const auto&) {
-        const auto [verb, method] = split_script_key(key);
-
-        if (in.method == method)
-        {
-          std::string verb_name = http_method_str(verb);
-          nonstd::to_lower(verb_name);
-          // We have no schema for JS endpoints, but populate the object if we
-          // know about them
-          GetSchema::Out out;
-          out.params_schema.schema = nullptr;
-          out.result_schema.schema = nullptr;
-          j[verb_name] = out;
-        }
-
-        return true;
-      });
-
-      return j;
     }
   };
 

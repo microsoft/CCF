@@ -7,9 +7,6 @@
 #include "tls/error_string.h"
 #include "tls/key_pair.h"
 
-#ifdef MOD_MBEDTLS
-#  include <everest/x25519.h>
-#endif
 #include <iostream>
 #include <map>
 #include <mbedtls/ecdh.h>
@@ -24,34 +21,19 @@ namespace tls
     tls::EntropyPtr entropy;
 
   public:
-#ifdef MOD_MBEDTLS
-    // Curve parameters for key exchange
-    static constexpr mbedtls_ecp_group_id domain_parameter =
-      MBEDTLS_ECP_DP_CURVE25519;
-
-    // Size of DH public, as per mbedtls_x25519_make_public
-    static constexpr size_t len_public = MBEDTLS_X25519_KEY_SIZE_BYTES + 1;
-    // Size of shared secret, as per mbedtls_x25519_calc_secret
-    static constexpr size_t len_shared_secret = MBEDTLS_X25519_KEY_SIZE_BYTES;
-#else
     static constexpr mbedtls_ecp_group_id domain_parameter =
       MBEDTLS_ECP_DP_SECP384R1;
 
     static constexpr size_t len_public = 1024 + 1;
     static constexpr size_t len_shared_secret = 1024;
-#endif
 
     KeyExchangeContext() : own_public(len_public), entropy(create_entropy())
     {
       mbedtls_ecdh_init(&ctx);
       size_t len;
 
-      int rc =
-#ifdef MOD_MBEDTLS
-        mbedtls_ecdh_setup(&ctx, domain_parameter);
-#else
-        mbedtls_ecp_group_load(&ctx.grp, domain_parameter);
-#endif
+      int rc = mbedtls_ecp_group_load(&ctx.grp, domain_parameter);
+
       if (rc != 0)
       {
         throw std::logic_error(error_string(rc));
@@ -108,8 +90,8 @@ namespace tls
 
     std::vector<uint8_t> get_own_public()
     {
-      // Note that this function returns a vector of bytes size
-      // MBEDTLS_X25519_KEY_SIZE_BYTES + 1 where the first byte represents the
+      // Note that this function returns a vector of bytes
+      // where the first byte represents the
       // size of the public key
       return own_public;
     }

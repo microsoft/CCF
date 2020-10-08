@@ -109,6 +109,9 @@ namespace aft
     kv::Version last_idx;
     kv::Version commit_idx;
 
+    kv::Version cft_watermark_idx;
+    kv::Version bft_watermark_idx;
+
     ViewHistory view_history;
   };
 }

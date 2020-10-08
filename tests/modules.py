@@ -202,6 +202,14 @@ def test_npm_app(network, args):
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json()["available"], r.body
 
+        r = c.post("/app/log?id=42", {"msg": "Hello!"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+        r = c.get("/app/log?id=42")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        body = r.body.json()
+        assert body["msg"] == "Hello!", r.body
+
     return network
 
 

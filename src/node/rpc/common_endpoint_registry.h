@@ -246,23 +246,6 @@ namespace ccf
         .set_auto_schema<void, EndpointMetrics::Out>()
         .install();
 
-      auto get_schema = [this](kv::Tx& tx, nlohmann::json&& params) {
-        const auto in = params.get<GetSchema::In>();
-
-        auto j = get_endpoint_schema(tx, in);
-        if (j.empty())
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            fmt::format("Method {} not recognised", in.method));
-        }
-
-        return make_success(j);
-      };
-      make_endpoint("api/schema", HTTP_GET, json_adapter(get_schema))
-        .set_auto_schema<GetSchema>()
-        .install();
-
       auto get_receipt = [this](auto&, nlohmann::json&& params) {
         const auto in = params.get<GetReceipt::In>();
 
