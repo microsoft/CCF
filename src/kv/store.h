@@ -200,7 +200,7 @@ namespace kv
     template <class K, class V>
     CCF_DEPRECATED(
       "SecurityDomain should not be passed explicitly, but encoded in the "
-      "map's name. 'public:' prefix indicated a PUBLIC table, all others are "
+      "map's name. 'public:' prefix indicates a PUBLIC table, all others are "
       "PRIVATE")
     Map<K, V>& create(const std::string& name, SecurityDomain security_domain)
     {
@@ -210,7 +210,7 @@ namespace kv
     template <class M>
     CCF_DEPRECATED(
       "SecurityDomain should not be passed explicitly, but encoded in the "
-      "map's name. 'public:' prefix indicated a PUBLIC table, all others are "
+      "map's name. 'public:' prefix indicates a PUBLIC table, all others are "
       "PRIVATE")
     M& create(const std::string& name, SecurityDomain security_domain)
     {
