@@ -421,7 +421,10 @@ namespace ccf
                 {
                   //history->emit_signature();
                 }
+                if (history && consensus->is_primary())
+                {
                   history->try_emit_signature(cv);
+                }
               }
 
               update_metrics(ctx, endpoint->metrics);
@@ -510,6 +513,7 @@ namespace ccf
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = std::chrono::milliseconds(sig_ms_interval_);
       ms_to_sig = sig_ms_interval;
+      LOG_INFO_FMT("BBBBBBBBBBBBBBB sig_ms_interval_:{}, sig_tx_interval_:{}", sig_ms_interval_, sig_tx_interval_);
     }
 
     void set_cmd_forwarder(

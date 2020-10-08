@@ -537,18 +537,18 @@ namespace ccf
             self->store.commit_gap() > 0 &&
             time.count() > self->time_of_last_signature.load().count() &&
             (time.count() - self->time_of_last_signature.load().count())
-                 > 200)
+                 > 1000)
           {
             LOG_INFO_FMT("AAAAAAA - time based - calling emit_signature");
             msg->data.self->emit_signature();
           }
 
           auto time_since_last_sig =
-            200 - (time - self->time_of_last_signature.load()).count();
+            1000 - (time - self->time_of_last_signature.load()).count();
 
           if (time_since_last_sig <= 0)
           {
-            time_since_last_sig = 200;
+            time_since_last_sig = 1000;
           }
 
           LOG_INFO_FMT("AAAAAAA - scheduling time:{}", time_since_last_sig);
@@ -562,7 +562,7 @@ namespace ccf
 
       emit_signature_timer_entry =
         threading::ThreadMessaging::thread_messaging.add_task_after(
-          std::move(emit_sig_msg), std::chrono::milliseconds(200));
+          std::move(emit_sig_msg), std::chrono::milliseconds(1000));
     }
 
     ~HashedTxHistory()
