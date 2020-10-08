@@ -546,7 +546,6 @@ namespace asynchost
         match = get_file_name_with_idx(dir, idx);
         if (match.has_value())
         {
-          LOG_FAIL_FMT("Match in {}", dir);
           ledger_dir_ = dir;
           break;
         }
@@ -563,8 +562,6 @@ namespace asynchost
         std::make_shared<LedgerFile>(ledger_dir_, match.value());
       if (files_read_cache.size() >= max_read_cache_files)
       {
-        LOG_FAIL_FMT(
-          "Erasing cache in {}", (*files_read_cache.begin())->get_file_name());
         files_read_cache.erase(files_read_cache.begin());
       }
       files_read_cache.emplace_back(match_file);

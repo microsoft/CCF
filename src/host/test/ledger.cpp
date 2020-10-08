@@ -731,10 +731,12 @@ TEST_CASE("Multiple ledger paths")
   fs::remove_all(ledger_dir);
   fs::remove_all(ledger_dir_2);
 
+  size_t max_read_cache_size = 2;
   size_t chunk_threshold = 30;
   size_t chunk_count = 5;
 
   size_t last_committed_idx = 0;
+  size_t last_idx = 0;
 
   INFO("Write many entries on first ledger");
   {
@@ -750,6 +752,7 @@ TEST_CASE("Multiple ledger paths")
     bool is_committable = true;
     entry_submitter.write(is_committable);
     entry_submitter.write(is_committable);
+    last_idx = entry_submitter.get_last_idx();
   }
 
   INFO("Copy and remove all uncommitted suffix from initial ledger directory");
@@ -778,11 +781,14 @@ TEST_CASE("Multiple ledger paths")
   INFO("Restore ledger with previous directory");
   {
     asynchost::Ledger ledger(
-      ledger_dir_2, wf, chunk_threshold, 1, {ledger_dir});
+      ledger_dir_2, wf, chunk_threshold, max_read_cache_size, {ledger_dir});
 
     for (size_t i = 1; i <= last_committed_idx; i++)
     {
       read_entry_from_ledger(ledger, i);
     }
+
+    // Read framed entries across both directories
+    read_entries_range_from_ledger(ledger, 1, last_idx);
   }
 }
