@@ -2,8 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 import infra.checker
-import ccf.clients
-import suite.test_requirements as reqs
 import time
 import http
 
@@ -32,8 +30,6 @@ class LoggingTxs:
 
         with remote_node.client(self.user) as uc:
             check_commit = infra.checker.Checker(uc)
-            check_commit_n = infra.checker.Checker(uc)
-
             for _ in range(number_txs):
                 priv_msg = f"Private message at index {self.next_priv_index}"
                 pub_msg = f"Public message at index {self.next_pub_index}"
@@ -51,7 +47,7 @@ class LoggingTxs:
                         "msg": pub_msg,
                     },
                 )
-                check_commit_n(rep_priv, result=True)
+                check_commit(rep_priv, result=True)
                 check_commit(rep_pub, result=True)
 
                 self.priv[self.next_priv_index] = priv_msg
