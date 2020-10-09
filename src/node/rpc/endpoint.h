@@ -12,9 +12,12 @@ namespace ccf
   namespace endpoints
   {
     using URI = std::string;
-    using HttpVerb = std::string;
 
-    using EndpointKey = std::pair<URI, HttpVerb>;
+    struct EndpointKey
+    {
+      URI method;
+      RESTVerb verb = HTTP_POST;
+    };
 
     enum class ForwardingRequired
     {
@@ -29,29 +32,30 @@ namespace ccf
        {ForwardingRequired::Always, "always"},
        {ForwardingRequired::Never, "never"}});
 
-    struct EndpointMetadata
+    struct EndpointProperties
     {
-      virtual ~EndpointMetadata() = default;
-
-      URI method;
-      HttpVerb verb;
-
       ForwardingRequired forwarding_required = ForwardingRequired::Always;
       bool execute_locally = false;
       bool require_client_signature = false;
       bool require_client_identity = true;
     };
 
-    DECLARE_JSON_TYPE(EndpointMetadata);
+    DECLARE_JSON_TYPE(EndpointProperties);
     DECLARE_JSON_REQUIRED_FIELDS(
-      EndpointMetadata,
-      method,
-      verb,
+      EndpointProperties,
       forwarding_required,
       execute_locally,
       require_client_signature,
       require_client_identity);
 
-    using EndpointMetadataPtr = std::shared_ptr<EndpointMetadata>;
+    struct EndpointDefinition
+    {
+      virtual ~EndpointDefinition() = default;
+
+      EndpointKey dispatch;
+      EndpointProperties properties;
+    };
+
+    using EndpointDefinitionPtr = std::shared_ptr<EndpointDefinition>;
   }
 }

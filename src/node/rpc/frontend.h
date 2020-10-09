@@ -94,14 +94,14 @@ namespace ccf
 
     std::vector<uint8_t> get_cert_to_forward(
       std::shared_ptr<enclave::RpcContext> ctx,
-      const EndpointMetadataPtr& endpoint = nullptr)
+      const EndpointDefinitionPtr& endpoint = nullptr)
     {
       // Only forward the certificate if the certificate cannot be looked up
       // from the caller ID on the receiving frontend or if the endpoint does
       // not require a known client identity
       if (
         !endpoints.has_certs() ||
-        (endpoint != nullptr && !endpoint->require_client_identity))
+        (endpoint != nullptr && !endpoint->properties.require_client_identity))
       {
         return ctx->session->caller_cert;
       }
@@ -111,7 +111,7 @@ namespace ccf
 
     std::optional<std::vector<uint8_t>> forward_or_redirect_json(
       std::shared_ptr<enclave::RpcContext> ctx,
-      const EndpointMetadataPtr& endpoint,
+      const EndpointDefinitionPtr& endpoint,
       CallerId caller_id)
     {
       auto& metrics = endpoints.get_metrics(endpoint);
@@ -265,7 +265,7 @@ namespace ccf
       auto& metrics = endpoints.get_metrics(endpoint);
       metrics.calls++;
 
-      if (endpoint->require_client_identity && endpoints.has_certs())
+      if (endpoint->properties.require_client_identity && endpoints.has_certs())
       {
         // Only if endpoint requires client identity.
         // If a request is forwarded, check that the caller is known. Otherwise,
@@ -286,7 +286,9 @@ namespace ccf
         ctx->is_create_request;
 
       const auto signed_request = ctx->get_signed_request();
-      if (endpoint->require_client_signature && !signed_request.has_value())
+      if (
+        endpoint->properties.require_client_signature &&
+        !signed_request.has_value())
       {
         set_response_unauthorized(
           ctx, fmt::format("'{}' RPC must be signed", ctx->get_method()));
@@ -327,7 +329,7 @@ namespace ccf
             (consensus->type() != ConsensusType::CFT &&
              !ctx->execute_on_node))))
       {
-        switch (endpoint->forwarding_required)
+        switch (endpoint->properties.forwarding_required)
         {
           case ForwardingRequired::Never:
           {
@@ -342,7 +344,8 @@ namespace ccf
               (consensus->type() != ConsensusType::CFT &&
                !ctx->execute_on_node &&
                (endpoint == nullptr ||
-                (endpoint != nullptr && !endpoint->execute_locally))))
+                (endpoint != nullptr &&
+                 !endpoint->properties.execute_locally))))
             {
               ctx->session->is_forwarding = true;
               return forward_or_redirect_json(ctx, endpoint, caller_id);
@@ -546,7 +549,8 @@ namespace ccf
 
       const bool is_bft =
         consensus != nullptr && consensus->type() == ConsensusType::BFT;
-      const bool is_local = endpoint != nullptr && endpoint->execute_locally;
+      const bool is_local =
+        endpoint != nullptr && endpoint->properties.execute_locally;
       const bool should_bft_distribute = is_bft && !is_local &&
         (ctx->execute_on_node || consensus->is_primary());
 
