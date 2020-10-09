@@ -91,6 +91,7 @@ def test_no_quote(network, args):
     ) as uc:
         r = uc.get("/node/quote")
         assert r.status_code == http.HTTPStatus.NOT_FOUND
+    return network
 
 
 @reqs.description("Check member data")
@@ -107,6 +108,7 @@ def test_member_data(network, args):
         assert "member_data" not in member_info(1)
         assert "member_data" not in member_info(2)
         assert member_info(3)["member_data"] == {"is_operator": True}
+    return network
 
 
 def run(args):
