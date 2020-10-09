@@ -46,8 +46,8 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   constexpr size_t map_count = 8;
   for (size_t i = 0u; i < map_count; ++i)
   {
-    const auto name = std::to_string(i);
-    auto& map = kv_store.create<MapType>(name, kv::SecurityDomain::PUBLIC);
+    const auto name = fmt::format("public:{}", i);
+    auto& map = kv_store.create<MapType>(name);
 
     // Every thread gets the first map, and a random half of the others
     for (size_t j = 0u; j < thread_count; ++j)

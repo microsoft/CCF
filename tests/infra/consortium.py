@@ -50,7 +50,7 @@ class Consortium:
                     {
                         "text": """tables = ...
                         non_retired_members = {}
-                        tables["ccf.members"]:foreach(function(member_id, details)
+                        tables["public:ccf.gov.members"]:foreach(function(member_id, details)
                         if details["status"] ~= "RETIRED" then
                             table.insert(non_retired_members, {member_id, details["status"]})
                         end
@@ -75,7 +75,7 @@ class Consortium:
                     "/gov/query",
                     {
                         "text": """tables = ...
-                        return tables["ccf.config"]:get(0)
+                        return tables["public:ccf.gov.config"]:get(0)
                         """
                     },
                 )
@@ -192,7 +192,7 @@ class Consortium:
         script = """
         tables = ...
         local proposals = {}
-        tables["ccf.proposals"]:foreach( function(k, v)
+        tables["public:ccf.gov.proposals"]:foreach( function(k, v)
             proposals[tostring(k)] = v;
         end )
         return proposals;
@@ -228,7 +228,8 @@ class Consortium:
 
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
             r = c.post(
-                "/gov/read", {"table": "ccf.nodes", "key": node_to_retire.node_id}
+                "/gov/read",
+                {"table": "public:ccf.gov.nodes", "key": node_to_retire.node_id},
             )
             assert r.body.json()["status"] == infra.node.NodeStatus.RETIRED.name
 
@@ -381,7 +382,7 @@ class Consortium:
                 "/gov/query",
                 {
                     "text": """tables = ...
-                    service = tables["ccf.service"]:get(0)
+                    service = tables["public:ccf.gov.service"]:get(0)
                     if service == nil then
                         LOG_DEBUG("Service is nil")
                     else
@@ -416,7 +417,7 @@ class Consortium:
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
-            r = c.post("/gov/read", {"table": "ccf.nodes", "key": node_id})
+            r = c.post("/gov/read", {"table": "public:ccf.gov.nodes", "key": node_id})
 
             if r.status_code != http.HTTPStatus.OK.value or (
                 node_status and r.body.json()["status"] != node_status.name

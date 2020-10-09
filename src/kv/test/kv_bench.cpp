@@ -48,6 +48,16 @@ std::shared_ptr<ccf::LedgerSecrets> create_ledger_secrets()
   return secrets;
 }
 
+std::string build_map_name(const std::string& core_name, kv::SecurityDomain sd)
+{
+  if (sd == kv::SecurityDomain::PUBLIC)
+  {
+    return fmt::format("{}{}", kv::public_domain_prefix, core_name);
+  }
+
+  return core_name;
+}
+
 // Test functions
 template <kv::SecurityDomain SD>
 static void serialise(picobench::state& s)
@@ -60,8 +70,8 @@ static void serialise(picobench::state& s)
   encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
 
-  auto& map0 = kv_store.create<MapType>("map0", SD);
-  auto& map1 = kv_store.create<MapType>("map1", SD);
+  auto& map0 = kv_store.create<MapType>(build_map_name("map0", SD));
+  auto& map1 = kv_store.create<MapType>(build_map_name("map1", SD));
   auto tx = kv_store.create_tx();
   auto [tx0, tx1] = tx.get_view(map0, map1);
 
@@ -95,8 +105,8 @@ static void deserialise(picobench::state& s)
   kv_store.set_encryptor(encryptor);
   kv_store2.set_encryptor(encryptor);
 
-  auto& map0 = kv_store.create<MapType>("map0", SD);
-  auto& map1 = kv_store.create<MapType>("map1", SD);
+  auto& map0 = kv_store.create<MapType>(build_map_name("map0", SD));
+  auto& map1 = kv_store.create<MapType>(build_map_name("map1", SD));
   kv_store2.clone_schema(kv_store);
 
   auto tx = kv_store.create_tx();
@@ -170,8 +180,7 @@ static void ser_snap(picobench::state& s)
 
   for (int i = 0; i < s.iterations(); i++)
   {
-    kv_store.create<MapType>(
-      fmt::format("map{}", i), kv::SecurityDomain::PRIVATE);
+    kv_store.create<MapType>(fmt::format("map{}", i));
   }
 
   auto tx = kv_store.create_tx();
@@ -212,8 +221,7 @@ static void des_snap(picobench::state& s)
 
   for (int i = 0; i < s.iterations(); i++)
   {
-    kv_store.create<MapType>(
-      fmt::format("map{}", i), kv::SecurityDomain::PRIVATE);
+    kv_store.create<MapType>(fmt::format("map{}", i));
   }
 
   kv_store2.clone_schema(kv_store);
