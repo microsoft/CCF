@@ -547,6 +547,25 @@ namespace ccf
                 sig_ms_interval)
             {
               msg->data.self->emit_signature();
+              /*
+              LOG_INFO_FMT(
+                "AAAAA - sign, is_primary:{}, commit_gap:{}, time:{},
+              time_of_last:{}", consensus->is_primary(),
+                self->store.commit_gap(),
+                time.count(),
+                self->time_of_last_signature.count());
+              */
+            }
+            else
+            {
+              /*
+              LOG_INFO_FMT(
+                "AAAAA - not sign, is_primary:{}, commit_gap:{}, time:{},
+              time_of_last:{}", consensus->is_primary(),
+                self->store.commit_gap(),
+                time.count(),
+                self->time_of_last_signature.count());
+              */
             }
 
             time_since_last_sig =
@@ -755,7 +774,7 @@ namespace ccf
         return;
       }
 
-      if ((commit_version - last_signed_tx) != sig_tx_interval / 2)
+      if ((commit_version - last_signed_tx) == sig_tx_interval / 2)
       {
         emit_signature();
       }
@@ -786,7 +805,7 @@ namespace ccf
         threading::ThreadMessaging::thread_messaging.get_current_time_offset();
 
       LOG_DEBUG_FMT(
-        "Signed at {} in view: {} commit was: {}.{}",
+        "AAAAA Signed at {} in view: {} commit was: {}.{}",
         txid.version,
         txid.term,
         commit_txid.first,

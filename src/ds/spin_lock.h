@@ -5,6 +5,9 @@
 #ifdef INSIDE_ENCLAVE
 #  include <pthread.h>
 
+// OpenEnclave, at this time, does not provide pthread_spin_trylock. There is
+// currently a PR that will introduce said function and this should be removed
+// when said function is in OpenEnclave.
 #  ifndef VIRTUAL_ENCLAVE
 static unsigned int _spin_set_locked(pthread_spinlock_t* spinlock)
 {

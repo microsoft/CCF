@@ -507,10 +507,6 @@ namespace ccf
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = std::chrono::milliseconds(sig_ms_interval_);
       ms_to_sig = sig_ms_interval;
-      LOG_INFO_FMT(
-        "BBBBBBBBBBBBBBB sig_ms_interval_:{}, sig_tx_interval_:{}",
-        sig_ms_interval_,
-        sig_tx_interval_);
     }
 
     void set_cmd_forwarder(
@@ -723,23 +719,6 @@ namespace ccf
 
       // reset tx_counter for next tick interval
       tx_count = 0;
-
-      /*
-      if ((consensus != nullptr) && consensus->is_primary())
-      {
-        if (elapsed < ms_to_sig)
-        {
-          ms_to_sig -= elapsed;
-          return;
-        }
-
-        ms_to_sig = sig_ms_interval;
-        if (history && tables.commit_gap() > 0)
-        {
-          //history->emit_signature();
-        }
-      }
-      */
     }
 
     // Return false if frontend believes it should be able to look up caller
