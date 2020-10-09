@@ -96,6 +96,7 @@ def test_no_quote(network, args):
 
 @reqs.description("Check member data")
 def test_member_data(network, args):
+    assert args.initial_operator_count > 0
     primary, _ = network.find_nodes()
     with primary.client("member0") as mc:
 
@@ -104,10 +105,17 @@ def test_member_data(network, args):
                 "/gov/read", {"table": "ccf.members", "key": mid}
             ).body.json()
 
-        assert "member_data" not in member_info(0)
-        assert "member_data" not in member_info(1)
-        assert "member_data" not in member_info(2)
-        assert member_info(3)["member_data"] == {"is_operator": True}
+        md_count = 0
+        for member in network.get_members():
+            if member.member_data:
+                assert (
+                    member_info(member.member_id)["member_data"] == member.member_data
+                )
+                md_count += 1
+            else:
+                assert "member_data" not in member_info(member.member_id)
+        assert md_count == args.initial_operator_count
+
     return network
 
 

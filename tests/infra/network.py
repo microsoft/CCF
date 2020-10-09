@@ -331,7 +331,6 @@ class Network:
             (i, {"is_operator": True})
             for i in range(mc, mc + args.initial_operator_count)
         )
-        LOG.info(initial_member_ids)
 
         self.consortium = infra.consortium.Consortium(
             self.common_dir,

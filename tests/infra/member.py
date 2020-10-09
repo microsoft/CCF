@@ -40,6 +40,7 @@ class Member:
         self.member_id = member_id
         self.status_code = MemberStatus.ACCEPTED
         self.share_script = share_script
+        self.member_data = member_data
 
         if key_generator is not None:
             # For now, all members are given an encryption key (for recovery)
