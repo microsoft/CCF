@@ -632,24 +632,30 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb, txs=txs
     ) as network:
         network.start_and_join(args)
-        network = test(
-            network,
-            args,
-            verify=args.package != "libjs_generic",
-        )
-        network = test_illegal(network, args, verify=args.package != "libjs_generic")
-        network = test_large_messages(network, args)
-        network = test_remove(network, args)
-        network = test_forwarding_frontends(network, args)
-        network = test_update_lua(network, args)
-        network = test_user_data_ACL(network, args)
-        network = test_cert_prefix(network, args)
-        network = test_anonymous_caller(network, args)
-        network = test_raw_text(network, args)
-        network = test_historical_query(network, args)
-        network = test_view_history(network, args)
-        network = test_primary(network, args)
-        network = test_metrics(network, args)
+
+        txs = app.LoggingTxs()
+        txs.issue(network)
+        # txs.issue(network)
+        txs.issue(network, repeat=True)
+        txs.verify(network)
+        # network = test(
+        #     network,
+        #     args,
+        #     verify=args.package != "libjs_generic",
+        # )
+        # network = test_illegal(network, args, verify=args.package != "libjs_generic")
+        # network = test_large_messages(network, args)
+        # network = test_remove(network, args)
+        # network = test_forwarding_frontends(network, args)
+        # network = test_update_lua(network, args)
+        # network = test_user_data_ACL(network, args)
+        # network = test_cert_prefix(network, args)
+        # network = test_anonymous_caller(network, args)
+        # network = test_raw_text(network, args)
+        # network = test_historical_query(network, args)
+        # network = test_view_history(network, args)
+        # network = test_primary(network, args)
+        # network = test_metrics(network, args)
 
 
 if __name__ == "__main__":

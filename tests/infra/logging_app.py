@@ -4,23 +4,25 @@
 import infra.checker
 import time
 import http
+import ccf.clients
+from collections import defaultdict
 
 from loguru import logger as LOG
 
 
 class LoggingTxs:
     def __init__(self, user_id=0):
-        self.pub = {}
-        self.priv = {}
-        self.next_pub_index = 1
-        self.next_priv_index = 1
+        self.pub = defaultdict(list)
+        self.priv = defaultdict(list)
+        self.idx = 0
         self.user = f"user{user_id}"
 
     def issue(
         self,
         network,
-        number_txs,
+        number_txs=1,
         on_backup=False,
+        repeat=False,
     ):
         remote_node, _ = network.find_primary()
         if on_backup:
@@ -30,44 +32,83 @@ class LoggingTxs:
 
         with remote_node.client(self.user) as uc:
             check_commit = infra.checker.Checker(uc)
+
+            if repeat:
+                idx = self.idx
+            else:
+                self.idx += 1
+                idx = self.idx
+
             for _ in range(number_txs):
-                priv_msg = f"Private message at index {self.next_priv_index}"
-                pub_msg = f"Public message at index {self.next_pub_index}"
+                priv_msg = f"Private message at seqno {idx} [{len(self.priv[idx])}]"
                 rep_priv = uc.post(
                     "/app/log/private",
                     {
-                        "id": self.next_priv_index,
+                        "id": self.idx,
                         "msg": priv_msg,
                     },
                 )
-                rep_pub = uc.post(
-                    "/app/log/public",
-                    {
-                        "id": self.next_pub_index,
-                        "msg": pub_msg,
-                    },
-                )
                 check_commit(rep_priv, result=True)
-                check_commit(rep_pub, result=True)
+                self.priv[idx].append(priv_msg)
 
-                self.priv[self.next_priv_index] = priv_msg
-                self.pub[self.next_pub_index] = pub_msg
-                self.next_priv_index += 1
-                self.next_pub_index += 1
+                # Public records do not handle historical queries
+                if not repeat:
+                    pub_msg = f"Public message at seqno {idx}"
+                    rep_pub = uc.post(
+                        "/app/log/public",
+                        {
+                            "id": self.idx,
+                            "msg": pub_msg,
+                        },
+                    )
+                    check_commit(rep_pub, result=True)
+                    self.pub[idx].append(pub_msg)
 
         network.wait_for_node_commit_sync()
 
     def verify(self, network, timeout=3):
         LOG.info("Verifying all logging txs")
-        for n in network.get_joined_nodes():
-            for pub_tx_index in self.pub:
-                self._verify_tx(n, pub_tx_index, priv=False, timeout=timeout)
-            for priv_tx_index in self.priv:
-                self._verify_tx(n, priv_tx_index, priv=True, timeout=timeout)
+        LOG.error(self.pub)
+        LOG.error(self.priv)
 
-    def _verify_tx(self, node, idx, priv=True, timeout=3):
-        txs = self.priv if priv else self.pub
+        n = network.get_joined_nodes()[0]
+
+        # for pub_idx, pub_value in self.pub.items():
+        #     assert (
+        #         len(pub_value) == 1
+        #     ), "Public records do not handle historical queries"
+
+        #     self._verify_tx(n, pub_idx, pub_value[0], priv=False, timeout=timeout)
+
+        for priv_idx, priv_value in self.priv.items():
+            for v in priv_value:
+                self._verify_tx(
+                    n,
+                    priv_idx,
+                    v,
+                    priv=True,
+                    historical=(v != priv_value[-1]),
+                    timeout=timeout,
+                )
+                input("")
+
+    def _verify_tx(self, node, idx, msg, priv=True, historical=False, timeout=3):
+        if historical and not priv:
+            raise ValueError(
+                "Historical queries are only implemented with private records"
+            )
+
         cmd = "/app/log/private" if priv else "/app/log/public"
+
+        if historical:
+            cmd = "/app/log/private/historical"
+            timeout += 15
+            headers = {
+                ccf.clients.CCF_TX_VIEW_HEADER: str(view),
+                ccf.clients.CCF_TX_SEQNO_HEADER: str(seqno),
+            }
+
+            return
 
         end_time = time.time() + timeout
         while time.time() < end_time:
@@ -77,9 +118,8 @@ class LoggingTxs:
                     LOG.warning("User frontend is not yet opened")
                     time.sleep(0.1)
                 else:
-                    check = infra.checker.Checker(uc)
-                    check(
+                    infra.checker.Checker(uc)(
                         rep,
-                        result={"msg": txs[idx]},
+                        result={"msg": msg},
                     )
                     break
