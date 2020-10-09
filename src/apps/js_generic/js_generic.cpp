@@ -342,15 +342,9 @@ namespace ccfapp
     }
 
     JS_SetPropertyStr(
-      ctx,
-      view_val,
-      "set",
-      JS_NewCFunction(ctx, setter, "set", 2));
+      ctx, view_val, "set", JS_NewCFunction(ctx, setter, "set", 2));
     JS_SetPropertyStr(
-      ctx,
-      view_val,
-      "delete",
-      JS_NewCFunction(ctx, deleter, "delete", 1));
+      ctx, view_val, "delete", JS_NewCFunction(ctx, deleter, "delete", 1));
 
     desc->flags = 0;
     desc->value = view_val;
