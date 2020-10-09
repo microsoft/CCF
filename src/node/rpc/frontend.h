@@ -415,7 +415,7 @@ namespace ccf
                 // Deprecated, this will be removed in future releases
                 ctx->set_global_commit(consensus->get_committed_seqno());
 
-                if (history && consensus->is_primary())
+                if (history != nullptr && consensus->is_primary())
                 {
                   history->try_emit_signature(cv);
                 }

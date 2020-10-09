@@ -766,7 +766,7 @@ namespace ccf
     std::chrono::milliseconds time_of_last_signature;
     SpinLock signature_lock;
 
-    void try_emit_signature(kv::Version commit_version) override
+    void try_emit_signature(kv::Version) override
     {
       std::unique_lock<SpinLock> mguard(signature_lock, std::defer_lock);
       if (!mguard.try_lock())
@@ -774,7 +774,7 @@ namespace ccf
         return;
       }
 
-      if ((commit_version - last_signed_tx) == sig_tx_interval / 2)
+      if ((store.commit_gap()) == sig_tx_interval / 2)
       {
         emit_signature();
       }
