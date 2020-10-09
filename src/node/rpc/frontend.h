@@ -415,12 +415,6 @@ namespace ccf
                 // Deprecated, this will be removed in future releases
                 ctx->set_global_commit(consensus->get_committed_seqno());
 
-                if (
-                  history && consensus->is_primary() &&
-                  (cv % sig_tx_interval == sig_tx_interval / 2))
-                {
-                  //history->emit_signature();
-                }
                 if (history && consensus->is_primary())
                 {
                   history->try_emit_signature(cv);
@@ -513,7 +507,10 @@ namespace ccf
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = std::chrono::milliseconds(sig_ms_interval_);
       ms_to_sig = sig_ms_interval;
-      LOG_INFO_FMT("BBBBBBBBBBBBBBB sig_ms_interval_:{}, sig_tx_interval_:{}", sig_ms_interval_, sig_tx_interval_);
+      LOG_INFO_FMT(
+        "BBBBBBBBBBBBBBB sig_ms_interval_:{}, sig_tx_interval_:{}",
+        sig_ms_interval_,
+        sig_tx_interval_);
     }
 
     void set_cmd_forwarder(

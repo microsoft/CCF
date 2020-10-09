@@ -211,9 +211,8 @@ namespace ccf
       std::shared_ptr<NodeToNode> n2n_channels_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder_,
-    size_t sig_tx_interval_,
-    size_t sig_ms_interval_
-      )
+      size_t sig_tx_interval_,
+      size_t sig_ms_interval_)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::uninitialized);
@@ -1727,7 +1726,7 @@ namespace ccf
     {
       // This function can be called once the node has started up and before
       // it has joined the service.
-      auto tmp = std::make_shared<MerkleTxHistory>(
+      auto h = std::make_shared<MerkleTxHistory>(
         *network.tables.get(),
         self,
         *node_sign_kp,
@@ -1735,8 +1734,8 @@ namespace ccf
         network.nodes,
         sig_tx_interval,
         sig_ms_interval);
-      tmp->start_signature_emit_timer(tmp);
-      history = tmp;
+      h->start_signature_emit_timer(h);
+      history = h;
 
       network.tables->set_history(history);
     }

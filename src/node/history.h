@@ -16,6 +16,7 @@
 
 #include <array>
 #include <deque>
+#include <mutex>
 #include <string.h>
 
 extern "C"
@@ -149,10 +150,10 @@ namespace ccf
         },
         true);
     }
-    
+
     void try_emit_signature(kv::Version) override
     {
-        emit_signature();
+      emit_signature();
     }
 
     bool add_request(
@@ -475,7 +476,6 @@ namespace ccf
     std::optional<ResponseCallbackHandler> on_response;
 
     threading::Task::TimerEntry emit_signature_timer_entry;
-    
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
@@ -502,9 +502,8 @@ namespace ccf
       tls::KeyPair& kp_,
       Signatures& sig_,
       Nodes& nodes_,
-    size_t sig_tx_interval_ = 0,
-    size_t sig_ms_interval_ = 0
-      ) :
+      size_t sig_tx_interval_ = 0,
+      size_t sig_ms_interval_ = 0) :
       store(store_),
       id(id_),
       kp(kp_),
@@ -526,41 +525,38 @@ namespace ccf
         [](std::unique_ptr<threading::Tmsg<EmitSigMsg>> msg) {
           auto& self = msg->data.self;
 
+          std::unique_lock<SpinLock> mguard(
+            self->signature_lock,std::defer_lock);
+
           threading::Task::TimerEntry& timer_entry =
             self->emit_signature_timer_entry;
-
-          auto time = threading::ThreadMessaging::thread_messaging
-                        .get_current_time_offset();
           const int64_t sig_ms_interval = self->sig_ms_interval;
+          int64_t time_since_last_sig = sig_ms_interval;
 
-          LOG_INFO_FMT(
-            "AAAAAAA - time based signature, commit_gap:{}, time:{}, "
-            "last_signature:{}",
-            self->store.commit_gap(),
-            time.count(),
-            self->time_of_last_signature.load().count());
-
-          auto consensus = self->store.get_consensus();
-          if (
-            (consensus != nullptr) && consensus->is_primary() &&
-            self->store.commit_gap() > 0 &&
-            time.count() > self->time_of_last_signature.load().count() &&
-            (time.count() - self->time_of_last_signature.load().count())
-                 > sig_ms_interval)
+          if (mguard.try_lock())
           {
-            LOG_INFO_FMT("AAAAAAA - time based - calling emit_signature");
-            msg->data.self->emit_signature();
+            auto time = threading::ThreadMessaging::thread_messaging
+                          .get_current_time_offset();
+
+            auto consensus = self->store.get_consensus();
+            if (
+              (consensus != nullptr) && consensus->is_primary() &&
+              self->store.commit_gap() > 0 &&
+              time.count() > self->time_of_last_signature.count() &&
+              (time.count() - self->time_of_last_signature.count()) >
+                sig_ms_interval)
+            {
+              msg->data.self->emit_signature();
+            }
+
+            time_since_last_sig =
+              sig_ms_interval - (time - self->time_of_last_signature).count();
+
+            if (time_since_last_sig <= 0)
+            {
+              time_since_last_sig = sig_ms_interval;
+            }
           }
-
-          int64_t time_since_last_sig =
-            sig_ms_interval - (time - self->time_of_last_signature.load()).count();
-
-          if (time_since_last_sig <= 0)
-          {
-            time_since_last_sig = sig_ms_interval;
-          }
-
-          LOG_INFO_FMT("AAAAAAA - scheduling time:{}", time_since_last_sig);
 
           timer_entry =
             threading::ThreadMessaging::thread_messaging.add_task_after(
@@ -747,12 +743,19 @@ namespace ccf
       log_hash(replicated_state_tree.get_root(), COMPACT);
     }
 
-    std::atomic<kv::Version> last_signed_tx = 0;
-    std::atomic<std::chrono::milliseconds> time_of_last_signature;
+    kv::Version last_signed_tx = 0;
+    std::chrono::milliseconds time_of_last_signature;
+    SpinLock signature_lock;
 
     void try_emit_signature(kv::Version commit_version) override
     {
-      if ((commit_version - last_signed_tx) == sig_tx_interval / 2)
+      std::unique_lock<SpinLock> mguard(signature_lock,std::defer_lock);
+      if (!mguard.try_lock())
+      {
+        return;
+      }
+
+      if ((commit_version - last_signed_tx) != sig_tx_interval / 2)
       {
         emit_signature();
       }
@@ -778,18 +781,12 @@ namespace ccf
       auto commit_txid = signable_txid.value();
       auto txid = store.next_txid();
 
-
-      if (last_signed_tx == commit_txid.second)
-      {
-        //return;
-      }
-
       last_signed_tx = commit_txid.second;
       time_of_last_signature =
         threading::ThreadMessaging::thread_messaging.get_current_time_offset();
 
       LOG_DEBUG_FMT(
-        "AAAAAA Signed at {} in view: {} commit was: {}.{}",
+        "Signed at {} in view: {} commit was: {}.{}",
         txid.version,
         txid.term,
         commit_txid.first,

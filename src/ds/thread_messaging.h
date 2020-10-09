@@ -78,6 +78,11 @@ namespace threading
 
     struct TimerEntry
     {
+      TimerEntry() : time_offset(0), counter(0) {}
+      TimerEntry(std::chrono::milliseconds time_offset_, uint64_t counter_) :
+        time_offset(time_offset_), counter(counter_)
+      {}
+
       std::chrono::milliseconds time_offset;
       uint64_t counter;
     };
@@ -108,19 +113,6 @@ namespace threading
       auto num_erased = timer_map.erase(timer_entry);
       CCF_ASSERT(num_erased <= 1, "Too many items erased");
       return num_erased != 0;
-    }
-
-    TimerEntry reset(TimerEntry timer_entry, std::chrono::milliseconds ms)
-    {
-      auto it = timer_map.find(timer_entry);
-      if (it == timer_map.end())
-      {
-        return {std::chrono::milliseconds(0), 0};
-      }
-
-      auto tmsg = std::move(it->second);
-      timer_map.erase(it);
-      return add_task_after(std::move(tmsg), ms);
     }
 
     void tick(std::chrono::milliseconds elapsed)
@@ -273,12 +265,6 @@ namespace threading
       return task.cancel_timer_task(timer_entry);
     }
 
-    Task::TimerEntry reset(
-      Task::TimerEntry timer_entry, std::chrono::milliseconds ms)
-    {
-      Task& task = get_task(get_current_thread_id());
-      return task.reset(timer_entry, ms);
-    }
     std::chrono::milliseconds get_current_time_offset()
     {
       Task& task = get_task(get_current_thread_id());
