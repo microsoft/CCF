@@ -94,7 +94,7 @@ namespace ccf
 
     std::vector<uint8_t> get_cert_to_forward(
       std::shared_ptr<enclave::RpcContext> ctx,
-      EndpointRegistry::Endpoint* endpoint = nullptr)
+      const EndpointRegistry::EndpointPtr& endpoint = nullptr)
     {
       // Only forward the certificate if the certificate cannot be looked up
       // from the caller ID on the receiving frontend or if the endpoint does
@@ -111,7 +111,7 @@ namespace ccf
 
     std::optional<std::vector<uint8_t>> forward_or_redirect_json(
       std::shared_ptr<enclave::RpcContext> ctx,
-      EndpointRegistry::Endpoint* endpoint,
+      const EndpointRegistry::EndpointPtr& endpoint,
       CallerId caller_id)
     {
       if (cmd_forwarder && !ctx->session->original_caller.has_value())

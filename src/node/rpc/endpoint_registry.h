@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "endpoint.h"
 #include "ds/json_schema.h"
 #include "ds/openapi.h"
 #include "enclave/rpc_context.h"
@@ -20,6 +21,9 @@
 
 namespace ccf
 {
+  // TODO: Better namespace management
+  using namespace endpoints;
+
   struct EndpointContext
   {
     std::shared_ptr<enclave::RpcContext> rpc_ctx;
@@ -46,13 +50,6 @@ namespace ccf
   };
   using CommandEndpointFunction =
     std::function<void(CommandEndpointContext& args)>;
-
-  enum class ForwardingRequired
-  {
-    Sometimes,
-    Always,
-    Never
-  };
 
   /** The EndpointRegistry records the user-defined endpoints for a given
    * CCF application.
@@ -83,8 +80,10 @@ namespace ccf
     };
 
     struct Endpoint;
+    using EndpointPtr = std::shared_ptr<Endpoint>;
+
     using SchemaBuilderFn =
-      std::function<void(nlohmann::json&, const Endpoint&)>;
+      std::function<void(nlohmann::json&, const EndpointPtr&)>;
 
     /** An Endpoint represents a user-defined resource that can be invoked by
      * authorised users via HTTP requests, over TLS. An Endpoint is accessible
@@ -98,6 +97,8 @@ namespace ccf
      */
     struct Endpoint
     {
+      Endpoint(const std::string& m, const EndpointFunction& f, EndpointRegistry* r) : method(m), func(f), registry(r) {}
+
       std::string method;
       EndpointFunction func;
       EndpointRegistry* registry = nullptr;
@@ -118,8 +119,8 @@ namespace ccf
 
         schema_builders.push_back([](
                                     nlohmann::json& document,
-                                    const Endpoint& endpoint) {
-          const auto http_verb = endpoint.verb.get_http_method();
+                                    const EndpointPtr& endpoint) {
+          const auto http_verb = endpoint->verb.get_http_method();
           if (!http_verb.has_value())
           {
             return;
@@ -131,16 +132,16 @@ namespace ccf
           {
             add_query_parameters(
               document,
-              endpoint.method,
-              endpoint.params_schema,
+              endpoint->method,
+              endpoint->params_schema,
               http_verb.value());
           }
           else
           {
             auto& rb = request_body(path_operation(
-              ds::openapi::path(document, endpoint.method), http_verb.value()));
+              ds::openapi::path(document, endpoint->method), http_verb.value()));
             schema(media_type(rb, http::headervalues::contenttype::JSON)) =
-              endpoint.params_schema;
+              endpoint->params_schema;
           }
         });
 
@@ -159,8 +160,8 @@ namespace ccf
         result_schema = j;
 
         schema_builders.push_back(
-          [j](nlohmann::json& document, const Endpoint& endpoint) {
-            const auto http_verb = endpoint.verb.get_http_method();
+          [j](nlohmann::json& document, const EndpointPtr& endpoint) {
+            const auto http_verb = endpoint->verb.get_http_method();
             if (!http_verb.has_value())
             {
               return;
@@ -169,14 +170,14 @@ namespace ccf
             using namespace ds::openapi;
             auto& r = response(
               path_operation(
-                ds::openapi::path(document, endpoint.method),
+                ds::openapi::path(document, endpoint->method),
                 http_verb.value()),
               HTTP_STATUS_OK);
 
-            if (endpoint.result_schema != nullptr)
+            if (endpoint->result_schema != nullptr)
             {
               schema(media_type(r, http::headervalues::contenttype::JSON)) =
-                endpoint.result_schema;
+                endpoint->result_schema;
             }
           });
 
@@ -204,8 +205,8 @@ namespace ccf
           params_schema = ds::json::build_schema<In>(method + "/params");
 
           schema_builders.push_back(
-            [](nlohmann::json& document, const Endpoint& endpoint) {
-              const auto http_verb = endpoint.verb.get_http_method();
+            [](nlohmann::json& document, const EndpointPtr& endpoint) {
+              const auto http_verb = endpoint->verb.get_http_method();
               if (!http_verb.has_value())
               {
                 // Non-HTTP (ie WebSockets) endpoints are not documented
@@ -218,15 +219,15 @@ namespace ccf
               {
                 add_query_parameters(
                   document,
-                  endpoint.method,
-                  endpoint.params_schema,
+                  endpoint->method,
+                  endpoint->params_schema,
                   http_verb.value());
               }
               else
               {
                 ds::openapi::add_request_body_schema<In>(
                   document,
-                  endpoint.method,
+                  endpoint->method,
                   http_verb.value(),
                   http::headervalues::contenttype::JSON);
               }
@@ -242,8 +243,8 @@ namespace ccf
           result_schema = ds::json::build_schema<Out>(method + "/result");
 
           schema_builders.push_back(
-            [](nlohmann::json& document, const Endpoint& endpoint) {
-              const auto http_verb = endpoint.verb.get_http_method();
+            [](nlohmann::json& document, const EndpointPtr& endpoint) {
+              const auto http_verb = endpoint->verb.get_http_method();
               if (!http_verb.has_value())
               {
                 return;
@@ -251,7 +252,7 @@ namespace ccf
 
               ds::openapi::add_response_schema<Out>(
                 document,
-                endpoint.method,
+                endpoint->method,
                 http_verb.value(),
                 HTTP_STATUS_OK,
                 http::headervalues::contenttype::JSON);
@@ -381,7 +382,6 @@ namespace ccf
 
     struct PathTemplatedEndpoint : public Endpoint
     {
-      PathTemplatedEndpoint() = default;
       PathTemplatedEndpoint(const Endpoint& e) : Endpoint(e) {}
 
       std::regex template_regex;
@@ -389,10 +389,10 @@ namespace ccf
     };
 
   protected:
-    std::optional<Endpoint> default_endpoint;
-    std::map<std::string, std::map<RESTVerb, Endpoint>>
+    EndpointPtr default_endpoint;
+    std::map<std::string, std::map<RESTVerb, EndpointPtr>>
       fully_qualified_endpoints;
-    std::map<std::string, std::map<RESTVerb, PathTemplatedEndpoint>>
+    std::map<std::string, std::map<RESTVerb, std::shared_ptr<PathTemplatedEndpoint>>>
       templated_endpoints;
 
     kv::Consensus* consensus = nullptr;
@@ -400,16 +400,16 @@ namespace ccf
 
     CertDERs* certs = nullptr;
 
-    static std::optional<PathTemplatedEndpoint> parse_path_template(
+    static std::shared_ptr<PathTemplatedEndpoint> parse_path_template(
       const Endpoint& endpoint)
     {
       auto template_start = endpoint.method.find_first_of('{');
       if (template_start == std::string::npos)
       {
-        return std::nullopt;
+        return nullptr;
       }
 
-      PathTemplatedEndpoint templated(endpoint);
+      auto templated = std::make_shared<PathTemplatedEndpoint>(endpoint);
       std::string regex_s = endpoint.method;
       template_start = regex_s.find_first_of('{');
       while (template_start != std::string::npos)
@@ -422,7 +422,7 @@ namespace ccf
             endpoint.method));
         }
 
-        templated.template_component_names.push_back(regex_s.substr(
+        templated->template_component_names.push_back(regex_s.substr(
           template_start + 1, template_end - template_start - 1));
         regex_s.replace(
           template_start, template_end - template_start + 1, "([^/]+)");
@@ -435,8 +435,8 @@ namespace ccf
         regex_s);
       LOG_TRACE_FMT(
         "Component names are: {}",
-        fmt::join(templated.template_component_names, ", "));
-      templated.template_regex = std::regex(regex_s);
+        fmt::join(templated->template_component_names, ", "));
+      templated->template_regex = std::regex(regex_s);
 
       return templated;
     }
@@ -495,7 +495,7 @@ namespace ccf
     Endpoint make_endpoint(
       const std::string& method, RESTVerb verb, const EndpointFunction& f)
     {
-      Endpoint endpoint;
+      Endpoint endpoint(method, f, this);
       endpoint.method = method;
       endpoint.verb = verb;
       endpoint.func = f;
@@ -550,17 +550,17 @@ namespace ccf
      * will be replaced.
      * @param endpoint Endpoint object describing the new resource to install
      */
-    void install(const Endpoint& endpoint)
+    void install(Endpoint& endpoint)
     {
       const auto templated_endpoint = parse_path_template(endpoint);
-      if (templated_endpoint.has_value())
+      if (templated_endpoint != nullptr)
       {
         templated_endpoints[endpoint.method][endpoint.verb] =
-          templated_endpoint.value();
+          templated_endpoint;
       }
       else
       {
-        fully_qualified_endpoints[endpoint.method][endpoint.verb] = endpoint;
+        fully_qualified_endpoints[endpoint.method][endpoint.verb] = std::make_shared<Endpoint>(endpoint);
       }
     }
 
@@ -574,14 +574,14 @@ namespace ccf
      */
     Endpoint& set_default(EndpointFunction f)
     {
-      default_endpoint = {"", f, this};
-      return default_endpoint.value();
+      default_endpoint = std::make_shared<Endpoint>("", f, this);
+      return *default_endpoint;
     }
 
     static void add_endpoint_to_api_document(
-      nlohmann::json& document, const Endpoint& endpoint)
+      nlohmann::json& document, const EndpointPtr& endpoint)
     {
-      for (const auto& builder_fn : endpoint.schema_builders)
+      for (const auto& builder_fn : endpoint->schema_builders)
       {
         builder_fn(document, endpoint);
       }
@@ -611,7 +611,7 @@ namespace ccf
         {
           add_endpoint_to_api_document(document, endpoint);
 
-          for (const auto& name : endpoint.template_component_names)
+          for (const auto& name : endpoint->template_component_names)
           {
             auto parameter = nlohmann::json::object();
             parameter["name"] = name;
@@ -619,7 +619,7 @@ namespace ccf
             parameter["required"] = true;
             parameter["schema"] = {{"type", "string"}};
             ds::openapi::add_path_parameter_schema(
-              document, endpoint.method, parameter);
+              document, endpoint->method, parameter);
           }
         }
       }
@@ -637,7 +637,7 @@ namespace ccf
           std::string verb_name = verb.c_str();
           nonstd::to_lower(verb_name);
           j[verb_name] =
-            GetSchema::Out{endpoint.params_schema, endpoint.result_schema};
+            GetSchema::Out{endpoint->params_schema, endpoint->result_schema};
         }
       }
 
@@ -649,7 +649,7 @@ namespace ccf
           std::string verb_name = verb.c_str();
           nonstd::to_lower(verb_name);
           j[verb_name] =
-            GetSchema::Out{endpoint.params_schema, endpoint.result_schema};
+            GetSchema::Out{endpoint->params_schema, endpoint->result_schema};
         }
       }
 
@@ -664,9 +664,9 @@ namespace ccf
         for (const auto& [verb, endpoint] : verb_endpoints)
         {
           std::string v(verb.c_str());
-          e[v] = {endpoint.metrics.calls,
-                  endpoint.metrics.errors,
-                  endpoint.metrics.failures};
+          e[v] = {endpoint->metrics.calls,
+                  endpoint->metrics.errors,
+                  endpoint->metrics.failures};
         }
         out.metrics[path] = e;
       }
@@ -677,9 +677,9 @@ namespace ccf
         for (const auto& [verb, endpoint] : verb_endpoints)
         {
           std::string v(verb.c_str());
-          e[v] = {endpoint.metrics.calls,
-                  endpoint.metrics.errors,
-                  endpoint.metrics.failures};
+          e[v] = {endpoint->metrics.calls,
+                  endpoint->metrics.errors,
+                  endpoint->metrics.failures};
         }
         out.metrics[path] = e;
       }
@@ -687,7 +687,7 @@ namespace ccf
 
     virtual void init_handlers(kv::Store&) {}
 
-    virtual Endpoint* find_endpoint(enclave::RpcContext& rpc_ctx)
+    virtual EndpointPtr find_endpoint(enclave::RpcContext& rpc_ctx)
     {
       auto method = rpc_ctx.get_method();
       method = method.substr(method.find_first_not_of('/'));
@@ -700,7 +700,7 @@ namespace ccf
           verb_endpoints.find(rpc_ctx.get_request_verb());
         if (endpoints_for_verb != verb_endpoints.end())
         {
-          return &endpoints_for_verb->second;
+          return endpoints_for_verb->second;
         }
       }
 
@@ -712,25 +712,25 @@ namespace ccf
         if (templated_endpoints_for_verb != verb_endpoints.end())
         {
           auto& endpoint = templated_endpoints_for_verb->second;
-          if (std::regex_match(method, match, endpoint.template_regex))
+          if (std::regex_match(method, match, endpoint->template_regex))
           {
             auto& path_params = rpc_ctx.get_request_path_params();
-            for (size_t i = 0; i < endpoint.template_component_names.size();
+            for (size_t i = 0; i < endpoint->template_component_names.size();
                  ++i)
             {
-              const auto& template_name = endpoint.template_component_names[i];
+              const auto& template_name = endpoint->template_component_names[i];
               const auto& template_value = match[i + 1].str();
               path_params[template_name] = template_value;
             }
 
-            return &endpoint;
+            return endpoint;
           }
         }
       }
 
-      if (default_endpoint)
+      if (default_endpoint != nullptr)
       {
-        return &default_endpoint.value();
+        return default_endpoint;
       }
 
       return nullptr;
@@ -758,7 +758,7 @@ namespace ccf
       {
         for (const auto& [verb, endpoint] : verb_endpoints)
         {
-          if (std::regex_match(method, match, endpoint.template_regex))
+          if (std::regex_match(method, match, endpoint->template_regex))
           {
             verbs.insert(verb);
           }
