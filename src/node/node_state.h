@@ -902,12 +902,14 @@ namespace ccf
         recovery_store->get<Signatures>(Tables::SIGNATURES);
       Nodes* recovery_nodes_map = recovery_store->get<Nodes>(Tables::NODES);
 
-      recovery_history = std::make_shared<MerkleTxHistory>(
+      auto m = std::make_shared<MerkleTxHistory>(
         *recovery_store.get(),
         self,
         *node_sign_kp,
         *recovery_signature_map,
         *recovery_nodes_map);
+      m->start_signature_emit_timer(m);
+        recovery_history = m; 
 
 #ifdef USE_NULL_ENCRYPTOR
       recovery_encryptor = std::make_shared<kv::NullTxEncryptor>();

@@ -511,10 +511,13 @@ namespace ccf
       nodes(nodes_),
       sig_tx_interval(sig_tx_interval_),
       sig_ms_interval(sig_ms_interval_)
-    {}
+    {
+      LOG_INFO_FMT("BBBBBBB 1 starting timer");
+    }
 
     void start_signature_emit_timer(std::shared_ptr<HashedTxHistory<T>> self)
     {
+      LOG_INFO_FMT("BBBBBBB 2 starting timer");
       struct EmitSigMsg
       {
         EmitSigMsg(std::shared_ptr<HashedTxHistory<T>> self_) : self(self_) {}
@@ -546,26 +549,26 @@ namespace ccf
               (time.count() - self->time_of_last_signature.count()) >
                 sig_ms_interval)
             {
+
               msg->data.self->emit_signature();
-              /*
               LOG_INFO_FMT(
-                "AAAAA - sign, is_primary:{}, commit_gap:{}, time:{},
-              time_of_last:{}", consensus->is_primary(),
+                "AAAAA - sign, is_primary:{}, commit_gap:{}, time:{}, time_of_last:{}",
+              consensus->is_primary(),
                 self->store.commit_gap(),
                 time.count(),
                 self->time_of_last_signature.count());
-              */
             }
             else
             {
-              /*
+              auto txid = self->store.current_version();
               LOG_INFO_FMT(
-                "AAAAA - not sign, is_primary:{}, commit_gap:{}, time:{},
-              time_of_last:{}", consensus->is_primary(),
+                "AAAAA - not sign, is_primary:{}, commit_gap:{}, time:{}, "
+                "time_of_last:{}, current_version:{}",
+                consensus->is_primary(),
                 self->store.commit_gap(),
                 time.count(),
-                self->time_of_last_signature.count());
-              */
+                self->time_of_last_signature.count(),
+                txid);
             }
 
             time_since_last_sig =
