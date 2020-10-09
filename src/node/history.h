@@ -523,9 +523,7 @@ namespace ccf
       LOG_INFO_FMT("BBBBBBB 2 starting timer");
       struct EmitSigMsg
       {
-        //EmitSigMsg(std::shared_ptr<HashedTxHistory<T>> self_) : self(self_) {}
         EmitSigMsg(HashedTxHistory<T>* self_) : self(self_) {}
-        //std::shared_ptr<HashedTxHistory<T>> self;
         HashedTxHistory<T>* self;
       };
 
@@ -541,7 +539,7 @@ namespace ccf
             const int64_t sig_ms_interval = self->sig_ms_interval;
             int64_t time_since_last_sig = sig_ms_interval;
 
-            // if (mguard.try_lock())
+            if (mguard.try_lock())
             {
               auto time = threading::ThreadMessaging::thread_messaging
                             .get_current_time_offset();
@@ -807,9 +805,9 @@ namespace ccf
     void try_emit_signature(kv::Version) override
     {
       std::unique_lock<SpinLock> mguard(signature_lock, std::defer_lock);
-      //if (!mguard.try_lock())
+      if (!mguard.try_lock())
       {
-        //return;
+        return;
       }
 
       if ((store.commit_gap()) == sig_tx_interval / 2)
