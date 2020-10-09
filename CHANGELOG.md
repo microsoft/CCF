@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 - `/api/schema` endpoints are removed, as the same information is now available in the OpenAPI document at `/api`.
 
+### Deprecated
+- Passing the `SecurityDomain` when creating a KV map is deprecated, and will be removed in a future release. This should be encoded in the table's name, with a `public:` prefix for public tables.
+
 ## [0.14.0]
 ### Added
 - Nodes can recover rapidly from a snapshot, rather than needing to reprocess an entire ledger (#1656)
