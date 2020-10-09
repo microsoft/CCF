@@ -19,18 +19,17 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
   ccf::NodeId source_node_id = 0;
   auto source_node_kp = tls::make_key_pair();
 
-  auto& signatures = source_store.create<ccf::Signatures>(
-    "ccf.signatures", kv::SecurityDomain::PUBLIC);
-  auto& nodes =
-    source_store.create<ccf::Nodes>("ccf.nodes", kv::SecurityDomain::PUBLIC);
+  auto& signatures =
+    source_store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
+  auto& nodes = source_store.create<ccf::Nodes>(ccf::Tables::NODES);
 
   auto source_history = std::make_shared<ccf::MerkleTxHistory>(
     source_store, 0, *source_node_kp, signatures, nodes);
 
   source_store.set_history(source_history);
 
-  auto& string_map = source_store.create<kv::Map<std::string, std::string>>(
-    "string_map", kv::SecurityDomain::PUBLIC);
+  auto& string_map =
+    source_store.create<kv::Map<std::string, std::string>>("public:string_map");
 
   size_t transactions_count = 3;
   kv::Version snapshot_version = kv::NoVersion;
@@ -85,8 +84,8 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       target_store.clone_schema(source_store);
 
       auto target_signatures =
-        target_store.get<ccf::Signatures>("ccf.signatures");
-      auto target_nodes = target_store.get<ccf::Nodes>("ccf.nodes");
+        target_store.get<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      auto target_nodes = target_store.get<ccf::Nodes>(ccf::Tables::NODES);
 
       auto target_history = std::make_shared<ccf::MerkleTxHistory>(
         target_store, 0, *target_node_kp, *target_signatures, *target_nodes);

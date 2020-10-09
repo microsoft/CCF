@@ -103,59 +103,41 @@ namespace ccf
             aft::replicate_type_raft, aft::replicated_tables_raft) :
           std::make_shared<kv::Store>(
             aft::replicate_type_bft, aft::replicated_tables_bft)),
-      members(
-        tables->create<Members>(Tables::MEMBERS, kv::SecurityDomain::PUBLIC)),
-      member_certs(tables->create<CertDERs>(
-        Tables::MEMBER_CERT_DERS, kv::SecurityDomain::PUBLIC)),
-      gov_scripts(tables->create<Scripts>(
-        Tables::GOV_SCRIPTS, kv::SecurityDomain::PUBLIC)),
-      modules(
-        tables->create<Modules>(Tables::MODULES, kv::SecurityDomain::PUBLIC)),
-      proposals(tables->create<Proposals>(
-        Tables::PROPOSALS, kv::SecurityDomain::PUBLIC)),
-      whitelists(tables->create<Whitelists>(
-        Tables::WHITELISTS, kv::SecurityDomain::PUBLIC)),
-      node_code_ids(tables->create<CodeIDs>(
-        Tables::NODE_CODE_IDS, kv::SecurityDomain::PUBLIC)),
-      member_acks(tables->create<MemberAcks>(
-        Tables::MEMBER_ACKS, kv::SecurityDomain::PUBLIC)),
-      governance_history(tables->create<GovernanceHistory>(
-        Tables::GOV_HISTORY, kv::SecurityDomain::PUBLIC)),
+      members(tables->create<Members>(Tables::MEMBERS)),
+      member_certs(tables->create<CertDERs>(Tables::MEMBER_CERT_DERS)),
+      gov_scripts(tables->create<Scripts>(Tables::GOV_SCRIPTS)),
+      modules(tables->create<Modules>(Tables::MODULES)),
+      proposals(tables->create<Proposals>(Tables::PROPOSALS)),
+      whitelists(tables->create<Whitelists>(Tables::WHITELISTS)),
+      node_code_ids(tables->create<CodeIDs>(Tables::NODE_CODE_IDS)),
+      member_acks(tables->create<MemberAcks>(Tables::MEMBER_ACKS)),
+      governance_history(
+        tables->create<GovernanceHistory>(Tables::GOV_HISTORY)),
       member_client_signatures(
         tables->create<ClientSignatures>(Tables::MEMBER_CLIENT_SIGNATURES)),
-      shares(
-        tables->create<Shares>(Tables::SHARES, kv::SecurityDomain::PUBLIC)),
-      submitted_shares(tables->create<SubmittedShares>(
-        Tables::SUBMITTED_SHARES, kv::SecurityDomain::PUBLIC)),
-      config(tables->create<Configuration>(
-        Tables::CONFIGURATION, kv::SecurityDomain::PUBLIC)),
-      ca_certs(tables->create<CACertDERs>(
-        Tables::CA_CERT_DERS, kv::SecurityDomain::PUBLIC)),
-      users(tables->create<Users>(Tables::USERS, kv::SecurityDomain::PUBLIC)),
-      user_certs(tables->create<CertDERs>(
-        Tables::USER_CERT_DERS, kv::SecurityDomain::PUBLIC)),
+      shares(tables->create<Shares>(Tables::SHARES)),
+      submitted_shares(
+        tables->create<SubmittedShares>(Tables::SUBMITTED_SHARES)),
+      config(tables->create<Configuration>(Tables::CONFIGURATION)),
+      ca_certs(tables->create<CACertDERs>(Tables::CA_CERT_DERS)),
+      users(tables->create<Users>(Tables::USERS)),
+      user_certs(tables->create<CertDERs>(Tables::USER_CERT_DERS)),
       user_client_signatures(
         tables->create<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
-      nodes(tables->create<Nodes>(Tables::NODES, kv::SecurityDomain::PUBLIC)),
-      app_scripts(tables->create<Scripts>(
-        Tables::APP_SCRIPTS, kv::SecurityDomain::PUBLIC)),
-      service(
-        tables->create<Service>(Tables::SERVICE, kv::SecurityDomain::PUBLIC)),
-      values(
-        tables->create<Values>(Tables::VALUES, kv::SecurityDomain::PUBLIC)),
-      secrets(
-        tables->create<Secrets>(Tables::SECRETS, kv::SecurityDomain::PUBLIC)),
-      signatures(tables->create<Signatures>(
-        Tables::SIGNATURES, kv::SecurityDomain::PUBLIC)),
-      consensus(tables->create<ConsensusTable>(
-        Tables::CONSENSUS, kv::SecurityDomain::PUBLIC)),
-      snapshot_evidence(tables->create<SnapshotEvidence>(
-        Tables::SNAPSHOT_EVIDENCE, kv::SecurityDomain::PUBLIC)),
+      nodes(tables->create<Nodes>(Tables::NODES)),
+      app_scripts(tables->create<Scripts>(Tables::APP_SCRIPTS)),
+      service(tables->create<Service>(Tables::SERVICE)),
+      values(tables->create<Values>(Tables::VALUES)),
+      secrets(tables->create<Secrets>(Tables::SECRETS)),
+      signatures(tables->create<Signatures>(Tables::SIGNATURES)),
+      consensus(tables->create<ConsensusTable>(Tables::CONSENSUS)),
+      snapshot_evidence(
+        tables->create<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE)),
       bft_requests_map(tables->create<aft::RequestsMap>(Tables::AFT_REQUESTS)),
-      backup_signatures_map(tables->create<BackupSignaturesMap>(
-        Tables::BACKUP_SIGNATURES, kv::SecurityDomain::PUBLIC)),
-      revealed_nonces_map(tables->create<aft::RevealedNoncesMap>(
-        Tables::NONCES, kv::SecurityDomain::PUBLIC))
+      backup_signatures_map(
+        tables->create<BackupSignaturesMap>(Tables::BACKUP_SIGNATURES)),
+      revealed_nonces_map(
+        tables->create<aft::RevealedNoncesMap>(Tables::NONCES))
     {}
 
     /** Returns a tuple of all tables that are possibly accessible from scripts
