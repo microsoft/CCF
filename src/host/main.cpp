@@ -361,7 +361,7 @@ int main(int argc, char** argv)
     members_info,
     "--member-info",
     "Initial consortium members information (public identity,recovery public "
-    "ke,member data)")
+    "key,member data)")
     ->required();
 
   std::optional<size_t> recovery_threshold = std::nullopt;
