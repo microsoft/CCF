@@ -350,7 +350,7 @@ namespace ccfapp
       ctx,
       view_val,
       "delete",
-      JS_NewCFunction(ctx, ccfapp::js_kv_map_delete, "delete", 1));
+      JS_NewCFunction(ctx, deleter, "delete", 1));
 
     desc->flags = 0;
     desc->value = view_val;
