@@ -4,18 +4,21 @@
 
 #ifdef INSIDE_ENCLAVE
 #  include <pthread.h>
-   static unsigned int _spin_set_locked(pthread_spinlock_t* spinlock)
+
+#  ifndef VIRTUAL_ENCLAVE
+static unsigned int _spin_set_locked(pthread_spinlock_t* spinlock)
 {
-    unsigned int value = 1;
+  unsigned int value = 1;
 
-    asm volatile("lock xchg %0, %1;"
-                 : "=r"(value)     /* %0 */
-                 : "m"(*spinlock), /* %1 */
-                   "0"(value)      /* also %2 */
-                 : "memory");
+  asm volatile("lock xchg %0, %1;"
+               : "=r"(value) /* %0 */
+               : "m"(*spinlock), /* %1 */
+                 "0"(value) /* also %2 */
+               : "memory");
 
-    return value;
+  return value;
 }
+#  endif
 
 class SpinLock
 {
@@ -40,7 +43,11 @@ public:
 
   bool try_lock()
   {
+#  ifdef VIRTUAL_ENCLAVE
+    return pthread_spin_trylock(&sl) == 0;
+#  else
     return (_spin_set_locked(&sl) == 0);
+#  endif
   }
 
   void unlock()

@@ -526,7 +526,7 @@ namespace ccf
           auto& self = msg->data.self;
 
           std::unique_lock<SpinLock> mguard(
-            self->signature_lock,std::defer_lock);
+            self->signature_lock, std::defer_lock);
 
           threading::Task::TimerEntry& timer_entry =
             self->emit_signature_timer_entry;
@@ -749,7 +749,7 @@ namespace ccf
 
     void try_emit_signature(kv::Version commit_version) override
     {
-      std::unique_lock<SpinLock> mguard(signature_lock,std::defer_lock);
+      std::unique_lock<SpinLock> mguard(signature_lock, std::defer_lock);
       if (!mguard.try_lock())
       {
         return;

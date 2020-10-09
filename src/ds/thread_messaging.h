@@ -80,7 +80,8 @@ namespace threading
     {
       TimerEntry() : time_offset(0), counter(0) {}
       TimerEntry(std::chrono::milliseconds time_offset_, uint64_t counter_) :
-        time_offset(time_offset_), counter(counter_)
+        time_offset(time_offset_),
+        counter(counter_)
       {}
 
       std::chrono::milliseconds time_offset;
