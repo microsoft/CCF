@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/ccf_deprecated.h"
 #include "ds/ccf_exception.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
@@ -196,22 +197,41 @@ namespace kv
       return get<M>(other.get_name());
     }
 
-    /** Create a Map
-     *
-     * Note this call will throw a logic_error if a map by that name already
-     * exists.
-     *
-     * @param name Map name
-     * @param global_hook Handler to execute on global commit
-     *
-     * @return Newly created Map
-     */
     template <class K, class V>
-    Map<K, V>& create(
-      std::string name,
-      SecurityDomain security_domain = kv::SecurityDomain::PRIVATE)
+    CCF_DEPRECATED(
+      "SecurityDomain should not be passed explicitly, but encoded in the "
+      "map's name. 'public:' prefix indicates a PUBLIC table, all others are "
+      "PRIVATE")
+    Map<K, V>& create(const std::string& name, SecurityDomain security_domain)
     {
       return create<Map<K, V>>(name, security_domain);
+    }
+
+    template <class M>
+    CCF_DEPRECATED(
+      "SecurityDomain should not be passed explicitly, but encoded in the "
+      "map's name. 'public:' prefix indicates a PUBLIC table, all others are "
+      "PRIVATE")
+    M& create(const std::string& name, SecurityDomain security_domain)
+    {
+      std::lock_guard<SpinLock> mguard(maps_lock);
+
+      if (has_map_internal(name))
+        throw std::logic_error(fmt::format("Map '{}' already exists", name));
+
+      const auto [sec_dom, acc_cat] = kv::parse_map_name(name);
+      if (sec_dom != security_domain)
+      {
+        throw std::logic_error(fmt::format(
+          "Map '{}' cannot be created with the requested SecurityDomain "
+          "(public maps must begin with public: prefix)",
+          name));
+      }
+
+      auto result = std::make_shared<M>(
+        this, name, security_domain, is_map_replicated(name));
+      maps[name] = std::make_pair(NoVersion, result);
+      return *result;
     }
 
     /** Create a Map
@@ -220,19 +240,33 @@ namespace kv
      * exists.
      *
      * @param name Map name
-     * @param global_hook Handler to execute on global commit
+     *
+     * @return Newly created Map
+     */
+    template <class K, class V>
+    Map<K, V>& create(const std::string& name)
+    {
+      return create<Map<K, V>>(name);
+    }
+
+    /** Create a Map
+     *
+     * Note this call will throw a logic_error if a map by that name already
+     * exists.
+     *
+     * @param name Map name
      *
      * @return Newly created Map
      */
     template <class M>
-    M& create(
-      std::string name,
-      SecurityDomain security_domain = kv::SecurityDomain::PRIVATE)
+    M& create(const std::string& name)
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
       if (has_map_internal(name))
         throw std::logic_error("Map already exists");
+
+      const auto [security_domain, _] = kv::parse_map_name(name);
 
       auto result = std::make_shared<M>(
         this, name, security_domain, is_map_replicated(name));

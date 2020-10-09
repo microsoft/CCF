@@ -71,10 +71,8 @@ TEST_CASE("StateCache")
   store.set_encryptor(encryptor);
 
   // Make history to produce signatures
-  auto& signatures = store.create<ccf::Signatures>(
-    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
-  auto& nodes =
-    store.create<ccf::Nodes>(ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
+  auto& signatures = store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
+  auto& nodes = store.create<ccf::Nodes>(ccf::Tables::NODES);
 
   const auto node_id = 0;
 
@@ -107,10 +105,8 @@ TEST_CASE("StateCache")
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     }
 
-    auto& public_table =
-      store.create<NumToString>("public", kv::SecurityDomain::PUBLIC);
-    auto& private_table =
-      store.create<NumToString>("private", kv::SecurityDomain::PRIVATE);
+    auto& public_table = store.create<NumToString>("public:data");
+    auto& private_table = store.create<NumToString>("data");
 
     {
       for (size_t i = 1; i < high_signature_transaction; ++i)
@@ -257,8 +253,8 @@ TEST_CASE("StateCache")
     REQUIRE(store_at_index != nullptr);
 
     {
-      auto& public_table = *store_at_index->get<NumToString>("public");
-      auto& private_table = *store_at_index->get<NumToString>("private");
+      auto& public_table = *store_at_index->get<NumToString>("public:data");
+      auto& private_table = *store_at_index->get<NumToString>("data");
 
       auto tx = store_at_index->create_tx();
       auto [public_view, private_view] =

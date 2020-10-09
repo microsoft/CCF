@@ -60,7 +60,9 @@ def test_cert_store(network, args):
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
-        r = c.post("/gov/read", {"table": "ccf.ca_cert_ders", "key": "mycert"})
+        r = c.post(
+            "/gov/read", {"table": "public:ccf.gov.ca_cert_ders", "key": "mycert"}
+        )
         assert r.status_code == 200, r.status_code
         cert_pem_str = open(ca_cert_path).read()
         cert_ref = x509.load_pem_x509_certificate(
