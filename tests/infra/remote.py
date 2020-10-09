@@ -676,12 +676,12 @@ class CCFRemote(object):
             ]
             if members_info is None:
                 raise ValueError(
-                    "Starting node should be given at least one pair member certificate, member public encryption key"
+                    "Starting node should be given at least one tuple of (member certificate, member public encryption key[, member data])"
                 )
-            for mc, mk in members_info:
-                cmd += [f"--member-info={mc},{mk}"]
-                data_files.append(os.path.join(self.common_dir, mc))
-                data_files.append(os.path.join(self.common_dir, mk))
+            for mi in members_info:
+                for mf in mi:
+                    data_files.append(os.path.join(self.common_dir, mf))
+                cmd += [f"--member-info={','.join(mi)}"]
             data_files += [os.path.join(os.path.basename(self.common_dir), gov_script)]
         elif start_type == StartType.join:
             cmd += [
