@@ -655,6 +655,27 @@ namespace ccfapp
       set_default(default_handler);
     }
 
+    EndpointDefinitionPtr find_endpoint(
+      kv::Tx& tx, enclave::RpcContext& rpc_ctx) override
+    {
+      auto method = rpc_ctx.get_method();
+      auto verb = rpc_ctx.get_request_verb();
+      LOG_FAIL_FMT("So I'm looking for {} {}", verb.c_str(), method);
+      LOG_FAIL_FMT(
+        "Here's the things I could be matching against:", verb.c_str(), method);
+
+      auto endpoints_view =
+        tx.get_view<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+
+      endpoints_view->foreach([](const auto& k, const auto&) {
+        LOG_FAIL_FMT("  {} {}", k.method, k.verb.c_str());
+
+        return true;
+      });
+
+      return EndpointRegistry::find_endpoint(tx, rpc_ctx);
+    }
+
     static std::pair<http_method, std::string> split_script_key(
       const std::string& key)
     {

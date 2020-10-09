@@ -207,7 +207,8 @@ namespace ccf
       {
         if constexpr (!std::is_same_v<In, void>)
         {
-          params_schema = ds::json::build_schema<In>(dispatch.method + "/params");
+          params_schema =
+            ds::json::build_schema<In>(dispatch.method + "/params");
 
           schema_builders.push_back(
             [](nlohmann::json& document, const EndpointPtr& endpoint) {
@@ -245,7 +246,8 @@ namespace ccf
 
         if constexpr (!std::is_same_v<Out, void>)
         {
-          result_schema = ds::json::build_schema<Out>(dispatch.method + "/result");
+          result_schema =
+            ds::json::build_schema<Out>(dispatch.method + "/result");
 
           schema_builders.push_back(
             [](nlohmann::json& document, const EndpointPtr& endpoint) {
@@ -559,8 +561,9 @@ namespace ccf
       }
       else
       {
-        fully_qualified_endpoints[endpoint.dispatch.method][endpoint.dispatch.verb] =
-          std::make_shared<Endpoint>(endpoint);
+        fully_qualified_endpoints[endpoint.dispatch.method]
+                                 [endpoint.dispatch.verb] =
+                                   std::make_shared<Endpoint>(endpoint);
       }
     }
 
@@ -636,8 +639,8 @@ namespace ccf
         {
           std::string verb_name = verb.c_str();
           nonstd::to_lower(verb_name);
-          j[verb_name] = GetSchema::Out{endpoint->params_schema,
-                                        endpoint->result_schema};
+          j[verb_name] =
+            GetSchema::Out{endpoint->params_schema, endpoint->result_schema};
         }
       }
 
@@ -648,8 +651,8 @@ namespace ccf
         {
           std::string verb_name = verb.c_str();
           nonstd::to_lower(verb_name);
-          j[verb_name] = GetSchema::Out{endpoint->params_schema,
-                                        endpoint->result_schema};
+          j[verb_name] =
+            GetSchema::Out{endpoint->params_schema, endpoint->result_schema};
         }
       }
 
@@ -677,7 +680,8 @@ namespace ccf
 
     virtual void init_handlers(kv::Store&) {}
 
-    virtual EndpointDefinitionPtr find_endpoint(enclave::RpcContext& rpc_ctx)
+    virtual EndpointDefinitionPtr find_endpoint(
+      kv::Tx&, enclave::RpcContext& rpc_ctx)
     {
       auto method = rpc_ctx.get_method();
       method = method.substr(method.find_first_not_of('/'));

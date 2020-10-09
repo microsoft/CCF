@@ -225,7 +225,7 @@ namespace ccf
       CallerId caller_id,
       PreExec pre_exec = {})
     {
-      const auto endpoint = endpoints.find_endpoint(*ctx);
+      const auto endpoint = endpoints.find_endpoint(tx, *ctx);
       if (endpoint == nullptr)
       {
         const auto allowed_verbs = endpoints.get_allowed_verbs(*ctx);
@@ -545,7 +545,7 @@ namespace ccf
 
       auto caller_id = endpoints.get_caller_id(tx, ctx->session->caller_cert);
 
-      auto endpoint = endpoints.find_endpoint(*ctx);
+      auto endpoint = endpoints.find_endpoint(tx, *ctx);
 
       const bool is_bft =
         consensus != nullptr && consensus->type() == ConsensusType::BFT;
