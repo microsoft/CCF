@@ -831,9 +831,15 @@ namespace ccf
           recovery_v));
       }
 
+      LOG_INFO_FMT("BBBBBB 9");
       network.tables->swap_private_maps(*recovery_store.get());
+      LOG_INFO_FMT("BBBBBB 9");
+      recovery_history->StopCallbacks();
+      LOG_INFO_FMT("BBBBBB 9");
       recovery_store.reset();
+      LOG_INFO_FMT("BBBBBB 9");
       reset_recovery_hook();
+      LOG_INFO_FMT("BBBBBB 9");
 
       // Raft should deserialise all security domains when network is opened
       consensus->enable_all_domains();
@@ -907,9 +913,11 @@ namespace ccf
         self,
         *node_sign_kp,
         *recovery_signature_map,
-        *recovery_nodes_map);
+        *recovery_nodes_map,
+        sig_tx_interval,
+        sig_ms_interval);
       m->start_signature_emit_timer(m);
-        recovery_history = m; 
+      recovery_history = m; 
 
 #ifdef USE_NULL_ENCRYPTOR
       recovery_encryptor = std::make_shared<kv::NullTxEncryptor>();

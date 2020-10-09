@@ -138,7 +138,7 @@ namespace threading
     }
 
   private:
-    std::chrono::milliseconds time_offset;
+    std::chrono::milliseconds time_offset = std::chrono::milliseconds(0);
     uint64_t time_entry_counter = 0;
     std::map<TimerEntry, std::unique_ptr<ThreadMsg>, TimerEntryCompare>
       timer_map;
@@ -290,6 +290,7 @@ namespace threading
 
     void tick(std::chrono::milliseconds elapsed)
     {
+      LOG_INFO_FMT("CCCCC - tick - elapsed {}", elapsed.count());
       for (auto i = 0; i < thread_count; ++i)
       {
         auto& task = get_task(i);

@@ -208,6 +208,7 @@ namespace enclave
             auto [ms_count] =
               ringbuffer::read_message<AdminMessage::tick>(data, size);
 
+            LOG_INFO_FMT("CCCCC - 1 - tick - ms_count {}", ms_count);
             if (ms_count > 0)
             {
               const auto message_counts =
