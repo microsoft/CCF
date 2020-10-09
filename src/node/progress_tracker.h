@@ -353,6 +353,9 @@ namespace ccf
           std::copy(h.begin(), h.end(), commit_cert.nonce.begin());
         }
       }
+
+      cert.nonces_committed_to_ledger = true;
+      try_update_watermark(cert, nonces_value.tx_id.version);
       return kv::TxHistory::Result::OK;
     }
 
@@ -468,6 +471,8 @@ namespace ccf
 
         store->write_nonces(revealed_nonces);
       }
+
+      try_update_watermark(cert, tx_id.version);
     }
 
     Nonce get_my_nonce(kv::TxID tx_id)
@@ -507,30 +512,13 @@ namespace ccf
 
     kv::Consensus::SeqNo get_highest_committed_nonce()
     {
-      auto it = certificates.find(highest_commit_level);
-      if (it == certificates.end())
-      {
-        highest_commit_level = {0, 0};
-        it = certificates.begin();
-      }
-
-      for (; it != certificates.end(); ++it)
-      {
-        CommitCert& cert = it->second;
-        if (cert.nonces_committed_to_ledger == false)
-        {
-          break;
-        }
-        highest_commit_level = it->first.tx_id;
-      }
-
-      return highest_commit_level.version;
+      return highest_commit_level;
     }
 
   private:
     kv::NodeId id;
     std::shared_ptr<tls::Entropy> entropy;
-    kv::TxID highest_commit_level = {0, 0};
+    kv::Consensus::SeqNo highest_commit_level = 0;
 
     std::map<CertKey, CommitCert> certificates;
 
@@ -615,6 +603,14 @@ namespace ccf
         return true;
       }
       return false;
+    }
+
+    void try_update_watermark(CommitCert& cert, kv::Consensus::SeqNo seqno)
+    {
+      if (cert.nonces_committed_to_ledger && seqno > highest_commit_level)
+      {
+        highest_commit_level = seqno;
+      }
     }
 
     bool should_append_nonces_to_ledger(
