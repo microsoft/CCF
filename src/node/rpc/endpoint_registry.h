@@ -95,14 +95,13 @@ namespace ccf
      * A CCF application is a collection of Endpoints recorded in the
      * application's EndpointRegistry.
      */
-    struct Endpoint
+    struct Endpoint : public EndpointMetadata
     {
       Endpoint(const std::string& m, const EndpointFunction& f, EndpointRegistry* r) : method(m), func(f), registry(r) {}
 
       std::string method;
       EndpointFunction func;
       EndpointRegistry* registry = nullptr;
-      Metrics metrics = {};
 
       std::vector<SchemaBuilderFn> schema_builders = {};
 
@@ -285,8 +284,6 @@ namespace ccf
         return set_auto_schema<typename T::In, typename T::Out>();
       }
 
-      ForwardingRequired forwarding_required = ForwardingRequired::Always;
-
       /** Overrides whether a Endpoint is always forwarded, or whether it is
        * safe to sometimes execute on followers.
        *
@@ -298,8 +295,6 @@ namespace ccf
         forwarding_required = fr;
         return *this;
       }
-
-      bool require_client_signature = false;
 
       /** Requires that the HTTP request is cryptographically signed by
        * the calling user.
@@ -314,8 +309,6 @@ namespace ccf
         require_client_signature = v;
         return *this;
       }
-
-      bool require_client_identity = true;
 
       /** Requires that the HTTPS request is emitted by a user whose public
        * identity has been registered in advance by consortium members.
@@ -346,8 +339,6 @@ namespace ccf
         require_client_identity = v;
         return *this;
       }
-
-      bool execute_locally = false;
 
       /** Indicates that the execution of the Endpoint does not require
        * consensus from other nodes in the network.
@@ -394,6 +385,8 @@ namespace ccf
       fully_qualified_endpoints;
     std::map<std::string, std::map<RESTVerb, std::shared_ptr<PathTemplatedEndpoint>>>
       templated_endpoints;
+
+    std::map<std::string, std::map<std::string, Metrics>> metrics;
 
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
@@ -658,36 +651,27 @@ namespace ccf
 
     virtual void endpoint_metrics(kv::Tx&, EndpointMetrics::Out& out)
     {
-      for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
+      for (const auto& [path, verb_metrics] : metrics)
       {
-        std::map<std::string, EndpointMetrics::Metric> e;
-        for (const auto& [verb, endpoint] : verb_endpoints)
+        for (const auto& [verb, metric] : verb_metrics)
         {
           std::string v(verb.c_str());
-          e[v] = {endpoint->metrics.calls,
-                  endpoint->metrics.errors,
-                  endpoint->metrics.failures};
+          out.metrics[path][v] = {metric.calls,
+                  metric.errors,
+                  metric.failures};
         }
-        out.metrics[path] = e;
       }
+    }
 
-      for (const auto& [path, verb_endpoints] : templated_endpoints)
-      {
-        std::map<std::string, EndpointMetrics::Metric> e;
-        for (const auto& [verb, endpoint] : verb_endpoints)
-        {
-          std::string v(verb.c_str());
-          e[v] = {endpoint->metrics.calls,
-                  endpoint->metrics.errors,
-                  endpoint->metrics.failures};
-        }
-        out.metrics[path] = e;
-      }
+    // TODO: Accessing directly is unsafe, as the map _or_ the entry could be accessed by other threads. Needs some kind of locking
+    Metrics& get_metrics(const EndpointMetadataPtr& e)
+    {
+      return metrics[e->method][e->verb];
     }
 
     virtual void init_handlers(kv::Store&) {}
 
-    virtual EndpointPtr find_endpoint(enclave::RpcContext& rpc_ctx)
+    virtual EndpointMetadataPtr find_endpoint(enclave::RpcContext& rpc_ctx)
     {
       auto method = rpc_ctx.get_method();
       method = method.substr(method.find_first_not_of('/'));
@@ -734,6 +718,17 @@ namespace ccf
       }
 
       return nullptr;
+    }
+
+    virtual void execute_endpoint(EndpointMetadataPtr e, EndpointContext& args)
+    {
+      auto endpoint = dynamic_cast<Endpoint*>(e.get());
+      if (endpoint == nullptr)
+      {
+        throw std::logic_error("Base execute_endpoint called on incorrect Endpoint type - expected derived implementation to handle derived endpoint instances");
+      }
+
+      endpoint->func(args);
     }
 
     virtual std::set<RESTVerb> get_allowed_verbs(

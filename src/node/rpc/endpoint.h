@@ -31,6 +31,11 @@ namespace ccf
 
     struct EndpointMetadata
     {
+      virtual ~EndpointMetadata() = default;
+
+      URI method;
+      HttpVerb verb;
+
       ForwardingRequired forwarding_required = ForwardingRequired::Always;
       bool execute_locally = false;
       bool require_client_signature = false;
@@ -40,9 +45,13 @@ namespace ccf
     DECLARE_JSON_TYPE(EndpointMetadata);
     DECLARE_JSON_REQUIRED_FIELDS(
       EndpointMetadata,
+      method,
+      verb,
       forwarding_required,
       execute_locally,
       require_client_signature,
       require_client_identity);
+
+    using EndpointMetadataPtr = std::shared_ptr<EndpointMetadata>;
   }
 }
