@@ -136,6 +136,14 @@ int main(int argc, char** argv)
   app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
     ->capture_default_str();
 
+  std::vector<std::string> read_only_ledger_dirs;
+  app
+    .add_option(
+      "--read-only-ledger-dir",
+      read_only_ledger_dirs,
+      "Additional read-only ledger directory (optional)")
+    ->type_size(-1);
+
   std::string snapshot_dir("snapshots");
   app.add_option("--snapshot-dir", snapshot_dir, "Snapshots directory")
     ->capture_default_str();
@@ -350,7 +358,7 @@ int main(int argc, char** argv)
       "--gov-script",
       gov_script,
       "Path to Lua file that defines the contents of the "
-      "ccf.governance.scripts table")
+      "public:ccf.gov.governance.scripts table")
     ->capture_default_str()
     ->check(CLI::ExistingFile)
     ->required();
@@ -567,7 +575,12 @@ int main(int argc, char** argv)
     // graceful shutdown on sigterm
     asynchost::Sigterm sigterm(writer_factory);
 
-    asynchost::Ledger ledger(ledger_dir, writer_factory, ledger_chunk_bytes);
+    asynchost::Ledger ledger(
+      ledger_dir,
+      writer_factory,
+      ledger_chunk_bytes,
+      asynchost::ledger_max_read_cache_files_default,
+      read_only_ledger_dirs);
     ledger.register_message_handlers(bp.get_dispatcher());
 
     asynchost::SnapshotManager snapshots(snapshot_dir);

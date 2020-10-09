@@ -22,9 +22,8 @@ namespace fs = std::filesystem;
 
 namespace asynchost
 {
-  static constexpr size_t max_chunk_threshold_size =
-    std::numeric_limits<uint32_t>::max(); // 4GB
-  static constexpr size_t max_read_cache_files_default = 5;
+  static constexpr size_t ledger_max_read_cache_files_default = 5;
+
   static constexpr auto ledger_committed_suffix = "committed";
   static constexpr auto ledger_start_idx_delimiter = "_";
   static constexpr auto ledger_last_idx_delimiter = "-";
@@ -63,6 +62,27 @@ namespace asynchost
     }
 
     return std::stol(file_name.substr(pos + 1));
+  }
+
+  std::optional<std::string> get_file_name_with_idx(
+    const std::string& dir, size_t idx)
+  {
+    std::optional<std::string> match = std::nullopt;
+    for (auto const& f : fs::directory_iterator(dir))
+    {
+      // If any file, based on its name, contains idx. Only committed files
+      // (i.e. those with a last idx) are considered here.
+      auto f_name = f.path().filename();
+      auto start_idx = get_start_idx_from_file_name(f_name);
+      auto last_idx = get_last_idx_from_file_name(f_name);
+      if (idx >= start_idx && last_idx.has_value() && idx <= last_idx.value())
+      {
+        match = f_name;
+        break;
+      }
+    }
+
+    return match;
   }
 
   class LedgerFile
@@ -452,10 +472,16 @@ namespace asynchost
   class Ledger
   {
   private:
+    static constexpr size_t max_chunk_threshold_size =
+      std::numeric_limits<uint32_t>::max(); // 4GB
+
     ringbuffer::WriterPtr to_enclave;
 
-    // Ledger directory
+    // Main ledger directory (write and read)
     const std::string ledger_dir;
+
+    // Ledger directories (read-only)
+    std::vector<std::string> read_ledger_dirs;
 
     // Keep tracks of all ledger files for writing.
     // Current ledger file is always the last one
@@ -507,18 +533,20 @@ namespace asynchost
       }
 
       // If the file is not in the cache, find the file from the ledger
-      // directory
-      std::optional<std::string> match = std::nullopt;
-      for (auto const& f : fs::directory_iterator(ledger_dir))
+      // directories, inspecting the main ledger directory first
+      std::string ledger_dir_;
+      auto match = get_file_name_with_idx(ledger_dir, idx);
+      if (match.has_value())
       {
-        // If any file, based on its name, contains idx. Only committed files
-        // (i.e. those with a last idx) are considered here.
-        auto last_idx = get_last_idx_from_file_name(f.path().filename());
-        if (
-          last_idx.has_value() && idx <= last_idx.value() &&
-          idx >= get_start_idx_from_file_name(f.path().filename()))
+        ledger_dir_ = ledger_dir;
+      }
+
+      for (auto const& dir : read_ledger_dirs)
+      {
+        match = get_file_name_with_idx(dir, idx);
+        if (match.has_value())
         {
-          match = f.path().filename();
+          ledger_dir_ = dir;
           break;
         }
       }
@@ -528,8 +556,10 @@ namespace asynchost
         return nullptr;
       }
 
-      // Emplace file in the max-sized read cache
-      auto match_file = std::make_shared<LedgerFile>(ledger_dir, match.value());
+      // Emplace file in the max-sized read cache, replacing the oldest entry if
+      // the read cache is full
+      auto match_file =
+        std::make_shared<LedgerFile>(ledger_dir_, match.value());
       if (files_read_cache.size() >= max_read_cache_files)
       {
         files_read_cache.erase(files_read_cache.begin());
@@ -578,9 +608,11 @@ namespace asynchost
       const std::string& ledger_dir,
       ringbuffer::AbstractWriterFactory& writer_factory,
       size_t chunk_threshold,
-      size_t max_read_cache_files = max_read_cache_files_default) :
+      size_t max_read_cache_files = ledger_max_read_cache_files_default,
+      std::vector<std::string> read_ledger_dirs = {}) :
       to_enclave(writer_factory.create_writer_to_inside()),
       ledger_dir(ledger_dir),
+      read_ledger_dirs(read_ledger_dirs),
       max_read_cache_files(max_read_cache_files),
       chunk_threshold(chunk_threshold)
     {
@@ -598,6 +630,15 @@ namespace asynchost
         {
           files.push_back(
             std::make_shared<LedgerFile>(ledger_dir, f.path().filename()));
+        }
+
+        if (files.empty())
+        {
+          LOG_TRACE_FMT(
+            "Ledger directory \"{}\" is empty: no ledger file to recover",
+            ledger_dir);
+          require_new_file = true;
+          return;
         }
 
         files.sort([](

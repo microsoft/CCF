@@ -104,7 +104,7 @@ def can_kill_n_nodes(nodes_to_kill_count):
                 {
                     "text": """tables = ...
                         trusted_nodes_count = 0
-                        tables["ccf.nodes"]:foreach(function(node_id, details)
+                        tables["public:ccf.gov.nodes"]:foreach(function(node_id, details)
                             if details["status"] == "TRUSTED" then
                                 trusted_nodes_count = trusted_nodes_count + 1
                             end
@@ -154,7 +154,6 @@ def recover(number_txs=5):
             network.txs.issue(
                 network=network,
                 number_txs=infra.e2e_args.get("msgs_per_recovery") or number_txs,
-                consensus=infra.e2e_args.get("consensus"),
             )
             new_network = func(*args, **kwargs)
             new_network.txs.verify(

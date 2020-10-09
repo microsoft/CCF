@@ -73,7 +73,9 @@ def test_module_set_and_remove(network, args):
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
-        r = c.post("/gov/read", {"table": "ccf.modules", "key": MODULE_PATH_1})
+        r = c.post(
+            "/gov/read", {"table": "public:ccf.gov.modules", "key": MODULE_PATH_1}
+        )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json()["js"] == MODULE_CONTENT_1, r.body
 
@@ -88,7 +90,9 @@ def test_module_set_and_remove(network, args):
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
-        r = c.post("/gov/read", {"table": "ccf.modules", "key": MODULE_PATH_1})
+        r = c.post(
+            "/gov/read", {"table": "public:ccf.gov.modules", "key": MODULE_PATH_1}
+        )
         assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
     return network
 
@@ -133,7 +137,7 @@ def test_app_bundle(network, args):
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
-        r = c.post("/gov/read", {"table": "ccf.modules", "key": "/math.js"})
+        r = c.post("/gov/read", {"table": "public:ccf.gov.modules", "key": "/math.js"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
     with primary.client("user0") as c:
@@ -165,7 +169,7 @@ def test_app_bundle(network, args):
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
-        r = c.post("/gov/read", {"table": "ccf.modules", "key": "/math.js"})
+        r = c.post("/gov/read", {"table": "public:ccf.gov.modules", "key": "/math.js"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
 
     return network
