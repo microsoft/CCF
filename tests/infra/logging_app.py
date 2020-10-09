@@ -40,7 +40,7 @@ class LoggingTxs:
                 idx = self.idx
 
             for _ in range(number_txs):
-                priv_msg = f"Private message at seqno {idx} [{len(self.priv[idx])}]"
+                priv_msg = f"Private message at idx {idx} [{len(self.priv[idx])}]"
                 rep_priv = uc.post(
                     "/app/log/private",
                     {
@@ -49,11 +49,11 @@ class LoggingTxs:
                     },
                 )
                 check_commit(rep_priv, result=True)
-                self.priv[idx].append(priv_msg)
+                self.priv[idx].append({"msg": priv_msg, "seqno": rep_priv.seqno, "view": rep_priv.view})
 
                 # Public records do not handle historical queries
                 if not repeat:
-                    pub_msg = f"Public message at seqno {idx}"
+                    pub_msg = f"Public message at idx {idx} [{len(self.pub[idx])}]"
                     rep_pub = uc.post(
                         "/app/log/public",
                         {
@@ -62,7 +62,7 @@ class LoggingTxs:
                         },
                     )
                     check_commit(rep_pub, result=True)
-                    self.pub[idx].append(pub_msg)
+                    self.pub[idx].append({"msg": pub_msg, "seqno": rep_priv.seqno, "view": rep_priv.view})
 
         network.wait_for_node_commit_sync()
 
@@ -72,27 +72,31 @@ class LoggingTxs:
         LOG.error(self.priv)
 
         n = network.get_joined_nodes()[0]
+        for pub_idx, pub_value in self.pub.items():
+            assert (
+                len(pub_value) == 1
+            ), "Public records do not handle historical queries"
 
-        # for pub_idx, pub_value in self.pub.items():
-        #     assert (
-        #         len(pub_value) == 1
-        #     ), "Public records do not handle historical queries"
-
-        #     self._verify_tx(n, pub_idx, pub_value[0], priv=False, timeout=timeout)
+            entry = pub_value[0]
+            self._verify_tx(n, pub_idx, entry["msg"],
+              entry["seqno"],
+              entry["view"],
+              priv=False, timeout=timeout)
 
         for priv_idx, priv_value in self.priv.items():
             for v in priv_value:
                 self._verify_tx(
                     n,
                     priv_idx,
-                    v,
+                    v["msg"],
+                    v["seqno"],
+                    v["view"],
                     priv=True,
                     historical=(v != priv_value[-1]),
                     timeout=timeout,
                 )
-                input("")
 
-    def _verify_tx(self, node, idx, msg, priv=True, historical=False, timeout=3):
+    def _verify_tx(self, node, idx, msg, seqno, view, priv=True, historical=False, timeout=3):
         if historical and not priv:
             raise ValueError(
                 "Historical queries are only implemented with private records"
@@ -100,7 +104,9 @@ class LoggingTxs:
 
         cmd = "/app/log/private" if priv else "/app/log/public"
 
+        headers = {}
         if historical:
+            LOG.error("Historical")
             cmd = "/app/log/private/historical"
             timeout += 15
             headers = {
@@ -108,18 +114,42 @@ class LoggingTxs:
                 ccf.clients.CCF_TX_SEQNO_HEADER: str(seqno),
             }
 
-            return
 
+        found = False
         end_time = time.time() + timeout
         while time.time() < end_time:
             with node.client(self.user) as uc:
-                rep = uc.get(f"{cmd}?id={idx}")
-                if rep.status_code == http.HTTPStatus.NOT_FOUND.value:
-                    LOG.warning("User frontend is not yet opened")
-                    time.sleep(0.1)
-                else:
-                    infra.checker.Checker(uc)(
-                        rep,
-                        result={"msg": msg},
-                    )
-                    break
+                rep = uc.get(f"{cmd}?id={idx}", headers=headers)
+                if rep.status_code == http.HTTPStatus.OK:
+                        infra.checker.Checker(uc)(
+                            rep,
+                            result={"msg": msg},
+                        )
+                        found = True
+                        break
+                elif rep.status_code == http.HTTPStatus.NOT_FOUND:
+                        LOG.warning("User frontend is not yet opened")
+                        time.sleep(0.1)
+                        break
+
+                if historical:
+                    if rep.status_code == http.HTTPStatus.ACCEPTED:
+                        retry_after = rep.headers.get("retry-after")
+                        if retry_after is None:
+                            raise ValueError(
+                                f"Response with status {rep.status_code} is missing 'retry-after' header"
+                            )
+                        retry_after = int(retry_after)
+                        LOG.info(f"Sleeping for {retry_after}s waiting for historical query processing...")
+                        time.sleep(retry_after)
+                    elif rep.status_code == http.HTTPStatus.NO_CONTENT:
+                        raise ValueError(
+                            f"Historical query response claims there was no write to {idx} at {view}.{seqno}"
+                        )
+                    else:
+                        raise ValueError(
+                            f"Unexpected response status code {rep.status_code}: {rep.body}"
+                        )
+
+        if not found:
+            raise TimeoutError(f"Unable to retrieve entry at {idx} after {timeout}s")
