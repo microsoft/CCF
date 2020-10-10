@@ -290,7 +290,6 @@ namespace threading
 
     void tick(std::chrono::milliseconds elapsed)
     {
-      LOG_INFO_FMT("CCCCC - tick - elapsed {}", elapsed.count());
       for (auto i = 0; i < thread_count; ++i)
       {
         auto& task = get_task(i);

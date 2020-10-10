@@ -831,15 +831,10 @@ namespace ccf
           recovery_v));
       }
 
-      LOG_INFO_FMT("BBBBBB 9");
       network.tables->swap_private_maps(*recovery_store.get());
-      LOG_INFO_FMT("BBBBBB 9");
       recovery_history->StopCallbacks();
-      LOG_INFO_FMT("BBBBBB 9");
       recovery_store.reset();
-      LOG_INFO_FMT("BBBBBB 9");
       reset_recovery_hook();
-      LOG_INFO_FMT("BBBBBB 9");
 
       // Raft should deserialise all security domains when network is opened
       consensus->enable_all_domains();

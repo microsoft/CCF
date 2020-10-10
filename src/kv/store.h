@@ -110,10 +110,6 @@ namespace kv
 
     Store(const Store& that) = delete;
 
-    ~Store() {
-      LOG_INFO_FMT("BBBBBB deleting store");
-    }
-
     std::shared_ptr<Consensus> get_consensus() override
     {
       return consensus;

@@ -515,12 +515,10 @@ namespace ccf
       sig_tx_interval(sig_tx_interval_),
       sig_ms_interval(sig_ms_interval_)
     {
-      LOG_INFO_FMT("BBBBBBB 1 starting timer");
     }
 
     void start_signature_emit_timer(std::shared_ptr<HashedTxHistory<T>> self)
     {
-      LOG_INFO_FMT("BBBBBBB 2 starting timer");
       struct EmitSigMsg
       {
         EmitSigMsg(HashedTxHistory<T>* self_) : self(self_) {}
@@ -553,6 +551,7 @@ namespace ccf
                   sig_ms_interval)
               {
                 msg->data.self->emit_signature();
+                /*
                 LOG_INFO_FMT(
                   "AAAAA - sign, is_primary:{}, commit_gap:{}, time:{}, "
                   "time_of_last:{}",
@@ -560,7 +559,9 @@ namespace ccf
                   self->store.commit_gap(),
                   time.count(),
                   self->time_of_last_signature.count());
+                  */
               }
+              /*
               else if(consensus != nullptr)
               {
                 auto txid = self->store.current_version();
@@ -584,6 +585,7 @@ namespace ccf
                   self->time_of_last_signature.count(),
                   txid);
               }
+              */
 
               // time_since_last_sig =
               //  sig_ms_interval - (time -
@@ -598,7 +600,7 @@ namespace ccf
               }
             }
 
-            LOG_INFO_FMT("AAAAAAA scheduling {}", time_since_last_sig);
+            //LOG_INFO_FMT("AAAAAAA scheduling {}", time_since_last_sig);
 
             self->emit_signature_timer_entry =
               threading::ThreadMessaging::thread_messaging.add_task_after(
@@ -618,14 +620,12 @@ namespace ccf
     }
     void StopCallbacks() override
     {
-      LOG_INFO_FMT("BBBBBBB 3.1 starting timer");
       threading::ThreadMessaging::thread_messaging.cancel_timer_task(
         emit_signature_timer_entry);
     }
 
     ~HashedTxHistory()
     {
-      LOG_INFO_FMT("BBBBBBB 3 starting timer");
       threading::ThreadMessaging::thread_messaging.cancel_timer_task(
         emit_signature_timer_entry);
     }
@@ -841,7 +841,7 @@ namespace ccf
         threading::ThreadMessaging::thread_messaging.get_current_time_offset();
 
       LOG_DEBUG_FMT(
-        "AAAAA Signed at {} in view: {} commit was: {}.{}",
+        "Signed at {} in view: {} commit was: {}.{}",
         txid.version,
         txid.term,
         commit_txid.first,
