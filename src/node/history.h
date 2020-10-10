@@ -16,7 +16,6 @@
 
 #include <array>
 #include <deque>
-#include <mutex>
 #include <string.h>
 
 extern "C"
@@ -552,11 +551,8 @@ namespace ccf
             time_since_last_sig =
               sig_ms_interval - (time - self->time_of_last_signature).count();
 
-            if (time_since_last_sig <= 0)
-            {
-              time_since_last_sig = sig_ms_interval;
-            }
-            else if (time_since_last_sig > sig_ms_interval)
+            if (
+              time_since_last_sig <= 0 || time_since_last_sig > sig_ms_interval)
             {
               time_since_last_sig = sig_ms_interval;
             }
