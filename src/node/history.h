@@ -525,90 +525,46 @@ namespace ccf
 
       auto emit_sig_msg = std::make_unique<threading::Tmsg<EmitSigMsg>>(
         [](std::unique_ptr<threading::Tmsg<EmitSigMsg>> msg) {
-          try
+          auto self = msg->data.self;
+
+          std::unique_lock<SpinLock> mguard(
+            self->signature_lock, std::defer_lock);
+
+          const int64_t sig_ms_interval = self->sig_ms_interval;
+          int64_t time_since_last_sig = sig_ms_interval;
+
+          if (mguard.try_lock())
           {
-            auto self = msg->data.self;
+            auto time = threading::ThreadMessaging::thread_messaging
+                          .get_current_time_offset();
 
-            std::unique_lock<SpinLock> mguard(
-              self->signature_lock, std::defer_lock);
-
-            const int64_t sig_ms_interval = self->sig_ms_interval;
-            int64_t time_since_last_sig = sig_ms_interval;
-
-            if (mguard.try_lock())
+            auto consensus = self->store.get_consensus();
+            if (
+              (consensus != nullptr) && consensus->is_primary() &&
+              self->store.commit_gap() > 0 &&
+              time.count() > self->time_of_last_signature.count() &&
+              (time.count() - self->time_of_last_signature.count()) >
+                sig_ms_interval)
             {
-              auto time = threading::ThreadMessaging::thread_messaging
-                            .get_current_time_offset();
-
-              auto consensus = self->store.get_consensus();
-              if (
-                (consensus != nullptr) && consensus->is_primary() &&
-                self->store.commit_gap() > 0 &&
-                time.count() > self->time_of_last_signature.count() &&
-                (time.count() - self->time_of_last_signature.count()) >
-                  sig_ms_interval)
-              {
-                msg->data.self->emit_signature();
-                /*
-                LOG_INFO_FMT(
-                  "AAAAA - sign, is_primary:{}, commit_gap:{}, time:{}, "
-                  "time_of_last:{}",
-                  consensus->is_primary(),
-                  self->store.commit_gap(),
-                  time.count(),
-                  self->time_of_last_signature.count());
-                  */
-              }
-              /*
-              else if(consensus != nullptr)
-              {
-                auto txid = self->store.current_version();
-                LOG_INFO_FMT(
-                  "AAAAA - not sign, is_primary:{}, commit_gap:{}, time:{}, "
-                  "time_of_last:{}, current_version:{}",
-                  consensus->is_primary(),
-                  self->store.commit_gap(),
-                  time.count(),
-                  self->time_of_last_signature.count(),
-                  txid);
-              }
-              else
-              {
-                auto txid = self->store.current_version();
-                LOG_INFO_FMT(
-                  "AAAAA - not sign, is_primary:<<null>>, commit_gap:{},
-              time:{}, " "time_of_last:{}, current_version:{}",
-                  self->store.commit_gap(),
-                  time.count(),
-                  self->time_of_last_signature.count(),
-                  txid);
-              }
-              */
-
-              // time_since_last_sig =
-              //  sig_ms_interval - (time -
-              //  self->time_of_last_signature).count();
-
-              // if (time_since_last_sig <= 0)
-              {
-                // time_since_last_sig = sig_ms_interval;
-              } // else if (time_since_last_sig > sig_ms_interval)
-              {
-                time_since_last_sig = sig_ms_interval;
-              }
+              msg->data.self->emit_signature();
             }
 
-            // LOG_INFO_FMT("AAAAAAA scheduling {}", time_since_last_sig);
+            time_since_last_sig =
+              sig_ms_interval - (time - self->time_of_last_signature).count();
 
-            self->emit_signature_timer_entry =
-              threading::ThreadMessaging::thread_messaging.add_task_after(
-                std::move(msg), std::chrono::milliseconds(time_since_last_sig));
-            /* code */
+            if (time_since_last_sig <= 0)
+            {
+              time_since_last_sig = sig_ms_interval;
+            }
+            else if (time_since_last_sig > sig_ms_interval)
+            {
+              time_since_last_sig = sig_ms_interval;
+            }
           }
-          catch (const std::exception& e)
-          {
-            LOG_INFO_FMT("AAAAAAA failed {}", e.what());
-          }
+
+          self->emit_signature_timer_entry =
+            threading::ThreadMessaging::thread_messaging.add_task_after(
+              std::move(msg), std::chrono::milliseconds(time_since_last_sig));
         },
         this);
 
