@@ -832,7 +832,8 @@ namespace ccf
       }
 
       network.tables->swap_private_maps(*recovery_store.get());
-      recovery_history->StopCallbacks();
+      //recovery_history->StopCallbacks();
+      recovery_history.reset();
       recovery_store.reset();
       reset_recovery_hook();
 
