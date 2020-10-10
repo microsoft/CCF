@@ -135,9 +135,6 @@ namespace ccf
       return {};
     }
 
-    void StopCallbacks() override
-    {}
-
     void emit_signature() override
     {
       auto txid = store.next_txid();
@@ -515,9 +512,10 @@ namespace ccf
       sig_tx_interval(sig_tx_interval_),
       sig_ms_interval(sig_ms_interval_)
     {
+      start_signature_emit_timer();
     }
 
-    void start_signature_emit_timer(std::shared_ptr<HashedTxHistory<T>> self)
+    void start_signature_emit_timer()
     {
       struct EmitSigMsg
       {
@@ -578,8 +576,8 @@ namespace ccf
               {
                 auto txid = self->store.current_version();
                 LOG_INFO_FMT(
-                  "AAAAA - not sign, is_primary:<<null>>, commit_gap:{}, time:{}, "
-                  "time_of_last:{}, current_version:{}",
+                  "AAAAA - not sign, is_primary:<<null>>, commit_gap:{},
+              time:{}, " "time_of_last:{}, current_version:{}",
                   self->store.commit_gap(),
                   time.count(),
                   self->time_of_last_signature.count(),
@@ -600,7 +598,7 @@ namespace ccf
               }
             }
 
-            //LOG_INFO_FMT("AAAAAAA scheduling {}", time_since_last_sig);
+            // LOG_INFO_FMT("AAAAAAA scheduling {}", time_since_last_sig);
 
             self->emit_signature_timer_entry =
               threading::ThreadMessaging::thread_messaging.add_task_after(
@@ -612,16 +610,11 @@ namespace ccf
             LOG_INFO_FMT("AAAAAAA failed {}", e.what());
           }
         },
-        self.get());
+        this);
 
       emit_signature_timer_entry =
         threading::ThreadMessaging::thread_messaging.add_task_after(
           std::move(emit_sig_msg), std::chrono::milliseconds(1000));
-    }
-    void StopCallbacks() override
-    {
-      threading::ThreadMessaging::thread_messaging.cancel_timer_task(
-        emit_signature_timer_entry);
     }
 
     ~HashedTxHistory()
@@ -799,7 +792,8 @@ namespace ccf
     }
 
     kv::Version last_signed_tx = 0;
-    std::chrono::milliseconds time_of_last_signature = std::chrono::milliseconds(0);
+    std::chrono::milliseconds time_of_last_signature =
+      std::chrono::milliseconds(0);
     SpinLock signature_lock;
 
     void try_emit_signature(kv::Version) override

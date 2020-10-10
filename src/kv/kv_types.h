@@ -217,8 +217,6 @@ namespace kv
     virtual bool init_from_snapshot(
       const std::vector<uint8_t>& hash_at_snapshot) = 0;
     virtual std::vector<uint8_t> get_raw_leaf(uint64_t index) = 0;
-    
-    virtual void StopCallbacks() = 0;
 
     virtual bool add_request(
       kv::TxHistory::RequestID id,
