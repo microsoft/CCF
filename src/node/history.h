@@ -756,7 +756,7 @@ namespace ccf
       }
 
       std::unique_lock<SpinLock> mguard(signature_lock, std::defer_lock);
-      if (!mguard.try_lock())
+      if (mguard.try_lock())
       {
         emit_signature();
       }
