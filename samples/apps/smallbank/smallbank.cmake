@@ -59,11 +59,11 @@ if(BUILD_TESTS)
       VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
       LABEL SB
       CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS --transactions ${SMALL_BANK_ITERATIONS} --max-writes-ahead
-                      1000 --metrics-file small_bank_cft_metrics.json
+      ADDITIONAL_ARGS
+        --transactions ${SMALL_BANK_ITERATIONS} --max-writes-ahead 1000
+        --metrics-file small_bank_cft_metrics.json
     )
   endforeach()
-    
 
   add_perf_test(
     NAME small_bank_client_ws_test_cft
