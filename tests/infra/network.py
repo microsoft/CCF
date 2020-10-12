@@ -173,6 +173,7 @@ class Network:
         recovery=False,
         from_snapshot=False,
         snapshot_dir=None,
+        copy_ledger=False,
     ):
         forwarded_args = {
             arg: getattr(args, arg)
@@ -184,6 +185,7 @@ class Network:
             target_node, _ = self.find_primary(
                 timeout=args.ledger_recovery_timeout if recovery else 3
             )
+        LOG.info(f"Joining from target node {target_node.node_id}")
 
         # Only retrieve snapshot from target node if the snapshot directory is not
         # specified
@@ -193,8 +195,12 @@ class Network:
                 len(os.listdir(snapshot_dir)) > 0
             ), f"There are no snapshots to resume from in directory {snapshot_dir}"
 
+        read_ledger_dir = None
         if snapshot_dir is not None:
             LOG.info(f"Joining from snapshot: {snapshot_dir}")
+            if copy_ledger:
+                LOG.info(f"Copying target node to read-only ledger directory")
+                read_ledger_dir = target_node.get_ledger()
 
         node.join(
             lib_name=lib_name,
@@ -203,6 +209,7 @@ class Network:
             common_dir=self.common_dir,
             target_rpc_address=f"{target_node.host}:{target_node.rpc_port}",
             snapshot_dir=snapshot_dir,
+            read_ledger_dir=read_ledger_dir,
             **forwarded_args,
         )
 
@@ -464,6 +471,7 @@ class Network:
         args,
         target_node=None,
         from_snapshot=False,
+        copy_ledger=False,
         timeout=JOIN_TIMEOUT,
     ):
         """
@@ -473,7 +481,12 @@ class Network:
         new_node = self.create_node(host)
 
         self._add_node(
-            new_node, lib_name, args, target_node, from_snapshot=from_snapshot
+            new_node,
+            lib_name,
+            args,
+            target_node,
+            from_snapshot=from_snapshot,
+            copy_ledger=copy_ledger,
         )
         primary, _ = self.find_primary()
         try:
@@ -505,14 +518,20 @@ class Network:
         return new_node
 
     def create_and_trust_node(
-        self, lib_name, host, args, target_node=None, from_snapshot=False
+        self,
+        lib_name,
+        host,
+        args,
+        target_node=None,
+        from_snapshot=False,
+        copy_ledger=False,
     ):
         """
         Create a new node, add it to the network and let members vote to trust
         it so that it becomes part of the consensus protocol.
         """
         new_node = self.create_and_add_pending_node(
-            lib_name, host, args, target_node, from_snapshot
+            lib_name, host, args, target_node, from_snapshot, copy_ledger
         )
 
         primary, _ = self.find_primary()

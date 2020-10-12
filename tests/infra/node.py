@@ -97,6 +97,7 @@ class Node:
         common_dir,
         target_rpc_address,
         snapshot_dir,
+        read_ledger_dir=None,
         **kwargs,
     ):
         self._start(
@@ -108,6 +109,7 @@ class Node:
             common_dir,
             target_rpc_address=target_rpc_address,
             snapshot_dir=snapshot_dir,
+            read_ledger_dir=read_ledger_dir,
             **kwargs,
         )
 
@@ -134,18 +136,15 @@ class Node:
         target_rpc_address=None,
         snapshot_dir=None,
         members_info=None,
+        read_ledger_dir=None,
         **kwargs,
     ):
         """
-        Creates a CCFRemote instance, sets it up (connects, creates the directory and ships over the files), and
-        (optionally) starts the node by executing the appropriate command.
-        If self.debug is set to True, it will not actually start up the node, but will prompt the user to do so manually
-        Raises exception if failed to prepare or start the node
-        :param lib_name: the enclave package to load
-        :param enclave_type: default: release. Choices: 'release', 'debug', 'virtual'
-        :param workspace: directory where node is started
-        :param label: label for this node (to differentiate nodes from different test runs)
-        :return: void
+        Creates a CCFRemote instance, sets it up (connects, creates the directory
+        and ships over the files), and (optionally) starts the node by executing
+        the appropriate command.
+        If self.debug is set, it will not actually start up the node, but will
+        prompt the user to do so manually.
         """
         lib_path = infra.path.build_lib_path(lib_name, enclave_type)
         self.common_dir = common_dir
@@ -162,9 +161,10 @@ class Node:
             workspace,
             label,
             common_dir,
-            target_rpc_address,
-            members_info,
-            snapshot_dir,
+            target_rpc_address=target_rpc_address,
+            members_info=members_info,
+            snapshot_dir=snapshot_dir,
+            read_ledger_dir=read_ledger_dir,
             binary_dir=self.binary_dir,
             **kwargs,
         )

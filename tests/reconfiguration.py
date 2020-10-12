@@ -65,9 +65,10 @@ def test_add_node_from_backup(network, args):
 
 @reqs.description("Adding a valid node from snapshot")
 @reqs.at_least_n_nodes(2)
-def test_add_node_from_snapshot(network, args):
+# @reqs.verify_txs # TODO: Implement this to verify all txs so far
+def test_add_node_from_snapshot(network, args, copy_ledger=True):
     new_node = network.create_and_trust_node(
-        args.package, "localhost", args, from_snapshot=True
+        args.package, "localhost", args, from_snapshot=True, copy_ledger=copy_ledger
     )
     assert new_node
     return network
@@ -146,13 +147,13 @@ def run(args):
         if args.snapshot_tx_interval is not None:
             test_add_node_from_snapshot(network, args)
 
-        test_add_node_from_backup(network, args)
-        test_add_node(network, args)
-        test_add_node_untrusted_code(network, args)
-        test_retire_backup(network, args)
-        test_add_as_many_pending_nodes(network, args)
-        test_add_node(network, args)
-        test_retire_primary(network, args)
+        # test_add_node_from_backup(network, args)
+        # test_add_node(network, args)
+        # test_add_node_untrusted_code(network, args)
+        # test_retire_backup(network, args)
+        # test_add_as_many_pending_nodes(network, args)
+        # test_add_node(network, args)
+        # test_retire_primary(network, args)
 
 
 if __name__ == "__main__":
