@@ -1,4 +1,5 @@
 import * as rs  from 'jsrsasign';
+import { Base64 } from 'js-base64';
 
 import * as ccf from '../types/ccf'
 
@@ -19,6 +20,29 @@ interface GenerateAesKeyRequest {
 }
 
 export function generateAesKey(request: ccf.Request<GenerateAesKeyRequest>): ccf.Response<ArrayBuffer> {
-    console.log(ccf.ccf)
     return { body: ccf.ccf.generateAesKey(request.body.json().size) }
+}
+
+type Base64 = string
+
+interface WrapKeyRsaOaepRequest {
+    key: Base64 // typically an AES key
+    wrappingKey: Base64 // RSA public key
+    label?: Base64
+}
+
+export function wrapKeyRsaOaep(request: ccf.Request<WrapKeyRsaOaepRequest>): ccf.Response<ArrayBuffer> {
+    const r = request.body.json()
+    const key = b64ToBuf(r.key)
+    const wrappingKey = b64ToBuf(r.wrappingKey)
+    const label = r.label ? b64ToBuf(r.label) : undefined
+    const wrappedKey = ccf.ccf.wrapKey(key, wrappingKey, {
+        name: 'RSA-OAEP',
+        label: label
+    })
+    return { body: wrappedKey }
+}
+
+function b64ToBuf(b64: string): ArrayBuffer {
+    return Base64.toUint8Array(b64).buffer
 }
