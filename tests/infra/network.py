@@ -325,7 +325,13 @@ class Network:
 
         self._setup_common_folder(args.gov_script)
 
-        initial_member_ids = list(range(max(1, args.initial_member_count)))
+        mc = max(1, args.initial_member_count)
+        initial_member_ids = [(i, None) for i in range(mc)]
+        initial_member_ids.extend(
+            (i, {"is_operator": True})
+            for i in range(mc, mc + args.initial_operator_count)
+        )
+
         self.consortium = infra.consortium.Consortium(
             self.common_dir,
             self.key_generator,
@@ -675,7 +681,7 @@ class Network:
             self.get_joined_nodes()
         ), f"Only {len(caught_up_nodes)} (out of {len(self.get_joined_nodes())}) nodes have joined the network"
 
-    def wait_for_node_commit_sync(self, consensus, timeout=3):
+    def wait_for_node_commit_sync(self, timeout=3):
         """
         Wait for commit level to get in sync on all nodes. This is expected to
         happen once CFTR has been established, in the absence of new transactions.

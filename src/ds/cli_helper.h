@@ -6,6 +6,7 @@
 #include "tls/san.h"
 
 #include <CLI11/CLI11.hpp>
+#include <optional>
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -70,10 +71,15 @@ namespace cli
   {
     std::string cert_file;
     std::string keyshare_pub_file;
+    std::optional<std::string> member_data_file;
 
-    ParsedMemberInfo(const std::string& cert, const std::string& keyshare_pub) :
+    ParsedMemberInfo(
+      const std::string& cert,
+      const std::string& keyshare_pub,
+      const std::optional<std::string>& data_file) :
       cert_file(cert),
-      keyshare_pub_file(keyshare_pub)
+      keyshare_pub_file(keyshare_pub),
+      member_data_file(data_file)
     {}
   };
 
@@ -87,17 +93,26 @@ namespace cli
       parsed.clear();
       for (const auto& r : res)
       {
-        auto found = r.find_last_of(",");
-        if (found == std::string::npos)
+        std::stringstream ss(r);
+        std::string chunk;
+        std::vector<std::string> chunks;
+
+        while (std::getline(ss, chunk, ','))
+        {
+          chunks.emplace_back(chunk);
+        }
+
+        if (chunks.size() < 2 || chunks.size() > 3)
         {
           throw CLI::ValidationError(
             option_name,
             "Member info is not in format "
-            "member_cert.pem,member_encryption_public_key.pem");
+            "member_cert.pem,member_encryption_public_key.pem[,member_data."
+            "json]");
         }
 
-        auto cert = r.substr(0, found);
-        auto keyshare_pub = r.substr(found + 1);
+        auto cert = chunks[0];
+        auto keyshare_pub = chunks[1];
 
         // Validate that member certificate and public encryption key exist
         auto validator = CLI::detail::ExistingFileValidator();
@@ -106,13 +121,25 @@ namespace cli
         {
           throw CLI::ValidationError(option_name, err_str);
         }
+
         err_str = validator(keyshare_pub);
         if (!err_str.empty())
         {
           throw CLI::ValidationError(option_name, err_str);
         }
 
-        parsed.emplace_back(cert, keyshare_pub);
+        std::optional<std::string> member_data = std::nullopt;
+
+        if (chunks.size() == 3)
+        {
+          member_data = chunks[2];
+          err_str = validator(member_data.value());
+          if (!err_str.empty())
+          {
+            throw CLI::ValidationError(option_name, err_str);
+          }
+        }
+        parsed.emplace_back(cert, keyshare_pub, member_data);
       }
       return true;
     };

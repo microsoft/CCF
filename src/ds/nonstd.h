@@ -89,7 +89,7 @@ namespace nonstd
   static inline std::string remove_prefix(
     const std::string& s, const std::string& prefix)
   {
-    if (s.find(prefix) == 0)
+    if (starts_with(s, prefix))
     {
       return s.substr(prefix.size());
     }

@@ -270,21 +270,6 @@
         ],
         "type": "object"
       },
-      "GetSchema__Out": {
-        "properties": {
-          "params_schema": {
-            "$ref": "#/components/schemas/json_schema"
-          },
-          "result_schema": {
-            "$ref": "#/components/schemas/json_schema"
-          }
-        },
-        "required": [
-          "params_schema",
-          "result_schema"
-        ],
-        "type": "object"
-      },
       "GetState__Out": {
         "properties": {
           "id": {
@@ -383,9 +368,6 @@
         "type": "integer"
       },
       "json": {},
-      "json_schema": {
-        "type": "object"
-      },
       "named_EndpointMetrics__Metric": {
         "additionalProperties": {
           "$ref": "#/components/schemas/EndpointMetrics__Metric"
@@ -442,32 +424,6 @@
         }
       }
     },
-    "/api/schema": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "method",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetSchema__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
     "/code": {
       "get": {
         "responses": {
@@ -500,6 +456,15 @@
         }
       }
     },
+    "/config": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          }
+        }
+      }
+    },
     "/endpoint_metrics": {
       "get": {
         "responses": {
@@ -511,6 +476,15 @@
                 }
               }
             },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/join": {
+      "post": {
+        "responses": {
+          "200": {
             "description": "Default response description"
           }
         }
@@ -570,6 +544,15 @@
         }
       }
     },
+    "/network": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          }
+        }
+      }
+    },
     "/network_info": {
       "get": {
         "responses": {
@@ -615,6 +598,15 @@
                 }
               }
             },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/primary": {
+      "head": {
+        "responses": {
+          "200": {
             "description": "Default response description"
           }
         }

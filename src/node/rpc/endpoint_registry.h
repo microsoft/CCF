@@ -584,9 +584,28 @@ namespace ccf
     static void add_endpoint_to_api_document(
       nlohmann::json& document, const EndpointPtr& endpoint)
     {
-      for (const auto& builder_fn : endpoint->schema_builders)
+      if (endpoint.schema_builders.empty())
       {
-        builder_fn(document, endpoint);
+        // If we have no more specific schema information, make sure the
+        // endpoint is still minimally documented (NB: this claims the endpoint
+        // will sometimes return a 200 status code, which may not be true!)
+        const auto http_verb = endpoint.verb.get_http_method();
+        if (!http_verb.has_value())
+        {
+          return;
+        }
+
+        ds::openapi::response(
+          ds::openapi::path_operation(
+            ds::openapi::path(document, endpoint.method), http_verb.value()),
+          HTTP_STATUS_OK);
+      }
+      else
+      {
+        for (const auto& builder_fn : endpoint.schema_builders)
+        {
+          builder_fn(document, endpoint);
+        }
       }
     }
 
@@ -626,37 +645,6 @@ namespace ccf
           }
         }
       }
-    }
-
-    virtual nlohmann::json get_endpoint_schema(kv::Tx&, const GetSchema::In& in)
-    {
-      auto j = nlohmann::json::object();
-
-      const auto it = fully_qualified_endpoints.find(in.method);
-      if (it != fully_qualified_endpoints.end())
-      {
-        for (const auto& [verb, endpoint] : it->second)
-        {
-          std::string verb_name = verb.c_str();
-          nonstd::to_lower(verb_name);
-          j[verb_name] =
-            GetSchema::Out{endpoint->params_schema, endpoint->result_schema};
-        }
-      }
-
-      const auto templated_it = templated_endpoints.find(in.method);
-      if (templated_it != templated_endpoints.end())
-      {
-        for (const auto& [verb, endpoint] : templated_it->second)
-        {
-          std::string verb_name = verb.c_str();
-          nonstd::to_lower(verb_name);
-          j[verb_name] =
-            GetSchema::Out{endpoint->params_schema, endpoint->result_schema};
-        }
-      }
-
-      return j;
     }
 
     virtual void endpoint_metrics(kv::Tx&, EndpointMetrics::Out& out)

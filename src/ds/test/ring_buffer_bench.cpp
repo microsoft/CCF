@@ -38,7 +38,8 @@ static void write_impl(
   size_t writer_count,
   size_t total_messages)
 {
-  Reader r(buf_size);
+  auto buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
+  Reader r(buffer->bd);
 
   std::vector<std::thread> writer_threads;
 

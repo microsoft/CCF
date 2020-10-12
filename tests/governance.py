@@ -61,16 +61,17 @@ def test_quote(network, args, verify=True):
 @reqs.description("Add user, remove user")
 @reqs.supports_methods("log/private")
 def test_user(network, args, verify=True):
+    # Note: This test should not be chained in the test suite as it creates
+    # a new user and uses its own LoggingTxs
     primary, _ = network.find_nodes()
     new_user_id = 3
     network.create_users([new_user_id], args.participants_curve)
     user_data = {"lifetime": "temporary"}
     network.consortium.add_user(primary, new_user_id, user_data)
-    txs = app.LoggingTxs(user_id=3)
+    txs = app.LoggingTxs(user_id=new_user_id)
     txs.issue(
         network=network,
         number_txs=1,
-        consensus=args.consensus,
     )
     if verify:
         txs.verify(network)
@@ -82,7 +83,7 @@ def test_user(network, args, verify=True):
 
 
 @reqs.description("Add untrusted node, check no quote is returned")
-def test_no_quote(network, args, notifications_queue=None, verify=True):
+def test_no_quote(network, args):
     untrusted_node = network.create_and_add_pending_node(
         args.package, "localhost", args
     )
@@ -91,6 +92,32 @@ def test_no_quote(network, args, notifications_queue=None, verify=True):
     ) as uc:
         r = uc.get("/node/quote")
         assert r.status_code == http.HTTPStatus.NOT_FOUND
+    return network
+
+
+@reqs.description("Check member data")
+def test_member_data(network, args):
+    assert args.initial_operator_count > 0
+    primary, _ = network.find_nodes()
+    with primary.client("member0") as mc:
+
+        def member_info(mid):
+            return mc.post(
+                "/gov/read", {"table": "public:ccf.gov.members", "key": mid}
+            ).body.json()
+
+        md_count = 0
+        for member in network.get_members():
+            if member.member_data:
+                assert (
+                    member_info(member.member_id)["member_data"] == member.member_data
+                )
+                md_count += 1
+            else:
+                assert "member_data" not in member_info(member.member_id)
+        assert md_count == args.initial_operator_count
+
+    return network
 
 
 def run(args):
@@ -100,6 +127,7 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
+        network = test_member_data(network, args)
         network = test_quote(network, args)
         network = test_user(network, args)
         network = test_no_quote(network, args)

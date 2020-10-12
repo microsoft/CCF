@@ -81,7 +81,6 @@ all_tests_suite = [
     e2e_logging.test_anonymous_caller,
     e2e_logging.test_raw_text,
     e2e_logging.test_forwarding_frontends,
-    e2e_logging.test_update_lua,
     e2e_logging.test_user_data_ACL,
     e2e_logging.test_view_history,
     e2e_logging.test_tx_statuses,

@@ -99,9 +99,9 @@ namespace ccfapp
       std::vector<GenericTable*> app_tables(n_tables * 2);
       for (uint16_t i = 0; i < n_tables; i++)
       {
-        const auto suffix = std::to_string(i);
-        app_tables[i] = &tables.create<GenericTable>("priv" + suffix);
-        app_tables[i + n_tables] = &tables.create<GenericTable>("pub" + suffix);
+        app_tables[i] = &tables.create<GenericTable>(fmt::format("priv{}", i));
+        app_tables[i + n_tables] =
+          &tables.create<GenericTable>(fmt::format("public:pub{}", i));
       }
       tsr = std::make_unique<AppTsr>(network, app_tables);
 
@@ -214,33 +214,6 @@ namespace ccfapp
         ds::openapi::path_operation(ds::openapi::path(document, method), verb);
         return true;
       });
-    }
-
-    nlohmann::json get_endpoint_schema(
-      kv::Tx& tx, const GetSchema::In& in) override
-    {
-      auto j = UserEndpointRegistry::get_endpoint_schema(tx, in);
-
-      auto scripts = tx.get_view(this->network.app_scripts);
-      scripts->foreach([&j, &in](const auto& key, const auto&) {
-        const auto [verb, method] = split_script_key(key);
-
-        if (in.method == method)
-        {
-          std::string verb_name = http_method_str(verb);
-          nonstd::to_lower(verb_name);
-          // We have no schema for JS endpoints, but populate the object if we
-          // know about them
-          GetSchema::Out out;
-          out.params_schema.schema = nullptr;
-          out.result_schema.schema = nullptr;
-          j[verb_name] = out;
-        }
-
-        return true;
-      });
-
-      return j;
     }
   };
 

@@ -31,7 +31,6 @@ def run(args):
         txs.issue(
             network=network,
             number_txs=3,
-            consensus=args.consensus,
         )
         txs.verify(network=network)
 
@@ -40,7 +39,6 @@ def run(args):
         txs.issue(
             network=network,
             number_txs=3,
-            consensus=args.consensus,
         )
         txs.verify(network=network)
 

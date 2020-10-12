@@ -243,21 +243,6 @@
         ],
         "type": "object"
       },
-      "GetSchema__Out": {
-        "properties": {
-          "params_schema": {
-            "$ref": "#/components/schemas/json_schema"
-          },
-          "result_schema": {
-            "$ref": "#/components/schemas/json_schema"
-          }
-        },
-        "required": [
-          "params_schema",
-          "result_schema"
-        ],
-        "type": "object"
-      },
       "GetTxStatus__Out": {
         "properties": {
           "status": {
@@ -346,9 +331,6 @@
         "type": "integer"
       },
       "json": {},
-      "json_schema": {
-        "type": "object"
-      },
       "named_EndpointMetrics__Metric": {
         "additionalProperties": {
           "$ref": "#/components/schemas/EndpointMetrics__Metric"
@@ -397,32 +379,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/json"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/api/schema": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "method",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetSchema__Out"
                 }
               }
             },
@@ -647,6 +603,60 @@
         }
       }
     },
+    "/log/private/historical": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggingGet__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/log/private/prefix_cert": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoggingRecord__In"
+              }
+            }
+          },
+          "description": "Auto-generated request body schema"
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/boolean"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
     "/log/private/raw_text/{id}": {
       "parameters": [
         {
@@ -657,7 +667,14 @@
             "type": "string"
           }
         }
-      ]
+      ],
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          }
+        }
+      }
     },
     "/log/public": {
       "delete": {

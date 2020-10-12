@@ -63,7 +63,8 @@ TEST_CASE("Basic ringbuffer" * doctest::test_suite("ringbuffer"))
   constexpr uint8_t size = 32;
   constexpr uint8_t full_count = 2;
 
-  Reader r(size);
+  auto buffer = std::make_unique<ringbuffer::TestBuffer>(size);
+  Reader r(buffer->bd);
   Writer w(r);
 
   INFO("Single write-read");
@@ -126,7 +127,8 @@ TEST_CASE("Variadic write" * doctest::test_suite("ringbuffer"))
 {
   constexpr size_t size = 1 << 8;
 
-  Reader r(size);
+  auto buffer = std::make_unique<ringbuffer::TestBuffer>(size);
+  Reader r(buffer->bd);
   Writer w(r);
 
   const char v0 = 'h';
@@ -209,7 +211,8 @@ TEST_CASE("Writer progress" * doctest::test_suite("ringbuffer"))
 
   {
     // Confirm this is actually the maximum msg size
-    Reader r(buf_size);
+    auto buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
+    Reader r(buffer->bd);
     Writer w(r);
 
     REQUIRE(w.prepare(small_message, max_msg_size, false).has_value());
@@ -236,7 +239,8 @@ TEST_CASE("Writer progress" * doctest::test_suite("ringbuffer"))
     for (size_t i = 0; i <= max_msg_size; ++i)
     {
       // Create a fresh buffer
-      Reader r(buf_size);
+      auto buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
+      Reader r(buffer->bd);
       Writer w(r);
 
       // Apply the initial state
@@ -264,7 +268,8 @@ TEST_CASE(
 {
   constexpr size_t size = 2 << 6;
 
-  Reader r(size);
+  auto buffer = std::make_unique<ringbuffer::TestBuffer>(size);
+  Reader r(buffer->bd);
   Writer w(r);
 
   INFO("Can read less or more than was written");
@@ -318,7 +323,8 @@ TEST_CASE(
 {
   constexpr size_t size = 2 << 6;
 
-  Reader r(size);
+  auto buffer = std::make_unique<ringbuffer::TestBuffer>(size);
+  Reader r(buffer->bd);
   Writer w(r);
 
   std::set<size_t> ids;
@@ -341,7 +347,8 @@ TEST_CASE("Ring buffer with mixed messages" * doctest::test_suite("ringbuffer"))
 {
   constexpr size_t size = 2 << 10;
 
-  Reader r(size);
+  auto buffer = std::make_unique<ringbuffer::TestBuffer>(size);
+  Reader r(buffer->bd);
   Writer w(r);
 
   std::vector<uint8_t> empty;
@@ -455,8 +462,8 @@ TEST_CASE("Multiple threads can wait" * doctest::test_suite("ringbuffer"))
          pairify(4, size * 3) // Many workers
        })
   {
-    Reader r(size);
-
+    auto buffer = std::make_unique<ringbuffer::TestBuffer>(size);
+    Reader r(buffer->bd);
     std::vector<std::thread> writer_threads;
 
     size_t reads = 0;

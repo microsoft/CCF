@@ -136,6 +136,14 @@ int main(int argc, char** argv)
   app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
     ->capture_default_str();
 
+  std::vector<std::string> read_only_ledger_dirs;
+  app
+    .add_option(
+      "--read-only-ledger-dir",
+      read_only_ledger_dirs,
+      "Additional read-only ledger directory (optional)")
+    ->type_size(-1);
+
   std::string snapshot_dir("snapshots");
   app.add_option("--snapshot-dir", snapshot_dir, "Snapshots directory")
     ->capture_default_str();
@@ -350,7 +358,7 @@ int main(int argc, char** argv)
       "--gov-script",
       gov_script,
       "Path to Lua file that defines the contents of the "
-      "ccf.governance.scripts table")
+      "public:ccf.gov.governance.scripts table")
     ->capture_default_str()
     ->check(CLI::ExistingFile)
     ->required();
@@ -361,7 +369,7 @@ int main(int argc, char** argv)
     members_info,
     "--member-info",
     "Initial consortium members information (public identity,recovery public "
-    "key)")
+    "key,member data)")
     ->required();
 
   std::optional<size_t> recovery_threshold = std::nullopt;
@@ -515,7 +523,20 @@ int main(int argc, char** argv)
   host::Enclave enclave(enclave_file, oe_flags);
 
   // messaging ring buffers
-  ringbuffer::Circuit circuit(1 << circuit_size_shift);
+  const auto buffer_size = 1 << circuit_size_shift;
+
+  std::vector<uint8_t> to_enclave_buffer(buffer_size);
+  ringbuffer::Offsets to_enclave_offsets;
+  ringbuffer::BufferDef to_enclave_def{
+    to_enclave_buffer.data(), to_enclave_buffer.size(), &to_enclave_offsets};
+
+  std::vector<uint8_t> from_enclave_buffer(buffer_size);
+  ringbuffer::Offsets from_enclave_offsets;
+  ringbuffer::BufferDef from_enclave_def{from_enclave_buffer.data(),
+                                         from_enclave_buffer.size(),
+                                         &from_enclave_offsets};
+
+  ringbuffer::Circuit circuit(to_enclave_def, from_enclave_def);
   messaging::BufferProcessor bp("Host");
 
   // To prevent deadlock, all blocking writes from the host to the ringbuffer
@@ -554,7 +575,12 @@ int main(int argc, char** argv)
     // graceful shutdown on sigterm
     asynchost::Sigterm sigterm(writer_factory);
 
-    asynchost::Ledger ledger(ledger_dir, writer_factory, ledger_chunk_bytes);
+    asynchost::Ledger ledger(
+      ledger_dir,
+      writer_factory,
+      ledger_chunk_bytes,
+      asynchost::ledger_max_read_cache_files_default,
+      read_only_ledger_dirs);
     ledger.register_message_handlers(bp.get_dispatcher());
 
     asynchost::SnapshotManager snapshots(snapshot_dir);
@@ -598,7 +624,13 @@ int main(int argc, char** argv)
     StartType start_type = StartType::Unknown;
 
     EnclaveConfig enclave_config;
-    enclave_config.circuit = &circuit;
+    enclave_config.to_enclave_buffer_start = to_enclave_buffer.data();
+    enclave_config.to_enclave_buffer_size = to_enclave_buffer.size();
+    enclave_config.to_enclave_buffer_offsets = &to_enclave_offsets;
+    enclave_config.from_enclave_buffer_start = from_enclave_buffer.data();
+    enclave_config.from_enclave_buffer_size = from_enclave_buffer.size();
+    enclave_config.from_enclave_buffer_offsets = &from_enclave_offsets;
+
     enclave_config.writer_config = writer_config;
 #ifdef DEBUG_CONFIG
     enclave_config.debug_config = {memory_reserve_startup};
@@ -627,10 +659,17 @@ int main(int argc, char** argv)
 
       for (auto const& m_info : members_info)
       {
+        nlohmann::json md = nullptr;
+        if (m_info.member_data_file.has_value())
+        {
+          md = nlohmann::json::parse(
+            files::slurp(m_info.member_data_file.value()));
+        }
+
         ccf_config.genesis.members_info.emplace_back(
           files::slurp(m_info.cert_file),
           files::slurp(m_info.keyshare_pub_file),
-          nullptr);
+          md);
       }
       ccf_config.genesis.gov_script = files::slurp_string(gov_script);
       ccf_config.genesis.recovery_threshold = recovery_threshold.value();
