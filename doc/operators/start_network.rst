@@ -26,7 +26,7 @@ To create a new CCF network, the first node of the network should be invoked wit
     start
     --network-cert-file /path/to/network_certificate
     --network-enc-pubk-file /path/to/network_encryption_pubk
-    --member-info /path/to/member1_cert,/path/to/member1_enc_pub
+    --member-info /path/to/member1_cert,/path/to/member1_enc_pub[,</path/to/member1_data>]
     [--member-info /path/to/member2_cert,/path/to/member2_enc_pub ...]
     --gov-script /path/to/lua/governance_script
 
@@ -115,7 +115,7 @@ Using a Configuration File
 
     [<subcommand, one of [start, join, recover]>]
     network-cert-file = <network-cert-file-name>
-    member-info = "<member_cert.pem>,<member_enc_pubk.pem>"
+    member-info = "<member_cert.pem>,<member_enc_pubk.pem>[,<member_data.json>]"
     gov-script = <gov-script-name>
 
 .. code-block:: ini
@@ -130,7 +130,7 @@ Using a Configuration File
 
     [<subcommand, one of [start, join, recover]>]
     network-cert-file = <network-cert-file-name>
-    member-info = "<member_cert.pem>,<member_enc_pubk.pem>"
+    member-info = "<member_cert.pem>,<member_enc_pubk.pem>[,<member_data.json>]"
     gov-script = <gov-script-name>
 
 To pass configuration files, use the ``--config`` option: ``./cchost --config=config.ini``. An error will be generated if the configuration file contains extra fields. Options in the configuration file will be read along with normal command line arguments. Additional information for configuration files in CLI11 can be found `here <https://cliutils.github.io/CLI11/book/chapters/config.html>`_.

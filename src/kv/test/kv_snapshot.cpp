@@ -17,10 +17,8 @@ struct MapTypes
 TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
 {
   kv::Store store;
-  auto& string_map = store.create<MapTypes::StringString>(
-    "string_map", kv::SecurityDomain::PUBLIC);
-  auto& num_map =
-    store.create<MapTypes::NumNum>("num_map", kv::SecurityDomain::PUBLIC);
+  auto& string_map = store.create<MapTypes::StringString>("public:string_map");
+  auto& num_map = store.create<MapTypes::NumNum>("public:num_map");
 
   kv::Version first_snapshot_version = kv::NoVersion;
   kv::Version second_snapshot_version = kv::NoVersion;
@@ -59,8 +57,12 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
       kv::DeserialiseSuccess::PASS);
     REQUIRE_EQ(new_store.current_version(), 1);
 
-    auto new_string_map = new_store.get<MapTypes::StringString>("string_map");
-    auto new_num_map = new_store.get<MapTypes::NumNum>("num_map");
+    auto new_string_map =
+      new_store.get<MapTypes::StringString>("public:string_map");
+    auto new_num_map = new_store.get<MapTypes::NumNum>("public:num_map");
+
+    REQUIRE(new_string_map != nullptr);
+    REQUIRE(new_num_map != nullptr);
 
     auto tx1 = new_store.create_tx();
     auto view = tx1.get_view(*new_string_map);
@@ -86,8 +88,12 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     kv::Store new_store;
     new_store.clone_schema(store);
 
-    auto new_string_map = new_store.get<MapTypes::StringString>("string_map");
-    auto new_num_map = new_store.get<MapTypes::NumNum>("num_map");
+    auto new_string_map =
+      new_store.get<MapTypes::StringString>("public:string_map");
+    auto new_num_map = new_store.get<MapTypes::NumNum>("public:num_map");
+
+    REQUIRE(new_string_map != nullptr);
+    REQUIRE(new_num_map != nullptr);
 
     new_store.deserialise_snapshot(second_serialised_snapshot);
     REQUIRE_EQ(new_store.current_version(), 2);
@@ -115,8 +121,7 @@ TEST_CASE(
   doctest::test_suite("snapshot"))
 {
   kv::Store store;
-  auto& string_map = store.create<MapTypes::StringString>(
-    "string_map", kv::SecurityDomain::PUBLIC);
+  auto& string_map = store.create<MapTypes::StringString>("public:string_map");
 
   kv::Version snapshot_version = kv::NoVersion;
   INFO("Apply transactions to original store");
@@ -141,7 +146,9 @@ TEST_CASE(
     kv::Store new_store;
     new_store.clone_schema(store);
 
-    auto new_string_map = new_store.get<MapTypes::StringString>("string_map");
+    auto new_string_map =
+      new_store.get<MapTypes::StringString>("public:string_map");
+    REQUIRE(new_string_map != nullptr);
     auto tx = new_store.create_tx();
     auto view = tx.get_view(*new_string_map);
     view->put("in", "flight");
@@ -162,8 +169,7 @@ TEST_CASE(
 TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
 {
   kv::Store store;
-  auto& string_map = store.create<MapTypes::StringString>(
-    "string_map", kv::SecurityDomain::PUBLIC);
+  auto& string_map = store.create<MapTypes::StringString>("public:string_map");
 
   kv::Version snapshot_version = kv::NoVersion;
   INFO("Apply transactions to original store");
@@ -191,7 +197,9 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
     kv::Store new_store;
     new_store.clone_schema(store);
 
-    auto new_string_map = new_store.get<MapTypes::StringString>("string_map");
+    auto new_string_map =
+      new_store.get<MapTypes::StringString>("public:string_map");
+    REQUIRE(new_string_map != nullptr);
 
     using Write = MapTypes::StringString::Write;
     std::vector<Write> local_writes;

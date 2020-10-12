@@ -265,7 +265,7 @@ DOCTEST_TEST_CASE("Member query/read")
 
   static constexpr auto query = R"xxx(
   local tables = ...
-  return tables["ccf.values"]:get(123)
+  return tables["public:ccf.gov.values"]:get(123)
   )xxx";
 
   DOCTEST_SUBCASE("Query: bytecode/script allowed access")
@@ -546,7 +546,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       R"xxx(
         local tables, calls = ...
         local n = 0
-        tables["ccf.members"]:foreach( function(k, v) n = n + 1 end )
+        tables["public:ccf.gov.members"]:foreach( function(k, v) n = n + 1 end )
         if n < {} then
           return true
         else
@@ -929,7 +929,7 @@ DOCTEST_TEST_CASE("Propose raw writes")
         {R"xxx(
         local tables, recovery_threshold = ...
         local p = Puts:new()
-        p:put("ccf.config", 0, {recovery_threshold = recovery_threshold})
+        p:put("public:ccf.gov.config", 0, {recovery_threshold = recovery_threshold})
         return Calls:call("raw_puts", p)
       )xxx"s,
          4},
@@ -1105,7 +1105,8 @@ DOCTEST_TEST_CASE("Complete proposal after initial rejection")
   {
     DOCTEST_INFO("Propose");
     const auto proposal =
-      "return Calls:call('raw_puts', Puts:put('ccf.values', 999, 999))"s;
+      "return Calls:call('raw_puts', Puts:put('public:ccf.gov.values', 999, "
+      "999))"s;
     const auto propose =
       create_signed_request(Propose::In{proposal}, "proposals", kp);
 
@@ -1120,7 +1121,7 @@ DOCTEST_TEST_CASE("Complete proposal after initial rejection")
     DOCTEST_INFO("Vote that rejects initially");
     const Script vote(R"xxx(
     local tables = ...
-    return tables["ccf.values"]:get(123) == 123
+    return tables["public:ccf.gov.values"]:get(123) == 123
     )xxx");
     const auto vote_serialized = create_signed_request(
       Vote{vote}, fmt::format("proposals/{}/votes", raw_puts_proposal_id), kp);

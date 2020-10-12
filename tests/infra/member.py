@@ -11,6 +11,7 @@ import infra.checker
 import http
 import os
 import base64
+import json
 
 
 class NoRecoveryShareFound(Exception):
@@ -26,11 +27,20 @@ class MemberStatus(Enum):
 
 
 class Member:
-    def __init__(self, member_id, curve, common_dir, share_script, key_generator=None):
+    def __init__(
+        self,
+        member_id,
+        curve,
+        common_dir,
+        share_script,
+        key_generator=None,
+        member_data=None,
+    ):
         self.common_dir = common_dir
         self.member_id = member_id
         self.status_code = MemberStatus.ACCEPTED
         self.share_script = share_script
+        self.member_data = member_data
 
         if key_generator is not None:
             # For now, all members are given an encryption key (for recovery)
@@ -57,6 +67,12 @@ class Member:
             assert os.path.isfile(
                 os.path.join(self.common_dir, f"member{self.member_id}_enc_privk.pem")
             )
+
+        if member_data is not None:
+            with open(
+                os.path.join(self.common_dir, f"member{self.member_id}_data.json"), "w"
+            ) as md:
+                json.dump(member_data, md)
 
     def is_active(self):
         return self.status_code == MemberStatus.ACTIVE

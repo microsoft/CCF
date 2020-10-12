@@ -22,6 +22,33 @@ struct MapTypes
   using StringNum = kv::Map<std::string, size_t>;
 };
 
+TEST_CASE("Map name parsing")
+{
+  using SD = kv::SecurityDomain;
+  using AC = kv::AccessCategory;
+
+  auto parse = kv::parse_map_name;
+  auto mp = std::make_pair<SD, AC>;
+
+  REQUIRE(parse("foo") == mp(SD::PRIVATE, AC::APPLICATION));
+  REQUIRE(parse("public:foo") == mp(SD::PUBLIC, AC::APPLICATION));
+  REQUIRE(parse("ccf.gov.foo") == mp(SD::PRIVATE, AC::GOVERNANCE));
+  REQUIRE(parse("public:ccf.gov.foo") == mp(SD::PUBLIC, AC::GOVERNANCE));
+  REQUIRE(parse("ccf.internal.foo") == mp(SD::PRIVATE, AC::INTERNAL));
+  REQUIRE(parse("public:ccf.internal.foo") == mp(SD::PUBLIC, AC::INTERNAL));
+
+  REQUIRE_THROWS(parse("ccf.foo"));
+  REQUIRE_THROWS(parse("public:ccf.foo"));
+
+  // Typos may lead to unexpected behaviour!
+  REQUIRE(parse("publik:ccf.gov.foo") == mp(SD::PRIVATE, AC::APPLICATION));
+  REQUIRE(parse("PUBLIC:ccf.gov.foo") == mp(SD::PRIVATE, AC::APPLICATION));
+  REQUIRE(parse("public:Ccf.gov.foo") == mp(SD::PUBLIC, AC::APPLICATION));
+
+  REQUIRE(parse("ccf_foo") == mp(SD::PRIVATE, AC::APPLICATION));
+  REQUIRE(parse("public:ccf_foo") == mp(SD::PUBLIC, AC::APPLICATION));
+}
+
 TEST_CASE("Map creation")
 {
   kv::Store kv_store;
@@ -68,8 +95,7 @@ TEST_CASE("Map creation")
 TEST_CASE("Reads/writes and deletions")
 {
   kv::Store kv_store;
-  auto& map =
-    kv_store.create<MapTypes::StringString>("map", kv::SecurityDomain::PUBLIC);
+  auto& map = kv_store.create<MapTypes::StringString>("public:map");
 
   constexpr auto k = "key";
   constexpr auto invalid_key = "invalid_key";
@@ -146,8 +172,7 @@ TEST_CASE("Reads/writes and deletions")
 TEST_CASE("foreach")
 {
   kv::Store kv_store;
-  auto& map =
-    kv_store.create<MapTypes::StringString>("map", kv::SecurityDomain::PUBLIC);
+  auto& map = kv_store.create<MapTypes::StringString>("public:map");
 
   std::map<std::string, std::string> iterated_entries;
 
@@ -324,8 +349,7 @@ TEST_CASE("foreach")
 TEST_CASE("Read-only tx")
 {
   kv::Store kv_store;
-  auto& map =
-    kv_store.create<MapTypes::StringString>("map", kv::SecurityDomain::PUBLIC);
+  auto& map = kv_store.create<MapTypes::StringString>("public:map");
 
   constexpr auto k = "key";
   constexpr auto invalid_key = "invalid_key";
@@ -380,8 +404,7 @@ TEST_CASE("Read-only tx")
 TEST_CASE("Rollback and compact")
 {
   kv::Store kv_store;
-  auto& map =
-    kv_store.create<MapTypes::StringString>("map", kv::SecurityDomain::PUBLIC);
+  auto& map = kv_store.create<MapTypes::StringString>("public:map");
 
   constexpr auto k = "key";
   constexpr auto v1 = "value1";
@@ -445,8 +468,7 @@ TEST_CASE("Local commit hooks")
   };
 
   kv::Store kv_store;
-  auto& map =
-    kv_store.create<MapTypes::StringString>("map", kv::SecurityDomain::PUBLIC);
+  auto& map = kv_store.create<MapTypes::StringString>("public:map");
   map.set_local_hook(local_hook);
   map.set_global_hook(global_hook);
 
@@ -532,11 +554,11 @@ TEST_CASE("Global commit hooks")
   };
 
   kv::Store kv_store;
-  auto& map_with_hook = kv_store.create<std::string, std::string>(
-    "map_with_hook", kv::SecurityDomain::PUBLIC);
+  auto& map_with_hook =
+    kv_store.create<std::string, std::string>("public:map_with_hook");
   map_with_hook.set_global_hook(global_hook);
-  auto& map_no_hook = kv_store.create<std::string, std::string>(
-    "map_no_hook", kv::SecurityDomain::PUBLIC);
+  auto& map_no_hook =
+    kv_store.create<std::string, std::string>("public:map_no_hook");
 
   INFO("Compact an empty store");
   {
@@ -666,8 +688,7 @@ TEST_CASE("Clone schema")
   kv::Store store;
   store.set_encryptor(encryptor);
 
-  auto& public_map =
-    store.create<MapTypes::NumString>("public", kv::SecurityDomain::PUBLIC);
+  auto& public_map = store.create<MapTypes::NumString>("public:public");
   auto& private_map = store.create<MapTypes::NumString>("private");
   auto tx1 = store.create_reserved_tx(store.next_version());
   auto [view1, view2] = tx1.get_view(public_map, private_map);
@@ -687,12 +708,9 @@ TEST_CASE("Deserialise return status")
 {
   kv::Store store;
 
-  auto& signatures = store.create<ccf::Signatures>(
-    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
-  auto& nodes =
-    store.create<ccf::Nodes>(ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& data =
-    store.create<MapTypes::NumNum>("data", kv::SecurityDomain::PUBLIC);
+  auto& signatures = store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
+  auto& nodes = store.create<ccf::Nodes>(ccf::Tables::NODES);
+  auto& data = store.create<MapTypes::NumNum>("public:data");
 
   auto kp = tls::make_key_pair();
 
@@ -742,14 +760,12 @@ TEST_CASE("Map swap between stores")
   s1.set_encryptor(encryptor);
 
   auto& d1 = s1.create<MapTypes::NumNum>("data");
-  auto& pd1 =
-    s1.create<MapTypes::NumNum>("public_data", kv::SecurityDomain::PUBLIC);
+  auto& pd1 = s1.create<MapTypes::NumNum>("public:data");
 
   kv::Store s2;
   s2.set_encryptor(encryptor);
   auto& d2 = s2.create<MapTypes::NumNum>("data");
-  auto& pd2 =
-    s2.create<MapTypes::NumNum>("public_data", kv::SecurityDomain::PUBLIC);
+  auto& pd2 = s2.create<MapTypes::NumNum>("public:data");
 
   {
     auto tx = s1.create_tx();
@@ -815,14 +831,12 @@ TEST_CASE("Private recovery map swap")
   kv::Store s1;
   s1.set_encryptor(encryptor);
   auto& priv1 = s1.create<MapTypes::NumNum>("private");
-  auto& pub1 =
-    s1.create<MapTypes::NumString>("public", kv::SecurityDomain::PUBLIC);
+  auto& pub1 = s1.create<MapTypes::NumString>("public:data");
 
   kv::Store s2;
   s2.set_encryptor(encryptor);
   auto& priv2 = s2.create<MapTypes::NumNum>("private");
-  auto& pub2 =
-    s2.create<MapTypes::NumString>("public", kv::SecurityDomain::PUBLIC);
+  auto& pub2 = s2.create<MapTypes::NumString>("public:data");
 
   INFO("Populate s1 with public entries");
   // We compact twice, deliberately. A public KV during recovery
@@ -954,8 +968,7 @@ TEST_CASE("Private recovery map swap")
 TEST_CASE("Conflict resolution")
 {
   kv::Store kv_store;
-  auto& map =
-    kv_store.create<MapTypes::StringString>("map", kv::SecurityDomain::PUBLIC);
+  auto& map = kv_store.create<MapTypes::StringString>("public:map");
 
   auto try_write = [&](kv::Tx& tx, const std::string& s) {
     auto view = tx.get_view(map);
@@ -1024,10 +1037,8 @@ TEST_CASE("Conflict resolution")
 TEST_CASE("Mid-tx compaction")
 {
   kv::Store kv_store;
-  auto& map_a =
-    kv_store.create<MapTypes::StringNum>("A", kv::SecurityDomain::PUBLIC);
-  auto& map_b =
-    kv_store.create<MapTypes::StringNum>("B", kv::SecurityDomain::PUBLIC);
+  auto& map_a = kv_store.create<MapTypes::StringNum>("public:A");
+  auto& map_b = kv_store.create<MapTypes::StringNum>("public:B");
 
   constexpr auto key_a = "a";
   constexpr auto key_b = "b";

@@ -32,7 +32,7 @@ namespace ccf
   TEST_CASE("lua tx")
   {
     kv::Store tables;
-    auto& table = tables.create<TableIS>("test", kv::SecurityDomain::PUBLIC);
+    auto& table = tables.create<TableIS>("public:test");
 
     auto txs = tables.create_tx();
 
@@ -162,9 +162,9 @@ namespace ccf
   TEST_CASE("multiple tables")
   {
     kv::Store tables;
-    auto& ii = tables.create<TableII>("test_ii", kv::SecurityDomain::PUBLIC);
-    auto& is = tables.create<TableIS>("test_is", kv::SecurityDomain::PUBLIC);
-    auto& sb = tables.create<TableSB>("test_sb", kv::SecurityDomain::PUBLIC);
+    auto& ii = tables.create<TableII>("public:test_ii");
+    auto& is = tables.create<TableIS>("public:test_is");
+    auto& sb = tables.create<TableSB>("public:test_sb");
 
     auto txs = tables.create_tx();
     auto tx = txs.get_view(ii, is, sb);
@@ -336,7 +336,7 @@ namespace ccf
   )xxx";
 
     kv::Store tables;
-    auto& table = tables.create<TableII>("t", kv::SecurityDomain::PUBLIC);
+    auto& table = tables.create<TableII>("public:t");
     auto txs = tables.create_tx();
     auto tx = txs.get_view(table);
 
@@ -396,7 +396,7 @@ namespace ccf
       "return tx:get(k)");
 
     kv::Store tables;
-    auto& table = tables.create<TableII>("t", kv::SecurityDomain::PUBLIC);
+    auto& table = tables.create<TableII>("public:t");
     auto txs = tables.create_tx();
     auto tx = txs.get_view(table);
 
