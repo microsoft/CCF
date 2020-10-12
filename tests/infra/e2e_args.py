@@ -178,13 +178,19 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
     parser.add_argument(
         "--initial-member-count",
-        help="Number of members when intializing the network",
+        help="Number of members when initializing the network",
         type=int,
         default=3,
     )
     parser.add_argument(
+        "--initial-operator-count",
+        help="Number of additional members with is_operator set in their member_data when initializing the network",
+        type=int,
+        default=0,
+    )
+    parser.add_argument(
         "--initial-user-count",
-        help="Number of users when intializing the network",
+        help="Number of users when initializing the network",
         type=int,
         default=3,
     )

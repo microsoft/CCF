@@ -31,12 +31,11 @@ TEST_CASE(
 
   kv::Store kv_store(consensus);
 
-  auto& pub_map = kv_store.create<MapTypes::StringString>(
-    "pub_map", kv::SecurityDomain::PUBLIC);
+  auto& pub_map = kv_store.create<MapTypes::StringString>("public:pub_map");
 
   kv::Store kv_store_target;
   kv_store_target.clone_schema(kv_store);
-  auto* target_map = kv_store.get<MapTypes::StringString>("pub_map");
+  auto* target_map = kv_store.get<MapTypes::StringString>("public:pub_map");
   REQUIRE(target_map != nullptr);
 
   INFO("Commit to public map in source store");
@@ -123,15 +122,15 @@ TEST_CASE(
   kv::Store kv_store(consensus);
   kv_store.set_encryptor(encryptor);
   auto& priv_map = kv_store.create<MapTypes::StringString>("priv_map");
-  auto& pub_map = kv_store.create<MapTypes::StringString>(
-    "pub_map", kv::SecurityDomain::PUBLIC);
+  auto& pub_map = kv_store.create<MapTypes::StringString>("public:pub_map");
 
   kv::Store kv_store_target;
   kv_store_target.set_encryptor(encryptor);
   kv_store_target.clone_schema(kv_store);
   auto* target_priv_map =
     kv_store_target.get<MapTypes::StringString>("priv_map");
-  auto* target_pub_map = kv_store_target.get<MapTypes::StringString>("pub_map");
+  auto* target_pub_map =
+    kv_store_target.get<MapTypes::StringString>("public:pub_map");
   REQUIRE(target_priv_map != nullptr);
   REQUIRE(target_pub_map != nullptr);
 
@@ -368,7 +367,7 @@ TEST_CASE_TEMPLATE(
 {
   kv::Store kv_store;
 
-  auto& map = kv_store.create<MapType>("map", kv::SecurityDomain::PUBLIC);
+  auto& map = kv_store.create<MapType>("public:map");
 
   CustomClass k1{"hello", 42};
   CustomClass v1{"world", 43};
@@ -379,7 +378,7 @@ TEST_CASE_TEMPLATE(
   INFO("Serialise/Deserialise 2 kv stores");
   {
     kv::Store kv_store2;
-    auto& map2 = kv_store2.create<MapType>("map", kv::SecurityDomain::PUBLIC);
+    auto& map2 = kv_store2.create<MapType>("public:map");
 
     auto tx = kv_store.create_reserved_tx(kv_store.next_version());
     auto view = tx.get_view(map);
@@ -457,8 +456,8 @@ TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
     kv_store.set_encryptor(encryptor);
     kv_store_target.set_encryptor(encryptor);
 
-    auto& public_map = kv_store.create<MapTypes::StringString>(
-      "public_map", kv::SecurityDomain::PUBLIC);
+    auto& public_map =
+      kv_store.create<MapTypes::StringString>("public:public_map");
     auto& private_map = kv_store.create<MapTypes::StringString>("private_map");
 
     kv_store_target.clone_schema(kv_store);
@@ -495,8 +494,8 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     auto consensus = std::make_shared<kv::StubConsensus>();
     using Table = kv::Map<std::vector<int>, std::string>;
     kv::Store s0(consensus), s1;
-    auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC);
-    s1.create<Table>("t");
+    auto& t = s0.create<Table>("public:t");
+    s1.create<Table>("public:t");
 
     auto tx = s0.create_tx();
     tx.get_view(t)->put(k1, v1);
@@ -513,8 +512,8 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     auto consensus = std::make_shared<kv::StubConsensus>();
     using Table = kv::Map<nlohmann::json, nlohmann::json>;
     kv::Store s0(consensus), s1;
-    auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC);
-    s1.create<Table>("t");
+    auto& t = s0.create<Table>("public:t");
+    s1.create<Table>("public:t");
 
     auto tx = s0.create_tx();
     tx.get_view(t)->put(k0, v0);
@@ -536,14 +535,12 @@ TEST_CASE(
 
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   std::unordered_set<std::string> replicated_tables = {
-    "data_replicated", "data_replicated_private"};
+    "public:data_replicated", "data_replicated_private"};
 
   kv::Store store(kv::ReplicateType::SOME, replicated_tables);
   store.set_encryptor(encryptor);
-  auto& data_replicated =
-    store.create<T>("data_replicated", kv::SecurityDomain::PUBLIC);
-  auto& data_derived =
-    store.create<T>("data_derived", kv::SecurityDomain::PUBLIC);
+  auto& data_replicated = store.create<T>("public:data_replicated");
+  auto& data_derived = store.create<T>("public:data_derived");
   auto& data_replicated_private = store.create<T>("data_replicated_private");
   auto& data_derived_private = store.create<T>("data_derived_private");
 

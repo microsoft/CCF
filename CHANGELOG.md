@@ -6,14 +6,21 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
+### Changed
+- Public tables in the KV must now indicate this in their name (with a `public:` prefix), and internal tables have been renamed. Any governance or auditing scripts which operate over internal tables must use the new names (eg - `ccf.members` is now `public:ccf.gov.members`).
+- `--member-info` on `cchost` can now take a third, optional file path to a JSON file containing additional member data (#1712).
+
 ### Removed
 - `/api/schema` endpoints are removed, as the same information is now available in the OpenAPI document at `/api`.
+
+### Deprecated
+- Passing the `SecurityDomain` when creating a KV map is deprecated, and will be removed in a future release. This should be encoded in the table's name, with a `public:` prefix for public tables.
 
 ## [0.14.0]
 ### Added
 - Nodes can recover rapidly from a snapshot, rather than needing to reprocess an entire ledger (#1656)
 - Python client code wraps creation and replacement of an entire JS app bundle in a single operation (#1651)
-- Snapshots are only usable when the corresponding evidence is committed (#1668). 
+- Snapshots are only usable when the corresponding evidence is committed (#1668).
 - JSON data associated to each consortium member to facilitate flexible member roles (#1657).
 
 ### Changed

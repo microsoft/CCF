@@ -92,6 +92,32 @@ def test_no_quote(network, args):
     ) as uc:
         r = uc.get("/node/quote")
         assert r.status_code == http.HTTPStatus.NOT_FOUND
+    return network
+
+
+@reqs.description("Check member data")
+def test_member_data(network, args):
+    assert args.initial_operator_count > 0
+    primary, _ = network.find_nodes()
+    with primary.client("member0") as mc:
+
+        def member_info(mid):
+            return mc.post(
+                "/gov/read", {"table": "public:ccf.gov.members", "key": mid}
+            ).body.json()
+
+        md_count = 0
+        for member in network.get_members():
+            if member.member_data:
+                assert (
+                    member_info(member.member_id)["member_data"] == member.member_data
+                )
+                md_count += 1
+            else:
+                assert "member_data" not in member_info(member.member_id)
+        assert md_count == args.initial_operator_count
+
+    return network
 
 
 def run(args):
@@ -101,6 +127,7 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
+        network = test_member_data(network, args)
         network = test_quote(network, args)
         network = test_user(network, args)
         network = test_no_quote(network, args)

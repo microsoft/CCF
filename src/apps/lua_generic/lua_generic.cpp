@@ -99,9 +99,9 @@ namespace ccfapp
       std::vector<GenericTable*> app_tables(n_tables * 2);
       for (uint16_t i = 0; i < n_tables; i++)
       {
-        const auto suffix = std::to_string(i);
-        app_tables[i] = &tables.create<GenericTable>("priv" + suffix);
-        app_tables[i + n_tables] = &tables.create<GenericTable>("pub" + suffix);
+        app_tables[i] = &tables.create<GenericTable>(fmt::format("priv{}", i));
+        app_tables[i + n_tables] =
+          &tables.create<GenericTable>(fmt::format("public:pub{}", i));
       }
       tsr = std::make_unique<AppTsr>(network, app_tables);
 

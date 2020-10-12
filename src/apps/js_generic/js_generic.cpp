@@ -234,6 +234,12 @@ namespace ccfapp
     return JS_UNDEFINED;
   }
 
+  static JSValue js_kv_map_delete_read_only(
+    JSContext* ctx, JSValueConst, int, JSValueConst*)
+  {
+    return JS_ThrowTypeError(ctx, "Cannot call delete on read-only map");
+  }
+
   static JSValue js_kv_map_set(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
@@ -259,6 +265,12 @@ namespace ccfapp
     return JS_UNDEFINED;
   }
 
+  static JSValue js_kv_map_set_read_only(
+    JSContext* ctx, JSValueConst, int, JSValueConst*)
+  {
+    return JS_ThrowTypeError(ctx, "Cannot call set on read-only map");
+  }
+
   static int js_kv_lookup(
     JSContext* ctx,
     JSPropertyDescriptor* desc,
@@ -267,6 +279,42 @@ namespace ccfapp
   {
     const auto property_name = JS_AtomToCString(ctx, property);
     LOG_TRACE_FMT("Looking for kv map '{}'", property_name);
+
+    const auto [security_domain, access_category] =
+      kv::parse_map_name(property_name);
+
+    auto read_only = false;
+    switch (access_category)
+    {
+      case kv::AccessCategory::INTERNAL:
+      {
+        if (security_domain == kv::SecurityDomain::PUBLIC)
+        {
+          read_only = true;
+        }
+        else
+        {
+          throw std::runtime_error(fmt::format(
+            "JS application cannot access private internal CCF table '{}'",
+            property_name));
+        }
+        break;
+      }
+      case kv::AccessCategory::GOVERNANCE:
+      {
+        read_only = true;
+        break;
+      }
+      case kv::AccessCategory::APPLICATION:
+      {
+        break;
+      }
+      default:
+      {
+        throw std::logic_error(fmt::format(
+          "Unhandled AccessCategory for table '{}'", property_name));
+      }
+    }
 
     auto tx_ptr = static_cast<kv::Tx*>(JS_GetOpaque(this_val, kv_class_id));
     auto view = tx_ptr->get_view<KVMap>(property_name);
@@ -283,16 +331,20 @@ namespace ccfapp
       view_val,
       "get",
       JS_NewCFunction(ctx, ccfapp::js_kv_map_get, "get", 1));
+
+    auto setter = ccfapp::js_kv_map_set;
+    auto deleter = ccfapp::js_kv_map_delete;
+
+    if (read_only)
+    {
+      setter = ccfapp::js_kv_map_set_read_only;
+      deleter = ccfapp::js_kv_map_delete_read_only;
+    }
+
     JS_SetPropertyStr(
-      ctx,
-      view_val,
-      "set",
-      JS_NewCFunction(ctx, ccfapp::js_kv_map_set, "set", 2));
+      ctx, view_val, "set", JS_NewCFunction(ctx, setter, "set", 2));
     JS_SetPropertyStr(
-      ctx,
-      view_val,
-      "delete",
-      JS_NewCFunction(ctx, ccfapp::js_kv_map_delete, "delete", 1));
+      ctx, view_val, "delete", JS_NewCFunction(ctx, deleter, "delete", 1));
 
     desc->flags = 0;
     desc->value = view_val;

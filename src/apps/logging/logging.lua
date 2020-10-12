@@ -38,7 +38,7 @@ return {
 
   ["GET log/public"] = [[
     tables, gov_tables, args = ...
-    return env.get(tables.pub0)
+    return env.get(tables["public:pub0"])
   ]],
 
   ["POST log/private"] = [[
@@ -48,6 +48,6 @@ return {
 
   ["POST log/public"] = [[
     tables, gov_tables, args = ...
-    return env.record(tables.pub0)
+    return env.record(tables["public:pub0"])
   ]]
 }

@@ -67,16 +67,57 @@ namespace kv
     SECURITY_DOMAIN_MAX
   };
 
+  enum AccessCategory
+  {
+    INTERNAL,
+    GOVERNANCE,
+    APPLICATION
+  };
+
+  constexpr auto public_domain_prefix = "public:";
+
   static inline SecurityDomain get_security_domain(const std::string& name)
   {
-    constexpr auto public_domain_prefix = "public:";
-
     if (nonstd::starts_with(name, public_domain_prefix))
     {
       return SecurityDomain::PUBLIC;
     }
 
     return SecurityDomain::PRIVATE;
+  }
+
+  static inline std::pair<SecurityDomain, AccessCategory> parse_map_name(
+    const std::string& name)
+  {
+    constexpr auto internal_category_prefix = "ccf.internal.";
+    constexpr auto governance_category_prefix = "ccf.gov.";
+    constexpr auto reserved_category_prefix = "ccf.";
+
+    auto security_domain = SecurityDomain::PRIVATE;
+    const auto core_name = nonstd::remove_prefix(name, public_domain_prefix);
+    if (core_name != name)
+    {
+      security_domain = SecurityDomain::PUBLIC;
+    }
+
+    auto access_category = AccessCategory::APPLICATION;
+    if (nonstd::starts_with(core_name, internal_category_prefix))
+    {
+      access_category = AccessCategory::INTERNAL;
+    }
+    else if (nonstd::starts_with(core_name, governance_category_prefix))
+    {
+      access_category = AccessCategory::GOVERNANCE;
+    }
+    else if (nonstd::starts_with(core_name, reserved_category_prefix))
+    {
+      throw std::logic_error(fmt::format(
+        "Map name '{}' includes disallowed reserved prefix '{}'",
+        name,
+        reserved_category_prefix));
+    }
+
+    return {security_domain, access_category};
   }
 
   // Note that failed = 0, and all other values are variants of PASS, which
