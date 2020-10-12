@@ -456,6 +456,15 @@
         }
       }
     },
+    "/config": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          }
+        }
+      }
+    },
     "/endpoint_metrics": {
       "get": {
         "responses": {
@@ -467,6 +476,15 @@
                 }
               }
             },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/join": {
+      "post": {
+        "responses": {
+          "200": {
             "description": "Default response description"
           }
         }
@@ -526,6 +544,15 @@
         }
       }
     },
+    "/network": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          }
+        }
+      }
+    },
     "/network_info": {
       "get": {
         "responses": {
@@ -571,6 +598,15 @@
                 }
               }
             },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/primary": {
+      "head": {
+        "responses": {
+          "200": {
             "description": "Default response description"
           }
         }
