@@ -746,6 +746,7 @@ namespace ccf
     kv::Version last_signed_tx = 0;
     std::chrono::milliseconds time_of_last_signature =
       std::chrono::milliseconds(0);
+
     SpinLock signature_lock;
 
     void try_emit_signature() override
