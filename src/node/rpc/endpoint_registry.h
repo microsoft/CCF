@@ -597,7 +597,8 @@ namespace ccf
 
         ds::openapi::response(
           ds::openapi::path_operation(
-            ds::openapi::path(document, endpoint->dispatch.method), http_verb.value()),
+            ds::openapi::path(document, endpoint->dispatch.method),
+            http_verb.value()),
           HTTP_STATUS_OK);
       }
       else
