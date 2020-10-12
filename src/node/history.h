@@ -750,13 +750,13 @@ namespace ccf
 
     void try_emit_signature(kv::Version) override
     {
-      std::unique_lock<SpinLock> mguard(signature_lock, std::defer_lock);
-      if (!mguard.try_lock())
+      if ((store.commit_gap()) != sig_tx_interval / 2)
       {
         return;
       }
 
-      if ((store.commit_gap()) == sig_tx_interval / 2)
+      std::unique_lock<SpinLock> mguard(signature_lock, std::defer_lock);
+      if (!mguard.try_lock())
       {
         emit_signature();
       }
