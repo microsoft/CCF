@@ -814,13 +814,13 @@ namespace ccfapp
       UserEndpointRegistry(network),
       network(network)
     {
-      JS_NewClassID(&tables_class_id);
-      kv_exotic_methods.get_own_property = js_tables_lookup;
+      JS_NewClassID(&kv_class_id);
+      kv_exotic_methods.get_own_property = js_kv_lookup;
       kv_class_def.class_name = "KV Tables";
       kv_class_def.exotic = &kv_exotic_methods;
 
-      JS_NewClassID(&view_class_id);
-      view_class_def.class_name = "KV View";
+      JS_NewClassID(&kv_map_view_class_id);
+      kv_map_view_class_def.class_name = "KV View";
 
       JS_NewClassID(&body_class_id);
       body_class_def.class_name = "Body";
