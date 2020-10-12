@@ -417,7 +417,7 @@ namespace ccf
 
                 if (history != nullptr && consensus->is_primary())
                 {
-                  history->try_emit_signature(cv);
+                  history->try_emit_signature();
                 }
               }
 

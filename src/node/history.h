@@ -150,7 +150,7 @@ namespace ccf
         true);
     }
 
-    void try_emit_signature(kv::Version) override
+    void try_emit_signature() override
     {
       emit_signature();
     }
@@ -748,7 +748,7 @@ namespace ccf
       std::chrono::milliseconds(0);
     SpinLock signature_lock;
 
-    void try_emit_signature(kv::Version) override
+    void try_emit_signature() override
     {
       if ((store.commit_gap()) != sig_tx_interval / 2)
       {
