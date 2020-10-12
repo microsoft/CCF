@@ -13,3 +13,12 @@ export function crypto(request: ccf.Request): ccf.Response<CryptoResponse> {
     let available = rs.KEYUTIL.generateKeypair ? true : false;
     return { body: { available: available } };
 }
+
+interface GenerateAesKeyRequest {
+    size: number
+}
+
+export function generateAesKey(request: ccf.Request<GenerateAesKeyRequest>): ccf.Response<ArrayBuffer> {
+    console.log(ccf.ccf)
+    return { body: ccf.ccf.generateAesKey(request.body.json().size) }
+}
