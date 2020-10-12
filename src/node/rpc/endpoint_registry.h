@@ -581,9 +581,28 @@ namespace ccf
     static void add_endpoint_to_api_document(
       nlohmann::json& document, const Endpoint& endpoint)
     {
-      for (const auto& builder_fn : endpoint.schema_builders)
+      if (endpoint.schema_builders.empty())
       {
-        builder_fn(document, endpoint);
+        // If we have no more specific schema information, make sure the
+        // endpoint is still minimally documented (NB: this claims the endpoint
+        // will sometimes return a 200 status code, which may not be true!)
+        const auto http_verb = endpoint.verb.get_http_method();
+        if (!http_verb.has_value())
+        {
+          return;
+        }
+
+        ds::openapi::response(
+          ds::openapi::path_operation(
+            ds::openapi::path(document, endpoint.method), http_verb.value()),
+          HTTP_STATUS_OK);
+      }
+      else
+      {
+        for (const auto& builder_fn : endpoint.schema_builders)
+        {
+          builder_fn(document, endpoint);
+        }
       }
     }
 
