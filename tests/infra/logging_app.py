@@ -52,22 +52,20 @@ class LoggingTxs:
                     {"msg": priv_msg, "seqno": rep_priv.seqno, "view": rep_priv.view}
                 )
 
-                # Public records do not handle historical queries
-                if not repeat:
-                    pub_msg = (
-                        f"Public message at idx {self.idx} [{len(self.pub[self.idx])}]"
-                    )
-                    rep_pub = c.post(
-                        "/app/log/public",
-                        {
-                            "id": self.idx,
-                            "msg": pub_msg,
-                        },
-                    )
-                    check_commit(rep_pub, result=True)
-                    self.pub[self.idx].append(
-                        {"msg": pub_msg, "seqno": rep_pub.seqno, "view": rep_pub.view}
-                    )
+                pub_msg = (
+                    f"Public message at idx {self.idx} [{len(self.pub[self.idx])}]"
+                )
+                rep_pub = c.post(
+                    "/app/log/public",
+                    {
+                        "id": self.idx,
+                        "msg": pub_msg,
+                    },
+                )
+                check_commit(rep_pub, result=True)
+                self.pub[self.idx].append(
+                    {"msg": pub_msg, "seqno": rep_pub.seqno, "view": rep_pub.view}
+                )
 
         network.wait_for_node_commit_sync()
 
@@ -76,11 +74,9 @@ class LoggingTxs:
 
         remote_node, _ = network.find_primary()
         for pub_idx, pub_value in self.pub.items():
-            assert (
-                len(pub_value) == 1
-            ), "Public records do not handle historical queries"
-
-            entry = pub_value[0]
+            # As public records do not yet handle historical queries,
+            # only verify the latest entry
+            entry = pub_value[-1]
             self._verify_tx(
                 remote_node,
                 pub_idx,
