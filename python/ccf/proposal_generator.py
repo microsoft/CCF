@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import argparse
-import collections
+from collections import abc
 import inspect
 import json
 import glob
@@ -35,9 +35,9 @@ def as_lua_literal(arg):
         return f"[====[\n{arg}]====]"
     elif isinstance(arg, bool):
         return str(arg).lower()
-    elif isinstance(arg, collections.abc.Sequence):
+    elif isinstance(arg, abc.Sequence):
         return f"{{ {', '.join(as_lua_literal(e) for e in arg)} }}"
-    elif isinstance(arg, collections.abc.Mapping):
+    elif isinstance(arg, abc.Mapping):
         inner = ", ".join(
             f"[ {as_lua_literal(k)} ] = {as_lua_literal(v)}" for k, v in arg.items()
         )
@@ -105,7 +105,7 @@ def complete_vote_output_path(
 
 def add_arg_construction(
     lines: list,
-    arg: Union[str, collections.abc.Sequence, collections.abc.Mapping],
+    arg: Union[str, abc.Sequence, abc.Mapping],
     arg_name: str = "args",
 ):
     lines.append(f"{arg_name} = {as_lua_literal(arg)}")
@@ -113,7 +113,7 @@ def add_arg_construction(
 
 def add_arg_checks(
     lines: list,
-    arg: Union[str, collections.abc.Sequence, collections.abc.Mapping],
+    arg: Union[str, abc.Sequence, abc.Mapping],
     arg_name: str = "args",
     added_equal_tables_fn: bool = False,
 ):
@@ -122,8 +122,8 @@ def add_arg_checks(
         lines.append(
             f"if not {arg_name} == {as_lua_literal(arg)} then return false end"
         )
-    elif isinstance(arg, collections.abc.Sequence) or isinstance(
-        arg, collections.abc.Mapping
+    elif isinstance(arg, abc.Sequence) or isinstance(
+        arg, abc.Mapping
     ):
         if not added_equal_tables_fn:
             lines.extend(
