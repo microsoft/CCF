@@ -535,21 +535,21 @@ namespace ccf
           if (mguard.try_lock())
           {
             auto time = threading::ThreadMessaging::thread_messaging
-                          .get_current_time_offset();
+                          .get_current_time_offset()
+                          .count();
+            auto time_of_last_signature = self->time_of_last_signature.count();
 
             auto consensus = self->store.get_consensus();
             if (
               (consensus != nullptr) && consensus->is_primary() &&
-              self->store.commit_gap() > 0 &&
-              time.count() > self->time_of_last_signature.count() &&
-              (time.count() - self->time_of_last_signature.count()) >
-                sig_ms_interval)
+              self->store.commit_gap() > 0 && time > time_of_last_signature &&
+              (time - time_of_last_signature) > sig_ms_interval)
             {
               msg->data.self->emit_signature();
             }
 
             time_since_last_sig =
-              sig_ms_interval - (time - self->time_of_last_signature).count();
+              sig_ms_interval - (time - self->time_of_last_signature.count());
 
             if (
               time_since_last_sig <= 0 || time_since_last_sig > sig_ms_interval)
