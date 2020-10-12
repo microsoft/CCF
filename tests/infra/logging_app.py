@@ -17,6 +17,11 @@ class LoggingTxs:
         self.idx = 0
         self.user = f"user{user_id}"
 
+    def get_last_tx(self, priv=True):
+        txs = self.priv if priv else self.pub
+        idx, msgs = list(txs.items())[-1]
+        return (idx, msgs[-1])
+
     def issue(
         self,
         network,
@@ -72,13 +77,14 @@ class LoggingTxs:
     def verify(self, network, timeout=3):
         LOG.info("Verifying all logging txs")
 
-        remote_node, _ = network.find_primary()
+        node = network.nodes[2]  # TODO: Change this
+        # for node in network.nodes[2]:
         for pub_idx, pub_value in self.pub.items():
             # As public records do not yet handle historical queries,
             # only verify the latest entry
             entry = pub_value[-1]
             self._verify_tx(
-                remote_node,
+                node,
                 pub_idx,
                 entry["msg"],
                 entry["seqno"],
@@ -90,7 +96,7 @@ class LoggingTxs:
         for priv_idx, priv_value in self.priv.items():
             for v in priv_value:
                 self._verify_tx(
-                    remote_node,
+                    node,
                     priv_idx,
                     v["msg"],
                     v["seqno"],
@@ -145,7 +151,7 @@ class LoggingTxs:
                         LOG.info(
                             f"Sleeping for {retry_after}s waiting for historical query processing..."
                         )
-                        timeout += retry_after
+                        timeout += int(retry_after * 0.8)
                         time.sleep(retry_after)
                     elif rep.status_code == http.HTTPStatus.NO_CONTENT:
                         raise ValueError(

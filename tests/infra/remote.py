@@ -779,7 +779,7 @@ class CCFRemote(object):
         self.remote.get(self.ledger_dir_name, self.common_dir)
         return os.path.join(self.common_dir, self.ledger_dir_name)
 
-    def get_snapshots(self, pre_condition_func=lambda src_dir, _: True):
+    def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
         self.remote.get(
             self.snapshot_dir_name,
             self.common_dir,

@@ -190,7 +190,7 @@ class Network:
         # Only retrieve snapshot from target node if the snapshot directory is not
         # specified
         if from_snapshot and snapshot_dir is None:
-            snapshot_dir = target_node.get_snapshots()
+            snapshot_dir = target_node.get_committed_snapshots()
             assert (
                 len(os.listdir(snapshot_dir)) > 0
             ), f"There are no snapshots to resume from in directory {snapshot_dir}"
@@ -742,6 +742,16 @@ class Network:
             time.sleep(0.1)
         flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")
+
+    def is_snapshot_committed_for(self, seqno):
+        primary, _ = self.find_primary()
+
+        snapshots = primary.get_committed_snapshots()
+        for s in os.listdir(snapshots):
+            if infra.node.get_snapshot_seqno(s) > seqno:
+                LOG.error(f"Snapshot committed for {seqno}: {s}")
+                return True
+        return False
 
 
 @contextmanager

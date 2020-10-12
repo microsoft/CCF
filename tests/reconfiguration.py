@@ -3,6 +3,7 @@
 import infra.e2e_args
 import infra.network
 import infra.proc
+import infra.logging_app as app
 import suite.test_requirements as reqs
 import time
 
@@ -65,7 +66,7 @@ def test_add_node_from_backup(network, args):
 
 @reqs.description("Adding a valid node from snapshot")
 @reqs.at_least_n_nodes(2)
-# @reqs.verify_txs # TODO: Implement this to verify all txs so far
+@reqs.start_from_snapshot()  # TODO: Implement this to verify all txs so far
 def test_add_node_from_snapshot(network, args, copy_ledger=True):
     new_node = network.create_and_trust_node(
         args.package, "localhost", args, from_snapshot=True, copy_ledger=copy_ledger
@@ -140,10 +141,12 @@ def test_retire_primary(network, args):
 def run(args):
     hosts = ["localhost", "localhost"]
 
+    txs = app.LoggingTxs()
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb, txs=txs
     ) as network:
         network.start_and_join(args)
+
         if args.snapshot_tx_interval is not None:
             test_add_node_from_snapshot(network, args)
 

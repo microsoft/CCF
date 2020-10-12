@@ -10,6 +10,7 @@ import ccf.clients
 import os
 import socket
 import time
+import re
 
 from loguru import logger as LOG
 
@@ -33,6 +34,14 @@ def is_addr_local(host, port):
             return True
         except OSError:
             return False
+
+
+def is_snapshot_committed(file_name):
+    return file_name.endswith(".committed")
+
+
+def get_snapshot_seqno(file_name):
+    return int(re.findall("\d+", file_name)[0])
 
 
 class Node:
@@ -255,7 +264,7 @@ class Node:
     def get_ledger(self):
         return self.remote.get_ledger()
 
-    def get_snapshots(self):
+    def get_committed_snapshots(self):
         # Wait for all available snapshot files to be committed before
         # copying snapshot directory
         def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=3):
@@ -266,7 +275,7 @@ class Node:
                 committed = True
                 uncommitted_snapshots = []
                 for f in list_src_dir_func(src_dir):
-                    is_committed = f.endswith(".committed")
+                    is_committed = is_snapshot_committed(f)
                     if not is_committed:
                         uncommitted_snapshots.append(f)
                     committed &= is_committed
@@ -279,7 +288,7 @@ class Node:
                 )
             return committed
 
-        return self.remote.get_snapshots(wait_for_snapshots_to_be_committed)
+        return self.remote.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
     def client(self, identity=None, **kwargs):
         akwargs = {

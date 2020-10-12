@@ -145,6 +145,39 @@ def lua_generic_app(func):
     return installed_package("liblua_generic")(func)
 
 
+def start_from_snapshot():
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            network = args[0]
+            infra.e2e_args = vars(args[1])
+            snapshot_interval = infra.e2e_args.get("snapshot_tx_interval")
+            if snapshot_interval is not None:
+                # Issue at least one tx to make sure there will be one
+                # historical query
+                network.txs.issue(network, number_txs=1)
+
+                # TODO: This loop isn't great
+                for _ in range(1, int(snapshot_interval)):
+                    network.txs.issue(network, number_txs=1, repeat=True)
+                    _, last_tx = network.txs.get_last_tx(priv=True)
+                    LOG.error(last_tx)
+                    if network.is_snapshot_committed_for(seqno=last_tx["seqno"]):
+                        LOG.success("Snapshot is committed")
+                        break
+
+            network = func(*args, **kwargs)
+
+            LOG.error("Verifying transactions post test")
+            network.txs.verify(network=network)
+
+            return network
+
+        return wrapper
+
+    return decorator
+
+
 # Runs some transactions before recovering the network and guarantees that all
 # transactions are successfully recovered
 def recover(number_txs=5):
