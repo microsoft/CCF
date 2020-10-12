@@ -37,7 +37,9 @@ class LoggingTxs:
                 if not repeat:
                     self.idx += 1
 
-                priv_msg = f"Private message at idx {self.idx} [{len(self.priv[self.idx])}]"
+                priv_msg = (
+                    f"Private message at idx {self.idx} [{len(self.priv[self.idx])}]"
+                )
                 rep_priv = c.post(
                     "/app/log/private",
                     {
@@ -52,7 +54,9 @@ class LoggingTxs:
 
                 # Public records do not handle historical queries
                 if not repeat:
-                    pub_msg = f"Public message at idx {self.idx} [{len(self.pub[self.idx])}]"
+                    pub_msg = (
+                        f"Public message at idx {self.idx} [{len(self.pub[self.idx])}]"
+                    )
                     rep_pub = c.post(
                         "/app/log/public",
                         {
@@ -157,4 +161,6 @@ class LoggingTxs:
                         )
 
         if not found:
-            raise TimeoutError(f"Unable to retrieve entry at {idx} (seqno: {seqno}, view: {view}) after {timeout}s")
+            raise TimeoutError(
+                f"Unable to retrieve entry at {idx} (seqno: {seqno}, view: {view}) after {timeout}s"
+            )
