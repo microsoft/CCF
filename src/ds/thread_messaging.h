@@ -105,6 +105,11 @@ namespace threading
       std::unique_ptr<ThreadMsg> item, std::chrono::milliseconds ms)
     {
       TimerEntry entry = {time_offset + ms, time_entry_counter++};
+      if (timer_map.empty() || entry.time_offset <= next_time_offset)
+      {
+        next_time_offset = entry.time_offset;
+      }
+
       timer_map.emplace(entry, std::move(item));
       return entry;
     }
@@ -113,6 +118,10 @@ namespace threading
     {
       auto num_erased = timer_map.erase(timer_entry);
       CCF_ASSERT(num_erased <= 1, "Too many items erased");
+      if (!timer_map.empty() && timer_entry.time_offset <= next_time_offset)
+      {
+        next_time_offset = timer_map.begin()->first.time_offset;
+      }
       return num_erased != 0;
     }
 
@@ -120,15 +129,23 @@ namespace threading
     {
       time_offset += elapsed;
 
-      while (!timer_map.empty() &&
+      bool updated = false;
+
+      while (!timer_map.empty() && next_time_offset <= time_offset &&
              timer_map.begin()->first.time_offset <= time_offset)
       {
+        updated = true;
         auto it = timer_map.begin();
 
         auto& cb = it->second->cb;
         auto msg = std::move(it->second);
         timer_map.erase(it);
         cb(std::move(msg));
+      }
+
+      if (!timer_map.empty() && updated)
+      {
+        next_time_offset = timer_map.begin()->first.time_offset;
       }
     }
 
@@ -142,6 +159,7 @@ namespace threading
     uint64_t time_entry_counter = 0;
     std::map<TimerEntry, std::unique_ptr<ThreadMsg>, TimerEntryCompare>
       timer_map;
+    std::chrono::milliseconds next_time_offset;
 
     void reverse_local_messages()
     {

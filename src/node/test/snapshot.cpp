@@ -53,7 +53,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
   INFO("Emit signature");
   {
-    source_history->emit_signature();
+    source_history->emit_signature(99999);
     // Snapshot version is the version of the signature
     snapshot_version = transactions_count + 1;
   }

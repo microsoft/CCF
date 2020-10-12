@@ -983,7 +983,7 @@ namespace ccf
 
       // Emit signature to certify transactions that happened on public
       // network
-      history->emit_signature();
+      history->emit_signature(0);
 
       for (auto const& v : restored_versions)
       {

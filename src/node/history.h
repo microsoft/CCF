@@ -134,7 +134,7 @@ namespace ccf
       return {};
     }
 
-    void emit_signature() override
+    void emit_signature(uint32_t) override
     {
       auto txid = store.next_txid();
       LOG_INFO_FMT("Issuing signature at {}.{}", txid.term, txid.version);
@@ -152,7 +152,7 @@ namespace ccf
 
     void try_emit_signature() override
     {
-      emit_signature();
+      emit_signature(1);
     }
 
     bool add_request(
@@ -545,7 +545,7 @@ namespace ccf
               self->store.commit_gap() > 0 && time > time_of_last_signature &&
               (time - time_of_last_signature) > sig_ms_interval)
             {
-              msg->data.self->emit_signature();
+              msg->data.self->emit_signature(2);
             }
 
             time_since_last_sig =
@@ -750,7 +750,7 @@ namespace ccf
 
     void try_emit_signature() override
     {
-      if ((store.commit_gap()) != sig_tx_interval / 2)
+      if ((store.commit_gap()) != sig_tx_interval)
       {
         return;
       }
@@ -758,11 +758,11 @@ namespace ccf
       std::unique_lock<SpinLock> mguard(signature_lock, std::defer_lock);
       if (mguard.try_lock())
       {
-        emit_signature();
+        emit_signature(3);
       }
     }
 
-    void emit_signature() override
+    void emit_signature(uint32_t from) override
     {
       // Signatures are only emitted when there is a consensus
       auto consensus = store.get_consensus();
@@ -787,11 +787,12 @@ namespace ccf
         threading::ThreadMessaging::thread_messaging.get_current_time_offset();
 
       LOG_DEBUG_FMT(
-        "Signed at {} in view: {} commit was: {}.{}",
+        "Signed at {} in view: {} commit was: {}.{}, from:{}",
         txid.version,
         txid.term,
         commit_txid.first,
-        commit_txid.second);
+        commit_txid.second,
+        from);
 
       store.commit(
         txid,

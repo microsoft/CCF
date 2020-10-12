@@ -118,7 +118,7 @@ TEST_CASE("StateCache")
           i == low_signature_transaction - 1 ||
           i == high_signature_transaction - 1)
         {
-          history->emit_signature();
+          history->emit_signature(999);
           store.compact(store.current_version());
         }
         else
