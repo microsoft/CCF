@@ -198,6 +198,7 @@ namespace loggingapp
       };
       make_endpoint(
         "log/private/prefix_cert", HTTP_POST, log_record_prefix_cert)
+        .set_auto_schema<LoggingRecord::In, bool>()
         .install();
       // SNIPPET_END: log_record_prefix_cert
 
@@ -340,6 +341,7 @@ namespace loggingapp
         HTTP_GET,
         ccf::historical::adapter(
           get_historical, context.get_historical_state(), is_tx_committed))
+        .set_auto_schema<LoggingGetHistorical>()
         .install();
 
       auto record_admin_only =
