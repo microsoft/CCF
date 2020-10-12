@@ -263,64 +263,9 @@ def test_historical_query(network, args):
         return network
 
     if args.package == "liblogging":
-        primary, _ = network.find_primary()
-
-        with primary.client() as nc:
-            check_commit = infra.checker.Checker(nc)
-            check = infra.checker.Checker()
-
-            with primary.client("user0") as c:
-                log_id = 10
-                msg = "This tests historical queries"
-                record_response = c.post("/app/log/private", {"id": log_id, "msg": msg})
-                check_commit(record_response, result=True)
-                view = record_response.view
-                seqno = record_response.seqno
-
-                msg2 = "This overwrites the original message"
-                check_commit(
-                    c.post("/app/log/private", {"id": log_id, "msg": msg2}), result=True
-                )
-                check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg2})
-
-                timeout = 15
-                found = False
-                headers = {
-                    ccf.clients.CCF_TX_VIEW_HEADER: str(view),
-                    ccf.clients.CCF_TX_SEQNO_HEADER: str(seqno),
-                }
-                end_time = time.time() + timeout
-
-                while time.time() < end_time:
-                    get_response = c.get(
-                        f"/app/log/private/historical?id={log_id}", headers=headers
-                    )
-                    if get_response.status_code == http.HTTPStatus.ACCEPTED:
-                        retry_after = get_response.headers.get("retry-after")
-                        if retry_after is None:
-                            raise ValueError(
-                                f"Response with status {get_response.status_code} is missing 'retry-after' header"
-                            )
-                        retry_after = int(retry_after)
-                        time.sleep(retry_after)
-                    elif get_response.status_code == http.HTTPStatus.OK:
-                        assert get_response.body.json()["msg"] == msg, get_response
-                        found = True
-                        break
-                    elif get_response.status_code == http.HTTPStatus.NO_CONTENT:
-                        raise ValueError(
-                            f"Historical query response claims there was no write to {log_id} at {view}.{seqno}"
-                        )
-                    else:
-                        raise ValueError(
-                            f"Unexpected response status code {get_response.status_code}: {get_response.body}"
-                        )
-
-                if not found:
-                    raise TimeoutError(
-                        f"Unable to handle historical query after {timeout}s"
-                    )
-
+        network.txs.issue(network, number_txs=2)
+        network.txs.issue(network, number_txs=2, repeat=True)
+        network.txs.verify(network)
     else:
         LOG.warning(
             f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
@@ -605,15 +550,12 @@ def test_tx_statuses(network, args):
 @reqs.description("Primary and redirection")
 @reqs.at_least_n_nodes(2)
 def test_primary(network, args):
-    LOG.error(network.nodes)
     primary, _ = network.find_primary()
-    LOG.error(f"PRIMARY {primary.pubhost}")
     with primary.client() as c:
         r = c.head("/node/primary")
         assert r.status_code == http.HTTPStatus.OK.value
 
     backup = network.find_any_backup()
-    LOG.error(f"BACKUP {backup.pubhost}")
     with backup.client() as c:
         r = c.head("/node/primary")
         assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
@@ -632,24 +574,25 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb, txs=txs
     ) as network:
         network.start_and_join(args)
-        network = test(
-            network,
-            args,
-            verify=args.package != "libjs_generic",
-        )
-        network = test_illegal(network, args, verify=args.package != "libjs_generic")
-        network = test_large_messages(network, args)
-        network = test_remove(network, args)
-        network = test_forwarding_frontends(network, args)
-        network = test_update_lua(network, args)
-        network = test_user_data_ACL(network, args)
-        network = test_cert_prefix(network, args)
-        network = test_anonymous_caller(network, args)
-        network = test_raw_text(network, args)
+
+        # network = test(
+        #     network,
+        #     args,
+        #     verify=args.package != "libjs_generic",
+        # )
+        # network = test_illegal(network, args, verify=args.package != "libjs_generic")
+        # network = test_large_messages(network, args)
+        # network = test_remove(network, args)
+        # network = test_forwarding_frontends(network, args)
+        # network = test_update_lua(network, args)
+        # network = test_user_data_ACL(network, args)
+        # network = test_cert_prefix(network, args)
+        # network = test_anonymous_caller(network, args)
+        # network = test_raw_text(network, args)
         network = test_historical_query(network, args)
-        network = test_view_history(network, args)
-        network = test_primary(network, args)
-        network = test_metrics(network, args)
+        # network = test_view_history(network, args)
+        # network = test_primary(network, args)
+        # network = test_metrics(network, args)
 
 
 if __name__ == "__main__":

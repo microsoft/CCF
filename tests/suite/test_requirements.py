@@ -98,7 +98,9 @@ def sufficient_member_count():
 def can_kill_n_nodes(nodes_to_kill_count):
     def check(network, args, *nargs, **kwargs):
         primary, _ = network.find_primary()
-        with primary.client("member0") as c:
+        with primary.client(
+            f"member{network.consortium.get_any_active_member().member_id}"
+        ) as c:
             r = c.post(
                 "/gov/query",
                 {

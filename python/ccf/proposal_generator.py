@@ -122,9 +122,7 @@ def add_arg_checks(
         lines.append(
             f"if not {arg_name} == {as_lua_literal(arg)} then return false end"
         )
-    elif isinstance(arg, abc.Sequence) or isinstance(
-        arg, abc.Mapping
-    ):
+    elif isinstance(arg, abc.Sequence) or isinstance(arg, abc.Mapping):
         if not added_equal_tables_fn:
             lines.extend(
                 line.strip() for line in LUA_FUNCTION_EQUAL_TABLES.splitlines()
