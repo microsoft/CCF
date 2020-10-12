@@ -3,6 +3,7 @@
 #include "enclave/app_interface.h"
 #include "kv/untyped_map.h"
 #include "node/rpc/user_frontend.h"
+#include "tls/entropy.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>
@@ -78,6 +79,31 @@ namespace ccfapp
     }
 
     JS_FreeValue(ctx, exception_val);
+  }
+
+  static JSValue js_generate_aes_key(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    int32_t key_size;
+    if (JS_ToInt32(ctx, &key_size, argv[0]) < 0)
+    {
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+    if (key_size != 128 && key_size != 192 && key_size != 256)
+    {
+      JS_ThrowRangeError(ctx, "invalid key size");
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    std::vector<uint8_t> key = tls::create_entropy()->random(key_size / 8);
+
+    return JS_NewArrayBufferCopy(ctx, key.data(), key.size());
   }
 
   static void js_free_arraybuffer_cstring(JSRuntime*, void* opaque, void* ptr)
@@ -602,6 +628,12 @@ namespace ccfapp
           "bufToJsonCompatible",
           JS_NewCFunction(
             ctx, ccfapp::js_buf_to_json_compatible, "bufToJsonCompatible", 1));
+        JS_SetPropertyStr(
+          ctx,
+          ccf,
+          "generateAesKey",
+          JS_NewCFunction(
+            ctx, ccfapp::js_generate_aes_key, "generateAesKey", 1));
 
         auto kv = JS_NewObjectClass(ctx, kv_class_id);
         JS_SetPropertyStr(ctx, ccf, "kv", kv);
