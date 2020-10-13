@@ -153,8 +153,8 @@ def verify_request_sig(raw_cert, sig, req, request_body, md):
         verify_recover_secp256k1_bc(sig, req)
 
 
-def generate_aes_key(key_size: int) -> bytes:
-    return secrets.token_bytes(key_size // 8)
+def generate_aes_key(key_bits: int) -> bytes:
+    return secrets.token_bytes(key_bits // 8)
 
 
 def generate_rsa_keypair(key_size: int) -> Tuple[str, str]:
