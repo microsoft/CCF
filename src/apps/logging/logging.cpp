@@ -342,6 +342,7 @@ namespace loggingapp
         ccf::historical::adapter(
           get_historical, context.get_historical_state(), is_tx_committed))
         .set_auto_schema<LoggingGetHistorical>()
+        .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
 
       auto record_admin_only =
