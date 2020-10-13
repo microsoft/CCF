@@ -87,6 +87,11 @@ class LoggingTxs:
         LOG.info("Verifying all logging txs")
         if network is not None:
             self.network = network
+        if self.network is None:
+            raise ValueError(
+                "Network object is not yet set - txs should be issued before calling verify"
+            )
+
         nodes = self.network.get_joined_nodes() if node is None else [node]
         for node in nodes:
             for pub_idx, pub_value in self.pub.items():
@@ -147,7 +152,6 @@ class LoggingTxs:
                     break
                 elif rep.status_code == http.HTTPStatus.NOT_FOUND:
                     LOG.warning("User frontend is not yet opened")
-                    time.sleep(0.1)
                     continue
 
                 if historical:
@@ -161,7 +165,7 @@ class LoggingTxs:
                         LOG.info(
                             f"Sleeping for {retry_after}s waiting for historical query processing..."
                         )
-                        timeout += int(retry_after * 0.8)
+                        timeout += retry_after * 0.8
                         time.sleep(retry_after)
                     elif rep.status_code == http.HTTPStatus.NO_CONTENT:
                         raise ValueError(
@@ -171,6 +175,7 @@ class LoggingTxs:
                         raise ValueError(
                             f"Unexpected response status code {rep.status_code}: {rep.body}"
                         )
+                time.sleep(0.1)
 
         if not found:
             raise LoggingTxsVerifyException(
