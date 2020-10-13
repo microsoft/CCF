@@ -614,6 +614,7 @@ def run(args):
         if args.enclave_type != "virtual":
             network = test_memory(network, args)
 
+
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
