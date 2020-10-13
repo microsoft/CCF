@@ -16,14 +16,14 @@ namespace ccf
 
     struct EndpointKey
     {
-      URI method;
+      URI uri_path;
       RESTVerb verb = HTTP_POST;
 
-      MSGPACK_DEFINE(method, verb);
+      MSGPACK_DEFINE(uri_path, verb);
     };
 
     DECLARE_JSON_TYPE(EndpointKey);
-    DECLARE_JSON_REQUIRED_FIELDS(EndpointKey, method, verb);
+    DECLARE_JSON_REQUIRED_FIELDS(EndpointKey, uri_path, verb);
 
     enum class ForwardingRequired
     {

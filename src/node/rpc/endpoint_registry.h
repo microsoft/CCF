@@ -101,7 +101,7 @@ namespace ccf
         func(f),
         registry(r)
       {
-        dispatch.method = m;
+        dispatch.uri_path = m;
       }
 
       EndpointFunction func;
@@ -135,14 +135,14 @@ namespace ccf
           {
             add_query_parameters(
               document,
-              endpoint->dispatch.method,
+              endpoint->dispatch.uri_path,
               endpoint->params_schema,
               http_verb.value());
           }
           else
           {
             auto& rb = request_body(path_operation(
-              ds::openapi::path(document, endpoint->dispatch.method),
+              ds::openapi::path(document, endpoint->dispatch.uri_path),
               http_verb.value()));
             schema(media_type(rb, http::headervalues::contenttype::JSON)) =
               endpoint->params_schema;
@@ -174,7 +174,7 @@ namespace ccf
             using namespace ds::openapi;
             auto& r = response(
               path_operation(
-                ds::openapi::path(document, endpoint->dispatch.method),
+                ds::openapi::path(document, endpoint->dispatch.uri_path),
                 http_verb.value()),
               HTTP_STATUS_OK);
 
@@ -207,7 +207,7 @@ namespace ccf
         if constexpr (!std::is_same_v<In, void>)
         {
           params_schema =
-            ds::json::build_schema<In>(dispatch.method + "/params");
+            ds::json::build_schema<In>(dispatch.uri_path + "/params");
 
           schema_builders.push_back(
             [](nlohmann::json& document, const EndpointPtr& endpoint) {
@@ -224,7 +224,7 @@ namespace ccf
               {
                 add_query_parameters(
                   document,
-                  endpoint->dispatch.method,
+                  endpoint->dispatch.uri_path,
                   endpoint->params_schema,
                   http_verb.value());
               }
@@ -232,7 +232,7 @@ namespace ccf
               {
                 ds::openapi::add_request_body_schema<In>(
                   document,
-                  endpoint->dispatch.method,
+                  endpoint->dispatch.uri_path,
                   http_verb.value(),
                   http::headervalues::contenttype::JSON);
               }
@@ -246,7 +246,7 @@ namespace ccf
         if constexpr (!std::is_same_v<Out, void>)
         {
           result_schema =
-            ds::json::build_schema<Out>(dispatch.method + "/result");
+            ds::json::build_schema<Out>(dispatch.uri_path + "/result");
 
           schema_builders.push_back(
             [](nlohmann::json& document, const EndpointPtr& endpoint) {
@@ -258,7 +258,7 @@ namespace ccf
 
               ds::openapi::add_response_schema<Out>(
                 document,
-                endpoint->dispatch.method,
+                endpoint->dispatch.uri_path,
                 http_verb.value(),
                 HTTP_STATUS_OK,
                 http::headervalues::contenttype::JSON);
@@ -339,7 +339,7 @@ namespace ccf
             "Disabling client identity requirement on {} Endpoint has no "
             "effect "
             "since its registry does not have certificates table",
-            dispatch.method);
+            dispatch.uri_path);
           return *this;
         }
 
@@ -403,14 +403,14 @@ namespace ccf
     static std::shared_ptr<PathTemplatedEndpoint> parse_path_template(
       const Endpoint& endpoint)
     {
-      auto template_start = endpoint.dispatch.method.find_first_of('{');
+      auto template_start = endpoint.dispatch.uri_path.find_first_of('{');
       if (template_start == std::string::npos)
       {
         return nullptr;
       }
 
       auto templated = std::make_shared<PathTemplatedEndpoint>(endpoint);
-      std::string regex_s = endpoint.dispatch.method;
+      std::string regex_s = endpoint.dispatch.uri_path;
       template_start = regex_s.find_first_of('{');
       while (template_start != std::string::npos)
       {
@@ -419,7 +419,7 @@ namespace ccf
         {
           throw std::logic_error(fmt::format(
             "Invalid templated path - missing closing '}': {}",
-            endpoint.dispatch.method));
+            endpoint.dispatch.uri_path));
         }
 
         templated->template_component_names.push_back(regex_s.substr(
@@ -431,7 +431,7 @@ namespace ccf
 
       LOG_TRACE_FMT(
         "Installed a templated endpoint: {} became {}",
-        endpoint.dispatch.method,
+        endpoint.dispatch.uri_path,
         regex_s);
       LOG_TRACE_FMT(
         "Component names are: {}",
@@ -496,7 +496,7 @@ namespace ccf
       const std::string& method, RESTVerb verb, const EndpointFunction& f)
     {
       Endpoint endpoint(method, f, this);
-      endpoint.dispatch.method = method;
+      endpoint.dispatch.uri_path = method;
       endpoint.dispatch.verb = verb;
       endpoint.func = f;
       // By default, all write transactions are forwarded
@@ -555,12 +555,12 @@ namespace ccf
       const auto templated_endpoint = parse_path_template(endpoint);
       if (templated_endpoint != nullptr)
       {
-        templated_endpoints[endpoint.dispatch.method][endpoint.dispatch.verb] =
-          templated_endpoint;
+        templated_endpoints[endpoint.dispatch.uri_path]
+                           [endpoint.dispatch.verb] = templated_endpoint;
       }
       else
       {
-        fully_qualified_endpoints[endpoint.dispatch.method]
+        fully_qualified_endpoints[endpoint.dispatch.uri_path]
                                  [endpoint.dispatch.verb] =
                                    std::make_shared<Endpoint>(endpoint);
       }
@@ -596,7 +596,7 @@ namespace ccf
 
         ds::openapi::response(
           ds::openapi::path_operation(
-            ds::openapi::path(document, endpoint->dispatch.method),
+            ds::openapi::path(document, endpoint->dispatch.uri_path),
             http_verb.value()),
           HTTP_STATUS_OK);
       }
@@ -641,7 +641,7 @@ namespace ccf
             parameter["required"] = true;
             parameter["schema"] = {{"type", "string"}};
             ds::openapi::add_path_parameter_schema(
-              document, endpoint->dispatch.method, parameter);
+              document, endpoint->dispatch.uri_path, parameter);
           }
         }
       }
@@ -661,7 +661,7 @@ namespace ccf
 
     Metrics& get_metrics(const EndpointDefinitionPtr& e)
     {
-      return metrics[e->dispatch.method][e->dispatch.verb.c_str()];
+      return metrics[e->dispatch.uri_path][e->dispatch.verb.c_str()];
     }
 
     virtual void init_handlers(kv::Store&) {}
