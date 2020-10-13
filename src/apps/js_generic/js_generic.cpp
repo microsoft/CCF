@@ -146,6 +146,7 @@ namespace ccfapp
       js_dump_error(ctx);
       return JS_EXCEPTION;
     }
+    // Supported key sizes for AES.
     if (key_size != 128 && key_size != 192 && key_size != 256)
     {
       JS_ThrowRangeError(ctx, "invalid key size");
