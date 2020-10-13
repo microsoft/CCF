@@ -44,4 +44,9 @@ OE_EXTERNC bool oe_is_outside_enclave(const void*, std::size_t)
 
 #  define oe_lfence() // nop
 
+OE_EXTERNC oe_result_t oe_allocator_mallinfo(oe_mallinfo_t*)
+{
+  return OE_OK;
+}
+
 #endif

@@ -9,6 +9,7 @@
 #include "node/node_info_network.h"
 
 #include <nlohmann/json.hpp>
+#include <openenclave/advanced/mallinfo.h>
 
 namespace ccf
 {
@@ -118,6 +119,25 @@ namespace ccf
       };
 
       NetworkInfo network_info;
+    };
+  };
+
+  struct MemoryUsage
+  {
+    using In = void;
+
+    struct Out
+    {
+      Out(const oe_mallinfo_t& info) :
+        max_total_heap_size(info.max_total_heap_size),
+        current_allocated_heap_size(info.current_allocated_heap_size),
+        peak_allocated_heap_size(info.peak_allocated_heap_size)
+      {}
+      Out() = default;
+
+      size_t max_total_heap_size = 0;
+      size_t current_allocated_heap_size = 0;
+      size_t peak_allocated_heap_size = 0;
     };
   };
 }

@@ -385,6 +385,31 @@ namespace ccf
       make_command_endpoint("config", HTTP_GET, consensus_config)
         .set_forwarding_required(ForwardingRequired::Never)
         .install();
+
+      auto memory_usage = [](CommandEndpointContext& args) {
+
+#ifdef INSIDE_ENCLAVE
+        oe_mallinfo_t info;
+        auto rc = oe_allocator_mallinfo(&info);
+        if (rc == OE_OK)
+        {
+          MemoryUsage::Out mu(info);
+          args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          args.rpc_ctx->set_response_body(nlohmann::json(mu).dump());
+          return;
+        }
+#endif
+
+        args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+        args.rpc_ctx->set_response_body("Failed to read memory usage");
+      };
+
+      make_command_endpoint("memory", HTTP_GET, memory_usage)
+        .set_forwarding_required(ForwardingRequired::Never)
+        .set_auto_schema<MemoryUsage>()
+        .install();
     }
   };
 
