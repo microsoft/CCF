@@ -751,13 +751,13 @@ namespace ccf
 
     void try_emit_signature() override
     {
-      if ((store.commit_gap()) < sig_tx_interval)
+      std::unique_lock<SpinLock> mguard(signature_lock, std::defer_lock);
+      if (!mguard.try_lock())
       {
         return;
       }
 
-      std::unique_lock<SpinLock> mguard(signature_lock, std::defer_lock);
-      if (mguard.try_lock())
+      if ((store.commit_gap()) < sig_tx_interval)
       {
         emit_signature(3);
       }
