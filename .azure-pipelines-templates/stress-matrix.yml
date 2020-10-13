@@ -1,9 +1,10 @@
-env:
-  SGX:
-    container: sgx
-    pool: Ubuntu-1804-DC8_v2
-
 jobs:
+- job: build_and_run_vegeta_stress_test
+  container: sgx
+  pool: Ubuntu-1804-DC8_v2
+  displayName: 'Vegeta Stress Test'
+
+  steps:
   - checkout: self
     clean: true
 
