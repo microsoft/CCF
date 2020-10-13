@@ -532,7 +532,7 @@ namespace ccf
           const int64_t sig_ms_interval = self->sig_ms_interval;
           int64_t time_since_last_sig = sig_ms_interval;
 
-          //if (mguard.try_lock())
+          if (mguard.try_lock())
           {
             auto time = threading::ThreadMessaging::thread_messaging
                           .get_current_time_offset()
