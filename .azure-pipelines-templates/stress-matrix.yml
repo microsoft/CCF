@@ -12,14 +12,7 @@ jobs:
     parameters:
       cmake_args: '-DCOMPILE_TARGETS=sgx'
 
-  # TODO: Should probably install this via ansible, but bodging it in here for quick testing
-  - script: |
-      wget https://github.com/tsenart/vegeta/releases/download/v12.8.4/vegeta_12.8.4_linux_386.tar.gz -O vegeta.tar.gz
-      tar -xf vegeta.tar.gz
-    displayName: Download and unzip vegeta
-    workingDirectory: build
-
-  - script: ./vegeta --help
+  - script: /opt/vegeta/vegeta --help
     displayName: Test vegeta is available
     workingDirectory: build
 
@@ -30,6 +23,6 @@ jobs:
       sleep 20
       ../tests/generate_vegeta_targets.sh network.info > vegeta_targets
       cat vegeta_targets
-      cat vegeta_targets | ./vegeta attack --format json --duration 45m --rate 100 --cert workspace/sandbox_common/user0_cert.pem --key workspace/sandbox_common/user0_privk.pem --root-certs workspace/sandbox_common/networkcert.pem | tee results.bin | ./vegeta report --every 10s
+      cat vegeta_targets | /opt/vegeta/vegeta attack --format json --duration 45m --rate 100 --cert workspace/sandbox_common/user0_cert.pem --key workspace/sandbox_common/user0_privk.pem --root-certs workspace/sandbox_common/networkcert.pem | tee results.bin | /opt/vegeta/vegeta report --every 10s
     displayName: Run vegeta stress test
     workingDirectory: build
