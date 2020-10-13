@@ -134,7 +134,7 @@ namespace ccf
       return {};
     }
 
-    void emit_signature(uint32_t) override
+    void emit_signature() override
     {
       auto txid = store.next_txid();
       LOG_INFO_FMT("Issuing signature at {}.{}", txid.term, txid.version);
