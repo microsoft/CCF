@@ -23,6 +23,7 @@ class LoggingTxs:
         self.priv = defaultdict(list)
         self.idx = 0
         self.user = f"user{user_id}"
+        self.network = None
 
     def get_last_tx(self, priv=True):
         txs = self.priv if priv else self.pub
@@ -36,6 +37,7 @@ class LoggingTxs:
         on_backup=False,
         repeat=False,
     ):
+        self.network = network
         remote_node, _ = network.find_primary()
         if on_backup:
             remote_node = network.find_any_backup()
@@ -81,9 +83,11 @@ class LoggingTxs:
 
         network.wait_for_node_commit_sync()
 
-    def verify(self, network, node=None, timeout=3):
+    def verify(self, network=None, node=None, timeout=3):
         LOG.info("Verifying all logging txs")
-        nodes = network.get_joined_nodes() if node is None else [node]
+        if network is not None:
+            self.network = network
+        nodes = self.network.get_joined_nodes() if node is None else [node]
         for node in nodes:
             for pub_idx, pub_value in self.pub.items():
                 # As public records do not yet handle historical queries,

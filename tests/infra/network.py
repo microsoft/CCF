@@ -199,7 +199,9 @@ class Network:
         if snapshot_dir is not None:
             LOG.info(f"Joining from snapshot: {snapshot_dir}")
             if copy_ledger_read_only:
-                LOG.info(f"Copying target node to read-only ledger directory")
+                LOG.info(
+                    f"Copying target node ledger to read-only ledger directory {read_only_ledger_dir}"
+                )
                 read_only_ledger_dir = target_node.get_ledger()
 
         node.join(

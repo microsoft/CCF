@@ -196,7 +196,7 @@ def add_from_snapshot():
                 )
             network = func(*args, **kwargs)
             # Only verify entries on node just added
-            network.txs.verify(network=network, node=network.get_joined_nodes()[-1])
+            network.txs.verify(node=network.get_joined_nodes()[-1])
 
             return network
 
