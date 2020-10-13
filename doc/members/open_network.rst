@@ -1,7 +1,7 @@
 Opening a Network
 =================
 
-This sections assumes that a set of nodes has already been started by :term:`Operators`. See :ref:`operators/start_network:Starting a New Network`.
+This sections assumes that a set of nodes has already been started by :term:`Operators`. See :doc:`/operators/start_network`.
 
 Adding Users
 ------------

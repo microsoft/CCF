@@ -1,5 +1,5 @@
-Starting a New Network
-======================
+Running a CCF Service
+=====================
 
 .. note:: Before creating a new network:
 
@@ -84,6 +84,8 @@ To add a new node to an existing opening network, other nodes should be started 
     --public-rpc-address <ccf-node-public-address>
     --ledger-dir /path/to/ledger/dir
     --node-cert-file /path/to/node_certificate
+    [--snapshot-dir /path/to/ledger/dir]
+    [--read-only-ledger-dir /path/to/read/only/ledger/dir]
     join
     --network-cert-file /path/to/existing/network_certificate
     --target-rpc-address <another-ccf-node-address>
