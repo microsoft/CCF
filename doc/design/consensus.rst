@@ -28,7 +28,7 @@ BFT Consensus Protocol
 
 There is an option of enabling CCF with BFT as a consensus protocol providing Byzantine Fault Tolerance.
 
-PBFT parameters can be configured when starting up a network (see :doc:`here </operators/start_network>`). The paramters that can be set via the CLI are:
+PBFT parameters can be configured when starting up a network (see :doc:`here </operators/start_network>`). The parameters that can be set via the CLI are:
 
 - ``pbft-view-change-timeout-ms`` is the PBFT view change timeout in milliseconds. If a backup does not receive the pre-prepare message for a request forwarded to the primary after this timeout, the backup triggers a view change.
 - ``pbft-status-interval-ms`` is the PBFT status timer interval in milliseconds. All PBFT nodes send messages containing their status to all other known nodes at regular intervals defined by this timer interval.
