@@ -173,7 +173,7 @@ class Network:
         recovery=False,
         from_snapshot=False,
         snapshot_dir=None,
-        copy_ledger=False,
+        copy_ledger_read_only=False,
     ):
         forwarded_args = {
             arg: getattr(args, arg)
@@ -195,12 +195,12 @@ class Network:
                 len(os.listdir(snapshot_dir)) > 0
             ), f"There are no snapshots to resume from in directory {snapshot_dir}"
 
-        read_ledger_dir = None
+        read_only_ledger_dir = None
         if snapshot_dir is not None:
             LOG.info(f"Joining from snapshot: {snapshot_dir}")
-            if copy_ledger:
+            if copy_ledger_read_only:
                 LOG.info(f"Copying target node to read-only ledger directory")
-                read_ledger_dir = target_node.get_ledger()
+                read_only_ledger_dir = target_node.get_ledger()
 
         node.join(
             lib_name=lib_name,
@@ -209,7 +209,7 @@ class Network:
             common_dir=self.common_dir,
             target_rpc_address=f"{target_node.host}:{target_node.rpc_port}",
             snapshot_dir=snapshot_dir,
-            read_ledger_dir=read_ledger_dir,
+            read_only_ledger_dir=read_only_ledger_dir,
             **forwarded_args,
         )
 
@@ -471,7 +471,7 @@ class Network:
         args,
         target_node=None,
         from_snapshot=False,
-        copy_ledger=False,
+        copy_ledger_read_only=False,
         timeout=JOIN_TIMEOUT,
     ):
         """
@@ -486,7 +486,7 @@ class Network:
             args,
             target_node,
             from_snapshot=from_snapshot,
-            copy_ledger=copy_ledger,
+            copy_ledger_read_only=copy_ledger_read_only,
         )
         primary, _ = self.find_primary()
         try:
@@ -524,14 +524,14 @@ class Network:
         args,
         target_node=None,
         from_snapshot=False,
-        copy_ledger=False,
+        copy_ledger_read_only=False,
     ):
         """
         Create a new node, add it to the network and let members vote to trust
         it so that it becomes part of the consensus protocol.
         """
         new_node = self.create_and_add_pending_node(
-            lib_name, host, args, target_node, from_snapshot, copy_ledger
+            lib_name, host, args, target_node, from_snapshot, copy_ledger_read_only
         )
 
         primary, _ = self.find_primary()
@@ -743,15 +743,17 @@ class Network:
         flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")
 
-    def is_snapshot_committed_for(self, seqno):
+    def wait_for_snapshot_committed_for(self, seqno, timeout=3):
         primary, _ = self.find_primary()
-
-        snapshots = primary.get_committed_snapshots()
-        for s in os.listdir(snapshots):
-            if infra.node.get_snapshot_seqno(s) > seqno:
-                LOG.error(f"Snapshot committed for {seqno}: {s}")
-                return True
-        return False
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            snapshots = primary.get_committed_snapshots()
+            for s in os.listdir(snapshots):
+                if infra.node.get_snapshot_seqno(s) > seqno:
+                    LOG.info(f"Snapshot committed after seqno {seqno}: {s}")
+                    return
+            time.sleep(0.1)
+        raise TimeoutError(f"Snapshot after {seqno} was not committed after {timeout}s")
 
 
 @contextmanager

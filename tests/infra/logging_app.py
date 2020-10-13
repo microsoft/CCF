@@ -10,6 +10,13 @@ from collections import defaultdict
 from loguru import logger as LOG
 
 
+class LoggingTxsVerifyException(Exception):
+    """
+    Exception raised if a LoggingTxs instance cannot successfully verify all
+    entries previously issued.
+    """
+
+
 class LoggingTxs:
     def __init__(self, user_id=0):
         self.pub = defaultdict(list)
@@ -74,37 +81,36 @@ class LoggingTxs:
 
         network.wait_for_node_commit_sync()
 
-    def verify(self, network, timeout=3):
+    def verify(self, network, node=None, timeout=3):
         LOG.info("Verifying all logging txs")
-
-        node = network.nodes[2]  # TODO: Change this
-        # for node in network.nodes[2]:
-        for pub_idx, pub_value in self.pub.items():
-            # As public records do not yet handle historical queries,
-            # only verify the latest entry
-            entry = pub_value[-1]
-            self._verify_tx(
-                node,
-                pub_idx,
-                entry["msg"],
-                entry["seqno"],
-                entry["view"],
-                priv=False,
-                timeout=timeout,
-            )
-
-        for priv_idx, priv_value in self.priv.items():
-            for v in priv_value:
+        nodes = network.get_joined_nodes() if node is None else [node]
+        for node in nodes:
+            for pub_idx, pub_value in self.pub.items():
+                # As public records do not yet handle historical queries,
+                # only verify the latest entry
+                entry = pub_value[-1]
                 self._verify_tx(
                     node,
-                    priv_idx,
-                    v["msg"],
-                    v["seqno"],
-                    v["view"],
-                    priv=True,
-                    historical=(v != priv_value[-1]),
+                    pub_idx,
+                    entry["msg"],
+                    entry["seqno"],
+                    entry["view"],
+                    priv=False,
                     timeout=timeout,
                 )
+
+            for priv_idx, priv_value in self.priv.items():
+                for v in priv_value:
+                    self._verify_tx(
+                        node,
+                        priv_idx,
+                        v["msg"],
+                        v["seqno"],
+                        v["view"],
+                        priv=True,
+                        historical=(v != priv_value[-1]),
+                        timeout=timeout,
+                    )
 
     def _verify_tx(
         self, node, idx, msg, seqno, view, priv=True, historical=False, timeout=3
@@ -163,6 +169,6 @@ class LoggingTxs:
                         )
 
         if not found:
-            raise TimeoutError(
+            raise LoggingTxsVerifyException(
                 f"Unable to retrieve entry at {idx} (seqno: {seqno}, view: {view}) after {timeout}s"
             )

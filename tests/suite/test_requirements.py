@@ -145,42 +145,9 @@ def lua_generic_app(func):
     return installed_package("liblua_generic")(func)
 
 
-def start_from_snapshot():
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            network = args[0]
-            infra.e2e_args = vars(args[1])
-            snapshot_interval = infra.e2e_args.get("snapshot_tx_interval")
-            if snapshot_interval is not None:
-                # Issue at least one tx to make sure there will be one
-                # historical query
-                network.txs.issue(network, number_txs=1)
-
-                # TODO: This loop isn't great
-                for _ in range(1, int(snapshot_interval)):
-                    network.txs.issue(network, number_txs=1, repeat=True)
-                    _, last_tx = network.txs.get_last_tx(priv=True)
-                    LOG.error(last_tx)
-                    if network.is_snapshot_committed_for(seqno=last_tx["seqno"]):
-                        LOG.success("Snapshot is committed")
-                        break
-
-            network = func(*args, **kwargs)
-
-            LOG.error("Verifying transactions post test")
-            network.txs.verify(network=network)
-
-            return network
-
-        return wrapper
-
-    return decorator
-
-
-# Runs some transactions before recovering the network and guarantees that all
-# transactions are successfully recovered
 def recover(number_txs=5):
+    # Runs some transactions before recovering the network and guarantees that all
+    # transactions are successfully recovered
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -196,6 +163,42 @@ def recover(number_txs=5):
                 timeout=infra.e2e_args.get("ledger_recovery_timeout"),
             )
             return new_network
+
+        return wrapper
+
+    return decorator
+
+
+def add_from_snapshot():
+    # Before adding the node from a snapshot, override at least one app entry
+    # and wait for a snapshot covering that entry. After the test, verify
+    # that all entries (including historical ones) can be read.
+    def issue_historical_queries_with_snapshot(network, snapshot_tx_interval):
+        network.txs.issue(network, number_txs=1)
+        for _ in range(1, int(snapshot_tx_interval)):
+            network.txs.issue(network, number_txs=1, repeat=True)
+            last_tx = network.txs.get_last_tx(priv=True)
+            try:
+                network.wait_for_snapshot_committed_for(seqno=last_tx[1]["seqno"])
+                break
+            except TimeoutError:
+                continue
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            network = args[0]
+            infra.e2e_args = vars(args[1])
+            snapshot_tx_interval = infra.e2e_args.get("snapshot_tx_interval")
+            if snapshot_tx_interval is not None:
+                issue_historical_queries_with_snapshot(
+                    network, int(snapshot_tx_interval)
+                )
+            network = func(*args, **kwargs)
+            # Only verify entries on node just added
+            network.txs.verify(network=network, node=network.get_joined_nodes()[-1])
+
+            return network
 
         return wrapper
 
