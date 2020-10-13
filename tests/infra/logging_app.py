@@ -165,6 +165,9 @@ class LoggingTxs:
                         LOG.info(
                             f"Sleeping for {retry_after}s waiting for historical query processing..."
                         )
+                        # Bump the timeout enough so that it is likely that the next
+                        # command will have time to be issued, without causing this
+                        # to loop for too long if the entry cannot be found
                         timeout += retry_after * 0.8
                         time.sleep(retry_after)
                     elif rep.status_code == http.HTTPStatus.NO_CONTENT:
