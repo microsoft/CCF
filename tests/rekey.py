@@ -32,7 +32,7 @@ def run(args):
             network=network,
             number_txs=3,
         )
-        txs.verify(network=network)
+        txs.verify()
 
         network = test(network, args)
 
@@ -40,7 +40,7 @@ def run(args):
             network=network,
             number_txs=3,
         )
-        txs.verify(network=network)
+        txs.verify()
 
 
 if __name__ == "__main__":
