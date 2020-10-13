@@ -5,6 +5,7 @@
 
 #include "kv/store.h"
 #include "node/nodes.h"
+#include "consensus/aft/impl/request_tracker.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -158,5 +159,62 @@ TEST_CASE("Ordered Execution")
   for (uint32_t i = 0; i < 4; ++i)
   {
     run_ordered_execution(i);
+  }
+}
+
+TEST_CASE("Request tracker")
+{
+  INFO("Can add and remove from progress tracker");
+  {
+    aft::RequestTracker t;
+    std::array<uint8_t, 32> h;
+    h.fill(0);
+    for (uint32_t i = 0; i < 10; ++i)
+    {
+      h[0] = i;
+      t.insert(h, std::chrono::milliseconds(i));
+      REQUIRE(t.oldest_entry() == std::chrono::milliseconds(0));
+    }
+
+    h[0] = 2;
+    REQUIRE(t.remove(h));
+    REQUIRE(t.oldest_entry() == std::chrono::milliseconds(0));
+
+    h[0] = 0;
+    REQUIRE(t.remove(h));
+    REQUIRE(t.oldest_entry() == std::chrono::milliseconds(1));
+
+    h[0] = 99;
+    REQUIRE(t.remove(h) == false);
+    REQUIRE(t.oldest_entry() == std::chrono::milliseconds(1));
+  }
+
+  INFO("Entry that was deleted is not tracked after it is added");
+  {
+    aft::RequestTracker t;
+    std::array<uint8_t, 32> h;
+    h.fill(0);
+    REQUIRE(t.oldest_entry().has_value() == false);
+
+    h[0] = 0;
+    REQUIRE(t.remove(h) == false);
+    t.insert_deleted(h, std::chrono::milliseconds(100));
+    t.insert(h, std::chrono::milliseconds(0));
+    REQUIRE(t.oldest_entry().has_value() == false);
+
+
+    h[1] = 1;
+    REQUIRE(t.remove(h) == false);
+    t.insert_deleted(h, std::chrono::milliseconds(100));
+    t.tick(std::chrono::milliseconds(120));
+    t.insert(h, std::chrono::milliseconds(0));
+    REQUIRE(t.oldest_entry().has_value() == false);
+
+    h[2] = 2;
+    REQUIRE(t.remove(h) == false);
+    t.insert_deleted(h, std::chrono::milliseconds(100));
+    t.tick(std::chrono::minutes(3));
+    t.insert(h, std::chrono::milliseconds(0));
+    REQUIRE(t.oldest_entry().has_value());
   }
 }

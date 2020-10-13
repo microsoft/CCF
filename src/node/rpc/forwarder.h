@@ -82,6 +82,33 @@ namespace ccf
         NodeMsgType::forwarded_msg, to, plain, msg);
     }
 
+    void send_request_hash_to_nodes(
+      std::shared_ptr<enclave::RpcContext> rpc_ctx, std::set<NodeId> nodes)
+    {
+      const auto& raw_request = rpc_ctx->get_serialised_request();
+      auto data_ = raw_request.data();
+      auto size_ = raw_request.size();
+
+      tls::HashBytes hash;
+      tls::do_hash(
+        reinterpret_cast<const uint8_t*>(&data_),
+        size_,
+        hash,
+        MBEDTLS_MD_SHA256);
+
+      MessageHash msg(ForwardedMsg::request_hash, self, hash);
+      LOG_INFO_FMT("AAAAAA sending hash:{}", msg.hash);
+
+      for (auto to : nodes)
+      {
+        if (self != to)
+        {
+          n2n_channels->send_authenticated(NodeMsgType::forwarded_msg, to, msg);
+        }
+      }
+      // TODO: add waiting on msg to self
+    }
+
     std::optional<std::tuple<std::shared_ptr<enclave::RpcContext>, NodeId>>
     recv_forwarded_command(const uint8_t* data, size_t size)
     {
@@ -172,6 +199,24 @@ namespace ccf
       return std::make_pair(client_session_id, rpc);
     }
 
+    std::optional<MessageHash> recv_request_hash(
+      const uint8_t* data, size_t size)
+    {
+      MessageHash r;
+
+      try
+      {
+        r = n2n_channels->template recv_authenticated<MessageHash>(data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_FMT("Invalid forwarded hash");
+        LOG_DEBUG_FMT("Invalid forwarded hash: {}", err.what());
+        return std::nullopt;
+      }
+      return r;
+    }
+
     void recv_message(const uint8_t* data, size_t size)
     {
       serialized::skip(data, size, sizeof(NodeMsgType));
@@ -256,6 +301,16 @@ namespace ccf
             return;
           }
 
+          break;
+        }
+
+        case ForwardedMsg::request_hash:
+        {
+          auto hash = recv_request_hash(data, size);
+          if (!hash.has_value())
+            return;
+
+          LOG_INFO_FMT("AAAAAA hash:{}", hash->hash);
           break;
         }
 

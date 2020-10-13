@@ -176,6 +176,20 @@ namespace aft
       return leader_id;
     }
 
+    std::set<NodeId> backups()
+    {
+      std::set<NodeId> backups;
+      for (auto it : get_latest_configuration())
+      {
+        if (it.first != leader())
+        {
+          backups.insert(it.first);
+        }
+      }
+
+      return backups;
+    }
+
     NodeId id()
     {
       return state->my_node_id;

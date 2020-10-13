@@ -108,6 +108,11 @@ namespace kv
       return 1;
     }
 
+    std::set<NodeId> backups() override
+    {
+      return {};
+    }
+
     NodeId id() override
     {
       return 0;

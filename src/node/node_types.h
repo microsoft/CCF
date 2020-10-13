@@ -34,7 +34,8 @@ namespace ccf
   enum ForwardedMsg : Node2NodeMsg
   {
     forwarded_cmd = 0,
-    forwarded_response
+    forwarded_response,
+    request_hash
   };
 
 #pragma pack(push, 1)
@@ -58,6 +59,21 @@ namespace ccf
     ForwardedMsg msg;
     NodeId from_node;
     enclave::FrameFormat frame_format = enclave::FrameFormat::http;
+  };
+
+  struct MessageHash
+  {
+    MessageHash() = default;
+    MessageHash(
+      ForwardedMsg msg_, NodeId from_node_, std::vector<uint8_t> hash_) :
+      msg(msg_), from_node(from_node_)
+    {
+      std::copy(hash_.begin(), hash_.end(), hash.begin());
+    }
+
+    ForwardedMsg msg;
+    NodeId from_node;
+    std::array<uint8_t, 32> hash;
   };
 #pragma pack(pop)
 
