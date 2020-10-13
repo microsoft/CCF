@@ -611,52 +611,6 @@ namespace ccfapp
         "bufToJsonCompatible",
         JS_NewCFunction(
           ctx, ccfapp::js_buf_to_json_compatible, "bufToJsonCompatible", 1));
-
-      auto kv = JS_NewObjectClass(ctx, kv_class_id);
-      JS_SetPropertyStr(ctx, ccf, "kv", kv);
-      JS_SetOpaque(kv, &args.tx);
-
-      auto request = JS_NewObject(ctx);
-
-      auto headers = JS_NewObject(ctx);
-      for (auto& [header_name, header_value] :
-           args.rpc_ctx->get_request_headers())
-      {
-        JS_SetPropertyStr(
-          ctx,
-          headers,
-          header_name.c_str(),
-          JS_NewStringLen(ctx, header_value.c_str(), header_value.size()));
-      }
-      JS_SetPropertyStr(ctx, request, "headers", headers);
-
-      const auto& request_query = args.rpc_ctx->get_request_query();
-      auto query_str =
-        JS_NewStringLen(ctx, request_query.c_str(), request_query.size());
-      JS_SetPropertyStr(ctx, request, "query", query_str);
-
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "strToBuf",
-        JS_NewCFunction(ctx, ccfapp::js_str_to_buf, "strToBuf", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "bufToStr",
-        JS_NewCFunction(ctx, ccfapp::js_buf_to_str, "bufToStr", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "jsonCompatibleToBuf",
-        JS_NewCFunction(
-          ctx, ccfapp::js_json_compatible_to_buf, "jsonCompatibleToBuf", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "bufToJsonCompatible",
-        JS_NewCFunction(
-          ctx, ccfapp::js_buf_to_json_compatible, "bufToJsonCompatible", 1));
       JS_SetPropertyStr(
         ctx,
         ccf,
