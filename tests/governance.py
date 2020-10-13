@@ -74,7 +74,7 @@ def test_user(network, args, verify=True):
         number_txs=1,
     )
     if verify:
-        txs.verify(network)
+        txs.verify()
     network.consortium.remove_user(primary, new_user_id)
     with primary.client(f"user{new_user_id}") as c:
         r = c.get("/app/log/private")
