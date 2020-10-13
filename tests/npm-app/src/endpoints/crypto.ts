@@ -34,7 +34,6 @@ interface WrapKeyRsaOaepRequest {
 export function wrapKeyRsaOaep(request: ccf.Request<WrapKeyRsaOaepRequest>): ccf.Response<ArrayBuffer> {
     const r = request.body.json()
     const key = b64ToBuf(r.key)
-    console.log('WRAPPING', r.wrappingKey)
     const wrappingKey = publicPemToDer(r.wrappingKey)
     const label = r.label ? ccf.ccf.strToBuf(r.label) : undefined
     const wrappedKey = ccf.ccf.wrapKey(key, wrappingKey, {
