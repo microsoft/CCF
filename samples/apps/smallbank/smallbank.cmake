@@ -76,7 +76,7 @@ if(BUILD_TESTS)
       --transactions
       ${SMALL_BANK_ITERATIONS}
       --max-writes-ahead
-      1000
+      500
       --metrics-file
       small_bank_cft_metrics.json
       --use-websockets

@@ -751,7 +751,7 @@ namespace ccf
 
     void try_emit_signature() override
     {
-      if ((store.commit_gap()) != sig_tx_interval / 2)
+      if ((store.commit_gap()) < sig_tx_interval)
       {
         return;
       }
