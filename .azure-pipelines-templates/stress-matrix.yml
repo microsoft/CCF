@@ -26,10 +26,10 @@ jobs:
   - template: ninja.yml
 
   - script: |
-    ../tests/sandbox/sandbox.sh -p liblogging -v -n localhost -n localhost -n localhost --network-info-file=network.info &
-    sleep 20
-    ../tests/generate_vegeta_targets.sh network.info > vegeta_targets
-    cat vegeta_targets
-    cat vegeta_targets | ./vegeta attack --format json --duration 45m --rate 100 --cert workspace/sandbox_common/user0_cert.pem --key workspace/sandbox_common/user0_privk.pem --root-certs workspace/sandbox_common/networkcert.pem | tee results.bin | ./vegeta report --every 10s
-  displayName: Run vegeta stress test
-  workingDirectory: build
+      ../tests/sandbox/sandbox.sh -p liblogging -v -n localhost -n localhost -n localhost --network-info-file=network.info &
+      sleep 20
+      ../tests/generate_vegeta_targets.sh network.info > vegeta_targets
+      cat vegeta_targets
+      cat vegeta_targets | ./vegeta attack --format json --duration 45m --rate 100 --cert workspace/sandbox_common/user0_cert.pem --key workspace/sandbox_common/user0_privk.pem --root-certs workspace/sandbox_common/networkcert.pem | tee results.bin | ./vegeta report --every 10s
+    displayName: Run vegeta stress test
+    workingDirectory: build
