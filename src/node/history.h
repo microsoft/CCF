@@ -757,7 +757,7 @@ namespace ccf
         return;
       }
 
-      if ((store.commit_gap()) < sig_tx_interval)
+      if ((store.commit_gap()) >= sig_tx_interval)
       {
         emit_signature(3);
       }
