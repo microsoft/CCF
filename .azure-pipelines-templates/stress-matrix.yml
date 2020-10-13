@@ -12,10 +12,6 @@ jobs:
     parameters:
       cmake_args: '-DCOMPILE_TARGETS=sgx'
 
-  - script: /opt/vegeta/vegeta --help
-    displayName: Test vegeta is available
-    workingDirectory: build
-
   - template: ninja.yml
 
   - script: |
