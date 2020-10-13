@@ -34,7 +34,8 @@ interface WrapKeyRsaOaepRequest {
 export function wrapKeyRsaOaep(request: ccf.Request<WrapKeyRsaOaepRequest>): ccf.Response<ArrayBuffer> {
     const r = request.body.json()
     const key = b64ToBuf(r.key)
-    const wrappingKey = pemToDer(r.wrappingKey)
+    console.log('WRAPPING', r.wrappingKey)
+    const wrappingKey = publicPemToDer(r.wrappingKey)
     const label = r.label ? ccf.ccf.strToBuf(r.label) : undefined
     const wrappedKey = ccf.ccf.wrapKey(key, wrappingKey, {
         name: 'RSA-OAEP',
@@ -47,9 +48,9 @@ function b64ToBuf(b64: string): ArrayBuffer {
     return Base64.toUint8Array(b64).buffer
 }
 
-function pemToDer(pem: string): ArrayBuffer {
-    const pemHeader = "-----BEGIN PRIVATE KEY-----";
-    const pemFooter = "-----END PRIVATE KEY-----";
-    const pemContents = pem.substring(pemHeader.length, pem.length - pemFooter.length);
+function publicPemToDer(pem: string): ArrayBuffer {
+    const pemHeader = "-----BEGIN PUBLIC KEY-----";
+    const pemFooter = "-----END PUBLIC KEY-----";
+    const pemContents = pem.substring(pemHeader.length, pem.indexOf(pemFooter));
     return b64ToBuf(pemContents);
 }
