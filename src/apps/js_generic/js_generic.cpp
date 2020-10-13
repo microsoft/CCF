@@ -87,7 +87,10 @@ namespace ccfapp
 
     struct JSWrappedValue
     {
-      JSWrappedValue(JSContext* ctx, JSValue&& val) : ctx(ctx), val(std::move(val)) {}
+      JSWrappedValue(JSContext* ctx, JSValue&& val) :
+        ctx(ctx),
+        val(std::move(val))
+      {}
       ~JSWrappedValue()
       {
         JS_FreeValue(ctx, val);
@@ -267,7 +270,8 @@ namespace ccfapp
     }
     else
     {
-      JS_ThrowRangeError(ctx, "unsupported key wrapping algorithm");
+      JS_ThrowRangeError(
+        ctx, "unsupported key wrapping algorithm, supported: RSA-OAEP");
       js_dump_error(ctx);
       return JS_EXCEPTION;
     }

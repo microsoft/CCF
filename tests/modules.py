@@ -5,16 +5,13 @@ import http
 import subprocess
 import os
 import shutil
-import secrets
 from base64 import b64encode
-import cryptography.hazmat.backends as crypto_backends
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
 import infra.network
 import infra.path
 import infra.proc
 import infra.net
 import infra.e2e_args
+import infra.crypto
 import suite.test_requirements as reqs
 import ccf.proposal_generator
 
@@ -217,34 +214,24 @@ def test_npm_app(network, args):
         assert len(r.body.data()) == key_size // 8
         assert r.body.data() != b"\x00" * (key_size // 8)
 
-        aes_key_to_wrap = secrets.token_bytes(32)
-        crypto_backend = crypto_backends.default_backend()
-        wrapping_key = rsa.generate_private_key(
-            public_exponent=65537, key_size=2048, backend=crypto_backend
+        aes_key_to_wrap = infra.crypto.generate_aes_key(256)
+        wrapping_key_priv_pem, wrapping_key_pub_pem = infra.crypto.generate_rsa_keypair(
+            2048
         )
-        wrapping_key_public = wrapping_key.public_key()
-        wrapping_key_public_der = wrapping_key_public.public_bytes(
-            serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
-        )
-        label = "label42".encode("ascii")
+        label = "label42"
         r = c.post(
             "/app/wrapKeyRsaOaep",
             {
                 "key": b64encode(aes_key_to_wrap).decode(),
-                "wrappingKey": b64encode(wrapping_key_public_der).decode(),
-                "label": b64encode(label).decode(),
+                "wrappingKey": wrapping_key_pub_pem,
+                "label": label,
             },
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        unwrapped_der = wrapping_key.decrypt(
-            r.body.data(),
-            padding.OAEP(
-                mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                algorithm=hashes.SHA256(),
-                label=label,
-            ),
+        unwrapped = infra.crypto.unwrap_key_rsa_oaep(
+            r.body.data(), wrapping_key_priv_pem, label.encode("ascii")
         )
-        assert unwrapped_der == aes_key_to_wrap
+        assert unwrapped == aes_key_to_wrap
 
         r = c.post("/app/log?id=42", {"msg": "Hello!"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code

@@ -27,15 +27,15 @@ type Base64 = string
 
 interface WrapKeyRsaOaepRequest {
     key: Base64 // typically an AES key
-    wrappingKey: Base64 // RSA public key
-    label?: Base64
+    wrappingKey: string // PEM-encoded RSA public key
+    label?: string
 }
 
 export function wrapKeyRsaOaep(request: ccf.Request<WrapKeyRsaOaepRequest>): ccf.Response<ArrayBuffer> {
     const r = request.body.json()
     const key = b64ToBuf(r.key)
-    const wrappingKey = b64ToBuf(r.wrappingKey)
-    const label = r.label ? b64ToBuf(r.label) : undefined
+    const wrappingKey = pemToDer(r.wrappingKey)
+    const label = r.label ? ccf.ccf.strToBuf(r.label) : undefined
     const wrappedKey = ccf.ccf.wrapKey(key, wrappingKey, {
         name: 'RSA-OAEP',
         label: label
@@ -45,4 +45,11 @@ export function wrapKeyRsaOaep(request: ccf.Request<WrapKeyRsaOaepRequest>): ccf
 
 function b64ToBuf(b64: string): ArrayBuffer {
     return Base64.toUint8Array(b64).buffer
+}
+
+function pemToDer(pem: string): ArrayBuffer {
+    const pemHeader = "-----BEGIN PRIVATE KEY-----";
+    const pemFooter = "-----END PRIVATE KEY-----";
+    const pemContents = pem.substring(pemHeader.length, pem.length - pemFooter.length);
+    return b64ToBuf(pemContents);
 }
