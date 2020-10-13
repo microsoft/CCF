@@ -14,7 +14,7 @@ COPY getting_started/setup_vm/ /setup_vm/
 RUN apt update \
     && apt install -y ansible software-properties-common bsdmainutils dnsutils \
     && cd setup_vm \
-    && ansible-playbook app-dev.yml az-cli.yml $extra_vars \
+    && ansible-playbook app-dev.yml $extra_vars \
     && rm -rf /tmp/* \
     && apt remove -y ansible software-properties-common \
     && apt -y autoremove \
