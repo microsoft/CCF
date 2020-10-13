@@ -87,12 +87,12 @@ namespace ccfapp
 
     struct JSWrappedValue
     {
-      JSWrappedValue(JSContext* ctx, JSValue& val) : ctx(ctx), val(val) {}
+      JSWrappedValue(JSContext* ctx, JSValue&& val) : ctx(ctx), val(std::move(val)) {}
       ~JSWrappedValue()
       {
         JS_FreeValue(ctx, val);
       }
-      operator JSValue() const
+      operator const JSValue&() const
       {
         return val;
       }
@@ -120,9 +120,9 @@ namespace ccfapp
       const char* cstr;
     };
 
-    JSWrappedValue operator()(JSValue val)
+    JSWrappedValue operator()(JSValue&& val)
     {
-      return JSWrappedValue(ctx, val);
+      return JSWrappedValue(ctx, std::move(val));
     };
 
     JSWrappedCString operator()(const char* cstr)
