@@ -107,7 +107,7 @@ TEST_CASE("Check signature verification")
 
   INFO("Issue signature, and verify successfully on backup");
   {
-    primary_history->emit_signature(99);
+    primary_history->emit_signature();
     REQUIRE(backup_store.current_version() == 2);
   }
 
@@ -183,7 +183,7 @@ TEST_CASE("Check signing works across rollback")
 
   INFO("Issue signature, and verify successfully on backup");
   {
-    primary_history->emit_signature(9999);
+    primary_history->emit_signature();
     if (consensus->type() == ConsensusType::BFT)
     {
       REQUIRE(backup_store.current_version() == 1);

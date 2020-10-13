@@ -545,7 +545,7 @@ namespace ccf
               self->store.commit_gap() > 0 && time > time_of_last_signature &&
               (time - time_of_last_signature) > sig_ms_interval)
             {
-              msg->data.self->emit_signature(2);
+              msg->data.self->emit_signature();
             }
 
             time_since_last_sig =
@@ -759,11 +759,11 @@ namespace ccf
 
       if (store.commit_gap() >= sig_tx_interval)
       {
-        emit_signature(3);
+        emit_signature();
       }
     }
 
-    void emit_signature(uint32_t from) override
+    void emit_signature() override
     {
       // Signatures are only emitted when there is a consensus
       auto consensus = store.get_consensus();
@@ -788,12 +788,11 @@ namespace ccf
         threading::ThreadMessaging::thread_messaging.get_current_time_offset();
 
       LOG_DEBUG_FMT(
-        "Signed at {} in view: {} commit was: {}.{}, from:{} ",
+        "Signed at {} in view: {} commit was: {}.{}",
         txid.version,
         txid.term,
         commit_txid.first,
-        commit_txid.second,
-        from);
+        commit_txid.second);
 
       store.commit(
         txid,
