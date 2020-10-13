@@ -51,16 +51,19 @@ if(BUILD_TESTS)
   set(SMALL_BANK_ITERATIONS 200000)
   get_verification_file(${SMALL_BANK_ITERATIONS} SMALL_BANK_VERIFICATION_FILE)
 
-  add_perf_test(
-    NAME small_bank_client_test_cft
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
-    CLIENT_BIN ./small_bank_client
-    VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
-    LABEL SB
-    CONSENSUS cft
-    ADDITIONAL_ARGS --transactions ${SMALL_BANK_ITERATIONS} --max-writes-ahead
-                    1000 --metrics-file small_bank_cft_metrics.json
-  )
+  foreach(CONSENSUS ${CONSENSUSES})
+    add_perf_test(
+      NAME small_bank_client_test_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
+      CLIENT_BIN ./small_bank_client
+      VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
+      LABEL SB
+      CONSENSUS ${CONSENSUS}
+      ADDITIONAL_ARGS
+        --transactions ${SMALL_BANK_ITERATIONS} --max-writes-ahead 1000
+        --metrics-file small_bank_cft_metrics.json
+    )
+  endforeach()
 
   add_perf_test(
     NAME small_bank_client_ws_test_cft
