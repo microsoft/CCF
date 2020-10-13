@@ -10,12 +10,25 @@ from collections import defaultdict
 from loguru import logger as LOG
 
 
+class LoggingTxsVerifyException(Exception):
+    """
+    Exception raised if a LoggingTxs instance cannot successfully verify all
+    entries previously issued.
+    """
+
+
 class LoggingTxs:
     def __init__(self, user_id=0):
         self.pub = defaultdict(list)
         self.priv = defaultdict(list)
         self.idx = 0
         self.user = f"user{user_id}"
+        self.network = None
+
+    def get_last_tx(self, priv=True):
+        txs = self.priv if priv else self.pub
+        idx, msgs = list(txs.items())[-1]
+        return (idx, msgs[-1])
 
     def issue(
         self,
@@ -24,6 +37,7 @@ class LoggingTxs:
         on_backup=False,
         repeat=False,
     ):
+        self.network = network
         remote_node, _ = network.find_primary()
         if on_backup:
             remote_node = network.find_any_backup()
@@ -69,36 +83,43 @@ class LoggingTxs:
 
         network.wait_for_node_commit_sync()
 
-    def verify(self, network, timeout=3):
+    def verify(self, network=None, node=None, timeout=3):
         LOG.info("Verifying all logging txs")
-
-        remote_node, _ = network.find_primary()
-        for pub_idx, pub_value in self.pub.items():
-            # As public records do not yet handle historical queries,
-            # only verify the latest entry
-            entry = pub_value[-1]
-            self._verify_tx(
-                remote_node,
-                pub_idx,
-                entry["msg"],
-                entry["seqno"],
-                entry["view"],
-                priv=False,
-                timeout=timeout,
+        if network is not None:
+            self.network = network
+        if self.network is None:
+            raise ValueError(
+                "Network object is not yet set - txs should be issued before calling verify"
             )
 
-        for priv_idx, priv_value in self.priv.items():
-            for v in priv_value:
+        nodes = self.network.get_joined_nodes() if node is None else [node]
+        for node in nodes:
+            for pub_idx, pub_value in self.pub.items():
+                # As public records do not yet handle historical queries,
+                # only verify the latest entry
+                entry = pub_value[-1]
                 self._verify_tx(
-                    remote_node,
-                    priv_idx,
-                    v["msg"],
-                    v["seqno"],
-                    v["view"],
-                    priv=True,
-                    historical=(v != priv_value[-1]),
+                    node,
+                    pub_idx,
+                    entry["msg"],
+                    entry["seqno"],
+                    entry["view"],
+                    priv=False,
                     timeout=timeout,
                 )
+
+            for priv_idx, priv_value in self.priv.items():
+                for v in priv_value:
+                    self._verify_tx(
+                        node,
+                        priv_idx,
+                        v["msg"],
+                        v["seqno"],
+                        v["view"],
+                        priv=True,
+                        historical=(v != priv_value[-1]),
+                        timeout=timeout,
+                    )
 
     def _verify_tx(
         self, node, idx, msg, seqno, view, priv=True, historical=False, timeout=3
@@ -131,7 +152,6 @@ class LoggingTxs:
                     break
                 elif rep.status_code == http.HTTPStatus.NOT_FOUND:
                     LOG.warning("User frontend is not yet opened")
-                    time.sleep(0.1)
                     continue
 
                 if historical:
@@ -145,7 +165,10 @@ class LoggingTxs:
                         LOG.info(
                             f"Sleeping for {retry_after}s waiting for historical query processing..."
                         )
-                        timeout += retry_after
+                        # Bump the timeout enough so that it is likely that the next
+                        # command will have time to be issued, without causing this
+                        # to loop for too long if the entry cannot be found
+                        timeout += retry_after * 0.8
                         time.sleep(retry_after)
                     elif rep.status_code == http.HTTPStatus.NO_CONTENT:
                         raise ValueError(
@@ -155,8 +178,9 @@ class LoggingTxs:
                         raise ValueError(
                             f"Unexpected response status code {rep.status_code}: {rep.body}"
                         )
+                time.sleep(0.1)
 
         if not found:
-            raise TimeoutError(
+            raise LoggingTxsVerifyException(
                 f"Unable to retrieve entry at {idx} (seqno: {seqno}, view: {view}) after {timeout}s"
             )

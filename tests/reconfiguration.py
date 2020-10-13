@@ -3,6 +3,7 @@
 import infra.e2e_args
 import infra.network
 import infra.proc
+import infra.logging_app as app
 import suite.test_requirements as reqs
 import time
 
@@ -65,9 +66,14 @@ def test_add_node_from_backup(network, args):
 
 @reqs.description("Adding a valid node from snapshot")
 @reqs.at_least_n_nodes(2)
-def test_add_node_from_snapshot(network, args):
+@reqs.add_from_snapshot()
+def test_add_node_from_snapshot(network, args, copy_ledger_read_only=True):
     new_node = network.create_and_trust_node(
-        args.package, "localhost", args, from_snapshot=True
+        args.package,
+        "localhost",
+        args,
+        from_snapshot=True,
+        copy_ledger_read_only=copy_ledger_read_only,
     )
     assert new_node
     return network
@@ -139,12 +145,11 @@ def test_retire_primary(network, args):
 def run(args):
     hosts = ["localhost", "localhost"]
 
+    txs = app.LoggingTxs()
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb, txs=txs
     ) as network:
         network.start_and_join(args)
-        if args.snapshot_tx_interval is not None:
-            test_add_node_from_snapshot(network, args)
 
         test_add_node_from_backup(network, args)
         test_add_node(network, args)
@@ -153,6 +158,17 @@ def run(args):
         test_add_as_many_pending_nodes(network, args)
         test_add_node(network, args)
         test_retire_primary(network, args)
+
+        if args.snapshot_tx_interval is not None:
+            test_add_node_from_snapshot(network, args, copy_ledger_read_only=True)
+
+            try:
+                test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+                assert (
+                    False
+                ), "Node added from snapshot without ledger should not be able to verify historical entries"
+            except app.LoggingTxsVerifyException:
+                pass
 
 
 if __name__ == "__main__":
