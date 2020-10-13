@@ -175,7 +175,7 @@ def add_from_snapshot():
     # that all entries (including historical ones) can be read.
     def issue_historical_queries_with_snapshot(network, snapshot_tx_interval):
         network.txs.issue(network, number_txs=1)
-        for _ in range(1, int(snapshot_tx_interval)):
+        for _ in range(1, snapshot_tx_interval):
             network.txs.issue(network, number_txs=1, repeat=True)
             last_tx = network.txs.get_last_tx(priv=True)
             try:

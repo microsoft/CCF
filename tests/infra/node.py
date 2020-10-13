@@ -41,7 +41,7 @@ def is_snapshot_committed(file_name):
 
 
 def get_snapshot_seqno(file_name):
-    return int(re.findall("\d+", file_name)[0])
+    return int(re.findall(r"\d+", file_name)[0])
 
 
 class Node:
