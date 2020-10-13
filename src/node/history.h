@@ -526,8 +526,8 @@ namespace ccf
         [](std::unique_ptr<threading::Tmsg<EmitSigMsg>> msg) {
           auto self = msg->data.self;
 
-          //std::unique_lock<SpinLock> mguard(
-          //  self->signature_lock, std::defer_lock);
+          std::unique_lock<SpinLock> mguard(
+            self->signature_lock, std::defer_lock);
 
           const int64_t sig_ms_interval = self->sig_ms_interval;
           int64_t time_since_last_sig = sig_ms_interval;
@@ -751,8 +751,8 @@ namespace ccf
 
     void try_emit_signature() override
     {
-      //std::unique_lock<SpinLock> mguard(signature_lock, std::defer_lock);
-      //if (!mguard.try_lock())
+      std::unique_lock<SpinLock> mguard(signature_lock, std::defer_lock);
+      if (store.commit_gap()) < sig_tx_interval || !mguard.try_lock())
       {
         return;
       }
