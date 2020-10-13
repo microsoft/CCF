@@ -152,7 +152,7 @@ namespace ccf
 
     void try_emit_signature() override
     {
-      emit_signature(1);
+      emit_signature();
     }
 
     bool add_request(
