@@ -36,6 +36,42 @@
           }
         }
       },
+      "/generateAesKey": {
+        "post": {
+          "js_module": "src/endpoints/crypto.js",
+          "js_function": "generateAesKey",
+          "forwarding_required": "always",
+          "execute_locally": false,
+          "require_client_signature": false,
+          "require_client_identity": true,
+          "readonly": true,
+          "openapi": {
+            "requestBody": {
+              "required": true,
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "size": {
+                        "type": "number"
+                      }
+                    },
+                    "type": "object"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application/octet-stream": {
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "/partition": {
         "post": {
           "js_module": "src/endpoints/partition.js",

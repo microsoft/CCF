@@ -49,11 +49,12 @@ export interface CCF {
     bufToStr(v: ArrayBuffer): string
     jsonCompatibleToBuf<T extends JsonCompatible<T>>(v: T): ArrayBuffer
     bufToJsonCompatible<T extends JsonCompatible<T>>(v: ArrayBuffer): T
+    generateAesKey(size: number): ArrayBuffer
 
     kv: KVMaps
 }
 
-export declare const ccf: CCF
+export const ccf = globalThis.ccf as CCF
 
 // Additional functionality on top of C++:
 export const kv = ccf.kv
