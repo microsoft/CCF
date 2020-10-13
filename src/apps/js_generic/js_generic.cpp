@@ -81,6 +81,61 @@ namespace ccfapp
     JS_FreeValue(ctx, exception_val);
   }
 
+  struct JSAutoFree
+  {
+    JSAutoFree(JSContext* ctx) : ctx(ctx) {}
+
+    struct JSWrappedValue
+    {
+      JSWrappedValue(JSContext* ctx, JSValue&& val) :
+        ctx(ctx),
+        val(std::move(val))
+      {}
+      ~JSWrappedValue()
+      {
+        JS_FreeValue(ctx, val);
+      }
+      operator const JSValue&() const
+      {
+        return val;
+      }
+      JSContext* ctx;
+      JSValue val;
+    };
+
+    struct JSWrappedCString
+    {
+      JSWrappedCString(JSContext* ctx, const char* cstr) : ctx(ctx), cstr(cstr)
+      {}
+      ~JSWrappedCString()
+      {
+        JS_FreeCString(ctx, cstr);
+      }
+      operator const char*() const
+      {
+        return cstr;
+      }
+      operator std::string() const
+      {
+        return std::string(cstr);
+      }
+      JSContext* ctx;
+      const char* cstr;
+    };
+
+    JSWrappedValue operator()(JSValue&& val)
+    {
+      return JSWrappedValue(ctx, std::move(val));
+    };
+
+    JSWrappedCString operator()(const char* cstr)
+    {
+      return JSWrappedCString(ctx, cstr);
+    };
+
+    JSContext* ctx;
+  };
+
   static JSValue js_generate_aes_key(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
@@ -105,6 +160,123 @@ namespace ccfapp
     std::vector<uint8_t> key = tls::create_entropy()->random(key_size / 8);
 
     return JS_NewArrayBufferCopy(ctx, key.data(), key.size());
+  }
+
+  static JSValue js_wrap_key(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 3)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 3", argc);
+
+    // API loosely modeled after
+    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/wrapKey.
+
+    JSAutoFree auto_free(ctx);
+
+    size_t key_size;
+    uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
+    if (!key)
+    {
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    size_t wrapping_key_size;
+    uint8_t* wrapping_key = JS_GetArrayBuffer(ctx, &wrapping_key_size, argv[1]);
+    if (!wrapping_key)
+    {
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    JSValue wrap_algo = argv[2];
+    auto wrap_algo_name_val =
+      auto_free(JS_GetPropertyStr(ctx, wrap_algo, "name"));
+    auto wrap_algo_name_cstr = auto_free(JS_ToCString(ctx, wrap_algo_name_val));
+
+    if (!wrap_algo_name_cstr)
+    {
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+    std::string wrap_algo_name(wrap_algo_name_cstr);
+
+    std::vector<uint8_t> wrapped_key;
+
+    auto entropy = tls::create_entropy();
+
+    if (wrap_algo_name == "RSA-OAEP")
+    {
+      // key can in principle be arbitrary data (see note on maximum size
+      // below). wrapping_key is a private RSA key.
+
+      auto label_val = auto_free(JS_GetPropertyStr(ctx, wrap_algo, "label"));
+      size_t label_buf_size;
+      uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
+
+      int err;
+
+      mbedtls_pk_context pk_ctx;
+      mbedtls_pk_init(&pk_ctx);
+      err =
+        mbedtls_pk_parse_public_key(&pk_ctx, wrapping_key, wrapping_key_size);
+      if (err)
+      {
+        mbedtls_pk_free(&pk_ctx);
+        JS_ThrowRangeError(
+          ctx,
+          "parsing of wrapping key failed: %s",
+          tls::error_string(err).c_str());
+        js_dump_error(ctx);
+        return JS_EXCEPTION;
+      }
+      if (pk_ctx.pk_info != mbedtls_pk_info_from_type(MBEDTLS_PK_RSA))
+      {
+        mbedtls_pk_free(&pk_ctx);
+        JS_ThrowTypeError(ctx, "wrapping key must be an RSA key");
+        js_dump_error(ctx);
+        return JS_EXCEPTION;
+      }
+
+      mbedtls_rsa_context* rsa_ctx = mbedtls_pk_rsa(pk_ctx);
+      mbedtls_rsa_set_padding(rsa_ctx, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256);
+
+      wrapped_key.resize(rsa_ctx->len);
+
+      // Note that the maximum input size to wrap is k - 2*hLen - 2
+      // where hLen is the hash size (32 bytes = SHA256) and
+      // k the wrapping key modulus size (e.g. 256 bytes = 2048 bits).
+      // In this example, it would be 190 bytes (1520 bits) max.
+      // This is enough for wrapping AES keys for example.
+      err = mbedtls_rsa_rsaes_oaep_encrypt(
+        rsa_ctx,
+        entropy->get_rng(),
+        entropy->get_data(),
+        MBEDTLS_RSA_PUBLIC,
+        label_buf,
+        label_buf_size,
+        key_size,
+        key,
+        wrapped_key.data());
+      mbedtls_pk_free(&pk_ctx);
+      if (err)
+      {
+        JS_ThrowRangeError(
+          ctx, "key wrapping failed: %s", tls::error_string(err).c_str());
+        js_dump_error(ctx);
+        return JS_EXCEPTION;
+      }
+    }
+    else
+    {
+      JS_ThrowRangeError(
+        ctx, "unsupported key wrapping algorithm, supported: RSA-OAEP");
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    return JS_NewArrayBufferCopy(ctx, wrapped_key.data(), wrapped_key.size());
   }
 
   static void js_free_arraybuffer_cstring(JSRuntime*, void* opaque, void* ptr)
@@ -635,6 +807,11 @@ namespace ccfapp
           "generateAesKey",
           JS_NewCFunction(
             ctx, ccfapp::js_generate_aes_key, "generateAesKey", 1));
+        JS_SetPropertyStr(
+          ctx,
+          ccf,
+          "wrapKey",
+          JS_NewCFunction(ctx, ccfapp::js_wrap_key, "wrapKey", 3));
 
         auto kv = JS_NewObjectClass(ctx, kv_class_id);
         JS_SetPropertyStr(ctx, ccf, "kv", kv);
