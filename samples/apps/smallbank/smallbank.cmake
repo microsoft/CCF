@@ -93,7 +93,7 @@ if(BUILD_TESTS)
       --transactions
       ${SMALL_BANK_SIGNED_ITERATIONS}
       --max-writes-ahead
-      500
+      250
       --sign
       --participants-curve
       "secp256k1"
