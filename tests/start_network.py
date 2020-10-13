@@ -63,14 +63,24 @@ def run(args):
             network.start_and_join(args)
 
         primary, backups = network.find_nodes()
+        max_len = len(str(len(backups)))
+
+        def pad_node_id(nid):
+            return (f"{{:{max_len}d}}").format(nid)
+
         LOG.info("Started CCF network with the following nodes:")
         LOG.info(
-            "  Node [{:2d}] = {}:{}".format(
-                primary.node_id, primary.pubhost, primary.rpc_port
+            "  Node [{}] = https://{}:{}".format(
+                pad_node_id(primary.node_id), primary.pubhost, primary.rpc_port
             )
         )
+
         for b in backups:
-            LOG.info("  Node [{:2d}] = {}:{}".format(b.node_id, b.pubhost, b.rpc_port))
+            LOG.info(
+                "  Node [{}] = {}:{}".format(
+                    pad_node_id(b.node_id), b.pubhost, b.rpc_port
+                )
+            )
 
         # Dump primary info to file for tutorial testing
         if args.network_info_file is not None:
