@@ -772,6 +772,7 @@ if(BUILD_TESTS)
       NAME connections_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
       CONSENSUS cft
+      ADDITIONAL_ARGS --ledger-chunk-bytes 100Mib
     )
   endif()
 
