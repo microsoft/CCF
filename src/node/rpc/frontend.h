@@ -557,7 +557,9 @@ namespace ccf
       // This decision is based on several things read from the KV
       // (cert->caller_id, request->is_local) which are true _now_ but may not
       // be true when this is actually received/executed. We should revisit this
-      // once we have general KV-defined dispatch, to ensure this is safe
+      // once we have general KV-defined dispatch, to ensure this is safe. For
+      // forwarding we will need to pass a digest of the endpoint definition,
+      // and that should also work here
       if (should_bft_distribute)
       {
         kv::TxHistory::RequestID reqid;
