@@ -788,7 +788,7 @@ namespace ccf
         threading::ThreadMessaging::thread_messaging.get_current_time_offset();
 
       LOG_DEBUG_FMT(
-        "Signed at {} in view: {} commit was: {}.{}, from:{}",
+        "Signed at {} in view: {} commit was: {}.{}, from:{} ",
         txid.version,
         txid.term,
         commit_txid.first,
