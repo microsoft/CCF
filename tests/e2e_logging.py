@@ -32,7 +32,7 @@ def test(network, args, verify=True):
         on_backup=True,
     )
     if verify:
-        network.txs.verify(network)
+        network.txs.verify()
     else:
         LOG.warning("Skipping log messages verification")
 
@@ -70,7 +70,7 @@ def test_illegal(network, args, verify=True):
         on_backup=True,
     )
     if verify:
-        network.txs.verify(network)
+        network.txs.verify()
     else:
         LOG.warning("Skipping log messages verification")
 
@@ -265,7 +265,7 @@ def test_historical_query(network, args):
     if args.package == "liblogging":
         network.txs.issue(network, number_txs=2)
         network.txs.issue(network, number_txs=2, repeat=True)
-        network.txs.verify(network)
+        network.txs.verify()
     else:
         LOG.warning(
             f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
@@ -575,24 +575,24 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        # network = test(
-        #     network,
-        #     args,
-        #     verify=args.package != "libjs_generic",
-        # )
-        # network = test_illegal(network, args, verify=args.package != "libjs_generic")
-        # network = test_large_messages(network, args)
-        # network = test_remove(network, args)
-        # network = test_forwarding_frontends(network, args)
-        # network = test_update_lua(network, args)
-        # network = test_user_data_ACL(network, args)
-        # network = test_cert_prefix(network, args)
-        # network = test_anonymous_caller(network, args)
-        # network = test_raw_text(network, args)
+        network = test(
+            network,
+            args,
+            verify=args.package != "libjs_generic",
+        )
+        network = test_illegal(network, args, verify=args.package != "libjs_generic")
+        network = test_large_messages(network, args)
+        network = test_remove(network, args)
+        network = test_forwarding_frontends(network, args)
+        network = test_update_lua(network, args)
+        network = test_user_data_ACL(network, args)
+        network = test_cert_prefix(network, args)
+        network = test_anonymous_caller(network, args)
+        network = test_raw_text(network, args)
         network = test_historical_query(network, args)
-        # network = test_view_history(network, args)
-        # network = test_primary(network, args)
-        # network = test_metrics(network, args)
+        network = test_view_history(network, args)
+        network = test_primary(network, args)
+        network = test_metrics(network, args)
 
 
 if __name__ == "__main__":

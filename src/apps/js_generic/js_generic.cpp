@@ -3,6 +3,7 @@
 #include "enclave/app_interface.h"
 #include "kv/untyped_map.h"
 #include "node/rpc/user_frontend.h"
+#include "tls/entropy.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>
@@ -78,6 +79,32 @@ namespace ccfapp
     }
 
     JS_FreeValue(ctx, exception_val);
+  }
+
+  static JSValue js_generate_aes_key(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    int32_t key_size;
+    if (JS_ToInt32(ctx, &key_size, argv[0]) < 0)
+    {
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+    // Supported key sizes for AES.
+    if (key_size != 128 && key_size != 192 && key_size != 256)
+    {
+      JS_ThrowRangeError(ctx, "invalid key size");
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    std::vector<uint8_t> key = tls::create_entropy()->random(key_size / 8);
+
+    return JS_NewArrayBufferCopy(ctx, key.data(), key.size());
   }
 
   static void js_free_arraybuffer_cstring(JSRuntime*, void* opaque, void* ptr)
@@ -584,6 +611,57 @@ namespace ccfapp
         "bufToJsonCompatible",
         JS_NewCFunction(
           ctx, ccfapp::js_buf_to_json_compatible, "bufToJsonCompatible", 1));
+
+      auto kv = JS_NewObjectClass(ctx, kv_class_id);
+      JS_SetPropertyStr(ctx, ccf, "kv", kv);
+      JS_SetOpaque(kv, &args.tx);
+
+      auto request = JS_NewObject(ctx);
+
+      auto headers = JS_NewObject(ctx);
+      for (auto& [header_name, header_value] :
+           args.rpc_ctx->get_request_headers())
+      {
+        JS_SetPropertyStr(
+          ctx,
+          headers,
+          header_name.c_str(),
+          JS_NewStringLen(ctx, header_value.c_str(), header_value.size()));
+      }
+      JS_SetPropertyStr(ctx, request, "headers", headers);
+
+      const auto& request_query = args.rpc_ctx->get_request_query();
+      auto query_str =
+        JS_NewStringLen(ctx, request_query.c_str(), request_query.size());
+      JS_SetPropertyStr(ctx, request, "query", query_str);
+
+      JS_SetPropertyStr(
+        ctx,
+        ccf,
+        "strToBuf",
+        JS_NewCFunction(ctx, ccfapp::js_str_to_buf, "strToBuf", 1));
+      JS_SetPropertyStr(
+        ctx,
+        ccf,
+        "bufToStr",
+        JS_NewCFunction(ctx, ccfapp::js_buf_to_str, "bufToStr", 1));
+      JS_SetPropertyStr(
+        ctx,
+        ccf,
+        "jsonCompatibleToBuf",
+        JS_NewCFunction(
+          ctx, ccfapp::js_json_compatible_to_buf, "jsonCompatibleToBuf", 1));
+      JS_SetPropertyStr(
+        ctx,
+        ccf,
+        "bufToJsonCompatible",
+        JS_NewCFunction(
+          ctx, ccfapp::js_buf_to_json_compatible, "bufToJsonCompatible", 1));
+      JS_SetPropertyStr(
+        ctx,
+        ccf,
+        "generateAesKey",
+        JS_NewCFunction(ctx, ccfapp::js_generate_aes_key, "generateAesKey", 1));
 
       auto kv = JS_NewObjectClass(ctx, kv_class_id);
       JS_SetPropertyStr(ctx, ccf, "kv", kv);
