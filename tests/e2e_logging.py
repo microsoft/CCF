@@ -567,7 +567,6 @@ def test_primary(network, args):
 
 
 @reqs.description("Memory usage")
-@reqs.at_least_n_nodes(2)
 def test_memory(network, args):
     primary, _ = network.find_primary()
     with primary.client() as c:
@@ -575,11 +574,11 @@ def test_memory(network, args):
         assert r.status_code == http.HTTPStatus.OK.value
         assert (
             r.body.json()["peak_allocated_heap_size"]
-            < r.body.json()["max_total_heap_size"]
+            <= r.body.json()["max_total_heap_size"]
         )
         assert (
             r.body.json()["current_allocated_heap_size"]
-            < r.body.json()["peak_allocated_heap_size"]
+            <= r.body.json()["peak_allocated_heap_size"]
         )
     return network
 
@@ -611,8 +610,7 @@ def run(args):
         network = test_view_history(network, args)
         network = test_primary(network, args)
         network = test_metrics(network, args)
-        if args.enclave_type != "virtual":
-            network = test_memory(network, args)
+        network = test_memory(network, args)
 
 
 if __name__ == "__main__":

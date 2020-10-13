@@ -388,6 +388,8 @@ namespace ccf
 
       auto memory_usage = [](CommandEndpointContext& args) {
 
+// Do not attempt to call oe_allocator_mallinfo when used from
+// unit tests such as the frontend_test
 #ifdef INSIDE_ENCLAVE
         oe_mallinfo_t info;
         auto rc = oe_allocator_mallinfo(&info);
