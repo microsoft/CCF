@@ -32,7 +32,7 @@ def test(network, args, verify=True):
         on_backup=True,
     )
     if verify:
-        network.txs.verify(network)
+        network.txs.verify()
     else:
         LOG.warning("Skipping log messages verification")
 
@@ -70,7 +70,7 @@ def test_illegal(network, args, verify=True):
         on_backup=True,
     )
     if verify:
-        network.txs.verify(network)
+        network.txs.verify()
     else:
         LOG.warning("Skipping log messages verification")
 
@@ -265,7 +265,7 @@ def test_historical_query(network, args):
     if args.package == "liblogging":
         network.txs.issue(network, number_txs=2)
         network.txs.issue(network, number_txs=2, repeat=True)
-        network.txs.verify(network)
+        network.txs.verify()
     else:
         LOG.warning(
             f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
@@ -613,7 +613,6 @@ def run(args):
         network = test_metrics(network, args)
         if args.enclave_type != "virtual":
             network = test_memory(network, args)
-
 
 if __name__ == "__main__":
 

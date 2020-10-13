@@ -18,7 +18,7 @@ def test(network, args, from_snapshot=False):
     # Retrieve ledger and snapshots
     snapshot_dir = None
     if from_snapshot:
-        snapshot_dir = old_primary.get_snapshots()
+        snapshot_dir = old_primary.get_committed_snapshots()
         if not os.listdir(snapshot_dir):
             raise RuntimeError(f"No snapshot found in {snapshot_dir}")
     ledger_dir = old_primary.get_ledger()
@@ -43,7 +43,7 @@ def test_share_resilience(network, args, from_snapshot=False):
 
     snapshot_dir = None
     if from_snapshot:
-        snapshot_dir = old_primary.get_snapshots()
+        snapshot_dir = old_primary.get_committed_snapshots()
         if not os.listdir(snapshot_dir):
             raise RuntimeError(f"No snapshot found in {snapshot_dir}")
     ledger_dir = old_primary.get_ledger()
