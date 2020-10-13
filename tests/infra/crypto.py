@@ -1,8 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+from typing import Tuple, Optional
 import base64
 from enum import IntEnum
+import secrets
 
 import coincurve
 from coincurve._libsecp256k1 import ffi, lib  # pylint: disable=no-name-in-module
@@ -13,7 +15,7 @@ from nacl.encoding import RawEncoder
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.x509 import load_der_x509_certificate
-from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric import ec, rsa, padding
 from cryptography.hazmat.primitives.serialization import (
     load_pem_private_key,
     load_pem_public_key,
@@ -24,6 +26,8 @@ from cryptography.hazmat.primitives.serialization import (
 )
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
+
+RECOMMENDED_RSA_PUBLIC_EXPONENT = 65537
 
 
 class CryptoBoxCtx:
@@ -147,3 +151,40 @@ def verify_request_sig(raw_cert, sig, req, request_body, md):
             raise e
 
         verify_recover_secp256k1_bc(sig, req)
+
+
+def generate_aes_key(key_bits: int) -> bytes:
+    return secrets.token_bytes(key_bits // 8)
+
+
+def generate_rsa_keypair(key_size: int) -> Tuple[str, str]:
+    priv = rsa.generate_private_key(
+        public_exponent=RECOMMENDED_RSA_PUBLIC_EXPONENT,
+        key_size=key_size,
+        backend=default_backend(),
+    )
+    pub = priv.public_key()
+    priv_pem = priv.private_bytes(
+        Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()
+    ).decode("ascii")
+    pub_pem = pub.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode(
+        "ascii"
+    )
+    return priv_pem, pub_pem
+
+
+def unwrap_key_rsa_oaep(
+    wrapped_key: bytes, wrapping_key_priv_pem: str, label: Optional[bytes]
+) -> bytes:
+    wrapping_key = load_pem_private_key(
+        wrapping_key_priv_pem.encode("ascii"), None, default_backend()
+    )
+    unwrapped = wrapping_key.decrypt(
+        wrapped_key,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=label,
+        ),
+    )
+    return unwrapped
