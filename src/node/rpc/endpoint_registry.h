@@ -21,7 +21,6 @@
 
 namespace ccf
 {
-  // TODO: Better namespace management
   using namespace endpoints;
 
   struct EndpointContext
@@ -660,8 +659,6 @@ namespace ccf
       }
     }
 
-    // TODO: Accessing directly is unsafe, as the map _or_ the entry could be
-    // accessed by other threads. Needs some kind of locking
     Metrics& get_metrics(const EndpointDefinitionPtr& e)
     {
       return metrics[e->dispatch.method][e->dispatch.verb.c_str()];
