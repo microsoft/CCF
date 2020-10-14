@@ -530,10 +530,13 @@ namespace ccf
             self->signature_lock, std::defer_lock);
 
           const int64_t sig_ms_interval = self->sig_ms_interval;
-          int64_t time_since_last_sig = sig_ms_interval;
+          int64_t delta_time_to_next_sig = sig_ms_interval;
 
           if (mguard.try_lock())
           {
+            // NOTE: time is set on every thread via a thread message
+            //       time_of_last_signature is a atomic that can be set by any
+            //       thread
             auto time = threading::ThreadMessaging::thread_messaging
                           .get_current_time_offset()
                           .count();
@@ -548,19 +551,21 @@ namespace ccf
               msg->data.self->emit_signature();
             }
 
-            time_since_last_sig =
+            delta_time_to_next_sig =
               sig_ms_interval - (time - self->time_of_last_signature.count());
 
             if (
-              time_since_last_sig <= 0 || time_since_last_sig > sig_ms_interval)
+              delta_time_to_next_sig <= 0 ||
+              delta_time_to_next_sig > sig_ms_interval)
             {
-              time_since_last_sig = sig_ms_interval;
+              delta_time_to_next_sig = sig_ms_interval;
             }
           }
 
           self->emit_signature_timer_entry =
             threading::ThreadMessaging::thread_messaging.add_task_after(
-              std::move(msg), std::chrono::milliseconds(time_since_last_sig));
+              std::move(msg),
+              std::chrono::milliseconds(delta_time_to_next_sig));
         },
         this);
 
