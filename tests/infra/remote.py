@@ -548,7 +548,8 @@ CCF_TO_OE_LOG_LEVEL = {
 def make_address(host, port=None):
     if port is not None:
         return f"{host}:{port}"
-    return host
+    else:
+        return f"{host}:0"
 
 
 class CCFRemote(object):
