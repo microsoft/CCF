@@ -154,12 +154,13 @@ namespace ccf
   DECLARE_JSON_TYPE(SetModule)
   DECLARE_JSON_REQUIRED_FIELDS(SetModule, name, module)
 
-  struct JsBundleEndpointMethod
+  struct JsBundleEndpointMethod : public ccf::endpoints::EndpointProperties
   {
     std::string js_module;
     std::string js_function;
   };
-  DECLARE_JSON_TYPE(JsBundleEndpointMethod)
+  DECLARE_JSON_TYPE_WITH_BASE(
+    JsBundleEndpointMethod, ccf::endpoints::EndpointProperties)
   DECLARE_JSON_REQUIRED_FIELDS(JsBundleEndpointMethod, js_module, js_function)
 
   using JsBundleEndpoint = std::map<std::string, JsBundleEndpointMethod>;
@@ -240,6 +241,9 @@ namespace ccf
       remove_modules(tx, module_prefix);
       set_modules(tx, module_prefix, bundle.modules);
 
+      auto endpoints_view =
+        tx.get_view<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+
       std::map<std::string, std::string> scripts;
       for (auto& [url, endpoint] : bundle.metadata.endpoints)
       {
@@ -260,6 +264,9 @@ namespace ccf
               info.js_module);
             return false;
           }
+
+          auto verb = nlohmann::json(method).get<RESTVerb>();
+          endpoints_view->put(ccf::endpoints::EndpointKey{url, verb}, info);
 
           // CCF currently requires each endpoint to have an inline JS module.
           std::string method_uppercase = method;
