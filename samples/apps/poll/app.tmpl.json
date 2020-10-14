@@ -1,0 +1,33 @@
+{
+  "endpoints": {
+    "/polls/{topic}": {
+      "post": {
+        "js_module": "build/PollControllerProxy.js",
+        "js_function": "createPoll",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_identity": true,
+        "require_client_signature": false,
+        "readonly": false
+      },
+      "put": {
+        "js_module": "build/PollControllerProxy.js",
+        "js_function": "submitOpinion",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_identity": true,
+        "require_client_signature": false,
+        "readonly": false
+      },
+      "get": {
+        "js_module": "build/PollControllerProxy.js",
+        "js_function": "getPoll",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_identity": true,
+        "require_client_signature": false,
+        "readonly": true
+      }
+    }
+  }
+}
