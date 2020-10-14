@@ -28,13 +28,13 @@ def get_code_id(oe_binary_path, lib_path):
     return lines[0].split("=")[1]
 
 
-def verify_evidence(evidence_path):
+def verify_evidence(oe_binary_path, evidence_path):
     # Until https://github.com/microsoft/CCF/issues/1468 is done, CCF
     # uses old attestation API to generate quotes
     report_format = "LEGACY_REPORT_REMOTE"
     res = subprocess.run(
         [
-            os.path.join(args.oe_binary, "oeverify"),
+            os.path.join(oe_binary_path, "oeverify"),
             "-f",
             report_format,
             "-r",
@@ -66,10 +66,10 @@ def test_verify_quotes(network, args):
                 mrenclave = r.body.json()["mrenclave"]
                 nf.write(raw_quote)
                 nf.flush()
-                result = verify_evidence(nf.name)
+                result = verify_evidence(args.oe_binary, nf.name)
                 assert (
                     mrenclave == result
-                ), f"/node/quote mrenclave does not match quote mrenclave"
+                ), f"/node/quote mrenclave does not match quote mrenclave for node {node.node_id}"
 
     return network
 
