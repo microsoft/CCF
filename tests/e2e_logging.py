@@ -566,6 +566,23 @@ def test_primary(network, args):
     return network
 
 
+@reqs.description("Memory usage")
+def test_memory(network, args):
+    primary, _ = network.find_primary()
+    with primary.client() as c:
+        r = c.get("/node/memory")
+        assert r.status_code == http.HTTPStatus.OK.value
+        assert (
+            r.body.json()["peak_allocated_heap_size"]
+            <= r.body.json()["max_total_heap_size"]
+        )
+        assert (
+            r.body.json()["current_allocated_heap_size"]
+            <= r.body.json()["peak_allocated_heap_size"]
+        )
+    return network
+
+
 def run(args):
     hosts = ["localhost"] * (3 if args.consensus == "bft" else 2)
 
@@ -593,6 +610,7 @@ def run(args):
         network = test_view_history(network, args)
         network = test_primary(network, args)
         network = test_metrics(network, args)
+        network = test_memory(network, args)
 
 
 if __name__ == "__main__":
