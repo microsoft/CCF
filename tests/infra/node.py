@@ -106,7 +106,7 @@ class Node:
         common_dir,
         target_rpc_address,
         snapshot_dir,
-        read_only_ledger_dir=None,
+        read_only_ledger_dirs=[],
         **kwargs,
     ):
         self._start(
@@ -118,7 +118,7 @@ class Node:
             common_dir,
             target_rpc_address=target_rpc_address,
             snapshot_dir=snapshot_dir,
-            read_only_ledger_dir=read_only_ledger_dir,
+            read_only_ledger_dirs=read_only_ledger_dirs,
             **kwargs,
         )
 
@@ -145,7 +145,7 @@ class Node:
         target_rpc_address=None,
         snapshot_dir=None,
         members_info=None,
-        read_only_ledger_dir=None,
+        read_only_ledger_dirs=[],
         **kwargs,
     ):
         """
@@ -173,7 +173,7 @@ class Node:
             target_rpc_address=target_rpc_address,
             members_info=members_info,
             snapshot_dir=snapshot_dir,
-            read_only_ledger_dir=read_only_ledger_dir,
+            read_only_ledger_dirs=read_only_ledger_dirs,
             binary_dir=self.binary_dir,
             **kwargs,
         )
@@ -261,8 +261,8 @@ class Node:
         except ccf.clients.CCFConnectionException as e:
             raise TimeoutError(f"Node {self.node_id} failed to join the network") from e
 
-    def get_ledger(self):
-        return self.remote.get_ledger()
+    def get_ledger(self, **kwargs):
+        return self.remote.get_ledger(**kwargs)
 
     def get_committed_snapshots(self):
         # Wait for all available snapshot files to be committed before
