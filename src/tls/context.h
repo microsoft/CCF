@@ -4,6 +4,7 @@
 
 #include "cert.h"
 #include "entropy.h"
+#include "error_string.h"
 
 #include <memory>
 
@@ -24,18 +25,21 @@ namespace tls
   public:
     Context(bool client, bool dgram) : entropy(tls::create_entropy())
     {
+      int rc = 0;
+
       mbedtls_ssl_init(&ssl);
       mbedtls_ssl_config_init(&cfg);
       mbedtls_ssl_conf_rng(&cfg, entropy->get_rng(), entropy->get_data());
 
-      if (
-        mbedtls_ssl_config_defaults(
-          &cfg,
-          client ? MBEDTLS_SSL_IS_CLIENT : MBEDTLS_SSL_IS_SERVER,
-          dgram ? MBEDTLS_SSL_TRANSPORT_DATAGRAM : MBEDTLS_SSL_TRANSPORT_STREAM,
-          MBEDTLS_SSL_PRESET_DEFAULT) != 0)
+      rc = mbedtls_ssl_config_defaults(
+        &cfg,
+        client ? MBEDTLS_SSL_IS_CLIENT : MBEDTLS_SSL_IS_SERVER,
+        dgram ? MBEDTLS_SSL_TRANSPORT_DATAGRAM : MBEDTLS_SSL_TRANSPORT_STREAM,
+        MBEDTLS_SSL_PRESET_DEFAULT);
+      if (rc != 0)
       {
-        throw std::logic_error("Could not set SSL config defaults");
+        throw std::logic_error(fmt::format(
+          "mbedtls_ssl_config_defaults failed: {}", error_string(rc)));
       }
 #ifndef NO_STRICT_TLS_CIPHERSUITES
       if (!client)
@@ -46,8 +50,12 @@ namespace tls
       mbedtls_ssl_conf_min_version(
         &cfg, MBEDTLS_SSL_MAJOR_VERSION_3, MBEDTLS_SSL_MINOR_VERSION_3);
 
-      if (mbedtls_ssl_setup(&ssl, &cfg) != 0)
-        throw std::logic_error("Could not set up SSL");
+      rc = mbedtls_ssl_setup(&ssl, &cfg);
+      if (rc != 0)
+      {
+        throw std::logic_error(
+          fmt::format("mbedtls_ssl_setup failed: {}", error_string(rc)));
+      }
     }
 
     virtual ~Context()
