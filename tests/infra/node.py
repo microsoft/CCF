@@ -290,8 +290,8 @@ class Node:
 
         return self.remote.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
-    def client(self, identity=None, **kwargs):
-        akwargs = {
+    def client_certs(self, identity=None):
+        return {
             "cert": os.path.join(self.common_dir, f"{identity}_cert.pem")
             if identity
             else None,
@@ -299,8 +299,15 @@ class Node:
             if identity
             else None,
             "ca": os.path.join(self.common_dir, "networkcert.pem"),
-            "description": f"[{self.node_id}{'|' + identity if identity is not None else ''}]",
         }
+
+    def client(self, identity=None, **kwargs):
+        akwargs = self.client_certs(identity)
+        akwargs.update(
+            {
+                "description": f"[{self.node_id}{'|' + identity if identity is not None else ''}]",
+            }
+        )
         akwargs.update(kwargs)
         return ccf.clients.client(self.pubhost, self.rpc_port, **akwargs)
 
