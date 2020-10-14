@@ -9,7 +9,8 @@ import os
 from loguru import logger as LOG
 
 
-DEFAULT_NODES=["127.0.0.1:8000"]
+DEFAULT_NODES = ["127.0.0.1:8000"]
+
 
 def dump_network_info(path, network, node):
     network_info = {}
