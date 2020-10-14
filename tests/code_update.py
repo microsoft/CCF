@@ -201,16 +201,7 @@ def run(args):
 
 
 if __name__ == "__main__":
-
-    def add(parser):
-        parser.add_argument(
-            "--oe-binary",
-            help="Path to Open Enclave binary folder",
-            type=str,
-            required=True,
-        )
-
-    args = infra.e2e_args.cli_args(add)
+    args = infra.e2e_args.cli_args()
     if args.enclave_type == "virtual":
         LOG.warning("Skipping code update test with virtual enclave")
         sys.exit()

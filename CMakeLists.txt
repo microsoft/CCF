@@ -620,6 +620,8 @@ if(BUILD_TESTS)
     CONSENSUS cft
     LABEL suite
     ADDITIONAL_ARGS
+      --oe-binary
+      ${OE_BINDIR}
       --ledger-recovery-timeout
       20
       --test-duration

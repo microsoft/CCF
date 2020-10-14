@@ -35,6 +35,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=".",
     )
     parser.add_argument(
+        "--oe-binary",
+        help="Path to Open Enclave binary folder",
+        type=str,
+        default="/opt/openenclave/bin/",
+    )
+    parser.add_argument(
         "-d",
         "--debug-nodes",
         help="List of node ids. Nodes that are specified will need to be started manually",
