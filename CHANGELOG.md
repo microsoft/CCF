@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 - Public tables in the KV must now indicate this in their name (with a `public:` prefix), and internal tables have been renamed. Any governance or auditing scripts which operate over internal tables must use the new names (eg - `ccf.members` is now `public:ccf.gov.members`).
 - `--member-info` on `cchost` can now take a third, optional file path to a JSON file containing additional member data (#1712).
+- Added `/node/memory` endpoint exposing the maximum configured heap size, peak and current used sizes.
 
 ### Removed
 - `/api/schema` endpoints are removed, as the same information is now available in the OpenAPI document at `/api`.
