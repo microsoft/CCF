@@ -44,16 +44,29 @@ export interface KVMap {
 
 export type KVMaps =  { [key: string]: KVMap; };
 
+interface WrapAlgoBase {
+    name: string
+}
+
+export interface RsaOaepParams extends WrapAlgoBase {
+    // name == 'RSA-OAEP'
+    label?: ArrayBuffer
+}
+
+export type WrapAlgo = RsaOaepParams
+
 export interface CCF {
     strToBuf(v: string): ArrayBuffer
     bufToStr(v: ArrayBuffer): string
     jsonCompatibleToBuf<T extends JsonCompatible<T>>(v: T): ArrayBuffer
     bufToJsonCompatible<T extends JsonCompatible<T>>(v: ArrayBuffer): T
+    generateAesKey(size: number): ArrayBuffer
+    wrapKey(key: ArrayBuffer, wrappingKey: ArrayBuffer, wrapAlgo: WrapAlgo): ArrayBuffer
 
     kv: KVMaps
 }
 
-export declare const ccf: CCF
+export const ccf = globalThis.ccf as CCF
 
 // Additional functionality on top of C++:
 export const kv = ccf.kv

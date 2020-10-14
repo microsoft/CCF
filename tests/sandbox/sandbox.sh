@@ -22,13 +22,13 @@ if [ -f "${VERSION_FILE}" ]; then
     # install tree
     START_NETWORK_SCRIPT="${PATH_HERE}"/start_network.py
     VERSION=$(<"${VERSION_FILE}")
-    pip install -q -U ccf=="$VERSION"
-    pip install -q -U -r "${PATH_HERE}"/requirements.txt
+    pip install --disable-pip-version-check -q -U ccf=="$VERSION"
+    pip install --disable-pip-version-check -q -U -r "${PATH_HERE}"/requirements.txt
 else
     # source tree
     START_NETWORK_SCRIPT="${PATH_HERE}"/../start_network.py
-    pip install -q -U -e "${PATH_HERE}"/../../python/
-    pip install -q -U -r "${PATH_HERE}"/../requirements.txt
+    pip install --disable-pip-version-check -q -U -e "${PATH_HERE}"/../../python/
+    pip install --disable-pip-version-check -q -U -r "${PATH_HERE}"/../requirements.txt
 fi
 
 echo "Python environment successfully setup"

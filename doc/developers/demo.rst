@@ -10,7 +10,7 @@ This uses the :ref:`example C++ logging app <developers/logging_cpp:Logging (C++
 
 ``start_test_network.sh`` is a thin wrapper around ``start_network.py``. It ensures the necessary Python dependencies are available, sets some sensible default values, and uses ``curl`` to submit CCF commands (``CURL_CLIENT=ON``). There are a large number of additional configuration options, documented by passing the ``--help`` argument. You may wish to pass ``-v`` which will make the script significantly more verbose, printing the precise ``curl`` commands which were used to communicate with the test network.
 
-This script automates the steps described in :ref:`operators/start_network:Starting a New Network`, in summary:
+This script automates the steps described in :doc:`/operators/start_network`, in summary:
 
 - generating new identities (private keys and certs) for the initial members and users
 - starting the initial ``cchost`` node

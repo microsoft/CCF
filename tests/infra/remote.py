@@ -548,7 +548,8 @@ CCF_TO_OE_LOG_LEVEL = {
 def make_address(host, port=None):
     if port is not None:
         return f"{host}:{port}"
-    return host
+    else:
+        return f"{host}:0"
 
 
 class CCFRemote(object):
@@ -583,6 +584,7 @@ class CCFRemote(object):
         memory_reserve_startup=0,
         gov_script=None,
         ledger_dir=None,
+        read_only_ledger_dir=None,
         log_format_json=None,
         binary_dir=".",
         ledger_chunk_bytes=(5 * 1000 * 1000),
@@ -600,6 +602,7 @@ class CCFRemote(object):
         self.BIN = infra.path.build_bin_path(
             self.BIN, enclave_type, binary_dir=binary_dir
         )
+        self.common_dir = common_dir
 
         self.ledger_dir = os.path.normpath(ledger_dir) if ledger_dir else None
         self.ledger_dir_name = (
@@ -611,8 +614,9 @@ class CCFRemote(object):
         self.snapshot_dir_name = (
             os.path.basename(self.snapshot_dir) if self.snapshot_dir else "snapshots"
         )
-
-        self.common_dir = common_dir
+        self.read_ledger_dir_name = (
+            os.path.basename(read_only_ledger_dir) if read_only_ledger_dir else None
+        )
 
         exe_files = [self.BIN, lib_path] + self.DEPS
         data_files = [self.ledger_dir] if self.ledger_dir else []
@@ -667,6 +671,10 @@ class CCFRemote(object):
 
         if snapshot_tx_interval:
             cmd += [f"--snapshot-tx-interval={snapshot_tx_interval}"]
+
+        if read_only_ledger_dir:
+            cmd += [f"--read-only-ledger-dir={self.read_ledger_dir_name}"]
+            data_files += [os.path.join(self.common_dir, read_only_ledger_dir)]
 
         if start_type == StartType.new:
             cmd += [
@@ -769,7 +777,7 @@ class CCFRemote(object):
         self.remote.get(self.ledger_dir_name, self.common_dir)
         return os.path.join(self.common_dir, self.ledger_dir_name)
 
-    def get_snapshots(self, pre_condition_func=lambda src_dir, _: True):
+    def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
         self.remote.get(
             self.snapshot_dir_name,
             self.common_dir,
