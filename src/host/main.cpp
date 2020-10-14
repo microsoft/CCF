@@ -114,7 +114,9 @@ int main(int argc, char** argv)
     app,
     rpc_address,
     "--rpc-address",
-    "Address on which to listen for TLS commands coming from clients")
+    "Address on which to listen for TLS commands coming from clients. Port "
+    "defaults to 443 if unspecified.",
+    "443")
     ->required();
 
   std::string rpc_address_file = {};
@@ -130,7 +132,8 @@ int main(int argc, char** argv)
     public_rpc_address,
     "--public-rpc-address",
     "Address to advertise publicly to clients (defaults to same as "
-    "--rpc-address)");
+    "--rpc-address)",
+    "443");
 
   std::string ledger_dir("ledger");
   app.add_option("--ledger-dir", ledger_dir, "Ledger directory")

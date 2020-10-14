@@ -23,9 +23,11 @@ namespace cli
     CLI::App& app,
     ParsedAddress& parsed,
     const std::string& option_name,
-    const std::string& option_desc)
+    const std::string& option_desc,
+    const std::string& default_port = "0")
   {
-    CLI::callback_t fun = [&parsed, option_name](CLI::results_t results) {
+    CLI::callback_t fun = [&parsed, option_name, default_port](
+                            CLI::results_t results) {
       if (results.size() != 1)
       {
         throw CLI::ValidationError(option_name, "Address could not be parsed");
@@ -35,9 +37,8 @@ namespace cli
       auto found = addr.find_last_of(":");
       auto hostname = addr.substr(0, found);
 
-      // If no port is specified, use port 0 (auto-assign a free port)
       const auto port =
-        found == std::string::npos ? "0" : addr.substr(found + 1);
+        found == std::string::npos ? default_port : addr.substr(found + 1);
 
       // Check if port is in valid range
       int port_int;
