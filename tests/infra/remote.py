@@ -615,7 +615,6 @@ class CCFRemote(object):
             os.path.basename(self.snapshot_dir) if self.snapshot_dir else "snapshots"
         )
         self.read_only_ledger_dirs = read_only_ledger_dirs
-        LOG.error(self.read_only_ledger_dirs)
 
         exe_files = [self.BIN, lib_path] + self.DEPS
         data_files = [self.ledger_dir] if self.ledger_dir else []
@@ -671,9 +670,9 @@ class CCFRemote(object):
         if snapshot_tx_interval:
             cmd += [f"--snapshot-tx-interval={snapshot_tx_interval}"]
 
-        for ro_ledger_dir in self.read_only_ledger_dirs:
-            cmd += [f"--read-only-ledger-dir={os.path.basename(ro_ledger_dir)}"]
-            data_files += [os.path.join(self.common_dir, ro_ledger_dir)]
+        for read_only_ledger_dir in self.read_only_ledger_dirs:
+            cmd += [f"--read-only-ledger-dir={os.path.basename(read_only_ledger_dir)}"]
+            data_files += [os.path.join(self.common_dir, read_only_ledger_dir)]
 
         if start_type == StartType.new:
             cmd += [
@@ -782,9 +781,9 @@ class CCFRemote(object):
         self.remote.get(self.ledger_dir_name, self.common_dir)
         ledger_dirs.append(os.path.join(self.common_dir, self.ledger_dir_name))
         if include_read_only_dirs:
-            for ro_ledger_dir in self.read_only_ledger_dirs:
-                self.remote.get(os.path.basename(ro_ledger_dir), self.common_dir)
-                ledger_dirs.append(os.path.join(self.common_dir, ro_ledger_dir))
+            for read_only_ledger_dir in self.read_only_ledger_dirs:
+                self.remote.get(os.path.basename(read_only_ledger_dir), self.common_dir)
+                ledger_dirs.append(os.path.join(self.common_dir, read_only_ledger_dir))
         return ledger_dirs
 
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):

@@ -106,7 +106,6 @@ class Node:
         common_dir,
         target_rpc_address,
         snapshot_dir,
-        read_only_ledger_dirs=[],
         **kwargs,
     ):
         self._start(
@@ -118,7 +117,6 @@ class Node:
             common_dir,
             target_rpc_address=target_rpc_address,
             snapshot_dir=snapshot_dir,
-            read_only_ledger_dirs=read_only_ledger_dirs,
             **kwargs,
         )
 
@@ -145,7 +143,6 @@ class Node:
         target_rpc_address=None,
         snapshot_dir=None,
         members_info=None,
-        read_only_ledger_dirs=[],
         **kwargs,
     ):
         """
@@ -173,7 +170,6 @@ class Node:
             target_rpc_address=target_rpc_address,
             members_info=members_info,
             snapshot_dir=snapshot_dir,
-            read_only_ledger_dirs=read_only_ledger_dirs,
             binary_dir=self.binary_dir,
             **kwargs,
         )
