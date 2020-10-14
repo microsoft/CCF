@@ -1,24 +1,12 @@
 jobs:
-- job: build_and_run_vegeta_stress_test
-  container: sgx
-  pool: Ubuntu-1804-DC8_v2
-  displayName: 'Vegeta Stress Test'
-
-  steps:
-  - checkout: self
-    clean: true
-
-  - template: cmake.yml
+  - template: common.yml
     parameters:
+      target: SGX
+      env:
+        container: sgx
+        pool: Ubuntu-1804-DC8_v2
       cmake_args: '-DCOMPILE_TARGETS=sgx'
-
-  - template: ninja.yml
-
-  - script: |
-      ../tests/sandbox/sandbox.sh -p liblogging -v --enclave-type release -n localhost -n localhost -n localhost --network-info-file=network.info &
-      sleep 20
-      ../tests/generate_vegeta_targets.sh network.info > vegeta_targets
-      cat vegeta_targets
-      cat vegeta_targets | /opt/vegeta/vegeta attack --format json --duration 45m --rate 100 --cert workspace/sandbox_common/user0_cert.pem --key workspace/sandbox_common/user0_privk.pem --root-certs workspace/sandbox_common/networkcert.pem | tee results.bin | /opt/vegeta/vegeta report --every 10s
-    displayName: Run vegeta stress test
-    workingDirectory: build
+      suffix: 'StressTest'
+      artifact_name: 'NoSGX_Instrumented'
+      ctest_filter: '-L "vegeta" -C "long_stress"'
+      ctest_timeout: '0' # No timeout

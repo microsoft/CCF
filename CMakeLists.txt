@@ -797,7 +797,17 @@ if(BUILD_TESTS)
     NAME vegeta_stress_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
     CONSENSUS cft
+    LABEL vegeta
     ADDITIONAL_ARGS -p liblogging
+  )
+
+  add_e2e_test(
+    NAME vegeta_long_stress_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
+    CONSENSUS cft
+    LABEL vegeta
+    CONFIGURATIONS long_stress
+    ADDITIONAL_ARGS -p liblogging --duration 45m
   )
 
   foreach(CONSENSUS ${CONSENSUSES})
