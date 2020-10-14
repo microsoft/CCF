@@ -150,7 +150,8 @@ namespace enclave
           auto search = sessions.find(id);
           if (search == sessions.end())
           {
-            LOG_DEBUG_FMT("Ignoring tls_inbound for unknown or refused session: {}", id);
+            LOG_DEBUG_FMT(
+              "Ignoring tls_inbound for unknown or refused session: {}", id);
             return;
           }
 
