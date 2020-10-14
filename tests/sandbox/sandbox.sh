@@ -41,5 +41,4 @@ CURL_CLIENT=ON \
     --gov-script "${GOV_SCRIPT}" \
     --ledger-chunk-bytes 5MB \
     --label sandbox \
-    -n 127.0.0.1:8000 \
     "$@"

@@ -133,7 +133,14 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(VerifyReceipt::Out, valid)
 
   DECLARE_JSON_TYPE(GetCode::Version)
-  DECLARE_JSON_REQUIRED_FIELDS(GetCode::Version, digest, status);
+  DECLARE_JSON_REQUIRED_FIELDS(GetCode::Version, digest, status)
   DECLARE_JSON_TYPE(GetCode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCode::Out, versions)
+
+  DECLARE_JSON_TYPE(MemoryUsage::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    MemoryUsage::Out,
+    max_total_heap_size,
+    current_allocated_heap_size,
+    peak_allocated_heap_size)
 }
