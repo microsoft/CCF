@@ -6,11 +6,13 @@ import subprocess
 import os
 import json
 import shutil
+from base64 import b64encode
 import infra.network
 import infra.path
 import infra.proc
 import infra.net
 import infra.e2e_args
+import infra.crypto
 import suite.test_requirements as reqs
 import ccf.proposal_generator
 
@@ -258,6 +260,25 @@ def test_npm_app(network, args):
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert len(r.body.data()) == key_size // 8
         assert r.body.data() != b"\x00" * (key_size // 8)
+
+        aes_key_to_wrap = infra.crypto.generate_aes_key(256)
+        wrapping_key_priv_pem, wrapping_key_pub_pem = infra.crypto.generate_rsa_keypair(
+            2048
+        )
+        label = "label42"
+        r = c.post(
+            "/app/wrapKeyRsaOaep",
+            {
+                "key": b64encode(aes_key_to_wrap).decode(),
+                "wrappingKey": wrapping_key_pub_pem,
+                "label": label,
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        unwrapped = infra.crypto.unwrap_key_rsa_oaep(
+            r.body.data(), wrapping_key_priv_pem, label.encode("ascii")
+        )
+        assert unwrapped == aes_key_to_wrap
 
         r = c.post("/app/log?id=42", {"msg": "Hello!"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
