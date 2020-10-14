@@ -540,14 +540,16 @@ namespace asynchost
       {
         ledger_dir_ = ledger_dir;
       }
-
-      for (auto const& dir : read_ledger_dirs)
+      else
       {
-        match = get_file_name_with_idx(dir, idx);
-        if (match.has_value())
+        for (auto const& dir : read_ledger_dirs)
         {
-          ledger_dir_ = dir;
-          break;
+          match = get_file_name_with_idx(dir, idx);
+          if (match.has_value())
+          {
+            ledger_dir_ = dir;
+            break;
+          }
         }
       }
 
