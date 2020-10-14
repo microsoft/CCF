@@ -584,7 +584,7 @@ class CCFRemote(object):
         memory_reserve_startup=0,
         gov_script=None,
         ledger_dir=None,
-        read_only_ledger_dirs=[],
+        read_only_ledger_dirs=None,
         log_format_json=None,
         binary_dir=".",
         ledger_chunk_bytes=(5 * 1000 * 1000),
@@ -614,7 +614,7 @@ class CCFRemote(object):
         self.snapshot_dir_name = (
             os.path.basename(self.snapshot_dir) if self.snapshot_dir else "snapshots"
         )
-        self.read_only_ledger_dirs = read_only_ledger_dirs
+        self.read_only_ledger_dirs = read_only_ledger_dirs or []
 
         exe_files = [self.BIN, lib_path] + self.DEPS
         data_files = [self.ledger_dir] if self.ledger_dir else []
