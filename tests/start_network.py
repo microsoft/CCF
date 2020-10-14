@@ -9,6 +9,8 @@ import os
 from loguru import logger as LOG
 
 
+DEFAULT_NODES=["127.0.0.1:8000"]
+
 def dump_network_info(path, network, node):
     network_info = {}
     network_info["host"] = node.pubhost
@@ -23,7 +25,7 @@ def dump_network_info(path, network, node):
 
 
 def run(args):
-    hosts = args.node or ["localhost"]
+    hosts = args.node or DEFAULT_NODES
 
     if not args.verbose:
         LOG.remove()
@@ -113,7 +115,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "-n",
             "--node",
-            help="List of hostnames[,pub_hostnames:ports]. If empty, two nodes are spawned locally",
+            help=f"List of hostnames[,pub_hostnames:ports]. Default is {DEFAULT_NODES}",
             action="append",
         )
         parser.add_argument(
