@@ -5,6 +5,8 @@ import infra.e2e_args
 import subprocess
 import json
 import base64
+import threading
+import time
 from loguru import logger as LOG
 
 VEGETA_BIN = "/opt/vegeta/vegeta"
@@ -25,6 +27,14 @@ def write_vegeta_target_line(f, *args, **kwargs):
     target = build_vegeta_target(*args, **kwargs)
     f.write(json.dumps(target))
     f.write("\n")
+
+
+def print_memory_stats(node, shutdown_event):
+    with node.client() as c:
+        while not shutdown_event.is_set():
+            r = c.get("/node/memory")
+            LOG.warning(r.body.json())
+            time.sleep(10)
 
 
 def run(args, additional_attack_args):
@@ -94,18 +104,28 @@ def run(args, additional_attack_args):
 
         report_cmd = [VEGETA_BIN, "report", "--every", "5s"]
         report_cmd_s = " ".join(report_cmd)
-        vegeta_report = subprocess.Popen(
-            report_cmd,
-            stdin=tee_split.stdout
-        )
+        vegeta_report = subprocess.Popen(report_cmd, stdin=tee_split.stdout)
+
+        # Start a second thread which will print the primary's memory stats at regular intervals
+        shutdown_event = threading.Event()
+        memory_thread = threading.Thread(target=print_memory_stats, args=(primary,shutdown_event))
+        memory_thread.start()
 
         LOG.info("Waiting for completion...")
         vegeta_report.communicate()
 
+        LOG.info("Shutting down...")
+        shutdown_event.set()
+        memory_thread.join()
+
         LOG.success("Done!")
+
 
 if __name__ == "__main__":
 
-    args, unknown_args = infra.e2e_args.cli_args(accept_unknown=True)
-    args.package = args.app_script and "liblua_generic" or "liblogging"
+    def add(parser):
+        pass
+
+    args, unknown_args = infra.e2e_args.cli_args(add=add, accept_unknown=True)
+    args.package = "liblogging"
     run(args, unknown_args)
