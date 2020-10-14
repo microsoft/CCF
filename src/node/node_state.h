@@ -143,6 +143,8 @@ namespace ccf
     ringbuffer::AbstractWriterFactory& writer_factory;
     ringbuffer::WriterPtr to_host;
     consensus::Config consensus_config;
+    size_t sig_tx_interval;
+    size_t sig_ms_interval;
 
     NetworkState& network;
 
@@ -208,7 +210,9 @@ namespace ccf
       const consensus::Config& consensus_config_,
       std::shared_ptr<NodeToNode> n2n_channels_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
-      std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder_)
+      std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder_,
+      size_t sig_tx_interval_,
+      size_t sig_ms_interval_)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::uninitialized);
@@ -217,6 +221,8 @@ namespace ccf
       n2n_channels = n2n_channels_;
       rpc_map = rpc_map_;
       cmd_forwarder = cmd_forwarder_;
+      sig_tx_interval = sig_tx_interval_;
+      sig_ms_interval = sig_ms_interval_;
       sm.advance(State::initialized);
     }
 
@@ -826,6 +832,7 @@ namespace ccf
       }
 
       network.tables->swap_private_maps(*recovery_store.get());
+      recovery_history.reset();
       recovery_store.reset();
       reset_recovery_hook();
 
@@ -901,7 +908,9 @@ namespace ccf
         self,
         *node_sign_kp,
         *recovery_signature_map,
-        *recovery_nodes_map);
+        *recovery_nodes_map,
+        sig_tx_interval,
+        sig_ms_interval);
 
 #ifdef USE_NULL_ENCRYPTOR
       recovery_encryptor = std::make_shared<kv::NullTxEncryptor>();
@@ -1725,7 +1734,9 @@ namespace ccf
         self,
         *node_sign_kp,
         network.signatures,
-        network.nodes);
+        network.nodes,
+        sig_tx_interval,
+        sig_ms_interval);
 
       network.tables->set_history(history);
     }
