@@ -306,6 +306,25 @@
         ],
         "type": "object"
       },
+      "MemoryUsage__Out": {
+        "properties": {
+          "current_allocated_heap_size": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "max_total_heap_size": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "peak_allocated_heap_size": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "max_total_heap_size",
+          "current_allocated_heap_size",
+          "peak_allocated_heap_size"
+        ],
+        "type": "object"
+      },
       "NodeStatus": {
         "enum": [
           "PENDING",
@@ -520,6 +539,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetTxStatus__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/memory": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryUsage__Out"
                 }
               }
             },
