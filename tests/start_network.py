@@ -79,7 +79,7 @@ def run(args):
 
         for b in backups:
             LOG.info(
-                "  Node [{}] = {}:{}".format(
+                "  Node [{}] = https://{}:{}".format(
                     pad_node_id(b.node_id), b.pubhost, b.rpc_port
                 )
             )
