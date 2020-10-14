@@ -44,4 +44,12 @@ OE_EXTERNC bool oe_is_outside_enclave(const void*, std::size_t)
 
 #  define oe_lfence() // nop
 
+OE_EXTERNC oe_result_t oe_allocator_mallinfo(oe_mallinfo_t* info)
+{
+  info->max_total_heap_size = std::numeric_limits<size_t>::max();
+  info->current_allocated_heap_size = 0;
+  info->peak_allocated_heap_size = 0;
+  return OE_OK;
+}
+
 #endif
