@@ -195,14 +195,16 @@ class Network:
                 len(os.listdir(snapshot_dir)) > 0
             ), f"There are no snapshots to resume from in directory {snapshot_dir}"
 
-        read_only_ledger_dir = None
+        read_only_ledger_dirs = []
         if snapshot_dir is not None:
             LOG.info(f"Joining from snapshot: {snapshot_dir}")
             if copy_ledger_read_only:
-                LOG.info(
-                    f"Copying target node ledger to read-only ledger directory {read_only_ledger_dir}"
+                read_only_ledger_dirs = target_node.get_ledger(
+                    include_read_only_dirs=True
                 )
-                read_only_ledger_dir = target_node.get_ledger()
+                LOG.info(
+                    f"Copying target node ledger to read-only ledger directory {read_only_ledger_dirs}"
+                )
 
         node.join(
             lib_name=lib_name,
@@ -211,7 +213,7 @@ class Network:
             common_dir=self.common_dir,
             target_rpc_address=f"{target_node.host}:{target_node.rpc_port}",
             snapshot_dir=snapshot_dir,
-            read_only_ledger_dir=read_only_ledger_dir,
+            read_only_ledger_dirs=read_only_ledger_dirs,
             **forwarded_args,
         )
 

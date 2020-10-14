@@ -59,13 +59,6 @@ suites["reconfiguration"] = suite_reconfiguration
 suite_snapshots = [
     reconfiguration.test_add_node_from_snapshot,
     election.test_kill_primary,
-    # The new primary has no snapshot so issue new entries
-    # to generate at least one snapshot
-    e2e_logging.test,
-    e2e_logging.test,
-    e2e_logging.test,
-    e2e_logging.test,
-    e2e_logging.test,
     reconfiguration.test_add_node_from_snapshot,
     e2e_logging.test_view_history,
 ]

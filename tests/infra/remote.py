@@ -584,7 +584,7 @@ class CCFRemote(object):
         memory_reserve_startup=0,
         gov_script=None,
         ledger_dir=None,
-        read_only_ledger_dir=None,
+        read_only_ledger_dirs=None,
         log_format_json=None,
         binary_dir=".",
         ledger_chunk_bytes=(5 * 1000 * 1000),
@@ -614,9 +614,7 @@ class CCFRemote(object):
         self.snapshot_dir_name = (
             os.path.basename(self.snapshot_dir) if self.snapshot_dir else "snapshots"
         )
-        self.read_ledger_dir_name = (
-            os.path.basename(read_only_ledger_dir) if read_only_ledger_dir else None
-        )
+        self.read_only_ledger_dirs = read_only_ledger_dirs or []
 
         exe_files = [self.BIN, lib_path] + self.DEPS
         data_files = [self.ledger_dir] if self.ledger_dir else []
@@ -672,8 +670,8 @@ class CCFRemote(object):
         if snapshot_tx_interval:
             cmd += [f"--snapshot-tx-interval={snapshot_tx_interval}"]
 
-        if read_only_ledger_dir:
-            cmd += [f"--read-only-ledger-dir={self.read_ledger_dir_name}"]
+        for read_only_ledger_dir in self.read_only_ledger_dirs:
+            cmd += [f"--read-only-ledger-dir={os.path.basename(read_only_ledger_dir)}"]
             data_files += [os.path.join(self.common_dir, read_only_ledger_dir)]
 
         if start_type == StartType.new:
@@ -773,9 +771,20 @@ class CCFRemote(object):
     def set_perf(self):
         self.remote.set_perf()
 
-    def get_ledger(self):
+    # For now, it makes sense to default include_read_only_dirs to False
+    # but when nodes started from snapshots are fully supported in the test
+    # suite, this argument will probably default to True (or be deleted entirely)
+    def get_ledger(self, include_read_only_dirs=False):
+        # The first file returned is always the main ledger directory
+        # for that remote. Other ledger directories are read-only.
+        ledger_dirs = []
         self.remote.get(self.ledger_dir_name, self.common_dir)
-        return os.path.join(self.common_dir, self.ledger_dir_name)
+        ledger_dirs.append(os.path.join(self.common_dir, self.ledger_dir_name))
+        if include_read_only_dirs:
+            for read_only_ledger_dir in self.read_only_ledger_dirs:
+                self.remote.get(os.path.basename(read_only_ledger_dir), self.common_dir)
+                ledger_dirs.append(os.path.join(self.common_dir, read_only_ledger_dir))
+        return ledger_dirs
 
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
         self.remote.get(
@@ -787,20 +796,6 @@ class CCFRemote(object):
 
     def ledger_path(self):
         return os.path.join(self.remote.root, self.ledger_dir_name)
-
-
-@contextmanager
-def ccf_remote(*args, **kwargs):
-    """
-    Context Manager wrapper for CCFRemote
-    """
-    remote = CCFRemote(*args, **kwargs)
-    try:
-        remote.setup()
-        remote.start()
-        yield remote
-    finally:
-        remote.stop()
 
 
 class StartType(Enum):
