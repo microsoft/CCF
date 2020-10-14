@@ -92,22 +92,17 @@ def run(args, additional_attack_args):
             stdout=subprocess.PIPE,
         )
 
-        report_cmd = [VEGETA_BIN, "report"]
+        report_cmd = [VEGETA_BIN, "report", "--every", "5s"]
         report_cmd_s = " ".join(report_cmd)
         vegeta_report = subprocess.Popen(
             report_cmd,
-            stdin=tee_split.stdout,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdin=tee_split.stdout
         )
 
         LOG.info("Waiting for completion...")
-        report_out, report_err = vegeta_report.communicate()
+        vegeta_report.communicate()
 
-        LOG.info(f"Report output:\n{report_out.decode()}")
-        if report_err:
-            LOG.error(f"Error running '{' '.join(attack_cmd)}':\n{report_err.decode()}")
-
+        LOG.success("Done!")
 
 if __name__ == "__main__":
 
