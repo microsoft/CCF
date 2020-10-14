@@ -13,7 +13,7 @@ fi
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 echo "Shell scripts"
-find . -type f -regex ".*\.sh$" | grep -E -v "^./3rdparty/" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091,SC2181
+find . -type f -regex ".*\.sh$" | grep -E -v "^./(3rdparty|build)" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091,SC2181
 
 echo "TODOs"
 "$SCRIPT_DIR"/check-todo.sh src
