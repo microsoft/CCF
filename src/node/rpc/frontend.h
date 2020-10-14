@@ -409,11 +409,9 @@ namespace ccf
                 // Deprecated, this will be removed in future releases
                 ctx->set_global_commit(consensus->get_committed_seqno());
 
-                if (
-                  history && consensus->is_primary() &&
-                  (cv % sig_tx_interval == sig_tx_interval / 2))
+                if (history != nullptr && consensus->is_primary())
                 {
-                  history->emit_signature();
+                  history->try_emit_signature();
                 }
               }
 
@@ -701,21 +699,6 @@ namespace ccf
 
       // reset tx_counter for next tick interval
       tx_count = 0;
-
-      if ((consensus != nullptr) && consensus->is_primary())
-      {
-        if (elapsed < ms_to_sig)
-        {
-          ms_to_sig -= elapsed;
-          return;
-        }
-
-        ms_to_sig = sig_ms_interval;
-        if (history && tables.commit_gap() > 0)
-        {
-          history->emit_signature();
-        }
-      }
     }
 
     // Return false if frontend believes it should be able to look up caller
