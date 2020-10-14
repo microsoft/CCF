@@ -5,6 +5,7 @@
 #include "crypto/hash.h"
 #include "ds/dl_list.h"
 #include "ds/logger.h"
+#include "ds/thread_messaging.h"
 #include "entities.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
@@ -147,6 +148,11 @@ namespace ccf
           return sig.commit_reserved();
         },
         true);
+    }
+
+    void try_emit_signature() override
+    {
+      emit_signature();
     }
 
     bool add_request(
@@ -468,6 +474,10 @@ namespace ccf
     std::optional<ResultCallbackHandler> on_result;
     std::optional<ResponseCallbackHandler> on_response;
 
+    threading::Task::TimerEntry emit_signature_timer_entry;
+    size_t sig_tx_interval;
+    size_t sig_ms_interval;
+
     void discard_pending(kv::Version v)
     {
       std::lock_guard<SpinLock> vguard(version_lock);
@@ -490,13 +500,85 @@ namespace ccf
       NodeId id_,
       tls::KeyPair& kp_,
       Signatures& sig_,
-      Nodes& nodes_) :
+      Nodes& nodes_,
+      size_t sig_tx_interval_ = 0,
+      size_t sig_ms_interval_ = 0) :
       store(store_),
       id(id_),
       kp(kp_),
       signatures(sig_),
-      nodes(nodes_)
-    {}
+      nodes(nodes_),
+      sig_tx_interval(sig_tx_interval_),
+      sig_ms_interval(sig_ms_interval_)
+    {
+      start_signature_emit_timer();
+    }
+
+    void start_signature_emit_timer()
+    {
+      struct EmitSigMsg
+      {
+        EmitSigMsg(HashedTxHistory<T>* self_) : self(self_) {}
+        HashedTxHistory<T>* self;
+      };
+
+      auto emit_sig_msg = std::make_unique<threading::Tmsg<EmitSigMsg>>(
+        [](std::unique_ptr<threading::Tmsg<EmitSigMsg>> msg) {
+          auto self = msg->data.self;
+
+          std::unique_lock<SpinLock> mguard(
+            self->signature_lock, std::defer_lock);
+
+          const int64_t sig_ms_interval = self->sig_ms_interval;
+          int64_t delta_time_to_next_sig = sig_ms_interval;
+
+          if (mguard.try_lock())
+          {
+            // NOTE: time is set on every thread via a thread message
+            //       time_of_last_signature is a atomic that can be set by any
+            //       thread
+            auto time = threading::ThreadMessaging::thread_messaging
+                          .get_current_time_offset()
+                          .count();
+            auto time_of_last_signature = self->time_of_last_signature.count();
+
+            auto consensus = self->store.get_consensus();
+            if (
+              (consensus != nullptr) && consensus->is_primary() &&
+              self->store.commit_gap() > 0 && time > time_of_last_signature &&
+              (time - time_of_last_signature) > sig_ms_interval)
+            {
+              msg->data.self->emit_signature();
+            }
+
+            delta_time_to_next_sig =
+              sig_ms_interval - (time - self->time_of_last_signature.count());
+
+            if (
+              delta_time_to_next_sig <= 0 ||
+              delta_time_to_next_sig > sig_ms_interval)
+            {
+              delta_time_to_next_sig = sig_ms_interval;
+            }
+          }
+
+          self->emit_signature_timer_entry =
+            threading::ThreadMessaging::thread_messaging.add_task_after(
+              std::move(msg),
+              std::chrono::milliseconds(delta_time_to_next_sig));
+        },
+        this);
+
+      emit_signature_timer_entry =
+        threading::ThreadMessaging::thread_messaging.add_task_after(
+          std::move(emit_sig_msg), std::chrono::milliseconds(1000));
+    }
+
+    ~HashedTxHistory()
+    {
+      threading::ThreadMessaging::thread_messaging.cancel_timer_task(
+        emit_signature_timer_entry);
+    }
 
     void register_on_result(ResultCallbackHandler func) override
     {
@@ -666,6 +748,26 @@ namespace ccf
       log_hash(replicated_state_tree.get_root(), COMPACT);
     }
 
+    kv::Version last_signed_tx = 0;
+    std::chrono::milliseconds time_of_last_signature =
+      std::chrono::milliseconds(0);
+
+    SpinLock signature_lock;
+
+    void try_emit_signature() override
+    {
+      std::unique_lock<SpinLock> mguard(signature_lock, std::defer_lock);
+      if (store.commit_gap() < sig_tx_interval || !mguard.try_lock())
+      {
+        return;
+      }
+
+      if (store.commit_gap() >= sig_tx_interval)
+      {
+        emit_signature();
+      }
+    }
+
     void emit_signature() override
     {
       // Signatures are only emitted when there is a consensus
@@ -685,6 +787,10 @@ namespace ccf
 
       auto commit_txid = signable_txid.value();
       auto txid = store.next_txid();
+
+      last_signed_tx = commit_txid.second;
+      time_of_last_signature =
+        threading::ThreadMessaging::thread_messaging.get_current_time_offset();
 
       LOG_DEBUG_FMT(
         "Signed at {} in view: {} commit was: {}.{}",
