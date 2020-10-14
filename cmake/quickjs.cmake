@@ -42,6 +42,7 @@ add_library(quickjs.host STATIC ${QUICKJS_SRC})
 target_compile_options(
   quickjs.host PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}"
 )
+add_san(quickjs.host)
 set_property(TARGET quickjs.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(quickjs.host PUBLIC ${QUICKJS_INC})
 
