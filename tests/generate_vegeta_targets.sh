@@ -15,7 +15,13 @@ fi
 
 NETWORK_INFO="$1"
 
-NODE_URL=$(cat "$NETWORK_INFO" | jq -r '[.host, .port | tostring] | join(":")')
+if [[ ! -f "$NETWORK_INFO" ]]; then
+    echo "File '$NETWORK_INFO' does not exist. Running ls."
+    ls
+    exit 1
+fi
+
+NODE_URL=$(jq -r '[.host, .port | tostring] | join(":")' < "$NETWORK_INFO")
 NODE_URL="https://${NODE_URL}"
 
 # POST 10 private log messages
