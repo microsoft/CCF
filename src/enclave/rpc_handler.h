@@ -44,8 +44,6 @@ namespace enclave
     virtual bool is_members_frontend() = 0;
     virtual ProcessPbftResp process_pbft(
       std::shared_ptr<enclave::RpcContext> ctx) = 0;
-    virtual ProcessPbftResp process_pbft(
-      std::shared_ptr<enclave::RpcContext>, kv::Tx& tx, bool playback) = 0;
     virtual crypto::Sha256Hash get_merkle_root() = 0;
     virtual void update_merkle_tree() = 0;
   };
