@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 - Public tables in the KV must now indicate this in their name (with a `public:` prefix), and internal tables have been renamed. Any governance or auditing scripts which operate over internal tables must use the new names (eg - `ccf.members` is now `public:ccf.gov.members`).
 - `--member-info` on `cchost` can now take a third, optional file path to a JSON file containing additional member data (#1712).
+- `node/quote` endpoint now returns a single non-nested JSON object.
 
 ### Removed
 - `/api/schema` endpoints are removed, as the same information is now available in the OpenAPI document at `/api`.
@@ -41,7 +42,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 - Fixed infinite memory growth issue (#1639)
 - Step CLI updated to 0.15.2 (#1636)
-    
+
 ## [0.13.3]
 ### Added
 - Sample TypeScript application (#1614, #1596)
@@ -58,17 +59,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Removed
 - Notification server (#1582)
-    
+
 ## [0.13.2]
 ### Added
 - retire_node_code proposal (#1558)
 - Ability to update a collection of JS modules in a single proposal (#1557)
-    
+
 ## [0.13.1]
 ### Fixed
 - Handle setting multiple subject alternative names correctly in node certificate (#1552)
 - Fix host memory check on startup ecall (#1553)
-    
+
 ## [0.13.0]
 ### Added
 - Experimental
@@ -90,24 +91,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Deprecated
 - CLI
-  - `--domain=...` is superseded by `--san=dNSName:...` and will be removed in a future release 
+  - `--domain=...` is superseded by `--san=dNSName:...` and will be removed in a future release
 
 ### Removed
 - API
   - Removed redirection from legacy frontend names (`members` -> `gov`, `nodes` -> `node`, `users` -> `app`) (#1543)
   - Removed old `install()` API, replaced by `make_endpoint()` in [0.11.1](https://github.com/microsoft/CCF/releases/tag/ccf-0.11.1) (#1541)
-    
+
 ## [0.12.2]
 ### Fixed
 - Fix published containers
-    
+
 ## [0.12.1]
 ### Changed
 - Release tarball replaced by a .deb
 
 ### Fixed
 - Fix LVI build for applications using CCF (#1466)
-    
+
 ## [0.12.0]
 ### Added
 - Tooling
@@ -138,7 +139,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Removed
 - `mkSign` endpoint (#1398).
-    
+
 ## [0.11.7]
 ### Changed
 1. Fix a bug that could cause signatures not to be recorded on transactions hitting conflicts (#1346)
@@ -148,7 +149,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 1. All format and linting checks are now covered by `scripts/ci-checks.sh` (#1359)
 2. `node/code` RPC returns all code versions and their status (#1351)
-    
+
 ## [0.11.4]
 ### Changed
 - Add clang-format to the application CI container, to facilitate application development (#1340)
@@ -157,7 +158,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 - Fix application runtime container, which had been missing a dependency in the previous release (#1340)
-    
+
 ## [0.11.1]
 ### Added
 - CLI tool for managing recovery shares (#1295). [usage](https://microsoft.github.io/CCF/master/members/accept_recovery.html#submitting-recovery-shares)
@@ -171,7 +172,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Improved quickstart documentation (#1298, #1316).
 - Member ACKs are required, even when the service is opening (#1318).
 - The naming scheme for releases has changed to be more consistent. The tags will now be in the form `ccf-X.Y.Z`.
-    
+
 ## [0.11]
 ### Changed
 - KV reorganisation to enable app-defined serialisation (#1179, #1216, #1234)
@@ -200,7 +201,7 @@ CCF now deals internally only with serialised data in its tables, mapping byte-v
 
 ### Removed
 - `ccf::Store` and `ccf::Tx` typdefs, in favour of `kv::Store` and `kv::Tx`.
-    
+
 ## [0.10]
 ### Added
 - Brand new versioned documentation: https://microsoft.github.io/CCF.
@@ -219,17 +220,17 @@ CCF now deals internally only with serialised data in its tables, mapping byte-v
 - Updated method to retrieve time in enclave from host (#1100).
 - Correct use of Everycrypt hashing (#1098).
 - Maximum number of active members is 255 (#1107).
-- Python infra: handle proposals correctly with single member (#1079). 
+- Python infra: handle proposals correctly with single member (#1079).
 - Dependencies updates (#1080, #1082).
 
 ### Removed
 - `cchost` no longer outputs a sealed secrets file to be used for recovery (#1101).
-    
+
 ## [0.9.3]
 ### Added
 1. Install artifacts include `virtual` build (#1072)
 2. `add_enclave_library_c` is exposed in `ccp_app.cmake` (#1073)
-    
+
 ## [0.9.2]
 ### Added
 - Handlers can decide if transaction writes are applied independently from error status (#1054)
@@ -239,11 +240,11 @@ CCF now deals internally only with serialised data in its tables, mapping byte-v
 - Handle writes when host is reconnecting (#1038)
 - Member tables are no longer whitelisted for raw_puts (#1041)
 - Projects including CCF's CMake files now use the same build type default (#1057)
-    
+
 ## [0.9.1]
 ### Added
 - `cchost` now supports [file-based configuration](https://microsoft.github.io/CCF/operators/start_network.html#using-a-configuration-file), as well as command-line switches (#1013, #1019)
-    
+
 ## [0.9]
 
 This pre-release improves support for handling HTTP requests.
@@ -265,13 +266,13 @@ This pre-release improves support for handling HTTP requests.
 - Consensus is chosen at run-time, rather than build-time (#922).
 - API for installing handlers has changed (#960). See the logging app or [documentation](https://microsoft.github.io/CCF/developers/logging_cpp.html#rpc-handler) for the current style.
 - Several standard endpoints are now GET-only, and must be passed a URL query (ie `GET /users/getCommit?id=42`).
-    
+
 ## [0.8.2]
 ### Changed
 - CCF install can now be installed anywhere (#950).
 - PBFT messages are now authenticated (#947).
 - Miscellaneous performance improvements (#946).
-    
+
 ## [0.8.1]
 ### Added
 - PBFT timers can be set from`cchost` CLI (#929). See [docs](https://microsoft.github.io/CCF/developers/consensus.html#consensus-protocols).
@@ -285,7 +286,7 @@ This pre-release improves support for handling HTTP requests.
 - Original consortium members can ACK (#933).
 - PBFT performance improvements (#940, #942).
 - PBFT ledger private tables are now encrypted (#939).
-    
+
 ## [0.8]
 
 This pre-release enables experimental support for running CCF with the PBFT consensus protocol. In providing an experimental release of CCF with PBFT we hope to get feedback from early adopters.
@@ -308,12 +309,12 @@ This pre-release enables experimental support for running CCF with the PBFT cons
 
 ### Removed
 - FramedTCP support
-    
+
 ## [0.7.1]
 ### Added
 - Installed Python infrastructure can now be used to launch test networks of external builds (#809)
 - Initial threading support, Raft nodes now execute transactions on multiple worker threads (#773, #822)
-    
+
 ## [0.7]
 
 This pre-release enables experimental support for Javascript as a CCF runtime, and switches the default transport to HTTP. FramedTCP is still supported in this release (`-DFTCP=ON`) but is deprecated and will be dropped in the next release.
@@ -330,7 +331,7 @@ This pre-release enables experimental support for Javascript as a CCF runtime, a
 
 ### Deprecated
 - FramedTCP support. Please use the ccf_FTCP.tar.gz release bundle or build CCF with `-DFTCP=ON` if you require FTCP support.
-    
+
 ## [0.6]
 
 This pre-release enables support for HTTP in CCF
@@ -339,43 +340,43 @@ This pre-release enables support for HTTP in CCF
 - Quote format in `getQuotes` changed from string to vector of bytes (https://github.com/microsoft/CCF/pull/566)
 - Improved error reporting and logging (https://github.com/microsoft/CCF/pull/572, https://github.com/microsoft/CCF/pull/577, https://github.com/microsoft/CCF/pull/620)
 - Node certificates endorsed by the network (https://github.com/microsoft/CCF/pull/581)
-- The [`keygenerator.sh`](https://github.com/microsoft/CCF/blob/v0.6/tests/keygenerator.sh) scripts replaces the `keygenerator` CLI utility to generate member and user identities. 
+- The [`keygenerator.sh`](https://github.com/microsoft/CCF/blob/v0.6/tests/keygenerator.sh) scripts replaces the `keygenerator` CLI utility to generate member and user identities.
 
 ### Added
 - HTTP endpoint support when built with `-DHTTP=ON`, see https://microsoft.github.io/CCF/users/client.html for details.
-- [Only when building with `-DHTTP=ON`] The new [`scurl.sh`](https://github.com/microsoft/CCF/blob/v0.6/tests/scurl.sh) script can be used to issue signed HTTP requests to CCF (e.g. for member votes). The script takes the same arguments as `curl`. 
+- [Only when building with `-DHTTP=ON`] The new [`scurl.sh`](https://github.com/microsoft/CCF/blob/v0.6/tests/scurl.sh) script can be used to issue signed HTTP requests to CCF (e.g. for member votes). The script takes the same arguments as `curl`.
 - `listMethods` RPC for luageneric app (https://github.com/microsoft/CCF/pull/570)
 - `getReceipt`/`verifyReceipt` RPCs (https://github.com/microsoft/CCF/pull/567)
 - Support for app-defined ACLs (https://github.com/microsoft/CCF/pull/590)
 
 Binaries for `cchost` and `libluagenericenc.so` are attached to this release. Note that libluagenericenc.so should be signed before being deployed by CCF (see https://microsoft.github.io/CCF/developers/build_app.html#standalone-signing).
-    
+
 ## [0.5]
 
-This pre-release fixes minor issues and clarifies some of `cchost` command line options. 
+This pre-release fixes minor issues and clarifies some of `cchost` command line options.
 
 ### Removed
-- The `new_user` function in constitution scripts (e.g. `gov.lua`) should be deleted as it is now directly implemented inside CCF (https://github.com/microsoft/CCF/pull/550). 
-- `cmake -DTARGET=all` replaced with `cmake -DTARGET=sgx;virtual`. See https://microsoft.github.io/CCF/quickstart/build.html#build-switches for new values (https://github.com/microsoft/CCF/pull/513). 
+- The `new_user` function in constitution scripts (e.g. `gov.lua`) should be deleted as it is now directly implemented inside CCF (https://github.com/microsoft/CCF/pull/550).
+- `cmake -DTARGET=all` replaced with `cmake -DTARGET=sgx;virtual`. See https://microsoft.github.io/CCF/quickstart/build.html#build-switches for new values (https://github.com/microsoft/CCF/pull/513).
 
 ### Changed
-- The members and users certificates can now be registered by the consortium using clients that are not the `memberclient` CLI (e.g. using the `tests/infra/jsonrpc.py` module) (https://github.com/microsoft/CCF/pull/550). 
-- Fix for Raft consensus to truncate the ledger whenever a rollback occurs and use `commit_idx` instead of `last_idx` in many places because of signatures (https://github.com/microsoft/CCF/pull/503). 
-- Join protocol over HTTP fix (https://github.com/microsoft/CCF/pull/550). 
-- Clearer error messages for when untrusted users/members issue transactions to CCF (https://github.com/microsoft/CCF/pull/530). 
+- The members and users certificates can now be registered by the consortium using clients that are not the `memberclient` CLI (e.g. using the `tests/infra/jsonrpc.py` module) (https://github.com/microsoft/CCF/pull/550).
+- Fix for Raft consensus to truncate the ledger whenever a rollback occurs and use `commit_idx` instead of `last_idx` in many places because of signatures (https://github.com/microsoft/CCF/pull/503).
+- Join protocol over HTTP fix (https://github.com/microsoft/CCF/pull/550).
+- Clearer error messages for when untrusted users/members issue transactions to CCF (https://github.com/microsoft/CCF/pull/530).
 - `devcontainer.json` now points to right Dockerfile (https://github.com/microsoft/CCF/pull/543).
 - `cchost --raft-election-timeout` CLI option default now set to 5000 ms (https://github.com/microsoft/CCF/pull/559).
-- Better descriptions for `cchost` command line options (e.g. `--raft-election-timeout`) (https://github.com/microsoft/CCF/pull/559). 
+- Better descriptions for `cchost` command line options (e.g. `--raft-election-timeout`) (https://github.com/microsoft/CCF/pull/559).
 
-The `cchost`, `libluagenericenc.so`, `keygenerator` and `memberclient` are also attached to this release to start a CCF network with lua application. 
-Note that `libluagenericenc.so` should be signed before being deployed by CCF (see https://microsoft.github.io/CCF/developers/build_app.html#standalone-signing). 
-    
+The `cchost`, `libluagenericenc.so`, `keygenerator` and `memberclient` are also attached to this release to start a CCF network with lua application.
+Note that `libluagenericenc.so` should be signed before being deployed by CCF (see https://microsoft.github.io/CCF/developers/build_app.html#standalone-signing).
+
 ## [0.4]
 
 In this preview release, it is possible to run CCF with the PBFT consensus algorithm, albeit with significant limitations.
 
 The evercrypt submodule has been removed, the code is instead imported, to make release tarballs easier to use.
-    
+
 ## [0.3]
 
 This pre-release implements the genesis model described in the TR, with a distinct service opening phase. See https://microsoft.github.io/CCF/start_network.html for details.
