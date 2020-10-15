@@ -60,7 +60,7 @@ if(BUILD_TESTS)
       LABEL SB
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS
-        --transactions ${SMALL_BANK_ITERATIONS} --max-writes-ahead 1000
+        --transactions ${SMALL_BANK_ITERATIONS} --max-writes-ahead 250
         --metrics-file small_bank_cft_metrics.json
     )
   endforeach()
@@ -76,7 +76,7 @@ if(BUILD_TESTS)
       --transactions
       ${SMALL_BANK_ITERATIONS}
       --max-writes-ahead
-      1000
+      250
       --metrics-file
       small_bank_cft_metrics.json
       --use-websockets

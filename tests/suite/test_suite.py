@@ -8,6 +8,7 @@ import reconfiguration
 import recovery
 import rekey
 import election
+import code_update
 
 from inspect import signature, Parameter
 
@@ -59,13 +60,6 @@ suites["reconfiguration"] = suite_reconfiguration
 suite_snapshots = [
     reconfiguration.test_add_node_from_snapshot,
     election.test_kill_primary,
-    # The new primary has no snapshot so issue new entries
-    # to generate at least one snapshot
-    e2e_logging.test,
-    e2e_logging.test,
-    e2e_logging.test,
-    e2e_logging.test,
-    e2e_logging.test,
     reconfiguration.test_add_node_from_snapshot,
     e2e_logging.test_view_history,
 ]
@@ -105,6 +99,8 @@ all_tests_suite = [
     # election:
     reconfiguration.test_add_node,
     election.test_kill_primary,
+    # code update:
+    code_update.test_verify_quotes,
 ]
 suites["all"] = all_tests_suite
 

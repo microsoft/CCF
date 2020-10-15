@@ -120,18 +120,23 @@ export function getValidatedArgs(args: any, request: any, response: any): any[] 
 
 // CCF:METADATA-START
 {
-    "endpoints": {
-    {{#each controllers}}
-        "{{path}}": {
-        {{#each actions}}
-            "{{method}}": {
-                "js_module": "build/{{../name}}Proxy.js",
+    "controllers": [
+        {{#each controllers}}
+        {
+          "path": "{{path}}",
+          "js_module": "build/{{name}}Proxy.js",
+          "actions": [
+              {{#each actions}}
+              {
+                "full_path": "{{fullPath}}",
+                "method": "{{method}}",
                 "js_function": "{{name}}"
-            }{{#unless @last}},{{/unless}}
-        {{/each}}
+              }{{#unless @last}},{{/unless}}
+              {{/each}}
+          ]
         }{{#unless @last}},{{/unless}}
-    {{/each}}
-    }
+        {{/each}}
+    ]
 }
 // CCF:METADATA-END
 

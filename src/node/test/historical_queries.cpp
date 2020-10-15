@@ -11,6 +11,9 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
+threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
+
 struct StubWriter : public ringbuffer::AbstractWriter
 {
 public:
