@@ -87,6 +87,7 @@ class Network:
         self,
         hosts,
         binary_dir=".",
+        library_dir=".",
         dbg_nodes=None,
         perf_nodes=None,
         existing_network=None,
@@ -114,6 +115,7 @@ class Network:
         self.hosts = hosts
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
+        self.library_dir = library_dir
         self.common_dir = None
         self.election_duration = None
         self.key_generator = os.path.join(binary_dir, self.KEY_GEN)
@@ -160,7 +162,9 @@ class Network:
         perf = (
             (str(node_id) in self.perf_nodes) if self.perf_nodes is not None else False
         )
-        node = infra.node.Node(node_id, host, self.binary_dir, debug, perf)
+        node = infra.node.Node(
+            node_id, host, self.binary_dir, self.library_dir, debug, perf
+        )
         self.nodes.append(node)
         return node
 
@@ -762,12 +766,19 @@ class Network:
 
 @contextmanager
 def network(
-    hosts, binary_directory=".", dbg_nodes=None, perf_nodes=None, pdb=False, txs=None
+    hosts,
+    binary_directory=".",
+    library_directory=".",
+    dbg_nodes=None,
+    perf_nodes=None,
+    pdb=False,
+    txs=None,
 ):
     """
     Context manager for Network class.
     :param hosts: a list of hostnames (localhost or remote hostnames)
     :param binary_directory: the directory where CCF's binaries are located
+    :param library_directory: the directory where CCF's libraries are located
     :param dbg_nodes: default: []. List of node id's that will not start (user is prompted to start them manually)
     :param perf_nodes: default: []. List of node ids that will run under perf record
     :param pdb: default: False. Debugger.
@@ -783,6 +794,7 @@ def network(
     net = Network(
         hosts=hosts,
         binary_dir=binary_directory,
+        library_dir=library_directory,
         dbg_nodes=dbg_nodes,
         perf_nodes=perf_nodes,
         txs=txs,
