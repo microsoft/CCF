@@ -126,7 +126,7 @@ namespace aft
     void insert(
       const std::array<uint8_t, 32>& hash,
       std::chrono::milliseconds time,
-      std::set<Request*, RequestComp>& requests_,
+      std::multiset<Request*, RequestComp>& requests_,
       snmalloc::DLList<Request, std::nullptr_t, true>& requests_list_)
     {
       CCF_ASSERT_FMT(
@@ -142,15 +142,25 @@ namespace aft
 
     bool remove(
       const std::array<uint8_t, 32>& hash,
-      std::set<Request*, RequestComp>& requests_,
+      std::multiset<Request*, RequestComp>& requests_,
       snmalloc::DLList<Request, std::nullptr_t, true>& requests_list_)
     {
       Request r(hash);
-      auto it = requests_.find(&r);
-      if (it == requests_.end())
+      auto ret = requests_.equal_range(&r);
+      if (ret.first == ret.second)
       {
         return false;
       }
+
+      auto it = ret.first;
+      for(auto c = ret.first; c != ret.second; ++c)
+      {
+        if ((*it)->time > (*c)->time)
+        {
+          it = c;
+        }
+      }
+
       std::unique_ptr<Request> req(*it);
       requests_.erase(it);
       requests_list_.remove(req.get());

@@ -202,7 +202,6 @@ TEST_CASE("Request tracker")
     t.insert(h, std::chrono::milliseconds(0));
     REQUIRE(t.oldest_entry().has_value() == false);
 
-
     h[1] = 1;
     REQUIRE(t.remove(h) == false);
     t.insert_deleted(h, std::chrono::milliseconds(100));
@@ -216,5 +215,38 @@ TEST_CASE("Request tracker")
     t.tick(std::chrono::minutes(3));
     t.insert(h, std::chrono::milliseconds(0));
     REQUIRE(t.oldest_entry().has_value());
+  }
+
+  INFO("Can enter multiple items");
+  {
+    aft::RequestTracker t;
+    std::array<uint8_t, 32> h;
+    h.fill(0);
+
+    t.insert(h, std::chrono::milliseconds(0));
+
+    for (uint32_t i = 1; i < 4; ++i)
+    {
+      h[0] = 1;
+      t.insert(h, std::chrono::milliseconds(i));
+    }
+
+    h[0] = 2;
+    t.insert(h, std::chrono::milliseconds(4));
+    REQUIRE(t.oldest_entry() == std::chrono::milliseconds(0));
+
+    h[0] = 1;
+    REQUIRE(t.remove(h));
+    REQUIRE(t.oldest_entry() == std::chrono::milliseconds(0));
+
+    h[0] = 0;
+    t.remove(h);
+    REQUIRE(t.oldest_entry() == std::chrono::milliseconds(2));
+
+    h[0] = 1;
+    t.remove(h);
+    REQUIRE(t.oldest_entry() == std::chrono::milliseconds(3));
+    t.remove(h);
+    REQUIRE(t.oldest_entry() == std::chrono::milliseconds(4));
   }
 }
