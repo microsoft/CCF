@@ -1669,6 +1669,7 @@ namespace ccf
         request_tracker,
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
+        std::chrono::milliseconds(consensus_config.pbft_view_change_timeout),
         public_only);
 
       consensus = std::make_shared<RaftConsensusType>(

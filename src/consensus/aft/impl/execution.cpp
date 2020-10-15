@@ -78,8 +78,6 @@ namespace aft
           threading::ThreadMessaging::thread_messaging
             .get_current_time_offset());
       }
-
-      LOG_INFO_FMT("AAAAAAA executing hash:{}", hash);
     }
 
     ctx->is_create_request = is_create_request;
@@ -121,7 +119,8 @@ namespace aft
       std::move(serialized_req), args.rid, std::move(ctx), rep_cb);
   }
 
-  kv::Version ExecutorImpl::commit_replayed_request(kv::Tx& tx, std::shared_ptr<aft::RequestTracker> request_tracker)
+  kv::Version ExecutorImpl::commit_replayed_request(
+    kv::Tx& tx, std::shared_ptr<aft::RequestTracker> request_tracker)
   {
     auto tx_view = tx.get_view(bft_requests_map);
     auto req_v = tx_view->get(0);
@@ -135,6 +134,7 @@ namespace aft
     auto request_message = RequestMessage::deserialize(
       std::move(request.raw), request.rid, std::move(ctx), nullptr);
 
-    return execute_request(std::move(request_message), state->commit_idx == 0, request_tracker);
+    return execute_request(
+      std::move(request_message), state->commit_idx == 0, request_tracker);
   }
 }

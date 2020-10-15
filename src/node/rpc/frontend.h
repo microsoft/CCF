@@ -135,11 +135,6 @@ namespace ccf
             LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id);
             return std::nullopt;
           }
-
-          if (consensus->type() == ConsensusType::BFT)
-          {
-            //send_request_hash_to_nodes(ctx);
-          }
         }
         ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
         ctx->set_response_body(
@@ -171,19 +166,6 @@ namespace ccf
         return ctx->serialise_response();
       }
     }
-
-    /*
-    void send_request_hash_to_nodes(std::shared_ptr<enclave::RpcContext> ctx)
-    {
-      if (consensus == nullptr || cmd_forwarder == nullptr)
-      {
-        return;
-      }
-      auto backups = consensus->backups();
-      cmd_forwarder->send_request_hash_to_nodes(ctx, backups);
-
-    }
-    */
 
     void record_client_signature(
       kv::Tx& tx, CallerId caller_id, const SignedReq& signed_request)
@@ -381,13 +363,6 @@ namespace ccf
             return forward_or_redirect_json(ctx, endpoint, caller_id);
           }
         }
-      }
-
-      if (
-        endpoint->properties.forwarding_required != ForwardingRequired::Never &&
-        consensus != nullptr && consensus->type() != ConsensusType::CFT)
-      {
-        //send_request_hash_to_nodes(ctx);
       }
 
       auto args = EndpointContext{ctx, tx, caller_id};

@@ -5,7 +5,7 @@
 #include "consensus/aft/raft_types.h"
 #include "consensus/aft/request.h"
 #include "enclave/rpc_map.h"
-#include "request_tracker.h"
+#include "node/request_tracker.h"
 #include "state.h"
 
 namespace enclave
@@ -73,7 +73,9 @@ namespace aft
     std::unique_ptr<aft::RequestMessage> create_request_message(
       const kv::TxHistory::RequestCallbackArgs& args) override;
 
-    kv::Version commit_replayed_request(kv::Tx& tx, std::shared_ptr<aft::RequestTracker> request_tracker) override;
+    kv::Version commit_replayed_request(
+      kv::Tx& tx,
+      std::shared_ptr<aft::RequestTracker> request_tracker) override;
 
   private:
     RequestsMap& bft_requests_map;

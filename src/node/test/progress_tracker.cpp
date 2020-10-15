@@ -5,7 +5,7 @@
 
 #include "kv/store.h"
 #include "node/nodes.h"
-#include "consensus/aft/impl/request_tracker.h"
+#include "node/request_tracker.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -213,6 +213,7 @@ TEST_CASE("Request tracker")
     REQUIRE(t.remove(h) == false);
     t.insert_deleted(h, std::chrono::milliseconds(100));
     t.tick(std::chrono::minutes(3));
+    REQUIRE(t.is_empty());
     t.insert(h, std::chrono::milliseconds(0));
     REQUIRE(t.oldest_entry().has_value());
   }
@@ -248,5 +249,11 @@ TEST_CASE("Request tracker")
     REQUIRE(t.oldest_entry() == std::chrono::milliseconds(3));
     t.remove(h);
     REQUIRE(t.oldest_entry() == std::chrono::milliseconds(4));
+    t.remove(h);
+    REQUIRE(!t.is_empty());
+
+    h[0] = 2;
+    t.remove(h);
+    REQUIRE(t.is_empty());
   }
 }

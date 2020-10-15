@@ -65,7 +65,8 @@ namespace ccf
   {
     MessageHash() = default;
     MessageHash(ForwardedMsg msg_, NodeId from_node_) :
-      msg(msg_), from_node(from_node_)
+      msg(msg_),
+      from_node(from_node_)
     {}
 
     ForwardedMsg msg;

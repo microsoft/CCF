@@ -40,7 +40,7 @@ namespace tls
    *
    * @return 0 on success
    */
-  template<size_t T>
+  template <size_t T>
   inline int do_hash(
     const uint8_t* data_ptr,
     size_t data_size,

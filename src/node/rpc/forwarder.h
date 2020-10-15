@@ -5,9 +5,9 @@
 #include "enclave/forwarder_types.h"
 #include "enclave/rpc_map.h"
 #include "http/http_rpc_context.h"
-#include "node/node_to_node.h"
 #include "kv/kv_types.h"
-#include "consensus/aft/impl/request_tracker.h"
+#include "node/node_to_node.h"
+#include "node/request_tracker.h"
 
 namespace ccf
 {
@@ -28,6 +28,7 @@ namespace ccf
     std::shared_ptr<ChannelProxy> n2n_channels;
     std::shared_ptr<enclave::RPCMap> rpc_map;
     std::shared_ptr<aft::RequestTracker> request_tracker;
+    ConsensusType consensus_type;
     NodeId self;
 
     using IsCallerCertForwarded = bool;
@@ -36,10 +37,12 @@ namespace ccf
     Forwarder(
       std::shared_ptr<enclave::AbstractRPCResponder> rpcresponder,
       std::shared_ptr<ChannelProxy> n2n_channels,
-      std::shared_ptr<enclave::RPCMap> rpc_map_) :
+      std::shared_ptr<enclave::RPCMap> rpc_map_,
+      ConsensusType consensus_type_) :
       rpcresponder(rpcresponder),
       n2n_channels(n2n_channels),
-      rpc_map(rpc_map_)
+      rpc_map(rpc_map_),
+      consensus_type(consensus_type_)
     {}
 
     void initialize(NodeId self_)
@@ -47,7 +50,8 @@ namespace ccf
       self = self_;
     }
 
-    void set_request_tracker(std::shared_ptr<aft::RequestTracker> request_tracker_)
+    void set_request_tracker(
+      std::shared_ptr<aft::RequestTracker> request_tracker_)
     {
       request_tracker = request_tracker_;
     }
@@ -87,7 +91,10 @@ namespace ccf
       ForwardedHeader msg = {
         ForwardedMsg::forwarded_cmd, self, rpc_ctx->frame_format()};
 
-      send_request_hash_to_nodes(rpc_ctx, nodes, to);
+      if (consensus_type == ConsensusType::BFT)
+      {
+        send_request_hash_to_nodes(rpc_ctx, nodes, to);
+      }
 
       return n2n_channels->send_encrypted(
         NodeMsgType::forwarded_msg, to, plain, msg);
@@ -103,13 +110,7 @@ namespace ccf
       auto size_ = raw_request.size();
 
       MessageHash msg(ForwardedMsg::request_hash, self);
-      tls::do_hash(
-        data_,
-        size_,
-        msg.hash,
-        MBEDTLS_MD_SHA256);
-
-      LOG_INFO_FMT("AAAAAA sending hash:{}, data_size:{}", msg.hash, size_);
+      tls::do_hash(data_, size_, msg.hash, MBEDTLS_MD_SHA256);
 
       for (auto to : nodes)
       {
@@ -319,12 +320,13 @@ namespace ccf
           break;
         }
 
-        case ForwardedMsg::request_hash: {
+        case ForwardedMsg::request_hash:
+        {
           auto hash = recv_request_hash(data, size);
           if (!hash.has_value())
+          {
             return;
-
-          LOG_INFO_FMT("AAAAAA sending hash:{}", hash->hash);
+          }
 
           request_tracker->insert(
             hash->hash,
