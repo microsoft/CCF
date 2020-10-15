@@ -178,7 +178,10 @@ export function {{name}}(request) {
         validatedArgs = getValidatedArgs(args, request_, response);
     } catch (err) {
         return {
-            body: {errors: err.fields},
+            body: {
+                message: "Validation failed",
+                details: err.fields
+            },
             statusCode: err.status
         }
     }
