@@ -88,6 +88,7 @@ namespace ccf
     static constexpr auto SNAPSHOT_EVIDENCE =
       "public:ccf.gov.snapshot_evidence";
     static constexpr auto CA_CERT_DERS = "public:ccf.gov.ca_cert_ders";
+    static constexpr auto ENDPOINTS = "public:ccf.gov.endpoints";
 
     static constexpr auto SIGNATURES = "public:ccf.internal.signatures";
 

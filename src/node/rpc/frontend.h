@@ -94,14 +94,14 @@ namespace ccf
 
     std::vector<uint8_t> get_cert_to_forward(
       std::shared_ptr<enclave::RpcContext> ctx,
-      EndpointRegistry::Endpoint* endpoint = nullptr)
+      const EndpointDefinitionPtr& endpoint = nullptr)
     {
       // Only forward the certificate if the certificate cannot be looked up
       // from the caller ID on the receiving frontend or if the endpoint does
       // not require a known client identity
       if (
         !endpoints.has_certs() ||
-        (endpoint != nullptr && !endpoint->require_client_identity))
+        (endpoint != nullptr && !endpoint->properties.require_client_identity))
       {
         return ctx->session->caller_cert;
       }
@@ -111,9 +111,11 @@ namespace ccf
 
     std::optional<std::vector<uint8_t>> forward_or_redirect_json(
       std::shared_ptr<enclave::RpcContext> ctx,
-      EndpointRegistry::Endpoint* endpoint,
+      const EndpointDefinitionPtr& endpoint,
       CallerId caller_id)
     {
+      auto& metrics = endpoints.get_metrics(endpoint);
+
       if (cmd_forwarder && !ctx->session->original_caller.has_value())
       {
         if (consensus != nullptr)
@@ -133,7 +135,7 @@ namespace ccf
         ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
         ctx->set_response_body(
           "RPC could not be forwarded to unknown primary.");
-        update_metrics(ctx, endpoint->metrics);
+        update_metrics(ctx, metrics);
         return ctx->serialise_response();
       }
       else
@@ -156,7 +158,7 @@ namespace ccf
           }
         }
 
-        update_metrics(ctx, endpoint->metrics);
+        update_metrics(ctx, metrics);
         return ctx->serialise_response();
       }
     }
@@ -217,24 +219,13 @@ namespace ccf
       ctx->set_response_body(std::move(msg));
     }
 
-    std::optional<std::vector<uint8_t>> process_if_local_node_rpc(
-      std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx, CallerId caller_id)
-    {
-      auto endpoint = endpoints.find_endpoint(*ctx);
-      if (endpoint != nullptr && endpoint->execute_locally)
-      {
-        return process_command(ctx, tx, caller_id);
-      }
-      return std::nullopt;
-    }
-
     std::optional<std::vector<uint8_t>> process_command(
       std::shared_ptr<enclave::RpcContext> ctx,
       kv::Tx& tx,
       CallerId caller_id,
       PreExec pre_exec = {})
     {
-      const auto endpoint = endpoints.find_endpoint(*ctx);
+      const auto endpoint = endpoints.find_endpoint(tx, *ctx);
       if (endpoint == nullptr)
       {
         const auto allowed_verbs = endpoints.get_allowed_verbs(*ctx);
@@ -271,9 +262,10 @@ namespace ccf
 
       // Note: calls that could not be dispatched (cases handled above)
       // are not counted against any particular endpoint.
-      endpoint->metrics.calls++;
+      auto& metrics = endpoints.get_metrics(endpoint);
+      metrics.calls++;
 
-      if (endpoint->require_client_identity && endpoints.has_certs())
+      if (endpoint->properties.require_client_identity && endpoints.has_certs())
       {
         // Only if endpoint requires client identity.
         // If a request is forwarded, check that the caller is known. Otherwise,
@@ -285,7 +277,7 @@ namespace ccf
         {
           ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
           ctx->set_response_body(invalid_caller_error_message());
-          update_metrics(ctx, endpoint->metrics);
+          update_metrics(ctx, metrics);
           return ctx->serialise_response();
         }
       }
@@ -294,11 +286,13 @@ namespace ccf
         ctx->is_create_request;
 
       const auto signed_request = ctx->get_signed_request();
-      if (endpoint->require_client_signature && !signed_request.has_value())
+      if (
+        endpoint->properties.require_client_signature &&
+        !signed_request.has_value())
       {
         set_response_unauthorized(
           ctx, fmt::format("'{}' RPC must be signed", ctx->get_method()));
-        update_metrics(ctx, endpoint->metrics);
+        update_metrics(ctx, metrics);
         return ctx->serialise_response();
       }
 
@@ -318,7 +312,7 @@ namespace ccf
             ctx->session->caller_cert, caller_id, signed_request.value()))
         {
           set_response_unauthorized(ctx);
-          update_metrics(ctx, endpoint->metrics);
+          update_metrics(ctx, metrics);
           return ctx->serialise_response();
         }
 
@@ -335,7 +329,7 @@ namespace ccf
             (consensus->type() != ConsensusType::CFT &&
              !ctx->execute_on_node))))
       {
-        switch (endpoint->forwarding_required)
+        switch (endpoint->properties.forwarding_required)
         {
           case ForwardingRequired::Never:
           {
@@ -350,7 +344,8 @@ namespace ccf
               (consensus->type() != ConsensusType::CFT &&
                !ctx->execute_on_node &&
                (endpoint == nullptr ||
-                (endpoint != nullptr && !endpoint->execute_locally))))
+                (endpoint != nullptr &&
+                 !endpoint->properties.execute_locally))))
             {
               ctx->session->is_forwarding = true;
               return forward_or_redirect_json(ctx, endpoint, caller_id);
@@ -366,7 +361,6 @@ namespace ccf
         }
       }
 
-      auto func = endpoint->func;
       auto args = EndpointContext{ctx, tx, caller_id};
 
       tx_count++;
@@ -390,11 +384,11 @@ namespace ccf
             record_client_signature(tx, caller_id, signed_request.value());
           }
 
-          func(args);
+          endpoints.execute_endpoint(endpoint, args);
 
           if (!ctx->should_apply_writes())
           {
-            update_metrics(ctx, endpoint->metrics);
+            update_metrics(ctx, metrics);
             return ctx->serialise_response();
           }
 
@@ -415,15 +409,13 @@ namespace ccf
                 // Deprecated, this will be removed in future releases
                 ctx->set_global_commit(consensus->get_committed_seqno());
 
-                if (
-                  history && consensus->is_primary() &&
-                  (cv % sig_tx_interval == sig_tx_interval / 2))
+                if (history != nullptr && consensus->is_primary())
                 {
-                  history->emit_signature();
+                  history->try_emit_signature();
                 }
               }
 
-              update_metrics(ctx, endpoint->metrics);
+              update_metrics(ctx, metrics);
               return ctx->serialise_response();
             }
 
@@ -436,7 +428,7 @@ namespace ccf
             {
               ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
               ctx->set_response_body("Transaction failed to replicate.");
-              update_metrics(ctx, endpoint->metrics);
+              update_metrics(ctx, metrics);
               return ctx->serialise_response();
             }
           }
@@ -454,7 +446,7 @@ namespace ccf
         {
           ctx->set_response_status(e.status);
           ctx->set_response_body(e.what());
-          update_metrics(ctx, endpoint->metrics);
+          update_metrics(ctx, metrics);
           return ctx->serialise_response();
         }
         catch (JsonParseError& e)
@@ -462,7 +454,7 @@ namespace ccf
           auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
           ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
           ctx->set_response_body(std::move(err));
-          update_metrics(ctx, endpoint->metrics);
+          update_metrics(ctx, metrics);
           return ctx->serialise_response();
         }
         catch (const kv::KvSerialiserException& e)
@@ -478,7 +470,7 @@ namespace ccf
         {
           ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
           ctx->set_response_body(e.what());
-          update_metrics(ctx, endpoint->metrics);
+          update_metrics(ctx, metrics);
           return ctx->serialise_response();
         }
       }
@@ -551,15 +543,23 @@ namespace ccf
 
       auto caller_id = endpoints.get_caller_id(tx, ctx->session->caller_cert);
 
-      if (
-        consensus != nullptr && consensus->type() == ConsensusType::BFT &&
-        (ctx->execute_on_node || consensus->is_primary()))
+      auto endpoint = endpoints.find_endpoint(tx, *ctx);
+
+      const bool is_bft =
+        consensus != nullptr && consensus->type() == ConsensusType::BFT;
+      const bool is_local =
+        endpoint != nullptr && endpoint->properties.execute_locally;
+      const bool should_bft_distribute = is_bft && !is_local &&
+        (ctx->execute_on_node || consensus->is_primary());
+
+      // This decision is based on several things read from the KV
+      // (cert->caller_id, request->is_local) which are true _now_ but may not
+      // be true when this is actually received/executed. We should revisit this
+      // once we have general KV-defined dispatch, to ensure this is safe. For
+      // forwarding we will need to pass a digest of the endpoint definition,
+      // and that should also work here
+      if (should_bft_distribute)
       {
-        auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
-        if (rep.has_value())
-        {
-          return rep;
-        }
         kv::TxHistory::RequestID reqid;
 
         update_history();
@@ -594,18 +594,8 @@ namespace ccf
           return ctx->serialise_response();
         }
       }
-      else
-      {
-        if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
-        {
-          auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
-          if (rep.has_value())
-          {
-            return rep;
-          }
-        }
-        return process_command(ctx, tx, caller_id);
-      }
+
+      return process_command(ctx, tx, caller_id);
     }
 
     /** Process a serialised command with the associated RPC context via PBFT
@@ -616,23 +606,13 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
       auto tx = tables.create_tx();
-      return process_pbft(ctx, tx, false);
-    }
 
-    ProcessPbftResp process_pbft(
-      std::shared_ptr<enclave::RpcContext> ctx,
-      kv::Tx& tx,
-      bool playback) override
-    {
       kv::Version version = kv::NoVersion;
 
       update_consensus();
 
-      PreExec fn = {};
-
-      if (!playback)
-      {
-        fn = [](kv::Tx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend) {
+      PreExec fn =
+        [](kv::Tx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend) {
           auto req_view = tx.get_view(*frontend.bft_requests_map);
           req_view->put(
             0,
@@ -641,7 +621,6 @@ namespace ccf
              ctx.session->caller_cert,
              ctx.get_serialised_request()});
         };
-      }
 
       auto rep =
         process_command(ctx, tx, ctx->session->original_caller->caller_id, fn);
@@ -683,10 +662,9 @@ namespace ccf
 
       update_consensus();
 
-      auto tx = tables.create_tx();
-
       if (consensus->type() == ConsensusType::CFT)
       {
+        auto tx = tables.create_tx();
         auto rep =
           process_command(ctx, tx, ctx->session->original_caller->caller_id);
         if (!rep.has_value())
@@ -700,7 +678,7 @@ namespace ccf
       }
       else
       {
-        auto rep = process_pbft(ctx, tx, false);
+        auto rep = process_pbft(ctx);
         return rep.result;
       }
     }
@@ -721,21 +699,6 @@ namespace ccf
 
       // reset tx_counter for next tick interval
       tx_count = 0;
-
-      if ((consensus != nullptr) && consensus->is_primary())
-      {
-        if (elapsed < ms_to_sig)
-        {
-          ms_to_sig -= elapsed;
-          return;
-        }
-
-        ms_to_sig = sig_ms_interval;
-        if (history && tables.commit_gap() > 0)
-        {
-          history->emit_signature();
-        }
-      }
     }
 
     // Return false if frontend believes it should be able to look up caller

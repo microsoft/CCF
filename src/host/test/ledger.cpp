@@ -8,6 +8,8 @@
 #include <doctest/doctest.h>
 #include <string>
 
+using namespace asynchost;
+
 // Used throughout
 using frame_header_type = uint32_t;
 static constexpr size_t frame_header_size = sizeof(frame_header_type);
@@ -67,7 +69,7 @@ size_t number_of_committed_files_in_ledger_dir()
   size_t committed_file_count = 0;
   for (auto const& f : fs::directory_iterator(ledger_dir))
   {
-    if (asynchost::is_ledger_file_committed(f.path().string()))
+    if (is_ledger_file_committed(f.path().string()))
     {
       committed_file_count++;
     }
@@ -95,13 +97,12 @@ void verify_framed_entries_range(
   REQUIRE(idx == to + 1);
 }
 
-void read_entry_from_ledger(asynchost::Ledger& ledger, size_t idx)
+void read_entry_from_ledger(Ledger& ledger, size_t idx)
 {
   REQUIRE(TestLedgerEntry(ledger.read_entry(idx).value()).value() == idx);
 }
 
-void read_entries_range_from_ledger(
-  asynchost::Ledger& ledger, size_t from, size_t to)
+void read_entries_range_from_ledger(Ledger& ledger, size_t from, size_t to)
 {
   verify_framed_entries_range(
     ledger.read_framed_entries(from, to).value(), from, to);
@@ -113,11 +114,11 @@ void read_entries_range_from_ledger(
 class TestEntrySubmitter
 {
 private:
-  asynchost::Ledger& ledger;
+  Ledger& ledger;
   size_t last_idx;
 
 public:
-  TestEntrySubmitter(asynchost::Ledger& ledger, size_t initial_last_idx = 0) :
+  TestEntrySubmitter(Ledger& ledger, size_t initial_last_idx = 0) :
     ledger(ledger),
     last_idx(initial_last_idx)
   {}
@@ -191,12 +192,12 @@ TEST_CASE("Regular chunking")
   INFO("Cannot create a ledger with a chunk threshold of 0");
   {
     size_t chunk_threshold = 0;
-    REQUIRE_THROWS(asynchost::Ledger(ledger_dir, wf, chunk_threshold));
+    REQUIRE_THROWS(Ledger(ledger_dir, wf, chunk_threshold));
   }
 
   size_t chunk_threshold = 30;
   size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
-  asynchost::Ledger ledger(ledger_dir, wf, chunk_threshold);
+  Ledger ledger(ledger_dir, wf, chunk_threshold);
   TestEntrySubmitter entry_submitter(ledger);
 
   size_t end_of_first_chunk_idx = 0;
@@ -345,7 +346,7 @@ TEST_CASE("Truncation")
   fs::remove_all(ledger_dir);
 
   size_t chunk_threshold = 30;
-  asynchost::Ledger ledger(ledger_dir, wf, chunk_threshold);
+  Ledger ledger(ledger_dir, wf, chunk_threshold);
   TestEntrySubmitter entry_submitter(ledger);
 
   size_t chunk_count = 3;
@@ -420,7 +421,7 @@ TEST_CASE("Commit")
   fs::remove_all(ledger_dir);
 
   size_t chunk_threshold = 30;
-  asynchost::Ledger ledger(ledger_dir, wf, chunk_threshold);
+  Ledger ledger(ledger_dir, wf, chunk_threshold);
   TestEntrySubmitter entry_submitter(ledger);
 
   size_t chunk_count = 3;
@@ -508,7 +509,7 @@ TEST_CASE("Restore existing ledger")
   {
     INFO("Initialise first ledger with complete chunks");
     {
-      asynchost::Ledger ledger(ledger_dir, wf, chunk_threshold);
+      Ledger ledger(ledger_dir, wf, chunk_threshold);
       TestEntrySubmitter entry_submitter(ledger);
 
       end_of_first_chunk_idx =
@@ -517,7 +518,7 @@ TEST_CASE("Restore existing ledger")
       last_idx = chunk_count * end_of_first_chunk_idx;
     }
 
-    asynchost::Ledger ledger2(ledger_dir, wf, chunk_threshold);
+    Ledger ledger2(ledger_dir, wf, chunk_threshold);
     read_entries_range_from_ledger(ledger2, 1, last_idx);
 
     // Restored ledger can be written to
@@ -538,7 +539,7 @@ TEST_CASE("Restore existing ledger")
   {
     INFO("Initialise first ledger with truncation");
     {
-      asynchost::Ledger ledger(ledger_dir, wf, chunk_threshold);
+      Ledger ledger(ledger_dir, wf, chunk_threshold);
       TestEntrySubmitter entry_submitter(ledger);
 
       end_of_first_chunk_idx =
@@ -549,7 +550,7 @@ TEST_CASE("Restore existing ledger")
       number_of_ledger_files = number_of_files_in_ledger_dir();
     }
 
-    asynchost::Ledger ledger2(ledger_dir, wf, chunk_threshold);
+    Ledger ledger2(ledger_dir, wf, chunk_threshold);
     read_entries_range_from_ledger(ledger2, 1, last_idx);
 
     TestEntrySubmitter entry_submitter(ledger2, last_idx);
@@ -565,7 +566,7 @@ TEST_CASE("Restore existing ledger")
     size_t committed_idx = 0;
     INFO("Initialise first ledger with committed chunks");
     {
-      asynchost::Ledger ledger(ledger_dir, wf, chunk_threshold);
+      Ledger ledger(ledger_dir, wf, chunk_threshold);
       TestEntrySubmitter entry_submitter(ledger);
 
       end_of_first_chunk_idx =
@@ -577,7 +578,7 @@ TEST_CASE("Restore existing ledger")
       ledger.commit(committed_idx);
     }
 
-    asynchost::Ledger ledger2(ledger_dir, wf, chunk_threshold);
+    Ledger ledger2(ledger_dir, wf, chunk_threshold);
     read_entries_range_from_ledger(ledger2, 1, last_idx);
 
     // Restored ledger cannot be truncated before last idx of last committed
@@ -593,7 +594,7 @@ TEST_CASE("Restore existing ledger")
   {
     INFO("Initialise first ledger with committed chunks");
     {
-      asynchost::Ledger ledger(ledger_dir, wf, chunk_threshold);
+      Ledger ledger(ledger_dir, wf, chunk_threshold);
       TestEntrySubmitter entry_submitter(ledger);
 
       end_of_first_chunk_idx =
@@ -605,7 +606,7 @@ TEST_CASE("Restore existing ledger")
 
     INFO("Restore new ledger with twice the chunking threshold");
     {
-      asynchost::Ledger ledger2(ledger_dir, wf, 2 * chunk_threshold);
+      Ledger ledger2(ledger_dir, wf, 2 * chunk_threshold);
       read_entries_range_from_ledger(ledger2, 1, last_idx);
 
       TestEntrySubmitter entry_submitter(ledger2, last_idx);
@@ -620,7 +621,7 @@ TEST_CASE("Restore existing ledger")
 
     INFO("Restore new ledger with half the chunking threshold");
     {
-      asynchost::Ledger ledger2(ledger_dir, wf, chunk_threshold / 2);
+      Ledger ledger2(ledger_dir, wf, chunk_threshold / 2);
       read_entries_range_from_ledger(ledger2, 1, last_idx);
 
       TestEntrySubmitter entry_submitter(ledger2, last_idx);
@@ -651,8 +652,7 @@ TEST_CASE("Limit number of open files")
   size_t chunk_threshold = 30;
   size_t chunk_count = 5;
   size_t max_read_cache_size = 2;
-  asynchost::Ledger ledger(
-    ledger_dir, wf, chunk_threshold, max_read_cache_size);
+  Ledger ledger(ledger_dir, wf, chunk_threshold, max_read_cache_size);
   TestEntrySubmitter entry_submitter(ledger);
 
   size_t initial_number_fd = number_open_fd();
@@ -719,8 +719,7 @@ TEST_CASE("Limit number of open files")
   INFO("Still possible to recover a new ledger");
   {
     initial_number_fd = number_open_fd();
-    asynchost::Ledger ledger2(
-      ledger_dir, wf, chunk_threshold, max_read_cache_size);
+    Ledger ledger2(ledger_dir, wf, chunk_threshold, max_read_cache_size);
 
     // Committed files are not open for write
     REQUIRE(number_open_fd() == initial_number_fd);
@@ -733,9 +732,11 @@ TEST_CASE("Limit number of open files")
 TEST_CASE("Multiple ledger paths")
 {
   static constexpr auto ledger_dir_2 = "ledger_dir_2";
+  static constexpr auto empty_write_ledger_dir = "ledger_dir_empty";
 
   fs::remove_all(ledger_dir);
   fs::remove_all(ledger_dir_2);
+  fs::remove_all(empty_write_ledger_dir);
 
   size_t max_read_cache_size = 2;
   size_t chunk_threshold = 30;
@@ -746,7 +747,7 @@ TEST_CASE("Multiple ledger paths")
 
   INFO("Write many entries on first ledger");
   {
-    asynchost::Ledger ledger(ledger_dir, wf, chunk_threshold);
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
     TestEntrySubmitter entry_submitter(ledger);
 
     // Writing some committed chunks...
@@ -761,32 +762,33 @@ TEST_CASE("Multiple ledger paths")
     last_idx = entry_submitter.get_last_idx();
   }
 
-  INFO("Copy and remove all uncommitted suffix from initial ledger directory");
+  INFO("Copy uncommitted suffix from initial ledger directory");
   {
     fs::create_directory(ledger_dir_2);
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
-      if (!asynchost::is_ledger_file_committed(f.path().filename()))
+      if (!is_ledger_file_committed(f.path().filename()))
       {
         fs::copy(f.path(), ledger_dir_2);
-        fs::remove(f.path());
       }
     }
   }
 
   INFO("Restored ledger cannot read past uncommitted files");
   {
-    asynchost::Ledger ledger(ledger_dir_2, wf, chunk_threshold);
+    Ledger ledger(ledger_dir_2, wf, chunk_threshold);
 
     for (size_t i = 1; i <= last_committed_idx; i++)
     {
       REQUIRE_FALSE(ledger.read_entry(i).has_value());
     }
+
+    read_entry_from_ledger(ledger, last_idx);
   }
 
   INFO("Restore ledger with previous directory");
   {
-    asynchost::Ledger ledger(
+    Ledger ledger(
       ledger_dir_2, wf, chunk_threshold, max_read_cache_size, {ledger_dir});
 
     for (size_t i = 1; i <= last_committed_idx; i++)
@@ -796,5 +798,24 @@ TEST_CASE("Multiple ledger paths")
 
     // Read framed entries across both directories
     read_entries_range_from_ledger(ledger, 1, last_idx);
+  }
+
+  INFO("Only committed files can be read from read-only directory");
+  {
+    Ledger ledger(
+      empty_write_ledger_dir,
+      wf,
+      chunk_threshold,
+      max_read_cache_size,
+      {ledger_dir});
+
+    for (size_t i = 1; i <= last_committed_idx; i++)
+    {
+      read_entry_from_ledger(ledger, i);
+    }
+
+    // Even though the ledger file for last_idx is in ledger_dir, the entry
+    // cannot be read
+    REQUIRE_FALSE(ledger.read_entry(last_idx).has_value());
   }
 }

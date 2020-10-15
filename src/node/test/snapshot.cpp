@@ -11,6 +11,9 @@
 #include <doctest/doctest.h>
 #include <string>
 
+threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
+
 TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 {
   auto source_consensus = std::make_shared<kv::StubConsensus>();

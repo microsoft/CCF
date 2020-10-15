@@ -22,7 +22,7 @@ def test_quote(network, args, verify=True):
     with primary.client() as c:
         oed = subprocess.run(
             [
-                args.oesign,
+                os.path.join(args.oe_binary, "oesign"),
                 "dump",
                 "-e",
                 infra.path.build_lib_path(args.package, args.enclave_type),
@@ -38,11 +38,9 @@ def test_quote(network, args, verify=True):
         expected_mrenclave = lines[0].strip().split("=")[1]
 
         r = c.get("/node/quote")
-        quotes = r.body.json()["quotes"]
-        assert len(quotes) == 1
-        primary_quote = quotes[0]
-        assert primary_quote["node_id"] == 0
-        primary_mrenclave = primary_quote["mrenclave"]
+        primary_quote_info = r.body.json()
+        assert primary_quote_info["node_id"] == 0
+        primary_mrenclave = primary_quote_info["mrenclave"]
         assert primary_mrenclave == expected_mrenclave, (
             primary_mrenclave,
             expected_mrenclave,
@@ -134,14 +132,7 @@ def run(args):
 
 
 if __name__ == "__main__":
-
-    def add(parser):
-        parser.add_argument(
-            "--oesign", help="Path oesign binary", type=str, required=True
-        )
-
-    args = infra.e2e_args.cli_args(add=add)
-
+    args = infra.e2e_args.cli_args()
     if args.enclave_type == "virtual":
         LOG.warning("This test can only run in real enclaves, skipping")
         sys.exit(0)

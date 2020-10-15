@@ -32,6 +32,7 @@ namespace ccf
     int verb;
 
   public:
+    RESTVerb() : verb(std::numeric_limits<int>::min()) {}
     RESTVerb(const http_method& hm) : verb(hm) {}
     RESTVerb(const ws::Verb& wv) : verb(wv) {}
 
@@ -66,7 +67,39 @@ namespace ccf
     {
       return verb != o.verb;
     }
+
+    MSGPACK_DEFINE(verb);
   };
+
+  // Custom to_json and from_json specializations which encode RESTVerb in a
+  // lower-cased string, so it can be used in OpenAPI and similar documents
+  inline void to_json(nlohmann::json& j, const RESTVerb& verb)
+  {
+    std::string s(verb.c_str());
+    nonstd::to_lower(s);
+    j = s;
+  }
+
+  inline void from_json(const nlohmann::json& j, RESTVerb& verb)
+  {
+    if (!j.is_string())
+    {
+      throw std::runtime_error(fmt::format(
+        "Cannot parse RESTVerb from non-string JSON value: {}", j.dump()));
+    }
+
+    std::string s = j.get<std::string>();
+    nonstd::to_upper(s);
+
+    if (s == "WEBSOCKET")
+    {
+      verb = RESTVerb(ws::Verb::WEBSOCKET);
+    }
+    else
+    {
+      verb = RESTVerb(http::http_method_from_str(s.c_str()));
+    }
+  }
 }
 
 namespace enclave
