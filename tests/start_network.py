@@ -42,7 +42,10 @@ def run(args):
         LOG.warning("Virtual mode enabled")
 
     with infra.network.network(
-        hosts=hosts, binary_directory=args.binary_dir, dbg_nodes=args.debug_nodes
+        hosts=hosts,
+        binary_directory=args.binary_dir,
+        library_directory=args.library_dir,
+        dbg_nodes=args.debug_nodes,
     ) as network:
         if args.recover:
             args.label = args.label + "_recover"
