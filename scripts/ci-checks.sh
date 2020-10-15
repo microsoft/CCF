@@ -46,9 +46,9 @@ pip --disable-pip-version-check install -U black pylint mypy 1>/dev/null
 
 echo "Python format"
 if [ $FIX -ne 0 ]; then
-  black python/ tests/ scripts/*.py
+  black python/ tests/ scripts/*.py .cmake-format.py
 else
-  black --check python/ tests/ scripts/*.py
+  black --check python/ tests/ scripts/*.py .cmake-format.py
 fi
 
 # Install test dependencies before linting

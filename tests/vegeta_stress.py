@@ -41,7 +41,7 @@ def run(args, additional_attack_args):
     hosts = ["localhost", "localhost", "localhost"]
 
     # Test that vegeta is available
-    subprocess.run([VEGETA_BIN, "-version"], capture_output=True)
+    subprocess.run([VEGETA_BIN, "-version"], capture_output=True, check=True)
 
     with infra.network.network(
         hosts,
@@ -103,12 +103,13 @@ def run(args, additional_attack_args):
         )
 
         report_cmd = [VEGETA_BIN, "report", "--every", "5s"]
-        report_cmd_s = " ".join(report_cmd)
         vegeta_report = subprocess.Popen(report_cmd, stdin=tee_split.stdout)
 
         # Start a second thread which will print the primary's memory stats at regular intervals
         shutdown_event = threading.Event()
-        memory_thread = threading.Thread(target=print_memory_stats, args=(primary,shutdown_event))
+        memory_thread = threading.Thread(
+            target=print_memory_stats, args=(primary, shutdown_event)
+        )
         memory_thread.start()
 
         LOG.info("Waiting for completion...")
