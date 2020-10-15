@@ -805,6 +805,23 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS "--raft-election-timeout" "4000"
   )
 
+  add_e2e_test(
+    NAME vegeta_stress_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
+    CONSENSUS cft
+    LABEL vegeta
+    ADDITIONAL_ARGS -p liblogging
+  )
+
+  add_e2e_test(
+    NAME vegeta_long_stress_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
+    CONSENSUS cft
+    LABEL vegeta
+    CONFIGURATIONS long_stress
+    ADDITIONAL_ARGS -p liblogging --duration 45m
+  )
+
   foreach(CONSENSUS ${CONSENSUSES})
     add_e2e_test(
       NAME cpp_e2e_logging_${CONSENSUS}
