@@ -7,26 +7,10 @@ import json
 import base64
 import threading
 import time
+import generate_vegeta_targets as TargetGenerator
 from loguru import logger as LOG
 
 VEGETA_BIN = "/opt/vegeta/vegeta"
-
-
-def build_vegeta_target(node, path, body=None, method="POST"):
-    target = {}
-    target["method"] = method
-    target["url"] = f"https://{node.pubhost}:{node.rpc_port}{path}"
-    target["header"] = {"Content-Type": ["application/json"]}
-    if body is not None:
-        # Bodies must be base64 encoded strings
-        target["body"] = base64.b64encode(json.dumps(body, indent=2).encode()).decode()
-    return target
-
-
-def write_vegeta_target_line(f, *args, **kwargs):
-    target = build_vegeta_target(*args, **kwargs)
-    f.write(json.dumps(target))
-    f.write("\n")
 
 
 def print_memory_stats(node, shutdown_event):
@@ -53,33 +37,34 @@ def run(args, additional_attack_args):
         network.start_and_join(args)
 
         primary, _ = network.find_primary()
+        primary_hostname = f"{primary.pubhost}:{primary.rpc_port}"
 
         vegeta_targets = "vegeta_targets"
         with open(vegeta_targets, "w") as f:
             for i in range(10):
-                write_vegeta_target_line(
+                TargetGenerator.write_vegeta_target_line(
                     f,
-                    primary,
+                    primary_hostname,
                     "/app/log/private",
                     body={"id": i, "msg": f"Private message: {i}"},
                 )
 
             for i in range(10):
-                write_vegeta_target_line(
-                    f, primary, f"/app/log/private?id={i}", method="GET"
+                TargetGenerator.write_vegeta_target_line(
+                    f, primary_hostname, f"/app/log/private?id={i}", method="GET"
                 )
 
             for i in range(10):
-                write_vegeta_target_line(
+                TargetGenerator.write_vegeta_target_line(
                     f,
-                    primary,
+                    primary_hostname,
                     "/app/log/public",
                     body={"id": i, "msg": f"Public message: {i}"},
                 )
 
             for i in range(10):
-                write_vegeta_target_line(
-                    f, primary, f"/app/log/public?id={i}", method="GET"
+                TargetGenerator.write_vegeta_target_line(
+                    f, primary_hostname, f"/app/log/public?id={i}", method="GET"
                 )
 
         attack_cmd = [VEGETA_BIN, "attack"]
