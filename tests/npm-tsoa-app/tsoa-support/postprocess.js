@@ -73,14 +73,34 @@ for (const proxyPath of proxyPaths) {
 }
 fs.writeFileSync(endpointsPath, endpointsCode);
 
-// Create/update endpoints.json which maps 
+// Create/update app.json which maps 
 // URL + METHOD -> module name + function.
 const metadataStartIdx = file.indexOf(markerMetadataStart);
 const metadataEndIdx = file.indexOf(markerMetadataEnd, metadataStartIdx);
 const metadataJson = file.substring(
     metadataStartIdx + markerMetadataStart.length,
     metadataEndIdx);
-const newMetadata = JSON.parse(metadataJson);
+let newMetadata = JSON.parse(metadataJson);
+
+// tsoa groups routes by controllers and actions.
+// For app.json, we need to group by url and method instead.
+let tmp = {endpoints: {}}
+for (let controller of newMetadata.controllers) {
+    for (let action of controller.actions) {
+        // transform /a/:b/:c to /a/{b}/{c}
+        console.log(action.full_path)
+        let url = action.full_path.replace(/:([^\/]+)/g, (_, name) => `{${name}}`)
+        if (!tmp.endpoints[url]) {
+            tmp.endpoints[url] = {}
+        }
+        tmp.endpoints[url][action.method] = {
+            js_module: controller.js_module,
+            js_function: action.js_function
+        }
+    }
+}
+newMetadata = tmp
+
 let oldMetadata = {endpoints: {}};
 if (fs.existsSync(metadataPath)) {
     oldMetadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));

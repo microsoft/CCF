@@ -295,9 +295,9 @@ namespace ccf
         filter.insert(this->node.get_node_id());
         this->node.node_quotes(args.tx, result, filter);
 
-        if (result.quotes.size() > 0)
+        if (result.quotes.size() == 1)
         {
-          return make_success(result);
+          return make_success(result.quotes[0]);
         }
         else
         {
