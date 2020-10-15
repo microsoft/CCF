@@ -42,6 +42,7 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     request_map,
     std::make_shared<aft::State>(node_id),
     nullptr,
+    nullptr,
     ms(10),
     election_timeout);
 
@@ -84,6 +85,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     cert,
     request_map,
     std::make_shared<aft::State>(node_id),
+    nullptr,
     nullptr,
     ms(10),
     election_timeout);
@@ -137,6 +139,7 @@ DOCTEST_TEST_CASE(
     request_map,
     std::make_shared<aft::State>(node_id0),
     nullptr,
+    nullptr,
     request_timeout,
     ms(20));
   TRaft r1(
@@ -151,6 +154,7 @@ DOCTEST_TEST_CASE(
     request_map,
     std::make_shared<aft::State>(node_id1),
     nullptr,
+    nullptr,
     request_timeout,
     ms(100));
   TRaft r2(
@@ -164,6 +168,7 @@ DOCTEST_TEST_CASE(
     cert,
     request_map,
     std::make_shared<aft::State>(node_id2),
+    nullptr,
     nullptr,
     request_timeout,
     ms(50));
@@ -340,6 +345,7 @@ DOCTEST_TEST_CASE(
     request_map,
     std::make_shared<aft::State>(node_id0),
     nullptr,
+    nullptr,
     request_timeout,
     ms(20));
   TRaft r1(
@@ -354,6 +360,7 @@ DOCTEST_TEST_CASE(
     request_map,
     std::make_shared<aft::State>(node_id1),
     nullptr,
+    nullptr,
     request_timeout,
     ms(100));
   TRaft r2(
@@ -367,6 +374,7 @@ DOCTEST_TEST_CASE(
     cert,
     request_map,
     std::make_shared<aft::State>(node_id2),
+    nullptr,
     nullptr,
     request_timeout,
     ms(50));
@@ -512,6 +520,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     request_map,
     std::make_shared<aft::State>(node_id0),
     nullptr,
+    nullptr,
     request_timeout,
     ms(20));
   TRaft r1(
@@ -526,6 +535,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     request_map,
     std::make_shared<aft::State>(node_id1),
     nullptr,
+    nullptr,
     request_timeout,
     ms(100));
   TRaft r2(
@@ -539,6 +549,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     cert,
     request_map,
     std::make_shared<aft::State>(node_id2),
+    nullptr,
     nullptr,
     request_timeout,
     ms(50));
@@ -666,6 +677,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     request_map,
     std::make_shared<aft::State>(node_id0),
     nullptr,
+    nullptr,
     request_timeout,
     ms(20));
   TRaft r1(
@@ -679,6 +691,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     cert,
     request_map,
     std::make_shared<aft::State>(node_id1),
+    nullptr,
     nullptr,
     request_timeout,
     ms(100));
@@ -878,6 +891,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     request_map,
     std::make_shared<aft::State>(node_id0),
     nullptr,
+    nullptr,
     request_timeout,
     ms(20));
   TRaft r1(
@@ -892,6 +906,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     request_map,
     std::make_shared<aft::State>(node_id1),
     nullptr,
+    nullptr,
     request_timeout,
     ms(100));
   TRaft r2(
@@ -905,6 +920,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     cert,
     request_map,
     std::make_shared<aft::State>(node_id2),
+    nullptr,
     nullptr,
     request_timeout,
     ms(50));

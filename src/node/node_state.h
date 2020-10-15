@@ -1650,6 +1650,7 @@ namespace ccf
       setup_n2n_channels();
       setup_cmd_forwarder();
 
+      auto request_tracker = std::make_shared<aft::RequestTracker>();
       auto shared_state = std::make_shared<aft::State>(self);
       auto raft = std::make_unique<RaftType>(
         network.consensus_type,
@@ -1665,6 +1666,7 @@ namespace ccf
         shared_state,
         std::make_shared<aft::ExecutorImpl>(
           network.bft_requests_map, shared_state, rpc_map, rpcsessions),
+        request_tracker,
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         public_only);
@@ -1673,6 +1675,7 @@ namespace ccf
         std::move(raft), network.consensus_type);
 
       network.tables->set_consensus(consensus);
+      cmd_forwarder->set_request_tracker(request_tracker);
 
       // When a node is added, even locally, inform raft so that it
       // can add a new active configuration.

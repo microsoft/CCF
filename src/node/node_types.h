@@ -64,12 +64,9 @@ namespace ccf
   struct MessageHash
   {
     MessageHash() = default;
-    MessageHash(
-      ForwardedMsg msg_, NodeId from_node_, std::vector<uint8_t> hash_) :
+    MessageHash(ForwardedMsg msg_, NodeId from_node_) :
       msg(msg_), from_node(from_node_)
-    {
-      std::copy(hash_.begin(), hash_.end(), hash.begin());
-    }
+    {}
 
     ForwardedMsg msg;
     NodeId from_node;

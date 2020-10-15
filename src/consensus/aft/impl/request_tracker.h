@@ -57,6 +57,7 @@ namespace aft
     void insert(
       const std::array<uint8_t, 32>& hash, std::chrono::milliseconds time)
     {
+      LOG_INFO_FMT("AAAAA inserting hash size:{}, size:{}", hash, requests.size());
       if (remove(hash, deleted_requests, deleted_requests_list))
       {
         return;
@@ -80,6 +81,7 @@ namespace aft
     bool remove(
       const std::array<uint8_t, 32>& hash)
     {
+      LOG_INFO_FMT("AAAAA removing hash:{}", hash);
       return remove(hash, requests, requests_list);
     }
 
@@ -115,10 +117,10 @@ namespace aft
     }
 
   private:
-    std::set<Request*, RequestComp> requests;
+    std::multiset<Request*, RequestComp> requests;
     snmalloc::DLList<Request, std::nullptr_t, true> requests_list;
 
-    std::set<Request*, RequestComp> deleted_requests;
+    std::multiset<Request*, RequestComp> deleted_requests;
     snmalloc::DLList<Request, std::nullptr_t, true> deleted_requests_list;
 
     void insert(

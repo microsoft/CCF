@@ -8,6 +8,7 @@
 #include "impl/execution.h"
 #include "impl/request_message.h"
 #include "impl/state.h"
+#include "impl/request_tracker.h"
 #include "kv/kv_types.h"
 #include "kv/tx.h"
 #include "node/node_to_node.h"
@@ -86,6 +87,7 @@ namespace aft
     RequestsMap& bft_requests_map;
     std::shared_ptr<aft::State> state;
     std::shared_ptr<Executor> executor;
+    std::shared_ptr<aft::RequestTracker> request_tracker;
 
     // Timeouts
     std::chrono::milliseconds request_timeout;
@@ -133,6 +135,7 @@ namespace aft
       RequestsMap& requests_map,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<Executor> executor_,
+      std::shared_ptr<aft::RequestTracker> request_tracker_,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
       bool public_only_ = false) :
@@ -146,6 +149,7 @@ namespace aft
       bft_requests_map(requests_map),
       state(state_),
       executor(executor_),
+      request_tracker(request_tracker_),
 
       request_timeout(request_timeout_),
       election_timeout(election_timeout_),
@@ -176,6 +180,7 @@ namespace aft
       return leader_id;
     }
 
+    // TODO: cache this
     std::set<NodeId> backups()
     {
       std::set<NodeId> backups;
@@ -861,7 +866,7 @@ namespace aft
           {
             if (consensus_type == ConsensusType::BFT)
             {
-              state->last_idx = executor->commit_replayed_request(tx);
+              state->last_idx = executor->commit_replayed_request(tx, request_tracker);
             }
             break;
           }

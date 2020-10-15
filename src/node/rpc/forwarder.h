@@ -6,6 +6,8 @@
 #include "enclave/rpc_map.h"
 #include "http/http_rpc_context.h"
 #include "node/node_to_node.h"
+#include "kv/kv_types.h"
+#include "consensus/aft/impl/request_tracker.h"
 
 namespace ccf
 {
@@ -25,6 +27,7 @@ namespace ccf
     std::shared_ptr<enclave::AbstractRPCResponder> rpcresponder;
     std::shared_ptr<ChannelProxy> n2n_channels;
     std::shared_ptr<enclave::RPCMap> rpc_map;
+    std::shared_ptr<aft::RequestTracker> request_tracker;
     NodeId self;
 
     using IsCallerCertForwarded = bool;
@@ -44,9 +47,15 @@ namespace ccf
       self = self_;
     }
 
+    void set_request_tracker(std::shared_ptr<aft::RequestTracker> request_tracker_)
+    {
+      request_tracker = request_tracker_;
+    }
+
     bool forward_command(
       std::shared_ptr<enclave::RpcContext> rpc_ctx,
       NodeId to,
+      std::set<NodeId> nodes,
       CallerId caller_id,
       const std::vector<uint8_t>& caller_cert)
     {
@@ -78,35 +87,41 @@ namespace ccf
       ForwardedHeader msg = {
         ForwardedMsg::forwarded_cmd, self, rpc_ctx->frame_format()};
 
+      send_request_hash_to_nodes(rpc_ctx, nodes, to);
+
       return n2n_channels->send_encrypted(
         NodeMsgType::forwarded_msg, to, plain, msg);
     }
 
     void send_request_hash_to_nodes(
-      std::shared_ptr<enclave::RpcContext> rpc_ctx, std::set<NodeId> nodes)
+      std::shared_ptr<enclave::RpcContext> rpc_ctx,
+      std::set<NodeId> nodes,
+      NodeId skip_node)
     {
       const auto& raw_request = rpc_ctx->get_serialised_request();
       auto data_ = raw_request.data();
       auto size_ = raw_request.size();
 
-      tls::HashBytes hash;
+      MessageHash msg(ForwardedMsg::request_hash, self);
       tls::do_hash(
-        reinterpret_cast<const uint8_t*>(&data_),
+        data_,
         size_,
-        hash,
+        msg.hash,
         MBEDTLS_MD_SHA256);
 
-      MessageHash msg(ForwardedMsg::request_hash, self, hash);
-      LOG_INFO_FMT("AAAAAA sending hash:{}", msg.hash);
+      LOG_INFO_FMT("AAAAAA sending hash:{}, data_size:{}", msg.hash, size_);
 
       for (auto to : nodes)
       {
-        if (self != to)
+        if (self != to && skip_node != to)
         {
           n2n_channels->send_authenticated(NodeMsgType::forwarded_msg, to, msg);
         }
       }
-      // TODO: add waiting on msg to self
+
+      request_tracker->insert(
+        msg.hash,
+        threading::ThreadMessaging::thread_messaging.get_current_time_offset());
     }
 
     std::optional<std::tuple<std::shared_ptr<enclave::RpcContext>, NodeId>>
@@ -202,11 +217,11 @@ namespace ccf
     std::optional<MessageHash> recv_request_hash(
       const uint8_t* data, size_t size)
     {
-      MessageHash r;
+      MessageHash m;
 
       try
       {
-        r = n2n_channels->template recv_authenticated<MessageHash>(data, size);
+        m = n2n_channels->template recv_authenticated<MessageHash>(data, size);
       }
       catch (const std::logic_error& err)
       {
@@ -214,7 +229,7 @@ namespace ccf
         LOG_DEBUG_FMT("Invalid forwarded hash: {}", err.what());
         return std::nullopt;
       }
-      return r;
+      return m;
     }
 
     void recv_message(const uint8_t* data, size_t size)
@@ -304,13 +319,17 @@ namespace ccf
           break;
         }
 
-        case ForwardedMsg::request_hash:
-        {
+        case ForwardedMsg::request_hash: {
           auto hash = recv_request_hash(data, size);
           if (!hash.has_value())
             return;
 
-          LOG_INFO_FMT("AAAAAA hash:{}", hash->hash);
+          LOG_INFO_FMT("AAAAAA sending hash:{}", hash->hash);
+
+          request_tracker->insert(
+            hash->hash,
+            threading::ThreadMessaging::thread_messaging
+              .get_current_time_offset());
           break;
         }
 

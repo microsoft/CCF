@@ -29,6 +29,9 @@ extern "C"
 #include <evercrypt/EverCrypt_AutoConfig2.h>
 }
 
+threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
+
 using namespace ccfapp;
 using namespace ccf;
 using namespace std;

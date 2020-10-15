@@ -59,6 +59,7 @@ public:
         request_map,
         std::make_shared<aft::State>(node_id),
         nullptr,
+        std::make_shared<aft::RequestTracker>(),
         ms(10),
         ms(i * 100));
 
