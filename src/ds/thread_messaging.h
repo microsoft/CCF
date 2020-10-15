@@ -43,25 +43,6 @@ namespace threading
     std::atomic<ThreadMsg*> item_head = nullptr;
     ThreadMsg* local_msg = nullptr;
 
-    struct TimerEntry
-    {
-      std::chrono::milliseconds time_offset;
-      uint64_t counter;
-    };
-
-    struct TimerEntryCompare
-    {
-      bool operator()(const TimerEntry& lhs, const TimerEntry& rhs) const
-      {
-        if (lhs.time_offset != rhs.time_offset)
-        {
-          return lhs.time_offset < rhs.time_offset;
-        }
-
-        return lhs.counter < rhs.counter;
-      }
-    };
-
   public:
     Task() = default;
 
@@ -95,10 +76,40 @@ namespace threading
       } while (!item_head.compare_exchange_strong(tmp_head, item));
     }
 
+    struct TimerEntry
+    {
+      TimerEntry() : time_offset(0), counter(0) {}
+      TimerEntry(std::chrono::milliseconds time_offset_, uint64_t counter_) :
+        time_offset(time_offset_),
+        counter(counter_)
+      {}
+
+      std::chrono::milliseconds time_offset;
+      uint64_t counter;
+    };
+
+    struct TimerEntryCompare
+    {
+      bool operator()(const TimerEntry& lhs, const TimerEntry& rhs) const
+      {
+        if (lhs.time_offset != rhs.time_offset)
+        {
+          return lhs.time_offset < rhs.time_offset;
+        }
+
+        return lhs.counter < rhs.counter;
+      }
+    };
+
     TimerEntry add_task_after(
       std::unique_ptr<ThreadMsg> item, std::chrono::milliseconds ms)
     {
       TimerEntry entry = {time_offset + ms, time_entry_counter++};
+      if (timer_map.empty() || entry.time_offset <= next_time_offset)
+      {
+        next_time_offset = entry.time_offset;
+      }
+
       timer_map.emplace(entry, std::move(item));
       return entry;
     }
@@ -107,6 +118,10 @@ namespace threading
     {
       auto num_erased = timer_map.erase(timer_entry);
       CCF_ASSERT(num_erased <= 1, "Too many items erased");
+      if (!timer_map.empty() && timer_entry.time_offset <= next_time_offset)
+      {
+        next_time_offset = timer_map.begin()->first.time_offset;
+      }
       return num_erased != 0;
     }
 
@@ -114,9 +129,12 @@ namespace threading
     {
       time_offset += elapsed;
 
-      while (!timer_map.empty() &&
+      bool updated = false;
+
+      while (!timer_map.empty() && next_time_offset <= time_offset &&
              timer_map.begin()->first.time_offset <= time_offset)
       {
+        updated = true;
         auto it = timer_map.begin();
 
         auto& cb = it->second->cb;
@@ -124,13 +142,24 @@ namespace threading
         timer_map.erase(it);
         cb(std::move(msg));
       }
+
+      if (updated)
+      {
+        next_time_offset = timer_map.begin()->first.time_offset;
+      }
+    }
+
+    std::chrono::milliseconds get_current_time_offset()
+    {
+      return time_offset;
     }
 
   private:
-    std::chrono::milliseconds time_offset;
+    std::chrono::milliseconds time_offset = std::chrono::milliseconds(0);
     uint64_t time_entry_counter = 0;
     std::map<TimerEntry, std::unique_ptr<ThreadMsg>, TimerEntryCompare>
       timer_map;
+    std::chrono::milliseconds next_time_offset;
 
     void reverse_local_messages()
     {
@@ -220,7 +249,7 @@ namespace threading
     inline Task& get_task(uint16_t tid)
     {
       CCF_ASSERT_FMT(
-        tid < thread_count,
+        tid < thread_count || tid == 0,
         "Attempting to add task to tid > thread_count, tid:{}, thread_count:{}",
         tid,
         thread_count);
@@ -242,11 +271,23 @@ namespace threading
     }
 
     template <typename Payload>
-    void add_task_after(
+    Task::TimerEntry add_task_after(
       std::unique_ptr<Tmsg<Payload>> msg, std::chrono::milliseconds ms)
     {
       Task& task = get_task(get_current_thread_id());
-      task.add_task_after(std::move(msg), ms);
+      return task.add_task_after(std::move(msg), ms);
+    }
+
+    bool cancel_timer_task(Task::TimerEntry timer_entry)
+    {
+      Task& task = get_task(get_current_thread_id());
+      return task.cancel_timer_task(timer_entry);
+    }
+
+    std::chrono::milliseconds get_current_time_offset()
+    {
+      Task& task = get_task(get_current_thread_id());
+      return task.get_current_time_offset();
     }
 
     struct TickMsg

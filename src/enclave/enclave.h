@@ -102,7 +102,13 @@ namespace enclave
         fe->set_cmd_forwarder(cmd_forwarder);
       }
 
-      node->initialize(consensus_config, n2n_channels, rpc_map, cmd_forwarder);
+      node->initialize(
+        consensus_config,
+        n2n_channels,
+        rpc_map,
+        cmd_forwarder,
+        signature_intervals.sig_tx_interval,
+        signature_intervals.sig_ms_interval);
     }
 
     bool create_new_node(
