@@ -59,6 +59,12 @@ interface NumericPollResponse {
 
 type GetPollResponse = StringPollResponse | NumericPollResponse
 
+// Export for unit tests
+export {
+    CreatePollRequest, SubmitOpinionRequest, 
+    GetPollResponse, StringPollResponse, NumericPollResponse 
+}
+
 type User = string
 
 interface StringPoll {
@@ -88,7 +94,7 @@ export class PollController extends Controller {
     ): void {
         //if (kvPolls.has(topic)) {
         //    this.setStatus(403)
-        //    return { error: "Poll with given topic exists already" } as any
+        //    return { message: "Poll with given topic exists already" } as any
         //}
         kvPolls.set(topic, {
             type: body.type,
@@ -110,11 +116,11 @@ export class PollController extends Controller {
             var poll = kvPolls.get(topic)
         } catch (e) {
             this.setStatus(404)
-            return { error: "Poll does not exist" } as any
+            return { message: "Poll does not exist" } as any
         }
         if (typeof body.opinion !== poll.type) {
             this.setStatus(400)
-            return { error: "Poll has a different opinion type" } as any
+            return { message: "Poll has a different opinion type" } as any
         }
         // TODO
         const user = "foo"        
@@ -135,13 +141,13 @@ export class PollController extends Controller {
             var poll = kvPolls.get(topic)
         } catch (e) {
             this.setStatus(404)
-            return { error: "Poll does not exist" } as any
+            return { message: "Poll does not exist" } as any
         }
 
         const opinionCount = Object.keys(poll.opinions).length
         if (opinionCount < MINIMUM_OPINION_THRESHOLD) {
             this.setStatus(403)
-            return { error: "Minimum number of opinions not reached yet" } as any
+            return { message: "Minimum number of opinions not reached yet" } as any
         }
 
         // TODO

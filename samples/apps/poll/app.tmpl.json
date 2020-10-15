@@ -6,7 +6,7 @@
         "js_function": "createPoll",
         "forwarding_required": "always",
         "execute_locally": false,
-        "require_client_identity": true,
+        "require_client_identity": false,
         "require_client_signature": false,
         "readonly": false
       },
@@ -15,7 +15,7 @@
         "js_function": "submitOpinion",
         "forwarding_required": "always",
         "execute_locally": false,
-        "require_client_identity": true,
+        "require_client_identity": false,
         "require_client_signature": false,
         "readonly": false
       },
@@ -24,7 +24,7 @@
         "js_function": "getPoll",
         "forwarding_required": "always",
         "execute_locally": false,
-        "require_client_identity": true,
+        "require_client_identity": false,
         "require_client_signature": false,
         "readonly": true
       }

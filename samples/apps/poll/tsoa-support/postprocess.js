@@ -88,7 +88,6 @@ let tmp = {endpoints: {}}
 for (let controller of newMetadata.controllers) {
     for (let action of controller.actions) {
         // transform /a/:b/:c to /a/{b}/{c}
-        console.log(action.full_path)
         let url = action.full_path.replace(/:([^\/]+)/g, (_, name) => `{${name}}`)
         if (!tmp.endpoints[url]) {
             tmp.endpoints[url] = {}
