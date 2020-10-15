@@ -379,6 +379,27 @@ namespace ccfapp
     return obj;
   }
 
+  static JSValue js_kv_map_has(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    auto map_view =
+      static_cast<KVMap::TxView*>(JS_GetOpaque(this_val, kv_map_view_class_id));
+
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    size_t key_size;
+    uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
+
+    if (!key)
+      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
+
+    auto val = map_view->get({key, key + key_size});
+
+    return JS_NewBool(ctx, val.has_value());
+  }
+
   static JSValue js_kv_map_get(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
@@ -524,6 +545,12 @@ namespace ccfapp
     // contents.
     auto view_val = JS_NewObjectClass(ctx, kv_map_view_class_id);
     JS_SetOpaque(view_val, view);
+
+    JS_SetPropertyStr(
+      ctx,
+      view_val,
+      "has",
+      JS_NewCFunction(ctx, ccfapp::js_kv_map_has, "has", 1));
 
     JS_SetPropertyStr(
       ctx,

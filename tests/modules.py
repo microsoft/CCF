@@ -280,6 +280,9 @@ def test_npm_app(network, args):
         )
         assert unwrapped == aes_key_to_wrap
 
+        r = c.get("/app/log?id=42")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
+
         r = c.post("/app/log?id=42", {"msg": "Hello!"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
