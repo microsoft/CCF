@@ -1061,7 +1061,8 @@ TEST_CASE("Conflict resolution")
   REQUIRE(res1 == kv::CommitSuccess::OK);
   confirm_state({"baz", "buzz"}, {"bar"});
 
-  // Third transaction completes later, has no conflicts but reports the earlier version it read
+  // Third transaction completes later, has no conflicts but reports the earlier
+  // version it read
   auto res3 = tx3.commit();
   REQUIRE(res3 == kv::CommitSuccess::OK);
 
