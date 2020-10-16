@@ -30,8 +30,6 @@ def write_vegeta_target_line(f, *args, **kwargs):
 def recursive_format(obj, i):
     if isinstance(obj, str):
         return obj.format(i=i)
-    elif isinstance(obj, int) and obj == 0:
-        return i
     elif isinstance(obj, abc.Sequence):
         return [recursive_format(e, i) for e in obj]
     elif isinstance(obj, abc.Mapping):
@@ -39,13 +37,21 @@ def recursive_format(obj, i):
     else:
         return obj
 
+def nan_replacer(i):
+    def fun(s):
+        if s == "NaN":
+            return i
+        return float(s)
+    return fun
 
 def append_targets(file, args):
     for i in range(args.range_start, args.range_end):
         format_args = {"i": i}
         path = args.uri_path.format(**format_args)
         if args.body is not None:
-            body = recursive_format(json.loads(args.body), **format_args)
+            body = recursive_format(
+                json.loads(args.body, parse_constant=nan_replacer(i)), **format_args
+            )
         else:
             body = None
         write_vegeta_target_line(
