@@ -1097,7 +1097,7 @@ namespace ccfapp
       // templated matches. If there is one, that's a match. More is an error,
       // none means delegate to the base class.
       {
-        std::vector<std::shared_ptr<JSDynamicEndpoint>> matches;
+        std::vector<EndpointDefinitionPtr> matches;
 
         endpoints_view->foreach(
           [&matches, &key, &rpc_ctx](
@@ -1144,7 +1144,7 @@ namespace ccfapp
 
         if (matches.size() > 1)
         {
-          // TODO: Report an error
+          report_ambiguous_templated_path(key.uri_path, matches);
         }
         else if (matches.size() == 1)
         {

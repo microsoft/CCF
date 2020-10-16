@@ -389,7 +389,6 @@ namespace ccf
       PathTemplateSpec spec;
     };
 
-    
     static std::optional<PathTemplateSpec> parse_path_template(
       const std::string& uri)
     {
@@ -409,8 +408,7 @@ namespace ccf
         if (template_end == std::string::npos)
         {
           throw std::logic_error(fmt::format(
-            "Invalid templated path - missing closing '}': {}",
-            uri));
+            "Invalid templated path - missing closing '}': {}", uri));
         }
 
         spec.template_component_names.push_back(regex_s.substr(
@@ -420,10 +418,7 @@ namespace ccf
         template_start = regex_s.find_first_of('{', template_start + 1);
       }
 
-      LOG_TRACE_FMT(
-        "Parsed a templated endpoint: {} became {}",
-        uri,
-        regex_s);
+      LOG_TRACE_FMT("Parsed a templated endpoint: {} became {}", uri, regex_s);
       LOG_TRACE_FMT(
         "Component names are: {}",
         fmt::join(spec.template_component_names, ", "));
@@ -559,10 +554,12 @@ namespace ccf
      */
     void install(Endpoint& endpoint)
     {
-      const auto template_spec = parse_path_template(endpoint.dispatch.uri_path);
+      const auto template_spec =
+        parse_path_template(endpoint.dispatch.uri_path);
       if (template_spec.has_value())
       {
-        auto templated_endpoint = std::make_shared<PathTemplatedEndpoint>(endpoint);
+        auto templated_endpoint =
+          std::make_shared<PathTemplatedEndpoint>(endpoint);
         templated_endpoint->spec = std::move(template_spec.value());
         templated_endpoints[endpoint.dispatch.uri_path]
                            [endpoint.dispatch.verb] = templated_endpoint;
@@ -693,27 +690,51 @@ namespace ccf
         }
       }
 
-      std::smatch match;
-      for (auto& [original_method, verb_endpoints] : templated_endpoints)
+      // If that doesn't exist, look through the templated endpoints to find
+      // templated matches. Exactly one is a returnable match, more is an error,
+      // fewer is fallthrough.
       {
-        auto templated_endpoints_for_verb =
-          verb_endpoints.find(rpc_ctx.get_request_verb());
-        if (templated_endpoints_for_verb != verb_endpoints.end())
-        {
-          auto& endpoint = templated_endpoints_for_verb->second;
-          if (std::regex_match(method, match, endpoint->spec.template_regex))
-          {
-            auto& path_params = rpc_ctx.get_request_path_params();
-            for (size_t i = 0; i < endpoint->spec.template_component_names.size();
-                 ++i)
-            {
-              const auto& template_name = endpoint->spec.template_component_names[i];
-              const auto& template_value = match[i + 1].str();
-              path_params[template_name] = template_value;
-            }
+        std::vector<EndpointDefinitionPtr> matches;
 
-            return endpoint;
+        std::smatch match;
+        for (auto& [original_method, verb_endpoints] : templated_endpoints)
+        {
+          auto templated_endpoints_for_verb =
+            verb_endpoints.find(rpc_ctx.get_request_verb());
+          if (templated_endpoints_for_verb != verb_endpoints.end())
+          {
+            auto& endpoint = templated_endpoints_for_verb->second;
+            if (std::regex_match(method, match, endpoint->spec.template_regex))
+            {
+              // Populate the request_path_params the first-time through. If we
+              // get a second match, we're just building up a list for
+              // error-reporting
+              if (matches.size() == 0)
+              {
+                auto& path_params = rpc_ctx.get_request_path_params();
+                for (size_t i = 0;
+                     i < endpoint->spec.template_component_names.size();
+                     ++i)
+                {
+                  const auto& template_name =
+                    endpoint->spec.template_component_names[i];
+                  const auto& template_value = match[i + 1].str();
+                  path_params[template_name] = template_value;
+                }
+              }
+
+              matches.push_back(endpoint);
+            }
           }
+        }
+
+        if (matches.size() > 1)
+        {
+          report_ambiguous_templated_path(method, matches);
+        }
+        else if (matches.size() == 1)
+        {
+          return matches[0];
         }
       }
 
@@ -769,6 +790,28 @@ namespace ccf
       }
 
       return verbs;
+    }
+
+    virtual void report_ambiguous_templated_path(
+      const std::string& path,
+      const std::vector<EndpointDefinitionPtr>& matches)
+    {
+      // Log low-information error
+      LOG_FAIL_FMT(
+        "Found multiple potential templated matches for request path");
+
+      auto error_string =
+        fmt::format("Multiple potential matches for path: {}", path);
+      for (const auto& match : matches)
+      {
+        error_string += fmt::format("\n  {}", match->dispatch.uri_path);
+      }
+      LOG_DEBUG_FMT(error_string);
+
+      // Assume this exception is caught and reported in a useful fashion.
+      // There's probably nothing the caller can do, ideally this ambiguity
+      // would be caught when the endpoints were defined.
+      throw std::logic_error(error_string);
     }
 
     virtual void tick(std::chrono::milliseconds, kv::Consensus::Statistics) {}
