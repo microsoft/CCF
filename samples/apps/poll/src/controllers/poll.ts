@@ -101,7 +101,7 @@ export class PollController extends Controller {
         //@Path() topic: string,
         @Query() topic: string,
         @Body() body: CreatePollRequest,
-        // TODO should be handled via @Authentication
+        // TODO should be handled via @Security
         @Header() authorization: string,
     ): void {
         const user = parseAuthToken(authorization)
