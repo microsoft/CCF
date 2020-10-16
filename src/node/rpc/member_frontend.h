@@ -345,6 +345,16 @@ namespace ccf
       return tx_modules->remove(name);
     }
 
+    void remove_endpoints(kv::Tx&)
+    {
+      auto endpoints_view =
+        tx.get_view<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+      endpoints_view->foreach([&endpoints_view](const auto& k, const auto&){
+        endpoints_view->remove(k);
+        return true;
+      });
+    }
+
     bool add_new_code_id(
       kv::Tx& tx,
       const CodeDigest& new_code_id,
