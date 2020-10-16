@@ -3,8 +3,6 @@
 import infra.network
 import infra.e2e_args
 import subprocess
-import json
-import base64
 import threading
 import time
 import generate_vegeta_targets as TargetGenerator

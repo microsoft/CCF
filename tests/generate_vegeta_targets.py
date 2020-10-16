@@ -6,7 +6,6 @@ import base64
 import sys
 import urllib.parse
 from collections import abc
-from loguru import logger as LOG
 
 
 def build_vegeta_target(hostname, path, body=None, method="POST"):
@@ -37,12 +36,15 @@ def recursive_format(obj, i):
     else:
         return obj
 
+
 def nan_replacer(i):
     def fun(s):
         if s == "NaN":
             return i
         return float(s)
+
     return fun
+
 
 def append_targets(file, args):
     for i in range(args.range_start, args.range_end):
