@@ -376,13 +376,61 @@ namespace ccf
       }
     };
 
+    struct PathTemplateSpec
+    {
+      std::regex template_regex;
+      std::vector<std::string> template_component_names;
+    };
+
     struct PathTemplatedEndpoint : public Endpoint
     {
       PathTemplatedEndpoint(const Endpoint& e) : Endpoint(e) {}
 
-      std::regex template_regex;
-      std::vector<std::string> template_component_names;
+      PathTemplateSpec spec;
     };
+
+    
+    static std::optional<PathTemplateSpec> parse_path_template(
+      const std::string& uri)
+    {
+      auto template_start = uri.find_first_of('{');
+      if (template_start == std::string::npos)
+      {
+        return std::nullopt;
+      }
+
+      PathTemplateSpec spec;
+
+      std::string regex_s = uri;
+      template_start = regex_s.find_first_of('{');
+      while (template_start != std::string::npos)
+      {
+        const auto template_end = regex_s.find_first_of('}', template_start);
+        if (template_end == std::string::npos)
+        {
+          throw std::logic_error(fmt::format(
+            "Invalid templated path - missing closing '}': {}",
+            uri));
+        }
+
+        spec.template_component_names.push_back(regex_s.substr(
+          template_start + 1, template_end - template_start - 1));
+        regex_s.replace(
+          template_start, template_end - template_start + 1, "([^/]+)");
+        template_start = regex_s.find_first_of('{', template_start + 1);
+      }
+
+      LOG_TRACE_FMT(
+        "Parsed a templated endpoint: {} became {}",
+        uri,
+        regex_s);
+      LOG_TRACE_FMT(
+        "Component names are: {}",
+        fmt::join(spec.template_component_names, ", "));
+      spec.template_regex = std::regex(regex_s);
+
+      return spec;
+    }
 
   protected:
     EndpointPtr default_endpoint;
@@ -399,47 +447,6 @@ namespace ccf
     kv::TxHistory* history = nullptr;
 
     CertDERs* certs = nullptr;
-
-    static std::shared_ptr<PathTemplatedEndpoint> parse_path_template(
-      const Endpoint& endpoint)
-    {
-      auto template_start = endpoint.dispatch.uri_path.find_first_of('{');
-      if (template_start == std::string::npos)
-      {
-        return nullptr;
-      }
-
-      auto templated = std::make_shared<PathTemplatedEndpoint>(endpoint);
-      std::string regex_s = endpoint.dispatch.uri_path;
-      template_start = regex_s.find_first_of('{');
-      while (template_start != std::string::npos)
-      {
-        const auto template_end = regex_s.find_first_of('}', template_start);
-        if (template_end == std::string::npos)
-        {
-          throw std::logic_error(fmt::format(
-            "Invalid templated path - missing closing '}': {}",
-            endpoint.dispatch.uri_path));
-        }
-
-        templated->template_component_names.push_back(regex_s.substr(
-          template_start + 1, template_end - template_start - 1));
-        regex_s.replace(
-          template_start, template_end - template_start + 1, "([^/]+)");
-        template_start = regex_s.find_first_of('{', template_start + 1);
-      }
-
-      LOG_TRACE_FMT(
-        "Installed a templated endpoint: {} became {}",
-        endpoint.dispatch.uri_path,
-        regex_s);
-      LOG_TRACE_FMT(
-        "Component names are: {}",
-        fmt::join(templated->template_component_names, ", "));
-      templated->template_regex = std::regex(regex_s);
-
-      return templated;
-    }
 
     static void add_query_parameters(
       nlohmann::json& document,
@@ -552,9 +559,11 @@ namespace ccf
      */
     void install(Endpoint& endpoint)
     {
-      const auto templated_endpoint = parse_path_template(endpoint);
-      if (templated_endpoint != nullptr)
+      const auto template_spec = parse_path_template(endpoint.dispatch.uri_path);
+      if (template_spec.has_value())
       {
+        auto templated_endpoint = std::make_shared<PathTemplatedEndpoint>(endpoint);
+        templated_endpoint->spec = std::move(template_spec.value());
         templated_endpoints[endpoint.dispatch.uri_path]
                            [endpoint.dispatch.verb] = templated_endpoint;
       }
@@ -633,7 +642,7 @@ namespace ccf
         {
           add_endpoint_to_api_document(document, endpoint);
 
-          for (const auto& name : endpoint->template_component_names)
+          for (const auto& name : endpoint->spec.template_component_names)
           {
             auto parameter = nlohmann::json::object();
             parameter["name"] = name;
@@ -692,13 +701,13 @@ namespace ccf
         if (templated_endpoints_for_verb != verb_endpoints.end())
         {
           auto& endpoint = templated_endpoints_for_verb->second;
-          if (std::regex_match(method, match, endpoint->template_regex))
+          if (std::regex_match(method, match, endpoint->spec.template_regex))
           {
             auto& path_params = rpc_ctx.get_request_path_params();
-            for (size_t i = 0; i < endpoint->template_component_names.size();
+            for (size_t i = 0; i < endpoint->spec.template_component_names.size();
                  ++i)
             {
-              const auto& template_name = endpoint->template_component_names[i];
+              const auto& template_name = endpoint->spec.template_component_names[i];
               const auto& template_value = match[i + 1].str();
               path_params[template_name] = template_value;
             }
@@ -752,7 +761,7 @@ namespace ccf
       {
         for (const auto& [verb, endpoint] : verb_endpoints)
         {
-          if (std::regex_match(method, match, endpoint->template_regex))
+          if (std::regex_match(method, match, endpoint->spec.template_regex))
           {
             verbs.insert(verb);
           }
