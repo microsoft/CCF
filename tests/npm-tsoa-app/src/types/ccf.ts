@@ -70,7 +70,7 @@ export interface CCF {
 export const ccf = globalThis.ccf as CCF
 
 // Additional functionality on top of C++:
-export const kv = ccf.kv
+export const kv = ccf ? ccf.kv : undefined
 
 export interface DataConverter<T> {
     encode(val: T): ArrayBuffer
