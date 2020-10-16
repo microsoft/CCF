@@ -768,11 +768,11 @@ class Network:
 def network(
     hosts,
     binary_directory=".",
-    library_directory=".",
     dbg_nodes=None,
     perf_nodes=None,
     pdb=False,
     txs=None,
+    library_directory=".",
 ):
     """
     Context manager for Network class.

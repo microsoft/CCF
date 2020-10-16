@@ -43,7 +43,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--library-dir",
         help="Path to CCF libraries (enclave images)",
-        default=".",
+        default=None,
     )
     parser.add_argument(
         "-d",
@@ -228,6 +228,13 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         args, unknown_args = parser.parse_known_args()
     else:
         args = parser.parse_args()
+
+    if args.library_dir is None:
+        binary_dir = os.path.abspath(args.binary_dir)
+        if os.path.basename(binary_dir) == "bin":
+            args.library_dir = os.path.join(binary_dir, os.pardir, "lib")
+        else:
+            args.library_dir = args.binary_dir
 
     if not args.package and (args.js_app_script or args.js_app_bundle):
         args.package = "libjs_generic"
