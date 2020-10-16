@@ -21,15 +21,13 @@ source "${VENV_DIR}"/bin/activate
 if [ -f "${VERSION_FILE}" ]; then
     # install tree
     BINARY_DIR=${PATH_HERE}
-    LIBRARY_DIR="${PATH_HERE}"/../lib
     START_NETWORK_SCRIPT="${PATH_HERE}"/start_network.py
     VERSION=$(<"${VERSION_FILE}")
     pip install --disable-pip-version-check -q -U ccf=="$VERSION"
     pip install --disable-pip-version-check -q -U -r "${PATH_HERE}"/requirements.txt
 else
     # source tree
-    BINARY_DIR="${PATH_HERE}"/../../build
-    LIBRARY_DIR=${BINARY_DIR}
+    BINARY_DIR=.
     START_NETWORK_SCRIPT="${PATH_HERE}"/../start_network.py
     pip install --disable-pip-version-check -q -U -e "${PATH_HERE}"/../../python/
     pip install --disable-pip-version-check -q -U -r "${PATH_HERE}"/../requirements.txt
@@ -40,7 +38,6 @@ echo "Python environment successfully setup"
 export CURL_CLIENT=ON
 exec python "${START_NETWORK_SCRIPT}" \
     --binary-dir "${BINARY_DIR}" \
-    --library-dir "${LIBRARY_DIR}" \
     --enclave-type virtual \
     --initial-member-count 1 \
     --initial-user-count 1 \
