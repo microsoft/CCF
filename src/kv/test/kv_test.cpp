@@ -112,9 +112,11 @@ TEST_CASE("Reads/writes and deletions")
   {
     auto tx = kv_store.create_tx();
     auto view = tx.get_view(map);
+    REQUIRE(!view->has(k));
     auto v = view->get(k);
     REQUIRE(!v.has_value());
     view->put(k, v1);
+    REQUIRE(view->has(k));
     auto va = view->get(k);
     REQUIRE(va.has_value());
     REQUIRE(va.value() == v1);
@@ -125,6 +127,7 @@ TEST_CASE("Reads/writes and deletions")
   {
     auto tx = kv_store.create_tx();
     auto view = tx.get_view(map);
+    REQUIRE(view->has(k));
     auto v = view->get(k);
     REQUIRE(v.has_value());
     REQUIRE(v.value() == v1);
@@ -133,39 +136,57 @@ TEST_CASE("Reads/writes and deletions")
 
   INFO("Remove keys");
   {
-    auto tx = kv_store.create_tx();
-    auto tx2 = kv_store.create_tx();
-    auto view = tx.get_view(map);
-    view->put(k, v1);
+    {
+      auto tx = kv_store.create_tx();
+      auto view = tx.get_view(map);
+      view->put(k, v1);
 
-    REQUIRE(!view->remove(invalid_key));
-    REQUIRE(view->remove(k));
-    auto va = view->get(k);
-    REQUIRE(!va.has_value());
+      REQUIRE(!view->has(invalid_key));
+      REQUIRE(!view->remove(invalid_key));
+      REQUIRE(view->remove(k));
+      REQUIRE(!view->has(k));
+      auto va = view->get(k);
+      REQUIRE(!va.has_value());
 
-    view->put(k, v1);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    auto view2 = tx2.get_view(map);
-    REQUIRE(view2->remove(k));
+      view->put(k, v1);
+      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    }
+
+    {
+      auto tx2 = kv_store.create_tx();
+      auto view2 = tx2.get_view(map);
+      REQUIRE(view2->has(k));
+      REQUIRE(view2->remove(k));
+    }
   }
 
   INFO("Remove key that was deleted from state");
   {
-    auto tx = kv_store.create_tx();
-    auto tx2 = kv_store.create_tx();
-    auto tx3 = kv_store.create_tx();
-    auto view = tx.get_view(map);
-    view->put(k, v1);
-    auto va = view->get_globally_committed(k);
-    REQUIRE(!va.has_value());
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    auto view2 = tx2.get_view(map);
-    REQUIRE(view2->remove(k));
-    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+    {
+      auto tx = kv_store.create_tx();
+      auto view = tx.get_view(map);
+      view->put(k, v1);
+      auto va = view->get_globally_committed(k);
+      REQUIRE(!va.has_value());
+      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    }
 
-    auto view3 = tx3.get_view(map);
-    auto vc = view3->get(k);
-    REQUIRE(!vc.has_value());
+    {
+      auto tx2 = kv_store.create_tx();
+      auto view2 = tx2.get_view(map);
+      REQUIRE(view2->has(k));
+      REQUIRE(view2->remove(k));
+      REQUIRE(!view2->has(k));
+      REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+    }
+
+    {
+      auto tx3 = kv_store.create_tx();
+      auto view3 = tx3.get_view(map);
+      REQUIRE(!view3->has(k));
+      auto vc = view3->get(k);
+      REQUIRE(!vc.has_value());
+    }
   }
 }
 
@@ -372,10 +393,12 @@ TEST_CASE("Read-only tx")
   {
     auto tx = kv_store.create_tx();
     auto view = tx.get_read_only_view(map);
+    REQUIRE(view->has(k));
     const auto v = view->get(k);
     REQUIRE(v.has_value());
     REQUIRE(v.value() == v1);
 
+    REQUIRE(!view->has(invalid_key));
     const auto invalid_v = view->get(invalid_key);
     REQUIRE(!invalid_v.has_value());
 
@@ -388,10 +411,12 @@ TEST_CASE("Read-only tx")
   {
     auto tx = kv_store.create_read_only_tx();
     auto view = tx.get_read_only_view(map);
+    REQUIRE(view->has(k));
     const auto v = view->get(k);
     REQUIRE(v.has_value());
     REQUIRE(v.value() == v1);
 
+    REQUIRE(!view->has(invalid_key));
     const auto invalid_v = view->get(invalid_key);
     REQUIRE(!invalid_v.has_value());
 
@@ -973,7 +998,7 @@ TEST_CASE("Conflict resolution")
   auto try_write = [&](kv::Tx& tx, const std::string& s) {
     auto view = tx.get_view(map);
 
-    // Numroduce read-dependency
+    // Introduce read-dependency
     view->get("foo");
     view->put("foo", s);
 
@@ -990,6 +1015,7 @@ TEST_CASE("Conflict resolution")
     {
       const auto it = view->get(s);
       REQUIRE(it.has_value());
+      REQUIRE(view->has(s));
       REQUIRE(it.value() == s);
     }
 
@@ -997,6 +1023,7 @@ TEST_CASE("Conflict resolution")
     {
       const auto it = view->get(s);
       REQUIRE(!it.has_value());
+      REQUIRE(!view->has(s));
     }
   };
 
@@ -1021,6 +1048,11 @@ TEST_CASE("Conflict resolution")
   REQUIRE(res1 == kv::CommitSuccess::CONFLICT);
   confirm_state({"baz"}, {"bar"});
 
+  // A third transaction just wants to read the value
+  auto tx3 = kv_store.create_tx();
+  auto view3 = tx3.get_view(map);
+  REQUIRE(view3->has("foo"));
+
   // First transaction is rerun with same object, producing different result
   try_write(tx1, "buzz");
 
@@ -1028,6 +1060,14 @@ TEST_CASE("Conflict resolution")
   res1 = tx1.commit();
   REQUIRE(res1 == kv::CommitSuccess::OK);
   confirm_state({"baz", "buzz"}, {"bar"});
+
+  // Third transaction completes later, has no conflicts but reports the earlier
+  // version it read
+  auto res3 = tx3.commit();
+  REQUIRE(res3 == kv::CommitSuccess::OK);
+
+  REQUIRE(tx1.commit_version() > tx2.commit_version());
+  REQUIRE(tx2.get_read_version() >= tx2.get_read_version());
 
   // Re-running a _committed_ transaction is exceptionally bad
   REQUIRE_THROWS(tx1.commit());
