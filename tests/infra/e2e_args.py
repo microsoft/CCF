@@ -223,10 +223,11 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     else:
         args = parser.parse_args()
 
+    args.binary_dir = os.path.abspath(args.binary_dir)
+
     if args.library_dir is None:
-        binary_dir = os.path.abspath(args.binary_dir)
-        if os.path.basename(binary_dir) == "bin":
-            args.library_dir = os.path.join(binary_dir, os.pardir, "lib")
+        if os.path.basename(args.binary_dir) == "bin":
+            args.library_dir = os.path.join(args.binary_dir, os.pardir, "lib")
         else:
             args.library_dir = args.binary_dir
 
