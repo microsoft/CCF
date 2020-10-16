@@ -51,8 +51,8 @@ namespace aft
       }
     };
 
-    static constexpr std::chrono::minutes retail_unmatched_deleted_hashes =
-      std::chrono::minutes(1);
+    static constexpr std::chrono::seconds retail_unmatched_deleted_hashes =
+      std::chrono::seconds(1);
 
   public:
     void insert(
