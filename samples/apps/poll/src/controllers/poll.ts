@@ -11,22 +11,16 @@ import {
     Post,
     Put,
     Route,
-    FieldErrors
 } from "@tsoa/runtime";
 
 import * as _ from 'lodash-es'
 import * as math from 'mathjs'
 
+import { ValidateErrorResponse, ValidateErrorStatus } from "../error_handler"
 import { parseAuthToken } from "../util"
 import * as ccf from "../types/ccf"
 
 export const MINIMUM_OPINION_THRESHOLD = 3
-
-// see tsoa-support/routes.ts.tmpl
-interface ValidateErrorResponse {
-    message: "Validation failed"
-    details: FieldErrors
-}
 
 interface ErrorResponse {
     message: string
@@ -94,7 +88,7 @@ export class PollController extends Controller {
 
     @SuccessResponse(201, "Poll has been successfully created")
     @Response<ErrorResponse>(403, "Poll has not been created because a poll was the same topic exists already")
-    @Response<ValidateErrorResponse>(422, "Schema validation error")
+    @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
     //@Post('{topic}') // CCF does not support url templates yet for JS apps
     @Post()
     public createPoll(
@@ -121,7 +115,7 @@ export class PollController extends Controller {
     @SuccessResponse(204, "Opinion has been successfully recorded")
     @Response<ErrorResponse>(400, "Opinion was not recorded because the opinion data type does not match the poll type")
     @Response<ErrorResponse>(404, "Opinion was not recorded because no poll with the given topic exists")
-    @Response<ValidateErrorResponse>(422, "Schema validation error")
+    @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
     //@Put('{topic}')
     @Put()
     public submitOpinion(
@@ -150,7 +144,7 @@ export class PollController extends Controller {
     @SuccessResponse(200, "Aggregated poll data")
     @Response<ErrorResponse>(403, "Aggregated poll data could not be returned because not enough opinions are recorded yet")
     @Response<ErrorResponse>(404, "Aggregated poll data could not be returned because no poll with the given topic exists")
-    @Response<ValidateErrorResponse>(422, "Schema validation error")
+    @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
     //@Get('{topic}')
     @Get()
     public getPoll(

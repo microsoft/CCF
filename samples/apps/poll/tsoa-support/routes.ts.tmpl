@@ -148,6 +148,7 @@ export function getValidatedArgs(args: any, request: any, response: any): any[] 
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 
 import { parseQuery, getValidatedArgs, promiseHandler } from './helpers'
+import { errorHandler } from '../src/error_handler'
 import { {{name}} } from '{{modulePath}}';
 
 // {{modulePath}} {{name}} {{path}}
@@ -173,24 +174,17 @@ export function {{name}}(request) {
         headers: {}
     }
 
-    let validatedArgs: any[] = [];
     try {
-        validatedArgs = getValidatedArgs(args, request_, response);
+        let validatedArgs = getValidatedArgs(args, request_, response);
+
+        const controller = new {{../name}}();
+
+        const data = controller.{{name}}.apply(controller, validatedArgs as any);
+        promiseHandler(controller, data, response);
+        return response;
     } catch (err) {
-        return {
-            body: {
-                message: "Validation failed",
-                details: err.fields
-            },
-            statusCode: 422
-        }
+        return errorHandler(err, request);
     }
-
-    const controller = new {{../name}}();
-
-    const data = controller.{{name}}.apply(controller, validatedArgs as any);
-    promiseHandler(controller, data, response);
-    return response;
 }
 {{/each}}
 
