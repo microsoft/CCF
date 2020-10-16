@@ -696,9 +696,11 @@ namespace ccfapp
 
     JSClassDef body_class_def = {};
 
-    void execute_request(EndpointContext& args)
+    void execute_request(
+      const std::string& method,
+      const ccf::RESTVerb& verb,
+      EndpointContext& args)
     {
-      const auto method = args.rpc_ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
 
       const auto scripts = args.tx.get_view(this->network.app_scripts);
@@ -709,8 +711,8 @@ namespace ccfapp
       auto handler_script = scripts->get(local_method);
       if (!handler_script)
       {
-        const auto verb_prefixed = fmt::format(
-          "{} {}", args.rpc_ctx->get_request_verb().c_str(), local_method);
+        const auto verb_prefixed =
+          fmt::format("{} {}", verb.c_str(), local_method);
         handler_script = scripts->get(verb_prefixed);
         if (!handler_script)
         {
@@ -1062,7 +1064,8 @@ namespace ccfapp
       body_class_def.class_name = "Body";
 
       auto default_handler = [this](EndpointContext& args) {
-        execute_request(args);
+        execute_request(
+          args.rpc_ctx->get_method(), args.rpc_ctx->get_request_verb(), args);
       };
 
       set_default(default_handler);
@@ -1158,7 +1161,8 @@ namespace ccfapp
       auto endpoint = dynamic_cast<JSDynamicEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
-        execute_request(args);
+        execute_request(
+          endpoint->dispatch.uri_path, endpoint->dispatch.verb, args);
         return;
       }
 
