@@ -239,8 +239,6 @@ create_patched_enclave_lib(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
 )
 
-set(OE_SIGN_PATH ${OE_BINDIR}/oesign)
-
 if(BUILD_TESTS)
   enable_testing()
 
@@ -622,6 +620,8 @@ if(BUILD_TESTS)
     CONSENSUS cft
     LABEL suite
     ADDITIONAL_ARGS
+      --oe-binary
+      ${OE_BINDIR}
       --ledger-recovery-timeout
       20
       --test-duration
@@ -692,14 +692,14 @@ if(BUILD_TESTS)
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
       CONSENSUS cft
-      ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --raft-election-timeout 20000
+      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --raft-election-timeout 20000
     )
 
     add_e2e_test(
       NAME governance_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
       CONSENSUS cft
-      ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --initial-operator-count 1
+      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
     )
 
     add_e2e_test(
