@@ -1,6 +1,6 @@
 {
   "endpoints": {
-    "/polls/{topic}": {
+    "/polls": {
       "post": {
         "js_module": "build/PollControllerProxy.js",
         "js_function": "createPoll",

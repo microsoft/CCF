@@ -182,7 +182,7 @@ export function {{name}}(request) {
                 message: "Validation failed",
                 details: err.fields
             },
-            statusCode: err.status
+            statusCode: 422
         }
     }
 

@@ -2,6 +2,8 @@
 import {
     Body,
     Path,
+    Header,
+    Query,
     SuccessResponse,
     Response,
     Controller,
@@ -15,9 +17,10 @@ import {
 import * as _ from 'lodash-es'
 import * as math from 'mathjs'
 
+import { parseAuthToken } from "../util"
 import * as ccf from "../types/ccf"
 
-const MINIMUM_OPINION_THRESHOLD = 3
+export const MINIMUM_OPINION_THRESHOLD = 3
 
 // see tsoa-support/routes.ts.tmpl
 interface ValidateErrorResponse {
@@ -59,44 +62,56 @@ interface NumericPollResponse {
 
 type GetPollResponse = StringPollResponse | NumericPollResponse
 
-// Export for unit tests
+// Export REST API request/response types for unit tests
 export {
     CreatePollRequest, SubmitOpinionRequest, 
     GetPollResponse, StringPollResponse, NumericPollResponse 
 }
 
+// KV schema
 type User = string
 
-interface StringPoll {
-    type: "string"
-    opinions: Record<User, string>
+interface PollBase<T> {
+    creator: string
+    type: string
+    opinions: Record<User, T>
 }
 
-interface NumericPoll {
+interface StringPoll extends PollBase<string> {
+    type: "string"
+}
+
+interface NumericPoll extends PollBase<number> {
     type: "number"
-    opinions: Record<User, number>
 }
 
 type Poll = StringPoll | NumericPoll
 
-const kvPolls = new ccf.TypedKVMap(ccf.kv.polls, ccf.string, ccf.json<Poll>())
-
 @Route("polls")
 export class PollController extends Controller {
+
+    private kvPolls = new ccf.TypedKVMap(ccf.kv.polls, ccf.string, ccf.json<Poll>())
 
     @SuccessResponse(201, "Poll has been successfully created")
     @Response<ErrorResponse>(403, "Poll has not been created because a poll was the same topic exists already")
     @Response<ValidateErrorResponse>(422, "Schema validation error")
-    @Post('{topic}')
+    //@Post('{topic}') // CCF does not support url templates yet for JS apps
+    @Post()
     public createPoll(
-        @Path() topic: string,
+        //@Path() topic: string,
+        @Query() topic: string,
         @Body() body: CreatePollRequest,
+        // TODO should be handled via @Authentication
+        @Header() authorization: string,
     ): void {
-        //if (kvPolls.has(topic)) {
-        //    this.setStatus(403)
-        //    return { message: "Poll with given topic exists already" } as any
-        //}
-        kvPolls.set(topic, {
+        const user = parseAuthToken(authorization)
+
+        if (this.kvPolls.has(topic)) {
+            this.setStatus(403)
+            return { message: "Poll with given topic exists already" } as any
+        }
+        this.kvPolls.set(topic, {
+            creator: user,
             type: body.type,
             opinions: {}
         })
@@ -107,13 +122,18 @@ export class PollController extends Controller {
     @Response<ErrorResponse>(400, "Opinion was not recorded because the opinion data type does not match the poll type")
     @Response<ErrorResponse>(404, "Opinion was not recorded because no poll with the given topic exists")
     @Response<ValidateErrorResponse>(422, "Schema validation error")
-    @Put('{topic}')
+    //@Put('{topic}')
+    @Put()
     public submitOpinion(
-        @Path() topic: string,
-        @Body() body: SubmitOpinionRequest
+        //@Path() topic: string,
+        @Query() topic: string,
+        @Body() body: SubmitOpinionRequest,
+        @Header() authorization: string,
     ): void {
+        const user = parseAuthToken(authorization)
+
         try {
-            var poll = kvPolls.get(topic)
+            var poll = this.kvPolls.get(topic)
         } catch (e) {
             this.setStatus(404)
             return { message: "Poll does not exist" } as any
@@ -121,11 +141,9 @@ export class PollController extends Controller {
         if (typeof body.opinion !== poll.type) {
             this.setStatus(400)
             return { message: "Poll has a different opinion type" } as any
-        }
-        // TODO
-        const user = "foo"        
+        }      
         poll.opinions[user] = body.opinion
-        kvPolls.set(topic, poll)
+        this.kvPolls.set(topic, poll)
         this.setStatus(204)
     }
 
@@ -133,12 +151,17 @@ export class PollController extends Controller {
     @Response<ErrorResponse>(403, "Aggregated poll data could not be returned because not enough opinions are recorded yet")
     @Response<ErrorResponse>(404, "Aggregated poll data could not be returned because no poll with the given topic exists")
     @Response<ValidateErrorResponse>(422, "Schema validation error")
-    @Get('{topic}')
+    //@Get('{topic}')
+    @Get()
     public getPoll(
-        @Path() topic: string
+        //@Path() topic: string
+        @Query() topic: string,
+        @Header() authorization: string,
     ): GetPollResponse {
+        const user = parseAuthToken(authorization)
+
         try {
-            var poll = kvPolls.get(topic)
+            var poll = this.kvPolls.get(topic)
         } catch (e) {
             this.setStatus(404)
             return { message: "Poll does not exist" } as any
@@ -149,9 +172,6 @@ export class PollController extends Controller {
             this.setStatus(403)
             return { message: "Minimum number of opinions not reached yet" } as any
         }
-
-        // TODO
-        const user = "foo"
 
         this.setStatus(200)
 
