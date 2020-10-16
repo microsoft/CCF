@@ -18,7 +18,7 @@ def mk_new(name, contents):
         mk(name, contents)
 
 
-def build_lib_path(lib_name, enclave_type=None):
+def build_lib_path(lib_name, enclave_type=None, library_dir="."):
     if enclave_type == "virtual":
         ext = ".virtual.so"
         mode = "Virtual mode"
@@ -34,7 +34,7 @@ def build_lib_path(lib_name, enclave_type=None):
         return lib_name
     else:
         # Make sure relative paths include current directory. Absolute paths will be unaffected
-        return os.path.join(".", os.path.normpath(f"{lib_name}{ext}"))
+        return os.path.join(library_dir, os.path.normpath(f"{lib_name}{ext}"))
 
 
 def build_bin_path(bin_name, enclave_type=None, binary_dir="."):
