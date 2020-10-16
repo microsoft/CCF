@@ -112,6 +112,52 @@ namespace kv::untyped
       return found.value;
     }
 
+    /** Test if key is present
+     *
+     * This returns true if the key has a value inside the transaction. If the
+     * key has been updated (written to or deleted) in the current transaction,
+     * that update will be reflected in the return of this call.
+     *
+     * @param key Key
+     *
+     * @return bool true iff key exists
+     */
+    bool has(const KeyType& key)
+    {
+      // NB: In terms of dependencies, this is a read equivalent to a get
+
+      // A write followed by a read doesn't introduce a read dependency.
+      // If this is tracked in our write set, return its status there without
+      // updating the read set.
+      auto write = tx_changes.writes.find(key);
+      if (write != tx_changes.writes.end())
+      {
+        return write->second.has_value();
+      }
+
+      // If the key doesn't exist, return false and record that we depend on
+      // the key not existing.
+      auto search = tx_changes.state.get(key);
+      if (!search.has_value())
+      {
+        tx_changes.reads.insert(std::make_pair(key, NoVersion));
+        return false;
+      }
+
+      // Record the version that we depend on.
+      auto& found = search.value();
+      tx_changes.reads.insert(std::make_pair(key, found.version));
+
+      // If the key has been deleted, return false.
+      if (is_deleted(found.version))
+      {
+        return false;
+      }
+
+      // This key exists and is not deleted, return true.
+      return true;
+    }
+
     /** Write value at key
      *
      * If the key already exists, the value will be replaced.
