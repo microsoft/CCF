@@ -59,21 +59,36 @@ def append_targets(file, args):
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
 
     subparsers = parser.add_subparsers(
         title="targets",
         description="Instructions to generate a list of targets. Can be repeated multiple times",
     )
     targets_s = "targets"
-    targets_parser = subparsers.add_parser(targets_s)
+    targets_parser = subparsers.add_parser(
+        targets_s, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
 
-    targets_parser.add_argument("--uri-path", type=str)
-    targets_parser.add_argument("--range-start", type=int, default=0)
-    targets_parser.add_argument("--range-end", type=int, default=1)
-    targets_parser.add_argument("--method", type=str, default="POST")
-    targets_parser.add_argument("--hostname", type=str, default="127.0.0.1:8000")
-    targets_parser.add_argument("--body", default=None)
+    targets_parser.add_argument("--uri-path", type=str, help="Path to desired endpoint")
+    targets_parser.add_argument(
+        "--range-start", type=int, default=0, help="First index for range of targets"
+    )
+    targets_parser.add_argument(
+        "--range-end", type=int, default=1, help="End index for range of targets"
+    )
+    targets_parser.add_argument(
+        "--method", type=str, default="POST", help="HTTP method to be called"
+    )
+    targets_parser.add_argument(
+        "--hostname",
+        type=str,
+        default="127.0.0.1:8000",
+        help="Base hostname to submit target to",
+    )
+    targets_parser.add_argument("--body", default=None, help="JSON body of request")
 
     remaining_args = sys.argv[1:]
     steps = []
