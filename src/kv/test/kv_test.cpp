@@ -998,7 +998,7 @@ TEST_CASE("Conflict resolution")
   auto try_write = [&](kv::Tx& tx, const std::string& s) {
     auto view = tx.get_view(map);
 
-    // Numroduce read-dependency
+    // Introduce read-dependency
     view->get("foo");
     view->put("foo", s);
 
@@ -1015,6 +1015,7 @@ TEST_CASE("Conflict resolution")
     {
       const auto it = view->get(s);
       REQUIRE(it.has_value());
+      REQUIRE(view->has(s));
       REQUIRE(it.value() == s);
     }
 
@@ -1022,6 +1023,7 @@ TEST_CASE("Conflict resolution")
     {
       const auto it = view->get(s);
       REQUIRE(!it.has_value());
+      REQUIRE(!view->has(s));
     }
   };
 
@@ -1046,6 +1048,11 @@ TEST_CASE("Conflict resolution")
   REQUIRE(res1 == kv::CommitSuccess::CONFLICT);
   confirm_state({"baz"}, {"bar"});
 
+  // A third transaction just wants to read the value
+  auto tx3 = kv_store.create_tx();
+  auto view3 = tx3.get_view(map);
+  REQUIRE(view3->has("foo"));
+
   // First transaction is rerun with same object, producing different result
   try_write(tx1, "buzz");
 
@@ -1053,6 +1060,13 @@ TEST_CASE("Conflict resolution")
   res1 = tx1.commit();
   REQUIRE(res1 == kv::CommitSuccess::OK);
   confirm_state({"baz", "buzz"}, {"bar"});
+
+  // Third transaction completes later, has no conflicts but reports the earlier version it read
+  auto res3 = tx3.commit();
+  REQUIRE(res3 == kv::CommitSuccess::OK);
+
+  REQUIRE(tx1.commit_version() > tx2.commit_version());
+  REQUIRE(tx2.get_read_version() >= tx2.get_read_version());
 
   // Re-running a _committed_ transaction is exceptionally bad
   REQUIRE_THROWS(tx1.commit());
