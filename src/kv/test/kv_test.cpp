@@ -11,6 +11,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #include <msgpack/msgpack.hpp>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -364,6 +365,205 @@ TEST_CASE("foreach")
         REQUIRE(ctr == 5);
       }
     }
+  }
+}
+
+TEST_CASE("Modifications during foreach iteration")
+{
+  kv::Store kv_store;
+  auto& map = kv_store.create<MapTypes::NumString>("public:map");
+
+  const auto value1 = "foo";
+  const auto value2 = "bar";
+
+  std::set<size_t> keys;
+  {
+    INFO("Insert initial keys");
+
+    auto tx = kv_store.create_tx();
+    auto view = tx.get_view(map);
+    for (size_t i = 0; i < 40; ++i)
+    {
+      keys.insert(i);
+      view->put(i, value1);
+    }
+
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+
+  auto tx = kv_store.create_tx();
+  auto view = tx.get_view(map);
+
+  // Some keys are previously committed, some are overwritten, some are
+  // newly written
+  const auto old_keys = keys.size();
+  for (size_t i = old_keys / 2; i < old_keys + old_keys / 2; ++i)
+  {
+    keys.insert(i);
+    view->put(i, value2);
+  }
+
+  size_t keys_seen = 0;
+  const auto expected_keys_seen = keys.size();
+
+  SUBCASE("Removing current key while iterating")
+  {
+    auto should_remove = [](size_t n) { return n % 3 == 0 || n % 5 == 0; };
+
+    view->foreach(
+      [&view, &keys, &keys_seen, should_remove](const auto& k, const auto&) {
+        ++keys_seen;
+        const auto it = keys.find(k);
+        REQUIRE(it != keys.end());
+
+        // Remove a 'random' set of keys while iterating
+        if (should_remove(k))
+        {
+          view->remove(k);
+          keys.erase(it);
+        }
+
+        return true;
+      });
+
+    REQUIRE(keys_seen == expected_keys_seen);
+
+    // Check all expected keys are still there...
+    view->foreach([&keys, should_remove](const auto& k, const auto&) {
+      REQUIRE(!should_remove(k));
+      const auto it = keys.find(k);
+      REQUIRE(it != keys.end());
+      keys.erase(it);
+      return true;
+    });
+
+    // ...and nothing else
+    REQUIRE(keys.empty());
+  }
+
+  SUBCASE("Removing other keys while iterating")
+  {
+    auto should_remove = [](size_t n) { return n % 3 == 0 || n % 5 == 0; };
+
+    std::optional<size_t> removal_trigger = std::nullopt;
+
+    view->foreach([&view, &keys, &keys_seen, &removal_trigger, should_remove](
+                    const auto& k, const auto&) {
+      ++keys_seen;
+
+      // The first time we find a removable, remove _all the others_ (not
+      // ourself!)
+      if (should_remove(k) && !removal_trigger.has_value())
+      {
+        REQUIRE(!removal_trigger.has_value());
+        removal_trigger = k;
+
+        auto remove_it = keys.begin();
+        while (remove_it != keys.end())
+        {
+          const auto n = *remove_it;
+          if (should_remove(n) && n != k)
+          {
+            view->remove(n);
+            remove_it = keys.erase(remove_it);
+          }
+          else
+          {
+            ++remove_it;
+          }
+        }
+      }
+
+      return true;
+    });
+
+    REQUIRE(keys_seen == expected_keys_seen);
+
+    REQUIRE(removal_trigger.has_value());
+
+    // Check all expected keys are still there...
+    view->foreach(
+      [&keys, removal_trigger, should_remove](const auto& k, const auto&) {
+        const auto should_be_here =
+          !should_remove(k) || k == removal_trigger.value();
+        REQUIRE(should_be_here);
+        const auto it = keys.find(k);
+        REQUIRE(it != keys.end());
+        keys.erase(it);
+        return true;
+      });
+
+    // ...and nothing else
+    REQUIRE(keys.empty());
+  }
+
+  SUBCASE("Modifying and adding other keys while iterating")
+  {
+    auto should_modify = [](size_t n) { return n % 3 == 0 || n % 5 == 0; };
+
+    static constexpr auto value3 = "baz";
+
+    std::set<size_t> updated_keys;
+
+    view->foreach([&view, &keys, &keys_seen, &updated_keys, should_modify](
+                    const auto& k, const auto& v) {
+      ++keys_seen;
+
+      if (should_modify(k))
+      {
+        // Modify ourselves
+        view->put(k, value3);
+        updated_keys.insert(k);
+
+        // Modify someone else ('before' and 'after' are guesses - iteration
+        // order is undefined!)
+        const auto before = k / 2;
+        view->put(before, value3);
+        keys.insert(before);
+        updated_keys.insert(before);
+
+        const auto after = k * 2;
+        view->put(after, value3);
+        keys.insert(after);
+        updated_keys.insert(after);
+
+        // Note discrepancy with externally visible value
+        const auto visible_v = view->get(k);
+        REQUIRE(visible_v.has_value());
+        REQUIRE(visible_v.value() == value3);
+        REQUIRE(visible_v.value() != v); // !!
+      }
+
+      return true;
+    });
+
+    REQUIRE(keys_seen == expected_keys_seen);
+
+    // Check all expected keys are still there...
+    view->foreach([&keys, &updated_keys](const auto& k, const auto& v) {
+      const auto updated_it = updated_keys.find(k);
+      if (updated_it != updated_keys.end())
+      {
+        REQUIRE(v == value3);
+        updated_keys.erase(updated_it);
+      }
+      else
+      {
+        REQUIRE(v != value3);
+      }
+
+      const auto it = keys.find(k);
+      if (it != keys.end())
+      {
+        keys.erase(it);
+      }
+
+      return true;
+    });
+
+    // ...and nothing else
+    REQUIRE(keys.empty());
+    REQUIRE(updated_keys.empty());
   }
 }
 
