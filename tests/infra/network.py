@@ -87,11 +87,11 @@ class Network:
         self,
         hosts,
         binary_dir=".",
-        library_dir=".",
         dbg_nodes=None,
         perf_nodes=None,
         existing_network=None,
         txs=None,
+        library_dir=".",
     ):
         self.existing_network = existing_network
         if self.existing_network is None:
