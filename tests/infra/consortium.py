@@ -270,7 +270,9 @@ class Consortium:
         OPEN.
         """
         proposal_body, careful_vote = self.make_proposal("open_network")
-        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        proposal = self.get_any_active_member().propose(
+            remote_node, proposal_body, wait_for_global_commit=True
+        )
         proposal.vote_for = careful_vote
         self.vote_using_majority(remote_node, proposal, wait_for_global_commit=True)
         self.check_for_service(remote_node, infra.network.ServiceStatus.OPEN)

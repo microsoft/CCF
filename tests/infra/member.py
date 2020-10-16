@@ -3,11 +3,9 @@
 
 from enum import Enum
 import infra.proc
-import infra.node
 import infra.proposal
 import infra.crypto
 import ccf.clients
-import infra.checker
 import http
 import os
 import base64
@@ -81,13 +79,21 @@ class Member:
         # Use this with caution (i.e. only when the network is opening)
         self.status_code = MemberStatus.ACTIVE
 
-    def propose(self, remote_node, proposal, has_proposer_voted_for=True):
+    def propose(
+        self,
+        remote_node,
+        proposal,
+        has_proposer_voted_for=True,
+        wait_for_global_commit=True,
+    ):
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.post(
                 "/gov/proposals",
                 proposal,
                 signed=True,
             )
+            if wait_for_global_commit:
+                ccf.commit.wait_for_commit(mc, r.seqno, r.view)
             if r.status_code != http.HTTPStatus.OK.value:
                 raise infra.proposal.ProposalNotCreated(r)
 
