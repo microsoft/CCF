@@ -210,7 +210,14 @@ namespace kv::untyped
       return true;
     }
 
-    /** Iterate over all entries in the map
+    /** Iterate over all entries in the map.
+     *
+     * Iterates over the entries which exist at the initial calling point - does
+     * _not_ include any modifications made by the functor:
+     * - If the functor adds keys they will not have functor called
+     * - If the functor replaces a value at an existing key, the original value
+     * before replacement will be passed to the functor
+     * - If the functor removes keys they will still have the functor called
      *
      * @param F functor, taking a key and a value, return value determines
      * whether the iteration should continue (true) or stop (false)
@@ -220,7 +227,11 @@ namespace kv::untyped
     {
       // Record a global read dependency.
       tx_changes.read_version = tx_changes.start_version;
-      auto& w = tx_changes.writes;
+
+      // Take a snapshot copy of the writes. This is what we will iterate over,
+      // while any additional modifications made by the functor will modify the
+      // original tx_changes.writes, and be visible outside of the functor
+      auto w = tx_changes.writes;
       bool should_continue = true;
 
       tx_changes.state.foreach(
@@ -237,8 +248,8 @@ namespace kv::untyped
 
       if (should_continue)
       {
-        for (auto write = tx_changes.writes.begin();
-             write != tx_changes.writes.end();
+        for (auto write = w.begin();
+             write != w.end();
              ++write)
         {
           if (write->second.has_value())
