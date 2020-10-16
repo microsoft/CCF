@@ -386,7 +386,7 @@ function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
     "NAME;PYTHON_SCRIPT;GOV_SCRIPT;LABEL;CURL_CLIENT;CONSENSUS;"
-    "ADDITIONAL_ARGS"
+    "ADDITIONAL_ARGS;CONFIGURATIONS"
   )
 
   if(NOT PARSED_ARGS_GOV_SCRIPT)
@@ -400,6 +400,7 @@ function(add_e2e_test)
         ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
         ${CCF_NETWORK_TEST_ARGS} -g ${PARSED_ARGS_GOV_SCRIPT} --consensus
         ${PARSED_ARGS_CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
+      CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 
     # Make python test client framework importable
