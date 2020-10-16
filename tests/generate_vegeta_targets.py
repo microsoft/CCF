@@ -94,7 +94,6 @@ if __name__ == "__main__":
             end_index = len(remaining_args)
 
         parse_slice = remaining_args[start_index:end_index]
-        LOG.info(f"Parsing: {parse_slice}")
         args, rest = targets_parser.parse_known_args(parse_slice)
         steps += [args]
         remaining_args = remaining_args[end_index:]
