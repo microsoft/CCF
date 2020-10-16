@@ -39,7 +39,8 @@ namespace kv::untyped
      * appropriate to record read dependency on this key, at the version of the
      * returned data.
      */
-    const ValueType* read_key(const KeyType& key) {
+    const ValueType* read_key(const KeyType& key)
+    {
       // A write followed by a read doesn't introduce a read dependency.
       // If we have written, return the value without updating the read set.
       auto write = tx_changes.writes.find(key);
