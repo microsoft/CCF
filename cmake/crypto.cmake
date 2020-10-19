@@ -39,6 +39,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 endif()
 
 add_library(evercrypt.host STATIC ${EVERCRYPT_SRC})
+add_san(evercrypt.host)
 set_property(TARGET evercrypt.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(evercrypt.host PRIVATE ${EVERCRYPT_INC})
 install(
@@ -78,6 +79,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 endif()
 
 add_library(ccfcrypto.host STATIC ${CCFCRYPTO_SRC})
+add_san(ccfcrypto.host)
 target_compile_definitions(ccfcrypto.host PRIVATE)
 target_compile_options(ccfcrypto.host PRIVATE -stdlib=libc++)
 target_include_directories(ccfcrypto.host PRIVATE ${EVERCRYPT_INC})
