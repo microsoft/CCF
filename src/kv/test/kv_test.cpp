@@ -395,26 +395,26 @@ TEST_CASE("Modifications during foreach iteration")
   auto view = tx.get_view(map);
 
   // 5 types of key:
-  // - Some were previously committed and are unmodified
+  // 1) previously committed and unmodified
   const auto initial_keys_size = keys.size();
   const auto keys_per_category = keys.size() / 3;
   // We do nothing to the first keys_per_category keys
 
-  // - Some were previously committed and had their values changed
+  // 2) previously committed and had their values changed
   for (size_t i = keys_per_category; i < 2 * keys_per_category; ++i)
   {
     keys.insert(i);
     view->put(i, value2);
   }
 
-  // - Some were previously committed and now removed
+  // 3) previously committed and now removed
   for (size_t i = 2 * keys_per_category; i < initial_keys_size; ++i)
   {
     keys.erase(i);
     view->remove(i);
   }
 
-  // - Some are newly written
+  // 4) newly written
   for (size_t i = initial_keys_size; i < initial_keys_size + keys_per_category;
        ++i)
   {
@@ -422,7 +422,7 @@ TEST_CASE("Modifications during foreach iteration")
     view->put(i, value2);
   }
 
-  // - Some are newly written and then removed
+  // 5) newly written and then removed
   for (size_t i = initial_keys_size + keys_per_category;
        i < initial_keys_size + 2 * keys_per_category;
        ++i)
