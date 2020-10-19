@@ -361,6 +361,8 @@ def remove_module(module_name: str, **kwargs):
 def read_modules(modules_path: str) -> List[dict]:
     modules = []
     for path in glob.glob(f"{modules_path}/**/*.js", recursive=True):
+        if not os.path.isfile(path):
+            continue
         rel_module_name = os.path.relpath(path, modules_path)
         rel_module_name = rel_module_name.replace("\\", "/")  # Windows support
         with open(path) as f:
