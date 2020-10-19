@@ -210,14 +210,20 @@ namespace kv::untyped
       return true;
     }
 
-    /** Iterate over all entries in the map.
+    /** Iterate over all entries in the map. There is no guarantee on the
+     * iteration order.
      *
-     * Iterates over the entries which exist at the initial calling point - does
-     * _not_ include any modifications made by the functor:
-     * - If the functor adds keys they will not have functor called
-     * - If the functor replaces a value at an existing key, the original value
-     * before replacement will be passed to the functor
-     * - If the functor removes keys they will still have the functor called
+     * The set of key-value entries which will be iterated over is determined at
+     * the point foreach is called, and does not include any modifications made
+     * by the functor. This means:
+     * - If the functor sets a value V at a new key K', the functor will not be
+     * called for (K', V)
+     * - If the functor changes the value at key K from V to V', the functor
+     * will be called with the old value (K, V)
+     * - If the functor removes K, the functor will still be called for (K, V)
+     *
+     * Calling `get` will always return the true latest state, this behaviour
+     * only applies to the keys and values passed as functor arguments.
      *
      * @param F functor, taking a key and a value, return value determines
      * whether the iteration should continue (true) or stop (false)
@@ -230,7 +236,8 @@ namespace kv::untyped
 
       // Take a snapshot copy of the writes. This is what we will iterate over,
       // while any additional modifications made by the functor will modify the
-      // original tx_changes.writes, and be visible outside of the functor
+      // original tx_changes.writes, and be visible outside of the functor's
+      // args
       auto w = tx_changes.writes;
       bool should_continue = true;
 
@@ -248,9 +255,7 @@ namespace kv::untyped
 
       if (should_continue)
       {
-        for (auto write = w.begin();
-             write != w.end();
-             ++write)
+        for (auto write = w.begin(); write != w.end(); ++write)
         {
           if (write->second.has_value())
           {

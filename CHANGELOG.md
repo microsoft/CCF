@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 - `node/quote` endpoint now returns a single JSON object containing the node's quote (#1761).
+- Calling `foreach` on a `TxView` now iterates over the entries which previously existed, ignoring any modifications made by the functor while iterating.
 
 ## [0.14.1]
 ### Added
