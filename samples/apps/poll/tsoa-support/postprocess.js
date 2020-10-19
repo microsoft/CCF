@@ -166,17 +166,20 @@ fs.unlinkSync(routesPath);
 // for each endpoint
 SwaggerParser.dereference(openapiPath).then(openapi => {
     for (const url in newEndpoints) {
-        const pathItem = openapi.paths[url];
-        if (!pathItem)
-            throw new Error(`${url} not found in OpenAPI document`);
+        const pathItem = openapi.paths[url] || {};
         for (const method in newEndpoints[url]) {
-            const operation = pathItem[method];
-            if (!operation)
-                throw new Error(`${url} [${method}] not found in OpenAPI document`);
+            let operation = pathItem[method];
+            if (!operation) {
+                console.log(`WARNING: ${url} [${method}] not found in OpenAPI document`);
+                operation = null
+            }
             if (!newEndpoints[url][method]['openapi'])
                 newEndpoints[url][method]['openapi'] = operation;
         }
     }
     fs.mkdirSync(distDir, { recursive: true });
     fs.writeFileSync(finalMetadataPath, JSON.stringify(newMetadata, null, 2));
-});
+}).catch(e => {
+    console.error(`${e}`)
+    process.exit(1)
+})

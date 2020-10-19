@@ -28,6 +28,17 @@
         "require_client_signature": false,
         "readonly": true
       }
+    },
+    "/site": {
+      "get": {
+        "js_module": "build/SiteControllerProxy.js",
+        "js_function": "getPoll",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_identity": false,
+        "require_client_signature": false,
+        "readonly": true
+      }
     }
   }
 }
