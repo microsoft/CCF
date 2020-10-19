@@ -3,11 +3,9 @@
 
 from enum import Enum
 import infra.proc
-import infra.node
 import infra.proposal
 import infra.crypto
 import ccf.clients
-import infra.checker
 import http
 import os
 import base64
@@ -81,7 +79,12 @@ class Member:
         # Use this with caution (i.e. only when the network is opening)
         self.status_code = MemberStatus.ACTIVE
 
-    def propose(self, remote_node, proposal, has_proposer_voted_for=True):
+    def propose(
+        self,
+        remote_node,
+        proposal,
+        has_proposer_voted_for=True,
+    ):
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.post(
                 "/gov/proposals",
@@ -102,7 +105,6 @@ class Member:
         self,
         remote_node,
         proposal,
-        accept=True,
         wait_for_global_commit=True,
     ):
         with remote_node.client(f"member{self.member_id}") as mc:
@@ -111,23 +113,6 @@ class Member:
                 body=proposal.vote_for,
                 signed=True,
             )
-
-        if r.status_code != 200:
-            return r
-
-        # If the proposal was accepted, wait for it to be globally committed
-        # This is particularly useful for the open network proposal to wait
-        # until the global hook on the SERVICE table is triggered
-        if (
-            r.body.json()["state"] == infra.proposal.ProposalState.Accepted.value
-            and wait_for_global_commit
-        ):
-            with remote_node.client() as mc:
-                # If we vote in a new node, which becomes part of quorum, the transaction
-                # can only commit after it has successfully joined and caught up.
-                # Given that the retry timer on join RPC is 4 seconds, anything less is very
-                # likely to time out!
-                ccf.commit.wait_for_commit(mc, r.seqno, r.view, timeout=6)
 
         return r
 
