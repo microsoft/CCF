@@ -13,34 +13,92 @@ import {
 import { ValidateErrorResponse, ValidateErrorStatus } from "../error_handler"
 import { parseAuthToken } from "../util"
 
-
-@Hidden()
-@Route("site")
-export class SiteController extends Controller {
-
-    //@Get('{topic}')
-    @Get()
-    public getPoll(
-        //@Path() topic: string
-        @Query() topic: string,
-        //@Header() authorization: string,
-    ): any {
-        this.setHeader('content-type', 'text/html')
-        return `
+const POLLS_HTML = `
 <!DOCTYPE html>
 <html>
 <body>
 
-User: <input type="text" id="input-user" /><br /><br />
+User: <span id="user"></span><br /><br />
 
+Topic:
+<input type="text" id="input-topic">
+<br />
+
+Type: 
 <input type="radio" name="input-poll-type" value="number"> Numeric
 <input type="radio" name="input-poll-type" value="string"> String
-<button id="create-poll-btn">Create Poll</button><br /><br />
+<br />
+<button id="create-poll-btn">Create Poll</button>
 
-Opinion: <input type="text" id="input-opinion" />
-<button id="submit-opinion-btn">Submit Opinion</button><br /><br />
+<script>
+const apiUrl = window.location.origin + '/app/polls'
+const $ = document.querySelector.bind(document)
 
-<button id="get-aggregated-opinions-btn">Get aggregated opinions</button>
+function getRandomInt(min, max) {
+    min = Math.ceil(min)
+    max = Math.floor(max)
+    return Math.floor(Math.random() * (max - min + 1)) + min
+}
+
+let user = 'user' + getRandomInt(0, 1000).toString()
+
+$('#user').innerHTML = user
+
+$('#create-poll-btn').addEventListener('click', async () => {
+    const typeEl = $('input[name=input-poll-type]:checked')
+    if (!typeEl) {
+        window.alert('Poll type must be selected')
+        return
+    }
+    const type = typeEl.value
+    const topic = $('#input-topic').value
+    try {
+        await createPoll(topic, user, type)
+    } catch (e) {
+        window.alert(e)
+        return
+    }
+    window.alert('Successfully created poll for topic "' + topic + '".')
+    window.location = window.location + topic
+})
+
+async function createPoll(topic, user, type) {
+    const response = await fetch(apiUrl + '?topic=' + topic, {
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json',
+            'authorization': 'Bearer user=' + user,
+        },
+        body: JSON.stringify({
+            type: type
+        })
+    })
+    if (!response.ok) {
+        const error = await response.json()
+        console.error(error)
+        throw new Error('Could not create poll: ' + error.message)
+    }
+}
+
+</script>
+</body>
+</html>
+`
+
+const POLL_HTML = `
+<!DOCTYPE html>
+<html>
+<body>
+
+User: <span id="user"></span><br /><br />
+
+Topic: <span id="poll-topic"></span><br /><br />
+
+Opinion: <input type="text" id="input-opinion" /><br />
+<button id="submit-opinion-btn">Submit Opinion</button>
+<br /><br />
+
+<button id="get-aggregated-opinions-btn">Get aggregated opinions</button><br />
 <pre id="stuff"></pre>
 
 <script>
@@ -50,33 +108,19 @@ const topic = urlParams.get('topic')
 
 const $ = document.querySelector.bind(document)
 
+$('#poll-topic').innerHTML = topic
+
 function getRandomInt(min, max) {
     min = Math.ceil(min)
     max = Math.floor(max)
     return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
-$('#input-user').value = 'user' + getRandomInt(0, 1000).toString()
+let user = 'user' + getRandomInt(0, 1000).toString()
 
-$('#create-poll-btn').addEventListener('click', async () => {
-    const typeEl = $('input[name=input-poll-type]:checked')
-    if (!typeEl) {
-        window.alert('Poll type must be selected')
-        return
-    }
-    const type = typeEl.value
-    const user = $('#input-user').value
-    try {
-        await createPoll(topic, user, type)
-    } catch (e) {
-        window.alert(e)
-        return
-    }
-    window.alert('success')
-})
+$('#user').innerHTML = user
 
 $('#submit-opinion-btn').addEventListener('click', async () => {
-    const user = $('#input-user').value
     let opinion = $('#input-opinion').value
     if (!Number.isNaN(Number(opinion))) {
         opinion = parseFloat(opinion)
@@ -87,11 +131,10 @@ $('#submit-opinion-btn').addEventListener('click', async () => {
         window.alert(e)
         return
     }
-    window.alert('success')
+    window.alert('Successfully submitted opinion.')
 })
 
 $('#get-aggregated-opinions-btn').addEventListener('click', async () => {
-    const user = $('#input-user').value
     try {
         var opinions = await getAggregatedOpinions(topic, user)
     } catch (e) {
@@ -119,24 +162,6 @@ async function getAggregatedOpinions(topic, user) {
     return opinions
 }
 
-async function createPoll(topic, user, type) {
-    const response = await fetch(apiUrl + '?topic=' + topic, {
-        method: 'POST',
-        headers: {
-            'content-type': 'application/json',
-            'authorization': 'Bearer user=' + user,
-        },
-        body: JSON.stringify({
-            type: type
-        })
-    })
-    if (!response.ok) {
-        const error = await response.json()
-        console.error(error)
-        throw new Error('Could not create poll: ' + error.message)
-    }
-}
-
 async function submitOpinion(topic, user, opinion) {
     const response = await fetch(apiUrl + '?topic=' + topic, {
         method: 'PUT',
@@ -158,6 +183,26 @@ async function submitOpinion(topic, user, opinion) {
 </script>
 </body>
 </html>
-        `
+`
+
+@Hidden()
+@Route("site/polls")
+export class PollsSiteController extends Controller {
+
+    // TODO should be /polls and /polls/{topic}
+
+    //@Get('{topic}')
+    @Get()
+    public get(
+        //@Path() topic: string
+        @Query() topic: string,
+        //@Header() authorization: string,
+    ): any {
+        this.setHeader('content-type', 'text/html')
+        if (topic) {
+            return POLL_HTML
+        } else {
+            return POLLS_HTML
+        }
     }
 }

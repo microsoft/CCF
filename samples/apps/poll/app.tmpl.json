@@ -29,10 +29,10 @@
         "readonly": true
       }
     },
-    "/site": {
+    "/site/polls": {
       "get": {
-        "js_module": "build/SiteControllerProxy.js",
-        "js_function": "getPoll",
+        "js_module": "build/PollsSiteControllerProxy.js",
+        "js_function": "get",
         "forwarding_required": "always",
         "execute_locally": false,
         "require_client_identity": false,
