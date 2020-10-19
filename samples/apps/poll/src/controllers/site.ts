@@ -13,9 +13,189 @@ import {
 import { ValidateErrorResponse, ValidateErrorStatus } from "../error_handler"
 import { parseAuthToken } from "../util"
 
+const COMMON_HTML = `
+<script src="//cdn.jsdelivr.net/npm/jstat@1.9.4/dist/jstat.min.js"></script>
+<script src="//cdn.plot.ly/plotly-1.57.0.min.js"></script>
+<script>
+const apiUrl = window.location.origin + '/app/polls'
+
+async function createPoll(topic, user, type) {
+    const response = await fetch(apiUrl + '?topic=' + topic, {
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json',
+            'authorization': 'Bearer user=' + user,
+        },
+        body: JSON.stringify({
+            type: type
+        })
+    })
+    if (!response.ok) {
+        const error = await response.json()
+        console.error(error)
+        throw new Error('Could not create poll: ' + error.message)
+    }
+}
+
+async function submitOpinion(topic, user, opinion) {
+    const response = await fetch(apiUrl + '?topic=' + topic, {
+        method: 'PUT',
+        headers: {
+            'content-type': 'application/json',
+            'authorization': 'Bearer user=' + user,
+        },
+        body: JSON.stringify({
+            opinion: opinion
+        })
+    })
+    if (!response.ok) {
+        const error = await response.json()
+        console.error(error)
+        throw new Error('Could not submit opinion: ' + error.message)
+    }
+}
+
+async function getPoll(topic, user) {
+    const response = await fetch(apiUrl + '?topic=' + topic, {
+        method: 'GET',
+        headers: {
+            'content-type': 'application/json',
+            'authorization': 'Bearer user=' + user,
+        }
+    })
+    if (!response.ok) {
+        const error = await response.json()
+        console.error(error)
+        throw new Error('Could not retrieve poll: ' + error.message)
+    }
+    const opinions = await response.json()
+    return opinions
+}
+
+function plotPoll(element, topic, data) {
+    if (data.type == 'string') {
+        plotStringPoll(element, topic, data)
+    } else {
+        plotNumberPoll(element, topic, data)
+    }
+}
+
+const margin = {l: 30, r: 30, t: 30, b: 30}
+
+function plotNumberPoll(element, topic, data) {
+    const mean = data.statistics.mean
+    const std = data.statistics.std
+    const normal = jStat.normal(mean, std)
+    const xs = []
+    const ys = []
+    for (let i = mean - std*2; i < mean + std*2; i += 0.01) {
+        xs.push(i)
+        ys.push(normal.pdf(i))
+    }
+    
+    const trace = {
+        x: xs,
+        y: ys,
+        opacity: 0.5,
+        line: {
+            color: 'rgba(255, 0, 0)',
+            width: 4
+        },
+        type: 'scatter'
+    }
+
+    const shapes = [{
+        type: 'line',
+        yref: 'paper',
+        x0: mean,
+        y0: 0,
+        x1: mean,
+        y1: 1,
+        line:{
+            color: 'black',
+            width: 3,
+        }
+    }, {
+        type: 'line',
+        yref: 'paper',
+        x0: mean - std,
+        y0: 0,
+        x1: mean - std,
+        y1: 1,
+        line:{
+            color: 'black',
+            width: 2,
+        }
+    }, {
+        type: 'line',
+        yref: 'paper',
+        x0: mean + std,
+        y0: 0,
+        x1: mean + std,
+        y1: 1,
+        line:{
+            color: 'black',
+            width: 2,
+        }
+    }]
+    if (data.opinion) {
+        shapes.push({
+            type: 'line',
+            yref: 'paper',
+            x0: data.opinion,
+            y0: 0,
+            x1: data.opinion,
+            y1: 1,
+            line:{
+                color: 'red',
+                width: 2,
+            }
+        })
+    }
+
+    Plotly.newPlot(element, [trace], {
+        title: topic,
+        shapes: shapes,
+        xaxis: {
+            zeroline: false
+        },
+        yaxis: {
+            zeroline: false
+        },
+        margin: margin
+      }, {displayModeBar: false})
+}
+
+function plotStringPoll(element, topic, data) {
+    const strings = Object.keys(data.statistics.counts)
+    const counts = Object.values(data.statistics.counts)
+    const colors = strings.map(s => s == data.opinion ? 'rgba(222,45,38,0.8)' : 'rgba(204,204,204,1)')
+    const trace = {
+        x: strings,
+        y: counts,
+        marker:{
+            color: colors
+        },
+        type: 'bar'
+    }
+    Plotly.newPlot(element, [trace], {
+        title: topic,
+        margin: margin
+    }, {displayModeBar: false})
+}
+</script>
+`
+
 const POLLS_HTML = `
 <!DOCTYPE html>
 <html>
+<style>
+.plot {
+    width: 300px;
+    height: 150px;
+    float: left;
+}
+</style>
 <body>
 
 User: <span id="user"></span><br /><br />
@@ -29,9 +209,16 @@ Type:
 <input type="radio" name="input-poll-type" value="string"> String
 <br />
 <button id="create-poll-btn">Create Poll</button>
+<br />
+<br />
+Topics (comma-separated): <input type="text" id="input-topics" /><br />
+<button id="plot-polls-btn">Plot</button>
+
+<div id="plots"></div>
+
+${COMMON_HTML}
 
 <script>
-const apiUrl = window.location.origin + '/app/polls'
 const $ = document.querySelector.bind(document)
 
 function getRandomInt(min, max) {
@@ -62,23 +249,33 @@ $('#create-poll-btn').addEventListener('click', async () => {
     window.location = window.location + topic
 })
 
-async function createPoll(topic, user, type) {
-    const response = await fetch(apiUrl + '?topic=' + topic, {
-        method: 'POST',
-        headers: {
-            'content-type': 'application/json',
-            'authorization': 'Bearer user=' + user,
-        },
-        body: JSON.stringify({
-            type: type
-        })
-    })
-    if (!response.ok) {
-        const error = await response.json()
-        console.error(error)
-        throw new Error('Could not create poll: ' + error.message)
+$('#plot-polls-btn').addEventListener('click', async () => {
+    const topics = $('#input-topics').value.split(',')
+    const plotsEl = $('#plots')
+    plotsEl.innerHTML = topics.map((topic,i) => '<div class="plot" id="plot_' + i + '"></div>').join('')
+    for (let [i, topic] of topics.entries()) {
+        const plotEl = $('#plot_' + i)
+        const poll = await getPoll(topic, user)
+        plotPoll('plot_' + i, topic, poll)
     }
+})
+
+// test data
+async function createTestData() {
+    let topics = []
+    for (let i=0; i < 12; i++) {
+        let topic = 'topic ' + i
+        topics.push(topic)
+        const type = Math.random() > 0.5 ? 'string' : 'number'
+        await createPoll(topic, 'user0', type)
+        for (let j=0; j < 5; j++) {
+            let opinion = type == 'string' ? 'foo' + (j % 3) : Math.random() * i
+            await submitOpinion(topic, j == 0 ? user : 'user' + j, opinion)
+        }
+    }
+    $('#input-topics').value = topics.join(',')
 }
+createTestData()
 
 </script>
 </body>
@@ -100,10 +297,11 @@ Opinion: <input type="text" id="input-opinion" /><br />
 <button id="submit-opinion-btn">Submit Opinion</button>
 <br /><br />
 
-<pre id="stuff"></pre>
+<div id="plot" style="width: 500px; height: 300px"></div>
+
+${COMMON_HTML}
 
 <script>
-const apiUrl = window.location.origin + '/app/polls'
 const urlParams = new URLSearchParams(window.location.search)
 const topic = urlParams.get('topic')
 let type = null
@@ -133,44 +331,9 @@ $('#submit-opinion-btn').addEventListener('click', async () => {
         window.alert(e)
         return
     }
+    await updatePoll()
     window.alert('Successfully submitted opinion.')
 })
-
-async function getPoll(topic, user) {
-    const response = await fetch(apiUrl + '?topic=' + topic, {
-        method: 'GET',
-        headers: {
-            'content-type': 'application/json',
-            'authorization': 'Bearer user=' + user,
-        }
-    })
-    if (!response.ok) {
-        const error = await response.json()
-        console.error(error)
-        throw new Error('Could not retrieve poll: ' + error.message)
-    }
-    const opinions = await response.json()
-    return opinions
-}
-
-async function submitOpinion(topic, user, opinion) {
-    const response = await fetch(apiUrl + '?topic=' + topic, {
-        method: 'PUT',
-        headers: {
-            'content-type': 'application/json',
-            'authorization': 'Bearer user=' + user,
-        },
-        body: JSON.stringify({
-            opinion: opinion
-        })
-    })
-    if (!response.ok) {
-        const error = await response.json()
-        console.error(error)
-        throw new Error('Could not submit opinion: ' + error.message)
-    }
-    await updatePoll()
-}
 
 async function updatePoll() {
     try {
@@ -182,7 +345,9 @@ async function updatePoll() {
     console.log(poll)
     type = poll.type
     $('#poll-type').innerHTML = poll.type
-    $('#stuff').innerHTML = JSON.stringify(poll)
+    if (poll.statistics) {
+        plotPoll('plot', topic, poll)
+    }
 }
 
 updatePoll()

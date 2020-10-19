@@ -118,7 +118,7 @@ describe('/polls', function () {
 
       let aggregated: NumericPollResponse =
         await bent('GET', 'json', 200)(`${ENDPOINT_URL}?topic=${topic}`, null, getFakeAuth(1))
-      assert.equal(aggregated.statistics.median, opinions[2])
+      assert.equal(aggregated.statistics.mean, opinions.reduce((a, b) => a + b, 0) / opinions.length)
     })
     it('returns aggregated string poll opinions', async function () {
       const topic = 'get-b'

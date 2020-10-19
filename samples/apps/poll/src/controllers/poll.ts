@@ -46,10 +46,9 @@ interface StringPollResponse {
 
 interface NumericPollResponse {
     type: "number"
-    // TODO should this be mean? otherwise we're leaking a concrete value
     statistics?: {
-        median: number
-        stddev: number
+        mean: number
+        std: number
     }
     opinion?: number
 }
@@ -78,11 +77,8 @@ interface StringPoll extends PollBase<string> {
 interface NumericPoll extends PollBase<number> {
     type: "number"
 }
-interface BarPoll extends PollBase<number> {
-    type: "a"
-}
 
-type Poll = StringPoll | NumericPoll | BarPoll
+type Poll = StringPoll | NumericPoll
 
 @Route("polls")
 export class PollController extends Controller {
@@ -90,7 +86,7 @@ export class PollController extends Controller {
     private kvPolls = new ccf.TypedKVMap(ccf.kv.polls, ccf.string, ccf.json<Poll>())
 
     @SuccessResponse(201, "Poll has been successfully created")
-    @Response<ErrorResponse>(403, "Poll has not been created because a poll was the same topic exists already")
+    @Response<ErrorResponse>(403, "Poll has not been created because a poll with the same topic exists already")
     @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
     //@Post('{topic}') // CCF does not support url templates yet for JS apps
     @Post()
@@ -144,8 +140,8 @@ export class PollController extends Controller {
         this.setStatus(204)
     }
 
-    @SuccessResponse(200, "Aggregated poll data")
-    @Response<ErrorResponse>(404, "Aggregated poll data could not be returned because no poll with the given topic exists")
+    @SuccessResponse(200, "Poll data")
+    @Response<ErrorResponse>(404, "Poll data could not be returned because no poll with the given topic exists")
     @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
     //@Get('{topic}')
     @Get()
@@ -188,10 +184,12 @@ export class PollController extends Controller {
             if (opinionCountAboveThreshold) {
                 const opinions = Object.values(poll.opinions)
                 res.statistics = {
-                    median: math.median(opinions),
-                    stddev: math.std(opinions)
+                    mean: math.mean(opinions),
+                    std: math.std(opinions)
                 }
             }
+        } else {
+            throw new Error('unknown poll type')
         }
         return res
     }
