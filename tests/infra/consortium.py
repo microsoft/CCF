@@ -161,12 +161,15 @@ class Consortium:
             (member for member in self.members if member.member_id == member_id), None
         )
 
-    def vote_using_majority(self, remote_node, proposal, wait_for_global_commit=True):
+    def vote_using_majority(
+        self, remote_node, proposal, wait_for_global_commit=True, timeout=3
+    ):
         # This function assumes that the proposal has just been proposed and
         # that at most, only the proposer has already voted for it when
         # proposing it
         majority_count = int(len(self.get_active_members()) / 2 + 1)
 
+        response = None
         for member in self.get_active_members():
             if proposal.votes_for >= majority_count:
                 break
@@ -179,15 +182,22 @@ class Consortium:
             ):
                 continue
 
-            response = member.vote(
-                remote_node,
-                proposal,
-                accept=True,
-                wait_for_global_commit=wait_for_global_commit,
-            )
+            response = member.vote(remote_node, proposal)
             assert response.status_code == http.HTTPStatus.OK.value
             proposal.state = infra.proposal.ProposalState(response.body.json()["state"])
             proposal.increment_votes_for()
+
+        # Wait for proposal completion to be committed, even if no votes are issued
+        if wait_for_global_commit:
+            with remote_node.client() as c:
+                if response is None:
+                    response = c.get("/node/commit")
+                    seqno = response.body.json()["seqno"]
+                    view = response.body.json()["view"]
+                else:
+                    seqno = response.seqno
+                    view = response.view
+                ccf.commit.wait_for_commit(c, seqno, view, timeout=timeout)
 
         if proposal.state is not ProposalState.Accepted:
             raise infra.proposal.ProposalNotAccepted(proposal)
@@ -238,7 +248,7 @@ class Consortium:
             )
             assert r.body.json()["status"] == infra.node.NodeStatus.RETIRED.name
 
-    def trust_node(self, remote_node, node_id):
+    def trust_node(self, remote_node, node_id, timeout=3):
         if not self._check_node_exists(
             remote_node, node_id, infra.node.NodeStatus.PENDING
         ):
@@ -247,7 +257,9 @@ class Consortium:
         proposal_body, careful_vote = self.make_proposal("trust_node", node_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         proposal.vote_for = careful_vote
-        self.vote_using_majority(remote_node, proposal)
+        self.vote_using_majority(
+            remote_node, proposal, wait_for_global_commit=True, timeout=timeout
+        )
 
         if not self._check_node_exists(
             remote_node, node_id, infra.node.NodeStatus.TRUSTED
