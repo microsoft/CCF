@@ -92,19 +92,21 @@ const POLL_HTML = `
 
 User: <span id="user"></span><br /><br />
 
-Topic: <span id="poll-topic"></span><br /><br />
+Topic: <span id="poll-topic"></span><br />
+Type: <span id="poll-type"></span>
+<br /><br />
 
 Opinion: <input type="text" id="input-opinion" /><br />
 <button id="submit-opinion-btn">Submit Opinion</button>
 <br /><br />
 
-<button id="get-aggregated-opinions-btn">Get aggregated opinions</button><br />
 <pre id="stuff"></pre>
 
 <script>
 const apiUrl = window.location.origin + '/app/polls'
 const urlParams = new URLSearchParams(window.location.search)
 const topic = urlParams.get('topic')
+let type = null
 
 const $ = document.querySelector.bind(document)
 
@@ -122,7 +124,7 @@ $('#user').innerHTML = user
 
 $('#submit-opinion-btn').addEventListener('click', async () => {
     let opinion = $('#input-opinion').value
-    if (!Number.isNaN(Number(opinion))) {
+    if (type === 'number') {
         opinion = parseFloat(opinion)
     }
     try {
@@ -134,18 +136,7 @@ $('#submit-opinion-btn').addEventListener('click', async () => {
     window.alert('Successfully submitted opinion.')
 })
 
-$('#get-aggregated-opinions-btn').addEventListener('click', async () => {
-    try {
-        var opinions = await getAggregatedOpinions(topic, user)
-    } catch (e) {
-        window.alert(e)
-        return
-    }
-    console.log(opinions)
-    $('#stuff').innerHTML = JSON.stringify(opinions)
-})
-
-async function getAggregatedOpinions(topic, user) {
+async function getPoll(topic, user) {
     const response = await fetch(apiUrl + '?topic=' + topic, {
         method: 'GET',
         headers: {
@@ -156,7 +147,7 @@ async function getAggregatedOpinions(topic, user) {
     if (!response.ok) {
         const error = await response.json()
         console.error(error)
-        throw new Error('Could not retrieve aggregated opinions: ' + error.message)
+        throw new Error('Could not retrieve poll: ' + error.message)
     }
     const opinions = await response.json()
     return opinions
@@ -178,7 +169,23 @@ async function submitOpinion(topic, user, opinion) {
         console.error(error)
         throw new Error('Could not submit opinion: ' + error.message)
     }
+    await updatePoll()
 }
+
+async function updatePoll() {
+    try {
+        var poll = await getPoll(topic, user)
+    } catch (e) {
+        window.alert(e)
+        return
+    }
+    console.log(poll)
+    type = poll.type
+    $('#poll-type').innerHTML = poll.type
+    $('#stuff').innerHTML = JSON.stringify(poll)
+}
+
+updatePoll()
 
 </script>
 </body>

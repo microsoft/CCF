@@ -38,7 +38,7 @@ interface SubmitOpinionRequest {
 // TODO rename to ChoicePoll?
 interface StringPollResponse {
     type: "string"
-    statistics: {
+    statistics?: {
         counts: { [ opinion: string]: number}
     }
     opinion?: string
@@ -47,7 +47,7 @@ interface StringPollResponse {
 interface NumericPollResponse {
     type: "number"
     // TODO should this be mean? otherwise we're leaking a concrete value
-    statistics: {
+    statistics?: {
         median: number
         stddev: number
     }
@@ -78,8 +78,11 @@ interface StringPoll extends PollBase<string> {
 interface NumericPoll extends PollBase<number> {
     type: "number"
 }
+interface BarPoll extends PollBase<number> {
+    type: "a"
+}
 
-type Poll = StringPoll | NumericPoll
+type Poll = StringPoll | NumericPoll | BarPoll
 
 @Route("polls")
 export class PollController extends Controller {
@@ -142,7 +145,6 @@ export class PollController extends Controller {
     }
 
     @SuccessResponse(200, "Aggregated poll data")
-    @Response<ErrorResponse>(403, "Aggregated poll data could not be returned because not enough opinions are recorded yet")
     @Response<ErrorResponse>(404, "Aggregated poll data could not be returned because no poll with the given topic exists")
     @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
     //@Get('{topic}')
@@ -161,33 +163,36 @@ export class PollController extends Controller {
             return { message: "Poll does not exist" } as any
         }
 
-        const opinionCount = Object.keys(poll.opinions).length
-        if (opinionCount < MINIMUM_OPINION_THRESHOLD) {
-            this.setStatus(403)
-            return { message: "Minimum number of opinions not reached yet" } as any
-        }
-
         this.setStatus(200)
 
+        const opinionCountAboveThreshold = Object.keys(poll.opinions).length >= MINIMUM_OPINION_THRESHOLD
+
+        let res: GetPollResponse
+        // TODO can repetition be avoided while maintaining type checking?
         if (poll.type == "string") {
-            const opinions = Object.values(poll.opinions)
-            return {
+            res = {
                 type: poll.type,
-                opinion: poll.opinions[user],
-                statistics: {
+                opinion: poll.opinions[user]
+            }
+            if (opinionCountAboveThreshold) {
+                const opinions = Object.values(poll.opinions)
+                res.statistics = {
                     counts: _.countBy(opinions)
                 }
             }
-        } else {
-            const opinions = Object.values(poll.opinions)
-            return {
+        } else if (poll.type == "number") {
+            res = {
                 type: poll.type,
-                opinion: poll.opinions[user],
-                statistics: {
+                opinion: poll.opinions[user]
+            }
+            if (opinionCountAboveThreshold) {
+                const opinions = Object.values(poll.opinions)
+                res.statistics = {
                     median: math.median(opinions),
                     stddev: math.std(opinions)
                 }
             }
         }
+        return res
     }
 }
