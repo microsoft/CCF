@@ -382,7 +382,7 @@ TEST_CASE("Modifications during foreach iteration")
 
     auto tx = kv_store.create_tx();
     auto view = tx.get_view(map);
-    for (size_t i = 0; i < 40; ++i)
+    for (size_t i = 0; i < 60; ++i)
     {
       keys.insert(i);
       view->put(i, value1);
@@ -394,13 +394,44 @@ TEST_CASE("Modifications during foreach iteration")
   auto tx = kv_store.create_tx();
   auto view = tx.get_view(map);
 
-  // Some keys are previously committed, some are overwritten, some are
-  // newly written
-  const auto old_keys = keys.size();
-  for (size_t i = old_keys / 2; i < old_keys + old_keys / 2; ++i)
+  // 5 types of key:
+  // - Some were previously committed and are unmodified
+  const auto initial_keys_size = keys.size();
+  const auto keys_per_category = keys.size() / 3;
+  // We do nothing to the first keys_per_category keys
+
+  // - Some were previously committed and had their values changed
+  for (size_t i = keys_per_category; i < 2 * keys_per_category; ++i)
   {
     keys.insert(i);
     view->put(i, value2);
+  }
+
+  // - Some were previously committed and now removed
+  for (size_t i = 2 * keys_per_category; i < initial_keys_size; ++i)
+  {
+    keys.erase(i);
+    view->remove(i);
+  }
+
+  // - Some are newly written
+  for (size_t i = initial_keys_size; i < initial_keys_size + keys_per_category;
+       ++i)
+  {
+    keys.insert(i);
+    view->put(i, value2);
+  }
+
+  // - Some are newly written and then removed
+  for (size_t i = initial_keys_size + keys_per_category;
+       i < initial_keys_size + 2 * keys_per_category;
+       ++i)
+  {
+    keys.insert(i);
+    view->put(i, value2);
+
+    keys.erase(i);
+    view->remove(i);
   }
 
   size_t keys_seen = 0;
@@ -497,11 +528,11 @@ TEST_CASE("Modifications during foreach iteration")
     REQUIRE(keys.empty());
   }
 
+  static constexpr auto value3 = "baz";
+
   SUBCASE("Modifying and adding other keys while iterating")
   {
     auto should_modify = [](size_t n) { return n % 3 == 0 || n % 5 == 0; };
-
-    static constexpr auto value3 = "baz";
 
     std::set<size_t> updated_keys;
 
@@ -564,6 +595,36 @@ TEST_CASE("Modifications during foreach iteration")
     // ...and nothing else
     REQUIRE(keys.empty());
     REQUIRE(updated_keys.empty());
+  }
+
+  SUBCASE("Rewriting to new keys")
+  {
+    // Rewrite map, placing each value at a new key
+    view->foreach([&view, &keys_seen](const auto& k, const auto& v) {
+      ++keys_seen;
+
+      view->remove(k);
+
+      const auto new_key = k + 1000;
+      REQUIRE(!view->has(new_key));
+      view->put(new_key, v);
+
+      return true;
+    });
+
+    REQUIRE(keys_seen == expected_keys_seen);
+
+    // Check map contains only new keys, and the same count
+    keys_seen = 0;
+    view->foreach([&view, &keys, &keys_seen](const auto& k, const auto& v) {
+      ++keys_seen;
+
+      REQUIRE(keys.find(k) == keys.end());
+
+      return true;
+    });
+
+    REQUIRE(keys_seen == expected_keys_seen);
   }
 }
 
