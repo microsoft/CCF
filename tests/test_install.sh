@@ -12,8 +12,10 @@ echo "Install prefix is ${1}"
 
 # Setup env
 INSTALL_PREFIX="$1"
-mkdir -p nested/run
-cd nested/run
+working_dir="nested/run"
+rm -rf "$working_dir"
+mkdir -p "$working_dir"
+cd "$working_dir"
 
 python3.8 -m venv env
 source env/bin/activate
@@ -26,27 +28,40 @@ python -m pip install ../../../python
 # Start ephemeral network in the background
 network_info_file="network_info.txt"
 
-timeout --signal=SIGINT --kill-after=30s --preserve-status 30s \
+
+network_live_time=30
+timeout --signal=SIGINT --kill-after=${network_live_time}s --preserve-status ${network_live_time}s \
 python "$INSTALL_PREFIX"/bin/start_network.py \
-    -p ../../../build/liblogging \
+    -p liblogging \
     -b "$INSTALL_PREFIX"/bin \
+    --library-dir ../../../build \
     -g "$(pwd)"/../../../src/runtime_config/gov.lua \
     --network-info-file "$network_info_file" \
     -v &
 
+# Wait for network to be open and accessible
+while [ ! -f "$network_info_file" ]; do
+    sleep 1
+done
+
 # Issue tutorial transactions to ephemeral network
-sleep 20
 python ../../../python/tutorial.py "$network_info_file"
-sleep 15
+
+# Wait until original network has died
+sleep ${network_live_time}
+
+# ...and a tad longer to be sure
+sleep 5
 
 # Recover network
 cp -r ./workspace/start_network_0/0.ledger .
 cp ./workspace/start_network_0/network_enc_pubk.pem .
 
-timeout --signal=SIGINT --kill-after=30s --preserve-status 30s \
+timeout --signal=SIGINT --kill-after=${network_live_time}s --preserve-status ${network_live_time}s \
 python "$INSTALL_PREFIX"/bin/start_network.py \
-    -p ../../../build/liblogging \
+    -p liblogging \
     -b "$INSTALL_PREFIX"/bin \
+    --library-dir ../../../build \
     -v \
     --recover \
     --ledger-dir 0.ledger \
