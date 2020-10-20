@@ -81,3 +81,6 @@ class TxRates:
                 LOG.info("No histogram metrics found...")
             else:
                 self.histogram_data = histogram
+
+    def insert_metrics(self, **kwargs):
+        self.all_metrics.update(**kwargs)
