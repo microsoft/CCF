@@ -29,11 +29,6 @@ namespace kv
   using Version = int64_t;
   static const Version NoVersion = std::numeric_limits<Version>::min();
 
-  static bool is_deleted(Version version)
-  {
-    return version < 0;
-  }
-
   // Term describes an epoch of Versions. It is incremented when global kv's
   // writer(s) changes. Term and Version combined give a unique identifier for
   // all accepted kv modifications. Terms are handled by Consensus via the

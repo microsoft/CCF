@@ -68,12 +68,6 @@ namespace kv::untyped
       // Record the version that we depend on.
       tx_changes.reads.insert(std::make_pair(key, search->version));
 
-      // If the key has been deleted, return empty.
-      if (is_deleted(search->version))
-      {
-        return nullptr;
-      }
-
       // Return the value.
       return &search->value;
     }
@@ -124,15 +118,8 @@ namespace kv::untyped
         return std::nullopt;
       }
 
-      // If the key has been deleted, return empty.
-      auto& found = search.value();
-      if (is_deleted(found.version))
-      {
-        return std::nullopt;
-      }
-
       // Return the value.
-      return found.value;
+      return search.value().value;
     }
 
     /** Test if key is present
@@ -227,7 +214,7 @@ namespace kv::untyped
         [&w, &f, &should_continue](const KeyType& k, const VersionV& v) {
           auto write = w.find(k);
 
-          if ((write == w.end()) && !is_deleted(v.version))
+          if (write == w.end())
           {
             should_continue = f(k, v.value);
           }

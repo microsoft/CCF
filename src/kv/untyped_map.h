@@ -230,14 +230,9 @@ namespace kv::untyped
           }
           else
           {
-            // Write an empty value with the deleted global version only if
-            // the key exists.
-            auto search = state.get(it->first);
-            if (search.has_value())
-            {
-              changes = true;
-              state = state.put(it->first, VersionV{-v, {}});
-            }
+            // nullopt indicates a deletion. Delete in the current state
+            changes = true;
+            state = state.remove(it->first);
           }
         }
 
@@ -471,10 +466,7 @@ namespace kv::untyped
         if (map.local_hook || map.global_hook)
         {
           r->state.foreach([&r](const K& k, const VersionV& v) {
-            if (!is_deleted(v.version))
-            {
-              r->writes[k] = v.value;
-            }
+            r->writes[k] = v.value;
             return true;
           });
         }
