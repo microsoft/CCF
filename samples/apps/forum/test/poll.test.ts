@@ -4,7 +4,8 @@ import { NODE_ADDR, setupMochaCCFSandbox } from './util'
 import {
   CreatePollRequest, SubmitOpinionRequest, 
   NumericPollResponse, StringPollResponse,
-  MINIMUM_OPINION_THRESHOLD
+  MINIMUM_OPINION_THRESHOLD,
+  GetPollResponse
 } from '../src/controllers/poll'
 
 const APP_BUNDLE_DIR = 'dist'
@@ -154,7 +155,8 @@ describe('/polls', function () {
         await bent('PUT', 204)(`${ENDPOINT_URL}?topic=${topic}`, opinionBody, getFakeAuth(i))
       }
 
-      await bent('GET', 403)(`${ENDPOINT_URL}?topic=${topic}`, null, getFakeAuth(1))
+      const poll: GetPollResponse = await bent('GET', 'json', 200)(`${ENDPOINT_URL}?topic=${topic}`, null, getFakeAuth(1))
+      assert.notExists(poll.statistics)
     })
     it('rejects returning aggregated opinions for unknown topics', async function () {
       await bent('GET', 404)(`${ENDPOINT_URL}?topic=non-existing`, null, getFakeAuth(1))
