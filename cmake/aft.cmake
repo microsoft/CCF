@@ -29,6 +29,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 if("virtual" IN_LIST COMPILE_TARGETS)
 
   add_library(aft.virtual STATIC ${AFT_SRC})
+  add_san(aft.virtual)
   target_compile_options(aft.virtual PRIVATE -stdlib=libc++)
   target_compile_definitions(
     aft.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE

@@ -196,25 +196,13 @@ def run(args):
         params_error = http.HTTPStatus.BAD_REQUEST.value
         assert (
             network.consortium.get_member_by_id(0)
-            .vote(primary, new_member_proposal, accept=True)
-            .status_code
-            == params_error
-        )
-        assert (
-            network.consortium.get_member_by_id(0)
-            .vote(primary, new_member_proposal, accept=False)
+            .vote(primary, new_member_proposal)
             .status_code
             == params_error
         )
         assert (
             network.consortium.get_member_by_id(1)
-            .vote(primary, new_member_proposal, accept=True)
-            .status_code
-            == params_error
-        )
-        assert (
-            network.consortium.get_member_by_id(1)
-            .vote(primary, new_member_proposal, accept=False)
+            .vote(primary, new_member_proposal)
             .status_code
             == params_error
         )
@@ -278,10 +266,7 @@ def run(args):
         assert response.status_code == params_error
 
         LOG.debug("Further votes fail")
-        response = new_member.vote(primary, trust_node_proposal, accept=True)
-        assert response.status_code == params_error
-
-        response = new_member.vote(primary, trust_node_proposal, accept=False)
+        response = new_member.vote(primary, trust_node_proposal)
         assert response.status_code == params_error
 
         # Membership changes trigger re-sharing and re-keying and are

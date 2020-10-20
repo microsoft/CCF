@@ -54,6 +54,11 @@ namespace kv
       return std::nullopt;
     }
 
+    bool has(const K& key)
+    {
+      return untyped_view.has(KSerialiser::to_serialised(key));
+    }
+
     template <class F>
     void foreach(F&& f)
     {

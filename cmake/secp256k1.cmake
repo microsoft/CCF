@@ -25,6 +25,8 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 endif()
 
 add_library(secp256k1.host STATIC ${CCF_DIR}/3rdparty/secp256k1/src/secp256k1.c)
+# Can't add_san to this library, doing so causes a compile error on
+# field_*_asm_impl.h: inline assembly requires more registers than available
 target_include_directories(
   secp256k1.host PUBLIC $<BUILD_INTERFACE:${CCF_DIR}/3rdparty/secp256k1>
                         $<INSTALL_INTERFACE:include/3rdparty/secp256k1>
