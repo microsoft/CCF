@@ -673,6 +673,12 @@ if(BUILD_TESTS)
     CONSENSUS cft
   )
 
+  add_e2e_test(
+    NAME memory_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memory.py
+    CONSENSUS cft
+  )
+
   if(QUOTES_ENABLED)
     add_e2e_test(
       NAME reconfiguration_test
