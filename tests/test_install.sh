@@ -28,13 +28,13 @@ python -m pip install ../../../python
 # Start ephemeral network in the background
 network_info_file="network_info.txt"
 
-package="$(pwd)"/../../../build/liblogging
 
 network_live_time=30
 timeout --signal=SIGINT --kill-after=${network_live_time}s --preserve-status ${network_live_time}s \
 python "$INSTALL_PREFIX"/bin/start_network.py \
-    -p "${package}" \
+    -p liblogging \
     -b "$INSTALL_PREFIX"/bin \
+    --library-dir ../../../build \
     -g "$(pwd)"/../../../src/runtime_config/gov.lua \
     --network-info-file "$network_info_file" \
     -v &
@@ -59,8 +59,9 @@ cp ./workspace/start_network_0/network_enc_pubk.pem .
 
 timeout --signal=SIGINT --kill-after=${network_live_time}s --preserve-status ${network_live_time}s \
 python "$INSTALL_PREFIX"/bin/start_network.py \
-    -p "${package}" \
+    -p liblogging \
     -b "$INSTALL_PREFIX"/bin \
+    --library-dir ../../../build \
     -v \
     --recover \
     --ledger-dir 0.ledger \
