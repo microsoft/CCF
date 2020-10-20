@@ -64,7 +64,7 @@ const HEADER_HTML = `
   })
   
   function parseCSV(csv) {
-      return Papa.parse(csv, {skipEmptyLines: true}).data
+      return Papa.parse(csv, {header: true, skipEmptyLines: true}).data
   }
   
   async function createPoll(topic, user, type) {
@@ -342,7 +342,9 @@ ${HEADER_HTML}
 
 <main role="main" class="container">
 
-    <textarea id="input-polls" rows="10" cols="70" placeholder="My Topic,string&#10;My other topic,number"></textarea>
+    <textarea id="input-polls" rows="10" cols="70">Topic,Opinion Type
+My Topic,string
+My other topic,number</textarea>
     <br />
     <button id="create-polls-btn" class="btn btn-primary">Create Polls</button>
 
@@ -350,10 +352,10 @@ ${HEADER_HTML}
 
 <script>
 $('#create-polls-btn').addEventListener('click', async () => {
-    const lines = parseCSV($('#input-polls').value)
-    for (const [topic, type] of lines) {
+    const rows = parseCSV($('#input-polls').value)
+    for (const row of rows) {
         try {
-            await createPoll(topic, user, type)
+            await createPoll(row['Topic'], user, row['Opinion Type'])
         } catch (e) {
             window.alert(e)
             return
@@ -373,7 +375,9 @@ ${HEADER_HTML}
 
 <main role="main" class="container">
 
-    <textarea id="input-opinions" rows="10" cols="70" placeholder="My Topic,abc&#10;My other topic,3.5"></textarea>
+    <textarea id="input-opinions" rows="10" cols="70">Topic,Opinion
+    My Topic,abc
+    My other topic,1.4</textarea>
     <br />
     <button id="submit-opinions-btn" class="btn btn-primary">Submit Opinions</button>
 
@@ -381,13 +385,14 @@ ${HEADER_HTML}
 
 <script>
 $('#submit-opinions-btn').addEventListener('click', async () => {
-    const lines = parseCSV($('#input-opinions').value)
+    const rows = parseCSV($('#input-opinions').value)
     const opinions = {}
-    for (let [topic, opinion] of lines) {
+    for (let row of rows) {
+        let opinion = row['Opinion']
         if (!Number.isNaN(Number(opinion))) {
             opinion = parseFloat(opinion)
         }
-        opinions[topic] = {opinion: opinion}
+        opinions[row['Topic']] = {opinion: opinion}
     }
     try {
         await submitOpinions(user, opinions)

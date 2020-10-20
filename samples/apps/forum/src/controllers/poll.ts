@@ -20,7 +20,7 @@ import { ValidateErrorResponse, ValidateErrorStatus } from "../error_handler"
 import { parseAuthToken } from "../util"
 import * as ccf from "../types/ccf"
 
-export const MINIMUM_OPINION_THRESHOLD = 3
+export const MINIMUM_OPINION_THRESHOLD = 10
 
 interface ErrorResponse {
     message: string
