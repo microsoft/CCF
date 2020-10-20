@@ -241,6 +241,8 @@ namespace ccf
       remove_modules(tx, module_prefix);
       set_modules(tx, module_prefix, bundle.modules);
 
+      remove_endpoints(tx);
+
       auto endpoints_view =
         tx.get_view<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
 
@@ -345,7 +347,7 @@ namespace ccf
       return tx_modules->remove(name);
     }
 
-    void remove_endpoints(kv::Tx&)
+    void remove_endpoints(kv::Tx& tx)
     {
       auto endpoints_view =
         tx.get_view<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
