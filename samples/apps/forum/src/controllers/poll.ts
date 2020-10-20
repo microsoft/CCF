@@ -34,6 +34,8 @@ interface SubmitOpinionRequest {
     opinion: string | number
 }
 
+type SubmitOpinionsRequest = { [topic: string]: SubmitOpinionRequest }
+
 // TODO does this even make sense? maybe during poll creation the string choices should be recorded?
 // TODO rename to ChoicePoll?
 interface StringPollResponse {
@@ -55,9 +57,11 @@ interface NumericPollResponse {
 
 type GetPollResponse = StringPollResponse | NumericPollResponse
 
+type GetPollsResponse = { [topic: string]: GetPollResponse }
+
 // Export REST API request/response types for unit tests
 export {
-    CreatePollRequest, SubmitOpinionRequest, 
+    CreatePollRequest, SubmitOpinionRequest, SubmitOpinionsRequest,
     GetPollResponse, StringPollResponse, NumericPollResponse 
 }
 
@@ -84,6 +88,8 @@ type Poll = StringPoll | NumericPoll
 export class PollController extends Controller {
 
     private kvPolls = new ccf.TypedKVMap(ccf.kv.polls, ccf.string, ccf.json<Poll>())
+    private kvTopics = new ccf.TypedKVMap(ccf.kv.topics, ccf.string, ccf.json<string[]>())
+    private kvTopicsKey = 'all'
 
     @SuccessResponse(201, "Poll has been successfully created")
     @Response<ErrorResponse>(403, "Poll has not been created because a poll with the same topic exists already")
@@ -108,6 +114,9 @@ export class PollController extends Controller {
             type: body.type,
             opinions: {}
         })
+        const topics = this._getTopics()
+        topics.push(topic)
+        this.kvTopics.set(this.kvTopicsKey, topics)
         this.setStatus(201)
     }
 
@@ -140,6 +149,35 @@ export class PollController extends Controller {
         this.setStatus(204)
     }
 
+    @SuccessResponse(204, "Opinions have been successfully recorded")
+    @Response<ErrorResponse>(400, "Opinions were not recorded because either an opinion data type did not match the poll type or a poll with the given topic was not found")
+    @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
+    //@Put('{topic}')
+    @Put('all')
+    public submitOpinions(
+        @Body() body: SubmitOpinionsRequest,
+        @Header() authorization: string,
+    ): void {
+        const user = parseAuthToken(authorization)
+
+        for (const [topic, submitOpinionRequest] of Object.entries(body)) {
+            try {
+                var poll = this.kvPolls.get(topic)
+            } catch (e) {
+                this.setStatus(400)
+                return { message: `Poll with topic '${topic}' does not exist` } as any
+            }
+            if (typeof submitOpinionRequest.opinion !== poll.type) {
+                this.setStatus(400)
+                return { message: `Poll with topic '${topic}' has a different opinion type` } as any
+            }      
+            poll.opinions[user] = submitOpinionRequest.opinion
+            this.kvPolls.set(topic, poll)
+        }
+
+        this.setStatus(204)
+    }
+
     @SuccessResponse(200, "Poll data")
     @Response<ErrorResponse>(404, "Poll data could not be returned because no poll with the given topic exists")
     @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
@@ -152,14 +190,48 @@ export class PollController extends Controller {
     ): GetPollResponse {
         const user = parseAuthToken(authorization)
 
-        try {
-            var poll = this.kvPolls.get(topic)
-        } catch (e) {
+        if (!this.kvPolls.has(topic)){
             this.setStatus(404)
             return { message: "Poll does not exist" } as any
         }
 
         this.setStatus(200)
+        return this._getPoll(user, topic)
+    }
+
+    
+    @SuccessResponse(200, "Poll data")
+    @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
+    @Get('all')
+    public getPolls(
+        @Header() authorization: string,
+    ): GetPollsResponse {
+        const user = parseAuthToken(authorization)
+
+        let polls: GetPollsResponse = {}
+
+        for (const topic of this._getTopics()) {
+            polls[topic] = this._getPoll(user, topic)
+        }
+
+        this.setStatus(200)
+        return polls
+    }
+
+    _getTopics(): string[] {
+        try {
+            return this.kvTopics.get(this.kvTopicsKey)
+        } catch (e) {
+            return []
+        }
+    }
+
+    _getPoll(user: string, topic: string): GetPollResponse {
+        try {
+            var poll = this.kvPolls.get(topic)
+        } catch (e) {
+            throw new Error(`Poll with topic '${topic}' does not exist`)
+        }
 
         const opinionCountAboveThreshold = Object.keys(poll.opinions).length >= MINIMUM_OPINION_THRESHOLD
 
