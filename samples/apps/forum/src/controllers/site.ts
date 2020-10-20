@@ -10,6 +10,7 @@ import { ValidateErrorResponse, ValidateErrorStatus } from "../error_handler"
 import { parseAuthToken } from "../util"
 
 const COMMON_HTML = `
+<script src="//cdn.jsdelivr.net/npm/js-cookie@3.0.0-rc.1/dist/js.cookie.min.js"></script>
 <script src="//cdn.jsdelivr.net/npm/jstat@1.9.4/dist/jstat.min.js"></script>
 <script src="//cdn.plot.ly/plotly-1.57.0.min.js"></script>
 <script src="//unpkg.com/papaparse@5.3.0/papaparse.min.js"></script>
@@ -17,6 +18,19 @@ const COMMON_HTML = `
 window.$ = document.querySelector.bind(document)
 
 const apiUrl = window.location.origin + '/app/polls'
+const userCookieName = 'user'
+
+function getRandomInt(min, max) {
+    min = Math.ceil(min)
+    max = Math.floor(max)
+    return Math.floor(Math.random() * (max - min + 1)) + min
+}
+
+user = Cookies.get(userCookieName)
+if (!user) {
+    user = 'joe' + getRandomInt(0, 1000).toString()
+    Cookies.set(userCookieName, user)
+}
 
 function parseCSV(csv) {
     return Papa.parse(csv, {skipEmptyLines: true}).data
@@ -275,14 +289,6 @@ Polls (format: <code>topic,string|number</code>):<br />
 ${COMMON_HTML}
 
 <script>
-function getRandomInt(min, max) {
-    min = Math.ceil(min)
-    max = Math.floor(max)
-    return Math.floor(Math.random() * (max - min + 1)) + min
-}
-
-let user = 'user' + getRandomInt(0, 1000).toString()
-
 $('#user').innerHTML = user
 
 $('#create-polls-btn').addEventListener('click', async () => {
@@ -319,14 +325,6 @@ Opinions (format: <code>topic,opinion</code>):<br />
 ${COMMON_HTML}
 
 <script>
-function getRandomInt(min, max) {
-    min = Math.ceil(min)
-    max = Math.floor(max)
-    return Math.floor(Math.random() * (max - min + 1)) + min
-}
-
-let user = 'user' + getRandomInt(0, 1000).toString()
-
 $('#user').innerHTML = user
 
 $('#submit-opinions-btn').addEventListener('click', async () => {
@@ -372,14 +370,6 @@ User: <span id="user"></span><br /><br />
 ${COMMON_HTML}
 
 <script>
-function getRandomInt(min, max) {
-    min = Math.ceil(min)
-    max = Math.floor(max)
-    return Math.floor(Math.random() * (max - min + 1)) + min
-}
-
-let user = 'user' + getRandomInt(0, 1000).toString()
-
 $('#user').innerHTML = user
 
 async function main() {
