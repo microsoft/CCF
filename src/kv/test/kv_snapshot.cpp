@@ -249,3 +249,104 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
     }
   }
 }
+
+TEST_CASE("Snapshot size" * doctest::test_suite("snapshot"))
+{
+  kv::Store store;
+  auto& map = store.create<kv::Map<size_t, uint8_t>>("public:map");
+
+  const auto empty_snapshot =
+    store.serialise_snapshot(store.snapshot(store.current_version()));
+
+  constexpr auto initial_key_count = 100;
+
+  {
+    INFO("Building initial state");
+    auto tx = store.create_tx();
+    auto view = tx.get_view(map);
+
+    for (size_t i = 0; i < initial_key_count; ++i)
+    {
+      view->put(i, 0);
+    }
+
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+
+  const auto initial_snapshot =
+    store.serialise_snapshot(store.snapshot(store.current_version()));
+
+  SUBCASE("Adding keys increases snapshot size")
+  {
+    auto tx = store.create_tx();
+    auto view = tx.get_view(map);
+
+    for (size_t i = initial_key_count; i < 2 * initial_key_count; ++i)
+    {
+      view->put(i, 0);
+    }
+
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+
+    const auto grown_snapshot =
+      store.serialise_snapshot(store.snapshot(store.current_version()));
+
+    REQUIRE(grown_snapshot.size() > initial_snapshot.size());
+  }
+
+  SUBCASE("Modifying values (of same size) does not affect snapshot size")
+  {
+    auto tx = store.create_tx();
+    auto view = tx.get_view(map);
+
+    for (size_t i = 0; i < initial_key_count; ++i)
+    {
+      const auto it = view->get(i);
+      REQUIRE(it.has_value());
+      view->put(i, it.value() + 1);
+    }
+
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+
+    const auto modified_snapshot =
+      store.serialise_snapshot(store.snapshot(store.current_version()));
+
+    REQUIRE(modified_snapshot.size() == initial_snapshot.size());
+  }
+
+  SUBCASE("Deleting keys decreases snapshot size")
+  {
+    auto tx = store.create_tx();
+    auto view = tx.get_view(map);
+
+    for (size_t i = 0; i < initial_key_count / 2; ++i)
+    {
+      view->remove(i);
+    }
+
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+
+    const auto shrunk_snapshot =
+      store.serialise_snapshot(store.snapshot(store.current_version()));
+
+    REQUIRE(shrunk_snapshot.size() < initial_snapshot.size());
+  }
+
+  SUBCASE("Removing every key produces an empty snapshot")
+  {
+    auto tx = store.create_tx();
+    auto view = tx.get_view(map);
+
+    view->foreach([&view](const auto& k, const auto&) {
+      view->remove(k);
+      return true;
+    });
+
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+
+    const auto cleared_snapshot =
+      store.serialise_snapshot(store.snapshot(store.current_version()));
+
+    REQUIRE(cleared_snapshot.size() == empty_snapshot.size());
+  }
+}
