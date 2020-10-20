@@ -177,7 +177,7 @@ def run(get_command, args):
                             heap_peak_metric = heap_peak_metric[:-1]
 
                         peak_value = results["peak_allocated_heap_size"]
-                        metrics.put(args.label, peak_value)
+                        metrics.put(heap_peak_metric, peak_value)
 
                     LOG.info(f"Rates:\n{tx_rates}")
                     tx_rates.save_results(args.metrics_file)
