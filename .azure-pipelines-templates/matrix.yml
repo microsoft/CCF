@@ -1,5 +1,6 @@
 parameters:
-  target: ['NoSGX', 'SGX']
+  #target: ['NoSGX', 'SGX']
+  target: ['NoSGX', 'NoSGX', 'NoSGX']
 
   env:
     Hosted:
@@ -52,29 +53,29 @@ jobs:
         artifact_name: '${{ target }}_Debug'
         ctest_filter: '${{ parameters.test[target].ctest_args }}'
 
-  # Performance
-  - template: common.yml
-    parameters:
-      target: SGX
-      env: ${{ parameters.env.Perf }}
-      cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }}'
-      suffix: 'Perf'
-      artifact_name: 'SGX_Perf'
-      ctest_filter: '${{ parameters.test.perf.ctest_args }}'
+  # # Performance
+  # - template: common.yml
+  #   parameters:
+  #     target: SGX
+  #     env: ${{ parameters.env.Perf }}
+  #     cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }}'
+  #     suffix: 'Perf'
+  #     artifact_name: 'SGX_Perf'
+  #     ctest_filter: '${{ parameters.test.perf.ctest_args }}'
 
-  # Release
-  - ${{ if eq(parameters.perf_or_release, 'release') }}:
-    - template: common.yml
-      parameters:
-        target: SGX
-        env: ${{ parameters.env.SGX }}
-        cmake_args: '${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON'
-        suffix: 'Release'
-        artifact_name: 'SGX_Release'
+  # # Release
+  # - ${{ if eq(parameters.perf_or_release, 'release') }}:
+  #   - template: common.yml
+  #     parameters:
+  #       target: SGX
+  #       env: ${{ parameters.env.SGX }}
+  #       cmake_args: '${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON'
+  #       suffix: 'Release'
+  #       artifact_name: 'SGX_Release'
 
-    - template: release.yml
-      parameters:
-        env: ${{ parameters.env.Hosted }}
-        depends_on:
-          - Checks
-          - SGX_Release
+  #   - template: release.yml
+  #     parameters:
+  #       env: ${{ parameters.env.Hosted }}
+  #       depends_on:
+  #         - Checks
+  #         - SGX_Release
