@@ -952,20 +952,18 @@ namespace aft
 
       auto progress_tracker = store->get_progress_tracker();
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
-      auto h = progress_tracker->get_my_hashed_nonce(
-        {state->current_view, state->last_idx});
-
-      // TODO: fix this
-      Nonce hashed_nonce;
-      std::copy(h.h.begin(), h.h.end(), hashed_nonce.h.begin());
 
       SignedAppendEntriesResponse r = {
         {raft_append_entries_signed_response, state->my_node_id},
         state->current_view,
         state->last_idx,
-        hashed_nonce,
+        {},
         static_cast<uint32_t>(sig.sig.size()),
         {}};
+
+      progress_tracker->get_my_hashed_nonce(
+        {state->current_view, state->last_idx}, r.hashed_nonce);
+
       std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
 
       auto result = progress_tracker->add_signature(
@@ -973,7 +971,7 @@ namespace aft
         r.from_node,
         r.signature_size,
         r.sig,
-        hashed_nonce,
+        r.hashed_nonce,
         node_count(),
         is_leader());
       for (auto it = nodes.begin(); it != nodes.end(); ++it)

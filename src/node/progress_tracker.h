@@ -138,9 +138,7 @@ namespace ccf
       std::copy(n.begin(), n.end(), my_nonce.h.begin());
       if (node_id == id)
       {
-        // TODO: we should remove this extra copy
-        auto h = hash_data(my_nonce);
-        std::copy(h.h.begin(), h.h.end(), hashed_nonce.h.begin());
+        hash_data(my_nonce, hashed_nonce);
       }
 
       LOG_TRACE_FMT(
@@ -493,6 +491,12 @@ namespace ccf
     {
       Nonce nonce = get_my_nonce(tx_id);
       return hash_data(nonce);
+    }
+
+    void get_my_hashed_nonce(kv::TxID tx_id, crypto::Sha256Hash& hash)
+    {
+      Nonce nonce = get_my_nonce(tx_id);
+      hash_data(nonce, hash);
     }
 
     void set_node_id(kv::NodeId id_)
