@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/hash.h"
 #include "ds/ring_buffer_types.h"
 #include "entities.h"
-#include "crypto/hash.h"
 
 #include <cstdint>
 #include <limits>

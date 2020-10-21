@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "crypto/hash.h"
 #include "ds/json.h"
 #include "entities.h"
-#include "crypto/hash.h"
 
 #include <vector>
 
@@ -27,9 +27,7 @@ namespace ccf
       node(node_),
       hashed_nonce(hashed_nonce_)
     {}
-    NodeSignature(ccf::NodeId node_) :
-      node(node_)
-    {}
+    NodeSignature(ccf::NodeId node_) : node(node_) {}
     NodeSignature() = default;
 
     bool operator==(const NodeSignature& o) const

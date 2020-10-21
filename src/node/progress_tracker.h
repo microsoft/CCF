@@ -572,7 +572,7 @@ namespace ccf
       }
     }
 
-    //bool match_nonces(std::vector<uint8_t> n_1, Nonce n_2)
+    // bool match_nonces(std::vector<uint8_t> n_1, Nonce n_2)
     bool match_nonces(const crypto::Sha256Hash& n_1, const Nonce& n_2)
     {
       if (n_1.h.size() != n_2.h.size())

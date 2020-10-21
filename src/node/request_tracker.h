@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "crypto/hash.h"
 #include "ds/ccf_assert.h"
 #include "ds/dl_list.h"
-#include "crypto/hash.h"
 
 #include <array>
 #include <chrono>
@@ -56,8 +56,7 @@ namespace aft
       std::chrono::seconds(1);
 
   public:
-    void insert(
-      const crypto::Sha256Hash& hash, std::chrono::milliseconds time)
+    void insert(const crypto::Sha256Hash& hash, std::chrono::milliseconds time)
     {
       if (remove(hash, hashes_without_requests, hashes_without_requests_list))
       {
