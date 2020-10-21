@@ -11,6 +11,14 @@
 
 using namespace std;
 
+threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
+
+namespace threading
+{
+  std::map<std::thread::id, uint16_t> thread_ids;
+}
+
 constexpr auto shash = ds::fnv_1a<size_t>;
 
 int main(int argc, char** argv)

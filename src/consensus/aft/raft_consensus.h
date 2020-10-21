@@ -108,6 +108,11 @@ namespace aft
       return aft->leader();
     }
 
+    std::set<NodeId> active_nodes() override
+    {
+      return aft->active_nodes();
+    }
+
     void recv_message(OArray&& data) override
     {
       return aft->recv_message(std::move(data));

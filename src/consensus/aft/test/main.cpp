@@ -20,6 +20,9 @@ using Store = aft::LoggingStubStore;
 using StoreSig = aft::LoggingStubStoreSig;
 using Adaptor = aft::Adaptor<Store, kv::DeserialiseSuccess>;
 
+threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
+
 std::vector<uint8_t> cert;
 kv::Map<size_t, aft::Request> request_map(
   nullptr, "test", kv::SecurityDomain::PUBLIC, true);
@@ -42,8 +45,10 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     request_map,
     std::make_shared<aft::State>(node_id),
     nullptr,
+    nullptr,
     ms(10),
-    election_timeout);
+    election_timeout,
+    ms(1000));
 
   kv::Consensus::Configuration::Nodes config;
   config.try_emplace(node_id);
@@ -85,8 +90,10 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     request_map,
     std::make_shared<aft::State>(node_id),
     nullptr,
+    nullptr,
     ms(10),
-    election_timeout);
+    election_timeout,
+    ms(1000));
 
   aft::Configuration::Nodes config;
   config[node_id] = {};
@@ -137,8 +144,10 @@ DOCTEST_TEST_CASE(
     request_map,
     std::make_shared<aft::State>(node_id0),
     nullptr,
+    nullptr,
     request_timeout,
-    ms(20));
+    ms(20),
+    ms(1000));
   TRaft r1(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
@@ -151,8 +160,10 @@ DOCTEST_TEST_CASE(
     request_map,
     std::make_shared<aft::State>(node_id1),
     nullptr,
+    nullptr,
     request_timeout,
-    ms(100));
+    ms(100),
+    ms(1000));
   TRaft r2(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store2),
@@ -165,8 +176,10 @@ DOCTEST_TEST_CASE(
     request_map,
     std::make_shared<aft::State>(node_id2),
     nullptr,
+    nullptr,
     request_timeout,
-    ms(50));
+    ms(50),
+    ms(1000));
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
@@ -340,8 +353,10 @@ DOCTEST_TEST_CASE(
     request_map,
     std::make_shared<aft::State>(node_id0),
     nullptr,
+    nullptr,
     request_timeout,
-    ms(20));
+    ms(20),
+    ms(1000));
   TRaft r1(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
@@ -354,8 +369,10 @@ DOCTEST_TEST_CASE(
     request_map,
     std::make_shared<aft::State>(node_id1),
     nullptr,
+    nullptr,
     request_timeout,
-    ms(100));
+    ms(100),
+    ms(1000));
   TRaft r2(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store2),
@@ -368,8 +385,10 @@ DOCTEST_TEST_CASE(
     request_map,
     std::make_shared<aft::State>(node_id2),
     nullptr,
+    nullptr,
     request_timeout,
-    ms(50));
+    ms(50),
+    ms(1000));
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
@@ -512,8 +531,10 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     request_map,
     std::make_shared<aft::State>(node_id0),
     nullptr,
+    nullptr,
     request_timeout,
-    ms(20));
+    ms(20),
+    ms(1000));
   TRaft r1(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
@@ -526,8 +547,10 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     request_map,
     std::make_shared<aft::State>(node_id1),
     nullptr,
+    nullptr,
     request_timeout,
-    ms(100));
+    ms(100),
+    ms(1000));
   TRaft r2(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store2),
@@ -540,8 +563,10 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     request_map,
     std::make_shared<aft::State>(node_id2),
     nullptr,
+    nullptr,
     request_timeout,
-    ms(50));
+    ms(50),
+    ms(1000));
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
@@ -666,8 +691,10 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     request_map,
     std::make_shared<aft::State>(node_id0),
     nullptr,
+    nullptr,
     request_timeout,
-    ms(20));
+    ms(20),
+    ms(1000));
   TRaft r1(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
@@ -680,8 +707,10 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     request_map,
     std::make_shared<aft::State>(node_id1),
     nullptr,
+    nullptr,
     request_timeout,
-    ms(100));
+    ms(100),
+    ms(1000));
 
   aft::Configuration::Nodes config0;
   config0[node_id0] = {};
@@ -878,8 +907,10 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     request_map,
     std::make_shared<aft::State>(node_id0),
     nullptr,
+    nullptr,
     request_timeout,
-    ms(20));
+    ms(20),
+    ms(1000));
   TRaft r1(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
@@ -892,8 +923,10 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     request_map,
     std::make_shared<aft::State>(node_id1),
     nullptr,
+    nullptr,
     request_timeout,
-    ms(100));
+    ms(100),
+    ms(1000));
   TRaft r2(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store2),
@@ -906,8 +939,10 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     request_map,
     std::make_shared<aft::State>(node_id2),
     nullptr,
+    nullptr,
     request_timeout,
-    ms(50));
+    ms(50),
+    ms(1000));
 
   aft::Configuration::Nodes config0;
   config0[node_id0] = {};

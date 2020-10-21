@@ -108,6 +108,11 @@ namespace kv
       return 1;
     }
 
+    std::set<NodeId> active_nodes() override
+    {
+      return {};
+    }
+
     NodeId id() override
     {
       return 0;

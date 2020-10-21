@@ -13,6 +13,7 @@
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/progress_tracker.h"
+#include "node/request_tracker.h"
 #include "node/rpc/tx_status.h"
 #include "node/signatures.h"
 #include "raft_types.h"
@@ -86,10 +87,12 @@ namespace aft
     RequestsMap& bft_requests_map;
     std::shared_ptr<aft::State> state;
     std::shared_ptr<Executor> executor;
+    std::shared_ptr<aft::RequestTracker> request_tracker;
 
     // Timeouts
     std::chrono::milliseconds request_timeout;
     std::chrono::milliseconds election_timeout;
+    std::chrono::milliseconds view_change_timeout;
 
     // Configurations
     std::list<Configuration> configurations;
@@ -119,6 +122,7 @@ namespace aft
     std::shared_ptr<SnapshotterProxy> snapshotter;
     std::shared_ptr<enclave::RPCSessions> rpc_sessions;
     std::shared_ptr<enclave::RPCMap> rpc_map;
+    std::set<NodeId> backup_nodes;
 
   public:
     Aft(
@@ -133,8 +137,10 @@ namespace aft
       RequestsMap& requests_map,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<Executor> executor_,
+      std::shared_ptr<aft::RequestTracker> request_tracker_,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
+      std::chrono::milliseconds view_change_timeout_,
       bool public_only_ = false) :
       consensus_type(consensus_type_),
       store(std::move(store_)),
@@ -146,9 +152,11 @@ namespace aft
       bft_requests_map(requests_map),
       state(state_),
       executor(executor_),
+      request_tracker(request_tracker_),
 
       request_timeout(request_timeout_),
       election_timeout(election_timeout_),
+      view_change_timeout(view_change_timeout_),
       public_only(public_only_),
 
       distrib(0, (int)election_timeout_.count() / 2),
@@ -174,6 +182,25 @@ namespace aft
     NodeId leader()
     {
       return leader_id;
+    }
+
+    std::set<NodeId> active_nodes()
+    {
+      // Find all nodes present in any active configuration.
+      if (backup_nodes.empty())
+      {
+        Configuration::Nodes active_nodes;
+
+        for (auto& conf : configurations)
+        {
+          for (auto node : conf.nodes)
+          {
+            backup_nodes.insert(node.first);
+          }
+        }
+      }
+
+      return backup_nodes;
     }
 
     NodeId id()
@@ -334,6 +361,7 @@ namespace aft
     {
       // This should only be called when the spin lock is held.
       configurations.push_back({idx, std::move(conf)});
+      backup_nodes.clear();
       create_and_remove_node_state();
     }
 
@@ -492,6 +520,26 @@ namespace aft
     {
       std::lock_guard<SpinLock> guard(state->lock);
       timeout_elapsed += elapsed;
+
+      if (consensus_type == ConsensusType::BFT)
+      {
+        auto time = threading::ThreadMessaging::thread_messaging
+                      .get_current_time_offset();
+        request_tracker->tick(time);
+
+        auto oldest_entry = request_tracker->oldest_entry();
+        if (
+          oldest_entry.has_value() &&
+          oldest_entry.value() + view_change_timeout < time)
+        {
+          // We have not seen a request executed within an expected period of
+          // time. We should invoke a view-change.
+          //
+          // View-changes have not been implemented yet, so we should throw.
+          throw std::logic_error(
+            "Request not executed in time. View-changes not yet implemented");
+        }
+      }
 
       if (replica_state == Leader)
       {
@@ -847,7 +895,8 @@ namespace aft
           {
             if (consensus_type == ConsensusType::BFT)
             {
-              state->last_idx = executor->commit_replayed_request(tx);
+              state->last_idx =
+                executor->commit_replayed_request(tx, request_tracker);
             }
             break;
           }
@@ -1670,6 +1719,7 @@ namespace aft
           break;
 
         configurations.pop_front();
+        backup_nodes.clear();
         changed = true;
       }
 
@@ -1711,6 +1761,7 @@ namespace aft
       while (!configurations.empty() && (configurations.back().idx > idx))
       {
         configurations.pop_back();
+        backup_nodes.clear();
         changed = true;
       }
 
