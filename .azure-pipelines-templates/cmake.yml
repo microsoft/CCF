@@ -11,5 +11,5 @@ steps:
 - script: |
     mkdir build
     cd build
-    cmake -L -GNinja .. ${{ parameters.cmake_args }}
+    cmake -L -GNinja .. ${{ parameters.cmake_args }} -DVERBOSE_LOGGING=ON
   displayName: CMake
