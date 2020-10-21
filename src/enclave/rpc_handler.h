@@ -34,7 +34,7 @@ namespace enclave
     virtual std::optional<std::vector<uint8_t>> process(
       std::shared_ptr<RpcContext> ctx) = 0;
 
-    // Used by PBFT to execute commands
+    // Used by BFT to execute commands
     struct ProcessBftResp
     {
       std::vector<uint8_t> result;
