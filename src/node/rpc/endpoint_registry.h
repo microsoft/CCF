@@ -806,7 +806,7 @@ namespace ccf
       {
         error_string += fmt::format("\n  {}", match->dispatch.uri_path);
       }
-      LOG_DEBUG_FMT(error_string);
+      LOG_DEBUG_FMT("{}", error_string);
 
       // Assume this exception is caught and reported in a useful fashion.
       // There's probably nothing the caller can do, ideally this ambiguity
