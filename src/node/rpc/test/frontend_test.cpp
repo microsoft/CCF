@@ -349,15 +349,15 @@ public:
 auto kp = tls::make_key_pair();
 auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
-NetworkState pbft_network(ConsensusType::BFT);
+NetworkState bft_network(ConsensusType::BFT);
 auto history_kp = tls::make_key_pair();
 
 auto history = std::make_shared<NullTxHistory>(
-  *pbft_network.tables,
+  *bft_network.tables,
   0,
   *history_kp,
-  pbft_network.signatures,
-  pbft_network.nodes);
+  bft_network.signatures,
+  bft_network.nodes);
 
 auto create_simple_request(
   const std::string& method = "empty_function",
@@ -473,16 +473,16 @@ void prepare_callers(NetworkState& network)
   CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 
-void add_callers_pbft_store()
+void add_callers_bft_store()
 {
-  auto gen_tx = pbft_network.tables->create_tx();
-  pbft_network.tables->set_encryptor(encryptor);
-  pbft_network.tables->set_history(history);
+  auto gen_tx = bft_network.tables->create_tx();
+  bft_network.tables->set_encryptor(encryptor);
+  bft_network.tables->set_history(history);
   auto backup_consensus =
     std::make_shared<kv::PrimaryStubConsensus>(ConsensusType::BFT);
-  pbft_network.tables->set_consensus(backup_consensus);
+  bft_network.tables->set_consensus(backup_consensus);
 
-  GenesisGenerator g(pbft_network, gen_tx);
+  GenesisGenerator g(bft_network, gen_tx);
   g.init_values();
   g.create_service({});
   user_id = g.add_user({user_caller});
@@ -511,8 +511,8 @@ TEST_CASE("process_bft")
   ctx->execute_on_node = true;
   frontend.process_bft(ctx);
 
-  auto tx = pbft_network.tables->create_tx();
-  auto bft_requests_map = tx.get_view(pbft_network.bft_requests_map);
+  auto tx = bft_network.tables->create_tx();
+  auto bft_requests_map = tx.get_view(bft_network.bft_requests_map);
   auto request_value = bft_requests_map->get(0);
   REQUIRE(request_value.has_value());
 
