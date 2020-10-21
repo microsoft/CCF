@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+
 // For unit testing / demo purposes only, as it is hard
 // to use many real identities.
 const FAKE_TOKEN_PREFIX = 'user='

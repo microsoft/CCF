@@ -2,9 +2,9 @@
   "private": true,
   "scripts": {
     "build": "del-cli -f dist/ build/ && tsoa spec-and-routes && node tsoa-support/postprocess.js && rollup --config && del-cli dist/src/build/endpoints.js",
-    "start": "npm run build && node --no-warnings --experimental-specifier-resolution=node --loader ts-node/esm test/start.ts",
+    "start": "npm run build && npm run ts test/start.ts",
     "test": "npm run build && ts-mocha -r esm -p tsconfig.json test/**/*.test.ts",
-    "submit-opinions": "node --no-warnings --experimental-specifier-resolution=node --loader ts-node/esm test/demo/submit-opinions.ts"
+    "ts": "node --no-warnings --experimental-specifier-resolution=node --loader ts-node/esm"
   },
   "type": "module",
   "dependencies": {

@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+
 import { ChildProcess, spawn } from 'child_process'
 import * as path from 'path'
 
@@ -52,10 +55,8 @@ export function setupMochaCCFSandbox(app_bundle_dir: string) {
                 const msg = data.toString()
                 console.log(msg)
                 if (msg.includes('Started CCF network')) {
-                    setTimeout(() => {
-                        sandboxProcess.off('exit', reject)
-                        resolve()
-                    }, 500) // bug in CCF not being ready just yet
+                    sandboxProcess.off('exit', reject)
+                    resolve()
                 }
             })
         })

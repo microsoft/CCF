@@ -26,7 +26,7 @@ interface CSVRow {
 async function main() {
     const args = process.argv.slice(2)
     if (args.length !== 1) {
-        console.error('Usage: npm run submit-opinions folder')
+        console.error('Usage: npm run ts submit-opinions.ts folder')
         process.exit(1)
     }
     const folder = args[0]
@@ -36,9 +36,9 @@ async function main() {
         const csv = fs.readFileSync(csvPath)
         const rows: CSVRow[] = csvparse(csv, {columns: true, skipEmptyLines: true})
 
-        const req: SubmitOpinionsRequest = {}
+        const req: SubmitOpinionsRequest = { opinions: {} }
         for (const row of rows) {
-            req[row.Topic] = { opinion: isNumber(row.Opinion) ? parseFloat(row.Opinion) : row.Opinion }
+            req.opinions[row.Topic] = { opinion: isNumber(row.Opinion) ? parseFloat(row.Opinion) : row.Opinion }
         }
         console.log('Submitting opinions for user ' + user)
         try {

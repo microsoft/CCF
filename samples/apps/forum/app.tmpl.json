@@ -30,6 +30,15 @@
       }
     },
     "/polls/all": {
+      "post": {
+        "js_module": "build/PollControllerProxy.js",
+        "js_function": "createPolls",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_identity": false,
+        "require_client_signature": false,
+        "readonly": false
+      },
       "put": {
         "js_module": "build/PollControllerProxy.js",
         "js_function": "submitOpinions",

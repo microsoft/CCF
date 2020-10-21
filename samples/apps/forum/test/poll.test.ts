@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+
 import { assert } from 'chai'
 import bent from 'bent'
 import { NODE_ADDR, setupMochaCCFSandbox } from './util'
@@ -109,7 +112,7 @@ describe('/polls', function () {
       }
       await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, pollBody, getFakeAuth(1))
 
-      let opinions = [1.5, 0.9, 1.2]
+      let opinions = [1.5, 0.9, 1.2, 1.5, 0.9, 1.2, 1.5, 0.9, 1.2, 1.5]
       for (let i = 0; i < opinions.length; i++) {
         const opinionBody: SubmitOpinionRequest = {
           opinion: opinions[i]
@@ -128,7 +131,7 @@ describe('/polls', function () {
       }
       await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, pollBody, getFakeAuth(1))
 
-      let opinions = ["foo", "foo", "bar"]
+      let opinions = ["foo", "foo", "bar", "foo", "foo", "bar", "foo", "foo", "bar", "foo"]
       for (let i = 0; i < opinions.length; i++) {
         const opinionBody: SubmitOpinionRequest = {
           opinion: opinions[i]
@@ -138,8 +141,8 @@ describe('/polls', function () {
 
       let aggregated: StringPollResponse = 
         await bent('GET', 'json', 200)(`${ENDPOINT_URL}?topic=${topic}`, null, getFakeAuth(1))
-      assert.equal(aggregated.statistics.counts["foo"], 2)
-      assert.equal(aggregated.statistics.counts["bar"], 1)
+      assert.equal(aggregated.statistics.counts["foo"], 7)
+      assert.equal(aggregated.statistics.counts["bar"], 3)
     })
     it('rejects returning aggregated opinions below the required opinion count threshold', async function () {
       const topic = 'get-c'

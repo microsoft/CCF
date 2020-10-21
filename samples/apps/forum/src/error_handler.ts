@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
 
 import { ValidateError, FieldErrors } from "@tsoa/runtime";
 import * as ccf from './types/ccf'

@@ -1,16 +1,12 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+
 // Types/objects exposed from C++:
 
-// adapted from https://github.com/microsoft/TypeScript/issues/1897#issuecomment-648485567
-type Json = void | null | boolean | number | string | Json[] | { [prop: string]: Json }
-type JsonCompatible<T> = {
-  [P in keyof T]: T[P] extends Json
-    ? T[P]
-    : Pick<T, P> extends Required<Pick<T, P>>
-    ? never
-    : T[P] extends (() => any) | undefined
-    ? never
-    : JsonCompatible<T[P]>
-}
+// This should eventually cover all JSON-compatible values.
+// There are attempts at https://github.com/microsoft/TypeScript/issues/1897
+// to create such a type but it needs further refinement.
+type JsonCompatible<T> = any
 
 export interface Body<T extends JsonCompatible<T>> {
     text: () => string

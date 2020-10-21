@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
 
 import {
     Hidden,
@@ -66,91 +68,54 @@ const HEADER_HTML = `
   function parseCSV(csv) {
       return Papa.parse(csv, {header: true, skipEmptyLines: true}).data
   }
+
+  async function retrieve(url, method, user, body) {
+    const response = await fetch(url, {
+        method: method,
+        headers: {
+            'content-type': 'application/json',
+            'authorization': 'Bearer user=' + user,
+        },
+        body: body ? JSON.stringify(body) : undefined
+    })
+    if (!response.ok) {
+        const error = await response.json()
+        console.error(error)
+        throw new Error(error.message)
+    }
+    return response
+  }
   
   async function createPoll(topic, user, type) {
-      const response = await fetch(apiUrl + '?topic=' + topic, {
-          method: 'POST',
-          headers: {
-              'content-type': 'application/json',
-              'authorization': 'Bearer user=' + user,
-          },
-          body: JSON.stringify({
-              type: type
-          })
-      })
-      if (!response.ok) {
-          const error = await response.json()
-          console.error(error)
-          throw new Error('Could not create poll "' + topic + '": ' + error.message)
-      }
+    const body = { type: type }
+    await retrieve(apiUrl + '?topic=' + topic, 'POST', user, body)
+  }
+  
+  async function createPolls(user, polls) {
+    const body = { polls: polls }
+    await retrieve(apiUrl + '/all', 'POST', user, body)
   }
   
   async function submitOpinion(topic, user, opinion) {
-      const response = await fetch(apiUrl + '?topic=' + topic, {
-          method: 'PUT',
-          headers: {
-              'content-type': 'application/json',
-              'authorization': 'Bearer user=' + user,
-          },
-          body: JSON.stringify({
-              opinion: opinion
-          })
-      })
-      if (!response.ok) {
-          const error = await response.json()
-          console.error(error)
-          throw new Error('Could not submit opinion for poll "' + topic + '": ' + error.message)
-      }
+    const body = { opinion: opinion }
+    await retrieve(apiUrl + '?topic=' + topic, 'PUT', user, body)
   }
   
   async function submitOpinions(user, opinions) {
-      const response = await fetch(apiUrl + '/all', {
-          method: 'PUT',
-          headers: {
-              'content-type': 'application/json',
-              'authorization': 'Bearer user=' + user,
-          },
-          body: JSON.stringify(opinions)
-      })
-      if (!response.ok) {
-          const error = await response.json()
-          console.error(error)
-          throw new Error('Could not submit opinions: ' + error.message)
-      }
+    const body = { opinions: opinions }
+    await retrieve(apiUrl + '/all', 'PUT', user, body)
   }
   
   async function getPoll(topic, user) {
-      const response = await fetch(apiUrl + '?topic=' + topic, {
-          method: 'GET',
-          headers: {
-              'content-type': 'application/json',
-              'authorization': 'Bearer user=' + user,
-          }
-      })
-      if (!response.ok) {
-          const error = await response.json()
-          console.error(error)
-          throw new Error('Could not retrieve poll "' + topic + '": ' + error.message)
-      }
+      const response = await retrieve(apiUrl + '?topic=' + topic, 'GET', user)
       const poll = await response.json()
       return poll
   }
   
   async function getPolls(user) {
-      const response = await fetch(apiUrl + '/all', {
-          method: 'GET',
-          headers: {
-              'content-type': 'application/json',
-              'authorization': 'Bearer user=' + user,
-          }
-      })
-      if (!response.ok) {
-          const error = await response.json()
-          console.error(error)
-          throw new Error('Could not retrieve polls: ' + error.message)
-      }
-      const polls = await response.json()
-      return polls
+    const response = await retrieve(apiUrl + '/all', 'GET', user)
+    const polls = await response.json()
+    return polls.polls
   }
   
   function plotPoll(element, topic, data) {
@@ -163,7 +128,7 @@ const HEADER_HTML = `
       }
   }
   
-  const margin = {l: 30, r: 30, t: 30, b: 30}
+  const margin = {l: 30, r: 30, t: 50, b: 50}
   
   function plotNumberPoll(element, topic, data) {
       const mean = data.statistics.mean
@@ -221,6 +186,8 @@ const HEADER_HTML = `
               width: 2,
           }
       }]
+      const xtickvals = [mean, mean - std, mean + std]
+
       if (data.opinion) {
           shapes.push({
               type: 'line',
@@ -234,16 +201,21 @@ const HEADER_HTML = `
                   width: 2,
               }
           })
+          xtickvals.push(data.opinion)
       }
   
       Plotly.newPlot(element, [trace], {
           title: topic,
           shapes: shapes,
           xaxis: {
-              zeroline: false
+              zeroline: false,
+              showgrid: false,
+              tickvals: xtickvals
           },
           yaxis: {
-              zeroline: false
+              visible: false,
+              zeroline: false,
+              showgrid: false,
           },
           margin: margin
         }, {displayModeBar: false})
@@ -263,7 +235,10 @@ const HEADER_HTML = `
       }
       Plotly.newPlot(element, [trace], {
           title: topic,
-          margin: margin
+          margin: margin,
+          yaxis: {
+            showgrid: false,
+          },
       }, {displayModeBar: false})
   }
   
@@ -353,14 +328,28 @@ My other topic,number</textarea>
 <script>
 $('#create-polls-btn').addEventListener('click', async () => {
     const rows = parseCSV($('#input-polls').value)
+    const polls = {}
     for (const row of rows) {
-        try {
-            await createPoll(row['Topic'], user, row['Opinion Type'])
-        } catch (e) {
-            window.alert(e)
-            return
-        }
+        polls[row['Topic']] = { type: row['Opinion Type'] }
     }
+    try {
+        await createPolls(user, polls)
+    } catch (e) {
+        window.alert(e)
+        return
+    }
+
+
+    //for (const row of rows) {
+    //    try {
+    //        await createPoll(row['Topic'], user, row['Opinion Type'])
+    //    } catch (e) {
+    //        window.alert(e)
+    //        return
+    //    }
+    //}
+
+
     window.alert('Successfully created polls.')
     $('#input-polls').value = ''
 })
@@ -376,8 +365,8 @@ ${HEADER_HTML}
 <main role="main" class="container">
 
     <textarea id="input-opinions" rows="10" cols="70">Topic,Opinion
-    My Topic,abc
-    My other topic,1.4</textarea>
+My Topic,abc
+My other topic,1.4</textarea>
     <br />
     <button id="submit-opinions-btn" class="btn btn-primary">Submit Opinions</button>
 
@@ -392,7 +381,7 @@ $('#submit-opinions-btn').addEventListener('click', async () => {
         if (!Number.isNaN(Number(opinion))) {
             opinion = parseFloat(opinion)
         }
-        opinions[row['Topic']] = {opinion: opinion}
+        opinions[row['Topic']] = { opinion: opinion }
     }
     try {
         await submitOpinions(user, opinions)

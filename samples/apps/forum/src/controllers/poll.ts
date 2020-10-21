@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
 
 import {
     Body,
@@ -30,14 +32,20 @@ interface CreatePollRequest {
     type: "string" | "number"
 }
 
-interface SubmitOpinionRequest {
-    opinion: string | number
+interface CreatePollsRequest {
+    polls: { [topic: string]: CreatePollRequest }
 }
 
-type SubmitOpinionsRequest = { [topic: string]: SubmitOpinionRequest }
+type Opinion = string | number
 
-// TODO does this even make sense? maybe during poll creation the string choices should be recorded?
-// TODO rename to ChoicePoll?
+interface SubmitOpinionRequest {
+    opinion: Opinion
+}
+
+interface SubmitOpinionsRequest {
+    opinions: { [topic: string]: SubmitOpinionRequest }
+}
+
 interface StringPollResponse {
     type: "string"
     statistics?: {
@@ -57,7 +65,9 @@ interface NumericPollResponse {
 
 type GetPollResponse = StringPollResponse | NumericPollResponse
 
-type GetPollsResponse = { [topic: string]: GetPollResponse }
+interface GetPollsResponse {
+    polls: { [topic: string]: GetPollResponse }
+}
 
 // Export REST API request/response types for unit tests
 export {
@@ -65,42 +75,48 @@ export {
     GetPollResponse, StringPollResponse, NumericPollResponse 
 }
 
-// KV schema
-type User = string
+namespace kv {
+    type User = string
 
-interface PollBase<T> {
-    creator: string
-    type: string
-    opinions: Record<User, T>
+    interface PollBase<T> {
+        creator: string
+        type: string
+        opinions: Record<User, T>
+    }
+
+    interface StringPoll extends PollBase<string> {
+        type: "string"
+    }
+
+    interface NumericPoll extends PollBase<number> {
+        type: "number"
+    }
+
+    export type Poll = StringPoll | NumericPoll
 }
 
-interface StringPoll extends PollBase<string> {
-    type: "string"
-}
+// GET  /polls/{topic} return poll
+// POST /polls/{topic} create poll
+// PUT  /polls/{topic} submit opinion
+// GET  /polls return all polls
+// POST /polls create multiple polls
+// PUT  /polls submit opinions for multiple polls
 
-interface NumericPoll extends PollBase<number> {
-    type: "number"
-}
-
-type Poll = StringPoll | NumericPoll
 
 @Route("polls")
 export class PollController extends Controller {
 
-    private kvPolls = new ccf.TypedKVMap(ccf.kv.polls, ccf.string, ccf.json<Poll>())
+    private kvPolls = new ccf.TypedKVMap(ccf.kv.polls, ccf.string, ccf.json<kv.Poll>())
     private kvTopics = new ccf.TypedKVMap(ccf.kv.topics, ccf.string, ccf.json<string[]>())
     private kvTopicsKey = 'all'
 
     @SuccessResponse(201, "Poll has been successfully created")
     @Response<ErrorResponse>(403, "Poll has not been created because a poll with the same topic exists already")
     @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
-    //@Post('{topic}') // CCF does not support url templates yet for JS apps
     @Post()
     public createPoll(
-        //@Path() topic: string,
         @Query() topic: string,
         @Body() body: CreatePollRequest,
-        // TODO should be handled via @Security
         @Header() authorization: string,
     ): void {
         const user = parseAuthToken(authorization)
@@ -120,14 +136,39 @@ export class PollController extends Controller {
         this.setStatus(201)
     }
 
+    @SuccessResponse(201, "Polls have been successfully created")
+    @Response<ErrorResponse>(403, "Polls were not created because a poll with the same topic exists already")
+    @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
+    @Post('all')
+    public createPolls(
+        @Body() body: CreatePollsRequest,
+        @Header() authorization: string,
+    ): void {
+        const user = parseAuthToken(authorization)
+
+        for (let [topic, poll] of Object.entries(body.polls)) {
+            if (this.kvPolls.has(topic)) {
+                this.setStatus(403)
+                return { message: `Poll with topic '${topic}' exists already` } as any
+            }
+            this.kvPolls.set(topic, {
+                creator: user,
+                type: poll.type,
+                opinions: {}
+            })
+            const topics = this._getTopics()
+            topics.push(topic)
+            this.kvTopics.set(this.kvTopicsKey, topics)
+        }
+        this.setStatus(201)
+    }
+
     @SuccessResponse(204, "Opinion has been successfully recorded")
     @Response<ErrorResponse>(400, "Opinion was not recorded because the opinion data type does not match the poll type")
     @Response<ErrorResponse>(404, "Opinion was not recorded because no poll with the given topic exists")
     @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
-    //@Put('{topic}')
     @Put()
     public submitOpinion(
-        //@Path() topic: string,
         @Query() topic: string,
         @Body() body: SubmitOpinionRequest,
         @Header() authorization: string,
@@ -152,7 +193,6 @@ export class PollController extends Controller {
     @SuccessResponse(204, "Opinions have been successfully recorded")
     @Response<ErrorResponse>(400, "Opinions were not recorded because either an opinion data type did not match the poll type or a poll with the given topic was not found")
     @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
-    //@Put('{topic}')
     @Put('all')
     public submitOpinions(
         @Body() body: SubmitOpinionsRequest,
@@ -160,18 +200,18 @@ export class PollController extends Controller {
     ): void {
         const user = parseAuthToken(authorization)
 
-        for (const [topic, submitOpinionRequest] of Object.entries(body)) {
+        for (const [topic, opinion] of Object.entries(body.opinions)) {
             try {
                 var poll = this.kvPolls.get(topic)
             } catch (e) {
                 this.setStatus(400)
                 return { message: `Poll with topic '${topic}' does not exist` } as any
             }
-            if (typeof submitOpinionRequest.opinion !== poll.type) {
+            if (typeof opinion.opinion !== poll.type) {
                 this.setStatus(400)
                 return { message: `Poll with topic '${topic}' has a different opinion type` } as any
             }      
-            poll.opinions[user] = submitOpinionRequest.opinion
+            poll.opinions[user] = opinion.opinion
             this.kvPolls.set(topic, poll)
         }
 
@@ -181,10 +221,8 @@ export class PollController extends Controller {
     @SuccessResponse(200, "Poll data")
     @Response<ErrorResponse>(404, "Poll data could not be returned because no poll with the given topic exists")
     @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
-    //@Get('{topic}')
     @Get()
     public getPoll(
-        //@Path() topic: string
         @Query() topic: string,
         @Header() authorization: string,
     ): GetPollResponse {
@@ -198,7 +236,6 @@ export class PollController extends Controller {
         this.setStatus(200)
         return this._getPoll(user, topic)
     }
-
     
     @SuccessResponse(200, "Poll data")
     @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
@@ -208,14 +245,14 @@ export class PollController extends Controller {
     ): GetPollsResponse {
         const user = parseAuthToken(authorization)
 
-        let polls: GetPollsResponse = {}
+        let response: GetPollsResponse = { polls: {} }
 
         for (const topic of this._getTopics()) {
-            polls[topic] = this._getPoll(user, topic)
+            response.polls[topic] = this._getPoll(user, topic)
         }
 
         this.setStatus(200)
-        return polls
+        return response
     }
 
     _getTopics(): string[] {
@@ -235,27 +272,27 @@ export class PollController extends Controller {
 
         const opinionCountAboveThreshold = Object.keys(poll.opinions).length >= MINIMUM_OPINION_THRESHOLD
 
-        let res: GetPollResponse
+        let response: GetPollResponse
         // TODO can repetition be avoided while maintaining type checking?
         if (poll.type == "string") {
-            res = {
+            response = {
                 type: poll.type,
                 opinion: poll.opinions[user]
             }
             if (opinionCountAboveThreshold) {
                 const opinions = Object.values(poll.opinions)
-                res.statistics = {
+                response.statistics = {
                     counts: _.countBy(opinions)
                 }
             }
         } else if (poll.type == "number") {
-            res = {
+            response = {
                 type: poll.type,
                 opinion: poll.opinions[user]
             }
             if (opinionCountAboveThreshold) {
                 const opinions = Object.values(poll.opinions)
-                res.statistics = {
+                response.statistics = {
                     mean: math.mean(opinions),
                     std: math.std(opinions)
                 }
@@ -263,6 +300,6 @@ export class PollController extends Controller {
         } else {
             throw new Error('unknown poll type')
         }
-        return res
+        return response
     }
 }
