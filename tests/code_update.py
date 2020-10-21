@@ -188,10 +188,8 @@ def test_update_all_nodes(network, args):
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
-
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
 
@@ -208,4 +206,5 @@ if __name__ == "__main__":
 
     args.package = args.app_script and "liblua_generic" or "liblogging"
     args.patched_file_name = "{}.patched".format(args.package)
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
     run(args)

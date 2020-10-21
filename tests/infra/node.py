@@ -57,18 +57,20 @@ class Node:
         self.network_state = NodeNetworkState.stopped
         self.common_dir = None
 
-        hosts, *port = host.split(":")
+        if host.startswith("local://"):
+            self.remote_impl = infra.remote.LocalRemote
+        elif host.startswith("ssh://"):
+            self.remote_impl = infra.remote.SSHRemote
+        else:
+            assert False, f"{host} does not start with 'local://' or 'ssh://'"
+
+        hosts, *port = host[host.find("/") + 2:].split(":")
         self.host, *self.pubhost = hosts.split(",")
         self.rpc_port = int(port[0]) if port else None
         self.node_port = None
 
         if self.host == "localhost":
             self.host = infra.net.expand_localhost()
-
-        if is_addr_local(self.host, self.rpc_port):
-            self.remote_impl = infra.remote.LocalRemote
-        else:
-            self.remote_impl = infra.remote.SSHRemote
 
         self.pubhost = self.pubhost[0] if self.pubhost else self.host
 
