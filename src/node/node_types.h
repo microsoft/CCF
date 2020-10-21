@@ -4,6 +4,7 @@
 
 #include "ds/ring_buffer_types.h"
 #include "entities.h"
+#include "crypto/hash.h"
 
 #include <cstdint>
 #include <limits>
@@ -71,7 +72,7 @@ namespace ccf
 
     ForwardedMsg msg;
     NodeId from_node;
-    std::array<uint8_t, 32> hash;
+    crypto::Sha256Hash hash;
   };
 #pragma pack(pop)
 
