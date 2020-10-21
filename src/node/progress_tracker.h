@@ -88,7 +88,7 @@ namespace ccf
           std::equal(
             hashed_nonce.begin(),
             hashed_nonce.end(),
-            get_my_hashed_nonce(tx_id).begin()),
+            get_my_hashed_nonce(tx_id).h.begin()),
         "hashed_nonce does not match my nonce");
 
       BftNodeSignature bft_node_sig(std::move(sig_vec), node_id, hashed_nonce);
@@ -138,8 +138,9 @@ namespace ccf
       std::copy(n.begin(), n.end(), my_nonce.begin());
       if (node_id == id)
       {
+        // TODO: we should remove this extra copy
         auto h = hash_data(my_nonce);
-        std::copy(h.begin(), h.end(), hashed_nonce.begin());
+        std::copy(h.h.begin(), h.h.end(), hashed_nonce.begin());
       }
 
       LOG_TRACE_FMT(
@@ -350,7 +351,7 @@ namespace ccf
         if (cert.nonce_set.find(revealed_nonce.node_id) == cert.nonce_set.end())
         {
           cert.nonce_set.insert(revealed_nonce.node_id);
-          std::copy(h.begin(), h.end(), commit_cert.nonce.begin());
+          std::copy(h.h.begin(), h.h.end(), commit_cert.nonce.begin());
         }
       }
 
@@ -488,7 +489,7 @@ namespace ccf
       return it->second.my_nonce;
     }
 
-    std::vector<uint8_t> get_my_hashed_nonce(kv::TxID tx_id)
+    crypto::Sha256Hash get_my_hashed_nonce(kv::TxID tx_id)
     {
       Nonce nonce = get_my_nonce(tx_id);
       return hash_data(nonce);
@@ -499,13 +500,13 @@ namespace ccf
       id = id_;
     }
 
-    std::vector<uint8_t> hash_data(Nonce& data)
+    crypto::Sha256Hash hash_data(Nonce& data)
     {
-      tls::HashBytes hash;
+      crypto::Sha256Hash hash;
       tls::do_hash(
         reinterpret_cast<const uint8_t*>(&data),
         data.size(),
-        hash,
+        hash.h,
         MBEDTLS_MD_SHA256);
       return hash;
     }
@@ -562,14 +563,15 @@ namespace ccf
       }
     }
 
-    bool match_nonces(std::vector<uint8_t> n_1, Nonce n_2)
+    //bool match_nonces(std::vector<uint8_t> n_1, Nonce n_2)
+    bool match_nonces(const crypto::Sha256Hash& n_1, const Nonce& n_2)
     {
-      if (n_1.size() != n_2.size())
+      if (n_1.h.size() != n_2.size())
       {
         return false;
       }
 
-      return std::equal(n_1.begin(), n_1.end(), n_2.begin());
+      return std::equal(n_1.h.begin(), n_1.h.end(), n_2.begin());
     }
 
     uint32_t get_message_threshold(uint32_t node_count)

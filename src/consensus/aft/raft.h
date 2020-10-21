@@ -956,7 +956,7 @@ namespace aft
         {state->current_view, state->last_idx});
 
       Nonce hashed_nonce;
-      std::copy(h.begin(), h.end(), hashed_nonce.begin());
+      std::copy(h.h.begin(), h.h.end(), hashed_nonce.begin());
 
       SignedAppendEntriesResponse r = {
         {raft_append_entries_signed_response, state->my_node_id},

@@ -827,7 +827,7 @@ namespace ccf
             }
 
             auto h = progress_tracker->get_my_hashed_nonce(txid);
-            std::copy(h.begin(), h.end(), hashed_nonce.begin());
+            std::copy(h.h.begin(), h.h.end(), hashed_nonce.begin());
           }
           else
           {

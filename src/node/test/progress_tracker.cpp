@@ -41,7 +41,7 @@ void ordered_execution(
   ccf::Nonce nonce;
   auto h = pt->hash_data(nonce);
   ccf::Nonce hashed_nonce;
-  std::copy(h.begin(), h.end(), hashed_nonce.begin());
+  std::copy(h.h.begin(), h.h.end(), hashed_nonce.begin());
 
   INFO("Adding signatures");
   {
@@ -54,11 +54,11 @@ void ordered_execution(
       if (i == my_node_id)
       {
         auto h = pt->get_my_hashed_nonce({view, seqno});
-        std::copy(h.begin(), h.end(), hashed_nonce.begin());
+        std::copy(h.h.begin(), h.h.end(), hashed_nonce.begin());
       }
       else
       {
-        std::copy(h.begin(), h.end(), hashed_nonce.begin());
+        std::copy(h.h.begin(), h.h.end(), hashed_nonce.begin());
       }
 
       auto result = pt->add_signature(
