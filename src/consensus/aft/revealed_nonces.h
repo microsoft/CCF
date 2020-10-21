@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "kv/map.h"
+#include "crypto/hash.h"
 
 #include <msgpack/msgpack.hpp>
 #include <string>
@@ -9,7 +10,7 @@
 
 namespace aft
 {
-  using Nonce = std::array<uint8_t, 32>;
+  using Nonce = crypto::Sha256Hash;
   struct RevealedNonce
   {
     kv::NodeId node_id;

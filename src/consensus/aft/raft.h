@@ -955,8 +955,9 @@ namespace aft
       auto h = progress_tracker->get_my_hashed_nonce(
         {state->current_view, state->last_idx});
 
+      // TODO: fix this
       Nonce hashed_nonce;
-      std::copy(h.h.begin(), h.h.end(), hashed_nonce.begin());
+      std::copy(h.h.begin(), h.h.end(), hashed_nonce.h.begin());
 
       SignedAppendEntriesResponse r = {
         {raft_append_entries_signed_response, state->my_node_id},

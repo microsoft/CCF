@@ -143,7 +143,7 @@ namespace ccf
         [txid, this]() {
           auto sig = store.create_reserved_tx(txid.version);
           auto sig_view = sig.get_view(signatures);
-          PrimarySignature sig_value(id, txid.version, {0});
+          PrimarySignature sig_value(id, txid.version);
           sig_view->put(0, sig_value);
           return sig.commit_reserved();
         },
@@ -826,12 +826,13 @@ namespace ccf
                 txid.version));
             }
 
+            // TODO: clean this up
             auto h = progress_tracker->get_my_hashed_nonce(txid);
-            std::copy(h.h.begin(), h.h.end(), hashed_nonce.begin());
+            std::copy(h.h.begin(), h.h.end(), hashed_nonce.h.begin());
           }
           else
           {
-            hashed_nonce.fill(0);
+            hashed_nonce.h.fill(0);
           }
 
           PrimarySignature sig_value(

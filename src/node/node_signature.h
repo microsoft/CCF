@@ -3,13 +3,13 @@
 #pragma once
 #include "ds/json.h"
 #include "entities.h"
-#include "tls/hash.h"
+#include "crypto/hash.h"
 
 #include <vector>
 
 namespace ccf
 {
-  using Nonce = std::array<uint8_t, 32>;
+  using Nonce = crypto::Sha256Hash;
 
   struct NodeSignature
   {
@@ -26,6 +26,9 @@ namespace ccf
     NodeSignature(ccf::NodeId node_, Nonce hashed_nonce_) :
       node(node_),
       hashed_nonce(hashed_nonce_)
+    {}
+    NodeSignature(ccf::NodeId node_) :
+      node(node_)
     {}
     NodeSignature() = default;
 

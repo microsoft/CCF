@@ -32,8 +32,8 @@ namespace ccf
     PrimarySignature() {}
 
     PrimarySignature(
-      ccf::NodeId node_, kv::Consensus::SeqNo seqno_, Nonce hashed_nonce) :
-      NodeSignature(node_, hashed_nonce),
+      ccf::NodeId node_, kv::Consensus::SeqNo seqno_) :
+      NodeSignature(node_),
       seqno(seqno_)
     {}
 
