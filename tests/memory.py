@@ -46,6 +46,7 @@ def get_heap_size(node):
         assert r.status_code == http.HTTPStatus.OK.value
         return HeapSize(r.body.json())
 
+
 def wait_for_commit(node, response):
     with node.client() as nc:
         ccf.commit.wait_for_commit(nc, response.seqno, response.view)
