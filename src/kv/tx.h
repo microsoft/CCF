@@ -66,50 +66,6 @@ namespace kv
     }
 
     template <class M>
-    std::tuple<typename M::TxView*> get_tuple_old(M& m)
-    {
-      using MapView = typename M::TxView;
-
-      // If the M is present, its AbstractTxView should be an M::TxView. This
-      // invariant could be broken by set_view_list, which will produce an error
-      // here
-      auto search = view_list.find(m.get_name());
-      if (search != view_list.end())
-      {
-        auto view = dynamic_cast<MapView*>(search->second.view.get());
-
-        if (view == nullptr)
-        {
-          throw std::logic_error(fmt::format(
-            "View over map {} is not of expected type", m.get_name()));
-        }
-
-        return std::make_tuple(view);
-      }
-
-      auto it = view_list.begin();
-      if (it != view_list.end())
-      {
-        // All Maps must be in the same store.
-        if (it->second.map->get_store() != m.get_store())
-          throw std::logic_error(
-            "Transaction must be over maps in the same store");
-      }
-
-      if (read_version == NoVersion)
-      {
-        // Grab opacity version that all Maps should be queried at.
-        auto txid = m.get_store()->current_txid();
-        term = txid.term;
-        read_version = txid.version;
-      }
-
-      MapView* typed_view = m.template create_view<MapView>(read_version);
-      return check_and_store_view(
-        typed_view, m.get_name(), m.shared_from_this());
-    }
-
-    template <class M>
     std::tuple<typename M::TxView*> get_view_tuple_by_name(
       const std::string& map_name)
     {
@@ -233,7 +189,6 @@ namespace kv
     }
 
   public:
-    BaseTx() : view_list() {}
     BaseTx(AbstractStore* _store) : store(_store) {}
 
     BaseTx(const BaseTx& that) = delete;
@@ -546,13 +501,6 @@ namespace kv
   public:
     using ReadOnlyTx::ReadOnlyTx;
 
-    // TEMPORARY - DO NOT USE
-    template <class M>
-    typename M::TxView* get_view_old(M& m)
-    {
-      return std::get<0>(get_tuple_old(m));
-    }
-
     /** Get a transaction view on a map.
      *
      * This adds the map to the transaction set if it is not yet present.
@@ -614,7 +562,7 @@ namespace kv
   class ReservedTx : public Tx
   {
   public:
-    ReservedTx(AbstractStore* _store, Version reserved)
+    ReservedTx(AbstractStore* _store, Version reserved) : Tx(_store)
     {
       store = _store;
       committed = false;

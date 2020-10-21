@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import getpass
 import time
+import http
 import logging
 from random import seed
 import infra.network
@@ -161,6 +162,22 @@ def run(get_command, args):
                             metrics.put(args.label, perf_result)
                         else:
                             LOG.warning(f"Skipping upload for {remote_client.name}")
+
+                    primary, _ = network.find_primary()
+                    with primary.client() as nc:
+                        r = nc.get("/node/memory")
+                        assert r.status_code == http.HTTPStatus.OK.value
+
+                        results = r.body.json()
+                        tx_rates.insert_metrics(**results)
+
+                        # Construct name for heap metric, removing ^ suffix if present
+                        heap_peak_metric = f"Mem_{args.label}"
+                        if heap_peak_metric.endswith("^"):
+                            heap_peak_metric = heap_peak_metric[:-1]
+
+                        peak_value = results["peak_allocated_heap_size"]
+                        metrics.put(heap_peak_metric, peak_value)
 
                     LOG.info(f"Rates:\n{tx_rates}")
                     tx_rates.save_results(args.metrics_file)

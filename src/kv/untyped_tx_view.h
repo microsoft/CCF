@@ -23,15 +23,62 @@ namespace kv::untyped
 
   class TxView
   {
-  protected:
-    ChangeSet& tx_changes;
-
   public:
     // Expose these types so that other code can use them as MyTx::KeyType or
     // MyMap::TxView::KeyType, templated on the TxView or Map type
     using KeyType = SerialisedEntry;
     using ValueType = SerialisedEntry;
 
+  protected:
+    ChangeSet& tx_changes;
+
+    /** Get pointer to current value if this key exists, else nullptr if it does
+     * not exist or has been deleted. If non-null, points to something owned by
+     * tx_changes - expect this is used/dereferenced immediately, and there is
+     * no concurrent access which could invalidate it. Modifies read set if
+     * appropriate to record read dependency on this key, at the version of the
+     * returned data.
+     */
+    const ValueType* read_key(const KeyType& key)
+    {
+      // A write followed by a read doesn't introduce a read dependency.
+      // If we have written, return the value without updating the read set.
+      auto write = tx_changes.writes.find(key);
+      if (write != tx_changes.writes.end())
+      {
+        if (write->second.has_value())
+        {
+          return &write->second.value();
+        }
+        else
+        {
+          return nullptr;
+        }
+      }
+
+      // If the key doesn't exist, return empty and record that we depend on
+      // the key not existing.
+      const auto search = tx_changes.state.getp(key);
+      if (search == nullptr)
+      {
+        tx_changes.reads.insert(std::make_pair(key, NoVersion));
+        return nullptr;
+      }
+
+      // Record the version that we depend on.
+      tx_changes.reads.insert(std::make_pair(key, search->version));
+
+      // If the key has been deleted, return empty.
+      if (is_deleted(search->version))
+      {
+        return nullptr;
+      }
+
+      // Return the value.
+      return &search->value;
+    }
+
+  public:
     TxView(ChangeSet& cs) : tx_changes(cs) {}
 
     /** Get value for key
@@ -46,37 +93,13 @@ namespace kv::untyped
      */
     std::optional<ValueType> get(const KeyType& key)
     {
-      // A write followed by a read doesn't introduce a read dependency.
-      // If we have written, return the value without updating the read set.
-      auto write = tx_changes.writes.find(key);
-      if (write != tx_changes.writes.end())
-      {
-        // May be empty, for a key that has been removed. This matches the
-        // return semantics
-        return write->second;
-      }
-
-      // If the key doesn't exist, return empty and record that we depend on
-      // the key not existing.
-      auto search = tx_changes.state.get(key);
-      if (!search.has_value())
-      {
-        tx_changes.reads.insert(std::make_pair(key, NoVersion));
-        return std::nullopt;
-      }
-
-      // Record the version that we depend on.
-      auto& found = search.value();
-      tx_changes.reads.insert(std::make_pair(key, found.version));
-
-      // If the key has been deleted, return empty.
-      if (is_deleted(found.version))
+      auto value_p = read_key(key);
+      if (value_p == nullptr)
       {
         return std::nullopt;
       }
 
-      // Return the value.
-      return found.value;
+      return *value_p;
     }
 
     /** Get globally committed value for key
@@ -110,6 +133,22 @@ namespace kv::untyped
 
       // Return the value.
       return found.value;
+    }
+
+    /** Test if key is present
+     *
+     * This returns true if the key has a value inside the transaction. If the
+     * key has been updated (written to or deleted) in the current transaction,
+     * that update will be reflected in the return of this call.
+     *
+     * @param key Key
+     *
+     * @return bool true iff key exists
+     */
+    bool has(const KeyType& key)
+    {
+      auto value_p = read_key(key);
+      return value_p != nullptr;
     }
 
     /** Write value at key
@@ -171,7 +210,20 @@ namespace kv::untyped
       return true;
     }
 
-    /** Iterate over all entries in the map
+    /** Iterate over all entries in the map. There is no guarantee on the
+     * iteration order.
+     *
+     * The set of key-value entries which will be iterated over is determined at
+     * the point foreach is called, and does not include any modifications made
+     * by the functor. This means:
+     * - If the functor sets a value V at a new key K', the functor will not be
+     * called for (K', V)
+     * - If the functor changes the value at key K from V to V', the functor
+     * will be called with the old value (K, V)
+     * - If the functor removes K, the functor will still be called for (K, V)
+     *
+     * Calling `get` will always return the true latest state, this behaviour
+     * only applies to the keys and values passed as functor arguments.
      *
      * @param F functor, taking a key and a value, return value determines
      * whether the iteration should continue (true) or stop (false)
@@ -181,7 +233,12 @@ namespace kv::untyped
     {
       // Record a global read dependency.
       tx_changes.read_version = tx_changes.start_version;
-      auto& w = tx_changes.writes;
+
+      // Take a snapshot copy of the writes. This is what we will iterate over,
+      // while any additional modifications made by the functor will modify the
+      // original tx_changes.writes, and be visible outside of the functor's
+      // args
+      auto w = tx_changes.writes;
       bool should_continue = true;
 
       tx_changes.state.foreach(
@@ -198,9 +255,7 @@ namespace kv::untyped
 
       if (should_continue)
       {
-        for (auto write = tx_changes.writes.begin();
-             write != tx_changes.writes.end();
-             ++write)
+        for (auto write = w.begin(); write != w.end(); ++write)
         {
           if (write->second.has_value())
           {

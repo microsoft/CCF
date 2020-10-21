@@ -11,6 +11,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #include <msgpack/msgpack.hpp>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -112,9 +113,11 @@ TEST_CASE("Reads/writes and deletions")
   {
     auto tx = kv_store.create_tx();
     auto view = tx.get_view(map);
+    REQUIRE(!view->has(k));
     auto v = view->get(k);
     REQUIRE(!v.has_value());
     view->put(k, v1);
+    REQUIRE(view->has(k));
     auto va = view->get(k);
     REQUIRE(va.has_value());
     REQUIRE(va.value() == v1);
@@ -125,6 +128,7 @@ TEST_CASE("Reads/writes and deletions")
   {
     auto tx = kv_store.create_tx();
     auto view = tx.get_view(map);
+    REQUIRE(view->has(k));
     auto v = view->get(k);
     REQUIRE(v.has_value());
     REQUIRE(v.value() == v1);
@@ -133,39 +137,57 @@ TEST_CASE("Reads/writes and deletions")
 
   INFO("Remove keys");
   {
-    auto tx = kv_store.create_tx();
-    auto tx2 = kv_store.create_tx();
-    auto view = tx.get_view(map);
-    view->put(k, v1);
+    {
+      auto tx = kv_store.create_tx();
+      auto view = tx.get_view(map);
+      view->put(k, v1);
 
-    REQUIRE(!view->remove(invalid_key));
-    REQUIRE(view->remove(k));
-    auto va = view->get(k);
-    REQUIRE(!va.has_value());
+      REQUIRE(!view->has(invalid_key));
+      REQUIRE(!view->remove(invalid_key));
+      REQUIRE(view->remove(k));
+      REQUIRE(!view->has(k));
+      auto va = view->get(k);
+      REQUIRE(!va.has_value());
 
-    view->put(k, v1);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    auto view2 = tx2.get_view(map);
-    REQUIRE(view2->remove(k));
+      view->put(k, v1);
+      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    }
+
+    {
+      auto tx2 = kv_store.create_tx();
+      auto view2 = tx2.get_view(map);
+      REQUIRE(view2->has(k));
+      REQUIRE(view2->remove(k));
+    }
   }
 
   INFO("Remove key that was deleted from state");
   {
-    auto tx = kv_store.create_tx();
-    auto tx2 = kv_store.create_tx();
-    auto tx3 = kv_store.create_tx();
-    auto view = tx.get_view(map);
-    view->put(k, v1);
-    auto va = view->get_globally_committed(k);
-    REQUIRE(!va.has_value());
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    auto view2 = tx2.get_view(map);
-    REQUIRE(view2->remove(k));
-    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+    {
+      auto tx = kv_store.create_tx();
+      auto view = tx.get_view(map);
+      view->put(k, v1);
+      auto va = view->get_globally_committed(k);
+      REQUIRE(!va.has_value());
+      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    }
 
-    auto view3 = tx3.get_view(map);
-    auto vc = view3->get(k);
-    REQUIRE(!vc.has_value());
+    {
+      auto tx2 = kv_store.create_tx();
+      auto view2 = tx2.get_view(map);
+      REQUIRE(view2->has(k));
+      REQUIRE(view2->remove(k));
+      REQUIRE(!view2->has(k));
+      REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+    }
+
+    {
+      auto tx3 = kv_store.create_tx();
+      auto view3 = tx3.get_view(map);
+      REQUIRE(!view3->has(k));
+      auto vc = view3->get(k);
+      REQUIRE(!vc.has_value());
+    }
   }
 }
 
@@ -346,6 +368,266 @@ TEST_CASE("foreach")
   }
 }
 
+TEST_CASE("Modifications during foreach iteration")
+{
+  kv::Store kv_store;
+  auto& map = kv_store.create<MapTypes::NumString>("public:map");
+
+  const auto value1 = "foo";
+  const auto value2 = "bar";
+
+  std::set<size_t> keys;
+  {
+    INFO("Insert initial keys");
+
+    auto tx = kv_store.create_tx();
+    auto view = tx.get_view(map);
+    for (size_t i = 0; i < 60; ++i)
+    {
+      keys.insert(i);
+      view->put(i, value1);
+    }
+
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+
+  auto tx = kv_store.create_tx();
+  auto view = tx.get_view(map);
+
+  // 5 types of key:
+  // 1) previously committed and unmodified
+  const auto initial_keys_size = keys.size();
+  const auto keys_per_category = keys.size() / 3;
+  // We do nothing to the first keys_per_category keys
+
+  // 2) previously committed and had their values changed
+  for (size_t i = keys_per_category; i < 2 * keys_per_category; ++i)
+  {
+    keys.insert(i);
+    view->put(i, value2);
+  }
+
+  // 3) previously committed and now removed
+  for (size_t i = 2 * keys_per_category; i < initial_keys_size; ++i)
+  {
+    keys.erase(i);
+    view->remove(i);
+  }
+
+  // 4) newly written
+  for (size_t i = initial_keys_size; i < initial_keys_size + keys_per_category;
+       ++i)
+  {
+    keys.insert(i);
+    view->put(i, value2);
+  }
+
+  // 5) newly written and then removed
+  for (size_t i = initial_keys_size + keys_per_category;
+       i < initial_keys_size + 2 * keys_per_category;
+       ++i)
+  {
+    keys.insert(i);
+    view->put(i, value2);
+
+    keys.erase(i);
+    view->remove(i);
+  }
+
+  size_t keys_seen = 0;
+  const auto expected_keys_seen = keys.size();
+
+  SUBCASE("Removing current key while iterating")
+  {
+    auto should_remove = [](size_t n) { return n % 3 == 0 || n % 5 == 0; };
+
+    view->foreach(
+      [&view, &keys, &keys_seen, should_remove](const auto& k, const auto&) {
+        ++keys_seen;
+        const auto it = keys.find(k);
+        REQUIRE(it != keys.end());
+
+        // Remove a 'random' set of keys while iterating
+        if (should_remove(k))
+        {
+          view->remove(k);
+          keys.erase(it);
+        }
+
+        return true;
+      });
+
+    REQUIRE(keys_seen == expected_keys_seen);
+
+    // Check all expected keys are still there...
+    view->foreach([&keys, should_remove](const auto& k, const auto&) {
+      REQUIRE(!should_remove(k));
+      const auto it = keys.find(k);
+      REQUIRE(it != keys.end());
+      keys.erase(it);
+      return true;
+    });
+
+    // ...and nothing else
+    REQUIRE(keys.empty());
+  }
+
+  SUBCASE("Removing other keys while iterating")
+  {
+    auto should_remove = [](size_t n) { return n % 3 == 0 || n % 5 == 0; };
+
+    std::optional<size_t> removal_trigger = std::nullopt;
+
+    view->foreach([&view, &keys, &keys_seen, &removal_trigger, should_remove](
+                    const auto& k, const auto&) {
+      ++keys_seen;
+
+      // The first time we find a removable, remove _all the others_ (not
+      // ourself!)
+      if (should_remove(k) && !removal_trigger.has_value())
+      {
+        REQUIRE(!removal_trigger.has_value());
+        removal_trigger = k;
+
+        auto remove_it = keys.begin();
+        while (remove_it != keys.end())
+        {
+          const auto n = *remove_it;
+          if (should_remove(n) && n != k)
+          {
+            view->remove(n);
+            remove_it = keys.erase(remove_it);
+          }
+          else
+          {
+            ++remove_it;
+          }
+        }
+      }
+
+      return true;
+    });
+
+    REQUIRE(keys_seen == expected_keys_seen);
+
+    REQUIRE(removal_trigger.has_value());
+
+    // Check all expected keys are still there...
+    view->foreach(
+      [&keys, removal_trigger, should_remove](const auto& k, const auto&) {
+        const auto should_be_here =
+          !should_remove(k) || k == removal_trigger.value();
+        REQUIRE(should_be_here);
+        const auto it = keys.find(k);
+        REQUIRE(it != keys.end());
+        keys.erase(it);
+        return true;
+      });
+
+    // ...and nothing else
+    REQUIRE(keys.empty());
+  }
+
+  static constexpr auto value3 = "baz";
+
+  SUBCASE("Modifying and adding other keys while iterating")
+  {
+    auto should_modify = [](size_t n) { return n % 3 == 0 || n % 5 == 0; };
+
+    std::set<size_t> updated_keys;
+
+    view->foreach([&view, &keys, &keys_seen, &updated_keys, should_modify](
+                    const auto& k, const auto& v) {
+      ++keys_seen;
+
+      if (should_modify(k))
+      {
+        // Modify ourselves
+        view->put(k, value3);
+        updated_keys.insert(k);
+
+        // Modify someone else ('before' and 'after' are guesses - iteration
+        // order is undefined!)
+        const auto before = k / 2;
+        view->put(before, value3);
+        keys.insert(before);
+        updated_keys.insert(before);
+
+        const auto after = k * 2;
+        view->put(after, value3);
+        keys.insert(after);
+        updated_keys.insert(after);
+
+        // Note discrepancy with externally visible value
+        const auto visible_v = view->get(k);
+        REQUIRE(visible_v.has_value());
+        REQUIRE(visible_v.value() == value3);
+        REQUIRE(visible_v.value() != v); // !!
+      }
+
+      return true;
+    });
+
+    REQUIRE(keys_seen == expected_keys_seen);
+
+    // Check all expected keys are still there...
+    view->foreach([&keys, &updated_keys](const auto& k, const auto& v) {
+      const auto updated_it = updated_keys.find(k);
+      if (updated_it != updated_keys.end())
+      {
+        REQUIRE(v == value3);
+        updated_keys.erase(updated_it);
+      }
+      else
+      {
+        REQUIRE(v != value3);
+      }
+
+      const auto it = keys.find(k);
+      if (it != keys.end())
+      {
+        keys.erase(it);
+      }
+
+      return true;
+    });
+
+    // ...and nothing else
+    REQUIRE(keys.empty());
+    REQUIRE(updated_keys.empty());
+  }
+
+  SUBCASE("Rewriting to new keys")
+  {
+    // Rewrite map, placing each value at a new key
+    view->foreach([&view, &keys_seen](const auto& k, const auto& v) {
+      ++keys_seen;
+
+      view->remove(k);
+
+      const auto new_key = k + 1000;
+      REQUIRE(!view->has(new_key));
+      view->put(new_key, v);
+
+      return true;
+    });
+
+    REQUIRE(keys_seen == expected_keys_seen);
+
+    // Check map contains only new keys, and the same count
+    keys_seen = 0;
+    view->foreach([&view, &keys, &keys_seen](const auto& k, const auto& v) {
+      ++keys_seen;
+
+      REQUIRE(keys.find(k) == keys.end());
+
+      return true;
+    });
+
+    REQUIRE(keys_seen == expected_keys_seen);
+  }
+}
+
 TEST_CASE("Read-only tx")
 {
   kv::Store kv_store;
@@ -372,10 +654,12 @@ TEST_CASE("Read-only tx")
   {
     auto tx = kv_store.create_tx();
     auto view = tx.get_read_only_view(map);
+    REQUIRE(view->has(k));
     const auto v = view->get(k);
     REQUIRE(v.has_value());
     REQUIRE(v.value() == v1);
 
+    REQUIRE(!view->has(invalid_key));
     const auto invalid_v = view->get(invalid_key);
     REQUIRE(!invalid_v.has_value());
 
@@ -388,10 +672,12 @@ TEST_CASE("Read-only tx")
   {
     auto tx = kv_store.create_read_only_tx();
     auto view = tx.get_read_only_view(map);
+    REQUIRE(view->has(k));
     const auto v = view->get(k);
     REQUIRE(v.has_value());
     REQUIRE(v.value() == v1);
 
+    REQUIRE(!view->has(invalid_key));
     const auto invalid_v = view->get(invalid_key);
     REQUIRE(!invalid_v.has_value());
 
@@ -973,7 +1259,7 @@ TEST_CASE("Conflict resolution")
   auto try_write = [&](kv::Tx& tx, const std::string& s) {
     auto view = tx.get_view(map);
 
-    // Numroduce read-dependency
+    // Introduce read-dependency
     view->get("foo");
     view->put("foo", s);
 
@@ -990,6 +1276,7 @@ TEST_CASE("Conflict resolution")
     {
       const auto it = view->get(s);
       REQUIRE(it.has_value());
+      REQUIRE(view->has(s));
       REQUIRE(it.value() == s);
     }
 
@@ -997,6 +1284,7 @@ TEST_CASE("Conflict resolution")
     {
       const auto it = view->get(s);
       REQUIRE(!it.has_value());
+      REQUIRE(!view->has(s));
     }
   };
 
@@ -1021,6 +1309,11 @@ TEST_CASE("Conflict resolution")
   REQUIRE(res1 == kv::CommitSuccess::CONFLICT);
   confirm_state({"baz"}, {"bar"});
 
+  // A third transaction just wants to read the value
+  auto tx3 = kv_store.create_tx();
+  auto view3 = tx3.get_view(map);
+  REQUIRE(view3->has("foo"));
+
   // First transaction is rerun with same object, producing different result
   try_write(tx1, "buzz");
 
@@ -1028,6 +1321,14 @@ TEST_CASE("Conflict resolution")
   res1 = tx1.commit();
   REQUIRE(res1 == kv::CommitSuccess::OK);
   confirm_state({"baz", "buzz"}, {"bar"});
+
+  // Third transaction completes later, has no conflicts but reports the earlier
+  // version it read
+  auto res3 = tx3.commit();
+  REQUIRE(res3 == kv::CommitSuccess::OK);
+
+  REQUIRE(tx1.commit_version() > tx2.commit_version());
+  REQUIRE(tx2.get_read_version() >= tx2.get_read_version());
 
   // Re-running a _committed_ transaction is exceptionally bad
   REQUIRE_THROWS(tx1.commit());

@@ -395,9 +395,9 @@ namespace ccfapp
     if (!key)
       return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
 
-    auto val = map_view->get({key, key + key_size});
+    auto has = map_view->has({key, key + key_size});
 
-    return JS_NewBool(ctx, val.has_value());
+    return JS_NewBool(ctx, has);
   }
 
   static JSValue js_kv_map_get(

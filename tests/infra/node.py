@@ -45,9 +45,12 @@ def get_snapshot_seqno(file_name):
 
 
 class Node:
-    def __init__(self, node_id, host, binary_dir=".", debug=False, perf=False):
+    def __init__(
+        self, node_id, host, binary_dir=".", library_dir=".", debug=False, perf=False
+    ):
         self.node_id = node_id
         self.binary_dir = binary_dir
+        self.library_dir = library_dir
         self.debug = debug
         self.perf = perf
         self.remote = None
@@ -152,7 +155,9 @@ class Node:
         If self.debug is set, it will not actually start up the node, but will
         prompt the user to do so manually.
         """
-        lib_path = infra.path.build_lib_path(lib_name, enclave_type)
+        lib_path = infra.path.build_lib_path(
+            lib_name, enclave_type, library_dir=self.library_dir
+        )
         self.common_dir = common_dir
         self.remote = infra.remote.CCFRemote(
             start_type,
@@ -286,8 +291,8 @@ class Node:
 
         return self.remote.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
-    def client(self, identity=None, **kwargs):
-        akwargs = {
+    def client_certs(self, identity=None):
+        return {
             "cert": os.path.join(self.common_dir, f"{identity}_cert.pem")
             if identity
             else None,
@@ -295,8 +300,15 @@ class Node:
             if identity
             else None,
             "ca": os.path.join(self.common_dir, "networkcert.pem"),
-            "description": f"[{self.node_id}{'|' + identity if identity is not None else ''}]",
         }
+
+    def client(self, identity=None, **kwargs):
+        akwargs = self.client_certs(identity)
+        akwargs.update(
+            {
+                "description": f"[{self.node_id}{'|' + identity if identity is not None else ''}]",
+            }
+        )
         akwargs.update(kwargs)
         return ccf.clients.client(self.pubhost, self.rpc_port, **akwargs)
 
@@ -310,18 +322,32 @@ class Node:
 
 
 @contextmanager
-def node(node_id, host, binary_directory, debug=False, perf=False, pdb=False):
+def node(
+    node_id,
+    host,
+    binary_directory,
+    library_directory,
+    debug=False,
+    perf=False,
+    pdb=False,
+):
     """
     Context manager for Node class.
     :param node_id: unique ID of node
     :param binary_directory: the directory where CCF's binaries are located
+    :param library_directory: the directory where CCF's libraries are located
     :param host: node's hostname
     :param debug: default: False. If set, node will not start (user is prompted to start them manually)
     :param perf: default: False. If set, node will run under perf record
     :return: a Node instance that can be used to build a CCF network
     """
     this_node = Node(
-        node_id=node_id, host=host, binary_dir=binary_directory, debug=debug, perf=perf
+        node_id=node_id,
+        host=host,
+        binary_dir=binary_directory,
+        library_dir=library_directory,
+        debug=debug,
+        perf=perf,
     )
     try:
         yield this_node
