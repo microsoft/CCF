@@ -5,6 +5,7 @@
 #include "consensus/aft/raft_types.h"
 #include "consensus/aft/request.h"
 #include "enclave/rpc_map.h"
+#include "node/request_tracker.h"
 #include "state.h"
 
 namespace enclave
@@ -34,12 +35,15 @@ namespace aft
       Request& request) = 0;
 
     virtual kv::Version execute_request(
-      std::unique_ptr<RequestMessage> request, bool is_create_request) = 0;
+      std::unique_ptr<RequestMessage> request,
+      bool is_create_request,
+      std::shared_ptr<aft::RequestTracker> request_tracker = nullptr) = 0;
 
     virtual std::unique_ptr<aft::RequestMessage> create_request_message(
       const kv::TxHistory::RequestCallbackArgs& args) = 0;
 
-    virtual kv::Version commit_replayed_request(kv::Tx& tx) = 0;
+    virtual kv::Version commit_replayed_request(
+      kv::Tx& tx, std::shared_ptr<aft::RequestTracker> request_tracker) = 0;
   };
 
   class ExecutorImpl : public Executor
@@ -62,12 +66,16 @@ namespace aft
     std::unique_ptr<RequestCtx> create_request_ctx(Request& request) override;
 
     kv::Version execute_request(
-      std::unique_ptr<RequestMessage> request, bool is_create_request) override;
+      std::unique_ptr<RequestMessage> request,
+      bool is_create_request,
+      std::shared_ptr<aft::RequestTracker> request_tracker = nullptr) override;
 
     std::unique_ptr<aft::RequestMessage> create_request_message(
       const kv::TxHistory::RequestCallbackArgs& args) override;
 
-    kv::Version commit_replayed_request(kv::Tx& tx) override;
+    kv::Version commit_replayed_request(
+      kv::Tx& tx,
+      std::shared_ptr<aft::RequestTracker> request_tracker) override;
 
   private:
     RequestsMap& bft_requests_map;
