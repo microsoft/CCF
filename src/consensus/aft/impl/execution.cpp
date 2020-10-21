@@ -50,7 +50,9 @@ namespace aft
   }
 
   kv::Version ExecutorImpl::execute_request(
-    std::unique_ptr<RequestMessage> request, bool is_create_request)
+    std::unique_ptr<RequestMessage> request,
+    bool is_create_request,
+    std::shared_ptr<aft::RequestTracker> request_tracker)
   {
     std::shared_ptr<enclave::RpcContext>& ctx = request->get_request_ctx().ctx;
     std::shared_ptr<enclave::RpcHandler>& frontend =
@@ -59,6 +61,24 @@ namespace aft
     ctx->pbft_raw.resize(request->size());
     request->serialize_message(
       NoNode, ctx->pbft_raw.data(), ctx->pbft_raw.size());
+
+    if (request_tracker != nullptr)
+    {
+      const auto& raw_request = ctx->get_serialised_request();
+      auto data_ = raw_request.data();
+      auto size_ = raw_request.size();
+
+      std::array<uint8_t, 32> hash;
+      tls::do_hash(data_, size_, hash, MBEDTLS_MD_SHA256);
+
+      if (!request_tracker->remove(hash))
+      {
+        request_tracker->insert_deleted(
+          hash,
+          threading::ThreadMessaging::thread_messaging
+            .get_current_time_offset());
+      }
+    }
 
     ctx->is_create_request = is_create_request;
     ctx->execute_on_node = true;
@@ -99,7 +119,8 @@ namespace aft
       std::move(serialized_req), args.rid, std::move(ctx), rep_cb);
   }
 
-  kv::Version ExecutorImpl::commit_replayed_request(kv::Tx& tx)
+  kv::Version ExecutorImpl::commit_replayed_request(
+    kv::Tx& tx, std::shared_ptr<aft::RequestTracker> request_tracker)
   {
     auto tx_view = tx.get_view(bft_requests_map);
     auto req_v = tx_view->get(0);
@@ -113,6 +134,7 @@ namespace aft
     auto request_message = RequestMessage::deserialize(
       std::move(request.raw), request.rid, std::move(ctx), nullptr);
 
-    return execute_request(std::move(request_message), state->commit_idx == 0);
+    return execute_request(
+      std::move(request_message), state->commit_idx == 0, request_tracker);
   }
 }

@@ -125,7 +125,11 @@ namespace ccf
           if (
             primary_id != NoNode &&
             cmd_forwarder->forward_command(
-              ctx, primary_id, caller_id, get_cert_to_forward(ctx, endpoint)))
+              ctx,
+              primary_id,
+              consensus->active_nodes(),
+              caller_id,
+              get_cert_to_forward(ctx, endpoint)))
           {
             // Indicate that the RPC has been forwarded to primary
             LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id);

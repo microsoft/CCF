@@ -72,7 +72,7 @@ namespace enclave
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
-        rpcsessions, n2n_channels, rpc_map)),
+        rpcsessions, n2n_channels, rpc_map, consensus_type_)),
       context(ccf::historical::StateCache(
         *network.tables, writer_factory.create_writer_to_outside()))
     {
