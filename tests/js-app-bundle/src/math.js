@@ -1,3 +1,27 @@
+function compute_impl(op, left, right) {
+    let result;
+    if (op == 'add')
+        result = left + right;
+    else if (op == 'sub')
+        result = left - right;
+    else if (op == 'mul')
+        result = left * right;
+    else {
+        return {
+            statusCode: 400,
+            body: {
+                error: 'unknown op'
+            }
+        }
+    }
+
+    return {
+        body: {
+            result: result
+        }
+    }
+}
+
 export function compute(request) {
     const body = request.body.json();
 
@@ -10,25 +34,32 @@ export function compute(request) {
         }
     }
 
-    let result;
-    if (body.op == 'add')
-        result = body.left + body.right;
-    else if (body.op == 'sub')
-        result = body.left - body.right;
-    else if (body.op == 'mul')
-        result = body.left * body.right;
-    else {
+    return compute_impl(body.op, body.left, body.right);
+}
+
+export function compute2(request) {
+    const params = request.params;
+
+    // Type of params is always string. Try to parse as float
+    let left = parseFloat(params.left);
+    if (isNaN(left)) {
         return {
             statusCode: 400,
             body: {
-                error: 'unknown op'
+                error: 'left operand is not a parseable number'
             }
         }
     }
-    
-    return {
-        body: {
-            result: result
+
+    let right = parseFloat(params.right);
+    if (isNaN(right)) {
+        return {
+            statusCode: 400,
+            body: {
+                error: 'right operand is not a parseable number'
+            }
         }
     }
+
+    return compute_impl(params.op, left, right);
 }
