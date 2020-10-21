@@ -351,7 +351,7 @@ namespace ccf
     {
       auto endpoints_view =
         tx.get_view<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
-      endpoints_view->foreach([&endpoints_view](const auto& k, const auto&){
+      endpoints_view->foreach([&endpoints_view](const auto& k, const auto&) {
         endpoints_view->remove(k);
         return true;
       });
