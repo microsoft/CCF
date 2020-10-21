@@ -3,6 +3,7 @@
 
 import { assert } from 'chai'
 import bent from 'bent'
+import jwt from 'jsonwebtoken'
 import { NODE_ADDR, setupMochaCCFSandbox } from './util'
 import {
   CreatePollRequest, SubmitOpinionRequest, 
@@ -17,10 +18,14 @@ const ENDPOINT_URL = `${NODE_ADDR}/app/polls`
 // Note: In order to use a single CCF instance (and hence keep tests fast),
 // each test uses a different poll topic.
 
-function getFakeAuth(userId: number) {
-  // See src/util.ts.
+function getAuth(userId: number) {
+  const payload = {
+    sub: 'user' + userId
+  }
+  const secret = 'dummy'
+  const token = jwt.sign(payload, secret)
   return {
-    'authorization': `Bearer user=dummy-${userId}'`
+    'authorization': `Bearer ${token}'`
   }
 }
 
@@ -33,22 +38,22 @@ describe('/polls', function () {
       const body: CreatePollRequest = {
         type: "number"
       }
-      await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, body, getFakeAuth(1))
+      await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, body, getAuth(1))
     })
     it('creates string polls', async function () {
       const topic = 'post-b'
       const body: CreatePollRequest = {
         type: "string"
       }
-      await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, body, getFakeAuth(1))
+      await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, body, getAuth(1))
     })
     it('rejects creating polls with an existing topic', async function () {
       const topic = 'post-c'
       const body: CreatePollRequest = {
         type: "string"
       }
-      await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, body, getFakeAuth(1))
-      await bent('POST', 403)(`${ENDPOINT_URL}?topic=${topic}`, body, getFakeAuth(1))
+      await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, body, getAuth(1))
+      await bent('POST', 403)(`${ENDPOINT_URL}?topic=${topic}`, body, getAuth(1))
     })
     it('rejects creating polls without authorization', async function () {
       const topic = 'post-d'
@@ -65,37 +70,37 @@ describe('/polls', function () {
       const pollBody: CreatePollRequest = {
         type: "number"
       }
-      await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, pollBody, getFakeAuth(1))
+      await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, pollBody, getAuth(1))
 
       const opinionBody: SubmitOpinionRequest = {
         opinion: 1.2
       }
-      await bent('PUT', 204)(`${ENDPOINT_URL}?topic=${topic}`, opinionBody, getFakeAuth(1))
+      await bent('PUT', 204)(`${ENDPOINT_URL}?topic=${topic}`, opinionBody, getAuth(1))
     })
     it('rejects opinions with mismatching data type', async function () {
       const topic = 'put-b'
       const pollBody: CreatePollRequest = {
         type: "number"
       }
-      await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, pollBody, getFakeAuth(1))
+      await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, pollBody, getAuth(1))
 
       const opinionBody: SubmitOpinionRequest = {
         opinion: "foo"
       }
-      await bent('PUT', 400)(`${ENDPOINT_URL}?topic=${topic}`, opinionBody, getFakeAuth(1))
+      await bent('PUT', 400)(`${ENDPOINT_URL}?topic=${topic}`, opinionBody, getAuth(1))
     })
     it('rejects opinions for unknown topics', async function () {
       const body: SubmitOpinionRequest = {
         opinion: 1.2
       }
-      await bent('PUT', 404)(`${ENDPOINT_URL}?topic=non-existing`, body, getFakeAuth(1))
+      await bent('PUT', 404)(`${ENDPOINT_URL}?topic=non-existing`, body, getAuth(1))
     })
     it('rejects opinions without authorization', async function () {
       const topic = 'put-c'
       const pollBody: CreatePollRequest = {
         type: "number"
       }
-      await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, pollBody, getFakeAuth(1))
+      await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, pollBody, getAuth(1))
 
       const opinionBody: SubmitOpinionRequest = {
         opinion: 1.2
@@ -110,18 +115,18 @@ describe('/polls', function () {
       const pollBody: CreatePollRequest = {
         type: "number"
       }
-      await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, pollBody, getFakeAuth(1))
+      await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, pollBody, getAuth(1))
 
       let opinions = [1.5, 0.9, 1.2, 1.5, 0.9, 1.2, 1.5, 0.9, 1.2, 1.5]
       for (let i = 0; i < opinions.length; i++) {
         const opinionBody: SubmitOpinionRequest = {
           opinion: opinions[i]
         }
-        await bent('PUT', 204)(`${ENDPOINT_URL}?topic=${topic}`, opinionBody, getFakeAuth(i))
+        await bent('PUT', 204)(`${ENDPOINT_URL}?topic=${topic}`, opinionBody, getAuth(i))
       }
 
       let aggregated: NumericPollResponse =
-        await bent('GET', 'json', 200)(`${ENDPOINT_URL}?topic=${topic}`, null, getFakeAuth(1))
+        await bent('GET', 'json', 200)(`${ENDPOINT_URL}?topic=${topic}`, null, getAuth(1))
       assert.equal(aggregated.statistics.mean, opinions.reduce((a, b) => a + b, 0) / opinions.length)
     })
     it('returns aggregated string poll opinions', async function () {
@@ -129,18 +134,18 @@ describe('/polls', function () {
       const pollBody: CreatePollRequest = {
         type: "string"
       }
-      await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, pollBody, getFakeAuth(1))
+      await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, pollBody, getAuth(1))
 
       let opinions = ["foo", "foo", "bar", "foo", "foo", "bar", "foo", "foo", "bar", "foo"]
       for (let i = 0; i < opinions.length; i++) {
         const opinionBody: SubmitOpinionRequest = {
           opinion: opinions[i]
         }
-        await bent('PUT', 204)(`${ENDPOINT_URL}?topic=${topic}`, opinionBody, getFakeAuth(i))
+        await bent('PUT', 204)(`${ENDPOINT_URL}?topic=${topic}`, opinionBody, getAuth(i))
       }
 
       let aggregated: StringPollResponse = 
-        await bent('GET', 'json', 200)(`${ENDPOINT_URL}?topic=${topic}`, null, getFakeAuth(1))
+        await bent('GET', 'json', 200)(`${ENDPOINT_URL}?topic=${topic}`, null, getAuth(1))
       assert.equal(aggregated.statistics.counts["foo"], 7)
       assert.equal(aggregated.statistics.counts["bar"], 3)
     })
@@ -149,20 +154,20 @@ describe('/polls', function () {
       const pollBody: CreatePollRequest = {
         type: "number"
       }
-      await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, pollBody, getFakeAuth(1))
+      await bent('POST', 201)(`${ENDPOINT_URL}?topic=${topic}`, pollBody, getAuth(1))
 
       for (let i = 0; i < MINIMUM_OPINION_THRESHOLD - 1; i++) {
         const opinionBody: SubmitOpinionRequest = {
           opinion: 1.0
         }
-        await bent('PUT', 204)(`${ENDPOINT_URL}?topic=${topic}`, opinionBody, getFakeAuth(i))
+        await bent('PUT', 204)(`${ENDPOINT_URL}?topic=${topic}`, opinionBody, getAuth(i))
       }
 
-      const poll: GetPollResponse = await bent('GET', 'json', 200)(`${ENDPOINT_URL}?topic=${topic}`, null, getFakeAuth(1))
+      const poll: GetPollResponse = await bent('GET', 'json', 200)(`${ENDPOINT_URL}?topic=${topic}`, null, getAuth(1))
       assert.notExists(poll.statistics)
     })
     it('rejects returning aggregated opinions for unknown topics', async function () {
-      await bent('GET', 404)(`${ENDPOINT_URL}?topic=non-existing`, null, getFakeAuth(1))
+      await bent('GET', 404)(`${ENDPOINT_URL}?topic=non-existing`, null, getAuth(1))
     })
   })
 })

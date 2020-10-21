@@ -37,9 +37,10 @@ const HEADER_HTML = `
     </style>
   </head>
   <body>
-  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ho+j7jyWK8fNQe+A12Hb8AhRq26LrZ/JpcUGGOn+Y7RsweNrtN/tE3MoK7ZeZDyx" crossorigin="anonymous"></script>
+  <script src="//code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+  <script src="//cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ho+j7jyWK8fNQe+A12Hb8AhRq26LrZ/JpcUGGOn+Y7RsweNrtN/tE3MoK7ZeZDyx" crossorigin="anonymous"></script>
   <script src="//cdn.jsdelivr.net/npm/js-cookie@3.0.0-rc.1/dist/js.cookie.min.js"></script>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script>
   <script src="//cdn.jsdelivr.net/npm/jstat@1.9.4/dist/jstat.min.js"></script>
   <script src="//cdn.plot.ly/plotly-1.57.0.min.js"></script>
   <script src="//unpkg.com/papaparse@5.3.0/papaparse.min.js"></script>
@@ -54,12 +55,33 @@ const HEADER_HTML = `
       max = Math.floor(max)
       return Math.floor(Math.random() * (max - min + 1)) + min
   }
+
+  function base64url(source) {
+    source = CryptoJS.enc.Utf8.parse(source)
+    return CryptoJS.enc.Base64.stringify(source).replace(/=+$/, '').replace(/\\+/g, '-').replace(/\\//g, '_')
+  } 
+
+  function generateTestJWT(user) {
+    const secret = 'foobar'
+    const header = JSON.stringify({
+        alg: "HS256",
+        typ: "JWT"
+    })
+    const payload = JSON.stringify({
+        sub: user
+    })
+    const unsignedToken = base64url(header) + "." + base64url(payload)
+    const token = unsignedToken + "." + base64url(CryptoJS.HmacSHA256(unsignedToken, secret))
+    return token
+  }
   
   user = Cookies.get(userCookieName)
   if (!user) {
       user = 'joe' + getRandomInt(0, 1000).toString()
       Cookies.set(userCookieName, user)
   }
+  jwt = generateTestJWT(user)
+  console.log('JWT:', jwt)
 
   document.addEventListener("DOMContentLoaded", () => {
     $('#user').innerHTML = user
@@ -69,12 +91,12 @@ const HEADER_HTML = `
       return Papa.parse(csv, {header: true, skipEmptyLines: true}).data
   }
 
-  async function retrieve(url, method, user, body) {
+  async function retrieve(url, method, body) {
     const response = await fetch(url, {
         method: method,
         headers: {
             'content-type': 'application/json',
-            'authorization': 'Bearer user=' + user,
+            'authorization': 'Bearer ' + jwt,
         },
         body: body ? JSON.stringify(body) : undefined
     })
@@ -86,34 +108,34 @@ const HEADER_HTML = `
     return response
   }
   
-  async function createPoll(topic, user, type) {
+  async function createPoll(topic, type) {
     const body = { type: type }
-    await retrieve(apiUrl + '?topic=' + topic, 'POST', user, body)
+    await retrieve(apiUrl + '?topic=' + topic, 'POST', body)
   }
   
-  async function createPolls(user, polls) {
+  async function createPolls(polls) {
     const body = { polls: polls }
-    await retrieve(apiUrl + '/all', 'POST', user, body)
+    await retrieve(apiUrl + '/all', 'POST', body)
   }
   
-  async function submitOpinion(topic, user, opinion) {
+  async function submitOpinion(topic, opinion) {
     const body = { opinion: opinion }
-    await retrieve(apiUrl + '?topic=' + topic, 'PUT', user, body)
+    await retrieve(apiUrl + '?topic=' + topic, 'PUT', body)
   }
   
-  async function submitOpinions(user, opinions) {
+  async function submitOpinions(opinions) {
     const body = { opinions: opinions }
-    await retrieve(apiUrl + '/all', 'PUT', user, body)
+    await retrieve(apiUrl + '/all', 'PUT', body)
   }
   
-  async function getPoll(topic, user) {
-      const response = await retrieve(apiUrl + '?topic=' + topic, 'GET', user)
+  async function getPoll(topic) {
+      const response = await retrieve(apiUrl + '?topic=' + topic, 'GET')
       const poll = await response.json()
       return poll
   }
   
-  async function getPolls(user) {
-    const response = await retrieve(apiUrl + '/all', 'GET', user)
+  async function getPolls() {
+    const response = await retrieve(apiUrl + '/all', 'GET')
     const polls = await response.json()
     return polls.polls
   }
@@ -333,23 +355,11 @@ $('#create-polls-btn').addEventListener('click', async () => {
         polls[row['Topic']] = { type: row['Opinion Type'] }
     }
     try {
-        await createPolls(user, polls)
+        await createPolls(polls)
     } catch (e) {
         window.alert(e)
         return
     }
-
-
-    //for (const row of rows) {
-    //    try {
-    //        await createPoll(row['Topic'], user, row['Opinion Type'])
-    //    } catch (e) {
-    //        window.alert(e)
-    //        return
-    //    }
-    //}
-
-
     window.alert('Successfully created polls.')
     $('#input-polls').value = ''
 })
@@ -384,7 +394,7 @@ $('#submit-opinions-btn').addEventListener('click', async () => {
         opinions[row['Topic']] = { opinion: opinion }
     }
     try {
-        await submitOpinions(user, opinions)
+        await submitOpinions(opinions)
     } catch (e) {
         window.alert(e)
         return
@@ -413,7 +423,7 @@ ${HEADER_HTML}
 
 <script>
 async function main() {
-    const polls = await getPolls(user)
+    const polls = await getPolls()
     const topics = Object.keys(polls)
 
     const plotsEl = $('#plots')

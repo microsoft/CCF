@@ -1,9 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-// For unit testing / demo purposes only, as it is hard
-// to use many real identities.
-const FAKE_TOKEN_PREFIX = 'user='
+import jwt_decode from 'jwt-decode'
 
 export function parseAuthToken(authHeader: string): string {
     const parts = authHeader.split(' ', 2)
@@ -11,13 +9,10 @@ export function parseAuthToken(authHeader: string): string {
         throw new Error('unexpected authorization type')
     }
     const token = parts[1]
-    if (token.startsWith(FAKE_TOKEN_PREFIX)) {
-        const user = token.substr(FAKE_TOKEN_PREFIX.length)
-        if (user.length == 0) {
-            throw new Error('empty user not allowed')
-        }
-        return user
+    const jwt = jwt_decode(token) as any
+    const user = jwt.sub
+    if (!user) {
+        throw new Error('invalid jwt, "sub" claim not found')
     }
-    // parse JWT and return "sub"
-    throw new Error('jwt parsing not implemented yet')
+    return user
 }

@@ -11,10 +11,10 @@ import { SubmitOpinionsRequest } from '../../src/controllers/poll'
 
 const ENDPOINT_URL = `${NODE_ADDR}/app/polls`
 
-function getFakeAuth(userId: string) {
+function getAuth(jwt: string) {
     // See src/util.ts.
     return {
-      'authorization': `Bearer user=${userId}'`
+      'authorization': `Bearer ${jwt}'`
     }
 }
 
@@ -33,6 +33,8 @@ async function main() {
     const csvPaths = glob.sync(folder + '/*_opinions.csv')
     for (const csvPath of csvPaths) {
         const user = path.basename(csvPath).replace('_opinions.csv', '')
+        const jwtPath = path.join(folder, user + '.jwt')
+        const jwt = fs.readFileSync(jwtPath, 'utf8')
         const csv = fs.readFileSync(csvPath)
         const rows: CSVRow[] = csvparse(csv, {columns: true, skipEmptyLines: true})
 
@@ -42,7 +44,7 @@ async function main() {
         }
         console.log('Submitting opinions for user ' + user)
         try {
-            await bent('PUT', 204)(`${ENDPOINT_URL}/all`, req, getFakeAuth(user))
+            await bent('PUT', 204)(`${ENDPOINT_URL}/all`, req, getAuth(jwt))
         } catch (e) {
             console.error('Error: ' + await e.text())
             process.exit(1)
