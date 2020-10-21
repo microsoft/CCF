@@ -63,9 +63,14 @@ namespace ccf
       return verb < o.verb;
     }
 
+    bool operator==(const RESTVerb& o) const
+    {
+      return verb == o.verb;
+    }
+
     bool operator!=(const RESTVerb& o) const
     {
-      return verb != o.verb;
+      return !(*this == o);
     }
 
     MSGPACK_DEFINE(verb);

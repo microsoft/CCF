@@ -77,7 +77,8 @@ namespace http
       }
       else
       {
-        auto buf = read(4096, false);
+        constexpr auto read_block_size = 16384;
+        auto buf = read(read_block_size, false);
         auto data = buf.data();
         auto size = buf.size();
 
@@ -112,7 +113,7 @@ namespace http
             else if (used == size)
             {
               // Used all provided bytes - check if more are available
-              buf = read(4096, false);
+              buf = read(read_block_size, false);
               data = buf.data();
               size = buf.size();
             }

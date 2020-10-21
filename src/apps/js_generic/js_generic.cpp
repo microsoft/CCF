@@ -696,9 +696,11 @@ namespace ccfapp
 
     JSClassDef body_class_def = {};
 
-    void execute_request(EndpointContext& args)
+    void execute_request(
+      const std::string& method,
+      const ccf::RESTVerb& verb,
+      EndpointContext& args)
     {
-      const auto method = args.rpc_ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
 
       const auto scripts = args.tx.get_view(this->network.app_scripts);
@@ -709,8 +711,8 @@ namespace ccfapp
       auto handler_script = scripts->get(local_method);
       if (!handler_script)
       {
-        const auto verb_prefixed = fmt::format(
-          "{} {}", args.rpc_ctx->get_request_verb().c_str(), local_method);
+        const auto verb_prefixed =
+          fmt::format("{} {}", verb.c_str(), local_method);
         handler_script = scripts->get(verb_prefixed);
         if (!handler_script)
         {
@@ -1062,7 +1064,8 @@ namespace ccfapp
       body_class_def.class_name = "Body";
 
       auto default_handler = [this](EndpointContext& args) {
-        execute_request(args);
+        execute_request(
+          args.rpc_ctx->get_method(), args.rpc_ctx->get_request_verb(), args);
       };
 
       set_default(default_handler);
@@ -1071,14 +1074,15 @@ namespace ccfapp
     EndpointDefinitionPtr find_endpoint(
       kv::Tx& tx, enclave::RpcContext& rpc_ctx) override
     {
-      auto method = fmt::format("/{}", rpc_ctx.get_method());
-      auto verb = rpc_ctx.get_request_verb();
+      const auto method = fmt::format("/{}", rpc_ctx.get_method());
+      const auto verb = rpc_ctx.get_request_verb();
 
       auto endpoints_view =
         tx.get_view<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
 
       const auto key = ccf::endpoints::EndpointKey{method, verb};
 
+      // Look for a direct match of the given path
       const auto it = endpoints_view->get(key);
       if (it.has_value())
       {
@@ -1087,6 +1091,65 @@ namespace ccfapp
         endpoint_def->properties = it.value();
 
         return endpoint_def;
+      }
+
+      // If that doesn't exist, look through _all_ the endpoints to find
+      // templated matches. If there is one, that's a match. More is an error,
+      // none means delegate to the base class.
+      {
+        std::vector<EndpointDefinitionPtr> matches;
+
+        endpoints_view->foreach(
+          [&matches, &key, &rpc_ctx](
+            const auto& other_key, const auto& properties) {
+            if (key.verb == other_key.verb)
+            {
+              const auto opt_spec =
+                EndpointRegistry::parse_path_template(other_key.uri_path);
+              if (opt_spec.has_value())
+              {
+                const auto& template_spec = opt_spec.value();
+                // This endpoint has templates in its path, and the correct verb
+                // - now check if template matches the current request's path
+                std::smatch match;
+                if (std::regex_match(
+                      key.uri_path, match, template_spec.template_regex))
+                {
+                  if (matches.empty())
+                  {
+                    // Populate the request_path_params while we have the match,
+                    // though this will be discarded on error if we later find
+                    // multiple matches
+                    auto& path_params = rpc_ctx.get_request_path_params();
+                    for (size_t i = 0;
+                         i < template_spec.template_component_names.size();
+                         ++i)
+                    {
+                      const auto& template_name =
+                        template_spec.template_component_names[i];
+                      const auto& template_value = match[i + 1].str();
+                      path_params[template_name] = template_value;
+                    }
+                  }
+
+                  auto endpoint = std::make_shared<JSDynamicEndpoint>();
+                  endpoint->dispatch = other_key;
+                  endpoint->properties = properties;
+                  matches.push_back(endpoint);
+                }
+              }
+            }
+            return true;
+          });
+
+        if (matches.size() > 1)
+        {
+          report_ambiguous_templated_path(key.uri_path, matches);
+        }
+        else if (matches.size() == 1)
+        {
+          return matches[0];
+        }
       }
 
       return EndpointRegistry::find_endpoint(tx, rpc_ctx);
@@ -1098,7 +1161,8 @@ namespace ccfapp
       auto endpoint = dynamic_cast<JSDynamicEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
-        execute_request(args);
+        execute_request(
+          endpoint->dispatch.uri_path, endpoint->dispatch.verb, args);
         return;
       }
 
