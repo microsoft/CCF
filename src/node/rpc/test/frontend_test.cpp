@@ -29,6 +29,9 @@ extern "C"
 #include <evercrypt/EverCrypt_AutoConfig2.h>
 }
 
+threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
+
 using namespace ccfapp;
 using namespace ccf;
 using namespace std;
@@ -1189,7 +1192,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-    nullptr, channel_stub, nullptr);
+    nullptr, channel_stub, nullptr, ConsensusType::CFT);
   auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
@@ -1411,7 +1414,7 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   network_primary.tables->set_consensus(primary_consensus);
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-    nullptr, channel_stub, nullptr);
+    nullptr, channel_stub, nullptr, ConsensusType::CFT);
   node_frontend_backup.set_cmd_forwarder(backup_forwarder);
   auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
@@ -1457,7 +1460,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   network_primary.tables->set_consensus(primary_consensus);
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-    nullptr, channel_stub, nullptr);
+    nullptr, channel_stub, nullptr, ConsensusType::CFT);
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
   auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
@@ -1505,7 +1508,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   network_primary.tables->set_consensus(primary_consensus);
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-    nullptr, channel_stub, nullptr);
+    nullptr, channel_stub, nullptr, ConsensusType::CFT);
   member_frontend_backup.set_cmd_forwarder(backup_forwarder);
   auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
