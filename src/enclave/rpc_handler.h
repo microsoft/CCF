@@ -35,14 +35,14 @@ namespace enclave
       std::shared_ptr<RpcContext> ctx) = 0;
 
     // Used by PBFT to execute commands
-    struct ProcessPbftResp
+    struct ProcessBftResp
     {
       std::vector<uint8_t> result;
       kv::Version version;
     };
 
     virtual bool is_members_frontend() = 0;
-    virtual ProcessPbftResp process_pbft(
+    virtual ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx) = 0;
     virtual crypto::Sha256Hash get_merkle_root() = 0;
     virtual void update_merkle_tree() = 0;

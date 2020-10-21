@@ -486,7 +486,7 @@ void add_callers_pbft_store()
   CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 
-TEST_CASE("process_pbft")
+TEST_CASE("process_bft")
 {
   add_callers_pbft_store();
   TestUserFrontend frontend(*pbft_network.tables);
@@ -506,7 +506,7 @@ TEST_CASE("process_pbft")
     enclave::InvalidSessionId, user_id, user_caller_der);
   auto ctx = enclave::make_rpc_context(session, request.raw);
   ctx->execute_on_node = true;
-  frontend.process_pbft(ctx);
+  frontend.process_bft(ctx);
 
   auto tx = pbft_network.tables->create_tx();
   auto bft_requests_map = tx.get_view(pbft_network.bft_requests_map);
