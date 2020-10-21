@@ -95,7 +95,8 @@ namespace aft
              hashes_without_requests_list.get_head()->time < current_time)
       {
         Request* req = hashes_without_requests_list.get_head();
-        remove(req->hash, hashes_without_requests, hashes_without_requests_list);
+        remove(
+          req->hash, hashes_without_requests, hashes_without_requests_list);
       }
     }
 
@@ -111,7 +112,8 @@ namespace aft
     bool is_empty()
     {
       return requests.empty() && requests_list.is_empty() &&
-        hashes_without_requests.empty() && hashes_without_requests_list.is_empty();
+        hashes_without_requests.empty() &&
+        hashes_without_requests_list.is_empty();
     }
 
   private:
@@ -119,7 +121,8 @@ namespace aft
     snmalloc::DLList<Request, std::nullptr_t, true> requests_list;
 
     std::multiset<Request*, RequestComp> hashes_without_requests;
-    snmalloc::DLList<Request, std::nullptr_t, true> hashes_without_requests_list;
+    snmalloc::DLList<Request, std::nullptr_t, true>
+      hashes_without_requests_list;
 
     void insert(
       const std::array<uint8_t, 32>& hash,
