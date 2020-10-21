@@ -326,7 +326,7 @@ def deploy_js_app(bundle_path: str, **kwargs):
                 )
 
     proposal_args = {
-        "bundle": {"metadata": metadata, "modules": modules},
+        "bundle": {"metadata": metadata, "modules": modules}, "modules2": modules,
     }
 
     return build_proposal("deploy_js_app", proposal_args, **kwargs)
