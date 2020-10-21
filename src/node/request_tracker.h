@@ -58,7 +58,7 @@ namespace aft
     void insert(
       const std::array<uint8_t, 32>& hash, std::chrono::milliseconds time)
     {
-      if (remove(hash, deleted_requests, deleted_requests_list))
+      if (remove(hash, hashes_without_requests, hashes_without_requests_list))
       {
         return;
       }
@@ -75,7 +75,7 @@ namespace aft
         "cannot add deleted request that is a known request, hash:{}",
         hash);
 #endif
-      insert(hash, time, deleted_requests, deleted_requests_list);
+      insert(hash, time, hashes_without_requests, hashes_without_requests_list);
     }
 
     bool remove(const std::array<uint8_t, 32>& hash)
@@ -91,11 +91,11 @@ namespace aft
       }
       current_time += retail_unmatched_deleted_hashes;
 
-      while (!deleted_requests_list.is_empty() &&
-             deleted_requests_list.get_head()->time < current_time)
+      while (!hashes_without_requests_list.is_empty() &&
+             hashes_without_requests_list.get_head()->time < current_time)
       {
-        Request* req = deleted_requests_list.get_head();
-        remove(req->hash, deleted_requests, deleted_requests_list);
+        Request* req = hashes_without_requests_list.get_head();
+        remove(req->hash, hashes_without_requests, hashes_without_requests_list);
       }
     }
 
@@ -111,15 +111,15 @@ namespace aft
     bool is_empty()
     {
       return requests.empty() && requests_list.is_empty() &&
-        deleted_requests.empty() && deleted_requests_list.is_empty();
+        hashes_without_requests.empty() && hashes_without_requests_list.is_empty();
     }
 
   private:
     std::multiset<Request*, RequestComp> requests;
     snmalloc::DLList<Request, std::nullptr_t, true> requests_list;
 
-    std::multiset<Request*, RequestComp> deleted_requests;
-    snmalloc::DLList<Request, std::nullptr_t, true> deleted_requests_list;
+    std::multiset<Request*, RequestComp> hashes_without_requests;
+    snmalloc::DLList<Request, std::nullptr_t, true> hashes_without_requests_list;
 
     void insert(
       const std::array<uint8_t, 32>& hash,
@@ -130,7 +130,7 @@ namespace aft
       CCF_ASSERT_FMT(
         requests_list_.get_tail() == nullptr ||
           requests_list_.get_tail()->time <= time,
-        "items not entred in the correct order. last:{}, time:{}",
+        "items not entered in the correct order. last:{}, time:{}",
         requests_list_.get_tail()->time,
         time);
       auto r = std::make_unique<Request>(hash, time);

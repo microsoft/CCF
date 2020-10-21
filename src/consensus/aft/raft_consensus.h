@@ -108,9 +108,9 @@ namespace aft
       return aft->leader();
     }
 
-    std::set<NodeId> backups() override
+    std::set<NodeId> active_nodes() override
     {
-      return aft->backups();
+      return aft->active_nodes();
     }
 
     void recv_message(OArray&& data) override

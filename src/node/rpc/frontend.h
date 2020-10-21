@@ -127,7 +127,7 @@ namespace ccf
             cmd_forwarder->forward_command(
               ctx,
               primary_id,
-              consensus->backups(),
+              consensus->active_nodes(),
               caller_id,
               get_cert_to_forward(ctx, endpoint)))
           {

@@ -184,15 +184,18 @@ namespace aft
       return leader_id;
     }
 
-    std::set<NodeId> backups()
+    std::set<NodeId> active_nodes()
     {
+      // Find all nodes present in any active configuration.
       if (backup_nodes.empty())
       {
-        for (auto it : get_latest_configuration())
+        Configuration::Nodes active_nodes;
+
+        for (auto& conf : configurations)
         {
-          if (it.first != leader())
+          for (auto node : conf.nodes)
           {
-            backup_nodes.insert(it.first);
+            backup_nodes.insert(node.first);
           }
         }
       }

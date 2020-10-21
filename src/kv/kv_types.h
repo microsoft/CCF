@@ -338,7 +338,7 @@ namespace kv
     virtual void initialise_view_history(const std::vector<SeqNo>&) = 0;
     virtual SeqNo get_committed_seqno() = 0;
     virtual NodeId primary() = 0;
-    virtual std::set<NodeId> backups() = 0;
+    virtual std::set<NodeId> active_nodes() = 0;
 
     virtual void recv_message(OArray&& oa) = 0;
     virtual void add_configuration(

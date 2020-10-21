@@ -108,7 +108,7 @@ namespace kv
       return 1;
     }
 
-    std::set<NodeId> backups() override
+    std::set<NodeId> active_nodes() override
     {
       return {};
     }
