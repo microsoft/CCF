@@ -1,5 +1,7 @@
 # Confidential Forum sample app
 
+NOTE: This sample is a work-in-progress.
+
 Install dependencies:
 ```sh
 npm install

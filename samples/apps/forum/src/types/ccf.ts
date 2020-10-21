@@ -66,6 +66,8 @@ export interface CCF {
 export const ccf = globalThis.ccf as CCF
 
 // Additional functionality on top of C++:
+
+// Optional, so that this module can be (indirectly) imported outside CCF.
 export const kv = ccf ? ccf.kv : undefined
 
 export interface DataConverter<T> {
