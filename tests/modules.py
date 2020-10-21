@@ -364,9 +364,6 @@ def run(args):
         network = test_dynamic_endpoints(network, args)
         network = test_npm_app(network, args)
         network = test_npm_tsoa_app(network, args)
-        network = test_npm_tsoa_app(network, args)
-        network = test_npm_tsoa_app(network, args)
-        network = test_npm_tsoa_app(network, args)
 
 
 if __name__ == "__main__":

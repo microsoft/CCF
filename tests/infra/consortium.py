@@ -338,7 +338,6 @@ class Consortium:
             "deploy_js_app", app_bundle_path
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        time.sleep(5) # TODO: Give large proposal request some time to be processed
         proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
