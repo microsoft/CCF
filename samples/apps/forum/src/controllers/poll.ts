@@ -272,13 +272,10 @@ export class PollController extends Controller {
 
         const opinionCountAboveThreshold = Object.keys(poll.opinions).length >= MINIMUM_OPINION_THRESHOLD
 
-        let response: GetPollResponse
+        const response: GetPollResponse = { type: poll.type }
         // TODO can repetition be avoided while maintaining type checking?
         if (poll.type == "string") {
-            response = {
-                type: poll.type,
-                opinion: poll.opinions[user]
-            }
+            response.opinion = poll.opinions[user]
             if (opinionCountAboveThreshold) {
                 const opinions = Object.values(poll.opinions)
                 response.statistics = {
@@ -286,10 +283,7 @@ export class PollController extends Controller {
                 }
             }
         } else if (poll.type == "number") {
-            response = {
-                type: poll.type,
-                opinion: poll.opinions[user]
-            }
+            response.opinion = poll.opinions[user]
             if (opinionCountAboveThreshold) {
                 const opinions = Object.values(poll.opinions)
                 response.statistics = {
