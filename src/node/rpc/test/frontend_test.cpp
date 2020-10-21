@@ -488,8 +488,8 @@ void add_callers_pbft_store()
 
 TEST_CASE("process_bft")
 {
-  add_callers_pbft_store();
-  TestUserFrontend frontend(*pbft_network.tables);
+  add_callers_bft_store();
+  TestUserFrontend frontend(*bft_network.tables);
   auto simple_call = create_simple_request();
 
   const nlohmann::json call_body = {{"foo", "bar"}, {"baz", 42}};
