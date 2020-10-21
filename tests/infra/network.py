@@ -545,7 +545,9 @@ class Network:
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
-                self.consortium.trust_node(primary, new_node.node_id)
+                self.consortium.trust_node(
+                    primary, new_node.node_id, timeout=ceil(args.join_timer * 2 / 1000)
+                )
             # Here, quote verification has already been run when the node
             # was added as pending. Only wait for the join timer for the
             # joining node to retrieve network secrets.
