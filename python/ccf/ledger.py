@@ -128,7 +128,7 @@ class PublicDomain:
         """
         Returns a dictionary of all public tables (with their content) in a :py:class:`ccf.ledger.Transaction`.
 
-        :return: Dictionnary of public tables with their content.
+        :return: Dictionary of public tables with their content.
         """
         return self._tables
 
