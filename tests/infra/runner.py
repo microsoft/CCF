@@ -78,7 +78,7 @@ def run(get_command, args):
 
     hosts = args.nodes
     if not hosts:
-        hosts = ["localhost"] * minimum_number_of_local_nodes(args)
+        hosts = ["local://localhost"] * minimum_number_of_local_nodes(args)
 
     LOG.info("Starting nodes on {}".format(hosts))
 

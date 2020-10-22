@@ -146,10 +146,8 @@ def assert_recovery_shares_update(func, network, args, **kwargs):
 
 
 def run(args):
-    hosts = ["localhost"] * (4 if args.consensus == "bft" else 2)
-
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
         primary, _ = network.find_primary()
@@ -328,7 +326,7 @@ def run(args):
 
 
 if __name__ == "__main__":
-
     args = infra.e2e_args.cli_args()
     args.package = args.app_script and "liblua_generic" or "liblogging"
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
     run(args)

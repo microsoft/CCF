@@ -13,7 +13,7 @@ set(DISTRIBUTE_PERF_TESTS
     ""
     CACHE
       STRING
-      "Hosts to which performance tests should be distributed, for example -n x.x.x.x -n x.x.x.x -n x.x.x.x"
+      "Hosts to which performance tests should be distributed, for example -n ssh://x.x.x.x -n ssh://x.x.x.x -n ssh://x.x.x.x"
 )
 
 if(DISTRIBUTE_PERF_TESTS)

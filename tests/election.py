@@ -68,12 +68,8 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
 
 
 def run(args):
-    # Three nodes minimum to make sure that the raft network can still make progress
-    # if one node stops
-    hosts = ["localhost"] * (4 if args.consensus == "bft" else 3)
-
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         check = infra.checker.Checker()
 
@@ -81,9 +77,9 @@ def run(args):
         current_view = None
 
         # Number of nodes F to stop until network cannot make progress
-        nodes_to_stop = math.ceil(len(hosts) / 2)
+        nodes_to_stop = math.ceil(len(args.nodes) / 2)
         if args.consensus == "bft":
-            nodes_to_stop = math.ceil(len(hosts) / 3)
+            nodes_to_stop = math.ceil(len(args.nodes) / 3)
 
         primary_is_known = True
         for node_to_stop in range(nodes_to_stop):
@@ -129,4 +125,5 @@ if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
     run(args)

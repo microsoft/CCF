@@ -59,10 +59,8 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
 
 
 def run(args):
-    hosts = ["localhost", "localhost", "localhost"]
-
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
 
@@ -93,10 +91,8 @@ def run(args):
 
 
 def run_to_destruction(args):
-    hosts = ["localhost", "localhost", "localhost"]
-
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
 
@@ -137,7 +133,7 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.package = "liblua_generic"
     args.enforce_reqs = True
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
 
     run(args)
-
     run_to_destruction(args)
