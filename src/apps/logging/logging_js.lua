@@ -9,17 +9,14 @@ return {
       for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
-          try
-          {
-            return { body: {msg: ccf.bufToStr(ccf.kv.data.get(ccf.strToBuf(v)))} };
+          const msg = ccf.kv.data.get(ccf.strToBuf(v));
+          if (msg === undefined) {
+            return { body: {error: 'No such key' } };
           }
-          catch (err)
-          {
-            return { body: {error: err.message} };
-          }
+          return { body: {msg: ccf.bufToStr(msg)} };
         }
       }
-      throw "Could not find 'id' in query";
+      throw new Error("Could not find 'id' in query");
     }
   ]],
 
@@ -30,17 +27,14 @@ return {
       for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
-          try
-          {
-            return { body: {msg: ccf.bufToStr(ccf.kv.data.get(ccf.strToBuf(v)))} };
+          const msg = ccf.kv.data.get(ccf.strToBuf(v));
+          if (msg === undefined) {
+            return { body: {error: 'No such key' } };
           }
-          catch (err)
-          {
-            return { body: {error: err.message} }
-          }
+          return { body: {msg: ccf.bufToStr(msg)} };
         }
       }
-      throw "Could not find 'id' in query";
+      throw new Error("Could not find 'id' in query");
     }
   ]],
 
@@ -69,18 +63,14 @@ return {
       for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
-          try
+          if (!ccf.kv.data.delete(ccf.strToBuf(v))) 
           {
-            ccf.kv.data.delete(ccf.strToBuf(v));
-          }
-          catch (err)
-          {
-            return { body: {error: err.message} }
+            return { body: {error: 'No such key'} }
           }
           return { body: true };
         }
       }
-      throw "Could not find 'id' in query";
+      throw new Error("Could not find 'id' in query");
     }
   ]],
 
@@ -91,18 +81,14 @@ return {
       for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
-          try
+          if (!ccf.kv.data.delete(ccf.strToBuf(v))) 
           {
-            ccf.kv.data.delete(ccf.strToBuf(v));
-          }
-          catch (err)
-          {
-            return { body: {error: err.message} }
+            return { body: {error: 'No such key'} }
           }
           return { body: true };
         }
       }
-      throw "Could not find 'id' in query";
+      throw new Error("Could not find 'id' in query");
     }
   ]]
 }
