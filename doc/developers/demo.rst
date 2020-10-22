@@ -6,9 +6,10 @@ This document explains how to spin up a test CCF network and submit simple comma
 Startup
 -------
 
-This uses the :ref:`example C++ logging app <developers/logging_cpp:Logging (C++)>` and the ``start_test_network.sh`` helper script from the main CCF repo.
+This uses the :ref:`example C++ logging app <developers/logging_cpp:Logging (C++)>` and the ``sandbox.sh`` helper script included in CCF releases under the 'bin' directory.
 
-``start_test_network.sh`` is a thin wrapper around ``start_network.py``. It ensures the necessary Python dependencies are available, sets some sensible default values, and uses ``curl`` to submit CCF commands (``CURL_CLIENT=ON``). There are a large number of additional configuration options, documented by passing the ``--help`` argument. You may wish to pass ``-v`` which will make the script significantly more verbose, printing the precise ``curl`` commands which were used to communicate with the test network.
+``sandbox.sh`` is a thin wrapper around ``start_network.py``. It ensures the necessary Python dependencies are available and sets some sensible default values.
+There are a large number of additional configuration options, documented by passing the ``--help`` argument. You may wish to pass ``-v`` which will make the script significantly more verbose, printing the precise ``curl`` commands which were used to communicate with the test network.
 
 This script automates the steps described in :doc:`/operators/start_network`, in summary:
 
@@ -18,27 +19,26 @@ This script automates the steps described in :doc:`/operators/start_network`, in
 - verifying that each node has successfully joined the new service
 - proposing and passing governance votes using the generated member identities
 
-The following command will run a simple 3-node test network on a single machine:
+The following command will run a simple one node test network on a single machine:
 
 .. code-block:: bash
 
     $ cd CCF/build
 
-    $ ../start_test_network.sh --package ./liblogging.enclave.so.signed
+    $ ../tests/sandbox.sh -p ./liblogging.virtual.so
     Setting up Python environment...
-    ...
     Python environment successfully setup
-    [15:27:41.759] Starting 3 CCF nodes...
-    [15:27:46.643] Started CCF network with the following nodes:
-    [15:27:46.643]   Node [ 0] = 127.251.192.205:36981
-    [15:27:46.643]   Node [ 1] = 127.98.174.190:36795
-    [15:27:46.643]   Node [ 2] = 127.113.40.231:33227
-    [15:27:46.644] You can now issue business transactions to the ./liblogging.enclave.so.signed application.
-    [15:27:46.644] Keys and certificates have been copied to the common folder: /data/src/CCF/build/workspace/test_network_common
-    [15:27:46.644] See https://microsoft.github.io/CCF/master/users/issue_commands.html for more information.
-    [15:27:46.644] Press Ctrl+C to shutdown the network.
+    [16:14:05.294] Starting 1 CCF nodes...
+    [16:14:05.295] Virtual mode enabled
+    [16:14:10.010] Started CCF network with the following nodes:
+    [16:14:10.011]   Node [0] = https://127.0.0.1:8000
+    [16:14:10.011] You can now issue business transactions to the ./liblogging.virtual.so application.
+    [16:14:10.011] Keys and certificates have been copied to the common folder: /data/src/CCF/build/workspace/sandbox_common
+    [16:14:10.011] See https://microsoft.github.io/CCF/master/users/issue_commands.html for more information.
+    [16:14:10.011] Press Ctrl+C to shutdown the network.
 
-The command output shows the addresses of the CCF nodes where commands may be submitted (eg, in this case, via ``curl https://127.251.192.205:36981/...``). The output and error logs of each node can be found in the node-specific directory in the workspace (eg, ``workspace/test_network_0/err`` is node 0's stderr).
+The command output shows the addresses of the CCF nodes where commands may be submitted (eg, in this case, via ``curl https://127.0.0.1:8000/...``).
+The output and error logs of each node can be found in the node-specific directory in the workspace (eg, ``workspace/sandbox_0/err`` is node 0's stderr).
 
 Authentication
 --------------
@@ -125,5 +125,3 @@ Note that the paths to these handlers is arbitrary. The names of the endpoints d
     Not visible
 
 .. _curl: https://curl.haxx.se/
-
-
