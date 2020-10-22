@@ -11,7 +11,7 @@ return {
         if (k == "id") {
           const msg = ccf.kv.data.get(ccf.strToBuf(v));
           if (msg === undefined) {
-            return { body: {error: 'msg not found' } };
+            return { body: {error: 'No such key' } };
           }
           return { body: {msg: ccf.bufToStr(msg)} };
         }
@@ -29,7 +29,7 @@ return {
         if (k == "id") {
           const msg = ccf.kv.data.get(ccf.strToBuf(v));
           if (msg === undefined) {
-            return { body: {error: 'msg not found' } };
+            return { body: {error: 'No such key' } };
           }
           return { body: {msg: ccf.bufToStr(msg)} };
         }
@@ -65,7 +65,7 @@ return {
         if (k == "id") {
           if (!ccf.kv.data.delete(ccf.strToBuf(v))) 
           {
-            return { body: {error: 'msg not found'} }
+            return { body: {error: 'No such key'} }
           }
           return { body: true };
         }
@@ -83,7 +83,7 @@ return {
         if (k == "id") {
           if (!ccf.kv.data.delete(ccf.strToBuf(v))) 
           {
-            return { body: {error: 'msg not found'} }
+            return { body: {error: 'No such key'} }
           }
           return { body: true };
         }

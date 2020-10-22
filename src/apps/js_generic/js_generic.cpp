@@ -479,7 +479,7 @@ namespace ccfapp
     if (!map_view->put({key, key + key_size}, {val, val + val_size}))
       return JS_ThrowRangeError(ctx, "Could not insert at key");
 
-    return this_val;
+    return JS_DupValue(ctx, this_val);
   }
 
   static JSValue js_kv_map_set_read_only(
