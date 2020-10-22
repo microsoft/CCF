@@ -29,7 +29,7 @@ For example, deploying the ``liblogging`` example application:
 
 .. note::
 
-    - `sandbox.sh` defaults to using CCF's `virtual` mode, which does not require or make use of SGX. To load debug or release enclaves and make use of SGX, `-e` must be set to the right value, for example: `./sandbox.sh -e release -p ./liblogging.enclave.so.signed`
+    - `sandbox.sh` defaults to using CCF's `virtual` mode, which does not require or make use of SGX. To load debug or release enclaves and make use of SGX, `--enclave-type` must be set to the right value, for example: `./sandbox.sh --enclave-type release -p ./liblogging.enclave.so.signed`
     - The ``--verbose`` argument can be used to display all commands issued by operators and members to start the network.
     - Snapshots can be generated at regular intervals by the primary node of the service using the ``--snapshot-tx-interval <interval>`` option.
 
