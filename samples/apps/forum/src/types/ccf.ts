@@ -34,9 +34,9 @@ export type EndpointFn<A extends JsonCompatible<A> = any, B extends ResponseBody
 
 export interface KVMap {
     has: (key: ArrayBuffer) => boolean
-    get: (key: ArrayBuffer) => ArrayBuffer
-    set: (key: ArrayBuffer, value: ArrayBuffer) => void
-    delete: (key: ArrayBuffer) => void
+    get: (key: ArrayBuffer) => ArrayBuffer | undefined
+    set: (key: ArrayBuffer, value: ArrayBuffer) => KVMap
+    delete: (key: ArrayBuffer) => boolean
 }
 
 export type KVMaps =  { [key: string]: KVMap; };
@@ -252,13 +252,15 @@ export class TypedKVMap<K, V> {
     has(key: K): boolean {
         return this.kv.has(this.kt.encode(key));
     }
-    get(key: K): V {
-        return this.vt.decode(this.kv.get(this.kt.encode(key)));
+    get(key: K): V | undefined {
+        const v = this.kv.get(this.kt.encode(key));
+        return v === undefined ? undefined : this.vt.decode(v);
     }
-    set(key: K, value: V): void {
+    set(key: K, value: V): TypedKVMap<K, V> {
         this.kv.set(this.kt.encode(key), this.vt.encode(value));
+        return this
     }
-    delete(key: K): void {
-        this.kv.delete(this.kt.encode(key));
+    delete(key: K): boolean {
+        return this.kv.delete(this.kt.encode(key));
     }
 }

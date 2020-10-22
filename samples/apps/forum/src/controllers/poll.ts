@@ -175,9 +175,8 @@ export class PollController extends Controller {
     ): void {
         const user = parseAuthToken(authorization)
 
-        try {
-            var poll = this.kvPolls.get(topic)
-        } catch (e) {
+        const poll = this.kvPolls.get(topic)
+        if (poll === undefined) {
             this.setStatus(404)
             return { message: "Poll does not exist" } as any
         }
@@ -201,9 +200,8 @@ export class PollController extends Controller {
         const user = parseAuthToken(authorization)
 
         for (const [topic, opinion] of Object.entries(body.opinions)) {
-            try {
-                var poll = this.kvPolls.get(topic)
-            } catch (e) {
+            const poll = this.kvPolls.get(topic)
+            if (poll === undefined) {
                 this.setStatus(400)
                 return { message: `Poll with topic '${topic}' does not exist` } as any
             }
@@ -256,17 +254,12 @@ export class PollController extends Controller {
     }
 
     _getTopics(): string[] {
-        try {
-            return this.kvTopics.get(this.kvTopicsKey)
-        } catch (e) {
-            return []
-        }
+        return this.kvTopics.get(this.kvTopicsKey) ?? []
     }
 
     _getPoll(user: string, topic: string): GetPollResponse {
-        try {
-            var poll = this.kvPolls.get(topic)
-        } catch (e) {
+        const poll = this.kvPolls.get(topic)
+        if (poll === undefined) {
             throw new Error(`Poll with topic '${topic}' does not exist`)
         }
 
