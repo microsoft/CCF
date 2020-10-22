@@ -20,13 +20,11 @@ def print_memory_stats(node, shutdown_event):
 
 
 def run(args, additional_attack_args):
-    hosts = ["localhost", "localhost", "localhost"]
-
     # Test that vegeta is available
     subprocess.run([VEGETA_BIN, "-version"], capture_output=True, check=True)
 
     with infra.network.network(
-        hosts,
+        args.nodes,
         args.binary_dir,
         args.debug_nodes,
         args.perf_nodes,
@@ -112,4 +110,5 @@ if __name__ == "__main__":
 
     args, unknown_args = infra.e2e_args.cli_args(add=add, accept_unknown=True)
     args.package = "liblogging"
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
     run(args, unknown_args)

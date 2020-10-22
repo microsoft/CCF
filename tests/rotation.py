@@ -23,10 +23,8 @@ def test_suspend_primary(network, args):
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
-
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
 
@@ -42,7 +40,7 @@ def run(args):
 
 
 if __name__ == "__main__":
-
     args = infra.e2e_args.cli_args()
     args.package = args.app_script and "liblua_generic" or "liblogging"
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
     run(args)
