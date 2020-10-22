@@ -93,10 +93,8 @@ def test_content_types(network, args):
 
 
 def run(args):
-    hosts = ["localhost"] * (3 if args.consensus == "pbft" else 2)
-
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
         network = test_content_types(network, args)
@@ -106,4 +104,5 @@ if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
     args.package = "libjs_generic"
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
     run(args)

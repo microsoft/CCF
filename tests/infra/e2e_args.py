@@ -22,7 +22,7 @@ def min_nodes(args, f):
     Minimum number of nodes allowing 'f' faults for the
     consensus variant.
     """
-    if args.consensus == 'bft':
+    if args.consensus == "bft":
         return ["local://localhost"] * (3 * f + 1)
     else:
         return ["local://localhost"] * (2 * f + 1)

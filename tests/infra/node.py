@@ -64,7 +64,7 @@ class Node:
         else:
             assert False, f"{host} does not start with 'local://' or 'ssh://'"
 
-        hosts, *port = host[host.find("/") + 2:].split(":")
+        hosts, *port = host[host.find("/") + 2 :].split(":")
         self.host, *self.pubhost = hosts.split(",")
         self.rpc_port = int(port[0]) if port else None
         self.node_port = None
@@ -190,10 +190,9 @@ class Node:
                 f.write("fi\n")
 
             print("")
-            phost = "localhost" if self.host.startswith("127.") else self.host
             print(
                 "================= Please run the below command on "
-                + phost
+                + self.host
                 + " and press enter to continue ================="
             )
             print("")

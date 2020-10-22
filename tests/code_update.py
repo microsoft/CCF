@@ -89,7 +89,7 @@ def test_update_all_nodes(network, args):
         }, r.body
 
     LOG.info("Adding a new node")
-    new_node = network.create_and_trust_node(args.package, "localhost", args)
+    new_node = network.create_and_trust_node(args.package, "local://localhost", args)
     assert new_node
 
     new_code_id = get_code_id(
@@ -101,7 +101,7 @@ def test_update_all_nodes(network, args):
     code_not_found_exception = None
     try:
         network.create_and_add_pending_node(
-            args.patched_file_name, "localhost", args, timeout=3
+            args.patched_file_name, "local://localhost", args, timeout=3
         )
     except infra.network.CodeIdNotFound as err:
         code_not_found_exception = err
@@ -136,7 +136,7 @@ def test_update_all_nodes(network, args):
     )
     for _ in range(0, new_nodes_count):
         new_node = network.create_and_trust_node(
-            args.patched_file_name, "localhost", args
+            args.patched_file_name, "local://localhost", args
         )
         assert new_node
         new_nodes.add(new_node)
@@ -151,7 +151,9 @@ def test_update_all_nodes(network, args):
     LOG.info(f"New_primary is {new_primary.node_id}")
 
     LOG.info("Adding another node to the network")
-    new_node = network.create_and_trust_node(args.patched_file_name, "localhost", args)
+    new_node = network.create_and_trust_node(
+        args.patched_file_name, "local://localhost", args
+    )
     assert new_node
     network.wait_for_node_commit_sync()
 
@@ -173,7 +175,9 @@ def test_update_all_nodes(network, args):
     LOG.info(f"Adding a node with retired code id {first_code_id}")
     code_not_found_exception = None
     try:
-        network.create_and_add_pending_node(args.package, "localhost", args, timeout=3)
+        network.create_and_add_pending_node(
+            args.package, "local://localhost", args, timeout=3
+        )
     except infra.network.CodeIdRetired as err:
         code_not_found_exception = err
 
@@ -182,7 +186,9 @@ def test_update_all_nodes(network, args):
     ), f"Adding a node with unsupported code id {new_code_id} should fail"
 
     LOG.info("Adding another node with the new code to the network")
-    new_node = network.create_and_trust_node(args.patched_file_name, "localhost", args)
+    new_node = network.create_and_trust_node(
+        args.patched_file_name, "local://localhost", args
+    )
     assert new_node
     network.wait_for_node_commit_sync()
 

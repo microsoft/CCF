@@ -26,7 +26,7 @@ def test(network, args, from_snapshot=False):
     defunct_network_enc_pubk = network.store_current_network_encryption_key()
 
     recovered_network = infra.network.Network(
-        network.hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, network
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
 
     recovered_network.start_in_recovery(
@@ -51,7 +51,7 @@ def test_share_resilience(network, args, from_snapshot=False):
     defunct_network_enc_pubk = network.store_current_network_encryption_key()
 
     recovered_network = infra.network.Network(
-        network.hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, network
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
     recovered_network.start_in_recovery(args, ledger_dir, snapshot_dir)
     primary, _ = recovered_network.find_primary()
@@ -104,12 +104,15 @@ def test_share_resilience(network, args, from_snapshot=False):
 
 
 def run(args):
-    hosts = ["localhost", "localhost", "localhost"]
-
     txs = app.LoggingTxs()
 
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb, txs=txs
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
     ) as network:
         network.start_and_join(args)
 
@@ -154,5 +157,6 @@ checked. Note that the key for each logging message is unique (per table).
 
     args = infra.e2e_args.cli_args(add)
     args.package = "liblogging"
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
 
     run(args)

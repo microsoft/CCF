@@ -83,7 +83,7 @@ def test_user(network, args, verify=True):
 @reqs.description("Add untrusted node, check no quote is returned")
 def test_no_quote(network, args):
     untrusted_node = network.create_and_add_pending_node(
-        args.package, "localhost", args
+        args.package, "local://localhost", args
     )
     with untrusted_node.client(
         ca=os.path.join(untrusted_node.common_dir, f"{untrusted_node.node_id}.pem")
