@@ -6,67 +6,67 @@ Starting a Test Network
     - The CCF runtime environment has successfully been setup (see :ref:`environment setup instructions <quickstart/run_setup:Setup CCF Runtime Environment>`).
     - CCF is installed (see :ref:`installation steps <quickstart/install:Install>`)
 
-The quickest way to start a CCF test network is to use the `start_test_network.sh <https://github.com/microsoft/CCF/blob/master/start_test_network.sh>`_ test script, specifying the :doc:`enclave image </developers/index>` to run.
+The quickest way to start a CCF test network is to use the `sandbox.sh <https://github.com/microsoft/CCF/blob/master/tests/sandbox/sandbox.sh>`_ test script, specifying the :doc:`enclave image </developers/index>` to run.
 
-The script creates a new test CCF network composed of 3 nodes running locally. All the governance requests required to open the network to users are automatically issued.
+The script creates a new one node test CCF network running locally. All the governance requests required to open the network to users are automatically issued.
 
 For example, deploying the ``liblogging`` example application:
 
 .. code-block:: bash
 
     $ cd CCF/build
-    $ ../start_test_network.sh --package ./liblogging.enclave.so.signed
+    $ ../sandbox.sh --package ./liblogging.virtual.so
     Setting up Python environment...
     Python environment successfully setup
-    [14:47:41.562] Starting 3 CCF nodes...
-    [14:48:12.138] Started CCF network with the following nodes:
-    [14:48:12.138]   Node [ 0] = 127.177.10.108:37765
-    [14:48:12.138]   Node [ 1] = 127.169.74.37:58343
-    [14:48:12.138]   Node [ 2] = 127.131.108.179:50532
-    [14:48:12.138] You can now issue business transactions to the ./liblogging.enclave.so.signed application.
-    [14:48:12.138] Keys and certificates have been copied to the common folder: /path/to/test_network_common
-    [14:48:12.138] See https://microsoft.github.io/CCF/master/users/issue_commands.html for more information.
-    [14:48:12.138] Press Ctrl+C to shutdown the network.
+    [16:14:05.294] Starting 1 CCF nodes...
+    [16:14:05.295] Virtual mode enabled
+    [16:14:10.010] Started CCF network with the following nodes:
+    [16:14:10.011]   Node [0] = https://127.0.0.1:8000
+    [16:14:10.011] You can now issue business transactions to the ./liblogging.virtual.so application.
+    [16:14:10.011] Keys and certificates have been copied to the common folder: /data/src/CCF/build/workspace/sandbox_common
+    [16:14:10.011] See https://microsoft.github.io/CCF/master/users/issue_commands.html for more information.
+    [16:14:10.011] Press Ctrl+C to shutdown the network.
 
 .. note::
 
-    - To use CCF `virtual` mode, the same command can be run with ``TEST_ENCLAVE=virtual`` set as environment variable and the virtual version of the enclave application passed to the script. For example ``$ TEST_ENCLAVE=virtual ../start_test_network.sh --package ./liblogging.virtual.so``.
+    - `sandbox.sh` defaults to using CCF's `virtual` mode, which does not require or make use of SGX. To load debug or release enclaves and make use of SGX, `--enclave-type` must be set to the right value, for example: `./sandbox.sh --enclave-type release -p ./liblogging.enclave.so.signed`
     - The ``--verbose`` argument can be used to display all commands issued by operators and members to start the network.
     - Snapshots can be generated at regular intervals by the primary node of the service using the ``--snapshot-tx-interval <interval>`` option.
 
 The log files (``out`` and ``err``) and ledger directory (``<node_id>.ledger``) for each CCF node can be found under ``./workspace/test_network_<node_id>``.
 
-.. note:: The first time the command is run, a Python virtual environment will be created. This may take a few seconds. It will not be run the next time the ``start_test_network.sh`` script is started.
+.. note:: The first time the command is run, a Python virtual environment will be created. This may take a few seconds. It will not be run the next time the ``sandbox.sh`` script is started.
 
-In a different terminal, using the local IP address and port of the CCF nodes displayed by the command (e.g. ``https://127.177.10.108:37765`` for node ``0``), it is then possible for users to :ref:`issue business requests <users/issue_commands:Issuing Commands>`.
+In a different terminal, using the local IP address and port of the CCF nodes displayed by the command (e.g. ``https://127.0.0.1:8000`` for node ``0``), it is then possible for users to :ref:`issue business requests <users/issue_commands:Issuing Commands>`.
 
 Recovering a Service
 --------------------
 
-The ``start_test_network.sh`` script can also be used to automatically recover a defunct network, as per the steps described :ref:`here <members/accept_recovery:Accepting Recovery and Submitting Shares>`. The ledger to be recovered (``--ledger-dir``) , the defunct network encryption public key (``--network-enc-pubk``) and the directory containing the members and users identities and the network encryption public key (``--common-dir``) should be passed as arguments to the script.
+The ``sandbox.sh`` script can also be used to automatically recover a defunct network, as per the steps described :ref:`here <members/accept_recovery:Accepting Recovery and Submitting Shares>`. The ledger to be recovered (``--ledger-dir``) , the defunct network encryption public key (``--network-enc-pubk``) and the directory containing the members and users identities and the network encryption public key (``--common-dir``) should be passed as arguments to the script.
 
 Additionally, if snapshots were generated by the defunct service (using the ``--snapshot-tx-interval <interval>`` option), the recovery procedure can be significantly sped up by re-starting from the latest available snapshot (``--snapshot-dir``).
 
 .. code-block:: bash
 
     $ cd CCF/build
-    $ cp -r ./workspace/test_network_0/0.ledger .
-    $ cp -r ./workspace/test_network_0/snapshots . # Optional, only if snapshots are available
-    $ cp ./workspace/test_network_0/network_enc_pubk.pem .
-    $ ../start_test_network.sh -p liblogging.enclave.so.signed --recover --ledger-dir 0.ledger --network-enc-pubk network_enc_pubk.pem --common-dir ./workspace/test_network_common/ [--snapshot-dir snapshots]
-    [14:50:19.746] Starting 3 CCF nodes...
-    [14:50:19.746] Recovering network from:
-    [14:50:19.746]  - Defunct network public encryption key: network_enc_pubk.pem
-    [14:50:19.746]  - Common directory: ./workspace/test_network_common/
-    [14:50:19.746]  - Ledger: 0.ledger
-    [14:50:24.388] Started CCF network with the following nodes:
-    [14:50:24.388]   Node [ 3] = 127.191.152.111:40371
-    [14:50:24.388]   Node [ 4] = 127.184.250.157:35113
-    [14:50:24.388]   Node [ 5] = 127.175.51.36:34699
-    [14:50:24.388] You can now issue business transactions to the liblogging.enclave.so.signed application.
-    [14:50:24.388] Keys and certificates have been copied to the common folder: /path/to/test_network_common
-    [14:50:24.388] See https://microsoft.github.io/CCF/master/users/issue_commands.html for more information.
-    [14:50:24.388] Press Ctrl+C to shutdown the network.
+    $ cp -r ./workspace/sandbox_0/0.ledger .
+    $ cp -r ./workspace/sanbox_0/snapshots . # Optional, only if snapshots are available
+    $ cp ./workspace/sandbox_0/network_enc_pubk.pem .
+    $ ./sandbox.sh -e release -p liblogging.enclave.so.signed --recover --ledger-dir 0.ledger --network-enc-pubk network_enc_pubk.pem --common-dir ./workspace/sandbox_common/ [--snapshot-dir snapshots]
+    Setting up Python environment...
+    Python environment successfully setup
+    [16:24:29.563] Starting 1 CCF nodes...
+    [16:24:29.563] Recovering network from:
+    [16:24:29.563]  - Defunct network public encryption key: network_enc_pubk.pem
+    [16:24:29.563]  - Common directory: ./workspace/sandbox_common/
+    [16:24:29.563]  - Ledger: 0.ledger
+    [16:24:29.563] No available snapshot to recover from. Entire transaction history will be replayed.
+    [16:24:32.885] Started CCF network with the following nodes:
+    [16:24:32.885]   Node [1] = https://127.0.0.1:8000
+    [16:24:32.885] You can now issue business transactions to the liblogging.enclave.so.signed application.
+    [16:24:32.885] Keys and certificates have been copied to the common folder: ./workspace/sandbox_common/
+    [16:24:32.885] See https://microsoft.github.io/CCF/master/users/issue_commands.html for more information.
+    [16:24:32.885] Press Ctrl+C to shutdown the network.
 
 The effects of transactions committed by the defunct network should then be recovered. Users can also :ref:`issue new business requests <users/issue_commands:Issuing Commands>`.
 
