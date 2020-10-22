@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The `start_test_network.sh` script has been replaced by [`sandbox.sh`](https://microsoft.github.io/CCF/master/quickstart/test_network.html). Users wishing to override the default network config (a single node on '127.0.0.1:8000') must now explictly specify if they should be started locally (eg. `-n 'local://127.4.4.5:7000'`) or on remote machine via password-less ssh (eg. `-n 'ssh://10.0.0.1:6000'`).
 - `node/quote` endpoint now returns a single JSON object containing the node's quote (#1761).
 - Calling `foreach` on a `TxView` now iterates over the entries which previously existed, ignoring any modifications made by the functor while iterating.
+- JS: `ccf.kv.<map>.get(key)` returns `undefined` instead of throwing an exception if `key` does not exist.
+- JS: `ccf.kv.<map>.delete(key)` returns `false` instead of throwing an exception if `key` does not exist, and `true` instead of `undefined` otherwise.
+- JS: `ccf.kv.<map>.set(key, val)` returns the map object instead of `undefined`.
 
 ## [0.14.1]
 ### Added
