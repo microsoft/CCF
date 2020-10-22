@@ -70,7 +70,8 @@ interface GetPollsResponse {
 
 // Export REST API request/response types for unit tests
 export {
-    CreatePollRequest, SubmitOpinionRequest, SubmitOpinionsRequest,
+    CreatePollRequest, SubmitOpinionRequest,
+    CreatePollsRequest, SubmitOpinionsRequest,
     GetPollResponse, StringPollResponse, NumericPollResponse 
 }
 
