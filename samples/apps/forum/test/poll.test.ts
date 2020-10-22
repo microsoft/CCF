@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken'
 import { NODE_ADDR, setupMochaCCFSandbox } from './util'
 import {
   CreatePollRequest, SubmitOpinionRequest, 
+  CreatePollsRequest,SubmitOpinionsRequest,
   NumericPollResponse, StringPollResponse,
   MINIMUM_OPINION_THRESHOLD,
   GetPollResponse
@@ -64,6 +65,35 @@ describe('/polls', function () {
       await bent('POST', 422)(`${ENDPOINT_URL}?topic=${topic}`, body)
     })
   })
+  describe('POST /', function () {
+    it('creates multiple polls', async function () {
+      const body: CreatePollsRequest = {
+        polls: {
+          'post-multiple-a': { type: "number" },
+          'post-multiple-b': { type: "string" }
+        }
+      }
+      await bent('POST', 201)(`${ENDPOINT_URL}/all`, body, getAuth(1))
+    })
+    it('rejects creating polls with an existing topic', async function () {
+      const body: CreatePollsRequest = {
+        polls: {
+          'post-multiple-c': { type: "number" }
+        }
+      }
+      await bent('POST', 201)(`${ENDPOINT_URL}/all`, body, getAuth(1))
+      await bent('POST', 403)(`${ENDPOINT_URL}/all`, body, getAuth(1))
+    })
+    it('rejects creating polls without authorization', async function () {
+      const body: CreatePollsRequest = {
+        polls: {
+          'post-multiple-d': { type: "number" }
+        }
+      }
+      // 422 = validation error, because the header is missing, should be 401
+      await bent('POST', 422)(`${ENDPOINT_URL}/all`, body)
+    })
+  })
   describe('PUT /{topic}', function () {
     it('stores opinions to a topic', async function () {
       const topic = 'put-a'
@@ -107,6 +137,71 @@ describe('/polls', function () {
       }
       // 422 = validation error, because the header is missing, should be 401
       await bent('PUT', 422)(`${ENDPOINT_URL}?topic=${topic}`, opinionBody)
+    })
+  })
+  describe('PUT /', function () {
+    it('stores opinions to multiple topics', async function () {
+      const topicA = 'put-multiple-a'
+      const topicB = 'put-multiple-b'
+      const body: CreatePollsRequest = {
+        polls: {
+          [topicA]: { type: "number" },
+          [topicB]: { type: "string" }
+        }
+      }
+      await bent('POST', 201)(`${ENDPOINT_URL}/all`, body, getAuth(1))
+
+      const opinionBody: SubmitOpinionsRequest = {
+        opinions: {
+          [topicA]: { opinion: 1.5 },
+          [topicB]: { opinion: "foo" }
+        }
+      }
+      await bent('PUT', 204)(`${ENDPOINT_URL}/all`, opinionBody, getAuth(1))
+    })
+    it('rejects opinions with mismatching data type', async function () {
+      const topicA = 'put-multiple-c'
+      const topicB = 'put-multiple-d'
+      const body: CreatePollsRequest = {
+        polls: {
+          [topicA]: { type: "number" },
+          [topicB]: { type: "string" }
+        }
+      }
+      await bent('POST', 201)(`${ENDPOINT_URL}/all`, body, getAuth(1))
+
+      const opinionBody: SubmitOpinionsRequest = {
+        opinions: {
+          [topicA]: { opinion: 1.5 },
+          [topicB]: { opinion: 1.6 }
+        }
+      }
+      await bent('PUT', 400)(`${ENDPOINT_URL}/all`, opinionBody, getAuth(1))
+    })
+    it('rejects opinions for unknown topics', async function () {
+      const body: SubmitOpinionsRequest = {
+        opinions: {
+          'non-existing': { opinion: 1.5 }
+        }
+      }
+      await bent('PUT', 400)(`${ENDPOINT_URL}/all`, body, getAuth(1))
+    })
+    it('rejects opinions without authorization', async function () {
+      const topic = 'put-multiple-e'
+      const pollBody: CreatePollsRequest = {
+        polls: {
+          [topic]: { type: "number" }
+        }
+      }
+      await bent('POST', 201)(`${ENDPOINT_URL}/all`, pollBody, getAuth(1))
+
+      const opinionBody: SubmitOpinionsRequest = {
+        opinions: {
+          [topic]: { opinion: 1.5 }
+        }
+      }
+      // 422 = validation error, because the header is missing, should be 401
+      await bent('PUT', 422)(`${ENDPOINT_URL}/all`, opinionBody)
     })
   })
   describe('GET /{topic}', function () {
