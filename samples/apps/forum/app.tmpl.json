@@ -1,0 +1,106 @@
+{
+  "endpoints": {
+    "/polls": {
+      "post": {
+        "js_module": "build/PollControllerProxy.js",
+        "js_function": "createPoll",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_identity": false,
+        "require_client_signature": false,
+        "readonly": false
+      },
+      "put": {
+        "js_module": "build/PollControllerProxy.js",
+        "js_function": "submitOpinion",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_identity": false,
+        "require_client_signature": false,
+        "readonly": false
+      },
+      "get": {
+        "js_module": "build/PollControllerProxy.js",
+        "js_function": "getPoll",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_identity": false,
+        "require_client_signature": false,
+        "readonly": true
+      }
+    },
+    "/polls/all": {
+      "post": {
+        "js_module": "build/PollControllerProxy.js",
+        "js_function": "createPolls",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_identity": false,
+        "require_client_signature": false,
+        "readonly": false
+      },
+      "put": {
+        "js_module": "build/PollControllerProxy.js",
+        "js_function": "submitOpinions",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_identity": false,
+        "require_client_signature": false,
+        "readonly": false
+      },
+      "get": {
+        "js_module": "build/PollControllerProxy.js",
+        "js_function": "getPolls",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_identity": false,
+        "require_client_signature": false,
+        "readonly": true
+      }
+    },
+    "/site": {
+      "get": {
+        "js_module": "build/SiteControllerProxy.js",
+        "js_function": "getStartPage",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_identity": false,
+        "require_client_signature": false,
+        "readonly": true
+      }
+    },
+    "/site/polls/create": {
+      "get": {
+        "js_module": "build/SiteControllerProxy.js",
+        "js_function": "getPollsCreatePage",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_identity": false,
+        "require_client_signature": false,
+        "readonly": true
+      }
+    },
+    "/site/opinions/submit": {
+      "get": {
+        "js_module": "build/SiteControllerProxy.js",
+        "js_function": "getOpinionsSubmitPage",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_identity": false,
+        "require_client_signature": false,
+        "readonly": true
+      }
+    },
+    "/site/view": {
+      "get": {
+        "js_module": "build/SiteControllerProxy.js",
+        "js_function": "getViewPage",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_identity": false,
+        "require_client_signature": false,
+        "readonly": true
+      }
+    }
+  }
+}
