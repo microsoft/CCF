@@ -193,7 +193,7 @@ class Consortium:
                 if response is None:
                     if proposal.view is None or proposal.seqno is None:
                         raise RuntimeError(
-                            f"Don't know what to wait for - no target TxID"
+                            "Don't know what to wait for - no target TxID"
                         )
                     seqno = proposal.seqno
                     view = proposal.view
