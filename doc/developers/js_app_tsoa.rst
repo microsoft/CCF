@@ -80,9 +80,11 @@ tsoa discovers controllers through a list of search locations specified in ``tso
 
 .. code-block:: json
 
-    "controllerPathGlobs": [
-        "src/controllers/*.ts"
-    ]
+    {
+        "controllerPathGlobs": [
+            "src/controllers/*.ts"
+        ]
+    }
 
 As an example, the ``/partition`` route of the sample app is implemented as:
 
