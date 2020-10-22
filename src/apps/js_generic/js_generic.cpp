@@ -419,7 +419,7 @@ namespace ccfapp
     auto val = map_view->get({key, key + key_size});
 
     if (!val.has_value())
-      return JS_ThrowRangeError(ctx, "No such key");
+      return JS_UNDEFINED;
 
     JSValue buf =
       JS_NewArrayBufferCopy(ctx, val.value().data(), val.value().size());
@@ -448,10 +448,7 @@ namespace ccfapp
 
     auto val = map_view->remove({key, key + key_size});
 
-    if (!val)
-      return JS_ThrowRangeError(ctx, "Failed to remove at key");
-
-    return JS_UNDEFINED;
+    return JS_NewBool(ctx, val);
   }
 
   static JSValue js_kv_map_delete_read_only(
@@ -482,7 +479,7 @@ namespace ccfapp
     if (!map_view->put({key, key + key_size}, {val, val + val_size}))
       return JS_ThrowRangeError(ctx, "Could not insert at key");
 
-    return JS_UNDEFINED;
+    return JS_DupValue(ctx, this_val);
   }
 
   static JSValue js_kv_map_set_read_only(
