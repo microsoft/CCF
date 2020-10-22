@@ -9,7 +9,7 @@ import os
 from loguru import logger as LOG
 
 
-DEFAULT_NODES = ["127.0.0.1:8000"]
+DEFAULT_NODES = ["local://127.0.0.1:8000"]
 
 
 def dump_network_info(path, network, node):
@@ -119,7 +119,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "-n",
             "--node",
-            help=f"List of hostnames[,pub_hostnames:ports]. Default is {DEFAULT_NODES}",
+            help=f"List of (local://|ssh://)hostnames[,pub_hostnames:ports]. Default is {DEFAULT_NODES}",
             action="append",
         )
         parser.add_argument(

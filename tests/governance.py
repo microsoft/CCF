@@ -83,7 +83,7 @@ def test_user(network, args, verify=True):
 @reqs.description("Add untrusted node, check no quote is returned")
 def test_no_quote(network, args):
     untrusted_node = network.create_and_add_pending_node(
-        args.package, "localhost", args
+        args.package, "local://localhost", args
     )
     with untrusted_node.client(
         ca=os.path.join(untrusted_node.common_dir, f"{untrusted_node.node_id}.pem")
@@ -119,10 +119,8 @@ def test_member_data(network, args):
 
 
 def run(args):
-    hosts = ["localhost"] * (3 if args.consensus == "bft" else 2)
-
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
         network = test_member_data(network, args)
@@ -138,4 +136,5 @@ if __name__ == "__main__":
         sys.exit(0)
 
     args.package = "liblogging"
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
     run(args)
