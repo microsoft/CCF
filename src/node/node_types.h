@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/hash.h"
 #include "ds/ring_buffer_types.h"
 #include "entities.h"
 
@@ -71,7 +72,7 @@ namespace ccf
 
     ForwardedMsg msg;
     NodeId from_node;
-    std::array<uint8_t, 32> hash;
+    crypto::Sha256Hash hash;
   };
 #pragma pack(pop)
 

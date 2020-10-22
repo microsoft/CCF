@@ -1017,7 +1017,7 @@ TEST_CASE("Deserialise return status")
   {
     auto tx = store.create_reserved_tx(store.next_version());
     auto sig_view = tx.get_view(signatures);
-    ccf::PrimarySignature sigv(0, 2, {0});
+    ccf::PrimarySignature sigv(0, 2);
     sig_view->put(0, sigv);
     auto [success, reqid, data] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
@@ -1029,7 +1029,7 @@ TEST_CASE("Deserialise return status")
   {
     auto tx = store.create_reserved_tx(store.next_version());
     auto [sig_view, data_view] = tx.get_view(signatures, data);
-    ccf::PrimarySignature sigv(0, 2, {0});
+    ccf::PrimarySignature sigv(0, 2);
     sig_view->put(0, sigv);
     data_view->put(43, 43);
     auto [success, reqid, data] = tx.commit_reserved();
