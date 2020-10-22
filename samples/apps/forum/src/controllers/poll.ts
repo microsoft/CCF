@@ -5,7 +5,6 @@ import {
     Body,
     Path,
     Header,
-    Query,
     SuccessResponse,
     Response,
     Controller,
@@ -71,7 +70,8 @@ interface GetPollsResponse {
 
 // Export REST API request/response types for unit tests
 export {
-    CreatePollRequest, SubmitOpinionRequest, SubmitOpinionsRequest,
+    CreatePollRequest, SubmitOpinionRequest,
+    CreatePollsRequest, SubmitOpinionsRequest,
     GetPollResponse, StringPollResponse, NumericPollResponse 
 }
 
@@ -113,9 +113,9 @@ export class PollController extends Controller {
     @SuccessResponse(201, "Poll has been successfully created")
     @Response<ErrorResponse>(403, "Poll has not been created because a poll with the same topic exists already")
     @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
-    @Post()
+    @Post('{topic}')
     public createPoll(
-        @Query() topic: string,
+        @Path() topic: string,
         @Body() body: CreatePollRequest,
         @Header() authorization: string,
     ): void {
@@ -139,7 +139,7 @@ export class PollController extends Controller {
     @SuccessResponse(201, "Polls have been successfully created")
     @Response<ErrorResponse>(403, "Polls were not created because a poll with the same topic exists already")
     @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
-    @Post('all')
+    @Post()
     public createPolls(
         @Body() body: CreatePollsRequest,
         @Header() authorization: string,
@@ -167,9 +167,9 @@ export class PollController extends Controller {
     @Response<ErrorResponse>(400, "Opinion was not recorded because the opinion data type does not match the poll type")
     @Response<ErrorResponse>(404, "Opinion was not recorded because no poll with the given topic exists")
     @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
-    @Put()
+    @Put('{topic}')
     public submitOpinion(
-        @Query() topic: string,
+        @Path() topic: string,
         @Body() body: SubmitOpinionRequest,
         @Header() authorization: string,
     ): void {
@@ -192,7 +192,7 @@ export class PollController extends Controller {
     @SuccessResponse(204, "Opinions have been successfully recorded")
     @Response<ErrorResponse>(400, "Opinions were not recorded because either an opinion data type did not match the poll type or a poll with the given topic was not found")
     @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
-    @Put('all')
+    @Put()
     public submitOpinions(
         @Body() body: SubmitOpinionsRequest,
         @Header() authorization: string,
@@ -219,9 +219,9 @@ export class PollController extends Controller {
     @SuccessResponse(200, "Poll data")
     @Response<ErrorResponse>(404, "Poll data could not be returned because no poll with the given topic exists")
     @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
-    @Get()
+    @Get('{topic}')
     public getPoll(
-        @Query() topic: string,
+        @Path() topic: string,
         @Header() authorization: string,
     ): GetPollResponse {
         const user = parseAuthToken(authorization)
@@ -237,7 +237,7 @@ export class PollController extends Controller {
     
     @SuccessResponse(200, "Poll data")
     @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
-    @Get('all')
+    @Get()
     public getPolls(
         @Header() authorization: string,
     ): GetPollsResponse {
