@@ -8,9 +8,6 @@ import {
     Route,
 } from "@tsoa/runtime";
 
-import { ValidateErrorResponse, ValidateErrorStatus } from "../error_handler"
-import { parseAuthToken } from "../util"
-
 const HEADER_HTML = `
 <!doctype html>
 <html lang="en">
@@ -36,7 +33,7 @@ const HEADER_HTML = `
       }
       #login-btn {
           display: none;
-          margin-left: 15px;
+          margin-left: 1rem;
       }
     </style>
   </head>
