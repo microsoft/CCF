@@ -339,7 +339,8 @@ class Consortium:
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         proposal.vote_for = careful_vote
-        return self.vote_using_majority(remote_node, proposal)
+        # Large apps take a long time to process - wait longer than normal for commit
+        return self.vote_using_majority(remote_node, proposal, timeout=10)
 
     def accept_recovery(self, remote_node):
         proposal_body, careful_vote = self.make_proposal("accept_recovery")
