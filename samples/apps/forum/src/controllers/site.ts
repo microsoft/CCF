@@ -34,6 +34,10 @@ const HEADER_HTML = `
         padding: 3rem 1.5rem;
         text-align: center;
       }
+      #login-btn {
+          display: none;
+          margin-left: 15px;
+      }
     </style>
   </head>
   <body>
@@ -44,24 +48,50 @@ const HEADER_HTML = `
   <script src="//cdn.jsdelivr.net/npm/jstat@1.9.4/dist/jstat.min.js"></script>
   <script src="//cdn.plot.ly/plotly-1.57.0.min.js"></script>
   <script src="//unpkg.com/papaparse@5.3.0/papaparse.min.js"></script>
+  <script src="//alcdn.msauth.net/browser/2.1.0/js/msal-browser.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jwt-decode@3.0.0/build/jwt-decode.js"></script>
   <script>
-  window.$ = document.querySelector.bind(document)
-  
-  const apiUrl = window.location.origin + '/app/polls'
-  const userCookieName = 'user'
-  
-  function getRandomInt(min, max) {
-      min = Math.ceil(min)
-      max = Math.floor(max)
-      return Math.floor(Math.random() * (max - min + 1)) + min
-  }
+const apiUrl = window.location.origin + '/app/polls'
+const siteUrl = window.location.origin + '/app/site'
 
-  function base64url(source) {
+const msalInstance = new msal.PublicClientApplication({
+    auth: {
+        // "CCF Demo App" app registration
+        clientId: "1773214f-72b8-48f9-ae18-81e30fab04db",
+        // Only the start page is registered as redirect URI
+        redirectUri: siteUrl
+    }
+})
+async function handleRedirectLogin() {
+    try {
+        const tokenResponse = await msalInstance.handleRedirectPromise({})
+        if (tokenResponse) {
+            const jwt = tokenResponse.accessToken
+            return jwt
+        }
+    } catch (err) {
+        console.log(err)
+    }
+    return null
+}
+
+function login() {
+    msalInstance.loginRedirect({})
+}
+
+function getRandomInt(min, max) {
+    min = Math.ceil(min)
+    max = Math.floor(max)
+    return Math.floor(Math.random() * (max - min + 1)) + min
+}
+
+function base64url(source) {
     source = CryptoJS.enc.Utf8.parse(source)
     return CryptoJS.enc.Base64.stringify(source).replace(/=+$/, '').replace(/\\+/g, '-').replace(/\\//g, '_')
-  } 
+} 
 
-  function generateTestJWT(user) {
+function generateGuestUserJWT() {
+    const user = 'guest' + getRandomInt(0, 1000).toString()
     const secret = 'foobar'
     const header = JSON.stringify({
         alg: "HS256",
@@ -73,18 +103,47 @@ const HEADER_HTML = `
     const unsignedToken = base64url(header) + "." + base64url(payload)
     const token = unsignedToken + "." + base64url(CryptoJS.HmacSHA256(unsignedToken, secret))
     return token
-  }
-  
-  user = Cookies.get(userCookieName)
-  if (!user) {
-      user = 'joe' + getRandomInt(0, 1000).toString()
-      Cookies.set(userCookieName, user)
-  }
-  jwt = generateTestJWT(user)
-  console.log('JWT:', jwt)
+}
 
-  document.addEventListener("DOMContentLoaded", () => {
-    $('#user').innerHTML = user
+async function initUser() {
+    const jwtCookieName = 'jwt'
+    const jwt = await handleRedirectLogin()
+    if (jwt) {
+        window.jwt = jwt
+        Cookies.set(jwtCookieName, jwt)
+    } else {
+        window.jwt = Cookies.get(jwtCookieName)
+        if (!window.jwt) {
+            window.jwt = generateGuestUserJWT()
+            Cookies.set(jwtCookieName, window.jwt)
+        }
+    }
+    console.log('JWT:', window.jwt)
+}
+
+function getUserName() {
+    const payload = jwt_decode(window.jwt)
+    // upn = human readable username of Microsoft JWTs
+    const user = payload.upn ?? payload.sub
+    return user
+}
+
+function isLoggedIn() {
+    const payload = jwt_decode(window.jwt)
+    const loggedIn = !payload.sub.startsWith('guest')
+    return loggedIn
+}
+  </script>
+  <script>
+  window.$ = document.querySelector.bind(document)
+  
+  document.addEventListener("DOMContentLoaded", async () => {
+    await initUser()
+    $('#user').innerHTML = getUserName()
+    $('#login-btn').style.display = isLoggedIn() ? 'none' : 'block'
+    $('#login-btn').addEventListener('click', () => {
+        login()
+    })
   })
   
   function parseCSV(csv) {
@@ -310,6 +369,7 @@ const HEADER_HTML = `
         <span class="navbar-text">
            User: <span id="user"></span>
         </span>
+        <button id="login-btn" class="btn btn-outline-success">Login</button>
     </div>
 </nav>
 `
