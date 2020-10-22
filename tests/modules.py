@@ -202,6 +202,13 @@ def test_dynamic_endpoints(network, args):
         r = c.post("/app/compute", valid_body)
         assert r.status_code == http.HTTPStatus.FORBIDDEN, r.status_code
 
+    LOG.info("Checking templated endpoint is accessible")
+    with primary.client("user0") as c:
+        r = c.get("/app/compute2/mul/5/7")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.headers["content-type"] == "application/json"
+        assert r.body.json()["result"] == 35, r.body.json()
+
     LOG.info("Deploying modified js app bundle")
     with tempfile.TemporaryDirectory(prefix="ccf") as tmp_dir:
         modified_bundle_dir = shutil.copytree(bundle_dir, tmp_dir, dirs_exist_ok=True)
@@ -210,6 +217,13 @@ def test_dynamic_endpoints(network, args):
             metadata = json.load(f)
         # Modifying a single entry
         metadata["endpoints"]["/compute"]["post"]["require_client_identity"] = False
+        # Adding new paths with ambiguous conflicting templates
+        metadata["endpoints"]["/dispatch_test/{bar}"] = metadata["endpoints"][
+            "/compute"
+        ]
+        metadata["endpoints"]["/dispatch_test/{baz}"] = metadata["endpoints"][
+            "/compute"
+        ]
         with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=2)
         network.consortium.deploy_js_app(primary, modified_bundle_dir)
@@ -220,6 +234,15 @@ def test_dynamic_endpoints(network, args):
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.headers["content-type"] == "application/json"
         assert r.body.json() == expected_response, r.body
+
+    LOG.info("Checking ambiguous templates cause a dispatch error")
+    with primary.client("user0") as c:
+        r = c.post("/app/dispatch_test/foo")
+        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
+        body = r.body.text()
+        assert "/foo" in body, body
+        assert "/{bar}" in body, body
+        assert "/{baz}" in body, body
 
     return network
 
