@@ -88,6 +88,7 @@ namespace aft
     std::shared_ptr<aft::State> state;
     std::shared_ptr<Executor> executor;
     std::shared_ptr<aft::RequestTracker> request_tracker;
+    bool can_trigger_view_changes = false;
 
     // Timeouts
     std::chrono::milliseconds request_timeout;
@@ -522,42 +523,6 @@ namespace aft
       }
     }
 
-    bool check_bft_timeout_occurred(std::chrono::milliseconds time)
-    {
-      auto oldest_entry = request_tracker->oldest_entry();
-      kv::Consensus::SeqNo last_sig_seqno;
-      std::chrono::milliseconds last_sig_time;
-      std::tie(last_sig_seqno, last_sig_time) =
-        request_tracker->get_seqno_time_last_request();
-
-      if (
-        view_change_timeout != std::chrono::milliseconds(0) &&
-        oldest_entry.has_value() &&
-        oldest_entry.value() + view_change_timeout < time)
-      {
-        return true;
-      }
-
-      constexpr auto wait_factor = 4;
-      std::chrono::milliseconds expire_time = last_sig_time +
-        std::chrono::milliseconds(sig_ms_interval.count() * wait_factor);
-
-      if (sig_ms_interval != std::chrono::milliseconds(0) && expire_time < time)
-      {
-        return true;
-      }
-
-      if (
-        sig_tx_interval != 0 &&
-        last_sig_seqno + sig_tx_interval * wait_factor <
-          static_cast<size_t>(state->last_idx))
-      {
-        return true;
-      }
-
-      return false;
-    }
-
     void periodic(std::chrono::milliseconds elapsed)
     {
       std::lock_guard<SpinLock> guard(state->lock);
@@ -569,7 +534,7 @@ namespace aft
                       .get_current_time_offset();
         request_tracker->tick(time);
 
-        if (is_follower() && check_bft_timeout_occurred(time))
+        if (is_follower() && did_bft_timeout_occurred(time))
         {
           // We have not seen a request executed within an expected period of
           // time. We should invoke a view-change.
@@ -616,6 +581,11 @@ namespace aft
       return true;
     }
 
+    void start_view_change_timer()
+    {
+      can_trigger_view_changes = true;
+    }
+
   private:
     inline void update_batch_size()
     {
@@ -631,6 +601,49 @@ namespace aft
       // balance out total batch size across batch window
       batch_window_sum += (batch_size - batch_avg);
       entries_batch_size = std::max((batch_window_sum / batch_window_size), 1);
+    }
+
+    bool did_bft_timeout_occurred(std::chrono::milliseconds time)
+    {
+      if (can_trigger_view_changes == false)
+      {
+        return false;
+      }
+
+      auto oldest_entry = request_tracker->oldest_entry();
+      kv::Consensus::SeqNo last_sig_seqno;
+      std::chrono::milliseconds last_sig_time;
+      std::tie(last_sig_seqno, last_sig_time) =
+        request_tracker->get_seqno_time_last_request();
+
+      if (
+        view_change_timeout != std::chrono::milliseconds(0) &&
+        oldest_entry.has_value() &&
+        oldest_entry.value() + view_change_timeout < time)
+      {
+        LOG_FAIL_FMT("Timeout waiting for request to be executed");
+        return true;
+      }
+
+      constexpr auto wait_factor = 4;
+      std::chrono::milliseconds expire_time = last_sig_time +
+        std::chrono::milliseconds(sig_ms_interval.count() * wait_factor);
+
+      if (sig_ms_interval != std::chrono::milliseconds(0) && expire_time < time)
+      {
+        LOG_FAIL_FMT("Timeout waiting for global commit");
+        return true;
+      }
+
+      if (
+        sig_tx_interval != 0 &&
+        last_sig_seqno + sig_tx_interval * wait_factor <
+          static_cast<size_t>(state->last_idx))
+      {
+        return true;
+      }
+
+      return false;
     }
 
     Term get_term_internal(Index idx)
