@@ -57,5 +57,5 @@ def run(args):
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.package = args.app_script or "liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=0)
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
     run(args)
