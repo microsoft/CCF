@@ -1,6 +1,6 @@
 {
   "endpoints": {
-    "/polls": {
+    "/polls/{topic}": {
       "post": {
         "js_module": "build/PollControllerProxy.js",
         "js_function": "createPoll",
@@ -29,7 +29,7 @@
         "readonly": true
       }
     },
-    "/polls/all": {
+    "/polls": {
       "post": {
         "js_module": "build/PollControllerProxy.js",
         "js_function": "createPolls",
