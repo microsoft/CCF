@@ -73,7 +73,7 @@ describe('/polls', function () {
           'post-multiple-b': { type: "string" }
         }
       }
-      await bent('POST', 201)(`${ENDPOINT_URL}/all`, body, getAuth(1))
+      await bent('POST', 201)(`${ENDPOINT_URL}`, body, getAuth(1))
     })
     it('rejects creating polls with an existing topic', async function () {
       const body: CreatePollsRequest = {
@@ -81,8 +81,8 @@ describe('/polls', function () {
           'post-multiple-c': { type: "number" }
         }
       }
-      await bent('POST', 201)(`${ENDPOINT_URL}/all`, body, getAuth(1))
-      await bent('POST', 403)(`${ENDPOINT_URL}/all`, body, getAuth(1))
+      await bent('POST', 201)(`${ENDPOINT_URL}`, body, getAuth(1))
+      await bent('POST', 403)(`${ENDPOINT_URL}`, body, getAuth(1))
     })
     it('rejects creating polls without authorization', async function () {
       const body: CreatePollsRequest = {
@@ -91,7 +91,7 @@ describe('/polls', function () {
         }
       }
       // 422 = validation error, because the header is missing, should be 401
-      await bent('POST', 422)(`${ENDPOINT_URL}/all`, body)
+      await bent('POST', 422)(`${ENDPOINT_URL}`, body)
     })
   })
   describe('PUT /{topic}', function () {
@@ -149,7 +149,7 @@ describe('/polls', function () {
           [topicB]: { type: "string" }
         }
       }
-      await bent('POST', 201)(`${ENDPOINT_URL}/all`, body, getAuth(1))
+      await bent('POST', 201)(`${ENDPOINT_URL}`, body, getAuth(1))
 
       const opinionBody: SubmitOpinionsRequest = {
         opinions: {
@@ -157,7 +157,7 @@ describe('/polls', function () {
           [topicB]: { opinion: "foo" }
         }
       }
-      await bent('PUT', 204)(`${ENDPOINT_URL}/all`, opinionBody, getAuth(1))
+      await bent('PUT', 204)(`${ENDPOINT_URL}`, opinionBody, getAuth(1))
     })
     it('rejects opinions with mismatching data type', async function () {
       const topicA = 'put-multiple-c'
@@ -168,7 +168,7 @@ describe('/polls', function () {
           [topicB]: { type: "string" }
         }
       }
-      await bent('POST', 201)(`${ENDPOINT_URL}/all`, body, getAuth(1))
+      await bent('POST', 201)(`${ENDPOINT_URL}`, body, getAuth(1))
 
       const opinionBody: SubmitOpinionsRequest = {
         opinions: {
@@ -176,7 +176,7 @@ describe('/polls', function () {
           [topicB]: { opinion: 1.6 }
         }
       }
-      await bent('PUT', 400)(`${ENDPOINT_URL}/all`, opinionBody, getAuth(1))
+      await bent('PUT', 400)(`${ENDPOINT_URL}`, opinionBody, getAuth(1))
     })
     it('rejects opinions for unknown topics', async function () {
       const body: SubmitOpinionsRequest = {
@@ -184,7 +184,7 @@ describe('/polls', function () {
           'non-existing': { opinion: 1.5 }
         }
       }
-      await bent('PUT', 400)(`${ENDPOINT_URL}/all`, body, getAuth(1))
+      await bent('PUT', 400)(`${ENDPOINT_URL}`, body, getAuth(1))
     })
     it('rejects opinions without authorization', async function () {
       const topic = 'put-multiple-e'
@@ -193,7 +193,7 @@ describe('/polls', function () {
           [topic]: { type: "number" }
         }
       }
-      await bent('POST', 201)(`${ENDPOINT_URL}/all`, pollBody, getAuth(1))
+      await bent('POST', 201)(`${ENDPOINT_URL}`, pollBody, getAuth(1))
 
       const opinionBody: SubmitOpinionsRequest = {
         opinions: {
@@ -201,7 +201,7 @@ describe('/polls', function () {
         }
       }
       // 422 = validation error, because the header is missing, should be 401
-      await bent('PUT', 422)(`${ENDPOINT_URL}/all`, opinionBody)
+      await bent('PUT', 422)(`${ENDPOINT_URL}`, opinionBody)
     })
   })
   describe('GET /{topic}', function () {
