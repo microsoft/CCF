@@ -569,7 +569,7 @@ namespace aft
                       .get_current_time_offset();
         request_tracker->tick(time);
 
-        if (!is_leader() && check_bft_timeout_occurred(time))
+        if (is_follower() && check_bft_timeout_occurred(time))
         {
           // We have not seen a request executed within an expected period of
           // time. We should invoke a view-change.
