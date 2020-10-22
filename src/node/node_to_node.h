@@ -217,25 +217,6 @@ namespace ccf
       return plain.value();
     }
 
-    template <class T>
-    RecvNonce get_recv_nonce(const uint8_t* data, size_t size)
-    {
-      // PBFT only
-      serialized::read<T>(data, size);
-      serialized::skip(data, size, (size - sizeof(GcmHdr)));
-      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
-      return ccf::get_nonce(hdr);
-    }
-
-    template <class T>
-    RecvNonce get_encrypted_recv_nonce(const uint8_t* data, size_t size)
-    {
-      // PBFT only
-      serialized::read<T>(data, size);
-      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
-      return ccf::get_nonce(hdr);
-    }
-
     void process_key_exchange(const uint8_t* data, size_t size)
     {
       // Called on channel target when a key exchange message is received from

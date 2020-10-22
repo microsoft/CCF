@@ -690,8 +690,7 @@ namespace kv
       // If we pass in a transaction we don't want to commit, just deserialise
       // and put the views into that transaction.
       // Tread carefully here: at the moment passing in a transaction assumes we
-      // are using pbft as the consensus and that we are deserialising for
-      // playback purposes
+      // are using bft as the consensus
       auto commit = (tx == nullptr);
 
       // This will return FAILED if the serialised transaction is being
