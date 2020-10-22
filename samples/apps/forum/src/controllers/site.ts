@@ -166,32 +166,32 @@ function isLoggedIn() {
   
   async function createPoll(topic, type) {
     const body = { type: type }
-    await retrieve(apiUrl + '?topic=' + topic, 'POST', body)
+    await retrieve(apiUrl + '/' + topic, 'POST', body)
   }
   
   async function createPolls(polls) {
     const body = { polls: polls }
-    await retrieve(apiUrl + '/all', 'POST', body)
+    await retrieve(apiUrl, 'POST', body)
   }
   
   async function submitOpinion(topic, opinion) {
     const body = { opinion: opinion }
-    await retrieve(apiUrl + '?topic=' + topic, 'PUT', body)
+    await retrieve(apiUrl + '/' + topic, 'PUT', body)
   }
   
   async function submitOpinions(opinions) {
     const body = { opinions: opinions }
-    await retrieve(apiUrl + '/all', 'PUT', body)
+    await retrieve(apiUrl, 'PUT', body)
   }
   
   async function getPoll(topic) {
-      const response = await retrieve(apiUrl + '?topic=' + topic, 'GET')
+      const response = await retrieve(apiUrl + '/' + topic, 'GET')
       const poll = await response.json()
       return poll
   }
   
   async function getPolls() {
-    const response = await retrieve(apiUrl + '/all', 'GET')
+    const response = await retrieve(apiUrl, 'GET')
     const polls = await response.json()
     return polls.polls
   }
