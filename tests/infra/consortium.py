@@ -191,9 +191,12 @@ class Consortium:
         if wait_for_global_commit:
             with remote_node.client() as c:
                 if response is None:
-                    response = c.get("/node/commit")
-                    seqno = response.body.json()["seqno"]
-                    view = response.body.json()["view"]
+                    if proposal.view is None or proposal.seqno is None:
+                        raise RuntimeError(
+                            "Don't know what to wait for - no target TxID"
+                        )
+                    seqno = proposal.seqno
+                    view = proposal.view
                 else:
                     seqno = response.seqno
                     view = response.view
