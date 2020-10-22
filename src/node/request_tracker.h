@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "crypto/hash.h"
 #include "ds/ccf_assert.h"
 #include "ds/dl_list.h"
 
@@ -16,14 +17,14 @@ namespace aft
     struct Request
     {
       Request(
-        const std::array<uint8_t, 32>& hash_, std::chrono::milliseconds time_) :
+        const crypto::Sha256Hash& hash_, std::chrono::milliseconds time_) :
         hash(hash_),
         time(time_)
       {}
 
-      Request(const std::array<uint8_t, 32>& hash_) : hash(hash_) {}
+      Request(const crypto::Sha256Hash& hash_) : hash(hash_) {}
 
-      std::array<uint8_t, 32> hash;
+      crypto::Sha256Hash hash;
       std::chrono::milliseconds time;
 
       Request* next = nullptr;
@@ -55,8 +56,7 @@ namespace aft
       std::chrono::seconds(1);
 
   public:
-    void insert(
-      const std::array<uint8_t, 32>& hash, std::chrono::milliseconds time)
+    void insert(const crypto::Sha256Hash& hash, std::chrono::milliseconds time)
     {
       if (remove(hash, hashes_without_requests, hashes_without_requests_list))
       {
@@ -66,7 +66,7 @@ namespace aft
     }
 
     void insert_deleted(
-      const std::array<uint8_t, 32>& hash, std::chrono::milliseconds time)
+      const crypto::Sha256Hash& hash, std::chrono::milliseconds time)
     {
 #ifndef NDEBUG
       Request r(hash);
@@ -78,7 +78,7 @@ namespace aft
       insert(hash, time, hashes_without_requests, hashes_without_requests_list);
     }
 
-    bool remove(const std::array<uint8_t, 32>& hash)
+    bool remove(const crypto::Sha256Hash& hash)
     {
       return remove(hash, requests, requests_list);
     }
@@ -125,7 +125,7 @@ namespace aft
       hashes_without_requests_list;
 
     void insert(
-      const std::array<uint8_t, 32>& hash,
+      const crypto::Sha256Hash& hash,
       std::chrono::milliseconds time,
       std::multiset<Request*, RequestComp>& requests_,
       snmalloc::DLList<Request, std::nullptr_t, true>& requests_list_)
@@ -142,7 +142,7 @@ namespace aft
     }
 
     bool remove(
-      const std::array<uint8_t, 32>& hash,
+      const crypto::Sha256Hash& hash,
       std::multiset<Request*, RequestComp>& requests_,
       snmalloc::DLList<Request, std::nullptr_t, true>& requests_list_)
     {
