@@ -52,15 +52,13 @@ def count_governance_operations(ledger):
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
-
     # Keep track of how many propose, vote and withdraw are issued in this test
     proposals_issued = 0
     votes_issued = 0
     withdrawals_issued = 0
 
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
         primary, _ = network.find_primary()
@@ -121,7 +119,7 @@ def run(args):
 
 
 if __name__ == "__main__":
-
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
     run(args)

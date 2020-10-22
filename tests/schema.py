@@ -14,7 +14,6 @@ from loguru import logger as LOG
 
 
 def run(args):
-    hosts = ["localhost"] * (4 if args.consensus == "bft" else 2)
     os.makedirs(args.schema_dir, exist_ok=True)
 
     changed_files = []
@@ -67,7 +66,7 @@ def run(args):
         return True
 
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes
     ) as network:
         network.start_and_join(args)
         primary, _ = network.find_primary()
@@ -133,4 +132,5 @@ if __name__ == "__main__":
         )
 
     args = infra.e2e_args.cli_args(add=add)
+    args.nodes = ["local://localhost"]
     run(args)

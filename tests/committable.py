@@ -34,7 +34,10 @@ def wait_for_pending(client, view, seqno, timeout=3):
 
 
 def run(args):
-    hosts = ["localhost"] * 5
+    # This is deliberately 5, because the rest of the test depends on this
+    # to grow a prefix and allow just enough nodes to resume to reach the
+    # desired election result. Conversion to a general f isn't trivial.
+    hosts = ["local://localhost"] * 5
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb

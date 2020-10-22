@@ -12,7 +12,7 @@ export const NODE_ADDR = 'https://' + NODE_HOST
 
 export function getCCFSandboxCmdAndArgs(app_bundle_dir: string) {
     const CCF_SANDBOX_ARGS = [
-        '--node', NODE_HOST,
+        '--node', 'local://' + NODE_HOST,
         '--js-app-bundle', app_bundle_dir,
         '--workspace', '.workspace_ccf'
     ]
