@@ -1068,7 +1068,7 @@ namespace ccfapp
           args.rpc_ctx->get_method(), args.rpc_ctx->get_request_verb(), args);
       };
 
-      set_default(default_handler);
+      set_default(default_handler).set_require_client_identity(false);
     }
 
     EndpointDefinitionPtr find_endpoint(

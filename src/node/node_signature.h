@@ -1,15 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "crypto/hash.h"
 #include "ds/json.h"
 #include "entities.h"
-#include "tls/hash.h"
 
 #include <vector>
 
 namespace ccf
 {
-  using Nonce = std::array<uint8_t, 32>;
+  using Nonce = crypto::Sha256Hash;
 
   struct NodeSignature
   {
@@ -27,6 +27,7 @@ namespace ccf
       node(node_),
       hashed_nonce(hashed_nonce_)
     {}
+    NodeSignature(ccf::NodeId node_) : node(node_) {}
     NodeSignature() = default;
 
     bool operator==(const NodeSignature& o) const

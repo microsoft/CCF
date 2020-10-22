@@ -18,7 +18,7 @@ file(GLOB_RECURSE EVERCRYPT_SRC "${EVERCRYPT_PREFIX}/*.[cS]")
 
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_library(
-    evercrypt.enclave STATIC ${EVERCRYPT_SRC} ${CCF_DIR}/3rdparty/stub/stub.c
+    evercrypt.enclave STATIC ${EVERCRYPT_SRC} ${CCF_DIR}/3rdparty/stub/mem.c
   )
   target_compile_options(
     evercrypt.enclave PRIVATE -Wno-implicit-function-declaration
