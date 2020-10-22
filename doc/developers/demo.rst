@@ -6,7 +6,7 @@ This document explains how to spin up a test CCF network and submit simple comma
 Startup
 -------
 
-This uses the :ref:`example C++ logging app <developers/logging_cpp:Logging (C++)>` and the ``sandbox.sh`` helper script from the main CCF repo.
+This uses the :ref:`example C++ logging app <developers/logging_cpp:Logging (C++)>` and the ``sandbox.sh`` helper script included in CCF releases under the 'bin' directory.
 
 ``sandbox.sh`` is a thin wrapper around ``start_network.py``. It ensures the necessary Python dependencies are available and sets some sensible default values.
 There are a large number of additional configuration options, documented by passing the ``--help`` argument. You may wish to pass ``-v`` which will make the script significantly more verbose, printing the precise ``curl`` commands which were used to communicate with the test network.
