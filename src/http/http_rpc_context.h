@@ -438,12 +438,13 @@ namespace enclave
       {
         ws::RequestParser parser(processor);
 
-        auto next_read = 2;
+        auto next_read = ws::WS_INITIAL_READ;
         size_t index = 0;
         while (index < packed.size())
         {
+          const auto next_next = parser.consume(packed.data() + index, next_read);
           index += next_read;
-          next_read = parser.consume(packed.data() + index, next_read);
+          next_read = next_next;
         }
 
         if (processor.received.size() != 1)
