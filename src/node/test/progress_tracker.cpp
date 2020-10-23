@@ -256,4 +256,23 @@ TEST_CASE("Request tracker")
     t.remove(h);
     REQUIRE(t.is_empty());
   }
+
+  INFO("Verify seqno and time of last sig stored correctly");
+  {
+    aft::RequestTracker t;
+
+    auto r = t.get_seqno_time_last_request();
+    REQUIRE(std::get<0>(r) == -1);
+    REQUIRE(std::get<1>(r) == std::chrono::milliseconds(0));
+
+    t.insert_signed_request(2, std::chrono::milliseconds(2));
+    r = t.get_seqno_time_last_request();
+    REQUIRE(std::get<0>(r) == 2);
+    REQUIRE(std::get<1>(r) == std::chrono::milliseconds(2));
+
+    t.insert_signed_request(1, std::chrono::milliseconds(1));
+    r = t.get_seqno_time_last_request();
+    REQUIRE(std::get<0>(r) == 2);
+    REQUIRE(std::get<1>(r) == std::chrono::milliseconds(2));
+  }
 }
