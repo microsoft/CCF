@@ -289,7 +289,9 @@ function isLoggedIn() {
           xaxis: {
               zeroline: false,
               showgrid: false,
-              tickvals: xtickvals
+              tickvals: xtickvals,
+              tickangle: 45,
+              tickformat: ".0f",
           },
           yaxis: {
               visible: false,
@@ -316,6 +318,7 @@ function isLoggedIn() {
           title: topic,
           margin: margin,
           yaxis: {
+            visible: false,
             showgrid: false,
           },
       }, {displayModeBar: false})
