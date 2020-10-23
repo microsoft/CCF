@@ -841,13 +841,6 @@ namespace ccfapp
       JS_SetModuleLoaderFunc(
         rt, nullptr, js_module_loader, &js_module_loader_arg);
 
-      JSContext* ctx = JS_NewContext(rt);
-      if (ctx == nullptr)
-      {
-        JS_FreeRuntime(rt);
-        throw std::runtime_error("Failed to initialise QuickJS context");
-      }
-
       // Register class for KV
       {
         auto ret = JS_NewClass(rt, kv_class_id, &kv_class_def);
@@ -877,68 +870,77 @@ namespace ccfapp
           throw std::logic_error(
             "Failed to register JS class definition for Body");
         }
+      }
+
+      JSContext* ctx = JS_NewContext(rt);
+      if (ctx == nullptr)
+      {
+        JS_FreeRuntime(rt);
+        throw std::runtime_error("Failed to initialise QuickJS context");
+      }
+
+      {
+        JSAutoFree auto_free(ctx);
+
+        // Set prototype for request body class
         JSValue body_proto = JS_NewObject(ctx);
         size_t func_count =
           sizeof(js_body_proto_funcs) / sizeof(js_body_proto_funcs[0]);
         JS_SetPropertyFunctionList(
           ctx, body_proto, js_body_proto_funcs, func_count);
         JS_SetClassProto(ctx, body_class_id, body_proto);
-      }
 
-      populate_global_obj(args, ctx);
+        // Populate globalThis with console and ccf globals
+        populate_global_obj(args, ctx);
 
-      if (!handler_script.value().text.has_value())
-      {
-        throw std::runtime_error("Could not find script text");
-      }
+        // Compile module
+        if (!handler_script.value().text.has_value())
+        {
+          throw std::runtime_error("Could not find script text");
+        }
+        std::string code = handler_script.value().text.value();
+        const std::string path = "/__endpoint__.js";
+        JSValue module = JS_Eval(
+          ctx,
+          code.c_str(),
+          code.size(),
+          path.c_str(),
+          JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
 
-      // Compile module
-      std::string code = handler_script.value().text.value();
-      const std::string path = "/__endpoint__.js";
-      JSValue module = JS_Eval(
-        ctx,
-        code.c_str(),
-        code.size(),
-        path.c_str(),
-        JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+        if (JS_IsException(module))
+        {
+          js_dump_error(ctx);
+          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          args.rpc_ctx->set_response_body("Exception thrown while compiling");
+          return;
+        }
 
-      if (JS_IsException(module))
-      {
-        js_dump_error(ctx);
-        args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        args.rpc_ctx->set_response_body("Exception thrown while compiling");
-        return;
-      }
+        // Evaluate module
+        auto eval_val = JS_EvalFunction(ctx, module);
+        if (JS_IsException(eval_val))
+        {
+          js_dump_error(ctx);
+          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          args.rpc_ctx->set_response_body("Exception thrown while executing");
+          return;
+        }
+        JS_FreeValue(ctx, eval_val);
 
-      // Evaluate module
-      auto eval_val = JS_EvalFunction(ctx, module);
-      if (JS_IsException(eval_val))
-      {
-        js_dump_error(ctx);
-        args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        args.rpc_ctx->set_response_body("Exception thrown while executing");
-        return;
-      }
-      JS_FreeValue(ctx, eval_val);
-
-      // Get exported function from module
-      assert(JS_VALUE_GET_TAG(module) == JS_TAG_MODULE);
-      auto module_def = (JSModuleDef*)JS_VALUE_GET_PTR(module);
-      if (JS_GetModuleExportEntriesCount(module_def) != 1)
-      {
-        throw std::runtime_error(
-          "Endpoint module exports more than one function");
-      }
-      auto export_func = JS_GetModuleExportEntry(ctx, module_def, 0);
-      if (!JS_IsFunction(ctx, export_func))
-      {
-        JS_FreeValue(ctx, export_func);
-        throw std::runtime_error(
-          "Endpoint module exports something that is not a function");
-      }
-
-      {
-        JSAutoFree auto_free(ctx);
+        // Get exported function from module
+        assert(JS_VALUE_GET_TAG(module) == JS_TAG_MODULE);
+        auto module_def = (JSModuleDef*)JS_VALUE_GET_PTR(module);
+        if (JS_GetModuleExportEntriesCount(module_def) != 1)
+        {
+          throw std::runtime_error(
+            "Endpoint module exports more than one function");
+        }
+        auto export_func = JS_GetModuleExportEntry(ctx, module_def, 0);
+        if (!JS_IsFunction(ctx, export_func))
+        {
+          JS_FreeValue(ctx, export_func);
+          throw std::runtime_error(
+            "Endpoint module exports something that is not a function");
+        }
 
         // Call exported function
         auto request = create_request_obj(args, ctx);
