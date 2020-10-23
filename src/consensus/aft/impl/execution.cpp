@@ -88,7 +88,7 @@ namespace aft
 
     frontend->update_merkle_tree();
 
-    request->callback(rep.result);
+    request->callback(std::move(rep.result));
 
     return rep.version;
   }
@@ -107,10 +107,10 @@ namespace aft
                     void*,
                     kv::TxHistory::RequestID caller_rid,
                     int status,
-                    std::vector<uint8_t>& data) {
+                    std::vector<uint8_t>&& data) {
       LOG_DEBUG_FMT("AFT reply callback status {}", status);
 
-      return rpc_sessions->reply_async(std::get<1>(caller_rid), data);
+      return rpc_sessions->reply_async(std::get<1>(caller_rid), std::move(data));
     };
 
     auto ctx = create_request_ctx(serialized_req.data(), serialized_req.size());

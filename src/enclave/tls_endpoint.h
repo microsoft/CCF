@@ -229,17 +229,17 @@ namespace enclave
         ->send_raw_thread(msg->data.data);
     }
 
-    void send_raw(const std::vector<uint8_t>& data)
+    void send_raw(std::vector<uint8_t>&& data)
     {
       auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
       msg->data.self = this->shared_from_this();
-      msg->data.data = data;
+      msg->data.data = std::move(data);
 
       threading::ThreadMessaging::thread_messaging.add_task(
         execution_thread, std::move(msg));
     }
 
-    void send_raw_thread(std::vector<uint8_t>& data)
+    void send_raw_thread(const std::vector<uint8_t>& data)
     {
       if (threading::get_current_thread_id() != execution_thread)
       {

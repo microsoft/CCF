@@ -77,7 +77,7 @@ namespace http
       }
       else
       {
-        constexpr auto read_block_size = 4096;
+        constexpr auto read_block_size = 2048;
         auto buf = read(read_block_size, false);
         auto data = buf.data();
         auto size = buf.size();
@@ -166,9 +166,9 @@ namespace http
       session_id(session_id)
     {}
 
-    void send(const std::vector<uint8_t>& data) override
+    void send(std::vector<uint8_t>&& data) override
     {
-      send_raw(data);
+      send_raw(std::move(data));
     }
 
     void handle_request(
@@ -195,7 +195,7 @@ namespace http
         {
           LOG_TRACE_FMT("Upgraded to websocket");
           is_websocket = true;
-          send_raw(upgrade_resp.value());
+          send_raw(std::move(upgrade_resp.value()));
           return;
         }
 
@@ -330,12 +330,12 @@ namespace http
       ws_response_parser(*this)
     {}
 
-    void send_request(const std::vector<uint8_t>& data) override
+    void send_request(std::vector<uint8_t>&& data) override
     {
-      send_raw(data);
+      send_raw(std::move(data));
     }
 
-    void send(const std::vector<uint8_t>&) override
+    void send(std::vector<uint8_t>&&) override
     {
       throw std::logic_error(
         "send() should not be called directly on HTTPClient");

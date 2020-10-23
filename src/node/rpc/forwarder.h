@@ -312,7 +312,7 @@ namespace ccf
           LOG_DEBUG_FMT(
             "Sending forwarded response to RPC endpoint {}", rep->first);
 
-          if (!rpcresponder->reply_async(rep->first, rep->second))
+          if (!rpcresponder->reply_async(rep->first, std::move(rep->second)))
           {
             return;
           }
