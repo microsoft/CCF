@@ -438,7 +438,7 @@ namespace enclave
       {
         ws::RequestParser parser(processor);
 
-        auto next_read = ws::WS_INITIAL_READ;
+        auto next_read = ws::INITIAL_READ;
         size_t index = 0;
         while (index < packed.size())
         {
