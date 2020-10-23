@@ -442,10 +442,8 @@ namespace enclave
         size_t index = 0;
         while (index < packed.size())
         {
-          auto chunk = std::vector(
-            packed.begin() + index, packed.begin() + index + next_read);
           index += next_read;
-          next_read = parser.consume(chunk);
+          next_read = parser.consume(packed.data() + index, next_read);
         }
 
         if (processor.received.size() != 1)
