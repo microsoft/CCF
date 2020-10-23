@@ -119,6 +119,10 @@ namespace ccfapp
       {
         return std::string(cstr);
       }
+      operator std::string_view() const
+      {
+        return std::string_view(cstr);
+      }
       JSContext* ctx;
       const char* cstr;
     };
@@ -693,6 +697,111 @@ namespace ccfapp
 
     JSClassDef body_class_def = {};
 
+    static JSValue create_ccf_obj(EndpointContext& args, JSContext* ctx)
+    {
+      auto ccf = JS_NewObject(ctx);
+
+      JS_SetPropertyStr(
+        ctx,
+        ccf,
+        "strToBuf",
+        JS_NewCFunction(ctx, ccfapp::js_str_to_buf, "strToBuf", 1));
+      JS_SetPropertyStr(
+        ctx,
+        ccf,
+        "bufToStr",
+        JS_NewCFunction(ctx, ccfapp::js_buf_to_str, "bufToStr", 1));
+      JS_SetPropertyStr(
+        ctx,
+        ccf,
+        "jsonCompatibleToBuf",
+        JS_NewCFunction(
+          ctx, ccfapp::js_json_compatible_to_buf, "jsonCompatibleToBuf", 1));
+      JS_SetPropertyStr(
+        ctx,
+        ccf,
+        "bufToJsonCompatible",
+        JS_NewCFunction(
+          ctx, ccfapp::js_buf_to_json_compatible, "bufToJsonCompatible", 1));
+      JS_SetPropertyStr(
+        ctx,
+        ccf,
+        "generateAesKey",
+        JS_NewCFunction(ctx, ccfapp::js_generate_aes_key, "generateAesKey", 1));
+      JS_SetPropertyStr(
+        ctx,
+        ccf,
+        "wrapKey",
+        JS_NewCFunction(ctx, ccfapp::js_wrap_key, "wrapKey", 3));
+
+      auto kv = JS_NewObjectClass(ctx, kv_class_id);
+      JS_SetOpaque(kv, &args.tx);
+      JS_SetPropertyStr(ctx, ccf, "kv", kv);
+
+      return ccf;
+    }
+
+    static JSValue create_console_obj(JSContext* ctx)
+    {
+      auto console = JS_NewObject(ctx);
+
+      JS_SetPropertyStr(
+        ctx, console, "log", JS_NewCFunction(ctx, ccfapp::js_print, "log", 1));
+
+      return console;
+    }
+
+    static void populate_global_obj(EndpointContext& args, JSContext* ctx)
+    {
+      auto global_obj = JS_GetGlobalObject(ctx);
+
+      JS_SetPropertyStr(ctx, global_obj, "console", create_console_obj(ctx));
+      JS_SetPropertyStr(ctx, global_obj, "ccf", create_ccf_obj(args, ctx));
+
+      JS_FreeValue(ctx, global_obj);
+    }
+
+    static JSValue create_request_obj(EndpointContext& args, JSContext* ctx)
+    {
+      auto request = JS_NewObject(ctx);
+
+      auto headers = JS_NewObject(ctx);
+      for (auto& [header_name, header_value] :
+           args.rpc_ctx->get_request_headers())
+      {
+        JS_SetPropertyStr(
+          ctx,
+          headers,
+          header_name.c_str(),
+          JS_NewStringLen(ctx, header_value.c_str(), header_value.size()));
+      }
+      JS_SetPropertyStr(ctx, request, "headers", headers);
+
+      const auto& request_query = args.rpc_ctx->get_request_query();
+      auto query_str =
+        JS_NewStringLen(ctx, request_query.c_str(), request_query.size());
+      JS_SetPropertyStr(ctx, request, "query", query_str);
+
+      auto params = JS_NewObject(ctx);
+      for (auto& [param_name, param_value] :
+           args.rpc_ctx->get_request_path_params())
+      {
+        JS_SetPropertyStr(
+          ctx,
+          params,
+          param_name.c_str(),
+          JS_NewStringLen(ctx, param_value.c_str(), param_value.size()));
+      }
+      JS_SetPropertyStr(ctx, request, "params", params);
+
+      const auto& request_body = args.rpc_ctx->get_request_body();
+      auto body_ = JS_NewObjectClass(ctx, body_class_id);
+      JS_SetOpaque(body_, (void*)&request_body);
+      JS_SetPropertyStr(ctx, request, "body", body_);
+
+      return request;
+    }
+
     void execute_request(
       const std::string& method,
       const ccf::RESTVerb& verb,
@@ -732,13 +841,6 @@ namespace ccfapp
       JS_SetModuleLoaderFunc(
         rt, nullptr, js_module_loader, &js_module_loader_arg);
 
-      JSContext* ctx = JS_NewContext(rt);
-      if (ctx == nullptr)
-      {
-        JS_FreeRuntime(rt);
-        throw std::runtime_error("Failed to initialise QuickJS context");
-      }
-
       // Register class for KV
       {
         auto ret = JS_NewClass(rt, kv_class_id, &kv_class_def);
@@ -768,272 +870,238 @@ namespace ccfapp
           throw std::logic_error(
             "Failed to register JS class definition for Body");
         }
+      }
+
+      JSContext* ctx = JS_NewContext(rt);
+      if (ctx == nullptr)
+      {
+        JS_FreeRuntime(rt);
+        throw std::runtime_error("Failed to initialise QuickJS context");
+      }
+
+      {
+        JSAutoFree auto_free(ctx);
+
+        // Set prototype for request body class
         JSValue body_proto = JS_NewObject(ctx);
         size_t func_count =
           sizeof(js_body_proto_funcs) / sizeof(js_body_proto_funcs[0]);
         JS_SetPropertyFunctionList(
           ctx, body_proto, js_body_proto_funcs, func_count);
         JS_SetClassProto(ctx, body_class_id, body_proto);
-      }
 
-      auto global_obj = JS_GetGlobalObject(ctx);
+        // Populate globalThis with console and ccf globals
+        populate_global_obj(args, ctx);
 
-      auto console = JS_NewObject(ctx);
-      JS_SetPropertyStr(ctx, global_obj, "console", console);
-
-      JS_SetPropertyStr(
-        ctx, console, "log", JS_NewCFunction(ctx, ccfapp::js_print, "log", 1));
-
-      auto ccf = JS_NewObject(ctx);
-      JS_SetPropertyStr(ctx, global_obj, "ccf", ccf);
-
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "strToBuf",
-        JS_NewCFunction(ctx, ccfapp::js_str_to_buf, "strToBuf", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "bufToStr",
-        JS_NewCFunction(ctx, ccfapp::js_buf_to_str, "bufToStr", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "jsonCompatibleToBuf",
-        JS_NewCFunction(
-          ctx, ccfapp::js_json_compatible_to_buf, "jsonCompatibleToBuf", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "bufToJsonCompatible",
-        JS_NewCFunction(
-          ctx, ccfapp::js_buf_to_json_compatible, "bufToJsonCompatible", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "generateAesKey",
-        JS_NewCFunction(ctx, ccfapp::js_generate_aes_key, "generateAesKey", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "wrapKey",
-        JS_NewCFunction(ctx, ccfapp::js_wrap_key, "wrapKey", 3));
-
-      auto kv = JS_NewObjectClass(ctx, kv_class_id);
-      JS_SetPropertyStr(ctx, ccf, "kv", kv);
-      JS_SetOpaque(kv, &args.tx);
-
-      auto request = JS_NewObject(ctx);
-
-      auto headers = JS_NewObject(ctx);
-      for (auto& [header_name, header_value] :
-           args.rpc_ctx->get_request_headers())
-      {
-        JS_SetPropertyStr(
-          ctx,
-          headers,
-          header_name.c_str(),
-          JS_NewStringLen(ctx, header_value.c_str(), header_value.size()));
-      }
-      JS_SetPropertyStr(ctx, request, "headers", headers);
-
-      const auto& request_query = args.rpc_ctx->get_request_query();
-      auto query_str =
-        JS_NewStringLen(ctx, request_query.c_str(), request_query.size());
-      JS_SetPropertyStr(ctx, request, "query", query_str);
-
-      auto params = JS_NewObject(ctx);
-      for (auto& [param_name, param_value] :
-           args.rpc_ctx->get_request_path_params())
-      {
-        JS_SetPropertyStr(
-          ctx,
-          params,
-          param_name.c_str(),
-          JS_NewStringLen(ctx, param_value.c_str(), param_value.size()));
-      }
-      JS_SetPropertyStr(ctx, request, "params", params);
-
-      const auto& request_body = args.rpc_ctx->get_request_body();
-      auto body_ = JS_NewObjectClass(ctx, body_class_id);
-      JS_SetOpaque(body_, (void*)&request_body);
-      JS_SetPropertyStr(ctx, request, "body", body_);
-
-      JS_FreeValue(ctx, global_obj);
-
-      if (!handler_script.value().text.has_value())
-      {
-        throw std::runtime_error("Could not find script text");
-      }
-
-      // Compile module
-      std::string code = handler_script.value().text.value();
-      const std::string path = "/__endpoint__.js";
-      JSValue module = JS_Eval(
-        ctx,
-        code.c_str(),
-        code.size(),
-        path.c_str(),
-        JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-
-      if (JS_IsException(module))
-      {
-        js_dump_error(ctx);
-        args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        args.rpc_ctx->set_response_body("Exception thrown while compiling");
-        return;
-      }
-
-      // Evaluate module
-      auto eval_val = JS_EvalFunction(ctx, module);
-      if (JS_IsException(eval_val))
-      {
-        js_dump_error(ctx);
-        args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        args.rpc_ctx->set_response_body("Exception thrown while executing");
-        return;
-      }
-      JS_FreeValue(ctx, eval_val);
-
-      // Get exported function from module
-      assert(JS_VALUE_GET_TAG(module) == JS_TAG_MODULE);
-      auto module_def = (JSModuleDef*)JS_VALUE_GET_PTR(module);
-      if (JS_GetModuleExportEntriesCount(module_def) != 1)
-      {
-        throw std::runtime_error(
-          "Endpoint module exports more than one function");
-      }
-      auto export_func = JS_GetModuleExportEntry(ctx, module_def, 0);
-      if (!JS_IsFunction(ctx, export_func))
-      {
-        throw std::runtime_error(
-          "Endpoint module exports something that is not a function");
-      }
-
-      // Call exported function
-      int argc = 1;
-      JSValueConst* argv = (JSValueConst*)&request;
-      auto val = JS_Call(ctx, export_func, JS_UNDEFINED, argc, argv);
-      JS_FreeValue(ctx, request);
-      JS_FreeValue(ctx, export_func);
-
-      if (JS_IsException(val))
-      {
-        js_dump_error(ctx);
-        args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        args.rpc_ctx->set_response_body("Exception thrown while executing");
-        return;
-      }
-
-      // Handle return value: {body, headers, statusCode}
-      if (!JS_IsObject(val))
-      {
-        args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        args.rpc_ctx->set_response_body(
-          "Invalid endpoint function return value");
-        return;
-      }
-
-      // Response body (also sets a default response content-type header)
-      auto response_body_js = JS_GetPropertyStr(ctx, val, "body");
-      std::vector<uint8_t> response_body;
-      size_t buf_size;
-      size_t buf_offset;
-      JSValue typed_array_buffer = JS_GetTypedArrayBuffer(
-        ctx, response_body_js, &buf_offset, &buf_size, nullptr);
-      uint8_t* array_buffer;
-      if (!JS_IsException(typed_array_buffer))
-      {
-        size_t buf_size_total;
-        array_buffer =
-          JS_GetArrayBuffer(ctx, &buf_size_total, typed_array_buffer);
-        array_buffer += buf_offset;
-        JS_FreeValue(ctx, typed_array_buffer);
-      }
-      else
-      {
-        array_buffer = JS_GetArrayBuffer(ctx, &buf_size, response_body_js);
-      }
-      if (array_buffer)
-      {
-        args.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE,
-          http::headervalues::contenttype::OCTET_STREAM);
-        response_body =
-          std::vector<uint8_t>(array_buffer, array_buffer + buf_size);
-      }
-      else
-      {
-        const char* cstr = nullptr;
-        if (JS_IsString(response_body_js))
+        // Compile module
+        if (!handler_script.value().text.has_value())
         {
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          cstr = JS_ToCString(ctx, response_body_js);
+          throw std::runtime_error("Could not find script text");
         }
-        else
-        {
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-          JSValue rval =
-            JS_JSONStringify(ctx, response_body_js, JS_NULL, JS_NULL);
-          cstr = JS_ToCString(ctx, rval);
-          JS_FreeValue(ctx, rval);
-        }
-        std::string str(cstr);
-        JS_FreeCString(ctx, cstr);
-
-        response_body = std::vector<uint8_t>(str.begin(), str.end());
-      }
-      JS_FreeValue(ctx, response_body_js);
-      args.rpc_ctx->set_response_body(std::move(response_body));
-
-      // Response headers
-      auto response_headers_js = JS_GetPropertyStr(ctx, val, "headers");
-      if (JS_IsObject(response_headers_js))
-      {
-        uint32_t prop_count = 0;
-        JSPropertyEnum* props = nullptr;
-        JS_GetOwnPropertyNames(
+        std::string code = handler_script.value().text.value();
+        const std::string path = "/__endpoint__.js";
+        JSValue module = JS_Eval(
           ctx,
-          &props,
-          &prop_count,
-          response_headers_js,
-          JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY);
-        for (size_t i = 0; i < prop_count; i++)
+          code.c_str(),
+          code.size(),
+          path.c_str(),
+          JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+
+        if (JS_IsException(module))
         {
-          auto prop_name = props[i].atom;
-          auto prop_name_cstr = JS_AtomToCString(ctx, prop_name);
-          auto prop_val = JS_GetProperty(ctx, response_headers_js, prop_name);
-          auto prop_val_cstr = JS_ToCString(ctx, prop_val);
-          if (!prop_val_cstr)
+          js_dump_error(ctx);
+          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          args.rpc_ctx->set_response_body("Exception thrown while compiling");
+          return;
+        }
+
+        // Evaluate module
+        auto eval_val = JS_EvalFunction(ctx, module);
+        if (JS_IsException(eval_val))
+        {
+          js_dump_error(ctx);
+          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          args.rpc_ctx->set_response_body("Exception thrown while executing");
+          return;
+        }
+        JS_FreeValue(ctx, eval_val);
+
+        // Get exported function from module
+        assert(JS_VALUE_GET_TAG(module) == JS_TAG_MODULE);
+        auto module_def = (JSModuleDef*)JS_VALUE_GET_PTR(module);
+        if (JS_GetModuleExportEntriesCount(module_def) != 1)
+        {
+          throw std::runtime_error(
+            "Endpoint module exports more than one function");
+        }
+        auto export_func = JS_GetModuleExportEntry(ctx, module_def, 0);
+        if (!JS_IsFunction(ctx, export_func))
+        {
+          JS_FreeValue(ctx, export_func);
+          throw std::runtime_error(
+            "Endpoint module exports something that is not a function");
+        }
+
+        // Call exported function
+        auto request = create_request_obj(args, ctx);
+        int argc = 1;
+        JSValueConst* argv = (JSValueConst*)&request;
+        auto val =
+          auto_free(JS_Call(ctx, export_func, JS_UNDEFINED, argc, argv));
+        JS_FreeValue(ctx, request);
+        JS_FreeValue(ctx, export_func);
+
+        if (JS_IsException(val))
+        {
+          js_dump_error(ctx);
+          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          args.rpc_ctx->set_response_body("Exception thrown while executing");
+          return;
+        }
+
+        // Handle return value: {body, headers, statusCode}
+        if (!JS_IsObject(val))
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          args.rpc_ctx->set_response_body(
+            "Invalid endpoint function return value (not an object)");
+          return;
+        }
+
+        // Response body (also sets a default response content-type header)
+        {
+          auto response_body_js =
+            auto_free(JS_GetPropertyStr(ctx, val, "body"));
+          std::vector<uint8_t> response_body;
+          size_t buf_size;
+          size_t buf_offset;
+          JSValue typed_array_buffer = JS_GetTypedArrayBuffer(
+            ctx, response_body_js, &buf_offset, &buf_size, nullptr);
+          uint8_t* array_buffer;
+          if (!JS_IsException(typed_array_buffer))
           {
-            args.rpc_ctx->set_response_status(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR);
-            args.rpc_ctx->set_response_body("Invalid header value type");
-            return;
+            size_t buf_size_total;
+            array_buffer =
+              JS_GetArrayBuffer(ctx, &buf_size_total, typed_array_buffer);
+            array_buffer += buf_offset;
+            JS_FreeValue(ctx, typed_array_buffer);
           }
-          args.rpc_ctx->set_response_header(prop_name_cstr, prop_val_cstr);
-          JS_FreeCString(ctx, prop_name_cstr);
-          JS_FreeCString(ctx, prop_val_cstr);
-          JS_FreeValue(ctx, prop_val);
+          else
+          {
+            array_buffer = JS_GetArrayBuffer(ctx, &buf_size, response_body_js);
+          }
+          if (array_buffer)
+          {
+            args.rpc_ctx->set_response_header(
+              http::headers::CONTENT_TYPE,
+              http::headervalues::contenttype::OCTET_STREAM);
+            response_body =
+              std::vector<uint8_t>(array_buffer, array_buffer + buf_size);
+          }
+          else
+          {
+            const char* cstr = nullptr;
+            if (JS_IsString(response_body_js))
+            {
+              args.rpc_ctx->set_response_header(
+                http::headers::CONTENT_TYPE,
+                http::headervalues::contenttype::TEXT);
+              cstr = JS_ToCString(ctx, response_body_js);
+            }
+            else
+            {
+              args.rpc_ctx->set_response_header(
+                http::headers::CONTENT_TYPE,
+                http::headervalues::contenttype::JSON);
+              JSValue rval =
+                JS_JSONStringify(ctx, response_body_js, JS_NULL, JS_NULL);
+              if (JS_IsException(rval))
+              {
+                js_dump_error(ctx);
+                args.rpc_ctx->set_response_status(
+                  HTTP_STATUS_INTERNAL_SERVER_ERROR);
+                args.rpc_ctx->set_response_body(
+                  "Invalid endpoint function return value (error during JSON "
+                  "conversion of body)");
+                return;
+              }
+              cstr = JS_ToCString(ctx, rval);
+              JS_FreeValue(ctx, rval);
+            }
+            if (!cstr)
+            {
+              js_dump_error(ctx);
+              args.rpc_ctx->set_response_status(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR);
+              args.rpc_ctx->set_response_body(
+                "Invalid endpoint function return value (error during string "
+                "conversion of body)");
+              return;
+            }
+            std::string str(cstr);
+            JS_FreeCString(ctx, cstr);
+
+            response_body = std::vector<uint8_t>(str.begin(), str.end());
+          }
+          args.rpc_ctx->set_response_body(std::move(response_body));
         }
-        js_free(ctx, props);
-      }
-      JS_FreeValue(ctx, response_headers_js);
 
-      // Response status code
-      int response_status_code = HTTP_STATUS_OK;
-      auto status_code_js = JS_GetPropertyStr(ctx, val, "statusCode");
-      if (JS_VALUE_GET_TAG(status_code_js) == JS_TAG_INT)
-      {
-        response_status_code = JS_VALUE_GET_INT(status_code_js);
-      }
-      JS_FreeValue(ctx, status_code_js);
-      args.rpc_ctx->set_response_status(response_status_code);
+        // Response headers
+        {
+          auto response_headers_js =
+            auto_free(JS_GetPropertyStr(ctx, val, "headers"));
+          if (JS_IsObject(response_headers_js))
+          {
+            uint32_t prop_count = 0;
+            JSPropertyEnum* props = nullptr;
+            JS_GetOwnPropertyNames(
+              ctx,
+              &props,
+              &prop_count,
+              response_headers_js,
+              JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY);
+            for (size_t i = 0; i < prop_count; i++)
+            {
+              auto prop_name = props[i].atom;
+              auto prop_name_cstr = auto_free(JS_AtomToCString(ctx, prop_name));
+              auto prop_val =
+                auto_free(JS_GetProperty(ctx, response_headers_js, prop_name));
+              auto prop_val_cstr = JS_ToCString(ctx, prop_val);
+              if (!prop_val_cstr)
+              {
+                args.rpc_ctx->set_response_status(
+                  HTTP_STATUS_INTERNAL_SERVER_ERROR);
+                args.rpc_ctx->set_response_body(
+                  "Invalid endpoint function return value (header value type)");
+                return;
+              }
+              args.rpc_ctx->set_response_header(prop_name_cstr, prop_val_cstr);
+              JS_FreeCString(ctx, prop_val_cstr);
+            }
+            js_free(ctx, props);
+          }
+        }
 
-      JS_FreeValue(ctx, val);
+        // Response status code
+        {
+          int response_status_code = HTTP_STATUS_OK;
+          auto status_code_js =
+            auto_free(JS_GetPropertyStr(ctx, val, "statusCode"));
+          if (!JS_IsUndefined(status_code_js) && !JS_IsNull(status_code_js))
+          {
+            if (JS_VALUE_GET_TAG(status_code_js.val) != JS_TAG_INT)
+            {
+              args.rpc_ctx->set_response_status(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR);
+              args.rpc_ctx->set_response_body(
+                "Invalid endpoint function return value (status code type)");
+              return;
+            }
+            response_status_code = JS_VALUE_GET_INT(status_code_js.val);
+          }
+          args.rpc_ctx->set_response_status(response_status_code);
+        }
+      }
 
       JS_FreeContext(ctx);
       JS_FreeRuntime(rt);
