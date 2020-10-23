@@ -83,7 +83,7 @@ namespace http
       }
       else
       {
-        constexpr auto read_block_size = 2048;
+        constexpr auto read_block_size = 4096;
         std::vector<uint8_t> buf(read_block_size);
         auto data = buf.data();
         auto n_read = read(data, buf.size(), false);
