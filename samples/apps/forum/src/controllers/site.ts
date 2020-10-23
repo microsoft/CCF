@@ -431,6 +431,11 @@ ${HEADER_HTML}
 
 <main role="main" class="container">
 
+<div class="alert alert-success alert-dismissible fade">
+    Polls created successfully.
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+</div>
+
     <textarea id="input-polls" rows="10" cols="70"
     class="text-monospace"
     placeholder="Topic, Opinion Type
@@ -456,7 +461,7 @@ $('#create-polls-btn').addEventListener('click', async () => {
         window.alert(e)
         return
     }
-    window.alert('Successfully created polls.')
+    $('.alert').classList.add("show");
     $('#input-polls').value = ''
 })
 
@@ -489,6 +494,11 @@ ${HEADER_HTML}
 
 <main role="main" class="container">
 
+<div class="alert alert-success alert-dismissible fade">
+    Opinions submitted successfully.
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+</div>
+
     <textarea id="input-opinions" rows="10" cols="70"
     class="text-monospace"
     placeholder="Topic, Opinion
@@ -518,7 +528,7 @@ $('#submit-opinions-btn').addEventListener('click', async () => {
         window.alert(e)
         return
     }
-    window.alert('Successfully submitted opinions.')
+    $('.alert').classList.add("show");
     $('#input-opinions').value = ''
 })
 
