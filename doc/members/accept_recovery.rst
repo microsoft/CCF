@@ -47,7 +47,7 @@ Once the proposal to recover the network has passed under the rules of the :term
 Submitting Recovery Shares
 --------------------------
 
-To restore private transactions and complete the recovery procedure, members shoud submit their recovery shares. The number of members required to submit their shares is set by the ``recovery_threshold`` CCF configuration parameter and :ref:`can be updated by the consortium at any time <members/common_member_operations:Updating Recovery Threshold>`.
+To restore private transactions and complete the recovery procedure, members should submit their recovery shares. The number of members required to submit their shares is set by the ``recovery_threshold`` CCF configuration parameter and :ref:`can be updated by the consortium at any time <members/common_member_operations:Updating Recovery Threshold>`.
 
 .. note:: The members who submit their recovery shares do not necessarily have to be the members who previously accepted the recovery.
 

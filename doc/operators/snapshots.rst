@@ -5,7 +5,7 @@ Joining from Snapshot
 
 When a node has successfully joined a network, the entire transaction history is automatically replicated to this new node. Depending on the number of historical transactions, this process can take some non-negligible period of time, preventing the new node to quickly take part in the consensus.
 
-To avoid this, it is possible for a new node to join from an existing snapshot of the recent CCF state. In this case, only historical transactions between the version at which the snasphot was taken and the current state will be replicated.
+To avoid this, it is possible for a new node to join from an existing snapshot of the recent CCF state. In this case, only historical transactions between the version at which the snapshot was taken and the current state will be replicated.
 
 Snapshots are generated at regular intervals by the current primary node and stored under the directory specified via the ``--snapshot-dir`` CLI option (defaults to ``snapshots/``). The transaction interval at which snapshots are generated is specified via the ``--snapshot-tx-interval`` CLI option (defaults to no snapshot).
 

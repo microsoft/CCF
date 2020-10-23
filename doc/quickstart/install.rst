@@ -33,7 +33,7 @@ CCF releases are available on the `GitHub repository release page <https://githu
 Confidential Consortium Framework
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The CCF debian package (``ccf_<version>_amd64.deb``) contains the libraries and utilities to start a CCF service and build CCF applications. CCF can be installed as follows:
+The CCF Debian package (``ccf_<version>_amd64.deb``) contains the libraries and utilities to start a CCF service and build CCF applications. CCF can be installed as follows:
 
 .. code-block:: bash
 
