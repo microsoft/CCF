@@ -94,7 +94,6 @@ namespace aft
     std::chrono::milliseconds election_timeout;
     std::chrono::milliseconds view_change_timeout;
     size_t sig_tx_interval;
-    std::chrono::milliseconds sig_ms_interval;
 
     // Configurations
     std::list<Configuration> configurations;
@@ -144,7 +143,6 @@ namespace aft
       std::chrono::milliseconds election_timeout_,
       std::chrono::milliseconds view_change_timeout_,
       size_t sig_tx_interval_ = 0,
-      size_t sig_ms_interval_ = 0,
       bool public_only_ = false) :
       consensus_type(consensus_type_),
       store(std::move(store_)),
@@ -162,7 +160,6 @@ namespace aft
       election_timeout(election_timeout_),
       view_change_timeout(view_change_timeout_),
       sig_tx_interval(sig_tx_interval_),
-      sig_ms_interval(std::chrono::milliseconds(sig_ms_interval_)),
       public_only(public_only_),
 
       distrib(0, (int)election_timeout_.count() / 2),
@@ -538,8 +535,8 @@ namespace aft
           // We have not seen a request executed within an expected period of
           // time. We should invoke a view-change.
           //
-          // View-changes have not been implemented yet.
-          LOG_FAIL_FMT(
+          // View-changes have not been implemented yet, so we should throw.
+          throw std::logic_error(
             "Request not executed in time. View-changes not yet implemented");
         }
       }
@@ -622,10 +619,10 @@ namespace aft
 
       constexpr auto wait_factor = 10;
       std::chrono::milliseconds expire_time = last_sig_time +
-        std::chrono::milliseconds(sig_ms_interval.count() * wait_factor);
+        std::chrono::milliseconds(view_change_timeout.count() * wait_factor);
 
       // Check if we are waiting too long since the last signature
-      if (sig_ms_interval != std::chrono::milliseconds(0) && expire_time < time)
+      if (expire_time < time)
       {
         LOG_FAIL_FMT(
           "Timeout waiting for global commit, last_sig_seqno:{}, last_idx:{}",

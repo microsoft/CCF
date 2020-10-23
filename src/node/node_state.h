@@ -1652,7 +1652,6 @@ namespace ccf
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         std::chrono::milliseconds(consensus_config.pbft_view_change_timeout),
         sig_tx_interval,
-        sig_ms_interval,
         public_only);
 
       consensus = std::make_shared<RaftConsensusType>(
