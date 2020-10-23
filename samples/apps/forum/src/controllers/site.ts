@@ -148,11 +148,12 @@ function isLoggedIn() {
   }
 
   async function retrieve(url, method, body) {
+    console.log(window.jwt)
     const response = await fetch(url, {
         method: method,
         headers: {
             'content-type': 'application/json',
-            'authorization': 'Bearer ' + jwt,
+            'authorization': 'Bearer ' + window.jwt,
         },
         body: body ? JSON.stringify(body) : undefined
     })
@@ -383,8 +384,21 @@ ${HEADER_HTML}
 
   <div class="start-info">
     <h1>Confidential Forum</h1>
-    <p class="lead">Blabla<br>Blablabla.</p>
+    <p class="lead">
+    This is a simple example application written in TypeScript for the <a href="http://github.com/microsoft/ccf">Confidential Consortium Framework</a>.
+    </p>
   </div>
+  <ol>
+  <li>
+    <a href="/app/site/polls/create">Create Polls</a> by providing a list of <i>Name</i>, <i>Type</i>, where <i>Type</i> is one of <b>number</b>, <b>string</b>.
+  </li>
+  <li>
+    <a href="/app/site/opinions/submit">Submit Opinions</a> as a list of <i>Topic Name</i>, <i>Value</i>.
+  </li>
+  <li>
+    Once enough users have posted opinions about a topic, compare <a href="/app/site/view">your opinion to the consensus</a>.
+  </li>
+  </ol>
 
 </main>
 
@@ -396,9 +410,12 @@ ${HEADER_HTML}
 
 <main role="main" class="container">
 
-    <textarea id="input-polls" rows="10" cols="70">Topic,Opinion Type
-My Topic,string
-My other topic,number</textarea>
+    <textarea id="input-polls" rows="10" cols="70"
+    class="text-monospace"
+    placeholder="Topic, Opinion Type
+Foo  , string
+Bar  , number"
+    ></textarea>
     <br />
     <button id="create-polls-btn" class="btn btn-primary">Create Polls</button>
 
@@ -431,9 +448,12 @@ ${HEADER_HTML}
 
 <main role="main" class="container">
 
-    <textarea id="input-opinions" rows="10" cols="70">Topic,Opinion
-My Topic,abc
-My other topic,1.4</textarea>
+    <textarea id="input-opinions" rows="10" cols="70"
+    class="text-monospace"
+    placeholder="Topic, Opinion
+Foo  , abc
+Bar  , 1.5"
+    ></textarea>
     <br />
     <button id="submit-opinions-btn" class="btn btn-primary">Submit Opinions</button>
 
@@ -480,6 +500,7 @@ ${HEADER_HTML}
 
 <script>
 async function main() {
+    await initUser()
     const polls = await getPolls()
     const topics = Object.keys(polls)
 
