@@ -408,6 +408,24 @@ ${HEADER_HTML}
 ${FOOTER_HTML}
 `
 
+const SAMPLE_POLLS = `\`"Topic","Opinion Type"
+
+"Contoso, Ltd - Country of Risk",string
+"Woodgrove Bank - Country of Risk",string
+"Proseware - Country of Risk",string
+"Fabrikam - Country of Risk",string
+
+"Contoso, Ltd - 1Y CDS Spread",number
+"Woodgrove Bank - 1Y CDS Spread",number
+"Proseware - 1Y CDS Spread",number
+"Fabrikam - 1Y CDS Spread",number
+
+"Contoso, Ltd - 3Y CDS Spread",number
+"Woodgrove Bank - 3Y CDS Spread",number
+"Proseware - 3Y CDS Spread",number
+"Fabrikam - 3Y CDS Spread",number
+\``
+
 const CREATE_POLLS_HTML = `
 ${HEADER_HTML}
 
@@ -421,6 +439,7 @@ Bar  , number"
     ></textarea>
     <br />
     <button id="create-polls-btn" class="btn btn-primary">Create Polls</button>
+    <button id="sample-polls-btn" class="btn btn-info">Load Sample Polls</button>
 
 </main>
 
@@ -441,10 +460,29 @@ $('#create-polls-btn').addEventListener('click', async () => {
     $('#input-polls').value = ''
 })
 
+$('#sample-polls-btn').addEventListener('click', async () => {
+    $('#input-polls').value = ${SAMPLE_POLLS}
+})
 </script>
 
 ${FOOTER_HTML}
 `
+
+const SAMPLE_OPINIONS = `\`"Topic","Opinion"
+
+"Contoso, Ltd - Country of Risk",RED
+"Woodgrove Bank - Country of Risk",RED
+"Proseware - Country of Risk",RED
+"Fabrikam - Country of Risk",BLU
+"Contoso, Ltd - 1Y CDS Spread",145
+Woodgrove Bank - 1Y CDS Spread,148
+Proseware - 1Y CDS Spread,144
+Fabrikam - 1Y CDS Spread,270
+"Contoso, Ltd - 3Y CDS Spread",153
+Woodgrove Bank - 3Y CDS Spread,159
+Proseware - 3Y CDS Spread,156
+Fabrikam - 3Y CDS Spread,380
+\``
 
 const SUBMIT_OPINIONS_HTML = `
 ${HEADER_HTML}
@@ -459,6 +497,7 @@ Bar  , 1.5"
     ></textarea>
     <br />
     <button id="submit-opinions-btn" class="btn btn-primary">Submit Opinions</button>
+    <button id="sample-opinions-btn" class="btn btn-info">Load Sample Opinions</button>
 
 </main>
 
@@ -481,6 +520,10 @@ $('#submit-opinions-btn').addEventListener('click', async () => {
     }
     window.alert('Successfully submitted opinions.')
     $('#input-opinions').value = ''
+})
+
+$('#sample-opinions-btn').addEventListener('click', async () => {
+    $('#input-opinions').value = ${SAMPLE_OPINIONS}
 })
 
 </script>
