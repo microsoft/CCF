@@ -93,6 +93,8 @@ namespace aft
     std::chrono::milliseconds request_timeout;
     std::chrono::milliseconds election_timeout;
     std::chrono::milliseconds view_change_timeout;
+    size_t sig_tx_interval;
+    std::chrono::milliseconds sig_ms_interval;
 
     // Configurations
     std::list<Configuration> configurations;
@@ -141,6 +143,8 @@ namespace aft
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
       std::chrono::milliseconds view_change_timeout_,
+      size_t sig_tx_interval_ = 0,
+      size_t sig_ms_interval_ = 0,
       bool public_only_ = false) :
       consensus_type(consensus_type_),
       store(std::move(store_)),
@@ -157,6 +161,8 @@ namespace aft
       request_timeout(request_timeout_),
       election_timeout(election_timeout_),
       view_change_timeout(view_change_timeout_),
+      sig_tx_interval(sig_tx_interval_),
+      sig_ms_interval(std::chrono::milliseconds(sig_ms_interval_)),
       public_only(public_only_),
 
       distrib(0, (int)election_timeout_.count() / 2),
@@ -527,16 +533,13 @@ namespace aft
                       .get_current_time_offset();
         request_tracker->tick(time);
 
-        auto oldest_entry = request_tracker->oldest_entry();
-        if (
-          oldest_entry.has_value() &&
-          oldest_entry.value() + view_change_timeout < time)
+        if (is_follower() && has_bft_timeout_occurred(time))
         {
           // We have not seen a request executed within an expected period of
           // time. We should invoke a view-change.
           //
-          // View-changes have not been implemented yet, so we should throw.
-          throw std::logic_error(
+          // View-changes have not been implemented yet.
+          LOG_FAIL_FMT(
             "Request not executed in time. View-changes not yet implemented");
         }
       }
@@ -592,6 +595,61 @@ namespace aft
       // balance out total batch size across batch window
       batch_window_sum += (batch_size - batch_avg);
       entries_batch_size = std::max((batch_window_sum / batch_window_size), 1);
+    }
+
+    bool has_bft_timeout_occurred(std::chrono::milliseconds time)
+    {
+      auto oldest_entry = request_tracker->oldest_entry();
+      kv::Consensus::SeqNo last_sig_seqno;
+      std::chrono::milliseconds last_sig_time;
+      std::tie(last_sig_seqno, last_sig_time) =
+        request_tracker->get_seqno_time_last_request();
+
+      if (
+        view_change_timeout != std::chrono::milliseconds(0) &&
+        oldest_entry.has_value() &&
+        oldest_entry.value() + view_change_timeout < time)
+      {
+        LOG_FAIL_FMT("Timeout waiting for request to be executed");
+        return true;
+      }
+
+      // Check if any requests were added to the ledger since the last signature
+      if (last_sig_seqno >= state->last_idx)
+      {
+        return false;
+      }
+
+      constexpr auto wait_factor = 10;
+      std::chrono::milliseconds expire_time = last_sig_time +
+        std::chrono::milliseconds(sig_ms_interval.count() * wait_factor);
+
+      // Check if we are waiting too long since the last signature
+      if (sig_ms_interval != std::chrono::milliseconds(0) && expire_time < time)
+      {
+        LOG_FAIL_FMT(
+          "Timeout waiting for global commit, last_sig_seqno:{}, last_idx:{}",
+          last_sig_seqno,
+          state->last_idx);
+        return true;
+      }
+
+      // Check if there have been too many entried since the last signature
+      if (
+        sig_tx_interval != 0 &&
+        last_sig_seqno + sig_tx_interval * wait_factor <
+          static_cast<size_t>(state->last_idx))
+      {
+        LOG_FAIL_FMT(
+          "Too many transactions occurred since last signature, "
+          "last_sig_seqno:{}, "
+          "last_idx:{}",
+          last_sig_seqno,
+          state->last_idx);
+        return true;
+      }
+
+      return false;
     }
 
     Term get_term_internal(Index idx)
@@ -888,6 +946,10 @@ namespace aft
 
           case kv::DeserialiseSuccess::PASS_NONCES:
           {
+            request_tracker->insert_signed_request(
+              state->last_idx,
+              threading::ThreadMessaging::thread_messaging
+                .get_current_time_offset());
             break;
           }
 
