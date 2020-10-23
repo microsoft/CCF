@@ -77,7 +77,7 @@ namespace http
       }
       else
       {
-        constexpr auto read_block_size = 16384;
+        constexpr auto read_block_size = 4096;
         auto buf = read(read_block_size, false);
         auto data = buf.data();
         auto size = buf.size();

@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
 import infra.network
+import http
 import time
 import sys
 import json
@@ -70,6 +71,12 @@ def run(args):
 
         primary, backups = network.find_nodes()
         max_len = len(str(len(backups)))
+
+        # To be sure, confirm that the app frontend is open on each node
+        for node in [primary, *backups]:
+            with node.client("user0") as c:
+                r = c.get("/app/commit")
+                assert r.status_code == http.HTTPStatus.OK, r.status_code
 
         def pad_node_id(nid):
             return (f"{{:{max_len}d}}").format(nid)

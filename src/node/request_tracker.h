@@ -116,6 +116,22 @@ namespace aft
         hashes_without_requests_list.is_empty();
     }
 
+    void insert_signed_request(
+      kv::Consensus::SeqNo seqno, std::chrono::milliseconds time)
+    {
+      if (seqno > seqno_last_signature)
+      {
+        seqno_last_signature = seqno;
+        time_last_signature = time;
+      }
+    }
+
+    std::tuple<kv::Consensus::SeqNo, std::chrono::milliseconds>
+    get_seqno_time_last_request() const
+    {
+      return {seqno_last_signature, time_last_signature};
+    }
+
   private:
     std::multiset<Request*, RequestComp> requests;
     snmalloc::DLList<Request, std::nullptr_t, true> requests_list;
@@ -123,6 +139,10 @@ namespace aft
     std::multiset<Request*, RequestComp> hashes_without_requests;
     snmalloc::DLList<Request, std::nullptr_t, true>
       hashes_without_requests_list;
+
+    kv::Consensus::SeqNo seqno_last_signature = -1;
+    std::chrono::milliseconds time_last_signature =
+      std::chrono::milliseconds(0);
 
     void insert(
       const crypto::Sha256Hash& hash,

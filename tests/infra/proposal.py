@@ -32,6 +32,8 @@ class Proposal:
         proposal_id,
         state,
         has_proposer_voted_for=True,
+        view=None,
+        seqno=None,
     ):
         self.proposer_id = proposer_id
         self.proposal_id = proposal_id
@@ -39,6 +41,8 @@ class Proposal:
         self.has_proposer_voted_for = has_proposer_voted_for
         self.votes_for = 1 if self.has_proposer_voted_for else 0
         self.vote_for = {"ballot": {"text": "return true"}}
+        self.view = view
+        self.seqno = seqno
 
     def increment_votes_for(self):
         self.votes_for += 1
