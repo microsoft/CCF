@@ -148,7 +148,6 @@ function isLoggedIn() {
   }
 
   async function retrieve(url, method, body) {
-    console.log(window.jwt)
     const response = await fetch(url, {
         method: method,
         headers: {
