@@ -7,6 +7,7 @@
 #include "tls/hash.h"
 #include "tls/tls.h"
 #include "tls/verifier.h"
+#include "view_change.h"
 
 namespace ccf
 {
@@ -73,6 +74,8 @@ namespace ccf
       crypto::Sha256Hash& root,
       uint32_t sig_size,
       uint8_t* sig) = 0;
+
+    virtual void sign_view_change(ViewChange& view_change) = 0;
   };
 
   class ProgressTrackerStoreAdapter : public ProgressTrackerStore
@@ -168,6 +171,11 @@ namespace ccf
       tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
       return from_cert->verify_hash(
         root.h.data(), root.h.size(), sig, sig_size);
+    }
+
+    void sign_view_change(ViewChange& view_change) override
+    {
+      view_change.signature = {1};
     }
 
   private:

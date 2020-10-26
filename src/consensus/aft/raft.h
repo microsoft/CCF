@@ -535,9 +535,24 @@ namespace aft
           // We have not seen a request executed within an expected period of
           // time. We should invoke a view-change.
           //
-          // View-changes have not been implemented yet, so we should throw.
-          throw std::logic_error(
-            "Request not executed in time. View-changes not yet implemented");
+          auto progress_tracker = store->get_progress_tracker();
+          auto vc = progress_tracker->get_view_change_message();
+
+          size_t vc_size = vc->get_serialized_size();
+
+          ViewChangeMsg vcm = {{bft_view_change, state->my_node_id}, vc_size};
+
+          std::vector<uint8_t> m;
+          m.resize(sizeof(ViewChangeMsg) + vc_size);
+
+          uint8_t* data = m.data();
+          size_t size = m.size();
+
+          serialized::write(data, size, reinterpret_cast<uint8_t*>(&vcm), sizeof(vcm));
+          vc->serialize(data, size);
+          CCF_ASSERT_FMT(size == 0, "Did not write to everything");
+
+          // TODO: send to all other replicas
         }
       }
 

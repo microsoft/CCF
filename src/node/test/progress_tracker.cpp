@@ -24,6 +24,8 @@ public:
     verify_signature,
     bool(kv::NodeId, crypto::Sha256Hash&, uint32_t, uint8_t*),
     override);
+
+  MAKE_MOCK1(sign_view_change, void(ccf::ViewChange& view_change), override);
 };
 
 void ordered_execution(
@@ -275,4 +277,199 @@ TEST_CASE("Request tracker")
     REQUIRE(std::get<0>(r) == 2);
     REQUIRE(std::get<1>(r) == std::chrono::milliseconds(2));
   }
+}
+
+TEST_CASE("View Changes")
+{
+  using trompeloeil::_;
+
+  uint32_t my_node_id = 0;
+  auto store = std::make_unique<StoreMock>();
+  StoreMock& store_mock = *store.get();
+  ccf::ProgressTracker pt(std::move(store), my_node_id);
+
+  kv::Consensus::View view = 0;
+  kv::Consensus::SeqNo seqno = 42;
+  uint32_t node_count = 4;
+  uint32_t node_count_quorum =
+    2; // Takes into account that counting starts at 0
+  crypto::Sha256Hash root;
+  root.h.fill(1);
+  ccf::Nonce nonce;
+  auto h = pt.hash_data(nonce);
+  ccf::Nonce hashed_nonce;
+  std::copy(h.h.begin(), h.h.end(), hashed_nonce.h.begin());
+  std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
+
+  INFO("find first view-change message");
+  {
+    REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
+      .RETURN(true)
+      .TIMES(AT_LEAST(2));
+    REQUIRE_CALL(store_mock, sign_view_change(_)).TIMES(AT_LEAST(2));
+    auto result =
+      pt.record_primary({view, seqno}, 0, root, hashed_nonce, node_count);
+    REQUIRE(result == kv::TxHistory::Result::OK);
+
+    for (uint32_t i = 1; i < node_count; ++i)
+    {
+      auto result = pt.add_signature(
+        {view, seqno},
+        i,
+        MBEDTLS_ECDSA_MAX_LEN,
+        sig,
+        hashed_nonce,
+        node_count,
+        false);
+      REQUIRE(
+        ((result == kv::TxHistory::Result::OK && i != node_count_quorum) ||
+         (result == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK &&
+          i == node_count_quorum)));
+
+      if (i < 2)
+      {
+        CHECK_THROWS(pt.get_view_change_message());
+      }
+      else
+      {
+        auto vc = pt.get_view_change_message();
+        REQUIRE(vc != nullptr);
+        REQUIRE(vc->view == view);
+        REQUIRE(vc->seqno == seqno);
+        REQUIRE(vc->root == root);
+      }
+    }
+  }
+
+  INFO("Update latest prepared");
+  {
+    kv::Consensus::SeqNo new_seqno = 84;
+
+    REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
+      .RETURN(true)
+      .TIMES(AT_LEAST(2));
+    REQUIRE_CALL(store_mock, sign_view_change(_)).TIMES(AT_LEAST(2));
+    auto result =
+      pt.record_primary({view, new_seqno}, 0, root, hashed_nonce, node_count);
+    REQUIRE(result == kv::TxHistory::Result::OK);
+
+    for (uint32_t i = 1; i < node_count; ++i)
+    {
+      auto result = pt.add_signature(
+        {view, new_seqno},
+        i,
+        MBEDTLS_ECDSA_MAX_LEN,
+        sig,
+        hashed_nonce,
+        node_count,
+        false);
+      REQUIRE(
+        ((result == kv::TxHistory::Result::OK && i != node_count_quorum) ||
+         (result == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK &&
+          i == node_count_quorum)));
+
+      if (i < 2)
+      {
+        auto vc = pt.get_view_change_message();
+        REQUIRE(vc != nullptr);
+        REQUIRE(vc->seqno == seqno);
+      }
+      else
+      {
+        auto vc = pt.get_view_change_message();
+        REQUIRE(vc != nullptr);
+        REQUIRE(vc->seqno == new_seqno);
+      }
+    }
+    seqno = new_seqno;
+  }
+
+  INFO("Update older prepared");
+  {
+    kv::Consensus::SeqNo new_seqno = 21;
+
+    REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
+      .RETURN(true)
+      .TIMES(AT_LEAST(2));
+    REQUIRE_CALL(store_mock, sign_view_change(_)).TIMES(AT_LEAST(2));
+    auto result =
+      pt.record_primary({view, new_seqno}, 0, root, hashed_nonce, node_count);
+    REQUIRE(result == kv::TxHistory::Result::OK);
+
+    for (uint32_t i = 1; i < node_count; ++i)
+    {
+      auto result = pt.add_signature(
+        {view, new_seqno},
+        i,
+        MBEDTLS_ECDSA_MAX_LEN,
+        sig,
+        hashed_nonce,
+        node_count,
+        false);
+      REQUIRE(
+        ((result == kv::TxHistory::Result::OK && i != node_count_quorum) ||
+         (result == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK &&
+          i == node_count_quorum)));
+
+      auto vc = pt.get_view_change_message();
+      REQUIRE(vc != nullptr);
+      REQUIRE(vc->seqno == seqno);
+    }
+  }
+}
+
+TEST_CASE("Serialization")
+{
+  std::vector<uint8_t> serialized;
+  INFO("view-change serialization");
+  {
+    ccf::ViewChange v;
+    v.view = 1;
+    v.seqno = 2;
+    v.root.h.fill(3);
+    
+    for (uint32_t i = 10; i < 110; i += 10)
+    {
+      ccf::Nonce n;
+      n.h.fill(i+2);
+      v.signatures.push_back({{static_cast<uint8_t>(i)}, i + 1, n});
+    }
+
+    v.signature = {5};
+    serialized.resize(v.get_serialized_size());
+
+    uint8_t* data = serialized.data();
+    size_t size = serialized.size();
+
+    v.serialize(data, size);
+    REQUIRE(size == 0);
+  }
+
+  INFO("view-change deserialization");
+  {
+    const uint8_t* data = serialized.data();
+    size_t size = serialized.size();
+    ccf::ViewChange v = ccf::ViewChange::deserialize(data, size);
+    REQUIRE(v.view == 1);
+    REQUIRE(v.seqno == 2);
+    crypto::Sha256Hash h;
+    h.h.fill(3);
+    REQUIRE(v.root.h == h.h);
+
+    REQUIRE(v.signatures.size() == 10);
+    for (uint32_t i = 1; i < 11; ++i)
+    {
+      ccf::Nonce n;
+      n.h.fill(i*10+2);
+      ccf::NodeSignature& ns = v.signatures[i-1];
+      REQUIRE(ns.sig.size() == 1);
+      REQUIRE(ns.sig[0] == i*10);
+      REQUIRE(ns.node == i*10+1);
+      REQUIRE(ns.hashed_nonce.h == n.h);
+    }
+
+    REQUIRE(v.signature.size() == 1);
+    REQUIRE(v.signature[0] == 5);
+  }
+
 }

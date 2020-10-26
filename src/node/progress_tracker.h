@@ -8,6 +8,7 @@
 #include "kv/tx.h"
 #include "nodes.h"
 #include "progress_tracker_types.h"
+#include "view_change.h"
 
 #include <array>
 #include <vector>
@@ -82,6 +83,7 @@ namespace ccf
         sig.size());
       sig_vec.assign(sig.begin(), sig.begin() + signature_size);
 
+      auto& key = it->first;
       auto& cert = it->second;
       CCF_ASSERT(
         node_id != id ||
@@ -97,7 +99,7 @@ namespace ccf
       cert.sigs.insert(std::pair<kv::NodeId, BftNodeSignature>(
         node_id, std::move(bft_node_sig)));
 
-      if (can_send_sig_ack(cert, node_count))
+      if (can_send_sig_ack(cert, key.tx_id, node_count))
       {
         if (is_primary)
         {
@@ -207,6 +209,7 @@ namespace ccf
           std::pair<kv::NodeId, BftNodeSignature>(node_id, bft_node_sig));
       }
 
+      auto& key = it->first;
       auto& cert = it->second;
       if (cert.root != root)
       {
@@ -215,7 +218,7 @@ namespace ccf
         throw ccf::ccf_logic_error("We have proof someone is being dishonest");
       }
 
-      if (node_count > 0 && can_send_sig_ack(cert, node_count))
+      if (node_count > 0 && can_send_sig_ack(cert, key.tx_id, node_count))
       {
         return kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK;
       }
@@ -525,10 +528,35 @@ namespace ccf
       return highest_commit_level;
     }
 
+    std::unique_ptr<ViewChange> get_view_change_message()
+    {
+      auto it = certificates.find(CertKey(highest_prepared_level));
+      if (it == certificates.end())
+      {
+        throw ccf::ccf_logic_error(fmt::format(
+          "Invalid prepared level, view:{}, seqno:{}",
+          highest_prepared_level.term,
+          highest_prepared_level.version));
+      }
+
+      auto& cert = it->second;
+      auto m = std::make_unique<ViewChange>(
+        highest_prepared_level.term, highest_prepared_level.version, cert.root);
+      
+      for (const auto& sig : cert.sigs)
+      {
+        m->signatures.push_back(sig.second);
+      }
+
+      store->sign_view_change(*m);
+      return m;
+    }
+
   private:
     kv::NodeId id;
     std::shared_ptr<tls::Entropy> entropy;
     kv::Consensus::SeqNo highest_commit_level = 0;
+    kv::TxID highest_prepared_level = {0,0};
 
     std::map<CertKey, CommitCert> certificates;
 
@@ -591,12 +619,22 @@ namespace ccf
       return 2 * f + 1;
     }
 
-    bool can_send_sig_ack(CommitCert& cert, uint32_t node_count)
+    bool can_send_sig_ack(CommitCert& cert, const kv::TxID& tx_id, uint32_t node_count)
     {
       if (
         cert.sigs.size() >= get_message_threshold(node_count) &&
         !cert.ack_sent && cert.have_primary_signature)
       {
+        if (tx_id.version > highest_prepared_level.version)
+        {
+          CCF_ASSERT_FMT(
+            tx_id.term >= highest_prepared_level.term,
+            "Prepared terms are moving backwards new_term:{}, current_term:{}",
+            tx_id.term,
+            highest_prepared_level.term);
+          highest_prepared_level = tx_id;
+        }
+        
         cert.ack_sent = true;
         return true;
       }

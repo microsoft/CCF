@@ -149,7 +149,8 @@ namespace aft
 
     bft_request,
     bft_signature_received_ack,
-    bft_nonce_reveal
+    bft_nonce_reveal,
+    bft_view_change
   };
 
 #pragma pack(push, 1)
@@ -195,6 +196,11 @@ namespace aft
     Term term;
     Index idx;
     Nonce nonce;
+  };
+
+  struct ViewChangeMsg : RaftHeader
+  {
+    size_t size;
   };
 
   struct RequestVote : RaftHeader
