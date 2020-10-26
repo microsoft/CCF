@@ -12,6 +12,6 @@ namespace enclave
     virtual ~Endpoint() {}
 
     virtual void recv(const uint8_t* data, size_t size) = 0;
-    virtual void send(const std::vector<uint8_t>& data) = 0;
+    virtual void send(std::vector<uint8_t>&& data) = 0;
   };
 }

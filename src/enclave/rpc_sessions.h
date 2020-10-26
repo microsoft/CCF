@@ -90,7 +90,7 @@ namespace enclave
       sessions.insert(std::make_pair(id, std::move(session)));
     }
 
-    bool reply_async(size_t id, const std::vector<uint8_t>& data) override
+    bool reply_async(size_t id, std::vector<uint8_t>&& data) override
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -103,7 +103,7 @@ namespace enclave
 
       LOG_DEBUG_FMT("Replying to session {}", id);
 
-      search->second->send(data);
+      search->second->send(std::move(data));
       return true;
     }
 
