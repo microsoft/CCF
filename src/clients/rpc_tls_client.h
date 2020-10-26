@@ -244,9 +244,9 @@ public:
       if (is_ws)
       {
         auto buf = read(ws::INITIAL_READ);
-        size_t n = ws_parser.consume(buf);
+        size_t n = ws_parser.consume(buf.data(), buf.size());
         buf = read(n);
-        n = ws_parser.consume(buf);
+        n = ws_parser.consume(buf.data(), buf.size());
         assert(n == ws::INITIAL_READ);
       }
       else
