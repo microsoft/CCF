@@ -17,11 +17,9 @@ import {
 import * as _ from 'lodash-es'
 import * as math from 'mathjs'
 
-import { 
+import {
     ErrorResponse, ValidateErrorResponse, ValidateErrorStatus,
-    BadRequestError,
-    ForbiddenError,
-    NotFoundError
+    BadRequestError, ForbiddenError, NotFoundError
 } from "../error_handler"
 import { parseAuthToken } from "../util"
 import * as ccf from "../types/ccf"
