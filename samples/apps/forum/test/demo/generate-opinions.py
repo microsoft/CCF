@@ -6,15 +6,18 @@ import csv
 import random
 
 
+COUNTRIES = ("Freedonia", "Sylvania")
+
+
 def country(topic):
     """
     Return a fictional country code, consensus
     in most cases, except for Contoso.
     """
     if topic.startswith("Contoso"):
-        return random.choice(("RED", "BLU"))
+        return random.choice(COUNTRIES)
     else:
-        return "RED"
+        return COUNTRIES[0]
 
 
 def spread(topic):

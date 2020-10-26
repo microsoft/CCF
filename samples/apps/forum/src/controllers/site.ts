@@ -288,7 +288,9 @@ function isLoggedIn() {
           xaxis: {
               zeroline: false,
               showgrid: false,
-              tickvals: xtickvals
+              tickvals: xtickvals,
+              tickangle: 45,
+              tickformat: ".1f",
           },
           yaxis: {
               visible: false,
@@ -426,6 +428,22 @@ $('#create-polls-btn').addEventListener('click', async () => {
 ${FOOTER_HTML}
 `
 
+const SAMPLE_OPINIONS = `\`"Topic","Opinion"
+
+"Contoso, Ltd - Country of Risk",Freedonia
+"Woodgrove Bank - Country of Risk",Freedonia
+"Proseware - Country of Risk",Freedonia
+"Fabrikam - Country of Risk",Snowdonia
+"Contoso, Ltd - 1Y CDS Spread",145
+Woodgrove Bank - 1Y CDS Spread,148
+Proseware - 1Y CDS Spread,144
+Fabrikam - 1Y CDS Spread,270
+"Contoso, Ltd - 3Y CDS Spread",153
+Woodgrove Bank - 3Y CDS Spread,159
+Proseware - 3Y CDS Spread,156
+Fabrikam - 3Y CDS Spread,380
+\``
+
 const SUBMIT_OPINIONS_HTML = `
 ${HEADER_HTML}
 
@@ -469,7 +487,7 @@ ${HEADER_HTML}
 <style>
 .plot {
     width: 300px;
-    height: 150px;
+    height: 250px;
     float: left;
 }
 </style>
