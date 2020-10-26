@@ -11,6 +11,7 @@
     },
     "routes": {
         "routesDir": "build",
-        "middlewareTemplate": "tsoa-support/routes.ts.tmpl"
+        "middlewareTemplate": "tsoa-support/routes.ts.tmpl",
+        "authenticationModule": "./src/authentication.ts"
     }
 }
