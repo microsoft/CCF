@@ -442,7 +442,8 @@ namespace enclave
         size_t index = 0;
         while (index < packed.size())
         {
-          const auto next_next = parser.consume(packed.data() + index, next_read);
+          const auto next_next =
+            parser.consume(packed.data() + index, next_read);
           index += next_read;
           next_read = next_next;
         }
