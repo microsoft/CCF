@@ -44,7 +44,7 @@ async function main() {
         }
         console.log('Submitting opinions for user ' + user)
         try {
-            await bent('PUT', 204)(`${ENDPOINT_URL}/all`, req, getAuth(jwt))
+            await bent('PUT', 204)(`${ENDPOINT_URL}`, req, getAuth(jwt))
         } catch (e) {
             console.error('Error: ' + await e.text())
             process.exit(1)

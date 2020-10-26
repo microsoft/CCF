@@ -152,7 +152,7 @@ function isLoggedIn() {
         method: method,
         headers: {
             'content-type': 'application/json',
-            'authorization': 'Bearer ' + jwt,
+            'authorization': 'Bearer ' + window.jwt,
         },
         body: body ? JSON.stringify(body) : undefined
     })
@@ -288,7 +288,9 @@ function isLoggedIn() {
           xaxis: {
               zeroline: false,
               showgrid: false,
-              tickvals: xtickvals
+              tickvals: xtickvals,
+              tickangle: 45,
+              tickformat: ".1f",
           },
           yaxis: {
               visible: false,
@@ -315,6 +317,7 @@ function isLoggedIn() {
           title: topic,
           margin: margin,
           yaxis: {
+            visible: false,
             showgrid: false,
           },
       }, {displayModeBar: false})
@@ -383,24 +386,64 @@ ${HEADER_HTML}
 
   <div class="start-info">
     <h1>Confidential Forum</h1>
-    <p class="lead">Blabla<br>Blablabla.</p>
+    <p class="lead">
+    This is a simple example application written in TypeScript for the <a href="http://github.com/microsoft/ccf">Confidential Consortium Framework</a>.
+    </p>
   </div>
+  <ol>
+  <li>
+    <a href="/app/site/polls/create">Create Polls</a> by providing a list of <i>Name</i>, <i>Type</i>, where <i>Type</i> is one of <b>number</b>, <b>string</b>.
+  </li>
+  <li>
+    <a href="/app/site/opinions/submit">Submit Opinions</a> as a list of <i>Topic Name</i>, <i>Value</i>.
+  </li>
+  <li>
+    Once enough users have posted opinions about a topic, compare <a href="/app/site/view">your opinion to the consensus</a>.
+  </li>
+  </ol>
 
 </main>
 
 ${FOOTER_HTML}
 `
 
+const SAMPLE_POLLS = `\`"Topic","Opinion Type"
+
+"Contoso, Ltd - Country of Risk",string
+"Woodgrove Bank - Country of Risk",string
+"Proseware - Country of Risk",string
+"Fabrikam - Country of Risk",string
+
+"Contoso, Ltd - 1Y CDS Spread",number
+"Woodgrove Bank - 1Y CDS Spread",number
+"Proseware - 1Y CDS Spread",number
+"Fabrikam - 1Y CDS Spread",number
+
+"Contoso, Ltd - 3Y CDS Spread",number
+"Woodgrove Bank - 3Y CDS Spread",number
+"Proseware - 3Y CDS Spread",number
+"Fabrikam - 3Y CDS Spread",number
+\``
+
 const CREATE_POLLS_HTML = `
 ${HEADER_HTML}
 
 <main role="main" class="container">
 
-    <textarea id="input-polls" rows="10" cols="70">Topic,Opinion Type
-My Topic,string
-My other topic,number</textarea>
+<div class="alert alert-success alert-dismissible fade">
+    Polls created successfully.
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+</div>
+
+    <textarea id="input-polls" rows="10" cols="70"
+    class="text-monospace"
+    placeholder="Topic, Opinion Type
+Foo  , string
+Bar  , number"
+    ></textarea>
     <br />
     <button id="create-polls-btn" class="btn btn-primary">Create Polls</button>
+    <button id="sample-polls-btn" class="btn btn-info">Load Sample Polls</button>
 
 </main>
 
@@ -417,25 +460,53 @@ $('#create-polls-btn').addEventListener('click', async () => {
         window.alert(e)
         return
     }
-    window.alert('Successfully created polls.')
+    $('.alert').classList.add("show");
     $('#input-polls').value = ''
 })
 
+$('#sample-polls-btn').addEventListener('click', async () => {
+    $('#input-polls').value = ${SAMPLE_POLLS}
+})
 </script>
 
 ${FOOTER_HTML}
 `
+
+const SAMPLE_OPINIONS = `\`"Topic","Opinion"
+
+"Contoso, Ltd - Country of Risk",Freedonia
+"Woodgrove Bank - Country of Risk",Freedonia
+"Proseware - Country of Risk",Freedonia
+"Fabrikam - Country of Risk",Snowdonia
+"Contoso, Ltd - 1Y CDS Spread",145
+Woodgrove Bank - 1Y CDS Spread,148
+Proseware - 1Y CDS Spread,144
+Fabrikam - 1Y CDS Spread,270
+"Contoso, Ltd - 3Y CDS Spread",153
+Woodgrove Bank - 3Y CDS Spread,159
+Proseware - 3Y CDS Spread,156
+Fabrikam - 3Y CDS Spread,380
+\``
 
 const SUBMIT_OPINIONS_HTML = `
 ${HEADER_HTML}
 
 <main role="main" class="container">
 
-    <textarea id="input-opinions" rows="10" cols="70">Topic,Opinion
-My Topic,abc
-My other topic,1.4</textarea>
+<div class="alert alert-success alert-dismissible fade">
+    Opinions submitted successfully.
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+</div>
+
+    <textarea id="input-opinions" rows="10" cols="70"
+    class="text-monospace"
+    placeholder="Topic, Opinion
+Foo  , abc
+Bar  , 1.5"
+    ></textarea>
     <br />
     <button id="submit-opinions-btn" class="btn btn-primary">Submit Opinions</button>
+    <button id="sample-opinions-btn" class="btn btn-info">Load Sample Opinions</button>
 
 </main>
 
@@ -456,8 +527,12 @@ $('#submit-opinions-btn').addEventListener('click', async () => {
         window.alert(e)
         return
     }
-    window.alert('Successfully submitted opinions.')
+    $('.alert').classList.add("show");
     $('#input-opinions').value = ''
+})
+
+$('#sample-opinions-btn').addEventListener('click', async () => {
+    $('#input-opinions').value = ${SAMPLE_OPINIONS}
 })
 
 </script>
@@ -469,7 +544,7 @@ ${HEADER_HTML}
 <style>
 .plot {
     width: 300px;
-    height: 150px;
+    height: 250px;
     float: left;
 }
 </style>
@@ -480,6 +555,7 @@ ${HEADER_HTML}
 
 <script>
 async function main() {
+    await initUser()
     const polls = await getPolls()
     const topics = Object.keys(polls)
 
