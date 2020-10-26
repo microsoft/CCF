@@ -60,11 +60,11 @@ namespace aft
       return *ctx;
     }
 
-    void callback(std::vector<uint8_t>& data)
+    void callback(std::vector<uint8_t>&& data)
     {
       if (cb != nullptr)
       {
-        cb(nullptr, rid, 0, data);
+        cb(nullptr, rid, 0, std::move(data));
       }
     }
 

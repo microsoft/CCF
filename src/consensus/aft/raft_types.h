@@ -28,7 +28,7 @@ namespace aft
     void* owner,
     kv::TxHistory::RequestID caller_rid,
     int status,
-    std::vector<uint8_t>& data)>;
+    std::vector<uint8_t>&& data)>;
 
   static constexpr NodeId NoNode = std::numeric_limits<NodeId>::max();
 

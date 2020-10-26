@@ -27,7 +27,7 @@ namespace enclave
       to_host(writer_factory.create_writer_to_outside())
     {}
 
-    virtual void send_request(const std::vector<uint8_t>& data) = 0;
+    virtual void send_request(std::vector<uint8_t>&& data) = 0;
 
     void connect(
       const std::string& hostname,

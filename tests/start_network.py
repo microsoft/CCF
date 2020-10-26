@@ -75,7 +75,10 @@ def run(args):
         # To be sure, confirm that the app frontend is open on each node
         for node in [primary, *backups]:
             with node.client("user0") as c:
-                r = c.get("/app/commit")
+                if args.verbose:
+                    r = c.get("/app/commit")
+                else:
+                    r = c.get("/app/commit", log_capture=[])
                 assert r.status_code == http.HTTPStatus.OK, r.status_code
 
         def pad_node_id(nid):
