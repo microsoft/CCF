@@ -49,24 +49,30 @@ namespace http
         execution_thread, std::move(msg));
     }
 
-    void recv_(const uint8_t* data, size_t size)
+    void recv_(const uint8_t* data_, size_t size_)
     {
-      recv_buffered(data, size);
+      recv_buffered(data_, size_);
 
-      LOG_TRACE_FMT("recv called with {} bytes", size);
+      LOG_TRACE_FMT("recv called with {} bytes", size_);
 
       if (is_websocket)
       {
+        std::vector<uint8_t> buf(ws_next_read);
         while (true)
         {
-          auto r = read(ws_next_read, true);
-          if (r.empty())
+          if (ws_next_read > buf.size())
+          {
+            buf.resize(ws_next_read);
+          }
+
+          auto r = read(buf.data(), ws_next_read, true);
+          if (r == 0)
           {
             return;
           }
           else
           {
-            ws_next_read = wp.consume(r);
+            ws_next_read = wp.consume(buf.data(), r);
             if (!ws_next_read)
             {
               close();
@@ -78,50 +84,48 @@ namespace http
       else
       {
         constexpr auto read_block_size = 4096;
-        auto buf = read(read_block_size, false);
+        std::vector<uint8_t> buf(read_block_size);
         auto data = buf.data();
-        auto size = buf.size();
+        auto n_read = read(data, buf.size(), false);
 
         while (true)
         {
-          if (size == 0)
+          if (n_read == 0)
           {
             return;
           }
 
-          LOG_TRACE_FMT("Going to parse {} bytes", size);
+          LOG_TRACE_FMT("Going to parse {} bytes", n_read);
 
           try
           {
-            const auto used = p.execute(data, size);
+            const auto used = p.execute(data, n_read);
             if (used == 0)
             {
               // Parsing error
               LOG_FAIL_FMT("Failed to parse request");
               return;
             }
-            else if (used > size)
+            else if (used > n_read)
             {
               // Something has gone very wrong
               LOG_FAIL_FMT(
                 "Unexpected return result - tried to parse {} bytes, actually "
                 "parsed {}",
-                size,
+                n_read,
                 used);
               return;
             }
-            else if (used == size)
+            else if (used == n_read)
             {
               // Used all provided bytes - check if more are available
-              buf = read(read_block_size, false);
-              data = buf.data();
-              size = buf.size();
+              n_read = read(buf.data(), buf.size(), false);
             }
             else
             {
               // Used some bytes - pass over these and retry with remainder
               data += used;
-              size -= used;
+              n_read -= used;
             }
           }
           catch (const std::exception& e)
@@ -166,9 +170,9 @@ namespace http
       session_id(session_id)
     {}
 
-    void send(const std::vector<uint8_t>& data) override
+    void send(std::vector<uint8_t>&& data) override
     {
-      send_raw(data);
+      send_raw(std::move(data));
     }
 
     void handle_request(
@@ -195,7 +199,7 @@ namespace http
         {
           LOG_TRACE_FMT("Upgraded to websocket");
           is_websocket = true;
-          send_raw(upgrade_resp.value());
+          send_raw(std::move(upgrade_resp.value()));
           return;
         }
 
@@ -330,12 +334,12 @@ namespace http
       ws_response_parser(*this)
     {}
 
-    void send_request(const std::vector<uint8_t>& data) override
+    void send_request(std::vector<uint8_t>&& data) override
     {
-      send_raw(data);
+      send_raw(std::move(data));
     }
 
-    void send(const std::vector<uint8_t>&) override
+    void send(std::vector<uint8_t>&&) override
     {
       throw std::logic_error(
         "send() should not be called directly on HTTPClient");

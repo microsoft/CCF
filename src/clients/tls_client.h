@@ -160,28 +160,6 @@ public:
     return buf;
   }
 
-  void read(Buffer b)
-  {
-    for (size_t read = 0; read < b.n;)
-    {
-      auto ret = mbedtls_ssl_read(&ssl, b.p + read, b.n - read);
-      if (ret > 0)
-        read += ret;
-      else if (ret == 0)
-        throw std::logic_error("Underlying transport closed");
-      else
-        throw std::logic_error(tls::error_string(ret));
-    }
-  }
-
-  bool read_non_blocking(Buffer b)
-  {
-    if (mbedtls_ssl_get_bytes_avail(&ssl) < b.n)
-      return false;
-    read(b);
-    return true;
-  }
-
   bool bytes_available()
   {
     return mbedtls_ssl_get_bytes_avail(&ssl) > 0;
