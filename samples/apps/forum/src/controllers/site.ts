@@ -290,7 +290,7 @@ function isLoggedIn() {
               showgrid: false,
               tickvals: xtickvals,
               tickangle: 45,
-              tickformat: ".0f",
+              tickformat: ".1f",
           },
           yaxis: {
               visible: false,
@@ -474,10 +474,10 @@ ${FOOTER_HTML}
 
 const SAMPLE_OPINIONS = `\`"Topic","Opinion"
 
-"Contoso, Ltd - Country of Risk",RED
-"Woodgrove Bank - Country of Risk",RED
-"Proseware - Country of Risk",RED
-"Fabrikam - Country of Risk",BLU
+"Contoso, Ltd - Country of Risk",Freedonia
+"Woodgrove Bank - Country of Risk",Freedonia
+"Proseware - Country of Risk",Freedonia
+"Fabrikam - Country of Risk",Snowdonia
 "Contoso, Ltd - 1Y CDS Spread",145
 Woodgrove Bank - 1Y CDS Spread,148
 Proseware - 1Y CDS Spread,144
@@ -544,7 +544,7 @@ ${HEADER_HTML}
 <style>
 .plot {
     width: 300px;
-    height: 150px;
+    height: 250px;
     float: left;
 }
 </style>
