@@ -865,4 +865,18 @@ if(BUILD_TESTS)
       10000
       --use-websockets
   )
+
+  if(BUILD_END_TO_END_TESTS)
+    if("virtual" IN_LIST COMPILE_TARGETS)
+      add_test(NAME forum_app
+               COMMAND ${CMAKE_CURRENT_LIST_DIR}/samples/apps/forum/ci.sh
+      )
+
+      set_property(
+        TEST forum_app
+        APPEND
+        PROPERTY LABELS e2e
+      )
+    endif()
+  endif()
 endif()
