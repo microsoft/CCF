@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+### Fixed
+- Added `tools.cmake` to the install , which `ccf_app.cmake` depends on and was missing from the previous release. 
+
 ## [0.14.2]
 ### Changed
 - The `start_test_network.sh` script has been replaced by [`sandbox.sh`](https://microsoft.github.io/CCF/master/quickstart/test_network.html). Users wishing to override the default network config (a single node on '127.0.0.1:8000') must now explictly specify if they should be started locally (eg. `-n 'local://127.4.4.5:7000'`) or on remote machine via password-less ssh (eg. `-n 'ssh://10.0.0.1:6000'`).
