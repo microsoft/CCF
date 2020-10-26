@@ -7,7 +7,14 @@
     "spec": {
         "outputDirectory": "build",
         "specVersion": 3,
-        "basePath": "/app"
+        "basePath": "/app",
+        "securityDefinitions": {
+            "jwt": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT"
+            }
+        }
     },
     "routes": {
         "routesDir": "build",
