@@ -517,7 +517,8 @@ namespace aft
           break;
 
         case bft_view_change:
-          LOG_INFO_FMT("AAAAAAAAAAA got view change");
+          recv_view_change(data, size);
+          break;
 
         default:
         {
@@ -601,6 +602,49 @@ namespace aft
           become_candidate();
         }
       }
+    }
+
+    void recv_view_change(const uint8_t* data, size_t size)
+    {
+      ViewChangeMsg r;
+      try
+      {
+        r = channels->template recv_authenticated_with_load<ViewChangeMsg>(data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_FMT("Error in recv_view_change message");
+        LOG_DEBUG_FMT(
+          "Error in recv_view_change message: {}", err.what());
+        return;
+      }
+
+      auto node = nodes.find(r.from_node);
+      if (node == nodes.end())
+      {
+        // Ignore if we don't recognise the node.
+        LOG_FAIL_FMT(
+          "Recv nonce reveal to {} from {}: unknown node",
+          state->my_node_id,
+          r.from_node);
+        return;
+      }
+
+      LOG_INFO_FMT("AAAAAAAAAAA got view change from:{}", r.from_node);
+      ccf::ViewChange v = ccf::ViewChange::deserialize(data, size);
+      LOG_INFO_FMT(
+        "AAAAAAAAAAA got view change from:{}, view:{}", r.from_node, v.view);
+
+      /*
+            auto progress_tracker = store->get_progress_tracker();
+            CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not
+         set"); LOG_TRACE_FMT( "processing nonce_reveal, from:{} view:{},
+         seqno:{}", r.from_node, r.term, r.idx);
+            progress_tracker->add_nonce_reveal(
+              {r.term, r.idx}, r.nonce, r.from_node, node_count(), is_leader());
+
+            update_commit();
+      */
     }
 
     bool is_first_request = true;
@@ -1254,9 +1298,9 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT("Error in recv_signature_received_ack message");
+        LOG_FAIL_FMT("Error in recv_nonce_reveal message");
         LOG_DEBUG_FMT(
-          "Error in recv_signature_received_ack message: {}", err.what());
+          "Error in recv_nonce_reveal message: {}", err.what());
         return;
       }
 
