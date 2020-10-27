@@ -898,7 +898,6 @@ namespace ccf
     {
       // Setup recovery store by cloning tables of store
       recovery_store = std::make_shared<kv::Store>();
-      recovery_store->clone_schema(*network.tables);
       Signatures* recovery_signature_map =
         recovery_store->get<Signatures>(Tables::SIGNATURES);
       Nodes* recovery_nodes_map = recovery_store->get<Nodes>(Tables::NODES);

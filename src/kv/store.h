@@ -86,21 +86,6 @@ namespace kv
     }
 
   public:
-    void clone_schema(Store& from)
-    {
-      std::lock_guard<SpinLock> mguard(maps_lock);
-
-      if ((maps.size() != 0) || (version != 0))
-        throw std::logic_error("Cannot clone schema on a non-empty store");
-
-      for (auto& [name, pair] : from.maps)
-      {
-        auto& [v, map] = pair;
-        maps[name] =
-          std::make_pair(v, std::unique_ptr<AbstractMap>(map->clone(this)));
-      }
-    }
-
     Store(bool strict_versions_ = true) : strict_versions(strict_versions_) {}
 
     Store(

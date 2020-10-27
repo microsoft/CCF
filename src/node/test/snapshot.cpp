@@ -84,7 +84,6 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     INFO("Setup target store");
     {
       auto target_node_kp = tls::make_key_pair();
-      target_store.clone_schema(source_store);
 
       auto target_signatures =
         target_store.get<ccf::Signatures>(ccf::Tables::SIGNATURES);

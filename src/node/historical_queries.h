@@ -207,8 +207,6 @@ namespace ccf::historical
 
       store->set_encryptor(source_store.get_encryptor());
 
-      store->clone_schema(source_store);
-
       const auto deserialise_result = store->deserialise_views(entry);
 
       switch (deserialise_result)
