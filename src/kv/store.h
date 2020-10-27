@@ -29,7 +29,9 @@ namespace kv
       map<std::string, std::pair<kv::Version, std::shared_ptr<AbstractMap>>>;
     Maps maps;
 
-    // Store the Defs created by calls to create(), so we can still return &s to match the old API. Doesn't create a real map! Just an association between the types and name
+    // Store the Defs created by calls to create(), so we can still return &s to
+    // match the old API. Doesn't create a real map! Just an association between
+    // the types and name
     using MapDefs = std::map<std::string, std::shared_ptr<NamedMap>>;
     MapDefs map_defs;
 
@@ -146,7 +148,8 @@ namespace kv
       return get<Map<K, V>>(name);
     }
 
-    // TODO: This can/should be removed? Reduce some explicit map references - just get views by name when needed
+    // TODO: This can/should be removed? Reduce some explicit map references -
+    // just get views by name when needed
     /** Get Map by name
      *
      * @param name Map name
@@ -233,7 +236,8 @@ namespace kv
       return create<Map<K, V>>(name);
     }
 
-    // TODO: Doesn't actually create! Just creates the definition in a form friendly to the old API!
+    // TODO: Doesn't actually create! Just creates the definition in a form
+    // friendly to the old API!
     /** Create a Map
      *
      * Note this call will throw a logic_error if a map by that name already

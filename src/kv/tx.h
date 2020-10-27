@@ -395,25 +395,6 @@ namespace kv
       version(reserved)
     {}
 
-    // Used by frontend to commit reserved transactions
-    PendingTxInfo commit_reserved()
-    {
-      if (committed)
-        throw std::logic_error("Transaction already committed");
-
-      if (view_list.empty())
-        throw std::logic_error("Reserved transaction cannot be empty");
-
-      auto c = apply_views(view_list, [this]() { return version; });
-      success = c.has_value();
-
-      if (!success)
-        throw std::logic_error("Failed to commit reserved transaction");
-
-      committed = true;
-      return {CommitSuccess::OK, {0, 0, 0}, serialise()};
-    }
-
     // Used to clear the Tx to its initial state, to retry after a conflict
     void reset()
     {
@@ -443,7 +424,8 @@ namespace kv
       // NB: Always creates a (writeable) TxView, which is cast to
       // ReadOnlyTxView on return. This is so that other calls (before or after)
       // can retrieve writeable views over the same map.
-      return std::get<0>(get_view_tuple_by_name<typename M::TxView>(m.get_name()));
+      return std::get<0>(
+        get_view_tuple_by_name<typename M::TxView>(m.get_name()));
     }
 
     /** Get a read-only transaction view on a map by name.
@@ -503,7 +485,8 @@ namespace kv
     template <class M>
     typename M::TxView* get_view(M& m)
     {
-      return std::get<0>(get_view_tuple_by_name<typename M::TxView>(m.get_name()));
+      return std::get<0>(
+        get_view_tuple_by_name<typename M::TxView>(m.get_name()));
     }
 
     /** Get a transaction view on a map by name
@@ -572,7 +555,10 @@ namespace kv
       if (view_list.empty())
         throw std::logic_error("Reserved transaction cannot be empty");
 
-      auto c = apply_views(view_list, [this]() { return version; });
+      // TODO: Take store lock here, if created_maps is non-empty?
+
+      auto c = apply_views(
+        view_list, [this]() { return version; }, created_maps, version);
       success = c.has_value();
 
       if (!success)

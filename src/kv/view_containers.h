@@ -38,7 +38,8 @@ namespace kv
   static inline std::optional<Version> apply_views(
     OrderedViews& views,
     std::function<Version()> f,
-    const MapCollection& new_maps = {})
+    const MapCollection& new_maps = {},
+    const std::optional<Version>& new_maps_conflict_version = std::nullopt)
   {
     // All maps with pending writes are locked, transactions are prepared
     // and possibly committed, and then all maps with pending writes are
@@ -76,7 +77,20 @@ namespace kv
       // conflict set with this operation) while we hold the store lock. Assume
       // that the caller is currently holding store->lock()
       auto store = map_ptr->get_store();
-      if (store->get_map(store->current_version(), map_name) != nullptr)
+
+      // TODO: This is a bodge, to avoid recursively locking version_lock by
+      // calling current_version() in the commit_reserved case.
+      kv::Version current_v;
+      if (new_maps_conflict_version.has_value())
+      {
+        current_v = *new_maps_conflict_version;
+      }
+      else
+      {
+        current_v = store->current_version();
+      }
+
+      if (store->get_map(current_v, map_name) != nullptr)
       {
         ok = false;
         break;

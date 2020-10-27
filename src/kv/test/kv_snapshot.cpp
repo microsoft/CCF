@@ -147,7 +147,8 @@ TEST_CASE(
 // TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
 // {
 //   kv::Store store;
-//   auto& string_map = store.create<MapTypes::StringString>("public:string_map");
+//   auto& string_map =
+//   store.create<MapTypes::StringString>("public:string_map");
 
 //   kv::Version snapshot_version = kv::NoVersion;
 //   INFO("Apply transactions to original store");

@@ -46,8 +46,8 @@ namespace kv
     //   return untyped_map.get_security_domain();
     // }
 
-    // TODO: What to do with hooks? Maybe we store them, and if we're used to create a map we install them then?
-    // Hmmm....
+    // TODO: What to do with hooks? Maybe we store them, and if we're used to
+    // create a map we install them then? Hmmm....
     static kv::untyped::Map::CommitHook wrap_commit_hook(const CommitHook& hook)
     {
       return [hook](Version v, const kv::untyped::Write& w) {

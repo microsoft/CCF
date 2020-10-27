@@ -51,7 +51,8 @@ TEST_CASE(
       kv::DeserialiseSuccess::PASS);
 
     auto tx_target = kv_store_target.create_tx();
-    auto view_target = tx_target.get_view<MapTypes::StringString>("public:pub_map");
+    auto view_target =
+      tx_target.get_view<MapTypes::StringString>("public:pub_map");
     REQUIRE(view_target->get("pubk1") == "pubv1");
   }
 }
@@ -176,7 +177,8 @@ TEST_CASE(
       kv::DeserialiseSuccess::FAILED);
 
     auto tx_target = kv_store_target.create_tx();
-    auto view_priv_target = tx_target.get_view<MapTypes::StringString>("priv_map");
+    auto view_priv_target =
+      tx_target.get_view<MapTypes::StringString>("priv_map");
     REQUIRE(view_priv_target->get("privk1") == "privv1");
   }
 
@@ -199,7 +201,8 @@ TEST_CASE(
       kv::DeserialiseSuccess::FAILED);
 
     auto tx_target = kv_store_target.create_tx();
-    auto view_priv_target = tx_target.get_view<MapTypes::StringString>("priv_map");
+    auto view_priv_target =
+      tx_target.get_view<MapTypes::StringString>("priv_map");
     REQUIRE(view_priv_target->get("privk1").has_value() == false);
   }
 }
