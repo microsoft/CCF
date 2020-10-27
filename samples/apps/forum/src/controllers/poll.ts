@@ -6,8 +6,10 @@ import {
     Path,
     Header,
     SuccessResponse,
+    Request,
     Response,
     Controller,
+    Security,
     Get,
     Post,
     Put,
@@ -103,6 +105,7 @@ namespace kv {
 
 
 @Route("polls")
+@Security("jwt")
 export class PollController extends Controller {
 
     private kvPolls = new ccf.TypedKVMap(ccf.kv.polls, ccf.string, ccf.json<kv.Poll>())
@@ -116,9 +119,9 @@ export class PollController extends Controller {
     public createPoll(
         @Path() topic: string,
         @Body() body: CreatePollRequest,
-        @Header() authorization: string,
+        @Request() request: ccf.Request
     ): void {
-        const user = parseAuthToken(authorization)
+        const user = request.user.userId
 
         if (this.kvPolls.has(topic)) {
             throw new ForbiddenError("Poll with given topic exists already")
@@ -140,9 +143,9 @@ export class PollController extends Controller {
     @Post()
     public createPolls(
         @Body() body: CreatePollsRequest,
-        @Header() authorization: string,
+        @Request() request: ccf.Request
     ): void {
-        const user = parseAuthToken(authorization)
+        const user = request.user.userId
 
         for (let [topic, poll] of Object.entries(body.polls)) {
             if (this.kvPolls.has(topic)) {
@@ -168,9 +171,9 @@ export class PollController extends Controller {
     public submitOpinion(
         @Path() topic: string,
         @Body() body: SubmitOpinionRequest,
-        @Header() authorization: string,
+        @Request() request: ccf.Request
     ): void {
-        const user = parseAuthToken(authorization)
+        const user = request.user.userId
 
         const poll = this.kvPolls.get(topic)
         if (poll === undefined) {
@@ -190,9 +193,9 @@ export class PollController extends Controller {
     @Put()
     public submitOpinions(
         @Body() body: SubmitOpinionsRequest,
-        @Header() authorization: string,
+        @Request() request: ccf.Request
     ): void {
-        const user = parseAuthToken(authorization)
+        const user = request.user.userId
 
         for (const [topic, opinion] of Object.entries(body.opinions)) {
             const poll = this.kvPolls.get(topic)
@@ -215,9 +218,9 @@ export class PollController extends Controller {
     @Get('{topic}')
     public getPoll(
         @Path() topic: string,
-        @Header() authorization: string,
+        @Request() request: ccf.Request
     ): GetPollResponse {
-        const user = parseAuthToken(authorization)
+        const user = request.user.userId
 
         if (!this.kvPolls.has(topic)){
             throw new NotFoundError("Poll does not exist")
@@ -232,8 +235,9 @@ export class PollController extends Controller {
     @Get()
     public getPolls(
         @Header() authorization: string,
+        @Request() request: ccf.Request
     ): GetPollsResponse {
-        const user = parseAuthToken(authorization)
+        const user = request.user.userId
 
         let response: GetPollsResponse = { polls: {} }
 

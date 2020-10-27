@@ -7,13 +7,10 @@
 import { Controller, ValidationService, FieldErrors, ValidateError, TsoaRoute, HttpStatusCodeLiteral, TsoaResponse } from '@tsoa/runtime';
 
 {{#if authenticationModule}}
-UNSUPPORTED: authenticationModule
+import { authentication } from '{{authenticationModule}}';
 {{/if}}
 {{#if iocModule}}
 UNSUPPORTED: iocModule
-{{/if}}
-{{#if useSecurity}}
-UNSUPPORTED: useSecurity
 {{/if}}
 
 const models: TsoaRoute.Models = {
@@ -115,6 +112,40 @@ export function getValidatedArgs(args: any, request: any, response: any): any[] 
     return values;
 }
 
+{{#if useSecurity}}
+export function authenticateMiddleware(security: TsoaRoute.Security[], request: any, response: any) {
+    let user = undefined
+    let success = false
+    let error = undefined
+    for (const secMethod of security) {
+        for (const name in secMethod) {
+            try {
+                user = authentication(request, name, secMethod[name])
+                success = true
+                break
+            } catch (e) {
+                error = e
+            }
+        }
+        if (success) {
+            break
+        }
+    }
+    if (success) {
+        request['user'] = user
+        return true
+    } else {
+        response.statusCode = 401
+        if (error.message) {
+            response.body = {
+                message: error.message
+            }
+        }
+        return false
+    }
+}
+{{/if}}
+
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 // CCF:HELPERS-END
 
@@ -147,7 +178,7 @@ export function getValidatedArgs(args: any, request: any, response: any): any[] 
 /* eslint-disable */
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 
-import { parseQuery, getValidatedArgs, promiseHandler } from './helpers'
+import { parseQuery, getValidatedArgs, promiseHandler, authenticateMiddleware } from './helpers'
 import { errorHandler } from '../src/error_handler'
 import { {{name}} } from '{{modulePath}}';
 
@@ -156,6 +187,18 @@ import { {{name}} } from '{{modulePath}}';
 {{#each actions}}
 // {{method}} {{fullPath}}
 export function {{name}}(request) {
+    const response = {
+        body: undefined,
+        statusCode: undefined,
+        headers: {}
+    }
+
+    {{#if security.length}}
+    if (!authenticateMiddleware({{json security}}, request, response)) {
+        return response;
+    }
+    {{/if}}
+
     const args = {
         {{#each parameters}}
             {{@key}}: {{{json this}}},
@@ -166,12 +209,8 @@ export function {{name}}(request) {
         body: request.body,
         headers: request.headers,
         query: parseQuery(request.query),
-        params: request.params
-    }
-    const response = {
-        body: undefined,
-        statusCode: undefined,
-        headers: {}
+        params: request.params,
+        user: request.user
     }
 
     try {
