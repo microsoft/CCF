@@ -30,6 +30,9 @@ namespace loggingapp
     const nlohmann::json get_public_params_schema;
     const nlohmann::json get_public_result_schema;
 
+    constexpr auto records_name = "records";
+    constexpr auto public_records_name = "public:records";
+
   public:
     // SNIPPET_START: constructor
     LoggerHandlers(

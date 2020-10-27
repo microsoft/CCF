@@ -66,15 +66,12 @@ namespace kv
       return std::make_tuple(typed_view);
     }
 
-    template <class M>
-    std::tuple<typename M::TxView*> get_view_tuple_by_name(
-      const std::string& map_name)
+    template <class MapView>
+    std::tuple<MapView*> get_view_tuple_by_name(const std::string& map_name)
     {
-      using MapView = typename M::TxView;
-
-      // If the M is present, its AbstractTxView should be an M::TxView. This
-      // invariant could be broken by set_view_list, which will produce an error
-      // here
+      // If a view is present for this map_name, its AbstractTxView should be a
+      // MapView. This invariant could be broken by set_view_list, which will
+      // produce an error here.
       auto search = view_list.find(map_name);
       if (search != view_list.end())
       {
@@ -127,24 +124,17 @@ namespace kv
       else
       {
         auto* am = abstract_map.get();
-        auto typed_map = dynamic_cast<M*>(am);
-        if (typed_map == nullptr)
+        // TODO: NB: Now believe that all maps are always untyped! Do we even
+        // need to have stored them as abstract? Who knows
+        auto untyped_map = dynamic_cast<kv::untyped::Map*>(am);
+        if (untyped_map == nullptr)
         {
-          auto untyped_map = dynamic_cast<kv::untyped::Map*>(am);
-          if (untyped_map == nullptr)
-          {
-            throw std::logic_error(
-              fmt::format("Map {} has unexpected type", map_name));
-          }
-          else
-          {
-            typed_view =
-              untyped_map->template create_view<MapView>(read_version);
-          }
+          throw std::logic_error(
+            fmt::format("Map {} has unexpected type", map_name));
         }
         else
         {
-          typed_view = typed_map->template create_view<MapView>(read_version);
+          typed_view = untyped_map->template create_view<MapView>(read_version);
         }
       }
 
@@ -157,12 +147,12 @@ namespace kv
     {
       if constexpr (sizeof...(Ms) == 0)
       {
-        return get_view_tuple_by_name<M>(m.get_name());
+        return get_view_tuple_by_name<typename M::TxView>(m.get_name());
       }
       else
       {
         return std::tuple_cat(
-          get_view_tuple_by_name<M>(m.get_name()),
+          get_view_tuple_by_name<typename M::TxView>(m.get_name()),
           get_view_tuple_by_types(ms...));
       }
     }
@@ -173,12 +163,12 @@ namespace kv
     {
       if constexpr (sizeof...(Ts) == 0)
       {
-        return get_view_tuple_by_name<M>(map_name);
+        return get_view_tuple_by_name<typename M::TxView>(map_name);
       }
       else
       {
         return std::tuple_cat(
-          get_view_tuple_by_name<M>(map_name),
+          get_view_tuple_by_name<typename M::TxView>(map_name),
           get_view_tuple_by_names<Ms...>(names...));
       }
     }
@@ -450,7 +440,10 @@ namespace kv
     template <class M>
     typename M::ReadOnlyTxView* get_read_only_view(M& m)
     {
-      return std::get<0>(get_view_tuple_by_name<M>(m.get_name()));
+      // NB: Always creates a (writeable) TxView, which is cast to
+      // ReadOnlyTxView on return. This is so that other calls (before or after)
+      // can retrieve writeable views over the same map.
+      return std::get<0>(get_view_tuple_by_name<typename M::TxView>(m.get_name()));
     }
 
     /** Get a read-only transaction view on a map by name.
@@ -463,7 +456,7 @@ namespace kv
     template <class M>
     typename M::ReadOnlyTxView* get_read_only_view(const std::string& map_name)
     {
-      return std::get<0>(get_view_tuple_by_name<M>(map_name));
+      return std::get<0>(get_view_tuple_by_name<typename M::TxView>(map_name));
     }
 
     /** Get read-only transaction views over multiple maps.
@@ -476,7 +469,7 @@ namespace kv
     get_read_only_view(M& m, Ms&... ms)
     {
       return std::tuple_cat(
-        get_view_tuple_by_name<M>(m.get_name()),
+        get_view_tuple_by_name<typename M::TxView>(m.get_name()),
         get_view_tuple_by_types(ms...));
     }
 
@@ -491,7 +484,7 @@ namespace kv
       const std::string& map_name, const Ts&... names)
     {
       return std::tuple_cat(
-        get_view_tuple_by_name<M>(map_name),
+        get_view_tuple_by_name<typename M::TxView>(map_name),
         get_view_tuple_by_names<Ms...>(names...));
     }
   };
@@ -510,7 +503,7 @@ namespace kv
     template <class M>
     typename M::TxView* get_view(M& m)
     {
-      return std::get<0>(get_view_tuple_by_name<M>(m.get_name()));
+      return std::get<0>(get_view_tuple_by_name<typename M::TxView>(m.get_name()));
     }
 
     /** Get a transaction view on a map by name
@@ -523,7 +516,7 @@ namespace kv
     template <class M>
     typename M::TxView* get_view(const std::string& map_name)
     {
-      return std::get<0>(get_view_tuple_by_name<M>(map_name));
+      return std::get<0>(get_view_tuple_by_name<typename M::TxView>(map_name));
     }
 
     /** Get transaction views over multiple maps.
@@ -536,7 +529,7 @@ namespace kv
       M& m, Ms&... ms)
     {
       return std::tuple_cat(
-        get_view_tuple_by_name<M>(m.get_name()),
+        get_view_tuple_by_name<typename M::TxView>(m.get_name()),
         get_view_tuple_by_types(ms...));
     }
 
@@ -551,7 +544,7 @@ namespace kv
       const std::string& map_name, const Ts&... names)
     {
       return std::tuple_cat(
-        get_view_tuple_by_name<M>(map_name),
+        get_view_tuple_by_name<typename M::TxView>(map_name),
         get_view_tuple_by_names<Ms...>(names...));
     }
   };
@@ -564,7 +557,6 @@ namespace kv
   public:
     ReservedTx(AbstractStore* _store, Version reserved) : Tx(_store)
     {
-      store = _store;
       committed = false;
       success = false;
       read_version = reserved - 1;

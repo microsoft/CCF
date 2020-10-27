@@ -29,6 +29,10 @@ namespace kv
       map<std::string, std::pair<kv::Version, std::shared_ptr<AbstractMap>>>;
     Maps maps;
 
+    // Store the Defs created by calls to create(), so we can still return &s to match the old API. Doesn't create a real map! Just an association between the types and name
+    using MapDefs = std::map<std::string, std::shared_ptr<NamedMap>>;
+    MapDefs map_defs;
+
     std::shared_ptr<Consensus> consensus = nullptr;
     std::shared_ptr<TxHistory> history = nullptr;
     std::shared_ptr<ccf::ProgressTracker> progress_tracker = nullptr;
@@ -157,6 +161,7 @@ namespace kv
       return get<Map<K, V>>(name);
     }
 
+    // TODO: This can/should be removed? Reduce some explicit map references - just get views by name when needed
     /** Get Map by name
      *
      * @param name Map name
@@ -166,12 +171,10 @@ namespace kv
     template <class M>
     M* get(const std::string& name)
     {
-      std::lock_guard<SpinLock> mguard(maps_lock);
-
-      auto search = maps.find(name);
-      if (search != maps.end())
+      auto search = map_defs.find(name);
+      if (search != map_defs.end())
       {
-        auto result = dynamic_cast<M*>(search->second.second.get());
+        auto result = dynamic_cast<M*>(search->second.get());
 
         if (result == nullptr)
           return nullptr;
@@ -214,8 +217,6 @@ namespace kv
       "PRIVATE")
     M& create(const std::string& name, SecurityDomain security_domain)
     {
-      std::lock_guard<SpinLock> mguard(maps_lock);
-
       if (has_map_internal(name))
         throw std::logic_error(fmt::format("Map '{}' already exists", name));
 
@@ -228,12 +229,10 @@ namespace kv
           name));
       }
 
-      auto result = std::make_shared<M>(
-        this, name, security_domain, is_map_replicated(name));
-      maps[name] = std::make_pair(NoVersion, result);
-      return *result;
+      return create<M>(name);
     }
 
+    // TODO: Update all these docs
     /** Create a Map
      *
      * Note this call will throw a logic_error if a map by that name already
@@ -249,6 +248,7 @@ namespace kv
       return create<Map<K, V>>(name);
     }
 
+    // TODO: Doesn't actually create! Just creates the definition in a form friendly to the old API!
     /** Create a Map
      *
      * Note this call will throw a logic_error if a map by that name already
@@ -263,14 +263,17 @@ namespace kv
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
-      if (has_map_internal(name))
+      const auto it = map_defs.find(name);
+      if (it != map_defs.end())
+      {
         throw std::logic_error("Map already exists");
+      }
 
       const auto [security_domain, _] = kv::parse_map_name(name);
 
-      auto result = std::make_shared<M>(
-        this, name, security_domain, is_map_replicated(name));
-      maps[name] = std::make_pair(NoVersion, result);
+      // TODO: What if we're overwriting? Ahhhh
+      auto result = std::make_shared<M>(name);
+      map_defs[name] = result;
       return *result;
     }
 

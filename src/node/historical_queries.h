@@ -113,14 +113,7 @@ namespace ccf::historical
       // makes no check that the signing node was active at the point it
       // produced this signature
       auto tx = source_store.create_tx();
-
-      auto nodes_table = source_store.get<ccf::Nodes>(ccf::Tables::NODES);
-      if (nodes_table == nullptr)
-      {
-        throw std::logic_error("Missing nodes table");
-      }
-
-      auto nodes_view = tx.get_view(*nodes_table);
+      auto nodes_view = tx.get_view<ccf::Nodes>(ccf::Tables::NODES);
       return nodes_view->get(node_id);
     }
 

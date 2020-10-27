@@ -108,7 +108,6 @@ namespace kv::untyped
 
   private:
     AbstractStore* store;
-    std::string name;
     Roll roll;
     CommitHook local_hook = nullptr;
     CommitHook global_hook = nullptr;
@@ -331,11 +330,11 @@ namespace kv::untyped
 
     Map(
       AbstractStore* store_,
-      std::string name_,
+      const std::string& name_,
       SecurityDomain security_domain_,
       bool replicated_) :
+      AbstractMap(name_),
       store(store_),
-      name(name_),
       roll{std::make_unique<LocalCommits>(), 0, {}},
       security_domain(security_domain_),
       replicated(replicated_)
@@ -558,15 +557,6 @@ namespace kv::untyped
       }
 
       return view;
-    }
-
-    /** Get the name of the map
-     *
-     * @return const std::string&
-     */
-    const std::string& get_name() const override
-    {
-      return name;
     }
 
     /** Get store that the map belongs to
