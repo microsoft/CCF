@@ -265,7 +265,7 @@ class RpcContextRecorder
 public:
   // session->caller_cert may be DER or PEM, we always convert to PEM
   tls::Pem last_caller_cert;
-  CallerId last_caller_id;
+  CallerId last_caller_id = INVALID_ID;
 
   void record_ctx(EndpointContext& args)
   {

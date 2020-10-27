@@ -441,7 +441,7 @@ namespace ccf
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
 
-    CertDERs* certs = nullptr;
+    std::string certs_table_name;
 
     static void add_query_parameters(
       nlohmann::json& document,
@@ -473,13 +473,10 @@ namespace ccf
     EndpointRegistry(
       const std::string& method_prefix_,
       kv::Store& tables,
-      const std::string& certs_table_name = "") :
-      method_prefix(method_prefix_)
+      const std::string& certs_table_name_ = "") :
+      method_prefix(method_prefix_),
+      certs_table_name(certs_table_name_)
     {
-      if (!certs_table_name.empty())
-      {
-        certs = tables.get<CertDERs>(certs_table_name);
-      }
     }
 
     virtual ~EndpointRegistry() {}
@@ -818,18 +815,18 @@ namespace ccf
 
     bool has_certs()
     {
-      return certs != nullptr;
+      return !certs_table_name.empty();
     }
 
     virtual CallerId get_caller_id(
       kv::Tx& tx, const std::vector<uint8_t>& caller)
     {
-      if (certs == nullptr || caller.empty())
+      if (!has_certs() || caller.empty())
       {
         return INVALID_ID;
       }
 
-      auto certs_view = tx.get_view(*certs);
+      auto certs_view = tx.get_view<CertDERs>(certs_table_name);
       auto caller_id = certs_view->get(caller);
 
       if (!caller_id.has_value())

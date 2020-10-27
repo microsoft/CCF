@@ -19,8 +19,6 @@ namespace ccf
   {
   private:
     metrics::Metrics metrics;
-    Nodes* nodes = nullptr;
-    CodeIDs* node_code_ids = nullptr;
 
   protected:
     kv::Store* tables = nullptr;
@@ -31,8 +29,6 @@ namespace ccf
       kv::Store& store,
       const std::string& certs_table_name = "") :
       EndpointRegistry(method_prefix_, store, certs_table_name),
-      nodes(store.get<Nodes>(Tables::NODES)),
-      node_code_ids(store.get<CodeIDs>(Tables::NODE_CODE_IDS)),
       tables(&store)
     {}
 
@@ -95,10 +91,10 @@ namespace ccf
         .set_execute_locally(true)
         .install();
 
-      if (certs != nullptr)
+      if (has_certs())
       {
         auto user_id = [this](auto& args, nlohmann::json&& params) {
-          if (certs == nullptr)
+          if (!has_certs())
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -110,7 +106,8 @@ namespace ccf
           if (!params.is_null())
           {
             const GetUserId::In in = params;
-            auto certs_view = args.tx.get_read_only_view(*certs);
+            auto certs_view =
+              args.tx.template get_read_only_view<CertDERs>(certs_table_name);
             auto caller_id_opt = certs_view->get(in.cert);
 
             if (!caller_id_opt.has_value())
@@ -131,12 +128,13 @@ namespace ccf
       }
 
       auto get_primary_info = [this](auto& args, nlohmann::json&&) {
-        if ((nodes != nullptr) && (consensus != nullptr))
+        if (consensus != nullptr)
         {
           NodeId primary_id = consensus->primary();
           auto current_view = consensus->get_view();
 
-          auto nodes_view = args.tx.get_read_only_view(*nodes);
+          auto nodes_view =
+            args.tx.template get_read_only_view<Nodes>(Tables::NODES);
           auto info = nodes_view->get(primary_id);
 
           if (info)
@@ -165,7 +163,8 @@ namespace ccf
           out.primary_id = consensus->primary();
         }
 
-        auto nodes_view = args.tx.get_read_only_view(*nodes);
+        auto nodes_view =
+          args.tx.template get_read_only_view<Nodes>(Tables::NODES);
         nodes_view->foreach([&out](const NodeId& nid, const NodeInfo& ni) {
           if (ni.status == ccf::NodeStatus::TRUSTED)
           {
@@ -184,7 +183,8 @@ namespace ccf
       auto get_code = [this](auto& args, nlohmann::json&&) {
         GetCode::Out out;
 
-        auto code_view = args.tx.get_read_only_view(*node_code_ids);
+        auto code_view =
+          args.tx.template get_read_only_view<CodeIDs>(Tables::NODE_CODE_IDS);
         code_view->foreach(
           [&out](const ccf::CodeDigest& cd, const ccf::CodeStatus& cs) {
             auto digest = fmt::format("{:02x}", fmt::join(cd, ""));
@@ -204,7 +204,8 @@ namespace ccf
         const auto in = params.get<GetNodesByRPCAddress::In>();
 
         GetNodesByRPCAddress::Out out;
-        auto nodes_view = args.tx.get_read_only_view(*nodes);
+        auto nodes_view =
+          args.tx.template get_read_only_view<Nodes>(Tables::NODES);
         nodes_view->foreach([&in, &out](const NodeId& nid, const NodeInfo& ni) {
           if (ni.rpchost == in.host && ni.rpcport == in.port)
           {
