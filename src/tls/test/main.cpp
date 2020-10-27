@@ -371,39 +371,23 @@ TEST_CASE("RSA wrapping")
 {
   auto rsa_sample_public_key = std::string(
     "-----BEGIN PUBLIC KEY-----\n"
-    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv64WMDdljY74WLc98oRy\n"
-    "k7Qyhhr5wKxDLvyND0ln4TbGLiRQoDhm0F04HE4S3eCXMWDL8KmqeE/rtx/Un0LC\n"
-    "sd05aq47B6ig64ppPnc3nvcmxA9f3qg8G9YUHz0XfDM2H2puw822nVdbS8XxcmV4\n"
-    "moeD6eKUQcSakIvY+QoT6iJFQxZkrffCcbXWuVEa3OG7f6sg6vhdD3WxV/5USow7\n"
-    "UMweQmB/OghAXxQheuegy7nHXuaRnbgpghQJKvuO4dahzK6AQIlipo4RzCsn9n4l\n"
-    "CfsCIB8DxadZCjPUeqXdXzmW3rpKxGUoxwbD0BQn76+G79H/D4qBZSm0Loie0ZuG\n"
-    "3QIDAQAB\n"
+    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA34JQ/FEHc9aWiLwYDr6N\n"
+    "fY2ujHDN7wEHdfrvo3kVIbyQD1y1h6DD+WBsqMtAXLQKSH/KRJiDEB/cp+dOQyNV\n"
+    "85QBND0KeO9eA4DLvYUoRZ3LkTNZkDGTHXmFiQ9j+8xgyDUijnioBpzAoWsppEcn\n"
+    "39FUERGzf11z1nhZ4wBXwfAiaawrugA/PIJQvT4BFXHwrqMOe9eBX5ESLvOgAu+U\n"
+    "aqq2svaXIZ8SqcyC/9OVL/yI1lhHSwOOWBMTzrn5NM9vVF23VLpc+jiPKF9LdNb4\n"
+    "BbeGyR5RwVX52fKxcoEUC8hQNdanXoueVrEtA++Rt0dLlN0Y/lRvLfIvetfoKJpg\n"
+    "DQIDAQAB\n"
     "-----END PUBLIC KEY-----\n");
 
-  auto rsa_sample_private_key = std::string(
-    "-----BEGIN RSA PRIVATE KEY-----\n"
-    "MIICXwIBAAKBgQDCkrLY86veMuE9Ba3quywWpoT4nmSTWyltvbSepUfJXP/5TSlU\n"
-    "Sl3y1WQt1OSVFv6cPYrQ2lMii9iFpxMuw2uASzoaG5l7WUtEEP7DKSslI0O6UFa2\n"
-    "LPebEQLWcvwtJnThB1UB44VsVBkVGnXwJcd8K3/bCcxiXypOAwMaAcsTqQIDAQAB\n"
-    "AoGBALH3CdyD67Rdp0RwOGXVcvr4rfDUtztMi3UTqevdUu6rwHkfCWlOZ+XfJjUB\n"
-    "X126XYE8jQaAWr/jV1TPvyzrkxt38Bv55QXqiMr5rPGvhXypheTHIeKA7GNFiGeq\n"
-    "9AuF3Fa0dN3HCwst2f4rAEoGrkc46E9atFTRfAID8NkBRdzNAkEA9lSC38kHfFT1\n"
-    "REvXK3E+LiHmN9/McSTgBGEjDzFiGSIZ12AiJqt341WCJpT1w+AZy2RRgXzNiyhU\n"
-    "MGIRoQArHwJBAMo2Dkr5r+7I/S4HcBu1z17Lx9nuAyMDSs+PydkX1Kp06Vu3WVNa\n"
-    "Orc3pMhvYG53jkgtKmkbJKdzti7qarPUMDcCQQDAEgN+NQTmOGSKHUyobgNa+0nE\n"
-    "VXfW3Tbjk05AAXSJPmLB4g6e8mJn23vBU7MSSUIzqoQ3IDYxBIAovb8bN8NnAkEA\n"
-    "t1sgxrd14k351V0FOPs5GDor896wlXUMxv0ZCHNlcVMlrvaoVr6Ac1ZPYzgq9sAO\n"
-    "EkByLnBgYj64Of5x1rJXLQJBAL5h9AlzBMrDjhS88ARYXmOdw/XsoFPDSnW2VAPf\n"
-    "C0sCv08C/+ZFRHZEoSr1gRfOv0CnZhYjLrzy4r1L1XpjvSk=\n"
-    "-----END RSA PRIVATE KEY-----\n");
-
-  auto private_key_ctx = tls::parse_private_key(rsa_sample_private_key);
-  auto kp = std::make_shared<tls::KeyPair>(
-    (std::move(private_key_ctx))); // TODO: inelegant API
   auto public_kp = tls::make_public_key(rsa_sample_public_key);
 
-  size_t input_len = 64;
-  std::vector<uint8_t> input = tls::create_entropy()->random(input_len);
+  // size_t input_len = 64;
+  // std::vector<uint8_t> input = tls::create_entropy()->random(input_len);
+
+  auto input = tls::raw_from_b64(
+    "8z6xJ7EsgCRtCdA77xAjadB5JXf4xG1xR1lc6Ff5oRjr5g4FY9EWSfqPd9bqbDpDXFGNAS3KnG"
+    "xXyqgwTQ9cdg==");
 
   LOG_DEBUG_FMT("Input: {}", tls::b64_from_raw(input));
 
@@ -413,9 +397,9 @@ TEST_CASE("RSA wrapping")
 
   LOG_DEBUG_FMT("Success wrapping. Size: {}", wrapped.size());
 
-  auto unwrapped = tls::RSAOEAPWrap::unwrap(kp, wrapped);
+  // auto unwrapped = tls::RSAOEAPWrap::unwrap(kp, wrapped);
 
-  LOG_DEBUG_FMT("Success unwrapping. Size: {}", unwrapped.size());
+  // LOG_DEBUG_FMT("Success unwrapping. Size: {}", unwrapped.size());
 
-  REQUIRE(unwrapped == input);
+  //   REQUIRE(unwrapped == input);
 }

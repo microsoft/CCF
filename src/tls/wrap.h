@@ -17,6 +17,12 @@ namespace tls
 {
   class RSAOEAPWrap
   {
+  private:
+    // Compatible with Azure HSM encryption schemes (see
+    // https://docs.microsoft.com/en-gb/azure/key-vault/keys/about-keys#wrapkeyunwrapkey-encryptdecrypt)
+    static constexpr auto rsa_padding_mode = MBEDTLS_RSA_PKCS_V21;
+    static constexpr auto rsa_padding_digest_id = MBEDTLS_MD_SHA1;
+
   public:
     static std::vector<uint8_t> wrap(
       PublicKeyPtr wrapping_pub_key,
@@ -25,10 +31,7 @@ namespace tls
     {
       mbedtls_rsa_context* rsa_ctx =
         mbedtls_pk_rsa(*wrapping_pub_key->get_raw_context());
-
-      // TODO: Hardcoded to these for now. However, is this compatible with
-      // Azure HSMs?
-      mbedtls_rsa_set_padding(rsa_ctx, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256);
+      mbedtls_rsa_set_padding(rsa_ctx, rsa_padding_mode, rsa_padding_digest_id);
 
       std::vector<uint8_t> output_buf(rsa_ctx->len);
       auto entropy = tls::create_entropy();
