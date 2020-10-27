@@ -906,8 +906,6 @@ namespace ccf
         *recovery_store.get(),
         self,
         *node_sign_kp,
-        *recovery_signature_map,
-        *recovery_nodes_map,
         sig_tx_interval,
         sig_ms_interval);
 
@@ -1738,8 +1736,6 @@ namespace ccf
         *network.tables.get(),
         self,
         *node_sign_kp,
-        network.signatures,
-        network.nodes,
         sig_tx_interval,
         sig_ms_interval);
 

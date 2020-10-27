@@ -63,18 +63,15 @@ public:
 TEST_CASE("Check signature verification")
 {
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
-  kv::Store primary_store;
 
+  kv::Store primary_store;
   primary_store.set_encryptor(encryptor);
-  auto& primary_nodes = primary_store.create<ccf::Nodes>(ccf::Tables::NODES);
-  auto& primary_signatures =
-    primary_store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
 
   kv::Store backup_store;
   backup_store.set_encryptor(encryptor);
-  auto& backup_nodes = backup_store.create<ccf::Nodes>(ccf::Tables::NODES);
-  auto& backup_signatures =
-    backup_store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
+
+  ccf::Nodes nodes(ccf::Tables::NODES);
+  ccf::Signatures signatures(ccf::Tables::SIGNATURES);
 
   auto kp = tls::make_key_pair();
 
@@ -86,19 +83,17 @@ TEST_CASE("Check signature verification")
   backup_store.set_consensus(null_consensus);
 
   std::shared_ptr<kv::TxHistory> primary_history =
-    std::make_shared<ccf::MerkleTxHistory>(
-      primary_store, 0, *kp, primary_signatures, primary_nodes);
+    std::make_shared<ccf::MerkleTxHistory>(primary_store, 0, *kp);
   primary_store.set_history(primary_history);
 
   std::shared_ptr<kv::TxHistory> backup_history =
-    std::make_shared<ccf::MerkleTxHistory>(
-      backup_store, 1, *kp, backup_signatures, backup_nodes);
+    std::make_shared<ccf::MerkleTxHistory>(backup_store, 1, *kp);
   backup_store.set_history(backup_history);
 
   INFO("Write certificate");
   {
     auto txs = primary_store.create_tx();
-    auto tx = txs.get_view(primary_nodes);
+    auto tx = txs.get_view(nodes);
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
     tx->put(0, ni);
@@ -114,7 +109,7 @@ TEST_CASE("Check signature verification")
   INFO("Issue a bogus signature, rejected by verification on the backup");
   {
     auto txs = primary_store.create_tx();
-    auto tx = txs.get_view(primary_signatures);
+    auto tx = txs.get_view(signatures);
     ccf::PrimarySignature bogus(0, 0);
     bogus.sig = std::vector<uint8_t>(MBEDTLS_ECDSA_MAX_LEN, 1);
     tx->put(0, bogus);
@@ -127,15 +122,11 @@ TEST_CASE("Check signing works across rollback")
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv::Store primary_store;
   primary_store.set_encryptor(encryptor);
-  auto& primary_nodes = primary_store.create<ccf::Nodes>(ccf::Tables::NODES);
-  auto& primary_signatures =
-    primary_store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
 
   kv::Store backup_store;
   backup_store.set_encryptor(encryptor);
-  auto& backup_nodes = backup_store.create<ccf::Nodes>(ccf::Tables::NODES);
-  auto& backup_signatures =
-    backup_store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
+
+  ccf::Nodes nodes(ccf::Tables::NODES);
 
   auto kp = tls::make_key_pair();
 
@@ -147,19 +138,17 @@ TEST_CASE("Check signing works across rollback")
   backup_store.set_consensus(null_consensus);
 
   std::shared_ptr<kv::TxHistory> primary_history =
-    std::make_shared<ccf::MerkleTxHistory>(
-      primary_store, 0, *kp, primary_signatures, primary_nodes);
+    std::make_shared<ccf::MerkleTxHistory>(primary_store, 0, *kp);
   primary_store.set_history(primary_history);
 
   std::shared_ptr<kv::TxHistory> backup_history =
-    std::make_shared<ccf::MerkleTxHistory>(
-      backup_store, 1, *kp, backup_signatures, backup_nodes);
+    std::make_shared<ccf::MerkleTxHistory>(backup_store, 1, *kp);
   backup_store.set_history(backup_history);
 
   INFO("Write certificate");
   {
     auto txs = primary_store.create_tx();
-    auto tx = txs.get_view(primary_nodes);
+    auto tx = txs.get_view(nodes);
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
     tx->put(0, ni);
@@ -169,7 +158,7 @@ TEST_CASE("Check signing works across rollback")
   INFO("Transaction that we will roll back");
   {
     auto txs = primary_store.create_tx();
-    auto tx = txs.get_view(primary_nodes);
+    auto tx = txs.get_view(nodes);
     ccf::NodeInfo ni;
     tx->put(1, ni);
     REQUIRE(txs.commit() == kv::CommitSuccess::OK);

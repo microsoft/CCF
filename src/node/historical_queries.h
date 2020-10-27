@@ -95,14 +95,7 @@ namespace ccf::historical
       const StorePtr& sig_store)
     {
       auto tx = sig_store->create_tx();
-      auto sig_table = sig_store->get<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      if (sig_table == nullptr)
-      {
-        throw std::logic_error(
-          "Missing signatures table in signature transaction");
-      }
-
-      auto sig_view = tx.get_view(*sig_table);
+      auto sig_view = tx.get_view<ccf::Signatures>(ccf::Tables::SIGNATURES);
       return sig_view->get(0);
     }
 

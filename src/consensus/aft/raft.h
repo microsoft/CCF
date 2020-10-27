@@ -84,6 +84,7 @@ namespace aft
     kv::Version election_index = 0;
 
     // BFT
+    // TODO: I think all bft_requests_maps can be removed, in favour of `get_view<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS)`?
     RequestsMap& bft_requests_map;
     std::shared_ptr<aft::State> state;
     std::shared_ptr<Executor> executor;
