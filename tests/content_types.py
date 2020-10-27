@@ -92,18 +92,52 @@ def test_content_types(network, args):
     return network
 
 
-def run(args):
-    hosts = ["localhost"] * (3 if args.consensus == "pbft" else 2)
+@reqs.description("Test unknown path")
+def test_unknown_path(network, args):
+    primary, _ = network.find_nodes()
 
+    with tempfile.NamedTemporaryFile("w") as f:
+        f.write(APP_SCRIPT)
+        f.flush()
+        network.consortium.set_js_app(remote_node=primary, app_script_path=f.name)
+
+    with primary.client("user0") as c:
+        r = c.get("/app/not/a/real/path")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
+        r = c.post("/app/not/a/real/path")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
+        r = c.delete("/app/not/a/real/path")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
+
+        r = c.post("/app/unknown")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
+
+    with primary.client() as c:
+        r = c.get("/app/not/a/real/path")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
+        r = c.post("/app/not/a/real/path")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
+        r = c.delete("/app/not/a/real/path")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
+
+        r = c.post("/app/unknown")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
+
+    return network
+
+
+def run(args):
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
         network = test_content_types(network, args)
+        network = test_unknown_path(network, args)
 
 
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
     args.package = "libjs_generic"
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
     run(args)

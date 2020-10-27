@@ -241,6 +241,8 @@ namespace ccf
       remove_modules(tx, module_prefix);
       set_modules(tx, module_prefix, bundle.modules);
 
+      remove_endpoints(tx);
+
       auto endpoints_view =
         tx.get_view<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
 
@@ -343,6 +345,16 @@ namespace ccf
     {
       auto tx_modules = tx.get_view(network.modules);
       return tx_modules->remove(name);
+    }
+
+    void remove_endpoints(kv::Tx& tx)
+    {
+      auto endpoints_view =
+        tx.get_view<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+      endpoints_view->foreach([&endpoints_view](const auto& k, const auto&) {
+        endpoints_view->remove(k);
+        return true;
+      });
     }
 
     bool add_new_code_id(

@@ -197,7 +197,20 @@ namespace kv::untyped
       return true;
     }
 
-    /** Iterate over all entries in the map
+    /** Iterate over all entries in the map. There is no guarantee on the
+     * iteration order.
+     *
+     * The set of key-value entries which will be iterated over is determined at
+     * the point foreach is called, and does not include any modifications made
+     * by the functor. This means:
+     * - If the functor sets a value V at a new key K', the functor will not be
+     * called for (K', V)
+     * - If the functor changes the value at key K from V to V', the functor
+     * will be called with the old value (K, V)
+     * - If the functor removes K, the functor will still be called for (K, V)
+     *
+     * Calling `get` will always return the true latest state, this behaviour
+     * only applies to the keys and values passed as functor arguments.
      *
      * @param F functor, taking a key and a value, return value determines
      * whether the iteration should continue (true) or stop (false)
@@ -207,7 +220,12 @@ namespace kv::untyped
     {
       // Record a global read dependency.
       tx_changes.read_version = tx_changes.start_version;
-      auto& w = tx_changes.writes;
+
+      // Take a snapshot copy of the writes. This is what we will iterate over,
+      // while any additional modifications made by the functor will modify the
+      // original tx_changes.writes, and be visible outside of the functor's
+      // args
+      auto w = tx_changes.writes;
       bool should_continue = true;
 
       tx_changes.state.foreach(
@@ -224,9 +242,7 @@ namespace kv::untyped
 
       if (should_continue)
       {
-        for (auto write = tx_changes.writes.begin();
-             write != tx_changes.writes.end();
-             ++write)
+        for (auto write = w.begin(); write != w.end(); ++write)
         {
           if (write->second.has_value())
           {

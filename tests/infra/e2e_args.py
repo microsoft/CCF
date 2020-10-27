@@ -17,6 +17,25 @@ def absolute_path_to_existing_file(arg):
     return arg
 
 
+def min_nodes(args, f):
+    """
+    Minimum number of nodes allowing 'f' faults for the
+    consensus variant.
+    """
+    if args.consensus == "bft":
+        return ["local://localhost"] * (3 * f + 1)
+    else:
+        return ["local://localhost"] * (2 * f + 1)
+
+
+def max_nodes(args, f):
+    """
+    Maximum number of nodes allowing no more than 'f'
+    faults for the consensus variant.
+    """
+    return min_nodes(args, f + 1)[:-1]
+
+
 def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     LOG.remove()
     LOG.add(

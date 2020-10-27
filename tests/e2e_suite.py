@@ -49,10 +49,9 @@ def run(args):
     if args.enforce_reqs is False:
         LOG.warning("Test requirements will be ignored")
 
-    hosts = ["localhost", "localhost"]
     txs = app.LoggingTxs()
     network = infra.network.Network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, txs=txs
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, txs=txs
     )
     network.start_and_join(args)
 
@@ -159,5 +158,6 @@ if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args(add)
     args.package = args.app_script and "liblua_generic" or "liblogging"
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
 
     run(args)

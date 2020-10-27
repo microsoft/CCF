@@ -45,7 +45,7 @@ def check_can_progress(node, timeout=3):
 
 @reqs.description("Adding a valid node from primary")
 def test_add_node(network, args):
-    new_node = network.create_and_trust_node(args.package, "localhost", args)
+    new_node = network.create_and_trust_node(args.package, "local://localhost", args)
     with new_node.client() as c:
         s = c.get("/node/state")
         assert s.body.json()["id"] == new_node.node_id
@@ -58,7 +58,7 @@ def test_add_node(network, args):
 def test_add_node_from_backup(network, args):
     backup = network.find_any_backup()
     new_node = network.create_and_trust_node(
-        args.package, "localhost", args, target_node=backup
+        args.package, "local://localhost", args, target_node=backup
     )
     assert new_node
     return network
@@ -70,7 +70,7 @@ def test_add_node_from_backup(network, args):
 def test_add_node_from_snapshot(network, args, copy_ledger_read_only=True):
     new_node = network.create_and_trust_node(
         args.package,
-        "localhost",
+        "local://localhost",
         args,
         from_snapshot=True,
         copy_ledger_read_only=copy_ledger_read_only,
@@ -89,7 +89,7 @@ def test_add_as_many_pending_nodes(network, args):
     )
 
     for _ in range(number_new_nodes):
-        network.create_and_add_pending_node(args.package, "localhost", args)
+        network.create_and_add_pending_node(args.package, "local://localhost", args)
     check_can_progress(network.find_primary()[0])
     return network
 
@@ -101,7 +101,7 @@ def test_add_node_untrusted_code(network, args):
         code_not_found_exception = None
         try:
             network.create_and_add_pending_node(
-                "liblua_generic", "localhost", args, timeout=3
+                "liblua_generic", "local://localhost", args, timeout=3
             )
         except infra.network.CodeIdNotFound as err:
             code_not_found_exception = err
@@ -143,11 +143,14 @@ def test_retire_primary(network, args):
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
-
     txs = app.LoggingTxs()
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb, txs=txs
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
     ) as network:
         network.start_and_join(args)
 
@@ -175,4 +178,5 @@ if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
     args.package = args.app_script and "liblua_generic" or "liblogging"
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
     run(args)

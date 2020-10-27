@@ -5,6 +5,7 @@
 
 #include "kv/store.h"
 #include "node/nodes.h"
+#include "node/request_tracker.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -40,7 +41,7 @@ void ordered_execution(
   ccf::Nonce nonce;
   auto h = pt->hash_data(nonce);
   ccf::Nonce hashed_nonce;
-  std::copy(h.begin(), h.end(), hashed_nonce.begin());
+  std::copy(h.h.begin(), h.h.end(), hashed_nonce.h.begin());
 
   INFO("Adding signatures");
   {
@@ -53,11 +54,11 @@ void ordered_execution(
       if (i == my_node_id)
       {
         auto h = pt->get_my_hashed_nonce({view, seqno});
-        std::copy(h.begin(), h.end(), hashed_nonce.begin());
+        std::copy(h.h.begin(), h.h.end(), hashed_nonce.h.begin());
       }
       else
       {
-        std::copy(h.begin(), h.end(), hashed_nonce.begin());
+        std::copy(h.h.begin(), h.h.end(), hashed_nonce.h.begin());
       }
 
       auto result = pt->add_signature(
@@ -158,5 +159,120 @@ TEST_CASE("Ordered Execution")
   for (uint32_t i = 0; i < 4; ++i)
   {
     run_ordered_execution(i);
+  }
+}
+
+TEST_CASE("Request tracker")
+{
+  INFO("Can add and remove from progress tracker");
+  {
+    aft::RequestTracker t;
+    crypto::Sha256Hash h;
+    h.h.fill(0);
+    for (uint32_t i = 0; i < 10; ++i)
+    {
+      h.h[0] = i;
+      t.insert(h, std::chrono::milliseconds(i));
+      REQUIRE(t.oldest_entry() == std::chrono::milliseconds(0));
+    }
+
+    h.h[0] = 2;
+    REQUIRE(t.remove(h));
+    REQUIRE(t.oldest_entry() == std::chrono::milliseconds(0));
+
+    h.h[0] = 0;
+    REQUIRE(t.remove(h));
+    REQUIRE(t.oldest_entry() == std::chrono::milliseconds(1));
+
+    h.h[0] = 99;
+    REQUIRE(t.remove(h) == false);
+    REQUIRE(t.oldest_entry() == std::chrono::milliseconds(1));
+  }
+
+  INFO("Entry that was deleted is not tracked after it is added");
+  {
+    aft::RequestTracker t;
+    crypto::Sha256Hash h;
+    h.h.fill(0);
+    REQUIRE(t.oldest_entry().has_value() == false);
+
+    h.h[0] = 0;
+    REQUIRE(t.remove(h) == false);
+    t.insert_deleted(h, std::chrono::milliseconds(100));
+    t.insert(h, std::chrono::milliseconds(0));
+    REQUIRE(t.oldest_entry().has_value() == false);
+
+    h.h[1] = 1;
+    REQUIRE(t.remove(h) == false);
+    t.insert_deleted(h, std::chrono::milliseconds(100));
+    t.tick(std::chrono::milliseconds(120));
+    t.insert(h, std::chrono::milliseconds(0));
+    REQUIRE(t.oldest_entry().has_value() == false);
+
+    h.h[2] = 2;
+    REQUIRE(t.remove(h) == false);
+    t.insert_deleted(h, std::chrono::milliseconds(100));
+    t.tick(std::chrono::minutes(3));
+    REQUIRE(t.is_empty());
+    t.insert(h, std::chrono::milliseconds(0));
+    REQUIRE(t.oldest_entry().has_value());
+  }
+
+  INFO("Can enter multiple items");
+  {
+    aft::RequestTracker t;
+    crypto::Sha256Hash h;
+    h.h.fill(0);
+
+    t.insert(h, std::chrono::milliseconds(0));
+
+    for (uint32_t i = 1; i < 4; ++i)
+    {
+      h.h[0] = 1;
+      t.insert(h, std::chrono::milliseconds(i));
+    }
+
+    h.h[0] = 2;
+    t.insert(h, std::chrono::milliseconds(4));
+    REQUIRE(t.oldest_entry() == std::chrono::milliseconds(0));
+
+    h.h[0] = 1;
+    REQUIRE(t.remove(h));
+    REQUIRE(t.oldest_entry() == std::chrono::milliseconds(0));
+
+    h.h[0] = 0;
+    t.remove(h);
+    REQUIRE(t.oldest_entry() == std::chrono::milliseconds(2));
+
+    h.h[0] = 1;
+    t.remove(h);
+    REQUIRE(t.oldest_entry() == std::chrono::milliseconds(3));
+    t.remove(h);
+    REQUIRE(t.oldest_entry() == std::chrono::milliseconds(4));
+    t.remove(h);
+    REQUIRE(!t.is_empty());
+
+    h.h[0] = 2;
+    t.remove(h);
+    REQUIRE(t.is_empty());
+  }
+
+  INFO("Verify seqno and time of last sig stored correctly");
+  {
+    aft::RequestTracker t;
+
+    auto r = t.get_seqno_time_last_request();
+    REQUIRE(std::get<0>(r) == -1);
+    REQUIRE(std::get<1>(r) == std::chrono::milliseconds(0));
+
+    t.insert_signed_request(2, std::chrono::milliseconds(2));
+    r = t.get_seqno_time_last_request();
+    REQUIRE(std::get<0>(r) == 2);
+    REQUIRE(std::get<1>(r) == std::chrono::milliseconds(2));
+
+    t.insert_signed_request(1, std::chrono::milliseconds(1));
+    r = t.get_seqno_time_last_request();
+    REQUIRE(std::get<0>(r) == 2);
+    REQUIRE(std::get<1>(r) == std::chrono::milliseconds(2));
   }
 }

@@ -99,6 +99,8 @@ class Member:
                 proposal_id=r.body.json()["proposal_id"],
                 state=infra.proposal.ProposalState(r.body.json()["state"]),
                 has_proposer_voted_for=has_proposer_voted_for,
+                view=r.view,
+                seqno=r.seqno,
             )
 
     def vote(

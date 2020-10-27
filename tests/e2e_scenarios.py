@@ -17,9 +17,7 @@ def run(args):
     with open(args.scenario) as f:
         scenario = json.load(f)
 
-    hosts = scenario.get("hosts", ["localhost", "localhost"])
-    if args.consensus == "bft":
-        hosts = ["localhost"] * 3
+    hosts = scenario.get("hosts", infra.e2e_args.max_nodes(args, f=0))
     args.package = scenario["package"]
     # SNIPPET_END: parsing
 

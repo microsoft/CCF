@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
 import infra.network
+import http
 import time
 import sys
 import json
@@ -9,7 +10,7 @@ import os
 from loguru import logger as LOG
 
 
-DEFAULT_NODES = ["127.0.0.1:8000"]
+DEFAULT_NODES = ["local://127.0.0.1:8000"]
 
 
 def dump_network_info(path, network, node):
@@ -71,6 +72,15 @@ def run(args):
         primary, backups = network.find_nodes()
         max_len = len(str(len(backups)))
 
+        # To be sure, confirm that the app frontend is open on each node
+        for node in [primary, *backups]:
+            with node.client("user0") as c:
+                if args.verbose:
+                    r = c.get("/app/commit")
+                else:
+                    r = c.get("/app/commit", log_capture=[])
+                assert r.status_code == http.HTTPStatus.OK, r.status_code
+
         def pad_node_id(nid):
             return (f"{{:{max_len}d}}").format(nid)
 
@@ -119,7 +129,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "-n",
             "--node",
-            help=f"List of hostnames[,pub_hostnames:ports]. Default is {DEFAULT_NODES}",
+            help=f"List of (local://|ssh://)hostnames[,pub_hostnames:ports]. Default is {DEFAULT_NODES}",
             action="append",
         )
         parser.add_argument(

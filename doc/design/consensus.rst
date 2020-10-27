@@ -14,11 +14,11 @@ CFT Consensus Protocol
 
 The CFT implementation in CCF is based on Raft and provides Crash Fault Tolerance.
 
-For more information on the Raft protocol please see the orignial `Raft paper <https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf>`_.
+For more information on the Raft protocol please see the original `Raft paper <https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf>`_.
 
 CFT parameters can be configured when starting up a network (see :doc:`here </operators/start_network>`). The parameters that can be set via the CLI are:
 
-- ``raft-timeout-ms`` is the Raft heartbeat timeout in millisecons. The Raft leader sends heartbeats to its followers at regular intervals defined by this timeout. This should be set to a significantly lower value than ``--raft-election-timeout-ms``.
+- ``raft-timeout-ms`` is the Raft heartbeat timeout in milliseconds. The Raft leader sends heartbeats to its followers at regular intervals defined by this timeout. This should be set to a significantly lower value than ``--raft-election-timeout-ms``.
 - ``raft-election-timeout-ms`` is the Raft election timeout in milliseconds. If a follower does not receive any heartbeat from the leader after this timeout, the follower triggers a new election.
 
 BFT Consensus Protocol
@@ -37,4 +37,4 @@ BFT is still under development and should not be enabled in a production environ
 
 There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
 
-By default CCF runs with CFT. To run CCF with BFT the ``--consensus bft`` CLI argument must be provided when starting up the nodes (see :doc:`/operators/start_network` for starting up a newtork and nodes).
+By default CCF runs with CFT. To run CCF with BFT the ``--consensus bft`` CLI argument must be provided when starting up the nodes (see :doc:`/operators/start_network` for starting up a network and nodes).

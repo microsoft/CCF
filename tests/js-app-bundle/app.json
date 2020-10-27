@@ -85,6 +85,17 @@
           }
         }
       }
+    },
+    "/compute2/{op}/{left}/{right}": {
+      "get": {
+        "js_module": "math.js",
+        "js_function": "compute2",
+        "forwarding_required": "never",
+        "execute_locally": true,
+        "require_client_signature": false,
+        "require_client_identity": true,
+        "readonly": true
+      }
     }
   }
 }

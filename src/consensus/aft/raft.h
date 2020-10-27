@@ -13,6 +13,7 @@
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/progress_tracker.h"
+#include "node/request_tracker.h"
 #include "node/rpc/tx_status.h"
 #include "node/signatures.h"
 #include "raft_types.h"
@@ -86,10 +87,14 @@ namespace aft
     RequestsMap& bft_requests_map;
     std::shared_ptr<aft::State> state;
     std::shared_ptr<Executor> executor;
+    std::shared_ptr<aft::RequestTracker> request_tracker;
 
     // Timeouts
     std::chrono::milliseconds request_timeout;
     std::chrono::milliseconds election_timeout;
+    std::chrono::milliseconds view_change_timeout;
+    size_t sig_tx_interval;
+    std::chrono::milliseconds sig_ms_interval;
 
     // Configurations
     std::list<Configuration> configurations;
@@ -119,6 +124,7 @@ namespace aft
     std::shared_ptr<SnapshotterProxy> snapshotter;
     std::shared_ptr<enclave::RPCSessions> rpc_sessions;
     std::shared_ptr<enclave::RPCMap> rpc_map;
+    std::set<NodeId> backup_nodes;
 
   public:
     Aft(
@@ -133,8 +139,12 @@ namespace aft
       RequestsMap& requests_map,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<Executor> executor_,
+      std::shared_ptr<aft::RequestTracker> request_tracker_,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
+      std::chrono::milliseconds view_change_timeout_,
+      size_t sig_tx_interval_ = 0,
+      size_t sig_ms_interval_ = 0,
       bool public_only_ = false) :
       consensus_type(consensus_type_),
       store(std::move(store_)),
@@ -146,9 +156,13 @@ namespace aft
       bft_requests_map(requests_map),
       state(state_),
       executor(executor_),
+      request_tracker(request_tracker_),
 
       request_timeout(request_timeout_),
       election_timeout(election_timeout_),
+      view_change_timeout(view_change_timeout_),
+      sig_tx_interval(sig_tx_interval_),
+      sig_ms_interval(std::chrono::milliseconds(sig_ms_interval_)),
       public_only(public_only_),
 
       distrib(0, (int)election_timeout_.count() / 2),
@@ -174,6 +188,25 @@ namespace aft
     NodeId leader()
     {
       return leader_id;
+    }
+
+    std::set<NodeId> active_nodes()
+    {
+      // Find all nodes present in any active configuration.
+      if (backup_nodes.empty())
+      {
+        Configuration::Nodes active_nodes;
+
+        for (auto& conf : configurations)
+        {
+          for (auto node : conf.nodes)
+          {
+            backup_nodes.insert(node.first);
+          }
+        }
+      }
+
+      return backup_nodes;
     }
 
     NodeId id()
@@ -334,6 +367,7 @@ namespace aft
     {
       // This should only be called when the spin lock is held.
       configurations.push_back({idx, std::move(conf)});
+      backup_nodes.clear();
       create_and_remove_node_state();
     }
 
@@ -493,6 +527,23 @@ namespace aft
       std::lock_guard<SpinLock> guard(state->lock);
       timeout_elapsed += elapsed;
 
+      if (consensus_type == ConsensusType::BFT)
+      {
+        auto time = threading::ThreadMessaging::thread_messaging
+                      .get_current_time_offset();
+        request_tracker->tick(time);
+
+        if (is_follower() && has_bft_timeout_occurred(time))
+        {
+          // We have not seen a request executed within an expected period of
+          // time. We should invoke a view-change.
+          //
+          // View-changes have not been implemented yet.
+          LOG_FAIL_FMT(
+            "Request not executed in time. View-changes not yet implemented");
+        }
+      }
+
       if (replica_state == Leader)
       {
         if (timeout_elapsed >= request_timeout)
@@ -544,6 +595,61 @@ namespace aft
       // balance out total batch size across batch window
       batch_window_sum += (batch_size - batch_avg);
       entries_batch_size = std::max((batch_window_sum / batch_window_size), 1);
+    }
+
+    bool has_bft_timeout_occurred(std::chrono::milliseconds time)
+    {
+      auto oldest_entry = request_tracker->oldest_entry();
+      kv::Consensus::SeqNo last_sig_seqno;
+      std::chrono::milliseconds last_sig_time;
+      std::tie(last_sig_seqno, last_sig_time) =
+        request_tracker->get_seqno_time_last_request();
+
+      if (
+        view_change_timeout != std::chrono::milliseconds(0) &&
+        oldest_entry.has_value() &&
+        oldest_entry.value() + view_change_timeout < time)
+      {
+        LOG_FAIL_FMT("Timeout waiting for request to be executed");
+        return true;
+      }
+
+      // Check if any requests were added to the ledger since the last signature
+      if (last_sig_seqno >= state->last_idx)
+      {
+        return false;
+      }
+
+      constexpr auto wait_factor = 10;
+      std::chrono::milliseconds expire_time = last_sig_time +
+        std::chrono::milliseconds(sig_ms_interval.count() * wait_factor);
+
+      // Check if we are waiting too long since the last signature
+      if (sig_ms_interval != std::chrono::milliseconds(0) && expire_time < time)
+      {
+        LOG_FAIL_FMT(
+          "Timeout waiting for global commit, last_sig_seqno:{}, last_idx:{}",
+          last_sig_seqno,
+          state->last_idx);
+        return true;
+      }
+
+      // Check if there have been too many entried since the last signature
+      if (
+        sig_tx_interval != 0 &&
+        last_sig_seqno + sig_tx_interval * wait_factor <
+          static_cast<size_t>(state->last_idx))
+      {
+        LOG_FAIL_FMT(
+          "Too many transactions occurred since last signature, "
+          "last_sig_seqno:{}, "
+          "last_idx:{}",
+          last_sig_seqno,
+          state->last_idx);
+        return true;
+      }
+
+      return false;
     }
 
     Term get_term_internal(Index idx)
@@ -840,6 +946,10 @@ namespace aft
 
           case kv::DeserialiseSuccess::PASS_NONCES:
           {
+            request_tracker->insert_signed_request(
+              state->last_idx,
+              threading::ThreadMessaging::thread_messaging
+                .get_current_time_offset());
             break;
           }
 
@@ -847,7 +957,8 @@ namespace aft
           {
             if (consensus_type == ConsensusType::BFT)
             {
-              state->last_idx = executor->commit_replayed_request(tx);
+              state->last_idx =
+                executor->commit_replayed_request(tx, request_tracker);
             }
             break;
           }
@@ -903,19 +1014,18 @@ namespace aft
 
       auto progress_tracker = store->get_progress_tracker();
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
-      auto h = progress_tracker->get_my_hashed_nonce(
-        {state->current_view, state->last_idx});
-
-      Nonce hashed_nonce;
-      std::copy(h.begin(), h.end(), hashed_nonce.begin());
 
       SignedAppendEntriesResponse r = {
         {raft_append_entries_signed_response, state->my_node_id},
         state->current_view,
         state->last_idx,
-        hashed_nonce,
+        {},
         static_cast<uint32_t>(sig.sig.size()),
         {}};
+
+      progress_tracker->get_my_hashed_nonce(
+        {state->current_view, state->last_idx}, r.hashed_nonce);
+
       std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
 
       auto result = progress_tracker->add_signature(
@@ -923,7 +1033,7 @@ namespace aft
         r.from_node,
         r.signature_size,
         r.sig,
-        hashed_nonce,
+        r.hashed_nonce,
         node_count(),
         is_leader());
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
@@ -1670,6 +1780,7 @@ namespace aft
           break;
 
         configurations.pop_front();
+        backup_nodes.clear();
         changed = true;
       }
 
@@ -1711,6 +1822,7 @@ namespace aft
       while (!configurations.empty() && (configurations.back().idx > idx))
       {
         configurations.pop_back();
+        backup_nodes.clear();
         changed = true;
       }
 

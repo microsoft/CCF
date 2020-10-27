@@ -1,16 +1,12 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+
 // Types/objects exposed from C++:
 
-// adapted from https://github.com/microsoft/TypeScript/issues/1897#issuecomment-648485567
-type Json = void | null | boolean | number | string | Json[] | { [prop: string]: Json }
-type JsonCompatible<T> = {
-  [P in keyof T]: T[P] extends Json
-    ? T[P]
-    : Pick<T, P> extends Required<Pick<T, P>>
-    ? never
-    : T[P] extends (() => any) | undefined
-    ? never
-    : JsonCompatible<T[P]>
-}
+// This should eventually cover all JSON-compatible values.
+// There are attempts at https://github.com/microsoft/TypeScript/issues/1897
+// to create such a type but it needs further refinement.
+type JsonCompatible<T> = any
 
 export interface Body<T extends JsonCompatible<T>> {
     text: () => string
@@ -38,9 +34,9 @@ export type EndpointFn<A extends JsonCompatible<A> = any, B extends ResponseBody
 
 export interface KVMap {
     has: (key: ArrayBuffer) => boolean
-    get: (key: ArrayBuffer) => ArrayBuffer
-    set: (key: ArrayBuffer, value: ArrayBuffer) => void
-    delete: (key: ArrayBuffer) => void
+    get: (key: ArrayBuffer) => ArrayBuffer | undefined
+    set: (key: ArrayBuffer, value: ArrayBuffer) => KVMap
+    delete: (key: ArrayBuffer) => boolean
 }
 
 export type KVMaps =  { [key: string]: KVMap; };
@@ -70,7 +66,9 @@ export interface CCF {
 export const ccf = globalThis.ccf as CCF
 
 // Additional functionality on top of C++:
-export const kv = ccf.kv
+
+// Optional, so that this module can be (indirectly) imported outside CCF.
+export const kv = ccf ? ccf.kv : undefined
 
 export interface DataConverter<T> {
     encode(val: T): ArrayBuffer
@@ -254,13 +252,15 @@ export class TypedKVMap<K, V> {
     has(key: K): boolean {
         return this.kv.has(this.kt.encode(key));
     }
-    get(key: K): V {
-        return this.vt.decode(this.kv.get(this.kt.encode(key)));
+    get(key: K): V | undefined {
+        const v = this.kv.get(this.kt.encode(key));
+        return v === undefined ? undefined : this.vt.decode(v);
     }
-    set(key: K, value: V): void {
+    set(key: K, value: V): TypedKVMap<K, V> {
         this.kv.set(this.kt.encode(key), this.vt.encode(value));
+        return this
     }
-    delete(key: K): void {
-        this.kv.delete(this.kt.encode(key));
+    delete(key: K): boolean {
+        return this.kv.delete(this.kt.encode(key));
     }
 }

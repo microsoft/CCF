@@ -1,5 +1,5 @@
-Verifing Quote
-==============
+Verifying Quote
+===============
 
 A client can verify the SGX quote of the CCF node that it connects to.
 

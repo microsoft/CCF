@@ -3,6 +3,7 @@
 #pragma once
 
 #include "consensus/consensus_types.h"
+#include "crypto/hash.h"
 #include "ds/ring_buffer_types.h"
 #include "enclave/rpc_context.h"
 #include "enclave/rpc_handler.h"
@@ -21,13 +22,13 @@ namespace aft
   using Term = int64_t;
   using NodeId = uint64_t;
   using Node2NodeMsg = uint64_t;
-  using Nonce = std::array<uint8_t, 32>;
+  using Nonce = crypto::Sha256Hash;
 
   using ReplyCallback = std::function<bool(
     void* owner,
     kv::TxHistory::RequestID caller_rid,
     int status,
-    std::vector<uint8_t>& data)>;
+    std::vector<uint8_t>&& data)>;
 
   static constexpr NodeId NoNode = std::numeric_limits<NodeId>::max();
 

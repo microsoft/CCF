@@ -584,11 +584,14 @@ def test_memory(network, args):
 
 
 def run(args):
-    hosts = ["localhost"] * (3 if args.consensus == "bft" else 2)
-
     txs = app.LoggingTxs()
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb, txs=txs
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
     ) as network:
         network.start_and_join(args)
 
@@ -622,5 +625,6 @@ if __name__ == "__main__":
         args.package = "liblua_generic"
     else:
         args.package = "liblogging"
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
 
     run(args)

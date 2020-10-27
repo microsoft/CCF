@@ -125,7 +125,11 @@ namespace ccf
           if (
             primary_id != NoNode &&
             cmd_forwarder->forward_command(
-              ctx, primary_id, caller_id, get_cert_to_forward(ctx, endpoint)))
+              ctx,
+              primary_id,
+              consensus->active_nodes(),
+              caller_id,
+              get_cert_to_forward(ctx, endpoint)))
           {
             // Indicate that the RPC has been forwarded to primary
             LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id);
@@ -581,7 +585,7 @@ namespace ccf
               std::get<1>(reqid),
               std::get<2>(reqid));
             ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-            ctx->set_response_body("PBFT could not process request.");
+            ctx->set_response_body("Could not process request.");
             return ctx->serialise_response();
           }
           tx.set_req_id(reqid);
@@ -590,7 +594,7 @@ namespace ccf
         else
         {
           ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          ctx->set_response_body("PBFT is not yet ready.");
+          ctx->set_response_body("Consensus is not yet ready.");
           return ctx->serialise_response();
         }
       }
@@ -598,11 +602,11 @@ namespace ccf
       return process_command(ctx, tx, caller_id);
     }
 
-    /** Process a serialised command with the associated RPC context via PBFT
+    /** Process a serialised command with the associated RPC context via BFT
      *
      * @param ctx Context for this RPC
      */
-    ProcessPbftResp process_pbft(
+    ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
       auto tx = tables.create_tx();
@@ -678,7 +682,7 @@ namespace ccf
       }
       else
       {
-        auto rep = process_pbft(ctx);
+        auto rep = process_bft(ctx);
         return rep.result;
       }
     }
