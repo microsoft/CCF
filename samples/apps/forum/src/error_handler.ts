@@ -1,15 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-import { ValidateError, FieldErrors } from "@tsoa/runtime";
+import { ValidateError as TsoaValidateError, FieldErrors } from "@tsoa/runtime";
 import * as ccf from './types/ccf'
-
-// The global error handler. Gets called for:
-// - Request schema validation errors
-// - Uncaught exceptions in controller actions
-
-// See https://tsoa-community.github.io/docs/error-handling.html#setting-up-error-handling
-// The code that imports and calls this handler is in tsoa-support/routes.ts.tmpl.
 
 export interface ErrorResponse {
     message: string
@@ -20,7 +13,9 @@ export interface ValidateErrorResponse extends ErrorResponse {
     details: FieldErrors
 }
 
-export const ValidateErrorStatus = 422
+export abstract class ValidateError {
+    static Status = 422
+}
 
 class HttpError extends Error {
     constructor(public statusCode: number, message: string) {
@@ -33,6 +28,14 @@ export class BadRequestError extends HttpError {
 
     constructor(message: string) {
         super(BadRequestError.Status, message)
+    }
+}
+
+export class UnauthorizedError extends HttpError {
+    static Status = 401
+
+    constructor(message: string) {
+        super(UnauthorizedError.Status, message)
     }
 }
 
@@ -52,14 +55,24 @@ export class NotFoundError extends HttpError {
     }
 }
 
+/** The global error handler.
+ * 
+ * This handler is called for:
+ * - Request schema validation errors
+ * - Exceptions thrown by the authentication module
+ * - Uncaught exceptions in controller actions
+ * 
+ * See https://tsoa-community.github.io/docs/error-handling.html#setting-up-error-handling
+ * The code that imports and calls this handler is in tsoa-support/routes.ts.tmpl.
+ */
 export function errorHandler(err: unknown, req: ccf.Request): ccf.Response<ErrorResponse | ValidateErrorResponse> {
-    if (err instanceof ValidateError) {
+    if (err instanceof TsoaValidateError) {
         return {
             body: {
                 message: "Validation failed",
                 details: err.fields
             },
-            statusCode: ValidateErrorStatus
+            statusCode: ValidateError.Status
         }
     } else if (err instanceof HttpError) {
         return {

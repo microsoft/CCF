@@ -113,14 +113,13 @@ export function getValidatedArgs(args: any, request: any, response: any): any[] 
 }
 
 {{#if useSecurity}}
-export function authenticateMiddleware(security: TsoaRoute.Security[], request: any, response: any) {
-    let user = undefined
+export function authenticateMiddleware(security: TsoaRoute.Security[], request: any) {
     let success = false
     let error = undefined
     for (const secMethod of security) {
         for (const name in secMethod) {
             try {
-                user = authentication(request, name, secMethod[name])
+                authentication(request, name, secMethod[name])
                 success = true
                 break
             } catch (e) {
@@ -131,17 +130,8 @@ export function authenticateMiddleware(security: TsoaRoute.Security[], request: 
             break
         }
     }
-    if (success) {
-        request['user'] = user
-        return true
-    } else {
-        response.statusCode = 401
-        if (error.message) {
-            response.body = {
-                message: error.message
-            }
-        }
-        return false
+    if (!success) {
+        throw error
     }
 }
 {{/if}}
@@ -187,34 +177,32 @@ import { {{name}} } from '{{modulePath}}';
 {{#each actions}}
 // {{method}} {{fullPath}}
 export function {{name}}(request) {
-    const response = {
-        body: undefined,
-        statusCode: undefined,
-        headers: {}
-    }
-
-    {{#if security.length}}
-    if (!authenticateMiddleware({{json security}}, request, response)) {
-        return response;
-    }
-    {{/if}}
-
-    const args = {
-        {{#each parameters}}
-            {{@key}}: {{{json this}}},
-        {{/each}}
-    };
-
-    const request_ = {
-        body: request.body,
-        headers: request.headers,
-        query: parseQuery(request.query),
-        params: request.params,
-        user: request.user
-    }
-
     try {
-        let validatedArgs = getValidatedArgs(args, request_, response);
+        {{#if security.length}}
+        authenticateMiddleware({{json security}}, request)
+        {{/if}}
+
+        const args = {
+            {{#each parameters}}
+                {{@key}}: {{{json this}}},
+            {{/each}}
+        };
+
+        const request_ = {
+            body: request.body,
+            headers: request.headers,
+            query: parseQuery(request.query),
+            params: request.params,
+            user: request.user
+        }
+
+        const response = {
+            body: undefined,
+            statusCode: undefined,
+            headers: {}
+        }
+
+        const validatedArgs = getValidatedArgs(args, request_, response);
 
         const controller = new {{../name}}();
 
