@@ -43,9 +43,7 @@ namespace ccf
     SpinLock open_lock;
     bool is_open_ = false;
 
-    Nodes* nodes;
-    ClientSignatures* client_signatures;
-    aft::RequestsMap* bft_requests_map;
+    std::string client_signatures_name;
     kv::Consensus* consensus;
     std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder;
     kv::TxHistory* history;
@@ -147,11 +145,11 @@ namespace ccf
         // If this frontend is not allowed to forward or the command has already
         // been forwarded, redirect to the current primary
         ctx->set_response_status(HTTP_STATUS_TEMPORARY_REDIRECT);
-        if ((nodes != nullptr) && (consensus != nullptr))
+        if (consensus != nullptr)
         {
           NodeId primary_id = consensus->primary();
           auto tx = tables.create_tx();
-          auto nodes_view = tx.get_view(*nodes);
+          auto nodes_view = tx.get_view<Nodes>(Tables::NODES);
           auto info = nodes_view->get(primary_id);
 
           if (info)
@@ -170,7 +168,13 @@ namespace ccf
     void record_client_signature(
       kv::Tx& tx, CallerId caller_id, const SignedReq& signed_request)
     {
-      auto client_sig_view = tx.get_view(*client_signatures);
+      if (client_signatures_name.empty())
+      {
+        return;
+      }
+
+      auto client_sig_view =
+        tx.get_view<ClientSignatures>(client_signatures_name);
       if (request_storing_disabled)
       {
         SignedReq no_req;
@@ -188,7 +192,8 @@ namespace ccf
       const CallerId caller_id,
       const SignedReq& signed_request)
     {
-      if (!client_signatures)
+      // TODO: Don't understand this early out
+      if (client_signatures_name.empty())
       {
         return false;
       }
@@ -489,12 +494,10 @@ namespace ccf
     RpcFrontend(
       kv::Store& tables_,
       EndpointRegistry& handlers_,
-      ClientSignatures* client_sigs_ = nullptr) :
+      const std::string& client_sigs_name_ = "") :
       tables(tables_),
       endpoints(handlers_),
-      nodes(tables.get<Nodes>(Tables::NODES)),
-      client_signatures(client_sigs_),
-      bft_requests_map(tables.get<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS)),
+      client_signatures_name(client_sigs_name_),
       consensus(nullptr),
       history(nullptr)
     {}
@@ -617,7 +620,7 @@ namespace ccf
 
       PreExec fn =
         [](kv::Tx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend) {
-          auto req_view = tx.get_view(*frontend.bft_requests_map);
+          auto req_view = tx.get_view<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
           req_view->put(
             0,
             {ctx.session->original_caller.value().caller_id,

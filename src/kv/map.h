@@ -71,25 +71,26 @@ namespace kv
       };
     }
 
-    // void set_local_hook(const CommitHook& hook)
-    // {
-    //   untyped_map.set_local_hook(wrap_commit_hook(hook));
-    // }
+    // TODO
+    void set_local_hook(const CommitHook&)
+    {
+      // untyped_map.set_local_hook(wrap_commit_hook(hook));
+    }
 
-    // void unset_local_hook()
-    // {
-    //   untyped_map.unset_local_hook();
-    // }
+    void unset_local_hook()
+    {
+      // untyped_map.unset_local_hook();
+    }
 
-    // void set_global_hook(const CommitHook& hook)
-    // {
-    //   untyped_map.set_global_hook(wrap_commit_hook(hook));
-    // }
+    void set_global_hook(const CommitHook&)
+    {
+      // untyped_map.set_global_hook(wrap_commit_hook(hook));
+    }
 
-    // void unset_global_hook()
-    // {
-    //   untyped_map.unset_global_hook();
-    // }
+    void unset_global_hook()
+    {
+      // untyped_map.unset_global_hook();
+    }
   };
 
   template <

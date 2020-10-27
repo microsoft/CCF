@@ -43,58 +43,58 @@ namespace ccf
     // Governance tables
     //
     // members and member_certs tables should always be in sync
-    Members& members;
-    CertDERs& member_certs;
+    Members members;
+    CertDERs member_certs;
 
-    Scripts& gov_scripts;
-    Modules& modules;
-    Proposals& proposals;
-    Whitelists& whitelists;
-    CodeIDs& node_code_ids;
-    MemberAcks& member_acks;
-    GovernanceHistory& governance_history;
-    ClientSignatures& member_client_signatures;
-    Shares& shares;
-    SubmittedShares& submitted_shares;
-    Configuration& config;
+    Scripts gov_scripts;
+    Modules modules;
+    Proposals proposals;
+    Whitelists whitelists;
+    CodeIDs node_code_ids;
+    MemberAcks member_acks;
+    GovernanceHistory governance_history;
+    ClientSignatures member_client_signatures;
+    Shares shares;
+    SubmittedShares submitted_shares;
+    Configuration config;
 
-    CACertDERs& ca_certs;
+    CACertDERs ca_certs;
 
     //
     // User tables
     //
     // users and user_certs tables should always be in sync
-    Users& users;
-    CertDERs& user_certs;
+    Users users;
+    CertDERs user_certs;
 
-    ClientSignatures& user_client_signatures;
+    ClientSignatures user_client_signatures;
 
     //
     // Node table
     //
-    Nodes& nodes;
+    Nodes nodes;
 
     //
     // Lua application table
     //
-    Scripts& app_scripts;
+    Scripts app_scripts;
 
     //
     // Internal CCF tables
     //
-    Service& service;
-    Values& values;
-    Secrets& secrets;
-    Signatures& signatures;
-    ConsensusTable& consensus;
-    SnapshotEvidence& snapshot_evidence;
+    Service service;
+    Values values;
+    Secrets secrets;
+    Signatures signatures;
+    ConsensusTable consensus;
+    SnapshotEvidence snapshot_evidence;
 
     //
     // bft related tables
     //
-    aft::RequestsMap& bft_requests_map;
-    BackupSignaturesMap& backup_signatures_map;
-    aft::RevealedNoncesMap& revealed_nonces_map;
+    aft::RequestsMap bft_requests_map;
+    BackupSignaturesMap backup_signatures_map;
+    aft::RevealedNoncesMap revealed_nonces_map;
 
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::CFT) :
       tables(
@@ -103,41 +103,34 @@ namespace ccf
             aft::replicate_type_raft, aft::replicated_tables_raft) :
           std::make_shared<kv::Store>(
             aft::replicate_type_bft, aft::replicated_tables_bft)),
-      members(tables->create<Members>(Tables::MEMBERS)),
-      member_certs(tables->create<CertDERs>(Tables::MEMBER_CERT_DERS)),
-      gov_scripts(tables->create<Scripts>(Tables::GOV_SCRIPTS)),
-      modules(tables->create<Modules>(Tables::MODULES)),
-      proposals(tables->create<Proposals>(Tables::PROPOSALS)),
-      whitelists(tables->create<Whitelists>(Tables::WHITELISTS)),
-      node_code_ids(tables->create<CodeIDs>(Tables::NODE_CODE_IDS)),
-      member_acks(tables->create<MemberAcks>(Tables::MEMBER_ACKS)),
-      governance_history(
-        tables->create<GovernanceHistory>(Tables::GOV_HISTORY)),
-      member_client_signatures(
-        tables->create<ClientSignatures>(Tables::MEMBER_CLIENT_SIGNATURES)),
-      shares(tables->create<Shares>(Tables::SHARES)),
-      submitted_shares(
-        tables->create<SubmittedShares>(Tables::SUBMITTED_SHARES)),
-      config(tables->create<Configuration>(Tables::CONFIGURATION)),
-      ca_certs(tables->create<CACertDERs>(Tables::CA_CERT_DERS)),
-      users(tables->create<Users>(Tables::USERS)),
-      user_certs(tables->create<CertDERs>(Tables::USER_CERT_DERS)),
-      user_client_signatures(
-        tables->create<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
-      nodes(tables->create<Nodes>(Tables::NODES)),
-      app_scripts(tables->create<Scripts>(Tables::APP_SCRIPTS)),
-      service(tables->create<Service>(Tables::SERVICE)),
-      values(tables->create<Values>(Tables::VALUES)),
-      secrets(tables->create<Secrets>(Tables::SECRETS)),
-      signatures(tables->create<Signatures>(Tables::SIGNATURES)),
-      consensus(tables->create<ConsensusTable>(Tables::CONSENSUS)),
-      snapshot_evidence(
-        tables->create<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE)),
-      bft_requests_map(tables->create<aft::RequestsMap>(Tables::AFT_REQUESTS)),
-      backup_signatures_map(
-        tables->create<BackupSignaturesMap>(Tables::BACKUP_SIGNATURES)),
-      revealed_nonces_map(
-        tables->create<aft::RevealedNoncesMap>(Tables::NONCES))
+      members(Tables::MEMBERS),
+      member_certs(Tables::MEMBER_CERT_DERS),
+      gov_scripts(Tables::GOV_SCRIPTS),
+      modules(Tables::MODULES),
+      proposals(Tables::PROPOSALS),
+      whitelists(Tables::WHITELISTS),
+      node_code_ids(Tables::NODE_CODE_IDS),
+      member_acks(Tables::MEMBER_ACKS),
+      governance_history(Tables::GOV_HISTORY),
+      member_client_signatures(Tables::MEMBER_CLIENT_SIGNATURES),
+      shares(Tables::SHARES),
+      submitted_shares(Tables::SUBMITTED_SHARES),
+      config(Tables::CONFIGURATION),
+      ca_certs(Tables::CA_CERT_DERS),
+      users(Tables::USERS),
+      user_certs(Tables::USER_CERT_DERS),
+      user_client_signatures(Tables::USER_CLIENT_SIGNATURES),
+      nodes(Tables::NODES),
+      app_scripts(Tables::APP_SCRIPTS),
+      service(Tables::SERVICE),
+      values(Tables::VALUES),
+      secrets(Tables::SECRETS),
+      signatures(Tables::SIGNATURES),
+      consensus(Tables::CONSENSUS),
+      snapshot_evidence(Tables::SNAPSHOT_EVIDENCE),
+      bft_requests_map(Tables::AFT_REQUESTS),
+      backup_signatures_map(Tables::BACKUP_SIGNATURES),
+      revealed_nonces_map(Tables::NONCES)
     {}
 
     /** Returns a tuple of all tables that are possibly accessible from scripts

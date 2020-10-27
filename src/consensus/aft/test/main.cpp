@@ -24,8 +24,7 @@ threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 std::vector<uint8_t> cert;
-kv::Map<size_t, aft::Request> request_map(
-  nullptr, "test", kv::SecurityDomain::PUBLIC, true);
+kv::Map<size_t, aft::Request> request_map("test");
 
 DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 {
