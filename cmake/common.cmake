@@ -457,15 +457,12 @@ endfunction()
 # Helper for building end-to-end function tests using the sandbox
 function(add_e2e_sandbox_test)
   cmake_parse_arguments(
-    PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;SCRIPT;LABEL;CONSENSUS;"
+    PARSE_ARGV 0 PARSED_ARGS "" "NAME;SCRIPT;LABEL;CONSENSUS;"
     "ADDITIONAL_ARGS;CONFIGURATIONS"
   )
 
   if(BUILD_END_TO_END_TESTS)
-    add_test(NAME ${PARSED_ARGS_NAME}
-              COMMAND ${PARSED_ARGS_SCRIPT}
-    )
+    add_test(NAME ${PARSED_ARGS_NAME} COMMAND ${PARSED_ARGS_SCRIPT})
     set_property(
       TEST ${PARSED_ARGS_NAME}
       APPEND
@@ -486,6 +483,11 @@ function(add_e2e_sandbox_test)
     set_property(
       TEST ${PARSED_ARGS_NAME}
       APPEND
+      PROPERTY ENVIRONMENT "CONSENSUS=${PARSED_ARGS_CONSENSUS}"
+    )
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
       PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
     )
 
@@ -493,13 +495,13 @@ function(add_e2e_sandbox_test)
       set_property(
         TEST ${PARSED_ARGS_NAME}
         APPEND
-        PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
+        PROPERTY ENVIRONMENT "ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
       )
     else()
       set_property(
         TEST ${PARSED_ARGS_NAME}
         APPEND
-        PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=release"
+        PROPERTY ENVIRONMENT "ENCLAVE_TYPE=release"
       )
     endif()
   endif()

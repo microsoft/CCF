@@ -19,9 +19,13 @@ export function getCCFSandboxCmdAndArgs(app_bundle_dir: string) {
     if (process.env.VERBOSE == '1') {
         CCF_SANDBOX_ARGS.push('--verbose')
     }
-    if (process.env.DEFAULT_ENCLAVE_TYPE)
+    if (process.env.ENCLAVE_TYPE)
     {
-        CCF_SANDBOX_ARGS.push('--enclave-type=' + process.env.DEFAULT_ENCLAVE_TYPE)
+        CCF_SANDBOX_ARGS.push('--enclave-type=' + process.env.ENCLAVE_TYPE)
+    }
+    if (process.env.CONSENSUS)
+    {
+        CCF_SANDBOX_ARGS.push('--consensus=' + process.env.CONSENSUS)
     }
 
     // This logic allows to run tests easily from a CCF install or the CCF repository.
