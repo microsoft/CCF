@@ -37,7 +37,6 @@ namespace ccf
         msg_type, to, reinterpret_cast<const uint8_t*>(&data), sizeof(T));
     }
 
-    // TODO: use this
     template <>
     bool send_authenticated(
       const NodeMsgType& msg_type, NodeId to, const std::vector<uint8_t>& data)

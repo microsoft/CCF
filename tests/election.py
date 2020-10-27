@@ -80,6 +80,13 @@ def run(args):
         nodes_to_stop = math.ceil(len(args.nodes) / 2)
         if args.consensus == "bft":
             nodes_to_stop = math.ceil(len(args.nodes) / 3)
+            nodes_to_stop = 1
+
+        LOG.error(
+            "AAAAAA nodes_to_stop:{}".format(
+                nodes_to_stop
+            )
+        )
 
         primary_is_known = True
         for node_to_stop in range(nodes_to_stop):

@@ -6,6 +6,7 @@
 #include "kv/store.h"
 #include "node/nodes.h"
 #include "node/request_tracker.h"
+#include "consensus/aft/impl/view_change_tracker.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -328,11 +329,11 @@ TEST_CASE("View Changes")
 
       if (i < 2)
       {
-        CHECK_THROWS(pt.get_view_change_message());
+        CHECK_THROWS(pt.get_view_change_message(view));
       }
       else
       {
-        auto vc = pt.get_view_change_message();
+        auto vc = pt.get_view_change_message(view);
         REQUIRE(vc != nullptr);
         REQUIRE(vc->view == view);
         REQUIRE(vc->seqno == seqno);
@@ -370,13 +371,13 @@ TEST_CASE("View Changes")
 
       if (i < 2)
       {
-        auto vc = pt.get_view_change_message();
+        auto vc = pt.get_view_change_message(view);
         REQUIRE(vc != nullptr);
         REQUIRE(vc->seqno == seqno);
       }
       else
       {
-        auto vc = pt.get_view_change_message();
+        auto vc = pt.get_view_change_message(view);
         REQUIRE(vc != nullptr);
         REQUIRE(vc->seqno == new_seqno);
       }
@@ -411,7 +412,7 @@ TEST_CASE("View Changes")
          (result == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK &&
           i == node_count_quorum)));
 
-      auto vc = pt.get_view_change_message();
+      auto vc = pt.get_view_change_message(view);
       REQUIRE(vc != nullptr);
       REQUIRE(vc->seqno == seqno);
     }
@@ -471,5 +472,20 @@ TEST_CASE("Serialization")
     REQUIRE(v.signature.size() == 1);
     REQUIRE(v.signature[0] == 5);
   }
+}
 
+TEST_CASE("view-change-tracker tests")
+{
+  INFO("Check timeout works correctly");
+  {
+    aft::ViewChangeTracker vct(0, 0, std::chrono::seconds(10));
+    REQUIRE(vct.should_send_view_change(std::chrono::seconds(1)) == false);
+    REQUIRE(vct.get_target_view() == 0);
+    REQUIRE(vct.should_send_view_change(std::chrono::seconds(11)));
+    REQUIRE(vct.get_target_view() == 1);
+    REQUIRE(vct.should_send_view_change(std::chrono::seconds(12)) == false);
+    REQUIRE(vct.get_target_view() == 1);
+    REQUIRE(vct.should_send_view_change(std::chrono::seconds(100)));
+    REQUIRE(vct.get_target_view() == 2);
+  }
 }

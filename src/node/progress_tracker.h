@@ -528,7 +528,7 @@ namespace ccf
       return highest_commit_level;
     }
 
-    std::unique_ptr<ViewChange> get_view_change_message()
+    std::unique_ptr<ViewChange> get_view_change_message(kv::Consensus::View view)
     {
       auto it = certificates.find(CertKey(highest_prepared_level));
       if (it == certificates.end())
@@ -541,7 +541,7 @@ namespace ccf
 
       auto& cert = it->second;
       auto m = std::make_unique<ViewChange>(
-        highest_prepared_level.term, highest_prepared_level.version, cert.root);
+        view, highest_prepared_level.version, cert.root);
       
       for (const auto& sig : cert.sigs)
       {

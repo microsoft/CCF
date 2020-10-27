@@ -8,6 +8,7 @@
 #include "impl/execution.h"
 #include "impl/request_message.h"
 #include "impl/state.h"
+#include "impl/view_change_tracker.h"
 #include "kv/kv_types.h"
 #include "kv/tx.h"
 #include "node/node_to_node.h"
@@ -88,6 +89,7 @@ namespace aft
     std::shared_ptr<aft::State> state;
     std::shared_ptr<Executor> executor;
     std::shared_ptr<aft::RequestTracker> request_tracker;
+    ViewChangeTracker view_change_tracker;
 
     // Timeouts
     std::chrono::milliseconds request_timeout;
@@ -155,6 +157,7 @@ namespace aft
       state(state_),
       executor(executor_),
       request_tracker(request_tracker_),
+      view_change_tracker(state_->my_node_id, 2, view_change_timeout_),
 
       request_timeout(request_timeout_),
       election_timeout(election_timeout_),
@@ -513,6 +516,9 @@ namespace aft
           recv_nonce_reveal(data, size);
           break;
 
+        case bft_view_change:
+          LOG_INFO_FMT("AAAAAAAAAAA got view change");
+
         default:
         {
         }
@@ -530,13 +536,20 @@ namespace aft
                       .get_current_time_offset();
         request_tracker->tick(time);
 
-        if (is_follower() && has_bft_timeout_occurred(time))
+        if (
+          is_follower() &&
+          (state->view_change_in_progress || has_bft_timeout_occurred(time)) &&
+          view_change_tracker.should_send_view_change(time))
         {
+
+          state->view_change_in_progress = true;
+
           // We have not seen a request executed within an expected period of
           // time. We should invoke a view-change.
           //
           auto progress_tracker = store->get_progress_tracker();
-          auto vc = progress_tracker->get_view_change_message();
+          auto vc = progress_tracker->get_view_change_message(
+            view_change_tracker.get_target_view());
 
           size_t vc_size = vc->get_serialized_size();
 
@@ -552,7 +565,16 @@ namespace aft
           vc->serialize(data, size);
           CCF_ASSERT_FMT(size == 0, "Did not write to everything");
 
-          // TODO: send to all other replicas
+          LOG_INFO_FMT("AAAAAA sending view change msg view:{}", vc->view);
+          for (auto it = nodes.begin(); it != nodes.end(); ++it)
+          {
+            auto send_to = it->first;
+            if (send_to != state->my_node_id)
+            {
+              channels->send_authenticated(
+                ccf::NodeMsgType::consensus_msg, send_to, m);
+            }
+          }
         }
       }
 
@@ -571,7 +593,7 @@ namespace aft
           }
         }
       }
-      else
+      else if (consensus_type != ConsensusType::BFT)
       {
         if (replica_state != Retired && timeout_elapsed >= election_timeout)
         {

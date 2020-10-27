@@ -98,7 +98,8 @@ namespace aft
       my_node_id(my_node_id_),
       current_view(0),
       last_idx(0),
-      commit_idx(0)
+      commit_idx(0),
+      view_change_in_progress(false)
     {}
 
     SpinLock lock;
@@ -108,6 +109,7 @@ namespace aft
     kv::Consensus::View current_view;
     kv::Version last_idx;
     kv::Version commit_idx;
+    bool view_change_in_progress;
 
     kv::Version cft_watermark_idx;
     kv::Version bft_watermark_idx;
