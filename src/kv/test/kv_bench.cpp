@@ -70,10 +70,11 @@ static void serialise(picobench::state& s)
   encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
 
-  auto& map0 = kv_store.create<MapType>(build_map_name("map0", SD));
-  auto& map1 = kv_store.create<MapType>(build_map_name("map1", SD));
+  auto map0 = build_map_name("map0", SD);
+  auto map1 = build_map_name("map1", SD);
+
   auto tx = kv_store.create_tx();
-  auto [tx0, tx1] = tx.get_view(map0, map1);
+  auto [tx0, tx1] = tx.get_view<MapType, MapType>(map0, map1);
 
   for (int i = 0; i < s.iterations(); i++)
   {
@@ -105,11 +106,11 @@ static void deserialise(picobench::state& s)
   kv_store.set_encryptor(encryptor);
   kv_store2.set_encryptor(encryptor);
 
-  MapType map0(build_map_name("map0", SD));
-  MapType map1(build_map_name("map1", SD));
+  auto map0 = build_map_name("map0", SD);
+  auto map1 = build_map_name("map1", SD);
 
   auto tx = kv_store.create_tx();
-  auto [tx0, tx1] = tx.get_view(map0, map1);
+  auto [tx0, tx1] = tx.get_view<MapType, MapType>(map0, map1);
 
   for (int i = 0; i < s.iterations(); i++)
   {
@@ -139,13 +140,13 @@ static void commit_latency(picobench::state& s)
   encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
 
-  MapType map0(build_map_name("map0", SD));
-  MapType map1(build_map_name("map1", SD));
+  auto map0 = "map0";
+  auto map1 = "map1";
 
   for (int i = 0; i < s.iterations(); i++)
   {
     auto tx = kv_store.create_tx();
-    auto [tx0, tx1] = tx.get_view(map0, map1);
+    auto [tx0, tx1] = tx.get_view<MapType, MapType>(map0, map1);
     for (int iTx = 0; iTx < S; iTx++)
     {
       const auto key = gen_key(i, std::to_string(iTx));

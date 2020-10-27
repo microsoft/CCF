@@ -987,14 +987,13 @@ TEST_CASE("Deserialise return status")
 {
   kv::Store store;
 
-  auto& signatures = store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
-  auto& nodes = store.create<ccf::Nodes>(ccf::Tables::NODES);
-  auto& data = store.create<MapTypes::NumNum>("public:data");
+  ccf::Signatures signatures(ccf::Tables::SIGNATURES);
+  ccf::Nodes nodes(ccf::Tables::NODES);
+  MapTypes::NumNum data("public:data");
 
   auto kp = tls::make_key_pair();
 
-  auto history =
-    std::make_shared<ccf::NullTxHistory>(store, 0, *kp, signatures, nodes);
+  auto history = std::make_shared<ccf::NullTxHistory>(store, 0, *kp);
   store.set_history(history);
 
   {
@@ -1038,24 +1037,22 @@ TEST_CASE("Map swap between stores")
   kv::Store s1;
   s1.set_encryptor(encryptor);
 
-  auto& d1 = s1.create<MapTypes::NumNum>("data");
-  auto& pd1 = s1.create<MapTypes::NumNum>("public:data");
-
   kv::Store s2;
   s2.set_encryptor(encryptor);
-  auto& d2 = s2.create<MapTypes::NumNum>("data");
-  auto& pd2 = s2.create<MapTypes::NumNum>("public:data");
+
+  MapTypes::NumNum d("data");
+  MapTypes::NumNum pd("public:data");
 
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_view(d1);
+    auto v = tx.get_view(d);
     v->put(42, 42);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_view(pd1);
+    auto v = tx.get_view(pd);
     v->put(14, 14);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -1064,7 +1061,7 @@ TEST_CASE("Map swap between stores")
   while (s2.current_version() < target_version)
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_view(d2);
+    auto v = tx.get_view(d);
     v->put(41, 41);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -1073,7 +1070,7 @@ TEST_CASE("Map swap between stores")
 
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_view(d1);
+    auto v = tx.get_view(d);
     auto val = v->get(41);
     REQUIRE_FALSE(v->get(42).has_value());
     REQUIRE(val.has_value());
@@ -1082,7 +1079,7 @@ TEST_CASE("Map swap between stores")
 
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_view(pd1);
+    auto v = tx.get_view(pd);
     auto val = v->get(14);
     REQUIRE(val.has_value());
     REQUIRE(val.value() == 14);
@@ -1090,7 +1087,7 @@ TEST_CASE("Map swap between stores")
 
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_view(d2);
+    auto v = tx.get_view(d);
     auto val = v->get(42);
     REQUIRE_FALSE(v->get(41).has_value());
     REQUIRE(val.has_value());
@@ -1099,7 +1096,7 @@ TEST_CASE("Map swap between stores")
 
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_view(pd2);
+    auto v = tx.get_view(pd);
     REQUIRE_FALSE(v->get(14).has_value());
   }
 }
