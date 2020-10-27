@@ -388,9 +388,6 @@ http::SimpleResponseProcessor::Response parse_response(const vector<uint8_t>& v)
   http::SimpleResponseProcessor processor;
   http::ResponseParser parser(processor);
 
-  std::cout << "Parsing response:\n"
-            << std::string(v.begin(), v.end()) << std::endl;
-
   const auto parsed_count = parser.execute(v.data(), v.size());
   REQUIRE(parsed_count == v.size());
   REQUIRE(processor.received.size() == 1);

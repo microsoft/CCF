@@ -399,6 +399,7 @@ namespace kv
     void reset()
     {
       view_list.clear();
+      created_maps.clear();
       committed = false;
       success = false;
       read_version = NoVersion;
