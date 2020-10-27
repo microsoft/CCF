@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/ccf_assert.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
@@ -28,7 +29,7 @@ namespace kv
   class BaseTx : public AbstractViewContainer
   {
   protected:
-    AbstractStore* store = nullptr;
+    AbstractStore* store;
 
     OrderedViews view_list;
     bool committed = false;
@@ -69,12 +70,6 @@ namespace kv
     std::tuple<typename M::TxView*> get_view_tuple_by_name(
       const std::string& map_name)
     {
-      if (store == nullptr)
-      {
-        CCF_ASSERT(
-          false, "Cannot retrieve view: New form called on old-style Tx");
-      }
-
       using MapView = typename M::TxView;
 
       // If the M is present, its AbstractTxView should be an M::TxView. This
@@ -189,7 +184,12 @@ namespace kv
     }
 
   public:
-    BaseTx(AbstractStore* _store) : store(_store) {}
+    BaseTx(AbstractStore* _store) : store(_store)
+    {
+      CCF_ASSERT(
+        store != nullptr,
+        "Transactions must be created with reference to real Store");
+    }
 
     BaseTx(const BaseTx& that) = delete;
 
