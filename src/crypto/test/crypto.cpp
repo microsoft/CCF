@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "../crypto_box.h"
-#include "../hash.h"
-#include "../symmetric_key.h"
+#include "crypto/hash.h"
+#include "crypto/symmetric_key.h"
+#include "crypto/wrap.h"
 #include "tls/base64.h"
 #include "tls/entropy.h"
 
@@ -94,6 +94,7 @@ TEST_CASE("EverCrypt SHA256 no-collision check")
   REQUIRE(h1 != h2);
 }
 
+// TODO: Delete cryptobox
 TEST_CASE("Public key encryption")
 {
   std::string plaintext = "This is a plaintext message to encrypt";
@@ -142,13 +143,5 @@ TEST_CASE("Public key encryption")
     REQUIRE_THROWS_AS(
       crypto::Box::open({}, nonce, sender_pk_raw, recipient_sk_raw),
       std::logic_error);
-  }
-
-  INFO("Let's experiment");
-  {
-    auto pem_str = std::string(
-      "-----BEGIN PUBLIC KEY-----\n"
-      "MCowBQYDK2VwAyEAiaGfOr3cEe+sS67LGoW+tv0AtD+bDYFKeDzxwBIxHhQ=\n"
-      "-----END PUBLIC KEY-----");
   }
 }

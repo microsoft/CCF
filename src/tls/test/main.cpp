@@ -1,10 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "../25519.h"
-#include "../base64.h"
-#include "../key_pair.h"
-#include "../verifier.h"
+#include "tls/25519.h"
+#include "tls/base64.h"
+#include "tls/key_pair.h"
+#include "tls/verifier.h"
+#include "tls/wrap.h"
 
 #include <chrono>
 #include <doctest/doctest.h>
@@ -347,6 +348,7 @@ TEST_CASE("base64")
   }
 }
 
+// TODO: Delete?
 TEST_CASE("Parse public x25519 PEM")
 {
   auto x25519_public_key_pem = std::string(
@@ -363,4 +365,25 @@ TEST_CASE("Parse public x25519 PEM")
     std::vector<uint8_t>(x25519_public_key.begin(), x25519_public_key.end()));
 
   REQUIRE(tls::PublicX25519::write(raw_key).str() == x25519_public_key_pem);
+}
+
+TEST_CASE("RSA wrapping")
+{
+  // TODO: Parse public key from raw
+  auto rsa_sample_public_key = std::string(
+    "-----BEGIN PUBLIC KEY-----\n"
+    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv64WMDdljY74WLc98oRy\n"
+    "k7Qyhhr5wKxDLvyND0ln4TbGLiRQoDhm0F04HE4S3eCXMWDL8KmqeE/rtx/Un0LC\n"
+    "sd05aq47B6ig64ppPnc3nvcmxA9f3qg8G9YUHz0XfDM2H2puw822nVdbS8XxcmV4\n"
+    "moeD6eKUQcSakIvY+QoT6iJFQxZkrffCcbXWuVEa3OG7f6sg6vhdD3WxV/5USow7\n"
+    "UMweQmB/OghAXxQheuegy7nHXuaRnbgpghQJKvuO4dahzK6AQIlipo4RzCsn9n4l\n"
+    "CfsCIB8DxadZCjPUeqXdXzmW3rpKxGUoxwbD0BQn76+G79H/D4qBZSm0Loie0ZuG\n"
+    "3QIDAQAB\n"
+    "-----END PUBLIC KEY-----\n");
+  auto public_kp = tls::make_public_key(rsa_sample_public_key);
+
+  size_t input_len = 64;
+  std::vector<uint8_t> input = tls::create_entropy()->random(input_len);
+
+  auto wrapped = tls::RSAOEAPWrap::wrap(public_kp, input);
 }
