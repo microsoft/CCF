@@ -180,7 +180,7 @@ namespace ccf
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .install();
 
-      auto get_code = [this](auto& args, nlohmann::json&&) {
+      auto get_code = [](auto& args, nlohmann::json&&) {
         GetCode::Out out;
 
         auto code_view =
@@ -199,7 +199,7 @@ namespace ccf
         .set_auto_schema<void, GetCode::Out>()
         .install();
 
-      auto get_nodes_by_rpc_address = [this](
+      auto get_nodes_by_rpc_address = [](
                                         auto& args, nlohmann::json&& params) {
         const auto in = params.get<GetNodesByRPCAddress::In>();
 

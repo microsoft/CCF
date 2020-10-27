@@ -55,7 +55,7 @@ namespace ccf
     bool request_storing_disabled = false;
 
     using PreExec = std::function<void(
-      kv::Tx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend)>;
+      kv::Tx& tx, enclave::RpcContext& ctx)>;
 
     void update_consensus()
     {
@@ -232,7 +232,7 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext> ctx,
       kv::Tx& tx,
       CallerId caller_id,
-      PreExec pre_exec = {})
+      const PreExec& pre_exec = {})
     {
       const auto endpoint = endpoints.find_endpoint(tx, *ctx);
       if (endpoint == nullptr)
@@ -385,7 +385,7 @@ namespace ccf
         {
           if (pre_exec)
           {
-            pre_exec(tx, *ctx.get(), *this);
+            pre_exec(tx, *ctx.get());
           }
 
           if (should_record_client_signature)
@@ -619,7 +619,7 @@ namespace ccf
       update_consensus();
 
       PreExec fn =
-        [](kv::Tx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend) {
+        [](kv::Tx& tx, enclave::RpcContext& ctx) {
           auto req_view = tx.get_view<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
           req_view->put(
             0,
