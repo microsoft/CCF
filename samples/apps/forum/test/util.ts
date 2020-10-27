@@ -19,6 +19,10 @@ export function getCCFSandboxCmdAndArgs(app_bundle_dir: string) {
     if (process.env.VERBOSE == '1') {
         CCF_SANDBOX_ARGS.push('--verbose')
     }
+    if (process.env.DEFAULT_ENCLAVE_TYPE)
+    {
+        CCF_SANDBOX_ARGS.push('--enclave-type=' + process.env.DEFAULT_ENCLAVE_TYPE)
+    }
 
     // This logic allows to run tests easily from a CCF install or the CCF repository.
     // Most of this will disappear once CCF's build folder uses the same layout as an install.
@@ -33,6 +37,7 @@ export function getCCFSandboxCmdAndArgs(app_bundle_dir: string) {
         CCF_SANDBOX_SCRIPT = path.join(CCF_REPO_ROOT, 'tests', 'sandbox', 'sandbox.sh')
         CCF_SANDBOX_ARGS.push('--binary-dir', CCF_BINARY_DIR)
     }
+    console.log(CCF_SANDBOX_ARGS)
     return {
         command: CCF_SANDBOX_SCRIPT,
         args: CCF_SANDBOX_ARGS
@@ -48,7 +53,7 @@ export function setupMochaCCFSandbox(app_bundle_dir: string) {
         return new Promise((resolve, reject) => {
             sandboxProcess = spawn(command, args, {
                 stdio: ['pipe', 'pipe', 'inherit'],
-                timeout: 30000 // sandbox startup + max test duration
+                timeout: 40000 // sandbox startup + max test duration
             })
             sandboxProcess.on('exit', reject)
             sandboxProcess.stdout.on('data', data => {
