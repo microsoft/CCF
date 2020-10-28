@@ -14,14 +14,14 @@ namespace ccfapp
 {
   struct SmallBankTables
   {
-    kv::Map<std::string, uint64_t>& accounts;
-    kv::Map<uint64_t, int64_t>& savings;
-    kv::Map<uint64_t, int64_t>& checkings;
+    kv::Map<std::string, uint64_t> accounts;
+    kv::Map<uint64_t, int64_t> savings;
+    kv::Map<uint64_t, int64_t> checkings;
 
-    SmallBankTables(kv::Store& store) :
-      accounts(store.create<std::string, uint64_t>("a")),
-      savings(store.create<uint64_t, int64_t>("b")),
-      checkings(store.create<uint64_t, int64_t>("c"))
+    SmallBankTables(kv::Store&) :
+      accounts("a"),
+      savings("b"),
+      checkings("c")
     {}
   };
 

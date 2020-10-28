@@ -50,36 +50,6 @@ TEST_CASE("Map name parsing")
   REQUIRE(parse("public:ccf_foo") == mp(SD::PUBLIC, AC::APPLICATION));
 }
 
-TEST_CASE("Map creation")
-{
-  kv::Store kv_store;
-  const auto map_name = "map";
-  auto& map = kv_store.create<MapTypes::StringString>(map_name);
-
-  INFO("Get a map that does not exist");
-  {
-    REQUIRE(kv_store.get<MapTypes::StringString>("invalid_map") == nullptr);
-  }
-
-  INFO("Can't create map that already exists");
-  {
-    REQUIRE_THROWS_AS(
-      kv_store.create<MapTypes::StringString>(map_name), std::logic_error);
-  }
-
-  INFO("Can't get a map with the wrong type");
-  {
-    REQUIRE(kv_store.get<MapTypes::NumNum>(map_name) == nullptr);
-    REQUIRE(kv_store.get<MapTypes::NumString>(map_name) == nullptr);
-    REQUIRE(kv_store.get<MapTypes::StringNum>(map_name) == nullptr);
-  }
-
-  INFO("Can create a map with a previously invalid name");
-  {
-    CHECK_NOTHROW(kv_store.create<MapTypes::StringString>("version"));
-  }
-}
-
 TEST_CASE("Reads/writes and deletions")
 {
   kv::Store kv_store;

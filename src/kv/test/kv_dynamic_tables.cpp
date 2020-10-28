@@ -26,11 +26,6 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
   INFO("Dynamically created maps can be used like normal maps");
 
   {
-    auto map_a = kv_store.get<MapTypes::StringString>(map_name);
-    REQUIRE(map_a == nullptr);
-  }
-
-  {
     auto tx = kv_store.create_tx();
 
     auto view = tx.get_view<MapTypes::StringString>(map_name);
@@ -141,11 +136,6 @@ TEST_CASE("Dynamic table opacity" * doctest::test_suite("dynamic"))
   auto view2 = tx2.get_view<MapTypes::StringString>(map_name);
   view2->put("foo", "baz");
   REQUIRE(view2->get("foo").value() == "baz");
-
-  {
-    INFO("Maps are not visible externally until commit");
-    REQUIRE(kv_store.get<MapTypes::StringString>(map_name) == nullptr);
-  }
 
   {
     INFO("First transaction commits successfully");
