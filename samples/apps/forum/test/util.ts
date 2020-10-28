@@ -53,7 +53,7 @@ export function setupMochaCCFSandbox(app_bundle_dir: string) {
 
     let sandboxProcess: ChildProcess
     before(function () {
-        this.timeout(20000) // first time takes longer due to venv install
+        this.timeout(60000) // first time takes longer due to venv install
         return new Promise((resolve, reject) => {
             sandboxProcess = spawn(command, args, {
                 stdio: ['pipe', 'pipe', 'inherit'],

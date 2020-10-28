@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-set -e
+set -ex
 
 VENV_DIR=${VENV_DIR:-.venv_ccf_sandbox}
 
