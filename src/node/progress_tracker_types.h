@@ -11,22 +11,6 @@
 
 namespace ccf
 {
-  struct CertKey
-  {
-    CertKey(kv::TxID tx_id_) : tx_id(tx_id_) {}
-
-    kv::TxID tx_id;
-
-    bool operator<(const CertKey& rhs) const
-    {
-      if (tx_id.version == rhs.tx_id.version)
-      {
-        return tx_id.term < rhs.tx_id.term;
-      }
-      return tx_id.version < rhs.tx_id.version;
-    }
-  };
-
   struct BftNodeSignature : public ccf::NodeSignature
   {
     bool is_primary;

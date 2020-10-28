@@ -30,7 +30,7 @@ public:
 };
 
 void ordered_execution(
-  uint32_t my_node_id, std::unique_ptr<ccf::ProgressTracker> pt)
+  uint32_t my_node_id, std::unique_ptr<ccf::ProgressTracker>& pt)
 {
   kv::Consensus::View view = 0;
   kv::Consensus::SeqNo seqno = 42;
@@ -51,6 +51,9 @@ void ordered_execution(
   {
     auto result =
       pt->record_primary({view, seqno}, 0, root, primary_sig, hashed_nonce, node_count);
+    REQUIRE(result == kv::TxHistory::Result::OK);
+    primary_sig = {1};
+    result = pt->record_primary_signature({view, seqno}, primary_sig);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
     for (uint32_t i = 1; i < node_count; ++i)
@@ -132,7 +135,7 @@ void ordered_execution_primary(
   REQUIRE_CALL(store_mock, write_backup_signatures(_));
   REQUIRE_CALL(store_mock, write_nonces(_));
 
-  ordered_execution(my_node_id, std::move(pt));
+  ordered_execution(my_node_id, pt);
 }
 
 void run_ordered_execution(uint32_t my_node_id)
@@ -154,7 +157,7 @@ void run_ordered_execution(uint32_t my_node_id)
   }
   else
   {
-    ordered_execution(my_node_id, std::move(pt));
+    ordered_execution(my_node_id, pt);
   }
 }
 
@@ -279,6 +282,28 @@ TEST_CASE("Request tracker")
     REQUIRE(std::get<0>(r) == 2);
     REQUIRE(std::get<1>(r) == std::chrono::milliseconds(2));
   }
+}
+
+TEST_CASE("Record primary signature")
+{
+  uint32_t my_node_id = 0;
+  kv::Consensus::View view = 0;
+  kv::Consensus::SeqNo seqno = 42;
+  crypto::Sha256Hash root;
+  ccf::Nonce nonce;
+  std::vector<uint8_t> primary_sig;
+
+  ccf::ProgressTracker pt(nullptr, my_node_id);
+
+  auto result =
+    pt.record_primary({view, seqno}, 0, root, primary_sig, nonce);
+  REQUIRE(result == kv::TxHistory::Result::OK);
+
+  primary_sig = {1};
+  result = pt.record_primary_signature({view, seqno}, primary_sig);
+  REQUIRE(result == kv::TxHistory::Result::OK);
+  result = pt.record_primary_signature({view, seqno+1}, primary_sig);
+  REQUIRE(result != kv::TxHistory::Result::OK);
 }
 
 TEST_CASE("View Changes")
@@ -489,5 +514,75 @@ TEST_CASE("view-change-tracker tests")
     REQUIRE(vct.get_target_view() == 1);
     REQUIRE(vct.should_send_view_change(std::chrono::seconds(100)));
     REQUIRE(vct.get_target_view() == 2);
+  }
+}
+
+TEST_CASE("test progress_tracker apply_view_change")
+{
+  using trompeloeil::_;
+
+  uint32_t node_id = 1;
+  auto store = std::make_unique<StoreMock>();
+  StoreMock& store_mock = *store.get();
+  auto pt = std::make_unique<ccf::ProgressTracker>(std::move(store), node_id);
+
+  {
+    REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
+      .RETURN(true)
+      .TIMES(AT_LEAST(2));
+
+    ordered_execution(node_id, pt);
+  }
+
+  INFO("View-change signature does not verify");
+  {
+    REQUIRE_CALL(store_mock, verify_view_change(_)).RETURN(false);
+    ccf::ViewChange v;
+    bool result = pt->apply_view_change_message(v, 1);
+    REQUIRE(result == false);
+  }
+
+  INFO("Unknown seqno");
+  {
+    REQUIRE_CALL(store_mock, verify_view_change(_)).RETURN(true);
+    ccf::ViewChange v;
+    v.seqno = 999;
+    bool result = pt->apply_view_change_message(v, 1);
+    REQUIRE(result == false);
+  }
+
+  INFO("Incorrect root");
+  {
+    REQUIRE_CALL(store_mock, verify_view_change(_)).RETURN(true);
+    ccf::ViewChange v;
+    v.seqno = 42;
+    v.root.h.fill(1);
+    bool result = pt->apply_view_change_message(v, 1);
+    REQUIRE(result == false);
+  }
+
+  INFO("View-change matches - known node");
+  {
+    REQUIRE_CALL(store_mock, verify_view_change(_)).RETURN(true);
+    REQUIRE_CALL(store_mock, verify_signature(_, _, _, _)).RETURN(true);
+    ccf::ViewChange v;
+    v.seqno = 42;
+    v.signatures.push_back(ccf::NodeSignature(0));
+
+    bool result = pt->apply_view_change_message(v, 1);
+    REQUIRE(result);
+  }
+
+  INFO("View-change matches - unknown node");
+  {
+    REQUIRE_CALL(store_mock, verify_view_change(_)).RETURN(true);
+    REQUIRE_CALL(store_mock, verify_signature(_, _, _, _)).RETURN(false);
+
+    ccf::ViewChange v;
+    v.seqno = 42;
+    v.signatures.push_back(ccf::NodeSignature(5));
+
+    bool result = pt->apply_view_change_message(v, 1);
+    REQUIRE(result == false);
   }
 }

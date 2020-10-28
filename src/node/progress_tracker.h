@@ -41,14 +41,14 @@ namespace ccf
         node_id,
         tx_id.version,
         hashed_nonce);
-      auto it = certificates.find(CertKey(tx_id));
+      auto it = certificates.find(tx_id.version);
       if (it == certificates.end())
       {
         // We currently do not know what the root is, so lets save this
         // signature and and we will verify the root when we get it from the
         // primary
         auto r = certificates.insert(
-          std::pair<CertKey, CommitCert>(CertKey(tx_id), CommitCert()));
+          std::pair<kv::Consensus::SeqNo, CommitCert>(tx_id.version, CommitCert()));
         it = r.first;
       }
       else
@@ -83,7 +83,6 @@ namespace ccf
         sig.size());
       sig_vec.assign(sig.begin(), sig.begin() + signature_size);
 
-      auto& key = it->first;
       auto& cert = it->second;
       CCF_ASSERT(
         node_id != id ||
@@ -99,13 +98,12 @@ namespace ccf
       cert.sigs.insert(std::pair<kv::NodeId, BftNodeSignature>(
         node_id, std::move(bft_node_sig)));
 
-      if (can_send_sig_ack(cert, key.tx_id, node_count))
+      if (can_send_sig_ack(cert, tx_id, node_count))
       {
         if (is_primary)
         {
-          const CertKey& key = it->first;
           ccf::BackupSignatures sig_value(
-            key.tx_id.term, key.tx_id.version, cert.root);
+            tx_id.term, tx_id.version, cert.root);
 
           for (const auto& sig : cert.sigs)
           {
@@ -150,7 +148,7 @@ namespace ccf
         tx_id.version,
         hashed_nonce);
 
-      auto it = certificates.find(CertKey(tx_id));
+      auto it = certificates.find(tx_id.version);
       if (it == certificates.end())
       {
         CommitCert cert(root, my_nonce);
@@ -163,7 +161,7 @@ namespace ccf
           std::pair<kv::NodeId, BftNodeSignature>(node_id, bft_node_sig));
 
         certificates.insert(
-          std::pair<CertKey, CommitCert>(CertKey(tx_id), cert));
+          std::pair<kv::Consensus::SeqNo, CommitCert>(tx_id.version, cert));
 
         LOG_TRACE_FMT(
           "Adding new root for view:{}, seqno:{}", tx_id.term, tx_id.version);
@@ -210,7 +208,6 @@ namespace ccf
           std::pair<kv::NodeId, BftNodeSignature>(node_id, bft_node_sig));
       }
 
-      auto& key = it->first;
       auto& cert = it->second;
       if (cert.root != root)
       {
@@ -219,7 +216,7 @@ namespace ccf
         throw ccf::ccf_logic_error("We have proof someone is being dishonest");
       }
 
-      if (node_count > 0 && can_send_sig_ack(cert, key.tx_id, node_count))
+      if (node_count > 0 && can_send_sig_ack(cert, tx_id, node_count))
       {
         return kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK;
       }
@@ -229,7 +226,7 @@ namespace ccf
     kv::TxHistory::Result record_primary_signature(
       kv::TxID tx_id, std::vector<uint8_t>& sig)
     {
-      auto it = certificates.find(CertKey(tx_id));
+      auto it = certificates.find(tx_id.version);
       if (it == certificates.end())
       {
         LOG_FAIL_FMT(
@@ -269,7 +266,7 @@ namespace ccf
       CCF_ASSERT(sigs.has_value(), "sigs does not have a value");
       auto sigs_value = sigs.value();
 
-      auto it = certificates.find(CertKey({sigs_value.view, sigs_value.seqno}));
+      auto it = certificates.find(sigs_value.seqno);
       if (it == certificates.end())
       {
         LOG_FAIL_FMT(
@@ -348,7 +345,7 @@ namespace ccf
       CCF_ASSERT(nonces.has_value(), "nonces does not have a value");
       aft::RevealedNonces& nonces_value = nonces.value();
 
-      auto it = certificates.find(CertKey(nonces_value.tx_id));
+      auto it = certificates.find(nonces_value.tx_id.version);
       if (it == certificates.end())
       {
         LOG_FAIL_FMT(
@@ -400,14 +397,14 @@ namespace ccf
     kv::TxHistory::Result add_signature_ack(
       kv::TxID tx_id, kv::NodeId node_id, uint32_t node_count = 0)
     {
-      auto it = certificates.find(CertKey(tx_id));
+      auto it = certificates.find(tx_id.version);
       if (it == certificates.end())
       {
         // We currently do not know what the root is, so lets save this
         // signature and and we will verify the root when we get it from the
         // primary
         auto r = certificates.insert(
-          std::pair<CertKey, CommitCert>(CertKey(tx_id), CommitCert()));
+          std::pair<kv::Consensus::SeqNo, CommitCert>(tx_id.version, CommitCert()));
         it = r.first;
       }
 
@@ -435,14 +432,14 @@ namespace ccf
       bool is_primary)
     {
       bool did_add = false;
-      auto it = certificates.find(CertKey(tx_id));
+      auto it = certificates.find(tx_id.version);
       if (it == certificates.end())
       {
         // We currently do not know what the root is, so lets save this
         // signature and and we will verify the root when we get it from the
         // primary
         auto r = certificates.insert(
-          std::pair<CertKey, CommitCert>(CertKey(tx_id), CommitCert()));
+          std::pair<kv::Consensus::SeqNo, CommitCert>(tx_id.version, CommitCert()));
         it = r.first;
         did_add = true;
       }
@@ -515,7 +512,7 @@ namespace ccf
 
     Nonce get_my_nonce(kv::TxID tx_id)
     {
-      auto it = certificates.find(CertKey(tx_id));
+      auto it = certificates.find(tx_id.version);
       if (it == certificates.end())
       {
         throw ccf::ccf_logic_error(fmt::format(
@@ -566,7 +563,7 @@ namespace ccf
 
     std::unique_ptr<ViewChange> get_view_change_message(kv::Consensus::View view)
     {
-      auto it = certificates.find(CertKey(highest_prepared_level));
+      auto it = certificates.find(highest_prepared_level.version);
       if (it == certificates.end())
       {
         throw ccf::ccf_logic_error(fmt::format(
@@ -595,51 +592,49 @@ namespace ccf
         LOG_FAIL_FMT("Failed to verify view-change from:{}", from);
         return false;
       }
-      // TODO: fill this in
-      LOG_INFO_FMT(
-        "AAAAA Applying view-change from:{}, view:{}, seqno:{}",
+      LOG_TRACE_FMT(
+        "Applying view-change from:{}, view:{}, seqno:{}",
         from,
         view_change.view,
         view_change.seqno);
 
-      // TODO: fix this
       auto it =
-        certificates.find(CertKey({2, view_change.seqno}));
+        certificates.find(view_change.seqno);
 
       if (it == certificates.end())
       {
         LOG_INFO_FMT(
-          "AAAAA Received view-change for view:{} and seqno:{} that I am not aware "
+          "Received view-change for view:{} and seqno:{} that I am not aware "
           "of",
           view_change.view,
           view_change.seqno);
-        return true;
+        return false;
       }
 
       if (it->second.root != view_change.root)
       {
         LOG_FAIL_FMT(
-          "AAAAA Roots do not match, view-change from:{}, view:{}, seqno:{}",
+          "Roots do not match, view-change from:{}, view:{}, seqno:{}",
           from,
           view_change.view,
           view_change.seqno);
-          return false;
+        return false;
       }
 
-      // TODO: check roots match
+      bool verified_signatures = true;
 
       for(auto& sig : view_change.signatures)
       {
-        // TODO: verify the signature
         if (!store->verify_signature(
               sig.node, it->second.root, sig.sig.size(), sig.sig.data()))
         {
           LOG_FAIL_FMT(
-            "AAAAA signatures do not match, view-change from:{}, view:{}, seqno:{}, node_id:{}",
+            "signatures do not match, view-change from:{}, view:{}, seqno:{}, node_id:{}",
             from,
             view_change.view,
             view_change.seqno,
             sig.node);
+          verified_signatures = false;
           continue;
         }
 
@@ -650,7 +645,7 @@ namespace ccf
         it->second.sigs.insert(std::pair<kv::NodeId, BftNodeSignature>(sig.node, sig));
       }
       
-      return true;
+      return verified_signatures;
     }
 
   private:
@@ -659,7 +654,7 @@ namespace ccf
     kv::Consensus::SeqNo highest_commit_level = 0;
     kv::TxID highest_prepared_level = {0, 0};
 
-    std::map<CertKey, CommitCert> certificates;
+    std::map<kv::Consensus::SeqNo, CommitCert> certificates;
 
     void try_match_unmatched_nonces(
       CommitCert& cert,

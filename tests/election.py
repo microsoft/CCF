@@ -79,14 +79,11 @@ def run(args):
         # Number of nodes F to stop until network cannot make progress
         nodes_to_stop = math.ceil(len(args.nodes) / 2)
         if args.consensus == "bft":
-            nodes_to_stop = math.ceil(len(args.nodes) / 3)
-            nodes_to_stop = 1
+            # nodes_to_stop = math.ceil(len(args.nodes) / 3)
 
-        LOG.error(
-            "AAAAAA nodes_to_stop:{}".format(
-                nodes_to_stop
-            )
-        )
+            # View Change implementation is in progress.
+            # https://github.com/microsoft/CCF/issues/1709
+            nodes_to_stop = 1
 
         primary_is_known = True
         for node_to_stop in range(nodes_to_stop):

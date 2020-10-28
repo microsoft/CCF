@@ -566,7 +566,7 @@ namespace aft
           vc->serialize(data, size);
           CCF_ASSERT_FMT(size == 0, "Did not write to everything");
 
-          LOG_INFO_FMT("AAAAAA sending view change msg view:{}", vc->view);
+          LOG_INFO_FMT("Sending view change msg view:{}", vc->view);
           for (auto it = nodes.begin(); it != nodes.end(); ++it)
           {
             auto send_to = it->first;
@@ -630,24 +630,12 @@ namespace aft
         return;
       }
 
-      LOG_INFO_FMT("AAAAAAAAAAA got view change from:{}", r.from_node);
       ccf::ViewChange v = ccf::ViewChange::deserialize(data, size);
       LOG_INFO_FMT(
-        "AAAAAAAAAAA got view change from:{}, view:{}", r.from_node, v.view);
+        "Received view change from:{}, view:{}", r.from_node, v.view);
 
       auto progress_tracker = store->get_progress_tracker();
       progress_tracker->apply_view_change_message(v, r.from_node);
-
-      /*
-            auto progress_tracker = store->get_progress_tracker();
-            CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not
-         set"); LOG_TRACE_FMT( "processing nonce_reveal, from:{} view:{},
-         seqno:{}", r.from_node, r.term, r.idx);
-            progress_tracker->add_nonce_reveal(
-              {r.term, r.idx}, r.nonce, r.from_node, node_count(), is_leader());
-
-            update_commit();
-      */
     }
 
     bool is_first_request = true;
