@@ -40,12 +40,6 @@ namespace kv
       return !(*this == that);
     }
 
-    // TODO: Could parse this from the name here, should we?
-    // SecurityDomain get_security_domain() override
-    // {
-    //   return untyped_map.get_security_domain();
-    // }
-
     // TODO: What to do with hooks? Maybe we store them, and if we're used to
     // create a map we install them then? Hmmm....
     static kv::untyped::Map::CommitHook wrap_commit_hook(const CommitHook& hook)
@@ -69,27 +63,6 @@ namespace kv
 
         hook(v, typed_writes);
       };
-    }
-
-    // TODO
-    void set_local_hook(const CommitHook&)
-    {
-      // untyped_map.set_local_hook(wrap_commit_hook(hook));
-    }
-
-    void unset_local_hook()
-    {
-      // untyped_map.unset_local_hook();
-    }
-
-    void set_global_hook(const CommitHook&)
-    {
-      // untyped_map.set_global_hook(wrap_commit_hook(hook));
-    }
-
-    void unset_global_hook()
-    {
-      // untyped_map.unset_global_hook();
     }
   };
 

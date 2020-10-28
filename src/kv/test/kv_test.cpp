@@ -817,150 +817,152 @@ TEST_CASE("Rollback and compact")
 //   }
 // }
 
-// TEST_CASE("Global commit hooks")
-// {
-//   using Write = MapTypes::StringString::Write;
+TEST_CASE("Global commit hooks")
+{
+  using Write = MapTypes::StringString::Write;
 
-//   struct GlobalHookInput
-//   {
-//     kv::Version version;
-//     Write writes;
-//   };
+  struct GlobalHookInput
+  {
+    kv::Version version;
+    Write writes;
+  };
 
-//   std::vector<GlobalHookInput> global_writes;
+  std::vector<GlobalHookInput> global_writes;
 
-//   auto global_hook = [&](kv::Version v, const Write& w) {
-//     global_writes.emplace_back(GlobalHookInput({v, w}));
-//   };
+  auto global_hook = [&](kv::Version v, const Write& w) {
+    global_writes.emplace_back(GlobalHookInput({v, w}));
+  };
 
-//   kv::Store kv_store;
-//   auto& map_with_hook =
-//     kv_store.create<std::string, std::string>("public:map_with_hook");
-//   map_with_hook.set_global_hook(global_hook);
-//   auto& map_no_hook =
-//     kv_store.create<std::string, std::string>("public:map_no_hook");
+  kv::Store kv_store;
+  auto& map_with_hook =
+    kv_store.create<std::string, std::string>("public:map_with_hook");
+  kv_store.set_global_hook(
+    map_with_hook.get_name(), map_with_hook.wrap_commit_hook(global_hook));
 
-//   INFO("Compact an empty store");
-//   {
-//     kv_store.compact(0);
+  auto& map_no_hook =
+    kv_store.create<std::string, std::string>("public:map_no_hook");
 
-//     REQUIRE(global_writes.size() == 0);
-//   }
+  INFO("Compact an empty store");
+  {
+    kv_store.compact(0);
 
-//   SUBCASE("Compact one transaction")
-//   {
-//     auto tx1 = kv_store.create_tx();
-//     auto view_hook = tx1.get_view(map_with_hook);
-//     view_hook->put("key1", "value1");
-//     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
+    REQUIRE(global_writes.size() == 0);
+  }
 
-//     kv_store.compact(1);
+  SUBCASE("Compact one transaction")
+  {
+    auto tx1 = kv_store.create_tx();
+    auto view_hook = tx1.get_view(map_with_hook);
+    view_hook->put("key1", "value1");
+    REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
-//     REQUIRE(global_writes.size() == 1);
-//     const auto& latest_writes = global_writes.front();
-//     REQUIRE(latest_writes.version == 1);
-//     const auto it1 = latest_writes.writes.find("key1");
-//     REQUIRE(it1 != latest_writes.writes.end());
-//     REQUIRE(it1->second.has_value());
-//     REQUIRE(it1->second.value() == "value1");
-//   }
+    kv_store.compact(1);
 
-//   SUBCASE("Compact beyond the last map version")
-//   {
-//     auto tx1 = kv_store.create_tx();
-//     auto tx2 = kv_store.create_tx();
-//     auto tx3 = kv_store.create_tx();
-//     auto view_hook = tx1.get_view(map_with_hook);
-//     view_hook->put("key1", "value1");
-//     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
+    REQUIRE(global_writes.size() == 1);
+    const auto& latest_writes = global_writes.front();
+    REQUIRE(latest_writes.version == 1);
+    const auto it1 = latest_writes.writes.find("key1");
+    REQUIRE(it1 != latest_writes.writes.end());
+    REQUIRE(it1->second.has_value());
+    REQUIRE(it1->second.value() == "value1");
+  }
 
-//     view_hook = tx2.get_view(map_with_hook);
-//     view_hook->put("key2", "value2");
-//     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+  SUBCASE("Compact beyond the last map version")
+  {
+    auto tx1 = kv_store.create_tx();
+    auto tx2 = kv_store.create_tx();
+    auto tx3 = kv_store.create_tx();
+    auto view_hook = tx1.get_view(map_with_hook);
+    view_hook->put("key1", "value1");
+    REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
-//     const auto compact_version = kv_store.current_version();
+    view_hook = tx2.get_view(map_with_hook);
+    view_hook->put("key2", "value2");
+    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
 
-//     // This does not affect map_with_hook but still increments the current
-//     // version of the store
-//     auto view_no_hook = tx3.get_view(map_no_hook);
-//     view_no_hook->put("key3", "value3");
-//     REQUIRE(tx3.commit() == kv::CommitSuccess::OK);
+    const auto compact_version = kv_store.current_version();
 
-//     kv_store.compact(compact_version);
+    // This does not affect map_with_hook but still increments the current
+    // version of the store
+    auto view_no_hook = tx3.get_view(map_no_hook);
+    view_no_hook->put("key3", "value3");
+    REQUIRE(tx3.commit() == kv::CommitSuccess::OK);
 
-//     // Only the changes made to map_with_hook should be passed to the global
-//     // hook
-//     REQUIRE(global_writes.size() == 2);
-//     REQUIRE(global_writes.at(0).version == 1);
-//     const auto it1 = global_writes.at(0).writes.find("key1");
-//     REQUIRE(it1 != global_writes.at(0).writes.end());
-//     REQUIRE(it1->second.has_value());
-//     REQUIRE(it1->second.value() == "value1");
-//     const auto it2 = global_writes.at(1).writes.find("key2");
-//     REQUIRE(it2 != global_writes.at(1).writes.end());
-//     REQUIRE(it2->second.has_value());
-//     REQUIRE(it2->second.value() == "value2");
-//   }
+    kv_store.compact(compact_version);
 
-//   SUBCASE("Compact in between two map versions")
-//   {
-//     auto tx1 = kv_store.create_tx();
-//     auto tx2 = kv_store.create_tx();
-//     auto tx3 = kv_store.create_tx();
-//     auto view_hook = tx1.get_view(map_with_hook);
-//     view_hook->put("key1", "value1");
-//     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
+    // Only the changes made to map_with_hook should be passed to the global
+    // hook
+    REQUIRE(global_writes.size() == 2);
+    REQUIRE(global_writes.at(0).version == 1);
+    const auto it1 = global_writes.at(0).writes.find("key1");
+    REQUIRE(it1 != global_writes.at(0).writes.end());
+    REQUIRE(it1->second.has_value());
+    REQUIRE(it1->second.value() == "value1");
+    const auto it2 = global_writes.at(1).writes.find("key2");
+    REQUIRE(it2 != global_writes.at(1).writes.end());
+    REQUIRE(it2->second.has_value());
+    REQUIRE(it2->second.value() == "value2");
+  }
 
-//     // This does not affect map_with_hook but still increments the current
-//     // version of the store
-//     auto view_no_hook = tx2.get_view(map_no_hook);
-//     view_no_hook->put("key2", "value2");
-//     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+  SUBCASE("Compact in between two map versions")
+  {
+    auto tx1 = kv_store.create_tx();
+    auto tx2 = kv_store.create_tx();
+    auto tx3 = kv_store.create_tx();
+    auto view_hook = tx1.get_view(map_with_hook);
+    view_hook->put("key1", "value1");
+    REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
-//     const auto compact_version = kv_store.current_version();
+    // This does not affect map_with_hook but still increments the current
+    // version of the store
+    auto view_no_hook = tx2.get_view(map_no_hook);
+    view_no_hook->put("key2", "value2");
+    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
 
-//     view_hook = tx3.get_view(map_with_hook);
-//     view_hook->put("key3", "value3");
-//     REQUIRE(tx3.commit() == kv::CommitSuccess::OK);
+    const auto compact_version = kv_store.current_version();
 
-//     kv_store.compact(compact_version);
+    view_hook = tx3.get_view(map_with_hook);
+    view_hook->put("key3", "value3");
+    REQUIRE(tx3.commit() == kv::CommitSuccess::OK);
 
-//     // Only the changes made to map_with_hook should be passed to the global
-//     // hook
-//     REQUIRE(global_writes.size() == 1);
-//     REQUIRE(global_writes.at(0).version == 1);
-//     const auto it1 = global_writes.at(0).writes.find("key1");
-//     REQUIRE(it1 != global_writes.at(0).writes.end());
-//     REQUIRE(it1->second.has_value());
-//     REQUIRE(it1->second.value() == "value1");
-//   }
+    kv_store.compact(compact_version);
 
-//   SUBCASE("Compact twice")
-//   {
-//     auto tx1 = kv_store.create_tx();
-//     auto tx2 = kv_store.create_tx();
-//     auto view_hook = tx1.get_view(map_with_hook);
-//     view_hook->put("key1", "value1");
-//     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
+    // Only the changes made to map_with_hook should be passed to the global
+    // hook
+    REQUIRE(global_writes.size() == 1);
+    REQUIRE(global_writes.at(0).version == 1);
+    const auto it1 = global_writes.at(0).writes.find("key1");
+    REQUIRE(it1 != global_writes.at(0).writes.end());
+    REQUIRE(it1->second.has_value());
+    REQUIRE(it1->second.value() == "value1");
+  }
 
-//     kv_store.compact(kv_store.current_version());
-//     global_writes.clear();
+  SUBCASE("Compact twice")
+  {
+    auto tx1 = kv_store.create_tx();
+    auto tx2 = kv_store.create_tx();
+    auto view_hook = tx1.get_view(map_with_hook);
+    view_hook->put("key1", "value1");
+    REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
-//     view_hook = tx2.get_view(map_with_hook);
-//     view_hook->put("key2", "value2");
-//     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+    kv_store.compact(kv_store.current_version());
+    global_writes.clear();
 
-//     kv_store.compact(kv_store.current_version());
+    view_hook = tx2.get_view(map_with_hook);
+    view_hook->put("key2", "value2");
+    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
 
-//     // Only writes since the last compact are passed to the global hook
-//     REQUIRE(global_writes.size() == 1);
-//     REQUIRE(global_writes.at(0).version == 2);
-//     const auto it2 = global_writes.at(0).writes.find("key2");
-//     REQUIRE(it2 != global_writes.at(0).writes.end());
-//     REQUIRE(it2->second.has_value());
-//     REQUIRE(it2->second.value() == "value2");
-//   }
-// }
+    kv_store.compact(kv_store.current_version());
+
+    // Only writes since the last compact are passed to the global hook
+    REQUIRE(global_writes.size() == 1);
+    REQUIRE(global_writes.at(0).version == 2);
+    const auto it2 = global_writes.at(0).writes.find("key2");
+    REQUIRE(it2 != global_writes.at(0).writes.end());
+    REQUIRE(it2->second.has_value());
+    REQUIRE(it2->second.value() == "value2");
+  }
+}
 
 TEST_CASE("Clone schema")
 {

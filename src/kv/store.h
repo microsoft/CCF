@@ -35,6 +35,10 @@ namespace kv
     using MapDefs = std::map<std::string, std::shared_ptr<NamedMap>>;
     MapDefs map_defs;
 
+    using Hooks = std::map<std::string, kv::untyped::Map::CommitHook>;
+    Hooks local_hooks;
+    Hooks global_hooks;
+
     std::shared_ptr<Consensus> consensus = nullptr;
     std::shared_ptr<TxHistory> history = nullptr;
     std::shared_ptr<ccf::ProgressTracker> progress_tracker = nullptr;
@@ -314,6 +318,20 @@ namespace kv
       }
 
       maps[map_name] = std::make_pair(v, map);
+
+      // TODO: This is real ugly, must be a better way?
+      {
+        const auto it = global_hooks.find(map_name);
+        if (it != global_hooks.end())
+        {
+          auto cast_map = dynamic_cast<kv::untyped::Map*>(map.get());
+          if (cast_map == nullptr)
+          {
+            throw std::logic_error("TODO: Unexpected type");
+          }
+          cast_map->set_global_hook(it->second);
+        }
+      }
     }
 
     bool is_map_replicated(const std::string& name) override
@@ -1232,6 +1250,28 @@ namespace kv
       {
         lhs->unlock();
         rhs->unlock();
+      }
+    }
+
+    void set_global_hook(const std::string& map_name, kv::untyped::Map::CommitHook&& hook)
+    {
+      global_hooks[map_name] = std::move(hook);
+    }
+
+    void unset_global_hook(const std::string& map_name)
+    {
+      global_hooks.erase(map_name);
+
+      const auto it = maps.find(map_name);
+      if (it != maps.end())
+      {
+        auto map = dynamic_cast<kv::untyped::Map*>(it->second.second.get());
+        if (map == nullptr)
+        {
+          throw std::logic_error("TODO: Unexpected type error");
+        }
+
+        map->unset_global_hook();
       }
     }
 
