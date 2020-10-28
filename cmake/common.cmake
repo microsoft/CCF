@@ -179,8 +179,6 @@ include(${CCF_DIR}/cmake/secp256k1.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)
 
-find_package(CURL REQUIRED)
-
 list(APPEND LINK_LIBCXX -lc++ -lc++abi -lc++fs -stdlib=libc++)
 
 # Unit test wrapper
@@ -237,7 +235,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
             openenclave::oehost
             ccfcrypto.host
             evercrypt.host
-            CURL::libcurl
   )
   enable_quote_code(cchost)
 
@@ -279,7 +276,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
             ${LINK_LIBCXX}
             ccfcrypto.host
             evercrypt.host
-            CURL::libcurl
   )
 
   install(TARGETS cchost.virtual DESTINATION bin)
