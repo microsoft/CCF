@@ -2,14 +2,15 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/crypto_box.h"
+// #include "crypto/crypto_box.h"
 #include "crypto/symmetric_key.h"
 #include "ds/logger.h"
 #include "genesis_gen.h"
 #include "ledger_secrets.h"
 #include "network_state.h"
 #include "secret_share.h"
-#include "tls/25519.h"
+#include "tls/wrap.h"
+// #include "tls/25519.h"
 #include "tls/entropy.h"
 
 #include <vector>
@@ -127,18 +128,15 @@ namespace ccf
       size_t share_index = 0;
       for (auto const& [member_id, enc_pub_key] : active_members_info)
       {
-        auto nonce = tls::create_entropy()->random(crypto::Box::NONCE_SIZE);
+        auto member_enc_pubk = tls::make_public_key(enc_pub_key);
         auto raw_share = std::vector<uint8_t>(
           shares[share_index].begin(), shares[share_index].end());
 
-        auto enc_pub_key_raw = tls::PublicX25519::parse(tls::Pem(enc_pub_key));
-        auto encrypted_share = crypto::Box::create(
-          raw_share,
-          nonce,
-          enc_pub_key_raw,
-          network.encryption_key->private_raw);
-
-        encrypted_shares[member_id] = {nonce, encrypted_share};
+        // TODO: Use a specific label?
+        // TODO: Throw from here and see if error bubbles up gracefully
+        tls::RSAOEAPWrap::wrap(member_enc_pubk, raw_share);
+        encrypted_shares[member_id] =
+          tls::RSAOEAPWrap::wrap(member_enc_pubk, raw_share);
         share_index++;
       }
 

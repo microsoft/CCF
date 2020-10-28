@@ -129,23 +129,6 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(SetUserData, user_id)
   DECLARE_JSON_OPTIONAL_FIELDS(SetUserData, user_data)
 
-  struct GetEncryptedRecoveryShare
-  {
-    std::string encrypted_recovery_share;
-    std::string nonce;
-
-    GetEncryptedRecoveryShare() = default;
-
-    GetEncryptedRecoveryShare(const EncryptedShare& encrypted_share_raw) :
-      encrypted_recovery_share(
-        tls::b64_from_raw(encrypted_share_raw.encrypted_share)),
-      nonce(tls::b64_from_raw(encrypted_share_raw.nonce))
-    {}
-  };
-  DECLARE_JSON_TYPE(GetEncryptedRecoveryShare)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    GetEncryptedRecoveryShare, encrypted_recovery_share, nonce)
-
   struct SetModule
   {
     std::string name;
@@ -1352,32 +1335,31 @@ namespace ccf
         .set_auto_schema<void, MemberAck>()
         .install();
 
-      auto get_encrypted_recovery_share = [this](
-                                            EndpointContext& args,
-                                            nlohmann::json&&) {
-        if (!check_member_active(args.tx, args.caller_id))
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            "Only active members are given recovery shares");
-        }
+      auto get_encrypted_recovery_share =
+        [this](EndpointContext& args, nlohmann::json&&) {
+          if (!check_member_active(args.tx, args.caller_id))
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              "Only active members are given recovery shares");
+          }
 
-        auto encrypted_share =
-          share_manager.get_encrypted_share(args.tx, args.caller_id);
+          auto encrypted_share =
+            share_manager.get_encrypted_share(args.tx, args.caller_id);
 
-        if (!encrypted_share.has_value())
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            fmt::format(
-              "Recovery share not found for member {}", args.caller_id));
-        }
+          if (!encrypted_share.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              fmt::format(
+                "Recovery share not found for member {}", args.caller_id));
+          }
 
-        return make_success(GetEncryptedRecoveryShare(encrypted_share.value()));
-      };
+          return make_success(tls::b64_from_raw(encrypted_share.value()));
+        };
       make_endpoint(
         "recovery_share", HTTP_GET, json_adapter(get_encrypted_recovery_share))
-        .set_auto_schema<void, GetEncryptedRecoveryShare>()
+        .set_auto_schema<void, std::string>()
         .install();
 
       auto submit_recovery_share = [this](EndpointContext& args) {

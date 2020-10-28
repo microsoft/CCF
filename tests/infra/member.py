@@ -103,12 +103,7 @@ class Member:
                 seqno=r.seqno,
             )
 
-    def vote(
-        self,
-        remote_node,
-        proposal,
-        wait_for_global_commit=True,
-    ):
+    def vote(self, remote_node, proposal):
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.post(
                 f"/gov/proposals/{proposal.proposal_id}/votes",
@@ -141,6 +136,7 @@ class Member:
             self.status_code = MemberStatus.ACTIVE
             return r
 
+    # TODO: Fix this!
     def get_and_decrypt_recovery_share(self, remote_node, defunct_network_enc_pubk):
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.get("/gov/recovery_share")
@@ -162,12 +158,9 @@ class Member:
         # For now, all members are given an encryption key (for recovery)
         res = infra.proc.ccall(
             self.share_script,
-            "--rpc-address",
-            f"{remote_node.host}:{remote_node.rpc_port}",
+            f"https://{remote_node.host}:{remote_node.rpc_port}",
             "--member-enc-privk",
             os.path.join(self.common_dir, f"member{self.member_id}_enc_privk.pem"),
-            "--network-enc-pubk",
-            defunct_network_enc_pubk,
             "--cert",
             os.path.join(self.common_dir, f"member{self.member_id}_cert.pem"),
             "--key",

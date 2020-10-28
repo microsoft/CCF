@@ -21,7 +21,7 @@ namespace tls
     // Compatible with Azure HSM encryption schemes (see
     // https://docs.microsoft.com/en-gb/azure/key-vault/keys/about-keys#wrapkeyunwrapkey-encryptdecrypt)
     static constexpr auto rsa_padding_mode = MBEDTLS_RSA_PKCS_V21;
-    static constexpr auto rsa_padding_digest_id = MBEDTLS_MD_SHA1;
+    static constexpr auto rsa_padding_digest_id = MBEDTLS_MD_SHA256;
 
   public:
     static std::vector<uint8_t> wrap(
