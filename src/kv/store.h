@@ -1260,7 +1260,8 @@ namespace kv
       }
     }
 
-    void set_local_hook(const std::string& map_name, const kv::untyped::Map::CommitHook& hook)
+    void set_local_hook(
+      const std::string& map_name, const kv::untyped::Map::CommitHook& hook)
     {
       local_hooks[map_name] = hook;
 
@@ -1294,10 +1295,11 @@ namespace kv
       }
     }
 
-    void set_global_hook(const std::string& map_name, const kv::untyped::Map::CommitHook& hook)
+    void set_global_hook(
+      const std::string& map_name, const kv::untyped::Map::CommitHook& hook)
     {
       global_hooks[map_name] = hook;
-      
+
       const auto it = maps.find(map_name);
       if (it != maps.end())
       {

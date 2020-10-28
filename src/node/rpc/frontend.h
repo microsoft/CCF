@@ -54,8 +54,7 @@ namespace ccf
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
     bool request_storing_disabled = false;
 
-    using PreExec = std::function<void(
-      kv::Tx& tx, enclave::RpcContext& ctx)>;
+    using PreExec = std::function<void(kv::Tx& tx, enclave::RpcContext& ctx)>;
 
     void update_consensus()
     {
@@ -618,16 +617,16 @@ namespace ccf
 
       update_consensus();
 
-      PreExec fn =
-        [](kv::Tx& tx, enclave::RpcContext& ctx) {
-          auto req_view = tx.get_view<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
-          req_view->put(
-            0,
-            {ctx.session->original_caller.value().caller_id,
-             tx.get_req_id(),
-             ctx.session->caller_cert,
-             ctx.get_serialised_request()});
-        };
+      PreExec fn = [](kv::Tx& tx, enclave::RpcContext& ctx) {
+        auto req_view =
+          tx.get_view<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
+        req_view->put(
+          0,
+          {ctx.session->original_caller.value().caller_id,
+           tx.get_req_id(),
+           ctx.session->caller_cert,
+           ctx.get_serialised_request()});
+      };
 
       auto rep =
         process_command(ctx, tx, ctx->session->original_caller->caller_id, fn);

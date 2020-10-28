@@ -508,7 +508,8 @@ TEST_CASE("process_bft")
   frontend.process_bft(ctx);
 
   auto tx = bft_network.tables->create_tx();
-  auto bft_requests_view = tx.get_view<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
+  auto bft_requests_view =
+    tx.get_view<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
   auto request_value = bft_requests_view->get(0);
   REQUIRE(request_value.has_value());
 
@@ -1536,8 +1537,7 @@ class TestConflictFrontend : public SimpleUserRpcFrontend
 public:
   using Values = kv::Map<size_t, size_t>;
 
-  TestConflictFrontend(kv::Store& tables) :
-    SimpleUserRpcFrontend(tables)
+  TestConflictFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables)
   {
     open();
 

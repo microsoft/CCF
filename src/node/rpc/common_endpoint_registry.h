@@ -199,8 +199,7 @@ namespace ccf
         .set_auto_schema<void, GetCode::Out>()
         .install();
 
-      auto get_nodes_by_rpc_address = [](
-                                        auto& args, nlohmann::json&& params) {
+      auto get_nodes_by_rpc_address = [](auto& args, nlohmann::json&& params) {
         const auto in = params.get<GetNodesByRPCAddress::In>();
 
         GetNodesByRPCAddress::Out out;

@@ -26,7 +26,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
   INFO("Apply transactions to original store");
   {
     auto tx1 = store.create_tx();
-    auto view_1 = tx1.get_view(string_map);
+    auto view_1 = tx1.get_view<MapTypes::StringString>("public:string_map");
     view_1->put("foo", "bar");
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
     first_snapshot_version = tx1.commit_version();
@@ -38,7 +38,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     second_snapshot_version = tx2.commit_version();
 
     auto tx3 = store.create_tx();
-    auto view_3 = tx1.get_view(string_map);
+    auto view_3 = tx1.get_view<MapTypes::StringString>("public:string_map");
     view_3->put("uncommitted", "not committed");
     // Do not commit tx3
   }
@@ -106,12 +106,12 @@ TEST_CASE(
   INFO("Apply transactions to original store");
   {
     auto tx1 = store.create_tx();
-    auto view_1 = tx1.get_view(string_map);
+    auto view_1 = tx1.get_view<MapTypes::StringString>("public:string_map");
     view_1->put("foo", "foo");
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK); // Committed at 1
 
     auto tx2 = store.create_tx();
-    auto view_2 = tx2.get_view(string_map);
+    auto view_2 = tx2.get_view<MapTypes::StringString>("public:string_map");
     view_2->put("bar", "bar");
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK); // Committed at 2
     snapshot_version = tx2.commit_version();
@@ -143,87 +143,87 @@ TEST_CASE(
   }
 }
 
-// TODO: Hooks need some more thought
-// TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
-// {
-//   kv::Store store;
-//   auto& string_map =
-//   store.create<MapTypes::StringString>("public:string_map");
+TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
+{
+  kv::Store store;
+  constexpr auto string_map = "public:string_map";
 
-//   kv::Version snapshot_version = kv::NoVersion;
-//   INFO("Apply transactions to original store");
-//   {
-//     auto tx1 = store.create_tx();
-//     auto view_1 = tx1.get_view(string_map);
-//     view_1->put("foo", "foo");
-//     view_1->put("bar", "bar");
-//     REQUIRE(tx1.commit() == kv::CommitSuccess::OK); // Committed at 1
+  kv::Version snapshot_version = kv::NoVersion;
+  INFO("Apply transactions to original store");
+  {
+    auto tx1 = store.create_tx();
+    auto view_1 = tx1.get_view<MapTypes::StringString>(string_map);
+    view_1->put("foo", "foo");
+    view_1->put("bar", "bar");
+    REQUIRE(tx1.commit() == kv::CommitSuccess::OK); // Committed at 1
 
-//     // New transaction, deleting content from the previous transaction
-//     auto tx2 = store.create_tx();
-//     auto view_2 = tx2.get_view(string_map);
-//     view_2->put("baz", "baz");
-//     view_2->remove("bar");
-//     REQUIRE(tx2.commit() == kv::CommitSuccess::OK); // Committed at 2
-//     snapshot_version = tx2.commit_version();
-//   }
+    // New transaction, deleting content from the previous transaction
+    auto tx2 = store.create_tx();
+    auto view_2 = tx2.get_view<MapTypes::StringString>(string_map);
+    view_2->put("baz", "baz");
+    view_2->remove("bar");
+    REQUIRE(tx2.commit() == kv::CommitSuccess::OK); // Committed at 2
+    snapshot_version = tx2.commit_version();
+  }
 
-//   auto snapshot = store.snapshot(snapshot_version);
-//   auto serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
+  auto snapshot = store.snapshot(snapshot_version);
+  auto serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
 
-//   INFO("Apply snapshot with local hook on target store");
-//   {
-//     kv::Store new_store;
+  INFO("Apply snapshot with local hook on target store");
+  {
+    kv::Store new_store;
 
-//     auto new_string_map =
-//       new_store.get<MapTypes::StringString>("public:string_map");
-//     REQUIRE(new_string_map != nullptr);
+    auto new_string_map = new_store.get<MapTypes::StringString>(string_map);
+    REQUIRE(new_string_map != nullptr);
 
-//     using Write = MapTypes::StringString::Write;
-//     std::vector<Write> local_writes;
-//     std::vector<Write> global_writes;
+    using Write = MapTypes::StringString::Write;
+    std::vector<Write> local_writes;
+    std::vector<Write> global_writes;
 
-//     INFO("Set hooks on target store");
-//     {
-//       auto local_hook = [&](kv::Version v, const Write& w) {
-//         local_writes.push_back(w);
-//       };
-//       auto global_hook = [&](kv::Version v, const Write& w) {
-//         global_writes.push_back(w);
-//       };
-//       new_string_map->set_local_hook(local_hook);
-//       new_string_map->set_global_hook(global_hook);
-//     }
+    INFO("Set hooks on target store");
+    {
+      auto local_hook = [&](kv::Version v, const Write& w) {
+        local_writes.push_back(w);
+      };
+      auto global_hook = [&](kv::Version v, const Write& w) {
+        global_writes.push_back(w);
+      };
 
-//     new_store.deserialise_snapshot(serialised_snapshot);
+      new_store.set_local_hook(
+        string_map, new_string_map->wrap_commit_hook(local_hook));
+      new_store.set_global_hook(
+        string_map, new_string_map->wrap_commit_hook(global_hook));
+    }
 
-//     INFO("Verify content of snapshot");
-//     {
-//       auto tx = new_store.create_tx();
-//       auto view = tx.get_view<MapTypes::StringString>("public:string_map");
-//       REQUIRE(view->get("foo").has_value());
-//       REQUIRE(!view->get("bar").has_value());
-//       REQUIRE(view->get("baz").has_value());
-//     }
+    new_store.deserialise_snapshot(serialised_snapshot);
 
-//     INFO("Verify local hook execution");
-//     {
-//       REQUIRE_EQ(local_writes.size(), 1);
-//       auto writes = local_writes.at(0);
-//       REQUIRE_EQ(writes.at("foo"), "foo");
-//       REQUIRE_EQ(writes.find("bar"), writes.end());
-//       REQUIRE_EQ(writes.at("baz"), "baz");
-//     }
+    INFO("Verify content of snapshot");
+    {
+      auto tx = new_store.create_tx();
+      auto view = tx.get_view<MapTypes::StringString>(string_map);
+      REQUIRE(view->get("foo").has_value());
+      REQUIRE(!view->get("bar").has_value());
+      REQUIRE(view->get("baz").has_value());
+    }
 
-//     INFO("Verify global hook execution after compact");
-//     {
-//       new_store.compact(snapshot_version);
+    INFO("Verify local hook execution");
+    {
+      REQUIRE_EQ(local_writes.size(), 1);
+      auto writes = local_writes.at(0);
+      REQUIRE_EQ(writes.at("foo"), "foo");
+      REQUIRE_EQ(writes.find("bar"), writes.end());
+      REQUIRE_EQ(writes.at("baz"), "baz");
+    }
 
-//       REQUIRE_EQ(global_writes.size(), 1);
-//       auto writes = global_writes.at(0);
-//       REQUIRE_EQ(writes.at("foo"), "foo");
-//       REQUIRE_EQ(writes.find("bar"), writes.end());
-//       REQUIRE_EQ(writes.at("baz"), "baz");
-//     }
-//   }
-// }
+    INFO("Verify global hook execution after compact");
+    {
+      new_store.compact(snapshot_version);
+
+      REQUIRE_EQ(global_writes.size(), 1);
+      auto writes = global_writes.at(0);
+      REQUIRE_EQ(writes.at("foo"), "foo");
+      REQUIRE_EQ(writes.find("bar"), writes.end());
+      REQUIRE_EQ(writes.at("baz"), "baz");
+    }
+  }
+}

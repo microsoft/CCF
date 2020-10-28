@@ -476,8 +476,7 @@ namespace ccf
       const std::string& certs_table_name_ = "") :
       method_prefix(method_prefix_),
       certs_table_name(certs_table_name_)
-    {
-    }
+    {}
 
     virtual ~EndpointRegistry() {}
 
