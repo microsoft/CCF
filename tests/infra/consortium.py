@@ -351,15 +351,13 @@ class Consortium:
         proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
-    def recover_with_shares(self, remote_node, defunct_network_enc_pubk):
+    def recover_with_shares(self, remote_node):
         submitted_shares_count = 0
         with remote_node.client() as nc:
             check_commit = infra.checker.Checker(nc)
 
             for m in self.get_active_members():
-                r = m.get_and_submit_recovery_share(
-                    remote_node, defunct_network_enc_pubk
-                )
+                r = m.get_and_submit_recovery_share(remote_node)
                 submitted_shares_count += 1
                 check_commit(r)
 

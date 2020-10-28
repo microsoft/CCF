@@ -1813,6 +1813,7 @@ DOCTEST_TEST_CASE("User data")
   }
 }
 
+// TODO: Fix
 DOCTEST_TEST_CASE("Submit recovery shares")
 {
   // Setup original state

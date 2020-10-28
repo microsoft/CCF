@@ -136,25 +136,22 @@ class Member:
             self.status_code = MemberStatus.ACTIVE
             return r
 
-    # TODO: Fix this!
-    def get_and_decrypt_recovery_share(self, remote_node, defunct_network_enc_pubk):
+    def get_and_decrypt_recovery_share(self, remote_node):
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.get("/gov/recovery_share")
             if r.status_code != http.HTTPStatus.OK.value:
                 raise NoRecoveryShareFound(r)
 
-            ctx = infra.crypto.CryptoBoxCtx(
+            with open(
                 os.path.join(self.common_dir, f"member{self.member_id}_enc_privk.pem"),
-                defunct_network_enc_pubk,
-            )
+                "r",
+            ) as priv_enc_key:
+                return infra.crypto.unwrap_key_rsa_oaep(
+                    base64.b64decode(r.body.text()),
+                    priv_enc_key.read(),
+                )
 
-            nonce_bytes = base64.b64decode(r.body.json()["nonce"])
-            encrypted_share_bytes = base64.b64decode(
-                r.body.json()["encrypted_recovery_share"]
-            )
-            return ctx.decrypt(encrypted_share_bytes, nonce_bytes)
-
-    def get_and_submit_recovery_share(self, remote_node, defunct_network_enc_pubk):
+    def get_and_submit_recovery_share(self, remote_node):
         # For now, all members are given an encryption key (for recovery)
         res = infra.proc.ccall(
             self.share_script,
