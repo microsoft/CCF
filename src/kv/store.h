@@ -321,15 +321,22 @@ namespace kv
 
       // TODO: This is real ugly, must be a better way?
       {
-        const auto it = global_hooks.find(map_name);
-        if (it != global_hooks.end())
+        auto cast_map = dynamic_cast<kv::untyped::Map*>(map.get());
+        if (cast_map == nullptr)
         {
-          auto cast_map = dynamic_cast<kv::untyped::Map*>(map.get());
-          if (cast_map == nullptr)
-          {
-            throw std::logic_error("TODO: Unexpected type");
-          }
-          cast_map->set_global_hook(it->second);
+          throw std::logic_error("TODO: Unexpected type");
+        }
+
+        const auto local_it = local_hooks.find(map_name);
+        if (local_it != local_hooks.end())
+        {
+          cast_map->set_local_hook(local_it->second);
+        }
+
+        const auto global_it = global_hooks.find(map_name);
+        if (global_it != global_hooks.end())
+        {
+          cast_map->set_global_hook(global_it->second);
         }
       }
     }
@@ -1253,9 +1260,55 @@ namespace kv
       }
     }
 
-    void set_global_hook(const std::string& map_name, kv::untyped::Map::CommitHook&& hook)
+    void set_local_hook(const std::string& map_name, const kv::untyped::Map::CommitHook& hook)
     {
-      global_hooks[map_name] = std::move(hook);
+      local_hooks[map_name] = hook;
+
+      const auto it = maps.find(map_name);
+      if (it != maps.end())
+      {
+        auto map = dynamic_cast<kv::untyped::Map*>(it->second.second.get());
+        if (map == nullptr)
+        {
+          throw std::logic_error("TODO: Unexpected type error");
+        }
+
+        map->set_local_hook(hook);
+      }
+    }
+
+    void unset_local_hook(const std::string& map_name)
+    {
+      local_hooks.erase(map_name);
+
+      const auto it = maps.find(map_name);
+      if (it != maps.end())
+      {
+        auto map = dynamic_cast<kv::untyped::Map*>(it->second.second.get());
+        if (map == nullptr)
+        {
+          throw std::logic_error("TODO: Unexpected type error");
+        }
+
+        map->unset_local_hook();
+      }
+    }
+
+    void set_global_hook(const std::string& map_name, const kv::untyped::Map::CommitHook& hook)
+    {
+      global_hooks[map_name] = hook;
+      
+      const auto it = maps.find(map_name);
+      if (it != maps.end())
+      {
+        auto map = dynamic_cast<kv::untyped::Map*>(it->second.second.get());
+        if (map == nullptr)
+        {
+          throw std::logic_error("TODO: Unexpected type error");
+        }
+
+        map->set_global_hook(hook);
+      }
     }
 
     void unset_global_hook(const std::string& map_name)

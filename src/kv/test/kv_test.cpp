@@ -733,89 +733,89 @@ TEST_CASE("Rollback and compact")
   }
 }
 
-// TODO: Hooks need more thought
-// TEST_CASE("Local commit hooks")
-// {
-//   using Write = MapTypes::StringString::Write;
-//   std::vector<Write> local_writes;
-//   std::vector<Write> global_writes;
+TEST_CASE("Local commit hooks")
+{
+  using Write = MapTypes::StringString::Write;
+  std::vector<Write> local_writes;
+  std::vector<Write> global_writes;
 
-//   auto local_hook = [&](kv::Version v, const Write& w) {
-//     local_writes.push_back(w);
-//   };
-//   auto global_hook = [&](kv::Version v, const Write& w) {
-//     global_writes.push_back(w);
-//   };
+  auto local_hook = [&](kv::Version v, const Write& w) {
+    local_writes.push_back(w);
+  };
+  auto global_hook = [&](kv::Version v, const Write& w) {
+    global_writes.push_back(w);
+  };
 
-//   kv::Store kv_store;
-//   auto& map = kv_store.create<MapTypes::StringString>("public:map");
-//   map.set_local_hook(local_hook);
-//   map.set_global_hook(global_hook);
+  kv::Store kv_store;
+  constexpr auto map_name = "public:map";
+  auto& map = kv_store.create<MapTypes::StringString>(map_name);
+  kv_store.set_local_hook(map_name, map.wrap_commit_hook(local_hook));
+  kv_store.set_global_hook(map_name, map.wrap_commit_hook(global_hook));
 
-//   INFO("Write with hooks");
-//   {
-//     auto tx = kv_store.create_tx();
-//     auto view = tx.get_view(map);
-//     view->put("key1", "value1");
-//     view->put("key2", "value2");
-//     view->remove("key2");
-//     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  INFO("Write with hooks");
+  {
+    auto tx = kv_store.create_tx();
+    auto view = tx.get_view(map);
+    view->put("key1", "value1");
+    view->put("key2", "value2");
+    view->remove("key2");
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
-//     REQUIRE(global_writes.size() == 0);
-//     REQUIRE(local_writes.size() == 1);
-//     const auto& latest_writes = local_writes.front();
-//     REQUIRE(latest_writes.at("key1").has_value());
-//     REQUIRE(latest_writes.at("key1").value() == "value1");
-//     INFO("Local removals are not seen");
-//     REQUIRE(latest_writes.find("key2") == latest_writes.end());
-//     REQUIRE(latest_writes.size() == 1);
+    REQUIRE(global_writes.size() == 0);
+    REQUIRE(local_writes.size() == 1);
+    const auto& latest_writes = local_writes.front();
+    REQUIRE(latest_writes.at("key1").has_value());
+    REQUIRE(latest_writes.at("key1").value() == "value1");
+    INFO("Local removals are not seen");
+    REQUIRE(latest_writes.find("key2") == latest_writes.end());
+    REQUIRE(latest_writes.size() == 1);
 
-//     local_writes.clear();
-//   }
+    local_writes.clear();
+  }
 
-//   INFO("Write without hooks");
-//   {
-//     map.unset_local_hook();
-//     map.unset_global_hook();
+  INFO("Write without hooks");
+  {
+    kv_store.unset_local_hook(map_name);
+    kv_store.unset_global_hook(map_name);
 
-//     auto tx = kv_store.create_tx();
-//     auto view = tx.get_view(map);
-//     view->put("key2", "value2");
-//     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    auto tx = kv_store.create_tx();
+    auto view = tx.get_view(map);
+    view->put("key2", "value2");
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
-//     REQUIRE(local_writes.size() == 0);
-//     REQUIRE(global_writes.size() == 0);
-//   }
+    REQUIRE(local_writes.size() == 0);
+    REQUIRE(global_writes.size() == 0);
+  }
 
-//   INFO("Write with hook again");
-//   {
-//     map.set_local_hook(local_hook);
-//     map.set_global_hook(global_hook);
+  INFO("Write with hook again");
+  {
+    kv_store.set_local_hook(map_name, map.wrap_commit_hook(local_hook));
+    kv_store.set_global_hook(map_name, map.wrap_commit_hook(global_hook));
 
-//     auto tx = kv_store.create_tx();
-//     auto view = tx.get_view(map);
-//     view->remove("key2");
-//     view->put("key3", "value3");
-//     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    auto tx = kv_store.create_tx();
+    auto view = tx.get_view(map);
+    view->remove("key2");
+    view->put("key3", "value3");
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
-//     REQUIRE(global_writes.size() == 0);
-//     REQUIRE(local_writes.size() == 1);
-//     const auto& latest_writes = local_writes.front();
-//     INFO("Old writes are not included");
-//     REQUIRE(latest_writes.find("key1") == latest_writes.end());
-//     INFO("Visible removals are included");
-//     const auto it2 = latest_writes.find("key2");
-//     REQUIRE(it2 != latest_writes.end());
-//     REQUIRE(!it2->second.has_value());
-//     const auto it3 = latest_writes.find("key3");
-//     REQUIRE(it3 != latest_writes.end());
-//     REQUIRE(it3->second.has_value());
-//     REQUIRE(it3->second.value() == "value3");
-//     REQUIRE(latest_writes.size() == 2);
+    REQUIRE(global_writes.size() == 0);
+    REQUIRE(local_writes.size() == 1);
+    const auto& latest_writes = local_writes.front();
+    INFO("Old writes are not included");
+    REQUIRE(latest_writes.find("key1") == latest_writes.end());
+    INFO("Visible removals are included");
+    const auto it2 = latest_writes.find("key2");
+    REQUIRE(it2 != latest_writes.end());
+    REQUIRE(!it2->second.has_value());
+    const auto it3 = latest_writes.find("key3");
+    REQUIRE(it3 != latest_writes.end());
+    REQUIRE(it3->second.has_value());
+    REQUIRE(it3->second.value() == "value3");
+    REQUIRE(latest_writes.size() == 2);
 
-//     local_writes.clear();
-//   }
-// }
+    local_writes.clear();
+  }
+}
 
 TEST_CASE("Global commit hooks")
 {
