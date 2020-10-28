@@ -61,12 +61,6 @@ TEST_CASE("Map creation")
     REQUIRE(kv_store.get<MapTypes::StringString>("invalid_map") == nullptr);
   }
 
-  INFO("Compare different maps");
-  {
-    auto& map2 = kv_store.create<MapTypes::StringString>("map2");
-    REQUIRE(map != map2);
-  }
-
   INFO("Can't create map that already exists");
   {
     REQUIRE_THROWS_AS(

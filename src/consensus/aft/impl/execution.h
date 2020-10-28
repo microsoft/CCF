@@ -50,11 +50,9 @@ namespace aft
   {
   public:
     ExecutorImpl(
-      RequestsMap& bft_requests_map_,
       std::shared_ptr<State> state_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       std::shared_ptr<enclave::RPCSessions> rpc_sessions_) :
-      bft_requests_map(bft_requests_map_),
       state(state_),
       rpc_map(rpc_map_),
       rpc_sessions(rpc_sessions_)
@@ -78,7 +76,6 @@ namespace aft
       std::shared_ptr<aft::RequestTracker> request_tracker) override;
 
   private:
-    RequestsMap& bft_requests_map;
     std::shared_ptr<State> state;
     std::shared_ptr<enclave::RPCMap> rpc_map;
     std::shared_ptr<enclave::RPCSessions> rpc_sessions;

@@ -262,7 +262,6 @@ namespace kv
         throw std::logic_error("Map already exists");
       }
 
-      // TODO: What if we're overwriting? Ahhhh
       auto result = std::make_shared<M>(name);
       map_defs[name] = result;
       return *result;

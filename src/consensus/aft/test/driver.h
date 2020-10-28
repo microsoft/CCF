@@ -22,7 +22,6 @@ using Store = aft::LoggingStubStore;
 using Adaptor = aft::Adaptor<Store, kv::DeserialiseSuccess>;
 
 std::vector<uint8_t> cert;
-kv::Map<size_t, aft::Request> request_map("test");
 
 class RaftDriver
 {
@@ -55,7 +54,6 @@ public:
         nullptr,
         nullptr,
         cert,
-        request_map,
         std::make_shared<aft::State>(node_id),
         nullptr,
         std::make_shared<aft::RequestTracker>(),

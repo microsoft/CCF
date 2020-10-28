@@ -29,19 +29,6 @@ namespace kv
 
     using NamedMap::NamedMap;
 
-    // TODO: Are these comparators needed outside of tests?
-    bool operator==(const This& that) const
-    {
-      return name == that.name;
-    }
-
-    bool operator!=(const This& that) const
-    {
-      return !(*this == that);
-    }
-
-    // TODO: What to do with hooks? Maybe we store them, and if we're used to
-    // create a map we install them then? Hmmm....
     static kv::untyped::Map::CommitHook wrap_commit_hook(const CommitHook& hook)
     {
       return [hook](Version v, const kv::untyped::Write& w) {

@@ -191,7 +191,6 @@ namespace ccf
       const CallerId caller_id,
       const SignedReq& signed_request)
     {
-      // TODO: Don't understand this early out
       if (client_signatures_name.empty())
       {
         return false;

@@ -78,8 +78,7 @@ namespace kv
       // that the caller is currently holding store->lock()
       auto store = map_ptr->get_store();
 
-      // TODO: This is a bodge, to avoid recursively locking version_lock by
-      // calling current_version() in the commit_reserved case.
+      // This is to avoid recursively locking version_lock by calling current_version() in the commit_reserved case.
       kv::Version current_v;
       if (new_maps_conflict_version.has_value())
       {
