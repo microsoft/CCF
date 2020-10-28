@@ -45,11 +45,12 @@ void ordered_execution(
   auto h = pt->hash_data(nonce);
   ccf::Nonce hashed_nonce;
   std::copy(h.h.begin(), h.h.end(), hashed_nonce.h.begin());
+  std::vector<uint8_t> primary_sig;
 
   INFO("Adding signatures");
   {
     auto result =
-      pt->record_primary({view, seqno}, 0, root, hashed_nonce, node_count);
+      pt->record_primary({view, seqno}, 0, root, primary_sig, hashed_nonce, node_count);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
     for (uint32_t i = 1; i < node_count; ++i)
@@ -301,6 +302,7 @@ TEST_CASE("View Changes")
   ccf::Nonce hashed_nonce;
   std::copy(h.h.begin(), h.h.end(), hashed_nonce.h.begin());
   std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
+  std::vector<uint8_t> primary_sig;
 
   INFO("find first view-change message");
   {
@@ -309,7 +311,7 @@ TEST_CASE("View Changes")
       .TIMES(AT_LEAST(2));
     REQUIRE_CALL(store_mock, sign_view_change(_)).TIMES(AT_LEAST(2));
     auto result =
-      pt.record_primary({view, seqno}, 0, root, hashed_nonce, node_count);
+      pt.record_primary({view, seqno}, 0, root, primary_sig, hashed_nonce, node_count);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
     for (uint32_t i = 1; i < node_count; ++i)
@@ -351,7 +353,7 @@ TEST_CASE("View Changes")
       .TIMES(AT_LEAST(2));
     REQUIRE_CALL(store_mock, sign_view_change(_)).TIMES(AT_LEAST(2));
     auto result =
-      pt.record_primary({view, new_seqno}, 0, root, hashed_nonce, node_count);
+      pt.record_primary({view, new_seqno}, 0, root, primary_sig, hashed_nonce, node_count);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
     for (uint32_t i = 1; i < node_count; ++i)
@@ -394,7 +396,7 @@ TEST_CASE("View Changes")
       .TIMES(AT_LEAST(2));
     REQUIRE_CALL(store_mock, sign_view_change(_)).TIMES(AT_LEAST(2));
     auto result =
-      pt.record_primary({view, new_seqno}, 0, root, hashed_nonce, node_count);
+      pt.record_primary({view, new_seqno}, 0, root, primary_sig, hashed_nonce, node_count);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
     for (uint32_t i = 1; i < node_count; ++i)

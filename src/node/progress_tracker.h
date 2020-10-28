@@ -127,6 +127,7 @@ namespace ccf
       kv::TxID tx_id,
       kv::NodeId node_id,
       crypto::Sha256Hash& root,
+      std::vector<uint8_t>& sig,
       Nonce hashed_nonce,
       uint32_t node_count = 0)
     {
@@ -154,7 +155,7 @@ namespace ccf
       {
         CommitCert cert(root, my_nonce);
         cert.have_primary_signature = true;
-        BftNodeSignature bft_node_sig({}, node_id, hashed_nonce);
+        BftNodeSignature bft_node_sig(sig, node_id, hashed_nonce);
         bft_node_sig.is_primary = true;
         try_match_unmatched_nonces(
           cert, bft_node_sig, tx_id.term, tx_id.version, node_id);
@@ -222,6 +223,41 @@ namespace ccf
       {
         return kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK;
       }
+      return kv::TxHistory::Result::OK;
+    }
+
+    kv::TxHistory::Result record_primary_signature(
+      kv::TxID tx_id, std::vector<uint8_t>& sig)
+    {
+      auto it = certificates.find(CertKey(tx_id));
+      if (it == certificates.end())
+      {
+        LOG_FAIL_FMT(
+          "Adding signature to primary that does not exist view:{}, seqno:{}",
+          tx_id.term,
+          tx_id.version);
+        return kv::TxHistory::Result::FAIL;
+      }
+
+      for(auto& cert : it->second.sigs)
+      {
+        if (!cert.second.is_primary)
+        {
+          continue;
+        }
+        
+        if (!cert.second.sig.empty())
+        {
+          LOG_FAIL_FMT(
+            "primary is not empty view:{}, seqno:{}",
+            tx_id.term,
+            tx_id.version);
+          return kv::TxHistory::Result::FAIL;
+        }
+        cert.second.sig = sig;
+        break;
+      }
+
       return kv::TxHistory::Result::OK;
     }
 
@@ -599,22 +635,12 @@ namespace ccf
               sig.node, it->second.root, sig.sig.size(), sig.sig.data()))
         {
           LOG_FAIL_FMT(
-            "AAAAA - 1 - signatures do not match, view-change from:{}, view:{}, seqno:{}, node_id:{}",
+            "AAAAA signatures do not match, view-change from:{}, view:{}, seqno:{}, node_id:{}",
             from,
             view_change.view,
             view_change.seqno,
             sig.node);
           continue;
-        }
-        else
-        {
-          LOG_FAIL_FMT(
-            "AAAAA - 2 - signatures do match, view-change from:{}, view:{}, seqno:{}, node_id:{}",
-            from,
-            view_change.view,
-            view_change.seqno,
-            sig.node);
-
         }
 
         if(it->second.sigs.find(sig.node) == it->second.sigs.end())
