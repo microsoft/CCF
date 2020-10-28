@@ -208,6 +208,7 @@ auto get_cert(uint64_t member_id, tls::KeyPairPtr& kp_mem)
   return kp_mem->self_sign("CN=new member" + to_string(member_id));
 }
 
+// TODO: Fix
 auto gen_public_encryption_key()
 {
   auto private_encryption_key =
@@ -464,8 +465,6 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   NetworkState network;
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
-  network.encryption_key = std::make_unique<NetworkEncryptionKey>(
-    tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
   network.tables->set_encryptor(encryptor);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
@@ -1820,8 +1819,6 @@ DOCTEST_TEST_CASE("Submit recovery shares")
   NetworkState network(ConsensusType::CFT);
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
-  network.encryption_key = std::make_unique<NetworkEncryptionKey>(
-    tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
 
   ShareManager share_manager(network);
   auto node = StubNodeState(share_manager);
@@ -1870,12 +1867,9 @@ DOCTEST_TEST_CASE("Submit recovery shares")
       auto encrypted_share = tls::raw_from_b64(resp.encrypted_recovery_share);
       auto nonce = tls::raw_from_b64(resp.nonce);
 
-      retrieved_shares[m.first] = crypto::Box::open(
-        encrypted_share,
-        nonce,
-        crypto::BoxKey::public_from_private(
-          network.encryption_key->private_raw),
-        m.second.second);
+      // TODO: Fix!
+      retrieved_shares[m.first] =
+        crypto::Box::open(encrypted_share, nonce, m.second.second);
     }
   }
 
@@ -2019,8 +2013,6 @@ DOCTEST_TEST_CASE("Open network sequence")
   NetworkState network(ConsensusType::CFT);
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
-  network.encryption_key = std::make_unique<NetworkEncryptionKey>(
-    tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
 
   ShareManager share_manager(network);
   auto node = StubNodeState(share_manager);

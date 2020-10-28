@@ -19,7 +19,7 @@ The ``keygenerator.sh`` script can be used to generate the member’s certificat
     Identity curve: secp384r1
     Identity private key generated at:   member_name_privk.pem
     Identity certificate generated at:   member_name_cert.pem (to be registered in CCF)
-    -- Generating encryption key pair for participant "member_name"...
+    -- Generating RSA encryption key pair for participant "member_name"...
     Encryption private key generated at:  member_name_enc_privk.pem
     Encryption public key generated at:   member_name_enc_pubk.pem (to be registered in CCF)
 

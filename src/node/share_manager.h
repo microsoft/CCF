@@ -2,16 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-// #include "crypto/crypto_box.h"
 #include "crypto/symmetric_key.h"
 #include "ds/logger.h"
 #include "genesis_gen.h"
 #include "ledger_secrets.h"
 #include "network_state.h"
 #include "secret_share.h"
-#include "tls/wrap.h"
-// #include "tls/25519.h"
 #include "tls/entropy.h"
+#include "tls/wrap.h"
 
 #include <vector>
 

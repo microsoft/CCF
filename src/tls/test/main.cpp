@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "tls/25519.h"
 #include "tls/base64.h"
 #include "tls/key_pair.h"
 #include "tls/verifier.h"
@@ -346,25 +345,6 @@ TEST_CASE("base64")
     const auto decoded = tls::raw_from_b64(encoded);
     REQUIRE(decoded == raw);
   }
-}
-
-// TODO: Delete?
-TEST_CASE("Parse public x25519 PEM")
-{
-  auto x25519_public_key_pem = std::string(
-    "-----BEGIN PUBLIC KEY-----\n"
-    "MCowBQYDK2VuAyEAUgaVkiQ9K8UO3qEYD3C34vJT/CwiCr3AWnVn/1QMTl0=\n"
-    "-----END PUBLIC KEY-----\n");
-  auto x25519_public_key =
-    tls::raw_from_b64("UgaVkiQ9K8UO3qEYD3C34vJT/CwiCr3AWnVn/1QMTl0=");
-
-  auto raw_key = tls::PublicX25519::parse(tls::Pem(x25519_public_key_pem));
-
-  REQUIRE(
-    raw_key ==
-    std::vector<uint8_t>(x25519_public_key.begin(), x25519_public_key.end()));
-
-  REQUIRE(tls::PublicX25519::write(raw_key).str() == x25519_public_key_pem);
 }
 
 TEST_CASE("RSA wrapping")

@@ -46,8 +46,6 @@ namespace ccf
     LedgerSecrets::VersionedLedgerSecret, version, secret)
   DECLARE_JSON_TYPE(LedgerSecrets)
   DECLARE_JSON_REQUIRED_FIELDS(LedgerSecrets, secrets_list)
-  DECLARE_JSON_TYPE(NetworkEncryptionKey)
-  DECLARE_JSON_REQUIRED_FIELDS(NetworkEncryptionKey, private_raw)
 
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out::NetworkInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -56,8 +54,7 @@ namespace ccf
     last_recovered_signed_idx,
     consensus_type,
     ledger_secrets,
-    identity,
-    encryption_key)
+    identity)
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, node_status, node_id)
   DECLARE_JSON_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out, network_info)
