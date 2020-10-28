@@ -823,14 +823,10 @@ if(BUILD_TESTS)
   )
 
   add_e2e_sandbox_test(
-    NAME
-    forum_app
-    SCRIPT
-    ${CMAKE_SOURCE_DIR}/samples/apps/forum/ci.sh
-    CONSENSUS
-    cft
-    LABEL
-    forum
+    NAME forum_app
+    SCRIPT ${CMAKE_SOURCE_DIR}/samples/apps/forum/ci.sh
+    CONSENSUS cft
+    LABEL forum
   )
 
   foreach(CONSENSUS ${CONSENSUSES})
