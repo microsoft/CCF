@@ -173,8 +173,7 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
   {
     kv::Store new_store;
 
-    auto new_string_map = new_store.get<MapTypes::StringString>(string_map);
-    REQUIRE(new_string_map != nullptr);
+    MapTypes::StringString new_string_map(string_map);
 
     using Write = MapTypes::StringString::Write;
     std::vector<Write> local_writes;
@@ -190,9 +189,9 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
       };
 
       new_store.set_local_hook(
-        string_map, new_string_map->wrap_commit_hook(local_hook));
+        string_map, new_string_map.wrap_commit_hook(local_hook));
       new_store.set_global_hook(
-        string_map, new_string_map->wrap_commit_hook(global_hook));
+        string_map, new_string_map.wrap_commit_hook(global_hook));
     }
 
     new_store.deserialise_snapshot(serialised_snapshot);
