@@ -574,7 +574,6 @@ namespace kv::untyped
      */
     void set_local_hook(const CommitHook& hook)
     {
-      std::lock_guard<SpinLock> guard(sl);
       local_hook = hook;
     }
 
@@ -582,7 +581,6 @@ namespace kv::untyped
      */
     void unset_local_hook()
     {
-      std::lock_guard<SpinLock> guard(sl);
       local_hook = nullptr;
     }
 
@@ -592,7 +590,6 @@ namespace kv::untyped
      */
     void set_global_hook(const CommitHook& hook)
     {
-      std::lock_guard<SpinLock> guard(sl);
       global_hook = hook;
     }
 
@@ -600,7 +597,6 @@ namespace kv::untyped
      */
     void unset_global_hook()
     {
-      std::lock_guard<SpinLock> guard(sl);
       global_hook = nullptr;
     }
 
