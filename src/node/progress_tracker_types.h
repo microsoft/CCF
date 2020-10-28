@@ -33,6 +33,12 @@ namespace ccf
     Nonce nonce;
 
     BftNodeSignature(
+      const NodeSignature& ns) :
+      NodeSignature(ns),
+      is_primary(false)
+    {}
+
+    BftNodeSignature(
       const std::vector<uint8_t>& sig_, NodeId node_, Nonce hashed_nonce_) :
       NodeSignature(sig_, node_, hashed_nonce_),
       is_primary(false)
@@ -74,8 +80,8 @@ namespace ccf
       crypto::Sha256Hash& root,
       uint32_t sig_size,
       uint8_t* sig) = 0;
-
     virtual void sign_view_change(ViewChange& view_change) = 0;
+    virtual bool verify_view_change(ViewChange& view_change) = 0;
   };
 
   class ProgressTrackerStoreAdapter : public ProgressTrackerStore
@@ -175,7 +181,14 @@ namespace ccf
 
     void sign_view_change(ViewChange& view_change) override
     {
+      // TODO: fill this in
       view_change.signature = {1};
+    }
+
+    bool verify_view_change(ViewChange& /*view_change*/) override
+    {
+      // TODO: fill this in
+      return true;
     }
 
   private:

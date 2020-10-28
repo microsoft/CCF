@@ -635,6 +635,9 @@ namespace aft
       LOG_INFO_FMT(
         "AAAAAAAAAAA got view change from:{}, view:{}", r.from_node, v.view);
 
+      auto progress_tracker = store->get_progress_tracker();
+      progress_tracker->apply_view_change_message(v, r.from_node);
+
       /*
             auto progress_tracker = store->get_progress_tracker();
             CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not

@@ -552,11 +552,86 @@ namespace ccf
       return m;
     }
 
+    bool apply_view_change_message(ViewChange& view_change, kv::NodeId from)
+    {
+      if (!store->verify_view_change(view_change))
+      {
+        LOG_FAIL_FMT("Failed to verify view-change from:{}", from);
+        return false;
+      }
+      // TODO: fill this in
+      LOG_INFO_FMT(
+        "AAAAA Applying view-change from:{}, view:{}, seqno:{}",
+        from,
+        view_change.view,
+        view_change.seqno);
+
+      // TODO: fix this
+      auto it =
+        certificates.find(CertKey({2, view_change.seqno}));
+
+      if (it == certificates.end())
+      {
+        LOG_INFO_FMT(
+          "AAAAA Received view-change for view:{} and seqno:{} that I am not aware "
+          "of",
+          view_change.view,
+          view_change.seqno);
+        return true;
+      }
+
+      if (it->second.root != view_change.root)
+      {
+        LOG_FAIL_FMT(
+          "AAAAA Roots do not match, view-change from:{}, view:{}, seqno:{}",
+          from,
+          view_change.view,
+          view_change.seqno);
+          return false;
+      }
+
+      // TODO: check roots match
+
+      for(auto& sig : view_change.signatures)
+      {
+        // TODO: verify the signature
+        if (!store->verify_signature(
+              sig.node, it->second.root, sig.sig.size(), sig.sig.data()))
+        {
+          LOG_FAIL_FMT(
+            "AAAAA - 1 - signatures do not match, view-change from:{}, view:{}, seqno:{}, node_id:{}",
+            from,
+            view_change.view,
+            view_change.seqno,
+            sig.node);
+          continue;
+        }
+        else
+        {
+          LOG_FAIL_FMT(
+            "AAAAA - 2 - signatures do match, view-change from:{}, view:{}, seqno:{}, node_id:{}",
+            from,
+            view_change.view,
+            view_change.seqno,
+            sig.node);
+
+        }
+
+        if(it->second.sigs.find(sig.node) == it->second.sigs.end())
+        {
+          continue;
+        }
+        it->second.sigs.insert(std::pair<kv::NodeId, BftNodeSignature>(sig.node, sig));
+      }
+      
+      return true;
+    }
+
   private:
     kv::NodeId id;
     std::shared_ptr<tls::Entropy> entropy;
     kv::Consensus::SeqNo highest_commit_level = 0;
-    kv::TxID highest_prepared_level = {0,0};
+    kv::TxID highest_prepared_level = {0, 0};
 
     std::map<CertKey, CommitCert> certificates;
 

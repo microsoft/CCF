@@ -25,8 +25,8 @@ public:
     verify_signature,
     bool(kv::NodeId, crypto::Sha256Hash&, uint32_t, uint8_t*),
     override);
-
   MAKE_MOCK1(sign_view_change, void(ccf::ViewChange& view_change), override);
+  MAKE_MOCK1(verify_view_change, bool(ccf::ViewChange& view_change), override);
 };
 
 void ordered_execution(
