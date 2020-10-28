@@ -17,6 +17,7 @@ echo "Python environment successfully setup"
 
 # Export where the VENV has been set, so tests running
 # a sandbox.sh can inherit it rather create a new one
-export VENV_DIR=`realpath env`
+VENV_DIR=$(realpath env)
+export VENV_DIR="$VENV_DIR"
 
 ctest "$@"
