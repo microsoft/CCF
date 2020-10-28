@@ -27,6 +27,9 @@ namespace kv
     using ReadOnlyTxView = kv::ReadOnlyTxView<K, V, KSerialiser, VSerialiser>;
     using TxView = kv::TxView<K, V, KSerialiser, VSerialiser>;
 
+    using KeySerialiser = KSerialiser;
+    using ValueSerialiser = VSerialiser;
+
     using NamedMap::NamedMap;
 
     static kv::untyped::Map::CommitHook wrap_commit_hook(const CommitHook& hook)
