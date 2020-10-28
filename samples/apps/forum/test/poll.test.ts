@@ -31,6 +31,8 @@ function getAuth(userId: number) {
 }
 
 describe('/polls', function () {
+  this.timeout(30000)
+
   setupMochaCCFSandbox(APP_BUNDLE_DIR)
 
   describe('POST /{topic}', function () {

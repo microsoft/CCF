@@ -822,6 +822,13 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS -p liblogging --duration 45m
   )
 
+  add_e2e_sandbox_test(
+    NAME forum_app
+    SCRIPT ${CMAKE_SOURCE_DIR}/samples/apps/forum/ci.sh
+    CONSENSUS cft
+    LABEL forum
+  )
+
   foreach(CONSENSUS ${CONSENSUSES})
     add_e2e_test(
       NAME cpp_e2e_logging_${CONSENSUS}
