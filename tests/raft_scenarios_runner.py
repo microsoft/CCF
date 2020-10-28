@@ -65,9 +65,7 @@ if __name__ == "__main__":
     err_list = []
     test_result = True
 
-    LOG.info("AAAA")
     generate_scenarios(path)
-    LOG.info("BBBB")
 
     with open(os.path.join(doc, RAFT_TEST_FILE_NAME), "w") as raft:
         for scenario in scenarios(path):
@@ -75,11 +73,9 @@ if __name__ == "__main__":
             with block(raft, "steps", 3):
                 with open(scenario, "r") as scen:
                     raft.write(scen.read())
-            LOG.info("CCCC")
             proc = Popen([driver], stdout=PIPE, stderr=PIPE, stdin=PIPE)
             out, err = proc.communicate(input=open(scenario, "rb").read())
             test_result = test_result and proc.returncode == 0
-            LOG.info("DDDD")
 
             if err:
                 err_list.append([os.path.basename(scenario), err.decode()])

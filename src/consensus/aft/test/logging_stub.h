@@ -221,7 +221,7 @@ namespace aft
 
     kv::Tx create_tx()
     {
-      return kv::Tx(nullptr);
+      return kv::Tx(nullptr, true);
     }
   };
 

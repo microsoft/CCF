@@ -174,11 +174,18 @@ namespace kv
     }
 
   public:
-    BaseTx(AbstractStore* _store) : store(_store)
+    BaseTx(AbstractStore* _store, bool known_null = false) : store(_store)
     {
-      CCF_ASSERT(
-        store != nullptr,
-        "Transactions must be created with reference to real Store");
+      // For testing purposes, caller may opt-in to creation of an unsafe Tx by
+      // passing (nullptr, true). Many operations on this Tx, including
+      // commit(), will try to dereference this pointer, so the caller must not
+      // call these.
+      if (!known_null)
+      {
+        CCF_ASSERT(
+          store != nullptr,
+          "Transactions must be created with reference to real Store");
+      }
     }
 
     BaseTx(const BaseTx& that) = delete;
