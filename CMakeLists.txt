@@ -830,12 +830,12 @@ if(BUILD_TESTS)
       CONSENSUS ${CONSENSUS}
     )
 
-  add_e2e_test(
-    NAME election_test_${CONSENSUS}
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-    CONSENSUS ${CONSENSUS}
-    ADDITIONAL_ARGS "--raft-election-timeout" "4000"
-  )
+    add_e2e_test(
+      NAME election_test_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+      CONSENSUS ${CONSENSUS}
+      ADDITIONAL_ARGS "--raft-election-timeout" "4000"
+    )
 
   endforeach()
 
