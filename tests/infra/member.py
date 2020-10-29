@@ -129,7 +129,7 @@ class Member:
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.post("/gov/ack/update_state_digest")
             assert r.status_code == 200, f"Error ack/update_state_digest: {r}"
-            return bytearray(r.body.json()["state_digest"])
+            return bytearray(r.body.json())
 
     def ack(self, remote_node):
         state_digest = self.update_ack_state_digest(remote_node)
