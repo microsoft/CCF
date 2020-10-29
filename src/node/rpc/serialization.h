@@ -117,11 +117,6 @@ namespace ccf
   DECLARE_JSON_TYPE(EndpointMetrics::Out)
   DECLARE_JSON_REQUIRED_FIELDS(EndpointMetrics::Out, metrics)
 
-  DECLARE_JSON_TYPE(GetSchema::In)
-  DECLARE_JSON_REQUIRED_FIELDS(GetSchema::In, method)
-  DECLARE_JSON_TYPE(GetSchema::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetSchema::Out, params_schema, result_schema)
-
   DECLARE_JSON_TYPE(GetReceipt::In)
   DECLARE_JSON_REQUIRED_FIELDS(GetReceipt::In, commit)
   DECLARE_JSON_TYPE(GetReceipt::Out)

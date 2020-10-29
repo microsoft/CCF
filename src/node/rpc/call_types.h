@@ -152,20 +152,6 @@ namespace ccf
     };
   };
 
-  struct GetSchema
-  {
-    struct In
-    {
-      std::string method = {};
-    };
-
-    struct Out
-    {
-      ds::json::JsonSchema params_schema = {};
-      ds::json::JsonSchema result_schema = {};
-    };
-  };
-
   struct GetReceipt
   {
     struct In
