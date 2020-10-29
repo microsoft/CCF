@@ -179,8 +179,6 @@ include(${CCF_DIR}/cmake/secp256k1.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)
 
-find_package(CURL REQUIRED)
-
 list(APPEND LINK_LIBCXX -lc++ -lc++abi -lc++fs -stdlib=libc++)
 
 # Unit test wrapper
@@ -237,7 +235,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
             openenclave::oehost
             ccfcrypto.host
             evercrypt.host
-            CURL::libcurl
   )
   enable_quote_code(cchost)
 
@@ -279,7 +276,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
             ${LINK_LIBCXX}
             ccfcrypto.host
             evercrypt.host
-            CURL::libcurl
   )
 
   install(TARGETS cchost.virtual DESTINATION bin)
@@ -449,6 +445,59 @@ function(add_e2e_test)
         TEST ${PARSED_ARGS_NAME}
         APPEND
         PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
+      )
+    endif()
+  endif()
+endfunction()
+
+# Helper for building end-to-end function tests using the sandbox
+function(add_e2e_sandbox_test)
+  cmake_parse_arguments(
+    PARSE_ARGV 0 PARSED_ARGS "" "NAME;SCRIPT;LABEL;CONSENSUS;"
+    "ADDITIONAL_ARGS;CONFIGURATIONS"
+  )
+
+  if(BUILD_END_TO_END_TESTS)
+    add_test(NAME ${PARSED_ARGS_NAME} COMMAND ${PARSED_ARGS_SCRIPT})
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY LABELS e2e
+    )
+
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY LABELS e2e
+    )
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY LABELS ${PARSED_ARGS_LABEL}
+    )
+
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY ENVIRONMENT "CONSENSUS=${PARSED_ARGS_CONSENSUS}"
+    )
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
+    )
+
+    if(DEFINED DEFAULT_ENCLAVE_TYPE)
+      set_property(
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY ENVIRONMENT "ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
+      )
+    else()
+      set_property(
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY ENVIRONMENT "ENCLAVE_TYPE=release"
       )
     endif()
   endif()

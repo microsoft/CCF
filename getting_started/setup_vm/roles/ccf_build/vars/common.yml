@@ -13,7 +13,6 @@ debs:
   - clang-tools-8
   - expect
   - git
-  - libcurl4-openssl-dev
   - ccache
   - doxygen
   - kmod

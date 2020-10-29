@@ -27,6 +27,16 @@ with section("parse"):
                 "ADDITIONAL_ARGS": "*",
             },
         },
+        "add_e2e_sandbox_test": {
+            "kwargs": {
+                "NAME": "*",
+                "SCRIPT": "*",
+                "LABEL": "*",
+                "CONSENSUS": "*",
+                "CONFIGURATIONS": "*",
+                "ADDITIONAL_ARGS": "*",
+            },
+        },
         "add_perf_test": {
             "kwargs": {
                 "NAME": "*",

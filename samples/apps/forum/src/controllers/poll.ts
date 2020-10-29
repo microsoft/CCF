@@ -6,8 +6,10 @@ import {
     Path,
     Header,
     SuccessResponse,
+    Request,
     Response,
     Controller,
+    Security,
     Get,
     Post,
     Put,
@@ -17,15 +19,14 @@ import {
 import * as _ from 'lodash-es'
 import * as math from 'mathjs'
 
-import { ValidateErrorResponse, ValidateErrorStatus } from "../error_handler"
-import { parseAuthToken } from "../util"
+import {
+    ErrorResponse, ValidateErrorResponse, ValidateError,
+    BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError
+} from "../error_handler"
+import { User } from "../authentication"
 import * as ccf from "../types/ccf"
 
 export const MINIMUM_OPINION_THRESHOLD = 10
-
-interface ErrorResponse {
-    message: string
-}
 
 interface CreatePollRequest {
     type: "string" | "number"
@@ -104,6 +105,9 @@ namespace kv {
 
 
 @Route("polls")
+@Security("jwt")
+@Response<ErrorResponse>(UnauthorizedError.Status, "Unauthorized")
+@Response<ValidateErrorResponse>(ValidateError.Status, "Schema validation error")
 export class PollController extends Controller {
 
     private kvPolls = new ccf.TypedKVMap(ccf.kv.polls, ccf.string, ccf.json<kv.Poll>())
@@ -111,22 +115,20 @@ export class PollController extends Controller {
     private kvTopicsKey = 'all'
 
     @SuccessResponse(201, "Poll has been successfully created")
-    @Response<ErrorResponse>(403, "Poll has not been created because a poll with the same topic exists already")
-    @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
+    @Response<ErrorResponse>(ForbiddenError.Status, "Poll has not been created because a poll with the same topic exists already")
     @Post('{topic}')
     public createPoll(
         @Path() topic: string,
         @Body() body: CreatePollRequest,
-        @Header() authorization: string,
+        @Request() request: ccf.Request
     ): void {
-        const user = parseAuthToken(authorization)
+        const user: User = request.user
 
         if (this.kvPolls.has(topic)) {
-            this.setStatus(403)
-            return { message: "Poll with given topic exists already" } as any
+            throw new ForbiddenError("Poll with given topic exists already")
         }
         this.kvPolls.set(topic, {
-            creator: user,
+            creator: user.userId,
             type: body.type,
             opinions: {}
         })
@@ -137,22 +139,20 @@ export class PollController extends Controller {
     }
 
     @SuccessResponse(201, "Polls have been successfully created")
-    @Response<ErrorResponse>(403, "Polls were not created because a poll with the same topic exists already")
-    @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
+    @Response<ErrorResponse>(ForbiddenError.Status, "Polls were not created because a poll with the same topic exists already")
     @Post()
     public createPolls(
         @Body() body: CreatePollsRequest,
-        @Header() authorization: string,
+        @Request() request: ccf.Request
     ): void {
-        const user = parseAuthToken(authorization)
+        const user: User = request.user
 
         for (let [topic, poll] of Object.entries(body.polls)) {
             if (this.kvPolls.has(topic)) {
-                this.setStatus(403)
-                return { message: `Poll with topic '${topic}' exists already` } as any
+                throw new ForbiddenError(`Poll with topic '${topic}' exists already`)
             }
             this.kvPolls.set(topic, {
-                creator: user,
+                creator: user.userId,
                 type: poll.type,
                 opinions: {}
             })
@@ -164,52 +164,46 @@ export class PollController extends Controller {
     }
 
     @SuccessResponse(204, "Opinion has been successfully recorded")
-    @Response<ErrorResponse>(400, "Opinion was not recorded because the opinion data type does not match the poll type")
-    @Response<ErrorResponse>(404, "Opinion was not recorded because no poll with the given topic exists")
-    @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
+    @Response<ErrorResponse>(BadRequestError.Status, "Opinion was not recorded because the opinion data type does not match the poll type")
+    @Response<ErrorResponse>(NotFoundError.Status, "Opinion was not recorded because no poll with the given topic exists")
     @Put('{topic}')
     public submitOpinion(
         @Path() topic: string,
         @Body() body: SubmitOpinionRequest,
-        @Header() authorization: string,
+        @Request() request: ccf.Request
     ): void {
-        const user = parseAuthToken(authorization)
+        const user: User = request.user
 
         const poll = this.kvPolls.get(topic)
         if (poll === undefined) {
-            this.setStatus(404)
-            return { message: "Poll does not exist" } as any
+            throw new NotFoundError("Poll does not exist")
         }
         if (typeof body.opinion !== poll.type) {
-            this.setStatus(400)
-            return { message: "Poll has a different opinion type" } as any
+            throw new BadRequestError("Poll has a different opinion type")
         }      
-        poll.opinions[user] = body.opinion
+        poll.opinions[user.userId] = body.opinion
         this.kvPolls.set(topic, poll)
         this.setStatus(204)
     }
 
     @SuccessResponse(204, "Opinions have been successfully recorded")
-    @Response<ErrorResponse>(400, "Opinions were not recorded because either an opinion data type did not match the poll type or a poll with the given topic was not found")
-    @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
+    @Response<ErrorResponse>(BadRequestError.Status, "Opinions were not recorded because either an opinion data type did not match the poll type or a poll with the given topic was not found")
     @Put()
     public submitOpinions(
         @Body() body: SubmitOpinionsRequest,
-        @Header() authorization: string,
+        @Request() request: ccf.Request
     ): void {
-        const user = parseAuthToken(authorization)
+        const user: User = request.user
 
         for (const [topic, opinion] of Object.entries(body.opinions)) {
             const poll = this.kvPolls.get(topic)
             if (poll === undefined) {
-                this.setStatus(400)
-                return { message: `Poll with topic '${topic}' does not exist` } as any
+                throw new BadRequestError(`Poll with topic '${topic}' does not exist`)
             }
             if (typeof opinion.opinion !== poll.type) {
-                this.setStatus(400)
-                return { message: `Poll with topic '${topic}' has a different opinion type` } as any
+                throw new BadRequestError(`Poll with topic '${topic}' has a different opinion type`)
             }      
-            poll.opinions[user] = opinion.opinion
+            poll.opinions[user.userId] = opinion.opinion
             this.kvPolls.set(topic, poll)
         }
 
@@ -217,36 +211,33 @@ export class PollController extends Controller {
     }
 
     @SuccessResponse(200, "Poll data")
-    @Response<ErrorResponse>(404, "Poll data could not be returned because no poll with the given topic exists")
-    @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
+    @Response<ErrorResponse>(NotFoundError.Status, "Poll data could not be returned because no poll with the given topic exists")
     @Get('{topic}')
     public getPoll(
         @Path() topic: string,
-        @Header() authorization: string,
+        @Request() request: ccf.Request
     ): GetPollResponse {
-        const user = parseAuthToken(authorization)
+        const user: User = request.user
 
         if (!this.kvPolls.has(topic)){
-            this.setStatus(404)
-            return { message: "Poll does not exist" } as any
+            throw new NotFoundError("Poll does not exist")
         }
 
         this.setStatus(200)
-        return this._getPoll(user, topic)
+        return this._getPoll(user.userId, topic)
     }
     
     @SuccessResponse(200, "Poll data")
-    @Response<ValidateErrorResponse>(ValidateErrorStatus, "Schema validation error")
     @Get()
     public getPolls(
-        @Header() authorization: string,
+        @Request() request: ccf.Request
     ): GetPollsResponse {
-        const user = parseAuthToken(authorization)
+        const user: User = request.user
 
         let response: GetPollsResponse = { polls: {} }
 
         for (const topic of this._getTopics()) {
-            response.polls[topic] = this._getPoll(user, topic)
+            response.polls[topic] = this._getPoll(user.userId, topic)
         }
 
         this.setStatus(200)
@@ -260,7 +251,7 @@ export class PollController extends Controller {
     _getPoll(user: string, topic: string): GetPollResponse {
         const poll = this.kvPolls.get(topic)
         if (poll === undefined) {
-            throw new Error(`Poll with topic '${topic}' does not exist`)
+            throw new Error(`BUG: poll with topic '${topic}' does not exist`)
         }
 
         const opinionCountAboveThreshold = Object.keys(poll.opinions).length >= MINIMUM_OPINION_THRESHOLD
@@ -284,7 +275,7 @@ export class PollController extends Controller {
                 }
             }
         } else {
-            throw new Error('unknown poll type')
+            throw new Error('BUG: unknown poll type')
         }
         return response
     }
