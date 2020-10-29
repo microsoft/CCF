@@ -469,13 +469,13 @@ namespace kv::untyped
     }
 
     ChangeSetPtr deserialise_changes(
-      KvStoreDeserialiser& d, Version version, bool commit)
+      KvStoreDeserialiser& d, Version version)
     {
-      return deserialise_internal(d, version, commit);
+      return deserialise_internal(d, version);
     }
 
     ChangeSetPtr deserialise_internal(
-      KvStoreDeserialiser& d, Version version, bool commit)
+      KvStoreDeserialiser& d, Version version)
     {
       // Create a new change set, and deserialise d's contents into it.
       auto change_set_ptr = create_change_set(version);

@@ -727,7 +727,7 @@ namespace kv
           return DeserialiseSuccess::FAILED;
         }
 
-        auto deserialised_changes = map->deserialise_changes(d, v, commit);
+        auto deserialised_changes = map->deserialise_changes(d, v);
 
         // Take ownership of the produced change set, store it to be applied
         // later
