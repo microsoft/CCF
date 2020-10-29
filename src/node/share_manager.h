@@ -9,7 +9,7 @@
 #include "network_state.h"
 #include "secret_share.h"
 #include "tls/entropy.h"
-#include "tls/wrap.h"
+#include "tls/rsa_key_pair.h"
 
 #include <vector>
 
@@ -126,15 +126,10 @@ namespace ccf
       size_t share_index = 0;
       for (auto const& [member_id, enc_pub_key] : active_members_info)
       {
-        auto member_enc_pubk = tls::make_public_key(enc_pub_key);
+        auto member_enc_pubk = tls::make_rsa_public_key(enc_pub_key);
         auto raw_share = std::vector<uint8_t>(
           shares[share_index].begin(), shares[share_index].end());
-
-        // TODO: Use a specific label?
-        // TODO: Throw from here and see if error bubbles up gracefully
-        tls::RSAOEAPWrap::wrap(member_enc_pubk, raw_share);
-        encrypted_shares[member_id] =
-          tls::RSAOEAPWrap::wrap(member_enc_pubk, raw_share);
+        encrypted_shares[member_id] = member_enc_pubk->wrap(raw_share);
         share_index++;
       }
 
