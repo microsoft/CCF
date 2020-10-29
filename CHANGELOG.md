@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## Unreleased
 ### Changed
 - CCF now depends on [Open Enclave 0.12](https://github.com/openenclave/openenclave/releases/tag/v0.12.0).
+- TODO: Document changes, deprecations, removals from KV API around getting Maps
 
 ### Fixed
 - Added `tools.cmake` to the install , which `ccf_app.cmake` depends on and was missing from the previous release. 

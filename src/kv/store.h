@@ -147,52 +147,6 @@ namespace kv
     }
 
     template <class K, class V>
-    Map<K, V>* get(const std::string& name)
-    {
-      return get<Map<K, V>>(name);
-    }
-
-    // TODO: This can/should be removed? Reduce some explicit map references -
-    // just get views by name when needed
-    /** Get Map by name
-     *
-     * @param name Map name
-     *
-     * @return Map
-     */
-    template <class M>
-    M* get(const std::string& name)
-    {
-      auto search = map_defs.find(name);
-      if (search != map_defs.end())
-      {
-        auto result = dynamic_cast<M*>(search->second.get());
-
-        if (result == nullptr)
-          return nullptr;
-
-        return result;
-      }
-
-      return nullptr;
-    }
-
-    /** Get Map by type and name
-     *
-     * Using type and name of other Map, retrieve the equivalent Map from this
-     * Store
-     *
-     * @param other Other map
-     *
-     * @return Map
-     */
-    template <class M>
-    M* get(const M& other)
-    {
-      return get<M>(other.get_name());
-    }
-
-    template <class K, class V>
     CCF_DEPRECATED(
       "SecurityDomain should not be passed explicitly, but encoded in the "
       "map's name. 'public:' prefix indicates a PUBLIC table, all others are "
