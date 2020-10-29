@@ -354,7 +354,7 @@ TEST_CASE_TEMPLATE(
 {
   kv::Store kv_store;
 
-  auto& map = kv_store.create<MapType>("public:map");
+  MapType map("public:map");
 
   CustomClass k1{"hello", 42};
   CustomClass v1{"world", 43};
@@ -365,7 +365,7 @@ TEST_CASE_TEMPLATE(
   INFO("Serialise/Deserialise 2 kv stores");
   {
     kv::Store kv_store2;
-    auto& map2 = kv_store2.create<MapType>("public:map");
+    MapType map2("public:map");
 
     auto tx = kv_store.create_reserved_tx(kv_store.next_version());
     auto view = tx.get_view(map);
@@ -443,9 +443,8 @@ TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
     kv_store.set_encryptor(encryptor);
     kv_store_target.set_encryptor(encryptor);
 
-    auto& public_map =
-      kv_store.create<MapTypes::StringString>("public:public_map");
-    auto& private_map = kv_store.create<MapTypes::StringString>("private_map");
+    MapTypes::StringString public_map("public:public_map");
+    MapTypes::StringString private_map("private_map");
 
     auto tx = kv_store.create_tx();
     auto [public_view, private_view] = tx.get_view(public_map, private_map);
@@ -479,8 +478,7 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     auto consensus = std::make_shared<kv::StubConsensus>();
     using Table = kv::Map<std::vector<int>, std::string>;
     kv::Store s0(consensus), s1;
-    auto& t = s0.create<Table>("public:t");
-    s1.create<Table>("public:t");
+    Table t("public:t");
 
     auto tx = s0.create_tx();
     tx.get_view(t)->put(k1, v1);
@@ -497,8 +495,7 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     auto consensus = std::make_shared<kv::StubConsensus>();
     using Table = kv::Map<nlohmann::json, nlohmann::json>;
     kv::Store s0(consensus), s1;
-    auto& t = s0.create<Table>("public:t");
-    s1.create<Table>("public:t");
+    Table t("public:t");
 
     auto tx = s0.create_tx();
     tx.get_view(t)->put(k0, v0);
@@ -603,16 +600,18 @@ TEST_CASE("Exceptional serdes" * doctest::test_suite("serialisation"))
   kv::Store store(consensus);
   store.set_encryptor(encryptor);
 
-  auto& bad_map_k = store.create<kv::TypedMap<
+  kv::TypedMap<
     NonSerialisable,
     size_t,
     NonSerialiser,
-    kv::serialisers::MsgPackSerialiser<size_t>>>("bad_map_k");
-  auto& bad_map_v = store.create<kv::TypedMap<
+    kv::serialisers::MsgPackSerialiser<size_t>>
+    bad_map_k("bad_map_k");
+  kv::TypedMap<
     size_t,
     NonSerialisable,
     kv::serialisers::MsgPackSerialiser<size_t>,
-    NonSerialiser>>("bad_map_v");
+    NonSerialiser>
+    bad_map_v("bad_map_v");
 
   {
     auto tx = store.create_tx();

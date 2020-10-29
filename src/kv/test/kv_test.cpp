@@ -53,7 +53,7 @@ TEST_CASE("Map name parsing")
 TEST_CASE("Reads/writes and deletions")
 {
   kv::Store kv_store;
-  auto& map = kv_store.create<MapTypes::StringString>("public:map");
+  MapTypes::StringString map("public:map");
 
   constexpr auto k = "key";
   constexpr auto invalid_key = "invalid_key";
@@ -151,7 +151,7 @@ TEST_CASE("Reads/writes and deletions")
 TEST_CASE("foreach")
 {
   kv::Store kv_store;
-  auto& map = kv_store.create<MapTypes::StringString>("public:map");
+  MapTypes::StringString map("public:map");
 
   std::map<std::string, std::string> iterated_entries;
 
@@ -328,7 +328,7 @@ TEST_CASE("foreach")
 TEST_CASE("Modifications during foreach iteration")
 {
   kv::Store kv_store;
-  auto& map = kv_store.create<MapTypes::NumString>("public:map");
+  MapTypes::NumString map("public:map");
 
   const auto value1 = "foo";
   const auto value2 = "bar";
@@ -588,7 +588,7 @@ TEST_CASE("Modifications during foreach iteration")
 TEST_CASE("Read-only tx")
 {
   kv::Store kv_store;
-  auto& map = kv_store.create<MapTypes::StringString>("public:map");
+  MapTypes::StringString map("public:map");
 
   constexpr auto k = "key";
   constexpr auto invalid_key = "invalid_key";
@@ -647,7 +647,7 @@ TEST_CASE("Read-only tx")
 TEST_CASE("Rollback and compact")
 {
   kv::Store kv_store;
-  auto& map = kv_store.create<MapTypes::StringString>("public:map");
+  MapTypes::StringString map("public:map");
 
   constexpr auto k = "key";
   constexpr auto v1 = "value1";
@@ -712,7 +712,7 @@ TEST_CASE("Local commit hooks")
 
   kv::Store kv_store;
   constexpr auto map_name = "public:map";
-  auto& map = kv_store.create<MapTypes::StringString>(map_name);
+  MapTypes::StringString map(map_name);
   kv_store.set_local_hook(map_name, map.wrap_commit_hook(local_hook));
   kv_store.set_global_hook(map_name, map.wrap_commit_hook(global_hook));
 
@@ -798,13 +798,12 @@ TEST_CASE("Global commit hooks")
   };
 
   kv::Store kv_store;
-  auto& map_with_hook =
-    kv_store.create<std::string, std::string>("public:map_with_hook");
+  using MapT = kv::Map<std::string, std::string>;
+  MapT map_with_hook("public:map_with_hook");
   kv_store.set_global_hook(
     map_with_hook.get_name(), map_with_hook.wrap_commit_hook(global_hook));
 
-  auto& map_no_hook =
-    kv_store.create<std::string, std::string>("public:map_no_hook");
+  MapT map_no_hook("public:map_no_hook");
 
   INFO("Compact an empty store");
   {
@@ -934,8 +933,8 @@ TEST_CASE("Clone schema")
   kv::Store store;
   store.set_encryptor(encryptor);
 
-  auto& public_map = store.create<MapTypes::NumString>("public:public");
-  auto& private_map = store.create<MapTypes::NumString>("private");
+  MapTypes::NumString public_map("public:public");
+  MapTypes::NumString private_map("private");
   auto tx1 = store.create_reserved_tx(store.next_version());
   auto [view1, view2] = tx1.get_view(public_map, private_map);
   view1->put(42, "aardvark");
@@ -1072,13 +1071,13 @@ TEST_CASE("Private recovery map swap")
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv::Store s1;
   s1.set_encryptor(encryptor);
-  auto& priv1 = s1.create<MapTypes::NumNum>("private");
-  auto& pub1 = s1.create<MapTypes::NumString>("public:data");
+  MapTypes::NumNum priv1("private");
+  MapTypes::NumString pub1("public:data");
 
   kv::Store s2;
   s2.set_encryptor(encryptor);
-  auto& priv2 = s2.create<MapTypes::NumNum>("private");
-  auto& pub2 = s2.create<MapTypes::NumString>("public:data");
+  MapTypes::NumNum priv2("private");
+  MapTypes::NumString pub2("public:data");
 
   INFO("Populate s1 with public entries");
   // We compact twice, deliberately. A public KV during recovery
@@ -1302,8 +1301,8 @@ TEST_CASE("Conflict resolution")
 TEST_CASE("Mid-tx compaction")
 {
   kv::Store kv_store;
-  auto& map_a = kv_store.create<MapTypes::StringNum>("public:A");
-  auto& map_b = kv_store.create<MapTypes::StringNum>("public:B");
+  MapTypes::StringNum map_a("public:A");
+  MapTypes::StringNum map_b("public:B");
 
   constexpr auto key_a = "a";
   constexpr auto key_b = "b";

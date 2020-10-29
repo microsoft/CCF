@@ -16,6 +16,7 @@
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
+using MapT = kv::Map<size_t, size_t>;
 
 extern "C"
 {
@@ -248,8 +249,8 @@ TEST_CASE(
     std::make_shared<CompactingConsensus>(&store);
   store.set_consensus(consensus);
 
-  auto& table = store.create<size_t, size_t>("public:table");
-  auto& other_table = store.create<size_t, size_t>("public:other_table");
+  MapT table("public:table");
+  MapT other_table("public:other_table");
 
   INFO("Write first tx");
   {
@@ -357,7 +358,7 @@ TEST_CASE(
     std::make_shared<RollbackConsensus>(&store, 2, 2);
   store.set_consensus(consensus);
 
-  auto& table = store.create<size_t, size_t>("public:table");
+  MapT table("public:table");
 
   INFO("Write first tx");
   {
@@ -395,7 +396,7 @@ TEST_CASE(
     std::make_shared<RollbackConsensus>(&store, 2, 1);
   store.set_consensus(consensus);
 
-  auto& table = store.create<size_t, size_t>("public:table");
+  MapT table("public:table");
 
   INFO("Write first tx");
   {

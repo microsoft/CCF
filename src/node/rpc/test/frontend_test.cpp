@@ -150,11 +150,11 @@ public:
 class TestExplicitCommitability : public SimpleUserRpcFrontend
 {
 public:
-  kv::Map<size_t, size_t>& values;
+  kv::Map<size_t, size_t> values;
 
   TestExplicitCommitability(kv::Store& tables) :
     SimpleUserRpcFrontend(tables),
-    values(tables.create<size_t, size_t>("test_values"))
+    values("test_values")
   {
     open();
 

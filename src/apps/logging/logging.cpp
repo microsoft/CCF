@@ -21,8 +21,8 @@ namespace loggingapp
   class LoggerHandlers : public ccf::UserEndpointRegistry
   {
   private:
-    Table& records;
-    Table& public_records;
+    Table records;
+    Table public_records;
 
     const nlohmann::json record_public_params_schema;
     const nlohmann::json record_public_result_schema;
@@ -38,8 +38,8 @@ namespace loggingapp
     LoggerHandlers(
       ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(nwt),
-      records(nwt.tables->create<Table>("records")),
-      public_records(nwt.tables->create<Table>("public:records")),
+      records("records"),
+      public_records("public:records"),
       // SNIPPET_END: constructor
       record_public_params_schema(nlohmann::json::parse(j_record_public_in)),
       record_public_result_schema(nlohmann::json::parse(j_record_public_out)),

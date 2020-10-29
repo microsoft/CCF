@@ -186,9 +186,8 @@ TEST_CASE(
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
-  auto& static_map = kv_store.create<MapTypes::StringString>("static_map");
-
   constexpr auto map_name = "dynamic_map";
+  constexpr auto other_map = "other_map";
 
   auto tx1 = kv_store.create_tx();
   auto tx2 = kv_store.create_tx();
@@ -203,7 +202,7 @@ TEST_CASE(
   REQUIRE(!view2->get("foo").has_value());
 
   // tx3 takes a read dependency at an early version, before the map is visible
-  auto view3_static = tx3.get_view(static_map);
+  auto view3_static = tx3.get_view<MapTypes::StringString>(other_map);
 
   REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
@@ -284,10 +283,18 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
+  constexpr auto key = "foo";
+
+  MapTypes::StringString prior_map("prior_map");
+  {
+    auto tx = kv_store.create_tx();
+    auto view = tx.get_view(prior_map);
+    view->put(key, "bar");
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+
   constexpr auto dynamic_map_a = "dynamic_map_a";
   constexpr auto dynamic_map_b = "dynamic_map_b";
-
-  auto& static_map = kv_store.create<MapTypes::StringString>("static_map");
 
   SUBCASE("Parallel independent map creation")
   {
@@ -306,10 +313,9 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
 
   SUBCASE("Map creation blocked by standard conflict")
   {
-    constexpr auto key = "foo";
     auto tx1 = kv_store.create_tx();
     {
-      auto view1 = tx1.get_view(static_map);
+      auto view1 = tx1.get_view(prior_map);
       const auto v = view1->get(key); // Introduce read-dependency
       view1->put(key, "bar");
       auto dynamic_view = tx1.get_view<MapTypes::NumString>(dynamic_map_a);
@@ -318,7 +324,7 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
 
     auto tx2 = kv_store.create_tx();
     {
-      auto view2 = tx2.get_view(static_map);
+      auto view2 = tx2.get_view(prior_map);
       const auto v = view2->get(key); // Introduce read-dependency
       view2->put(key, "bar");
       auto dynamic_view = tx2.get_view<MapTypes::StringNum>(dynamic_map_b);

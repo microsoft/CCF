@@ -17,8 +17,8 @@ struct MapTypes
 TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
 {
   kv::Store store;
-  auto& string_map = store.create<MapTypes::StringString>("public:string_map");
-  auto& num_map = store.create<MapTypes::NumNum>("public:num_map");
+  MapTypes::StringString string_map("public:string_map");
+  MapTypes::NumNum num_map("public:num_map");
 
   kv::Version first_snapshot_version = kv::NoVersion;
   kv::Version second_snapshot_version = kv::NoVersion;
@@ -100,7 +100,7 @@ TEST_CASE(
   doctest::test_suite("snapshot"))
 {
   kv::Store store;
-  auto& string_map = store.create<MapTypes::StringString>("public:string_map");
+  MapTypes::StringString string_map("public:string_map");
 
   kv::Version snapshot_version = kv::NoVersion;
   INFO("Apply transactions to original store");
