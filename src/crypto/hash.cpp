@@ -12,45 +12,109 @@ extern "C"
 
 using namespace std;
 
-void crypto::Sha256Hash::mbedtls_sha256(const CBuffer& data, uint8_t* h)
+namespace crypto
 {
-  mbedtls_sha256_context ctx;
-  mbedtls_sha256_starts_ret(&ctx, 0);
-
-  mbedtls_sha256_update_ret(&ctx, data.p, data.rawSize());
-
-  mbedtls_sha256_finish_ret(&ctx, h);
-  mbedtls_sha256_free(&ctx);
-}
-
-void crypto::Sha256Hash::evercrypt_sha256(const CBuffer& data, uint8_t* h)
-{
-  EverCrypt_Hash_state_s* state =
-    EverCrypt_Hash_create(Spec_Hash_Definitions_SHA2_256);
-  EverCrypt_Hash_init(state);
-
   constexpr auto block_size = 64u; // No way to ask evercrypt for this
 
-  const auto data_begin = const_cast<uint8_t*>(data.p);
-  const auto size = data.rawSize();
-  const auto full_blocks = size / block_size;
 
-  const auto full_blocks_size = full_blocks * block_size;
-  const auto full_blocks_end = data_begin + full_blocks_size;
+  void Sha256Hash::mbedtls_sha256(const CBuffer& data, uint8_t* h)
+  {
+    mbedtls_sha256_context ctx;
+    mbedtls_sha256_starts_ret(&ctx, 0);
 
-  // update_multi takes complete blocks
-  EverCrypt_Hash_update_multi(state, data_begin, full_blocks_size);
+    mbedtls_sha256_update_ret(&ctx, data.p, data.rawSize());
 
-  // update_last takes start of last chunk (NOT a full block!), and _total size_
-  EverCrypt_Hash_update_last(state, full_blocks_end, size);
+    mbedtls_sha256_finish_ret(&ctx, h);
+    mbedtls_sha256_free(&ctx);
+  }
 
-  EverCrypt_Hash_finish(state, h);
-  EverCrypt_Hash_free(state);
-}
+  void update_evercrypt_sha256(const CBuffer& data, EverCrypt_Hash_state_s* state)
+  {
+    const auto data_begin = const_cast<uint8_t*>(data.p);
+    const auto size = data.rawSize();
+    const auto full_blocks = size / block_size;
 
-crypto::Sha256Hash::Sha256Hash() : h{0} {}
+    const auto full_blocks_size = full_blocks * block_size;
+    const auto full_blocks_end = data_begin + full_blocks_size;
 
-crypto::Sha256Hash::Sha256Hash(const CBuffer& data) : h{0}
-{
-  evercrypt_sha256(data, h.data());
+    // update_multi takes complete blocks
+    EverCrypt_Hash_update_multi(state, data_begin, full_blocks_size);
+
+    // update_last takes start of last chunk (NOT a full block!), and _total
+    // size_
+    EverCrypt_Hash_update_last(state, full_blocks_end, size);
+  }
+
+  void Sha256Hash::evercrypt_sha256(const CBuffer& data, uint8_t* h)
+  {
+    EverCrypt_Hash_state_s* state =
+      EverCrypt_Hash_create(Spec_Hash_Definitions_SHA2_256);
+    EverCrypt_Hash_init(state);
+
+    update_evercrypt_sha256(data, state);
+
+    EverCrypt_Hash_finish(state, h);
+    EverCrypt_Hash_free(state);
+  }
+
+  Sha256Hash::Sha256Hash() : h{0} {}
+
+  Sha256Hash::Sha256Hash(const CBuffer& data) : h{0}
+  {
+    evercrypt_sha256(data, h.data());
+  }
+
+  class CSha256HashImpl
+  {
+  public:
+    CSha256HashImpl()
+    {
+      state =
+        EverCrypt_Hash_create(Spec_Hash_Definitions_SHA2_256);
+      EverCrypt_Hash_init(state);
+    }
+
+    void finalize(std::array<uint8_t, Sha256Hash::SIZE>& h)
+    {
+      EverCrypt_Hash_finish(state, h.data());
+    }
+
+    void update(const CBuffer& data)
+    {
+      update_evercrypt_sha256(data, state);
+    }
+
+    ~CSha256HashImpl()
+    {
+      EverCrypt_Hash_free(state);
+    }
+
+  private:
+    EverCrypt_Hash_state_s* state;
+  };
+
+  CSha256Hash::CSha256Hash() : p(std::make_unique<CSha256HashImpl>()) {}
+  CSha256Hash::~CSha256Hash() {}
+
+  void CSha256Hash::update_hash(CBuffer data)
+  {
+    if (p == nullptr)
+    {
+      throw std::logic_error("Attempting to use hash after it was finalized");
+    }
+    p->update(data);
+  }
+
+  Sha256Hash CSha256Hash::finalize()
+  {
+    if (p == nullptr)
+    {
+      throw std::logic_error("Attempting to use hash after it was finalized");
+    }
+
+    Sha256Hash h;
+    p->finalize(h.h);
+    p = nullptr;
+    return std::move(h);
+  }
 }

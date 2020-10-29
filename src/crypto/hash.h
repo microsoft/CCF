@@ -56,6 +56,34 @@ namespace crypto
   {
     return !(lhs == rhs);
   }
+
+  class CSha256HashImpl;
+  class CSha256Hash
+  {
+  public:
+    CSha256Hash();
+    ~CSha256Hash();
+
+    void update_hash(CBuffer data);
+
+    template<typename T>
+    void update(const T& t)
+    {
+      update_hash({reinterpret_cast<const uint8_t*>(&t), sizeof(T)});
+    }
+
+    template<>
+    void update<std::vector<uint8_t>>(const std::vector<uint8_t>& d)
+    {
+      update_hash({d.data(), d.size()});
+    }
+
+
+    Sha256Hash finalize();
+
+  private:
+    std::unique_ptr<CSha256HashImpl> p;
+  };
 }
 
 namespace fmt

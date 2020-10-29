@@ -26,7 +26,7 @@ public:
     bool(kv::NodeId, crypto::Sha256Hash&, uint32_t, uint8_t*),
     override);
   MAKE_MOCK1(sign_view_change, void(ccf::ViewChange& view_change), override);
-  MAKE_MOCK1(verify_view_change, bool(ccf::ViewChange& view_change), override);
+  MAKE_MOCK2(verify_view_change, bool(ccf::ViewChange& view_change, kv::NodeId from), override);
 };
 
 void ordered_execution(
@@ -536,7 +536,7 @@ TEST_CASE("test progress_tracker apply_view_change")
 
   INFO("View-change signature does not verify");
   {
-    REQUIRE_CALL(store_mock, verify_view_change(_)).RETURN(false);
+    REQUIRE_CALL(store_mock, verify_view_change(_, _)).RETURN(false);
     ccf::ViewChange v;
     bool result = pt->apply_view_change_message(v, 1);
     REQUIRE(result == false);
@@ -544,7 +544,7 @@ TEST_CASE("test progress_tracker apply_view_change")
 
   INFO("Unknown seqno");
   {
-    REQUIRE_CALL(store_mock, verify_view_change(_)).RETURN(true);
+    REQUIRE_CALL(store_mock, verify_view_change(_, _)).RETURN(true);
     ccf::ViewChange v;
     v.seqno = 999;
     bool result = pt->apply_view_change_message(v, 1);
@@ -553,7 +553,7 @@ TEST_CASE("test progress_tracker apply_view_change")
 
   INFO("Incorrect root");
   {
-    REQUIRE_CALL(store_mock, verify_view_change(_)).RETURN(true);
+    REQUIRE_CALL(store_mock, verify_view_change(_, _)).RETURN(true);
     ccf::ViewChange v;
     v.seqno = 42;
     v.root.h.fill(1);
@@ -563,7 +563,7 @@ TEST_CASE("test progress_tracker apply_view_change")
 
   INFO("View-change matches - known node");
   {
-    REQUIRE_CALL(store_mock, verify_view_change(_)).RETURN(true);
+    REQUIRE_CALL(store_mock, verify_view_change(_, _)).RETURN(true);
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _)).RETURN(true);
     ccf::ViewChange v;
     v.seqno = 42;
@@ -575,7 +575,7 @@ TEST_CASE("test progress_tracker apply_view_change")
 
   INFO("View-change matches - unknown node");
   {
-    REQUIRE_CALL(store_mock, verify_view_change(_)).RETURN(true);
+    REQUIRE_CALL(store_mock, verify_view_change(_, _)).RETURN(true);
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _)).RETURN(false);
 
     ccf::ViewChange v;

@@ -1765,6 +1765,7 @@ namespace ccf
       {
         auto store = std::make_unique<ccf::ProgressTrackerStoreAdapter>(
           *network.tables.get(),
+          *node_sign_kp,
           network.nodes,
           network.backup_signatures_map,
           network.revealed_nonces_map);

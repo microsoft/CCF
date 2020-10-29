@@ -587,7 +587,7 @@ namespace ccf
 
     bool apply_view_change_message(ViewChange& view_change, kv::NodeId from)
     {
-      if (!store->verify_view_change(view_change))
+      if (!store->verify_view_change(view_change, from))
       {
         LOG_FAIL_FMT("Failed to verify view-change from:{}", from);
         return false;
