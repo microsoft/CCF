@@ -362,7 +362,7 @@ int main(int argc, char** argv)
     *start,
     members_info,
     "--member-info",
-    "Initial consortium members information (public identity,recovery public "
+    "Initial consortium members information (public identity,encryption public "
     "key,member data)")
     ->required();
 

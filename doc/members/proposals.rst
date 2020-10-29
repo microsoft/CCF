@@ -102,11 +102,12 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
     $ cat new_member.json
     {
       "parameter": {
-        "cert": "-----BEGIN CERTIFICATE-----\nMIIBrzCCATSgAwIBAgIUTu47sG/Ziz4hgoeMhKzs/alrEYcwCgYIKoZIzj0EAwMw\nDjEMMAoGA1UEAwwDYm9iMB4XDTIwMDcwOTE0NTc0OFoXDTIxMDcwOTE0NTc0OFow\nDjEMMAoGA1UEAwwDYm9iMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAENhB3M5fWT5YQ\n+vBOl0T9xt29CvYBsJyLCGeflqLAFA4YDs7Bb3mMH46EiJg+BFT0HmIPtGW91qE5\nZEPMINQ2zuU0IU6uomPBi76pQ5vhm/2HDy3SLDwRytrSDNqTXZXfo1MwUTAdBgNV\nHQ4EFgQUBchpeGuTHjy4XuwdgQqC3pOqOdEwHwYDVR0jBBgwFoAUBchpeGuTHjy4\nXuwdgQqC3pOqOdEwDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAwNpADBmAjEA\nmNPNpZvqn3piEepKGFJtqKtq+bZxUZuWZxxXILj4/qnC1fLatJaMQ/DHRtCxwcU/\nAjEAtZe3LAQ6NtVIrn4qFG3ruuEgFL9arCpFGEBLFkVdkL2nFIBTp1L4C1/aJBqk\nK9d9\n-----END CERTIFICATE-----\n",
-        "expected_enc_pub_key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VuAyEAO63rFGghBlp4DUvFQ6437ZGBlB8LNHnzgNEjW5hRPHM=\n-----END PUBLIC KEY-----\n"
+        "cert": "-----BEGIN CERTIFICATE-----\nMIIBdzCCARygAwIBAgIURwD6S1/rcb2TbHhQLnTNh/7WyYYwCgYIKoZIzj0EAwIw\nEjEQMA4GA1UEAwwHbWVtYmVyNDAeFw0yMDEwMjkxNjI2NTNaFw0yMTEwMjkxNjI2\nNTNaMBIxEDAOBgNVBAMMB21lbWJlcjQwVjAQBgcqhkjOPQIBBgUrgQQACgNCAARG\nwqj2ZD7vA+h4KoTdh3if3tVO/yks+xtLU1tXAFsbeWSQfDxK3nnA65uX6n/25A20\nJcAQMDHYH2NdLOLra9lxo1MwUTAdBgNVHQ4EFgQUQQDC71N60r/a9c+EGXrzr5l6\nIDQwHwYDVR0jBBgwFoAUQQDC71N60r/a9c+EGXrzr5l6IDQwDwYDVR0TAQH/BAUw\nAwEB/zAKBggqhkjOPQQDAgNJADBGAiEAkvP0AuAU7y0b3z4rhvoOkCBKoH4G3vh/\nPJpLFdWcEu4CIQCSnEYpDaDTP2zoWTheqchZ+/BdTzM2j2s9ILpvSVYMxg==\n-----END CERTIFICATE-----\n",
+        "encryption_pub_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvYKesV5xoT2XnGhLkeqZ\neSC2KsjNUvdjqPrTERk/hp64Xd30SGjdj2HytG3hfCy5hBhc9muQMXoOAOBgxwMA\nQRu7KCANPZNCLEWKR5DZc8YzE+rHX1/8WxhhtV/bvr90selV0BfLWLLJYDxnyo3D\nyioYXNw6Ij2sYBt8MTPNPti3jRJ7LmMow/VrJD9Ww1FKWCyxa7/iCxSsbmrwdv8m\nBVf/+d3p+ivxb6gBvtTimj+fj1OdRkGHElZSaBFWmQISga3Ki4vnP4W1iw/ujaza\n3gItLPrEnD0lxGBaCSs+XVm2l8nsn3HJDZYMP5u3jWB3MWsBwna0o+KUon4KaS1k\nlwIDAQAB\n-----END PUBLIC KEY-----\n",
+        "member_data": null
       },
       "script": {
-        "text": "tables, args = ...; return Calls:call(\"new_member\", args)"
+        "text": "\n    tables, args = ...\n    return Calls:call(\"new_member\", args)\n    "
       }
     }
 
