@@ -8,6 +8,8 @@
 #include "map.h"
 #include "view_containers.h"
 
+#include <list>
+
 namespace kv
 {
   class CompactedVersionConflict
@@ -32,6 +34,12 @@ namespace kv
     AbstractStore* store;
 
     OrderedChanges all_changes;
+
+    // TODO: Cludge to maintain old API - store all the Views we've ever
+    // constructed, so we can return them again.
+    using PossibleViews = std::list<std::unique_ptr<AbstractTxView>>;
+    std::map<std::string, PossibleViews> all_views;
+
     bool committed = false;
     bool success = false;
     Version read_version = NoVersion;
@@ -41,6 +49,35 @@ namespace kv
     kv::TxHistory::RequestID req_id;
 
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
+
+    template <typename MapView>
+    MapView* get_or_insert_view(untyped::ChangeSet& change_set, const std::string& name)
+    {
+      auto it = all_views.find(name);
+      if (it == all_views.end())
+      {
+        PossibleViews views;
+        auto typed_view = new MapView(change_set);
+        views.emplace_back(std::unique_ptr<AbstractTxView>(typed_view));
+        all_views[name] = std::move(views);
+        return typed_view;
+      }
+      else
+      {
+        PossibleViews& views = it->second;
+        for (auto& view: views)
+        {
+          auto typed_view = dynamic_cast<MapView*>(view.get());
+          if (typed_view != nullptr)
+          {
+            return typed_view;
+          }
+        }
+        auto typed_view = new MapView(change_set);
+        views.emplace_back(std::unique_ptr<AbstractTxView>(typed_view));
+        return typed_view;
+      }
+    }
 
     template <typename MapView>
     std::tuple<MapView*> check_and_store_change_set(
@@ -56,19 +93,7 @@ namespace kv
           read_version));
       }
 
-      auto typed_view = new MapView(*change_set);
-
-      // TODO: No longer storing views! Arggghhh!
-      // auto abstract_view = dynamic_cast<AbstractTxView*>(typed_view);
-      // if (abstract_view == nullptr)
-      // {
-      //   throw std::logic_error(
-      //     fmt::format("View over map {} is not an AbstractTxView",
-      //     map_name));
-      // }
-      // view_list[map_name] = {abstract_map,
-      //                        std::unique_ptr<AbstractTxView>(abstract_view)};
-
+      auto typed_view = get_or_insert_view<MapView>(*change_set, map_name);
       all_changes[map_name] = {abstract_map, std::move(change_set)};
       return std::make_tuple(typed_view);
     }
@@ -83,17 +108,7 @@ namespace kv
       auto search = all_changes.find(map_name);
       if (search != all_changes.end())
       {
-        // TODO: Have a ChangeSet already, construct a View for the caller
-        auto view = nullptr;
-        // auto view = dynamic_cast<MapView*>(search->second.view.get());
-
-        // if (view == nullptr)
-        // {
-        //   throw std::logic_error(
-        //     fmt::format("View over map {} is not of expected type",
-        //     map_name));
-        // }
-
+        auto view = get_or_insert_view<MapView>(*search->second.changeset, map_name);
         return std::make_tuple(view);
       }
 
@@ -352,7 +367,8 @@ namespace kv
 
     std::vector<uint8_t> serialise(bool include_reads = false)
     {
-      // TODO: Should this be operating over a set of actual Committers? To distinguish the old has_writes from has_changes...
+      // TODO: Should this be operating over a set of actual Committers? To
+      // distinguish the old has_writes from has_changes...
       if (!committed)
         throw std::logic_error("Transaction not yet committed");
 

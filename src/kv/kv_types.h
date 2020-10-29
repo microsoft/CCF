@@ -457,11 +457,6 @@ namespace kv
   {
   public:
     virtual ~AbstractTxView() = default;
-
-    virtual bool has_writes() = 0;
-    virtual bool prepare() = 0;
-    virtual void commit(Version v) = 0;
-    virtual void post_commit() = 0;
   };
 
   struct NamedMap

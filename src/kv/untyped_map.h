@@ -400,7 +400,7 @@ namespace kv::untyped
       }
     }
 
-    class SnapshotViewCommitter : public AbstractTxView
+    class SnapshotViewCommitter
     {
     private:
       Map& map;
@@ -414,49 +414,50 @@ namespace kv::untyped
         change_set(std::forward<Ts>(ts)...)
       {}
 
-      bool has_writes() override
-      {
-        return true;
-      }
+      // TODO!
+      // bool has_writes() override
+      // {
+      //   return true;
+      // }
 
-      bool prepare() override
-      {
-        // Snapshots never conflict
-        return true;
-      }
+      // bool prepare() override
+      // {
+      //   // Snapshots never conflict
+      //   return true;
+      // }
 
-      void commit(Version) override
-      {
-        // Version argument is ignored. The version of the roll after the
-        // snapshot is applied depends on the version of the map at which the
-        // snapshot was taken.
-        map.roll.reset_commits();
-        map.roll.rollback_counter++;
+      // void commit(Version) override
+      // {
+      //   // Version argument is ignored. The version of the roll after the
+      //   // snapshot is applied depends on the version of the map at which the
+      //   // snapshot was taken.
+      //   map.roll.reset_commits();
+      //   map.roll.rollback_counter++;
 
-        auto r = map.roll.commits->get_head();
+      //   auto r = map.roll.commits->get_head();
 
-        r->state = change_set.state;
-        r->version = change_set.version;
+      //   r->state = change_set.state;
+      //   r->version = change_set.version;
 
-        // Executing hooks from snapshot requires copying the entire snapshotted
-        // state so only do it if there's an hook on the table
-        if (map.local_hook || map.global_hook)
-        {
-          r->state.foreach([&r](const K& k, const VersionV& v) {
-            if (!is_deleted(v.version))
-            {
-              r->writes[k] = v.value;
-            }
-            return true;
-          });
-        }
-      }
+      //   // Executing hooks from snapshot requires copying the entire snapshotted
+      //   // state so only do it if there's an hook on the table
+      //   if (map.local_hook || map.global_hook)
+      //   {
+      //     r->state.foreach([&r](const K& k, const VersionV& v) {
+      //       if (!is_deleted(v.version))
+      //       {
+      //         r->writes[k] = v.value;
+      //       }
+      //       return true;
+      //     });
+      //   }
+      // }
 
-      void post_commit() override
-      {
-        auto r = map.roll.commits->get_head();
-        map.trigger_local_hook(change_set.version, r->writes);
-      }
+      // void post_commit() override
+      // {
+      //   auto r = map.roll.commits->get_head();
+      //   map.trigger_local_hook(change_set.version, r->writes);
+      // }
     };
 
     ChangeSetPtr deserialise_snapshot_changes(KvStoreDeserialiser& d)

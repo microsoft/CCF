@@ -927,7 +927,7 @@ TEST_CASE("Global commit hooks")
   }
 }
 
-TEST_CASE("Clone schema")
+TEST_CASE("Deserialising from other Store")
 {
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv::Store store;

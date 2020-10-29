@@ -9,7 +9,7 @@
 namespace kv
 {
   template <typename K, typename V, typename KSerialiser, typename VSerialiser>
-  class ReadOnlyTxView
+  class ReadOnlyTxView: public AbstractTxView
   {
   protected:
     kv::untyped::TxView untyped_view;
