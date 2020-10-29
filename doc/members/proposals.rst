@@ -40,25 +40,25 @@ Some of these subcommands require additional arguments, such as the node ID or u
     SUCCESS | Writing proposal to ./trust_node_proposal.json
     SUCCESS | Wrote vote to ./trust_node_vote_for.json
 
-    $ cat trust_node_proposal.json 
+    $ cat trust_node_proposal.json
     {"script": {"text": "tables, args = ...; return Calls:call(\"trust_node\", args)"}, "parameter": "5"}
 
-    $ cat trust_node_vote_for.json 
+    $ cat trust_node_vote_for.json
     {"ballot": {"text": "tables, calls = ...; if not #calls == 1 then return false end; call = calls[1]; if not call.func == \"trust_node\" then return false end; args = call.args; if args == nil then return false end; if not args == [====[5]====] then return false end; return true"}}
 
-    $ python -m ccf.proposal_generator --pretty-print --proposal-output-file add_pedro.json --vote-output-file vote_for_pedro.json new_user pedro_cert.pem 
+    $ python -m ccf.proposal_generator --pretty-print --proposal-output-file add_pedro.json --vote-output-file vote_for_pedro.json new_user pedro_cert.pem
     SUCCESS | Writing proposal to ./add_pedro.json
     SUCCESS | Wrote vote to ./vote_for_pedro.json
-    
-    $ cat add_pedro.json 
+
+    $ cat add_pedro.json
     {
       "script": {
         "text": "tables, args = ...; return Calls:call(\"new_user\", args)"
       },
       "parameter": "-----BEGIN CERTIFICATE-----\nMIIBrzCCATSgAwIBAgIUJY+H0OzuFQWz/udd+WCD7Cv+cgwwCgYIKoZIzj0EAwMw\nDjEMMAoGA1UEAwwDYm9iMB4XDTIwMDcyNDE1MzYyOFoXDTIxMDcyNDE1MzYyOFow\nDjEMMAoGA1UEAwwDYm9iMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE7h75Xd1+0QDD\nWF2edGphgryHcDoBXdRowq6ciYH2++ilXXagi5Rybai7ewgV0YuvrDm+WfGyJ9CC\n5HbT6C/z5GCJQnLH2t3LaZrw9MQDF3bH6XOHGmaJh6m7rfpZZljpo1MwUTAdBgNV\nHQ4EFgQUN/LhCyVExERjt5f1RZx7820934wwHwYDVR0jBBgwFoAUN/LhCyVExERj\nt5f1RZx7820934wwDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAwNpADBmAjEA\n5MsDNvjEMSgYXy+bPbE2nxOlmH6OhP375IVZxNQALJGzTfgHu+IbpyvDF0/VrMrW\nAjEA723VxgMgpuxB5SszN6eZuz8EW51DsgRIVWMSbBZYYBYyQmu5x3T+Hx/Cs7TD\nu4Ee\n-----END CERTIFICATE-----\n"
     }
-    
-    $ cat vote_for_pedro.json 
+
+    $ cat vote_for_pedro.json
     {
       "ballot": {
         "text": "tables, calls = ...; if not #calls == 1 then return false end; call = calls[1]; if not call.func == \"new_user\" then return false end; args = call.args; if args == nil then return false end; if not args == [====[-----BEGIN CERTIFICATE-----\nMIIBrzCCATSgAwIBAgIUJY+H0OzuFQWz/udd+WCD7Cv+cgwwCgYIKoZIzj0EAwMw\nDjEMMAoGA1UEAwwDYm9iMB4XDTIwMDcyNDE1MzYyOFoXDTIxMDcyNDE1MzYyOFow\nDjEMMAoGA1UEAwwDYm9iMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE7h75Xd1+0QDD\nWF2edGphgryHcDoBXdRowq6ciYH2++ilXXagi5Rybai7ewgV0YuvrDm+WfGyJ9CC\n5HbT6C/z5GCJQnLH2t3LaZrw9MQDF3bH6XOHGmaJh6m7rfpZZljpo1MwUTAdBgNV\nHQ4EFgQUN/LhCyVExERjt5f1RZx7820934wwHwYDVR0jBBgwFoAUN/LhCyVExERj\nt5f1RZx7820934wwDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAwNpADBmAjEA\n5MsDNvjEMSgYXy+bPbE2nxOlmH6OhP375IVZxNQALJGzTfgHu+IbpyvDF0/VrMrW\nAjEA723VxgMgpuxB5SszN6eZuz8EW51DsgRIVWMSbBZYYBYyQmu5x3T+Hx/Cs7TD\nu4Ee\n-----END CERTIFICATE-----\n]====] then return false end; return true"
@@ -103,7 +103,7 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
     {
       "parameter": {
         "cert": "-----BEGIN CERTIFICATE-----\nMIIBrzCCATSgAwIBAgIUTu47sG/Ziz4hgoeMhKzs/alrEYcwCgYIKoZIzj0EAwMw\nDjEMMAoGA1UEAwwDYm9iMB4XDTIwMDcwOTE0NTc0OFoXDTIxMDcwOTE0NTc0OFow\nDjEMMAoGA1UEAwwDYm9iMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAENhB3M5fWT5YQ\n+vBOl0T9xt29CvYBsJyLCGeflqLAFA4YDs7Bb3mMH46EiJg+BFT0HmIPtGW91qE5\nZEPMINQ2zuU0IU6uomPBi76pQ5vhm/2HDy3SLDwRytrSDNqTXZXfo1MwUTAdBgNV\nHQ4EFgQUBchpeGuTHjy4XuwdgQqC3pOqOdEwHwYDVR0jBBgwFoAUBchpeGuTHjy4\nXuwdgQqC3pOqOdEwDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAwNpADBmAjEA\nmNPNpZvqn3piEepKGFJtqKtq+bZxUZuWZxxXILj4/qnC1fLatJaMQ/DHRtCxwcU/\nAjEAtZe3LAQ6NtVIrn4qFG3ruuEgFL9arCpFGEBLFkVdkL2nFIBTp1L4C1/aJBqk\nK9d9\n-----END CERTIFICATE-----\n",
-        "keyshare": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VuAyEAO63rFGghBlp4DUvFQ6437ZGBlB8LNHnzgNEjW5hRPHM=\n-----END PUBLIC KEY-----\n"
+        "expected_enc_pub_key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VuAyEAO63rFGghBlp4DUvFQ6437ZGBlB8LNHnzgNEjW5hRPHM=\n-----END PUBLIC KEY-----\n"
       },
       "script": {
         "text": "tables, args = ...; return Calls:call(\"new_member\", args)"

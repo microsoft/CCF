@@ -5,7 +5,6 @@
 #include "tls/key_pair.h"
 #include "tls/rsa_key_pair.h"
 #include "tls/verifier.h"
-#include "tls/wrap.h"
 
 #include <chrono>
 #include <doctest/doctest.h>

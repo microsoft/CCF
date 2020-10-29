@@ -652,7 +652,7 @@ int main(int argc, char** argv)
 
         ccf_config.genesis.members_info.emplace_back(
           files::slurp(m_info.cert_file),
-          files::slurp(m_info.keyshare_pub_file),
+          files::slurp(m_info.enc_pub_file),
           md);
       }
       ccf_config.genesis.gov_script = files::slurp_string(gov_script);

@@ -38,7 +38,7 @@ auto member_cert = kp -> self_sign("CN=name_member");
 auto verifier_mem = tls::make_verifier(member_cert);
 auto member_caller = verifier_mem -> der_cert_data();
 auto user_cert = kp -> self_sign("CN=name_user");
-std::vector<uint8_t> dummy_key_share = {1, 2, 3};
+std::vector<uint8_t> dummy_enc_pubk = {1, 2, 3};
 
 auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
@@ -381,7 +381,7 @@ DOCTEST_TEST_CASE("Proposer ballot")
       return Calls:call("new_member", member_info)
     )xxx");
     proposal.parameter["cert"] = proposed_member;
-    proposal.parameter["keyshare"] = dummy_key_share;
+    proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
     proposal.ballot = vote_against;
     const auto propose = create_signed_request(proposal, "proposals", kp);
     const auto r = frontend_process(frontend, propose, proposer_cert);
@@ -501,7 +501,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
     // new member certificate
     auto cert_pem =
       new_member.kp->self_sign(fmt::format("CN=new member{}", new_member.id));
-    auto keyshare = dummy_key_share;
+    auto encryption_pub_key = dummy_enc_pubk;
     new_member.cert = cert_pem;
 
     // check new_member id does not work before member is added
@@ -517,9 +517,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       return Calls:call("new_member", member_info)
     )xxx");
     proposal.parameter["cert"] = cert_pem;
-
-    // TODO: keyshare should be renamed!
-    proposal.parameter["keyshare"] = gen_public_encryption_key();
+    proposal.parameter["encryption_pub_key"] = gen_public_encryption_key();
 
     const auto propose = create_signed_request(proposal, "proposals", kp);
 
@@ -1344,7 +1342,7 @@ DOCTEST_TEST_CASE(
       return Calls:call("new_member", member_info)
     )xxx");
     proposal.parameter["cert"] = proposed_member;
-    proposal.parameter["keyshare"] = dummy_key_share;
+    proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
     proposal.ballot = vote_for;
 
     const auto propose = create_signed_request(proposal, "proposals", kp);
@@ -1503,7 +1501,7 @@ DOCTEST_TEST_CASE("Passing operator vote" * doctest::test_suite("operator"))
     )xxx");
 
     proposal.parameter["cert"] = new_operator_cert;
-    proposal.parameter["keyshare"] = dummy_key_share;
+    proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
     proposal.parameter["member_data"] = operator_member_data();
 
     const auto propose = create_signed_request(proposal, "proposals", kp);
@@ -1554,7 +1552,7 @@ DOCTEST_TEST_CASE("Passing operator vote" * doctest::test_suite("operator"))
     )xxx");
 
     proposal.parameter["cert"] = new_member_cert;
-    proposal.parameter["keyshare"] = dummy_key_share;
+    proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
     proposal.parameter["member_data"] =
       nullptr; // blank member_data => not an operator
 
