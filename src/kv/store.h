@@ -178,34 +178,21 @@ namespace kv
       return create<M>(name);
     }
 
-    // TODO: Update all these docs
-    /** Create a Map
-     *
-     * Note this call will throw a logic_error if a map by that name already
-     * exists.
-     *
-     * @param name Map name
-     *
-     * @return Newly created Map
-     */
     template <class K, class V>
+    CCF_DEPRECATED(
+      "Maps do not need to be explicitly created from a Store. They will be "
+      "created on-demand when they are used by a Tx, and can be instantiated "
+      "anywhere as kv::Map<K, V> my_map(my_map_name);")
     Map<K, V>& create(const std::string& name)
     {
       return create<Map<K, V>>(name);
     }
 
-    // TODO: Doesn't actually create! Just creates the definition in a form
-    // friendly to the old API!
-    /** Create a Map
-     *
-     * Note this call will throw a logic_error if a map by that name already
-     * exists.
-     *
-     * @param name Map name
-     *
-     * @return Newly created Map
-     */
     template <class M>
+    CCF_DEPRECATED(
+      "Maps do not need to be explicitly created from a Store. They will be "
+      "created on-demand when they are used by a Tx, and can be instantiated "
+      "anywhere as kv::Map<K, V> my_map(my_map_name);")
     M& create(const std::string& name)
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
