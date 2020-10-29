@@ -495,14 +495,13 @@ namespace kv::untyped
         *this, State::deserialize_map(map_snapshot), v);
     }
 
-    AbstractTxView* deserialise(
-      KvStoreDeserialiser& d, Version version, bool commit) override
+    ChangeSetPtr deserialise_changes(
+      KvStoreDeserialiser& d, Version version, bool commit)
     {
-      return deserialise_internal<TxView>(d, version, commit);
+      return deserialise_internal(d, version, commit);
     }
 
-    template <typename TView>
-    TView* deserialise_internal(
+    ChangeSetPtr deserialise_internal(
       KvStoreDeserialiser& d, Version version, bool commit)
     {
       // Create a new change set, and deserialise d's contents into it.
@@ -545,13 +544,7 @@ namespace kv::untyped
         change_set.writes[r] = std::nullopt;
       }
 
-      // TODO: Obviously this isn't safe! Want to return just a change_set from here, let caller manage it
-      auto view = new TView(*this, *change_set_ptr);
-      if (commit)
-      {
-        view->set_commit_version(version);
-      }
-      return view;
+      return change_set_ptr;
     }
 
     /** Get store that the map belongs to
@@ -801,11 +794,11 @@ namespace kv::untyped
       std::swap(roll, map->roll);
     }
 
-    std::unique_ptr<untyped::ChangeSet> create_change_set(Version version)
+    ChangeSetPtr create_change_set(Version version)
     {
       lock();
 
-      std::unique_ptr<untyped::ChangeSet> changes = nullptr;
+      ChangeSetPtr changes = nullptr;
 
       // Find the last entry committed at or before this version.
       for (auto current = roll.commits->get_tail(); current != nullptr;

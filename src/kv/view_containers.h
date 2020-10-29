@@ -36,11 +36,23 @@ namespace kv
   // maps in a stable order. The order here is by map name
   using MapCollection = std::map<std::string, std::shared_ptr<AbstractMap>>;
 
-  struct AbstractViewContainer
+  struct AbstractChangeContainer
   {
-    virtual ~AbstractViewContainer() = default;
-    virtual void set_view_list(OrderedViews& view_list, Term term) = 0;
+    virtual ~AbstractChangeContainer() = default;
+    virtual void set_change_list(OrderedChanges&& change_list, Term term) = 0;
   };
+
+  // Atomically checks for conflicts then applies the writes in a set of views
+  // to their underlying Maps. Calls f() at most once, iff the writes are
+  // applied, to retrieve a unique Version for the write set.
+  static inline std::optional<Version> apply_changes(
+    OrderedChanges& changes,
+    std::function<Version()> f,
+    const MapCollection& new_maps = {},
+    const std::optional<Version>& new_maps_conflict_version = std::nullopt)
+  {
+    return std::nullopt;
+  }
 
   // Atomically checks for conflicts then applies the writes in a set of views
   // to their underlying Maps. Calls f() at most once, iff the writes are

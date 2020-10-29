@@ -64,10 +64,10 @@ namespace kv
     const bool strict_versions = true;
 
     DeserialiseSuccess commit_deserialised(
-      OrderedViews& views, Version& v, const MapCollection& new_maps)
+      OrderedChanges& changes, Version& v, const MapCollection& new_maps)
     {
-      auto c = apply_views(
-        views, [v]() { return v; }, new_maps);
+      auto c = apply_changes(
+        changes, [v]() { return v; }, new_maps);
       if (!c.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
@@ -223,6 +223,12 @@ namespace kv
     std::shared_ptr<AbstractMap> get_map(
       kv::Version v, const std::string& map_name) override
     {
+      return get_map_internal(v, map_name);
+    }
+
+    std::shared_ptr<kv::untyped::Map> get_map_internal(
+      kv::Version v, const std::string& map_name)
+      {
       auto search = maps.find(map_name);
       if (search != maps.end())
       {
@@ -233,8 +239,8 @@ namespace kv
         }
       }
 
-      return nullptr;
-    }
+      return nullptr;}
+    
 
     /** Transfer ownership of a dynamically created map to this Store.
      *
@@ -640,7 +646,7 @@ namespace kv
       bool public_only = false,
       Term* term_ = nullptr,
       Version* index_ = nullptr,
-      AbstractViewContainer* tx = nullptr,
+      AbstractChangeContainer* tx = nullptr,
       ccf::PrimarySignature* sig = nullptr)
     {
       // If we pass in a transaction we don't want to commit, just deserialise
@@ -690,43 +696,42 @@ namespace kv
       // need snapshot isolation on the map state, and so do not need to
       // lock each of the maps before creating the transaction.
       std::lock_guard<SpinLock> mguard(maps_lock);
-      OrderedViews views;
+      OrderedChanges changes;
       MapCollection new_maps;
 
       for (auto r = d.start_map(); r.has_value(); r = d.start_map())
       {
         const auto map_name = r.value();
 
-        auto map = get_map(v, map_name);
+        auto map = get_map_internal(v, map_name);
         if (map == nullptr)
         {
-          auto map_shared = std::make_shared<kv::untyped::Map>(
+          auto new_map = std::make_shared<kv::untyped::Map>(
             this,
             map_name,
             get_security_domain(map_name),
             is_map_replicated(map_name));
-          map = map_shared;
-          new_maps[map_name] = map_shared;
+          map = new_map;
+          new_maps[map_name] = new_map;
           LOG_DEBUG_FMT(
             "Creating map {} while deserialising transaction at version {}",
             map_name,
             v);
         }
 
-        auto view_search = views.find(map_name);
-        if (view_search != views.end())
+        auto change_search = changes.find(map_name);
+        if (change_search != changes.end())
         {
           LOG_FAIL_FMT("Failed to deserialise transaction at version {}", v);
           LOG_DEBUG_FMT("Multiple writes on map {}", map_name);
           return DeserialiseSuccess::FAILED;
         }
 
-        auto deserialised_view = map->deserialise(d, v, commit);
+        auto deserialised_changes = map->deserialise_changes(d, v, commit);
 
-        // Take ownership of the produced view, store it to be applied
+        // Take ownership of the produced change set, store it to be applied
         // later
-        views[map_name] = {map,
-                           std::unique_ptr<AbstractTxView>(deserialised_view)};
+        changes[map_name] = kv::MapChanges{map,std::move(deserialised_changes)};
       }
 
       if (!d.end())
@@ -739,7 +744,7 @@ namespace kv
 
       if (commit)
       {
-        success = commit_deserialised(views, v, new_maps);
+        success = commit_deserialised(changes, v, new_maps);
         if (success == DeserialiseSuccess::FAILED)
         {
           return success;
@@ -747,12 +752,12 @@ namespace kv
 
         auto h = get_history();
 
-        auto search = views.find(ccf::Tables::SIGNATURES);
-        if (search != views.end())
+        auto search = changes.find(ccf::Tables::SIGNATURES);
+        if (search != changes.end())
         {
           // Transactions containing a signature must only contain
           // a signature and must be verified
-          if (views.size() > 1)
+          if (changes.size() > 1)
           {
             LOG_FAIL_FMT("Failed to deserialise");
             LOG_DEBUG_FMT("Unexpected contents in signature transaction {}", v);
@@ -779,19 +784,19 @@ namespace kv
       else
       {
         // BFT Transactions should only write to 1 table
-        if (views.size() != 1)
+        if (changes.size() != 1)
         {
           LOG_FAIL_FMT("Failed to deserialise");
           LOG_DEBUG_FMT(
             "Unexpected contents in bft transaction {}, size:{}",
             v,
-            views.size());
+            changes.size());
           return DeserialiseSuccess::FAILED;
         }
 
-        if (views.find(ccf::Tables::SIGNATURES) != views.end())
+        if (changes.find(ccf::Tables::SIGNATURES) != changes.end())
         {
-          success = commit_deserialised(views, v, new_maps);
+          success = commit_deserialised(changes, v, new_maps);
           if (success == DeserialiseSuccess::FAILED)
           {
             return success;
@@ -825,9 +830,9 @@ namespace kv
           h->append(data.data(), data.size());
           success = DeserialiseSuccess::PASS_SIGNATURE;
         }
-        else if (views.find(ccf::Tables::BACKUP_SIGNATURES) != views.end())
+        else if (changes.find(ccf::Tables::BACKUP_SIGNATURES) != changes.end())
         {
-          success = commit_deserialised(views, v, new_maps);
+          success = commit_deserialised(changes, v, new_maps);
           if (success == DeserialiseSuccess::FAILED)
           {
             return success;
@@ -860,9 +865,9 @@ namespace kv
           auto h = get_history();
           h->append(data.data(), data.size());
         }
-        else if (views.find(ccf::Tables::NONCES) != views.end())
+        else if (changes.find(ccf::Tables::NONCES) != changes.end())
         {
-          success = commit_deserialised(views, v, new_maps);
+          success = commit_deserialised(changes, v, new_maps);
           if (success == DeserialiseSuccess::FAILED)
           {
             return success;
@@ -881,20 +886,20 @@ namespace kv
           h->append(data.data(), data.size());
           success = DeserialiseSuccess::PASS_NONCES;
         }
-        else if (views.find(ccf::Tables::AFT_REQUESTS) == views.end())
+        else if (changes.find(ccf::Tables::AFT_REQUESTS) == changes.end())
         {
           // we have deserialised an entry that didn't belong to the bft
           // requests nor the signatures table
           LOG_FAIL_FMT(
-            "Request contains unexpected table - {}", views.begin()->first);
+            "Request contains unexpected table - {}", changes.begin()->first);
           CCF_ASSERT_FMT_FAIL(
-            "Request contains unexpected table - {}", views.begin()->first);
+            "Request contains unexpected table - {}", changes.begin()->first);
         }
       }
 
       if (tx)
       {
-        tx->set_view_list(views, term);
+        tx->set_change_list(std::move(changes), term);
       }
 
       return success;

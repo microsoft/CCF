@@ -26,7 +26,7 @@ namespace kv
 
   // Manages a collection of TxViews. Derived implementations call get_tuple to
   // retrieve views over target maps.
-  class BaseTx : public AbstractViewContainer
+  class BaseTx : public AbstractChangeContainer
   {
   protected:
     AbstractStore* store;
@@ -191,11 +191,11 @@ namespace kv
 
     BaseTx(const BaseTx& that) = delete;
 
-    void set_view_list(OrderedViews& view_list_, Term term_) override
+    void set_change_list(OrderedChanges&& change_list_, Term term_) override
     {
-      // if view list is not empty then any coinciding keys will not be
+      // if all_changes is not empty then any coinciding keys will not be
       // overwritten
-      view_list.merge(view_list_);
+      all_changes.merge(change_list_);
       term = term_;
     }
 

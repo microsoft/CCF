@@ -26,7 +26,7 @@ namespace kv
   // This is a container for a write-set + dependencies. It can be applied to a
   // given state, or used to track a set of operations on a state
   template <typename K, typename V, typename H>
-  struct ChangeSet
+  struct ChangeSet : public AbstractChangeSet
   {
     const size_t rollback_counter;
     const State<K, V, H> state;

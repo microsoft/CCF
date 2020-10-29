@@ -434,6 +434,13 @@ namespace kv
 
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
 
+  // TODO: Work out what types are needed here
+  class AbstractChangeSet
+  {
+  public:
+    virtual ~AbstractChangeSet() = default;
+  };
+
   class AbstractTxView
   {
   public:
@@ -482,8 +489,6 @@ namespace kv
     virtual AbstractStore* get_store() = 0;
     virtual void serialise(
       const AbstractTxView* view, KvStoreSerialiser& s, bool include_reads) = 0;
-    virtual AbstractTxView* deserialise(
-      KvStoreDeserialiser& d, Version version, bool commit) = 0;
     virtual AbstractTxView* deserialise_snapshot(KvStoreDeserialiser& d) = 0;
     virtual void compact(Version v) = 0;
     virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
