@@ -49,10 +49,26 @@ def test_quote(network, args, verify=True):
         r = c.get("/node/quotes")
         quotes = r.body.json()["quotes"]
         assert len(quotes) == len(network.find_nodes())
+
         for quote in quotes:
             mrenclave = quote["mrenclave"]
             assert mrenclave == expected_mrenclave, (mrenclave, expected_mrenclave)
-
+            qpath = os.path.join(network.common_dir, f"quote{quote['node_id']}")
+            with open(qpath, "wb") as q:
+                q.write(bytes.fromhex(quote["raw"]))
+                oed = subprocess.run(
+                    [
+                        os.path.join(args.oe_binary, "oeverify"),
+                        "-r",
+                        qpath,
+                        "-f",
+                        "LEGACY_REPORT_REMOTE",
+                    ],
+                    capture_output=True,
+                    check=True,
+                )
+                out = oed.stdout.decode().split(os.linesep)
+                assert "Evidence verification succeeded (0)." in out
     return network
 
 
