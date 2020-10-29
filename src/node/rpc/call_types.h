@@ -126,7 +126,7 @@ namespace ccf
   {
     struct In
     {
-      std::vector<uint8_t> cert;
+      std::string cert;
     };
 
     using Out = CallerInfo;
