@@ -141,11 +141,6 @@ namespace kv::untyped
         return committed_writes || change_set.has_writes();
       }
 
-      bool has_changes() override
-      {
-        return changes;
-      }
-
       bool prepare() override
       {
         if (change_set.writes.empty())
@@ -255,17 +250,6 @@ namespace kv::untyped
         map.trigger_local_hook(commit_version, change_set.writes);
       }
 
-      // Used by owning map during serialise and deserialise
-      ChangeSet& get_change_set()
-      {
-        return change_set;
-      }
-
-      const ChangeSet& get_change_set() const
-      {
-        return change_set;
-      }
-
       void set_commit_version(Version v)
       {
         commit_version = v;
@@ -343,19 +327,19 @@ namespace kv::untyped
       return new Map(other, name, security_domain, replicated);
     }
 
-    void serialise(
-      const AbstractTxView* view,
+    void serialise_changes(
+      const AbstractChangeSet* changes,
       KvStoreSerialiser& s,
       bool include_reads) override
     {
-      const auto committer = dynamic_cast<const TxViewCommitter*>(view);
-      if (committer == nullptr)
+      const auto non_abstract = dynamic_cast<const kv::untyped::ChangeSet*>(changes);
+      if (non_abstract == nullptr)
       {
         LOG_FAIL_FMT("Unable to serialise map due to type mismatch");
         return;
       }
 
-      const auto& change_set = committer->get_change_set();
+      const auto& change_set = *non_abstract;
 
       s.start_map(name, security_domain);
 
@@ -435,11 +419,6 @@ namespace kv::untyped
         return true;
       }
 
-      virtual bool has_changes() override
-      {
-        return true;
-      }
-
       bool prepare() override
       {
         // Snapshots never conflict
@@ -477,11 +456,6 @@ namespace kv::untyped
       {
         auto r = map.roll.commits->get_head();
         map.trigger_local_hook(change_set.version, r->writes);
-      }
-
-      SnapshotChangeSet& get_change_set()
-      {
-        return change_set;
       }
     };
 

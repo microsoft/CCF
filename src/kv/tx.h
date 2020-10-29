@@ -31,11 +31,7 @@ namespace kv
   protected:
     AbstractStore* store;
 
-    // TODO: Trying to port from collections of Views to collections of
-    // ChangeSets. Currently duplicating a lot of things.
-    OrderedViews view_list;
     OrderedChanges all_changes;
-
     bool committed = false;
     bool success = false;
     Version read_version = NoVersion;
@@ -67,7 +63,8 @@ namespace kv
       // if (abstract_view == nullptr)
       // {
       //   throw std::logic_error(
-      //     fmt::format("View over map {} is not an AbstractTxView", map_name));
+      //     fmt::format("View over map {} is not an AbstractTxView",
+      //     map_name));
       // }
       // view_list[map_name] = {abstract_map,
       //                        std::unique_ptr<AbstractTxView>(abstract_view)};
@@ -81,18 +78,21 @@ namespace kv
     {
       // TODO: Update this once finished
       // If a view is present for this map_name, its AbstractTxView should be a
-      // MapView. This invariant could be broken by set_view_list, which will
+      // MapView. This invariant could be broken by set_change_list, which will
       // produce an error here.
-      auto search = view_list.find(map_name);
-      if (search != view_list.end())
+      auto search = all_changes.find(map_name);
+      if (search != all_changes.end())
       {
-        auto view = dynamic_cast<MapView*>(search->second.view.get());
+        // TODO: Have a ChangeSet already, construct a View for the caller
+        auto view = nullptr;
+        // auto view = dynamic_cast<MapView*>(search->second.view.get());
 
-        if (view == nullptr)
-        {
-          throw std::logic_error(
-            fmt::format("View over map {} is not of expected type", map_name));
-        }
+        // if (view == nullptr)
+        // {
+        //   throw std::logic_error(
+        //     fmt::format("View over map {} is not of expected type",
+        //     map_name));
+        // }
 
         return std::make_tuple(view);
       }
@@ -245,14 +245,14 @@ namespace kv
       if (committed)
         throw std::logic_error("Transaction already committed");
 
-      if (view_list.empty())
+      if (all_changes.empty())
       {
         committed = true;
         success = true;
         return CommitSuccess::OK;
       }
 
-      auto store = view_list.begin()->second.map->get_store();
+      auto store = all_changes.begin()->second.map->get_store();
 
       // If this transaction may create maps, ensure that commit gets a
       // consistent view of the existing maps
@@ -352,6 +352,7 @@ namespace kv
 
     std::vector<uint8_t> serialise(bool include_reads = false)
     {
+      // TODO: Should this be operating over a set of actual Committers? To distinguish the old has_writes from has_changes...
       if (!committed)
         throw std::logic_error("Transaction not yet committed");
 
@@ -360,8 +361,8 @@ namespace kv
 
       // If no transactions made changes, return a zero length vector.
       const bool any_changes =
-        std::any_of(view_list.begin(), view_list.end(), [](const auto& it) {
-          return it.second.view->has_changes();
+        std::any_of(all_changes.begin(), all_changes.end(), [](const auto& it) {
+          return it.second.changeset->has_writes();
         });
 
       if (!any_changes)
@@ -370,7 +371,7 @@ namespace kv
       }
 
       // Retrieve encryptor.
-      auto map = view_list.begin()->second.map;
+      auto map = all_changes.begin()->second.map;
       auto e = map->get_store()->get_encryptor();
 
       KvStoreSerialiser replicated_serialiser(e, version);
@@ -378,15 +379,16 @@ namespace kv
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
       {
-        for (const auto& it : view_list)
+        for (const auto& it : all_changes)
         {
-          const auto map = it.second.map;
+          const auto& map = it.second.map;
+          const auto& changeset = it.second.changeset;
           if (
             map->get_security_domain() == domain && map->is_replicated() &&
-            it.second.view->has_changes())
+            changeset->has_writes())
           {
-            map->serialise(
-              it.second.view.get(), replicated_serialiser, include_reads);
+            map->serialise_changes(
+              changeset.get(), replicated_serialiser, include_reads);
           }
         }
       }
@@ -397,7 +399,6 @@ namespace kv
 
     // Used by frontend for reserved transactions
     BaseTx(Version reserved) :
-      view_list(),
       committed(false),
       success(false),
       read_version(reserved - 1),
@@ -407,7 +408,7 @@ namespace kv
     // Used to clear the Tx to its initial state, to retry after a conflict
     void reset()
     {
-      view_list.clear();
+      all_changes.clear();
       created_maps.clear();
       committed = false;
       success = false;
@@ -562,7 +563,7 @@ namespace kv
       if (committed)
         throw std::logic_error("Transaction already committed");
 
-      if (view_list.empty())
+      if (all_changes.empty())
         throw std::logic_error("Reserved transaction cannot be empty");
 
       // TODO: Take store lock here, if created_maps is non-empty?

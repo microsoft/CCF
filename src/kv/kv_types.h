@@ -447,7 +447,6 @@ namespace kv
     virtual ~AbstractCommitter() = default;
 
     virtual bool has_writes() = 0;
-    virtual bool has_changes() = 0;
     virtual bool prepare() = 0;
     virtual void commit(Version v) = 0;
     virtual void post_commit() = 0;
@@ -460,7 +459,6 @@ namespace kv
     virtual ~AbstractTxView() = default;
 
     virtual bool has_writes() = 0;
-    virtual bool has_changes() = 0;
     virtual bool prepare() = 0;
     virtual void commit(Version v) = 0;
     virtual void post_commit() = 0;
@@ -502,8 +500,8 @@ namespace kv
     virtual std::unique_ptr<AbstractCommitter> create_committer(AbstractChangeSet* changes)  = 0;
 
     virtual AbstractStore* get_store() = 0;
-    virtual void serialise(
-      const AbstractTxView* view, KvStoreSerialiser& s, bool include_reads) = 0;
+    virtual void serialise_changes(
+      const AbstractChangeSet* changes, KvStoreSerialiser& s, bool include_reads) = 0;
     virtual void compact(Version v) = 0;
     virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
     virtual void post_compact() = 0;
