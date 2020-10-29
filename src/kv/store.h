@@ -23,10 +23,9 @@ namespace kv
   private:
     // All collections of Map must be ordered so that we lock their contained
     // maps in a stable order. The order here is by map name. The version
-    // indicates the version at which the Map was created, or kv::NoVersion for
-    // 'static' maps created by Store.create
+    // indicates the version at which the Map was created.
     using Maps = std::
-      map<std::string, std::pair<kv::Version, std::shared_ptr<AbstractMap>>>;
+      map<std::string, std::pair<kv::Version, std::shared_ptr<untyped::Map>>>;
     Maps maps;
 
     // Store the Defs created by calls to create(), so we can still return &s to
@@ -248,8 +247,16 @@ namespace kv
      * @param map Map to add
      */
     void add_dynamic_map(
-      kv::Version v, const std::shared_ptr<AbstractMap>& map) override
+      kv::Version v, const std::shared_ptr<AbstractMap>& map_) override
     {
+      auto map = std::dynamic_pointer_cast<kv::untyped::Map>(map_);
+      if (map == nullptr)
+      {
+        throw std::logic_error(fmt::format(
+          "Can't add dynamic map - {} is not of expected type",
+          map_->get_name()));
+      }
+
       const auto map_name = map->get_name();
       if (get_map(v, map_name) != nullptr)
       {
@@ -259,24 +266,18 @@ namespace kv
 
       maps[map_name] = std::make_pair(v, map);
 
-      // TODO: This is real ugly, must be a better way?
       {
-        auto cast_map = dynamic_cast<kv::untyped::Map*>(map.get());
-        if (cast_map == nullptr)
-        {
-          throw std::logic_error("TODO: Unexpected type");
-        }
-
+        // If we have any hooks for the given map name, set them on this new map
         const auto local_it = local_hooks.find(map_name);
         if (local_it != local_hooks.end())
         {
-          cast_map->set_local_hook(local_it->second);
+          map->set_local_hook(local_it->second);
         }
 
         const auto global_it = global_hooks.find(map_name);
         if (global_it != global_hooks.end())
         {
-          cast_map->set_global_hook(global_it->second);
+          map->set_global_hook(global_it->second);
         }
       }
     }
@@ -1208,13 +1209,7 @@ namespace kv
       const auto it = maps.find(map_name);
       if (it != maps.end())
       {
-        auto map = dynamic_cast<kv::untyped::Map*>(it->second.second.get());
-        if (map == nullptr)
-        {
-          throw std::logic_error("TODO: Unexpected type error");
-        }
-
-        map->set_local_hook(hook);
+        it->second.second->set_local_hook(hook);
       }
     }
 
@@ -1225,13 +1220,7 @@ namespace kv
       const auto it = maps.find(map_name);
       if (it != maps.end())
       {
-        auto map = dynamic_cast<kv::untyped::Map*>(it->second.second.get());
-        if (map == nullptr)
-        {
-          throw std::logic_error("TODO: Unexpected type error");
-        }
-
-        map->unset_local_hook();
+        it->second.second->unset_local_hook();
       }
     }
 
@@ -1243,13 +1232,7 @@ namespace kv
       const auto it = maps.find(map_name);
       if (it != maps.end())
       {
-        auto map = dynamic_cast<kv::untyped::Map*>(it->second.second.get());
-        if (map == nullptr)
-        {
-          throw std::logic_error("TODO: Unexpected type error");
-        }
-
-        map->set_global_hook(hook);
+       it->second.second->set_global_hook(hook);
       }
     }
 
@@ -1260,13 +1243,7 @@ namespace kv
       const auto it = maps.find(map_name);
       if (it != maps.end())
       {
-        auto map = dynamic_cast<kv::untyped::Map*>(it->second.second.get());
-        if (map == nullptr)
-        {
-          throw std::logic_error("TODO: Unexpected type error");
-        }
-
-        map->unset_global_hook();
+        it->second.second->unset_global_hook();
       }
     }
 
