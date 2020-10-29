@@ -94,8 +94,6 @@ namespace kv
         read_version = txid.version;
       }
 
-      MapView* typed_view = nullptr;
-
       auto abstract_map = store->get_map(read_version, map_name);
       if (abstract_map == nullptr)
       {
@@ -119,25 +117,16 @@ namespace kv
         LOG_DEBUG_FMT("Creating new map '{}'", map_name);
 
         abstract_map = new_map;
-        typed_view = new_map->template create_view<MapView>(read_version);
-      }
-      else
-      {
-        auto* am = abstract_map.get();
-        // TODO: NB: Now believe that all maps are always untyped! Do we even
-        // need to have stored them as abstract? Who knows
-        auto untyped_map = dynamic_cast<kv::untyped::Map*>(am);
-        if (untyped_map == nullptr)
-        {
-          throw std::logic_error(
-            fmt::format("Map {} has unexpected type", map_name));
-        }
-        else
-        {
-          typed_view = untyped_map->template create_view<MapView>(read_version);
-        }
       }
 
+      auto untyped_map = std::dynamic_pointer_cast<kv::untyped::Map>(abstract_map);
+      if (untyped_map == nullptr)
+      {
+        throw std::logic_error(
+          fmt::format("Map {} has unexpected type", map_name));
+      }
+
+      auto typed_view = untyped_map->template create_view<MapView>(read_version);
       return check_and_store_view(typed_view, map_name, abstract_map);
     }
 
