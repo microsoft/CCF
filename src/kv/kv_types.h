@@ -439,6 +439,8 @@ namespace kv
   {
   public:
     virtual ~AbstractChangeSet() = default;
+
+    virtual bool has_writes() const = 0;
   };
 
   class AbstractCommitter

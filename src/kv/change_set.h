@@ -28,10 +28,14 @@ namespace kv
   template <typename K, typename V, typename H>
   struct ChangeSet : public AbstractChangeSet
   {
-    const size_t rollback_counter;
-    const State<K, V, H> state;
-    const State<K, V, H> committed;
-    const Version start_version;
+  protected:
+    ChangeSet() {}
+
+  public:
+    const size_t rollback_counter = {};
+    const State<K, V, H> state = {};
+    const State<K, V, H> committed = {};
+    const Version start_version = {};
 
     Version read_version = NoVersion;
     Read<K> reads = {};
@@ -50,7 +54,7 @@ namespace kv
 
     ChangeSet(ChangeSet&) = delete;
 
-    bool has_writes() const
+    bool has_writes() const override
     {
       return !writes.empty();
     }
@@ -59,7 +63,7 @@ namespace kv
   // This is a container for a snapshot. It has no dependencies as the snapshot
   // obliterates the current state.
   template <typename K, typename V, typename H>
-  struct SnapshotChangeSet
+  struct SnapshotChangeSet : public ChangeSet<K, V, H>
   {
     const State<K, V, H> state;
     const Version version;
@@ -70,6 +74,11 @@ namespace kv
     {}
 
     SnapshotChangeSet(SnapshotChangeSet&) = delete;
+
+    bool has_writes() const override
+    {
+      return true;
+    }
   };
 
   /// Signature for transaction commit handlers

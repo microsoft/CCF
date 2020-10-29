@@ -400,76 +400,72 @@ namespace kv::untyped
       }
     }
 
-    class SnapshotViewCommitter
+    class SnapshotViewCommitter : public AbstractCommitter
     {
     private:
       Map& map;
 
-      SnapshotChangeSet change_set;
+      SnapshotChangeSet& change_set;
 
     public:
-      template <typename... Ts>
-      SnapshotViewCommitter(Map& m, Ts&&... ts) :
+      SnapshotViewCommitter(Map& m, SnapshotChangeSet& change_set_) :
         map(m),
-        change_set(std::forward<Ts>(ts)...)
+        change_set(change_set_)
       {}
 
-      // TODO!
-      // bool has_writes() override
-      // {
-      //   return true;
-      // }
+      bool has_writes() override
+      {
+        return true;
+      }
 
-      // bool prepare() override
-      // {
-      //   // Snapshots never conflict
-      //   return true;
-      // }
+      bool prepare() override
+      {
+        // Snapshots never conflict
+        return true;
+      }
 
-      // void commit(Version) override
-      // {
-      //   // Version argument is ignored. The version of the roll after the
-      //   // snapshot is applied depends on the version of the map at which the
-      //   // snapshot was taken.
-      //   map.roll.reset_commits();
-      //   map.roll.rollback_counter++;
+      void commit(Version) override
+      {
+        // Version argument is ignored. The version of the roll after the
+        // snapshot is applied depends on the version of the map at which the
+        // snapshot was taken.
+        map.roll.reset_commits();
+        map.roll.rollback_counter++;
 
-      //   auto r = map.roll.commits->get_head();
+        auto r = map.roll.commits->get_head();
 
-      //   r->state = change_set.state;
-      //   r->version = change_set.version;
+        r->state = change_set.state;
+        r->version = change_set.version;
 
-      //   // Executing hooks from snapshot requires copying the entire snapshotted
-      //   // state so only do it if there's an hook on the table
-      //   if (map.local_hook || map.global_hook)
-      //   {
-      //     r->state.foreach([&r](const K& k, const VersionV& v) {
-      //       if (!is_deleted(v.version))
-      //       {
-      //         r->writes[k] = v.value;
-      //       }
-      //       return true;
-      //     });
-      //   }
-      // }
+        // Executing hooks from snapshot requires copying the entire snapshotted
+        // state so only do it if there's an hook on the table
+        if (map.local_hook || map.global_hook)
+        {
+          r->state.foreach([&r](const K& k, const VersionV& v) {
+            if (!is_deleted(v.version))
+            {
+              r->writes[k] = v.value;
+            }
+            return true;
+          });
+        }
+      }
 
-      // void post_commit() override
-      // {
-      //   auto r = map.roll.commits->get_head();
-      //   map.trigger_local_hook(change_set.version, r->writes);
-      // }
+      void post_commit() override
+      {
+        auto r = map.roll.commits->get_head();
+        map.trigger_local_hook(change_set.version, r->writes);
+      }
     };
 
     ChangeSetPtr deserialise_snapshot_changes(KvStoreDeserialiser& d)
     {
-      // TODO: implement...
-      return nullptr;
-      // // Create a new empty view, deserialising d's contents into it.
-      // auto v = d.deserialise_entry_version();
-      // auto map_snapshot = d.deserialise_raw();
+      // Create a new empty view, deserialising d's contents into it.
+      auto v = d.deserialise_entry_version();
+      auto map_snapshot = d.deserialise_raw();
 
-      // return new SnapshotViewCommitter(
-      //   *this, State::deserialize_map(map_snapshot), v);
+      return std::make_unique<SnapshotChangeSet>(
+       State::deserialize_map(map_snapshot), v);
     }
 
     ChangeSetPtr deserialise_changes(
@@ -530,6 +526,12 @@ namespace kv::untyped
       if (non_abstract == nullptr)
       {
         throw std::logic_error("Type confusion error");
+      }
+
+      auto snapshot_change_set = dynamic_cast<SnapshotChangeSet*>(non_abstract);
+      if (snapshot_change_set != nullptr)
+      {
+        return std::make_unique<SnapshotViewCommitter>(*this, *snapshot_change_set);
       }
 
       return std::make_unique<TxViewCommitter>(*this, *non_abstract);
