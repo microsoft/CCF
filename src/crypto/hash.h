@@ -66,18 +66,17 @@ namespace crypto
 
     void update_hash(CBuffer data);
 
-    template<typename T>
+    template <typename T>
     void update(const T& t)
     {
       update_hash({reinterpret_cast<const uint8_t*>(&t), sizeof(T)});
     }
 
-    template<>
+    template <>
     void update<std::vector<uint8_t>>(const std::vector<uint8_t>& d)
     {
       update_hash({d.data(), d.size()});
     }
-
 
     Sha256Hash finalize();
 

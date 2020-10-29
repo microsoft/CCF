@@ -16,7 +16,6 @@ namespace crypto
 {
   constexpr auto block_size = 64u; // No way to ask evercrypt for this
 
-
   void Sha256Hash::mbedtls_sha256(const CBuffer& data, uint8_t* h)
   {
     mbedtls_sha256_context ctx;
@@ -28,7 +27,8 @@ namespace crypto
     mbedtls_sha256_free(&ctx);
   }
 
-  void update_evercrypt_sha256(const CBuffer& data, EverCrypt_Hash_state_s* state)
+  void update_evercrypt_sha256(
+    const CBuffer& data, EverCrypt_Hash_state_s* state)
   {
     const auto data_begin = const_cast<uint8_t*>(data.p);
     const auto size = data.rawSize();
@@ -69,8 +69,7 @@ namespace crypto
   public:
     CSha256HashImpl()
     {
-      state =
-        EverCrypt_Hash_create(Spec_Hash_Definitions_SHA2_256);
+      state = EverCrypt_Hash_create(Spec_Hash_Definitions_SHA2_256);
       EverCrypt_Hash_init(state);
     }
 

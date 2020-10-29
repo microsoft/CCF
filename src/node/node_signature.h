@@ -17,16 +17,20 @@ namespace ccf
     ccf::NodeId node;
     Nonce hashed_nonce;
 
-    NodeSignature(
-      const NodeSignature& ns) :
-      sig(ns.sig), node(ns.node), hashed_nonce(ns.hashed_nonce)
+    NodeSignature(const NodeSignature& ns) :
+      sig(ns.sig),
+      node(ns.node),
+      hashed_nonce(ns.hashed_nonce)
     {}
     NodeSignature(
       const std::vector<uint8_t>& sig_, NodeId node_, Nonce hashed_nonce_) :
-      sig(sig_), node(node_), hashed_nonce(hashed_nonce_)
+      sig(sig_),
+      node(node_),
+      hashed_nonce(hashed_nonce_)
     {}
     NodeSignature(ccf::NodeId node_, Nonce hashed_nonce_) :
-      node(node_), hashed_nonce(hashed_nonce_)
+      node(node_),
+      hashed_nonce(hashed_nonce_)
     {}
     NodeSignature(ccf::NodeId node_) : node(node_) {}
     NodeSignature() = default;

@@ -815,8 +815,8 @@ namespace ccf
             auto progress_tracker = store.get_progress_tracker();
             CCF_ASSERT(
               progress_tracker != nullptr, "progress_tracker is not set");
-            auto r =
-              progress_tracker->record_primary(txid, id, root, primary_sig, hashed_nonce);
+            auto r = progress_tracker->record_primary(
+              txid, id, root, primary_sig, hashed_nonce);
             if (r != kv::TxHistory::Result::OK)
             {
               throw ccf::ccf_logic_error(fmt::format(
@@ -853,7 +853,7 @@ namespace ccf
             auto progress_tracker = store.get_progress_tracker();
             CCF_ASSERT(
               progress_tracker != nullptr, "progress_tracker is not set");
-              progress_tracker->record_primary_signature(txid, primary_sig);
+            progress_tracker->record_primary_signature(txid, primary_sig);
           }
 
           sig_view->put(0, sig_value);

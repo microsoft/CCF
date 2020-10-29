@@ -47,8 +47,9 @@ namespace ccf
         // We currently do not know what the root is, so lets save this
         // signature and and we will verify the root when we get it from the
         // primary
-        auto r = certificates.insert(
-          std::pair<kv::Consensus::SeqNo, CommitCert>(tx_id.version, CommitCert()));
+        auto r =
+          certificates.insert(std::pair<kv::Consensus::SeqNo, CommitCert>(
+            tx_id.version, CommitCert()));
         it = r.first;
       }
       else
@@ -102,8 +103,7 @@ namespace ccf
       {
         if (is_primary)
         {
-          ccf::BackupSignatures sig_value(
-            tx_id.term, tx_id.version, cert.root);
+          ccf::BackupSignatures sig_value(tx_id.term, tx_id.version, cert.root);
 
           for (const auto& sig : cert.sigs)
           {
@@ -236,13 +236,13 @@ namespace ccf
         return kv::TxHistory::Result::FAIL;
       }
 
-      for(auto& cert : it->second.sigs)
+      for (auto& cert : it->second.sigs)
       {
         if (!cert.second.is_primary)
         {
           continue;
         }
-        
+
         if (!cert.second.sig.empty())
         {
           LOG_FAIL_FMT(
@@ -403,8 +403,9 @@ namespace ccf
         // We currently do not know what the root is, so lets save this
         // signature and and we will verify the root when we get it from the
         // primary
-        auto r = certificates.insert(
-          std::pair<kv::Consensus::SeqNo, CommitCert>(tx_id.version, CommitCert()));
+        auto r =
+          certificates.insert(std::pair<kv::Consensus::SeqNo, CommitCert>(
+            tx_id.version, CommitCert()));
         it = r.first;
       }
 
@@ -438,8 +439,9 @@ namespace ccf
         // We currently do not know what the root is, so lets save this
         // signature and and we will verify the root when we get it from the
         // primary
-        auto r = certificates.insert(
-          std::pair<kv::Consensus::SeqNo, CommitCert>(tx_id.version, CommitCert()));
+        auto r =
+          certificates.insert(std::pair<kv::Consensus::SeqNo, CommitCert>(
+            tx_id.version, CommitCert()));
         it = r.first;
         did_add = true;
       }
@@ -561,7 +563,8 @@ namespace ccf
       return highest_commit_level;
     }
 
-    std::unique_ptr<ViewChange> get_view_change_message(kv::Consensus::View view)
+    std::unique_ptr<ViewChange> get_view_change_message(
+      kv::Consensus::View view)
     {
       auto it = certificates.find(highest_prepared_level.version);
       if (it == certificates.end())
@@ -575,7 +578,7 @@ namespace ccf
       auto& cert = it->second;
       auto m = std::make_unique<ViewChange>(
         view, highest_prepared_level.version, cert.root);
-      
+
       for (const auto& sig : cert.sigs)
       {
         m->signatures.push_back(sig.second);
@@ -598,8 +601,7 @@ namespace ccf
         view_change.view,
         view_change.seqno);
 
-      auto it =
-        certificates.find(view_change.seqno);
+      auto it = certificates.find(view_change.seqno);
 
       if (it == certificates.end())
       {
@@ -623,13 +625,14 @@ namespace ccf
 
       bool verified_signatures = true;
 
-      for(auto& sig : view_change.signatures)
+      for (auto& sig : view_change.signatures)
       {
         if (!store->verify_signature(
               sig.node, it->second.root, sig.sig.size(), sig.sig.data()))
         {
           LOG_FAIL_FMT(
-            "signatures do not match, view-change from:{}, view:{}, seqno:{}, node_id:{}",
+            "signatures do not match, view-change from:{}, view:{}, seqno:{}, "
+            "node_id:{}",
             from,
             view_change.view,
             view_change.seqno,
@@ -638,13 +641,14 @@ namespace ccf
           continue;
         }
 
-        if(it->second.sigs.find(sig.node) == it->second.sigs.end())
+        if (it->second.sigs.find(sig.node) == it->second.sigs.end())
         {
           continue;
         }
-        it->second.sigs.insert(std::pair<kv::NodeId, BftNodeSignature>(sig.node, sig));
+        it->second.sigs.insert(
+          std::pair<kv::NodeId, BftNodeSignature>(sig.node, sig));
       }
-      
+
       return verified_signatures;
     }
 
@@ -715,7 +719,8 @@ namespace ccf
       return 2 * f + 1;
     }
 
-    bool can_send_sig_ack(CommitCert& cert, const kv::TxID& tx_id, uint32_t node_count)
+    bool can_send_sig_ack(
+      CommitCert& cert, const kv::TxID& tx_id, uint32_t node_count)
     {
       if (
         cert.sigs.size() >= get_message_threshold(node_count) &&
@@ -730,7 +735,7 @@ namespace ccf
             highest_prepared_level.term);
           highest_prepared_level = tx_id;
         }
-        
+
         cert.ack_sent = true;
         return true;
       }

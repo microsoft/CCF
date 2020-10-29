@@ -26,7 +26,9 @@ namespace ccf
       kv::Consensus::View view_,
       kv::Consensus::SeqNo seqno_,
       crypto::Sha256Hash root_) :
-      view(view_), seqno(seqno_), root(root_)
+      view(view_),
+      seqno(seqno_),
+      root(root_)
     {}
 
     size_t get_serialized_size() const

@@ -542,7 +542,6 @@ namespace aft
           (state->view_change_in_progress || has_bft_timeout_occurred(time)) &&
           view_change_tracker.should_send_view_change(time))
         {
-
           state->view_change_in_progress = true;
 
           // We have not seen a request executed within an expected period of
@@ -562,7 +561,8 @@ namespace aft
           uint8_t* data = m.data();
           size_t size = m.size();
 
-          serialized::write(data, size, reinterpret_cast<uint8_t*>(&vcm), sizeof(vcm));
+          serialized::write(
+            data, size, reinterpret_cast<uint8_t*>(&vcm), sizeof(vcm));
           vc->serialize(data, size);
           CCF_ASSERT_FMT(size == 0, "Did not write to everything");
 
@@ -609,13 +609,13 @@ namespace aft
       ViewChangeMsg r;
       try
       {
-        r = channels->template recv_authenticated_with_load<ViewChangeMsg>(data, size);
+        r = channels->template recv_authenticated_with_load<ViewChangeMsg>(
+          data, size);
       }
       catch (const std::logic_error& err)
       {
         LOG_FAIL_FMT("Error in recv_view_change message");
-        LOG_DEBUG_FMT(
-          "Error in recv_view_change message: {}", err.what());
+        LOG_DEBUG_FMT("Error in recv_view_change message: {}", err.what());
         return;
       }
 
@@ -1290,8 +1290,7 @@ namespace aft
       catch (const std::logic_error& err)
       {
         LOG_FAIL_FMT("Error in recv_nonce_reveal message");
-        LOG_DEBUG_FMT(
-          "Error in recv_nonce_reveal message: {}", err.what());
+        LOG_DEBUG_FMT("Error in recv_nonce_reveal message: {}", err.what());
         return;
       }
 

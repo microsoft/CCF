@@ -155,7 +155,8 @@ namespace aft
       return {};
     }
 
-    bool recv_authenticated_with_load(NodeId from_node, const uint8_t*& data, size_t& size) override
+    bool recv_authenticated_with_load(
+      NodeId from_node, const uint8_t*& data, size_t& size) override
     {
       return true;
     }

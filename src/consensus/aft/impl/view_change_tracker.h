@@ -27,12 +27,9 @@ namespace aft
       time_between_attempts(time_between_attempts_)
     {}
 
-    bool should_send_view_change(
-      std::chrono::milliseconds time)
+    bool should_send_view_change(std::chrono::milliseconds time)
     {
-      if (
-        time > time_between_attempts +
-          time_previous_view_change_increment)
+      if (time > time_between_attempts + time_previous_view_change_increment)
       {
         ViewChange vc;
         vc.received_view_changes.emplace(my_node_id);

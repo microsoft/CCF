@@ -3,10 +3,10 @@
 
 #include "node/progress_tracker.h"
 
+#include "consensus/aft/impl/view_change_tracker.h"
 #include "kv/store.h"
 #include "node/nodes.h"
 #include "node/request_tracker.h"
-#include "consensus/aft/impl/view_change_tracker.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -26,7 +26,10 @@ public:
     bool(kv::NodeId, crypto::Sha256Hash&, uint32_t, uint8_t*),
     override);
   MAKE_MOCK1(sign_view_change, void(ccf::ViewChange& view_change), override);
-  MAKE_MOCK2(verify_view_change, bool(ccf::ViewChange& view_change, kv::NodeId from), override);
+  MAKE_MOCK2(
+    verify_view_change,
+    bool(ccf::ViewChange& view_change, kv::NodeId from),
+    override);
 };
 
 void ordered_execution(
@@ -49,8 +52,8 @@ void ordered_execution(
 
   INFO("Adding signatures");
   {
-    auto result =
-      pt->record_primary({view, seqno}, 0, root, primary_sig, hashed_nonce, node_count);
+    auto result = pt->record_primary(
+      {view, seqno}, 0, root, primary_sig, hashed_nonce, node_count);
     REQUIRE(result == kv::TxHistory::Result::OK);
     primary_sig = {1};
     result = pt->record_primary_signature({view, seqno}, primary_sig);
@@ -295,14 +298,13 @@ TEST_CASE("Record primary signature")
 
   ccf::ProgressTracker pt(nullptr, my_node_id);
 
-  auto result =
-    pt.record_primary({view, seqno}, 0, root, primary_sig, nonce);
+  auto result = pt.record_primary({view, seqno}, 0, root, primary_sig, nonce);
   REQUIRE(result == kv::TxHistory::Result::OK);
 
   primary_sig = {1};
   result = pt.record_primary_signature({view, seqno}, primary_sig);
   REQUIRE(result == kv::TxHistory::Result::OK);
-  result = pt.record_primary_signature({view, seqno+1}, primary_sig);
+  result = pt.record_primary_signature({view, seqno + 1}, primary_sig);
   REQUIRE(result != kv::TxHistory::Result::OK);
 }
 
@@ -335,8 +337,8 @@ TEST_CASE("View Changes")
       .RETURN(true)
       .TIMES(AT_LEAST(2));
     REQUIRE_CALL(store_mock, sign_view_change(_)).TIMES(AT_LEAST(2));
-    auto result =
-      pt.record_primary({view, seqno}, 0, root, primary_sig, hashed_nonce, node_count);
+    auto result = pt.record_primary(
+      {view, seqno}, 0, root, primary_sig, hashed_nonce, node_count);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
     for (uint32_t i = 1; i < node_count; ++i)
@@ -377,8 +379,8 @@ TEST_CASE("View Changes")
       .RETURN(true)
       .TIMES(AT_LEAST(2));
     REQUIRE_CALL(store_mock, sign_view_change(_)).TIMES(AT_LEAST(2));
-    auto result =
-      pt.record_primary({view, new_seqno}, 0, root, primary_sig, hashed_nonce, node_count);
+    auto result = pt.record_primary(
+      {view, new_seqno}, 0, root, primary_sig, hashed_nonce, node_count);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
     for (uint32_t i = 1; i < node_count; ++i)
@@ -420,8 +422,8 @@ TEST_CASE("View Changes")
       .RETURN(true)
       .TIMES(AT_LEAST(2));
     REQUIRE_CALL(store_mock, sign_view_change(_)).TIMES(AT_LEAST(2));
-    auto result =
-      pt.record_primary({view, new_seqno}, 0, root, primary_sig, hashed_nonce, node_count);
+    auto result = pt.record_primary(
+      {view, new_seqno}, 0, root, primary_sig, hashed_nonce, node_count);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
     for (uint32_t i = 1; i < node_count; ++i)
@@ -455,11 +457,11 @@ TEST_CASE("Serialization")
     v.view = 1;
     v.seqno = 2;
     v.root.h.fill(3);
-    
+
     for (uint32_t i = 10; i < 110; i += 10)
     {
       ccf::Nonce n;
-      n.h.fill(i+2);
+      n.h.fill(i + 2);
       v.signatures.push_back({{static_cast<uint8_t>(i)}, i + 1, n});
     }
 
@@ -488,11 +490,11 @@ TEST_CASE("Serialization")
     for (uint32_t i = 1; i < 11; ++i)
     {
       ccf::Nonce n;
-      n.h.fill(i*10+2);
-      ccf::NodeSignature& ns = v.signatures[i-1];
+      n.h.fill(i * 10 + 2);
+      ccf::NodeSignature& ns = v.signatures[i - 1];
       REQUIRE(ns.sig.size() == 1);
-      REQUIRE(ns.sig[0] == i*10);
-      REQUIRE(ns.node == i*10+1);
+      REQUIRE(ns.sig[0] == i * 10);
+      REQUIRE(ns.node == i * 10 + 1);
       REQUIRE(ns.hashed_nonce.h == n.h);
     }
 

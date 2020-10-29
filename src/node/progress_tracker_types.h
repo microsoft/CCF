@@ -16,8 +16,7 @@ namespace ccf
     bool is_primary;
     Nonce nonce;
 
-    BftNodeSignature(
-      const NodeSignature& ns) :
+    BftNodeSignature(const NodeSignature& ns) :
       NodeSignature(ns),
       is_primary(false)
     {}
@@ -65,7 +64,8 @@ namespace ccf
       uint32_t sig_size,
       uint8_t* sig) = 0;
     virtual void sign_view_change(ViewChange& view_change) = 0;
-    virtual bool verify_view_change(ViewChange& view_change, kv::NodeId from) = 0;
+    virtual bool verify_view_change(
+      ViewChange& view_change, kv::NodeId from) = 0;
   };
 
   class ProgressTrackerStoreAdapter : public ProgressTrackerStore
@@ -181,13 +181,15 @@ namespace ccf
       auto ni = ni_tv->get(from);
       if (!ni.has_value())
       {
-        LOG_FAIL_FMT(
-          "No node info, and therefore no cert for node {}", from);
+        LOG_FAIL_FMT("No node info, and therefore no cert for node {}", from);
         return false;
       }
       tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
       return from_cert->verify_hash(
-        h.h.data(), h.h.size(), view_change.signature.data(), view_change.signature.size());
+        h.h.data(),
+        h.h.size(),
+        view_change.signature.data(),
+        view_change.signature.size());
     }
 
   private:

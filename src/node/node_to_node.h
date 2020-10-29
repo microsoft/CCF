@@ -83,7 +83,8 @@ namespace ccf
       return t;
     }
 
-    virtual bool recv_authenticated_with_load(NodeId from_node, const uint8_t*& data, size_t& size) = 0;
+    virtual bool recv_authenticated_with_load(
+      NodeId from_node, const uint8_t*& data, size_t& size) = 0;
 
     virtual bool recv_authenticated(
       NodeId from_node, CBuffer cb, const uint8_t*& data, size_t& size) = 0;
@@ -202,12 +203,12 @@ namespace ccf
       return n2n_channel.send(msg_type, cb, data);
     }
 
-    bool recv_authenticated_with_load(NodeId from_node, const uint8_t*& data, size_t& size) override
+    bool recv_authenticated_with_load(
+      NodeId from_node, const uint8_t*& data, size_t& size) override
     {
       auto& n2n_channel = channels->get(from_node);
       return n2n_channel.recv_authenticated_with_load(data, size);
     }
-
 
     std::vector<uint8_t> recv_encrypted(
       NodeId from_node, CBuffer cb, const uint8_t* data, size_t size) override
