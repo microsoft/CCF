@@ -243,6 +243,7 @@ namespace ccfapp
         return JS_EXCEPTION;
       }
 
+      // TODO: Use wrap function instead!
       mbedtls_rsa_context* rsa_ctx = mbedtls_pk_rsa(pk_ctx);
       mbedtls_rsa_set_padding(rsa_ctx, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256);
 

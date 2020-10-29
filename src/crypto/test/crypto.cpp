@@ -3,7 +3,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "crypto/hash.h"
 #include "crypto/symmetric_key.h"
-#include "crypto/wrap.h"
 #include "tls/base64.h"
 #include "tls/entropy.h"
 

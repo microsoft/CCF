@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "tls/base64.h"
-#include "tls/key_pair.h"
+#include "tls/ec_key_pair.h"
+#include "tls/rsa_key_pair.h"
 #include "tls/verifier.h"
 #include "tls/wrap.h"
 
@@ -39,17 +40,17 @@ static constexpr tls::CurveImpl supported_curves[] = {
 static constexpr char const* labels[] = {
   "secp384r1", "secp256k1_mbedtls", "secp256k1_bitcoin"};
 
-TEST_CASE("Sign, verify, with KeyPair")
+TEST_CASE("Sign, verify, with ECKeyPair")
 {
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = tls::make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
     CHECK(kp->verify(contents, signature));
 
-    auto kp2 = tls::make_key_pair(kp->private_key_pem());
+    auto kp2 = tls::make_ec_key_pair(kp->private_key_pem());
     CHECK(kp2->verify(contents, signature));
 
     // Signatures won't necessarily be identical due to entropy, but should be
@@ -68,7 +69,7 @@ TEST_CASE("Sign, verify, with PublicKey")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = tls::make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
 
@@ -83,7 +84,7 @@ TEST_CASE("Sign, fail to verify with bad signature")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = tls::make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
@@ -99,7 +100,7 @@ TEST_CASE("Sign, fail to verify with bad contents")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = tls::make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
@@ -115,11 +116,11 @@ TEST_CASE("Sign, fail to verify with wrong key on correct curve")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = tls::make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
-    auto kp2 = tls::make_key_pair(curve);
+    auto kp2 = tls::make_ec_key_pair(curve);
     const auto public_key = kp2->public_key_pem();
     auto pubk = tls::make_public_key(public_key);
     CHECK_FALSE(pubk->verify(contents, signature));
@@ -131,14 +132,14 @@ TEST_CASE("Sign, fail to verify with wrong key on wrong curve")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = tls::make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
     const auto wrong_curve = curve == tls::CurveImpl::secp384r1 ?
       tls::CurveImpl::secp256k1_mbedtls :
       tls::CurveImpl::secp384r1;
-    auto kp2 = tls::make_key_pair(wrong_curve);
+    auto kp2 = tls::make_ec_key_pair(wrong_curve);
     const auto public_key = kp2->public_key_pem();
     auto pubk = tls::make_public_key(public_key);
     CHECK_FALSE(pubk->verify(contents, signature));
@@ -158,7 +159,7 @@ TEST_CASE("Sign, verify with alternate implementation")
   {
     INFO("Sign impl: " << labels[static_cast<size_t>(curves.first) - 1]);
     INFO("Verify impl: " << labels[static_cast<size_t>(curves.second) - 1]);
-    auto kp = tls::make_key_pair(curves.first);
+    auto kp = tls::make_ec_key_pair(curves.first);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
@@ -174,7 +175,7 @@ TEST_CASE("Sign, verify with certificate")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = tls::make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
 
@@ -189,7 +190,7 @@ TEST_CASE("Sign, verify. Fail to verify with bad contents")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = tls::make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
 
@@ -221,7 +222,7 @@ TEST_CASE("Manually hash, sign, verify, with PublicKey")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = tls::make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     tls::HashBytes hash = bad_manual_hash(contents);
     const vector<uint8_t> signature = kp->sign_hash(hash.data(), hash.size());
@@ -239,7 +240,7 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = tls::make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     tls::HashBytes hash = bad_manual_hash(contents);
     const vector<uint8_t> signature = kp->sign_hash(hash.data(), hash.size());
@@ -254,7 +255,7 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
 
 TEST_CASE("Recoverable signatures")
 {
-  auto kp = tls::KeyPair_k1Bitcoin(MBEDTLS_ECP_DP_SECP256K1);
+  auto kp = tls::ECKeyPair_k1Bitcoin(MBEDTLS_ECP_DP_SECP256K1);
 
   vector<uint8_t> contents(contents_.begin(), contents_.end());
   tls::HashBytes hash = bad_manual_hash(contents);
@@ -349,37 +350,31 @@ TEST_CASE("base64")
 
 TEST_CASE("RSA wrapping")
 {
-  auto rsa_sample_public_key = std::string(
-    "-----BEGIN PUBLIC KEY-----\n"
-    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA34JQ/FEHc9aWiLwYDr6N\n"
-    "fY2ujHDN7wEHdfrvo3kVIbyQD1y1h6DD+WBsqMtAXLQKSH/KRJiDEB/cp+dOQyNV\n"
-    "85QBND0KeO9eA4DLvYUoRZ3LkTNZkDGTHXmFiQ9j+8xgyDUijnioBpzAoWsppEcn\n"
-    "39FUERGzf11z1nhZ4wBXwfAiaawrugA/PIJQvT4BFXHwrqMOe9eBX5ESLvOgAu+U\n"
-    "aqq2svaXIZ8SqcyC/9OVL/yI1lhHSwOOWBMTzrn5NM9vVF23VLpc+jiPKF9LdNb4\n"
-    "BbeGyR5RwVX52fKxcoEUC8hQNdanXoueVrEtA++Rt0dLlN0Y/lRvLfIvetfoKJpg\n"
-    "DQIDAQAB\n"
-    "-----END PUBLIC KEY-----\n");
+  size_t input_len = 64;
+  std::vector<uint8_t> input = tls::create_entropy()->random(input_len);
 
-  auto public_kp = tls::make_public_key(rsa_sample_public_key);
+  INFO("Without label");
+  {
+    auto rsa_kp = tls::make_rsa_key_pair();
+    auto rsa_pub = tls::make_rsa_public_key(rsa_kp->public_key_pem());
 
-  // size_t input_len = 64;
-  // std::vector<uint8_t> input = tls::create_entropy()->random(input_len);
+    // Public key can wrap
+    auto wrapped = rsa_pub->wrap(input);
 
-  auto input = tls::raw_from_b64(
-    "8z6xJ7EsgCRtCdA77xAjadB5JXf4xG1xR1lc6Ff5oRjr5g4FY9EWSfqPd9bqbDpDXFGNAS3KnG"
-    "xXyqgwTQ9cdg==");
+    // Only private key can unwrap
+    auto unwrapped = rsa_kp->unwrap(wrapped);
+    // rsa_pub->unwrap(wrapped); // Doesn't compile
 
-  LOG_DEBUG_FMT("Input: {}", tls::b64_from_raw(input));
+    REQUIRE(input == unwrapped);
+  }
 
-  auto wrapped = tls::RSAOEAPWrap::wrap(public_kp, input);
-
-  LOG_DEBUG_FMT("Output: {}", tls::b64_from_raw(wrapped));
-
-  LOG_DEBUG_FMT("Success wrapping. Size: {}", wrapped.size());
-
-  // auto unwrapped = tls::RSAOEAPWrap::unwrap(kp, wrapped);
-
-  // LOG_DEBUG_FMT("Success unwrapping. Size: {}", unwrapped.size());
-
-  //   REQUIRE(unwrapped == input);
+  INFO("With label");
+  {
+    auto rsa_kp = tls::make_rsa_key_pair();
+    auto rsa_pub = tls::make_rsa_public_key(rsa_kp->public_key_pem());
+    std::string label = "my_label";
+    auto wrapped = rsa_pub->wrap(input, label);
+    auto unwrapped = rsa_kp->unwrap(wrapped, label);
+    REQUIRE(input == unwrapped);
+  }
 }

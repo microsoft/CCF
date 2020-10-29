@@ -13,6 +13,7 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
+// TODO: Delete
 namespace tls
 {
   class RSAOEAPWrap
@@ -63,50 +64,48 @@ namespace tls
       return output_buf;
     }
 
-    // TODO: Does not yet work. Perhaps not needed at all??
-    static std::vector<uint8_t> unwrap(
-      KeyPairPtr wrapping_key_pair,
-      const std::vector<uint8_t>& input,
-      std::optional<std::string> label = std::nullopt)
-    {
-      mbedtls_rsa_context* rsa_ctx =
-        mbedtls_pk_rsa(*wrapping_key_pair->get_raw_context());
+    // static std::vector<uint8_t> unwrap(
+    //   RSAKeyPairPtr wrapping_key_pair,
+    //   const std::vector<uint8_t>& input,
+    //   std::optional<std::string> label = std::nullopt)
+    // {
+    //   mbedtls_rsa_context* rsa_ctx =
+    //     mbedtls_pk_rsa(*wrapping_key_pair->get_raw_context());
+    //   mbedtls_rsa_set_padding(rsa_ctx, rsa_padding_mode,
+    //   rsa_padding_digest_id);
 
-      // TODO: Hardcoded to these for now. However, is this compatible with
-      // Azure HSMs?
-      mbedtls_rsa_set_padding(rsa_ctx, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256);
+    //   std::vector<uint8_t> output_buf(rsa_ctx->len);
+    //   auto entropy = tls::create_entropy();
 
-      std::vector<uint8_t> output_buf(rsa_ctx->len);
-      auto entropy = tls::create_entropy();
+    //   const unsigned char* label_ = NULL;
+    //   size_t label_size = 0;
+    //   if (label.has_value())
+    //   {
+    //     label_ = reinterpret_cast<const unsigned char*>(label->c_str());
+    //     label_size = label->size();
+    //   }
 
-      const unsigned char* label_ = NULL;
-      size_t label_size = 0;
-      if (label.has_value())
-      {
-        label_ = reinterpret_cast<const unsigned char*>(label->c_str());
-        label_size = label->size();
-      }
+    //   size_t olen;
+    //   auto rc = mbedtls_rsa_rsaes_oaep_decrypt(
+    //     rsa_ctx,
+    //     entropy->get_rng(),
+    //     entropy->get_data(),
+    //     MBEDTLS_RSA_PRIVATE,
+    //     label_,
+    //     label_size,
+    //     &olen,
+    //     input.data(),
+    //     output_buf.data(),
+    //     output_buf.size());
+    //   if (rc != 0)
+    //   {
+    //     throw std::logic_error(
+    //       fmt::format("Error during RSA OEAP unwrap: {}", error_string(rc)));
+    //   }
 
-      size_t olen;
-      auto rc = mbedtls_rsa_rsaes_oaep_decrypt(
-        rsa_ctx,
-        entropy->get_rng(),
-        entropy->get_data(),
-        MBEDTLS_RSA_PRIVATE,
-        label_,
-        label_size,
-        &olen,
-        input.data(),
-        output_buf.data(),
-        output_buf.size());
-      if (rc != 0)
-      {
-        throw std::logic_error(
-          fmt::format("Error during RSA OEAP unwrap: {}", error_string(rc)));
-      }
-
-      return output_buf;
-    }
+    //   output_buf.resize(olen);
+    //   return output_buf;
+    // }
   };
 
 }
