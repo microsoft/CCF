@@ -31,7 +31,11 @@ namespace kv
   protected:
     AbstractStore* store;
 
+    // TODO: Trying to port from collections of Views to collections of
+    // ChangeSets. Currently duplicating a lot of things.
     OrderedViews view_list;
+    OrderedChanges all_changes;
+
     bool committed = false;
     bool success = false;
     Version read_version = NoVersion;
@@ -43,26 +47,32 @@ namespace kv
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
 
     template <typename MapView>
-    std::tuple<MapView*> check_and_store_view(
-      MapView* typed_view,
+    std::tuple<MapView*> check_and_store_change_set(
+      std::unique_ptr<untyped::ChangeSet>&& change_set,
       const std::string& map_name,
       const std::shared_ptr<AbstractMap>& abstract_map)
     {
-      if (typed_view == nullptr)
+      if (change_set == nullptr)
       {
         throw CompactedVersionConflict(fmt::format(
-          "Unable to retrieve view over {} at {}", map_name, read_version));
+          "Unable to retrieve state over map {} at {}",
+          map_name,
+          read_version));
       }
 
-      auto abstract_view = dynamic_cast<AbstractTxView*>(typed_view);
-      if (abstract_view == nullptr)
-      {
-        throw std::logic_error(
-          fmt::format("View over map {} is not an AbstractTxView", map_name));
-      }
-      view_list[map_name] = {abstract_map,
-                             std::unique_ptr<AbstractTxView>(abstract_view)};
+      auto typed_view = new MapView(*change_set);
 
+      // TODO: No longer storing views! Arggghhh!
+      // auto abstract_view = dynamic_cast<AbstractTxView*>(typed_view);
+      // if (abstract_view == nullptr)
+      // {
+      //   throw std::logic_error(
+      //     fmt::format("View over map {} is not an AbstractTxView", map_name));
+      // }
+      // view_list[map_name] = {abstract_map,
+      //                        std::unique_ptr<AbstractTxView>(abstract_view)};
+
+      all_changes[map_name] = {abstract_map, std::move(change_set)};
       return std::make_tuple(typed_view);
     }
 
@@ -119,15 +129,17 @@ namespace kv
         abstract_map = new_map;
       }
 
-      auto untyped_map = std::dynamic_pointer_cast<kv::untyped::Map>(abstract_map);
+      auto untyped_map =
+        std::dynamic_pointer_cast<kv::untyped::Map>(abstract_map);
       if (untyped_map == nullptr)
       {
         throw std::logic_error(
           fmt::format("Map {} has unexpected type", map_name));
       }
 
-      auto typed_view = untyped_map->template create_view<MapView>(read_version);
-      return check_and_store_view(typed_view, map_name, abstract_map);
+      auto change_set = untyped_map->create_change_set(read_version);
+      return check_and_store_change_set<MapView>(
+        std::move(change_set), map_name, abstract_map);
     }
 
     template <class M, class... Ms>

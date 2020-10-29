@@ -121,9 +121,8 @@ namespace kv::untyped
     {
     protected:
       Map& map;
-      size_t rollback_counter;
 
-      ChangeSet change_set;
+      ChangeSet& change_set;
 
       Version commit_version = NoVersion;
 
@@ -131,11 +130,9 @@ namespace kv::untyped
       bool committed_writes = false;
 
     public:
-      template <typename... Ts>
-      TxViewCommitter(Map& m, size_t rollbacks, Ts&&... ts) :
+      TxViewCommitter(Map& m, ChangeSet& change_set_) :
         map(m),
-        rollback_counter(rollbacks),
-        change_set(std::forward<Ts>(ts)...)
+        change_set(change_set_)
       {}
 
       // Commit-related methods
@@ -158,7 +155,7 @@ namespace kv::untyped
 
         // If the parent map has rolled back since this transaction began, this
         // transaction must fail.
-        if (rollback_counter != roll.rollback_counter)
+        if (change_set.rollback_counter != roll.rollback_counter)
           return false;
 
         // If we have iterated over the map, check for a global version match.
@@ -279,12 +276,9 @@ namespace kv::untyped
     {
       ConcreteTxView(
         Map& m,
-        size_t rollbacks,
-        State& current_state,
-        State& committed_state,
-        Version v) :
-        TxViewCommitter(m, rollbacks, current_state, committed_state, v),
-        TxView(TxViewCommitter::change_set)
+        kv::untyped::ChangeSet& changes) :
+        TxViewCommitter(m, changes),
+        TxView(changes)
       {}
     };
 
@@ -512,20 +506,15 @@ namespace kv::untyped
       KvStoreDeserialiser& d, Version version, bool commit)
     {
       // Create a new change set, and deserialise d's contents into it.
-      auto view = create_view<TView>(version);
-      if (view == nullptr)
+      auto change_set_ptr = create_change_set(version);
+      if (change_set_ptr == nullptr)
       {
         LOG_FAIL_FMT(
           "Failed to create view over '{}' at {} - too early", name, version);
         throw std::logic_error("Can't create view");
       }
 
-      if (commit)
-      {
-        view->set_commit_version(version);
-      }
-
-      auto& change_set = view->get_change_set();
+      auto& change_set = *change_set_ptr;
 
       uint64_t ctr;
 
@@ -556,6 +545,12 @@ namespace kv::untyped
         change_set.writes[r] = std::nullopt;
       }
 
+      // TODO: Obviously this isn't safe! Want to return just a change_set from here, let caller manage it
+      auto view = new TView(*this, *change_set_ptr);
+      if (commit)
+      {
+        view->set_commit_version(version);
+      }
       return view;
     }
 
@@ -806,21 +801,19 @@ namespace kv::untyped
       std::swap(roll, map->roll);
     }
 
-    template <typename TView>
-    TView* create_view(Version version)
+    std::unique_ptr<untyped::ChangeSet> create_change_set(Version version)
     {
       lock();
 
-      // Find the last entry committed at or before this version.
-      TView* view = nullptr;
+      std::unique_ptr<untyped::ChangeSet> changes = nullptr;
 
+      // Find the last entry committed at or before this version.
       for (auto current = roll.commits->get_tail(); current != nullptr;
            current = current->prev)
       {
         if (current->version <= version)
         {
-          view = new TView(
-            *this,
+          changes = std::make_unique<untyped::ChangeSet>(
             roll.rollback_counter,
             current->state,
             roll.commits->get_head()->state,
@@ -833,7 +826,7 @@ namespace kv::untyped
       // version - the version requested is _earlier_ than anything in the roll
 
       unlock();
-      return view;
+      return changes;
     }
 
     Roll& get_roll()

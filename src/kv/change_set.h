@@ -28,6 +28,7 @@ namespace kv
   template <typename K, typename V, typename H>
   struct ChangeSet
   {
+    const size_t rollback_counter;
     const State<K, V, H> state;
     const State<K, V, H> committed;
     const Version start_version;
@@ -37,9 +38,11 @@ namespace kv
     Write<K, V> writes = {};
 
     ChangeSet(
+      size_t rollbacks,
       State<K, V, H>& current_state,
       State<K, V, H>& committed_state,
       Version current_version) :
+      rollback_counter(rollbacks),
       state(current_state),
       committed(committed_state),
       start_version(current_version)

@@ -9,7 +9,7 @@
 namespace kv
 {
   template <typename K, typename V, typename KSerialiser, typename VSerialiser>
-  class ReadOnlyTxView : public kv::untyped::Map::TxViewCommitter
+  class ReadOnlyTxView
   {
   protected:
     kv::untyped::TxView untyped_view;
@@ -18,16 +18,7 @@ namespace kv
     using KeyType = K;
     using ValueType = V;
 
-    ReadOnlyTxView(
-      kv::untyped::Map& m,
-      size_t rollbacks,
-      kv::untyped::State& current_state,
-      kv::untyped::State& committed_state,
-      Version v) :
-      kv::untyped::Map::TxViewCommitter(
-        m, rollbacks, current_state, committed_state, v),
-      untyped_view(kv::untyped::Map::TxViewCommitter::change_set)
-    {}
+    ReadOnlyTxView(kv::untyped::ChangeSet& changes) : untyped_view(changes) {}
 
     std::optional<V> get(const K& key)
     {
