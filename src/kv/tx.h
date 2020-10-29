@@ -425,6 +425,7 @@ namespace kv
     void reset()
     {
       all_changes.clear();
+      all_views.clear();
       created_maps.clear();
       committed = false;
       success = false;
