@@ -9,6 +9,7 @@
 
 namespace kv
 {
+  // TODO: Delete
   struct MapView
   {
     // Shared ownership over source map
@@ -24,12 +25,12 @@ namespace kv
     std::shared_ptr<AbstractMap> map;
 
     // Owning pointer of ChangeSet over that map
-    std::unique_ptr<untyped::ChangeSet> changes;
+    std::unique_ptr<untyped::ChangeSet> changeset;
   };
 
   // When a collection of Maps are locked, the locks must be acquired in a
   // stable order to avoid deadlocks. This ordered map will claim in name-order
-  using OrderedViews = std::map<std::string, MapView>;
+  using OrderedViews = std::map<std::string, MapView>; // TODO: Delete
   using OrderedChanges = std::map<std::string, MapChanges>;
 
   // All collections of Map must be ordered so that we lock their contained
@@ -42,23 +43,11 @@ namespace kv
     virtual void set_change_list(OrderedChanges&& change_list, Term term) = 0;
   };
 
-  // Atomically checks for conflicts then applies the writes in a set of views
-  // to their underlying Maps. Calls f() at most once, iff the writes are
+  // Atomically checks for conflicts then applies the writes in the given change
+  // sets to their underlying Maps. Calls f() at most once, iff the writes are
   // applied, to retrieve a unique Version for the write set.
   static inline std::optional<Version> apply_changes(
     OrderedChanges& changes,
-    std::function<Version()> f,
-    const MapCollection& new_maps = {},
-    const std::optional<Version>& new_maps_conflict_version = std::nullopt)
-  {
-    return std::nullopt;
-  }
-
-  // Atomically checks for conflicts then applies the writes in a set of views
-  // to their underlying Maps. Calls f() at most once, iff the writes are
-  // applied, to retrieve a unique Version for the write set.
-  static inline std::optional<Version> apply_views(
-    OrderedViews& views,
     std::function<Version()> f,
     const MapCollection& new_maps = {},
     const std::optional<Version>& new_maps_conflict_version = std::nullopt)
@@ -70,9 +59,15 @@ namespace kv
     Version version = 0;
     bool has_writes = false;
 
-    for (auto it = views.begin(); it != views.end(); ++it)
+    std::map<std::string, std::unique_ptr<AbstractCommitter>> views;
+    for (const auto& [map_name, mc] : changes)
     {
-      if (it->second.view->has_writes())
+      views[map_name] = mc.map->create_committer(mc.changeset.get());
+    }
+
+    for (auto it = changes.begin(); it != changes.end(); ++it)
+    {
+      if (it->second.changeset->has_writes())
       {
         it->second.map->lock();
         has_writes = true;
@@ -83,7 +78,7 @@ namespace kv
 
     for (auto it = views.begin(); it != views.end(); ++it)
     {
-      if (!it->second.view->prepare())
+      if (!it->second->prepare())
       {
         ok = false;
         break;
@@ -100,7 +95,8 @@ namespace kv
       // that the caller is currently holding store->lock()
       auto store = map_ptr->get_store();
 
-      // This is to avoid recursively locking version_lock by calling current_version() in the commit_reserved case.
+      // This is to avoid recursively locking version_lock by calling
+      // current_version() in the commit_reserved case.
       kv::Version current_v;
       if (new_maps_conflict_version.has_value())
       {
@@ -128,20 +124,26 @@ namespace kv
       for (const auto& [map_name, map_ptr] : new_maps)
       {
         const auto it = views.find(map_name);
-        if (it != views.end() && it->second.view->has_writes())
+        if (it != views.end() && it->second->has_writes())
+        {
           map_ptr->get_store()->add_dynamic_map(version, map_ptr);
+        }
       }
 
       for (auto it = views.begin(); it != views.end(); ++it)
-        it->second.view->commit(version);
+      {
+        it->second->commit(version);
+      }
 
       for (auto it = views.begin(); it != views.end(); ++it)
-        it->second.view->post_commit();
+      {
+        it->second->post_commit();
+      }
     }
 
-    for (auto it = views.begin(); it != views.end(); ++it)
+    for (auto it = changes.begin(); it != changes.end(); ++it)
     {
-      if (it->second.view->has_writes())
+      if (it->second.changeset->has_writes())
       {
         it->second.map->unlock();
       }

@@ -117,7 +117,7 @@ namespace kv::untyped
     const bool replicated;
 
   public:
-    class TxViewCommitter : public AbstractTxView
+    class TxViewCommitter : public AbstractCommitter
     {
     protected:
       Map& map;
@@ -138,7 +138,7 @@ namespace kv::untyped
       // Commit-related methods
       bool has_writes() override
       {
-        return committed_writes || !change_set.writes.empty();
+        return committed_writes || change_set.has_writes();
       }
 
       bool has_changes() override
@@ -485,14 +485,16 @@ namespace kv::untyped
       }
     };
 
-    AbstractTxView* deserialise_snapshot(KvStoreDeserialiser& d) override
+    ChangeSetPtr deserialise_snapshot_changes(KvStoreDeserialiser& d)
     {
-      // Create a new empty view, deserialising d's contents into it.
-      auto v = d.deserialise_entry_version();
-      auto map_snapshot = d.deserialise_raw();
+      // TODO: implement...
+      return nullptr;
+      // // Create a new empty view, deserialising d's contents into it.
+      // auto v = d.deserialise_entry_version();
+      // auto map_snapshot = d.deserialise_raw();
 
-      return new SnapshotViewCommitter(
-        *this, State::deserialize_map(map_snapshot), v);
+      // return new SnapshotViewCommitter(
+      //   *this, State::deserialize_map(map_snapshot), v);
     }
 
     ChangeSetPtr deserialise_changes(
@@ -545,6 +547,17 @@ namespace kv::untyped
       }
 
       return change_set_ptr;
+    }
+
+    std::unique_ptr<AbstractCommitter> create_committer(AbstractChangeSet* changes) override
+    {
+      auto non_abstract = dynamic_cast<ChangeSet*>(changes);
+      if (non_abstract == nullptr)
+      {
+        throw std::logic_error("Type confusion error");
+      }
+
+      return std::make_unique<TxViewCommitter>(*this, *non_abstract);
     }
 
     /** Get store that the map belongs to

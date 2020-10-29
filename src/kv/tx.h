@@ -79,6 +79,7 @@ namespace kv
     template <class MapView>
     std::tuple<MapView*> get_view_tuple_by_name(const std::string& map_name)
     {
+      // TODO: Update this once finished
       // If a view is present for this map_name, its AbstractTxView should be a
       // MapView. This invariant could be broken by set_view_list, which will
       // produce an error here.
@@ -258,8 +259,8 @@ namespace kv
       if (!created_maps.empty())
         this->store->lock();
 
-      auto c = apply_views(
-        view_list, [store]() { return store->next_version(); }, created_maps);
+      auto c = apply_changes(
+        all_changes, [store]() { return store->next_version(); }, created_maps);
 
       if (!created_maps.empty())
         this->store->unlock();
@@ -566,8 +567,8 @@ namespace kv
 
       // TODO: Take store lock here, if created_maps is non-empty?
 
-      auto c = apply_views(
-        view_list, [this]() { return version; }, created_maps, version);
+      auto c = apply_changes(
+        all_changes, [this]() { return version; }, created_maps, version);
       success = c.has_value();
 
       if (!success)

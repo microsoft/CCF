@@ -49,6 +49,11 @@ namespace kv
     {}
 
     ChangeSet(ChangeSet&) = delete;
+
+    bool has_writes() const
+    {
+      return !writes.empty();
+    }
   };
 
   // This is a container for a snapshot. It has no dependencies as the snapshot

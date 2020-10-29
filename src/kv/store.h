@@ -228,7 +228,7 @@ namespace kv
 
     std::shared_ptr<kv::untyped::Map> get_map_internal(
       kv::Version v, const std::string& map_name)
-      {
+    {
       auto search = maps.find(map_name);
       if (search != maps.end())
       {
@@ -239,8 +239,8 @@ namespace kv
         }
       }
 
-      return nullptr;}
-    
+      return nullptr;
+    }
 
     /** Transfer ownership of a dynamically created map to this Store.
      *
@@ -420,14 +420,14 @@ namespace kv
         view_history_ = d.deserialise_view_history();
       }
 
-      OrderedViews views;
+      OrderedChanges changes;
       MapCollection new_maps;
 
       for (auto r = d.start_map(); r.has_value(); r = d.start_map())
       {
         const auto map_name = r.value();
 
-        std::shared_ptr<AbstractMap> map = nullptr;
+        std::shared_ptr<kv::untyped::Map> map = nullptr;
 
         auto search = maps.find(map_name);
         if (search == maps.end())
@@ -448,20 +448,20 @@ namespace kv
           map = search->second.second;
         }
 
-        auto view_search = views.find(map_name);
-        if (view_search != views.end())
+        auto changes_search = changes.find(map_name);
+        if (changes_search != changes.end())
         {
           LOG_FAIL_FMT("Failed to deserialise snapshot at version {}", v);
           LOG_DEBUG_FMT("Multiple writes on map {}", map_name);
           return DeserialiseSuccess::FAILED;
         }
 
-        auto deserialise_snapshot_view = map->deserialise_snapshot(d);
+        auto deserialised_snapshot_changes = map->deserialise_snapshot_changes(d);
 
-        // Take ownership of the produced view, store it to be committed
+        // Take ownership of the produced change set, store it to be committed
         // later
-        views[map_name] = {
-          map, std::unique_ptr<AbstractTxView>(deserialise_snapshot_view)};
+        changes[map_name] = {
+          map, std::move(deserialised_snapshot_changes)};
       }
 
       for (auto& it : maps)
@@ -479,8 +479,8 @@ namespace kv
       // Each map is committed at a different version, independently of the
       // overall snapshot version. The commit versions for each map are
       // contained in the snapshot and applied when the snapshot is committed.
-      auto r = apply_views(
-        views, []() { return NoVersion; }, new_maps);
+      auto r = apply_changes(
+        changes, []() { return NoVersion; }, new_maps);
       if (!r.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised snapshot at version {}", v);
@@ -731,7 +731,8 @@ namespace kv
 
         // Take ownership of the produced change set, store it to be applied
         // later
-        changes[map_name] = kv::MapChanges{map,std::move(deserialised_changes)};
+        changes[map_name] =
+          kv::MapChanges{map, std::move(deserialised_changes)};
       }
 
       if (!d.end())
@@ -1237,7 +1238,7 @@ namespace kv
       const auto it = maps.find(map_name);
       if (it != maps.end())
       {
-       it->second.second->set_global_hook(hook);
+        it->second.second->set_global_hook(hook);
       }
     }
 
