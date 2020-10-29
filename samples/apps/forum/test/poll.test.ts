@@ -31,6 +31,8 @@ function getAuth(userId: number) {
 }
 
 describe('/polls', function () {
+  this.timeout(30000)
+
   setupMochaCCFSandbox(APP_BUNDLE_DIR)
 
   describe('POST /{topic}', function () {
@@ -61,8 +63,7 @@ describe('/polls', function () {
       const body: CreatePollRequest = {
         type: "string"
       }
-      // 422 = validation error, because the header is missing, should be 401
-      await bent('POST', 422)(`${ENDPOINT_URL}/${topic}`, body)
+      await bent('POST', 401)(`${ENDPOINT_URL}/${topic}`, body)
     })
   })
   describe('POST /', function () {
@@ -90,8 +91,7 @@ describe('/polls', function () {
           'post-multiple-d': { type: "number" }
         }
       }
-      // 422 = validation error, because the header is missing, should be 401
-      await bent('POST', 422)(`${ENDPOINT_URL}`, body)
+      await bent('POST', 401)(`${ENDPOINT_URL}`, body)
     })
   })
   describe('PUT /{topic}', function () {
@@ -135,8 +135,7 @@ describe('/polls', function () {
       const opinionBody: SubmitOpinionRequest = {
         opinion: 1.2
       }
-      // 422 = validation error, because the header is missing, should be 401
-      await bent('PUT', 422)(`${ENDPOINT_URL}/${topic}`, opinionBody)
+      await bent('PUT', 401)(`${ENDPOINT_URL}/${topic}`, opinionBody)
     })
   })
   describe('PUT /', function () {
@@ -200,8 +199,7 @@ describe('/polls', function () {
           [topic]: { opinion: 1.5 }
         }
       }
-      // 422 = validation error, because the header is missing, should be 401
-      await bent('PUT', 422)(`${ENDPOINT_URL}`, opinionBody)
+      await bent('PUT', 401)(`${ENDPOINT_URL}`, opinionBody)
     })
   })
   describe('GET /{topic}', function () {
