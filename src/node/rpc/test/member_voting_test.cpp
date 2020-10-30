@@ -627,8 +627,9 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       // (2) ask for a fresher digest of state
       const auto freshen_state_digest_req =
         create_request(nullptr, "ack/update_state_digest");
-      const auto freshen_state_digest = parse_response_body<std::vector<uint8_t>>(
-        frontend_process(frontend, freshen_state_digest_req, new_member->cert));
+      const auto freshen_state_digest =
+        parse_response_body<std::vector<uint8_t>>(frontend_process(
+          frontend, freshen_state_digest_req, new_member->cert));
       DOCTEST_CHECK(freshen_state_digest != ack0.state_digest);
 
       // (3) read ack entry again and check that the state digest has changed
