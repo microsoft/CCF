@@ -11,6 +11,10 @@ import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.logging_app as app
+import ssl
+
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 
 from loguru import logger as LOG
 
@@ -54,6 +58,7 @@ def test_quote(network, args, verify=True):
             mrenclave = quote["mrenclave"]
             assert mrenclave == expected_mrenclave, (mrenclave, expected_mrenclave)
             qpath = os.path.join(network.common_dir, f"quote{quote['node_id']}")
+
             with open(qpath, "wb") as q:
                 q.write(bytes.fromhex(quote["raw"]))
                 oed = subprocess.run(
@@ -69,6 +74,14 @@ def test_quote(network, args, verify=True):
                 )
                 out = oed.stdout.decode().split(os.linesep)
                 assert "Evidence verification succeeded (0)." in out
+
+            node = network.nodes[quote["node_id"]]
+            node_cert = ssl.get_server_certificate((node.pubhost, node.rpc_port))
+            public_key = x509.load_pem_x509_certificate(
+                node_cert.encode(), default_backend()
+            ).public_key()
+            # TODO: hash and compare to quote
+
     return network
 
 
