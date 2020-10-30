@@ -25,6 +25,8 @@ namespace tls
 
     Pem(const std::string& s_) : s(s_) {}
 
+    Pem(size_t size) : s(size, '0') {}
+
     Pem(const uint8_t* data, size_t size)
     {
       if (size == 0)

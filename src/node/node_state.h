@@ -240,7 +240,8 @@ namespace ccf
 #ifdef GET_QUOTE
       if (network.consensus_type != ConsensusType::BFT)
       {
-        auto quote_opt = QuoteGenerator::get_quote(node_cert);
+        auto quote_opt =
+          QuoteGenerator::get_quote(node_sign_kp->public_key_pem());
         if (!quote_opt.has_value())
         {
           return Fail<CreateNew::Out>("Quote could not be retrieved");

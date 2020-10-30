@@ -853,4 +853,29 @@ namespace tls
       return std::make_shared<KeyPair>(std::move(key));
     }
   }
+
+  static inline tls::Pem public_key_pem_from_cert(const tls::Pem& cert)
+  {
+    mbedtls_x509_crt c;
+    mbedtls_x509_crt_init(&c);
+    int rc = mbedtls_x509_crt_parse(&c, cert.data(), cert.size());
+    if (rc != 0)
+    {
+      mbedtls_x509_crt_free(&c);
+      throw std::runtime_error(fmt::format(
+        "Failed to parse certificate, mbedtls_x509_crt_parse: {}", rc));
+    }
+    uint8_t data[2048];
+    rc = mbedtls_pk_write_pubkey_pem(&c.pk, data, max_pem_key_size);
+    if (rc != 0)
+    {
+      mbedtls_x509_crt_free(&c);
+      throw std::runtime_error(fmt::format(
+        "Failed to serialise public key, mbedtls_pk_write_pubkey_pem: {}", rc));
+    }
+
+    size_t len = strlen((char const*)data);
+    mbedtls_x509_crt_free(&c);
+    return tls::Pem(data, len);
+  }
 }

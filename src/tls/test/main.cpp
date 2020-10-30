@@ -364,3 +364,17 @@ TEST_CASE("Parse public x25519 PEM")
 
   REQUIRE(tls::PublicX25519::write(raw_key).str() == x25519_public_key_pem);
 }
+
+TEST_CASE("Extract public key from cert")
+{
+  for (const auto curve : supported_curves)
+  {
+    INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
+    auto kp = tls::make_key_pair(curve);
+    auto pk = kp->public_key_pem();
+    auto cert = kp->self_sign("CN=name");
+
+    auto pubk = tls::public_key_pem_from_cert(cert);
+    REQUIRE(pk == pubk);
+  }
+}

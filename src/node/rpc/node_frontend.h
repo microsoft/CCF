@@ -89,9 +89,11 @@ namespace ccf
 #ifdef GET_QUOTE
       if (network.consensus_type != ConsensusType::BFT)
       {
+        auto pk_pem = public_key_pem_from_cert(caller_pem);
+
         QuoteVerificationResult verify_result =
           QuoteVerifier::verify_quote_against_store(
-            tx, this->network.node_code_ids, in.quote, caller_pem);
+            tx, this->network.node_code_ids, in.quote, pk_pem);
 
         if (verify_result != QuoteVerificationResult::VERIFIED)
         {
