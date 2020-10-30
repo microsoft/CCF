@@ -126,7 +126,7 @@ namespace ccf
   {
     struct In
     {
-      std::vector<uint8_t> cert;
+      std::string cert;
     };
 
     using Out = CallerInfo;
@@ -149,20 +149,6 @@ namespace ccf
     struct Out
     {
       std::map<std::string, std::map<std::string, Metric>> metrics;
-    };
-  };
-
-  struct GetSchema
-  {
-    struct In
-    {
-      std::string method = {};
-    };
-
-    struct Out
-    {
-      ds::json::JsonSchema params_schema = {};
-      ds::json::JsonSchema result_schema = {};
     };
   };
 
