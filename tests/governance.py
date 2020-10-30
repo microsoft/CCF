@@ -134,6 +134,18 @@ def test_member_data(network, args):
     return network
 
 
+@reqs.description("Check user_id")
+def test_user_id(network, args):
+    primary, _ = network.find_nodes()
+    with primary.client("user0") as uc:
+        with open(network.consortium.user_cert_path(0), "r") as ucert:
+            pem = ucert.read()
+        r = uc.get("/app/user_id", {"cert": pem})
+        assert r.status_code == 200
+        assert r.body.json()["caller_id"] == 0
+    return network
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -143,6 +155,7 @@ def run(args):
         network = test_quote(network, args)
         network = test_user(network, args)
         network = test_no_quote(network, args)
+        network = test_user_id(network, args)
 
 
 if __name__ == "__main__":
