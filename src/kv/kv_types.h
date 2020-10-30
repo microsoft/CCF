@@ -434,7 +434,6 @@ namespace kv
 
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
 
-  // TODO: Work out what types are needed here
   class AbstractChangeSet
   {
   public:
@@ -454,7 +453,6 @@ namespace kv
     virtual void post_commit() = 0;
   };
 
-  // TODO: Delete
   class AbstractTxView
   {
   public:

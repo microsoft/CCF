@@ -9,16 +9,6 @@
 
 namespace kv
 {
-  // TODO: Delete
-  struct MapView
-  {
-    // Shared ownership over source map
-    std::shared_ptr<AbstractMap> map;
-
-    // Owning pointer of TxView over that map
-    std::unique_ptr<AbstractTxView> view;
-  };
-
   struct MapChanges
   {
     // Shared ownership over source map
@@ -30,7 +20,6 @@ namespace kv
 
   // When a collection of Maps are locked, the locks must be acquired in a
   // stable order to avoid deadlocks. This ordered map will claim in name-order
-  using OrderedViews = std::map<std::string, MapView>; // TODO: Delete
   using OrderedChanges = std::map<std::string, MapChanges>;
 
   // All collections of Map must be ordered so that we lock their contained

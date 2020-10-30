@@ -123,16 +123,12 @@ namespace aft
   kv::Version ExecutorImpl::commit_replayed_request(
     kv::Tx& tx, std::shared_ptr<aft::RequestTracker> request_tracker)
   {
-    // TODO: This is ugly. Because it was previously an untyped View, it needs
-    // to be here, and we manually serialise key + deserialise value
-    auto tx_view = tx.get_view<kv::untyped::Map>(ccf::Tables::AFT_REQUESTS);
-    using KSer = aft::RequestsMap::KeySerialiser;
-    using VSer = aft::RequestsMap::ValueSerialiser;
-    auto req_v = tx_view->get(KSer::to_serialised(0));
+    auto tx_view = tx.get_view<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
+    auto req_v = tx_view->get(0);
     CCF_ASSERT(
       req_v.has_value(),
       "Deserialised request but it was not found in the requests map");
-    Request request = VSer::from_serialised(req_v.value());
+    Request request = req_v.value();
 
     auto ctx = create_request_ctx(request);
 
