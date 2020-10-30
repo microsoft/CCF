@@ -1328,11 +1328,11 @@ namespace ccf
             ma_view->put(caller_id, ma.value());
           }
 
-          return make_success(ma.value());
+          return make_success(ma->state_digest);
         };
       make_endpoint(
         "ack/update_state_digest", HTTP_POST, json_adapter(update_state_digest))
-        .set_auto_schema<void, MemberAck>()
+        .set_auto_schema<void, StateDigest>()
         .install();
 
       auto get_encrypted_recovery_share =
