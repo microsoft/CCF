@@ -352,6 +352,14 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
   size_t input_len = 64;
   std::vector<uint8_t> input = tls::create_entropy()->random(input_len);
 
+  INFO("Cannot make RSA key from EC key");
+  {
+    auto rsa_kp = tls::make_key_pair(); // EC Key
+
+    REQUIRE_THROWS_AS(
+      tls::make_rsa_public_key(rsa_kp->public_key_pem()), std::logic_error);
+  }
+
   INFO("Without label");
   {
     auto rsa_kp = tls::make_rsa_key_pair();

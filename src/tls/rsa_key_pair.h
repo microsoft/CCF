@@ -215,11 +215,16 @@ namespace tls
 
     int rc =
       mbedtls_pk_parse_public_key(ctx.get(), public_pem_data, public_pem_size);
-
     if (rc != 0)
     {
       throw std::logic_error(
         fmt::format("Could not parse public key PEM: {}", error_string(rc)));
+    }
+
+    if (ctx->pk_info != mbedtls_pk_info_from_type(MBEDTLS_PK_RSA))
+    {
+      throw std::logic_error(
+        "Could not make RSA public key as PEM does not appear to be valid RSA");
     }
 
     return std::make_shared<RSAPublicKey>(std::move(ctx));
