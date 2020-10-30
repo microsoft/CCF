@@ -81,6 +81,8 @@ def run(args):
         if args.consensus == "bft":
             # nodes_to_stop = math.ceil(len(args.nodes) / 3)
 
+            LOG.error("aaaaaaa {}", math.ceil(len(args.nodes) / 3))
+
             # View Change implementation is in progress.
             # https://github.com/microsoft/CCF/issues/1709
             nodes_to_stop = 1

@@ -243,14 +243,6 @@ namespace ccf
           continue;
         }
 
-        if (!cert.second.sig.empty())
-        {
-          LOG_FAIL_FMT(
-            "primary is not empty view:{}, seqno:{}",
-            tx_id.term,
-            tx_id.version);
-          return kv::TxHistory::Result::FAIL;
-        }
         cert.second.sig = sig;
         break;
       }

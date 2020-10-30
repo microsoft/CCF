@@ -34,12 +34,17 @@ namespace aft
         ViewChange vc;
         vc.received_view_changes.emplace(my_node_id);
         ++last_view_change_sent;
-        view_changes.insert(std::pair<kv::Consensus::View, ViewChange>(
-          last_view_change_sent, std::move(vc)));
+        view_changes.emplace(last_view_change_sent, std::move(vc));
         time_previous_view_change_increment = time;
         return true;
       }
       return false;
+    }
+
+    bool is_view_change_in_progress(std::chrono::milliseconds time)
+    {
+      return time <=
+        (time_between_attempts + time_previous_view_change_increment);
     }
 
     kv::Consensus::View get_target_view() const

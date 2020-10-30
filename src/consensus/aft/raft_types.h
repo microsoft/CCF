@@ -200,7 +200,7 @@ namespace aft
 
   struct ViewChangeMsg : RaftHeader
   {
-    size_t size;
+    // size_t size;
   };
 
   struct RequestVote : RaftHeader

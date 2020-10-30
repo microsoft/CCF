@@ -107,6 +107,8 @@ namespace aft
     static constexpr int batch_window_size = 100;
     int batch_window_sum = 0;
 
+    static constexpr size_t starting_view_change = 2;
+
     // Indices that are eligible for global commit, from a Node's perspective
     std::deque<Index> committable_indices;
 
@@ -157,7 +159,8 @@ namespace aft
       state(state_),
       executor(executor_),
       request_tracker(request_tracker_),
-      view_change_tracker(state_->my_node_id, 2, view_change_timeout_),
+      view_change_tracker(
+        state_->my_node_id, starting_view_change, view_change_timeout_),
 
       request_timeout(request_timeout_),
       election_timeout(election_timeout_),
@@ -181,7 +184,7 @@ namespace aft
       {
         // Initialize view history for bft. We start on view 2 and the first
         // commit is always 1.
-        state->view_history.update(1, 2);
+        state->view_history.update(1, starting_view_change);
       }
     }
 
@@ -249,7 +252,7 @@ namespace aft
       }
 
       std::lock_guard<SpinLock> guard(state->lock);
-      state->current_view += 2;
+      state->current_view += starting_view_change;
       become_leader();
     }
 
@@ -270,7 +273,7 @@ namespace aft
       state->commit_idx = commit_idx_;
       state->view_history.initialise(terms);
       state->view_history.update(index, term);
-      state->current_view += 2;
+      state->current_view += starting_view_change;
       become_leader();
     }
 
@@ -538,12 +541,10 @@ namespace aft
         request_tracker->tick(time);
 
         if (
-          is_follower() &&
-          (state->view_change_in_progress || has_bft_timeout_occurred(time)) &&
+          !view_change_tracker.is_view_change_in_progress(time) &&
+          is_follower() && (has_bft_timeout_occurred(time)) &&
           view_change_tracker.should_send_view_change(time))
         {
-          state->view_change_in_progress = true;
-
           // We have not seen a request executed within an expected period of
           // time. We should invoke a view-change.
           //
@@ -553,7 +554,7 @@ namespace aft
 
           size_t vc_size = vc->get_serialized_size();
 
-          ViewChangeMsg vcm = {{bft_view_change, state->my_node_id}, vc_size};
+          ViewChangeMsg vcm = {{bft_view_change, state->my_node_id}};
 
           std::vector<uint8_t> m;
           m.resize(sizeof(ViewChangeMsg) + vc_size);
@@ -564,7 +565,7 @@ namespace aft
           serialized::write(
             data, size, reinterpret_cast<uint8_t*>(&vcm), sizeof(vcm));
           vc->serialize(data, size);
-          CCF_ASSERT_FMT(size == 0, "Did not write to everything");
+          CCF_ASSERT_FMT(size == 0, "Did not write everything");
 
           LOG_INFO_FMT("Sending view change msg view:{}", vc->view);
           for (auto it = nodes.begin(); it != nodes.end(); ++it)
