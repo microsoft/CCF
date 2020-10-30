@@ -95,21 +95,6 @@
         ],
         "type": "object"
       },
-      "GetEncryptedRecoveryShare": {
-        "properties": {
-          "encrypted_recovery_share": {
-            "$ref": "#/components/schemas/string"
-          },
-          "nonce": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "encrypted_recovery_share",
-          "nonce"
-        ],
-        "type": "object"
-      },
       "GetMetrics__HistogramResults": {
         "properties": {
           "buckets": {
@@ -1067,7 +1052,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetEncryptedRecoveryShare"
+                  "$ref": "#/components/schemas/string"
                 }
               }
             },
