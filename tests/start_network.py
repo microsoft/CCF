@@ -162,7 +162,7 @@ if __name__ == "__main__":
         )
 
     args = infra.e2e_args.cli_args(add)
-    if args.recover and not all(args.ledger_dir,args.common_dir):
+    if args.recover and not all(args.ledger_dir, args.common_dir):
         print("Error: --recover requires --ledger-dir and --common-dir arguments.")
         sys.exit(1)
 
