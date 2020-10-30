@@ -50,9 +50,7 @@ def test_add_member(network, args):
     )
 
     try:
-        new_member.get_and_decrypt_recovery_share(
-            primary, network.store_current_network_encryption_key()
-        )
+        new_member.get_and_decrypt_recovery_share(primary)
         assert False, "New accepted members are not given recovery shares"
     except infra.member.NoRecoveryShareFound as e:
         assert e.response.body.text() == "Only active members are given recovery shares"
@@ -114,12 +112,8 @@ def assert_recovery_shares_update(func, network, args, **kwargs):
 
     recovery_threshold_before = network.consortium.recovery_threshold
     active_members_before = network.consortium.get_active_members()
-    network.store_current_network_encryption_key()
     already_active_member = network.consortium.get_any_active_member()
-    defunct_network_enc_pubk = network.store_current_network_encryption_key()
-    saved_share = already_active_member.get_and_decrypt_recovery_share(
-        primary, defunct_network_enc_pubk
-    )
+    saved_share = already_active_member.get_and_decrypt_recovery_share(primary)
 
     if func is test_retire_member:
         # When retiring a member, the active member which retrieved their share
@@ -139,9 +133,7 @@ def assert_recovery_shares_update(func, network, args, **kwargs):
         recovery_threshold_before != network.consortium.recovery_threshold
         or active_members_before != network.consortium.get_active_members
     ):
-        new_share = already_active_member.get_and_decrypt_recovery_share(
-            primary, defunct_network_enc_pubk
-        )
+        new_share = already_active_member.get_and_decrypt_recovery_share(primary)
         assert saved_share != new_share, "New recovery shares should have been issued"
 
 
@@ -277,7 +269,7 @@ def run(args):
 
             LOG.debug("Retired member cannot make a new proposal")
             try:
-                response = network.consortium.get_member_by_id(0).propose(
+                network.consortium.get_member_by_id(0).propose(
                     primary, proposal_trust_0
                 )
                 assert False, "Retired member cannot make a new proposal"

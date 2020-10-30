@@ -88,7 +88,7 @@ namespace ccf
 
     auto add_member(
       const tls::Pem& member_cert,
-      const tls::Pem& member_keyshare_pub,
+      const tls::Pem& encryption_pub_key,
       const nlohmann::json& member_data = nullptr)
     {
       auto [m, mc, v, ma, sig] = tx.get_view(
@@ -114,7 +114,7 @@ namespace ccf
         id,
         MemberInfo(
           member_cert,
-          member_keyshare_pub,
+          encryption_pub_key,
           member_data,
           MemberStatus::ACCEPTED));
       mc->put(member_cert_der, id);
@@ -133,7 +133,7 @@ namespace ccf
 
     auto add_member(const MemberPubInfo& info)
     {
-      return add_member(info.cert, info.keyshare, info.member_data);
+      return add_member(info.cert, info.encryption_pub_key, info.member_data);
     }
 
     void activate_member(MemberId member_id)
@@ -426,7 +426,7 @@ namespace ccf
       return active_members_count;
     }
 
-    auto get_active_members_keyshare()
+    auto get_active_members_enc_pub()
     {
       auto members_view = tx.get_view(tables.members);
       std::map<MemberId, tls::Pem> active_members_info;
@@ -435,7 +435,7 @@ namespace ccf
         [&active_members_info](const MemberId& mid, const MemberInfo& mi) {
           if (mi.status == MemberStatus::ACTIVE)
           {
-            active_members_info[mid] = mi.keyshare;
+            active_members_info[mid] = mi.encryption_pub_key;
           }
           return true;
         });

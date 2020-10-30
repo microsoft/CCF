@@ -61,7 +61,6 @@ def get_common_folder_name(workspace, label):
 class Network:
     KEY_GEN = "keygenerator.sh"
     SHARE_SCRIPT = "submit_recovery_share.sh"
-    DEFUNCT_NETWORK_ENC_PUBK = "network_enc_pubk_orig.pem"
     node_args_to_forward = [
         "enclave_type",
         "host_log_level",
@@ -425,17 +424,16 @@ class Network:
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined public network")
 
-    def recover(self, args, defunct_network_enc_pub):
+    def recover(self, args):
         """
         Recovers a CCF network previously started in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
-        :param defunct_network_enc_pub: defunct network encryption public key.
         """
         primary, _ = self.find_primary()
         self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
         self.consortium.wait_for_all_nodes_to_be_trusted(primary, self.nodes)
         self.consortium.accept_recovery(primary)
-        self.consortium.recover_with_shares(primary, defunct_network_enc_pub)
+        self.consortium.recover_with_shares(primary)
 
         for node in self.get_joined_nodes():
             self.wait_for_state(
@@ -444,15 +442,6 @@ class Network:
 
         self.consortium.check_for_service(primary, ServiceStatus.OPEN)
         LOG.success("***** Recovered network is now open *****")
-
-    def store_current_network_encryption_key(self):
-        cmd = [
-            "cp",
-            os.path.join(self.common_dir, "network_enc_pubk.pem"),
-            os.path.join(self.common_dir, self.DEFUNCT_NETWORK_ENC_PUBK),
-        ]
-        infra.proc.ccall(*cmd).check_returncode()
-        return os.path.join(self.common_dir, self.DEFUNCT_NETWORK_ENC_PUBK)
 
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True

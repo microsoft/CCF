@@ -428,7 +428,7 @@ auto invalid_caller_der = tls::make_verifier(invalid_caller) -> der_cert_data();
 
 auto anonymous_caller_der = std::vector<uint8_t>();
 
-std::vector<uint8_t> dummy_key_share = {1, 2, 3};
+std::vector<uint8_t> dummy_enc_pubk = {1, 2, 3};
 
 auto user_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, user_caller_der);
@@ -464,8 +464,8 @@ void prepare_callers(NetworkState& network)
   g.create_service({});
   user_id = g.add_user({user_caller});
   nos_id = g.add_user({nos_caller});
-  member_id = g.add_member(member_caller, dummy_key_share);
-  invalid_member_id = g.add_member(invalid_caller, dummy_key_share);
+  member_id = g.add_member(member_caller, dummy_enc_pubk);
+  invalid_member_id = g.add_member(invalid_caller, dummy_enc_pubk);
   CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 

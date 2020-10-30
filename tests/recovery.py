@@ -23,8 +23,6 @@ def test(network, args, from_snapshot=False):
             raise RuntimeError(f"No snapshot found in {snapshot_dir}")
     ledger_dir = old_primary.get_ledger()[0]
 
-    defunct_network_enc_pubk = network.store_current_network_encryption_key()
-
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
@@ -32,7 +30,7 @@ def test(network, args, from_snapshot=False):
     recovered_network.start_in_recovery(
         args, ledger_dir=ledger_dir, snapshot_dir=snapshot_dir
     )
-    recovered_network.recover(args, defunct_network_enc_pubk)
+    recovered_network.recover(args)
     return recovered_network
 
 
@@ -47,8 +45,6 @@ def test_share_resilience(network, args, from_snapshot=False):
         if not os.listdir(snapshot_dir):
             raise RuntimeError(f"No snapshot found in {snapshot_dir}")
     ledger_dir = old_primary.get_ledger()[0]
-
-    defunct_network_enc_pubk = network.store_current_network_encryption_key()
 
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
@@ -70,9 +66,7 @@ def test_share_resilience(network, args, from_snapshot=False):
                 break
 
             check_commit = infra.checker.Checker(nc)
-            check_commit(
-                m.get_and_submit_recovery_share(primary, defunct_network_enc_pubk)
-            )
+            check_commit(m.get_and_submit_recovery_share(primary))
             submitted_shares_count += 1
 
     # Here, we kill the current primary instead of just suspending it.
@@ -87,9 +81,7 @@ def test_share_resilience(network, args, from_snapshot=False):
         new_primary is not primary
     ), f"Primary {primary.node_id} should have changed after election"
 
-    last_member_to_submit.get_and_submit_recovery_share(
-        new_primary, defunct_network_enc_pubk
-    )
+    last_member_to_submit.get_and_submit_recovery_share(new_primary)
 
     for node in recovered_network.get_joined_nodes():
         recovered_network.wait_for_state(

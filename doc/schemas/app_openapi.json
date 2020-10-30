@@ -936,12 +936,7 @@
             "name": "cert",
             "required": false,
             "schema": {
-              "items": {
-                "maximum": 255,
-                "minimum": 0,
-                "type": "integer"
-              },
-              "type": "array"
+              "type": "string"
             }
           }
         ],

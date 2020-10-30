@@ -108,7 +108,9 @@ namespace ccf
             const GetUserId::In in = params;
             auto certs_view =
               args.tx.template get_read_only_view<CertDERs>(certs_table_name);
-            auto caller_id_opt = certs_view->get(in.cert);
+            std::vector<uint8_t> pem(in.cert.begin(), in.cert.end());
+            std::vector<uint8_t> der = tls::make_verifier(pem)->der_cert_data();
+            auto caller_id_opt = certs_view->get(der);
 
             if (!caller_id_opt.has_value())
             {

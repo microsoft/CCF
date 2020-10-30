@@ -95,21 +95,6 @@
         ],
         "type": "object"
       },
-      "GetEncryptedRecoveryShare": {
-        "properties": {
-          "encrypted_recovery_share": {
-            "$ref": "#/components/schemas/string"
-          },
-          "nonce": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "encrypted_recovery_share",
-          "nonce"
-        ],
-        "type": "object"
-      },
       "GetMetrics__HistogramResults": {
         "properties": {
           "buckets": {
@@ -284,21 +269,6 @@
         ],
         "type": "object"
       },
-      "MemberAck": {
-        "properties": {
-          "signed_req": {
-            "$ref": "#/components/schemas/SignedReq"
-          },
-          "state_digest": {
-            "$ref": "#/components/schemas/uint8_array"
-          }
-        },
-        "required": [
-          "state_digest",
-          "signed_req"
-        ],
-        "type": "object"
-      },
       "NodeStatus": {
         "enum": [
           "PENDING",
@@ -389,29 +359,6 @@
         },
         "type": "object"
       },
-      "SignedReq": {
-        "properties": {
-          "md": {
-            "$ref": "#/components/schemas/mbedtls_md_type_t"
-          },
-          "req": {
-            "$ref": "#/components/schemas/uint8_array"
-          },
-          "request_body": {
-            "$ref": "#/components/schemas/uint8_array"
-          },
-          "sig": {
-            "$ref": "#/components/schemas/uint8_array"
-          }
-        },
-        "required": [
-          "sig",
-          "req",
-          "request_body",
-          "md"
-        ],
-        "type": "object"
-      },
       "StateDigest": {
         "properties": {
           "state_digest": {
@@ -478,15 +425,6 @@
         "type": "integer"
       },
       "json": {},
-      "mbedtls_md_type_t": {
-        "enum": [
-          "MBEDTLS_MD_NONE",
-          "MBEDTLS_MD_SHA1",
-          "MBEDTLS_MD_SHA256",
-          "MBEDTLS_MD_SHA384",
-          "MBEDTLS_MD_SHA512"
-        ]
-      },
       "named_EndpointMetrics__Metric": {
         "additionalProperties": {
           "$ref": "#/components/schemas/EndpointMetrics__Metric"
@@ -578,7 +516,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MemberAck"
+                  "$ref": "#/components/schemas/StateDigest"
                 }
               }
             },
@@ -1067,7 +1005,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetEncryptedRecoveryShare"
+                  "$ref": "#/components/schemas/string"
                 }
               }
             },
@@ -1146,12 +1084,7 @@
             "name": "cert",
             "required": false,
             "schema": {
-              "items": {
-                "maximum": 255,
-                "minimum": 0,
-                "type": "integer"
-              },
-              "type": "array"
+              "type": "string"
             }
           }
         ],

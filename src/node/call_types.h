@@ -16,7 +16,6 @@ namespace ccf
     {
       tls::Pem node_cert;
       tls::Pem network_cert;
-      tls::Pem network_enc_pubk;
     };
   };
 }
