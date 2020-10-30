@@ -322,7 +322,8 @@ namespace kv::untyped
       KvStoreSerialiser& s,
       bool include_reads) override
     {
-      const auto non_abstract = dynamic_cast<const kv::untyped::ChangeSet*>(changes);
+      const auto non_abstract =
+        dynamic_cast<const kv::untyped::ChangeSet*>(changes);
       if (non_abstract == nullptr)
       {
         LOG_FAIL_FMT("Unable to serialise map due to type mismatch");
@@ -455,17 +456,15 @@ namespace kv::untyped
       auto map_snapshot = d.deserialise_raw();
 
       return std::make_unique<SnapshotChangeSet>(
-       State::deserialize_map(map_snapshot), v);
+        State::deserialize_map(map_snapshot), v);
     }
 
-    ChangeSetPtr deserialise_changes(
-      KvStoreDeserialiser& d, Version version)
+    ChangeSetPtr deserialise_changes(KvStoreDeserialiser& d, Version version)
     {
       return deserialise_internal(d, version);
     }
 
-    ChangeSetPtr deserialise_internal(
-      KvStoreDeserialiser& d, Version version)
+    ChangeSetPtr deserialise_internal(KvStoreDeserialiser& d, Version version)
     {
       // Create a new change set, and deserialise d's contents into it.
       auto change_set_ptr = create_change_set(version);
@@ -510,7 +509,8 @@ namespace kv::untyped
       return change_set_ptr;
     }
 
-    std::unique_ptr<AbstractCommitter> create_committer(AbstractChangeSet* changes) override
+    std::unique_ptr<AbstractCommitter> create_committer(
+      AbstractChangeSet* changes) override
     {
       auto non_abstract = dynamic_cast<ChangeSet*>(changes);
       if (non_abstract == nullptr)
@@ -521,7 +521,8 @@ namespace kv::untyped
       auto snapshot_change_set = dynamic_cast<SnapshotChangeSet*>(non_abstract);
       if (snapshot_change_set != nullptr)
       {
-        return std::make_unique<SnapshotViewCommitter>(*this, *snapshot_change_set);
+        return std::make_unique<SnapshotViewCommitter>(
+          *this, *snapshot_change_set);
       }
 
       return std::make_unique<TxViewCommitter>(*this, *non_abstract);

@@ -266,7 +266,8 @@ namespace ccf
         result.recovery_target_seqno = rts;
         result.last_recovered_seqno = lrs;
 
-        auto sig_view = args.tx.template get_read_only_view<Signatures>(Tables::SIGNATURES);
+        auto sig_view =
+          args.tx.template get_read_only_view<Signatures>(Tables::SIGNATURES);
         auto sig = sig_view->get(0);
         if (!sig.has_value())
         {

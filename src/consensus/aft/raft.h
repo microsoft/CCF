@@ -150,7 +150,7 @@ namespace aft
 
       replica_state(Follower),
       timeout_elapsed(0),
-      
+
       state(state_),
       executor(executor_),
       request_tracker(request_tracker_),

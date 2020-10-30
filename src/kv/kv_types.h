@@ -494,11 +494,14 @@ namespace kv
     virtual bool operator==(const AbstractMap& that) const = 0;
     virtual bool operator!=(const AbstractMap& that) const = 0;
 
-    virtual std::unique_ptr<AbstractCommitter> create_committer(AbstractChangeSet* changes)  = 0;
+    virtual std::unique_ptr<AbstractCommitter> create_committer(
+      AbstractChangeSet* changes) = 0;
 
     virtual AbstractStore* get_store() = 0;
     virtual void serialise_changes(
-      const AbstractChangeSet* changes, KvStoreSerialiser& s, bool include_reads) = 0;
+      const AbstractChangeSet* changes,
+      KvStoreSerialiser& s,
+      bool include_reads) = 0;
     virtual void compact(Version v) = 0;
     virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
     virtual void post_compact() = 0;

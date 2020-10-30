@@ -1664,8 +1664,7 @@ namespace ccf
         rpc_map,
         node_cert.raw(),
         shared_state,
-        std::make_shared<aft::ExecutorImpl>(
-          shared_state, rpc_map, rpcsessions),
+        std::make_shared<aft::ExecutorImpl>(shared_state, rpc_map, rpcsessions),
         request_tracker,
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),

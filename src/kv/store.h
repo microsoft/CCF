@@ -456,12 +456,12 @@ namespace kv
           return DeserialiseSuccess::FAILED;
         }
 
-        auto deserialised_snapshot_changes = map->deserialise_snapshot_changes(d);
+        auto deserialised_snapshot_changes =
+          map->deserialise_snapshot_changes(d);
 
         // Take ownership of the produced change set, store it to be committed
         // later
-        changes[map_name] = {
-          map, std::move(deserialised_snapshot_changes)};
+        changes[map_name] = {map, std::move(deserialised_snapshot_changes)};
       }
 
       for (auto& it : maps)

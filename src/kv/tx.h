@@ -51,7 +51,8 @@ namespace kv
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
 
     template <typename MapView>
-    MapView* get_or_insert_view(untyped::ChangeSet& change_set, const std::string& name)
+    MapView* get_or_insert_view(
+      untyped::ChangeSet& change_set, const std::string& name)
     {
       auto it = all_views.find(name);
       if (it == all_views.end())
@@ -65,7 +66,7 @@ namespace kv
       else
       {
         PossibleViews& views = it->second;
-        for (auto& view: views)
+        for (auto& view : views)
         {
           auto typed_view = dynamic_cast<MapView*>(view.get());
           if (typed_view != nullptr)
@@ -108,7 +109,8 @@ namespace kv
       auto search = all_changes.find(map_name);
       if (search != all_changes.end())
       {
-        auto view = get_or_insert_view<MapView>(*search->second.changeset, map_name);
+        auto view =
+          get_or_insert_view<MapView>(*search->second.changeset, map_name);
         return std::make_tuple(view);
       }
 
