@@ -24,7 +24,53 @@ namespace tls
     {}
 
     /**
-     * Wrap data using RSAO-AEP-256
+     * Wrap data using RSA-OAEP-256
+     *
+     * @param input Pointer to raw data to wrap
+     * @param input_size Size of raw data
+     * @param label Optional string used as label during wrapping
+     * @param label Optional string used as label during wrapping
+     *
+     * @return Wrapped data
+     */
+    std::vector<uint8_t> wrap(
+      const uint8_t* input,
+      size_t input_size,
+      const uint8_t* label = nullptr,
+      size_t label_size = 0)
+    {
+      mbedtls_rsa_context* rsa_ctx = mbedtls_pk_rsa(*ctx.get());
+      mbedtls_rsa_set_padding(rsa_ctx, rsa_padding_mode, rsa_padding_digest_id);
+
+      std::vector<uint8_t> output_buf(rsa_ctx->len);
+      auto entropy = tls::create_entropy();
+
+      // Note that the maximum input size to wrap is k - 2*hLen - 2
+      // where hLen is the hash size (32 bytes = SHA256) and
+      // k the wrapping key modulus size (e.g. 256 bytes = 2048 bits).
+      // In this example, it would be 190 bytes (1520 bits) max.
+      // This is enough for wrapping AES keys for example.
+      auto rc = mbedtls_rsa_rsaes_oaep_encrypt(
+        rsa_ctx,
+        entropy->get_rng(),
+        entropy->get_data(),
+        MBEDTLS_RSA_PUBLIC,
+        label,
+        label_size,
+        input_size,
+        input,
+        output_buf.data());
+      if (rc != 0)
+      {
+        throw std::logic_error(
+          fmt::format("Error during RSA OEAP wrap: {}", error_string(rc)));
+      }
+
+      return output_buf;
+    }
+
+    /**
+     * Wrap data using RSA-OAEP-256
      *
      * @param input Raw data to wrap
      * @param label Optional string used as label during wrapping
@@ -35,12 +81,6 @@ namespace tls
       const std::vector<uint8_t>& input,
       std::optional<std::string> label = std::nullopt)
     {
-      mbedtls_rsa_context* rsa_ctx = mbedtls_pk_rsa(*ctx.get());
-      mbedtls_rsa_set_padding(rsa_ctx, rsa_padding_mode, rsa_padding_digest_id);
-
-      std::vector<uint8_t> output_buf(rsa_ctx->len);
-      auto entropy = tls::create_entropy();
-
       const unsigned char* label_ = NULL;
       size_t label_size = 0;
       if (label.has_value())
@@ -49,23 +89,7 @@ namespace tls
         label_size = label->size();
       }
 
-      auto rc = mbedtls_rsa_rsaes_oaep_encrypt(
-        rsa_ctx,
-        entropy->get_rng(),
-        entropy->get_data(),
-        MBEDTLS_RSA_PUBLIC,
-        label_,
-        label_size,
-        input.size(),
-        input.data(),
-        output_buf.data());
-      if (rc != 0)
-      {
-        throw std::logic_error(
-          fmt::format("Error during RSA OEAP wrap: {}", error_string(rc)));
-      }
-
-      return output_buf;
+      return wrap(input.data(), input.size(), label_, label_size);
     }
   };
 
@@ -113,7 +137,7 @@ namespace tls
     RSAKeyPair(const RSAKeyPair&) = delete;
 
     /**
-     * Unwrap data using RSAO-AEP-256
+     * Unwrap data using RSA-OAEP-256
      *
      * @param input Raw data to unwrap
      * @param label Optional string used as label during unwrapping
@@ -183,22 +207,26 @@ namespace tls
     return std::make_shared<RSAKeyPair>(std::move(key));
   }
 
-  inline RSAPublicKeyPtr make_rsa_public_key(const Pem& public_pem)
+  inline RSAPublicKeyPtr make_rsa_public_key(
+    const uint8_t* public_pem_data, size_t public_pem_size)
   {
     auto ctx = std::make_unique<mbedtls_pk_context>();
     mbedtls_pk_init(ctx.get());
 
-    int rc = mbedtls_pk_parse_public_key(
-      ctx.get(), public_pem.data(), public_pem.size());
+    int rc =
+      mbedtls_pk_parse_public_key(ctx.get(), public_pem_data, public_pem_size);
 
     if (rc != 0)
     {
-      throw std::logic_error(fmt::format(
-        "Could not parse public key PEM: {}\n\n(Key: {})",
-        error_string(rc),
-        public_pem.str()));
+      throw std::logic_error(
+        fmt::format("Could not parse public key PEM: {}", error_string(rc)));
     }
 
     return std::make_shared<RSAPublicKey>(std::move(ctx));
+  }
+
+  inline RSAPublicKeyPtr make_rsa_public_key(const Pem& public_pem)
+  {
+    return make_rsa_public_key(public_pem.data(), public_pem.size());
   }
 }

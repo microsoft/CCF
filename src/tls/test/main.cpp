@@ -363,7 +363,11 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
     // Only private key can unwrap
     auto unwrapped = rsa_kp->unwrap(wrapped);
     // rsa_pub->unwrap(wrapped); // Doesn't compile
+    REQUIRE(input == unwrapped);
 
+    // Raw data
+    wrapped = rsa_pub->wrap(input.data(), input.size());
+    unwrapped = rsa_kp->unwrap(wrapped);
     REQUIRE(input == unwrapped);
   }
 
