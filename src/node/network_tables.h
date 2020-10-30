@@ -29,6 +29,7 @@
 #include "users.h"
 #include "values.h"
 #include "whitelists.h"
+#include "jwt.h"
 
 #include <memory>
 #include <tuple>
@@ -59,6 +60,11 @@ namespace ccf
     Configuration& config;
 
     CACertDERs& ca_certs;
+
+    JwtIssuers& jwt_issuers;
+    JwtIssuerKeyIds& jwt_issuer_key_ids;
+    JwtPublicSigningKeys& jwt_public_signing_keys;
+    JwtPublicSigningKeysValidateIssuer& jwt_public_signing_keys_validate_issuer;
 
     //
     // User tables
@@ -120,6 +126,10 @@ namespace ccf
         tables->create<SubmittedShares>(Tables::SUBMITTED_SHARES)),
       config(tables->create<Configuration>(Tables::CONFIGURATION)),
       ca_certs(tables->create<CACertDERs>(Tables::CA_CERT_DERS)),
+      jwt_issuers(tables->create<JwtIssuers>(Tables::JWT_ISSUERS)),
+      jwt_issuer_key_ids(tables->create<JwtIssuerKeyIds>(Tables::JWT_ISSUER_KEY_IDS)),
+      jwt_public_signing_keys(tables->create<JwtPublicSigningKeys>(Tables::JWT_PUBLIC_SIGNING_KEYS)),
+      jwt_public_signing_keys_validate_issuer(tables->create<JwtPublicSigningKeysValidateIssuer>(Tables::JWT_PUBLIC_SIGNING_KEYS_VALIDATE_ISSUER)),
       users(tables->create<Users>(Tables::USERS)),
       user_certs(tables->create<CertDERs>(Tables::USER_CERT_DERS)),
       user_client_signatures(
@@ -159,6 +169,10 @@ namespace ccf
         std::ref(member_client_signatures),
         std::ref(config),
         std::ref(ca_certs),
+        std::ref(jwt_issuers),
+        std::ref(jwt_issuer_key_ids),
+        std::ref(jwt_public_signing_keys),
+        std::ref(jwt_public_signing_keys_validate_issuer),
         std::ref(users),
         std::ref(user_certs),
         std::ref(user_client_signatures),

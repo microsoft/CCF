@@ -443,6 +443,35 @@ def update_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
     return build_proposal("update_ca_cert", args, **kwargs)
 
 
+@cli_proposal
+def set_jwt_issuer(metadata_path: str, **kwargs):
+    with open(metadata_path) as f:
+        metadata = json.load(f)
+    args = {
+        "issuer": metadata["issuer"],
+        "validate_issuer": metadata.get("validate_issuer", True),
+        "key_filter": metadata.get("key_filter", "all"),
+        "key_policy": metadata.get("key_policy", {})
+    }
+    return build_proposal("set_jwt_issuer", args, **kwargs)
+
+
+@cli_proposal
+def remove_jwt_issuer(issuer: str, **kwargs):
+    args = {"issuer": issuer}
+    return build_proposal("remove_jwt_issuer", args, **kwargs)
+
+
+@cli_proposal
+def set_jwt_public_signing_keys(issuer: str, jwks_path: str, **kwargs):
+    with open(jwks_path) as f:
+        jwks = json.load(f)
+    if "keys" not in jwks:
+        raise ValueError("not a JWKS document")
+    args = {"issuer": issuer, "jwks": jwks}
+    return build_proposal("set_jwt_public_signing_keys", args, **kwargs)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
