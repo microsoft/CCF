@@ -302,10 +302,13 @@ class Consortium:
         proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
+    def user_cert_path(self, user_id):
+        return os.path.join(self.common_dir, f"user{user_id}_cert.pem")
+
     def add_user(self, remote_node, user_id, user_data=None):
         proposal, careful_vote = self.make_proposal(
             "new_user",
-            os.path.join(self.common_dir, f"user{user_id}_cert.pem"),
+            self.user_cert_path(user_id),
             user_data,
         )
 
