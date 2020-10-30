@@ -71,15 +71,15 @@ namespace cli
   struct ParsedMemberInfo
   {
     std::string cert_file;
-    std::string keyshare_pub_file;
+    std::string enc_pub_file;
     std::optional<std::string> member_data_file;
 
     ParsedMemberInfo(
       const std::string& cert,
-      const std::string& keyshare_pub,
+      const std::string& enc_pub_file,
       const std::optional<std::string>& data_file) :
       cert_file(cert),
-      keyshare_pub_file(keyshare_pub),
+      enc_pub_file(enc_pub_file),
       member_data_file(data_file)
     {}
   };
@@ -113,7 +113,7 @@ namespace cli
         }
 
         auto cert = chunks[0];
-        auto keyshare_pub = chunks[1];
+        auto encryption_pub_key = chunks[1];
 
         // Validate that member certificate and public encryption key exist
         auto validator = CLI::detail::ExistingFileValidator();
@@ -123,7 +123,7 @@ namespace cli
           throw CLI::ValidationError(option_name, err_str);
         }
 
-        err_str = validator(keyshare_pub);
+        err_str = validator(encryption_pub_key);
         if (!err_str.empty())
         {
           throw CLI::ValidationError(option_name, err_str);
@@ -140,7 +140,7 @@ namespace cli
             throw CLI::ValidationError(option_name, err_str);
           }
         }
-        parsed.emplace_back(cert, keyshare_pub, member_data);
+        parsed.emplace_back(cert, encryption_pub_key, member_data);
       }
       return true;
     };

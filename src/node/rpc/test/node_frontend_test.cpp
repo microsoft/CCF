@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 
 #define DOCTEST_CONFIG_IMPLEMENT
-#include "crypto/crypto_box.h"
 #include "ds/logger.h"
 #include "nlohmann/json.hpp"
 #include "node/genesis_gen.h"
@@ -91,7 +90,6 @@ TEST_CASE("Add a node to an opening service")
   network.identity = std::make_unique<NetworkIdentity>();
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
-  network.encryption_key = std::make_unique<NetworkEncryptionKey>();
 
   // Node certificate
   tls::KeyPairPtr kp = tls::make_key_pair();
@@ -145,8 +143,6 @@ TEST_CASE("Add a node to an opening service")
     CHECK(
       response.network_info.ledger_secrets == *network.ledger_secrets.get());
     CHECK(response.network_info.identity == *network.identity.get());
-    CHECK(
-      response.network_info.encryption_key == *network.encryption_key.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
     CHECK(response.network_info.public_only == false);
 
@@ -174,8 +170,6 @@ TEST_CASE("Add a node to an opening service")
     CHECK(
       response.network_info.ledger_secrets == *network.ledger_secrets.get());
     CHECK(response.network_info.identity == *network.identity.get());
-    CHECK(
-      response.network_info.encryption_key == *network.encryption_key.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
   }
 
@@ -214,7 +208,6 @@ TEST_CASE("Add a node to an open service")
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   network.ledger_secrets->add_new_secret(4, LedgerSecret());
-  network.encryption_key = std::make_unique<NetworkEncryptionKey>();
 
   gen.create_service({});
   gen.set_recovery_threshold(1);
@@ -295,8 +288,6 @@ TEST_CASE("Add a node to an open service")
     CHECK(
       response.network_info.ledger_secrets == *network.ledger_secrets.get());
     CHECK(response.network_info.identity == *network.identity.get());
-    CHECK(
-      response.network_info.encryption_key == *network.encryption_key.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
     CHECK(response.network_info.public_only == true);
   }

@@ -13,6 +13,7 @@
 #include "node/rpc/user_frontend.h"
 #include "node_stub.h"
 #include "runtime_config/default_whitelists.h"
+#include "tls/rsa_key_pair.h"
 
 #include <doctest/doctest.h>
 #include <iostream>
@@ -37,7 +38,7 @@ auto member_cert = kp -> self_sign("CN=name_member");
 auto verifier_mem = tls::make_verifier(member_cert);
 auto member_caller = verifier_mem -> der_cert_data();
 auto user_cert = kp -> self_sign("CN=name_user");
-std::vector<uint8_t> dummy_key_share = {1, 2, 3};
+std::vector<uint8_t> dummy_enc_pubk = {1, 2, 3};
 
 auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
@@ -210,10 +211,7 @@ auto get_cert(uint64_t member_id, tls::KeyPairPtr& kp_mem)
 
 auto gen_public_encryption_key()
 {
-  auto private_encryption_key =
-    tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
-  return tls::PublicX25519::write(
-    crypto::BoxKey::public_from_private(private_encryption_key));
+  return tls::make_rsa_key_pair()->public_key_pem();
 }
 
 auto init_frontend(
@@ -383,7 +381,7 @@ DOCTEST_TEST_CASE("Proposer ballot")
       return Calls:call("new_member", member_info)
     )xxx");
     proposal.parameter["cert"] = proposed_member;
-    proposal.parameter["keyshare"] = dummy_key_share;
+    proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
     proposal.ballot = vote_against;
     const auto propose = create_signed_request(proposal, "proposals", kp);
     const auto r = frontend_process(frontend, propose, proposer_cert);
@@ -464,8 +462,6 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   NetworkState network;
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
-  network.encryption_key = std::make_unique<NetworkEncryptionKey>(
-    tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
   network.tables->set_encryptor(encryptor);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
@@ -505,7 +501,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
     // new member certificate
     auto cert_pem =
       new_member.kp->self_sign(fmt::format("CN=new member{}", new_member.id));
-    auto keyshare = dummy_key_share;
+    auto encryption_pub_key = dummy_enc_pubk;
     new_member.cert = cert_pem;
 
     // check new_member id does not work before member is added
@@ -521,7 +517,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       return Calls:call("new_member", member_info)
     )xxx");
     proposal.parameter["cert"] = cert_pem;
-    proposal.parameter["keyshare"] = gen_public_encryption_key();
+    proposal.parameter["encryption_pub_key"] = gen_public_encryption_key();
 
     const auto propose = create_signed_request(proposal, "proposals", kp);
 
@@ -1347,7 +1343,7 @@ DOCTEST_TEST_CASE(
       return Calls:call("new_member", member_info)
     )xxx");
     proposal.parameter["cert"] = proposed_member;
-    proposal.parameter["keyshare"] = dummy_key_share;
+    proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
     proposal.ballot = vote_for;
 
     const auto propose = create_signed_request(proposal, "proposals", kp);
@@ -1506,7 +1502,7 @@ DOCTEST_TEST_CASE("Passing operator vote" * doctest::test_suite("operator"))
     )xxx");
 
     proposal.parameter["cert"] = new_operator_cert;
-    proposal.parameter["keyshare"] = dummy_key_share;
+    proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
     proposal.parameter["member_data"] = operator_member_data();
 
     const auto propose = create_signed_request(proposal, "proposals", kp);
@@ -1557,7 +1553,7 @@ DOCTEST_TEST_CASE("Passing operator vote" * doctest::test_suite("operator"))
     )xxx");
 
     proposal.parameter["cert"] = new_member_cert;
-    proposal.parameter["keyshare"] = dummy_key_share;
+    proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
     proposal.parameter["member_data"] =
       nullptr; // blank member_data => not an operator
 
@@ -1816,17 +1812,14 @@ DOCTEST_TEST_CASE("User data")
 
 DOCTEST_TEST_CASE("Submit recovery shares")
 {
-  // Setup original state
   NetworkState network(ConsensusType::CFT);
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
-  network.encryption_key = std::make_unique<NetworkEncryptionKey>(
-    tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
 
   ShareManager share_manager(network);
   auto node = StubNodeState(share_manager);
   MemberRpcFrontend frontend(network, node, share_manager);
-  std::map<size_t, std::pair<tls::Pem, std::vector<uint8_t>>> members;
+  std::map<size_t, std::pair<tls::Pem, tls::RSAKeyPairPtr>> members;
 
   size_t members_count = 4;
   size_t recovery_threshold = 2;
@@ -1843,13 +1836,11 @@ DOCTEST_TEST_CASE("Submit recovery shares")
     for (size_t i = 0; i < members_count; i++)
     {
       auto cert = get_cert(i, kp);
-      auto private_encryption_key =
-        tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
-      auto public_encryption_key = tls::PublicX25519::write(
-        crypto::BoxKey::public_from_private(private_encryption_key));
-      auto id = gen.add_member(cert, public_encryption_key.raw());
+      auto enc_kp = tls::make_rsa_key_pair();
+
+      auto id = gen.add_member(cert, enc_kp->public_key_pem());
       gen.activate_member(id);
-      members[id] = {cert, private_encryption_key};
+      members[id] = {cert, enc_kp};
     }
     gen.set_recovery_threshold(recovery_threshold);
     share_manager.issue_shares(gen_tx);
@@ -1864,18 +1855,11 @@ DOCTEST_TEST_CASE("Submit recovery shares")
 
     for (auto const& m : members)
     {
-      auto resp = parse_response_body<GetEncryptedRecoveryShare>(
+      auto resp = parse_response_body<std::string>(
         frontend_process(frontend, get_recovery_shares, m.second.first));
 
-      auto encrypted_share = tls::raw_from_b64(resp.encrypted_recovery_share);
-      auto nonce = tls::raw_from_b64(resp.nonce);
-
-      retrieved_shares[m.first] = crypto::Box::open(
-        encrypted_share,
-        nonce,
-        crypto::BoxKey::public_from_private(
-          network.encryption_key->private_raw),
-        m.second.second);
+      auto encrypted_share = tls::raw_from_b64(resp);
+      retrieved_shares[m.first] = m.second.second->unwrap(encrypted_share);
     }
   }
 
@@ -2019,8 +2003,6 @@ DOCTEST_TEST_CASE("Open network sequence")
   NetworkState network(ConsensusType::CFT);
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
-  network.encryption_key = std::make_unique<NetworkEncryptionKey>(
-    tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
 
   ShareManager share_manager(network);
   auto node = StubNodeState(share_manager);
@@ -2042,12 +2024,8 @@ DOCTEST_TEST_CASE("Open network sequence")
     for (size_t i = 0; i < members_count; i++)
     {
       auto cert = get_cert(i, kp);
-      auto private_encryption_key =
-        tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
-      auto public_encryption_key = tls::PublicX25519::write(
-        crypto::BoxKey::public_from_private(private_encryption_key));
-      auto id = gen.add_member(cert, public_encryption_key.raw());
-      members[id] = {cert, private_encryption_key};
+      auto id = gen.add_member(cert, {});
+      members[id] = {cert, {}};
     }
     gen.set_recovery_threshold(recovery_threshold);
     gen.finalize();

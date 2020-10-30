@@ -55,7 +55,7 @@ The recovery share retrieval, decryption and submission steps are conveniently p
 
 .. code-block:: bash
 
-    $ ./submit_recovery_share.sh --rpc-address <ccf-node-address> --member-enc-privk member0_enc_privk.pem --network-enc-pubk network_enc_pubk --cert member0_cert
+    $ submit_recovery_share.sh https://<ccf-node-address> --member-enc-privk member0_enc_privk.pem --cert member0_cert
     --key member0_privk --cacert network_cert
     HTTP/1.1 200 OK
     content-type: text/plain
@@ -63,7 +63,7 @@ The recovery share retrieval, decryption and submission steps are conveniently p
     x-ccf-tx-view: 4
     1/2 recovery shares successfully submitted.
 
-    $ ./submit_recovery_share.sh --rpc-address <ccf-node-address> --member-enc-privk member1_enc_privk.pem --network-enc-pubk network_enc_pubk --cert member1_cert
+    $ submit_recovery_share.sh https://<ccf-node-address> --member-enc-privk member1_enc_privk.pem --cert member1_cert
     --key member1_privk --cacert network_cert
     HTTP/1.1 200 OK
     content-type: text/plain
