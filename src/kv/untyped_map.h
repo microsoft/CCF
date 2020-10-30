@@ -256,16 +256,6 @@ namespace kv::untyped
       }
     };
 
-    struct ConcreteTxView : public TxViewCommitter, public TxView
-    {
-      ConcreteTxView(
-        Map& m,
-        kv::untyped::ChangeSet& changes) :
-        TxViewCommitter(m, changes),
-        TxView(changes)
-      {}
-    };
-
     class Snapshot : public AbstractMap::Snapshot
     {
     private:
@@ -304,7 +294,7 @@ namespace kv::untyped
     };
 
     // Public typedef for external consumption
-    using TxView = ConcreteTxView;
+    using TxView = kv::untyped::TxView;
 
     Map(
       AbstractStore* store_,
