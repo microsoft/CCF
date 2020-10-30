@@ -28,7 +28,6 @@ python -m pip install ../../../python
 # Start ephemeral network in the background
 network_info_file="network_info.txt"
 
-
 network_live_time=30
 timeout --signal=SIGINT --kill-after=${network_live_time}s --preserve-status ${network_live_time}s \
 python "$INSTALL_PREFIX"/bin/start_network.py \
