@@ -35,8 +35,11 @@ namespace kv
 
     OrderedChanges all_changes;
 
-    // TODO: Cludge to maintain old API - store all the Views we've ever
-    // constructed, so we can return them again.
+    // NB: This exists only to maintain the old API, where this Tx stores
+    // TxViews and returns raw pointers to them. It could be removed entirely
+    // with a near-identical API if we return `shared_ptr`s, and assuming that
+    // we don't actually care about returning the same View instance if
+    // `get_view` is called multiple times
     using PossibleViews = std::list<std::unique_ptr<AbstractTxView>>;
     std::map<std::string, PossibleViews> all_views;
 
@@ -102,10 +105,6 @@ namespace kv
     template <class MapView>
     std::tuple<MapView*> get_view_tuple_by_name(const std::string& map_name)
     {
-      // TODO: Update this once finished
-      // If a view is present for this map_name, its AbstractTxView should be a
-      // MapView. This invariant could be broken by set_change_list, which will
-      // produce an error here.
       auto search = all_changes.find(map_name);
       if (search != all_changes.end())
       {
@@ -369,8 +368,6 @@ namespace kv
 
     std::vector<uint8_t> serialise(bool include_reads = false)
     {
-      // TODO: Should this be operating over a set of actual Committers? To
-      // distinguish the old has_writes from has_changes...
       if (!committed)
         throw std::logic_error("Transaction not yet committed");
 
@@ -584,8 +581,6 @@ namespace kv
 
       if (all_changes.empty())
         throw std::logic_error("Reserved transaction cannot be empty");
-
-      // TODO: Take store lock here, if created_maps is non-empty?
 
       auto c = apply_changes(
         all_changes, [this]() { return version; }, created_maps, version);
