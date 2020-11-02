@@ -64,6 +64,28 @@ namespace ccf
       return t;
     }
 
+    template <class T>
+    const T& recv_authenticated_with_load(const uint8_t*& data, size_t& size)
+    {
+      const auto* data_ = data;
+      auto size_ = size;
+
+      const auto& t = serialized::overlay<T>(data_, size_);
+
+      if (!recv_authenticated_with_load(t.from_node, data, size))
+      {
+        throw std::logic_error(fmt::format(
+          "Invalid authenticated node2node message with load from node {}",
+          t.from_node));
+      }
+      serialized::skip(data, size, sizeof(T));
+
+      return t;
+    }
+
+    virtual bool recv_authenticated_with_load(
+      NodeId from_node, const uint8_t*& data, size_t& size) = 0;
+
     virtual bool recv_authenticated(
       NodeId from_node, CBuffer cb, const uint8_t*& data, size_t& size) = 0;
 
@@ -181,25 +203,11 @@ namespace ccf
       return n2n_channel.send(msg_type, cb, data);
     }
 
-    template <class T>
-    const T& recv_authenticated_with_load(const uint8_t*& data, size_t& size)
+    bool recv_authenticated_with_load(
+      NodeId from_node, const uint8_t*& data, size_t& size) override
     {
-      // PBFT only
-      const auto* data_ = data;
-      auto size_ = size;
-
-      const auto& t = serialized::overlay<T>(data_, size_);
-      auto& n2n_channel = channels->get(t.from_node);
-
-      if (!n2n_channel.recv_authenticated_with_load(data, size))
-      {
-        throw std::logic_error(fmt::format(
-          "Invalid authenticated node2node message with load from node {}",
-          t.from_node));
-      }
-      serialized::skip(data, size, sizeof(T));
-
-      return t;
+      auto& n2n_channel = channels->get(from_node);
+      return n2n_channel.recv_authenticated_with_load(data, size);
     }
 
     std::vector<uint8_t> recv_encrypted(
