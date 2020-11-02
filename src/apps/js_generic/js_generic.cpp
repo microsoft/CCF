@@ -4,6 +4,7 @@
 #include "kv/untyped_map.h"
 #include "node/rpc/user_frontend.h"
 #include "tls/entropy.h"
+#include "tls/rsa_key_pair.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>
@@ -204,81 +205,24 @@ namespace ccfapp
       js_dump_error(ctx);
       return JS_EXCEPTION;
     }
-    std::string wrap_algo_name(wrap_algo_name_cstr);
 
-    std::vector<uint8_t> wrapped_key;
-
-    auto entropy = tls::create_entropy();
-
-    if (wrap_algo_name == "RSA-OAEP")
-    {
-      // key can in principle be arbitrary data (see note on maximum size
-      // below). wrapping_key is a private RSA key.
-
-      auto label_val = auto_free(JS_GetPropertyStr(ctx, wrap_algo, "label"));
-      size_t label_buf_size;
-      uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
-
-      int err;
-
-      mbedtls_pk_context pk_ctx;
-      mbedtls_pk_init(&pk_ctx);
-      err =
-        mbedtls_pk_parse_public_key(&pk_ctx, wrapping_key, wrapping_key_size);
-      if (err)
-      {
-        mbedtls_pk_free(&pk_ctx);
-        JS_ThrowRangeError(
-          ctx,
-          "parsing of wrapping key failed: %s",
-          tls::error_string(err).c_str());
-        js_dump_error(ctx);
-        return JS_EXCEPTION;
-      }
-      if (pk_ctx.pk_info != mbedtls_pk_info_from_type(MBEDTLS_PK_RSA))
-      {
-        mbedtls_pk_free(&pk_ctx);
-        JS_ThrowTypeError(ctx, "wrapping key must be an RSA key");
-        js_dump_error(ctx);
-        return JS_EXCEPTION;
-      }
-
-      mbedtls_rsa_context* rsa_ctx = mbedtls_pk_rsa(pk_ctx);
-      mbedtls_rsa_set_padding(rsa_ctx, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256);
-
-      wrapped_key.resize(rsa_ctx->len);
-
-      // Note that the maximum input size to wrap is k - 2*hLen - 2
-      // where hLen is the hash size (32 bytes = SHA256) and
-      // k the wrapping key modulus size (e.g. 256 bytes = 2048 bits).
-      // In this example, it would be 190 bytes (1520 bits) max.
-      // This is enough for wrapping AES keys for example.
-      err = mbedtls_rsa_rsaes_oaep_encrypt(
-        rsa_ctx,
-        entropy->get_rng(),
-        entropy->get_data(),
-        MBEDTLS_RSA_PUBLIC,
-        label_buf,
-        label_buf_size,
-        key_size,
-        key,
-        wrapped_key.data());
-      mbedtls_pk_free(&pk_ctx);
-      if (err)
-      {
-        JS_ThrowRangeError(
-          ctx, "key wrapping failed: %s", tls::error_string(err).c_str());
-        js_dump_error(ctx);
-        return JS_EXCEPTION;
-      }
-    }
-    else
+    if (std::string(wrap_algo_name_cstr) != "RSA-OAEP")
     {
       JS_ThrowRangeError(
         ctx, "unsupported key wrapping algorithm, supported: RSA-OAEP");
       js_dump_error(ctx);
       return JS_EXCEPTION;
     }
+
+    // key can in principle be arbitrary data (see note on maximum size
+    // in rsa_key_pair.h). wrapping_key is a public RSA key.
+
+    auto label_val = auto_free(JS_GetPropertyStr(ctx, wrap_algo, "label"));
+    size_t label_buf_size;
+    uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
+
+    auto wrapped_key = tls::make_rsa_public_key(wrapping_key, wrapping_key_size)
+                         ->wrap(key, key_size, label_buf, label_buf_size);
 
     return JS_NewArrayBufferCopy(ctx, wrapped_key.data(), wrapped_key.size());
   }

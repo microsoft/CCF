@@ -28,7 +28,6 @@ python -m pip install ../../../python
 # Start ephemeral network in the background
 network_info_file="network_info.txt"
 
-
 network_live_time=30
 timeout --signal=SIGINT --kill-after=${network_live_time}s --preserve-status ${network_live_time}s \
 python "$INSTALL_PREFIX"/bin/start_network.py \
@@ -55,7 +54,6 @@ sleep 5
 
 # Recover network
 cp -r ./workspace/start_network_0/0.ledger .
-cp ./workspace/start_network_0/network_enc_pubk.pem .
 
 timeout --signal=SIGINT --kill-after=${network_live_time}s --preserve-status ${network_live_time}s \
 python "$INSTALL_PREFIX"/bin/start_network.py \
@@ -65,5 +63,4 @@ python "$INSTALL_PREFIX"/bin/start_network.py \
     -v \
     --recover \
     --ledger-dir 0.ledger \
-    --network-enc-pubk network_enc_pubk.pem \
     --common-dir ./workspace/start_network_common/

@@ -10,15 +10,11 @@ import coincurve
 from coincurve._libsecp256k1 import ffi, lib  # pylint: disable=no-name-in-module
 from coincurve.context import GLOBAL_CONTEXT
 
-from nacl.public import PrivateKey, PublicKey, Box
-from nacl.encoding import RawEncoder
-
 from cryptography.exceptions import InvalidSignature
 from cryptography.x509 import load_der_x509_certificate
 from cryptography.hazmat.primitives.asymmetric import ec, rsa, padding
 from cryptography.hazmat.primitives.serialization import (
     load_pem_private_key,
-    load_pem_public_key,
     Encoding,
     PrivateFormat,
     PublicFormat,
@@ -28,35 +24,6 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 
 RECOMMENDED_RSA_PUBLIC_EXPONENT = 65537
-
-
-class CryptoBoxCtx:
-    def __init__(self, privk_path, pubk_path):
-        with open(privk_path, "rb") as privk:
-            self.privk = PrivateKey(
-                load_pem_private_key(
-                    privk.read(),
-                    password=None,
-                    backend=default_backend(),
-                ).private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption()),
-                RawEncoder,
-            )
-
-        with open(pubk_path, "rb") as pubk:
-            self.pubk = PublicKey(
-                load_pem_public_key(
-                    pubk.read(),
-                    backend=default_backend(),
-                ).public_bytes(Encoding.Raw, PublicFormat.Raw),
-                RawEncoder,
-            )
-        self.box = Box(self.privk, self.pubk)
-
-    def encrypt(self, plain, nonce):
-        return self.box.encrypt(plain, nonce)
-
-    def decrypt(self, cipher, nonce):
-        return self.box.decrypt(cipher, nonce)
 
 
 # As per mbedtls md_type_t
@@ -174,7 +141,7 @@ def generate_rsa_keypair(key_size: int) -> Tuple[str, str]:
 
 
 def unwrap_key_rsa_oaep(
-    wrapped_key: bytes, wrapping_key_priv_pem: str, label: Optional[bytes]
+    wrapped_key: bytes, wrapping_key_priv_pem: str, label: Optional[bytes] = None
 ) -> bytes:
     wrapping_key = load_pem_private_key(
         wrapping_key_priv_pem.encode("ascii"), None, default_backend()

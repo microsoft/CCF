@@ -130,8 +130,7 @@ namespace ccf
           node.get_last_recovered_signed_idx(),
           this->network.consensus_type,
           *this->network.ledger_secrets.get(),
-          *this->network.identity.get(),
-          *this->network.encryption_key.get()};
+          *this->network.identity.get()};
       }
       return make_success(rep);
     }
@@ -212,8 +211,7 @@ namespace ccf
                                 node.get_last_recovered_signed_idx(),
                                 this->network.consensus_type,
                                 *this->network.ledger_secrets.get(),
-                                *this->network.identity.get(),
-                                *this->network.encryption_key.get()};
+                                *this->network.identity.get()};
             return make_success(rep);
           }
 
@@ -241,8 +239,7 @@ namespace ccf
                                 node.get_last_recovered_signed_idx(),
                                 this->network.consensus_type,
                                 *this->network.ledger_secrets.get(),
-                                *this->network.identity.get(),
-                                *this->network.encryption_key.get()};
+                                *this->network.identity.get()};
             return make_success(rep);
           }
           else if (node_status == NodeStatus::PENDING)
