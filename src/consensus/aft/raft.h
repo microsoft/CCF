@@ -111,7 +111,7 @@ namespace aft
     // Indices that are eligible for global commit, from a Node's perspective
     std::deque<Index> committable_indices;
 
-    // When this is set, only public domain is deserialised when receving append
+    // When this is set, only public domain is deserialised when receiving append
     // entries
     bool public_only = false;
 
@@ -222,6 +222,13 @@ namespace aft
     bool is_follower()
     {
       return replica_state == Follower;
+    }
+
+    NodeId get_leader(kv::Consensus::View view)
+    {
+      // This will not work once we have reconfiguration support
+      // https://github.com/microsoft/CCF/issues/1852
+      return (view - starting_view_change) % active_nodes().size();
     }
 
     Index last_committable_index() const
@@ -580,6 +587,15 @@ namespace aft
                 ccf::NodeMsgType::consensus_msg, send_to, m);
             }
           }
+
+          if (
+            get_leader(new_view) == id() &&
+            aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
+              view_change_tracker.add_request_view_change(
+                *vc, id(), new_view, seqno, root, node_count()))
+          {
+            append_new_view(new_view);
+          }
         }
       }
 
@@ -640,8 +656,20 @@ namespace aft
         "Received view change from:{}, view:{}", r.from_node, r.view);
 
       auto progress_tracker = store->get_progress_tracker();
-      progress_tracker->apply_view_change_message(
-        v, r.from_node, r.view, r.seqno, r.root);
+      if (!progress_tracker->apply_view_change_message(
+            v, r.from_node, r.view, r.seqno, r.root))
+      {
+        return;
+      }
+
+      if (
+        get_leader(r.view) == id() &&
+        aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
+          view_change_tracker.add_request_view_change(
+            v, r.from_node, r.view, r.seqno, r.root, node_count()))
+      {
+            append_new_view(r.view);
+      }
     }
 
     bool is_first_request = true;
@@ -670,6 +698,12 @@ namespace aft
       // balance out total batch size across batch window
       batch_window_sum += (batch_size - batch_avg);
       entries_batch_size = std::max((batch_window_sum / batch_window_size), 1);
+    }
+
+    void append_new_view(kv::Consensus::View view)
+    {
+      LOG_INFO_FMT("AAAAAA appending new view:{}", view);
+
     }
 
     bool has_bft_timeout_occurred(std::chrono::milliseconds time)
