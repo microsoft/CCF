@@ -745,7 +745,8 @@ namespace ccf
          {}},
         // vvv arguments to script vvv
         proposed_calls,
-        votes);
+        votes,
+        proposal.proposer);
 
       switch (pass)
       {

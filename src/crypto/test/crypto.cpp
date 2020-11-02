@@ -52,6 +52,11 @@ TEST_CASE("SHA256 %32 consistency test")
   crypto::Sha256Hash::evercrypt_sha256(data, h1.h.data());
   crypto::Sha256Hash::mbedtls_sha256(data, h2.h.data());
   REQUIRE(h1 == h2);
+
+  CSha256Hash ch;
+  ch.update_hash(data);
+  crypto::Sha256Hash h3 = ch.finalize();
+  REQUIRE(h1 == h3);
 }
 
 TEST_CASE("SHA256 long consistency test")

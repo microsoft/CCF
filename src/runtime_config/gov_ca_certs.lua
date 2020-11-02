@@ -5,7 +5,7 @@
 
 return {
   pass = [[
-  tables, calls, votes = ...
+  tables, calls, votes, proposer_id = ...
   -- interface definitions
   PASSED = 1
   PENDING = 0
