@@ -12,10 +12,11 @@ import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import ssl
+import hashlib
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
-
+from cryptography.hazmat.primitives import serialization
 from loguru import logger as LOG
 
 
@@ -73,6 +74,9 @@ def test_quote(network, args, verify=True):
                     check=True,
                 )
                 out = oed.stdout.decode().split(os.linesep)
+                for line in out:
+                    if line.startswith("Enclave sgx_report_data:"):
+                        report_digest = line.split(" ")[-1][2:]
                 assert "Evidence verification succeeded (0)." in out
 
             node = network.nodes[quote["node_id"]]
@@ -80,7 +84,12 @@ def test_quote(network, args, verify=True):
             public_key = x509.load_pem_x509_certificate(
                 node_cert.encode(), default_backend()
             ).public_key()
-            # TODO: hash and compare to quote
+            pub_key = public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+            key_digest = hashlib.sha256(pub_key + b"\0").hexdigest()
+            LOG.info(f"Report: {report_digest[: len(key_digest)]}")
 
     return network
 
