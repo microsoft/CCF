@@ -996,7 +996,6 @@ namespace ccf
         Proposal proposal(in.script, in.parameter, args.caller_id);
 
         auto proposals = args.tx.get_view(this->network.proposals);
-        proposal.votes[args.caller_id] = in.ballot;
         proposals->put(proposal_id, proposal);
 
         record_voting_history(

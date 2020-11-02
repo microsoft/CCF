@@ -371,7 +371,7 @@ DOCTEST_TEST_CASE("Proposer ballot")
   const ccf::Script vote_for("return true");
   const ccf::Script vote_against("return false");
   {
-    DOCTEST_INFO("Propose, initially voting against");
+    DOCTEST_INFO("Propose, no votes");
 
     const auto proposed_member = get_cert(2, kp);
 
@@ -382,7 +382,6 @@ DOCTEST_TEST_CASE("Proposer ballot")
     )xxx");
     proposal.parameter["cert"] = proposed_member;
     proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
-    proposal.ballot = vote_against;
     const auto propose = create_signed_request(proposal, "proposals", kp);
     const auto r = frontend_process(frontend, propose, proposer_cert);
 
@@ -1344,7 +1343,6 @@ DOCTEST_TEST_CASE(
     )xxx");
     proposal.parameter["cert"] = proposed_member;
     proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
-    proposal.ballot = vote_for;
 
     const auto propose = create_signed_request(proposal, "proposals", kp);
     const auto r = parse_response_body<Propose::Out>(frontend_process(
@@ -1353,6 +1351,8 @@ DOCTEST_TEST_CASE(
       tls::make_verifier(members[proposer_id])->der_cert_data()));
 
     DOCTEST_CHECK(r.state == ProposalState::OPEN);
+
+    // TODO: vote for
 
     proposal_id = r.proposal_id;
   }
@@ -1469,9 +1469,11 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
     )xxx");
 
     const auto propose = create_signed_request(
-      Propose::In{proposal, node_id, vote_for}, "proposals", kp);
+      Propose::In{proposal, node_id}, "proposals", kp);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, operator_cert));
+
+    // TODO: vote for
 
     DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
     proposal_id = r.proposal_id;
@@ -1648,9 +1650,11 @@ DOCTEST_TEST_CASE(
     )xxx");
 
     const auto propose = create_signed_request(
-      Propose::In{proposal, node_id, vote_against}, "proposals", kp);
+      Propose::In{proposal, node_id}, "proposals", kp);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, proposer_cert));
+
+    // TODO: vote against
 
     DOCTEST_CHECK(r.state == ProposalState::OPEN);
     proposal_id = r.proposal_id;
