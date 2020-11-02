@@ -6,6 +6,9 @@ set -e
 
 quote_file_name="quote.bin"
 open_enclave_bin_path="/opt/openenclave/bin"
+
+# Until https://github.com/microsoft/CCF/issues/1468 is done, CCF
+# uses old attestation API to generate quotes
 quote_format="LEGACY_REPORT_REMOTE"
 
 function usage()
@@ -53,7 +56,7 @@ if [ -z "${trusted_mrenclaves}" ]; then
             trusted_mrenclaves+=($(echo "${code_id}" | jq -r .digest))
         fi
     done
-    echo "Retrieved ${#trusted_mrenclaves[@]} accepted code versions from service."
+    echo "Retrieved ${#trusted_mrenclaves[@]} accepted code versions from CCF service."
 fi
 
 # Temporary directory for storing retrieved quote
