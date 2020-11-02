@@ -49,10 +49,10 @@ while [ "$1" != "" ]; do
     shift
 done
 
-if [ -z "${trusted_mrenclaves}" ]; then
+if [ ${#trusted_mrenclaves[@]} -eq 0 ]; then
     for code_id in $(curl -sS --fail -X GET "${node_address}"/node/code "${@}" | jq .versions | jq -c ".[]"); do
         code_status=$(echo "${code_id}" | jq -r .status)
-        if [ ${code_status} = "ACCEPTED" ]; then
+        if [ "${code_status}" = "ACCEPTED" ]; then
             trusted_mrenclaves+=($(echo "${code_id}" | jq -r .digest))
         fi
     done
@@ -75,36 +75,36 @@ fi
 
 echo "Node quote successfully retrieved. Verifying quote..."
 
-oeverify_output=$(${open_enclave_path}/bin//oeverify -r ${tmp_dir}/${quote_file_name} -f ${quote_format})
+oeverify_output=$("${open_enclave_path}"/bin/oeverify -r "${tmp_dir}"/"${quote_file_name}" -f "${quote_format}")
 
 # Extract SGX report data
 oeverify_report_data=$(echo "${oeverify_output}" | grep "sgx_report_data" | cut -d ":" -f 2)
 # Extract hex sha-256 (64 char) from report data (128 char)
-extracted_report_data=$(echo ${oeverify_report_data#*0x} | head -c 64)
+extracted_report_data=$(echo "${oeverify_report_data#*0x}" | head -c 64)
 
 # Remove protocol and compute hash of target node's public key
 stripped_node_address=${node_address#*//}
-node_pubk_hash=$(echo | openssl s_client -showcerts -connect ${stripped_node_address} 2>/dev/null | openssl x509 -pubkey -noout | sha256sum | awk '{ print $1 }')
+node_pubk_hash=$(echo | openssl s_client -showcerts -connect "${stripped_node_address}" 2>/dev/null | openssl x509 -pubkey -noout | sha256sum | awk '{ print $1 }')
 
 # Extract mrenclave
 is_mrenclave_valid=false
 oeverify_mrenclave=$(echo "${oeverify_output}" | grep "unique_id" | cut -d ":" -f 2)
-extracted_mrenclave=$(echo ${oeverify_mrenclave#*0x})
+extracted_mrenclave="${oeverify_mrenclave#*0x}"
 for mrenclave in "${trusted_mrenclaves[@]}"; do
-    if [ ${mrenclave} == ${extracted_mrenclave} ]; then
+    if [ "${mrenclave}" == "${extracted_mrenclave}" ]; then
         is_mrenclave_valid=true
     fi
 done
 
-if [ ${extracted_report_data} != ${node_pubk_hash} ]; then
+if [ "${extracted_report_data}" != "${node_pubk_hash}" ]; then
     echo "Error: quote verification failed."
     echo "Reported quote data does not match node certificate public key:"
     echo "${extracted_report_data} != ${node_pubk_hash}"
     exit 1
-elif [ ${is_mrenclave_valid} != true ]; then
+elif [ "${is_mrenclave_valid}" != true ]; then
     echo "Error: quote verification failed."
     echo "Reported mrenclave ${extracted_mrenclave} is not trusted. List of trusted mrenclave:"
-    echo "[${trusted_mrenclaves}]"
+    echo "${trusted_mrenclaves[@]}"
     exit 1
 else
     echo "Quote verification successful."
