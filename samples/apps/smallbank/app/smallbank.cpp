@@ -18,11 +18,7 @@ namespace ccfapp
     kv::Map<uint64_t, int64_t> savings;
     kv::Map<uint64_t, int64_t> checkings;
 
-    SmallBankTables(kv::Store&) :
-      accounts("a"),
-      savings("b"),
-      checkings("c")
-    {}
+    SmallBankTables(kv::Store&) : accounts("a"), savings("b"), checkings("c") {}
   };
 
   class SmallBankHandlers : public UserEndpointRegistry
