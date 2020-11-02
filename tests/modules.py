@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import base64
 import tempfile
 import http
 import subprocess
@@ -314,6 +315,75 @@ def test_npm_app(network, args):
         body = r.body.json()
         assert body["msg"] == "Hello!", r.body
 
+        r = c.get("/app/jwt")
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+        body = r.body.json()
+        assert body["msg"] == "authorization header missing", r.body
+
+        r = c.get("/app/jwt", headers={"authorization": "Bearer not-a-jwt"})
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+        body = r.body.json()
+        assert body["msg"].startswith("malformed jwt:"), r.body
+
+        jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+        jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
+
+        jwt_kid = "my_key_id"
+        jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
+        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+        body = r.body.json()
+        assert body["msg"].startswith("token signing key not found"), r.body
+
+    LOG.info("Store JWT signing keys")
+
+    issuer = "https://example.issuer"
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+        json.dump({"issuer": issuer, "validate_issuer": True}, metadata_fp)
+        metadata_fp.flush()
+        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as jwks_fp:
+        der_b64 = base64.b64encode(infra.crypto.cert_pem_to_der(jwt_cert_pem)).decode(
+            "ascii"
+        )
+        json.dump({"keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]}, jwks_fp)
+        jwks_fp.flush()
+        network.consortium.set_jwt_public_signing_keys(primary, issuer, jwks_fp.name)
+
+    LOG.info("Calling jwt endpoint after storing keys")
+    with primary.client("user0") as c:
+        jwt_mismatching_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+        jwt_mismatching_cert_pem = infra.crypto.generate_cert(
+            jwt_mismatching_key_priv_pem
+        )
+        jwt = infra.crypto.create_jwt({}, jwt_mismatching_cert_pem, jwt_kid)
+        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+        body = r.body.json()
+        assert body["msg"] == "jwt validation failed", r.body
+
+        jwt = infra.crypto.create_jwt({"iss": "mismatching"}, jwt_key_priv_pem, jwt_kid)
+        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+        body = r.body.json()
+        assert body["msg"] == "jwt validation failed", r.body
+
+        jwt = infra.crypto.create_jwt({"iss": issuer}, jwt_key_priv_pem, jwt_kid)
+        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+        body = r.body.json()
+        assert body["msg"] == "jwt invalid, sub claim missing", r.body
+
+        user_id = "user0"
+        jwt = infra.crypto.create_jwt(
+            {"iss": issuer, "sub": user_id}, jwt_key_priv_pem, jwt_kid
+        )
+        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        body = r.body.json()
+        assert body["userId"] == user_id, r.body
+
     return network
 
 
@@ -356,12 +426,12 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        network = test_module_set_and_remove(network, args)
-        network = test_module_import(network, args)
-        network = test_app_bundle(network, args)
-        network = test_dynamic_endpoints(network, args)
+        # network = test_module_set_and_remove(network, args)
+        # network = test_module_import(network, args)
+        # network = test_app_bundle(network, args)
+        # network = test_dynamic_endpoints(network, args)
         network = test_npm_app(network, args)
-        network = test_npm_tsoa_app(network, args)
+        # network = test_npm_tsoa_app(network, args)
 
 
 if __name__ == "__main__":

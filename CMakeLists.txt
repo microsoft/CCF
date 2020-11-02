@@ -716,6 +716,12 @@ if(BUILD_TESTS)
         ${CCF_DIR}/src/runtime_config/gov_ca_cert_mismatch.lua
       CONSENSUS cft
     )
+
+    add_e2e_test(
+      NAME jwt_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt.py
+      CONSENSUS cft
+    )
   endif()
 
   if(BUILD_SMALLBANK)

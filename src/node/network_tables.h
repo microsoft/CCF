@@ -13,6 +13,7 @@
 #include "consensus/aft/revealed_nonces.h"
 #include "entities.h"
 #include "governance_history.h"
+#include "jwt.h"
 #include "kv/map.h"
 #include "kv/store.h"
 #include "members.h"
@@ -29,7 +30,6 @@
 #include "users.h"
 #include "values.h"
 #include "whitelists.h"
-#include "jwt.h"
 
 #include <memory>
 #include <tuple>
@@ -127,9 +127,13 @@ namespace ccf
       config(tables->create<Configuration>(Tables::CONFIGURATION)),
       ca_certs(tables->create<CACertDERs>(Tables::CA_CERT_DERS)),
       jwt_issuers(tables->create<JwtIssuers>(Tables::JWT_ISSUERS)),
-      jwt_issuer_key_ids(tables->create<JwtIssuerKeyIds>(Tables::JWT_ISSUER_KEY_IDS)),
-      jwt_public_signing_keys(tables->create<JwtPublicSigningKeys>(Tables::JWT_PUBLIC_SIGNING_KEYS)),
-      jwt_public_signing_keys_validate_issuer(tables->create<JwtPublicSigningKeysValidateIssuer>(Tables::JWT_PUBLIC_SIGNING_KEYS_VALIDATE_ISSUER)),
+      jwt_issuer_key_ids(
+        tables->create<JwtIssuerKeyIds>(Tables::JWT_ISSUER_KEY_IDS)),
+      jwt_public_signing_keys(
+        tables->create<JwtPublicSigningKeys>(Tables::JWT_PUBLIC_SIGNING_KEYS)),
+      jwt_public_signing_keys_validate_issuer(
+        tables->create<JwtPublicSigningKeysValidateIssuer>(
+          Tables::JWT_PUBLIC_SIGNING_KEYS_VALIDATE_ISSUER)),
       users(tables->create<Users>(Tables::USERS)),
       user_certs(tables->create<CertDERs>(Tables::USER_CERT_DERS)),
       user_client_signatures(

@@ -451,7 +451,7 @@ def set_jwt_issuer(metadata_path: str, **kwargs):
         "issuer": metadata["issuer"],
         "validate_issuer": metadata.get("validate_issuer", True),
         "key_filter": metadata.get("key_filter", "all"),
-        "key_policy": metadata.get("key_policy", {})
+        "key_policy": metadata.get("key_policy"),
     }
     return build_proposal("set_jwt_issuer", args, **kwargs)
 

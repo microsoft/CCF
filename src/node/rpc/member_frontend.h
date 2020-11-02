@@ -6,12 +6,12 @@
 #include "lua_interp/lua_json.h"
 #include "lua_interp/tx_script_runner.h"
 #include "node/genesis_gen.h"
+#include "node/jwt.h"
 #include "node/members.h"
 #include "node/nodes.h"
 #include "node/quote.h"
 #include "node/secret_share.h"
 #include "node/share_manager.h"
-#include "node/jwt.h"
 #include "node_interface.h"
 #include "tls/base64.h"
 #include "tls/key_pair.h"
@@ -590,7 +590,8 @@ namespace ccf
            auto key_ids = issuer_key_ids->get(parsed.issuer);
            if (key_ids.has_value())
            {
-             auto keys_validate_issuer = tx.get_view(this->network.jwt_public_signing_keys_validate_issuer);
+             auto keys_validate_issuer = tx.get_view(
+               this->network.jwt_public_signing_keys_validate_issuer);
              for (auto key_id : key_ids.value())
              {
                keys_validate_issuer->put(key_id, parsed.validate_issuer);
@@ -606,15 +607,16 @@ namespace ccf
            auto issuers = tx.get_view(this->network.jwt_issuers);
            auto issuer_key_ids = tx.get_view(this->network.jwt_issuer_key_ids);
            auto keys = tx.get_view(this->network.jwt_public_signing_keys);
-           auto keys_validate_issuer = tx.get_view(this->network.jwt_public_signing_keys_validate_issuer);
-           
-           if (issuers->remove(issuer))
+           auto keys_validate_issuer =
+             tx.get_view(this->network.jwt_public_signing_keys_validate_issuer);
+
+           if (!issuers->remove(issuer))
            {
              LOG_FAIL_FMT(
                "Proposal {}: {} is not a valid issuer", proposal_id, issuer);
              return false;
            }
-           
+
            // remove keys
            auto key_ids = issuer_key_ids->get(issuer);
            if (key_ids.has_value())
@@ -636,7 +638,8 @@ namespace ccf
            auto issuers = tx.get_view(this->network.jwt_issuers);
            auto issuer_key_ids = tx.get_view(this->network.jwt_issuer_key_ids);
            auto keys = tx.get_view(this->network.jwt_public_signing_keys);
-           auto keys_validate_issuer = tx.get_view(this->network.jwt_public_signing_keys_validate_issuer);
+           auto keys_validate_issuer =
+             tx.get_view(this->network.jwt_public_signing_keys_validate_issuer);
 
            auto issuer_metadata_ = issuers->get(issuer);
            if (!issuer_metadata_.has_value())
@@ -665,8 +668,7 @@ namespace ccf
            std::vector<std::string> key_ids;
            if (parsed.jwks.keys.empty())
            {
-             LOG_FAIL_FMT(
-               "Proposal {}: JWKS has no keys", proposal_id);
+             LOG_FAIL_FMT("Proposal {}: JWKS has no keys", proposal_id);
              return false;
            }
            for (auto& jwk : parsed.jwks.keys)
@@ -674,7 +676,9 @@ namespace ccf
              if (keys->has(jwk.kid))
              {
                LOG_FAIL_FMT(
-                 "Proposal {}: key id {} already added for different issuer", proposal_id, jwk.kid);
+                 "Proposal {}: key id {} already added for different issuer",
+                 proposal_id,
+                 jwk.kid);
                return false;
              }
              if (jwk.x5c.empty())
@@ -688,7 +692,13 @@ namespace ccf
              auto der = tls::raw_from_b64(der_base64);
 
              std::map<std::string, std::vector<uint8_t>> claims;
-             if (issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX || !issuer_metadata.key_policy.sgx_claims.empty())
+             bool has_key_policy_sgx_claims =
+               issuer_metadata.key_policy.has_value() &&
+               issuer_metadata.key_policy.value().sgx_claims.has_value() &&
+               !issuer_metadata.key_policy.value().sgx_claims.value().empty();
+             if (
+               issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX ||
+               has_key_policy_sgx_claims)
              {
                oe_verifier_initialize();
                oe_verify_attestation_certificate_with_evidence(
@@ -697,29 +707,66 @@ namespace ccf
                  oe_verify_attestation_certificate_with_evidence_cb,
                  &claims);
              }
-             
-             if (issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX && claims.empty())
-               continue;
-             
-             for (auto& [claim_name, expected_claim_val_hex] : issuer_metadata.key_policy.sgx_claims)
+
+             if (
+               issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX &&
+               claims.empty())
              {
-               if (claims.find(claim_name) == claims.end())
+               continue;
+             }
+
+             if (has_key_policy_sgx_claims)
+             {
+               for (auto& [claim_name, expected_claim_val_hex] :
+                    issuer_metadata.key_policy.value().sgx_claims.value())
                {
-                LOG_FAIL_FMT(
-                  "Proposal {}: JWKS kid {} is missing the {} SGX claim", proposal_id, jwk.kid, claim_name);
-                return false;
-               }
-               auto& actual_claim_val = claims[claim_name];
-               auto actual_claim_val_hex = fmt::format("{:02x}", fmt::join(actual_claim_val, ""));
-               if (expected_claim_val_hex != actual_claim_val_hex)
-               {
-                LOG_FAIL_FMT(
-                  "Proposal {}: JWKS kid {} has a mismatching {} SGX claim", proposal_id, jwk.kid, claim_name);
-                return false;
+                 if (claims.find(claim_name) == claims.end())
+                 {
+                   LOG_FAIL_FMT(
+                     "Proposal {}: JWKS kid {} is missing the {} SGX claim",
+                     proposal_id,
+                     jwk.kid,
+                     claim_name);
+                   return false;
+                 }
+                 auto& actual_claim_val = claims[claim_name];
+                 auto actual_claim_val_hex =
+                   fmt::format("{:02x}", fmt::join(actual_claim_val, ""));
+                 if (expected_claim_val_hex != actual_claim_val_hex)
+                 {
+                   LOG_FAIL_FMT(
+                     "Proposal {}: JWKS kid {} has a mismatching {} SGX claim",
+                     proposal_id,
+                     jwk.kid,
+                     claim_name);
+                   return false;
+                 }
                }
              }
+             else
+             {
+               mbedtls_x509_crt cert;
+               mbedtls_x509_crt_init(&cert);
+               int rc = mbedtls_x509_crt_parse(&cert, der.data(), der.size());
+               if (rc != 0)
+               {
+                 LOG_FAIL_FMT(
+                   "Proposal {}: JWKS kid {} has an invalid X.509 certificate: "
+                   "{}",
+                   proposal_id,
+                   jwk.kid,
+                   tls::error_string(rc));
+                 return false;
+               }
+               mbedtls_x509_crt_free(&cert);
+             }
+             LOG_INFO_FMT(
+               "Proposal {}: Storing JWT signing key with kid {}",
+               proposal_id,
+               jwk.kid);
              keys->put(jwk.kid, der);
-             keys_validate_issuer->put(jwk.kid, issuer_metadata.validate_issuer);
+             keys_validate_issuer->put(
+               jwk.kid, issuer_metadata.validate_issuer);
              key_ids.push_back(jwk.kid);
            }
            if (key_ids.empty())
