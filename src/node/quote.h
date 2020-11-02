@@ -51,7 +51,7 @@ namespace ccf
     static std::optional<std::vector<uint8_t>> get_quote(const tls::Pem& cert)
     {
       std::vector<uint8_t> raw_quote;
-      crypto::Sha256Hash h{cert.raw()};
+      crypto::Sha256Hash h{cert.contents()};
       uint8_t* quote;
       size_t quote_len = 0;
 
@@ -127,7 +127,7 @@ namespace ccf
     static QuoteVerificationResult verify_quoted_certificate(
       const tls::Pem& cert, const oe_report_t& parsed_quote)
     {
-      crypto::Sha256Hash hash{cert.raw()};
+      crypto::Sha256Hash hash{cert.contents()};
 
       if (
         parsed_quote.report_data_size != OE_REPORT_DATA_SIZE ||

@@ -88,8 +88,8 @@ def test_quote(network, args, verify=True):
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PublicFormat.SubjectPublicKeyInfo,
             )
-            key_digest = hashlib.sha256(pub_key + b"\0").hexdigest()
-            LOG.info(f"Report: {report_digest[: len(key_digest)]}")
+            key_digest = hashlib.sha256(pub_key).hexdigest()
+            assert report_digest[: len(key_digest)] == key_digest
 
     return network
 

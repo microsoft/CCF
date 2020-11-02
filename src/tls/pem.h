@@ -80,6 +80,12 @@ namespace tls
       return {data(), data() + size()};
     }
 
+    // Not null-terminated
+    std::vector<uint8_t> contents() const
+    {
+      return {data(), data() + s.size()};
+    }
+
     MSGPACK_DEFINE(s);
   };
 
