@@ -5,7 +5,7 @@
 set -e
 
 quote_file_name="quote.bin"
-open_enclave_bin_path="/opt/openenclave/bin"
+open_enclave_path=${OPEN_ENCLAVE_PATH:-"/opt/openenclave"}
 
 # Until https://github.com/microsoft/CCF/issues/1468 is done, CCF
 # uses old attestation API to generate quotes
@@ -75,7 +75,7 @@ fi
 
 echo "Node quote successfully retrieved. Verifying quote..."
 
-oeverify_output=$(${open_enclave_bin_path}/oeverify -r ${tmp_dir}/${quote_file_name} -f ${quote_format})
+oeverify_output=$(${open_enclave_path}/bin//oeverify -r ${tmp_dir}/${quote_file_name} -f ${quote_format})
 
 # Extract SGX report data
 oeverify_report_data=$(echo "${oeverify_output}" | grep "sgx_report_data" | cut -d ":" -f 2)
