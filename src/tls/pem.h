@@ -25,6 +25,8 @@ namespace tls
 
     Pem(const std::string& s_) : s(s_) {}
 
+    Pem(size_t size) : s(size, '0') {}
+
     Pem(const uint8_t* data, size_t size)
     {
       if (size == 0)
@@ -76,6 +78,12 @@ namespace tls
     std::vector<uint8_t> raw() const
     {
       return {data(), data() + size()};
+    }
+
+    // Not null-terminated
+    std::vector<uint8_t> contents() const
+    {
+      return {data(), data() + s.size()};
     }
 
     MSGPACK_DEFINE(s);
