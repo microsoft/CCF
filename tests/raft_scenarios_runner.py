@@ -5,7 +5,6 @@ import os
 from subprocess import Popen, PIPE
 from raft_scenarios_gen import generate_scenarios
 from contextlib import contextmanager
-from loguru import logger as LOG  # type: ignore
 
 RAFT_TEST_FILE_NAME = "raft_tests.md"
 
