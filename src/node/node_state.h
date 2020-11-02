@@ -1473,21 +1473,58 @@ namespace ccf
                   "Unexpected: removal from secrets table ({})", v));
               }
 
-              has_secrets = true;
-
-              // If the version key is NoVersion, we are rekeying. Use the
-              // version passed to the hook instead. For recovery, the
-              // version of the past secrets is passed as the key.
-              kv::Version secret_version = (v == kv::NoVersion) ? version : v;
+              const auto& secret_set = opt_secret_set.value();
 
               for (auto& encrypted_secret_for_node : secret_set.secrets)
               {
-                // When rekeying, set the encryption key for the next
-                // version onward (for the backups to deserialise this
-                // transaction with the old key). The encryptor is in charge
-                // of updating the ledger secrets on global commit.
-                encryptor->update_encryption_key(
-                  secret_version + 1, plain_secret);
+                if (encrypted_secret_for_node.node_id == self)
+                {
+                  crypto::GcmCipher gcmcipher;
+                  gcmcipher.deserialise(
+                    encrypted_secret_for_node.encrypted_secret);
+                  std::vector<uint8_t> plain_secret(gcmcipher.cipher.size());
+
+                  auto primary_pubk = tls::make_public_key(
+                    secret_set.primary_public_encryption_key);
+
+                  crypto::KeyAesGcm primary_shared_key(
+                    tls::KeyExchangeContext(node_encrypt_kp, primary_pubk)
+                      .compute_shared_secret());
+
+                  if (!primary_shared_key.decrypt(
+                        gcmcipher.hdr.get_iv(),
+                        gcmcipher.hdr.tag,
+                        gcmcipher.cipher,
+                        nullb,
+                        plain_secret.data()))
+                  {
+                    throw std::logic_error(
+                      "Decryption of past network secrets failed");
+                  }
+
+                  has_secrets = true;
+
+                  // If the version key is NoVersion, we are rekeying. Use the
+                  // version passed to the hook instead. For recovery, the
+                  // version of the past secrets is passed as the key.
+                  kv::Version secret_version =
+                    (v == kv::NoVersion) ? version : v;
+
+                  if (is_part_of_public_network())
+                  {
+                    restored_secrets.push_back(
+                      {secret_version, LedgerSecret(plain_secret)});
+                  }
+                  else
+                  {
+                    // When rekeying, set the encryption key for the next
+                    // version onward (for the backups to deserialise this
+                    // transaction with the old key). The encryptor is in charge
+                    // of updating the ledger secrets on global commit.
+                    encryptor->update_encryption_key(
+                      secret_version + 1, plain_secret);
+                  }
+                }
               }
             }
 
