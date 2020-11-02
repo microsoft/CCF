@@ -25,10 +25,22 @@ public:
     verify_signature,
     bool(kv::NodeId, crypto::Sha256Hash&, uint32_t, uint8_t*),
     override);
-  MAKE_MOCK1(sign_view_change, void(ccf::ViewChange& view_change), override);
-  MAKE_MOCK2(
+  MAKE_MOCK4(
+    sign_view_change,
+    void(
+      ccf::ViewChange& view_change,
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      crypto::Sha256Hash& root),
+    override);
+  MAKE_MOCK5(
     verify_view_change,
-    bool(ccf::ViewChange& view_change, kv::NodeId from),
+    bool(
+      ccf::ViewChange& view_change,
+      kv::NodeId from,
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      crypto::Sha256Hash& root),
     override);
 };
 
@@ -336,7 +348,7 @@ TEST_CASE("View Changes")
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
       .RETURN(true)
       .TIMES(AT_LEAST(2));
-    REQUIRE_CALL(store_mock, sign_view_change(_)).TIMES(AT_LEAST(2));
+    REQUIRE_CALL(store_mock, sign_view_change(_, _, _, _)).TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
       {view, seqno}, 0, root, primary_sig, hashed_nonce, node_count);
     REQUIRE(result == kv::TxHistory::Result::OK);
@@ -363,10 +375,7 @@ TEST_CASE("View Changes")
       else
       {
         auto vc = pt.get_view_change_message(view);
-        REQUIRE(vc != nullptr);
-        REQUIRE(vc->view == view);
-        REQUIRE(vc->seqno == seqno);
-        REQUIRE(vc->root == root);
+        REQUIRE(std::get<0>(vc) != nullptr);
       }
     }
   }
@@ -378,7 +387,7 @@ TEST_CASE("View Changes")
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
       .RETURN(true)
       .TIMES(AT_LEAST(2));
-    REQUIRE_CALL(store_mock, sign_view_change(_)).TIMES(AT_LEAST(2));
+    REQUIRE_CALL(store_mock, sign_view_change(_, _, _, _)).TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
       {view, new_seqno}, 0, root, primary_sig, hashed_nonce, node_count);
     REQUIRE(result == kv::TxHistory::Result::OK);
@@ -401,14 +410,12 @@ TEST_CASE("View Changes")
       if (i < 2)
       {
         auto vc = pt.get_view_change_message(view);
-        REQUIRE(vc != nullptr);
-        REQUIRE(vc->seqno == seqno);
+        REQUIRE(std::get<0>(vc) != nullptr);
       }
       else
       {
         auto vc = pt.get_view_change_message(view);
-        REQUIRE(vc != nullptr);
-        REQUIRE(vc->seqno == new_seqno);
+        REQUIRE(std::get<0>(vc) != nullptr);
       }
     }
     seqno = new_seqno;
@@ -421,7 +428,7 @@ TEST_CASE("View Changes")
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
       .RETURN(true)
       .TIMES(AT_LEAST(2));
-    REQUIRE_CALL(store_mock, sign_view_change(_)).TIMES(AT_LEAST(2));
+    REQUIRE_CALL(store_mock, sign_view_change(_, _, _, _)).TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
       {view, new_seqno}, 0, root, primary_sig, hashed_nonce, node_count);
     REQUIRE(result == kv::TxHistory::Result::OK);
@@ -442,8 +449,7 @@ TEST_CASE("View Changes")
           i == node_count_quorum)));
 
       auto vc = pt.get_view_change_message(view);
-      REQUIRE(vc != nullptr);
-      REQUIRE(vc->seqno == seqno);
+      REQUIRE(std::get<0>(vc) != nullptr);
     }
   }
 }
@@ -454,9 +460,6 @@ TEST_CASE("Serialization")
   INFO("view-change serialization");
   {
     ccf::ViewChange v;
-    v.view = 1;
-    v.seqno = 2;
-    v.root.h.fill(3);
 
     for (uint32_t i = 10; i < 110; i += 10)
     {
@@ -480,11 +483,6 @@ TEST_CASE("Serialization")
     const uint8_t* data = serialized.data();
     size_t size = serialized.size();
     ccf::ViewChange v = ccf::ViewChange::deserialize(data, size);
-    REQUIRE(v.view == 1);
-    REQUIRE(v.seqno == 2);
-    crypto::Sha256Hash h;
-    h.h.fill(3);
-    REQUIRE(v.root.h == h.h);
 
     REQUIRE(v.signatures.size() == 10);
     for (uint32_t i = 1; i < 11; ++i)
@@ -524,6 +522,7 @@ TEST_CASE("test progress_tracker apply_view_change")
   using trompeloeil::_;
 
   uint32_t node_id = 1;
+  crypto::Sha256Hash root;
   auto store = std::make_unique<StoreMock>();
   StoreMock& store_mock = *store.get();
   auto pt = std::make_unique<ccf::ProgressTracker>(std::move(store), node_id);
@@ -538,53 +537,50 @@ TEST_CASE("test progress_tracker apply_view_change")
 
   INFO("View-change signature does not verify");
   {
-    REQUIRE_CALL(store_mock, verify_view_change(_, _)).RETURN(false);
+    REQUIRE_CALL(store_mock, verify_view_change(_, _, _, _, _)).RETURN(false);
     ccf::ViewChange v;
-    bool result = pt->apply_view_change_message(v, 1);
+    bool result = pt->apply_view_change_message(v, 1, 1, 1, root);
     REQUIRE(result == false);
   }
 
   INFO("Unknown seqno");
   {
-    REQUIRE_CALL(store_mock, verify_view_change(_, _)).RETURN(true);
+    REQUIRE_CALL(store_mock, verify_view_change(_, _, _, _, _)).RETURN(true);
     ccf::ViewChange v;
-    v.seqno = 999;
-    bool result = pt->apply_view_change_message(v, 1);
+    bool result = pt->apply_view_change_message(v, 1, 1, 999, root);
     REQUIRE(result == false);
   }
 
   INFO("Incorrect root");
   {
-    REQUIRE_CALL(store_mock, verify_view_change(_, _)).RETURN(true);
+    REQUIRE_CALL(store_mock, verify_view_change(_, _, _, _, _)).RETURN(true);
     ccf::ViewChange v;
-    v.seqno = 42;
-    v.root.h.fill(1);
-    bool result = pt->apply_view_change_message(v, 1);
+    crypto::Sha256Hash rootA;
+    rootA.h.fill(1);
+    bool result = pt->apply_view_change_message(v, 1, 1, 42, rootA);
     REQUIRE(result == false);
   }
 
   INFO("View-change matches - known node");
   {
-    REQUIRE_CALL(store_mock, verify_view_change(_, _)).RETURN(true);
+    REQUIRE_CALL(store_mock, verify_view_change(_, _, _, _, _)).RETURN(true);
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _)).RETURN(true);
     ccf::ViewChange v;
-    v.seqno = 42;
     v.signatures.push_back(ccf::NodeSignature(0));
 
-    bool result = pt->apply_view_change_message(v, 1);
+    bool result = pt->apply_view_change_message(v, 1, 1, 42, root);
     REQUIRE(result);
   }
 
   INFO("View-change matches - unknown node");
   {
-    REQUIRE_CALL(store_mock, verify_view_change(_, _)).RETURN(true);
+    REQUIRE_CALL(store_mock, verify_view_change(_, _, _, _, _)).RETURN(true);
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _)).RETURN(false);
 
     ccf::ViewChange v;
-    v.seqno = 42;
     v.signatures.push_back(ccf::NodeSignature(5));
 
-    bool result = pt->apply_view_change_message(v, 1);
+    bool result = pt->apply_view_change_message(v, 1, 1, 42, root);
     REQUIRE(result == false);
   }
 }

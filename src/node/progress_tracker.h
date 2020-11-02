@@ -555,8 +555,11 @@ namespace ccf
       return highest_commit_level;
     }
 
-    std::unique_ptr<ViewChange> get_view_change_message(
-      kv::Consensus::View view)
+    std::tuple<
+      std::unique_ptr<ViewChange>,
+      kv::Consensus::SeqNo,
+      crypto::Sha256Hash>
+    get_view_change_message(kv::Consensus::View view)
     {
       auto it = certificates.find(highest_prepared_level.version);
       if (it == certificates.end())
@@ -568,50 +571,53 @@ namespace ccf
       }
 
       auto& cert = it->second;
-      auto m = std::make_unique<ViewChange>(
-        view, highest_prepared_level.version, cert.root);
+      auto m = std::make_unique<ViewChange>();
 
       for (const auto& sig : cert.sigs)
       {
         m->signatures.push_back(sig.second);
       }
 
-      store->sign_view_change(*m);
-      return m;
+      store->sign_view_change(
+        *m, view, highest_prepared_level.version, cert.root);
+      return std::make_tuple(
+        std::move(m), highest_prepared_level.version, cert.root);
     }
 
-    bool apply_view_change_message(ViewChange& view_change, kv::NodeId from)
+    bool apply_view_change_message(
+      ViewChange& view_change,
+      kv::NodeId from,
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      crypto::Sha256Hash& root)
     {
-      if (!store->verify_view_change(view_change, from))
+      if (!store->verify_view_change(view_change, from, view, seqno, root))
       {
         LOG_FAIL_FMT("Failed to verify view-change from:{}", from);
         return false;
       }
       LOG_TRACE_FMT(
-        "Applying view-change from:{}, view:{}, seqno:{}",
-        from,
-        view_change.view,
-        view_change.seqno);
+        "Applying view-change from:{}, view:{}, seqno:{}", from, view, seqno);
 
-      auto it = certificates.find(view_change.seqno);
+      auto it = certificates.find(seqno);
 
       if (it == certificates.end())
       {
         LOG_INFO_FMT(
           "Received view-change for view:{} and seqno:{} that I am not aware "
           "of",
-          view_change.view,
-          view_change.seqno);
+          view,
+          seqno);
         return false;
       }
 
-      if (it->second.root != view_change.root)
+      if (it->second.root != root)
       {
         LOG_FAIL_FMT(
           "Roots do not match, view-change from:{}, view:{}, seqno:{}",
           from,
-          view_change.view,
-          view_change.seqno);
+          view,
+          seqno);
         return false;
       }
 
@@ -626,8 +632,8 @@ namespace ccf
             "signatures do not match, view-change from:{}, view:{}, seqno:{}, "
             "node_id:{}",
             from,
-            view_change.view,
-            view_change.seqno,
+            view,
+            seqno,
             sig.node);
           verified_signatures = false;
           continue;

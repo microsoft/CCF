@@ -200,7 +200,9 @@ namespace aft
 
   struct ViewChangeMsg : RaftHeader
   {
-    // size_t size;
+    kv::Consensus::View view = 0;
+    kv::Consensus::SeqNo seqno = 0;
+    crypto::Sha256Hash root;
   };
 
   struct RequestVote : RaftHeader

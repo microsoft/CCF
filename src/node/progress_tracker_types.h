@@ -63,9 +63,17 @@ namespace ccf
       crypto::Sha256Hash& root,
       uint32_t sig_size,
       uint8_t* sig) = 0;
-    virtual void sign_view_change(ViewChange& view_change) = 0;
+    virtual void sign_view_change(
+      ViewChange& view_change,
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      crypto::Sha256Hash& root) = 0;
     virtual bool verify_view_change(
-      ViewChange& view_change, kv::NodeId from) = 0;
+      ViewChange& view_change,
+      kv::NodeId from,
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      crypto::Sha256Hash& root) = 0;
   };
 
   class ProgressTrackerStoreAdapter : public ProgressTrackerStore
@@ -165,15 +173,26 @@ namespace ccf
         root.h.data(), root.h.size(), sig, sig_size);
     }
 
-    void sign_view_change(ViewChange& view_change) override
+    void sign_view_change(
+      ViewChange& view_change,
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      crypto::Sha256Hash& root) override
     {
-      crypto::Sha256Hash h = hash_view_change(view_change);
+      crypto::Sha256Hash h = hash_view_change(view_change, view, seqno, root);
       view_change.signature = kp.sign_hash(h.h.data(), h.h.size());
     }
 
-    bool verify_view_change(ViewChange& view_change, kv::NodeId from) override
+    bool verify_view_change(
+      ViewChange& view_change,
+      kv::NodeId from,
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      crypto::Sha256Hash& root
+
+      ) override
     {
-      crypto::Sha256Hash h = hash_view_change(view_change);
+      crypto::Sha256Hash h = hash_view_change(view_change, view, seqno, root);
 
       kv::Tx tx(&store);
       auto ni_tv = tx.get_view(nodes);
@@ -199,13 +218,17 @@ namespace ccf
     ccf::BackupSignaturesMap& backup_signatures;
     aft::RevealedNoncesMap& revealed_nonces;
 
-    crypto::Sha256Hash hash_view_change(const ViewChange& v) const
+    crypto::Sha256Hash hash_view_change(
+      const ViewChange& v,
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      crypto::Sha256Hash& root) const
     {
       crypto::CSha256Hash ch;
 
-      ch.update(v.view);
-      ch.update(v.seqno);
-      ch.update(v.root);
+      ch.update(view);
+      ch.update(seqno);
+      ch.update(root);
 
       for (auto& s : v.signatures)
       {

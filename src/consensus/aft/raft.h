@@ -548,13 +548,19 @@ namespace aft
           // We have not seen a request executed within an expected period of
           // time. We should invoke a view-change.
           //
+          kv::Consensus::View new_view = view_change_tracker.get_target_view();
+          kv::Consensus::SeqNo seqno;
+          crypto::Sha256Hash root;
+          std::unique_ptr<ccf::ViewChange> vc;
+
           auto progress_tracker = store->get_progress_tracker();
-          auto vc = progress_tracker->get_view_change_message(
-            view_change_tracker.get_target_view());
+          std::tie(vc, seqno, root) =
+            progress_tracker->get_view_change_message(new_view);
 
           size_t vc_size = vc->get_serialized_size();
 
-          ViewChangeMsg vcm = {{bft_view_change, state->my_node_id}};
+          ViewChangeMsg vcm = {
+            {bft_view_change, state->my_node_id}, new_view, seqno, root};
 
           std::vector<uint8_t> m;
           m.resize(sizeof(ViewChangeMsg) + vc_size);
@@ -567,7 +573,7 @@ namespace aft
           vc->serialize(data, size);
           CCF_ASSERT_FMT(size == 0, "Did not write everything");
 
-          LOG_INFO_FMT("Sending view change msg view:{}", vc->view);
+          LOG_INFO_FMT("Sending view change msg view:{}", vcm.view);
           for (auto it = nodes.begin(); it != nodes.end(); ++it)
           {
             auto send_to = it->first;
@@ -633,10 +639,11 @@ namespace aft
 
       ccf::ViewChange v = ccf::ViewChange::deserialize(data, size);
       LOG_INFO_FMT(
-        "Received view change from:{}, view:{}", r.from_node, v.view);
+        "Received view change from:{}, view:{}", r.from_node, r.view);
 
       auto progress_tracker = store->get_progress_tracker();
-      progress_tracker->apply_view_change_message(v, r.from_node);
+      progress_tracker->apply_view_change_message(
+        v, r.from_node, r.view, r.seqno, r.root);
     }
 
     bool is_first_request = true;
