@@ -53,7 +53,10 @@ TEST_CASE("Map name parsing")
 TEST_CASE("Reads/writes and deletions")
 {
   kv::Store kv_store;
-  MapTypes::StringString map("public:map");
+
+  // Testing that deprecated API continues to work - will be removed in a future
+  // release
+  auto& map = kv_store.create<MapTypes::StringString>("public:map");
 
   constexpr auto k = "key";
   constexpr auto invalid_key = "invalid_key";

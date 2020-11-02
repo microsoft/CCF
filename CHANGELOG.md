@@ -15,10 +15,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - The latest version of the `submit_recovery_share.sh` script should be used.
   - The latest version of the `proposal_generator.py` should be used (please upgrade the [ccf python package](https://microsoft.github.io/CCF/master/quickstart/install.html#python-package)).
 - `submit_recovery_share.sh` script's `--rpc-address` argument has been removed. The node's address (e.g. `https://127.0.0.1:8000`) should be used directly as the first argument instead (#1841).
-- TODO: Document changes, deprecations, removals from KV API around getting Maps
 
 ### Fixed
 - Added `tools.cmake` to the install , which `ccf_app.cmake` depends on and was missing from the previous release.
+
+### Deprecated
+- `kv::Store::create` is deprecated, and will be removed in a future release. It is no longer necessary to create a `kv::Map` from a `Store`, it can be constructed locally (`kv::Map<K, V> my_map("my_map_name");`) or accessed purely by name (`auto view = tx.get_view<K, V>("my_map_name");`).
 
 ## [0.14.2]
 ### Changed
