@@ -1400,9 +1400,9 @@ DOCTEST_TEST_CASE(
   }
 }
 
-DOCTEST_TEST_CASE("Passing operator vote" * doctest::test_suite("operator"))
+DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
 {
-  // Operator issues a proposal that only requires its own vote
+  // Operator issues a proposal that is an operator change
   // and gets it through without member votes
   NetworkState network;
   network.tables->set_encryptor(encryptor);
@@ -1462,7 +1462,7 @@ DOCTEST_TEST_CASE("Passing operator vote" * doctest::test_suite("operator"))
   }
 
   {
-    DOCTEST_INFO("Operator proposes and votes for node");
+    DOCTEST_INFO("Operator proposes node");
     Script proposal(R"xxx(
       local tables, node_id = ...
       return Calls:call("trust_node", node_id)
@@ -1584,9 +1584,9 @@ DOCTEST_TEST_CASE("Passing operator vote" * doctest::test_suite("operator"))
 }
 
 DOCTEST_TEST_CASE(
-  "Members passing an operator vote" * doctest::test_suite("operator"))
+  "Members passing an operator change" * doctest::test_suite("operator"))
 {
-  // Operator proposes a vote, but does not vote for it
+  // Member proposes an operator change
   // A majority of members pass the vote
   NetworkState network;
   network.tables->set_encryptor(encryptor);
@@ -1600,15 +1600,14 @@ DOCTEST_TEST_CASE(
   ni.cert = new_ca;
   gen.add_node(ni);
 
-  // Operating member, as indicated by member data
-  const auto operator_cert = get_cert(0, kp);
-  const auto operator_id =
-    gen.add_member(operator_cert, {}, operator_member_data());
-  gen.activate_member(operator_id);
+  // Not operating member, as indicated by member data
+  const auto proposer_cert = get_cert(0, kp);
+  const auto proposer_id = gen.add_member(proposer_cert, {}, nullptr);
+  gen.activate_member(proposer_id);
 
   // Non-operating members
   std::map<size_t, tls::Pem> members;
-  for (size_t i = 1; i < 4; i++)
+  for (size_t i = 1; i < 3; i++)
   {
     auto cert = get_cert(i, kp);
     auto id = gen.add_member(cert, {});
@@ -1637,12 +1636,12 @@ DOCTEST_TEST_CASE(
     const auto read_values =
       create_request(read_params<int>(node_id, Tables::NODES), "read");
     const auto r = parse_response_body<NodeInfo>(
-      frontend_process(frontend, read_values, operator_cert));
+      frontend_process(frontend, read_values, proposer_cert));
     DOCTEST_CHECK(r.status == NodeStatus::PENDING);
   }
 
   {
-    DOCTEST_INFO("Operator proposes and votes against adding node");
+    DOCTEST_INFO("Member proposes and votes against adding node");
     Script proposal(R"xxx(
       local tables, node_id = ...
       return Calls:call("trust_node", node_id)
@@ -1651,7 +1650,7 @@ DOCTEST_TEST_CASE(
     const auto propose = create_signed_request(
       Propose::In{proposal, node_id, vote_against}, "proposals", kp);
     const auto r = parse_response_body<Propose::Out>(
-      frontend_process(frontend, propose, operator_cert));
+      frontend_process(frontend, propose, proposer_cert));
 
     DOCTEST_CHECK(r.state == ProposalState::OPEN);
     proposal_id = r.proposal_id;
@@ -1683,12 +1682,12 @@ DOCTEST_TEST_CASE(
   {
     DOCTEST_INFO("Validate vote tally");
 
-    const auto proposal = get_proposal(frontend, proposal_id, operator_cert);
+    const auto proposal = get_proposal(frontend, proposal_id, proposer_cert);
 
     const auto& votes = proposal.votes;
     DOCTEST_CHECK(votes.size() == 3);
 
-    const auto proposer_vote = votes.find(operator_id);
+    const auto proposer_vote = votes.find(proposer_id);
     DOCTEST_CHECK(proposer_vote != votes.end());
     DOCTEST_CHECK(proposer_vote->second == vote_against);
 

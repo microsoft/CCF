@@ -25,7 +25,7 @@ return {
   end
 
   -- defines calls that can be passed with sole operator input
-  function can_operator_vote_on(call)
+  function can_operator_pass(call)
     -- some calls can always be called by operators
     allowed_operator_funcs = {
       trust_node=true,
@@ -50,14 +50,11 @@ return {
   end
 
   -- count member votes
-  operator_votes = 0
   member_votes = 0
 
   for member, vote in pairs(votes) do
     if vote then
-      if is_operator(tonumber(member)) then
-        operator_votes = operator_votes + 1
-      else
+      if not is_operator(tonumber(member)) then
         member_votes = member_votes + 1
       end
     end
@@ -89,11 +86,11 @@ return {
     end
   end
 
-  -- a vote is an operator vote if it's only making operator calls
-  operator_vote = true
+  -- a proposal is an operator change if it's only making operator calls
+  operator_change = true
   for _, call in pairs(calls) do
-    if not can_operator_vote_on(call) then
-      operator_vote = false
+    if not can_operator_pass(call) then
+      operator_change = false
       break
     end
   end
@@ -103,8 +100,8 @@ return {
     return PASSED
   end
 
-  -- a single operator can pass an operator vote
-  if operator_vote and operator_votes > 0 then
+  -- operators proposing operator changes can pass them without a vote
+  if operator_change and is_operator(tonumber(proposer_id)) then
     return PASSED
   end
 
