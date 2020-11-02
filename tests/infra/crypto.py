@@ -7,8 +7,6 @@ from enum import IntEnum
 import secrets
 import datetime
 
-from cryptography.x509 import load_der_x509_certificate, load_pem_x509_certificate
-
 import coincurve
 from coincurve._libsecp256k1 import ffi, lib  # pylint: disable=no-name-in-module
 from coincurve.context import GLOBAL_CONTEXT
@@ -16,9 +14,14 @@ from coincurve.context import GLOBAL_CONTEXT
 from cryptography.exceptions import InvalidSignature
 from cryptography import x509
 from cryptography.x509.oid import NameOID
+from cryptography.x509 import (
+    load_pem_x509_certificate,
+    load_der_x509_certificate,
+)
 from cryptography.hazmat.primitives.asymmetric import ec, rsa, padding
 from cryptography.hazmat.primitives.serialization import (
     load_pem_private_key,
+    load_pem_public_key,
     Encoding,
     PrivateFormat,
     PublicFormat,
