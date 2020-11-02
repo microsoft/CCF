@@ -13,7 +13,7 @@ quote_format="LEGACY_REPORT_REMOTE"
 
 function usage()
 {
-    echo "Usage:"""
+    echo "Usage:"
     echo "  $0 https://<node-address> [--mrenclave <mrenclave_hex>] [CURL_OPTIONS]"
     echo "Verify target node's remote attestation quote."
     echo "For the verification to be successful, the public key of the node certificate should also match the SGX report data and the corresponding mrenclave should be trusted."
