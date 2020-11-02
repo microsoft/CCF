@@ -559,11 +559,11 @@ namespace aft
 
           size_t vc_size = vc->get_serialized_size();
 
-          ViewChangeMsg vcm = {
+          RequestViewChangeMsg vcm = {
             {bft_view_change, state->my_node_id}, new_view, seqno, root};
 
           std::vector<uint8_t> m;
-          m.resize(sizeof(ViewChangeMsg) + vc_size);
+          m.resize(sizeof(RequestViewChangeMsg) + vc_size);
 
           uint8_t* data = m.data();
           size_t size = m.size();
@@ -613,10 +613,10 @@ namespace aft
 
     void recv_view_change(const uint8_t* data, size_t size)
     {
-      ViewChangeMsg r;
+      RequestViewChangeMsg r;
       try
       {
-        r = channels->template recv_authenticated_with_load<ViewChangeMsg>(
+        r = channels->template recv_authenticated_with_load<RequestViewChangeMsg>(
           data, size);
       }
       catch (const std::logic_error& err)
