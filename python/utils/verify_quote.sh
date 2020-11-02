@@ -4,6 +4,10 @@
 
 set -e
 
+quote_file_name="quote.bin"
+open_enclave_bin_path="/opt/openenclave/bin"
+quote_format="LEGACY_REPORT_REMOTE"
+
 function usage()
 {
     echo "Usage:"""
@@ -31,24 +35,35 @@ function cleanup() {
 }
 trap cleanup EXIT
 
-curl -sS --fail -X GET "${node_rpc_address}"/node/quote "${@}" | jq .raw | xxd -r -p > "${tmp_dir}/quote"
+curl -sS --fail -X GET "${node_rpc_address}"/node/quote "${@}" | jq .raw | xxd -r -p > "${tmp_dir}/${quote_file_name}"
 
-if [ ! -s "${tmp_dir}/quote" ]; then
+if [ ! -s "${tmp_dir}/${quote_file_name}" ]; then
     echo "Node quote is empty. Virtual mode does not support verification."
     exit 1
 fi
 
 echo "Node quote successfully retrieved."
 
-# Strip "https://" prefix
-stripped_node_rpc_address=${node_rpc_address#"https://"}
-pubk_node_hash=$(echo | openssl s_client -showcerts -connect ${stripped_node_rpc_address} 2>/dev/null | openssl x509 -pubkey -noout | openssl dgst -sha256)
+# Remove protocol
+stripped_node_rpc_address=${node_rpc_address#*//}
 
-echo $pubk_node_hash
+node_pubk_hash=$(echo | openssl s_client -showcerts -connect ${stripped_node_rpc_address} 2>/dev/null | openssl x509 -pubkey -noout | sha256sum | awk '{ print $1 }')
 
-# TODO:
-# 1. Displays MRENCLAVE from quote
-# 2.
+oeverify_quote_data=$(${open_enclave_bin_path}/oeverify -r ${tmp_dir}/${quote_file_name} -f ${quote_format} | grep "sgx_report_data" | cut -d ":" -f 2)
+
+# Extract hex sha-256 (64 char) from report data (128 char)
+filter=$(echo ${oeverify_quote_data#*0x} | head -c 64)
+
+echo ${filter}
+echo ${node_pubk_hash}
+
+if [ ${filter} = ${node_pubk_hash} ]; then
+    echo "Quote matches"
+    exit 0
+else
+    echo "Quote doesn't match"
+    exit 1
+fi
 
 
 
