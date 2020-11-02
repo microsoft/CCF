@@ -21,7 +21,6 @@ namespace ccfapp
     SmallBankTables(kv::Store&) : accounts("a"), savings("b"), checkings("c") {}
   };
 
-
   class SmallBankHandlers : public UserEndpointRegistry
   {
   private:
