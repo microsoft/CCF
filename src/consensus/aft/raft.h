@@ -616,8 +616,9 @@ namespace aft
       RequestViewChangeMsg r;
       try
       {
-        r = channels->template recv_authenticated_with_load<RequestViewChangeMsg>(
-          data, size);
+        r =
+          channels->template recv_authenticated_with_load<RequestViewChangeMsg>(
+            data, size);
       }
       catch (const std::logic_error& err)
       {
