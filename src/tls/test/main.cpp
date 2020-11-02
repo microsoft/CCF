@@ -352,6 +352,14 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
   size_t input_len = 64;
   std::vector<uint8_t> input = tls::create_entropy()->random(input_len);
 
+  INFO("Cannot make RSA key from EC key");
+  {
+    auto rsa_kp = tls::make_key_pair(); // EC Key
+
+    REQUIRE_THROWS_AS(
+      tls::make_rsa_public_key(rsa_kp->public_key_pem()), std::logic_error);
+  }
+
   INFO("Without label");
   {
     auto rsa_kp = tls::make_rsa_key_pair();
@@ -363,7 +371,11 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
     // Only private key can unwrap
     auto unwrapped = rsa_kp->unwrap(wrapped);
     // rsa_pub->unwrap(wrapped); // Doesn't compile
+    REQUIRE(input == unwrapped);
 
+    // Raw data
+    wrapped = rsa_pub->wrap(input.data(), input.size());
+    unwrapped = rsa_kp->unwrap(wrapped);
     REQUIRE(input == unwrapped);
   }
 
@@ -375,5 +387,19 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
     auto wrapped = rsa_pub->wrap(input, label);
     auto unwrapped = rsa_kp->unwrap(wrapped, label);
     REQUIRE(input == unwrapped);
+  }
+}
+
+TEST_CASE("Extract public key from cert")
+{
+  for (const auto curve : supported_curves)
+  {
+    INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
+    auto kp = tls::make_key_pair(curve);
+    auto pk = kp->public_key_pem();
+    auto cert = kp->self_sign("CN=name");
+
+    auto pubk = tls::public_key_pem_from_cert(cert);
+    REQUIRE(pk == pubk);
   }
 }
