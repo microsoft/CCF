@@ -4,7 +4,7 @@
 -- This file defines the default initial contents (ie, Lua scripts) of the governance scripts table.
 return {
   pass = [[
-  tables, calls, votes = ...
+  tables, calls, votes, proposer_id = ...
 
   -- interface definitions
   PASSED = 1
