@@ -11,8 +11,10 @@ quote_format="LEGACY_REPORT_REMOTE"
 function usage()
 {
     echo "Usage:"""
-    echo "  TODO: $0 https://<node-address> [CURL_OPTIONS]"
-    echo "Verify node's remote attestation quote"
+    echo "  $0 https://<node-address> [--mrenclave <mrenclave_hex>] [CURL_OPTIONS]"
+    echo "Verify target node's remote attestation quote."
+    echo "For the verification to be successful, the public key of the node certificate should also match the SGX report data and the corresponding mrenclave should be trusted."
+    echo "If no trusted mrenclave is specified (--mrenclave), the quote measurement should match one of the service's currently accepted code versions."
 }
 
 if [[ "$1" =~ ^(-h|-\?|--help)$ ]]; then
@@ -25,46 +27,83 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
-node_rpc_address=$1
+node_address=$1
 shift
 
-# Temporary directory for raw quote
+while [ "$1" != "" ]; do
+    case $1 in
+        -h|-\?|--help)
+            usage
+            exit 0
+            ;;
+        --mrenclave)
+            trusted_mrenclaves=("$2")
+            ;;
+        *)
+            break
+    esac
+    shift
+    shift
+done
+
+if [ -z "${trusted_mrenclaves}" ]; then
+    for code_id in $(curl -sS --fail -X GET "${node_address}"/node/code "${@}" | jq .versions | jq -c ".[]"); do
+        code_status=$(echo "${code_id}" | jq -r .status)
+        if [ ${code_status} = "ACCEPTED" ]; then
+            trusted_mrenclaves+=($(echo "${code_id}" | jq -r .digest))
+        fi
+    done
+    echo "Retrieved ${#trusted_mrenclaves[@]} accepted code versions from service."
+fi
+
+# Temporary directory for storing retrieved quote
 tmp_dir=$(mktemp -d)
 function cleanup() {
   rm -rf "${tmp_dir}"
 }
 trap cleanup EXIT
 
-curl -sS --fail -X GET "${node_rpc_address}"/node/quote "${@}" | jq .raw | xxd -r -p > "${tmp_dir}/${quote_file_name}"
+curl -sS --fail -X GET "${node_address}"/node/quote "${@}" | jq .raw | xxd -r -p > "${tmp_dir}/${quote_file_name}"
 
 if [ ! -s "${tmp_dir}/${quote_file_name}" ]; then
-    echo "Node quote is empty. Virtual mode does not support verification."
+    echo "Error: Node quote is empty. Virtual mode does not support SGX quotes."
     exit 1
 fi
 
-echo "Node quote successfully retrieved."
+echo "Node quote successfully retrieved. Verifying quote..."
 
-# Remove protocol
-stripped_node_rpc_address=${node_rpc_address#*//}
+oeverify_output=$(${open_enclave_bin_path}/oeverify -r ${tmp_dir}/${quote_file_name} -f ${quote_format})
 
-node_pubk_hash=$(echo | openssl s_client -showcerts -connect ${stripped_node_rpc_address} 2>/dev/null | openssl x509 -pubkey -noout | sha256sum | awk '{ print $1 }')
-
-oeverify_quote_data=$(${open_enclave_bin_path}/oeverify -r ${tmp_dir}/${quote_file_name} -f ${quote_format} | grep "sgx_report_data" | cut -d ":" -f 2)
-
+# Extract SGX report data
+oeverify_report_data=$(echo "${oeverify_output}" | grep "sgx_report_data" | cut -d ":" -f 2)
 # Extract hex sha-256 (64 char) from report data (128 char)
-filter=$(echo ${oeverify_quote_data#*0x} | head -c 64)
+extracted_report_data=$(echo ${oeverify_report_data#*0x} | head -c 64)
 
-echo ${filter}
-echo ${node_pubk_hash}
+# Remove protocol and compute hash of target node's public key
+stripped_node_address=${node_address#*//}
+node_pubk_hash=$(echo | openssl s_client -showcerts -connect ${stripped_node_address} 2>/dev/null | openssl x509 -pubkey -noout | sha256sum | awk '{ print $1 }')
 
-if [ ${filter} = ${node_pubk_hash} ]; then
-    echo "Quote matches"
-    exit 0
-else
-    echo "Quote doesn't match"
+# Extract mrenclave
+is_mrenclave_valid=false
+oeverify_mrenclave=$(echo "${oeverify_output}" | grep "unique_id" | cut -d ":" -f 2)
+extracted_mrenclave=$(echo ${oeverify_mrenclave#*0x})
+for mrenclave in "${trusted_mrenclaves[@]}"; do
+    if [ ${mrenclave} == ${extracted_mrenclave} ]; then
+        is_mrenclave_valid=true
+    fi
+done
+
+if [ ${extracted_report_data} != ${node_pubk_hash} ]; then
+    echo "Error: quote verification failed."
+    echo "Reported quote data does not match node certificate public key:"
+    echo "${extracted_report_data} != ${node_pubk_hash}"
     exit 1
+elif [ ${is_mrenclave_valid} != true ]; then
+    echo "Error: quote verification failed."
+    echo "Reported mrenclave ${extracted_mrenclave} is not trusted. List of trusted mrenclave:"
+    echo "[${trusted_mrenclaves}]"
+    exit 1
+else
+    echo "Quote verification successful."
+    exit 0
 fi
-
-
-
-
