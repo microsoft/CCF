@@ -1,10 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "../25519.h"
-#include "../base64.h"
-#include "../key_pair.h"
-#include "../verifier.h"
+#include "tls/base64.h"
+#include "tls/key_pair.h"
+#include "tls/rsa_key_pair.h"
+#include "tls/verifier.h"
 
 #include <chrono>
 #include <doctest/doctest.h>
@@ -347,20 +347,59 @@ TEST_CASE("base64")
   }
 }
 
-TEST_CASE("Parse public x25519 PEM")
+TEST_CASE("Wrap, unwrap with RSAKeyPair")
 {
-  auto x25519_public_key_pem = std::string(
-    "-----BEGIN PUBLIC KEY-----\n"
-    "MCowBQYDK2VuAyEAUgaVkiQ9K8UO3qEYD3C34vJT/CwiCr3AWnVn/1QMTl0=\n"
-    "-----END PUBLIC KEY-----\n");
-  auto x25519_public_key =
-    tls::raw_from_b64("UgaVkiQ9K8UO3qEYD3C34vJT/CwiCr3AWnVn/1QMTl0=");
+  size_t input_len = 64;
+  std::vector<uint8_t> input = tls::create_entropy()->random(input_len);
 
-  auto raw_key = tls::PublicX25519::parse(tls::Pem(x25519_public_key_pem));
+  INFO("Cannot make RSA key from EC key");
+  {
+    auto rsa_kp = tls::make_key_pair(); // EC Key
 
-  REQUIRE(
-    raw_key ==
-    std::vector<uint8_t>(x25519_public_key.begin(), x25519_public_key.end()));
+    REQUIRE_THROWS_AS(
+      tls::make_rsa_public_key(rsa_kp->public_key_pem()), std::logic_error);
+  }
 
-  REQUIRE(tls::PublicX25519::write(raw_key).str() == x25519_public_key_pem);
+  INFO("Without label");
+  {
+    auto rsa_kp = tls::make_rsa_key_pair();
+    auto rsa_pub = tls::make_rsa_public_key(rsa_kp->public_key_pem());
+
+    // Public key can wrap
+    auto wrapped = rsa_pub->wrap(input);
+
+    // Only private key can unwrap
+    auto unwrapped = rsa_kp->unwrap(wrapped);
+    // rsa_pub->unwrap(wrapped); // Doesn't compile
+    REQUIRE(input == unwrapped);
+
+    // Raw data
+    wrapped = rsa_pub->wrap(input.data(), input.size());
+    unwrapped = rsa_kp->unwrap(wrapped);
+    REQUIRE(input == unwrapped);
+  }
+
+  INFO("With label");
+  {
+    auto rsa_kp = tls::make_rsa_key_pair();
+    auto rsa_pub = tls::make_rsa_public_key(rsa_kp->public_key_pem());
+    std::string label = "my_label";
+    auto wrapped = rsa_pub->wrap(input, label);
+    auto unwrapped = rsa_kp->unwrap(wrapped, label);
+    REQUIRE(input == unwrapped);
+  }
+}
+
+TEST_CASE("Extract public key from cert")
+{
+  for (const auto curve : supported_curves)
+  {
+    INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
+    auto kp = tls::make_key_pair(curve);
+    auto pk = kp->public_key_pem();
+    auto cert = kp->self_sign("CN=name");
+
+    auto pubk = tls::public_key_pem_from_cert(cert);
+    REQUIRE(pk == pubk);
+  }
 }

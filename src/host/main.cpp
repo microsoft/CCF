@@ -334,7 +334,6 @@ int main(int argc, char** argv)
   // The network certificate file can either be an input or output parameter,
   // depending on the subcommand.
   std::string network_cert_file = "networkcert.pem";
-  std::string network_enc_pubk_file = "network_enc_pubk.pem";
 
   auto start = app.add_subcommand("start", "Start new network");
   start->configurable();
@@ -344,14 +343,6 @@ int main(int argc, char** argv)
       "--network-cert-file",
       network_cert_file,
       "Destination path to freshly created network certificate")
-    ->capture_default_str()
-    ->check(CLI::NonexistentPath);
-
-  start
-    ->add_option(
-      "--network-enc-pubk-file",
-      network_enc_pubk_file,
-      "Destination path to freshly created network encryption public key")
     ->capture_default_str()
     ->check(CLI::NonexistentPath);
 
@@ -371,7 +362,7 @@ int main(int argc, char** argv)
     *start,
     members_info,
     "--member-info",
-    "Initial consortium members information (public identity,recovery public "
+    "Initial consortium members information (public identity,encryption public "
     "key,member data)")
     ->required();
 
@@ -421,14 +412,6 @@ int main(int argc, char** argv)
       "--network-cert-file",
       network_cert_file,
       "Destination path to freshly created network certificate")
-    ->capture_default_str()
-    ->check(CLI::NonexistentPath);
-
-  recover
-    ->add_option(
-      "--network-enc-pubk-file",
-      network_enc_pubk_file,
-      "Destination path to freshly created network encryption public key")
     ->capture_default_str()
     ->check(CLI::NonexistentPath);
 
@@ -619,10 +602,8 @@ int main(int argc, char** argv)
 
     // Initialise the enclave and create a CCF node in it
     const size_t certificate_size = 4096;
-    const size_t pubk_size = 1024;
     std::vector<uint8_t> node_cert(certificate_size);
     std::vector<uint8_t> network_cert(certificate_size);
-    std::vector<uint8_t> network_enc_pubk(pubk_size);
 
     StartType start_type = StartType::Unknown;
 
@@ -671,7 +652,7 @@ int main(int argc, char** argv)
 
         ccf_config.genesis.members_info.emplace_back(
           files::slurp(m_info.cert_file),
-          files::slurp(m_info.keyshare_pub_file),
+          files::slurp(m_info.enc_pub_file),
           md);
       }
       ccf_config.genesis.gov_script = files::slurp_string(gov_script);
@@ -730,7 +711,6 @@ int main(int argc, char** argv)
       ccf_config,
       node_cert,
       network_cert,
-      network_enc_pubk,
       start_type,
       consensus,
       num_worker_threads,
@@ -743,7 +723,6 @@ int main(int argc, char** argv)
     if (*start || *recover)
     {
       files::dump(network_cert, network_cert_file);
-      files::dump(network_enc_pubk, network_enc_pubk_file);
     }
 
     auto enclave_thread_start = [&]() {

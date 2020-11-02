@@ -76,6 +76,14 @@ namespace tls
      */
     PublicKey(std::unique_ptr<mbedtls_pk_context>&& c) : ctx(std::move(c)) {}
 
+    virtual ~PublicKey()
+    {
+      if (ctx)
+      {
+        mbedtls_pk_free(ctx.get());
+      }
+    }
+
     /**
      * Verify that a signature was produced on contents with the private key
      * associated with the public key held by the object.
@@ -173,12 +181,6 @@ namespace tls
     mbedtls_pk_context* get_raw_context() const
     {
       return ctx.get();
-    }
-
-    virtual ~PublicKey()
-    {
-      if (ctx)
-        mbedtls_pk_free(ctx.get());
     }
   };
 
@@ -397,7 +399,7 @@ namespace tls
 
   public:
     /**
-     * Create a new public / private key pair
+     * Create a new public / private ECDSA key pair
      */
     KeyPair(mbedtls_ecp_group_id ec)
     {
@@ -437,6 +439,7 @@ namespace tls
 
     KeyPair(const KeyPair&) = delete;
 
+  public:
     /**
      * Get the private key in PEM format
      */
@@ -815,7 +818,7 @@ namespace tls
   }
 
   /**
-   * Create a new public / private key pair on specified curve and
+   * Create a new public / private ECDSA key pair on specified curve and
    * implementation
    */
   inline KeyPairPtr make_key_pair(
@@ -833,7 +836,7 @@ namespace tls
   }
 
   /**
-   * Create a public / private from existing private key data
+   * Create a public / private ECDSA key pair from existing private key data
    */
   inline KeyPairPtr make_key_pair(
     const Pem& pkey,
@@ -852,5 +855,30 @@ namespace tls
     {
       return std::make_shared<KeyPair>(std::move(key));
     }
+  }
+
+  static inline tls::Pem public_key_pem_from_cert(const tls::Pem& cert)
+  {
+    mbedtls_x509_crt c;
+    mbedtls_x509_crt_init(&c);
+    int rc = mbedtls_x509_crt_parse(&c, cert.data(), cert.size());
+    if (rc != 0)
+    {
+      mbedtls_x509_crt_free(&c);
+      throw std::runtime_error(fmt::format(
+        "Failed to parse certificate, mbedtls_x509_crt_parse: {}", rc));
+    }
+    uint8_t data[2048];
+    rc = mbedtls_pk_write_pubkey_pem(&c.pk, data, max_pem_key_size);
+    if (rc != 0)
+    {
+      mbedtls_x509_crt_free(&c);
+      throw std::runtime_error(fmt::format(
+        "Failed to serialise public key, mbedtls_pk_write_pubkey_pem: {}", rc));
+    }
+
+    size_t len = strlen((char const*)data);
+    mbedtls_x509_crt_free(&c);
+    return tls::Pem(data, len);
   }
 }

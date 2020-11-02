@@ -7,29 +7,19 @@
 #include "tls/hash.h"
 #include "tls/tls.h"
 #include "tls/verifier.h"
+#include "view_change.h"
 
 namespace ccf
 {
-  struct CertKey
-  {
-    CertKey(kv::TxID tx_id_) : tx_id(tx_id_) {}
-
-    kv::TxID tx_id;
-
-    bool operator<(const CertKey& rhs) const
-    {
-      if (tx_id.version == rhs.tx_id.version)
-      {
-        return tx_id.term < rhs.tx_id.term;
-      }
-      return tx_id.version < rhs.tx_id.version;
-    }
-  };
-
   struct BftNodeSignature : public ccf::NodeSignature
   {
     bool is_primary;
     Nonce nonce;
+
+    BftNodeSignature(const NodeSignature& ns) :
+      NodeSignature(ns),
+      is_primary(false)
+    {}
 
     BftNodeSignature(
       const std::vector<uint8_t>& sig_, NodeId node_, Nonce hashed_nonce_) :
@@ -73,6 +63,17 @@ namespace ccf
       crypto::Sha256Hash& root,
       uint32_t sig_size,
       uint8_t* sig) = 0;
+    virtual void sign_view_change(
+      ViewChange& view_change,
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      crypto::Sha256Hash& root) = 0;
+    virtual bool verify_view_change(
+      ViewChange& view_change,
+      kv::NodeId from,
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      crypto::Sha256Hash& root) = 0;
   };
 
   class ProgressTrackerStoreAdapter : public ProgressTrackerStore
@@ -80,10 +81,12 @@ namespace ccf
   public:
     ProgressTrackerStoreAdapter(
       kv::AbstractStore& store_,
+      tls::KeyPair& kp_,
       ccf::Nodes& nodes_,
       ccf::BackupSignaturesMap& backup_signatures_,
       aft::RevealedNoncesMap& revealed_nonces_) :
       store(store_),
+      kp(kp_),
       nodes(nodes_),
       backup_signatures(backup_signatures_),
       revealed_nonces(revealed_nonces_)
@@ -170,10 +173,69 @@ namespace ccf
         root.h.data(), root.h.size(), sig, sig_size);
     }
 
+    void sign_view_change(
+      ViewChange& view_change,
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      crypto::Sha256Hash& root) override
+    {
+      crypto::Sha256Hash h = hash_view_change(view_change, view, seqno, root);
+      view_change.signature = kp.sign_hash(h.h.data(), h.h.size());
+    }
+
+    bool verify_view_change(
+      ViewChange& view_change,
+      kv::NodeId from,
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      crypto::Sha256Hash& root
+
+      ) override
+    {
+      crypto::Sha256Hash h = hash_view_change(view_change, view, seqno, root);
+
+      kv::Tx tx(&store);
+      auto ni_tv = tx.get_view(nodes);
+
+      auto ni = ni_tv->get(from);
+      if (!ni.has_value())
+      {
+        LOG_FAIL_FMT("No node info, and therefore no cert for node {}", from);
+        return false;
+      }
+      tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
+      return from_cert->verify_hash(
+        h.h.data(),
+        h.h.size(),
+        view_change.signature.data(),
+        view_change.signature.size());
+    }
+
   private:
     kv::AbstractStore& store;
+    tls::KeyPair& kp;
     ccf::Nodes& nodes;
     ccf::BackupSignaturesMap& backup_signatures;
     aft::RevealedNoncesMap& revealed_nonces;
+
+    crypto::Sha256Hash hash_view_change(
+      const ViewChange& v,
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      crypto::Sha256Hash& root) const
+    {
+      crypto::CSha256Hash ch;
+
+      ch.update(view);
+      ch.update(seqno);
+      ch.update(root);
+
+      for (auto& s : v.signatures)
+      {
+        ch.update(s.sig);
+      }
+
+      return ch.finalize();
+    }
   };
 }

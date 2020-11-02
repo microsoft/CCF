@@ -199,7 +199,7 @@ def new_member(
 
     # Read certs
     member_cert = open(member_cert_path).read()
-    member_keyshare_encryptor = open(member_enc_pubk_path).read()
+    encryption_pub_key = open(member_enc_pubk_path).read()
 
     # Script which proposes adding a new member
     proposal_script_text = """
@@ -211,7 +211,7 @@ def new_member(
     proposal = {
         "parameter": {
             "cert": member_cert,
-            "keyshare": member_keyshare_encryptor,
+            "encryption_pub_key": encryption_pub_key,
             "member_data": member_data,
         },
         "script": {"text": proposal_script_text},
@@ -239,8 +239,8 @@ def new_member(
     return false
     end
 
-    expected_keyshare = [====[{member_keyshare_encryptor}]====]
-    if not call.args.keyshare == expected_keyshare then
+    expected_enc_pub_key = [====[{encryption_pub_key}]====]
+    if not call.args.encryption_pub_key == expected_enc_pub_key then
     return false
     end
 

@@ -6,12 +6,19 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
+
 ### Changed
-- CCF now depends on [Open Enclave 0.12](https://github.com/openenclave/openenclave/releases/tag/v0.12.0).
+- CCF now depends on [Open Enclave 0.12](https://github.com/openenclave/openenclave/releases/tag/v0.12.0) (#1830).
 - `/app/user_id` now takes `{"cert": user_cert_as_pem_string}` rather than `{"cert": user_cert_as_der_list_of_bytes}` (#278).
+- Members' recovery shares are now encrypted using [RSA-OAEP-256](https://docs.microsoft.com/en-gb/azure/key-vault/keys/about-keys#wrapkeyunwrapkey-encryptdecrypt) (#1841). This has the following implications:
+  - Network's encryption key is no longer output by the first node of a CCF service is no longer required to decrypt recovery shares.
+  - The latest version of the `submit_recovery_share.sh` script should be used.
+  - The latest version of the `proposal_generator.py` should be used (please upgrade the [ccf python package](https://microsoft.github.io/CCF/master/quickstart/install.html#python-package)).
+- `submit_recovery_share.sh` script's `--rpc-address` argument has been removed. The node's address (e.g. `https://127.0.0.1:8000`) should be used directly as the first argument instead (#1841).
+- The constitution's `pass` function now takes an extra argument: `proposer_id`, which contains the member_id of the member who submitted the proposal. To adjust for this change, replace `tables, calls, votes = ...` with `tables, calls, votes, proposer_id = ...` at the beginning of the `pass` definition.
 
 ### Fixed
-- Added `tools.cmake` to the install , which `ccf_app.cmake` depends on and was missing from the previous release. 
+- Added `tools.cmake` to the install , which `ccf_app.cmake` depends on and was missing from the previous release.
 
 ## [0.14.2]
 ### Changed

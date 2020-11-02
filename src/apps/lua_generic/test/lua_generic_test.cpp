@@ -106,7 +106,7 @@ struct NodeContext : public ccfapp::AbstractNodeContext
 
 auto user_caller = kp -> self_sign("CN=name");
 auto user_caller_der = tls::make_verifier(user_caller) -> der_cert_data();
-std::vector<uint8_t> dummy_key_share = {1, 2, 3};
+std::vector<uint8_t> dummy_enc_pubk = {1, 2, 3};
 
 auto init_frontend(
   NetworkTables& network,
@@ -123,7 +123,7 @@ auto init_frontend(
   for (uint8_t i = 0; i < n_members; i++)
   {
     member_certs.push_back(kp->self_sign("CN=name_member"));
-    gen.add_member(member_certs.back(), dummy_key_share);
+    gen.add_member(member_certs.back(), dummy_enc_pubk);
   }
 
   if (created_members != nullptr)
@@ -311,11 +311,11 @@ TEST_CASE("simple lua apps")
     // expect to see 3 members in state active
     map<string, MemberInfo> expected = {
       {"0",
-       {active_members[0], dummy_key_share, nullptr, MemberStatus::ACCEPTED}},
+       {active_members[0], dummy_enc_pubk, nullptr, MemberStatus::ACCEPTED}},
       {"1",
-       {active_members[1], dummy_key_share, nullptr, MemberStatus::ACCEPTED}},
+       {active_members[1], dummy_enc_pubk, nullptr, MemberStatus::ACCEPTED}},
       {"2",
-       {active_members[2], dummy_key_share, nullptr, MemberStatus::ACCEPTED}}};
+       {active_members[2], dummy_enc_pubk, nullptr, MemberStatus::ACCEPTED}}};
     check_success(frontend->process(get_ctx).value(), expected);
 
     // (2) try to write to members table

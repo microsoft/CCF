@@ -60,8 +60,3 @@
   args:
     chdir: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}/build"
   become: true
-
-- name: Install step-cli
-  apt:
-    deb: "{{ step_cli }}"
-  become: true

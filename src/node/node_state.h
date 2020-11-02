@@ -5,7 +5,6 @@
 #include "call_types.h"
 #include "consensus/aft/raft_consensus.h"
 #include "consensus/ledger_enclave.h"
-#include "crypto/crypto_box.h"
 #include "ds/logger.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
@@ -22,7 +21,6 @@
 #include "secret_share.h"
 #include "share_manager.h"
 #include "snapshotter.h"
-#include "tls/25519.h"
 #include "tls/client.h"
 #include "tls/entropy.h"
 
@@ -240,7 +238,8 @@ namespace ccf
 #ifdef GET_QUOTE
       if (network.consensus_type != ConsensusType::BFT)
       {
-        auto quote_opt = QuoteGenerator::get_quote(node_cert);
+        auto quote_opt =
+          QuoteGenerator::get_quote(node_sign_kp->public_key_pem());
         if (!quote_opt.has_value())
         {
           return Fail<CreateNew::Out>("Quote could not be retrieved");
@@ -265,9 +264,6 @@ namespace ccf
 
           network.ledger_secrets = std::make_shared<LedgerSecrets>();
           network.ledger_secrets->init();
-
-          network.encryption_key = std::make_unique<NetworkEncryptionKey>(
-            tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
 
           self = 0; // The first node id is always 0
 
@@ -296,10 +292,7 @@ namespace ccf
           reset_data(quote);
           sm.advance(State::partOfNetwork);
 
-          return Success<CreateNew::Out>(
-            {node_cert,
-             network.identity->cert,
-             get_network_encryption_key_public_pem()});
+          return Success<CreateNew::Out>({node_cert, network.identity->cert});
         }
         case StartType::Join:
         {
@@ -309,7 +302,7 @@ namespace ccf
 
           sm.advance(State::pending);
 
-          return Success<CreateNew::Out>({node_cert, {}, {}});
+          return Success<CreateNew::Out>({node_cert, {}});
         }
         case StartType::Recover:
         {
@@ -318,8 +311,6 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           network.ledger_secrets = std::make_shared<LedgerSecrets>();
-          network.encryption_key = std::make_unique<NetworkEncryptionKey>(
-            tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
 
           setup_history();
           setup_consensus();
@@ -327,14 +318,16 @@ namespace ccf
           // It is necessary to give an encryptor to the store for it to
           // deserialise the public domain when recovering the public ledger.
           // Once the public recovery is complete, the existing encryptor is
-          // replaced with a new one initialised with recovered ledger secrets.
+          // replaced with a new one initialised with recovered ledger
+          // secrets.
           setup_encryptor(network.consensus_type);
 
           bool from_snapshot = !args.config.startup_snapshot.empty();
 
           setup_recovery_hook(from_snapshot);
 
-          // Snapshot generation is disabled until private recovery is complete
+          // Snapshot generation is disabled until private recovery is
+          // complete
           recovery_snapshot_tx_interval = args.config.snapshot_tx_interval;
 
           if (from_snapshot)
@@ -364,10 +357,7 @@ namespace ccf
 
           sm.advance(State::readingPublicLedger);
 
-          return Success<CreateNew::Out>(
-            {node_cert,
-             network.identity->cert,
-             get_network_encryption_key_public_pem()});
+          return Success<CreateNew::Out>({node_cert, network.identity->cert});
         }
         default:
         {
@@ -437,8 +427,6 @@ namespace ccf
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
             network.ledger_secrets =
               std::make_shared<LedgerSecrets>(resp.network_info.ledger_secrets);
-            network.encryption_key = std::make_unique<NetworkEncryptionKey>(
-              std::move(resp.network_info.encryption_key));
 
             self = resp.node_id;
 
@@ -459,8 +447,8 @@ namespace ccf
             bool from_snapshot = !config.startup_snapshot.empty();
             if (from_snapshot)
             {
-              // It is only possible to deserialise the snapshot then, once the
-              // ledger secrets have been passed in by the network
+              // It is only possible to deserialise the snapshot then, once
+              // the ledger secrets have been passed in by the network
               LOG_DEBUG_FMT(
                 "Deserialising snapshot ({})", config.startup_snapshot.size());
               std::vector<kv::Version> view_history;
@@ -681,9 +669,9 @@ namespace ccf
     {
       sm.expect(State::readingPublicLedger);
 
-      // For now, we rollback at the latest signed idx. However, it is possible
-      // that the snapshot evidence is rolled back. This should be fixed in
-      // https://github.com/microsoft/CCF/issues/1539
+      // For now, we rollback at the latest signed idx. However, it is
+      // possible that the snapshot evidence is rolled back. This should be
+      // fixed in https://github.com/microsoft/CCF/issues/1539
 
       // When reaching the end of the public ledger, truncate to last signed
       // index and promote network secrets to this index
@@ -1115,9 +1103,9 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfNetwork);
 
-      // Because submitted recovery shares are encrypted with the latest ledger
-      // secret, it is not possible to rekey the ledger if the service is in
-      // that state.
+      // Because submitted recovery shares are encrypted with the latest
+      // ledger secret, it is not possible to rekey the ledger if the service
+      // is in that state.
       GenesisGenerator g(network, tx);
       if (
         g.get_service_status().value() ==
@@ -1209,9 +1197,9 @@ namespace ccf
 
     void accept_node_tls_connections()
     {
-      // Accept TLS connections, presenting self-signed (i.e. non-endorsed) node
-      // certificate. Once the node is part of the network, this certificate
-      // should be replaced with network-endorsed counterpart
+      // Accept TLS connections, presenting self-signed (i.e. non-endorsed)
+      // node certificate. Once the node is part of the network, this
+      // certificate should be replaced with network-endorsed counterpart
       rpcsessions->set_cert(node_cert, node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Node TLS connections now accepted");
     }
@@ -1428,13 +1416,6 @@ namespace ccf
       }
     }
 
-    std::vector<uint8_t> get_network_encryption_key_public_pem()
-    {
-      return tls::PublicX25519::write(crypto::BoxKey::public_from_private(
-                                        network.encryption_key->private_raw))
-        .raw();
-    }
-
     void reset_data(std::vector<uint8_t>& data)
     {
       data.clear();
@@ -1527,8 +1508,8 @@ namespace ccf
               has_secrets = true;
 
               // If the version key is NoVersion, we are rekeying. Use the
-              // version passed to the hook instead. For recovery, the version
-              // of the past secrets is passed as the key.
+              // version passed to the hook instead. For recovery, the
+              // version of the past secrets is passed as the key.
               kv::Version secret_version = (v == kv::NoVersion) ? version : v;
 
               if (is_part_of_public_network())
@@ -1538,10 +1519,10 @@ namespace ccf
               }
               else
               {
-                // When rekeying, set the encryption key for the next version
-                // onward (for the backups to deserialise this transaction
-                // with the old key). The encryptor is in charge of updating
-                // the ledger secrets on global commit.
+                // When rekeying, set the encryption key for the next
+                // version onward (for the backups to deserialise this
+                // transaction with the old key). The encryptor is in charge
+                // of updating the ledger secrets on global commit.
                 encryptor->update_encryption_key(
                   secret_version + 1, plain_secret);
               }
@@ -1567,11 +1548,11 @@ namespace ccf
 
     kv::Version get_last_recovered_signed_idx() override
     {
-      // On recovery, only one node recovers the public ledger and is thus aware
-      // of the version at which the new ledger secret is applicable from. If
-      // the primary changes while the network is public-only, the new primary
-      // should also know at which version the new ledger secret is applicable
-      // from.
+      // On recovery, only one node recovers the public ledger and is thus
+      // aware of the version at which the new ledger secret is applicable
+      // from. If the primary changes while the network is public-only, the
+      // new primary should also know at which version the new ledger secret
+      // is applicable from.
       std::lock_guard<SpinLock> guard(lock);
       return last_recovered_signed_idx;
     }
@@ -1671,7 +1652,6 @@ namespace ccf
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         std::chrono::milliseconds(consensus_config.pbft_view_change_timeout),
         sig_tx_interval,
-        sig_ms_interval,
         public_only);
 
       consensus = std::make_shared<RaftConsensusType>(
@@ -1785,6 +1765,7 @@ namespace ccf
       {
         auto store = std::make_unique<ccf::ProgressTrackerStoreAdapter>(
           *network.tables.get(),
+          *node_sign_kp,
           network.nodes,
           network.backup_signatures_map,
           network.revealed_nonces_map);

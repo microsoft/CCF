@@ -5,7 +5,6 @@
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
 #include "node/members.h"
-#include "node/network_encryption.h"
 #include "node/node_info_network.h"
 
 #include <nlohmann/json.hpp>
@@ -100,7 +99,6 @@ namespace ccf
 
         LedgerSecrets ledger_secrets;
         NetworkIdentity identity;
-        NetworkEncryptionKey encryption_key;
 
         bool operator==(const NetworkInfo& other) const
         {
@@ -108,8 +106,7 @@ namespace ccf
             last_recovered_signed_idx == other.last_recovered_signed_idx &&
             consensus_type == other.consensus_type &&
             ledger_secrets == other.ledger_secrets &&
-            identity == other.identity &&
-            encryption_key == other.encryption_key;
+            identity == other.identity;
         }
 
         bool operator!=(const NetworkInfo& other) const

@@ -36,39 +36,39 @@ namespace ccf
   struct MemberPubInfo
   {
     tls::Pem cert;
-    tls::Pem keyshare;
+    tls::Pem encryption_pub_key;
     nlohmann::json member_data = nullptr;
 
     MemberPubInfo() {}
 
     MemberPubInfo(
       const tls::Pem& cert_,
-      const tls::Pem& keyshare_,
+      const tls::Pem& encryption_pub_key_,
       const nlohmann::json& member_data_) :
       cert(cert_),
-      keyshare(keyshare_),
+      encryption_pub_key(encryption_pub_key_),
       member_data(member_data_)
     {}
 
     MemberPubInfo(
       std::vector<uint8_t>&& cert_,
-      std::vector<uint8_t>&& keyshare_,
+      std::vector<uint8_t>&& encryption_pub_key_,
       nlohmann::json&& member_data_) :
       cert(std::move(cert_)),
-      keyshare(std::move(keyshare_)),
+      encryption_pub_key(std::move(encryption_pub_key_)),
       member_data(std::move(member_data_))
     {}
 
     bool operator==(const MemberPubInfo& rhs) const
     {
-      return cert == rhs.cert && keyshare == rhs.keyshare &&
+      return cert == rhs.cert && encryption_pub_key == rhs.encryption_pub_key &&
         member_data == rhs.member_data;
     }
 
-    MSGPACK_DEFINE(cert, keyshare, member_data);
+    MSGPACK_DEFINE(cert, encryption_pub_key, member_data);
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(MemberPubInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(MemberPubInfo, cert, keyshare)
+  DECLARE_JSON_REQUIRED_FIELDS(MemberPubInfo, cert, encryption_pub_key)
   DECLARE_JSON_OPTIONAL_FIELDS(MemberPubInfo, member_data)
 
   struct MemberInfo : public MemberPubInfo
@@ -79,10 +79,10 @@ namespace ccf
 
     MemberInfo(
       const tls::Pem& cert_,
-      const tls::Pem& keyshare_,
+      const tls::Pem& encryption_pub_key_,
       const nlohmann::json& member_data_,
       MemberStatus status_) :
-      MemberPubInfo(cert_, keyshare_, member_data_),
+      MemberPubInfo(cert_, encryption_pub_key_, member_data_),
       status(status_)
     {}
 

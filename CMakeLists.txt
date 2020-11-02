@@ -805,13 +805,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME election_test_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS "--raft-election-timeout" "4000"
-  )
-
-  add_e2e_test(
     NAME vegeta_stress_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
     CONSENSUS cft
@@ -842,6 +835,14 @@ if(BUILD_TESTS)
       CURL_CLIENT TRUE
       CONSENSUS ${CONSENSUS}
     )
+
+    add_e2e_test(
+      NAME election_test_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+      CONSENSUS ${CONSENSUS}
+      ADDITIONAL_ARGS "--raft-election-timeout" "4000"
+    )
+
   endforeach()
 
   add_perf_test(
