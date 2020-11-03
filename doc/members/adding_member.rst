@@ -53,7 +53,7 @@ Then, the new member should sign the state digest returned by the ``members/ack/
 
 .. code-block:: bash
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/ack  --cacert networkcert.pem --key new_member_privk.pem --cert new_member_cert.pem --header "Content-Type: application/json" --data-binary '{"state_digest": <...>}'
+    $ scurl.sh https://<ccf-node-address>/gov/ack  --cacert networkcert.pem --key new_member_privk.pem --cert new_member_cert.pem --header "Content-Type: application/json" --data-binary '{"state_digest": <...>}'
     true
 
 Once the command completes, the new member becomes active and can take part in governance operations (e.g. creating a new proposal or voting for an existing one).
