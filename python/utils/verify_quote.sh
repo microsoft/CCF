@@ -16,8 +16,8 @@ function usage()
     echo "Usage:"
     echo "  $0 https://<node-address> [--mrenclave <mrenclave_hex>] [CURL_OPTIONS]"
     echo "Verify target node's remote attestation quote."
-    echo "For the verification to be successful, the public key of the node certificate should also match the SGX report data and the corresponding mrenclave should be trusted."
-    echo "If no trusted mrenclave is specified (--mrenclave), the quote measurement should match one of the service's currently accepted code versions."
+    echo "Verification involves confirming that the public key of the node certificate matches the SGX report data and that the mrenclave included in the quote is trusted."
+    echo "A specific trusted mrenclave can be specified with --mrenclave. If specified, the quoted mrenclave must match this exactly. If unspecified, the service's currently accepted code versions will be retrieved from the target node, and verification will succeed only if the quoted mrenclave is present in this list."
 }
 
 if [[ "$1" =~ ^(-h|-\?|--help)$ ]]; then
@@ -66,7 +66,7 @@ function cleanup() {
 }
 trap cleanup EXIT
 
-curl -sS --fail -X GET "${node_address}"/node/quote "${@}" | jq .raw | xxd -r -p > "${tmp_dir}/${quote_file_name}"
+curl -sS --fail -X GET "${node_address}"/node/quote "${@}" | jq -r .raw | perl -e 'print pack "H*", <STDIN>' > "${tmp_dir}/${quote_file_name}"
 
 if [ ! -s "${tmp_dir}/${quote_file_name}" ]; then
     echo "Error: Node quote is empty. Virtual mode does not support SGX quotes."
@@ -107,6 +107,7 @@ elif [ "${is_mrenclave_valid}" != true ]; then
     echo "${trusted_mrenclaves[@]}"
     exit 1
 else
+    echo "mrenclave: ${extracted_mrenclave}"
     echo "Quote verification successful."
     exit 0
 fi
