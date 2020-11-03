@@ -407,6 +407,7 @@ namespace aft
       {
         for (auto& [index, data, globally_committable] : entries)
         {
+          LOG_INFO_FMT("TTTTTTTT index:{}, globally_committable:{}", index, globally_committable);
           state->last_idx = index;
           ledger->put_entry(*data, globally_committable, false);
         }
@@ -438,13 +439,13 @@ namespace aft
       for (auto& [index, data, is_globally_committable] : entries)
       {
         bool globally_committable =
-          is_globally_committable || consensus_type == ConsensusType::BFT;
+          is_globally_committable/* || consensus_type == ConsensusType::BFT*/;
 
         if (index != state->last_idx + 1)
           return false;
 
         LOG_DEBUG_FMT(
-          "Replicated on leader {}: {}{}",
+          "TTTTTTTT Replicated on leader {}: {}{}",
           state->my_node_id,
           index,
           (globally_committable ? " committable" : ""));
@@ -1823,6 +1824,7 @@ namespace aft
 
       if (new_commit_bft_idx != std::numeric_limits<Index>::max())
       {
+        LOG_INFO_FMT("GGGGGGG bft_watermark_idx:{}", new_commit_bft_idx);
         state->bft_watermark_idx = new_commit_bft_idx;
       }
 
@@ -1876,6 +1878,7 @@ namespace aft
       if (idx <= state->commit_idx)
         return;
 
+      LOG_INFO_FMT("BBBBBBB setting idx:{}", idx);
       state->commit_idx = idx;
 
       LOG_DEBUG_FMT("Compacting...");

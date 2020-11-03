@@ -631,6 +631,7 @@ namespace ccf
         process_command(ctx, tx, ctx->session->original_caller->caller_id, fn);
 
       version = tx.get_version();
+      LOG_INFO_FMT("RRRRRRRRRRRRR version:{}", version);
       return {std::move(rep.value()), version};
     }
 
