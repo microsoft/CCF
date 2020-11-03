@@ -717,7 +717,7 @@ namespace ccf
         // vvv arguments to script vvv
         proposal.parameter);
 
-      nlohmann::json votes;
+      nlohmann::json votes = nlohmann::json::object();
       // Collect all member votes
       for (const auto& vote : proposal.votes)
       {
