@@ -19,15 +19,9 @@ namespace ccf
       return "Could not find matching user certificate";
     }
 
-    Users* users;
-
   public:
     UserRpcFrontend(kv::Store& tables, EndpointRegistry& h) :
-      RpcFrontend(
-        tables,
-        h,
-        tables.get<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
-      users(tables.get<Users>(Tables::USERS))
+      RpcFrontend(tables, h, Tables::USER_CLIENT_SIGNATURES)
     {}
 
     void open() override
@@ -40,7 +34,7 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx) override
     {
       // Lookup the calling user's certificate from the forwarded caller id
-      auto users_view = tx.get_view(*users);
+      auto users_view = tx.get_view<Users>(Tables::USERS);
       auto caller = users_view->get(ctx->session->original_caller->caller_id);
       if (!caller.has_value())
       {

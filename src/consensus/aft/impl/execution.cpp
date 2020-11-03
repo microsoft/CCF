@@ -123,7 +123,7 @@ namespace aft
   kv::Version ExecutorImpl::commit_replayed_request(
     kv::Tx& tx, std::shared_ptr<aft::RequestTracker> request_tracker)
   {
-    auto tx_view = tx.get_view(bft_requests_map);
+    auto tx_view = tx.get_view<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
     auto req_v = tx_view->get(0);
     CCF_ASSERT(
       req_v.has_value(),

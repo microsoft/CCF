@@ -108,7 +108,6 @@ namespace kv::untyped
 
   private:
     AbstractStore* store;
-    std::string name;
     Roll roll;
     CommitHook local_hook = nullptr;
     CommitHook global_hook = nullptr;
@@ -118,13 +117,12 @@ namespace kv::untyped
     const bool replicated;
 
   public:
-    class TxViewCommitter : public AbstractTxView
+    class TxViewCommitter : public AbstractCommitter
     {
     protected:
       Map& map;
-      size_t rollback_counter;
 
-      ChangeSet change_set;
+      ChangeSet& change_set;
 
       Version commit_version = NoVersion;
 
@@ -132,22 +130,15 @@ namespace kv::untyped
       bool committed_writes = false;
 
     public:
-      template <typename... Ts>
-      TxViewCommitter(Map& m, size_t rollbacks, Ts&&... ts) :
+      TxViewCommitter(Map& m, ChangeSet& change_set_) :
         map(m),
-        rollback_counter(rollbacks),
-        change_set(std::forward<Ts>(ts)...)
+        change_set(change_set_)
       {}
 
       // Commit-related methods
       bool has_writes() override
       {
-        return committed_writes || !change_set.writes.empty();
-      }
-
-      bool has_changes() override
-      {
-        return changes;
+        return committed_writes || change_set.has_writes();
       }
 
       bool prepare() override
@@ -159,7 +150,7 @@ namespace kv::untyped
 
         // If the parent map has rolled back since this transaction began, this
         // transaction must fail.
-        if (rollback_counter != roll.rollback_counter)
+        if (change_set.rollback_counter != roll.rollback_counter)
           return false;
 
         // If we have iterated over the map, check for a global version match.
@@ -259,34 +250,10 @@ namespace kv::untyped
         map.trigger_local_hook(commit_version, change_set.writes);
       }
 
-      // Used by owning map during serialise and deserialise
-      ChangeSet& get_change_set()
-      {
-        return change_set;
-      }
-
-      const ChangeSet& get_change_set() const
-      {
-        return change_set;
-      }
-
       void set_commit_version(Version v)
       {
         commit_version = v;
       }
-    };
-
-    struct ConcreteTxView : public TxViewCommitter, public TxView
-    {
-      ConcreteTxView(
-        Map& m,
-        size_t rollbacks,
-        State& current_state,
-        State& committed_state,
-        Version v) :
-        TxViewCommitter(m, rollbacks, current_state, committed_state, v),
-        TxView(TxViewCommitter::change_set)
-      {}
     };
 
     class Snapshot : public AbstractMap::Snapshot
@@ -327,15 +294,15 @@ namespace kv::untyped
     };
 
     // Public typedef for external consumption
-    using TxView = ConcreteTxView;
+    using TxView = kv::untyped::TxView;
 
     Map(
       AbstractStore* store_,
-      std::string name_,
+      const std::string& name_,
       SecurityDomain security_domain_,
       bool replicated_) :
+      AbstractMap(name_),
       store(store_),
-      name(name_),
       roll{std::make_unique<LocalCommits>(), 0, {}},
       security_domain(security_domain_),
       replicated(replicated_)
@@ -350,19 +317,20 @@ namespace kv::untyped
       return new Map(other, name, security_domain, replicated);
     }
 
-    void serialise(
-      const AbstractTxView* view,
+    void serialise_changes(
+      const AbstractChangeSet* changes,
       KvStoreSerialiser& s,
       bool include_reads) override
     {
-      const auto committer = dynamic_cast<const TxViewCommitter*>(view);
-      if (committer == nullptr)
+      const auto non_abstract =
+        dynamic_cast<const kv::untyped::ChangeSet*>(changes);
+      if (non_abstract == nullptr)
       {
         LOG_FAIL_FMT("Unable to serialise map due to type mismatch");
         return;
       }
 
-      const auto& change_set = committer->get_change_set();
+      const auto& change_set = *non_abstract;
 
       s.start_map(name, security_domain);
 
@@ -423,26 +391,20 @@ namespace kv::untyped
       }
     }
 
-    class SnapshotViewCommitter : public AbstractTxView
+    class SnapshotViewCommitter : public AbstractCommitter
     {
     private:
       Map& map;
 
-      SnapshotChangeSet change_set;
+      SnapshotChangeSet& change_set;
 
     public:
-      template <typename... Ts>
-      SnapshotViewCommitter(Map& m, Ts&&... ts) :
+      SnapshotViewCommitter(Map& m, SnapshotChangeSet& change_set_) :
         map(m),
-        change_set(std::forward<Ts>(ts)...)
+        change_set(change_set_)
       {}
 
       bool has_writes() override
-      {
-        return true;
-      }
-
-      virtual bool has_changes() override
       {
         return true;
       }
@@ -485,48 +447,35 @@ namespace kv::untyped
         auto r = map.roll.commits->get_head();
         map.trigger_local_hook(change_set.version, r->writes);
       }
-
-      SnapshotChangeSet& get_change_set()
-      {
-        return change_set;
-      }
     };
 
-    AbstractTxView* deserialise_snapshot(KvStoreDeserialiser& d) override
+    ChangeSetPtr deserialise_snapshot_changes(KvStoreDeserialiser& d)
     {
       // Create a new empty view, deserialising d's contents into it.
       auto v = d.deserialise_entry_version();
       auto map_snapshot = d.deserialise_raw();
 
-      return new SnapshotViewCommitter(
-        *this, State::deserialize_map(map_snapshot), v);
+      return std::make_unique<SnapshotChangeSet>(
+        State::deserialize_map(map_snapshot), v);
     }
 
-    AbstractTxView* deserialise(
-      KvStoreDeserialiser& d, Version version, bool commit) override
+    ChangeSetPtr deserialise_changes(KvStoreDeserialiser& d, Version version)
     {
-      return deserialise_internal<TxView>(d, version, commit);
+      return deserialise_internal(d, version);
     }
 
-    template <typename TView>
-    TView* deserialise_internal(
-      KvStoreDeserialiser& d, Version version, bool commit)
+    ChangeSetPtr deserialise_internal(KvStoreDeserialiser& d, Version version)
     {
       // Create a new change set, and deserialise d's contents into it.
-      auto view = create_view<TView>(version);
-      if (view == nullptr)
+      auto change_set_ptr = create_change_set(version);
+      if (change_set_ptr == nullptr)
       {
         LOG_FAIL_FMT(
           "Failed to create view over '{}' at {} - too early", name, version);
         throw std::logic_error("Can't create view");
       }
 
-      if (commit)
-      {
-        view->set_commit_version(version);
-      }
-
-      auto& change_set = view->get_change_set();
+      auto& change_set = *change_set_ptr;
 
       uint64_t ctr;
 
@@ -557,16 +506,26 @@ namespace kv::untyped
         change_set.writes[r] = std::nullopt;
       }
 
-      return view;
+      return change_set_ptr;
     }
 
-    /** Get the name of the map
-     *
-     * @return const std::string&
-     */
-    const std::string& get_name() const override
+    std::unique_ptr<AbstractCommitter> create_committer(
+      AbstractChangeSet* changes) override
     {
-      return name;
+      auto non_abstract = dynamic_cast<ChangeSet*>(changes);
+      if (non_abstract == nullptr)
+      {
+        throw std::logic_error("Type confusion error");
+      }
+
+      auto snapshot_change_set = dynamic_cast<SnapshotChangeSet*>(non_abstract);
+      if (snapshot_change_set != nullptr)
+      {
+        return std::make_unique<SnapshotViewCommitter>(
+          *this, *snapshot_change_set);
+      }
+
+      return std::make_unique<TxViewCommitter>(*this, *non_abstract);
     }
 
     /** Get store that the map belongs to
@@ -584,7 +543,6 @@ namespace kv::untyped
      */
     void set_local_hook(const CommitHook& hook)
     {
-      std::lock_guard<SpinLock> guard(sl);
       local_hook = hook;
     }
 
@@ -592,7 +550,6 @@ namespace kv::untyped
      */
     void unset_local_hook()
     {
-      std::lock_guard<SpinLock> guard(sl);
       local_hook = nullptr;
     }
 
@@ -602,7 +559,6 @@ namespace kv::untyped
      */
     void set_global_hook(const CommitHook& hook)
     {
-      std::lock_guard<SpinLock> guard(sl);
       global_hook = hook;
     }
 
@@ -610,7 +566,6 @@ namespace kv::untyped
      */
     void unset_global_hook()
     {
-      std::lock_guard<SpinLock> guard(sl);
       global_hook = nullptr;
     }
 
@@ -820,21 +775,19 @@ namespace kv::untyped
       std::swap(roll, map->roll);
     }
 
-    template <typename TView>
-    TView* create_view(Version version)
+    ChangeSetPtr create_change_set(Version version)
     {
       lock();
 
-      // Find the last entry committed at or before this version.
-      TView* view = nullptr;
+      ChangeSetPtr changes = nullptr;
 
+      // Find the last entry committed at or before this version.
       for (auto current = roll.commits->get_tail(); current != nullptr;
            current = current->prev)
       {
         if (current->version <= version)
         {
-          view = new TView(
-            *this,
+          changes = std::make_unique<untyped::ChangeSet>(
             roll.rollback_counter,
             current->state,
             roll.commits->get_head()->state,
@@ -847,7 +800,7 @@ namespace kv::untyped
       // version - the version requested is _earlier_ than anything in the roll
 
       unlock();
-      return view;
+      return changes;
     }
 
     Roll& get_roll()

@@ -11,12 +11,10 @@
 namespace kv
 {
   template <typename K, typename V, typename KSerialiser, typename VSerialiser>
-  class TypedMap : public AbstractMap
+  class TypedMap : public NamedMap
   {
   protected:
     using This = TypedMap<K, V, KSerialiser, VSerialiser>;
-
-    kv::untyped::Map untyped_map;
 
   public:
     // Expose correct public aliases of types
@@ -29,124 +27,10 @@ namespace kv
     using ReadOnlyTxView = kv::ReadOnlyTxView<K, V, KSerialiser, VSerialiser>;
     using TxView = kv::TxView<K, V, KSerialiser, VSerialiser>;
 
-    template <typename... Ts>
-    TypedMap(Ts&&... ts) : untyped_map(std::forward<Ts>(ts)...)
-    {}
+    using KeySerialiser = KSerialiser;
+    using ValueSerialiser = VSerialiser;
 
-    bool operator==(const AbstractMap& that) const override
-    {
-      auto p = dynamic_cast<const This*>(&that);
-      if (p == nullptr)
-      {
-        return false;
-      }
-
-      return untyped_map == p->untyped_map;
-    }
-
-    bool operator!=(const AbstractMap& that) const override
-    {
-      return !(*this == that);
-    }
-
-    AbstractStore* get_store() override
-    {
-      return untyped_map.get_store();
-    }
-
-    void serialise(
-      const AbstractTxView* view,
-      KvStoreSerialiser& s,
-      bool include_reads) override
-    {
-      untyped_map.serialise(view, s, include_reads);
-    }
-
-    AbstractTxView* deserialise(
-      KvStoreDeserialiser& d, Version version, bool commit) override
-    {
-      return untyped_map.deserialise_internal<TxView>(d, version, commit);
-    }
-
-    AbstractTxView* deserialise_snapshot(KvStoreDeserialiser& d) override
-    {
-      return untyped_map.deserialise_snapshot(d);
-    }
-
-    const std::string& get_name() const override
-    {
-      return untyped_map.get_name();
-    }
-
-    void compact(Version v) override
-    {
-      return untyped_map.compact(v);
-    }
-
-    std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
-    {
-      return untyped_map.snapshot(v);
-    }
-
-    void post_compact() override
-    {
-      return untyped_map.post_compact();
-    }
-
-    void rollback(Version v) override
-    {
-      untyped_map.rollback(v);
-    }
-
-    void lock() override
-    {
-      untyped_map.lock();
-    }
-
-    void unlock() override
-    {
-      untyped_map.unlock();
-    }
-
-    SecurityDomain get_security_domain() override
-    {
-      return untyped_map.get_security_domain();
-    }
-
-    bool is_replicated() override
-    {
-      return untyped_map.is_replicated();
-    }
-
-    void clear() override
-    {
-      untyped_map.clear();
-    }
-
-    AbstractMap* clone(AbstractStore* store) override
-    {
-      return new TypedMap(
-        store,
-        untyped_map.get_name(),
-        untyped_map.get_security_domain(),
-        untyped_map.is_replicated());
-    }
-
-    void swap(AbstractMap* map) override
-    {
-      auto p = dynamic_cast<This*>(map);
-      if (p == nullptr)
-        throw std::logic_error(
-          "Attempted to swap maps with incompatible types");
-
-      untyped_map.swap(&p->untyped_map);
-    }
-
-    template <typename TView>
-    TView* create_view(Version v)
-    {
-      return untyped_map.create_view<TView>(v);
-    }
+    using NamedMap::NamedMap;
 
     static kv::untyped::Map::CommitHook wrap_commit_hook(const CommitHook& hook)
     {
@@ -169,26 +53,6 @@ namespace kv
 
         hook(v, typed_writes);
       };
-    }
-
-    void set_local_hook(const CommitHook& hook)
-    {
-      untyped_map.set_local_hook(wrap_commit_hook(hook));
-    }
-
-    void unset_local_hook()
-    {
-      untyped_map.unset_local_hook();
-    }
-
-    void set_global_hook(const CommitHook& hook)
-    {
-      untyped_map.set_global_hook(wrap_commit_hook(hook));
-    }
-
-    void unset_global_hook()
-    {
-      untyped_map.unset_global_hook();
     }
   };
 

@@ -92,18 +92,11 @@ namespace ccf
   {
     kv::Store& store;
     NodeId id;
-    Signatures& signatures;
 
   public:
-    NullTxHistory(
-      kv::Store& store_,
-      NodeId id_,
-      tls::KeyPair&,
-      Signatures& signatures_,
-      Nodes&) :
+    NullTxHistory(kv::Store& store_, NodeId id_, tls::KeyPair&) :
       store(store_),
-      id(id_),
-      signatures(signatures_)
+      id(id_)
     {}
 
     void append(const std::vector<uint8_t>&) override {}
@@ -142,7 +135,8 @@ namespace ccf
         txid,
         [txid, this]() {
           auto sig = store.create_reserved_tx(txid.version);
-          auto sig_view = sig.get_view(signatures);
+          auto sig_view =
+            sig.template get_view<ccf::Signatures>(ccf::Tables::SIGNATURES);
           PrimarySignature sig_value(id, txid.version);
           sig_view->put(0, sig_value);
           return sig.commit_reserved();
@@ -465,8 +459,6 @@ namespace ccf
     T replicated_state_tree;
 
     tls::KeyPair& kp;
-    Signatures& signatures;
-    Nodes& nodes;
 
     std::map<RequestID, std::vector<uint8_t>> requests;
     std::map<RequestID, std::pair<kv::Version, crypto::Sha256Hash>> results;
@@ -499,15 +491,11 @@ namespace ccf
       kv::Store& store_,
       NodeId id_,
       tls::KeyPair& kp_,
-      Signatures& sig_,
-      Nodes& nodes_,
       size_t sig_tx_interval_ = 0,
       size_t sig_ms_interval_ = 0) :
       store(store_),
       id(id_),
       kp(kp_),
-      signatures(sig_),
-      nodes(nodes_),
       sig_tx_interval(sig_tx_interval_),
       sig_ms_interval(sig_ms_interval_)
     {
@@ -620,7 +608,8 @@ namespace ccf
       // deserialising the tree in the signatures table and then applying the
       // hash of the transaction at which the snapshot was taken
       auto tx = store.create_read_only_tx();
-      auto sig_tv = tx.get_read_only_view(signatures);
+      auto sig_tv = tx.template get_read_only_view<ccf::Signatures>(
+        ccf::Tables::SIGNATURES);
       auto sig = sig_tv->get(0);
       if (!sig.has_value())
       {
@@ -688,7 +677,8 @@ namespace ccf
       kv::Term* term = nullptr, PrimarySignature* signature = nullptr) override
     {
       auto tx = store.create_tx();
-      auto [sig_tv, ni_tv] = tx.get_view(signatures, nodes);
+      auto [sig_tv, ni_tv] = tx.template get_view<ccf::Signatures, ccf::Nodes>(
+        ccf::Tables::SIGNATURES, ccf::Tables::NODES);
       auto sig = sig_tv->get(0);
       if (!sig.has_value())
       {
@@ -804,7 +794,8 @@ namespace ccf
         txid,
         [txid, commit_txid, this]() {
           auto sig = store.create_reserved_tx(txid.version);
-          auto sig_view = sig.get_view(signatures);
+          auto sig_view =
+            sig.template get_view<ccf::Signatures>(ccf::Tables::SIGNATURES);
           crypto::Sha256Hash root = replicated_state_tree.get_root();
 
           Nonce hashed_nonce;
