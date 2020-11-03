@@ -218,6 +218,10 @@ struct CustomClass
 };
 // SNIPPET_END: CustomClass definition
 
+// These macros allow the default nlohmann JSON serialiser to be used
+DECLARE_JSON_TYPE(CustomClass);
+DECLARE_JSON_REQUIRED_FIELDS(CustomClass, s, n);
+
 // SNIPPET_START: CustomSerialiser definition
 struct CustomSerialiser
 {
@@ -328,22 +332,22 @@ struct CustomVerboseDumbSerialiser
 
 using DefaultSerialisedMap = kv::Map<CustomClass, CustomClass>;
 using JsonSerialisedMap = kv::JsonSerialisedMap<CustomClass, CustomClass>;
-using RawCopySerialisedMap = kv::RawCopySerialisedMap<CustomClass, CustomClass>;
+// using RawCopySerialisedMap = kv::RawCopySerialisedMap<CustomClass, CustomClass>;
 using MixSerialisedMapA = kv::TypedMap<
   CustomClass,
   CustomClass,
   kv::serialisers::MsgPackSerialiser<CustomClass>,
   kv::serialisers::JsonSerialiser<CustomClass>>;
-using MixSerialisedMapB = kv::TypedMap<
-  CustomClass,
-  CustomClass,
-  kv::serialisers::JsonSerialiser<CustomClass>,
-  kv::serialisers::BlitSerialiser<CustomClass>>;
-using MixSerialisedMapC = kv::TypedMap<
-  CustomClass,
-  CustomClass,
-  kv::serialisers::BlitSerialiser<CustomClass>,
-  kv::serialisers::MsgPackSerialiser<CustomClass>>;
+// using MixSerialisedMapB = kv::TypedMap<
+//   CustomClass,
+//   CustomClass,
+//   kv::serialisers::JsonSerialiser<CustomClass>,
+//   kv::serialisers::BlitSerialiser<CustomClass>>;
+// using MixSerialisedMapC = kv::TypedMap<
+//   CustomClass,
+//   CustomClass,
+//   kv::serialisers::BlitSerialiser<CustomClass>,
+//   kv::serialisers::MsgPackSerialiser<CustomClass>>;
 
 // SNIPPET_START: CustomSerialisedMap definition
 using CustomSerialisedMap =
@@ -366,10 +370,10 @@ TEST_CASE_TEMPLATE(
   MapType,
   DefaultSerialisedMap,
   JsonSerialisedMap,
-  RawCopySerialisedMap,
+  // RawCopySerialisedMap,
   MixSerialisedMapA,
-  MixSerialisedMapB,
-  MixSerialisedMapC,
+  // MixSerialisedMapB,
+  // MixSerialisedMapC,
   CustomSerialisedMap,
   CustomJsonMap,
   VerboseSerialisedMap)
