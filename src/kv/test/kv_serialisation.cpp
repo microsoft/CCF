@@ -327,6 +327,23 @@ struct CustomVerboseDumbSerialiser
 };
 
 using DefaultSerialisedMap = kv::Map<CustomClass, CustomClass>;
+using JsonSerialisedMap = kv::JsonSerialisedMap<CustomClass, CustomClass>;
+using RawCopySerialisedMap = kv::RawCopySerialisedMap<CustomClass, CustomClass>;
+using MixSerialisedMapA = kv::TypedMap<
+  CustomClass,
+  CustomClass,
+  kv::serialisers::MsgPackSerialiser<CustomClass>,
+  kv::serialisers::JsonSerialiser<CustomClass>>;
+using MixSerialisedMapB = kv::TypedMap<
+  CustomClass,
+  CustomClass,
+  kv::serialisers::JsonSerialiser<CustomClass>,
+  kv::serialisers::BlitSerialiser<CustomClass>>;
+using MixSerialisedMapC = kv::TypedMap<
+  CustomClass,
+  CustomClass,
+  kv::serialisers::BlitSerialiser<CustomClass>,
+  kv::serialisers::MsgPackSerialiser<CustomClass>>;
 
 // SNIPPET_START: CustomSerialisedMap definition
 using CustomSerialisedMap =
@@ -348,6 +365,11 @@ TEST_CASE_TEMPLATE(
   "Custom type serialisation test" * doctest::test_suite("serialisation"),
   MapType,
   DefaultSerialisedMap,
+  JsonSerialisedMap,
+  RawCopySerialisedMap,
+  MixSerialisedMapA,
+  MixSerialisedMapB,
+  MixSerialisedMapC,
   CustomSerialisedMap,
   CustomJsonMap,
   VerboseSerialisedMap)
