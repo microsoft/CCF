@@ -663,6 +663,7 @@ namespace ccf
         {sig.view, sig.seqno},
         sig.node,
         sig.root,
+        sig.sig,
         sig.hashed_nonce,
         store.get_consensus()->node_count());
 
@@ -798,14 +799,15 @@ namespace ccf
           crypto::Sha256Hash root = replicated_state_tree.get_root();
 
           Nonce hashed_nonce;
+          std::vector<uint8_t> primary_sig;
           auto consensus = store.get_consensus();
           if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
           {
             auto progress_tracker = store.get_progress_tracker();
             CCF_ASSERT(
               progress_tracker != nullptr, "progress_tracker is not set");
-            auto r =
-              progress_tracker->record_primary(txid, id, root, hashed_nonce);
+            auto r = progress_tracker->record_primary(
+              txid, id, root, primary_sig, hashed_nonce);
             if (r != kv::TxHistory::Result::OK)
             {
               throw ccf::ccf_logic_error(fmt::format(
@@ -824,6 +826,8 @@ namespace ccf
             hashed_nonce.h.fill(0);
           }
 
+          primary_sig = kp.sign_hash(root.h.data(), root.h.size());
+
           PrimarySignature sig_value(
             id,
             txid.version,
@@ -832,8 +836,16 @@ namespace ccf
             commit_txid.first,
             root,
             hashed_nonce,
-            kp.sign_hash(root.h.data(), root.h.size()),
+            primary_sig,
             replicated_state_tree.serialise());
+
+          if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
+          {
+            auto progress_tracker = store.get_progress_tracker();
+            CCF_ASSERT(
+              progress_tracker != nullptr, "progress_tracker is not set");
+            progress_tracker->record_primary_signature(txid, primary_sig);
+          }
 
           sig_view->put(0, sig_value);
           return sig.commit_reserved();

@@ -8,6 +8,7 @@
 #include "impl/execution.h"
 #include "impl/request_message.h"
 #include "impl/state.h"
+#include "impl/view_change_tracker.h"
 #include "kv/kv_types.h"
 #include "kv/tx.h"
 #include "node/node_to_node.h"
@@ -87,13 +88,13 @@ namespace aft
     std::shared_ptr<aft::State> state;
     std::shared_ptr<Executor> executor;
     std::shared_ptr<aft::RequestTracker> request_tracker;
+    ViewChangeTracker view_change_tracker;
 
     // Timeouts
     std::chrono::milliseconds request_timeout;
     std::chrono::milliseconds election_timeout;
     std::chrono::milliseconds view_change_timeout;
     size_t sig_tx_interval;
-    std::chrono::milliseconds sig_ms_interval;
 
     // Configurations
     std::list<Configuration> configurations;
@@ -104,6 +105,8 @@ namespace aft
     Index entries_batch_size = 1;
     static constexpr int batch_window_size = 100;
     int batch_window_sum = 0;
+
+    static constexpr size_t starting_view_change = 2;
 
     // Indices that are eligible for global commit, from a Node's perspective
     std::deque<Index> committable_indices;
@@ -142,7 +145,6 @@ namespace aft
       std::chrono::milliseconds election_timeout_,
       std::chrono::milliseconds view_change_timeout_,
       size_t sig_tx_interval_ = 0,
-      size_t sig_ms_interval_ = 0,
       bool public_only_ = false) :
       consensus_type(consensus_type_),
       store(std::move(store_)),
@@ -154,12 +156,13 @@ namespace aft
       state(state_),
       executor(executor_),
       request_tracker(request_tracker_),
+      view_change_tracker(
+        state_->my_node_id, starting_view_change, view_change_timeout_),
 
       request_timeout(request_timeout_),
       election_timeout(election_timeout_),
       view_change_timeout(view_change_timeout_),
       sig_tx_interval(sig_tx_interval_),
-      sig_ms_interval(std::chrono::milliseconds(sig_ms_interval_)),
       public_only(public_only_),
 
       distrib(0, (int)election_timeout_.count() / 2),
@@ -178,7 +181,7 @@ namespace aft
       {
         // Initialize view history for bft. We start on view 2 and the first
         // commit is always 1.
-        state->view_history.update(1, 2);
+        state->view_history.update(1, starting_view_change);
       }
     }
 
@@ -246,7 +249,7 @@ namespace aft
       }
 
       std::lock_guard<SpinLock> guard(state->lock);
-      state->current_view += 2;
+      state->current_view += starting_view_change;
       become_leader();
     }
 
@@ -267,7 +270,7 @@ namespace aft
       state->commit_idx = commit_idx_;
       state->view_history.initialise(terms);
       state->view_history.update(index, term);
-      state->current_view += 2;
+      state->current_view += starting_view_change;
       become_leader();
     }
 
@@ -513,6 +516,10 @@ namespace aft
           recv_nonce_reveal(data, size);
           break;
 
+        case bft_view_change:
+          recv_view_change(data, size);
+          break;
+
         default:
         {
         }
@@ -530,14 +537,49 @@ namespace aft
                       .get_current_time_offset();
         request_tracker->tick(time);
 
-        if (is_follower() && has_bft_timeout_occurred(time))
+        if (
+          !view_change_tracker.is_view_change_in_progress(time) &&
+          is_follower() && (has_bft_timeout_occurred(time)) &&
+          view_change_tracker.should_send_view_change(time))
         {
           // We have not seen a request executed within an expected period of
           // time. We should invoke a view-change.
           //
-          // View-changes have not been implemented yet.
-          LOG_FAIL_FMT(
-            "Request not executed in time. View-changes not yet implemented");
+          kv::Consensus::View new_view = view_change_tracker.get_target_view();
+          kv::Consensus::SeqNo seqno;
+          crypto::Sha256Hash root;
+          std::unique_ptr<ccf::ViewChange> vc;
+
+          auto progress_tracker = store->get_progress_tracker();
+          std::tie(vc, seqno, root) =
+            progress_tracker->get_view_change_message(new_view);
+
+          size_t vc_size = vc->get_serialized_size();
+
+          RequestViewChangeMsg vcm = {
+            {bft_view_change, state->my_node_id}, new_view, seqno, root};
+
+          std::vector<uint8_t> m;
+          m.resize(sizeof(RequestViewChangeMsg) + vc_size);
+
+          uint8_t* data = m.data();
+          size_t size = m.size();
+
+          serialized::write(
+            data, size, reinterpret_cast<uint8_t*>(&vcm), sizeof(vcm));
+          vc->serialize(data, size);
+          CCF_ASSERT_FMT(size == 0, "Did not write everything");
+
+          LOG_INFO_FMT("Sending view change msg view:{}", vcm.view);
+          for (auto it = nodes.begin(); it != nodes.end(); ++it)
+          {
+            auto send_to = it->first;
+            if (send_to != state->my_node_id)
+            {
+              channels->send_authenticated(
+                ccf::NodeMsgType::consensus_msg, send_to, m);
+            }
+          }
         }
       }
 
@@ -556,7 +598,7 @@ namespace aft
           }
         }
       }
-      else
+      else if (consensus_type != ConsensusType::BFT)
       {
         if (replica_state != Retired && timeout_elapsed >= election_timeout)
         {
@@ -564,6 +606,42 @@ namespace aft
           become_candidate();
         }
       }
+    }
+
+    void recv_view_change(const uint8_t* data, size_t size)
+    {
+      RequestViewChangeMsg r;
+      try
+      {
+        r =
+          channels->template recv_authenticated_with_load<RequestViewChangeMsg>(
+            data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_FMT("Error in recv_view_change message");
+        LOG_DEBUG_FMT("Error in recv_view_change message: {}", err.what());
+        return;
+      }
+
+      auto node = nodes.find(r.from_node);
+      if (node == nodes.end())
+      {
+        // Ignore if we don't recognise the node.
+        LOG_FAIL_FMT(
+          "Recv nonce reveal to {} from {}: unknown node",
+          state->my_node_id,
+          r.from_node);
+        return;
+      }
+
+      ccf::ViewChange v = ccf::ViewChange::deserialize(data, size);
+      LOG_INFO_FMT(
+        "Received view change from:{}, view:{}", r.from_node, r.view);
+
+      auto progress_tracker = store->get_progress_tracker();
+      progress_tracker->apply_view_change_message(
+        v, r.from_node, r.view, r.seqno, r.root);
     }
 
     bool is_first_request = true;
@@ -619,10 +697,10 @@ namespace aft
 
       constexpr auto wait_factor = 10;
       std::chrono::milliseconds expire_time = last_sig_time +
-        std::chrono::milliseconds(sig_ms_interval.count() * wait_factor);
+        std::chrono::milliseconds(view_change_timeout.count() * wait_factor);
 
       // Check if we are waiting too long since the last signature
-      if (sig_ms_interval != std::chrono::milliseconds(0) && expire_time < time)
+      if (expire_time < time)
       {
         LOG_FAIL_FMT(
           "Timeout waiting for global commit, last_sig_seqno:{}, last_idx:{}",
@@ -1217,9 +1295,8 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT("Error in recv_signature_received_ack message");
-        LOG_DEBUG_FMT(
-          "Error in recv_signature_received_ack message: {}", err.what());
+        LOG_FAIL_FMT("Error in recv_nonce_reveal message");
+        LOG_DEBUG_FMT("Error in recv_nonce_reveal message: {}", err.what());
         return;
       }
 
