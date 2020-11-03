@@ -124,7 +124,6 @@ class Consortium:
         )
 
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        proposal.vote_for = careful_vote
 
         return (
             proposal,
@@ -167,20 +166,13 @@ class Consortium:
         # This function assumes that the proposal has just been proposed and
         # that at most, only the proposer has already voted for it when
         # proposing it
+        active_members = self.get_active_members()
         majority_count = int(len(self.get_active_members()) / 2 + 1)
 
         response = None
-        for member in self.get_active_members():
+        for member in active_members:
             if proposal.votes_for >= majority_count:
                 break
-
-            # If the proposer has already voted for the proposal when it
-            # was proposed, skip voting
-            if (
-                proposal.proposer_id == member.member_id
-                and proposal.has_proposer_voted_for
-            ):
-                continue
 
             response = member.vote(remote_node, proposal)
             assert response.status_code == http.HTTPStatus.OK.value
@@ -221,17 +213,11 @@ class Consortium:
             r = c.post("/gov/query", {"text": script})
             assert r.status_code == http.HTTPStatus.OK.value
             for proposal_id, attr in r.body.json().items():
-                has_proposer_voted_for = False
-                for vote in attr["votes"]:
-                    if attr["proposer"] == vote[0]:
-                        has_proposer_voted_for = True
-
                 proposals.append(
                     infra.proposal.Proposal(
                         proposal_id=int(proposal_id),
                         proposer_id=int(attr["proposer"]),
                         state=infra.proposal.ProposalState(attr["state"]),
-                        has_proposer_voted_for=has_proposer_voted_for,
                     )
                 )
         return proposals
@@ -241,7 +227,6 @@ class Consortium:
             "retire_node", node_to_retire.node_id
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        proposal.vote_for = careful_vote
         self.vote_using_majority(remote_node, proposal)
 
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
@@ -259,7 +244,6 @@ class Consortium:
 
         proposal_body, careful_vote = self.make_proposal("trust_node", node_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        proposal.vote_for = careful_vote
         self.vote_using_majority(
             remote_node, proposal, wait_for_global_commit=True, timeout=timeout
         )
@@ -274,7 +258,6 @@ class Consortium:
             "retire_member", member_to_retire.member_id
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        proposal.vote_for = careful_vote
         self.vote_using_majority(remote_node, proposal)
         member_to_retire.status_code = infra.member.MemberStatus.RETIRED
 
@@ -286,20 +269,17 @@ class Consortium:
         """
         proposal_body, careful_vote = self.make_proposal("open_network")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        proposal.vote_for = careful_vote
         self.vote_using_majority(remote_node, proposal, wait_for_global_commit=True)
         self.check_for_service(remote_node, infra.network.ServiceStatus.OPEN)
 
     def rekey_ledger(self, remote_node):
         proposal_body, careful_vote = self.make_proposal("rekey_ledger")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
     def update_recovery_shares(self, remote_node):
         proposal_body, careful_vote = self.make_proposal("update_recovery_shares")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
     def user_cert_path(self, user_id):
@@ -313,7 +293,6 @@ class Consortium:
         )
 
         proposal = self.get_any_active_member().propose(remote_node, proposal)
-        proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
     def add_users(self, remote_node, users):
@@ -324,19 +303,16 @@ class Consortium:
         proposal, careful_vote = self.make_proposal("remove_user", user_id)
 
         proposal = self.get_any_active_member().propose(remote_node, proposal)
-        proposal.vote_for = careful_vote
         self.vote_using_majority(remote_node, proposal)
 
     def set_lua_app(self, remote_node, app_script_path):
         proposal_body, careful_vote = self.make_proposal("set_lua_app", app_script_path)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
     def set_js_app(self, remote_node, app_script_path):
         proposal_body, careful_vote = self.make_proposal("set_js_app", app_script_path)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
     def deploy_js_app(self, remote_node, app_bundle_path):
@@ -344,14 +320,12 @@ class Consortium:
             "deploy_js_app", app_bundle_path
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        proposal.vote_for = careful_vote
         # Large apps take a long time to process - wait longer than normal for commit
         return self.vote_using_majority(remote_node, proposal, timeout=10)
 
     def accept_recovery(self, remote_node):
         proposal_body, careful_vote = self.make_proposal("accept_recovery")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
     def recover_with_shares(self, remote_node):
@@ -375,20 +349,17 @@ class Consortium:
             "set_recovery_threshold", recovery_threshold
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        proposal.vote_for = careful_vote
         self.recovery_threshold = recovery_threshold
         return self.vote_using_majority(remote_node, proposal)
 
     def add_new_code(self, remote_node, new_code_id):
         proposal_body, careful_vote = self.make_proposal("new_node_code", new_code_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
     def retire_code(self, remote_node, code_id):
         proposal_body, careful_vote = self.make_proposal("retire_node_code", code_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
     def check_for_service(self, remote_node, status):

@@ -208,7 +208,7 @@ def run(args):
             0, vote_against=True
         )
         try:
-            new_member.propose(primary, proposal_trust_0, has_proposer_voted_for=False)
+            new_member.propose(primary, proposal_trust_0)
             assert (
                 False
             ), "New non-active member should get insufficient rights response"
@@ -219,9 +219,7 @@ def run(args):
         new_member.ack(primary)
 
         LOG.info("New member is now active and send an accept node proposal")
-        trust_node_proposal_0 = new_member.propose(
-            primary, proposal_trust_0, has_proposer_voted_for=False
-        )
+        trust_node_proposal_0 = new_member.propose(primary, proposal_trust_0)
         trust_node_proposal_0.vote_for = careful_vote
 
         LOG.debug("Members vote to accept the accept node proposal")
