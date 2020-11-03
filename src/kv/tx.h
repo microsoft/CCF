@@ -141,7 +141,6 @@ namespace kv
           kv::get_security_domain(map_name),
           store->is_map_replicated(map_name));
         created_maps[map_name] = new_map;
-        LOG_DEBUG_FMT("Creating new map '{}'", map_name);
 
         abstract_map = new_map;
       }

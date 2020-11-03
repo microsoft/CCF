@@ -270,6 +270,7 @@ namespace kv
           "Can't add dynamic map - already have a map named {}", map_name));
       }
 
+      LOG_DEBUG_FMT("Adding newly created map '{}' at version {}", map_name, v);
       maps[map_name] = std::make_pair(v, map);
 
       {
