@@ -60,5 +60,31 @@ namespace ccf
 
       return v;
     }
+    MSGPACK_DEFINE(signatures, signature);
   };
+  DECLARE_JSON_TYPE(ViewChange);
+  DECLARE_JSON_REQUIRED_FIELDS(ViewChange, signatures, signature);
+
+  struct NewView
+  {
+    kv::Consensus::View view = 0;
+    kv::Consensus::SeqNo seqno = 0;
+    crypto::Sha256Hash root;
+
+    std::vector<ViewChange> view_change_messages;
+
+    NewView() = default;
+    NewView(
+      kv::Consensus::View view_,
+      kv::Consensus::SeqNo seqno_,
+      crypto::Sha256Hash& root_) :
+      view(view_), seqno(seqno_), root(root_)
+    {}
+
+    MSGPACK_DEFINE(view, seqno, root, view_change_messages);
+  };
+  DECLARE_JSON_TYPE(NewView);
+  DECLARE_JSON_REQUIRED_FIELDS(NewView, view, seqno, root, view_change_messages);
+
+  using NewViewsMap = kv::Map<ObjectId, NewView>;
 }

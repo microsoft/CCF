@@ -88,7 +88,7 @@ namespace aft
     std::shared_ptr<aft::State> state;
     std::shared_ptr<Executor> executor;
     std::shared_ptr<aft::RequestTracker> request_tracker;
-    ViewChangeTracker view_change_tracker;
+    std::unique_ptr<aft::ViewChangeTracker> view_change_tracker;
 
     // Timeouts
     std::chrono::milliseconds request_timeout;
@@ -141,6 +141,7 @@ namespace aft
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<Executor> executor_,
       std::shared_ptr<aft::RequestTracker> request_tracker_,
+      std::unique_ptr<aft::ViewChangeTracker> view_change_tracker_,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
       std::chrono::milliseconds view_change_timeout_,
@@ -156,8 +157,9 @@ namespace aft
       state(state_),
       executor(executor_),
       request_tracker(request_tracker_),
-      view_change_tracker(
-        state_->my_node_id, starting_view_change, view_change_timeout_),
+      //view_change_tracker(
+      //  state_->my_node_id, starting_view_change, view_change_timeout_),
+      view_change_tracker(std::move(view_change_tracker_)),
 
       request_timeout(request_timeout_),
       election_timeout(election_timeout_),
@@ -176,6 +178,10 @@ namespace aft
 
     {
       leader_id = NoNode;
+      if (view_change_tracker != nullptr)
+      {
+        view_change_tracker->set_current_view_change(starting_view_change);
+      }
 
       if (consensus_type == ConsensusType::BFT)
       {
@@ -545,14 +551,14 @@ namespace aft
         request_tracker->tick(time);
 
         if (
-          !view_change_tracker.is_view_change_in_progress(time) &&
+          !view_change_tracker->is_view_change_in_progress(time) &&
           is_follower() && (has_bft_timeout_occurred(time)) &&
-          view_change_tracker.should_send_view_change(time))
+          view_change_tracker->should_send_view_change(time))
         {
           // We have not seen a request executed within an expected period of
           // time. We should invoke a view-change.
           //
-          kv::Consensus::View new_view = view_change_tracker.get_target_view();
+          kv::Consensus::View new_view = view_change_tracker->get_target_view();
           kv::Consensus::SeqNo seqno;
           crypto::Sha256Hash root;
           std::unique_ptr<ccf::ViewChange> vc;
@@ -591,7 +597,7 @@ namespace aft
           if (
             get_leader(new_view) == id() &&
             aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
-              view_change_tracker.add_request_view_change(
+              view_change_tracker->add_request_view_change(
                 *vc, id(), new_view, seqno, root, node_count()))
           {
             append_new_view(new_view);
@@ -665,7 +671,7 @@ namespace aft
       if (
         get_leader(r.view) == id() &&
         aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
-          view_change_tracker.add_request_view_change(
+          view_change_tracker->add_request_view_change(
             v, r.from_node, r.view, r.seqno, r.root, node_count()))
       {
             append_new_view(r.view);
@@ -703,7 +709,15 @@ namespace aft
     void append_new_view(kv::Consensus::View view)
     {
       LOG_INFO_FMT("AAAAAA appending new view:{}", view);
-
+      // TODO: fix this
+      if (view != 3)
+      {
+        LOG_INFO_FMT("AAAAAAA exiting view change early, view:{}", view);
+        return;
+      }
+      state->current_view = view;
+      become_leader();
+      view_change_tracker->write_new_view_append_entry(view);
     }
 
     bool has_bft_timeout_occurred(std::chrono::milliseconds time)
@@ -955,6 +969,7 @@ namespace aft
         {
           // If the current entry has already been deserialised, skip the
           // payload for that entry
+          LOG_INFO_FMT("BBBBBB skipping i:{}", i);
           ledger->skip_entry(data, size);
           continue;
         }
@@ -1041,6 +1056,7 @@ namespace aft
           }
 
           case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE:
+          case kv::DeserialiseSuccess::NEW_VIEW:
           {
             break;
           }
@@ -1657,12 +1673,14 @@ namespace aft
       LOG_INFO_FMT(
         "Becoming candidate {}: {}", state->my_node_id, state->current_view);
 
+      /*
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
       {
         channels->create_channel(
           it->first, it->second.node_info.hostname, it->second.node_info.port);
         send_request_vote(it->first);
       }
+      */
     }
 
     void become_leader()
@@ -1725,7 +1743,8 @@ namespace aft
 
       LOG_INFO_FMT(
         "Becoming follower {}: {}", state->my_node_id, state->current_view);
-      channels->close_all_outgoing();
+
+      //channels->close_all_outgoing();
     }
 
     void become_retired()

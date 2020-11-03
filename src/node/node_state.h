@@ -1633,6 +1633,10 @@ namespace ccf
       setup_cmd_forwarder();
 
       auto request_tracker = std::make_shared<aft::RequestTracker>();
+      auto view_change_tracker = std::make_unique<aft::ViewChangeTracker>(
+        std::make_unique<ccf::ViewChangeTrackerStoreAdapter>(*network.tables, network.new_views_map),
+        std::chrono::milliseconds(consensus_config.raft_election_timeout)
+      );
       auto shared_state = std::make_shared<aft::State>(self);
       auto raft = std::make_unique<RaftType>(
         network.consensus_type,
@@ -1647,6 +1651,7 @@ namespace ccf
         shared_state,
         std::make_shared<aft::ExecutorImpl>(shared_state, rpc_map, rpcsessions),
         request_tracker,
+        std::move(view_change_tracker),
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         std::chrono::milliseconds(consensus_config.pbft_view_change_timeout),

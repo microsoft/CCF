@@ -505,7 +505,7 @@ TEST_CASE("view-change-tracker tests")
 {
   INFO("Check timeout works correctly");
   {
-    aft::ViewChangeTracker vct(0, 0, std::chrono::seconds(10));
+    aft::ViewChangeTracker vct(0, std::chrono::seconds(10));
     REQUIRE(vct.should_send_view_change(std::chrono::seconds(1)) == false);
     REQUIRE(vct.get_target_view() == 0);
     REQUIRE(vct.should_send_view_change(std::chrono::seconds(11)));

@@ -678,6 +678,7 @@ namespace kv
 
       // Throw away any local commits that have not propagated via the
       // consensus.
+      LOG_INFO_FMT("CCCCCC rollback to v-1:{}", v - 1);
       rollback(v - 1);
 
       if (strict_versions)
@@ -887,6 +888,20 @@ namespace kv
           auto h = get_history();
           h->append(data.data(), data.size());
           success = DeserialiseSuccess::PASS_NONCES;
+        }
+        else if (changes.find(ccf::Tables::NEW_VIEWS) != changes.end())
+        {
+          LOG_INFO_FMT("Applying new view");
+          success = commit_deserialised(changes, v, new_maps);
+          if (success == DeserialiseSuccess::FAILED)
+          {
+            return success;
+          }
+          // TODO: we need to verify this
+
+          auto h = get_history();
+          h->append(data.data(), data.size());
+          success = DeserialiseSuccess::NEW_VIEW;
         }
         else if (changes.find(ccf::Tables::AFT_REQUESTS) == changes.end())
         {

@@ -238,4 +238,44 @@ namespace ccf
       return ch.finalize();
     }
   };
+
+  class ViewChangeTrackerStore
+  {
+    public:
+    virtual ~ViewChangeTrackerStore() = default;
+    virtual void write_new_view(ccf::NewView& new_view) = 0;
+  };
+
+  class ViewChangeTrackerStoreAdapter : public ViewChangeTrackerStore
+  {
+  public:
+    ViewChangeTrackerStoreAdapter(
+      kv::AbstractStore& store_, ccf::NewViewsMap& new_views_) :
+      store(store_), new_views(new_views_)
+    {}
+
+    void write_new_view(ccf::NewView& new_view) override
+    {
+      kv::Tx tx(&store);
+      auto new_views_tv = tx.get_view(new_views);
+
+      new_views_tv->put(0, new_view);
+      auto r = tx.commit();
+      if (r != kv::CommitSuccess::OK)
+      {
+        LOG_FAIL_FMT(
+          "Failed to write new_view, view:{}, seqno:{}",
+          new_view.view,
+          new_view.seqno);
+        throw ccf::ccf_logic_error(fmt::format(
+          "Failed to write new_view, view:{}, seqno:{}",
+          new_view.view,
+          new_view.seqno));
+      }
+    }
+
+  private:
+    kv::AbstractStore& store;
+    ccf::NewViewsMap& new_views;
+  };
 }

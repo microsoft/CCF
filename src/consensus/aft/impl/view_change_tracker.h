@@ -3,6 +3,7 @@
 #pragma once
 
 #include "consensus/aft/raft_types.h"
+#include "node/view_change.h"
 
 #include <chrono>
 #include <map>
@@ -32,11 +33,10 @@ namespace aft
 
   public:
     ViewChangeTracker(
-      kv::NodeId /*my_node_id_*/,
-      kv::Consensus::View current_view,
+      std::unique_ptr<ccf::ViewChangeTrackerStore> store_,
       std::chrono::milliseconds time_between_attempts_) :
-      //my_node_id(my_node_id_),
-      last_view_change_sent(current_view),
+      store(std::move(store_)),
+      last_view_change_sent(0),
       time_between_attempts(time_between_attempts_)
     {}
 
@@ -101,9 +101,29 @@ namespace aft
 
       return ResultAddView::OK;
     }
+
+    void write_new_view_append_entry(kv::Consensus::View view)
+    {
+      auto it = view_changes.find(view);
+      if (it == view_changes.end())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot write unknown view-change to ledger, view:{}", view));
+      }
+
+      auto& vc = it->second;
+      ccf::NewView nv(vc.view, vc.seqno, vc.root);
+
+      for (auto it : vc.received_view_changes)
+      {
+        nv.view_change_messages.push_back(it.second);
+      }
+      
+      store->write_new_view(nv);
+    }
     
   private:
-    //kv::NodeId my_node_id;
+    std::unique_ptr<ccf::ViewChangeTrackerStore> store;
     std::map<kv::Consensus::View, ViewChange> view_changes;
     std::chrono::milliseconds time_previous_view_change_increment =
       std::chrono::milliseconds(0);
