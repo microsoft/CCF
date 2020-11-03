@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added `tools.cmake` to the install , which `ccf_app.cmake` depends on and was missing from the previous release.
 
 ### Deprecated
-- `kv::Store::create` is deprecated, and will be removed in a future release. It is no longer necessary to create a `kv::Map` from a `Store`, it can be constructed locally (`kv::Map<K, V> my_map("my_map_name");`) or accessed purely by name (`auto view = tx.get_view<K, V>("my_map_name");`).
+- `kv::Store::create` is deprecated, and will be removed in a future release. It is no longer necessary to create a `kv::Map` from a `Store`, it can be constructed locally (`kv::Map<K, V> my_map("my_map_name");`) or accessed purely by name (`auto view = tx.get_view<K, V>("my_map_name");`) (#1847).
 
 ## [0.14.2]
 ### Changed

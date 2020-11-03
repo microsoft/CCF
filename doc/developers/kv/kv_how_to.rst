@@ -10,7 +10,7 @@ The Key-Value :cpp:class:`kv::Store` is a collection of :cpp:class:`kv::Maps` th
 Creating a Map
 --------------
 
-A :cpp:type:`kv::Map` (often referred to as a ``Table``) is a collection key-value pairs of a given type. The :cpp:type:`kv::Map` itself is identified by its name, which is used to lookup the map :cpp:type:`kv::Map` in a `cpp:class:`kv::Store` during a transaction.
+A :cpp:type:`kv::Map` (often referred to as a ``Table``) is a collection of key-value pairs of a given type. The :cpp:type:`kv::Map` itself is identified by its name, which is used to lookup the map :cpp:type:`kv::Map` in a `cpp:class:`kv::Store` during a transaction.
 
 If a ``Map`` with the given name did not previously exist, it will be created in this transaction..
 
@@ -22,7 +22,7 @@ Accessing the ``Transaction``
 
 A :cpp:class:`kv::Tx` corresponds to the atomic operations that can be executed on the Key-Value ``Store``. A transaction can affect one or multiple ``Map`` and are automatically committed by CCF once the endpoint's handler returns successfully.
 
-A single ``Transaction`` (``tx``) is passed to each end-point of an application and should be used to interact with the Key-Value ``Store``.
+A single ``Transaction`` (``tx``) is passed to each endpoint of an application and should be used to interact with the Key-Value ``Store``.
 
 When the end-point successfully completes, the node on which the end-point was triggered attempts to commit the transaction to apply the changes to the Store. Once the transaction is committed successfully, it is automatically replicated by CCF and should globally commit.
 
