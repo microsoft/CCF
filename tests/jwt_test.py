@@ -102,6 +102,26 @@ def test_jwt_without_key_policy(network, args):
         )
         assert r.status_code == 400, r.status_code
 
+    LOG.info("Add JWT issuer with initial keys")
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+        json.dump({"issuer": issuer, "jwks": create_jwks(kid, cert_pem)}, metadata_fp)
+        metadata_fp.flush()
+        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+    LOG.info("Check if JWT signing key was stored correctly")
+    with primary.client(
+        f"member{network.consortium.get_any_active_member().member_id}"
+    ) as c:
+        r = c.post(
+            "/gov/read", {"table": "public:ccf.gov.jwt_public_signing_keys", "key": kid}
+        )
+        assert r.status_code == 200, r.status_code
+        cert_kv_der = bytes(r.body.json())
+        cert_kv_pem = infra.crypto.cert_der_to_pem(cert_kv_der)
+        assert infra.crypto.are_certs_equal(
+            cert_pem, cert_kv_pem
+        ), "stored cert not equal to input cert"
+
     return network
 
 

@@ -176,6 +176,11 @@ namespace ccf
     std::vector<std::string> x5c;
     std::string kid;
     std::string kty;
+
+    bool operator==(const JsonWebKey& rhs) const
+    {
+      return x5c == rhs.x5c && kid == rhs.kid && kty == rhs.kty;
+    }
   };
   DECLARE_JSON_TYPE(JsonWebKey)
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKey, x5c, kid, kty)
@@ -183,6 +188,11 @@ namespace ccf
   struct JsonWebKeySet
   {
     std::vector<JsonWebKey> keys;
+
+    bool operator!=(const JsonWebKeySet& rhs) const
+    {
+      return keys != rhs.keys;
+    }
   };
   DECLARE_JSON_TYPE(JsonWebKeySet)
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeySet, keys)
@@ -192,8 +202,9 @@ namespace ccf
     std::string issuer;
     std::optional<JsonWebKeySet> jwks;
   };
-  DECLARE_JSON_TYPE_WITH_BASE(SetJwtIssuer, ccf::JwtIssuerMetadata)
-  DECLARE_JSON_REQUIRED_FIELDS(SetJwtIssuer, issuer, jwks)
+  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(SetJwtIssuer, ccf::JwtIssuerMetadata)
+  DECLARE_JSON_REQUIRED_FIELDS(SetJwtIssuer, issuer)
+  DECLARE_JSON_OPTIONAL_FIELDS(SetJwtIssuer, jwks)
 
   struct RemoveJwtIssuer
   {
