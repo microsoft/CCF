@@ -217,9 +217,9 @@ autodoc_default_options = {
 
 # sphinxcontrib.spelling options
 spelling_show_suggestions = True
-spelling_lang='en_UK'
-tokenizer_lang='en_UK'
-spelling_word_list_filename=["spelling_wordlist.txt"]
+spelling_lang = "en_UK"
+tokenizer_lang = "en_UK"
+spelling_word_list_filename = ["spelling_wordlist.txt"]
 
 
 def setup(self):

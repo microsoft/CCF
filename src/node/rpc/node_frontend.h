@@ -17,8 +17,6 @@ namespace ccf
     NetworkState& network;
     AbstractNodeState& node;
 
-    Signatures* signatures = nullptr;
-
     std::optional<NodeId> check_node_exists(
       kv::Tx& tx,
       const tls::Pem& node_pem,
@@ -152,8 +150,6 @@ namespace ccf
     {
       CommonEndpointRegistry::init_handlers(tables_);
 
-      signatures = tables->get<Signatures>(Tables::SIGNATURES);
-
       auto accept = [this](
                       EndpointContext& args, const nlohmann::json& params) {
         const auto in = params.get<JoinNetworkNodeToNode::In>();
@@ -269,7 +265,8 @@ namespace ccf
         result.recovery_target_seqno = rts;
         result.last_recovered_seqno = lrs;
 
-        auto sig_view = args.tx.get_read_only_view(*signatures);
+        auto sig_view =
+          args.tx.template get_read_only_view<Signatures>(Tables::SIGNATURES);
         auto sig = sig_view->get(0);
         if (!sig.has_value())
         {

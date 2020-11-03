@@ -136,16 +136,13 @@ static void append(picobench::state& s)
   ::srand(42);
 
   kv::Store store;
-  auto& nodes = store.create<ccf::Nodes>(ccf::Tables::NODES);
-  auto& signatures = store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
-
   auto kp = tls::make_key_pair();
 
   std::shared_ptr<kv::Consensus> consensus = std::make_shared<DummyConsensus>();
   store.set_consensus(consensus);
 
   std::shared_ptr<kv::TxHistory> history =
-    std::make_shared<ccf::MerkleTxHistory>(store, 0, *kp, signatures, nodes);
+    std::make_shared<ccf::MerkleTxHistory>(store, 0, *kp);
   store.set_history(history);
 
   std::vector<std::vector<uint8_t>> txs;
@@ -176,16 +173,13 @@ static void append_compact(picobench::state& s)
   ::srand(42);
 
   kv::Store store;
-  auto& nodes = store.create<ccf::Nodes>(ccf::Tables::NODES);
-  auto& signatures = store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
-
   auto kp = tls::make_key_pair();
 
   std::shared_ptr<kv::Consensus> consensus = std::make_shared<DummyConsensus>();
   store.set_consensus(consensus);
 
   std::shared_ptr<kv::TxHistory> history =
-    std::make_shared<ccf::MerkleTxHistory>(store, 0, *kp, signatures, nodes);
+    std::make_shared<ccf::MerkleTxHistory>(store, 0, *kp);
   store.set_history(history);
 
   std::vector<std::vector<uint8_t>> txs;
