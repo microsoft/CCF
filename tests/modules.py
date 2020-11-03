@@ -353,10 +353,7 @@ def test_npm_app(network, args):
     LOG.info("Calling jwt endpoint after storing keys")
     with primary.client("user0") as c:
         jwt_mismatching_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-        jwt_mismatching_cert_pem = infra.crypto.generate_cert(
-            jwt_mismatching_key_priv_pem
-        )
-        jwt = infra.crypto.create_jwt({}, jwt_mismatching_cert_pem, jwt_kid)
+        jwt = infra.crypto.create_jwt({}, jwt_mismatching_key_priv_pem, jwt_kid)
         r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
         body = r.body.json()

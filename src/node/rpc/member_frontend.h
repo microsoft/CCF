@@ -193,7 +193,7 @@ namespace ccf
     std::optional<JsonWebKeySet> jwks;
   };
   DECLARE_JSON_TYPE_WITH_BASE(SetJwtIssuer, ccf::JwtIssuerMetadata)
-  DECLARE_JSON_REQUIRED_FIELDS(SetJwtIssuer, issuer)
+  DECLARE_JSON_REQUIRED_FIELDS(SetJwtIssuer, issuer, jwks)
 
   struct RemoveJwtIssuer
   {
@@ -473,6 +473,10 @@ namespace ccf
           issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX &&
           claims.empty())
         {
+          LOG_INFO_FMT(
+            "Proposal {}: Skipping JWT signing key with kid {} (not OE attested)",
+            proposal_id,
+            jwk.kid);
           continue;
         }
 

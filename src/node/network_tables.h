@@ -61,10 +61,10 @@ namespace ccf
 
     CACertDERs ca_certs;
 
-    JwtIssuers& jwt_issuers;
-    JwtIssuerKeyIds& jwt_issuer_key_ids;
-    JwtPublicSigningKeys& jwt_public_signing_keys;
-    JwtPublicSigningKeysValidateIssuer& jwt_public_signing_keys_validate_issuer;
+    JwtIssuers jwt_issuers;
+    JwtIssuerKeyIds jwt_issuer_key_ids;
+    JwtPublicSigningKeys jwt_public_signing_keys;
+    JwtPublicSigningKeysValidateIssuer jwt_public_signing_keys_validate_issuer;
 
     //
     // User tables
