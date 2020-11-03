@@ -26,28 +26,12 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
   INFO("Dynamically created maps can be used like normal maps");
 
   {
-    auto map_a = kv_store.get<MapTypes::StringString>(map_name);
-    REQUIRE(map_a == nullptr);
-  }
-
-  {
     auto tx = kv_store.create_tx();
 
     auto view = tx.get_view<MapTypes::StringString>(map_name);
     view->put("foo", "bar");
 
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-  }
-
-  {
-    INFO("Old style access");
-    // NB: Don't access these maps old-style, because you need to know this
-    // implementation detail that the map is _actually_ untyped
-    auto map_a_wrong = kv_store.get<MapTypes::StringString>(map_name);
-    REQUIRE(map_a_wrong == nullptr);
-
-    auto map_a = kv_store.get<kv::untyped::Map>(map_name);
-    REQUIRE(map_a != nullptr);
   }
 
   {
@@ -104,24 +88,23 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
       REQUIRE(v.has_value());
       REQUIRE(v.value() == "baz");
     }
-
-    REQUIRE(kv_store.get<kv::untyped::Map>(new_map1) != nullptr);
-    REQUIRE(kv_store.get<kv::untyped::Map>(new_map3) != nullptr);
-
-    // No writes => map is not created
-    REQUIRE(kv_store.get<kv::untyped::Map>(new_map2) == nullptr);
   }
 
   {
     INFO("Rollback can delete dynamic tables");
     kv_store.rollback(version_before);
 
-    REQUIRE(kv_store.get<kv::untyped::Map>(new_map1) == nullptr);
-    REQUIRE(kv_store.get<kv::untyped::Map>(new_map2) == nullptr);
-    REQUIRE(kv_store.get<kv::untyped::Map>(new_map3) == nullptr);
+    {
+      auto tx = kv_store.create_tx();
+      auto [v1, v2, v3] = tx.get_view<
+        MapTypes::StringString,
+        MapTypes::StringNum,
+        MapTypes::NumString>(new_map1, new_map2, new_map3);
 
-    // Previously created map is retained
-    REQUIRE(kv_store.get<kv::untyped::Map>(map_name) != nullptr);
+      REQUIRE(!v1->has("foo"));
+      REQUIRE(!v2->has("foo"));
+      REQUIRE(!v3->has(42));
+    }
 
     {
       INFO("Retained dynamic maps have their state rolled back");
@@ -155,11 +138,6 @@ TEST_CASE("Dynamic table opacity" * doctest::test_suite("dynamic"))
   REQUIRE(view2->get("foo").value() == "baz");
 
   {
-    INFO("Maps are not visible externally until commit");
-    REQUIRE(kv_store.get<MapTypes::StringString>(map_name) == nullptr);
-  }
-
-  {
     INFO("First transaction commits successfully");
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
   }
@@ -191,10 +169,6 @@ TEST_CASE("Dynamic table opacity" * doctest::test_suite("dynamic"))
   }
 
   {
-    REQUIRE(kv_store.get<kv::untyped::Map>(map_name) != nullptr);
-  }
-
-  {
     INFO("Subsequent transactions over dynamic map are persisted");
     auto tx4 = kv_store.create_tx();
     auto view4 = tx4.get_view<MapTypes::StringString>(map_name);
@@ -212,9 +186,8 @@ TEST_CASE(
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
-  auto& static_map = kv_store.create<MapTypes::StringString>("static_map");
-
   constexpr auto map_name = "dynamic_map";
+  constexpr auto other_map = "other_map";
 
   auto tx1 = kv_store.create_tx();
   auto tx2 = kv_store.create_tx();
@@ -229,7 +202,7 @@ TEST_CASE(
   REQUIRE(!view2->get("foo").has_value());
 
   // tx3 takes a read dependency at an early version, before the map is visible
-  auto view3_static = tx3.get_view(static_map);
+  auto view3_static = tx3.get_view<MapTypes::StringString>(other_map);
 
   REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
@@ -310,10 +283,18 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
+  constexpr auto key = "foo";
+
+  MapTypes::StringString prior_map("prior_map");
+  {
+    auto tx = kv_store.create_tx();
+    auto view = tx.get_view(prior_map);
+    view->put(key, "bar");
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+
   constexpr auto dynamic_map_a = "dynamic_map_a";
   constexpr auto dynamic_map_b = "dynamic_map_b";
-
-  auto& static_map = kv_store.create<MapTypes::StringString>("static_map");
 
   SUBCASE("Parallel independent map creation")
   {
@@ -332,10 +313,9 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
 
   SUBCASE("Map creation blocked by standard conflict")
   {
-    constexpr auto key = "foo";
     auto tx1 = kv_store.create_tx();
     {
-      auto view1 = tx1.get_view(static_map);
+      auto view1 = tx1.get_view(prior_map);
       const auto v = view1->get(key); // Introduce read-dependency
       view1->put(key, "bar");
       auto dynamic_view = tx1.get_view<MapTypes::NumString>(dynamic_map_a);
@@ -344,7 +324,7 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
 
     auto tx2 = kv_store.create_tx();
     {
-      auto view2 = tx2.get_view(static_map);
+      auto view2 = tx2.get_view(prior_map);
       const auto v = view2->get(key); // Introduce read-dependency
       view2->put(key, "bar");
       auto dynamic_view = tx2.get_view<MapTypes::StringNum>(dynamic_map_b);
@@ -368,9 +348,6 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
       const auto v2 = view2->get("hello world");
       REQUIRE_FALSE(v2.has_value());
     }
-
-    REQUIRE(kv_store.get<kv::untyped::Map>(dynamic_map_a) != nullptr);
-    REQUIRE(kv_store.get<MapTypes::StringNum>(dynamic_map_b) == nullptr);
   }
 }
 
@@ -528,16 +505,6 @@ TEST_CASE(
     view->put("hello", "world");
 
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-  }
-
-  {
-    auto public_map = kv_store.get<kv::untyped::Map>("public:foo");
-    REQUIRE(public_map != nullptr);
-    REQUIRE(public_map->get_security_domain() == kv::SecurityDomain::PUBLIC);
-
-    auto private_map = kv_store.get<kv::untyped::Map>("foo");
-    REQUIRE(private_map != nullptr);
-    REQUIRE(private_map->get_security_domain() == kv::SecurityDomain::PRIVATE);
   }
 
   {

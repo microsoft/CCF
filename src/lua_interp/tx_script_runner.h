@@ -104,12 +104,12 @@ namespace ccf
       public:
         template <typename T>
         static void create(
-          lua::Interpreter& li, kv::Tx& tx, const std::vector<T*>& tables)
+          lua::Interpreter& li, kv::Tx& tx, const std::vector<T>& tables)
         {
           register_meta<T>(li);
           lua_newtable(li.get_state());
           for (decltype(auto) table : tables)
-            add_table(li, tx, *table);
+            add_table(li, tx, table);
         }
 
         template <typename... T>

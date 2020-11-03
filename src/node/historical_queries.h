@@ -95,14 +95,7 @@ namespace ccf::historical
       const StorePtr& sig_store)
     {
       auto tx = sig_store->create_tx();
-      auto sig_table = sig_store->get<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      if (sig_table == nullptr)
-      {
-        throw std::logic_error(
-          "Missing signatures table in signature transaction");
-      }
-
-      auto sig_view = tx.get_view(*sig_table);
+      auto sig_view = tx.get_view<ccf::Signatures>(ccf::Tables::SIGNATURES);
       return sig_view->get(0);
     }
 
@@ -113,14 +106,7 @@ namespace ccf::historical
       // makes no check that the signing node was active at the point it
       // produced this signature
       auto tx = source_store.create_tx();
-
-      auto nodes_table = source_store.get<ccf::Nodes>(ccf::Tables::NODES);
-      if (nodes_table == nullptr)
-      {
-        throw std::logic_error("Missing nodes table");
-      }
-
-      auto nodes_view = tx.get_view(*nodes_table);
+      auto nodes_view = tx.get_view<ccf::Nodes>(ccf::Tables::NODES);
       return nodes_view->get(node_id);
     }
 
@@ -213,8 +199,6 @@ namespace ccf::historical
       StorePtr store = std::make_shared<kv::Store>(false);
 
       store->set_encryptor(source_store.get_encryptor());
-
-      store->clone_schema(source_store);
 
       const auto deserialise_result = store->deserialise_views(entry);
 

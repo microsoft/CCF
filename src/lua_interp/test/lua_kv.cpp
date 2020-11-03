@@ -32,7 +32,7 @@ namespace ccf
   TEST_CASE("lua tx")
   {
     kv::Store tables;
-    auto& table = tables.create<TableIS>("public:test");
+    TableIS table("public:test");
 
     auto txs = tables.create_tx();
 
@@ -162,9 +162,9 @@ namespace ccf
   TEST_CASE("multiple tables")
   {
     kv::Store tables;
-    auto& ii = tables.create<TableII>("public:test_ii");
-    auto& is = tables.create<TableIS>("public:test_is");
-    auto& sb = tables.create<TableSB>("public:test_sb");
+    TableII ii("public:test_ii");
+    TableIS is("public:test_is");
+    TableSB sb("public:test_sb");
 
     auto txs = tables.create_tx();
     auto tx = txs.get_view(ii, is, sb);
@@ -232,7 +232,7 @@ namespace ccf
     li.register_metatable<TxVI>(kv_methods<TxVI>);
 
     kv::Store tables;
-    auto& table = tables.create<TableVI>("v");
+    TableVI table("v");
     auto txs = tables.create_tx();
     auto tx = txs.get_view(table);
     tx->put(vector<uint8_t>(100, 1), 123);
@@ -336,7 +336,7 @@ namespace ccf
   )xxx";
 
     kv::Store tables;
-    auto& table = tables.create<TableII>("public:t");
+    TableII table("public:t");
     auto txs = tables.create_tx();
     auto tx = txs.get_view(table);
 
@@ -396,7 +396,7 @@ namespace ccf
       "return tx:get(k)");
 
     kv::Store tables;
-    auto& table = tables.create<TableII>("public:t");
+    TableII table("public:t");
     auto txs = tables.create_tx();
     auto tx = txs.get_view(table);
 

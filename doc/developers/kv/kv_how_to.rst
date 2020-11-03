@@ -10,23 +10,11 @@ The Key-Value :cpp:class:`kv::Store` is a collection of :cpp:class:`kv::Maps` th
 Creating a Map
 --------------
 
-A :cpp:type:`kv::Map` (often referred to as a ``Table``) is created in the constructor of an application. It maps a unique ``key`` to a ``value``.
+A :cpp:type:`kv::Map` (often referred to as a ``Table``) is a collection of key-value pairs of a given type. The :cpp:type:`kv::Map` itself is identified by its name, which is used to lookup the map :cpp:type:`kv::Map` in a `cpp:class:`kv::Store` during a transaction.
 
-When a ``Map`` is created, its name and the types of the key and value mapping should be specified.
+If a ``Map`` with the given name did not previously exist, it will be created in this transaction..
 
-A ``Map`` can either be created as private (default) or public. Transactions on private maps are written to the ledger in encrypted form and can only be decrypted in the enclave of the nodes that have joined the network. Transactions on public maps are written to the ledger as plaintext and can be read from outside the enclave (only their integrity is protected). The security domain of a map (public or private) cannot be changed after its creation.
-
-.. code-block:: cpp
-
-    using namespace std;
-    // Private map. Mapping: string -> string
-    auto& map_priv = tables.create<string, string>("map1");
-
-    // Public map. Mapping: string -> string
-    auto& map_pub = tables.create<string, string>("map2", kv::SecurityDomain::PUBLIC);
-
-    // Private map. Mapping: uint64_t -> string
-    auto& map_priv_int = tables.create<uint64_t, string>("map3", kv::SecurityDomain::PRIVATE);
+A ``Map`` can either be created as private (default) or public. Public map's names begin with a ``public:`` prefix, any any other name indicates a private map. Transactions on private maps are written to the ledger in encrypted form and can only be decrypted in the enclave of the nodes that have joined the network. Transactions on public maps are written to the ledger as plaintext and can be read from outside the enclave (only their integrity is protected). The security domain of a map (public or private) cannot be changed after its creation, since this is encoded in the map's name. Public and private maps with similar names are distinct; writes to "public:foo" have no impact on "foo", and vice versa.
 
 
 Accessing the ``Transaction``
@@ -34,21 +22,13 @@ Accessing the ``Transaction``
 
 A :cpp:class:`kv::Tx` corresponds to the atomic operations that can be executed on the Key-Value ``Store``. A transaction can affect one or multiple ``Map`` and are automatically committed by CCF once the endpoint's handler returns successfully.
 
-A single ``Transaction`` (``tx``) is passed to all the end-points of an application and should be used to interact with the Key-Value ``Store``.
+A single ``Transaction`` (``tx``) is passed to each endpoint of an application and should be used to interact with the Key-Value ``Store``.
 
 When the end-point successfully completes, the node on which the end-point was triggered attempts to commit the transaction to apply the changes to the Store. Once the transaction is committed successfully, it is automatically replicated by CCF and should globally commit.
 
-For each ``Map`` that a Transaction wants to write to or read from, a :cpp:class:`kv::Map::TxView` should first be acquired.
+For each ``Map`` that a Transaction wants to write to or read from, a :cpp:class:`kv::Map::TxView` should first be acquired. This may be retrieved either purely by name (in which case the desired type must be explicitly specified as template parameters), or by using a ``Map`` which contains both the name and the desired types.
 
-.. code-block:: cpp
-
-    // View on map_priv
-    auto view_map1 = tx.get_view(map_priv);
-
-    // Two Views created at the same time on map_pub and map_priv_int, respectively
-    auto [view_map2, view_map3] = tx.get_view(map_pub, map_priv_int);
-
-A :cpp:class:`kv::Map::TxView` can also be retrieved purely by name, without reference to an existing ``Map``.
+By name:
 
 .. code-block:: cpp
 
@@ -59,11 +39,22 @@ A :cpp:class:`kv::Map::TxView` can also be retrieved purely by name, without ref
     auto [view_map2, view_map3] =
         tx.get_view<kv::Map<string, string>, kv::Map<uint64_t, string>>("public:map2", "map3");
 
-This supports dynamic creation of maps - if the requested map did not exist previously, it will be created by this transaction. Any writes to a newly created ``Map`` will be persisted when the transaction commits, and future transactions will be able to access this ``Map`` by name.
+By ``Map``:
 
-.. note::
+.. code-block:: cpp
 
-    When accessing a ``Map`` by name, the confidentiality is encoded in the map's name with a "public:" prefix. For example "public:foo" refers to a public ``Map`` while "foo" is a private ``Map``. The latter is encrypted before writing to the ledger and all access to the table must happen through application code. The former is written unencrypted so can be read by external tools with access to the ledger. These maps are distinct; writes to "public:foo" have no impact on "foo" and vice versa.
+    // View on map1
+    kv::Map<string, string> map_priv("map1");
+    auto view_map1 = tx.get_view(map_priv);
+
+    // Two Views created at the same time, over different public and private maps
+    kv::Map<string, string> map_pub("public:map2");
+    kv::Map<uint64_t, string> map_priv_int("map3");
+    auto [view_map2, view_map3] = tx.get_view(map_pub, map_priv_int);
+
+The latter approach introduces a named binding between the map's name and the types of its keys and values, reducing the chance for errors where code attempts to read a map with the wrong type.
+
+As noted above, this access may cause the ``Map`` to be created, if it did not previously. In fact all ``Maps`` are created like this, in the first transaction in which they are accessed. Within a transaction, a newly created map behaves exactly the same as an existing map with no keys - there is no way to tell the difference, and this distinction should not matter to the transaction logic. Any writes to a newly created ``Map`` will be persisted when the transaction commits, and future transactions will be able to access this ``Map`` by name.
 
 
 Modifying a ``View``

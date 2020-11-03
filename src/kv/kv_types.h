@@ -434,20 +434,49 @@ namespace kv
 
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
 
-  class AbstractTxView
+  class AbstractChangeSet
   {
   public:
-    virtual ~AbstractTxView() = default;
+    virtual ~AbstractChangeSet() = default;
+
+    virtual bool has_writes() const = 0;
+  };
+
+  class AbstractCommitter
+  {
+  public:
+    virtual ~AbstractCommitter() = default;
 
     virtual bool has_writes() = 0;
-    virtual bool has_changes() = 0;
     virtual bool prepare() = 0;
     virtual void commit(Version v) = 0;
     virtual void post_commit() = 0;
   };
 
+  class AbstractTxView
+  {
+  public:
+    virtual ~AbstractTxView() = default;
+  };
+
+  struct NamedMap
+  {
+  protected:
+    std::string name;
+
+  public:
+    NamedMap(const std::string& s) : name(s) {}
+    virtual ~NamedMap() = default;
+
+    const std::string& get_name() const
+    {
+      return name;
+    }
+  };
+
   class AbstractStore;
-  class AbstractMap : public std::enable_shared_from_this<AbstractMap>
+  class AbstractMap : public std::enable_shared_from_this<AbstractMap>,
+                      public NamedMap
   {
   public:
     class Snapshot
@@ -458,17 +487,19 @@ namespace kv
       virtual SecurityDomain get_security_domain() = 0;
     };
 
+    using NamedMap::NamedMap;
     virtual ~AbstractMap() {}
     virtual bool operator==(const AbstractMap& that) const = 0;
     virtual bool operator!=(const AbstractMap& that) const = 0;
 
+    virtual std::unique_ptr<AbstractCommitter> create_committer(
+      AbstractChangeSet* changes) = 0;
+
     virtual AbstractStore* get_store() = 0;
-    virtual void serialise(
-      const AbstractTxView* view, KvStoreSerialiser& s, bool include_reads) = 0;
-    virtual AbstractTxView* deserialise(
-      KvStoreDeserialiser& d, Version version, bool commit) = 0;
-    virtual AbstractTxView* deserialise_snapshot(KvStoreDeserialiser& d) = 0;
-    virtual const std::string& get_name() const = 0;
+    virtual void serialise_changes(
+      const AbstractChangeSet* changes,
+      KvStoreSerialiser& s,
+      bool include_reads) = 0;
     virtual void compact(Version v) = 0;
     virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
     virtual void post_compact() = 0;

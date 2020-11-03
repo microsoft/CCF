@@ -22,17 +22,12 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
   ccf::NodeId source_node_id = 0;
   auto source_node_kp = tls::make_key_pair();
 
-  auto& signatures =
-    source_store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
-  auto& nodes = source_store.create<ccf::Nodes>(ccf::Tables::NODES);
-
-  auto source_history = std::make_shared<ccf::MerkleTxHistory>(
-    source_store, 0, *source_node_kp, signatures, nodes);
+  auto source_history =
+    std::make_shared<ccf::MerkleTxHistory>(source_store, 0, *source_node_kp);
 
   source_store.set_history(source_history);
 
-  auto& string_map =
-    source_store.create<kv::Map<std::string, std::string>>("public:string_map");
+  kv::Map<std::string, std::string> string_map("public:string_map");
 
   size_t transactions_count = 3;
   kv::Version snapshot_version = kv::NoVersion;
@@ -63,7 +58,8 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     // No snapshot here, only verify that a fresh tree can be started from the
     // mini-tree in a signature and the hash of the signature
     auto tx = source_store.create_read_only_tx();
-    auto view = tx.get_read_only_view(signatures);
+    auto view = tx.get_read_only_view<ccf::Signatures>(ccf::Tables::SIGNATURES);
+    REQUIRE(view->has(0));
     auto sig = view->get(0).value();
 
     auto serialised_signature = source_consensus->get_latest_data().value();
@@ -84,14 +80,9 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     INFO("Setup target store");
     {
       auto target_node_kp = tls::make_key_pair();
-      target_store.clone_schema(source_store);
-
-      auto target_signatures =
-        target_store.get<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      auto target_nodes = target_store.get<ccf::Nodes>(ccf::Tables::NODES);
 
       auto target_history = std::make_shared<ccf::MerkleTxHistory>(
-        target_store, 0, *target_node_kp, *target_signatures, *target_nodes);
+        target_store, 0, *target_node_kp);
       target_store.set_history(target_history);
     }
 
