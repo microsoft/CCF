@@ -8,7 +8,6 @@ import suite.test_requirements as reqs
 import os
 import subprocess
 import sys
-import tempfile
 
 from loguru import logger as LOG
 
