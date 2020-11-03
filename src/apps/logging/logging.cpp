@@ -21,8 +21,8 @@ namespace loggingapp
   class LoggerHandlers : public ccf::UserEndpointRegistry
   {
   private:
-    Table& records;
-    Table& public_records;
+    Table records;
+    Table public_records;
 
     const nlohmann::json record_public_params_schema;
     const nlohmann::json record_public_result_schema;
@@ -35,8 +35,8 @@ namespace loggingapp
     LoggerHandlers(
       ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(nwt),
-      records(nwt.tables->create<Table>("records")),
-      public_records(nwt.tables->create<Table>("public:records")),
+      records("records"),
+      public_records("public:records"),
       // SNIPPET_END: constructor
       record_public_params_schema(nlohmann::json::parse(j_record_public_in)),
       record_public_result_schema(nlohmann::json::parse(j_record_public_out)),
@@ -269,29 +269,15 @@ namespace loggingapp
       auto get_historical = [this](
                               ccf::EndpointContext& args,
                               ccf::historical::StorePtr historical_store,
-                              kv::Consensus::View historical_view,
-                              kv::Consensus::SeqNo historical_seqno) {
+                              kv::Consensus::View,
+                              kv::Consensus::SeqNo) {
         const auto [pack, params] =
           ccf::jsonhandler::get_json_params(args.rpc_ctx);
-
-        auto* historical_map = historical_store->get(records);
-        if (historical_map == nullptr)
-        {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body(fmt::format(
-            "Unable to get table '{}' at {}.{}",
-            records.get_name(),
-            historical_view,
-            historical_seqno));
-          return;
-        }
 
         const auto in = params.get<LoggingGetHistorical::In>();
 
         auto historical_tx = historical_store->create_read_only_tx();
-        auto view = historical_tx.get_read_only_view(*historical_map);
+        auto view = historical_tx.get_read_only_view(records);
         const auto v = view->get(in.id);
 
         if (v.has_value())

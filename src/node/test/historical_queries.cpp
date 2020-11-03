@@ -74,14 +74,9 @@ TEST_CASE("StateCache")
   store.set_encryptor(encryptor);
 
   // Make history to produce signatures
-  auto& signatures = store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
-  auto& nodes = store.create<ccf::Nodes>(ccf::Tables::NODES);
-
   const auto node_id = 0;
-
   auto kp = tls::make_key_pair();
-  auto history = std::make_shared<ccf::MerkleTxHistory>(
-    store, node_id, *kp, signatures, nodes);
+  auto history = std::make_shared<ccf::MerkleTxHistory>(store, node_id, *kp);
 
   store.set_history(history);
 
@@ -100,16 +95,13 @@ TEST_CASE("StateCache")
     {
       INFO("Store the signing node's key");
       auto tx = store.create_tx();
-      auto view = tx.get_view(nodes);
+      auto view = tx.get_view<ccf::Nodes>(ccf::Tables::NODES);
       ccf::NodeInfo ni;
       ni.cert = kp->self_sign("CN=Test node");
       ni.status = ccf::NodeStatus::TRUSTED;
       view->put(node_id, ni);
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     }
-
-    auto& public_table = store.create<NumToString>("public:data");
-    auto& private_table = store.create<NumToString>("data");
 
     {
       for (size_t i = 1; i < high_signature_transaction; ++i)
@@ -125,7 +117,7 @@ TEST_CASE("StateCache")
         {
           auto tx = store.create_tx();
           auto [public_view, private_view] =
-            tx.get_view(public_table, private_table);
+            tx.get_view<NumToString, NumToString>("public:data", "data");
           const auto s = std::to_string(i);
           public_view->put(i, s);
           private_view->put(i, s);
@@ -256,12 +248,9 @@ TEST_CASE("StateCache")
     REQUIRE(store_at_index != nullptr);
 
     {
-      auto& public_table = *store_at_index->get<NumToString>("public:data");
-      auto& private_table = *store_at_index->get<NumToString>("data");
-
       auto tx = store_at_index->create_tx();
       auto [public_view, private_view] =
-        tx.get_view(public_table, private_table);
+        tx.get_view<NumToString, NumToString>("public:data", "data");
 
       const auto k = high_index - 1;
       const auto v = std::to_string(k);

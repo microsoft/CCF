@@ -1540,7 +1540,7 @@ namespace ccf
       AbstractNodeState& node,
       ShareManager& share_manager) :
       RpcFrontend(
-        *network.tables, member_endpoints, &network.member_client_signatures),
+        *network.tables, member_endpoints, Tables::MEMBER_CLIENT_SIGNATURES),
       member_endpoints(network, node, share_manager),
       members(&network.members)
     {}
