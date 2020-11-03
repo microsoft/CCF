@@ -444,14 +444,15 @@ def update_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
 
 
 @cli_proposal
-def set_jwt_issuer(metadata_path: str, **kwargs):
-    with open(metadata_path) as f:
-        metadata = json.load(f)
+def set_jwt_issuer(json_path: str, **kwargs):
+    with open(json_path) as f:
+        obj = json.load(f)
     args = {
-        "issuer": metadata["issuer"],
-        "validate_issuer": metadata.get("validate_issuer", True),
-        "key_filter": metadata.get("key_filter", "all"),
-        "key_policy": metadata.get("key_policy"),
+        "issuer": obj["issuer"],
+        "validate_issuer": obj.get("validate_issuer", True),
+        "key_filter": obj.get("key_filter", "all"),
+        "key_policy": obj.get("key_policy"),
+        "jwks": obj.get("jwks"),
     }
     return build_proposal("set_jwt_issuer", args, **kwargs)
 

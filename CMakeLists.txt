@@ -719,7 +719,7 @@ if(BUILD_TESTS)
 
     add_e2e_test(
       NAME jwt_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt.py
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
       CONSENSUS cft
     )
   endif()

@@ -348,9 +348,9 @@ class Consortium:
         # Large apps take a long time to process - wait longer than normal for commit
         return self.vote_using_majority(remote_node, proposal, timeout=10)
 
-    def set_jwt_issuer(self, remote_node, metadata_path):
+    def set_jwt_issuer(self, remote_node, json_path):
         proposal_body, careful_vote = self.make_proposal(
-            "set_jwt_issuer", metadata_path
+            "set_jwt_issuer", json_path
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         proposal.vote_for = careful_vote

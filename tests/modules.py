@@ -339,17 +339,16 @@ def test_npm_app(network, args):
 
     issuer = "https://example.issuer"
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-        json.dump({"issuer": issuer, "validate_issuer": True}, metadata_fp)
+        jwt_cert_der = infra.crypto.cert_pem_to_der(jwt_cert_pem)
+        der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
+        data = {
+            "issuer": issuer,
+            "validate_issuer": True,
+            "jwks": {"keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]}
+        }
+        json.dump(data, metadata_fp)
         metadata_fp.flush()
         network.consortium.set_jwt_issuer(primary, metadata_fp.name)
-
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as jwks_fp:
-        der_b64 = base64.b64encode(infra.crypto.cert_pem_to_der(jwt_cert_pem)).decode(
-            "ascii"
-        )
-        json.dump({"keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]}, jwks_fp)
-        jwks_fp.flush()
-        network.consortium.set_jwt_public_signing_keys(primary, issuer, jwks_fp.name)
 
     LOG.info("Calling jwt endpoint after storing keys")
     with primary.client("user0") as c:
