@@ -685,6 +685,7 @@ class CCFRemote(object):
                     "Starting node should be given at least one tuple of (member certificate, member public encryption key[, member data])"
                 )
             for mi in members_info:
+                LOG.success(members_info)
                 for mf in mi:
                     data_files.append(os.path.join(self.common_dir, mf))
                 cmd += [f"--member-info={','.join(mi)}"]

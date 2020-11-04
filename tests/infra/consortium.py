@@ -37,14 +37,23 @@ class Consortium:
         # If a list of member IDs is passed in, generate fresh member identities.
         # Otherwise, recover the state of the consortium from the state of CCF.
         if member_ids is not None:
-            for m_id, m_data in member_ids:
+            self.recovery_threshold = 0
+            for m_id, has_share, m_data in member_ids:
                 new_member = infra.member.Member(
-                    m_id, curve, common_dir, share_script, key_generator, m_data
+                    m_id,
+                    curve,
+                    common_dir,
+                    share_script,
+                    has_share,
+                    key_generator,
+                    m_data,
                 )
+                if has_share:
+                    self.recovery_threshold += 1
                 self.members.append(new_member)
-            self.recovery_threshold = len(self.members)
         else:
             with remote_node.client("member0") as mc:
+                # TODO: Recover public encryption key as well
                 r = mc.post(
                     "/gov/query",
                     {
@@ -108,6 +117,7 @@ class Consortium:
         for m in self.members:
             m.ack(remote_node)
 
+    # TODO: Do not include public encryption key is member has no share!!
     def generate_and_propose_new_member(self, remote_node, curve, member_data=None):
         # The Member returned by this function is in state ACCEPTED. The new Member
         # should ACK to become active.
@@ -140,6 +150,7 @@ class Consortium:
         self.members.append(new_member)
         return new_member
 
+    # TODO: Do not include encryption public key is member has no share!!
     def get_members_info(self):
         info = []
         for m in self.members:

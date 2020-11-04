@@ -31,12 +31,13 @@ namespace ccf
 {
   // Current limitations of secret sharing library (sss).
   // This could be mitigated by not handing a recovery share to every member.
+  // TODO: Rename this
   static constexpr size_t max_active_members_count = 255;
 
   struct MemberPubInfo
   {
     tls::Pem cert;
-    tls::Pem encryption_pub_key;
+    std::optional<tls::Pem> encryption_pub_key = std::nullopt;
     nlohmann::json member_data = nullptr;
 
     MemberPubInfo() {}
@@ -68,8 +69,8 @@ namespace ccf
     MSGPACK_DEFINE(cert, encryption_pub_key, member_data);
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(MemberPubInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(MemberPubInfo, cert, encryption_pub_key)
-  DECLARE_JSON_OPTIONAL_FIELDS(MemberPubInfo, member_data)
+  DECLARE_JSON_REQUIRED_FIELDS(MemberPubInfo, cert)
+  DECLARE_JSON_OPTIONAL_FIELDS(MemberPubInfo, encryption_pub_key)
 
   struct MemberInfo : public MemberPubInfo
   {
@@ -77,12 +78,8 @@ namespace ccf
 
     MemberInfo() {}
 
-    MemberInfo(
-      const tls::Pem& cert_,
-      const tls::Pem& encryption_pub_key_,
-      const nlohmann::json& member_data_,
-      MemberStatus status_) :
-      MemberPubInfo(cert_, encryption_pub_key_, member_data_),
+    MemberInfo(const MemberPubInfo& member_pub_info, MemberStatus status_) :
+      MemberPubInfo(member_pub_info),
       status(status_)
     {}
 

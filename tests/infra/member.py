@@ -11,6 +11,8 @@ import os
 import base64
 import json
 
+from loguru import logger as LOG
+
 
 class NoRecoveryShareFound(Exception):
     def __init__(self, response):
@@ -31,6 +33,7 @@ class Member:
         curve,
         common_dir,
         share_script,
+        has_recovery_share=True,
         key_generator=None,
         member_data=None,
     ):
@@ -39,20 +42,35 @@ class Member:
         self.status_code = MemberStatus.ACCEPTED
         self.share_script = share_script
         self.member_data = member_data
+        self.has_recovery_share = has_recovery_share
 
         if key_generator is not None:
-            # For now, all members are given an encryption key (for recovery)
             member = f"member{member_id}"
-            infra.proc.ccall(
-                key_generator,
-                "--name",
-                f"{member}",
-                "--curve",
-                f"{curve.name}",
-                "--gen-enc-key",
-                path=self.common_dir,
-                log_output=False,
-            ).check_returncode()
+
+            if has_recovery_share:
+                LOG.error("has recovery share")  # TODO: Fix
+                infra.proc.ccall(
+                    key_generator,
+                    "--name",
+                    f"{member}",
+                    "--curve",
+                    f"{curve.name}",
+                    "--gen-enc-key",
+                    path=self.common_dir,
+                    log_output=False,
+                ).check_returncode()
+            else:
+                LOG.error("no recovery share")  # TODO: Fix
+                infra.proc.ccall(
+                    key_generator,
+                    "--name",
+                    f"{member}",
+                    "--curve",
+                    f"{curve.name}",
+                    path=self.common_dir,
+                    log_output=False,
+                ).check_returncode()
+
         else:
             # If no key generator is passed in, the identity of the member
             # should have been created in advance (e.g. by a previous network)
@@ -62,6 +80,8 @@ class Member:
             assert os.path.isfile(
                 os.path.join(self.common_dir, f"member{self.member_id}_cert.pem")
             )
+
+            # TODO: Is this always true??
             assert os.path.isfile(
                 os.path.join(self.common_dir, f"member{self.member_id}_enc_privk.pem")
             )
@@ -137,6 +157,9 @@ class Member:
             return r
 
     def get_and_decrypt_recovery_share(self, remote_node):
+        if not self.has_recovery_share:
+            raise ValueError(f"Member {self.member_id} does not have a recovery share")
+
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.get("/gov/recovery_share")
             if r.status_code != http.HTTPStatus.OK.value:
@@ -152,7 +175,9 @@ class Member:
                 )
 
     def get_and_submit_recovery_share(self, remote_node):
-        # For now, all members are given an encryption key (for recovery)
+        if not self.has_recovery_share:
+            raise ValueError(f"Member {self.member_id} does not have a recovery share")
+
         res = infra.proc.ccall(
             self.share_script,
             f"https://{remote_node.host}:{remote_node.rpc_port}",

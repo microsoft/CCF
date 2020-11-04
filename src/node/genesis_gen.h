@@ -86,10 +86,7 @@ namespace ccf
       cv->put(0, consensus_type);
     }
 
-    auto add_member(
-      const tls::Pem& member_cert,
-      const tls::Pem& encryption_pub_key,
-      const nlohmann::json& member_data = nullptr)
+    MemberId add_member(const MemberPubInfo& member_pub_info)
     {
       auto [m, mc, v, ma, sig] = tx.get_view(
         tables.members,
@@ -100,7 +97,8 @@ namespace ccf
 
       // The key to a CertDERs table must be a DER, for easy comparison against
       // the DER peer cert retrieved from the connection
-      auto member_cert_der = tls::make_verifier(member_cert)->der_cert_data();
+      auto member_cert_der =
+        tls::make_verifier(member_pub_info.cert)->der_cert_data();
 
       auto member_id = mc->get(member_cert_der);
       if (member_id.has_value())
@@ -110,13 +108,7 @@ namespace ccf
       }
 
       const auto id = get_next_id(v, ValueIds::NEXT_MEMBER_ID);
-      m->put(
-        id,
-        MemberInfo(
-          member_cert,
-          encryption_pub_key,
-          member_data,
-          MemberStatus::ACCEPTED));
+      m->put(id, MemberInfo(member_pub_info, MemberStatus::ACCEPTED));
       mc->put(member_cert_der, id);
 
       auto s = sig->get(0);
@@ -131,10 +123,11 @@ namespace ccf
       return id;
     }
 
-    auto add_member(const MemberPubInfo& info)
-    {
-      return add_member(info.cert, info.encryption_pub_key, info.member_data);
-    }
+    // auto add_member(const MemberPubInfo& info)
+    // {
+    //   return add_member(info.cert, info.encryption_pub_key,
+    //   info.member_data);
+    // }
 
     void activate_member(MemberId member_id)
     {
@@ -148,6 +141,7 @@ namespace ccf
 
       if (member->status == MemberStatus::ACCEPTED)
       {
+        // TODO: Check against number of members with shares!
         member->status = MemberStatus::ACTIVE;
         if (get_active_members_count() >= max_active_members_count)
         {
@@ -433,9 +427,11 @@ namespace ccf
 
       members_view->foreach(
         [&active_members_info](const MemberId& mid, const MemberInfo& mi) {
-          if (mi.status == MemberStatus::ACTIVE)
+          if (
+            mi.status == MemberStatus::ACTIVE &&
+            mi.encryption_pub_key.has_value())
           {
-            active_members_info[mid] = mi.encryption_pub_key;
+            active_members_info[mid] = mi.encryption_pub_key.value();
           }
           return true;
         });

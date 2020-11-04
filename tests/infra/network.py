@@ -340,11 +340,18 @@ class Network:
         self._setup_common_folder(args.gov_script)
 
         mc = max(1, args.initial_member_count)
-        initial_member_ids = [(i, None) for i in range(mc)]
-        initial_member_ids.extend(
-            (i, {"is_operator": True})
-            for i in range(mc, mc + args.initial_operator_count)
-        )
+        initial_member_ids = []
+        for i in range(mc):
+            initial_member_ids += [
+                (
+                    i,
+                    (i < args.initial_recovery_member_count),
+                    {"is_operator": True}
+                    if (i < args.initial_operator_count)
+                    else None,
+                )
+            ]
+        LOG.error(initial_member_ids)
 
         self.consortium = infra.consortium.Consortium(
             self.common_dir,

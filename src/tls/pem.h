@@ -49,6 +49,11 @@ namespace tls
       return s == rhs.s;
     }
 
+    bool operator!=(const Pem& rhs) const
+    {
+      return !(*this == rhs);
+    }
+
     const std::string& str() const
     {
       return s;

@@ -193,13 +193,19 @@ def cli_proposal(func):
 
 @cli_proposal
 def new_member(
-    member_cert_path: str, member_enc_pubk_path: str, member_data: Any = None, **kwargs
+    member_cert_path: str,
+    member_enc_pubk_path: Optional[str] = None,
+    member_data: Any = None,
+    **kwargs,
 ):
     LOG.debug("Generating new_member proposal")
 
     # Read certs
     member_cert = open(member_cert_path).read()
-    encryption_pub_key = open(member_enc_pubk_path).read()
+
+    encryption_pub_key = None
+    if member_enc_pubk_path is not None:
+        encryption_pub_key = open(member_enc_pubk_path).read()
 
     # Script which proposes adding a new member
     proposal_script_text = """
