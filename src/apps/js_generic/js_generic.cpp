@@ -459,6 +459,9 @@ namespace ccfapp
 
       auto val = JS_Call(ctx, func, JS_UNDEFINED, 2, args);
 
+      JS_FreeValue(ctx, args[0]);
+      JS_FreeValue(ctx, args[1]);
+
       if (JS_IsException(val))
       {
         js_dump_error(ctx);
@@ -466,8 +469,12 @@ namespace ccfapp
         return false;
       }
 
+      JS_FreeValue(ctx, val);
+
       return true;
     });
+
+    JS_FreeValue(ctx, func);
 
     if (failed)
     {
