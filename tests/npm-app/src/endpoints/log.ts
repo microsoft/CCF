@@ -23,3 +23,15 @@ export function setLogItem(request: ccf.Request<LogItem>): ccf.Response {
     logMap.set(id, request.body.json());
     return {};
 }
+
+export function getAllLogItems(request: ccf.Request): ccf.Response<Array<[number, LogItem]>> {
+    let items: Array<[number, LogItem]> = [];
+    logMap.foreach(
+        function (id, item) {
+            items.push([id, item]);
+        }
+    );
+    return {
+        body: items
+    };
+}
