@@ -163,20 +163,22 @@ class Consortium:
     def vote_using_majority(
         self, remote_node, proposal, wait_for_global_commit=True, timeout=3
     ):
-        if proposal.state == ProposalState.Accepted:
-            return proposal
-        active_members = self.get_active_members()
-        majority_count = int(len(self.get_active_members()) / 2 + 1)
-
         response = None
-        for member in active_members:
-            if proposal.votes_for >= majority_count:
-                break
 
-            response = member.vote(remote_node, proposal)
-            assert response.status_code == http.HTTPStatus.OK.value
-            proposal.state = infra.proposal.ProposalState(response.body.json()["state"])
-            proposal.increment_votes_for()
+        if proposal.state != ProposalState.Accepted:
+            active_members = self.get_active_members()
+            majority_count = int(len(self.get_active_members()) / 2 + 1)
+
+            for member in active_members:
+                if proposal.votes_for >= majority_count:
+                    break
+
+                response = member.vote(remote_node, proposal)
+                assert response.status_code == http.HTTPStatus.OK.value
+                proposal.state = infra.proposal.ProposalState(
+                    response.body.json()["state"]
+                )
+                proposal.increment_votes_for()
 
         # Wait for proposal completion to be committed, even if no votes are issued
         if wait_for_global_commit:
