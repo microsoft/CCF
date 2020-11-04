@@ -71,7 +71,7 @@ static std::vector<uint8_t> kv_serialized_data(std::vector<uint8_t>& data)
   auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
 
-  auto& map0 = kv_store.create<aft::RequestsMap>("map0");
+  aft::RequestsMap map0("map0");
 
   auto tx = kv_store.create_reserved_tx(kv_store.next_version());
   auto tx0 = tx.get_view(map0);

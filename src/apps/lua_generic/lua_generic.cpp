@@ -67,7 +67,7 @@ namespace ccfapp
       TxScriptRunner::setup_environment(li, env_script);
     }
 
-    const std::vector<GenericTable*> app_tables;
+    const std::vector<GenericTable> app_tables;
     void add_custom_tables(
       lua::Interpreter& li, kv::Tx& tx, int& n_registered_tables) const override
     {
@@ -76,9 +76,9 @@ namespace ccfapp
     }
 
   public:
-    AppTsr(NetworkTables& network, std::vector<GenericTable*> app_tables) :
+    AppTsr(NetworkTables& network, std::vector<GenericTable>&& app_tables_) :
       TxScriptRunner(network),
-      app_tables(app_tables)
+      app_tables(std::move(app_tables_))
     {}
   };
 
@@ -93,17 +93,15 @@ namespace ccfapp
       UserEndpointRegistry(network),
       network(network)
     {
-      auto& tables = *network.tables;
-
       // create public and private app tables (2x n_tables in total)
-      std::vector<GenericTable*> app_tables(n_tables * 2);
+      std::vector<GenericTable> app_tables;
+      app_tables.reserve(2 * n_tables);
       for (uint16_t i = 0; i < n_tables; i++)
       {
-        app_tables[i] = &tables.create<GenericTable>(fmt::format("priv{}", i));
-        app_tables[i + n_tables] =
-          &tables.create<GenericTable>(fmt::format("public:pub{}", i));
+        app_tables.push_back(GenericTable(fmt::format("priv{}", i)));
+        app_tables.push_back(GenericTable(fmt::format("public:pub{}", i)));
       }
-      tsr = std::make_unique<AppTsr>(network, app_tables);
+      tsr = std::make_unique<AppTsr>(network, std::move(app_tables));
 
       auto default_handler = [this](EndpointContext& args, nlohmann::json&&) {
         const auto method = args.rpc_ctx->get_method();

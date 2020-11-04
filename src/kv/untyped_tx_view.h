@@ -18,10 +18,11 @@ namespace kv::untyped
   using Write = kv::Write<SerialisedEntry, SerialisedEntry>;
   using ChangeSet =
     kv::ChangeSet<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
+  using ChangeSetPtr = std::unique_ptr<ChangeSet>;
   using SnapshotChangeSet = kv::
     SnapshotChangeSet<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
 
-  class TxView
+  class TxView : public kv::AbstractTxView
   {
   public:
     // Expose these types so that other code can use them as MyTx::KeyType or

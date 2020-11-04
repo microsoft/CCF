@@ -50,52 +50,12 @@ TEST_CASE("Map name parsing")
   REQUIRE(parse("public:ccf_foo") == mp(SD::PUBLIC, AC::APPLICATION));
 }
 
-TEST_CASE("Map creation")
-{
-  kv::Store kv_store;
-  const auto map_name = "map";
-  auto& map = kv_store.create<MapTypes::StringString>(map_name);
-
-  INFO("Get a map that does not exist");
-  {
-    REQUIRE(kv_store.get<MapTypes::StringString>("invalid_map") == nullptr);
-  }
-
-  INFO("Get a map that does exist");
-  {
-    auto* p_map = kv_store.get<MapTypes::StringString>(map_name);
-    REQUIRE(*p_map == map);
-    REQUIRE(p_map == &map); // They're the _same instance_, not just equal
-  }
-
-  INFO("Compare different maps");
-  {
-    auto& map2 = kv_store.create<MapTypes::StringString>("map2");
-    REQUIRE(map != map2);
-  }
-
-  INFO("Can't create map that already exists");
-  {
-    REQUIRE_THROWS_AS(
-      kv_store.create<MapTypes::StringString>(map_name), std::logic_error);
-  }
-
-  INFO("Can't get a map with the wrong type");
-  {
-    REQUIRE(kv_store.get<MapTypes::NumNum>(map_name) == nullptr);
-    REQUIRE(kv_store.get<MapTypes::NumString>(map_name) == nullptr);
-    REQUIRE(kv_store.get<MapTypes::StringNum>(map_name) == nullptr);
-  }
-
-  INFO("Can create a map with a previously invalid name");
-  {
-    CHECK_NOTHROW(kv_store.create<MapTypes::StringString>("version"));
-  }
-}
-
 TEST_CASE("Reads/writes and deletions")
 {
   kv::Store kv_store;
+
+  // Testing that deprecated API continues to work - will be removed in a future
+  // release
   auto& map = kv_store.create<MapTypes::StringString>("public:map");
 
   constexpr auto k = "key";
@@ -194,7 +154,7 @@ TEST_CASE("Reads/writes and deletions")
 TEST_CASE("foreach")
 {
   kv::Store kv_store;
-  auto& map = kv_store.create<MapTypes::StringString>("public:map");
+  MapTypes::StringString map("public:map");
 
   std::map<std::string, std::string> iterated_entries;
 
@@ -371,7 +331,7 @@ TEST_CASE("foreach")
 TEST_CASE("Modifications during foreach iteration")
 {
   kv::Store kv_store;
-  auto& map = kv_store.create<MapTypes::NumString>("public:map");
+  MapTypes::NumString map("public:map");
 
   const auto value1 = "foo";
   const auto value2 = "bar";
@@ -631,7 +591,7 @@ TEST_CASE("Modifications during foreach iteration")
 TEST_CASE("Read-only tx")
 {
   kv::Store kv_store;
-  auto& map = kv_store.create<MapTypes::StringString>("public:map");
+  MapTypes::StringString map("public:map");
 
   constexpr auto k = "key";
   constexpr auto invalid_key = "invalid_key";
@@ -690,7 +650,7 @@ TEST_CASE("Read-only tx")
 TEST_CASE("Rollback and compact")
 {
   kv::Store kv_store;
-  auto& map = kv_store.create<MapTypes::StringString>("public:map");
+  MapTypes::StringString map("public:map");
 
   constexpr auto k = "key";
   constexpr auto v1 = "value1";
@@ -754,9 +714,10 @@ TEST_CASE("Local commit hooks")
   };
 
   kv::Store kv_store;
-  auto& map = kv_store.create<MapTypes::StringString>("public:map");
-  map.set_local_hook(local_hook);
-  map.set_global_hook(global_hook);
+  constexpr auto map_name = "public:map";
+  MapTypes::StringString map(map_name);
+  kv_store.set_local_hook(map_name, map.wrap_commit_hook(local_hook));
+  kv_store.set_global_hook(map_name, map.wrap_commit_hook(global_hook));
 
   INFO("Write with hooks");
   {
@@ -781,8 +742,8 @@ TEST_CASE("Local commit hooks")
 
   INFO("Write without hooks");
   {
-    map.unset_local_hook();
-    map.unset_global_hook();
+    kv_store.unset_local_hook(map_name);
+    kv_store.unset_global_hook(map_name);
 
     auto tx = kv_store.create_tx();
     auto view = tx.get_view(map);
@@ -795,8 +756,8 @@ TEST_CASE("Local commit hooks")
 
   INFO("Write with hook again");
   {
-    map.set_local_hook(local_hook);
-    map.set_global_hook(global_hook);
+    kv_store.set_local_hook(map_name, map.wrap_commit_hook(local_hook));
+    kv_store.set_global_hook(map_name, map.wrap_commit_hook(global_hook));
 
     auto tx = kv_store.create_tx();
     auto view = tx.get_view(map);
@@ -840,11 +801,12 @@ TEST_CASE("Global commit hooks")
   };
 
   kv::Store kv_store;
-  auto& map_with_hook =
-    kv_store.create<std::string, std::string>("public:map_with_hook");
-  map_with_hook.set_global_hook(global_hook);
-  auto& map_no_hook =
-    kv_store.create<std::string, std::string>("public:map_no_hook");
+  using MapT = kv::Map<std::string, std::string>;
+  MapT map_with_hook("public:map_with_hook");
+  kv_store.set_global_hook(
+    map_with_hook.get_name(), map_with_hook.wrap_commit_hook(global_hook));
+
+  MapT map_no_hook("public:map_no_hook");
 
   INFO("Compact an empty store");
   {
@@ -968,14 +930,14 @@ TEST_CASE("Global commit hooks")
   }
 }
 
-TEST_CASE("Clone schema")
+TEST_CASE("Deserialising from other Store")
 {
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv::Store store;
   store.set_encryptor(encryptor);
 
-  auto& public_map = store.create<MapTypes::NumString>("public:public");
-  auto& private_map = store.create<MapTypes::NumString>("private");
+  MapTypes::NumString public_map("public:public");
+  MapTypes::NumString private_map("private");
   auto tx1 = store.create_reserved_tx(store.next_version());
   auto [view1, view2] = tx1.get_view(public_map, private_map);
   view1->put(42, "aardvark");
@@ -984,7 +946,6 @@ TEST_CASE("Clone schema")
   REQUIRE(success == kv::CommitSuccess::OK);
 
   kv::Store clone;
-  clone.clone_schema(store);
   clone.set_encryptor(encryptor);
 
   REQUIRE(clone.deserialise(data) == kv::DeserialiseSuccess::PASS);
@@ -994,14 +955,13 @@ TEST_CASE("Deserialise return status")
 {
   kv::Store store;
 
-  auto& signatures = store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
-  auto& nodes = store.create<ccf::Nodes>(ccf::Tables::NODES);
-  auto& data = store.create<MapTypes::NumNum>("public:data");
+  ccf::Signatures signatures(ccf::Tables::SIGNATURES);
+  ccf::Nodes nodes(ccf::Tables::NODES);
+  MapTypes::NumNum data("public:data");
 
   auto kp = tls::make_key_pair();
 
-  auto history =
-    std::make_shared<ccf::NullTxHistory>(store, 0, *kp, signatures, nodes);
+  auto history = std::make_shared<ccf::NullTxHistory>(store, 0, *kp);
   store.set_history(history);
 
   {
@@ -1045,24 +1005,22 @@ TEST_CASE("Map swap between stores")
   kv::Store s1;
   s1.set_encryptor(encryptor);
 
-  auto& d1 = s1.create<MapTypes::NumNum>("data");
-  auto& pd1 = s1.create<MapTypes::NumNum>("public:data");
-
   kv::Store s2;
   s2.set_encryptor(encryptor);
-  auto& d2 = s2.create<MapTypes::NumNum>("data");
-  auto& pd2 = s2.create<MapTypes::NumNum>("public:data");
+
+  MapTypes::NumNum d("data");
+  MapTypes::NumNum pd("public:data");
 
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_view(d1);
+    auto v = tx.get_view(d);
     v->put(42, 42);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_view(pd1);
+    auto v = tx.get_view(pd);
     v->put(14, 14);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -1071,7 +1029,7 @@ TEST_CASE("Map swap between stores")
   while (s2.current_version() < target_version)
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_view(d2);
+    auto v = tx.get_view(d);
     v->put(41, 41);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -1080,7 +1038,7 @@ TEST_CASE("Map swap between stores")
 
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_view(d1);
+    auto v = tx.get_view(d);
     auto val = v->get(41);
     REQUIRE_FALSE(v->get(42).has_value());
     REQUIRE(val.has_value());
@@ -1089,7 +1047,7 @@ TEST_CASE("Map swap between stores")
 
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_view(pd1);
+    auto v = tx.get_view(pd);
     auto val = v->get(14);
     REQUIRE(val.has_value());
     REQUIRE(val.value() == 14);
@@ -1097,7 +1055,7 @@ TEST_CASE("Map swap between stores")
 
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_view(d2);
+    auto v = tx.get_view(d);
     auto val = v->get(42);
     REQUIRE_FALSE(v->get(41).has_value());
     REQUIRE(val.has_value());
@@ -1106,7 +1064,7 @@ TEST_CASE("Map swap between stores")
 
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_view(pd2);
+    auto v = tx.get_view(pd);
     REQUIRE_FALSE(v->get(14).has_value());
   }
 }
@@ -1116,13 +1074,13 @@ TEST_CASE("Private recovery map swap")
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv::Store s1;
   s1.set_encryptor(encryptor);
-  auto& priv1 = s1.create<MapTypes::NumNum>("private");
-  auto& pub1 = s1.create<MapTypes::NumString>("public:data");
+  MapTypes::NumNum priv1("private");
+  MapTypes::NumString pub1("public:data");
 
   kv::Store s2;
   s2.set_encryptor(encryptor);
-  auto& priv2 = s2.create<MapTypes::NumNum>("private");
-  auto& pub2 = s2.create<MapTypes::NumString>("public:data");
+  MapTypes::NumNum priv2("private");
+  MapTypes::NumString pub2("public:data");
 
   INFO("Populate s1 with public entries");
   // We compact twice, deliberately. A public KV during recovery
@@ -1254,7 +1212,15 @@ TEST_CASE("Private recovery map swap")
 TEST_CASE("Conflict resolution")
 {
   kv::Store kv_store;
-  auto& map = kv_store.create<MapTypes::StringString>("public:map");
+  MapTypes::StringString map("public:map");
+
+  {
+    // Ensure this map already exists, by making a prior write to it
+    auto tx = kv_store.create_tx();
+    auto view = tx.get_view(map);
+    view->put("foo", "initial");
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
 
   auto try_write = [&](kv::Tx& tx, const std::string& s) {
     auto view = tx.get_view(map);
@@ -1338,8 +1304,8 @@ TEST_CASE("Conflict resolution")
 TEST_CASE("Mid-tx compaction")
 {
   kv::Store kv_store;
-  auto& map_a = kv_store.create<MapTypes::StringNum>("public:A");
-  auto& map_b = kv_store.create<MapTypes::StringNum>("public:B");
+  MapTypes::StringNum map_a("public:A");
+  MapTypes::StringNum map_b("public:B");
 
   constexpr auto key_a = "a";
   constexpr auto key_b = "b";

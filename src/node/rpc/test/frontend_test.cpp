@@ -150,11 +150,11 @@ public:
 class TestExplicitCommitability : public SimpleUserRpcFrontend
 {
 public:
-  kv::Map<size_t, size_t>& values;
+  kv::Map<size_t, size_t> values;
 
   TestExplicitCommitability(kv::Store& tables) :
     SimpleUserRpcFrontend(tables),
-    values(tables.create<size_t, size_t>("test_values"))
+    values("test_values")
   {
     open();
 
@@ -265,7 +265,7 @@ class RpcContextRecorder
 public:
   // session->caller_cert may be DER or PEM, we always convert to PEM
   tls::Pem last_caller_cert;
-  CallerId last_caller_id;
+  CallerId last_caller_id = INVALID_ID;
 
   void record_ctx(EndpointContext& args)
   {
@@ -352,12 +352,8 @@ auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 NetworkState bft_network(ConsensusType::BFT);
 auto history_kp = tls::make_key_pair();
 
-auto history = std::make_shared<NullTxHistory>(
-  *bft_network.tables,
-  0,
-  *history_kp,
-  bft_network.signatures,
-  bft_network.nodes);
+auto history =
+  std::make_shared<NullTxHistory>(*bft_network.tables, 0, *history_kp);
 
 auto create_simple_request(
   const std::string& method = "empty_function",
@@ -512,8 +508,9 @@ TEST_CASE("process_bft")
   frontend.process_bft(ctx);
 
   auto tx = bft_network.tables->create_tx();
-  auto bft_requests_map = tx.get_view(bft_network.bft_requests_map);
-  auto request_value = bft_requests_map->get(0);
+  auto bft_requests_view =
+    tx.get_view<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
+  auto request_value = bft_requests_view->get(0);
   REQUIRE(request_value.has_value());
 
   aft::Request deserialised_req = request_value.value();
@@ -1538,11 +1535,9 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
 class TestConflictFrontend : public SimpleUserRpcFrontend
 {
 public:
-  kv::Map<size_t, size_t>& values;
+  using Values = kv::Map<size_t, size_t>;
 
-  TestConflictFrontend(kv::Store& tables) :
-    SimpleUserRpcFrontend(tables),
-    values(tables.create<size_t, size_t>("test_values_conflict"))
+  TestConflictFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables)
   {
     open();
 
@@ -1553,13 +1548,13 @@ public:
         // Warning: Never do this in a real application!
         // Create another transaction that conflicts with the frontend one
         auto tx = this->tables.create_tx();
-        auto view = tx.get_view(values);
+        auto view = tx.template get_view<Values>("test_values_conflict");
         view->put(0, 42);
         REQUIRE(tx.commit() == kv::CommitSuccess::OK);
         conflict_next = false;
       }
 
-      auto view = args.tx.get_view(values);
+      auto view = args.tx.template get_view<Values>("test_values_conflict");
       view->get(0); // Record a read dependency
       view->put(0, 0);
 
