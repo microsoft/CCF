@@ -37,6 +37,7 @@ export interface KVMap {
     get: (key: ArrayBuffer) => ArrayBuffer | undefined
     set: (key: ArrayBuffer, value: ArrayBuffer) => KVMap
     delete: (key: ArrayBuffer) => boolean
+    foreach: (callback: (key: ArrayBuffer, value: ArrayBuffer) => void) => void
 }
 
 export type KVMaps =  { [key: string]: KVMap; };
@@ -262,5 +263,14 @@ export class TypedKVMap<K, V> {
     }
     delete(key: K): boolean {
         return this.kv.delete(this.kt.encode(key));
+    }
+    foreach(callback: (key: K, value: V) => void) : void {
+        let kt = this.kt;
+        let vt = this.vt;
+        this.kv.foreach(
+            function(raw_k: ArrayBuffer, raw_v: ArrayBuffer) {
+                callback(kt.decode(raw_k), vt.decode(raw_v));
+            }
+        );
     }
 }
