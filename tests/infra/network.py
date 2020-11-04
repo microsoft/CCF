@@ -357,7 +357,6 @@ class Network:
         self.create_users(initial_users, args.participants_curve)
 
         primary = self._start_all_nodes(args)
-        self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
 
         self.consortium.activate(primary)
@@ -385,7 +384,6 @@ class Network:
         LOG.info("Initial set of users added")
 
         self.consortium.open_network(remote_node=primary)
-        self.wait_for_all_nodes_to_catch_up(primary)
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
@@ -421,7 +419,6 @@ class Network:
             self.wait_for_state(
                 node, "partOfPublicNetwork", timeout=args.ledger_recovery_timeout
             )
-        self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined public network")
 
     def recover(self, args):
@@ -431,7 +428,6 @@ class Network:
         """
         primary, _ = self.find_primary()
         self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
-        self.consortium.wait_for_all_nodes_to_be_trusted(primary, self.nodes)
         self.consortium.accept_recovery(primary)
         self.consortium.recover_with_shares(primary)
 
@@ -547,8 +543,6 @@ class Network:
             raise
 
         new_node.network_state = infra.node.NodeNetworkState.joined
-        self.wait_for_all_nodes_to_catch_up(primary)
-
         return new_node
 
     def create_user(self, user_id, curve, record=True):
@@ -651,53 +645,6 @@ class Network:
         primary, backups = self.find_nodes(timeout)
         backup = random.choice(backups)
         return primary, backup
-
-    def wait_for_all_nodes_to_catch_up(self, primary, timeout=10):
-        """
-        Wait for all nodes to have joined the network and globally replicated
-        all transactions globally executed on the primary (including transactions
-        which added the nodes).
-        """
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            with primary.client() as c:
-                resp = c.get("/node/commit")
-                body = resp.body.json()
-                seqno = body["seqno"]
-                view = body["view"]
-                if seqno != 0:
-                    break
-            time.sleep(0.1)
-        assert (
-            seqno != 0
-        ), f"Primary {primary.node_id} has not made any progress yet (view: {view}, seqno: {seqno})"
-
-        caught_up_nodes = []
-        while time.time() < end_time:
-            caught_up_nodes = []
-            for node in self.get_joined_nodes():
-                with node.client() as c:
-                    c.get("/node/commit")
-                    resp = c.get(f"/node/local_tx?view={view}&seqno={seqno}")
-                    if resp.status_code != 200:
-                        # Node may not have joined the network yet, try again
-                        break
-                    status = TxStatus(resp.body.json()["status"])
-                    if status == TxStatus.Committed:
-                        caught_up_nodes.append(node)
-                    elif status == TxStatus.Invalid:
-                        raise RuntimeError(
-                            f"Node {node.node_id} reports transaction ID {view}.{seqno} is invalid and will never be committed"
-                        )
-                    else:
-                        pass
-
-            if len(caught_up_nodes) == len(self.get_joined_nodes()):
-                break
-            time.sleep(0.1)
-        assert len(caught_up_nodes) == len(
-            self.get_joined_nodes()
-        ), f"Only {len(caught_up_nodes)} (out of {len(self.get_joined_nodes())}) nodes have joined the network"
 
     def wait_for_node_commit_sync(self, timeout=3):
         """
