@@ -254,7 +254,7 @@ def test_npm_app(network, args):
 
     LOG.info("Building npm app")
     app_dir = os.path.join(THIS_DIR, "npm-app")
-    subprocess.run(["npm", "install"], cwd=app_dir, check=True)
+    # subprocess.run(["npm", "install"], cwd=app_dir, check=True)
     subprocess.run(["npm", "run", "build"], cwd=app_dir, check=True)
 
     LOG.info("Deploying npm app")
@@ -344,7 +344,7 @@ def test_npm_app(network, args):
         data = {
             "issuer": issuer,
             "validate_issuer": True,
-            "jwks": {"keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]}
+            "jwks": {"keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]},
         }
         json.dump(data, metadata_fp)
         metadata_fp.flush()
@@ -422,12 +422,12 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        network = test_module_set_and_remove(network, args)
-        network = test_module_import(network, args)
-        network = test_app_bundle(network, args)
-        network = test_dynamic_endpoints(network, args)
+        # network = test_module_set_and_remove(network, args)
+        # network = test_module_import(network, args)
+        # network = test_app_bundle(network, args)
+        # network = test_dynamic_endpoints(network, args)
         network = test_npm_app(network, args)
-        network = test_npm_tsoa_app(network, args)
+        # network = test_npm_tsoa_app(network, args)
 
 
 if __name__ == "__main__":

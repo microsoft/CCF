@@ -6,12 +6,13 @@
   },
   "type": "module",
   "dependencies": {
+    "@msgpack/msgpack": "^2.3.0",
     "js-base64": "^3.5.2",
     "jsrsasign": "^10.0.4",
     "jsrsasign-util": "^1.0.2",
+    "jwt-decode": "^3.0.0",
     "lodash-es": "^4.17.15",
-    "protobufjs": "^6.10.1",
-    "jwt-decode": "^3.0.0"
+    "protobufjs": "^6.10.1"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^14.0.0",

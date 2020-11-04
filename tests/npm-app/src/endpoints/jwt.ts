@@ -1,5 +1,7 @@
 import { KJUR, KEYUTIL, ArrayBuffertohex } from 'jsrsasign'
 import jwt_decode from 'jwt-decode'
+import * as msgpack from "@msgpack/msgpack"
+import { Base64 } from 'js-base64'
 
 import * as ccf from '../types/ccf'
 
@@ -18,6 +20,18 @@ interface HeaderClaims {
 interface BodyClaims {
     sub: string
 }
+
+class GovConverter<T> implements ccf.DataConverter<T> {
+    encode(val: T): ArrayBuffer {
+        const ta = msgpack.encode(val)
+        return ta.buffer.slice(ta.byteOffset, ta.byteOffset + ta.byteLength);;
+    }
+    decode(buf: ArrayBuffer): T {
+        return msgpack.decode(buf) as T;
+    }
+}
+const govString = new GovConverter<string>()
+const govUint8Array = new GovConverter<number[]>()
 
 export function jwt(request: ccf.Request): ccf.Response<JwtResponse | ErrorResponse> {
     const authHeader = request.headers['authorization']
@@ -44,16 +58,19 @@ export function jwt(request: ccf.Request): ccf.Response<JwtResponse | ErrorRespo
     }
 
     // Get the stored signing key to validate the token.
-    const keysMap = new ccf.TypedKVMap(ccf.kv['public:ccf.gov.jwt_public_signing_keys'], ccf.string, ccf.arrayBuffer)
+    const keysMap = new ccf.TypedKVMap(ccf.kv['public:ccf.gov.jwt_public_signing_keys'], govString, govUint8Array)
     const publicKeyDer = keysMap.get(signingKeyId)
     if (publicKeyDer === undefined) {
         return unauthorized(`token signing key not found: ${signingKeyId}`)
     }
-    const publicKeyHex = ArrayBuffertohex(publicKeyDer)
-    const publicKey = KEYUTIL.getKey(publicKeyHex, null, 'pkcs8pub')
+    // jsrsasign can only load X.509 certs from PEM strings
+    const publicKeyB64 = Base64.fromUint8Array(new Uint8Array(publicKeyDer))
+    const publicKeyPem = "-----BEGIN CERTIFICATE-----\n" + publicKeyB64 + "\n-----END CERTIFICATE-----";
+    const publicKey = KEYUTIL.getKey(publicKeyPem)
 
     // Check whether the issuer needs to be validated.
-    const validateIssuerMap = new ccf.TypedKVMap(ccf.kv['public:ccf.gov.jwt_public_signing_keys_validate_issuer'], ccf.string, ccf.string)
+    const validateIssuerMap = new ccf.TypedKVMap(ccf.kv['public:ccf.gov.jwt_public_signing_keys_validate_issuer'],
+        govString, govString)
     const validateIssuer = validateIssuerMap.get(signingKeyId)
     const expectedIssuer = validateIssuer ? [validateIssuer] : undefined
 

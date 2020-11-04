@@ -202,7 +202,8 @@ namespace ccf
     std::string issuer;
     std::optional<JsonWebKeySet> jwks;
   };
-  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(SetJwtIssuer, ccf::JwtIssuerMetadata)
+  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(
+    SetJwtIssuer, ccf::JwtIssuerMetadata)
   DECLARE_JSON_REQUIRED_FIELDS(SetJwtIssuer, issuer)
   DECLARE_JSON_OPTIONAL_FIELDS(SetJwtIssuer, jwks)
 
@@ -399,26 +400,32 @@ namespace ccf
       }
     }
 
-    void set_jwt_public_signing_keys_validate_issuer(kv::Tx& tx, std::string issuer)
+    void set_jwt_public_signing_keys_validate_issuer(
+      kv::Tx& tx, std::string issuer)
     {
       auto issuers = tx.get_view(this->network.jwt_issuers);
 
       auto issuer_metadata = issuers->get(issuer).value();
 
+      auto validate_issuer = issuer_metadata.validate_issuer ? issuer : "";
+
       auto issuer_key_ids = tx.get_view(this->network.jwt_issuer_key_ids);
       auto key_ids = issuer_key_ids->get(issuer);
       if (key_ids.has_value())
       {
-        auto keys_validate_issuer = tx.get_view(
-          this->network.jwt_public_signing_keys_validate_issuer);
+        auto keys_validate_issuer =
+          tx.get_view(this->network.jwt_public_signing_keys_validate_issuer);
         for (auto key_id : key_ids.value())
         {
-          keys_validate_issuer->put(key_id, issuer_metadata.validate_issuer);
+          keys_validate_issuer->put(key_id, validate_issuer);
         }
       }
     }
 
-    bool set_jwt_public_signing_keys(kv::Tx& tx, ObjectId proposal_id, std::string issuer, 
+    bool set_jwt_public_signing_keys(
+      kv::Tx& tx,
+      ObjectId proposal_id,
+      std::string issuer,
       const JsonWebKeySet& jwks)
     {
       auto issuers = tx.get_view(this->network.jwt_issuers);
@@ -455,8 +462,7 @@ namespace ccf
         }
         if (jwk.x5c.empty())
         {
-          LOG_FAIL_FMT(
-            "Proposal {}: JWKS is invalid (empty x5c)", proposal_id);
+          LOG_FAIL_FMT("Proposal {}: JWKS is invalid (empty x5c)", proposal_id);
           return false;
         }
 
@@ -485,7 +491,8 @@ namespace ccf
           claims.empty())
         {
           LOG_INFO_FMT(
-            "Proposal {}: Skipping JWT signing key with kid {} (not OE attested)",
+            "Proposal {}: Skipping JWT signing key with kid {} (not OE "
+            "attested)",
             proposal_id,
             jwk.kid);
           continue;
@@ -494,7 +501,7 @@ namespace ccf
         if (has_key_policy_sgx_claims)
         {
           for (auto& [claim_name, expected_claim_val_hex] :
-              issuer_metadata.key_policy.value().sgx_claims.value())
+               issuer_metadata.key_policy.value().sgx_claims.value())
           {
             if (claims.find(claim_name) == claims.end())
             {
@@ -758,7 +765,8 @@ namespace ccf
            bool result = true;
            if (parsed.jwks.has_value())
            {
-             result = set_jwt_public_signing_keys(tx, proposal_id, parsed.issuer, parsed.jwks.value());
+             result = set_jwt_public_signing_keys(
+               tx, proposal_id, parsed.issuer, parsed.jwks.value());
            }
            else
            {
@@ -788,8 +796,8 @@ namespace ccf
         {"set_jwt_public_signing_keys",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<SetJwtPublicSigningKeys>();
-           return set_jwt_public_signing_keys(tx, proposal_id, parsed.issuer, parsed.jwks);
-           
+           return set_jwt_public_signing_keys(
+             tx, proposal_id, parsed.issuer, parsed.jwks);
          }},
         // accept a node
         {"trust_node",

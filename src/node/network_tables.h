@@ -126,7 +126,8 @@ namespace ccf
       jwt_issuers(Tables::JWT_ISSUERS),
       jwt_issuer_key_ids(Tables::JWT_ISSUER_KEY_IDS),
       jwt_public_signing_keys(Tables::JWT_PUBLIC_SIGNING_KEYS),
-      jwt_public_signing_keys_validate_issuer(Tables::JWT_PUBLIC_SIGNING_KEYS_VALIDATE_ISSUER),
+      jwt_public_signing_keys_validate_issuer(
+        Tables::JWT_PUBLIC_SIGNING_KEYS_VALIDATE_ISSUER),
       users(Tables::USERS),
       user_certs(Tables::USER_CERT_DERS),
       user_client_signatures(Tables::USER_CLIENT_SIGNATURES),
