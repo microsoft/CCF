@@ -74,17 +74,6 @@ namespace cli
     std::string cert_file;
     std::optional<std::string> enc_pub_file;
     std::optional<std::string> member_data_file;
-
-    // ParsedMemberInfo() = default;
-
-    // ParsedMemberInfo(
-    //   const std::string& cert,
-    //   const std::optional<std::string>& enc_pub_file,
-    //   const std::optional<std::string>& data_file) :
-    //   cert_file(cert),
-    //   enc_pub_file(enc_pub_file),
-    //   member_data_file(data_file)
-    // {}
   };
 
   CLI::Option* add_member_info_option(
@@ -106,16 +95,12 @@ namespace cli
           chunks.emplace_back(chunk);
         }
 
-        LOG_FAIL_FMT("# of chunks: {}", chunks.size());
-
         if (chunks.empty() || chunks.size() > 3)
         {
-          // TODO: Is error message right??
           throw CLI::ValidationError(
             option_name,
-            "Member info is not in format "
-            "member_cert.pem[,member_encryption_public_key.pem[,member_data."
-            "json]]");
+            "Member info is not in expected format: "
+            "member_cert.pem[,member_enc_pubk.pem[,member_data.json]]");
         }
 
         ParsedMemberInfo member_info;
@@ -124,7 +109,7 @@ namespace cli
         {
           member_info.enc_pub_file = chunks.at(1);
         }
-        else if (chunks.size() == 3) // All 3
+        else if (chunks.size() == 3)
         {
           // Only read encryption public key if there is something between two
           // commas
@@ -135,7 +120,7 @@ namespace cli
           member_info.member_data_file = chunks.at(2);
         }
 
-        // Validate that member info files exist
+        // Validate that member info files exist, when specified
         auto validator = CLI::detail::ExistingFileValidator();
         auto err_str = validator(member_info.cert_file);
         if (!err_str.empty())
@@ -168,7 +153,7 @@ namespace cli
 
     auto* option = app.add_option(option_name, fun, option_desc, true);
     option
-      ->type_name("member_cert.pem[,member_enc_pubk.pem,[member_data.json]]")
+      ->type_name("member_cert.pem[,member_enc_pubk.pem[,member_data.json]]")
       ->type_size(-1);
 
     return option;
