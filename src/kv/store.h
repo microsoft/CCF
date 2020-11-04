@@ -897,7 +897,13 @@ namespace kv
           {
             return success;
           }
-          // TODO: we need to verify this
+
+          if(!progress_tracker->apply_new_view(consensus->primary()))
+          {
+            LOG_FAIL_FMT("apply_new_view Failed");
+            LOG_DEBUG_FMT("NewView in transaction {} failed to verify", v);
+            return DeserialiseSuccess::FAILED;
+          }
 
           auto h = get_history();
           h->append(data.data(), data.size());

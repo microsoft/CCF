@@ -79,23 +79,21 @@ def run(args):
         # Number of nodes F to stop until network cannot make progress
         nodes_to_stop = math.ceil(len(args.nodes) / 2)
         if args.consensus == "bft":
-            # nodes_to_stop = math.ceil(len(args.nodes) / 3)
+            nodes_to_stop = math.ceil(len(args.nodes) / 3)
 
             LOG.error("aaaaaaa {}", math.ceil(len(args.nodes) / 3))
-
-            # View Change implementation is in progress.
-            # https://github.com/microsoft/CCF/issues/1709
-            nodes_to_stop = 1
 
         primary_is_known = True
         for node_to_stop in range(nodes_to_stop):
             # Note that for the first iteration, the primary is known in advance anyway
             LOG.debug("Find freshly elected primary")
-            # After a view change in pbft, finding the new primary takes longer
+            # After a view change in bft, finding the new primary takes longer
+            LOG.error("bbbbbbb {}", math.ceil(len(args.nodes) / 3))
             primary, current_view = network.find_primary(
                 timeout=(30 if args.consensus == "bft" else 3)
             )
-
+            time.sleep(30)
+            LOG.error("bbbbbbb {}", math.ceil(len(args.nodes) / 3))
             LOG.debug(
                 "Commit new transactions, primary:{}, current_view:{}".format(
                     primary.node_id, current_view

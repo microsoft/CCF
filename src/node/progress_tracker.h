@@ -19,13 +19,13 @@ namespace ccf
   {
   public:
     ProgressTracker(
-      std::unique_ptr<ProgressTrackerStore> store_, kv::NodeId id_) :
-      store(std::move(store_)),
+      std::shared_ptr<ProgressTrackerStore> store_, kv::NodeId id_) :
+      store(store_),
       id(id_),
       entropy(tls::create_entropy())
     {}
 
-    std::unique_ptr<ProgressTrackerStore> store;
+    std::shared_ptr<ProgressTrackerStore> store;
 
     kv::TxHistory::Result add_signature(
       kv::TxID tx_id,
@@ -648,6 +648,38 @@ namespace ccf
       }
 
       return verified_signatures;
+    }
+
+    bool apply_new_view(kv::NodeId from) const
+    {
+      auto new_view = store->get_new_view();
+      CCF_ASSERT(new_view.has_value(), "new view does not have a value");
+      kv::Consensus::View view = new_view->view;
+      kv::Consensus::SeqNo seqno = new_view->seqno;
+      crypto::Sha256Hash& root = new_view->root;
+
+      for (auto& vcp : new_view->view_change_messages)
+      {
+        kv::NodeId id = vcp.first;
+        ccf::ViewChange& vc = vcp.second;
+
+        if (!store->verify_view_change(vc, id, view, seqno, root))
+        {
+          LOG_FAIL_FMT("Failed to verify view-change from:{}", id);
+          return false;
+        }
+      }
+
+
+      // TODO: uncomment this
+      if(!store->verify_new_view(new_view.value(), from))
+      {
+        LOG_INFO_FMT("Failed to verify from:{}", from);
+        return false;
+      }
+
+      // TODO: Clear info that we do not need in the progress tracker
+      return true;
     }
 
   private:

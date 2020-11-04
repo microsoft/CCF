@@ -33,9 +33,9 @@ namespace aft
 
   public:
     ViewChangeTracker(
-      std::unique_ptr<ccf::ViewChangeTrackerStore> store_,
+      std::shared_ptr<ccf::ProgressTrackerStore> store_,
       std::chrono::milliseconds time_between_attempts_) :
-      store(std::move(store_)),
+      store(store_),
       last_view_change_sent(0),
       time_between_attempts(time_between_attempts_)
     {}
@@ -116,14 +116,19 @@ namespace aft
 
       for (auto it : vc.received_view_changes)
       {
-        nv.view_change_messages.push_back(it.second);
+        nv.view_change_messages.emplace(it.first, it.second);
       }
       
       store->write_new_view(nv);
     }
     
+    void clear()
+    {
+        view_changes.clear();
+    }
+    
   private:
-    std::unique_ptr<ccf::ViewChangeTrackerStore> store;
+    std::shared_ptr<ccf::ProgressTrackerStore> store;
     std::map<kv::Consensus::View, ViewChange> view_changes;
     std::chrono::milliseconds time_previous_view_change_increment =
       std::chrono::milliseconds(0);

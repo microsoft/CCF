@@ -157,8 +157,6 @@ namespace aft
       state(state_),
       executor(executor_),
       request_tracker(request_tracker_),
-      //view_change_tracker(
-      //  state_->my_node_id, starting_view_change, view_change_timeout_),
       view_change_tracker(std::move(view_change_tracker_)),
 
       request_timeout(request_timeout_),
@@ -439,7 +437,7 @@ namespace aft
       for (auto& [index, data, is_globally_committable] : entries)
       {
         bool globally_committable =
-          is_globally_committable/* || consensus_type == ConsensusType::BFT*/;
+          is_globally_committable;
 
         if (index != state->last_idx + 1)
           return false;
@@ -710,15 +708,12 @@ namespace aft
     void append_new_view(kv::Consensus::View view)
     {
       LOG_INFO_FMT("AAAAAA appending new view:{}", view);
-      // TODO: fix this
-      if (view != 3)
-      {
-        LOG_INFO_FMT("AAAAAAA exiting view change early, view:{}", view);
-        return;
-      }
       state->current_view = view;
       become_leader();
       view_change_tracker->write_new_view_append_entry(view);
+
+      view_change_tracker->clear();
+      request_tracker->clear();
     }
 
     bool has_bft_timeout_occurred(std::chrono::milliseconds time)
@@ -1057,8 +1052,13 @@ namespace aft
           }
 
           case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE:
+          {
+            break;
+          }
           case kv::DeserialiseSuccess::NEW_VIEW:
           {
+            view_change_tracker->clear();
+            request_tracker->clear();
             break;
           }
 
@@ -1674,14 +1674,17 @@ namespace aft
       LOG_INFO_FMT(
         "Becoming candidate {}: {}", state->my_node_id, state->current_view);
 
-      /*
-      for (auto it = nodes.begin(); it != nodes.end(); ++it)
+      if (consensus_type != ConsensusType::BFT)
       {
-        channels->create_channel(
-          it->first, it->second.node_info.hostname, it->second.node_info.port);
-        send_request_vote(it->first);
+        for (auto it = nodes.begin(); it != nodes.end(); ++it)
+        {
+          channels->create_channel(
+            it->first,
+            it->second.node_info.hostname,
+            it->second.node_info.port);
+          send_request_vote(it->first);
+        }
       }
-      */
     }
 
     void become_leader()
@@ -1745,7 +1748,10 @@ namespace aft
       LOG_INFO_FMT(
         "Becoming follower {}: {}", state->my_node_id, state->current_view);
 
-      //channels->close_all_outgoing();
+      if (consensus_type != ConsensusType::BFT)
+      {
+        channels->close_all_outgoing();
+      }
     }
 
     void become_retired()

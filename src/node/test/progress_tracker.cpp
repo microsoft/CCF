@@ -19,6 +19,7 @@ public:
   MAKE_MOCK1(write_backup_signatures, void(ccf::BackupSignatures&), override);
   MAKE_MOCK0(
     get_backup_signatures, std::optional<ccf::BackupSignatures>(), override);
+  MAKE_MOCK0(get_new_view, std::optional<ccf::NewView>(), override);
   MAKE_MOCK1(write_nonces, void(aft::RevealedNonces&), override);
   MAKE_MOCK0(get_nonces, std::optional<aft::RevealedNonces>(), override);
   MAKE_MOCK4(
@@ -42,6 +43,9 @@ public:
       kv::Consensus::SeqNo seqno,
       crypto::Sha256Hash& root),
     override);
+  MAKE_MOCK2(
+    verify_new_view, bool(ccf::NewView& new_view, kv::NodeId from), override);
+  MAKE_MOCK1(write_new_view, void(ccf::NewView& new_view), override);
 };
 
 void ordered_execution(
