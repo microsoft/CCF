@@ -10,6 +10,7 @@ import http
 import os
 import base64
 import json
+from typing import NamedTuple, Optional
 
 from loguru import logger as LOG
 
@@ -24,6 +25,12 @@ class MemberStatus(Enum):
     ACCEPTED = 0
     ACTIVE = 1
     RETIRED = 2
+
+
+class MemberInfo(NamedTuple):
+    certificate_file: str
+    encryption_pub_key_file: Optional[str]
+    member_data_file: Optional[str]
 
 
 class Member:
@@ -44,11 +51,18 @@ class Member:
         self.member_data = member_data
         self.has_recovery_share = has_recovery_share
 
+        self.member_info = MemberInfo(
+            f"member{self.member_id}_cert.pem",
+            f"member{self.member_id}_enc_pubk.pem" if has_recovery_share else None,
+            f"member{self.member_id}_data.json" if member_data else None,
+        )
+
         if key_generator is not None:
             member = f"member{member_id}"
 
+            # TODO: Fix awkward if/self
             if has_recovery_share:
-                LOG.error("has recovery share")  # TODO: Fix
+                LOG.error("has recovery share")
                 infra.proc.ccall(
                     key_generator,
                     "--name",
@@ -60,7 +74,6 @@ class Member:
                     log_output=False,
                 ).check_returncode()
             else:
-                LOG.error("no recovery share")  # TODO: Fix
                 infra.proc.ccall(
                     key_generator,
                     "--name",
@@ -78,18 +91,21 @@ class Member:
                 os.path.join(self.common_dir, f"member{self.member_id}_privk.pem")
             )
             assert os.path.isfile(
-                os.path.join(self.common_dir, f"member{self.member_id}_cert.pem")
+                os.path.join(self.common_dir, self.member_info.certificate_file)
             )
 
-            # TODO: Is this always true??
-            assert os.path.isfile(
+            self.has_recovery_share = os.path.isfile(
                 os.path.join(self.common_dir, f"member{self.member_id}_enc_privk.pem")
             )
 
-        if member_data is not None:
+        # TODO: This looks odd
+        if self.member_data is not None:
             with open(
-                os.path.join(self.common_dir, f"member{self.member_id}_data.json"), "w"
+                os.path.join(self.common_dir, self.member_info.member_data_file), "w"
             ) as md:
+                LOG.warning(
+                    f"Writing member data: {self.member_info.member_data_file}"
+                )  # TODO: Fix
                 json.dump(member_data, md)
 
     def is_active(self):

@@ -150,17 +150,23 @@ class Consortium:
         self.members.append(new_member)
         return new_member
 
-    # TODO: Do not include encryption public key is member has no share!!
     def get_members_info(self):
+
         info = []
         for m in self.members:
-            i = (f"member{m.member_id}_cert.pem",)
-            if m.has_recovery_share:
-                i += (f"member{m.member_id}_enc_pubk.pem",)
-            md = f"member{m.member_id}_data.json"
-            if os.path.exists(os.path.join(self.common_dir, md)):
-                i += (md,)
-            info.append(i)
+            info += [m.member_info]
+            # i = (f"member{m.member_id}_cert.pem",)
+            # # If a member has no recovery share, they don't need to register
+            # # their public encryption key in CCF
+            # i += (
+            #     (f"member{m.member_id}_enc_pubk.pem",)
+            #     if m.has_recovery_share
+            #     else ("",)
+            # )
+            # md = f"member{m.member_id}_data.json"
+            # if os.path.exists(os.path.join(self.common_dir, md)):
+            #     i += (md,)
+            # info.append(i)
         return info
 
     def get_active_members(self):
