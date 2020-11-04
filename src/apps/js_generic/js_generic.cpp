@@ -17,7 +17,7 @@ namespace ccfapp
   using namespace kv;
   using namespace ccf;
 
-  using KVMap = kv::Map<std::vector<uint8_t>, std::vector<uint8_t>>;
+  using KVMap = kv::untyped::Map;
 
   JSClassID kv_class_id;
   JSClassID kv_map_view_class_id;
