@@ -163,9 +163,8 @@ class Consortium:
     def vote_using_majority(
         self, remote_node, proposal, wait_for_global_commit=True, timeout=3
     ):
-        # This function assumes that the proposal has just been proposed and
-        # that at most, only the proposer has already voted for it when
-        # proposing it
+        if proposal.state == ProposalState.Accepted:
+            return proposal
         active_members = self.get_active_members()
         majority_count = int(len(self.get_active_members()) / 2 + 1)
 
@@ -194,7 +193,7 @@ class Consortium:
                     view = response.view
                 ccf.commit.wait_for_commit(c, seqno, view, timeout=timeout)
 
-        if proposal.state is not ProposalState.Accepted:
+        if proposal.state != ProposalState.Accepted:
             raise infra.proposal.ProposalNotAccepted(proposal)
         return proposal
 
