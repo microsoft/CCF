@@ -5,6 +5,6 @@
 
 namespace ccf
 {
-  using CertDERs = kv::Map<Cert, ObjectId>;
-  using CACertDERs = kv::Map<std::string, Cert>;
+  using CertDERs = kv::RawCopySerialisedMap<Cert, ObjectId>;
+  using CACertDERs = kv::RawCopySerialisedMap<std::string, Cert>;
 }

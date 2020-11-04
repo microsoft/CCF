@@ -16,6 +16,10 @@ namespace kv::serialisers
       {
         return SerialisedEntry(t.begin(), t.end());
       }
+      else if constexpr (std::is_same_v<T, std::string>)
+      {
+        return SerialisedEntry(t.begin(), t.end());
+      }
       else if constexpr (nonstd::is_std_array<T>::value)
       {
         return SerialisedEntry(t.begin(), t.end());
@@ -36,6 +40,10 @@ namespace kv::serialisers
     static T from_serialised(const SerialisedEntry& rep)
     {
       if constexpr (std::is_same_v<T, std::vector<uint8_t>>)
+      {
+        return T(rep.begin(), rep.end());
+      }
+      else if constexpr (std::is_same_v<T, std::string>)
       {
         return T(rep.begin(), rep.end());
       }

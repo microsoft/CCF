@@ -79,9 +79,10 @@ namespace kv
   using MsgPackSerialisedMap =
     MapSerialisedWith<K, V, kv::serialisers::MsgPackSerialiser>;
 
-  /** Short name for default-serialised maps, using msgpack serialisers. Support
-   * for custom types can be added through the MSGPACK_DEFINE macro
+  /** Short name for default-serialised maps, using JSON serialisers. Support
+   * for custom types can be added through the DEFINE_JSON_TYPE macros, or by
+   * manually implementing nlohmann's to_json and from_json for the custom type.
    */
   template <typename K, typename V>
-  using Map = MsgPackSerialisedMap<K, V>;
+  using Map = JsonSerialisedMap<K, V>;
 }
