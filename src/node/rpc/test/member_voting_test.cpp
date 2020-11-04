@@ -1964,7 +1964,7 @@ DOCTEST_TEST_CASE("Maximum number of active members")
   gen.init_values();
   gen.create_service({});
 
-  for (size_t i = 1; i < max_active_members_count + 1; i++)
+  for (size_t i = 1; i < max_active_members_with_shares + 1; i++)
   {
     auto cert = get_cert(i, kp);
     members[gen.add_member(cert, {})] = cert;
@@ -1983,7 +1983,7 @@ DOCTEST_TEST_CASE("Maximum number of active members")
     const auto ack_req = create_signed_request(params, "ack", kp);
     const auto resp = frontend_process(frontend, ack_req, m.second);
 
-    if (m.first >= max_active_members_count)
+    if (m.first >= max_active_members_with_shares)
     {
       DOCTEST_CHECK(resp.status == HTTP_STATUS_FORBIDDEN);
     }

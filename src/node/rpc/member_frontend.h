@@ -611,8 +611,9 @@ namespace ccf
         {"open_network",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json&) {
            // On network open, the service checks that a sufficient number of
-           // members have become active. If so, recovery shares are allocated
-           // to each active member.
+           // members with a public encryption key have become active. If so,
+           // recovery shares are allocated to each active member that have a
+           // public encryption key.
            try
            {
              share_manager.issue_shares(tx);
@@ -1423,7 +1424,7 @@ namespace ccf
         }
 
         LOG_DEBUG_FMT(
-          "Reached secret sharing threshold {}", g.get_recovery_threshold());
+          "Reached recovery threshold {}", g.get_recovery_threshold());
 
         try
         {
@@ -1477,7 +1478,16 @@ namespace ccf
           g.add_member(info);
         }
 
-        g.set_recovery_threshold(in.recovery_threshold);
+        // Note that it is acceptable to start a network without any member
+        // having a recovery share. The service will check that at least one
+        // member with a recovery is added before the service is opened.
+        if (!g.set_recovery_threshold(in.recovery_threshold, true))
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            fmt::format(
+              "Could not set recovery threshold to {}", in.recovery_threshold));
+        }
 
         g.add_consensus(in.consensus_type);
 

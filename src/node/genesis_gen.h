@@ -123,12 +123,6 @@ namespace ccf
       return id;
     }
 
-    // auto add_member(const MemberPubInfo& info)
-    // {
-    //   return add_member(info.cert, info.encryption_pub_key,
-    //   info.member_data);
-    // }
-
     void activate_member(MemberId member_id)
     {
       auto members = tx.get_view(tables.members);
@@ -141,13 +135,14 @@ namespace ccf
 
       if (member->status == MemberStatus::ACCEPTED)
       {
-        // TODO: Check against number of members with shares!
         member->status = MemberStatus::ACTIVE;
-        if (get_active_members_count() >= max_active_members_count)
+        if (
+          get_active_members_with_shares_count() >=
+          max_active_members_with_shares)
         {
           throw std::logic_error(fmt::format(
             "No more than {} active members are allowed",
-            max_active_members_count));
+            max_active_members_with_shares));
         }
       }
       members->put(member_id, member.value());
@@ -169,7 +164,8 @@ namespace ccf
         // If the member was active, it had a recovery share. Check that
         // the new number of active members is still sufficient for
         // recovery.
-        auto active_members_count_after = get_active_members_count() - 1;
+        auto active_members_count_after =
+          get_active_members_with_shares_count() - 1;
         auto recovery_threshold = get_recovery_threshold();
         if (active_members_count_after < recovery_threshold)
         {
@@ -291,12 +287,12 @@ namespace ccf
     {
       auto service_view = tx.get_view(tables.service);
 
-      if (get_active_members_count() < get_recovery_threshold())
+      if (get_active_members_with_shares_count() < get_recovery_threshold())
       {
         LOG_FAIL_FMT(
-          "Cannot open network as number of active members "
+          "Cannot open network as number of active members with shares"
           "({}) is less than recovery threshold ({})",
-          get_active_members_count(),
+          get_active_members_with_shares_count(),
           get_recovery_threshold());
         return false;
       }
@@ -403,14 +399,16 @@ namespace ccf
       codeid_view->put(node_code_id, CodeStatus::ACCEPTED);
     }
 
-    size_t get_active_members_count()
+    size_t get_active_members_with_shares_count()
     {
       auto members_view = tx.get_view(tables.members);
       size_t active_members_count = 0;
 
       members_view->foreach(
         [&active_members_count](const MemberId&, const MemberInfo& mi) {
-          if (mi.status == MemberStatus::ACTIVE)
+          if (
+            mi.status == MemberStatus::ACTIVE &&
+            mi.encryption_pub_key.has_value())
           {
             active_members_count++;
           }
@@ -420,7 +418,7 @@ namespace ccf
       return active_members_count;
     }
 
-    auto get_active_members_enc_pub()
+    auto get_active_members_with_shares()
     {
       auto members_view = tx.get_view(tables.members);
       std::map<MemberId, tls::Pem> active_members_info;
@@ -444,11 +442,11 @@ namespace ccf
       shares_view->put(0, key_share_info);
     }
 
-    bool set_recovery_threshold(size_t threshold)
+    bool set_recovery_threshold(size_t threshold, bool allow_zero = false)
     {
       auto config_view = tx.get_view(tables.config);
 
-      if (threshold == 0)
+      if (!allow_zero && threshold == 0)
       {
         LOG_FAIL_FMT("Cannot set recovery threshold to 0");
         return false;
@@ -473,14 +471,15 @@ namespace ccf
       }
       else if (service_status.value() == ServiceStatus::OPEN)
       {
-        auto active_members_count = get_active_members_count();
-        if (threshold > active_members_count)
+        auto active_members_with_shares_count =
+          get_active_members_with_shares_count();
+        if (threshold > active_members_with_shares_count)
         {
           LOG_FAIL_FMT(
             "Cannot set recovery threshold to {} as it is greater than the "
-            "number of active members ({})",
+            "number of active members with shares ({})",
             threshold,
-            active_members_count);
+            active_members_with_shares_count);
           return false;
         }
       }

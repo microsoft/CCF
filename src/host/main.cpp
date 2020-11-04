@@ -362,8 +362,8 @@ int main(int argc, char** argv)
     *start,
     members_info,
     "--member-info",
-    "Initial consortium members information (public identity,encryption public "
-    "key,member data)")
+    "Initial consortium members information "
+    "(member_cert.pem[,member_enc_pubk.pem[,member_data.json]])")
     ->required();
 
   std::optional<size_t> recovery_threshold = std::nullopt;
@@ -372,7 +372,7 @@ int main(int argc, char** argv)
       "--recovery-threshold",
       recovery_threshold,
       "Number of member shares required for recovery. Defaults to total number "
-      "of initial consortium members.")
+      "of initial consortium members with a public encryption key.")
     ->check(CLI::PositiveNumber)
     ->type_name("UINT");
 
@@ -453,20 +453,37 @@ int main(int argc, char** argv)
 
     if (*start)
     {
+      // Count members with public encryption key as only these members will be
+      // handed a recovery share.
+      // Note that it is acceptable to start a network without any member having
+      // a recovery share. The service will check that at least one member with
+      // a recovery is added before the service is opened.
+      size_t initial_members_with_share_count = 0;
+      for (auto const& mi : members_info)
+      {
+        if (mi.enc_pub_file.has_value())
+        {
+          initial_members_with_share_count++;
+        }
+      }
+
       if (!recovery_threshold.has_value())
       {
         LOG_INFO_FMT(
-          "--recovery-threshold unset. Defaulting to number of initial "
-          "consortium members ({}).",
-          members_info.size());
-        recovery_threshold = members_info.size();
+          "Recovery threshold unset. Defaulting to number of initial "
+          "consortium members with a public encrytion key ({}).",
+          initial_members_with_share_count);
+        recovery_threshold = initial_members_with_share_count;
       }
-      else if (recovery_threshold.value() > members_info.size())
+      else if (recovery_threshold.value() > initial_members_with_share_count)
       {
         throw std::logic_error(fmt::format(
-          "--recovery-threshold cannot be greater than total number "
-          "of initial consortium members (specified via --member-info "
-          "options)"));
+          "Recovery threshold ({}) cannot be greater than total number ({})"
+          "of initial consortium members with a public encryption "
+          "key (specified via --member-info "
+          "options)",
+          recovery_threshold.value(),
+          initial_members_with_share_count));
       }
     }
 

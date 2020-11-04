@@ -30,9 +30,7 @@ MSGPACK_ADD_ENUM(ccf::MemberStatus);
 namespace ccf
 {
   // Current limitations of secret sharing library (sss).
-  // This could be mitigated by not handing a recovery share to every member.
-  // TODO: Rename this
-  static constexpr size_t max_active_members_count = 255;
+  static constexpr size_t max_active_members_with_shares = 255;
 
   struct MemberPubInfo
   {

@@ -117,14 +117,25 @@ namespace ccf
         ls_wrapping_key.get_raw_data<SecretSharing::SplitSecret>();
 
       GenesisGenerator g(network, tx);
-      auto active_members_info = g.get_active_members_enc_pub();
+      auto active_members_with_shares_info = g.get_active_members_with_shares();
       size_t recovery_threshold = g.get_recovery_threshold();
 
+      if (recovery_threshold == 0)
+      {
+        // TODO: This exception doesn't seem to bubble up...
+        throw std::logic_error(
+          fmt::format("Recovery threshold ({}) should be set before recovery "
+                      "shares are computed"));
+      }
+
       auto shares = SecretSharing::split(
-        secret_to_split, active_members_info.size(), recovery_threshold);
+        secret_to_split,
+        active_members_with_shares_info.size(),
+        recovery_threshold);
 
       size_t share_index = 0;
-      for (auto const& [member_id, enc_pub_key] : active_members_info)
+      for (auto const& [member_id, enc_pub_key] :
+           active_members_with_shares_info)
       {
         auto member_enc_pubk = tls::make_rsa_public_key(enc_pub_key);
         auto raw_share = std::vector<uint8_t>(
