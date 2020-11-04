@@ -154,10 +154,12 @@ class Consortium:
     def get_members_info(self):
         info = []
         for m in self.members:
-            i = (f"member{m.member_id}_cert.pem", f"member{m.member_id}_enc_pubk.pem")
+            i = (f"member{m.member_id}_cert.pem",)
+            if m.has_recovery_share:
+                i += (f"member{m.member_id}_enc_pubk.pem",)
             md = f"member{m.member_id}_data.json"
             if os.path.exists(os.path.join(self.common_dir, md)):
-                i = i + (md,)
+                i += (md,)
             info.append(i)
         return info
 

@@ -650,10 +650,15 @@ int main(int argc, char** argv)
             files::slurp(m_info.member_data_file.value()));
         }
 
+        std::optional<std::vector<uint8_t>> public_encryption_key_file =
+          std::nullopt;
+        if (m_info.enc_pub_file.has_value())
+        {
+          public_encryption_key_file =
+            files::slurp(m_info.enc_pub_file.value());
+        }
         ccf_config.genesis.members_info.emplace_back(
-          files::slurp(m_info.cert_file),
-          files::slurp(m_info.enc_pub_file),
-          md);
+          files::slurp(m_info.cert_file), public_encryption_key_file, md);
       }
       ccf_config.genesis.gov_script = files::slurp_string(gov_script);
       ccf_config.genesis.recovery_threshold = recovery_threshold.value();

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/logger.h"
 #include "ds/nonstd.h"
 #include "tls/san.h"
 
@@ -71,17 +72,19 @@ namespace cli
   struct ParsedMemberInfo
   {
     std::string cert_file;
-    std::string enc_pub_file;
+    std::optional<std::string> enc_pub_file;
     std::optional<std::string> member_data_file;
 
-    ParsedMemberInfo(
-      const std::string& cert,
-      const std::string& enc_pub_file,
-      const std::optional<std::string>& data_file) :
-      cert_file(cert),
-      enc_pub_file(enc_pub_file),
-      member_data_file(data_file)
-    {}
+    // ParsedMemberInfo() = default;
+
+    // ParsedMemberInfo(
+    //   const std::string& cert,
+    //   const std::optional<std::string>& enc_pub_file,
+    //   const std::optional<std::string>& data_file) :
+    //   cert_file(cert),
+    //   enc_pub_file(enc_pub_file),
+    //   member_data_file(data_file)
+    // {}
   };
 
   CLI::Option* add_member_info_option(
@@ -103,50 +106,70 @@ namespace cli
           chunks.emplace_back(chunk);
         }
 
-        if (chunks.size() < 2 || chunks.size() > 3)
+        LOG_FAIL_FMT("# of chunks: {}", chunks.size());
+
+        if (chunks.empty() || chunks.size() > 3)
         {
+          // TODO: Is error message right??
           throw CLI::ValidationError(
             option_name,
             "Member info is not in format "
-            "member_cert.pem,member_encryption_public_key.pem[,member_data."
-            "json]");
+            "member_cert.pem[,member_encryption_public_key.pem[,member_data."
+            "json]]");
         }
 
-        auto cert = chunks[0];
-        auto encryption_pub_key = chunks[1];
+        ParsedMemberInfo member_info;
+        member_info.cert_file = chunks.at(0);
+        if (chunks.size() == 2)
+        {
+          member_info.enc_pub_file = chunks.at(1);
+        }
+        else if (chunks.size() == 3) // All 3
+        {
+          // Only read encryption public key if there is something between two
+          // commas
+          if (!chunks.at(1).empty())
+          {
+            member_info.enc_pub_file = chunks.at(1);
+          }
+          member_info.member_data_file = chunks.at(2);
+        }
 
-        // Validate that member certificate and public encryption key exist
+        // Validate that member info files exist
         auto validator = CLI::detail::ExistingFileValidator();
-        auto err_str = validator(cert);
+        auto err_str = validator(member_info.cert_file);
         if (!err_str.empty())
         {
           throw CLI::ValidationError(option_name, err_str);
         }
 
-        err_str = validator(encryption_pub_key);
-        if (!err_str.empty())
+        if (member_info.enc_pub_file.has_value())
         {
-          throw CLI::ValidationError(option_name, err_str);
-        }
-
-        std::optional<std::string> member_data = std::nullopt;
-
-        if (chunks.size() == 3)
-        {
-          member_data = chunks[2];
-          err_str = validator(member_data.value());
+          err_str = validator(member_info.enc_pub_file.value());
           if (!err_str.empty())
           {
             throw CLI::ValidationError(option_name, err_str);
           }
         }
-        parsed.emplace_back(cert, encryption_pub_key, member_data);
+
+        if (member_info.member_data_file.has_value())
+        {
+          err_str = validator(member_info.member_data_file.value());
+          if (!err_str.empty())
+          {
+            throw CLI::ValidationError(option_name, err_str);
+          }
+        }
+
+        parsed.emplace_back(member_info);
       }
       return true;
     };
 
     auto* option = app.add_option(option_name, fun, option_desc, true);
-    option->type_name("member_cert.pem,member_enc_pubk.pem")->type_size(-1);
+    option
+      ->type_name("member_cert.pem[,member_enc_pubk.pem,[member_data.json]]")
+      ->type_size(-1);
 
     return option;
   }

@@ -44,13 +44,14 @@ namespace ccf
 
     MemberPubInfo(
       const tls::Pem& cert_,
-      const tls::Pem& encryption_pub_key_,
+      const std::optional<tls::Pem>& encryption_pub_key_,
       const nlohmann::json& member_data_) :
       cert(cert_),
       encryption_pub_key(encryption_pub_key_),
       member_data(member_data_)
     {}
 
+    // TODO: Still needed?
     MemberPubInfo(
       std::vector<uint8_t>&& cert_,
       std::vector<uint8_t>&& encryption_pub_key_,
