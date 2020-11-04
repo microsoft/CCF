@@ -19,6 +19,9 @@ namespace ccf
     MSGPACK_DEFINE(hash, version);
   };
 
+  DECLARE_JSON_TYPE(SnapshotHash);
+  DECLARE_JSON_REQUIRED_FIELDS(SnapshotHash, hash, version);
+
   // As we only keep track of the latest snapshot, the key for the
   // SnapshotEvidence table is always 0.
   using SnapshotEvidence = kv::Map<size_t, SnapshotHash>;
