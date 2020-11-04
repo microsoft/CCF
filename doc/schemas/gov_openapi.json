@@ -333,9 +333,6 @@
       },
       "Propose__In": {
         "properties": {
-          "ballot": {
-            "$ref": "#/components/schemas/Script"
-          },
           "parameter": {
             "$ref": "#/components/schemas/json"
           },
