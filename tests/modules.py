@@ -365,9 +365,7 @@ def test_npm_app(network, args):
         assert body["msg"] == "jwt invalid, sub claim missing", r.body
 
         user_id = "user0"
-        jwt = infra.crypto.create_jwt(
-            {"sub": user_id}, jwt_key_priv_pem, jwt_kid
-        )
+        jwt = infra.crypto.create_jwt({"sub": user_id}, jwt_key_priv_pem, jwt_kid)
         r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         body = r.body.json()

@@ -111,7 +111,8 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument("-s", "--app-script", help="Path to app script")
     parser.add_argument("-j", "--js-app-script", help="Path to js app script")
     parser.add_argument("--js-app-bundle", help="Path to js app bundle")
-    parser.add_argument("--jwt-issuer",
+    parser.add_argument(
+        "--jwt-issuer",
         help="Path to JSON file with JWT issuer definition",
         action="append",
         default=[],

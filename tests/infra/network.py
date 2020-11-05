@@ -380,11 +380,9 @@ class Network:
             self.consortium.deploy_js_app(
                 remote_node=primary, app_bundle_path=args.js_app_bundle
             )
-        
+
         for path in args.jwt_issuer:
-            self.consortium.set_jwt_issuer(
-                remote_node=primary, json_path=path
-            )
+            self.consortium.set_jwt_issuer(remote_node=primary, json_path=path)
 
         self.consortium.add_users(primary, initial_users)
         LOG.info("Initial set of users added")

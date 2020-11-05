@@ -48,7 +48,7 @@ export function jwt(request: ccf.Request): ccf.Response<JwtResponse | ErrorRespo
     // We use jwt_decode() instead of jsrsasign's parse() as the latter does unnecessary work.
     let headerClaims: HeaderClaims
     try {
-        headerClaims = jwt_decode<HeaderClaims>(token, { header: true })
+        headerClaims = jwt_decode(token, { header: true }) as HeaderClaims
     } catch (e) {
         return unauthorized(`malformed jwt: ${e.message}`)
     }
@@ -80,7 +80,7 @@ export function jwt(request: ccf.Request): ccf.Response<JwtResponse | ErrorRespo
     }
 
     // Custom body claims validation, app-specific.
-    const claims = jwt_decode<BodyClaims>(token)
+    const claims = jwt_decode(token) as BodyClaims
     if (!claims.sub) {
         return unauthorized('jwt invalid, sub claim missing')
     }
