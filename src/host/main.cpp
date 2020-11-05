@@ -457,13 +457,13 @@ int main(int argc, char** argv)
       // handed a recovery share.
       // Note that it is acceptable to start a network without any member having
       // a recovery share. The service will check that at least one member with
-      // a recovery is added before the service is opened.
-      size_t initial_members_with_share_count = 0;
+      // a recovery is added before the service can be opened.
+      size_t members_with_pubk_count = 0;
       for (auto const& mi : members_info)
       {
-        if (mi.enc_pub_file.has_value())
+        if (mi.enc_pubk_file.has_value())
         {
-          initial_members_with_share_count++;
+          members_with_pubk_count++;
         }
       }
 
@@ -472,18 +472,17 @@ int main(int argc, char** argv)
         LOG_INFO_FMT(
           "Recovery threshold unset. Defaulting to number of initial "
           "consortium members with a public encrytion key ({}).",
-          initial_members_with_share_count);
-        recovery_threshold = initial_members_with_share_count;
+          members_with_pubk_count);
+        recovery_threshold = members_with_pubk_count;
       }
-      else if (recovery_threshold.value() > initial_members_with_share_count)
+      else if (recovery_threshold.value() > members_with_pubk_count)
       {
         throw std::logic_error(fmt::format(
           "Recovery threshold ({}) cannot be greater than total number ({})"
           "of initial consortium members with a public encryption "
-          "key (specified via --member-info "
-          "options)",
+          "key (specified via --member-info options)",
           recovery_threshold.value(),
-          initial_members_with_share_count));
+          members_with_pubk_count));
       }
     }
 
@@ -660,6 +659,14 @@ int main(int argc, char** argv)
 
       for (auto const& m_info : members_info)
       {
+        std::optional<std::vector<uint8_t>> public_encryption_key_file =
+          std::nullopt;
+        if (m_info.enc_pubk_file.has_value())
+        {
+          public_encryption_key_file =
+            files::slurp(m_info.enc_pubk_file.value());
+        }
+
         nlohmann::json md = nullptr;
         if (m_info.member_data_file.has_value())
         {
@@ -667,13 +674,6 @@ int main(int argc, char** argv)
             files::slurp(m_info.member_data_file.value()));
         }
 
-        std::optional<std::vector<uint8_t>> public_encryption_key_file =
-          std::nullopt;
-        if (m_info.enc_pub_file.has_value())
-        {
-          public_encryption_key_file =
-            files::slurp(m_info.enc_pub_file.value());
-        }
         ccf_config.genesis.members_info.emplace_back(
           files::slurp(m_info.cert_file), public_encryption_key_file, md);
       }

@@ -72,7 +72,7 @@ namespace cli
   struct ParsedMemberInfo
   {
     std::string cert_file;
-    std::optional<std::string> enc_pub_file;
+    std::optional<std::string> enc_pubk_file;
     std::optional<std::string> member_data_file;
   };
 
@@ -107,7 +107,7 @@ namespace cli
         member_info.cert_file = chunks.at(0);
         if (chunks.size() == 2)
         {
-          member_info.enc_pub_file = chunks.at(1);
+          member_info.enc_pubk_file = chunks.at(1);
         }
         else if (chunks.size() == 3)
         {
@@ -115,7 +115,7 @@ namespace cli
           // commas
           if (!chunks.at(1).empty())
           {
-            member_info.enc_pub_file = chunks.at(1);
+            member_info.enc_pubk_file = chunks.at(1);
           }
           member_info.member_data_file = chunks.at(2);
         }
@@ -128,9 +128,9 @@ namespace cli
           throw CLI::ValidationError(option_name, err_str);
         }
 
-        if (member_info.enc_pub_file.has_value())
+        if (member_info.enc_pubk_file.has_value())
         {
-          err_str = validator(member_info.enc_pub_file.value());
+          err_str = validator(member_info.enc_pubk_file.value());
           if (!err_str.empty())
           {
             throw CLI::ValidationError(option_name, err_str);

@@ -767,6 +767,12 @@ if(BUILD_TESTS)
     CONSENSUS cft
   )
 
+  add_e2e_test(
+    NAME operation
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/operation.py
+    CONSENSUS cft
+  )
+
   if(NOT SAN)
     add_e2e_test(
       NAME connections_cft

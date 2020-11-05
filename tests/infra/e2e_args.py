@@ -162,9 +162,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--pdb", help="Break to debugger on exception", action="store_true"
     )
     parser.add_argument(
-        "--notify-server", help="Server host to notify progress to (host:port)"
-    )
-    parser.add_argument(
         "--workspace",
         help="Temporary directory where nodes store their logs, ledgers, quotes, etc.",
         default=infra.path.default_workspace(),

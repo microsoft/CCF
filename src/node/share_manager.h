@@ -120,12 +120,18 @@ namespace ccf
       auto active_members_with_shares_info = g.get_active_members_with_shares();
       size_t recovery_threshold = g.get_recovery_threshold();
 
+      if (active_members_with_shares_info.size() == 0)
+      {
+        throw std::logic_error(
+          "There should be at least one active member with a public encryption "
+          "key to issue recovery shares");
+      }
+
       if (recovery_threshold == 0)
       {
-        // TODO: This exception doesn't seem to bubble up...
         throw std::logic_error(
-          fmt::format("Recovery threshold ({}) should be set before recovery "
-                      "shares are computed"));
+          "Recovery threshold should be set before recovery "
+          "shares are computed");
       }
 
       auto shares = SecretSharing::split(
