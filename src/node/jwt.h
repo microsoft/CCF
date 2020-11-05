@@ -54,7 +54,8 @@ namespace ccf
 
   using JwtIssuers = kv::Map<JwtIssuer, JwtIssuerMetadata>;
   using JwtPublicSigningKeys = kv::RawCopySerialisedMap<JwtKeyId, Cert>;
-  using JwtPublicSigningKeyIssuer = kv::RawCopySerialisedMap<JwtKeyId, JwtIssuer>;
+  using JwtPublicSigningKeyIssuer =
+    kv::RawCopySerialisedMap<JwtKeyId, JwtIssuer>;
 }
 
 MSGPACK_ADD_ENUM(ccf::JwtIssuerKeyFilter);
