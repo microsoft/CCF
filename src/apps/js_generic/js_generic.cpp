@@ -452,15 +452,19 @@ namespace ccfapp
       return JS_ThrowTypeError(ctx, "Argument must be a function");
 
     bool failed = false;
-    map_view->foreach([ctx, func, &failed](const auto& k, const auto& v) {
-      JSValue args[2];
-      args[0] = JS_NewArrayBufferCopy(ctx, k.data(), k.size());
-      args[1] = JS_NewArrayBufferCopy(ctx, v.data(), v.size());
+    map_view->foreach([ctx, this_val, func, &failed](const auto& k, const auto& v) {
+      JSValue args[3];
 
-      auto val = JS_Call(ctx, func, JS_UNDEFINED, 2, args);
+      // JS forEach expects (v, k, map) rather than (k, v)
+      args[0] = JS_NewArrayBufferCopy(ctx, v.data(), v.size());
+      args[1] = JS_NewArrayBufferCopy(ctx, k.data(), k.size());
+      args[2] = JS_DupValue(ctx, this_val);
+
+      auto val = JS_Call(ctx, func, JS_UNDEFINED, 3, args);
 
       JS_FreeValue(ctx, args[0]);
       JS_FreeValue(ctx, args[1]);
+      JS_FreeValue(ctx, args[2]);
 
       if (JS_IsException(val))
       {
@@ -568,8 +572,8 @@ namespace ccfapp
     JS_SetPropertyStr(
       ctx,
       view_val,
-      "foreach",
-      JS_NewCFunction(ctx, ccfapp::js_kv_map_foreach, "foreach", 1));
+      "forEach",
+      JS_NewCFunction(ctx, ccfapp::js_kv_map_foreach, "forEach", 1));
 
     desc->flags = 0;
     desc->value = view_val;

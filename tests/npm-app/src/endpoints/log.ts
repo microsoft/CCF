@@ -26,8 +26,8 @@ export function setLogItem(request: ccf.Request<LogItem>): ccf.Response {
 
 export function getAllLogItems(request: ccf.Request): ccf.Response<Array<[number, LogItem]>> {
     let items: Array<[number, LogItem]> = [];
-    logMap.foreach(
-        function (id, item) {
+    logMap.forEach(
+        function (item, id, table) {
             items.push([id, item]);
         }
     );
