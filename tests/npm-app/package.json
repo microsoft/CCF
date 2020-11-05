@@ -6,7 +6,6 @@
   },
   "type": "module",
   "dependencies": {
-    "@msgpack/msgpack": "^2.3.0",
     "js-base64": "^3.5.2",
     "jsrsasign": "^10.0.4",
     "jsrsasign-util": "^1.0.2",
