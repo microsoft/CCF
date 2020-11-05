@@ -226,7 +226,7 @@ auto init_frontend(
   for (uint8_t i = 0; i < n_members; i++)
   {
     member_certs.push_back(get_cert(i, kp));
-    gen.activate_member(gen.add_member(member_certs.back(), {}));
+    gen.activate_member(gen.add_member(member_certs.back()));
   }
 
   set_whitelists(gen);
@@ -248,7 +248,7 @@ DOCTEST_TEST_CASE("Member query/read")
   StubNodeState node(share_manager);
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
-  const auto member_id = gen.add_member(member_cert, {});
+  const auto member_id = gen.add_member(member_cert);
   gen.finalize();
 
   const enclave::SessionContext member_session(
@@ -351,10 +351,10 @@ DOCTEST_TEST_CASE("Proposer ballot")
   gen.create_service({});
 
   const auto proposer_cert = get_cert(0, kp);
-  const auto proposer_id = gen.add_member(proposer_cert, {});
+  const auto proposer_id = gen.add_member(proposer_cert);
   gen.activate_member(proposer_id);
   const auto voter_cert = get_cert(1, kp);
-  const auto voter_id = gen.add_member(voter_cert, {});
+  const auto voter_id = gen.add_member(voter_cert);
   gen.activate_member(voter_id);
 
   set_whitelists(gen);
@@ -471,15 +471,15 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   StubNodeState node(share_manager);
   // add three initial active members
   // the proposer
-  auto proposer_id = gen.add_member(member_cert, gen_public_encryption_key());
+  auto proposer_id = gen.add_member({member_cert, gen_public_encryption_key()});
   gen.activate_member(proposer_id);
 
   // the voters
   const auto voter_a_cert = get_cert(1, kp);
-  auto voter_a = gen.add_member(voter_a_cert, gen_public_encryption_key());
+  auto voter_a = gen.add_member({voter_a_cert, gen_public_encryption_key()});
   gen.activate_member(voter_a);
   const auto voter_b_cert = get_cert(2, kp);
-  auto voter_b = gen.add_member(voter_b_cert, gen_public_encryption_key());
+  auto voter_b = gen.add_member({voter_b_cert, gen_public_encryption_key()});
   gen.activate_member(voter_b);
 
   set_whitelists(gen);
@@ -677,8 +677,8 @@ DOCTEST_TEST_CASE("Accept node")
 
   const auto member_0_cert = get_cert(0, new_kp);
   const auto member_1_cert = get_cert(1, kp);
-  const auto member_0 = gen.add_member(member_0_cert, {});
-  const auto member_1 = gen.add_member(member_1_cert, {});
+  const auto member_0 = gen.add_member(member_0_cert);
+  const auto member_1 = gen.add_member(member_1_cert);
   gen.activate_member(member_0);
   gen.activate_member(member_1);
 
@@ -1004,8 +1004,8 @@ DOCTEST_TEST_CASE("Remove proposal")
 
   ShareManager share_manager(network);
   StubNodeState node(share_manager);
-  gen.activate_member(gen.add_member(member_cert, {}));
-  gen.activate_member(gen.add_member(cert, {}));
+  gen.activate_member(gen.add_member(member_cert));
+  gen.activate_member(gen.add_member(cert));
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
@@ -1167,9 +1167,9 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
   ShareManager share_manager(network);
   StubNodeState node(share_manager);
   const auto voter_a_cert = get_cert(1, kp);
-  auto voter_a = gen.add_member(voter_a_cert, {});
+  auto voter_a = gen.add_member(voter_a_cert);
   const auto voter_b_cert = get_cert(2, kp);
-  auto voter_b = gen.add_member(voter_b_cert, {});
+  auto voter_b = gen.add_member(voter_b_cert);
   gen.activate_member(voter_a);
   gen.activate_member(voter_b);
   set_whitelists(gen);
@@ -1221,7 +1221,7 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
   ShareManager share_manager(network);
   StubNodeState node(share_manager);
   const auto member_cert = get_cert(0, kp);
-  gen.activate_member(gen.add_member(member_cert, {}));
+  gen.activate_member(gen.add_member(member_cert));
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
@@ -1303,7 +1303,7 @@ DOCTEST_TEST_CASE(
   // Operating member, as indicated by member data
   const auto operator_cert = get_cert(0, kp);
   const auto operator_id =
-    gen.add_member(operator_cert, {}, operator_member_data());
+    gen.add_member({operator_cert, {}, operator_member_data()});
   gen.activate_member(operator_id);
 
   // Non-operating members
@@ -1311,7 +1311,7 @@ DOCTEST_TEST_CASE(
   for (size_t i = 1; i < 4; i++)
   {
     auto cert = get_cert(i, kp);
-    auto id = gen.add_member(cert, {});
+    auto id = gen.add_member(cert);
     gen.activate_member(id);
     members[id] = cert;
   }
@@ -1414,12 +1414,12 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   auto new_ca = new_kp->self_sign("CN=new node");
   NodeInfo ni;
   ni.cert = new_ca;
-  gen.add_node(ni);
+  auto node_id = gen.add_node(ni);
 
   // Operating member, as indicated by member data
   const auto operator_cert = get_cert(0, kp);
   const auto operator_id =
-    gen.add_member(operator_cert, {}, operator_member_data());
+    gen.add_member({operator_cert, std::nullopt, operator_member_data()});
   gen.activate_member(operator_id);
 
   // Non-operating members
@@ -1427,11 +1427,12 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   for (size_t i = 1; i < 4; i++)
   {
     auto cert = get_cert(i, kp);
-    auto id = gen.add_member(cert, {});
+    auto id = gen.add_member({cert, gen_public_encryption_key()});
     gen.activate_member(id);
     members[id] = cert;
   }
 
+  // TODO: Still true? Members haven't got encryption key!
   // Set a recovery threshold (otherwise retiring a member throws)
   gen.set_recovery_threshold(1);
 
@@ -1450,7 +1451,6 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   const ccf::Script vote_for("return true");
   const ccf::Script vote_against("return false");
 
-  auto node_id = 0;
   {
     DOCTEST_INFO("Check node exists with status pending");
     auto read_values =
@@ -1600,9 +1600,9 @@ DOCTEST_TEST_CASE(
   ni.cert = new_ca;
   gen.add_node(ni);
 
-  // Not operating member, as indicated by member data
+  // Not operating member
   const auto proposer_cert = get_cert(0, kp);
-  const auto proposer_id = gen.add_member(proposer_cert, {}, nullptr);
+  const auto proposer_id = gen.add_member(proposer_cert);
   gen.activate_member(proposer_id);
 
   // Non-operating members
@@ -1610,7 +1610,7 @@ DOCTEST_TEST_CASE(
   for (size_t i = 1; i < 3; i++)
   {
     auto cert = get_cert(i, kp);
-    auto id = gen.add_member(cert, {});
+    auto id = gen.add_member(cert);
     gen.activate_member(id);
     members[id] = cert;
   }
@@ -1709,7 +1709,7 @@ DOCTEST_TEST_CASE("User data")
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
-  const auto member_id = gen.add_member(member_cert, {});
+  const auto member_id = gen.add_member(member_cert);
   gen.activate_member(member_id);
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
@@ -1837,7 +1837,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
       auto cert = get_cert(i, kp);
       auto enc_kp = tls::make_rsa_key_pair();
 
-      auto id = gen.add_member(cert, enc_kp->public_key_pem());
+      auto id = gen.add_member({cert, enc_kp->public_key_pem()});
       gen.activate_member(id);
       members[id] = {cert, enc_kp};
     }
@@ -1944,6 +1944,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
   }
 }
 
+// TODO: Update
 DOCTEST_TEST_CASE("Maximum number of active members")
 {
   logger::config::level() = logger::INFO;
@@ -1967,7 +1968,7 @@ DOCTEST_TEST_CASE("Maximum number of active members")
   for (size_t i = 1; i < max_active_members_with_shares + 1; i++)
   {
     auto cert = get_cert(i, kp);
-    members[gen.add_member(cert, {})] = cert;
+    members[gen.add_member(cert)] = cert;
   }
   gen.finalize();
 
@@ -2023,7 +2024,7 @@ DOCTEST_TEST_CASE("Open network sequence")
     for (size_t i = 0; i < members_count; i++)
     {
       auto cert = get_cert(i, kp);
-      auto id = gen.add_member(cert, {});
+      auto id = gen.add_member({cert, gen_public_encryption_key()});
       members[id] = {cert, {}};
     }
     gen.set_recovery_threshold(recovery_threshold);

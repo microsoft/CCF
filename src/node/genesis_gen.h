@@ -161,10 +161,12 @@ namespace ccf
 
       if (member_to_retire->status == MemberStatus::ACTIVE)
       {
-        // If the member was active, it had a recovery share. Check that
+        // If the member was active and had a recovery share, check that
         // the new number of active members is still sufficient for
         // recovery.
-        auto active_members_count_after =
+        LOG_FAIL_FMT(
+          "Members with shares: {}", get_active_members_with_shares_count());
+        size_t active_members_count_after =
           get_active_members_with_shares_count() - 1;
         auto recovery_threshold = get_recovery_threshold();
         if (active_members_count_after < recovery_threshold)

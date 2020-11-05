@@ -42,8 +42,8 @@ namespace ccf
 
     MemberPubInfo(
       const tls::Pem& cert_,
-      const std::optional<tls::Pem>& encryption_pub_key_,
-      const nlohmann::json& member_data_) :
+      const std::optional<tls::Pem>& encryption_pub_key_ = std::nullopt,
+      const nlohmann::json& member_data_ = nullptr) :
       cert(cert_),
       encryption_pub_key(encryption_pub_key_),
       member_data(member_data_)
@@ -69,7 +69,7 @@ namespace ccf
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(MemberPubInfo)
   DECLARE_JSON_REQUIRED_FIELDS(MemberPubInfo, cert)
-  DECLARE_JSON_OPTIONAL_FIELDS(MemberPubInfo, encryption_pub_key)
+  DECLARE_JSON_OPTIONAL_FIELDS(MemberPubInfo, encryption_pub_key, member_data)
 
   struct MemberInfo : public MemberPubInfo
   {
