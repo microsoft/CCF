@@ -555,9 +555,7 @@ namespace ccf
       return highest_commit_level;
     }
 
-    std::tuple<
-      std::unique_ptr<ViewChange>,
-      kv::Consensus::SeqNo>
+    std::tuple<std::unique_ptr<ViewChange>, kv::Consensus::SeqNo>
     get_view_change_message(kv::Consensus::View view)
     {
       auto it = certificates.find(highest_prepared_level.version);
@@ -577,10 +575,8 @@ namespace ccf
         m->signatures.push_back(sig.second);
       }
 
-      store->sign_view_change(
-        *m, view, highest_prepared_level.version);
-      return std::make_tuple(
-        std::move(m), highest_prepared_level.version);
+      store->sign_view_change(*m, view, highest_prepared_level.version);
+      return std::make_tuple(std::move(m), highest_prepared_level.version);
     }
 
     bool apply_view_change_message(
@@ -589,14 +585,6 @@ namespace ccf
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno)
     {
-      LOG_INFO_FMT(
-        "Adding view-change id:{},view:{}, seqno:{}, "
-        "sig_size:{}, sig:{}",
-        from,
-        view,
-        seqno,
-        view_change.signature.size(),
-        view_change.signature);
       if (!store->verify_view_change(view_change, from, view, seqno))
       {
         LOG_FAIL_FMT("Failed to verify view-change from:{}", from);
@@ -661,24 +649,20 @@ namespace ccf
         if (!store->verify_view_change(vc, id, view, seqno))
         {
           LOG_FAIL_FMT(
-            "Failed to verify view-change id:{},view:{}, seqno:{}, "
-            "sig_size:{}, sig:{}",
+            "Failed to verify view-change id:{},view:{}, seqno:{}",
             id,
             view,
-            seqno,
-            vc.signature.size(),
-            vc.signature);
+            seqno);
           return false;
         }
       }
 
-      if(!store->verify_new_view(new_view.value(), from))
+      if (!store->verify_new_view(new_view.value(), from))
       {
         LOG_INFO_FMT("Failed to verify from:{}", from);
         return false;
       }
 
-      // TODO: Clear info that we do not need in the progress tracker
       return true;
     }
 
@@ -738,15 +722,6 @@ namespace ccf
       }
 
       return std::equal(n_1.h.begin(), n_1.h.end(), n_2.h.begin());
-    }
-
-    uint32_t get_message_threshold(uint32_t node_count)
-    {
-      uint32_t f = 0;
-      for (; 3 * f + 1 < node_count; ++f)
-        ;
-
-      return 2 * f + 1;
     }
 
     bool can_send_sig_ack(

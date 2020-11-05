@@ -1637,8 +1637,7 @@ namespace ccf
       auto request_tracker = std::make_shared<aft::RequestTracker>();
       auto view_change_tracker = std::make_unique<aft::ViewChangeTracker>(
         tracker_store,
-        std::chrono::milliseconds(consensus_config.raft_election_timeout)
-      );
+        std::chrono::milliseconds(consensus_config.raft_election_timeout));
       auto shared_state = std::make_shared<aft::State>(self);
       auto raft = std::make_unique<RaftType>(
         network.consensus_type,

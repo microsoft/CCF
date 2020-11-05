@@ -111,8 +111,8 @@ namespace aft
     // Indices that are eligible for global commit, from a Node's perspective
     std::deque<Index> committable_indices;
 
-    // When this is set, only public domain is deserialised when receiving append
-    // entries
+    // When this is set, only public domain is deserialised when receiving
+    // append entries
     bool public_only = false;
 
     // Randomness
@@ -405,20 +405,14 @@ namespace aft
       {
         for (auto& [index, data, globally_committable] : entries)
         {
-          LOG_INFO_FMT("TTTTTTTT index:{}, globally_committable:{}", index, globally_committable);
           state->last_idx = index;
           ledger->put_entry(*data, globally_committable, false);
         }
-        LOG_INFO_FMT("EEEEEEE");
         return true;
       }
-      LOG_INFO_FMT("EEEEEEE");
 
-      std::unique_lock<SpinLock> guard(state->lock, std::defer_lock);
-      CCF_ASSERT(guard.try_lock(), "failed to lock");
+      std::lock_guard<SpinLock> guard(state->lock);
 
-
-      LOG_INFO_FMT("EEEEEEE");
       if (replica_state != Leader)
       {
         LOG_FAIL_FMT(
@@ -441,14 +435,13 @@ namespace aft
 
       for (auto& [index, data, is_globally_committable] : entries)
       {
-        bool globally_committable =
-          is_globally_committable;
+        bool globally_committable = is_globally_committable;
 
         if (index != state->last_idx + 1)
           return false;
 
         LOG_DEBUG_FMT(
-          "TTTTTTTT Replicated on leader {}: {}{}",
+          "Replicated on leader {}: {}{}",
           state->my_node_id,
           index,
           (globally_committable ? " committable" : ""));
@@ -677,7 +670,7 @@ namespace aft
           view_change_tracker->add_request_view_change(
             v, r.from_node, r.view, r.seqno, node_count()))
       {
-            append_new_view(r.view);
+        append_new_view(r.view);
       }
     }
 
@@ -711,23 +704,12 @@ namespace aft
 
     void append_new_view(kv::Consensus::View view)
     {
-      try
-      {
-        LOG_INFO_FMT("AAAAAA appending new view:{}", view);
-        state->current_view = view;
-        become_leader();
-        view_change_tracker->write_new_view_append_entry(view);
-        LOG_INFO_FMT("AAAAAA - 2 - appending new view:{}", view);
+      state->current_view = view;
+      become_leader();
+      view_change_tracker->write_new_view_append_entry(view);
 
-        view_change_tracker->clear();
-        request_tracker->clear();
-        LOG_INFO_FMT("AAAAAA - 3 - appending new view:{}", view);
-      }
-      catch (std::exception& ex)
-      {
-        LOG_INFO_FMT("AAAAAA appending new view:{}, failed:{}", ex.what());
-        throw;
-      }
+      view_change_tracker->clear();
+      request_tracker->clear();
     }
 
     bool has_bft_timeout_occurred(std::chrono::milliseconds time)
@@ -979,7 +961,6 @@ namespace aft
         {
           // If the current entry has already been deserialised, skip the
           // payload for that entry
-          LOG_INFO_FMT("BBBBBB skipping i:{}", i);
           ledger->skip_entry(data, size);
           continue;
         }
@@ -1844,7 +1825,6 @@ namespace aft
 
       if (new_commit_bft_idx != std::numeric_limits<Index>::max())
       {
-        LOG_INFO_FMT("GGGGGGG bft_watermark_idx:{}", new_commit_bft_idx);
         state->bft_watermark_idx = new_commit_bft_idx;
       }
 
@@ -1898,7 +1878,6 @@ namespace aft
       if (idx <= state->commit_idx)
         return;
 
-      LOG_INFO_FMT("BBBBBBB setting idx:{}", idx);
       state->commit_idx = idx;
 
       LOG_DEBUG_FMT("Compacting...");

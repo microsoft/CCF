@@ -54,8 +54,7 @@ namespace ccf
     APPEND,
     VERIFY,
     ROLLBACK,
-    COMPACT,
-    HEAD
+    COMPACT
   };
 
   constexpr int MAX_HISTORY_LEN = 1000;
@@ -78,10 +77,6 @@ namespace ccf
 
       case COMPACT:
         os << "compact";
-        break;
-
-      case HEAD:
-        os << "head";
         break;
     }
 
@@ -344,7 +339,6 @@ namespace ccf
         throw std::logic_error("Precondition to mt_insert violated");
       }
       mt_insert(tree, h);
-      log_hash(get_root(), HEAD);
     }
 
     crypto::Sha256Hash get_root() const

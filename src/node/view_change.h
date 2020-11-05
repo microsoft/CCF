@@ -74,10 +74,9 @@ namespace ccf
     std::map<kv::NodeId, ViewChange> view_change_messages;
 
     NewView() = default;
-    NewView(
-      kv::Consensus::View view_,
-      kv::Consensus::SeqNo seqno_) :
-      view(view_), seqno(seqno_)
+    NewView(kv::Consensus::View view_, kv::Consensus::SeqNo seqno_) :
+      view(view_),
+      seqno(seqno_)
     {}
 
     MSGPACK_DEFINE(view, seqno, signature, view_change_messages);

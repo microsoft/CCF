@@ -202,8 +202,7 @@ namespace ccf
       ViewChange& view_change,
       kv::NodeId from,
       kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno
-      ) override
+      kv::Consensus::SeqNo seqno) override
     {
       crypto::Sha256Hash h = hash_view_change(view_change, view, seqno);
 
@@ -307,4 +306,13 @@ namespace ccf
       return ch.finalize();
     }
   };
+
+  static constexpr uint32_t get_message_threshold(uint32_t node_count)
+  {
+    uint32_t f = 0;
+    for (; 3 * f + 1 < node_count; ++f)
+      ;
+
+    return 2 * f + 1;
+  }
 }

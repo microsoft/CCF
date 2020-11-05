@@ -15,18 +15,17 @@ namespace aft
   {
     struct ViewChange
     {
-      ViewChange(
-        kv::Consensus::View view_,
-        kv::Consensus::SeqNo seqno_) :
-        view(view_), seqno(seqno_), new_view_sent(false)
+      ViewChange(kv::Consensus::View view_, kv::Consensus::SeqNo seqno_) :
+        view(view_),
+        seqno(seqno_),
+        new_view_sent(false)
       {}
 
       kv::Consensus::View view;
       kv::Consensus::SeqNo seqno;
       bool new_view_sent;
 
-      std::map<kv::NodeId, ccf::ViewChange>
-        received_view_changes;
+      std::map<kv::NodeId, ccf::ViewChange> received_view_changes;
     };
 
   public:
@@ -71,8 +70,9 @@ namespace aft
       OK,
       APPEND_NEW_VIEW_MESSAGE
     };
-    
-    ResultAddView add_request_view_change(ccf::ViewChange& v,
+
+    ResultAddView add_request_view_change(
+      ccf::ViewChange& v,
       kv::NodeId from,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
@@ -82,8 +82,8 @@ namespace aft
       if (it == view_changes.end())
       {
         ViewChange view_change(view, seqno);
-        std::tie(it, std::ignore) = view_changes.emplace(
-          view, std::move(view_change));
+        std::tie(it, std::ignore) =
+          view_changes.emplace(view, std::move(view_change));
       }
       it->second.received_view_changes.emplace(from, v);
 
@@ -115,15 +115,15 @@ namespace aft
       {
         nv.view_change_messages.emplace(it.first, it.second);
       }
-      
+
       store->write_new_view(nv);
     }
-    
+
     void clear()
     {
-        view_changes.clear();
+      view_changes.clear();
     }
-    
+
   private:
     std::shared_ptr<ccf::ProgressTrackerStore> store;
     std::map<kv::Consensus::View, ViewChange> view_changes;
@@ -132,20 +132,9 @@ namespace aft
     kv::Consensus::View last_view_change_sent = 0;
     const std::chrono::milliseconds time_between_attempts;
 
-    // TODO: this should not be duplicated
-    uint32_t get_message_threshold(uint32_t node_count) const
-    {
-      uint32_t f = 0;
-      for (; 3 * f + 1 < node_count; ++f)
-        ;
-
-      return 2 * f + 1;
-    }
-
     bool should_send_new_view(size_t received_requests, size_t node_count) const
     {
-      return received_requests ==  get_message_threshold(node_count);
+      return received_requests == ccf::get_message_threshold(node_count);
     }
-
   };
 }
