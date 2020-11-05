@@ -9,7 +9,6 @@ import infra.path
 import infra.proc
 import infra.net
 import infra.e2e_args
-from infra.proposal import ProposalState
 import suite.test_requirements as reqs
 
 from loguru import logger as LOG
