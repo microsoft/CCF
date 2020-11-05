@@ -29,9 +29,8 @@ namespace ccf
       Tables::CONFIGURATION,
       Tables::CA_CERT_DERS,
       Tables::JWT_ISSUERS,
-      Tables::JWT_ISSUER_KEY_IDS,
       Tables::JWT_PUBLIC_SIGNING_KEYS,
-      Tables::JWT_PUBLIC_SIGNING_KEYS_VALIDATE_ISSUER}},
+      Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER}},
 
     {MEMBER_CAN_PROPOSE,
      {Tables::USERS,
@@ -44,9 +43,8 @@ namespace ccf
       Tables::CONFIGURATION,
       Tables::CA_CERT_DERS,
       Tables::JWT_ISSUERS,
-      Tables::JWT_ISSUER_KEY_IDS,
       Tables::JWT_PUBLIC_SIGNING_KEYS,
-      Tables::JWT_PUBLIC_SIGNING_KEYS_VALIDATE_ISSUER}},
+      Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER}},
 
     {USER_APP_CAN_READ_ONLY,
      {Tables::MEMBERS,
@@ -60,7 +58,6 @@ namespace ccf
       Tables::GOV_HISTORY,
       Tables::CA_CERT_DERS,
       Tables::JWT_ISSUERS,
-      Tables::JWT_ISSUER_KEY_IDS,
       Tables::JWT_PUBLIC_SIGNING_KEYS,
-      Tables::JWT_PUBLIC_SIGNING_KEYS_VALIDATE_ISSUER}}};
+      Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER}}};
 }

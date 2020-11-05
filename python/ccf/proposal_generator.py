@@ -449,7 +449,6 @@ def set_jwt_issuer(json_path: str, **kwargs):
         obj = json.load(f)
     args = {
         "issuer": obj["issuer"],
-        "validate_issuer": obj.get("validate_issuer", True),
         "key_filter": obj.get("key_filter", "all"),
         "key_policy": obj.get("key_policy"),
         "jwks": obj.get("jwks"),

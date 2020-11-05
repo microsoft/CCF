@@ -68,16 +68,9 @@ export function jwt(request: ccf.Request): ccf.Response<JwtResponse | ErrorRespo
     const publicKeyPem = "-----BEGIN CERTIFICATE-----\n" + publicKeyB64 + "\n-----END CERTIFICATE-----";
     const publicKey = KEYUTIL.getKey(publicKeyPem)
 
-    // Check whether the issuer needs to be validated.
-    const validateIssuerMap = new ccf.TypedKVMap(ccf.kv['public:ccf.gov.jwt_public_signing_keys_validate_issuer'],
-        govString, govString)
-    const validateIssuer = validateIssuerMap.get(signingKeyId)
-    const expectedIssuer = validateIssuer ? [validateIssuer] : undefined
-
-    // Validate the token signature and issuer.
+    // Validate the token signature.
     const valid = KJUR.jws.JWS.verifyJWT(token, <any>publicKey, <any>{
         alg: ['RS256'],
-        iss: expectedIssuer,
         // No trusted time, disable time validation.
         verifyAt: Date.parse('2020-01-01T00:00:00') / 1000,
         gracePeriod: 10 * 365 * 24 * 60 * 60

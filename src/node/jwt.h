@@ -39,24 +39,22 @@ namespace ccf
 
   struct JwtIssuerMetadata
   {
-    bool validate_issuer;
     JwtIssuerKeyFilter key_filter;
     std::optional<JwtIssuerKeyPolicy> key_policy;
 
-    MSGPACK_DEFINE(validate_issuer, key_filter, key_policy);
+    MSGPACK_DEFINE(key_filter, key_policy);
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JwtIssuerMetadata);
-  DECLARE_JSON_REQUIRED_FIELDS(JwtIssuerMetadata, validate_issuer, key_filter);
+  DECLARE_JSON_REQUIRED_FIELDS(JwtIssuerMetadata, key_filter);
   DECLARE_JSON_OPTIONAL_FIELDS(JwtIssuerMetadata, key_policy);
 
   using JwtIssuer = std::string;
   using JwtKeyId = std::string;
 
   using JwtIssuers = kv::Map<JwtIssuer, JwtIssuerMetadata>;
-  using JwtIssuerKeyIds = kv::Map<JwtIssuer, std::vector<JwtKeyId>>;
   using JwtPublicSigningKeys = kv::Map<JwtKeyId, Cert>;
-  using JwtPublicSigningKeysValidateIssuer = kv::Map<JwtKeyId, std::string>;
+  using JwtPublicSigningKeyIssuer = kv::Map<JwtKeyId, JwtIssuer>;
 }
 
 MSGPACK_ADD_ENUM(ccf::JwtIssuerKeyFilter);

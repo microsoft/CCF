@@ -62,9 +62,8 @@ namespace ccf
     CACertDERs ca_certs;
 
     JwtIssuers jwt_issuers;
-    JwtIssuerKeyIds jwt_issuer_key_ids;
     JwtPublicSigningKeys jwt_public_signing_keys;
-    JwtPublicSigningKeysValidateIssuer jwt_public_signing_keys_validate_issuer;
+    JwtPublicSigningKeyIssuer jwt_public_signing_key_issuer;
 
     //
     // User tables
@@ -124,10 +123,9 @@ namespace ccf
       config(Tables::CONFIGURATION),
       ca_certs(Tables::CA_CERT_DERS),
       jwt_issuers(Tables::JWT_ISSUERS),
-      jwt_issuer_key_ids(Tables::JWT_ISSUER_KEY_IDS),
       jwt_public_signing_keys(Tables::JWT_PUBLIC_SIGNING_KEYS),
-      jwt_public_signing_keys_validate_issuer(
-        Tables::JWT_PUBLIC_SIGNING_KEYS_VALIDATE_ISSUER),
+      jwt_public_signing_key_issuer(
+        Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER),
       users(Tables::USERS),
       user_certs(Tables::USER_CERT_DERS),
       user_client_signatures(Tables::USER_CLIENT_SIGNATURES),
@@ -164,9 +162,8 @@ namespace ccf
         std::ref(config),
         std::ref(ca_certs),
         std::ref(jwt_issuers),
-        std::ref(jwt_issuer_key_ids),
         std::ref(jwt_public_signing_keys),
-        std::ref(jwt_public_signing_keys_validate_issuer),
+        std::ref(jwt_public_signing_key_issuer),
         std::ref(users),
         std::ref(user_certs),
         std::ref(user_client_signatures),

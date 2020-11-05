@@ -50,7 +50,7 @@ def test_jwt_without_key_policy(network, args):
 
     LOG.info("Add JWT issuer")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-        json.dump({"issuer": issuer, "validate_issuer": True}, metadata_fp)
+        json.dump({"issuer": issuer}, metadata_fp)
         metadata_fp.flush()
         network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
@@ -182,7 +182,6 @@ def test_jwt_with_sgx_key_policy(network, args):
         json.dump(
             {
                 "issuer": issuer,
-                "validate_issuer": True,
                 "key_policy": mismatching_key_policy,
             },
             metadata_fp,

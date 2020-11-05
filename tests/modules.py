@@ -254,7 +254,7 @@ def test_npm_app(network, args):
 
     LOG.info("Building npm app")
     app_dir = os.path.join(THIS_DIR, "npm-app")
-    # subprocess.run(["npm", "install"], cwd=app_dir, check=True)
+    subprocess.run(["npm", "install"], cwd=app_dir, check=True)
     subprocess.run(["npm", "run", "build"], cwd=app_dir, check=True)
 
     LOG.info("Deploying npm app")
@@ -343,7 +343,6 @@ def test_npm_app(network, args):
         der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
         data = {
             "issuer": issuer,
-            "validate_issuer": True,
             "jwks": {"keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]},
         }
         json.dump(data, metadata_fp)
@@ -359,13 +358,7 @@ def test_npm_app(network, args):
         body = r.body.json()
         assert body["msg"] == "jwt validation failed", r.body
 
-        jwt = infra.crypto.create_jwt({"iss": "mismatching"}, jwt_key_priv_pem, jwt_kid)
-        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
-        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
-        body = r.body.json()
-        assert body["msg"] == "jwt validation failed", r.body
-
-        jwt = infra.crypto.create_jwt({"iss": issuer}, jwt_key_priv_pem, jwt_kid)
+        jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
         r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
         body = r.body.json()
@@ -373,7 +366,7 @@ def test_npm_app(network, args):
 
         user_id = "user0"
         jwt = infra.crypto.create_jwt(
-            {"iss": issuer, "sub": user_id}, jwt_key_priv_pem, jwt_kid
+            {"sub": user_id}, jwt_key_priv_pem, jwt_kid
         )
         r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
         assert r.status_code == http.HTTPStatus.OK, r.status_code

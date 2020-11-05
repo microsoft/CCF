@@ -384,42 +384,17 @@ namespace ccf
 
     void remove_jwt_keys(kv::Tx& tx, std::string issuer)
     {
-      auto issuer_key_ids = tx.get_view(this->network.jwt_issuer_key_ids);
       auto keys = tx.get_view(this->network.jwt_public_signing_keys);
-      auto keys_validate_issuer =
-        tx.get_view(this->network.jwt_public_signing_keys_validate_issuer);
-      auto key_ids = issuer_key_ids->get(issuer);
-      if (key_ids.has_value())
-      {
-        issuer_key_ids->remove(issuer);
-        for (auto key_id : key_ids.value())
+      auto key_issuer = tx.get_view(this->network.jwt_public_signing_key_issuer);
+      
+      key_issuer->foreach([&issuer, &keys, &key_issuer](const auto& k, const auto& v) {
+        if (v == issuer)
         {
-          keys->remove(key_id);
-          keys_validate_issuer->remove(key_id);
+          keys->remove(k);
+          key_issuer->remove(k);
         }
-      }
-    }
-
-    void set_jwt_public_signing_keys_validate_issuer(
-      kv::Tx& tx, std::string issuer)
-    {
-      auto issuers = tx.get_view(this->network.jwt_issuers);
-
-      auto issuer_metadata = issuers->get(issuer).value();
-
-      auto validate_issuer = issuer_metadata.validate_issuer ? issuer : "";
-
-      auto issuer_key_ids = tx.get_view(this->network.jwt_issuer_key_ids);
-      auto key_ids = issuer_key_ids->get(issuer);
-      if (key_ids.has_value())
-      {
-        auto keys_validate_issuer =
-          tx.get_view(this->network.jwt_public_signing_keys_validate_issuer);
-        for (auto key_id : key_ids.value())
-        {
-          keys_validate_issuer->put(key_id, validate_issuer);
-        }
-      }
+        return true;
+      });
     }
 
     bool set_jwt_public_signing_keys(
@@ -429,8 +404,8 @@ namespace ccf
       const JsonWebKeySet& jwks)
     {
       auto issuers = tx.get_view(this->network.jwt_issuers);
-      auto issuer_key_ids = tx.get_view(this->network.jwt_issuer_key_ids);
       auto keys = tx.get_view(this->network.jwt_public_signing_keys);
+      auto key_issuer = tx.get_view(this->network.jwt_public_signing_key_issuer);
 
       auto issuer_metadata_ = issuers->get(issuer);
       if (!issuer_metadata_.has_value())
@@ -444,12 +419,12 @@ namespace ccf
       remove_jwt_keys(tx, issuer);
 
       // add keys
-      std::vector<std::string> key_ids;
       if (jwks.keys.empty())
       {
         LOG_FAIL_FMT("Proposal {}: JWKS has no keys", proposal_id);
         return false;
       }
+      bool did_add_key = false;
       for (auto& jwk : jwks.keys)
       {
         if (keys->has(jwk.kid))
@@ -548,17 +523,15 @@ namespace ccf
           proposal_id,
           jwk.kid);
         keys->put(jwk.kid, der);
-        key_ids.push_back(jwk.kid);
+        key_issuer->put(jwk.kid, issuer);
+        did_add_key = true;
       }
-      if (key_ids.empty())
+      if (!did_add_key)
       {
         LOG_FAIL_FMT(
           "Proposal {}: no keys left after applying filter", proposal_id);
         return false;
       }
-      issuer_key_ids->put(issuer, key_ids);
-      set_jwt_public_signing_keys_validate_issuer(tx, issuer);
-
       return true;
     }
 
@@ -767,11 +740,6 @@ namespace ccf
            {
              result = set_jwt_public_signing_keys(
                tx, proposal_id, parsed.issuer, parsed.jwks.value());
-           }
-           else
-           {
-             // Update validate_issuer in case there are existing keys.
-             set_jwt_public_signing_keys_validate_issuer(tx, parsed.issuer);
            }
 
            return result;
