@@ -478,11 +478,9 @@ namespace ccfapp
       return true;
     });
 
-    JS_FreeValue(ctx, func);
-
     if (failed)
     {
-      return JS_ThrowInternalError(ctx, "foreach loop failed");
+      return JS_EXCEPTION;
     }
 
     return JS_UNDEFINED;
