@@ -8,7 +8,6 @@ import suite.test_requirements as reqs
 import os
 import subprocess
 import sys
-import tempfile
 
 from loguru import logger as LOG
 
@@ -28,30 +27,6 @@ def get_code_id(oe_binary_path, lib_path):
     return lines[0].split("=")[1]
 
 
-def verify_evidence(oe_binary_path, evidence_path):
-    # Until https://github.com/microsoft/CCF/issues/1468 is done, CCF
-    # uses old attestation API to generate quotes
-    report_format = "LEGACY_REPORT_REMOTE"
-    res = subprocess.run(
-        [
-            os.path.join(oe_binary_path, "oeverify"),
-            "-f",
-            report_format,
-            "-r",
-            evidence_path,
-        ],
-        capture_output=True,
-        check=True,
-    )
-    lines = [
-        line
-        for line in res.stdout.decode().split(os.linesep)
-        if line.startswith("Enclave unique_id: ")
-    ]
-
-    return lines[0].split("0x")[1]
-
-
 @reqs.description("Verify node evidence")
 def test_verify_quotes(network, args):
     if args.enclave_type == "virtual":
@@ -59,17 +34,18 @@ def test_verify_quotes(network, args):
         return network
 
     for node in network.get_joined_nodes():
-        with tempfile.NamedTemporaryFile() as nf:
-            with node.client() as c:
-                r = c.get("/node/quote")
-                raw_quote = bytes.fromhex(r.body.json()["raw"])
-                mrenclave = r.body.json()["mrenclave"]
-                nf.write(raw_quote)
-                nf.flush()
-                result = verify_evidence(args.oe_binary, nf.name)
-                assert (
-                    mrenclave == result
-                ), f"/node/quote mrenclave does not match quote mrenclave for node {node.node_id}"
+        LOG.info(f"Verifying quote for node {node.node_id}")
+        cafile = os.path.join(network.common_dir, "networkcert.pem")
+        assert (
+            infra.proc.ccall(
+                "verify_quote.sh",
+                f"https://{node.pubhost}:{node.rpc_port}",
+                "--cacert",
+                f"{cafile}",
+                log_output=True,
+            ).returncode
+            == 0
+        ), f"Quote verification for node {node.node_id} failed"
 
     return network
 
