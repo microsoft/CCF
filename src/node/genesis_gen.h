@@ -133,17 +133,21 @@ namespace ccf
           "Member {} cannot be activated as they do not exist", member_id));
       }
 
-      if (member->status == MemberStatus::ACCEPTED)
+      // Only accepted members can transition to accepted state
+      if (member->status != MemberStatus::ACCEPTED)
       {
-        member->status = MemberStatus::ACTIVE;
-        if (
-          get_active_members_with_shares_count() >=
-          max_active_members_with_shares)
-        {
-          throw std::logic_error(fmt::format(
-            "No more than {} active members are allowed",
-            max_active_members_with_shares));
-        }
+        return;
+      }
+
+      member->status = MemberStatus::ACTIVE;
+      if (
+        member->encryption_pub_key.has_value() &&
+        (get_active_members_with_shares_count() >=
+         max_active_members_with_shares))
+      {
+        throw std::logic_error(fmt::format(
+          "No more than {} active members with recovery shares are allowed",
+          max_active_members_with_shares));
       }
       members->put(member_id, member.value());
     }
@@ -166,6 +170,7 @@ namespace ccf
         // recovery.
         LOG_FAIL_FMT(
           "Members with shares: {}", get_active_members_with_shares_count());
+        // TODO: Size_t with -1!!
         size_t active_members_count_after =
           get_active_members_with_shares_count() - 1;
         auto recovery_threshold = get_recovery_threshold();

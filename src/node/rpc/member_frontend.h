@@ -1278,7 +1278,16 @@ namespace ccf
 
         // update member status to ACTIVE
         GenesisGenerator g(this->network, args.tx);
-        g.activate_member(args.caller_id);
+        try
+        {
+          g.activate_member(args.caller_id);
+        }
+        catch (const std::logic_error& e)
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            fmt::format("Error activating new member: {}", e.what()));
+        }
 
         auto service_status = g.get_service_status();
         if (!service_status.has_value())

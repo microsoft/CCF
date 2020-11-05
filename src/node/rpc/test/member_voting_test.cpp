@@ -1944,7 +1944,6 @@ DOCTEST_TEST_CASE("Submit recovery shares")
   }
 }
 
-// TODO: Update
 DOCTEST_TEST_CASE("Maximum number of active members")
 {
   logger::config::level() = logger::INFO;
@@ -1965,35 +1964,63 @@ DOCTEST_TEST_CASE("Maximum number of active members")
   gen.init_values();
   gen.create_service({});
 
-  for (size_t i = 1; i < max_active_members_with_shares + 1; i++)
+  DOCTEST_INFO("Add one too many members with recovery share");
   {
-    auto cert = get_cert(i, kp);
-    members[gen.add_member(cert)] = cert;
+    auto public_encryption_key = gen_public_encryption_key();
+    for (size_t i = 0; i < max_active_members_with_shares + 1; i++)
+    {
+      auto cert = get_cert(i, kp);
+      members[gen.add_member({cert, public_encryption_key})] = cert;
+    }
+    gen.finalize();
   }
-  gen.finalize();
 
-  for (auto const& m : members)
+  DOCTEST_INFO("Activate members until reaching limit");
   {
+    for (auto const& m : members)
+    {
+      const auto state_digest_req =
+        create_request(nullptr, "ack/update_state_digest");
+      const auto ack = parse_response_body<std::vector<uint8_t>>(
+        frontend_process(frontend, state_digest_req, m.second));
+
+      StateDigest params;
+      params.state_digest = ack;
+      const auto ack_req = create_signed_request(params, "ack", kp);
+      const auto resp = frontend_process(frontend, ack_req, m.second);
+
+      if (m.first >= max_active_members_with_shares)
+      {
+        DOCTEST_CHECK(resp.status == HTTP_STATUS_FORBIDDEN);
+      }
+      else
+      {
+        DOCTEST_CHECK(resp.status == HTTP_STATUS_OK);
+        DOCTEST_CHECK(parse_response_body<bool>(resp));
+      }
+    }
+  }
+
+  DOCTEST_INFO("It is still OK to add and activate a non-recovery member");
+  {
+    auto gen_tx = network.tables->create_tx();
+    GenesisGenerator gen(network, gen_tx);
+    auto cert = get_cert(members.size(), kp);
+    gen.add_member(cert);
+    gen.finalize();
+
     const auto state_digest_req =
       create_request(nullptr, "ack/update_state_digest");
     const auto ack = parse_response_body<std::vector<uint8_t>>(
-      frontend_process(frontend, state_digest_req, m.second));
+      frontend_process(frontend, state_digest_req, cert));
 
     StateDigest params;
     params.state_digest = ack;
     const auto ack_req = create_signed_request(params, "ack", kp);
-    const auto resp = frontend_process(frontend, ack_req, m.second);
+    const auto resp = frontend_process(frontend, ack_req, cert);
 
-    if (m.first >= max_active_members_with_shares)
-    {
-      DOCTEST_CHECK(resp.status == HTTP_STATUS_FORBIDDEN);
-    }
-    else
-    {
-      DOCTEST_CHECK(resp.status == HTTP_STATUS_OK);
-      DOCTEST_CHECK(parse_response_body<bool>(resp));
-    }
-    break;
+    DOCTEST_CHECK(resp.status == HTTP_STATUS_OK);
+    DOCTEST_CHECK(parse_response_body<bool>(resp));
   }
 }
 
