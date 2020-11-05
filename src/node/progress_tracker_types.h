@@ -67,14 +67,12 @@ namespace ccf
     virtual void sign_view_change(
       ViewChange& view_change,
       kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno,
-      crypto::Sha256Hash& root) = 0;
+      kv::Consensus::SeqNo seqno) = 0;
     virtual bool verify_view_change(
       ViewChange& view_change,
       kv::NodeId from,
       kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno,
-      crypto::Sha256Hash& root) = 0;
+      kv::Consensus::SeqNo seqno) = 0;
     virtual void write_new_view(ccf::NewView& new_view) = 0;
     virtual bool verify_new_view(NewView& new_view, kv::NodeId from) = 0;
   };
@@ -194,10 +192,9 @@ namespace ccf
     void sign_view_change(
       ViewChange& view_change,
       kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno,
-      crypto::Sha256Hash& root) override
+      kv::Consensus::SeqNo seqno) override
     {
-      crypto::Sha256Hash h = hash_view_change(view_change, view, seqno, root);
+      crypto::Sha256Hash h = hash_view_change(view_change, view, seqno);
       view_change.signature = kp.sign_hash(h.h.data(), h.h.size());
     }
 
@@ -205,11 +202,10 @@ namespace ccf
       ViewChange& view_change,
       kv::NodeId from,
       kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno,
-      crypto::Sha256Hash& root
+      kv::Consensus::SeqNo seqno
       ) override
     {
-      crypto::Sha256Hash h = hash_view_change(view_change, view, seqno, root);
+      crypto::Sha256Hash h = hash_view_change(view_change, view, seqno);
 
       kv::Tx tx(&store);
       auto ni_tv = tx.get_view(nodes);
@@ -276,14 +272,11 @@ namespace ccf
       crypto::CSha256Hash ch;
       ch.update(new_view.view);
       ch.update(new_view.seqno);
-      ch.update(new_view.root.h);
 
-      /*
       for (auto it : new_view.view_change_messages)
       {
         ch.update(it.second.signature);
       }
-      */
 
       return ch.finalize();
     }
@@ -299,14 +292,12 @@ namespace ccf
     crypto::Sha256Hash hash_view_change(
       const ViewChange& v,
       kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno,
-      crypto::Sha256Hash& root) const
+      kv::Consensus::SeqNo seqno) const
     {
       crypto::CSha256Hash ch;
 
       ch.update(view);
       ch.update(seqno);
-      ch.update(root);
 
       for (auto& s : v.signatures)
       {

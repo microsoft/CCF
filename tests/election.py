@@ -92,7 +92,7 @@ def run(args):
             primary, current_view = network.find_primary(
                 timeout=(30 if args.consensus == "bft" else 3)
             )
-            time.sleep(30)
+            #time.sleep(30)
             LOG.error("bbbbbbb {}", math.ceil(len(args.nodes) / 3))
             LOG.debug(
                 "Commit new transactions, primary:{}, current_view:{}".format(

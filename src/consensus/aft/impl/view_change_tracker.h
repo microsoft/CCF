@@ -17,14 +17,12 @@ namespace aft
     {
       ViewChange(
         kv::Consensus::View view_,
-        kv::Consensus::SeqNo seqno_,
-        crypto::Sha256Hash& root_) :
-        view(view_), seqno(seqno_), root(root_), new_view_sent(false)
+        kv::Consensus::SeqNo seqno_) :
+        view(view_), seqno(seqno_), new_view_sent(false)
       {}
 
       kv::Consensus::View view;
       kv::Consensus::SeqNo seqno;
-      crypto::Sha256Hash& root;
       bool new_view_sent;
 
       std::map<kv::NodeId, ccf::ViewChange>
@@ -78,13 +76,12 @@ namespace aft
       kv::NodeId from,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
-      crypto::Sha256Hash& root,
       uint32_t node_count)
     {
       auto it = view_changes.find(view);
       if (it == view_changes.end())
       {
-        ViewChange view_change(view, seqno, root);
+        ViewChange view_change(view, seqno);
         std::tie(it, std::ignore) = view_changes.emplace(
           view, std::move(view_change));
       }
@@ -112,11 +109,11 @@ namespace aft
       }
 
       auto& vc = it->second;
-      ccf::NewView nv(vc.view, vc.seqno, vc.root);
+      ccf::NewView nv(vc.view, vc.seqno);
 
       for (auto it : vc.received_view_changes)
       {
-        //nv.view_change_messages.emplace(it.first, it.second);
+        nv.view_change_messages.emplace(it.first, it.second);
       }
       
       store->write_new_view(nv);

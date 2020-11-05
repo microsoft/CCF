@@ -561,17 +561,16 @@ namespace aft
           //
           kv::Consensus::View new_view = view_change_tracker->get_target_view();
           kv::Consensus::SeqNo seqno;
-          crypto::Sha256Hash root;
           std::unique_ptr<ccf::ViewChange> vc;
 
           auto progress_tracker = store->get_progress_tracker();
-          std::tie(vc, seqno, root) =
+          std::tie(vc, seqno) =
             progress_tracker->get_view_change_message(new_view);
 
           size_t vc_size = vc->get_serialized_size();
 
           RequestViewChangeMsg vcm = {
-            {bft_view_change, state->my_node_id}, new_view, seqno, root};
+            {bft_view_change, state->my_node_id}, new_view, seqno};
 
           std::vector<uint8_t> m;
           m.resize(sizeof(RequestViewChangeMsg) + vc_size);
@@ -599,7 +598,7 @@ namespace aft
             get_leader(new_view) == id() &&
             aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
               view_change_tracker->add_request_view_change(
-                *vc, id(), new_view, seqno, root, node_count()))
+                *vc, id(), new_view, seqno, node_count()))
           {
             append_new_view(new_view);
           }
@@ -667,7 +666,7 @@ namespace aft
 
       auto progress_tracker = store->get_progress_tracker();
       if (!progress_tracker->apply_view_change_message(
-            v, r.from_node, r.view, r.seqno, r.root))
+            v, r.from_node, r.view, r.seqno))
       {
         return;
       }
@@ -676,7 +675,7 @@ namespace aft
         get_leader(r.view) == id() &&
         aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
           view_change_tracker->add_request_view_change(
-            v, r.from_node, r.view, r.seqno, r.root, node_count()))
+            v, r.from_node, r.view, r.seqno, node_count()))
       {
             append_new_view(r.view);
       }

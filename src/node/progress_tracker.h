@@ -557,8 +557,7 @@ namespace ccf
 
     std::tuple<
       std::unique_ptr<ViewChange>,
-      kv::Consensus::SeqNo,
-      crypto::Sha256Hash>
+      kv::Consensus::SeqNo>
     get_view_change_message(kv::Consensus::View view)
     {
       auto it = certificates.find(highest_prepared_level.version);
@@ -579,19 +578,26 @@ namespace ccf
       }
 
       store->sign_view_change(
-        *m, view, highest_prepared_level.version, cert.root);
+        *m, view, highest_prepared_level.version);
       return std::make_tuple(
-        std::move(m), highest_prepared_level.version, cert.root);
+        std::move(m), highest_prepared_level.version);
     }
 
     bool apply_view_change_message(
       ViewChange& view_change,
       kv::NodeId from,
       kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno,
-      crypto::Sha256Hash& root)
+      kv::Consensus::SeqNo seqno)
     {
-      if (!store->verify_view_change(view_change, from, view, seqno, root))
+      LOG_INFO_FMT(
+        "Adding view-change id:{},view:{}, seqno:{}, "
+        "sig_size:{}, sig:{}",
+        from,
+        view,
+        seqno,
+        view_change.signature.size(),
+        view_change.signature);
+      if (!store->verify_view_change(view_change, from, view, seqno))
       {
         LOG_FAIL_FMT("Failed to verify view-change from:{}", from);
         return false;
@@ -606,16 +612,6 @@ namespace ccf
         LOG_INFO_FMT(
           "Received view-change for view:{} and seqno:{} that I am not aware "
           "of",
-          view,
-          seqno);
-        return false;
-      }
-
-      if (it->second.root != root)
-      {
-        LOG_FAIL_FMT(
-          "Roots do not match, view-change from:{}, view:{}, seqno:{}",
-          from,
           view,
           seqno);
         return false;
@@ -654,26 +650,28 @@ namespace ccf
     {
       auto new_view = store->get_new_view();
       CCF_ASSERT(new_view.has_value(), "new view does not have a value");
-      //kv::Consensus::View view = new_view->view;
-      //kv::Consensus::SeqNo seqno = new_view->seqno;
-      //crypto::Sha256Hash& root = new_view->root;
+      kv::Consensus::View view = new_view->view;
+      kv::Consensus::SeqNo seqno = new_view->seqno;
 
-      /*
       for (auto& vcp : new_view->view_change_messages)
       {
         kv::NodeId id = vcp.first;
         ccf::ViewChange& vc = vcp.second;
 
-        if (!store->verify_view_change(vc, id, view, seqno, root))
+        if (!store->verify_view_change(vc, id, view, seqno))
         {
-          LOG_FAIL_FMT("Failed to verify view-change from:{}", id);
+          LOG_FAIL_FMT(
+            "Failed to verify view-change id:{},view:{}, seqno:{}, "
+            "sig_size:{}, sig:{}",
+            id,
+            view,
+            seqno,
+            vc.signature.size(),
+            vc.signature);
           return false;
         }
       }
-      */
 
-
-      // TODO: uncomment this
       if(!store->verify_new_view(new_view.value(), from))
       {
         LOG_INFO_FMT("Failed to verify from:{}", from);

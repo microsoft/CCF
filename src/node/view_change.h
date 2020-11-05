@@ -69,24 +69,22 @@ namespace ccf
   {
     kv::Consensus::View view = 0;
     kv::Consensus::SeqNo seqno = 0;
-    crypto::Sha256Hash root;
     std::vector<uint8_t> signature;
 
-    //std::map<kv::NodeId, ViewChange> view_change_messages;
+    std::map<kv::NodeId, ViewChange> view_change_messages;
 
     NewView() = default;
     NewView(
       kv::Consensus::View view_,
-      kv::Consensus::SeqNo seqno_,
-      crypto::Sha256Hash& root_) :
-      view(view_), seqno(seqno_), root(root_)
+      kv::Consensus::SeqNo seqno_) :
+      view(view_), seqno(seqno_)
     {}
 
-    MSGPACK_DEFINE(view, seqno, root, signature/*, view_change_messages*/);
+    MSGPACK_DEFINE(view, seqno, signature, view_change_messages);
   };
   DECLARE_JSON_TYPE(NewView);
   DECLARE_JSON_REQUIRED_FIELDS(
-    NewView, view, seqno, root, signature/*, view_change_messages*/);
+    NewView, view, seqno, signature, view_change_messages);
 
   using NewViewsMap = kv::Map<ObjectId, NewView>;
 }
