@@ -499,6 +499,7 @@ namespace ccfapp
     const auto [security_domain, access_category] =
       kv::parse_map_name(property_name);
 
+
     auto read_only = false;
     switch (access_category)
     {
