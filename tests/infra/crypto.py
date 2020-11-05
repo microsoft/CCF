@@ -11,7 +11,7 @@ from coincurve._libsecp256k1 import ffi, lib  # pylint: disable=no-name-in-modul
 from coincurve.context import GLOBAL_CONTEXT
 
 from cryptography.exceptions import InvalidSignature
-from cryptography.x509 import load_der_x509_certificate
+from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.primitives.asymmetric import ec, rsa, padding
 from cryptography.hazmat.primitives.serialization import (
     load_pem_private_key,
@@ -28,16 +28,16 @@ RECOMMENDED_RSA_PUBLIC_EXPONENT = 65537
 
 # As per mbedtls md_type_t
 class CCFDigestType(IntEnum):
-    MD_NONE = 0
-    MD_MD2 = 1
-    MD_MD4 = 2
-    MD_MD5 = 3
-    MD_SHA1 = 4
-    MD_SHA224 = 5
-    MD_SHA256 = 6
-    MD_SHA384 = 7
-    MD_SHA512 = 8
-    MD_RIPEMD160 = 9
+    MBEDTLS_MD_NONE = 0
+    MBEDTLS_MD_MD2 = 1
+    MBEDTLS_MD_MD4 = 2
+    MBEDTLS_MD_MD5 = 3
+    MBEDTLS_MD_SHA1 = 4
+    MBEDTLS_MD_SHA224 = 5
+    MBEDTLS_MD_SHA256 = 6
+    MBEDTLS_MD_SHA384 = 7
+    MBEDTLS_MD_SHA512 = 8
+    MBEDTLS_MD_RIPEMD160 = 9
 
 
 # This function calls the native API and does not rely on the
@@ -91,11 +91,13 @@ def verify_recover_secp256k1_bc(
 
 def verify_request_sig(raw_cert, sig, req, request_body, md):
     try:
-        cert = load_der_x509_certificate(raw_cert, backend=default_backend())
+        cert = load_pem_x509_certificate(raw_cert, backend=default_backend())
+
+        md_type = CCFDigestType[md]
 
         digest = (
             hashes.SHA256()
-            if md == CCFDigestType.MD_SHA256
+            if md_type == CCFDigestType.MBEDTLS_MD_SHA256
             else cert.signature_hash_algorithm
         )
 

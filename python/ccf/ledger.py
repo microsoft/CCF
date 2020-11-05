@@ -55,7 +55,6 @@ class PublicDomain:
     _is_snapshot: bool
     _version: int
     _tables: dict
-    _msgpacked_tables: Set[str]
 
     def __init__(self, buffer: io.BytesIO):
         self._buffer = buffer
@@ -64,14 +63,6 @@ class PublicDomain:
         self._is_snapshot = self._read_next()
         self._version = self._read_next()
         self._tables = {}
-        # Keys and Values may have custom serialisers.
-        # Store most as raw bytes, only decode a few which we know are msgpack.
-        self._msgpacked_tables = {
-            "public:ccf.gov.member_cert_ders",
-            "public:ccf.gov.governance.history",
-            "public:ccf.gov.signatures",
-            "public:ccf.gov.nodes",
-        }
         self._read()
 
     def _read_next(self):
@@ -107,30 +98,26 @@ class PublicDomain:
                 for _ in range(write_count):
                     k = self._read_next_entry()
                     val = self._read_next_entry()
-                    if map_name in self._msgpacked_tables:
-                        k = msgpack.unpackb(k, **UNPACK_ARGS)
-                        val = msgpack.unpackb(val, **UNPACK_ARGS)
                     records[k] = val
 
             remove_count = self._read_next()
             if remove_count:
                 for _ in range(remove_count):
                     k = self._read_next_entry()
-                    if map_name in self._msgpacked_tables:
-                        k = msgpack.unpackb(k, **UNPACK_ARGS)
                     records[k] = None
 
             LOG.debug(
                 f"Found {read_count} reads, {write_count} writes, and {remove_count} removes"
             )
 
-    def get_tables(self) -> dict:
+    def get_table(self, table_name: str) -> dict:
         """
-        Returns a dictionary of all public tables (with their content) in a :py:class:`ccf.ledger.Transaction`.
+        Returns a dictionary of the requested table's writes during this :py:class:`ccf.ledger.Transaction`.
+        The dictionary contains the raw bytes-to-bytes mappings, which may be decoded by the caller.
 
-        :return: Dictionary of public tables with their content.
+        :return: Dictionary of table's content, potentially empty
         """
-        return self._tables
+        return self._tables.get(table_name, {})
 
 
 def _byte_read_safe(file, num_of_bytes):
