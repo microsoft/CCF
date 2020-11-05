@@ -503,7 +503,7 @@ TEST_CASE("Serialization")
   }
 }
 
-TEST_CASE("view-change-tracker tests")
+TEST_CASE("view-change-tracker timeout tests")
 {
   INFO("Check timeout works correctly");
   {
@@ -516,6 +516,43 @@ TEST_CASE("view-change-tracker tests")
     REQUIRE(vct.get_target_view() == 1);
     REQUIRE(vct.should_send_view_change(std::chrono::seconds(100)));
     REQUIRE(vct.get_target_view() == 2);
+  }
+}
+
+
+TEST_CASE("view-change-tracker statemachine tests")
+{
+  ccf::ViewChange v;
+  kv::Consensus::View view = 1;
+  kv::Consensus::SeqNo seqno = 1;
+  uint32_t node_count = 4;
+
+  INFO("Can trigger view change");
+  {
+    aft::ViewChangeTracker vct(0, std::chrono::seconds(10));
+    for (uint32_t i = 0; i < node_count; ++i)
+    {
+      auto r = vct.add_request_view_change(v, i, view, seqno, node_count);
+      if (i == 2)
+      {
+        REQUIRE(
+          r == aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE);
+      }
+      else
+      {
+        REQUIRE(r == aft::ViewChangeTracker::ResultAddView::OK);
+      }
+    }
+  }
+
+  INFO("Can differentiate view change for different view");
+  {
+    aft::ViewChangeTracker vct(0, std::chrono::seconds(10));
+    for (uint32_t i = 0; i < node_count; ++i)
+    {
+      auto r = vct.add_request_view_change(v, i, i, seqno, node_count);
+      REQUIRE(r == aft::ViewChangeTracker::ResultAddView::OK);
+    }
   }
 }
 
