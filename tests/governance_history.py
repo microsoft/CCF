@@ -31,8 +31,12 @@ def count_governance_operations(ledger):
             for member_id, member_info in decode_table_json(members_table).items():
                 members[member_id] = member_info["cert"]
 
-            governance_history_table = public_domain.get_table("public:ccf.gov.governance.history")
-            for member_id, signed_request in decode_table_json(governance_history_table).items():
+            governance_history_table = public_domain.get_table(
+                "public:ccf.gov.governance.history"
+            )
+            for member_id, signed_request in decode_table_json(
+                governance_history_table
+            ).items():
                 assert member_id in members
                 cert = members[member_id]
                 sr = signed_request["signed_request"]

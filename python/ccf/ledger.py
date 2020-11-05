@@ -9,7 +9,7 @@ import os
 
 from loguru import logger as LOG  # type: ignore
 
-from typing import BinaryIO, Optional, Set
+from typing import BinaryIO, Optional
 
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
