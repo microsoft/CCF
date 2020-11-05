@@ -19,6 +19,7 @@ export interface Request<T extends JsonCompatible<T> = any> {
     params: { [key: string]: string; }
     query: string
     body: Body<T>
+    user?: any
 }
 
 type ResponseBodyType<T> = string | ArrayBuffer | JsonCompatible<T>
@@ -267,10 +268,10 @@ export class TypedKVMap<K, V> {
     forEach(callback: (value: V, key: K, table: TypedKVMap<K, V>) => void) : void {
         let kt = this.kt;
         let vt = this.vt;
-        let typed_table = this;
+        let typedMap = this;
         this.kv.forEach(
             function(raw_v: ArrayBuffer, raw_k: ArrayBuffer, table: KVMap) {
-                callback(vt.decode(raw_v), kt.decode(raw_k), typed_table);
+                callback(vt.decode(raw_v), kt.decode(raw_k), typedMap);
             }
         );
     }
