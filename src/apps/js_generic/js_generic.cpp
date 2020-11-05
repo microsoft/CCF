@@ -452,31 +452,32 @@ namespace ccfapp
       return JS_ThrowTypeError(ctx, "Argument must be a function");
 
     bool failed = false;
-    map_view->foreach([ctx, this_val, func, &failed](const auto& k, const auto& v) {
-      JSValue args[3];
+    map_view->foreach(
+      [ctx, this_val, func, &failed](const auto& k, const auto& v) {
+        JSValue args[3];
 
-      // JS forEach expects (v, k, map) rather than (k, v)
-      args[0] = JS_NewArrayBufferCopy(ctx, v.data(), v.size());
-      args[1] = JS_NewArrayBufferCopy(ctx, k.data(), k.size());
-      args[2] = JS_DupValue(ctx, this_val);
+        // JS forEach expects (v, k, map) rather than (k, v)
+        args[0] = JS_NewArrayBufferCopy(ctx, v.data(), v.size());
+        args[1] = JS_NewArrayBufferCopy(ctx, k.data(), k.size());
+        args[2] = JS_DupValue(ctx, this_val);
 
-      auto val = JS_Call(ctx, func, JS_UNDEFINED, 3, args);
+        auto val = JS_Call(ctx, func, JS_UNDEFINED, 3, args);
 
-      JS_FreeValue(ctx, args[0]);
-      JS_FreeValue(ctx, args[1]);
-      JS_FreeValue(ctx, args[2]);
+        JS_FreeValue(ctx, args[0]);
+        JS_FreeValue(ctx, args[1]);
+        JS_FreeValue(ctx, args[2]);
 
-      if (JS_IsException(val))
-      {
-        js_dump_error(ctx);
-        failed = true;
-        return false;
-      }
+        if (JS_IsException(val))
+        {
+          js_dump_error(ctx);
+          failed = true;
+          return false;
+        }
 
-      JS_FreeValue(ctx, val);
+        JS_FreeValue(ctx, val);
 
-      return true;
-    });
+        return true;
+      });
 
     if (failed)
     {
