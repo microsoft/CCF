@@ -116,7 +116,7 @@ namespace aft
 
       for (auto it : vc.received_view_changes)
       {
-        nv.view_change_messages.emplace(it.first, it.second);
+        //nv.view_change_messages.emplace(it.first, it.second);
       }
       
       store->write_new_view(nv);

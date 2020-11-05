@@ -278,10 +278,12 @@ namespace ccf
       ch.update(new_view.seqno);
       ch.update(new_view.root.h);
 
+      /*
       for (auto it : new_view.view_change_messages)
       {
         ch.update(it.second.signature);
       }
+      */
 
       return ch.finalize();
     }

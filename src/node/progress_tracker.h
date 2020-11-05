@@ -654,10 +654,11 @@ namespace ccf
     {
       auto new_view = store->get_new_view();
       CCF_ASSERT(new_view.has_value(), "new view does not have a value");
-      kv::Consensus::View view = new_view->view;
-      kv::Consensus::SeqNo seqno = new_view->seqno;
-      crypto::Sha256Hash& root = new_view->root;
+      //kv::Consensus::View view = new_view->view;
+      //kv::Consensus::SeqNo seqno = new_view->seqno;
+      //crypto::Sha256Hash& root = new_view->root;
 
+      /*
       for (auto& vcp : new_view->view_change_messages)
       {
         kv::NodeId id = vcp.first;
@@ -669,6 +670,7 @@ namespace ccf
           return false;
         }
       }
+      */
 
 
       // TODO: uncomment this

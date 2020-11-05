@@ -1065,11 +1065,14 @@ namespace kv
           batch.emplace_back(
             last_replicated + offset, data_shared, committable_);
           pending_txs.erase(search);
+        LOG_INFO_FMT("DDDDDD");
         }
 
+        LOG_INFO_FMT("DDDDDD");
         if (batch.size() == 0)
           return CommitSuccess::OK;
 
+        LOG_INFO_FMT("DDDDDD");
         previous_rollback_count = rollback_count;
         previous_last_replicated = last_replicated;
         next_last_replicated = last_replicated + batch.size();
@@ -1077,19 +1080,24 @@ namespace kv
         replication_view = term;
       }
 
+        LOG_INFO_FMT("DDDDDD");
       if (c->replicate(batch, replication_view))
       {
+        LOG_INFO_FMT("DDDDDD");
         std::lock_guard<SpinLock> vguard(version_lock);
         if (
+        LOG_INFO_FMT("DDDDDD");
           last_replicated == previous_last_replicated &&
           previous_rollback_count == rollback_count)
         {
           last_replicated = next_last_replicated;
         }
+        LOG_INFO_FMT("DDDDDD");
         return CommitSuccess::OK;
       }
       else
       {
+        LOG_INFO_FMT("DDDDDD");
         LOG_DEBUG_FMT("Failed to replicate");
         return CommitSuccess::NO_REPLICATE;
       }

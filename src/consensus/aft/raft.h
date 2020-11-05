@@ -409,11 +409,16 @@ namespace aft
           state->last_idx = index;
           ledger->put_entry(*data, globally_committable, false);
         }
+        LOG_INFO_FMT("EEEEEEE");
         return true;
       }
+      LOG_INFO_FMT("EEEEEEE");
 
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::unique_lock<SpinLock> guard(state->lock, std::defer_lock);
+      CCF_ASSERT(guard.try_lock(), "failed to lock");
 
+
+      LOG_INFO_FMT("EEEEEEE");
       if (replica_state != Leader)
       {
         LOG_FAIL_FMT(
@@ -540,9 +545,6 @@ namespace aft
 
     void periodic(std::chrono::milliseconds elapsed)
     {
-      std::lock_guard<SpinLock> guard(state->lock);
-      timeout_elapsed += elapsed;
-
       if (consensus_type == ConsensusType::BFT)
       {
         auto time = threading::ThreadMessaging::thread_messaging
@@ -603,6 +605,9 @@ namespace aft
           }
         }
       }
+
+      std::lock_guard<SpinLock> guard(state->lock);
+      timeout_elapsed += elapsed;
 
       if (replica_state == Leader)
       {
@@ -707,13 +712,23 @@ namespace aft
 
     void append_new_view(kv::Consensus::View view)
     {
-      LOG_INFO_FMT("AAAAAA appending new view:{}", view);
-      state->current_view = view;
-      become_leader();
-      view_change_tracker->write_new_view_append_entry(view);
+      try
+      {
+        LOG_INFO_FMT("AAAAAA appending new view:{}", view);
+        state->current_view = view;
+        become_leader();
+        view_change_tracker->write_new_view_append_entry(view);
+        LOG_INFO_FMT("AAAAAA - 2 - appending new view:{}", view);
 
-      view_change_tracker->clear();
-      request_tracker->clear();
+        view_change_tracker->clear();
+        request_tracker->clear();
+        LOG_INFO_FMT("AAAAAA - 3 - appending new view:{}", view);
+      }
+      catch (std::exception& ex)
+      {
+        LOG_INFO_FMT("AAAAAA appending new view:{}, failed:{}", ex.what());
+        throw;
+      }
     }
 
     bool has_bft_timeout_occurred(std::chrono::milliseconds time)
