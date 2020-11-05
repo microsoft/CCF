@@ -385,16 +385,18 @@ namespace ccf
     void remove_jwt_keys(kv::Tx& tx, std::string issuer)
     {
       auto keys = tx.get_view(this->network.jwt_public_signing_keys);
-      auto key_issuer = tx.get_view(this->network.jwt_public_signing_key_issuer);
-      
-      key_issuer->foreach([&issuer, &keys, &key_issuer](const auto& k, const auto& v) {
-        if (v == issuer)
-        {
-          keys->remove(k);
-          key_issuer->remove(k);
-        }
-        return true;
-      });
+      auto key_issuer =
+        tx.get_view(this->network.jwt_public_signing_key_issuer);
+
+      key_issuer->foreach(
+        [&issuer, &keys, &key_issuer](const auto& k, const auto& v) {
+          if (v == issuer)
+          {
+            keys->remove(k);
+            key_issuer->remove(k);
+          }
+          return true;
+        });
     }
 
     bool set_jwt_public_signing_keys(
@@ -405,7 +407,8 @@ namespace ccf
     {
       auto issuers = tx.get_view(this->network.jwt_issuers);
       auto keys = tx.get_view(this->network.jwt_public_signing_keys);
-      auto key_issuer = tx.get_view(this->network.jwt_public_signing_key_issuer);
+      auto key_issuer =
+        tx.get_view(this->network.jwt_public_signing_key_issuer);
 
       auto issuer_metadata_ = issuers->get(issuer);
       if (!issuer_metadata_.has_value())
