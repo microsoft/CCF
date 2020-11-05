@@ -519,7 +519,6 @@ TEST_CASE("view-change-tracker timeout tests")
   }
 }
 
-
 TEST_CASE("view-change-tracker statemachine tests")
 {
   ccf::ViewChange v;
