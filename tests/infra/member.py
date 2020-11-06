@@ -97,11 +97,11 @@ class Member:
                 seqno=r.seqno,
             )
 
-    def vote(self, remote_node, proposal):
+    def vote(self, remote_node, proposal, ballot):
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.post(
                 f"/gov/proposals/{proposal.proposal_id}/votes",
-                body=proposal.vote_for,
+                body=ballot,
                 signed=True,
             )
 

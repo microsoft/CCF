@@ -159,6 +159,7 @@ def run(args):
         (
             new_member_proposal,
             new_member,
+            careful_vote,
         ) = network.consortium.generate_and_propose_new_member(
             remote_node=primary,
             curve=infra.network.ParticipantsCurve(args.participants_curve).next(),
@@ -174,7 +175,9 @@ def run(args):
         assert proposal_entry.state == ProposalState.Open
 
         LOG.info("Rest of consortium accept the proposal")
-        network.consortium.vote_using_majority(primary, new_member_proposal)
+        network.consortium.vote_using_majority(
+            primary, new_member_proposal, careful_vote
+        )
         assert new_member_proposal.state == ProposalState.Accepted
 
         # Manually add new member to consortium
@@ -221,7 +224,9 @@ def run(args):
         trust_node_proposal_0.vote_for = careful_vote
 
         LOG.debug("Members vote to accept the accept node proposal")
-        network.consortium.vote_using_majority(primary, trust_node_proposal_0)
+        network.consortium.vote_using_majority(
+            primary, trust_node_proposal_0, careful_vote
+        )
         assert trust_node_proposal_0.state == infra.proposal.ProposalState.Accepted
 
         LOG.info("New member makes a new proposal, with initial no vote")

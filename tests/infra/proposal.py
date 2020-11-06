@@ -38,7 +38,6 @@ class Proposal:
         self.proposal_id = proposal_id
         self.state = state
         self.votes_for = 0
-        self.vote_for = {"ballot": {"text": "return true"}}
         self.view = view
         self.seqno = seqno
 

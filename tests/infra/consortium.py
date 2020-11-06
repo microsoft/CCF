@@ -116,7 +116,7 @@ class Consortium:
             new_member_id, curve, self.common_dir, self.share_script, self.key_generator
         )
 
-        proposal_body, _ = self.make_proposal(
+        proposal_body, careful_vote = self.make_proposal(
             "new_member",
             os.path.join(self.common_dir, f"member{new_member_id}_cert.pem"),
             os.path.join(self.common_dir, f"member{new_member_id}_enc_pubk.pem"),
@@ -124,15 +124,13 @@ class Consortium:
         )
 
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-
-        return (
-            proposal,
-            new_member,
-        )
+        return proposal, new_member, careful_vote
 
     def generate_and_add_new_member(self, remote_node, curve, member_data=None):
-        proposal, new_member = self.generate_and_propose_new_member(remote_node, curve)
-        self.vote_using_majority(remote_node, proposal)
+        proposal, new_member, careful_vote = self.generate_and_propose_new_member(
+            remote_node, curve
+        )
+        self.vote_using_majority(remote_node, proposal, careful_vote)
 
         # If the member was successfully registered, add it to the
         # local list of consortium members
@@ -161,7 +159,7 @@ class Consortium:
         )
 
     def vote_using_majority(
-        self, remote_node, proposal, wait_for_global_commit=True, timeout=3
+        self, remote_node, proposal, ballot, wait_for_global_commit=True, timeout=3
     ):
         response = None
 
@@ -173,7 +171,7 @@ class Consortium:
                 if proposal.votes_for >= majority_count:
                     break
 
-                response = member.vote(remote_node, proposal)
+                response = member.vote(remote_node, proposal, ballot)
                 assert response.status_code == http.HTTPStatus.OK.value
                 proposal.state = infra.proposal.ProposalState(
                     response.body.json()["state"]
@@ -224,9 +222,11 @@ class Consortium:
         return proposals
 
     def retire_node(self, remote_node, node_to_retire):
-        proposal_body, _ = self.make_proposal("retire_node", node_to_retire.node_id)
+        proposal_body, careful_vote = self.make_proposal(
+            "retire_node", node_to_retire.node_id
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        self.vote_using_majority(remote_node, proposal)
+        self.vote_using_majority(remote_node, proposal, careful_vote)
 
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
             r = c.post(
@@ -241,10 +241,14 @@ class Consortium:
         ):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
-        proposal_body, _ = self.make_proposal("trust_node", node_id)
+        proposal_body, careful_vote = self.make_proposal("trust_node", node_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
-            remote_node, proposal, wait_for_global_commit=True, timeout=timeout
+            remote_node,
+            proposal,
+            careful_vote,
+            wait_for_global_commit=True,
+            timeout=timeout,
         )
 
         if not self._check_node_exists(
@@ -253,11 +257,11 @@ class Consortium:
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
     def retire_member(self, remote_node, member_to_retire):
-        proposal_body, _ = self.make_proposal(
+        proposal_body, careful_vote = self.make_proposal(
             "retire_member", member_to_retire.member_id
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        self.vote_using_majority(remote_node, proposal)
+        self.vote_using_majority(remote_node, proposal, careful_vote)
         member_to_retire.status_code = infra.member.MemberStatus.RETIRED
 
     def open_network(self, remote_node):
@@ -266,64 +270,68 @@ class Consortium:
         proposal and make members vote to transition the network to state
         OPEN.
         """
-        proposal_body, _ = self.make_proposal("open_network")
+        proposal_body, careful_vote = self.make_proposal("open_network")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        self.vote_using_majority(remote_node, proposal, wait_for_global_commit=True)
+        self.vote_using_majority(
+            remote_node, proposal, careful_vote, wait_for_global_commit=True
+        )
         self.check_for_service(remote_node, infra.network.ServiceStatus.OPEN)
 
     def rekey_ledger(self, remote_node):
-        proposal_body, _ = self.make_proposal("rekey_ledger")
+        proposal_body, careful_vote = self.make_proposal("rekey_ledger")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def update_recovery_shares(self, remote_node):
-        proposal_body, _ = self.make_proposal("update_recovery_shares")
+        proposal_body, careful_vote = self.make_proposal("update_recovery_shares")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def user_cert_path(self, user_id):
         return os.path.join(self.common_dir, f"user{user_id}_cert.pem")
 
     def add_user(self, remote_node, user_id, user_data=None):
-        proposal, _ = self.make_proposal(
+        proposal, careful_vote = self.make_proposal(
             "new_user",
             self.user_cert_path(user_id),
             user_data,
         )
 
         proposal = self.get_any_active_member().propose(remote_node, proposal)
-        return self.vote_using_majority(remote_node, proposal)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def add_users(self, remote_node, users):
         for u in users:
             self.add_user(remote_node, u)
 
     def remove_user(self, remote_node, user_id):
-        proposal, _ = self.make_proposal("remove_user", user_id)
+        proposal, careful_vote = self.make_proposal("remove_user", user_id)
 
         proposal = self.get_any_active_member().propose(remote_node, proposal)
-        self.vote_using_majority(remote_node, proposal)
+        self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_lua_app(self, remote_node, app_script_path):
-        proposal_body, _ = self.make_proposal("set_lua_app", app_script_path)
+        proposal_body, careful_vote = self.make_proposal("set_lua_app", app_script_path)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_js_app(self, remote_node, app_script_path):
-        proposal_body, _ = self.make_proposal("set_js_app", app_script_path)
+        proposal_body, careful_vote = self.make_proposal("set_js_app", app_script_path)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def deploy_js_app(self, remote_node, app_bundle_path):
-        proposal_body, _ = self.make_proposal("deploy_js_app", app_bundle_path)
+        proposal_body, careful_vote = self.make_proposal(
+            "deploy_js_app", app_bundle_path
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         # Large apps take a long time to process - wait longer than normal for commit
-        return self.vote_using_majority(remote_node, proposal, timeout=10)
+        return self.vote_using_majority(remote_node, proposal, careful_vote, timeout=10)
 
     def accept_recovery(self, remote_node):
-        proposal_body, _ = self.make_proposal("accept_recovery")
+        proposal_body, careful_vote = self.make_proposal("accept_recovery")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def recover_with_shares(self, remote_node):
         submitted_shares_count = 0
@@ -342,22 +350,22 @@ class Consortium:
                     assert "End of recovery procedure initiated" not in r.body.text()
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
-        proposal_body, _ = self.make_proposal(
+        proposal_body, careful_vote = self.make_proposal(
             "set_recovery_threshold", recovery_threshold
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.recovery_threshold = recovery_threshold
-        return self.vote_using_majority(remote_node, proposal)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def add_new_code(self, remote_node, new_code_id):
-        proposal_body, _ = self.make_proposal("new_node_code", new_code_id)
+        proposal_body, careful_vote = self.make_proposal("new_node_code", new_code_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def retire_code(self, remote_node, code_id):
-        proposal_body, _ = self.make_proposal("retire_node_code", code_id)
+        proposal_body, careful_vote = self.make_proposal("retire_node_code", code_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def check_for_service(self, remote_node, status):
         """
