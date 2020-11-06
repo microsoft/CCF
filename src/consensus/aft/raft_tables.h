@@ -17,5 +17,6 @@ namespace aft
     ccf::Tables::AFT_REQUESTS,
     ccf::Tables::SIGNATURES,
     ccf::Tables::BACKUP_SIGNATURES,
-    ccf::Tables::NONCES};
+    ccf::Tables::NONCES,
+    ccf::Tables::NEW_VIEWS};
 }

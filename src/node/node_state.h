@@ -154,6 +154,7 @@ namespace ccf
 
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<ccf::ProgressTracker> progress_tracker;
+    std::shared_ptr<ccf::ProgressTrackerStoreAdapter> tracker_store;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
     ShareManager& share_manager;
@@ -1631,8 +1632,12 @@ namespace ccf
     {
       setup_n2n_channels();
       setup_cmd_forwarder();
+      setup_tracker_store();
 
       auto request_tracker = std::make_shared<aft::RequestTracker>();
+      auto view_change_tracker = std::make_unique<aft::ViewChangeTracker>(
+        tracker_store,
+        std::chrono::milliseconds(consensus_config.raft_election_timeout));
       auto shared_state = std::make_shared<aft::State>(self);
       auto raft = std::make_unique<RaftType>(
         network.consensus_type,
@@ -1647,6 +1652,7 @@ namespace ccf
         shared_state,
         std::make_shared<aft::ExecutorImpl>(shared_state, rpc_map, rpcsessions),
         request_tracker,
+        std::move(view_change_tracker),
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         std::chrono::milliseconds(consensus_config.pbft_view_change_timeout),
@@ -1762,16 +1768,24 @@ namespace ccf
     {
       if (network.consensus_type == ConsensusType::BFT)
       {
-        auto store = std::make_unique<ccf::ProgressTrackerStoreAdapter>(
+        setup_tracker_store();
+        progress_tracker =
+          std::make_shared<ccf::ProgressTracker>(tracker_store, self);
+        network.tables->set_progress_tracker(progress_tracker);
+      }
+    }
+
+    void setup_tracker_store()
+    {
+      if (tracker_store == nullptr)
+      {
+        tracker_store = std::make_shared<ccf::ProgressTrackerStoreAdapter>(
           *network.tables.get(),
           *node_sign_kp,
           network.nodes,
           network.backup_signatures_map,
-          network.revealed_nonces_map);
-
-        progress_tracker =
-          std::make_shared<ccf::ProgressTracker>(std::move(store), self);
-        network.tables->set_progress_tracker(progress_tracker);
+          network.revealed_nonces_map,
+          network.new_views_map);
       }
     }
 

@@ -132,6 +132,15 @@ namespace aft
       return {seqno_last_signature, time_last_signature};
     }
 
+    void clear()
+    {
+      requests.clear();
+      requests_list.clear();
+
+      hashes_without_requests.clear();
+      hashes_without_requests_list.clear();
+    }
+
   private:
     std::multiset<Request*, RequestComp> requests;
     snmalloc::DLList<Request, std::nullptr_t, true> requests_list;

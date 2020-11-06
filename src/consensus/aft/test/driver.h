@@ -57,6 +57,7 @@ public:
         std::make_shared<aft::State>(node_id),
         nullptr,
         std::make_shared<aft::RequestTracker>(),
+        nullptr,
         ms(10),
         ms(i * 100),
         ms(i * 100));
