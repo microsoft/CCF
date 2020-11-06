@@ -385,7 +385,6 @@ class Network:
         LOG.info("Initial set of users added")
 
         self.consortium.open_network(remote_node=primary)
-        self.wait_for_all_nodes_to_catch_up(primary)
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
