@@ -43,6 +43,7 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     std::make_shared<aft::State>(node_id),
     nullptr,
     nullptr,
+    nullptr,
     ms(10),
     election_timeout,
     ms(1000));
@@ -85,6 +86,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     nullptr,
     cert,
     std::make_shared<aft::State>(node_id),
+    nullptr,
     nullptr,
     nullptr,
     ms(10),
@@ -140,6 +142,7 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
+    nullptr,
     request_timeout,
     ms(20),
     ms(1000));
@@ -155,6 +158,7 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
+    nullptr,
     request_timeout,
     ms(100),
     ms(1000));
@@ -168,6 +172,7 @@ DOCTEST_TEST_CASE(
     nullptr,
     cert,
     std::make_shared<aft::State>(node_id2),
+    nullptr,
     nullptr,
     nullptr,
     request_timeout,
@@ -346,6 +351,7 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
+    nullptr,
     request_timeout,
     ms(20),
     ms(1000));
@@ -362,6 +368,7 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
+    nullptr,
     request_timeout,
     ms(100),
     ms(1000));
@@ -375,6 +382,7 @@ DOCTEST_TEST_CASE(
     nullptr,
     cert,
     std::make_shared<aft::State>(node_id2),
+    nullptr,
     nullptr,
     nullptr,
     request_timeout,
@@ -523,6 +531,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
+    nullptr,
     request_timeout,
     ms(20),
     ms(1000));
@@ -539,6 +548,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
+    nullptr,
     request_timeout,
     ms(100),
     ms(1000));
@@ -553,6 +563,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     cert,
 
     std::make_shared<aft::State>(node_id2),
+    nullptr,
     nullptr,
     nullptr,
     request_timeout,
@@ -683,6 +694,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
+    nullptr,
     request_timeout,
     ms(20),
     ms(1000));
@@ -697,6 +709,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     cert,
 
     std::make_shared<aft::State>(node_id1),
+    nullptr,
     nullptr,
     nullptr,
     request_timeout,
@@ -899,6 +912,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
+    nullptr,
     request_timeout,
     ms(20),
     ms(1000));
@@ -915,6 +929,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
+    nullptr,
     request_timeout,
     ms(100),
     ms(1000));
@@ -929,6 +944,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     cert,
 
     std::make_shared<aft::State>(node_id2),
+    nullptr,
     nullptr,
     nullptr,
     request_timeout,

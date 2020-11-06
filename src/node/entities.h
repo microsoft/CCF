@@ -98,6 +98,7 @@ namespace ccf
 
     // Consensus specific tables
     static constexpr auto AFT_REQUESTS = "public:ccf.gov.aft.requests";
+    static constexpr auto NEW_VIEWS = "public:ccf.internal.new_views";
   };
 
 }
