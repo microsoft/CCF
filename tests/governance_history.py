@@ -73,18 +73,24 @@ def run(args):
         ) = count_governance_operations(ledger)
 
         LOG.info("Add new member proposal (implicit vote)")
-        new_member_proposal, _ = network.consortium.generate_and_propose_new_member(
+        (
+            new_member_proposal,
+            _,
+            careful_vote,
+        ) = network.consortium.generate_and_propose_new_member(
             primary, curve=infra.network.ParticipantsCurve.secp256k1
         )
         proposals_issued += 1
 
         LOG.info("2/3 members accept the proposal")
-        network.consortium.vote_using_majority(primary, new_member_proposal)
-        votes_issued += 1
+        p = network.consortium.vote_using_majority(
+            primary, new_member_proposal, careful_vote
+        )
+        votes_issued += p.votes_for
         assert new_member_proposal.state == infra.proposal.ProposalState.Accepted
 
         LOG.info("Create new proposal but withdraw it before it is accepted")
-        new_member_proposal, _ = network.consortium.generate_and_propose_new_member(
+        new_member_proposal, _, _ = network.consortium.generate_and_propose_new_member(
             primary, curve=infra.network.ParticipantsCurve.secp256k1
         )
         proposals_issued += 1

@@ -62,8 +62,7 @@ def make_module_set_proposal(path, content, network):
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
-    proposal.vote_for = careful_vote
-    network.consortium.vote_using_majority(primary, proposal)
+    network.consortium.vote_using_majority(primary, proposal, careful_vote)
 
 
 @reqs.description("Test module set and remove")
@@ -87,8 +86,7 @@ def test_module_set_and_remove(network, args):
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
-    proposal.vote_for = careful_vote
-    network.consortium.vote_using_majority(primary, proposal)
+    network.consortium.vote_using_majority(primary, proposal, careful_vote)
 
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
@@ -161,8 +159,7 @@ def test_app_bundle(network, args):
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
-    proposal.vote_for = careful_vote
-    network.consortium.vote_using_majority(primary, proposal)
+    network.consortium.vote_using_majority(primary, proposal, careful_vote)
 
     LOG.info("Verifying that modules and endpoints were removed")
     with primary.client("user0") as c:
