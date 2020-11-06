@@ -204,10 +204,8 @@ def run(args):
         assert response.status_code == params_error
 
         LOG.info("New non-active member should get insufficient rights response")
-        proposal_trust_0, careful_vote = ccf.proposal_generator.trust_node(
-            0, vote_against=True
-        )
         try:
+            proposal_trust_0, careful_vote = ccf.proposal_generator.trust_node(0)
             new_member.propose(primary, proposal_trust_0)
             assert (
                 False
