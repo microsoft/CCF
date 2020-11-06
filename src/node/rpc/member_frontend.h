@@ -403,21 +403,12 @@ namespace ccf
       kv::Tx& tx,
       ObjectId proposal_id,
       std::string issuer,
+      const JwtIssuerMetadata& issuer_metadata,
       const JsonWebKeySet& jwks)
     {
-      auto issuers = tx.get_view(this->network.jwt_issuers);
       auto keys = tx.get_view(this->network.jwt_public_signing_keys);
       auto key_issuer =
         tx.get_view(this->network.jwt_public_signing_key_issuer);
-
-      auto issuer_metadata_ = issuers->get(issuer);
-      if (!issuer_metadata_.has_value())
-      {
-        LOG_FAIL_FMT(
-          "Proposal {}: {} is not a valid issuer", proposal_id, issuer);
-        return false;
-      }
-      auto& issuer_metadata = issuer_metadata_.value();
 
       // add keys
       if (jwks.keys.empty())
@@ -740,16 +731,18 @@ namespace ccf
            const auto parsed = args.get<SetJwtIssuer>();
            auto issuers = tx.get_view(this->network.jwt_issuers);
 
-           issuers->put(parsed.issuer, parsed);
-
-           bool result = true;
+           bool success = true;
            if (parsed.jwks.has_value())
            {
-             result = set_jwt_public_signing_keys(
-               tx, proposal_id, parsed.issuer, parsed.jwks.value());
+             success = set_jwt_public_signing_keys(
+               tx, proposal_id, parsed.issuer, parsed, parsed.jwks.value());
+           }
+           if (success)
+           {
+             issuers->put(parsed.issuer, parsed);
            }
 
-           return result;
+           return success;
          }},
         {"remove_jwt_issuer",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
@@ -771,8 +764,19 @@ namespace ccf
         {"set_jwt_public_signing_keys",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<SetJwtPublicSigningKeys>();
+
+           auto issuers = tx.get_view(this->network.jwt_issuers);
+           auto issuer_metadata_ = issuers->get(parsed.issuer);
+           if (!issuer_metadata_.has_value())
+           {
+             LOG_FAIL_FMT(
+               "Proposal {}: {} is not a valid issuer", proposal_id, parsed.issuer);
+             return false;
+           }
+           auto& issuer_metadata = issuer_metadata_.value();
+
            return set_jwt_public_signing_keys(
-             tx, proposal_id, parsed.issuer, parsed.jwks);
+             tx, proposal_id, parsed.issuer, issuer_metadata, parsed.jwks);
          }},
         // accept a node
         {"trust_node",
