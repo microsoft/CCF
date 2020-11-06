@@ -311,6 +311,19 @@ def test_npm_app(network, args):
         body = r.body.json()
         assert body["msg"] == "Hello!", r.body
 
+        r = c.post("/app/log?id=42", {"msg": "Saluton!"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        r = c.post("/app/log?id=43", {"msg": "Bonjour!"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+        r = c.get("/app/log/all")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        body = r.body.json()
+        # Response is list in undefined order
+        assert len(body) == 2, body
+        assert {"id": 42, "msg": "Saluton!"} in body, body
+        assert {"id": 43, "msg": "Bonjour!"} in body, body
+
     return network
 
 
