@@ -189,13 +189,13 @@ def run(args):
         params_error = http.HTTPStatus.BAD_REQUEST.value
         assert (
             network.consortium.get_member_by_id(0)
-            .vote(primary, new_member_proposal)
+            .vote(primary, new_member_proposal, careful_vote)
             .status_code
             == params_error
         )
         assert (
             network.consortium.get_member_by_id(1)
-            .vote(primary, new_member_proposal)
+            .vote(primary, new_member_proposal, careful_vote)
             .status_code
             == params_error
         )
@@ -229,8 +229,8 @@ def run(args):
         )
         assert trust_node_proposal_0.state == infra.proposal.ProposalState.Accepted
 
-        LOG.info("New member makes a new proposal, with initial no vote")
-        proposal_trust_1, _ = ccf.proposal_generator.trust_node(1)
+        LOG.info("New member makes a new proposal")
+        proposal_trust_1, careful_vote = ccf.proposal_generator.trust_node(1)
         trust_node_proposal = new_member.propose(primary, proposal_trust_1)
 
         LOG.debug("Other members (non proposer) are unable to withdraw new proposal")
@@ -257,7 +257,7 @@ def run(args):
         assert response.status_code == params_error
 
         LOG.debug("Further votes fail")
-        response = new_member.vote(primary, trust_node_proposal)
+        response = new_member.vote(primary, trust_node_proposal, careful_vote)
         assert response.status_code == params_error
 
         # Membership changes trigger re-sharing and re-keying and are
