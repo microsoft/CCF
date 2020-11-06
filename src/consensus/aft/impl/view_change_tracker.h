@@ -25,7 +25,7 @@ namespace aft
       kv::Consensus::SeqNo seqno;
       bool new_view_sent;
 
-      std::map<kv::NodeId, ccf::ViewChange> received_view_changes;
+      std::map<kv::NodeId, ccf::ViewChangeRequest> received_view_changes;
     };
 
   public:
@@ -72,7 +72,7 @@ namespace aft
     };
 
     ResultAddView add_request_view_change(
-      ccf::ViewChange& v,
+      ccf::ViewChangeRequest& v,
       kv::NodeId from,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
@@ -99,7 +99,7 @@ namespace aft
       return ResultAddView::OK;
     }
 
-    void write_new_view_append_entry(kv::Consensus::View view)
+    void write_view_change_confirmation_append_entry(kv::Consensus::View view)
     {
       auto it = view_changes.find(view);
       if (it == view_changes.end())
@@ -109,14 +109,14 @@ namespace aft
       }
 
       auto& vc = it->second;
-      ccf::NewView nv(vc.view, vc.seqno);
+      ccf::ViewChangeConfirmation nv(vc.view, vc.seqno);
 
       for (auto it : vc.received_view_changes)
       {
         nv.view_change_messages.emplace(it.first, it.second);
       }
 
-      store->write_new_view(nv);
+      store->write_view_change_confirmation(nv);
     }
 
     void clear()

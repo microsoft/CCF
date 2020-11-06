@@ -555,7 +555,7 @@ namespace ccf
       return highest_commit_level;
     }
 
-    std::tuple<std::unique_ptr<ViewChange>, kv::Consensus::SeqNo>
+    std::tuple<std::unique_ptr<ViewChangeRequest>, kv::Consensus::SeqNo>
     get_view_change_message(kv::Consensus::View view)
     {
       auto it = certificates.find(highest_prepared_level.version);
@@ -568,24 +568,24 @@ namespace ccf
       }
 
       auto& cert = it->second;
-      auto m = std::make_unique<ViewChange>();
+      auto m = std::make_unique<ViewChangeRequest>();
 
       for (const auto& sig : cert.sigs)
       {
         m->signatures.push_back(sig.second);
       }
 
-      store->sign_view_change(*m, view, highest_prepared_level.version);
+      store->sign_view_change_request(*m, view, highest_prepared_level.version);
       return std::make_tuple(std::move(m), highest_prepared_level.version);
     }
 
     bool apply_view_change_message(
-      ViewChange& view_change,
+      ViewChangeRequest& view_change,
       kv::NodeId from,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno)
     {
-      if (!store->verify_view_change(view_change, from, view, seqno))
+      if (!store->verify_view_change_request(view_change, from, view, seqno))
       {
         LOG_FAIL_FMT("Failed to verify view-change from:{}", from);
         return false;
@@ -644,9 +644,9 @@ namespace ccf
       for (auto& vcp : new_view->view_change_messages)
       {
         kv::NodeId id = vcp.first;
-        ccf::ViewChange& vc = vcp.second;
+        ccf::ViewChangeRequest& vc = vcp.second;
 
-        if (!store->verify_view_change(vc, id, view, seqno))
+        if (!store->verify_view_change_request(vc, id, view, seqno))
         {
           LOG_FAIL_FMT(
             "Failed to verify view-change id:{},view:{}, seqno:{}",
@@ -657,7 +657,8 @@ namespace ccf
         }
       }
 
-      if (!store->verify_new_view(new_view.value(), from))
+      if (!store->verify_view_change_request_confirmation(
+            new_view.value(), from))
       {
         LOG_INFO_FMT("Failed to verify from:{}", from);
         return false;

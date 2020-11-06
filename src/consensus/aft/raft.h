@@ -228,7 +228,7 @@ namespace aft
       return replica_state == Follower;
     }
 
-    NodeId get_leader(kv::Consensus::View view)
+    NodeId get_primary(kv::Consensus::View view)
     {
       // This will not work once we have reconfiguration support
       // https://github.com/microsoft/CCF/issues/1852
@@ -554,7 +554,7 @@ namespace aft
           //
           kv::Consensus::View new_view = view_change_tracker->get_target_view();
           kv::Consensus::SeqNo seqno;
-          std::unique_ptr<ccf::ViewChange> vc;
+          std::unique_ptr<ccf::ViewChangeRequest> vc;
 
           auto progress_tracker = store->get_progress_tracker();
           std::tie(vc, seqno) =
@@ -588,7 +588,7 @@ namespace aft
           }
 
           if (
-            get_leader(new_view) == id() &&
+            get_primary(new_view) == id() &&
             aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
               view_change_tracker->add_request_view_change(
                 *vc, id(), new_view, seqno, node_count()))
@@ -653,7 +653,8 @@ namespace aft
         return;
       }
 
-      ccf::ViewChange v = ccf::ViewChange::deserialize(data, size);
+      ccf::ViewChangeRequest v =
+        ccf::ViewChangeRequest::deserialize(data, size);
       LOG_INFO_FMT(
         "Received view change from:{}, view:{}", r.from_node, r.view);
 
@@ -665,7 +666,7 @@ namespace aft
       }
 
       if (
-        get_leader(r.view) == id() &&
+        get_primary(r.view) == id() &&
         aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
           view_change_tracker->add_request_view_change(
             v, r.from_node, r.view, r.seqno, node_count()))
@@ -706,7 +707,7 @@ namespace aft
     {
       state->current_view = view;
       become_leader();
-      view_change_tracker->write_new_view_append_entry(view);
+      view_change_tracker->write_view_change_confirmation_append_entry(view);
 
       view_change_tracker->clear();
       request_tracker->clear();

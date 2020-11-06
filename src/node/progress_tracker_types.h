@@ -56,7 +56,7 @@ namespace ccf
     virtual ~ProgressTrackerStore() = default;
     virtual void write_backup_signatures(ccf::BackupSignatures& sig_value) = 0;
     virtual std::optional<ccf::BackupSignatures> get_backup_signatures() = 0;
-    virtual std::optional<ccf::NewView> get_new_view() = 0;
+    virtual std::optional<ccf::ViewChangeConfirmation> get_new_view() = 0;
     virtual void write_nonces(aft::RevealedNonces& nonces) = 0;
     virtual std::optional<aft::RevealedNonces> get_nonces() = 0;
     virtual bool verify_signature(
@@ -64,17 +64,19 @@ namespace ccf
       crypto::Sha256Hash& root,
       uint32_t sig_size,
       uint8_t* sig) = 0;
-    virtual void sign_view_change(
-      ViewChange& view_change,
+    virtual void sign_view_change_request(
+      ViewChangeRequest& view_change,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno) = 0;
-    virtual bool verify_view_change(
-      ViewChange& view_change,
+    virtual bool verify_view_change_request(
+      ViewChangeRequest& view_change,
       kv::NodeId from,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno) = 0;
-    virtual void write_new_view(ccf::NewView& new_view) = 0;
-    virtual bool verify_new_view(NewView& new_view, kv::NodeId from) = 0;
+    virtual void write_view_change_confirmation(
+      ccf::ViewChangeConfirmation& new_view) = 0;
+    virtual bool verify_view_change_request_confirmation(
+      ccf::ViewChangeConfirmation& new_view, kv::NodeId from) = 0;
   };
 
   class ProgressTrackerStoreAdapter : public ProgressTrackerStore
@@ -122,7 +124,7 @@ namespace ccf
       return sigs;
     }
 
-    std::optional<ccf::NewView> get_new_view() override
+    std::optional<ccf::ViewChangeConfirmation> get_new_view() override
     {
       kv::Tx tx(&store);
       auto new_views_tv = tx.get_view(new_views);
@@ -189,8 +191,8 @@ namespace ccf
         root.h.data(), root.h.size(), sig, sig_size);
     }
 
-    void sign_view_change(
-      ViewChange& view_change,
+    void sign_view_change_request(
+      ViewChangeRequest& view_change,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno) override
     {
@@ -198,8 +200,8 @@ namespace ccf
       view_change.signature = kp.sign_hash(h.h.data(), h.h.size());
     }
 
-    bool verify_view_change(
-      ViewChange& view_change,
+    bool verify_view_change_request(
+      ViewChangeRequest& view_change,
       kv::NodeId from,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno) override
@@ -223,7 +225,8 @@ namespace ccf
         view_change.signature.size());
     }
 
-    bool verify_new_view(NewView& new_view, kv::NodeId from) override
+    bool verify_view_change_request_confirmation(
+      ViewChangeConfirmation& new_view, kv::NodeId from) override
     {
       kv::Tx tx(&store);
       auto ni_tv = tx.get_view(nodes);
@@ -243,7 +246,8 @@ namespace ccf
         new_view.signature.size());
     }
 
-    void write_new_view(ccf::NewView& new_view) override
+    void write_view_change_confirmation(
+      ccf::ViewChangeConfirmation& new_view) override
     {
       kv::Tx tx(&store);
       auto new_views_tv = tx.get_view(new_views);
@@ -266,7 +270,7 @@ namespace ccf
       }
     }
 
-    crypto::Sha256Hash hash_new_view(ccf::NewView& new_view)
+    crypto::Sha256Hash hash_new_view(ccf::ViewChangeConfirmation& new_view)
     {
       crypto::CSha256Hash ch;
       ch.update(new_view.view);
@@ -289,7 +293,7 @@ namespace ccf
     ccf::NewViewsMap& new_views;
 
     crypto::Sha256Hash hash_view_change(
-      const ViewChange& v,
+      const ViewChangeRequest& v,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno) const
     {

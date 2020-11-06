@@ -1632,7 +1632,7 @@ namespace ccf
     {
       setup_n2n_channels();
       setup_cmd_forwarder();
-      try_setup_tracker_store();
+      setup_tracker_store();
 
       auto request_tracker = std::make_shared<aft::RequestTracker>();
       auto view_change_tracker = std::make_unique<aft::ViewChangeTracker>(
@@ -1768,14 +1768,14 @@ namespace ccf
     {
       if (network.consensus_type == ConsensusType::BFT)
       {
-        try_setup_tracker_store();
+        setup_tracker_store();
         progress_tracker =
           std::make_shared<ccf::ProgressTracker>(tracker_store, self);
         network.tables->set_progress_tracker(progress_tracker);
       }
     }
 
-    void try_setup_tracker_store()
+    void setup_tracker_store()
     {
       if (tracker_store == nullptr)
       {
