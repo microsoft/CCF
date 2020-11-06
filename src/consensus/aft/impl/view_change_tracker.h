@@ -3,6 +3,7 @@
 #pragma once
 
 #include "consensus/aft/raft_types.h"
+#include "node/view_change.h"
 
 #include <chrono>
 #include <map>
@@ -14,16 +15,25 @@ namespace aft
   {
     struct ViewChange
     {
-      std::set<kv::NodeId> received_view_changes;
+      ViewChange(kv::Consensus::View view_, kv::Consensus::SeqNo seqno_) :
+        view(view_),
+        seqno(seqno_),
+        new_view_sent(false)
+      {}
+
+      kv::Consensus::View view;
+      kv::Consensus::SeqNo seqno;
+      bool new_view_sent;
+
+      std::map<kv::NodeId, ccf::ViewChangeRequest> received_view_changes;
     };
 
   public:
     ViewChangeTracker(
-      kv::NodeId my_node_id_,
-      kv::Consensus::View current_view,
+      std::shared_ptr<ccf::ProgressTrackerStore> store_,
       std::chrono::milliseconds time_between_attempts_) :
-      my_node_id(my_node_id_),
-      last_view_change_sent(current_view),
+      store(store_),
+      last_view_change_sent(0),
       time_between_attempts(time_between_attempts_)
     {}
 
@@ -31,10 +41,7 @@ namespace aft
     {
       if (time > time_between_attempts + time_previous_view_change_increment)
       {
-        ViewChange vc;
-        vc.received_view_changes.emplace(my_node_id);
         ++last_view_change_sent;
-        view_changes.emplace(last_view_change_sent, std::move(vc));
         time_previous_view_change_increment = time;
         return true;
       }
@@ -58,12 +65,76 @@ namespace aft
       last_view_change_sent = view;
     }
 
+    enum class ResultAddView
+    {
+      OK,
+      APPEND_NEW_VIEW_MESSAGE
+    };
+
+    ResultAddView add_request_view_change(
+      ccf::ViewChangeRequest& v,
+      kv::NodeId from,
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      uint32_t node_count)
+    {
+      auto it = view_changes.find(view);
+      if (it == view_changes.end())
+      {
+        ViewChange view_change(view, seqno);
+        std::tie(it, std::ignore) =
+          view_changes.emplace(view, std::move(view_change));
+      }
+      it->second.received_view_changes.emplace(from, v);
+
+      if (
+        should_send_new_view(
+          it->second.received_view_changes.size(), node_count) &&
+        it->second.new_view_sent == false)
+      {
+        it->second.new_view_sent = true;
+        return ResultAddView::APPEND_NEW_VIEW_MESSAGE;
+      }
+
+      return ResultAddView::OK;
+    }
+
+    void write_view_change_confirmation_append_entry(kv::Consensus::View view)
+    {
+      auto it = view_changes.find(view);
+      if (it == view_changes.end())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot write unknown view-change to ledger, view:{}", view));
+      }
+
+      auto& vc = it->second;
+      ccf::ViewChangeConfirmation nv(vc.view, vc.seqno);
+
+      for (auto it : vc.received_view_changes)
+      {
+        nv.view_change_messages.emplace(it.first, it.second);
+      }
+
+      store->write_view_change_confirmation(nv);
+    }
+
+    void clear()
+    {
+      view_changes.clear();
+    }
+
   private:
-    kv::NodeId my_node_id;
+    std::shared_ptr<ccf::ProgressTrackerStore> store;
     std::map<kv::Consensus::View, ViewChange> view_changes;
     std::chrono::milliseconds time_previous_view_change_increment =
       std::chrono::milliseconds(0);
     kv::Consensus::View last_view_change_sent = 0;
     const std::chrono::milliseconds time_between_attempts;
+
+    bool should_send_new_view(size_t received_requests, size_t node_count) const
+    {
+      return received_requests == ccf::get_message_threshold(node_count);
+    }
   };
 }
