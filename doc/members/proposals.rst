@@ -5,7 +5,9 @@ This page explains how members can submit and vote for proposals.
 
 Proposals and vote ballots are submitted as Lua scripts. These scripts are executed transactionally, able to read from the current KV state but not write directly to it. Proposals return a list of proposed actions which can make writes, but are only applied when the proposal is accepted. Each vote script is given this list of proposed actions, and also able to read from the KV, and returns a boolean indicating whether it supports or rejects the proposed actions.
 
-Any member can submit a new proposal. All members can then vote on this proposal using its unique proposal id. Each member may alter their vote (by submitting a new vote) any number of times while the proposal is open. The member who originally submitted the proposal (the `proposer`) votes for the proposal by default, but has the option to include a negative or conditional vote like any other member. Additionally, the proposer has the ability to `withdraw` a proposal while it is open.
+Any member can submit a new proposal. All members can then vote on this proposal using its unique proposal id.
+Each member may alter their vote (by submitting a new vote) any number of times while the proposal is open.
+The proposer has the ability to `withdraw` a proposal while it is open.
 
 Each time a vote is submitted, all vote ballots for this proposal are re-executed on the current state to determine whether they are `for` or `against` the proposal. This vote tally is passed to the :term:`Constitution`, which determines whether the proposal is accepted or remains open. Once a proposal is accepted under the rules of the :term:`Constitution`, it is executed and its effects are recorded in the ledger.
 
@@ -21,9 +23,7 @@ Assuming the CCF Python package has been installed in the current Python environ
 .. code-block:: bash
 
     $ python -m ccf.proposal_generator
-    usage: proposal_generator.py [-h] [-po PROPOSAL_OUTPUT_FILE]
-                             [-vo VOTE_OUTPUT_FILE] [-pp] [-i]
-                             [--vote-against] [-v]
+    usage: proposal_generator.py [-h] [-po PROPOSAL_OUTPUT_FILE] [-vo VOTE_OUTPUT_FILE] [-pp] [-i] [-v]
                              {accept_recovery,new_member,new_node_code,new_user,open_network,rekey_ledger,remove_user,retire_member,retire_node,set_js_app,set_lua_app,set_recovery_threshold,set_user_data,trust_node,update_recovery_shares}
 
 Additional detail is available from the ``--help`` option. You can also find the script in a checkout of CCF:

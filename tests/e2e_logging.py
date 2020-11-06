@@ -357,8 +357,7 @@ def test_user_data_ACL(network, args):
             {"isAdmin": True},
         )
         proposal = proposing_member.propose(primary, proposal_body)
-        proposal.vote_for = careful_vote
-        network.consortium.vote_using_majority(primary, proposal)
+        network.consortium.vote_using_majority(primary, proposal, careful_vote)
 
         # Confirm that user can now use this endpoint
         with primary.client(f"user{user_id}") as c:
@@ -371,8 +370,7 @@ def test_user_data_ACL(network, args):
             {"isAdmin": False},
         )
         proposal = proposing_member.propose(primary, proposal_body)
-        proposal.vote_for = careful_vote
-        network.consortium.vote_using_majority(primary, proposal)
+        network.consortium.vote_using_majority(primary, proposal, careful_vote)
 
         # Confirm that user is now forbidden on this endpoint
         with primary.client(f"user{user_id}") as c:

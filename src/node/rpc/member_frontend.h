@@ -968,7 +968,7 @@ namespace ccf
         // vvv arguments to script vvv
         proposal.parameter);
 
-      nlohmann::json votes;
+      nlohmann::json votes = nlohmann::json::object();
       // Collect all member votes
       for (const auto& vote : proposal.votes)
       {
@@ -1247,7 +1247,6 @@ namespace ccf
         Proposal proposal(in.script, in.parameter, args.caller_id);
 
         auto proposals = args.tx.get_view(this->network.proposals);
-        proposal.votes[args.caller_id] = in.ballot;
         proposals->put(proposal_id, proposal);
 
         record_voting_history(
