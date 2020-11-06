@@ -11,12 +11,12 @@
 
 namespace ccf
 {
-  struct ViewChange
+  struct ViewChangeRequest
   {
     std::vector<NodeSignature> signatures;
     std::vector<uint8_t> signature;
 
-    ViewChange() = default;
+    ViewChangeRequest() = default;
 
     size_t get_serialized_size() const
     {
@@ -46,9 +46,9 @@ namespace ccf
       serialized::write(data, size, signature.data(), sig_size);
     }
 
-    static ViewChange deserialize(const uint8_t*& data, size_t& size)
+    static ViewChangeRequest deserialize(const uint8_t*& data, size_t& size)
     {
-      ViewChange v;
+      ViewChangeRequest v;
       size_t num_sigs = serialized::read<size_t>(data, size);
       for (size_t i = 0; i < num_sigs; ++i)
       {
@@ -60,5 +60,31 @@ namespace ccf
 
       return v;
     }
+    MSGPACK_DEFINE(signatures, signature);
   };
+  DECLARE_JSON_TYPE(ViewChangeRequest);
+  DECLARE_JSON_REQUIRED_FIELDS(ViewChangeRequest, signatures, signature);
+
+  struct ViewChangeConfirmation
+  {
+    kv::Consensus::View view = 0;
+    kv::Consensus::SeqNo seqno = 0;
+    std::vector<uint8_t> signature;
+
+    std::map<kv::NodeId, ViewChangeRequest> view_change_messages;
+
+    ViewChangeConfirmation() = default;
+    ViewChangeConfirmation(
+      kv::Consensus::View view_, kv::Consensus::SeqNo seqno_) :
+      view(view_),
+      seqno(seqno_)
+    {}
+
+    MSGPACK_DEFINE(view, seqno, signature, view_change_messages);
+  };
+  DECLARE_JSON_TYPE(ViewChangeConfirmation);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    ViewChangeConfirmation, view, seqno, signature, view_change_messages);
+
+  using NewViewsMap = kv::Map<ObjectId, ViewChangeConfirmation>;
 }

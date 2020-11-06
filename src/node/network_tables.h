@@ -95,6 +95,7 @@ namespace ccf
     aft::RequestsMap bft_requests_map;
     BackupSignaturesMap backup_signatures_map;
     aft::RevealedNoncesMap revealed_nonces_map;
+    NewViewsMap new_views_map;
 
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::CFT) :
       tables(
@@ -130,7 +131,8 @@ namespace ccf
       snapshot_evidence(Tables::SNAPSHOT_EVIDENCE),
       bft_requests_map(Tables::AFT_REQUESTS),
       backup_signatures_map(Tables::BACKUP_SIGNATURES),
-      revealed_nonces_map(Tables::NONCES)
+      revealed_nonces_map(Tables::NONCES),
+      new_views_map(Tables::NEW_VIEWS)
     {}
 
     /** Returns a tuple of all tables that are possibly accessible from scripts

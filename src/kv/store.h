@@ -888,6 +888,26 @@ namespace kv
           h->append(data.data(), data.size());
           success = DeserialiseSuccess::PASS_NONCES;
         }
+        else if (changes.find(ccf::Tables::NEW_VIEWS) != changes.end())
+        {
+          LOG_INFO_FMT("Applying new view");
+          success = commit_deserialised(changes, v, new_maps);
+          if (success == DeserialiseSuccess::FAILED)
+          {
+            return success;
+          }
+
+          if (!progress_tracker->apply_new_view(consensus->primary()))
+          {
+            LOG_FAIL_FMT("apply_new_view Failed");
+            LOG_DEBUG_FMT("NewView in transaction {} failed to verify", v);
+            return DeserialiseSuccess::FAILED;
+          }
+
+          auto h = get_history();
+          h->append(data.data(), data.size());
+          success = DeserialiseSuccess::NEW_VIEW;
+        }
         else if (changes.find(ccf::Tables::AFT_REQUESTS) == changes.end())
         {
           // we have deserialised an entry that didn't belong to the bft
