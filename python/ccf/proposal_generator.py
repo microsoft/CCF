@@ -144,7 +144,6 @@ def build_proposal(
     proposed_call: str,
     args: Optional[Any] = None,
     inline_args: bool = False,
-    vote_against: bool = False,
 ):
     LOG.trace(f"Generating {proposed_call} proposal")
 
@@ -164,8 +163,6 @@ def build_proposal(
     }
     if args is not None and not inline_args:
         proposal["parameter"] = args
-    if vote_against:
-        proposal["ballot"] = {"text": "return false"}
 
     vote_lines = [
         "tables, calls = ...",
@@ -216,11 +213,6 @@ def new_member(
         },
         "script": {"text": proposal_script_text},
     }
-
-    vote_against = kwargs.pop("vote_against", False)
-
-    if vote_against:
-        proposal["ballot"] = {"text": "return false"}
 
     # Sample vote script which checks the expected member is being added, and no other actions are being taken
     verifying_vote_text = f"""
@@ -472,12 +464,6 @@ if __name__ == "__main__":
         "the script. When not inlined, the parameters are passed separately and could "
         "be replaced in the resulting object",
     )
-    parser.add_argument(
-        "--vote-against",
-        action="store_true",
-        help="Include a negative initial vote when creating the proposal",
-        default=False,
-    )
     parser.add_argument("-v", "--verbose", action="store_true")
 
     # Auto-generate CLI args based on the inspected signatures of generator functions
@@ -523,7 +509,6 @@ if __name__ == "__main__":
 
     proposal, vote = args.func(
         **{name: getattr(args, name) for name in args.param_names},
-        vote_against=args.vote_against,
         inline_args=args.inline_args,
     )
 
