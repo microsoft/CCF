@@ -3,7 +3,7 @@ Proposing and Voting for a Proposal
 
 This page explains how members can submit and vote for proposals.
 
-Proposals and vote ballots are submitted as Lua scripts. These scripts are executed transactionally, able to read from the current KV state but not write directly to it. Proposals return a list of proposed actions which can make writes, but are only applied when the proposal is accepted. Each vote script is given this list of proposed actions, and also able to read from the KV, and returns a  indicating whether it supports or rejects the proposed actions.
+Proposals and vote ballots are submitted as Lua scripts. These scripts are executed transactionally, able to read from the current KV state but not write directly to it. Proposals return a list of proposed actions which can make writes, but are only applied when the proposal is accepted. Each vote script is given this list of proposed actions, and also able to read from the KV, and returns a boolean indicating whether it supports or rejects the proposed actions.
 
 Any member can submit a new proposal. All members can then vote on this proposal using its unique proposal id.
 Each member may alter their vote (by submitting a new vote) any number of times while the proposal is open.
