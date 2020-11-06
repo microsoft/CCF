@@ -25,6 +25,14 @@ else
   "$SCRIPT_DIR"/check-format.sh src samples
 fi
 
+npm --loglevel=error install --save-dev --save-exact prettier 1>/dev/null
+echo "TypeScript, JavaScript, Markdown, YAML and JSON format"
+if [ $FIX -ne 0 ]; then
+  npx prettier --write . 
+else
+  npx prettier --check .
+fi
+
 echo "Copyright notice headers"
 python3.8 "$SCRIPT_DIR"/notice-check.py
 

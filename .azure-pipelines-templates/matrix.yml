@@ -1,5 +1,5 @@
 parameters:
-  target: ['NoSGX', 'SGX']
+  target: ["NoSGX", "SGX"]
 
   env:
     Hosted:
@@ -19,11 +19,11 @@ parameters:
     common:
       cmake_args: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache"'
     NoSGX:
-      cmake_args: '-DCOMPILE_TARGETS=virtual'
+      cmake_args: "-DCOMPILE_TARGETS=virtual"
     SGX:
-      cmake_args: '-DCOMPILE_TARGETS=sgx'
+      cmake_args: "-DCOMPILE_TARGETS=sgx"
     debug:
-      cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DBUILD_SMALLBANK=OFF'
+      cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DBUILD_SMALLBANK=OFF"
     perf:
       cmake_args: '-DBUILD_UNIT_TESTS=OFF -DDISTRIBUTE_PERF_TESTS="`../.nodes.sh`"'
 
@@ -43,38 +43,38 @@ jobs:
 
   # Debug
   - ${{ each target in parameters.target }}:
-    - template: common.yml
-      parameters:
-        target: ${{ target }}
-        env: ${{ parameters.env[target] }}
-        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}'
-        suffix: 'Debug'
-        artifact_name: '${{ target }}_Debug'
-        ctest_filter: '${{ parameters.test[target].ctest_args }}'
+      - template: common.yml
+        parameters:
+          target: ${{ target }}
+          env: ${{ parameters.env[target] }}
+          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}"
+          suffix: "Debug"
+          artifact_name: "${{ target }}_Debug"
+          ctest_filter: "${{ parameters.test[target].ctest_args }}"
 
   # Performance
   - template: common.yml
     parameters:
       target: SGX
       env: ${{ parameters.env.Perf }}
-      cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }}'
-      suffix: 'Perf'
-      artifact_name: 'SGX_Perf'
-      ctest_filter: '${{ parameters.test.perf.ctest_args }}'
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }}"
+      suffix: "Perf"
+      artifact_name: "SGX_Perf"
+      ctest_filter: "${{ parameters.test.perf.ctest_args }}"
 
   # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
-    - template: common.yml
-      parameters:
-        target: SGX
-        env: ${{ parameters.env.SGX }}
-        cmake_args: '${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON'
-        suffix: 'Release'
-        artifact_name: 'SGX_Release'
+      - template: common.yml
+        parameters:
+          target: SGX
+          env: ${{ parameters.env.SGX }}
+          cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON"
+          suffix: "Release"
+          artifact_name: "SGX_Release"
 
-    - template: release.yml
-      parameters:
-        env: ${{ parameters.env.Hosted }}
-        depends_on:
-          - Checks
-          - SGX_Release
+      - template: release.yml
+        parameters:
+          env: ${{ parameters.env.Hosted }}
+          depends_on:
+            - Checks
+            - SGX_Release

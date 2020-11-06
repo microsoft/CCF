@@ -25,5 +25,6 @@ env/
 *.egg-info
 **/dist
 python/setup.py
-node_modules
-package-lock.json
+.mypy_cache
+3rdparty/
+*.html

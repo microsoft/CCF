@@ -18,11 +18,7 @@
                   "properties": {
                     "op": {
                       "type": "string",
-                      "enum": [
-                        "add",
-                        "sub",
-                        "mul"
-                      ]
+                      "enum": ["add", "sub", "mul"]
                     },
                     "left": {
                       "type": "number"
@@ -31,11 +27,7 @@
                       "type": "number"
                     }
                   },
-                  "required": [
-                    "op",
-                    "left",
-                    "right"
-                  ],
+                  "required": ["op", "left", "right"],
                   "type": "object",
                   "additionalProperties": false
                 }
@@ -53,9 +45,7 @@
                         "type": "number"
                       }
                     },
-                    "required": [
-                      "result"
-                    ],
+                    "required": ["result"],
                     "type": "object",
                     "additionalProperties": false
                   }
@@ -73,9 +63,7 @@
                         "type": "string"
                       }
                     },
-                    "required": [
-                      "error"
-                    ],
+                    "required": ["error"],
                     "type": "object",
                     "additionalProperties": false
                   }

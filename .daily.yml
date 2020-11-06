@@ -9,14 +9,13 @@ pr:
 
 trigger: none
 
-
 schedules:
-- cron: "0 3 * * Mon-Fri"
-  displayName: Daily build
-  branches:
-    include:
-    - master
-  always: true
+  - cron: "0 3 * * Mon-Fri"
+    displayName: Daily build
+    branches:
+      include:
+        - master
+    always: true
 
 resources:
   containers:
@@ -29,4 +28,4 @@ resources:
       options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
 
 jobs:
-- template: .azure-pipelines-templates/daily-matrix.yml
+  - template: .azure-pipelines-templates/daily-matrix.yml
