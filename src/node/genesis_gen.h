@@ -163,27 +163,31 @@ namespace ccf
         return false;
       }
 
-      if (member_to_retire->status == MemberStatus::ACTIVE)
+      if (member_to_retire->status != MemberStatus::ACTIVE)
       {
-        // If the member was active and had a recovery share, check that
-        // the new number of active members is still sufficient for
-        // recovery.
+        LOG_DEBUG_FMT(
+          "Could not retire member {}: member is not active", member_id);
+        return true;
+      }
+
+      // If the member was active and had a recovery share, check that
+      // the new number of active members is still sufficient for
+      // recovery
+
+      // Because the member to retire is active, we know that there is at least
+      // one active member
+      size_t active_members_with_shares_count_after =
+        get_active_members_with_shares_count() - 1;
+      auto recovery_threshold = get_recovery_threshold();
+      if (active_members_with_shares_count_after < recovery_threshold)
+      {
         LOG_FAIL_FMT(
-          "Members with shares: {}", get_active_members_with_shares_count());
-        // TODO: Size_t with -1!!
-        size_t active_members_count_after =
-          get_active_members_with_shares_count() - 1;
-        auto recovery_threshold = get_recovery_threshold();
-        if (active_members_count_after < recovery_threshold)
-        {
-          LOG_FAIL_FMT(
-            "Failed to retire member {}: number of active members ({}) "
-            "would be less than recovery threshold ({})",
-            member_id,
-            active_members_count_after,
-            recovery_threshold);
-          return false;
-        }
+          "Failed to retire member {}: number of active members with recovery "
+          "shares ({}) would be less than recovery threshold ({})",
+          member_id,
+          active_members_with_shares_count_after,
+          recovery_threshold);
+        return false;
       }
 
       member_to_retire->status = MemberStatus::RETIRED;
@@ -297,8 +301,8 @@ namespace ccf
       if (get_active_members_with_shares_count() < get_recovery_threshold())
       {
         LOG_FAIL_FMT(
-          "Cannot open network as number of active members with shares"
-          "({}) is less than recovery threshold ({})",
+          "Cannot open network as number of active members with shares ({}) is "
+          "less than recovery threshold ({})",
           get_active_members_with_shares_count(),
           get_recovery_threshold());
         return false;

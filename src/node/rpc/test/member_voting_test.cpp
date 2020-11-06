@@ -38,7 +38,7 @@ auto member_cert = kp -> self_sign("CN=name_member");
 auto verifier_mem = tls::make_verifier(member_cert);
 auto member_caller = verifier_mem -> der_cert_data();
 auto user_cert = kp -> self_sign("CN=name_user");
-std::vector<uint8_t> dummy_enc_pubk = {1, 2, 3};
+auto dummy_enc_pubk = tls::make_rsa_key_pair() -> public_key_pem();
 
 auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
@@ -204,14 +204,25 @@ auto get_vote(
     frontend_process(frontend, getter, caller));
 }
 
+auto activate(
+  MemberRpcFrontend& frontend,
+  const tls::KeyPairPtr& kp,
+  const tls::Pem& caller)
+{
+  const auto state_digest_req =
+    create_request(nullptr, "ack/update_state_digest");
+  const auto ack = parse_response_body<std::vector<uint8_t>>(
+    frontend_process(frontend, state_digest_req, caller));
+
+  StateDigest params;
+  params.state_digest = ack;
+  const auto ack_req = create_signed_request(params, "ack", kp);
+  return frontend_process(frontend, ack_req, caller);
+}
+
 auto get_cert(uint64_t member_id, tls::KeyPairPtr& kp_mem)
 {
   return kp_mem->self_sign("CN=new member" + to_string(member_id));
-}
-
-auto gen_public_encryption_key()
-{
-  return tls::make_rsa_key_pair()->public_key_pem();
 }
 
 auto init_frontend(
@@ -471,15 +482,15 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   StubNodeState node(share_manager);
   // add three initial active members
   // the proposer
-  auto proposer_id = gen.add_member({member_cert, gen_public_encryption_key()});
+  auto proposer_id = gen.add_member({member_cert, dummy_enc_pubk});
   gen.activate_member(proposer_id);
 
   // the voters
   const auto voter_a_cert = get_cert(1, kp);
-  auto voter_a = gen.add_member({voter_a_cert, gen_public_encryption_key()});
+  auto voter_a = gen.add_member({voter_a_cert, dummy_enc_pubk});
   gen.activate_member(voter_a);
   const auto voter_b_cert = get_cert(2, kp);
-  auto voter_b = gen.add_member({voter_b_cert, gen_public_encryption_key()});
+  auto voter_b = gen.add_member({voter_b_cert, dummy_enc_pubk});
   gen.activate_member(voter_b);
 
   set_whitelists(gen);
@@ -517,7 +528,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       return Calls:call("new_member", member_info)
     )xxx");
     proposal.parameter["cert"] = cert_pem;
-    proposal.parameter["encryption_pub_key"] = gen_public_encryption_key();
+    proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
 
     const auto propose = create_signed_request(proposal, "proposals", kp);
 
@@ -1427,7 +1438,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   for (size_t i = 1; i < 4; i++)
   {
     auto cert = get_cert(i, kp);
-    auto id = gen.add_member({cert, gen_public_encryption_key()});
+    auto id = gen.add_member({cert, dummy_enc_pubk});
     gen.activate_member(id);
     members[id] = cert;
   }
@@ -1944,8 +1955,9 @@ DOCTEST_TEST_CASE("Submit recovery shares")
   }
 }
 
-DOCTEST_TEST_CASE("Maximum number of active members")
+DOCTEST_TEST_CASE("Number of active members with recovery shares limits")
 {
+  auto level_before = logger::config::level();
   logger::config::level() = logger::INFO;
 
   NetworkState network;
@@ -1963,31 +1975,44 @@ DOCTEST_TEST_CASE("Maximum number of active members")
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
+  gen.set_recovery_threshold(1);
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
 
   DOCTEST_INFO("Add one too many members with recovery share");
   {
-    auto public_encryption_key = gen_public_encryption_key();
+    // Members are not yet active
     for (size_t i = 0; i < max_active_members_with_shares + 1; i++)
     {
       auto cert = get_cert(i, kp);
-      members[gen.add_member({cert, public_encryption_key})] = cert;
+      members[gen.add_member({cert, dummy_enc_pubk})] = cert;
     }
     gen.finalize();
+  }
+
+  DOCTEST_INFO("Activate and retire first member");
+  {
+    size_t member_id = 0;
+    auto resp = activate(frontend, kp, members.at(member_id));
+    DOCTEST_CHECK(resp.status == HTTP_STATUS_OK);
+
+    Propose::In proposal;
+    proposal.script =
+      fmt::format(R"xxx(return Calls:call("retire_member", {}))xxx", member_id);
+
+    // Member retirement fails because there would not be a sufficient number of
+    // members for recovery
+    const auto propose = create_signed_request(proposal, "proposals", kp);
+    check_result_state(
+      frontend_process(frontend, propose, members.at(member_id)),
+      ProposalState::FAILED);
   }
 
   DOCTEST_INFO("Activate members until reaching limit");
   {
     for (auto const& m : members)
     {
-      const auto state_digest_req =
-        create_request(nullptr, "ack/update_state_digest");
-      const auto ack = parse_response_body<std::vector<uint8_t>>(
-        frontend_process(frontend, state_digest_req, m.second));
-
-      StateDigest params;
-      params.state_digest = ack;
-      const auto ack_req = create_signed_request(params, "ack", kp);
-      const auto resp = frontend_process(frontend, ack_req, m.second);
+      auto resp = activate(frontend, kp, m.second);
 
       if (m.first >= max_active_members_with_shares)
       {
@@ -2008,20 +2033,14 @@ DOCTEST_TEST_CASE("Maximum number of active members")
     auto cert = get_cert(members.size(), kp);
     gen.add_member(cert);
     gen.finalize();
-
-    const auto state_digest_req =
-      create_request(nullptr, "ack/update_state_digest");
-    const auto ack = parse_response_body<std::vector<uint8_t>>(
-      frontend_process(frontend, state_digest_req, cert));
-
-    StateDigest params;
-    params.state_digest = ack;
-    const auto ack_req = create_signed_request(params, "ack", kp);
-    const auto resp = frontend_process(frontend, ack_req, cert);
+    auto resp = activate(frontend, kp, cert);
 
     DOCTEST_CHECK(resp.status == HTTP_STATUS_OK);
     DOCTEST_CHECK(parse_response_body<bool>(resp));
   }
+
+  // Revert logging
+  logger::config::level() = level_before;
 }
 
 DOCTEST_TEST_CASE("Open network sequence")
@@ -2051,7 +2070,7 @@ DOCTEST_TEST_CASE("Open network sequence")
     for (size_t i = 0; i < members_count; i++)
     {
       auto cert = get_cert(i, kp);
-      auto id = gen.add_member({cert, gen_public_encryption_key()});
+      auto id = gen.add_member({cert, dummy_enc_pubk});
       members[id] = {cert, {}};
     }
     gen.set_recovery_threshold(recovery_threshold);

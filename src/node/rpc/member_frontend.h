@@ -451,11 +451,13 @@ namespace ccf
              return false;
            }
 
-           if (member_info->status == MemberStatus::ACTIVE)
+           if (
+             member_info->status == MemberStatus::ACTIVE &&
+             member_info->encryption_pub_key.has_value())
            {
-             // A retired member should not have access to the private ledger
-             // going forward. New recovery shares are also issued to remaining
-             // active members.
+             // A retired member with recovery share should not have access to
+             // the private ledger going forward so rekey ledger, issuing new
+             // share to remaining active members
              if (!node.rekey_ledger(tx))
              {
                return false;
