@@ -881,4 +881,18 @@ namespace tls
     mbedtls_x509_crt_free(&c);
     return tls::Pem(data, len);
   }
+
+  inline void check_is_cert(CBuffer der)
+  {
+    mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
+    int rc = mbedtls_x509_crt_parse(&cert, der.p, der.n);
+    mbedtls_x509_crt_free(&cert);
+    if (rc != 0)
+    {
+      throw std::runtime_error(fmt::format(
+        "Failed to parse certificate, mbedtls_x509_crt_parse: {}",
+        tls::error_string(rc)));
+    }
+  }
 }

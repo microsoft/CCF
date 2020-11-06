@@ -419,18 +419,16 @@ namespace ccf
       }
       auto& issuer_metadata = issuer_metadata_.value();
 
-      remove_jwt_keys(tx, issuer);
-
       // add keys
       if (jwks.keys.empty())
       {
         LOG_FAIL_FMT("Proposal {}: JWKS has no keys", proposal_id);
         return false;
       }
-      bool did_add_key = false;
+      std::map<std::string, std::vector<uint8_t>> new_keys;
       for (auto& jwk : jwks.keys)
       {
-        if (keys->has(jwk.kid))
+        if (keys->has(jwk.kid) && key_issuer->get(jwk.kid).value() != issuer)
         {
           LOG_FAIL_FMT(
             "Proposal {}: key id {} already added for different issuer",
@@ -506,35 +504,41 @@ namespace ccf
         }
         else
         {
-          mbedtls_x509_crt cert;
-          mbedtls_x509_crt_init(&cert);
-          int rc = mbedtls_x509_crt_parse(&cert, der.data(), der.size());
-          if (rc != 0)
+          try
+          {
+            tls::check_is_cert(der);
+          }
+          catch (std::exception& exc)
           {
             LOG_FAIL_FMT(
               "Proposal {}: JWKS kid {} has an invalid X.509 certificate: "
               "{}",
               proposal_id,
               jwk.kid,
-              tls::error_string(rc));
+              exc.what());
             return false;
           }
-          mbedtls_x509_crt_free(&cert);
         }
         LOG_INFO_FMT(
           "Proposal {}: Storing JWT signing key with kid {}",
           proposal_id,
           jwk.kid);
-        keys->put(jwk.kid, der);
-        key_issuer->put(jwk.kid, issuer);
-        did_add_key = true;
+        new_keys.emplace(jwk.kid, der);
       }
-      if (!did_add_key)
+      if (new_keys.empty())
       {
         LOG_FAIL_FMT(
           "Proposal {}: no keys left after applying filter", proposal_id);
         return false;
       }
+
+      remove_jwt_keys(tx, issuer);
+      for (auto& [kid, der] : new_keys)
+      {
+        keys->put(kid, der);
+        key_issuer->put(kid, issuer);
+      }
+
       return true;
     }
 
