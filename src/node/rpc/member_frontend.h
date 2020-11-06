@@ -770,7 +770,9 @@ namespace ccf
            if (!issuer_metadata_.has_value())
            {
              LOG_FAIL_FMT(
-               "Proposal {}: {} is not a valid issuer", proposal_id, parsed.issuer);
+               "Proposal {}: {} is not a valid issuer",
+               proposal_id,
+               parsed.issuer);
              return false;
            }
            auto& issuer_metadata = issuer_metadata_.value();
