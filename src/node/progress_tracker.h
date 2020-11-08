@@ -634,9 +634,6 @@ namespace ccf
       return verified_signatures;
     }
 
-    // TODO: Check that the info here is correct!
-    // 
-    // Check: View, seqno
     bool apply_new_view(kv::NodeId from, uint32_t node_count, kv::Consensus::View& view_, kv::Consensus::SeqNo& seqno_) const
     {
       auto new_view = store->get_new_view();

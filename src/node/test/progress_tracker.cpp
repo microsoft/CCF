@@ -48,7 +48,7 @@ public:
     override);
   MAKE_MOCK1(
     write_view_change_confirmation,
-    void(ccf::ViewChangeConfirmation& new_view),
+    kv::Consensus::SeqNo(ccf::ViewChangeConfirmation& new_view),
     override);
 };
 

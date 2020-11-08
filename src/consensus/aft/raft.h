@@ -106,8 +106,6 @@ namespace aft
     static constexpr int batch_window_size = 100;
     int batch_window_sum = 0;
 
-    static constexpr size_t starting_view_change = 2;
-
     // Indices that are eligible for global commit, from a Node's perspective
     std::deque<Index> committable_indices;
 
@@ -703,11 +701,13 @@ namespace aft
       entries_batch_size = std::max((batch_window_sum / batch_window_size), 1);
     }
 
+    // TODO: we need to find if we committed a new view here
     void append_new_view(kv::Consensus::View view)
     {
       state->current_view = view;
       become_leader();
-      view_change_tracker->write_view_change_confirmation_append_entry(view);
+      state->new_view_idx =
+        view_change_tracker->write_view_change_confirmation_append_entry(view);
 
       view_change_tracker->clear(get_primary(view) == id(), view);
       request_tracker->clear();
@@ -799,6 +799,8 @@ namespace aft
       const auto prev_idx = start_idx - 1;
       const auto prev_term = get_term_internal(prev_idx);
       const auto term_of_idx = get_term_internal(end_idx);
+      const bool contains_new_view =
+        (state->new_view_idx > prev_idx) && (state->new_view_idx <= end_idx);
 
       LOG_DEBUG_FMT(
         "Send append entries from {} to {}: {} to {} ({})",
@@ -813,7 +815,8 @@ namespace aft
                           state->current_view,
                           prev_term,
                           state->commit_idx,
-                          term_of_idx};
+                          term_of_idx,
+                          contains_new_view};
 
       auto& node = nodes.at(to);
 

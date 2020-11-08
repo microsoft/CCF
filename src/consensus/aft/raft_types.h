@@ -32,6 +32,8 @@ namespace aft
 
   static constexpr NodeId NoNode = std::numeric_limits<NodeId>::max();
 
+  static constexpr size_t starting_view_change = 2;
+
   template <typename S>
   class Store
   {
@@ -167,6 +169,7 @@ namespace aft
     Term prev_term;
     Index leader_commit_idx;
     Term term_of_idx;
+    bool contains_new_view;
   };
 
   enum class AppendEntriesResponseType : uint8_t
