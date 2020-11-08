@@ -634,12 +634,40 @@ namespace ccf
       return verified_signatures;
     }
 
-    bool apply_new_view(kv::NodeId from) const
+    // TODO: Check that the info here is correct!
+    // 
+    // Check: View, seqno
+    bool apply_new_view(kv::NodeId from, uint32_t node_count, kv::Consensus::View& view_, kv::Consensus::SeqNo& seqno_) const
     {
       auto new_view = store->get_new_view();
       CCF_ASSERT(new_view.has_value(), "new view does not have a value");
       kv::Consensus::View view = new_view->view;
       kv::Consensus::SeqNo seqno = new_view->seqno;
+
+      if (seqno < highest_prepared_level.version || view < highest_prepared_level.term)
+      {
+        LOG_FAIL_FMT(
+          "Invalid view and seqno in the new view highest prepared from:{}, "
+          "view:{},seqno:{}, new_view view:{}, seqno:{}",
+          from,
+          highest_prepared_level.term,
+          highest_prepared_level.version,
+          view,
+          seqno);
+        return false;
+      }
+
+      if (new_view->view_change_messages.size() < ccf::get_message_threshold(node_count))
+      {
+        LOG_FAIL_FMT(
+          "Not enough ViewChangeRequests from:{}, new_view view:{}, seqno:{}, num_requests:{}",
+          from,
+          view,
+          seqno,
+          new_view->view_change_messages.size());
+        return false;
+
+      }
 
       for (auto& vcp : new_view->view_change_messages)
       {
@@ -664,6 +692,8 @@ namespace ccf
         return false;
       }
 
+      view_ = view;
+      seqno_ = seqno;
       return true;
     }
 

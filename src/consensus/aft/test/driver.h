@@ -151,7 +151,7 @@ public:
     std::cout << "  Note right of Node" << node_id << ": ";
     auto raft = _nodes.at(node_id).raft;
 
-    if (raft->is_leader())
+    if (raft->is_primary())
       std::cout << "L ";
 
     std::cout << " t: " << raft->get_term() << ", li: " << raft->get_last_idx()

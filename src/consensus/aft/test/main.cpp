@@ -54,7 +54,7 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 
   DOCTEST_INFO("DOCTEST_REQUIRE Initial State");
 
-  DOCTEST_REQUIRE(!r0.is_leader());
+  DOCTEST_REQUIRE(!r0.is_primary());
   DOCTEST_REQUIRE(r0.leader() == aft::NoNode);
   DOCTEST_REQUIRE(r0.get_term() == 0);
   DOCTEST_REQUIRE(r0.get_commit_idx() == 0);
@@ -63,10 +63,10 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     "In the absence of other nodes, become leader after election timeout");
 
   r0.periodic(ms(0));
-  DOCTEST_REQUIRE(!r0.is_leader());
+  DOCTEST_REQUIRE(!r0.is_primary());
 
   r0.periodic(election_timeout * 2);
-  DOCTEST_REQUIRE(r0.is_leader());
+  DOCTEST_REQUIRE(r0.is_primary());
   DOCTEST_REQUIRE(r0.leader() == node_id);
 }
 
@@ -100,7 +100,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
   DOCTEST_INFO("Become leader after election timeout");
 
   r0.periodic(election_timeout * 2);
-  DOCTEST_REQUIRE(r0.is_leader());
+  DOCTEST_REQUIRE(r0.is_primary());
 
   DOCTEST_INFO("Observe that data is committed on replicate immediately");
 
@@ -262,7 +262,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO(
     "Node 0 is now leader, and sends empty append entries to other nodes");
 
-  DOCTEST_REQUIRE(r0.is_leader());
+  DOCTEST_REQUIRE(r0.is_primary());
   DOCTEST_REQUIRE(
     ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size() ==
     2);
@@ -741,7 +741,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
         ((aft::ChannelStubProxy*)r1.channels.get())
           ->sent_request_vote_response));
 
-    DOCTEST_REQUIRE(r0.is_leader());
+    DOCTEST_REQUIRE(r0.is_primary());
     DOCTEST_REQUIRE(
       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size() ==
       1);

@@ -125,8 +125,20 @@ namespace aft
       return last_valid_view == view;
     }
 
-    void clear()
+    // TODO: use seqno
+    void clear(bool is_primary, kv::Consensus::View view)
     {
+      for (auto it = view_changes.begin(); it != view_changes.end();)
+      {
+        if (is_primary && it->first != view)
+        {
+          it = view_changes.erase(it);
+        }
+        else
+        {
+          ++it;
+        }
+      }
       view_changes.clear();
     }
 

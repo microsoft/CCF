@@ -634,6 +634,13 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME rotation_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --raft-election-timeout 4000
+  )
+
+  add_e2e_test(
     NAME committable_suffix_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
     CONSENSUS cft
@@ -840,13 +847,6 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS "--raft-election-timeout" "4000"
-    )
-
-    add_e2e_test(
-      NAME rotation_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS --raft-election-timeout 4000
     )
 
   endforeach()

@@ -218,7 +218,7 @@ namespace aft
       return state->my_node_id;
     }
 
-    bool is_leader()
+    bool is_primary()
     {
       return replica_state == Leader;
     }
@@ -709,7 +709,7 @@ namespace aft
       become_leader();
       view_change_tracker->write_view_change_confirmation_append_entry(view);
 
-      view_change_tracker->clear();
+      view_change_tracker->clear(get_primary(view) == id(), view);
       request_tracker->clear();
     }
 
@@ -1088,7 +1088,7 @@ namespace aft
           }
           case kv::DeserialiseSuccess::NEW_VIEW:
           {
-            view_change_tracker->clear();
+            view_change_tracker->clear(get_primary(sig_term) == id(), sig_term);
             request_tracker->clear();
             break;
           }
@@ -1192,7 +1192,7 @@ namespace aft
         r.sig,
         r.hashed_nonce,
         node_count(),
-        is_leader());
+        is_primary());
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
       {
         auto send_to = it->first;
@@ -1242,7 +1242,7 @@ namespace aft
         r.sig,
         r.hashed_nonce,
         node_count(),
-        is_leader());
+        is_primary());
       try_send_sig_ack({r.term, r.last_log_idx}, result);
     }
 
@@ -1357,7 +1357,7 @@ namespace aft
             }
           }
           progress_tracker->add_nonce_reveal(
-            tx_id, nonce, state->my_node_id, node_count(), is_leader());
+            tx_id, nonce, state->my_node_id, node_count(), is_primary());
           break;
         }
         default:
@@ -1401,7 +1401,7 @@ namespace aft
         r.term,
         r.idx);
       progress_tracker->add_nonce_reveal(
-        {r.term, r.idx}, r.nonce, r.from_node, node_count(), is_leader());
+        {r.term, r.idx}, r.nonce, r.from_node, node_count(), is_primary());
 
       update_commit();
     }
@@ -1478,12 +1478,10 @@ namespace aft
 
       if (r.success == AppendEntriesResponseType::REQUIRE_EVIDENCE)
       {
-        // TODO: We would like to send the evidence there
-
-
         // Using this evidence we can move view backwards or forwards
         // When we get valid evident at seqno > ours then we do a rollback
         // finally keep track of the evidence view so we can never move backwards
+        throw std::logic_error("Not implemented yet");
 
       }
 
