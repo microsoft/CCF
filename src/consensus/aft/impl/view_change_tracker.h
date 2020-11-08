@@ -93,6 +93,7 @@ namespace aft
         it->second.new_view_sent == false)
       {
         it->second.new_view_sent = true;
+        last_valid_view = view;
         return ResultAddView::APPEND_NEW_VIEW_MESSAGE;
       }
 
@@ -119,6 +120,11 @@ namespace aft
       store->write_view_change_confirmation(nv);
     }
 
+    bool check_evidence(kv::Consensus::View view) const
+    {
+      return last_valid_view == view;
+    }
+
     void clear()
     {
       view_changes.clear();
@@ -130,6 +136,7 @@ namespace aft
     std::chrono::milliseconds time_previous_view_change_increment =
       std::chrono::milliseconds(0);
     kv::Consensus::View last_view_change_sent = 0;
+    kv::Consensus::View last_valid_view = 2; // TODO: this should be a const
     const std::chrono::milliseconds time_between_attempts;
 
     bool should_send_new_view(size_t received_requests, size_t node_count) const

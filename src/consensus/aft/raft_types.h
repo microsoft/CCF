@@ -169,11 +169,18 @@ namespace aft
     Term term_of_idx;
   };
 
+  enum class AppendEntriesResponseType : uint8_t
+  {
+    OK = 0,
+    FAIL = 1,
+    REQUIRE_EVIDENCE = 2
+  };
+
   struct AppendEntriesResponse : RaftHeader
   {
     Term term;
     Index last_log_idx;
-    bool success;
+    AppendEntriesResponseType success;
   };
 
   struct SignedAppendEntriesResponse : RaftHeader

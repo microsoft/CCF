@@ -118,7 +118,7 @@ public:
   {
     std::ostringstream s;
     s << "append_entries_response t: " << aer.term
-      << ", lli: " << aer.last_log_idx << ", s: " << aer.success;
+      << ", lli: " << aer.last_log_idx << ", s: " << static_cast<uint8_t>(aer.success);
     rlog(node_id, tgt_node_id, s.str());
   }
 
