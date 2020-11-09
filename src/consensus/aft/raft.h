@@ -701,7 +701,6 @@ namespace aft
       entries_batch_size = std::max((batch_window_sum / batch_window_size), 1);
     }
 
-    // TODO: we need to find if we committed a new view here
     void append_new_view(kv::Consensus::View view)
     {
       state->current_view = view;
@@ -863,6 +862,7 @@ namespace aft
       // replica is sending up this data is correct so we need to validate
       // additional properties that go above an beyond the non-byzantine
       // scenario.
+      bool confirm_evidence = false;
       if (consensus_type == ConsensusType::BFT)
       {
         if (active_nodes().size() == 0)
@@ -884,13 +884,22 @@ namespace aft
         }
         else if (!view_change_tracker->check_evidence(r.term))
         {
-          LOG_DEBUG_FMT(
-            "Recv append entries to {} from {} at view:{} but we do not have the evidence to support this view",
-            state->my_node_id,
-            r.from_node,
-            r.term);
-          send_append_entries_response(r.from_node, AppendEntriesResponseType::REQUIRE_EVIDENCE);
-          return;
+          if (r.contains_new_view)
+          {
+            confirm_evidence = true;
+          }
+          else
+          {
+            LOG_DEBUG_FMT(
+              "Recv append entries to {} from {} at view:{} but we do not have "
+              "the evidence to support this view",
+              state->my_node_id,
+              r.from_node,
+              r.term);
+            send_append_entries_response(
+              r.from_node, AppendEntriesResponseType::REQUIRE_EVIDENCE);
+            return;
+          }
         }
       }
 
@@ -1128,6 +1137,22 @@ namespace aft
             throw std::logic_error("Unknown DeserialiseSuccess value");
           }
         }
+      }
+
+      if (
+        consensus_type == ConsensusType::BFT && confirm_evidence &&
+        !view_change_tracker->check_evidence(r.term))
+      {
+        rollback(last_committable_index());
+        LOG_DEBUG_FMT(
+          "Recv append entries to {} from {} at view:{} but we do not have "
+          "the evidence to support this view, append message was marked as containing evidence",
+          state->my_node_id,
+          r.from_node,
+          r.term);
+        send_append_entries_response(
+          r.from_node, AppendEntriesResponseType::REQUIRE_EVIDENCE);
+        return;
       }
 
       // After entries have been deserialised, we try to commit the leader's
@@ -1481,11 +1506,10 @@ namespace aft
 
       if (r.success == AppendEntriesResponseType::REQUIRE_EVIDENCE)
       {
-        // Using this evidence we can move view backwards or forwards
-        // When we get valid evident at seqno > ours then we do a rollback
-        // finally keep track of the evidence view so we can never move backwards
+        // We need to provide evidence to the replica that we can send it append
+        // entries. This should only happened if there is some kind of network
+        // partition.
         throw std::logic_error("Not implemented yet");
-
       }
 
       if (r.success != AppendEntriesResponseType::OK)
