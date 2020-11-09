@@ -63,9 +63,12 @@ namespace tls
         fmt::format("Could not encode base64 string: {}", error_string(rc)));
     }
 
-    // mbedtls includes the terminating null, but std-string provides this
-    // already
-    b64_string.pop_back();
+    if (b64_string.size() > 0)
+    {
+      // mbedtls includes the terminating null, but std-string provides this
+      // already
+      b64_string.pop_back();
+    }
 
     return b64_string;
   }
