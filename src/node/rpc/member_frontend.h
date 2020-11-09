@@ -1621,7 +1621,7 @@ namespace ccf
           if (!encrypted_share.has_value())
           {
             return make_error(
-              HTTP_STATUS_BAD_REQUEST,
+              HTTP_STATUS_NOT_FOUND,
               fmt::format(
                 "Recovery share not found for member {}", args.caller_id));
           }

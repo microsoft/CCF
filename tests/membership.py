@@ -154,6 +154,16 @@ def recovery_shares_scenario(args):
         LOG.info("Update recovery shares")
         assert_recovery_shares_update(True, test_update_recovery_shares, network, args)
 
+        LOG.info("Non-recovery member does not have a recovery share")
+        primary, _ = network.find_primary()
+        with primary.client(f"member{non_recovery_member_id}") as mc:
+            r = mc.get("/gov/recovery_share")
+            assert r.status_code == http.HTTPStatus.NOT_FOUND.value
+            assert (
+                r.body.text()
+                == f"Recovery share not found for member {non_recovery_member_id}"
+            )
+
         # Retiring a recovery number is not possible as the number of recovery
         # members would be under recovery threshold (2)
         LOG.info("Retiring a recovery member should not be possible")
