@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 
+#include "kv/map.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
 #include "kv/tx.h"
@@ -83,6 +84,33 @@ static void serialise(picobench::state& s)
     tx0->put(key, value);
     tx1->put(key, value);
   }
+
+  s.start_timer();
+  auto rc = tx.commit();
+  if (rc != kv::CommitSuccess::OK)
+    throw std::logic_error("Transaction commit failed: " + std::to_string(rc));
+  s.stop_timer();
+}
+
+template <typename TMap>
+static void serialise_as(picobench::state& s)
+{
+  logger::config::level() = logger::INFO;
+
+  kv::Store kv_store;
+  auto secrets = create_ledger_secrets();
+  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  encryptor->set_iv_id(1);
+  kv_store.set_encryptor(encryptor);
+
+  auto map0 = "public:map0";
+
+  auto tx = kv_store.create_tx();
+  auto tx0 = tx.get_view<TMap>(map0);
+
+  const auto key = std::vector<uint8_t>(s.iterations(), 42);
+  const auto value = std::vector<uint8_t>(s.iterations(), 42);
+  tx0->put(key, value);
 
   s.start_timer();
   auto rc = tx.commit();
@@ -254,6 +282,21 @@ PICOBENCH(serialise<SD::PUBLIC>)
   .samples(sample_size)
   .baseline();
 PICOBENCH(serialise<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
+
+const std::vector<int> ser_as_tx_count = {100, 10'000, 100'000};
+PICOBENCH_SUITE("serialise_as");
+auto ser_as_raw = serialise_as<
+  kv::RawCopySerialisedMap<std::vector<uint8_t>, std::vector<uint8_t>>>;
+auto ser_as_msgpack = serialise_as<
+  kv::MsgPackSerialisedMap<std::vector<uint8_t>, std::vector<uint8_t>>>;
+auto ser_as_json = serialise_as<
+  kv::JsonSerialisedMap<std::vector<uint8_t>, std::vector<uint8_t>>>;
+PICOBENCH(ser_as_msgpack)
+  .iterations(ser_as_tx_count)
+  .samples(sample_size)
+  .baseline();
+PICOBENCH(ser_as_raw).iterations(ser_as_tx_count).samples(sample_size);
+PICOBENCH(ser_as_json).iterations(ser_as_tx_count).samples(sample_size);
 
 PICOBENCH_SUITE("deserialise");
 PICOBENCH(deserialise<SD::PUBLIC>)

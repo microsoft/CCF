@@ -3,6 +3,9 @@
 #pragma once
 #include "json_schema.h"
 
+// TODO: Shouldn't be including tls from ds!
+#include "tls/base64.h"
+
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <sstream>
@@ -61,31 +64,50 @@ namespace std
   template <typename T>
   inline void to_json(nlohmann::json& j, const std::vector<T>& t)
   {
-    j = nlohmann::json::array();
-    for (const auto& e : t)
+    if constexpr (std::is_same_v<T, uint8_t>)
     {
-      j.push_back(e);
+      j = tls::b64_from_raw(t.data(), t.size());
+    }
+    else
+    {
+      j = nlohmann::json::array();
+      for (const auto& e : t)
+      {
+        j.push_back(e);
+      }
     }
   }
 
   template <typename T>
   inline void from_json(const nlohmann::json& j, std::vector<T>& t)
   {
-    if (!j.is_array())
+    if constexpr (std::is_same_v<T, uint8_t>)
     {
-      throw JsonParseError("Expected array, found: " + j.dump());
-    }
-
-    for (auto i = 0u; i < j.size(); ++i)
-    {
-      try
+      if (!j.is_string())
       {
-        t.push_back(j.at(i).template get<T>());
+        throw JsonParseError("Expected base-64 string, found: " + j.dump());
       }
-      catch (JsonParseError& jpe)
+
+      t = tls::raw_from_b64(j.get<std::string>());
+    }
+    else
+    {
+      if (!j.is_array())
       {
-        jpe.pointer_elements.push_back(std::to_string(i));
-        throw;
+        throw JsonParseError("Expected array, found: " + j.dump());
+      }
+
+      for (auto i = 0u; i < j.size(); ++i)
+      {
+        try
+        {
+          t.push_back(j.at(i).template get<T>());
+        }
+        catch (JsonParseError& jpe)
+        {
+          jpe.pointer_elements.push_back(std::to_string(i));
+          throw;
+        }
       }
     }
   }
