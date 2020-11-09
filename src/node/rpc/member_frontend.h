@@ -655,7 +655,7 @@ namespace ccf
 
            if (
              member_info->status == MemberStatus::ACTIVE &&
-             member_info->encryption_pub_key.has_value())
+             member_info->is_recovery())
            {
              // A retired member with recovery share should not have access to
              // the private ledger going forward so rekey ledger, issuing new
@@ -845,9 +845,6 @@ namespace ccf
              this->network.node_code_ids,
              proposal_id);
          }},
-        // For now, members can propose to accept a recovery with shares. In
-        // that case, members will have to submit their shares after this
-        // proposal is accepted.
         {"accept_recovery",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json&) {
            if (node.is_part_of_public_network())
@@ -869,9 +866,8 @@ namespace ccf
         {"open_network",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json&) {
            // On network open, the service checks that a sufficient number of
-           // members with a public encryption key have become active. If so,
-           // recovery shares are allocated to each active member that have a
-           // public encryption key.
+           // recovery members have become active. If so, recovery shares are
+           // allocated to each recovery member
            try
            {
              share_manager.issue_shares(tx);
@@ -1559,7 +1555,7 @@ namespace ccf
         auto member_info = members_view->get(args.caller_id);
         if (
           service_status.value() == ServiceStatus::OPEN &&
-          member_info->encryption_pub_key.has_value())
+          member_info->is_recovery())
         {
           // When the service is OPEN and the new active member is a recovery
           // member, all recovery members are allocated new recovery shares

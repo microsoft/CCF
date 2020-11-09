@@ -774,8 +774,8 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME member_shares
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/member_shares.py
+    NAME membership
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
     CONSENSUS cft
   )
 

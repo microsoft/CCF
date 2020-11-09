@@ -86,6 +86,22 @@ namespace ccf
       cv->put(0, consensus_type);
     }
 
+    auto get_active_recovery_members()
+    {
+      auto members_view = tx.get_view(tables.members);
+      std::map<MemberId, tls::Pem> active_members_info;
+
+      members_view->foreach(
+        [&active_members_info](const MemberId& mid, const MemberInfo& mi) {
+          if (mi.status == MemberStatus::ACTIVE && mi.is_recovery())
+          {
+            active_members_info[mid] = mi.encryption_pub_key.value();
+          }
+          return true;
+        });
+      return active_members_info;
+    }
+
     MemberId add_member(const MemberPubInfo& member_pub_info)
     {
       auto [m, mc, v, ma, sig] = tx.get_view(
@@ -141,13 +157,12 @@ namespace ccf
 
       member->status = MemberStatus::ACTIVE;
       if (
-        member->encryption_pub_key.has_value() &&
-        (get_active_members_with_shares_count() >=
-         max_active_members_with_shares))
+        member->is_recovery() &&
+        (get_active_recovery_members().size() >= max_active_recovery_members))
       {
         throw std::logic_error(fmt::format(
-          "No more than {} active members with recovery shares are allowed",
-          max_active_members_with_shares));
+          "No more than {} active recovery members are allowed",
+          max_active_recovery_members));
       }
       members->put(member_id, member.value());
     }
@@ -173,24 +188,20 @@ namespace ccf
       // If the member was active and had a recovery share, check that
       // the new number of active members is still sufficient for
       // recovery
-      if (member_to_retire->encryption_pub_key.has_value())
+      if (member_to_retire->is_recovery())
       {
         // Because the member to retire is active, there is at least one active
-        // member (i.e. active_members_with_shares_count_after >= 0)
-        size_t active_members_with_shares_count_after =
-          get_active_members_with_shares_count() - 1;
-        LOG_FAIL_FMT(
-          "Active members with shares after: {}",
-          active_members_with_shares_count_after);
+        // member (i.e. get_active_recovery_members_count_after >= 0)
+        size_t get_active_recovery_members_count_after =
+          get_active_recovery_members().size() - 1;
         auto recovery_threshold = get_recovery_threshold();
-        if (active_members_with_shares_count_after < recovery_threshold)
+        if (get_active_recovery_members_count_after < recovery_threshold)
         {
           LOG_FAIL_FMT(
-            "Failed to retire member {}: number of active members with "
-            "recovery "
-            "shares ({}) would be less than recovery threshold ({})",
+            "Failed to retire member {}: number of active recovery members "
+            "({}) would be less than recovery threshold ({})",
             member_id,
-            active_members_with_shares_count_after,
+            get_active_recovery_members_count_after,
             recovery_threshold);
           return false;
         }
@@ -304,12 +315,12 @@ namespace ccf
     {
       auto service_view = tx.get_view(tables.service);
 
-      if (get_active_members_with_shares_count() < get_recovery_threshold())
+      if (get_active_recovery_members().size() < get_recovery_threshold())
       {
         LOG_FAIL_FMT(
-          "Cannot open network as number of active members with shares ({}) is "
+          "Cannot open network as number of active recovery members ({}) is "
           "less than recovery threshold ({})",
-          get_active_members_with_shares_count(),
+          get_active_recovery_members().size(),
           get_recovery_threshold());
         return false;
       }
@@ -416,43 +427,6 @@ namespace ccf
       codeid_view->put(node_code_id, CodeStatus::ACCEPTED);
     }
 
-    size_t get_active_members_with_shares_count()
-    {
-      auto members_view = tx.get_view(tables.members);
-      size_t active_members_count = 0;
-
-      members_view->foreach(
-        [&active_members_count](const MemberId&, const MemberInfo& mi) {
-          if (
-            mi.status == MemberStatus::ACTIVE &&
-            mi.encryption_pub_key.has_value())
-          {
-            active_members_count++;
-          }
-          return true;
-        });
-
-      return active_members_count;
-    }
-
-    auto get_active_members_with_shares()
-    {
-      auto members_view = tx.get_view(tables.members);
-      std::map<MemberId, tls::Pem> active_members_info;
-
-      members_view->foreach(
-        [&active_members_info](const MemberId& mid, const MemberInfo& mi) {
-          if (
-            mi.status == MemberStatus::ACTIVE &&
-            mi.encryption_pub_key.has_value())
-          {
-            active_members_info[mid] = mi.encryption_pub_key.value();
-          }
-          return true;
-        });
-      return active_members_info;
-    }
-
     void add_key_share_info(const RecoverySharesInfo& key_share_info)
     {
       auto shares_view = tx.get_view(tables.shares);
@@ -488,15 +462,15 @@ namespace ccf
       }
       else if (service_status.value() == ServiceStatus::OPEN)
       {
-        auto active_members_with_shares_count =
-          get_active_members_with_shares_count();
-        if (threshold > active_members_with_shares_count)
+        auto get_active_recovery_members_count =
+          get_active_recovery_members().size();
+        if (threshold > get_active_recovery_members_count)
         {
           LOG_FAIL_FMT(
             "Cannot set recovery threshold to {} as it is greater than the "
-            "number of active members with shares ({})",
+            "number of active recovery members ({})",
             threshold,
-            active_members_with_shares_count);
+            get_active_recovery_members_count);
           return false;
         }
       }

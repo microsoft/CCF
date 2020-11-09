@@ -2097,30 +2097,12 @@ DOCTEST_TEST_CASE("Number of active members with recovery shares limits")
   DOCTEST_INFO("Add one too many members with recovery share");
   {
     // Members are not yet active
-    for (size_t i = 0; i < max_active_members_with_shares + 1; i++)
+    for (size_t i = 0; i < max_active_recovery_members + 1; i++)
     {
       auto cert = get_cert(i, kp);
       members[gen.add_member({cert, dummy_enc_pubk})] = cert;
     }
     gen.finalize();
-  }
-
-  DOCTEST_INFO("Activate and retire first member");
-  {
-    size_t member_id = 0;
-    auto resp = activate(frontend, kp, members.at(member_id));
-    DOCTEST_CHECK(resp.status == HTTP_STATUS_OK);
-
-    Propose::In proposal;
-    proposal.script =
-      fmt::format(R"xxx(return Calls:call("retire_member", {}))xxx", member_id);
-
-    // Member retirement fails because there would not be a sufficient number of
-    // members to pass the recovery threshold
-    const auto propose = create_signed_request(proposal, "proposals", kp);
-    check_result_state(
-      frontend_process(frontend, propose, members.at(member_id)),
-      ProposalState::FAILED);
   }
 
   DOCTEST_INFO("Activate members until reaching limit");
@@ -2129,7 +2111,7 @@ DOCTEST_TEST_CASE("Number of active members with recovery shares limits")
     {
       auto resp = activate(frontend, kp, m.second);
 
-      if (m.first >= max_active_members_with_shares)
+      if (m.first >= max_active_recovery_members)
       {
         DOCTEST_CHECK(resp.status == HTTP_STATUS_FORBIDDEN);
       }

@@ -471,7 +471,7 @@ int main(int argc, char** argv)
       {
         LOG_INFO_FMT(
           "Recovery threshold unset. Defaulting to number of initial "
-          "consortium members with a public encrytion key ({}).",
+          "consortium members with a public encryption key ({}).",
           members_with_pubk_count);
         recovery_threshold = members_with_pubk_count;
       }

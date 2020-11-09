@@ -117,7 +117,7 @@ namespace ccf
         ls_wrapping_key.get_raw_data<SecretSharing::SplitSecret>();
 
       GenesisGenerator g(network, tx);
-      auto active_members_with_shares_info = g.get_active_members_with_shares();
+      auto active_members_with_shares_info = g.get_active_recovery_members();
       size_t recovery_threshold = g.get_recovery_threshold();
 
       if (active_members_with_shares_info.size() == 0)

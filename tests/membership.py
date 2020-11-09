@@ -36,8 +36,8 @@ def test_add_member(network, args, recovery_member=True):
 
 
 @reqs.description("Retire existing member")
-@reqs.sufficient_member_count()
-def test_retire_member(network, args, member_to_retire=None, recovery_member=None):
+@reqs.sufficient_recovery_member_count()
+def test_retire_member(network, args, member_to_retire=None, recovery_member=True):
     primary, _ = network.find_primary()
     if member_to_retire is None:
         member_to_retire = network.consortium.get_any_active_member(recovery_member)

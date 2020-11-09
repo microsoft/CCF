@@ -30,7 +30,7 @@ MSGPACK_ADD_ENUM(ccf::MemberStatus);
 namespace ccf
 {
   // Current limitations of secret sharing library (sss).
-  static constexpr size_t max_active_members_with_shares = 255;
+  static constexpr size_t max_active_recovery_members = 255;
 
   struct MemberPubInfo
   {
@@ -65,6 +65,11 @@ namespace ccf
     {
       return cert == rhs.cert && encryption_pub_key == rhs.encryption_pub_key &&
         member_data == rhs.member_data;
+    }
+
+    bool is_recovery() const
+    {
+      return encryption_pub_key.has_value();
     }
 
     MSGPACK_DEFINE(cert, encryption_pub_key, member_data);
