@@ -7,19 +7,26 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+- Added support for storing JWT public signing keys (#1834).
+  - The new proposals `set_jwt_issuer`, `remove_jwt_issuer`, and `set_jwt_public_signing_keys` can be generated with the latest version of the ccf Python package.
+  - `sandbox.sh` has a new `--jwt-issuer <json-path>` argument to easily bootstrap with an initial set of signing keys using the `set_jwt_issuer` proposal.
+  - See [`tests/npm-app/src/endpoints/jwt.ts`](https://github.com/microsoft/CCF/blob/70b09e53cfdc8cee946193319446f1e22aed948f/tests/npm-app/src/endpoints/jwt.ts#L23) for validating tokens received in the `Authorization` HTTP header in TypeScript.
+  - Includes special support for SGX-attested signing keys as used in [MAA](https://docs.microsoft.com/en-us/azure/attestation/overview).  
+
 ### Changed
 - CCF now depends on [Open Enclave 0.12](https://github.com/openenclave/openenclave/releases/tag/v0.12.0) (#1830).
 - `/app/user_id` now takes `{"cert": user_cert_as_pem_string}` rather than `{"cert": user_cert_as_der_list_of_bytes}` (#278).
 - Members' recovery shares are now encrypted using [RSA-OAEP-256](https://docs.microsoft.com/en-gb/azure/key-vault/keys/about-keys#wrapkeyunwrapkey-encryptdecrypt) (#1841). This has the following implications:
   - Network's encryption key is no longer output by the first node of a CCF service is no longer required to decrypt recovery shares.
   - The latest version of the `submit_recovery_share.sh` script should be used.
-  - The latest version of the `proposal_generator.py` should be used (please upgrade the [ccf python package](https://microsoft.github.io/CCF/master/quickstart/install.html#python-package)).
+  - The latest version of the `proposal_generator.py` should be used (please upgrade the [ccf Python package](https://microsoft.github.io/CCF/master/quickstart/install.html#python-package)).
 - `submit_recovery_share.sh` script's `--rpc-address` argument has been removed. The node's address (e.g. `https://127.0.0.1:8000`) should be used directly as the first argument instead (#1841).
-- The constitution's `pass` function now takes an extra argument: `proposer_id`, which contains the member_id of the member who submitted the proposal. To adjust for this change, replace `tables, calls, votes = ...` with `tables, calls, votes, proposer_id = ...` at the beginning of the `pass` definition.
+- The constitution's `pass` function now takes an extra argument: `proposer_id`, which contains the `member_id` of the member who submitted the proposal. To adjust for this change, replace `tables, calls, votes = ...` with `tables, calls, votes, proposer_id = ...` at the beginning of the `pass` definition.
 - Bundled votes (ie. the `ballot` entry in `POST /proposals`) have been removed. Votes can either happen explicitly via `POST /proposals/{proposal_id}/votes`, or the constitution may choose to pass a proposal without separate votes by examining its contents and its proposer, as illustrated in the operating member constitution sample. The `--vote-against` flag in `proposal_generator.py`, has also been removed as a consequence.
 
 ### Fixed
-- Added `tools.cmake` to the install , which `ccf_app.cmake` depends on and was missing from the previous release.
+- Added `tools.cmake` to the install, which `ccf_app.cmake` depends on and was missing from the previous release.
 
 ### Deprecated
 - `kv::Store::create` is deprecated, and will be removed in a future release. It is no longer necessary to create a `kv::Map` from a `Store`, it can be constructed locally (`kv::Map<K, V> my_map("my_map_name");`) or accessed purely by name (`auto view = tx.get_view<K, V>("my_map_name");`) (#1847).
