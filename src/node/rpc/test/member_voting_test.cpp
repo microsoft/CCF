@@ -1524,10 +1524,6 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
     members[id] = cert;
   }
 
-  // TODO: Still true? Members haven't got encryption key!
-  // Set a recovery threshold (otherwise retiring a member throws)
-  gen.set_recovery_threshold(1);
-
   set_whitelists(gen);
   gen.set_gov_scripts(
     lua::Interpreter().invoke<json>(operator_gov_script_file));

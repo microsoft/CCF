@@ -51,16 +51,6 @@ namespace ccf
       member_data(member_data_)
     {}
 
-    // TODO: Still needed?
-    MemberPubInfo(
-      std::vector<uint8_t>&& cert_,
-      std::vector<uint8_t>&& encryption_pub_key_,
-      nlohmann::json&& member_data_) :
-      cert(std::move(cert_)),
-      encryption_pub_key(std::move(encryption_pub_key_)),
-      member_data(std::move(member_data_))
-    {}
-
     bool operator==(const MemberPubInfo& rhs) const
     {
       return cert == rhs.cert && encryption_pub_key == rhs.encryption_pub_key &&
