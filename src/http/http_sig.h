@@ -10,6 +10,7 @@
 #include "tls/key_pair.h"
 
 #define FMT_HEADER_ONLY
+#include <charconv>
 #include <fmt/format.h>
 #include <optional>
 #include <string>
@@ -160,6 +161,7 @@ namespace http
       std::string_view signature = {};
       std::string_view signature_algorithm = {};
       std::vector<std::string_view> signed_headers;
+      ccf::ObjectId key_id = ccf::INVALID_ID;
     };
 
     static bool parse_auth_scheme(std::string_view& auth_header_value)
@@ -289,7 +291,8 @@ namespace http
 
           if (k == auth::SIGN_PARAMS_KEYID)
           {
-            // keyId is ignored
+            // If keyId is a valid uint64_t, capture it, otherwise ignore it
+            std::from_chars(v.data(), v.data() + v.size(), sig_params.key_id);
           }
           else if (k == auth::SIGN_PARAMS_ALGORITHM)
           {
