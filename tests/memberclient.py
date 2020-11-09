@@ -7,7 +7,6 @@ import infra.network
 import infra.consortium
 import ccf.proposal_generator
 from infra.proposal import ProposalState
-import random
 
 import suite.test_requirements as reqs
 

@@ -112,7 +112,6 @@ def service_startups(args):
             LOG.success(
                 "Service could not be opened with insufficient number of recovery mmebers"
             )
-            pass
 
     LOG.info(
         "Starting service with a recovery operator member, a non-recovery operator member and a non-recovery non-operator member"

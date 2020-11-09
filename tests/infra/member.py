@@ -12,8 +12,6 @@ import base64
 import json
 from typing import NamedTuple, Optional
 
-from loguru import logger as LOG
-
 
 class NoRecoveryShareFound(Exception):
     def __init__(self, response):

@@ -456,8 +456,8 @@ int main(int argc, char** argv)
       // Count members with public encryption key as only these members will be
       // handed a recovery share.
       // Note that it is acceptable to start a network without any member having
-      // a recovery share. The service will check that at least one member with
-      // a recovery is added before the service can be opened.
+      // a recovery share. The service will check that at least one recovery
+      // member is added before the service can be opened.
       size_t members_with_pubk_count = 0;
       for (auto const& mi : members_info)
       {

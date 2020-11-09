@@ -220,7 +220,6 @@ def new_member(
         "script": {"text": proposal_script_text},
     }
 
-    # TODO: Only include encryption public key when necessary
     # Sample vote script which checks the expected member is being added, and no other actions are being taken
     verifying_vote_text = f"""
     tables, calls = ...
@@ -235,11 +234,6 @@ def new_member(
 
     expected_cert = [====[{member_cert}]====]
     if not call.args.cert == expected_cert then
-    return false
-    end
-
-    expected_enc_pub_key = [====[{encryption_pub_key}]====]
-    if not call.args.encryption_pub_key == expected_enc_pub_key then
     return false
     end
 

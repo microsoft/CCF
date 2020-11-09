@@ -690,7 +690,7 @@ class CCFRemote(object):
                 if mi.encryption_pub_key_file is not None:
                     member_info_cmd += f",{mi.encryption_pub_key_file}"
                 elif mi.member_data_file is not None:
-                    member_info_cmd += f","
+                    member_info_cmd += ","
                 if mi.member_data_file is not None:
                     member_info_cmd += f",{mi.member_data_file}"
                 for mf in mi:
