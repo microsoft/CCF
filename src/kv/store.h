@@ -897,7 +897,8 @@ namespace kv
             return success;
           }
 
-          if (!progress_tracker->apply_new_view(consensus->primary(),consensus->node_count(), *term_, *index_))
+          if (!progress_tracker->apply_new_view(
+                consensus->primary(), consensus->node_count(), *term_, *index_))
           {
             LOG_FAIL_FMT("apply_new_view Failed");
             LOG_DEBUG_FMT("NewView in transaction {} failed to verify", v);

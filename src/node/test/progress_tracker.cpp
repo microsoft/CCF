@@ -531,7 +531,7 @@ TEST_CASE("view-change-tracker timeout tests")
 TEST_CASE("view-change-tracker statemachine tests")
 {
   ccf::ViewChangeRequest v;
-  kv::Consensus::View view = 1;
+  kv::Consensus::View view = 3;
   kv::Consensus::SeqNo seqno = 1;
   uint32_t node_count = 4;
 
@@ -550,7 +550,12 @@ TEST_CASE("view-change-tracker statemachine tests")
       {
         REQUIRE(r == aft::ViewChangeTracker::ResultAddView::OK);
       }
+      REQUIRE((vct.check_evidence(view) == i >= 2));
+      REQUIRE(!vct.check_evidence(view + 1));
     }
+    vct.clear(true, view);
+    REQUIRE(vct.check_evidence(view));
+    REQUIRE(!vct.check_evidence(view + 1));
   }
 
   INFO("Can differentiate view change for different view");

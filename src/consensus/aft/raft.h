@@ -874,12 +874,14 @@ namespace aft
         else if (get_primary(r.term) != r.from_node)
         {
           LOG_DEBUG_FMT(
-            "Recv append entries to {} from {} at view:{} but the primary at this view should be {}",
+            "Recv append entries to {} from {} at view:{} but the primary at "
+            "this view should be {}",
             state->my_node_id,
             r.from_node,
             r.term,
             get_primary(r.term));
-          send_append_entries_response(r.from_node, AppendEntriesResponseType::FAIL);
+          send_append_entries_response(
+            r.from_node, AppendEntriesResponseType::FAIL);
           return;
         }
         else if (!view_change_tracker->check_evidence(r.term))
@@ -924,7 +926,8 @@ namespace aft
           r.from_node,
           state->current_view,
           r.term);
-        send_append_entries_response(r.from_node, AppendEntriesResponseType::FAIL);
+        send_append_entries_response(
+          r.from_node, AppendEntriesResponseType::FAIL);
         return;
       }
 
@@ -957,7 +960,8 @@ namespace aft
             prev_term,
             r.prev_term);
         }
-        send_append_entries_response(r.from_node, AppendEntriesResponseType::FAIL);
+        send_append_entries_response(
+          r.from_node, AppendEntriesResponseType::FAIL);
         return;
       }
 
@@ -1028,7 +1032,8 @@ namespace aft
             state->my_node_id,
             r.from_node,
             e.what());
-          send_append_entries_response(r.from_node, AppendEntriesResponseType::FAIL);
+          send_append_entries_response(
+            r.from_node, AppendEntriesResponseType::FAIL);
           return;
         }
 
@@ -1066,7 +1071,8 @@ namespace aft
           {
             LOG_FAIL_FMT("Follower failed to apply log entry: {}", i);
             state->last_idx--;
-            send_append_entries_response(r.from_node, AppendEntriesResponseType::FAIL);
+            send_append_entries_response(
+              r.from_node, AppendEntriesResponseType::FAIL);
             break;
           }
 
@@ -1146,7 +1152,8 @@ namespace aft
         rollback(last_committable_index());
         LOG_DEBUG_FMT(
           "Recv append entries to {} from {} at view:{} but we do not have "
-          "the evidence to support this view, append message was marked as containing evidence",
+          "the evidence to support this view, append message was marked as "
+          "containing evidence",
           state->my_node_id,
           r.from_node,
           r.term);
@@ -1169,7 +1176,8 @@ namespace aft
       send_append_entries_response(r.from_node, AppendEntriesResponseType::OK);
     }
 
-    void send_append_entries_response(NodeId to, AppendEntriesResponseType answer)
+    void send_append_entries_response(
+      NodeId to, AppendEntriesResponseType answer)
     {
       LOG_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",

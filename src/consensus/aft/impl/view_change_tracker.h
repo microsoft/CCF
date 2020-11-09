@@ -100,7 +100,8 @@ namespace aft
       return ResultAddView::OK;
     }
 
-    kv::Consensus::SeqNo write_view_change_confirmation_append_entry(kv::Consensus::View view)
+    kv::Consensus::SeqNo write_view_change_confirmation_append_entry(
+      kv::Consensus::View view)
     {
       auto it = view_changes.find(view);
       if (it == view_changes.end())
