@@ -17,7 +17,7 @@ namespace ccfapp
   using namespace kv;
   using namespace ccf;
 
-  using KVMap = kv::Map<std::vector<uint8_t>, std::vector<uint8_t>>;
+  using KVMap = kv::untyped::Map;
 
   JSClassID kv_class_id;
   JSClassID kv_map_view_class_id;
@@ -436,6 +436,57 @@ namespace ccfapp
     return JS_ThrowTypeError(ctx, "Cannot call set on read-only map");
   }
 
+  static JSValue js_kv_map_foreach(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    auto map_view =
+      static_cast<KVMap::TxView*>(JS_GetOpaque(this_val, kv_map_view_class_id));
+
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    JSValue func = argv[0];
+
+    if (!JS_IsFunction(ctx, func))
+      return JS_ThrowTypeError(ctx, "Argument must be a function");
+
+    bool failed = false;
+    map_view->foreach(
+      [ctx, this_val, func, &failed](const auto& k, const auto& v) {
+        JSValue args[3];
+
+        // JS forEach expects (v, k, map) rather than (k, v)
+        args[0] = JS_NewArrayBufferCopy(ctx, v.data(), v.size());
+        args[1] = JS_NewArrayBufferCopy(ctx, k.data(), k.size());
+        args[2] = JS_DupValue(ctx, this_val);
+
+        auto val = JS_Call(ctx, func, JS_UNDEFINED, 3, args);
+
+        JS_FreeValue(ctx, args[0]);
+        JS_FreeValue(ctx, args[1]);
+        JS_FreeValue(ctx, args[2]);
+
+        if (JS_IsException(val))
+        {
+          js_dump_error(ctx);
+          failed = true;
+          return false;
+        }
+
+        JS_FreeValue(ctx, val);
+
+        return true;
+      });
+
+    if (failed)
+    {
+      return JS_EXCEPTION;
+    }
+
+    return JS_UNDEFINED;
+  }
+
   static int js_kv_lookup(
     JSContext* ctx,
     JSPropertyDescriptor* desc,
@@ -516,6 +567,12 @@ namespace ccfapp
       ctx, view_val, "set", JS_NewCFunction(ctx, setter, "set", 2));
     JS_SetPropertyStr(
       ctx, view_val, "delete", JS_NewCFunction(ctx, deleter, "delete", 1));
+
+    JS_SetPropertyStr(
+      ctx,
+      view_val,
+      "forEach",
+      JS_NewCFunction(ctx, ccfapp::js_kv_map_foreach, "forEach", 1));
 
     desc->flags = 0;
     desc->value = view_val;

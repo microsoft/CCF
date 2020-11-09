@@ -144,7 +144,6 @@ def build_proposal(
     proposed_call: str,
     args: Optional[Any] = None,
     inline_args: bool = False,
-    vote_against: bool = False,
 ):
     LOG.trace(f"Generating {proposed_call} proposal")
 
@@ -164,8 +163,6 @@ def build_proposal(
     }
     if args is not None and not inline_args:
         proposal["parameter"] = args
-    if vote_against:
-        proposal["ballot"] = {"text": "return false"}
 
     vote_lines = [
         "tables, calls = ...",
@@ -216,11 +213,6 @@ def new_member(
         },
         "script": {"text": proposal_script_text},
     }
-
-    vote_against = kwargs.pop("vote_against", False)
-
-    if vote_against:
-        proposal["ballot"] = {"text": "return false"}
 
     # Sample vote script which checks the expected member is being added, and no other actions are being taken
     verifying_vote_text = f"""
@@ -443,6 +435,35 @@ def update_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
     return build_proposal("update_ca_cert", args, **kwargs)
 
 
+@cli_proposal
+def set_jwt_issuer(json_path: str, **kwargs):
+    with open(json_path) as f:
+        obj = json.load(f)
+    args = {
+        "issuer": obj["issuer"],
+        "key_filter": obj.get("key_filter", "all"),
+        "key_policy": obj.get("key_policy"),
+        "jwks": obj.get("jwks"),
+    }
+    return build_proposal("set_jwt_issuer", args, **kwargs)
+
+
+@cli_proposal
+def remove_jwt_issuer(issuer: str, **kwargs):
+    args = {"issuer": issuer}
+    return build_proposal("remove_jwt_issuer", args, **kwargs)
+
+
+@cli_proposal
+def set_jwt_public_signing_keys(issuer: str, jwks_path: str, **kwargs):
+    with open(jwks_path) as f:
+        jwks = json.load(f)
+    if "keys" not in jwks:
+        raise ValueError("not a JWKS document")
+    args = {"issuer": issuer, "jwks": jwks}
+    return build_proposal("set_jwt_public_signing_keys", args, **kwargs)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
@@ -471,12 +492,6 @@ if __name__ == "__main__":
         help="Create a fixed proposal script with the call arguments as literals inside "
         "the script. When not inlined, the parameters are passed separately and could "
         "be replaced in the resulting object",
-    )
-    parser.add_argument(
-        "--vote-against",
-        action="store_true",
-        help="Include a negative initial vote when creating the proposal",
-        default=False,
     )
     parser.add_argument("-v", "--verbose", action="store_true")
 
@@ -523,7 +538,6 @@ if __name__ == "__main__":
 
     proposal, vote = args.func(
         **{name: getattr(args, name) for name in args.param_names},
-        vote_against=args.vote_against,
         inline_args=args.inline_args,
     )
 

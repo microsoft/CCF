@@ -130,7 +130,8 @@ namespace kv
     PASS_SIGNATURE = 2,
     PASS_BACKUP_SIGNATURE = 3,
     PASS_BACKUP_SIGNATURE_SEND_ACK = 4,
-    PASS_NONCES = 5
+    PASS_NONCES = 5,
+    NEW_VIEW = 6
   };
 
   enum ReplicateType

@@ -6,6 +6,7 @@
 #include "lua_interp/lua_json.h"
 #include "lua_interp/tx_script_runner.h"
 #include "node/genesis_gen.h"
+#include "node/jwt.h"
 #include "node/members.h"
 #include "node/nodes.h"
 #include "node/quote.h"
@@ -31,6 +32,20 @@
 
 namespace ccf
 {
+  static oe_result_t oe_verify_attestation_certificate_with_evidence_cb(
+    oe_claim_t* claims, size_t claims_length, void* arg)
+  {
+    auto claims_map = (std::map<std::string, std::vector<uint8_t>>*)arg;
+    for (size_t i = 0; i < claims_length; i++)
+    {
+      std::string claim_name(claims[i].name);
+      std::vector<uint8_t> claim_value(
+        claims[i].value, claims[i].value + claims[i].value_size);
+      claims_map->emplace(std::move(claim_name), std::move(claim_value));
+    }
+    return OE_OK;
+  }
+
   class MemberTsr : public lua::TxScriptRunner
   {
     void setup_environment(
@@ -52,20 +67,6 @@ namespace ccf
       nlohmann::json json = der;
       lua::push_raw(l, json);
       return 1;
-    }
-
-    static oe_result_t oe_verify_attestation_certificate_with_evidence_cb(
-      oe_claim_t* claims, size_t claims_length, void* arg)
-    {
-      auto claims_map = (std::map<std::string, std::vector<uint8_t>>*)arg;
-      for (size_t i = 0; i < claims_length; i++)
-      {
-        std::string claim_name(claims[i].name);
-        std::vector<uint8_t> claim_value(
-          claims[i].value, claims[i].value + claims[i].value_size);
-        claims_map->emplace(std::move(claim_name), std::move(claim_value));
-      }
-      return OE_OK;
     }
 
     static int lua_verify_cert_and_get_claims(lua_State* l)
@@ -169,6 +170,57 @@ namespace ccf
   };
   DECLARE_JSON_TYPE(DeployJsApp)
   DECLARE_JSON_REQUIRED_FIELDS(DeployJsApp, bundle)
+
+  struct JsonWebKey
+  {
+    std::vector<std::string> x5c;
+    std::string kid;
+    std::string kty;
+
+    bool operator==(const JsonWebKey& rhs) const
+    {
+      return x5c == rhs.x5c && kid == rhs.kid && kty == rhs.kty;
+    }
+  };
+  DECLARE_JSON_TYPE(JsonWebKey)
+  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKey, x5c, kid, kty)
+
+  struct JsonWebKeySet
+  {
+    std::vector<JsonWebKey> keys;
+
+    bool operator!=(const JsonWebKeySet& rhs) const
+    {
+      return keys != rhs.keys;
+    }
+  };
+  DECLARE_JSON_TYPE(JsonWebKeySet)
+  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeySet, keys)
+
+  struct SetJwtIssuer : public ccf::JwtIssuerMetadata
+  {
+    std::string issuer;
+    std::optional<JsonWebKeySet> jwks;
+  };
+  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(
+    SetJwtIssuer, ccf::JwtIssuerMetadata)
+  DECLARE_JSON_REQUIRED_FIELDS(SetJwtIssuer, issuer)
+  DECLARE_JSON_OPTIONAL_FIELDS(SetJwtIssuer, jwks)
+
+  struct RemoveJwtIssuer
+  {
+    std::string issuer;
+  };
+  DECLARE_JSON_TYPE(RemoveJwtIssuer)
+  DECLARE_JSON_REQUIRED_FIELDS(RemoveJwtIssuer, issuer)
+
+  struct SetJwtPublicSigningKeys
+  {
+    std::string issuer;
+    JsonWebKeySet jwks;
+  };
+  DECLARE_JSON_TYPE(SetJwtPublicSigningKeys)
+  DECLARE_JSON_REQUIRED_FIELDS(SetJwtPublicSigningKeys, issuer, jwks)
 
   class MemberEndpoints : public CommonEndpointRegistry
   {
@@ -328,6 +380,157 @@ namespace ccf
     {
       auto tx_modules = tx.get_view(network.modules);
       return tx_modules->remove(name);
+    }
+
+    void remove_jwt_keys(kv::Tx& tx, std::string issuer)
+    {
+      auto keys = tx.get_view(this->network.jwt_public_signing_keys);
+      auto key_issuer =
+        tx.get_view(this->network.jwt_public_signing_key_issuer);
+
+      key_issuer->foreach(
+        [&issuer, &keys, &key_issuer](const auto& k, const auto& v) {
+          if (v == issuer)
+          {
+            keys->remove(k);
+            key_issuer->remove(k);
+          }
+          return true;
+        });
+    }
+
+    bool set_jwt_public_signing_keys(
+      kv::Tx& tx,
+      ObjectId proposal_id,
+      std::string issuer,
+      const JwtIssuerMetadata& issuer_metadata,
+      const JsonWebKeySet& jwks)
+    {
+      auto keys = tx.get_view(this->network.jwt_public_signing_keys);
+      auto key_issuer =
+        tx.get_view(this->network.jwt_public_signing_key_issuer);
+
+      // add keys
+      if (jwks.keys.empty())
+      {
+        LOG_FAIL_FMT("Proposal {}: JWKS has no keys", proposal_id);
+        return false;
+      }
+      std::map<std::string, std::vector<uint8_t>> new_keys;
+      for (auto& jwk : jwks.keys)
+      {
+        if (keys->has(jwk.kid) && key_issuer->get(jwk.kid).value() != issuer)
+        {
+          LOG_FAIL_FMT(
+            "Proposal {}: key id {} already added for different issuer",
+            proposal_id,
+            jwk.kid);
+          return false;
+        }
+        if (jwk.x5c.empty())
+        {
+          LOG_FAIL_FMT("Proposal {}: JWKS is invalid (empty x5c)", proposal_id);
+          return false;
+        }
+
+        auto& der_base64 = jwk.x5c[0];
+        auto der = tls::raw_from_b64(der_base64);
+
+        std::map<std::string, std::vector<uint8_t>> claims;
+        bool has_key_policy_sgx_claims =
+          issuer_metadata.key_policy.has_value() &&
+          issuer_metadata.key_policy.value().sgx_claims.has_value() &&
+          !issuer_metadata.key_policy.value().sgx_claims.value().empty();
+        if (
+          issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX ||
+          has_key_policy_sgx_claims)
+        {
+          oe_verifier_initialize();
+          oe_verify_attestation_certificate_with_evidence(
+            der.data(),
+            der.size(),
+            oe_verify_attestation_certificate_with_evidence_cb,
+            &claims);
+        }
+
+        if (
+          issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX &&
+          claims.empty())
+        {
+          LOG_INFO_FMT(
+            "Proposal {}: Skipping JWT signing key with kid {} (not OE "
+            "attested)",
+            proposal_id,
+            jwk.kid);
+          continue;
+        }
+
+        if (has_key_policy_sgx_claims)
+        {
+          for (auto& [claim_name, expected_claim_val_hex] :
+               issuer_metadata.key_policy.value().sgx_claims.value())
+          {
+            if (claims.find(claim_name) == claims.end())
+            {
+              LOG_FAIL_FMT(
+                "Proposal {}: JWKS kid {} is missing the {} SGX claim",
+                proposal_id,
+                jwk.kid,
+                claim_name);
+              return false;
+            }
+            auto& actual_claim_val = claims[claim_name];
+            auto actual_claim_val_hex =
+              fmt::format("{:02x}", fmt::join(actual_claim_val, ""));
+            if (expected_claim_val_hex != actual_claim_val_hex)
+            {
+              LOG_FAIL_FMT(
+                "Proposal {}: JWKS kid {} has a mismatching {} SGX claim",
+                proposal_id,
+                jwk.kid,
+                claim_name);
+              return false;
+            }
+          }
+        }
+        else
+        {
+          try
+          {
+            tls::check_is_cert(der);
+          }
+          catch (std::exception& exc)
+          {
+            LOG_FAIL_FMT(
+              "Proposal {}: JWKS kid {} has an invalid X.509 certificate: "
+              "{}",
+              proposal_id,
+              jwk.kid,
+              exc.what());
+            return false;
+          }
+        }
+        LOG_INFO_FMT(
+          "Proposal {}: Storing JWT signing key with kid {}",
+          proposal_id,
+          jwk.kid);
+        new_keys.emplace(jwk.kid, der);
+      }
+      if (new_keys.empty())
+      {
+        LOG_FAIL_FMT(
+          "Proposal {}: no keys left after applying filter", proposal_id);
+        return false;
+      }
+
+      remove_jwt_keys(tx, issuer);
+      for (auto& [kid, der] : new_keys)
+      {
+        keys->put(kid, der);
+        key_issuer->put(kid, issuer);
+      }
+
+      return true;
     }
 
     void remove_endpoints(kv::Tx& tx)
@@ -523,6 +726,60 @@ namespace ccf
            users_view->put(parsed.user_id, user_info.value());
            return true;
          }},
+        {"set_jwt_issuer",
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const auto parsed = args.get<SetJwtIssuer>();
+           auto issuers = tx.get_view(this->network.jwt_issuers);
+
+           bool success = true;
+           if (parsed.jwks.has_value())
+           {
+             success = set_jwt_public_signing_keys(
+               tx, proposal_id, parsed.issuer, parsed, parsed.jwks.value());
+           }
+           if (success)
+           {
+             issuers->put(parsed.issuer, parsed);
+           }
+
+           return success;
+         }},
+        {"remove_jwt_issuer",
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const auto parsed = args.get<RemoveJwtIssuer>();
+           const auto issuer = parsed.issuer;
+           auto issuers = tx.get_view(this->network.jwt_issuers);
+
+           if (!issuers->remove(issuer))
+           {
+             LOG_FAIL_FMT(
+               "Proposal {}: {} is not a valid issuer", proposal_id, issuer);
+             return false;
+           }
+
+           remove_jwt_keys(tx, issuer);
+
+           return true;
+         }},
+        {"set_jwt_public_signing_keys",
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const auto parsed = args.get<SetJwtPublicSigningKeys>();
+
+           auto issuers = tx.get_view(this->network.jwt_issuers);
+           auto issuer_metadata_ = issuers->get(parsed.issuer);
+           if (!issuer_metadata_.has_value())
+           {
+             LOG_FAIL_FMT(
+               "Proposal {}: {} is not a valid issuer",
+               proposal_id,
+               parsed.issuer);
+             return false;
+           }
+           auto& issuer_metadata = issuer_metadata_.value();
+
+           return set_jwt_public_signing_keys(
+             tx, proposal_id, parsed.issuer, issuer_metadata, parsed.jwks);
+         }},
         // accept a node
         {"trust_node",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
@@ -717,7 +974,7 @@ namespace ccf
         // vvv arguments to script vvv
         proposal.parameter);
 
-      nlohmann::json votes;
+      nlohmann::json votes = nlohmann::json::object();
       // Collect all member votes
       for (const auto& vote : proposal.votes)
       {
@@ -996,7 +1253,6 @@ namespace ccf
         Proposal proposal(in.script, in.parameter, args.caller_id);
 
         auto proposals = args.tx.get_view(this->network.proposals);
-        proposal.votes[args.caller_id] = in.ballot;
         proposals->put(proposal_id, proposal);
 
         record_voting_history(

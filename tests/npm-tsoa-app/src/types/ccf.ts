@@ -19,6 +19,7 @@ export interface Request<T extends JsonCompatible<T> = any> {
     params: { [key: string]: string; }
     query: string
     body: Body<T>
+    user?: any
 }
 
 type ResponseBodyType<T> = string | ArrayBuffer | JsonCompatible<T>
@@ -37,6 +38,7 @@ export interface KVMap {
     get: (key: ArrayBuffer) => ArrayBuffer | undefined
     set: (key: ArrayBuffer, value: ArrayBuffer) => KVMap
     delete: (key: ArrayBuffer) => boolean
+    forEach: (callback: (value: ArrayBuffer, key: ArrayBuffer, table: KVMap) => void) => void
 }
 
 export type KVMaps =  { [key: string]: KVMap; };
@@ -262,5 +264,15 @@ export class TypedKVMap<K, V> {
     }
     delete(key: K): boolean {
         return this.kv.delete(this.kt.encode(key));
+    }
+    forEach(callback: (value: V, key: K, table: TypedKVMap<K, V>) => void) : void {
+        let kt = this.kt;
+        let vt = this.vt;
+        let typedMap = this;
+        this.kv.forEach(
+            function(raw_v: ArrayBuffer, raw_k: ArrayBuffer, table: KVMap) {
+                callback(vt.decode(raw_v), kt.decode(raw_k), typedMap);
+            }
+        );
     }
 }
