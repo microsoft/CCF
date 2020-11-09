@@ -35,6 +35,8 @@ namespace ccf
   struct MemberPubInfo
   {
     tls::Pem cert;
+
+    // If encryption public key is set, the member is a recovery member
     std::optional<tls::Pem> encryption_pub_key = std::nullopt;
     nlohmann::json member_data = nullptr;
 

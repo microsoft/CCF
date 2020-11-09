@@ -447,7 +447,6 @@ namespace ccf
 
            if (!g.retire_member(member_id))
            {
-             LOG_FAIL_FMT("Failed to retire member {}", member_id);
              return false;
            }
 
@@ -1250,8 +1249,10 @@ namespace ccf
       auto ack = [this](EndpointContext& args, nlohmann::json&& params) {
         const auto signed_request = args.rpc_ctx->get_signed_request();
 
-        auto [ma_view, sig_view] =
-          args.tx.get_view(this->network.member_acks, this->network.signatures);
+        auto [ma_view, sig_view, members_view] = args.tx.get_view(
+          this->network.member_acks,
+          this->network.signatures,
+          this->network.members);
         const auto ma = ma_view->get(args.caller_id);
         if (!ma)
         {
@@ -1294,13 +1295,18 @@ namespace ccf
         auto service_status = g.get_service_status();
         if (!service_status.has_value())
         {
-          throw std::logic_error("No service currently available");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "No service currently available");
         }
 
-        if (service_status.value() == ServiceStatus::OPEN)
+        auto member_info = members_view->get(args.caller_id);
+        if (
+          service_status.value() == ServiceStatus::OPEN &&
+          member_info->encryption_pub_key.has_value())
         {
-          // When the service is OPEN, new active members are allocated new
-          // recovery shares
+          // When the service is OPEN and the new active member is a recovery
+          // member, all recovery members are allocated new recovery shares
           try
           {
             share_manager.issue_shares(args.tx);

@@ -2001,7 +2001,7 @@ DOCTEST_TEST_CASE("Number of active members with recovery shares limits")
       fmt::format(R"xxx(return Calls:call("retire_member", {}))xxx", member_id);
 
     // Member retirement fails because there would not be a sufficient number of
-    // members for recovery
+    // members to pass the recovery threshold
     const auto propose = create_signed_request(proposal, "proposals", kp);
     check_result_state(
       frontend_process(frontend, propose, members.at(member_id)),
@@ -2031,7 +2031,7 @@ DOCTEST_TEST_CASE("Number of active members with recovery shares limits")
     auto gen_tx = network.tables->create_tx();
     GenesisGenerator gen(network, gen_tx);
     auto cert = get_cert(members.size(), kp);
-    gen.add_member(cert);
+    gen.add_member(cert); // No public encryption key added
     gen.finalize();
     auto resp = activate(frontend, kp, cert);
 

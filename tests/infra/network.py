@@ -340,9 +340,9 @@ class Network:
         self._setup_common_folder(args.gov_script)
 
         mc = max(1, args.initial_member_count)
-        initial_member_ids = []
+        initial_members_info = []
         for i in range(mc):
-            initial_member_ids += [
+            initial_members_info += [
                 (
                     i,
                     (i < args.initial_recovery_member_count),
@@ -351,13 +351,12 @@ class Network:
                     else None,
                 )
             ]
-        LOG.error(initial_member_ids)
 
         self.consortium = infra.consortium.Consortium(
             self.common_dir,
             self.key_generator,
             self.share_script,
-            initial_member_ids,
+            initial_members_info,
             args.participants_curve,
         )
         initial_users = list(range(max(0, args.initial_user_count)))
@@ -389,7 +388,7 @@ class Network:
             )
 
         self.consortium.add_users(primary, initial_users)
-        LOG.info("Initial set of users added")
+        LOG.info(f"Initial set of users added: {len(initial_users)}")
 
         self.consortium.open_network(remote_node=primary)
         self.wait_for_all_nodes_to_catch_up(primary)

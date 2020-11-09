@@ -40,7 +40,7 @@ class Member:
         curve,
         common_dir,
         share_script,
-        has_recovery_share=True,
+        is_recovery_member=True,
         key_generator=None,
         member_data=None,
     ):
@@ -49,11 +49,11 @@ class Member:
         self.status_code = MemberStatus.ACCEPTED
         self.share_script = share_script
         self.member_data = member_data
-        self.has_recovery_share = has_recovery_share
+        self.is_recovery_member = is_recovery_member
 
         self.member_info = MemberInfo(
             f"member{self.member_id}_cert.pem",
-            f"member{self.member_id}_enc_pubk.pem" if has_recovery_share else None,
+            f"member{self.member_id}_enc_pubk.pem" if is_recovery_member else None,
             f"member{self.member_id}_data.json" if member_data else None,
         )
 
@@ -61,7 +61,7 @@ class Member:
             member = f"member{member_id}"
 
             # TODO: Fix awkward if/self
-            if has_recovery_share:
+            if is_recovery_member:
                 LOG.error("has recovery share")
                 infra.proc.ccall(
                     key_generator,
@@ -94,7 +94,7 @@ class Member:
                 os.path.join(self.common_dir, self.member_info.certificate_file)
             )
 
-            self.has_recovery_share = os.path.isfile(
+            self.is_recovery_member = os.path.isfile(
                 os.path.join(self.common_dir, f"member{self.member_id}_enc_privk.pem")
             )
 
@@ -139,11 +139,11 @@ class Member:
                 seqno=r.seqno,
             )
 
-    def vote(self, remote_node, proposal):
+    def vote(self, remote_node, proposal, ballot):
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.post(
                 f"/gov/proposals/{proposal.proposal_id}/votes",
-                body=proposal.vote_for,
+                body=ballot,
                 signed=True,
             )
 
@@ -173,7 +173,7 @@ class Member:
             return r
 
     def get_and_decrypt_recovery_share(self, remote_node):
-        if not self.has_recovery_share:
+        if not self.is_recovery_member:
             raise ValueError(f"Member {self.member_id} does not have a recovery share")
 
         with remote_node.client(f"member{self.member_id}") as mc:
@@ -191,7 +191,7 @@ class Member:
                 )
 
     def get_and_submit_recovery_share(self, remote_node):
-        if not self.has_recovery_share:
+        if not self.is_recovery_member:
             raise ValueError(f"Member {self.member_id} does not have a recovery share")
 
         res = infra.proc.ccall(

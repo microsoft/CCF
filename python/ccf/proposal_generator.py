@@ -228,6 +228,7 @@ def new_member(
     if vote_against:
         proposal["ballot"] = {"text": "return false"}
 
+    # TODO: Only include encryption public key when necessary
     # Sample vote script which checks the expected member is being added, and no other actions are being taken
     verifying_vote_text = f"""
     tables, calls = ...

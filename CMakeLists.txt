@@ -768,8 +768,8 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME operation
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/operation.py
+    NAME member_shares
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/member_shares.py
     CONSENSUS cft
   )
 

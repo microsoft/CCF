@@ -83,7 +83,7 @@ def at_least_n_nodes(n):
 def sufficient_member_count():
     def check(network, args, *nargs, **kwargs):
         if (
-            len(network.consortium.get_active_members())
+            len(network.consortium.get_active_recovery_members())
             <= network.consortium.recovery_threshold
         ):
             raise TestRequirementsNotMet(
