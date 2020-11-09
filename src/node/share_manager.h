@@ -117,14 +117,14 @@ namespace ccf
         ls_wrapping_key.get_raw_data<SecretSharing::SplitSecret>();
 
       GenesisGenerator g(network, tx);
-      auto active_members_with_shares_info = g.get_active_recovery_members();
+      auto active_recovery_members_info = g.get_active_recovery_members();
       size_t recovery_threshold = g.get_recovery_threshold();
 
-      if (active_members_with_shares_info.size() == 0)
+      if (active_recovery_members_info.size() == 0)
       {
         throw std::logic_error(
-          "There should be at least one active member with a public encryption "
-          "key to issue recovery shares");
+          "There should be at least one active recovery member to issue "
+          "recovery shares");
       }
 
       if (recovery_threshold == 0)
@@ -136,12 +136,11 @@ namespace ccf
 
       auto shares = SecretSharing::split(
         secret_to_split,
-        active_members_with_shares_info.size(),
+        active_recovery_members_info.size(),
         recovery_threshold);
 
       size_t share_index = 0;
-      for (auto const& [member_id, enc_pub_key] :
-           active_members_with_shares_info)
+      for (auto const& [member_id, enc_pub_key] : active_recovery_members_info)
       {
         auto member_enc_pubk = tls::make_rsa_public_key(enc_pub_key);
         auto raw_share = std::vector<uint8_t>(

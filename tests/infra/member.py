@@ -87,10 +87,6 @@ class Member:
                 os.path.join(self.common_dir, self.member_info.certificate_file)
             )
 
-            self.is_recovery_member = os.path.isfile(
-                os.path.join(self.common_dir, f"member{self.member_id}_enc_privk.pem")
-            )
-
         if self.member_data is not None:
             with open(
                 os.path.join(self.common_dir, self.member_info.member_data_file), "w"

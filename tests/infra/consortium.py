@@ -53,32 +53,38 @@ class Consortium:
                 self.members.append(new_member)
         else:
             with remote_node.client("member0") as mc:
-                # TODO: Recover public encryption key as well
                 r = mc.post(
                     "/gov/query",
                     {
                         "text": """tables = ...
                         non_retired_members = {}
-                        tables["public:ccf.gov.members"]:foreach(function(member_id, details)
-                        if details["status"] ~= "RETIRED" then
-                            table.insert(non_retired_members, {member_id, details["status"]})
+                        tables["public:ccf.gov.members"]:foreach(function(member_id, info)
+                        if info["status"] ~= "RETIRED" then
+                            table.insert(non_retired_members, {member_id, info})
                         end
                         end)
                         return non_retired_members
                         """
                     },
                 )
-                for m in r.body.json():
+                for m_id, info in r.body.json():
                     new_member = infra.member.Member(
-                        m[0], curve, self.common_dir, share_script
+                        m_id,
+                        curve,
+                        self.common_dir,
+                        share_script,
+                        is_recovery_member="encryption_pub_key" in info,
                     )
+                    status = info["status"]
                     if (
-                        infra.member.MemberStatus[m[1]]
+                        infra.member.MemberStatus[status]
                         == infra.member.MemberStatus.ACTIVE
                     ):
                         new_member.set_active()
                     self.members.append(new_member)
-                    LOG.info(f"Successfully recovered member {m[0]} with status {m[1]}")
+                    LOG.info(
+                        f"Successfully recovered member {m_id} with status {status}"
+                    )
 
                 r = mc.post(
                     "/gov/query",
@@ -393,7 +399,7 @@ class Consortium:
         with remote_node.client() as nc:
             check_commit = infra.checker.Checker(nc)
 
-            for m in self.get_active_members():
+            for m in self.get_active_recovery_members():
                 r = m.get_and_submit_recovery_share(remote_node)
                 submitted_shares_count += 1
                 check_commit(r)
