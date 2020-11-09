@@ -37,7 +37,7 @@ def test_add_member(network, args, recovery_member=True):
 
 @reqs.description("Retire existing member")
 @reqs.sufficient_member_count()
-def test_retire_member(network, args, member_to_retire=None, recovery_member=False):
+def test_retire_member(network, args, member_to_retire=None, recovery_member=None):
     primary, _ = network.find_primary()
     if member_to_retire is None:
         member_to_retire = network.consortium.get_any_active_member(recovery_member)
@@ -56,10 +56,9 @@ def test_update_recovery_shares(network, args):
 @reqs.description("Set recovery threshold")
 def test_set_recovery_threshold(network, args, recovery_threshold=None):
     if recovery_threshold is None:
-        # TODO: Change this
         # If the recovery threshold is not specified, a new threshold is
-        # randomly selected based on the number of active members. The new
-        # recovery threshold is guaranteed to be different from the
+        # randomly selected based on the number of active recovery members.
+        # The new recovery threshold is guaranteed to be different from the
         # previous one.
         list_recovery_threshold = list(
             range(1, len(network.consortium.get_active_recovery_members()) + 1)
@@ -185,15 +184,6 @@ def recovery_shares_scenario(args):
         assert_recovery_shares_update(
             True, test_retire_member, network, args, recovery_member=True
         )
-
-        # Retiring a recovery number is not possible as the number of recovery
-        # members would be under recovery threshold
-        LOG.info("Retiring another recovery member fails")
-        try:
-            test_retire_member(network, args, recovery_member=True)
-            assert False, "Retiring a recovery member should not be possible"
-        except infra.proposal.ProposalNotAccepted as e:
-            assert e.proposal.state == infra.proposal.ProposalState.Failed
 
         LOG.info("Reduce recovery threshold")
         assert_recovery_shares_update(
