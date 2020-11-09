@@ -35,16 +35,19 @@ namespace ccf
     // the hashing algorithm used
     mbedtls_md_type_t md = MBEDTLS_MD_NONE;
 
+    // The caller id, if declared in the request
+    ccf::CallerId caller_id = ccf::INVALID_ID;
+
     bool operator==(const SignedReq& other) const
     {
       return (sig == other.sig) && (req == other.req) && (md == other.md) &&
-        (request_body == other.request_body);
+        (request_body == other.request_body) && (caller_id == other.caller_id);
     }
 
     MSGPACK_DEFINE(sig, req, request_body, md);
   };
   DECLARE_JSON_TYPE(SignedReq)
-  DECLARE_JSON_REQUIRED_FIELDS(SignedReq, sig, req, request_body, md)
+  DECLARE_JSON_REQUIRED_FIELDS(SignedReq, sig, req, request_body, md, caller_id)
   // this maps client-id to latest SignedReq
   using ClientSignatures = kv::Map<CallerId, SignedReq>;
 }

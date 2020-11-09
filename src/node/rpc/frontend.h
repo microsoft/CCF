@@ -272,6 +272,15 @@ namespace ccf
       auto& metrics = endpoints.get_metrics(endpoint);
       metrics.calls++;
 
+      const auto signed_request = ctx->get_signed_request();
+      // On signed requests, the effective caller id is the key id that
+      // signed the request, the session-level identity is unimportant
+      // NOTE: this is only verified on line 324 (verify_client_signature)
+      // caller_id is only tentative at this point if we extract it from the
+      // signed request
+      if (signed_request.has_value() && signed_request->caller_id != INVALID_ID)
+        caller_id = signed_request->caller_id;
+
       if (endpoint->properties.require_client_identity && endpoints.has_certs())
       {
         // Only if endpoint requires client identity.
@@ -292,7 +301,6 @@ namespace ccf
       bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
         ctx->is_create_request;
 
-      const auto signed_request = ctx->get_signed_request();
       if (
         endpoint->properties.require_client_signature &&
         !signed_request.has_value())
@@ -303,8 +311,6 @@ namespace ccf
         return ctx->serialise_response();
       }
 
-      // By default, signed requests are verified and recorded, even on
-      // endpoints that do not require client signatures
       bool should_record_client_signature = false;
       if (signed_request.has_value())
       {
@@ -323,6 +329,8 @@ namespace ccf
           return ctx->serialise_response();
         }
 
+        // By default, signed requests are verified and recorded, even on
+        // endpoints that do not require client signatures
         if (is_primary)
         {
           should_record_client_signature = true;
