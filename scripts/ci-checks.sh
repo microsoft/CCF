@@ -25,7 +25,7 @@ else
   "$SCRIPT_DIR"/check-format.sh src samples
 fi
 
-npm --loglevel=error install --save-dev --save-exact prettier 1>/dev/null
+npm --loglevel=error install prettier 1>/dev/null
 echo "TypeScript, JavaScript, Markdown, YAML and JSON format"
 if [ $FIX -ne 0 ]; then
   npx prettier --write . 
