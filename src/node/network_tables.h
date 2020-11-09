@@ -13,6 +13,7 @@
 #include "consensus/aft/revealed_nonces.h"
 #include "entities.h"
 #include "governance_history.h"
+#include "jwt.h"
 #include "kv/map.h"
 #include "kv/store.h"
 #include "members.h"
@@ -60,6 +61,10 @@ namespace ccf
 
     CACertDERs ca_certs;
 
+    JwtIssuers jwt_issuers;
+    JwtPublicSigningKeys jwt_public_signing_keys;
+    JwtPublicSigningKeyIssuer jwt_public_signing_key_issuer;
+
     //
     // User tables
     //
@@ -95,6 +100,7 @@ namespace ccf
     aft::RequestsMap bft_requests_map;
     BackupSignaturesMap backup_signatures_map;
     aft::RevealedNoncesMap revealed_nonces_map;
+    NewViewsMap new_views_map;
 
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::CFT) :
       tables(
@@ -117,6 +123,9 @@ namespace ccf
       submitted_shares(Tables::SUBMITTED_SHARES),
       config(Tables::CONFIGURATION),
       ca_certs(Tables::CA_CERT_DERS),
+      jwt_issuers(Tables::JWT_ISSUERS),
+      jwt_public_signing_keys(Tables::JWT_PUBLIC_SIGNING_KEYS),
+      jwt_public_signing_key_issuer(Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER),
       users(Tables::USERS),
       user_certs(Tables::USER_CERT_DERS),
       user_client_signatures(Tables::USER_CLIENT_SIGNATURES),
@@ -130,7 +139,8 @@ namespace ccf
       snapshot_evidence(Tables::SNAPSHOT_EVIDENCE),
       bft_requests_map(Tables::AFT_REQUESTS),
       backup_signatures_map(Tables::BACKUP_SIGNATURES),
-      revealed_nonces_map(Tables::NONCES)
+      revealed_nonces_map(Tables::NONCES),
+      new_views_map(Tables::NEW_VIEWS)
     {}
 
     /** Returns a tuple of all tables that are possibly accessible from scripts
@@ -152,6 +162,9 @@ namespace ccf
         std::ref(member_client_signatures),
         std::ref(config),
         std::ref(ca_certs),
+        std::ref(jwt_issuers),
+        std::ref(jwt_public_signing_keys),
+        std::ref(jwt_public_signing_key_issuer),
         std::ref(users),
         std::ref(user_certs),
         std::ref(user_client_signatures),

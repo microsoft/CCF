@@ -77,7 +77,9 @@ def run(args):
         assert proposal_entry.state == ProposalState.Open
 
         LOG.info("Rest of consortium accept the proposal")
-        network.consortium.vote_using_majority(primary, new_member_proposal)
+        network.consortium.vote_using_majority(
+            primary, new_member_proposal, careful_vote
+        )
         assert new_member_proposal.state == ProposalState.Accepted
 
         # Manually add new member to consortium
@@ -107,11 +109,9 @@ def run(args):
         assert response.status_code == params_error
 
         LOG.info("New non-active member should get insufficient rights response")
-        proposal_trust_0, careful_vote = ccf.proposal_generator.trust_node(
-            0, vote_against=True
-        )
         try:
-            new_member.propose(primary, proposal_trust_0, has_proposer_voted_for=False)
+            proposal_trust_0, careful_vote = ccf.proposal_generator.trust_node(0)
+            new_member.propose(primary, proposal_trust_0)
             assert (
                 False
             ), "New non-active member should get insufficient rights response"
@@ -122,17 +122,17 @@ def run(args):
         new_member.ack(primary)
 
         LOG.info("New member is now active and send an accept node proposal")
-        trust_node_proposal_0 = new_member.propose(
-            primary, proposal_trust_0, has_proposer_voted_for=False
-        )
+        trust_node_proposal_0 = new_member.propose(primary, proposal_trust_0)
         trust_node_proposal_0.vote_for = careful_vote
 
         LOG.debug("Members vote to accept the accept node proposal")
-        network.consortium.vote_using_majority(primary, trust_node_proposal_0)
+        network.consortium.vote_using_majority(
+            primary, trust_node_proposal_0, careful_vote
+        )
         assert trust_node_proposal_0.state == infra.proposal.ProposalState.Accepted
 
-        LOG.info("New member makes a new proposal, with initial no vote")
-        proposal_trust_1, _ = ccf.proposal_generator.trust_node(1)
+        LOG.info("New member makes a new proposal")
+        proposal_trust_1, careful_vote = ccf.proposal_generator.trust_node(1)
         trust_node_proposal = new_member.propose(primary, proposal_trust_1)
 
         LOG.debug("Other members (non proposer) are unable to withdraw new proposal")
@@ -159,7 +159,7 @@ def run(args):
         assert response.status_code == params_error
 
         LOG.debug("Further votes fail")
-        response = new_member.vote(primary, trust_node_proposal)
+        response = new_member.vote(primary, trust_node_proposal, careful_vote)
         assert response.status_code == params_error
 
 

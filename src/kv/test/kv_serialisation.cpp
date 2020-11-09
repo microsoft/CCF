@@ -218,6 +218,53 @@ struct CustomClass
 };
 // SNIPPET_END: CustomClass definition
 
+// These macros allow the default nlohmann JSON serialiser to be used
+DECLARE_JSON_TYPE(CustomClass);
+DECLARE_JSON_REQUIRED_FIELDS(CustomClass, s, n);
+
+// Not really intended to be extended, but lets us use the BlitSerialiser for
+// this specific type
+namespace kv::serialisers
+{
+  template <>
+  struct BlitSerialiser<CustomClass>
+  {
+    static SerialisedEntry to_serialised(const CustomClass& cc)
+    {
+      // Don't encode size, entire remainder of buffer is string
+      const auto s_size = cc.s.size();
+      const auto total_size = sizeof(cc.n) + s_size;
+      SerialisedEntry s(total_size);
+
+      uint8_t* data = s.data();
+      size_t remaining = s.size();
+
+      memcpy(data, (void*)&cc.n, sizeof(cc.n));
+      data += sizeof(cc.n);
+      remaining -= sizeof(cc.n);
+
+      memcpy(data, (void*)cc.s.c_str(), remaining);
+
+      return s;
+    }
+
+    static CustomClass from_serialised(const SerialisedEntry& s)
+    {
+      CustomClass cc;
+      const uint8_t* data = s.data();
+      size_t remaining = s.size();
+
+      cc.n = *(decltype(cc.n)*)data;
+      data += sizeof(cc.n);
+      remaining -= sizeof(cc.n);
+
+      cc.s.assign(data, data + remaining);
+
+      return cc;
+    }
+  };
+}
+
 // SNIPPET_START: CustomSerialiser definition
 struct CustomSerialiser
 {
@@ -327,6 +374,23 @@ struct CustomVerboseDumbSerialiser
 };
 
 using DefaultSerialisedMap = kv::Map<CustomClass, CustomClass>;
+using JsonSerialisedMap = kv::JsonSerialisedMap<CustomClass, CustomClass>;
+using RawCopySerialisedMap = kv::RawCopySerialisedMap<CustomClass, CustomClass>;
+using MixSerialisedMapA = kv::TypedMap<
+  CustomClass,
+  CustomClass,
+  kv::serialisers::MsgPackSerialiser<CustomClass>,
+  kv::serialisers::JsonSerialiser<CustomClass>>;
+using MixSerialisedMapB = kv::TypedMap<
+  CustomClass,
+  CustomClass,
+  kv::serialisers::JsonSerialiser<CustomClass>,
+  kv::serialisers::BlitSerialiser<CustomClass>>;
+using MixSerialisedMapC = kv::TypedMap<
+  CustomClass,
+  CustomClass,
+  kv::serialisers::BlitSerialiser<CustomClass>,
+  kv::serialisers::MsgPackSerialiser<CustomClass>>;
 
 // SNIPPET_START: CustomSerialisedMap definition
 using CustomSerialisedMap =
@@ -348,6 +412,11 @@ TEST_CASE_TEMPLATE(
   "Custom type serialisation test" * doctest::test_suite("serialisation"),
   MapType,
   DefaultSerialisedMap,
+  JsonSerialisedMap,
+  RawCopySerialisedMap,
+  MixSerialisedMapA,
+  MixSerialisedMapB,
+  MixSerialisedMapC,
   CustomSerialisedMap,
   CustomJsonMap,
   VerboseSerialisedMap)

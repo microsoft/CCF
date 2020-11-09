@@ -387,11 +387,13 @@ class Network:
                 remote_node=primary, app_bundle_path=args.js_app_bundle
             )
 
+        for path in args.jwt_issuer:
+            self.consortium.set_jwt_issuer(remote_node=primary, json_path=path)
+
         self.consortium.add_users(primary, initial_users)
         LOG.info(f"Initial set of users added: {len(initial_users)}")
 
         self.consortium.open_network(remote_node=primary)
-        self.wait_for_all_nodes_to_catch_up(primary)
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 

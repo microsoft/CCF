@@ -88,6 +88,11 @@ namespace ccf
     static constexpr auto SNAPSHOT_EVIDENCE =
       "public:ccf.gov.snapshot_evidence";
     static constexpr auto CA_CERT_DERS = "public:ccf.gov.ca_cert_ders";
+    static constexpr auto JWT_ISSUERS = "public:ccf.gov.jwt_issuers";
+    static constexpr auto JWT_PUBLIC_SIGNING_KEYS =
+      "public:ccf.gov.jwt_public_signing_keys";
+    static constexpr auto JWT_PUBLIC_SIGNING_KEY_ISSUER =
+      "public:ccf.gov.jwt_public_signing_key_issuer";
     static constexpr auto ENDPOINTS = "public:ccf.gov.endpoints";
 
     static constexpr auto SIGNATURES = "public:ccf.internal.signatures";
@@ -98,6 +103,7 @@ namespace ccf
 
     // Consensus specific tables
     static constexpr auto AFT_REQUESTS = "public:ccf.gov.aft.requests";
+    static constexpr auto NEW_VIEWS = "public:ccf.internal.new_views";
   };
 
 }

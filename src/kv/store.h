@@ -270,6 +270,7 @@ namespace kv
           "Can't add dynamic map - already have a map named {}", map_name));
       }
 
+      LOG_DEBUG_FMT("Adding newly created map '{}' at version {}", map_name, v);
       maps[map_name] = std::make_pair(v, map);
 
       {
@@ -886,6 +887,26 @@ namespace kv
           auto h = get_history();
           h->append(data.data(), data.size());
           success = DeserialiseSuccess::PASS_NONCES;
+        }
+        else if (changes.find(ccf::Tables::NEW_VIEWS) != changes.end())
+        {
+          LOG_INFO_FMT("Applying new view");
+          success = commit_deserialised(changes, v, new_maps);
+          if (success == DeserialiseSuccess::FAILED)
+          {
+            return success;
+          }
+
+          if (!progress_tracker->apply_new_view(consensus->primary()))
+          {
+            LOG_FAIL_FMT("apply_new_view Failed");
+            LOG_DEBUG_FMT("NewView in transaction {} failed to verify", v);
+            return DeserialiseSuccess::FAILED;
+          }
+
+          auto h = get_history();
+          h->append(data.data(), data.size());
+          success = DeserialiseSuccess::NEW_VIEW;
         }
         else if (changes.find(ccf::Tables::AFT_REQUESTS) == changes.end())
         {

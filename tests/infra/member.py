@@ -115,12 +115,7 @@ class Member:
         # Use this with caution (i.e. only when the network is opening)
         self.status_code = MemberStatus.ACTIVE
 
-    def propose(
-        self,
-        remote_node,
-        proposal,
-        has_proposer_voted_for=True,
-    ):
+    def propose(self, remote_node, proposal):
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.post(
                 "/gov/proposals",
@@ -134,7 +129,6 @@ class Member:
                 proposer_id=self.member_id,
                 proposal_id=r.body.json()["proposal_id"],
                 state=infra.proposal.ProposalState(r.body.json()["state"]),
-                has_proposer_voted_for=has_proposer_voted_for,
                 view=r.view,
                 seqno=r.seqno,
             )

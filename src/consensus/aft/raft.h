@@ -88,7 +88,7 @@ namespace aft
     std::shared_ptr<aft::State> state;
     std::shared_ptr<Executor> executor;
     std::shared_ptr<aft::RequestTracker> request_tracker;
-    ViewChangeTracker view_change_tracker;
+    std::unique_ptr<aft::ViewChangeTracker> view_change_tracker;
 
     // Timeouts
     std::chrono::milliseconds request_timeout;
@@ -111,8 +111,8 @@ namespace aft
     // Indices that are eligible for global commit, from a Node's perspective
     std::deque<Index> committable_indices;
 
-    // When this is set, only public domain is deserialised when receving append
-    // entries
+    // When this is set, only public domain is deserialised when receiving
+    // append entries
     bool public_only = false;
 
     // Randomness
@@ -141,6 +141,7 @@ namespace aft
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<Executor> executor_,
       std::shared_ptr<aft::RequestTracker> request_tracker_,
+      std::unique_ptr<aft::ViewChangeTracker> view_change_tracker_,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
       std::chrono::milliseconds view_change_timeout_,
@@ -156,8 +157,7 @@ namespace aft
       state(state_),
       executor(executor_),
       request_tracker(request_tracker_),
-      view_change_tracker(
-        state_->my_node_id, starting_view_change, view_change_timeout_),
+      view_change_tracker(std::move(view_change_tracker_)),
 
       request_timeout(request_timeout_),
       election_timeout(election_timeout_),
@@ -176,6 +176,10 @@ namespace aft
 
     {
       leader_id = NoNode;
+      if (view_change_tracker != nullptr)
+      {
+        view_change_tracker->set_current_view_change(starting_view_change);
+      }
 
       if (consensus_type == ConsensusType::BFT)
       {
@@ -222,6 +226,13 @@ namespace aft
     bool is_follower()
     {
       return replica_state == Follower;
+    }
+
+    NodeId get_primary(kv::Consensus::View view)
+    {
+      // This will not work once we have reconfiguration support
+      // https://github.com/microsoft/CCF/issues/1852
+      return (view - starting_view_change) % active_nodes().size();
     }
 
     Index last_committable_index() const
@@ -424,8 +435,7 @@ namespace aft
 
       for (auto& [index, data, is_globally_committable] : entries)
       {
-        bool globally_committable =
-          is_globally_committable || consensus_type == ConsensusType::BFT;
+        bool globally_committable = is_globally_committable;
 
         if (index != state->last_idx + 1)
           return false;
@@ -528,9 +538,6 @@ namespace aft
 
     void periodic(std::chrono::milliseconds elapsed)
     {
-      std::lock_guard<SpinLock> guard(state->lock);
-      timeout_elapsed += elapsed;
-
       if (consensus_type == ConsensusType::BFT)
       {
         auto time = threading::ThreadMessaging::thread_messaging
@@ -538,26 +545,25 @@ namespace aft
         request_tracker->tick(time);
 
         if (
-          !view_change_tracker.is_view_change_in_progress(time) &&
+          !view_change_tracker->is_view_change_in_progress(time) &&
           is_follower() && (has_bft_timeout_occurred(time)) &&
-          view_change_tracker.should_send_view_change(time))
+          view_change_tracker->should_send_view_change(time))
         {
           // We have not seen a request executed within an expected period of
           // time. We should invoke a view-change.
           //
-          kv::Consensus::View new_view = view_change_tracker.get_target_view();
+          kv::Consensus::View new_view = view_change_tracker->get_target_view();
           kv::Consensus::SeqNo seqno;
-          crypto::Sha256Hash root;
-          std::unique_ptr<ccf::ViewChange> vc;
+          std::unique_ptr<ccf::ViewChangeRequest> vc;
 
           auto progress_tracker = store->get_progress_tracker();
-          std::tie(vc, seqno, root) =
+          std::tie(vc, seqno) =
             progress_tracker->get_view_change_message(new_view);
 
           size_t vc_size = vc->get_serialized_size();
 
           RequestViewChangeMsg vcm = {
-            {bft_view_change, state->my_node_id}, new_view, seqno, root};
+            {bft_view_change, state->my_node_id}, new_view, seqno};
 
           std::vector<uint8_t> m;
           m.resize(sizeof(RequestViewChangeMsg) + vc_size);
@@ -580,8 +586,20 @@ namespace aft
                 ccf::NodeMsgType::consensus_msg, send_to, m);
             }
           }
+
+          if (
+            get_primary(new_view) == id() &&
+            aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
+              view_change_tracker->add_request_view_change(
+                *vc, id(), new_view, seqno, node_count()))
+          {
+            append_new_view(new_view);
+          }
         }
       }
+
+      std::lock_guard<SpinLock> guard(state->lock);
+      timeout_elapsed += elapsed;
 
       if (replica_state == Leader)
       {
@@ -635,13 +653,26 @@ namespace aft
         return;
       }
 
-      ccf::ViewChange v = ccf::ViewChange::deserialize(data, size);
+      ccf::ViewChangeRequest v =
+        ccf::ViewChangeRequest::deserialize(data, size);
       LOG_INFO_FMT(
         "Received view change from:{}, view:{}", r.from_node, r.view);
 
       auto progress_tracker = store->get_progress_tracker();
-      progress_tracker->apply_view_change_message(
-        v, r.from_node, r.view, r.seqno, r.root);
+      if (!progress_tracker->apply_view_change_message(
+            v, r.from_node, r.view, r.seqno))
+      {
+        return;
+      }
+
+      if (
+        get_primary(r.view) == id() &&
+        aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
+          view_change_tracker->add_request_view_change(
+            v, r.from_node, r.view, r.seqno, node_count()))
+      {
+        append_new_view(r.view);
+      }
     }
 
     bool is_first_request = true;
@@ -670,6 +701,16 @@ namespace aft
       // balance out total batch size across batch window
       batch_window_sum += (batch_size - batch_avg);
       entries_batch_size = std::max((batch_window_sum / batch_window_size), 1);
+    }
+
+    void append_new_view(kv::Consensus::View view)
+    {
+      state->current_view = view;
+      become_leader();
+      view_change_tracker->write_view_change_confirmation_append_entry(view);
+
+      view_change_tracker->clear();
+      request_tracker->clear();
     }
 
     bool has_bft_timeout_occurred(std::chrono::milliseconds time)
@@ -1008,6 +1049,12 @@ namespace aft
 
           case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE:
           {
+            break;
+          }
+          case kv::DeserialiseSuccess::NEW_VIEW:
+          {
+            view_change_tracker->clear();
+            request_tracker->clear();
             break;
           }
 
@@ -1623,11 +1670,16 @@ namespace aft
       LOG_INFO_FMT(
         "Becoming candidate {}: {}", state->my_node_id, state->current_view);
 
-      for (auto it = nodes.begin(); it != nodes.end(); ++it)
+      if (consensus_type != ConsensusType::BFT)
       {
-        channels->create_channel(
-          it->first, it->second.node_info.hostname, it->second.node_info.port);
-        send_request_vote(it->first);
+        for (auto it = nodes.begin(); it != nodes.end(); ++it)
+        {
+          channels->create_channel(
+            it->first,
+            it->second.node_info.hostname,
+            it->second.node_info.port);
+          send_request_vote(it->first);
+        }
       }
     }
 
@@ -1691,7 +1743,11 @@ namespace aft
 
       LOG_INFO_FMT(
         "Becoming follower {}: {}", state->my_node_id, state->current_view);
-      channels->close_all_outgoing();
+
+      if (consensus_type != ConsensusType::BFT)
+      {
+        channels->close_all_outgoing();
+      }
     }
 
     void become_retired()
