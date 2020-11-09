@@ -94,10 +94,6 @@ def assert_recovery_shares_update(are_shared_updated, func, network, args, **kwa
         func(network, args, **kwargs)
 
     for m, share_before in saved_recovery_shares.items():
-        LOG.success(f"Member {m.member_id}")
-        LOG.error(share_before)
-        share_after = m.get_and_decrypt_recovery_share(primary)
-        LOG.success(share_after)
         if are_shared_updated:
             assert share_before != m.get_and_decrypt_recovery_share(primary)
         else:

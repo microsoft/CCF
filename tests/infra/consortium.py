@@ -184,6 +184,7 @@ class Consortium:
 
     def get_any_active_member(self, recovery_member=None):
         if recovery_member is not None:
+            LOG.error(f"Active members: {self.get_active_recovery_members()}")
             if recovery_member == True:
                 return random.choice(self.get_active_recovery_members())
             elif recovery_member == False:

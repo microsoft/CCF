@@ -60,30 +60,25 @@ class Member:
         if key_generator is not None:
             member = f"member{member_id}"
 
-            # TODO: Fix awkward if/self
-            if is_recovery_member:
-                LOG.error("has recovery share")
-                infra.proc.ccall(
-                    key_generator,
-                    "--name",
-                    f"{member}",
-                    "--curve",
-                    f"{curve.name}",
-                    "--gen-enc-key",
-                    path=self.common_dir,
-                    log_output=False,
-                ).check_returncode()
-            else:
-                infra.proc.ccall(
-                    key_generator,
-                    "--name",
-                    f"{member}",
-                    "--curve",
-                    f"{curve.name}",
-                    path=self.common_dir,
-                    log_output=False,
-                ).check_returncode()
+            key_generator_args = [
+                "--name",
+                f"{member}",
+                "--curve",
+                f"{curve.name}",
+                "--gen-enc-key",
+            ]
 
+            if is_recovery_member:
+                key_generator_args += [
+                    "--gen-enc-key",
+                ]
+
+            infra.proc.ccall(
+                key_generator,
+                *key_generator_args,
+                path=self.common_dir,
+                log_output=False,
+            ).check_returncode()
         else:
             # If no key generator is passed in, the identity of the member
             # should have been created in advance (e.g. by a previous network)
@@ -98,14 +93,10 @@ class Member:
                 os.path.join(self.common_dir, f"member{self.member_id}_enc_privk.pem")
             )
 
-        # TODO: This looks odd
         if self.member_data is not None:
             with open(
                 os.path.join(self.common_dir, self.member_info.member_data_file), "w"
             ) as md:
-                LOG.warning(
-                    f"Writing member data: {self.member_info.member_data_file}"
-                )  # TODO: Fix
                 json.dump(member_data, md)
 
     def is_active(self):
