@@ -5,8 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
-
+## [0.14.3]
 ### Added
 - Added support for storing JWT public signing keys (#1834).
   - The new proposals `set_jwt_issuer`, `remove_jwt_issuer`, and `set_jwt_public_signing_keys` can be generated with the latest version of the ccf Python package.
@@ -421,6 +420,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.14.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.14.3
 [0.14.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.14.2
 [0.14.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.14.1
 [0.14.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.14.0
