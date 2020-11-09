@@ -28,3 +28,5 @@ python/setup.py
 .mypy_cache
 3rdparty/
 *.html
+SECURITY.md
+doc/schemas/

@@ -7,11 +7,16 @@
             "$ref": "#/components/schemas/uint64"
           }
         },
-        "required": ["caller_id"],
+        "required": [
+          "caller_id"
+        ],
         "type": "object"
       },
       "CodeStatus": {
-        "enum": ["ACCEPTED", "RETIRED"]
+        "enum": [
+          "ACCEPTED",
+          "RETIRED"
+        ]
       },
       "EndpointMetrics__Metric": {
         "properties": {
@@ -25,7 +30,11 @@
             "$ref": "#/components/schemas/uint64"
           }
         },
-        "required": ["calls", "errors", "failures"],
+        "required": [
+          "calls",
+          "errors",
+          "failures"
+        ],
         "type": "object"
       },
       "EndpointMetrics__Out": {
@@ -34,7 +43,9 @@
             "$ref": "#/components/schemas/named_named_EndpointMetrics__Metric"
           }
         },
-        "required": ["metrics"],
+        "required": [
+          "metrics"
+        ],
         "type": "object"
       },
       "GetCode__Out": {
@@ -43,7 +54,9 @@
             "$ref": "#/components/schemas/GetCode__Version_array"
           }
         },
-        "required": ["versions"],
+        "required": [
+          "versions"
+        ],
         "type": "object"
       },
       "GetCode__Version": {
@@ -55,7 +68,10 @@
             "$ref": "#/components/schemas/CodeStatus"
           }
         },
-        "required": ["digest", "status"],
+        "required": [
+          "digest",
+          "status"
+        ],
         "type": "object"
       },
       "GetCode__Version_array": {
@@ -73,7 +89,10 @@
             "$ref": "#/components/schemas/int64"
           }
         },
-        "required": ["view", "seqno"],
+        "required": [
+          "view",
+          "seqno"
+        ],
         "type": "object"
       },
       "GetMetrics__HistogramResults": {
@@ -94,7 +113,13 @@
             "$ref": "#/components/schemas/uint64"
           }
         },
-        "required": ["low", "high", "overflow", "underflow", "buckets"],
+        "required": [
+          "low",
+          "high",
+          "overflow",
+          "underflow",
+          "buckets"
+        ],
         "type": "object"
       },
       "GetMetrics__Out": {
@@ -106,7 +131,10 @@
             "$ref": "#/components/schemas/json"
           }
         },
-        "required": ["histogram", "tx_rates"],
+        "required": [
+          "histogram",
+          "tx_rates"
+        ],
         "type": "object"
       },
       "GetNetworkInfo__NodeInfo": {
@@ -121,7 +149,11 @@
             "$ref": "#/components/schemas/string"
           }
         },
-        "required": ["node_id", "host", "port"],
+        "required": [
+          "node_id",
+          "host",
+          "port"
+        ],
         "type": "object"
       },
       "GetNetworkInfo__NodeInfo_array": {
@@ -139,7 +171,10 @@
             "$ref": "#/components/schemas/uint64"
           }
         },
-        "required": ["nodes", "primary_id"],
+        "required": [
+          "nodes",
+          "primary_id"
+        ],
         "type": "object"
       },
       "GetNodesByRPCAddress__NodeInfo": {
@@ -151,7 +186,10 @@
             "$ref": "#/components/schemas/NodeStatus"
           }
         },
-        "required": ["node_id", "status"],
+        "required": [
+          "node_id",
+          "status"
+        ],
         "type": "object"
       },
       "GetNodesByRPCAddress__NodeInfo_array": {
@@ -166,7 +204,9 @@
             "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo_array"
           }
         },
-        "required": ["nodes"],
+        "required": [
+          "nodes"
+        ],
         "type": "object"
       },
       "GetPrimaryInfo__Out": {
@@ -198,7 +238,9 @@
             "$ref": "#/components/schemas/uint8_array"
           }
         },
-        "required": ["receipt"],
+        "required": [
+          "receipt"
+        ],
         "type": "object"
       },
       "GetTxStatus__Out": {
@@ -207,7 +249,9 @@
             "$ref": "#/components/schemas/TxStatus"
           }
         },
-        "required": ["status"],
+        "required": [
+          "status"
+        ],
         "type": "object"
       },
       "LoggingGet__Out": {
@@ -216,7 +260,9 @@
             "$ref": "#/components/schemas/string"
           }
         },
-        "required": ["msg"],
+        "required": [
+          "msg"
+        ],
         "type": "object"
       },
       "LoggingRecord__In": {
@@ -228,14 +274,26 @@
             "$ref": "#/components/schemas/string"
           }
         },
-        "required": ["id", "msg"],
+        "required": [
+          "id",
+          "msg"
+        ],
         "type": "object"
       },
       "NodeStatus": {
-        "enum": ["PENDING", "TRUSTED", "RETIRED"]
+        "enum": [
+          "PENDING",
+          "TRUSTED",
+          "RETIRED"
+        ]
       },
       "TxStatus": {
-        "enum": ["UNKNOWN", "PENDING", "COMMITTED", "INVALID"]
+        "enum": [
+          "UNKNOWN",
+          "PENDING",
+          "COMMITTED",
+          "INVALID"
+        ]
       },
       "VerifyReceipt__In": {
         "properties": {
@@ -243,7 +301,9 @@
             "$ref": "#/components/schemas/uint8_array"
           }
         },
-        "required": ["receipt"],
+        "required": [
+          "receipt"
+        ],
         "type": "object"
       },
       "VerifyReceipt__Out": {
@@ -252,7 +312,9 @@
             "$ref": "#/components/schemas/boolean"
           }
         },
-        "required": ["valid"],
+        "required": [
+          "valid"
+        ],
         "type": "object"
       },
       "boolean": {

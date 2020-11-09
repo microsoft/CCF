@@ -6,6 +6,7 @@ pr:
     include:
       - .daily.yml
       - .azure-pipelines-templates/*
+      - .daily_canary
 
 trigger: none
 
