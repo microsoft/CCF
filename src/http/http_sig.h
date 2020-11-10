@@ -199,11 +199,10 @@ namespace http
       }
 
       auto sha_key = digest->second.substr(0, equal_pos);
-      if (sha_key != auth::DIGEST_SHA256) // TODO: Which digest do we support
-                                          // here?
+      if (sha_key != auth::DIGEST_SHA256)
       {
-        error_reason =
-          fmt::format("Only {} digest is supported", auth::DIGEST_SHA256);
+        error_reason = fmt::format(
+          "Only {} for request digest is supported", auth::DIGEST_SHA256);
         return false;
       }
 
@@ -211,11 +210,7 @@ namespace http
 
       // Then, hash the request body
       tls::HashBytes body_digest;
-      tls::do_hash(
-        body.data(),
-        body.size(),
-        body_digest,
-        MBEDTLS_MD_SHA256); // TODO: Digest?
+      tls::do_hash(body.data(), body.size(), body_digest, MBEDTLS_MD_SHA256);
 
       if (raw_digest != body_digest)
       {
