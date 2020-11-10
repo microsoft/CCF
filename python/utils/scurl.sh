@@ -79,11 +79,24 @@ string_to_sign="(request-target): ${command,,} ${url}
 digest: SHA-256=$req_digest
 content-length: $content_length"
 
+algorithm="hs2019"
+
+# echo "string to sign: ${string_to_sign}"
+
+# TODO: Base64url?
+# to_be_signed=$(echo -n "$string_to_sign" | openssl dgst -binary -sha384 | openssl base64 -A)
+
+# echo "Digest: ${to_be_signed}"
+
 # Compute signature
-signed_raw=$(echo -n "$string_to_sign" | openssl dgst -sha256 -sign "$privk" | openssl base64 -A)
+signed_raw=$(echo -n "$string_to_sign" | openssl dgst -sha384 -sign "$privk" | openssl base64 -A)
+
+# signed_raw=$(echo -n $to_be_signed | openssl base64 -d | openssl pkeyutl -sign -inkey $privk | openssl base64 -A ')
+
+# echo "Signature: ${signed_raw}"
 
 curl \
 -H "Digest: SHA-256=$req_digest" \
--H "Authorization: Signature keyId=\"tls\",algorithm=\"ecdsa-sha256\",headers=\"(request-target) digest content-length\",signature=\"$signed_raw\"" \
+-H "Authorization: Signature keyId=\"tls\",algorithm=\"$algorithm\",headers=\"(request-target) digest content-length\",signature=\"$signed_raw\"" \
 "${additional_curl_args[@]}" \
 "$@"

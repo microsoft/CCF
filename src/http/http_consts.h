@@ -40,12 +40,13 @@ namespace http
   {
     static constexpr auto DIGEST_SHA256 = "SHA-256";
 
-    static constexpr auto AUTH_SCHEME = "Signature";
+    static constexpr auto SIGN_AUTH_SCHEME = "Signature";
     static constexpr auto SIGN_PARAMS_KEYID = "keyId";
     static constexpr auto SIGN_PARAMS_SIGNATURE = "signature";
     static constexpr auto SIGN_PARAMS_ALGORITHM = "algorithm";
     static constexpr auto SIGN_PARAMS_HEADERS = "headers";
-    static constexpr auto SIGN_ALGORITHM_SHA256 = "ecdsa-sha256";
+    static constexpr auto SIGN_ALGORITHM_ECDSA_SHA256 = "ecdsa-sha256";
+    static constexpr auto SIGN_ALGORITHM_HS_2019 = "hs2019";
 
     static constexpr auto SIGN_HEADER_REQUEST_TARGET = "(request-target)";
 
