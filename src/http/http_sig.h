@@ -397,8 +397,11 @@ namespace http
         }
 
         auto sig_raw = tls::raw_from_b64(parsed_sign_params->signature);
-        ccf::SignedReq ret = {
-          sig_raw, signed_raw.value(), body, MBEDTLS_MD_SHA256, parsed_sign_params->key_id};
+        ccf::SignedReq ret = {sig_raw,
+                              signed_raw.value(),
+                              body,
+                              MBEDTLS_MD_SHA256,
+                              parsed_sign_params->key_id};
         return ret;
       }
 

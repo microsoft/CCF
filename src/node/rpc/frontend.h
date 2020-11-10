@@ -279,7 +279,13 @@ namespace ccf
       // caller_id is only tentative at this point if we extract it from the
       // signed request
       if (signed_request.has_value() && signed_request->caller_id != INVALID_ID)
+      {
+        LOG_INFO_FMT(
+          "Caller ID is {} replaced by signed_request caller id {}",
+          caller_id,
+          signed_request->caller_id);
         caller_id = signed_request->caller_id;
+      }
 
       if (endpoint->properties.require_client_identity && endpoints.has_certs())
       {

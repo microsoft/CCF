@@ -79,8 +79,12 @@ class Member:
         # Use this with caution (i.e. only when the network is opening)
         self.status_code = MemberStatus.ACTIVE
 
-    def propose(self, remote_node, proposal):
-        with remote_node.client(f"member{self.member_id}") as mc:
+    def propose(self, remote_node, proposal, disable_client_auth=False):
+        kwargs = {}
+        if disable_client_auth:
+            kwargs["disable_client_auth"] = True
+            kwargs["key_id"] = self.member_id
+        with remote_node.client(f"member{self.member_id}", **kwargs) as mc:
             r = mc.post(
                 "/gov/proposals",
                 proposal,
