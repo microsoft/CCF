@@ -53,11 +53,13 @@ namespace ccf
       bool require_client_signature = false;
       bool require_client_identity = true;
 
+      nlohmann::json openapi;
+
       MSGPACK_DEFINE(
         forwarding_required,
         execute_locally,
         require_client_signature,
-        require_client_identity);
+        require_client_identity, openapi);
     };
 
     DECLARE_JSON_TYPE(EndpointProperties);
@@ -66,7 +68,7 @@ namespace ccf
       forwarding_required,
       execute_locally,
       require_client_signature,
-      require_client_identity);
+      require_client_identity, openapi);
 
     struct EndpointDefinition
     {
