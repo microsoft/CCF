@@ -3,6 +3,7 @@
 OpenAPI examples: https://github.com/OAI/OpenAPI-Specification/tree/master/examples/v3.0
 
 Previous work:
+
 - https://github.com/microsoft/CCF/compare/master...eddyashton:openapi_generation
 
 ## Definitions
@@ -15,11 +16,13 @@ URL paths may be templated.
 ## Requirements
 
 Minimum:
+
 - OpenAPI [Operation](https://swagger.io/specification/#operation-object) object per JS endpoint, provided manually, stored in kv with key being the URL path and HTTP method
 - CCF-specific metadata (read-only etc.) in custom object, likely in outer object per endpoint:
   - {"ccf": {...}, "openapi": {...}}
 
 Desirable:
+
 - Automatic optional schema-based validation of body and possibly query parameters and header
 - Named schemas to make OpenAPI doc more readable
 - One of:
@@ -44,24 +47,29 @@ https://github.com/OAI/OpenAPI-Specification/issues/1442
 ### Validators
 
 OpenAPI schema parsers/validators:
+
 - JS: https://github.com/APIDevTools/swagger-parser^
   - supports bundling (resolves referenced URLs/files into internal `$ref`s)
   - supports dereferencing (inlines all `$ref`s)
 
 OpenAPI payload validators:
+
 - JS: https://github.com/byu-oit/openapi-enforcer
 
 ### Converters
 
 TypeScript to JSON Schema:
+
 - JS: https://github.com/YousefED/typescript-json-schema
 
 JSON Schema to OpenAPI 3.0 Schema:
+
 - JS: https://www.npmjs.com/package/@openapi-contrib/json-schema-to-openapi-schema
   - Note that OpenAPI 3.1 (rc0 released) is fully compatible with JSON schema.
     This library is only needed for <= 3.0.
 
 OpenAPI to TypeScript:
+
 - JS: https://github.com/manifoldco/swagger-to-ts
   - Supports custom mapping of properties via callbacks
 - JS: https://github.com/ferdikoomen/openapi-typescript-codegen
@@ -117,4 +125,3 @@ Bugs in the validation code can be fixed through a JS update proposal.
 A performance hit can be expected if schemas are large, though this may only be temporary until Wasm-based validator libraries exist and CCF supports Wasm.
 
 ### Automatic generation of OpenAPI description from TypeScript interfaces
-

@@ -3,7 +3,7 @@ trigger:
   branches:
     include:
       - master
-      - 'refs/tags/ccf-*'
+      - "refs/tags/ccf-*"
 
 pr:
   autoCancel: true
@@ -12,15 +12,15 @@ pr:
       - master
   paths:
     include:
-      - '*'
+      - "*"
 
 schedules:
-- cron: "0 3 * * Mon-Fri"
-  displayName: Daily morning build
-  branches:
-    include:
-    - master
-  always: true
+  - cron: "0 3 * * Mon-Fri"
+    displayName: Daily morning build
+    branches:
+      include:
+        - master
+    always: true
 
 resources:
   containers:
@@ -39,6 +39,6 @@ variables:
     perf_or_release: perf
 
 jobs:
-- template: .azure-pipelines-templates/matrix.yml
-  parameters:
-    perf_or_release: ${{ variables['perf_or_release'] }}
+  - template: .azure-pipelines-templates/matrix.yml
+    parameters:
+      perf_or_release: ${{ variables['perf_or_release'] }}

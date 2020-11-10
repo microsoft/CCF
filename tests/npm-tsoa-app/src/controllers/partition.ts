@@ -1,23 +1,14 @@
+import { Body, Controller, Post, Route } from "@tsoa/runtime";
 
-import {
-    Body,
-    Controller,
-    Post,
-    Route,
-} from "@tsoa/runtime";
+import * as _ from "lodash-es";
 
-import * as _ from 'lodash-es'
-
-type PartitionRequest = any[]
-type PartitionResponse = any[][]
+type PartitionRequest = any[];
+type PartitionResponse = any[][];
 
 @Route("partition")
 export class PartitionController extends Controller {
-
-    @Post()
-    public computePartition(
-        @Body() body: PartitionRequest
-    ): PartitionResponse {
-        return _.partition(body, n => n % 2);
-    }
+  @Post()
+  public computePartition(@Body() body: PartitionRequest): PartitionResponse {
+    return _.partition(body, (n) => n % 2);
+  }
 }
