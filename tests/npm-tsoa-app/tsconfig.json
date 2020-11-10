@@ -1,17 +1,14 @@
 {
-    "compilerOptions": {
-        "lib": ["ES2020"],
-        "target": "ES2020",
-        "module": "ES2020",
-        "moduleResolution": "node",
-        "experimentalDecorators": true,
-        "noImplicitAny": false,
-        "removeComments": true,
-        "preserveConstEnums": true,
-        "sourceMap": false
-    },
-    "include": [
-        "src/**/*",
-        "build/**/*"
-    ]
+  "compilerOptions": {
+    "lib": ["ES2020"],
+    "target": "ES2020",
+    "module": "ES2020",
+    "moduleResolution": "node",
+    "experimentalDecorators": true,
+    "noImplicitAny": false,
+    "removeComments": true,
+    "preserveConstEnums": true,
+    "sourceMap": false
+  },
+  "include": ["src/**/*", "build/**/*"]
 }

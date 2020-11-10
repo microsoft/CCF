@@ -21,9 +21,7 @@
                         "type": "string"
                       }
                     },
-                    "required": [
-                      "userId"
-                    ],
+                    "required": ["userId"],
                     "type": "object",
                     "additionalProperties": false
                   }
@@ -40,9 +38,7 @@
                         "type": "string"
                       }
                     },
-                    "required": [
-                      "msg"
-                    ],
+                    "required": ["msg"],
                     "type": "object",
                     "additionalProperties": false
                   }
@@ -76,9 +72,7 @@
                         "type": "boolean"
                       }
                     },
-                    "required": [
-                      "available"
-                    ],
+                    "required": ["available"],
                     "type": "object",
                     "additionalProperties": false
                   }
