@@ -953,18 +953,7 @@ namespace ccf
     {
       append(replicated, replicated_size);
 
-      auto consensus = store.get_consensus();
-
-      if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
-      {
-        if (on_result.has_value())
-        {
-          auto root = get_replicated_state_root();
-          LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
-          results[id] = {version, root};
-          on_result.value()({id, version, root});
-        }
-      }
+      add_result(id, version);
     }
 
     void add_result(kv::TxHistory::RequestID id, kv::Version version) override
