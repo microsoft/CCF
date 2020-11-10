@@ -25,17 +25,22 @@ To create a new CCF network, the first node of the network should be invoked wit
     [--sig-ms-interval number_of_milliseconds]
     start
     --network-cert-file /path/to/network_certificate
-    --member-info /path/to/member1_cert[,/path/to/member1_enc_pub[,/path/to/member1_data]]
-    [--member-info /path/to/member2_cert[,/path/to/member2_enc_pub[,/path/to/member2_data]] ...]
+    --member-info /path/to/member1_cert[,/path/to/member1_enc_pubk[,/path/to/member1_data]]
+    [--member-info /path/to/member2_cert[,/path/to/member2_enc_pubk[,/path/to/member2_data]] ...]
     --gov-script /path/to/lua/governance_script
 
 CCF nodes can be started by using IP Addresses (both IPv4 and IPv6 are supported) or by specifying a fully qualified domain name. If an FQDN is used then ``--domain`` should be passed to the node at startup. Once a DNS has been setup it will be possible to connect to the node over TLS by using the node's domain name.
 
 When starting up, the node generates its own key pair and outputs the certificate associated with its public key at the location specified by ``--node-cert-file``. The certificate of the freshly-created CCF network is also output at the location specified by ``--network-cert-file``.
 
-.. note:: The network certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using curl, this is passed as the ``--cacert`` argument.
+.. note:: The network certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using ``curl``, this is passed as the ``--cacert`` argument.
 
-The certificates, encryption public keys and member data of initial members of the consortium are specified via ``--member-info``. For example, if 3 members (one recovery member with member data, one recovery member without member data and one non-recovery member with member data) should initially be added to CCF, operators should specify ``--member-info member1_cert.pem,member1_enc_pubk.pem,member1_data.json``, ``--member-info member2_cert.pem,member2_enc_pubk.pem``, ``--member-info member3_cert.pem,,member2_data.json`` (note the empty public encryption key path "``,,``" for the third member).
+The certificates, encryption public keys and member data of initial members of the consortium are specified via ``--member-info``. For example:
+
+- A recovery member with member data: ``--member-info member_cert.pem,member_enc_pubk.pem,member_data.json``
+- A recovery member with no member data: ``--member-info member_cert.pem,member_enc_pubk.pem``
+- A non-recovery member with member data: ``--member-info member_cert.pem,,member_data.json`` (note the empty public encryption key path "``,,``")
+- A non-recovery member with no member data: ``--member-info member_cert.pem``
 
 The :term:`Constitution`, as defined by the initial members, should be passed via the ``--gov-script`` option.
 
