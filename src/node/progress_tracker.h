@@ -19,13 +19,13 @@ namespace ccf
   {
   public:
     ProgressTracker(
-      std::unique_ptr<ProgressTrackerStore> store_, kv::NodeId id_) :
-      store(std::move(store_)),
+      std::shared_ptr<ProgressTrackerStore> store_, kv::NodeId id_) :
+      store(store_),
       id(id_),
       entropy(tls::create_entropy())
     {}
 
-    std::unique_ptr<ProgressTrackerStore> store;
+    std::shared_ptr<ProgressTrackerStore> store;
 
     kv::TxHistory::Result add_signature(
       kv::TxID tx_id,
@@ -555,10 +555,7 @@ namespace ccf
       return highest_commit_level;
     }
 
-    std::tuple<
-      std::unique_ptr<ViewChange>,
-      kv::Consensus::SeqNo,
-      crypto::Sha256Hash>
+    std::tuple<std::unique_ptr<ViewChangeRequest>, kv::Consensus::SeqNo>
     get_view_change_message(kv::Consensus::View view)
     {
       auto it = certificates.find(highest_prepared_level.version);
@@ -571,27 +568,24 @@ namespace ccf
       }
 
       auto& cert = it->second;
-      auto m = std::make_unique<ViewChange>();
+      auto m = std::make_unique<ViewChangeRequest>();
 
       for (const auto& sig : cert.sigs)
       {
         m->signatures.push_back(sig.second);
       }
 
-      store->sign_view_change(
-        *m, view, highest_prepared_level.version, cert.root);
-      return std::make_tuple(
-        std::move(m), highest_prepared_level.version, cert.root);
+      store->sign_view_change_request(*m, view, highest_prepared_level.version);
+      return std::make_tuple(std::move(m), highest_prepared_level.version);
     }
 
     bool apply_view_change_message(
-      ViewChange& view_change,
+      ViewChangeRequest& view_change,
       kv::NodeId from,
       kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno,
-      crypto::Sha256Hash& root)
+      kv::Consensus::SeqNo seqno)
     {
-      if (!store->verify_view_change(view_change, from, view, seqno, root))
+      if (!store->verify_view_change_request(view_change, from, view, seqno))
       {
         LOG_FAIL_FMT("Failed to verify view-change from:{}", from);
         return false;
@@ -606,16 +600,6 @@ namespace ccf
         LOG_INFO_FMT(
           "Received view-change for view:{} and seqno:{} that I am not aware "
           "of",
-          view,
-          seqno);
-        return false;
-      }
-
-      if (it->second.root != root)
-      {
-        LOG_FAIL_FMT(
-          "Roots do not match, view-change from:{}, view:{}, seqno:{}",
-          from,
           view,
           seqno);
         return false;
@@ -648,6 +632,39 @@ namespace ccf
       }
 
       return verified_signatures;
+    }
+
+    bool apply_new_view(kv::NodeId from) const
+    {
+      auto new_view = store->get_new_view();
+      CCF_ASSERT(new_view.has_value(), "new view does not have a value");
+      kv::Consensus::View view = new_view->view;
+      kv::Consensus::SeqNo seqno = new_view->seqno;
+
+      for (auto& vcp : new_view->view_change_messages)
+      {
+        kv::NodeId id = vcp.first;
+        ccf::ViewChangeRequest& vc = vcp.second;
+
+        if (!store->verify_view_change_request(vc, id, view, seqno))
+        {
+          LOG_FAIL_FMT(
+            "Failed to verify view-change id:{},view:{}, seqno:{}",
+            id,
+            view,
+            seqno);
+          return false;
+        }
+      }
+
+      if (!store->verify_view_change_request_confirmation(
+            new_view.value(), from))
+      {
+        LOG_INFO_FMT("Failed to verify from:{}", from);
+        return false;
+      }
+
+      return true;
     }
 
   private:
@@ -706,15 +723,6 @@ namespace ccf
       }
 
       return std::equal(n_1.h.begin(), n_1.h.end(), n_2.h.begin());
-    }
-
-    uint32_t get_message_threshold(uint32_t node_count)
-    {
-      uint32_t f = 0;
-      for (; 3 * f + 1 < node_count; ++f)
-        ;
-
-      return 2 * f + 1;
     }
 
     bool can_send_sig_ack(

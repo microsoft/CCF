@@ -132,8 +132,6 @@ namespace ccf
       Script script;
       //! fixed parameter for the script
       nlohmann::json parameter = nullptr;
-      //! vote ballot of proposer
-      Script ballot = {"return true"};
     };
 
     //! results from propose RPC
@@ -141,7 +139,7 @@ namespace ccf
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Propose::In)
   DECLARE_JSON_REQUIRED_FIELDS(Propose::In, script)
-  DECLARE_JSON_OPTIONAL_FIELDS(Propose::In, parameter, ballot)
+  DECLARE_JSON_OPTIONAL_FIELDS(Propose::In, parameter)
 
   /** A list of calls proposed (and returned) by a proposal script
    * Every proposal script must return a compatible data structure.

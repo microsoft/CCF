@@ -30,6 +30,10 @@ namespace kv::serialisers
         std::memcpy(s.data(), (uint8_t*)&t, sizeof(t));
         return s;
       }
+      else if constexpr (std::is_same_v<T, std::string>)
+      {
+        return SerialisedEntry(t.begin(), t.end());
+      }
       else
       {
         static_assert(
@@ -58,6 +62,10 @@ namespace kv::serialisers
           throw std::logic_error("Wrong size for deserialising");
         }
         return *(T*)rep.data();
+      }
+      else if constexpr (std::is_same_v<T, std::string>)
+      {
+        return T(rep.begin(), rep.end());
       }
       else
       {
