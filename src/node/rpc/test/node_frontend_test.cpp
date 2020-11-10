@@ -211,7 +211,8 @@ TEST_CASE("Add a node to an open service")
 
   gen.create_service({});
   gen.set_recovery_threshold(1);
-  gen.activate_member(gen.add_member(member_cert, {}));
+  gen.activate_member(
+    gen.add_member({member_cert, tls::make_rsa_key_pair()->public_key_pem()}));
   REQUIRE(gen.open_service());
   gen.finalize();
 

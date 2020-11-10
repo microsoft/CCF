@@ -773,6 +773,12 @@ if(BUILD_TESTS)
     CONSENSUS cft
   )
 
+  add_e2e_test(
+    NAME membership
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
+    CONSENSUS cft
+  )
+
   if(NOT SAN)
     add_e2e_test(
       NAME connections_cft
