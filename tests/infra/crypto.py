@@ -102,14 +102,8 @@ def verify_request_sig(raw_cert, sig, req, request_body, md):
     try:
         cert = x509.load_der_x509_certificate(raw_cert, backend=default_backend())
 
-        digest = (
-            hashes.SHA256()
-            if md == CCFDigestType.MD_SHA256
-            else cert.signature_hash_algorithm
-        )
-
-        # verify that the digest matches the hash of the body
-        h = hashes.Hash(digest, backend=default_backend())
+        # Verify that the request digest matches the hash of the body
+        h = hashes.Hash(hashes.SHA256(), backend=default_backend())
         h.update(request_body)
         raw_req_digest = h.finalize()
         header_digest = base64.b64decode(req.decode().split("SHA-256=")[1])
@@ -118,8 +112,12 @@ def verify_request_sig(raw_cert, sig, req, request_body, md):
         ), "Digest header does not match request body"
 
         pub_key = cert.public_key()
-        hash_alg = ec.ECDSA(digest)
-        pub_key.verify(sig, req, hash_alg)
+        signature_hash_alg = ec.ECDSA(
+            hashes.SHA256()
+            if md == CCFDigestType.MD_SHA256
+            else cert.signature_hash_algorithm
+        )
+        pub_key.verify(sig, req, signature_hash_alg)
     except InvalidSignature as e:
         # we support a non-standard curve, which is also being
         # used for bitcoin.
@@ -154,7 +152,7 @@ def generate_cert(priv_key_pem: str) -> str:
     pub = priv.public_key()
     subject = issuer = x509.Name(
         [
-            x509.NameAttribute(NameOID.COMMON_NAME, u"dummy"),
+            x509.NameAttribute(NameOID.COMMON_NAME, "dummy"),
         ]
     )
     cert = (
