@@ -362,8 +362,8 @@ int main(int argc, char** argv)
     *start,
     members_info,
     "--member-info",
-    "Initial consortium members information (public identity,encryption public "
-    "key,member data)")
+    "Initial consortium members information "
+    "(member_cert.pem[,member_enc_pubk.pem[,member_data.json]])")
     ->required();
 
   std::optional<size_t> recovery_threshold = std::nullopt;
@@ -372,7 +372,7 @@ int main(int argc, char** argv)
       "--recovery-threshold",
       recovery_threshold,
       "Number of member shares required for recovery. Defaults to total number "
-      "of initial consortium members.")
+      "of initial consortium members with a public encryption key.")
     ->check(CLI::PositiveNumber)
     ->type_name("UINT");
 
@@ -453,20 +453,36 @@ int main(int argc, char** argv)
 
     if (*start)
     {
+      // Count members with public encryption key as only these members will be
+      // handed a recovery share.
+      // Note that it is acceptable to start a network without any member having
+      // a recovery share. The service will check that at least one recovery
+      // member is added before the service can be opened.
+      size_t members_with_pubk_count = 0;
+      for (auto const& mi : members_info)
+      {
+        if (mi.enc_pubk_file.has_value())
+        {
+          members_with_pubk_count++;
+        }
+      }
+
       if (!recovery_threshold.has_value())
       {
         LOG_INFO_FMT(
-          "--recovery-threshold unset. Defaulting to number of initial "
-          "consortium members ({}).",
-          members_info.size());
-        recovery_threshold = members_info.size();
+          "Recovery threshold unset. Defaulting to number of initial "
+          "consortium members with a public encryption key ({}).",
+          members_with_pubk_count);
+        recovery_threshold = members_with_pubk_count;
       }
-      else if (recovery_threshold.value() > members_info.size())
+      else if (recovery_threshold.value() > members_with_pubk_count)
       {
         throw std::logic_error(fmt::format(
-          "--recovery-threshold cannot be greater than total number "
-          "of initial consortium members (specified via --member-info "
-          "options)"));
+          "Recovery threshold ({}) cannot be greater than total number ({})"
+          "of initial consortium members with a public encryption "
+          "key (specified via --member-info options)",
+          recovery_threshold.value(),
+          members_with_pubk_count));
       }
     }
 
@@ -643,6 +659,14 @@ int main(int argc, char** argv)
 
       for (auto const& m_info : members_info)
       {
+        std::optional<std::vector<uint8_t>> public_encryption_key_file =
+          std::nullopt;
+        if (m_info.enc_pubk_file.has_value())
+        {
+          public_encryption_key_file =
+            files::slurp(m_info.enc_pubk_file.value());
+        }
+
         nlohmann::json md = nullptr;
         if (m_info.member_data_file.has_value())
         {
@@ -651,9 +675,7 @@ int main(int argc, char** argv)
         }
 
         ccf_config.genesis.members_info.emplace_back(
-          files::slurp(m_info.cert_file),
-          files::slurp(m_info.enc_pub_file),
-          md);
+          files::slurp(m_info.cert_file), public_encryption_key_file, md);
       }
       ccf_config.genesis.gov_script = files::slurp_string(gov_script);
       ccf_config.genesis.recovery_threshold = recovery_threshold.value();
