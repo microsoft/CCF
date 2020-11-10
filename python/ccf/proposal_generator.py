@@ -221,6 +221,18 @@ def new_member(
     }
 
     # Sample vote script which checks the expected member is being added, and no other actions are being taken
+
+    verify_encryption_pubk_text = (
+        f"""
+        expected_enc_pub_key = [====[{encryption_pub_key}]====]
+        if not call.args.encryption_pub_key == expected_enc_pub_key then
+        return false
+        end
+        """
+        if encryption_pub_key is not None
+        else ""
+    )
+
     verifying_vote_text = f"""
     tables, calls = ...
     if #calls ~= 1 then
@@ -236,6 +248,8 @@ def new_member(
     if not call.args.cert == expected_cert then
     return false
     end
+
+    {verify_encryption_pubk_text}
 
     return true
     """
