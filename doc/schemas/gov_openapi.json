@@ -513,7 +513,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StateDigest"
+                  "$ref": "#/components/schemas/uint8_array"
                 }
               }
             },

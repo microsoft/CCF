@@ -1589,7 +1589,7 @@ namespace ccf
         };
       make_endpoint(
         "ack/update_state_digest", HTTP_POST, json_adapter(update_state_digest))
-        .set_auto_schema<void, StateDigest>()
+        .set_auto_schema<void, std::vector<uint8_t>>()
         .install();
 
       auto get_encrypted_recovery_share =
