@@ -328,6 +328,23 @@ class Consortium:
         # Large apps take a long time to process - wait longer than normal for commit
         return self.vote_using_majority(remote_node, proposal, careful_vote, timeout=10)
 
+    def set_jwt_issuer(self, remote_node, json_path):
+        proposal_body, careful_vote = self.make_proposal("set_jwt_issuer", json_path)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def remove_jwt_issuer(self, remote_node, issuer):
+        proposal_body, careful_vote = self.make_proposal("remove_jwt_issuer", issuer)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def set_jwt_public_signing_keys(self, remote_node, issuer, jwks_path):
+        proposal_body, careful_vote = self.make_proposal(
+            "set_jwt_public_signing_keys", issuer, jwks_path
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
     def accept_recovery(self, remote_node):
         proposal_body, careful_vote = self.make_proposal("accept_recovery")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)

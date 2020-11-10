@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import base64
 import tempfile
 import http
 import subprocess
@@ -323,6 +324,62 @@ def test_npm_app(network, args):
         assert len(body) == 2, body
         assert {"id": 42, "msg": "Saluton!"} in body, body
         assert {"id": 43, "msg": "Bonjour!"} in body, body
+
+        r = c.get("/app/jwt")
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+        body = r.body.json()
+        assert body["msg"] == "authorization header missing", r.body
+
+        r = c.get("/app/jwt", headers={"authorization": "Bearer not-a-jwt"})
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+        body = r.body.json()
+        assert body["msg"].startswith("malformed jwt:"), r.body
+
+        jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+        jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
+
+        jwt_kid = "my_key_id"
+        jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
+        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+        body = r.body.json()
+        assert body["msg"].startswith("token signing key not found"), r.body
+
+    LOG.info("Store JWT signing keys")
+
+    issuer = "https://example.issuer"
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+        jwt_cert_der = infra.crypto.cert_pem_to_der(jwt_cert_pem)
+        der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
+        data = {
+            "issuer": issuer,
+            "jwks": {"keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]},
+        }
+        json.dump(data, metadata_fp)
+        metadata_fp.flush()
+        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+    LOG.info("Calling jwt endpoint after storing keys")
+    with primary.client("user0") as c:
+        jwt_mismatching_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+        jwt = infra.crypto.create_jwt({}, jwt_mismatching_key_priv_pem, jwt_kid)
+        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+        body = r.body.json()
+        assert body["msg"] == "jwt validation failed", r.body
+
+        jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
+        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+        body = r.body.json()
+        assert body["msg"] == "jwt invalid, sub claim missing", r.body
+
+        user_id = "user0"
+        jwt = infra.crypto.create_jwt({"sub": user_id}, jwt_key_priv_pem, jwt_kid)
+        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        body = r.body.json()
+        assert body["userId"] == user_id, r.body
 
     return network
 

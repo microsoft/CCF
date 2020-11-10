@@ -1,12 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-import {
-    Hidden,
-    Controller,
-    Get,
-    Route,
-} from "@tsoa/runtime";
+import { Hidden, Controller, Get, Route } from "@tsoa/runtime";
 
 const HEADER_HTML = `
 <!doctype html>
@@ -372,12 +367,12 @@ function isLoggedIn() {
         <button id="login-btn" class="btn btn-outline-success">Login</button>
     </div>
 </nav>
-`
+`;
 
 const FOOTER_HTML = `
 </body>
 </html>
-`
+`;
 
 const START_HTML = `
 ${HEADER_HTML}
@@ -405,7 +400,7 @@ ${HEADER_HTML}
 </main>
 
 ${FOOTER_HTML}
-`
+`;
 
 const SAMPLE_POLLS = `\`"Topic","Opinion Type"
 
@@ -423,7 +418,7 @@ const SAMPLE_POLLS = `\`"Topic","Opinion Type"
 "Woodgrove Bank - 3Y CDS Spread",number
 "Proseware - 3Y CDS Spread",number
 "Fabrikam - 3Y CDS Spread",number
-\``
+\``;
 
 const CREATE_POLLS_HTML = `
 ${HEADER_HTML}
@@ -470,7 +465,7 @@ $('#sample-polls-btn').addEventListener('click', async () => {
 </script>
 
 ${FOOTER_HTML}
-`
+`;
 
 const SAMPLE_OPINIONS = `\`"Topic","Opinion"
 
@@ -486,7 +481,7 @@ Fabrikam - 1Y CDS Spread,270
 Woodgrove Bank - 3Y CDS Spread,159
 Proseware - 3Y CDS Spread,156
 Fabrikam - 3Y CDS Spread,380
-\``
+\``;
 
 const SUBMIT_OPINIONS_HTML = `
 ${HEADER_HTML}
@@ -537,7 +532,7 @@ $('#sample-opinions-btn').addEventListener('click', async () => {
 
 </script>
 ${FOOTER_HTML}
-`
+`;
 
 const VIEW_HTML = `
 ${HEADER_HTML}
@@ -569,35 +564,34 @@ main()
 
 </script>
 ${FOOTER_HTML}
-`
+`;
 
-const HTML_CONTENT_TYPE = 'text/html'
+const HTML_CONTENT_TYPE = "text/html";
 
 @Hidden()
 @Route("site")
 export class SiteController extends Controller {
+  @Get()
+  public getStartPage(): any {
+    this.setHeader("content-type", HTML_CONTENT_TYPE);
+    return START_HTML;
+  }
 
-    @Get()
-    public getStartPage(): any {
-        this.setHeader('content-type', HTML_CONTENT_TYPE)
-        return START_HTML
-    }
+  @Get("polls/create")
+  public getPollsCreatePage(): any {
+    this.setHeader("content-type", HTML_CONTENT_TYPE);
+    return CREATE_POLLS_HTML;
+  }
 
-    @Get('polls/create')
-    public getPollsCreatePage(): any {
-        this.setHeader('content-type', HTML_CONTENT_TYPE)
-        return CREATE_POLLS_HTML
-    }
+  @Get("opinions/submit")
+  public getOpinionsSubmitPage(): any {
+    this.setHeader("content-type", HTML_CONTENT_TYPE);
+    return SUBMIT_OPINIONS_HTML;
+  }
 
-    @Get('opinions/submit')
-    public getOpinionsSubmitPage(): any {
-        this.setHeader('content-type', HTML_CONTENT_TYPE)
-        return SUBMIT_OPINIONS_HTML
-    }
-
-    @Get('view')
-    public getViewPage(): any {
-        this.setHeader('content-type', HTML_CONTENT_TYPE)
-        return VIEW_HTML
-    }
+  @Get("view")
+  public getViewPage(): any {
+    this.setHeader("content-type", HTML_CONTENT_TYPE);
+    return VIEW_HTML;
+  }
 }
