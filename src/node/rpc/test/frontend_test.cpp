@@ -378,8 +378,7 @@ std::pair<http::Request, ccf::SignedReq> create_signed_request(
 
   ccf::SignedReq signed_req{details.signature,
                             details.to_sign,
-                            body == nullptr ? std::vector<uint8_t>() : *body,
-                            MBEDTLS_MD_SHA256};
+                            body == nullptr ? std::vector<uint8_t>() : *body};
   return {s, signed_req};
 }
 
