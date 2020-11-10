@@ -315,12 +315,13 @@ namespace ccf
     {
       auto service_view = tx.get_view(tables.service);
 
-      if (get_active_recovery_members().size() < get_recovery_threshold())
+      auto active_recovery_members_count = get_active_recovery_members().size();
+      if (active_recovery_members_count < get_recovery_threshold())
       {
         LOG_FAIL_FMT(
           "Cannot open network as number of active recovery members ({}) is "
           "less than recovery threshold ({})",
-          get_active_recovery_members().size(),
+          active_recovery_members_count,
           get_recovery_threshold());
         return false;
       }
