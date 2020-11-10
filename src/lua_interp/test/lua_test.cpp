@@ -305,6 +305,22 @@ TEST_CASE("json")
     vector<string> v = j;
     REQUIRE(!v.size());
   }
+
+  SUBCASE("roundtrip empty object")
+  {
+    const auto j1 = nlohmann::json::object();
+    constexpr auto code("a = ...; b = a; return b");
+    const auto j2 = Interpreter().invoke<nlohmann::json>(code, j1);
+    REQUIRE(j1 == j2);
+  }
+
+  SUBCASE("roundtrip empty array")
+  {
+    const auto j1 = nlohmann::json::array();
+    constexpr auto code("a = ...; b = a; return b");
+    const auto j2 = Interpreter().invoke<nlohmann::json>(code, j1);
+    REQUIRE(j1 == j2);
+  }
 }
 
 TEST_CASE("push table and attempt to print")
