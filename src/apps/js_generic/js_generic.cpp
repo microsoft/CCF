@@ -1268,9 +1268,10 @@ namespace ccfapp
           return true;
         }
 
-        auto& path_op = ds::openapi::path_operation(ds::openapi::path(document, key.uri_path), http_verb.value());
+        auto& path_op = ds::openapi::path_operation(
+          ds::openapi::path(document, key.uri_path), http_verb.value());
 
-        path_op["foo"] = properties.openapi;
+        path_op.insert(properties.openapi.cbegin(), properties.openapi.cend());
 
         return true;
       });
