@@ -1589,7 +1589,6 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
     )xxx");
 
     proposal.parameter["cert"] = new_operator_cert;
-    proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
     proposal.parameter["member_data"] = operator_member_data();
 
     const auto propose = create_signed_request(proposal, "proposals", kp);

@@ -1749,7 +1749,7 @@ namespace ccf
 
         // Note that it is acceptable to start a network without any member
         // having a recovery share. The service will check that at least one
-        // member with a recovery is added before the service is opened.
+        // recovery member is added before the service is opened.
         if (!g.set_recovery_threshold(in.recovery_threshold, true))
         {
           return make_error(
