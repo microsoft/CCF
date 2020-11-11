@@ -152,7 +152,8 @@ namespace http
   //    - Only supports public key crytography (i.e. no HMAC)
   //    - Only supports SHA-256 as digest algorithm
   //    - Only supports ecdsa-sha256 as signature algorithm
-  //    - keyId is ignored
+  //    - keyId can be set to a SHA-256 digest of a cert against which the
+  //    signature verifies
   class HttpSignatureVerifier
   {
   public:
@@ -161,7 +162,7 @@ namespace http
       std::string_view signature = {};
       std::string_view signature_algorithm = {};
       std::vector<std::string_view> signed_headers;
-      ccf::CallerId key_id = ccf::INVALID_ID;
+      std::string key_id = {};
     };
 
     static bool parse_auth_scheme(std::string_view& auth_header_value)
@@ -291,8 +292,7 @@ namespace http
 
           if (k == auth::SIGN_PARAMS_KEYID)
           {
-            // If keyId is a valid uint64_t, capture it, otherwise ignore it
-            std::from_chars(v.data(), v.data() + v.size(), sig_params.key_id);
+            sig_params.key_id = v;
           }
           else if (k == auth::SIGN_PARAMS_ALGORITHM)
           {

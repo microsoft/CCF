@@ -275,16 +275,21 @@ namespace ccf
       const auto signed_request = ctx->get_signed_request();
       // On signed requests, the effective caller id is the key id that
       // signed the request, the session-level identity is unimportant
-      // NOTE: this is only verified on line 324 (verify_client_signature)
+      // NOTE: this is only verified by verify_client_signature() later down,
       // caller_id is only tentative at this point if we extract it from the
       // signed request
-      if (signed_request.has_value() && signed_request->caller_id != INVALID_ID)
+      if (signed_request.has_value())
       {
-        LOG_INFO_FMT(
-          "Caller ID is {} replaced by signed_request caller id {}",
-          caller_id,
-          signed_request->caller_id);
-        caller_id = signed_request->caller_id;
+        auto cid =
+          endpoints.get_caller_id_by_digest(tx, signed_request->key_id);
+        if (cid != INVALID_ID)
+        {
+          LOG_INFO_FMT(
+            "Caller ID is {} replaced by signed_request caller id {}",
+            caller_id,
+            cid);
+          caller_id = cid;
+        }
       }
 
       if (endpoint->properties.require_client_identity && endpoints.has_certs())

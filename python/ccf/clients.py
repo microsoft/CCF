@@ -18,6 +18,7 @@ from cryptography.hazmat.backends import default_backend
 import struct
 import base64
 import re
+import hashlib
 from typing import Union, Optional, List, Any
 
 import requests
@@ -378,11 +379,14 @@ class RequestClient:
         self.ca = ca
         self.cert = cert
         self.key = key
-        self.key_id = key_id
+        self.key_id = None
         self.session = requests.Session()
         self.session.verify = self.ca
         if (self.cert is not None and self.key is not None) and not disable_client_auth:
             self.session.cert = (self.cert, self.key)
+        if self.cert:
+            with open(self.cert) as cert_file:
+                self.key_id = hashlib.sha256(cert_file.read().encode()).hexdigest()
         self.session.mount("https://", TlsAdapter(self.ca))
 
     def request(
@@ -402,7 +406,7 @@ class RequestClient:
             auth_value = HTTPSignatureAuth_AlwaysDigest(
                 algorithm="ecdsa-sha256",
                 key=open(self.key, "rb").read(),
-                key_id=str(self.key_id),
+                key_id=self.key_id,
                 headers=["(request-target)", "Digest", "Content-Length"],
             )
 
