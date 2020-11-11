@@ -118,7 +118,8 @@ public:
   {
     std::ostringstream s;
     s << "append_entries_response t: " << aer.term
-      << ", lli: " << aer.last_log_idx << ", s: " << aer.success;
+      << ", lli: " << aer.last_log_idx
+      << ", s: " << static_cast<uint8_t>(aer.success);
     rlog(node_id, tgt_node_id, s.str());
   }
 
@@ -151,7 +152,7 @@ public:
     std::cout << "  Note right of Node" << node_id << ": ";
     auto raft = _nodes.at(node_id).raft;
 
-    if (raft->is_leader())
+    if (raft->is_primary())
       std::cout << "L ";
 
     std::cout << " t: " << raft->get_term() << ", li: " << raft->get_last_idx()

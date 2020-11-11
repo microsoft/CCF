@@ -106,8 +106,6 @@ namespace aft
     static constexpr int batch_window_size = 100;
     int batch_window_sum = 0;
 
-    static constexpr size_t starting_view_change = 2;
-
     // Indices that are eligible for global commit, from a Node's perspective
     std::deque<Index> committable_indices;
 
@@ -218,7 +216,7 @@ namespace aft
       return state->my_node_id;
     }
 
-    bool is_leader()
+    bool is_primary()
     {
       return replica_state == Leader;
     }
@@ -588,10 +586,10 @@ namespace aft
           }
 
           if (
-            get_primary(new_view) == id() &&
             aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
               view_change_tracker->add_request_view_change(
-                *vc, id(), new_view, seqno, node_count()))
+                *vc, id(), new_view, seqno, node_count()) &&
+            get_primary(new_view) == id())
           {
             append_new_view(new_view);
           }
@@ -666,10 +664,10 @@ namespace aft
       }
 
       if (
-        get_primary(r.view) == id() &&
         aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
           view_change_tracker->add_request_view_change(
-            v, r.from_node, r.view, r.seqno, node_count()))
+            v, r.from_node, r.view, r.seqno, node_count()) &&
+        get_primary(r.view) == id())
       {
         append_new_view(r.view);
       }
@@ -707,9 +705,10 @@ namespace aft
     {
       state->current_view = view;
       become_leader();
-      view_change_tracker->write_view_change_confirmation_append_entry(view);
+      state->new_view_idx =
+        view_change_tracker->write_view_change_confirmation_append_entry(view);
 
-      view_change_tracker->clear();
+      view_change_tracker->clear(get_primary(view) == id(), view);
       request_tracker->clear();
     }
 
@@ -799,6 +798,8 @@ namespace aft
       const auto prev_idx = start_idx - 1;
       const auto prev_term = get_term_internal(prev_idx);
       const auto term_of_idx = get_term_internal(end_idx);
+      const bool contains_new_view =
+        (state->new_view_idx > prev_idx) && (state->new_view_idx <= end_idx);
 
       LOG_DEBUG_FMT(
         "Send append entries from {} to {}: {} to {} ({})",
@@ -813,7 +814,8 @@ namespace aft
                           state->current_view,
                           prev_term,
                           state->commit_idx,
-                          term_of_idx};
+                          term_of_idx,
+                          contains_new_view};
 
       auto& node = nodes.at(to);
 
@@ -856,6 +858,53 @@ namespace aft
       // passes the integrity check. This way, entries containing dynamic
       // topology changes that include adding this new leader can be accepted.
 
+      // When we are running with in a Byzantine model we cannot trust that the
+      // replica is sending up this data is correct so we need to validate
+      // additional properties that go above and beyond the non-byzantine
+      // scenario.
+      bool confirm_evidence = false;
+      if (consensus_type == ConsensusType::BFT)
+      {
+        if (active_nodes().size() == 0)
+        {
+          // The replica is just starting up, we want to check that this replica
+          // is part of the network we joined but that is dependent on Byzantine
+          // identity
+        }
+        else if (get_primary(r.term) != r.from_node)
+        {
+          LOG_DEBUG_FMT(
+            "Recv append entries to {} from {} at view:{} but the primary at "
+            "this view should be {}",
+            state->my_node_id,
+            r.from_node,
+            r.term,
+            get_primary(r.term));
+          send_append_entries_response(
+            r.from_node, AppendEntriesResponseType::FAIL);
+          return;
+        }
+        else if (!view_change_tracker->check_evidence(r.term))
+        {
+          if (r.contains_new_view)
+          {
+            confirm_evidence = true;
+          }
+          else
+          {
+            LOG_DEBUG_FMT(
+              "Recv append entries to {} from {} at view:{} but we do not have "
+              "the evidence to support this view",
+              state->my_node_id,
+              r.from_node,
+              r.term);
+            send_append_entries_response(
+              r.from_node, AppendEntriesResponseType::REQUIRE_EVIDENCE);
+            return;
+          }
+        }
+      }
+
       // First, check append entries term against our own term, becoming
       // follower if necessary
       if (state->current_view == r.term && replica_state == Candidate)
@@ -877,7 +926,8 @@ namespace aft
           r.from_node,
           state->current_view,
           r.term);
-        send_append_entries_response(r.from_node, false);
+        send_append_entries_response(
+          r.from_node, AppendEntriesResponseType::FAIL);
         return;
       }
 
@@ -910,7 +960,8 @@ namespace aft
             prev_term,
             r.prev_term);
         }
-        send_append_entries_response(r.from_node, false);
+        send_append_entries_response(
+          r.from_node, AppendEntriesResponseType::FAIL);
         return;
       }
 
@@ -981,7 +1032,8 @@ namespace aft
             state->my_node_id,
             r.from_node,
             e.what());
-          send_append_entries_response(r.from_node, false);
+          send_append_entries_response(
+            r.from_node, AppendEntriesResponseType::FAIL);
           return;
         }
 
@@ -1019,7 +1071,8 @@ namespace aft
           {
             LOG_FAIL_FMT("Follower failed to apply log entry: {}", i);
             state->last_idx--;
-            send_append_entries_response(r.from_node, false);
+            send_append_entries_response(
+              r.from_node, AppendEntriesResponseType::FAIL);
             break;
           }
 
@@ -1053,7 +1106,7 @@ namespace aft
           }
           case kv::DeserialiseSuccess::NEW_VIEW:
           {
-            view_change_tracker->clear();
+            view_change_tracker->clear(get_primary(sig_term) == id(), sig_term);
             request_tracker->clear();
             break;
           }
@@ -1092,6 +1145,23 @@ namespace aft
         }
       }
 
+      if (
+        consensus_type == ConsensusType::BFT && confirm_evidence &&
+        !view_change_tracker->check_evidence(r.term))
+      {
+        rollback(last_committable_index());
+        LOG_DEBUG_FMT(
+          "Recv append entries to {} from {} at view:{} but we do not have "
+          "the evidence to support this view, append message was marked as "
+          "containing evidence",
+          state->my_node_id,
+          r.from_node,
+          r.term);
+        send_append_entries_response(
+          r.from_node, AppendEntriesResponseType::REQUIRE_EVIDENCE);
+        return;
+      }
+
       // After entries have been deserialised, we try to commit the leader's
       // commit index and update our term history accordingly
       commit_if_possible(r.leader_commit_idx);
@@ -1103,10 +1173,11 @@ namespace aft
       else
         state->view_history.update(lci + 1, r.term_of_idx);
 
-      send_append_entries_response(r.from_node, true);
+      send_append_entries_response(r.from_node, AppendEntriesResponseType::OK);
     }
 
-    void send_append_entries_response(NodeId to, bool answer)
+    void send_append_entries_response(
+      NodeId to, AppendEntriesResponseType answer)
     {
       LOG_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",
@@ -1157,7 +1228,7 @@ namespace aft
         r.sig,
         r.hashed_nonce,
         node_count(),
-        is_leader());
+        is_primary());
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
       {
         auto send_to = it->first;
@@ -1207,7 +1278,7 @@ namespace aft
         r.sig,
         r.hashed_nonce,
         node_count(),
-        is_leader());
+        is_primary());
       try_send_sig_ack({r.term, r.last_log_idx}, result);
     }
 
@@ -1322,7 +1393,7 @@ namespace aft
             }
           }
           progress_tracker->add_nonce_reveal(
-            tx_id, nonce, state->my_node_id, node_count(), is_leader());
+            tx_id, nonce, state->my_node_id, node_count(), is_primary());
           break;
         }
         default:
@@ -1366,7 +1437,7 @@ namespace aft
         r.term,
         r.idx);
       progress_tracker->add_nonce_reveal(
-        {r.term, r.idx}, r.nonce, r.from_node, node_count(), is_leader());
+        {r.term, r.idx}, r.nonce, r.from_node, node_count(), is_primary());
 
       update_commit();
     }
@@ -1419,8 +1490,10 @@ namespace aft
           "Recv append entries response to {} from {}: stale term",
           state->my_node_id,
           r.from_node);
-        if (r.success)
+        if (r.success == AppendEntriesResponseType::OK)
+        {
           return;
+        }
       }
       else if (r.last_log_idx < node->second.match_idx)
       {
@@ -1430,14 +1503,24 @@ namespace aft
           "Recv append entries response to {} from {}: stale idx",
           state->my_node_id,
           r.from_node);
-        if (r.success)
+        if (r.success == AppendEntriesResponseType::OK)
+        {
           return;
+        }
       }
 
       // Update next and match for the responding node.
       node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
 
-      if (!r.success)
+      if (r.success == AppendEntriesResponseType::REQUIRE_EVIDENCE)
+      {
+        // We need to provide evidence to the replica that we can send it append
+        // entries. This should only happened if there is some kind of network
+        // partition.
+        throw std::logic_error("Not implemented yet");
+      }
+
+      if (r.success != AppendEntriesResponseType::OK)
       {
         // Failed due to log inconsistency. Reset sent_idx and try again.
         LOG_DEBUG_FMT(
