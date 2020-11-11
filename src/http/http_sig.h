@@ -10,7 +10,6 @@
 #include "tls/key_pair.h"
 
 #define FMT_HEADER_ONLY
-#include <charconv>
 #include <fmt/format.h>
 #include <optional>
 #include <string>
@@ -397,13 +396,6 @@ namespace http
         }
 
         auto sig_raw = tls::raw_from_b64(parsed_sign_params->signature);
-<<<<<<< HEAD
-        ccf::SignedReq ret = {sig_raw,
-                              signed_raw.value(),
-                              body,
-                              MBEDTLS_MD_SHA256,
-                              parsed_sign_params->key_id};
-=======
 
         mbedtls_md_type_t signature_digest = MBEDTLS_MD_NONE;
         if (
@@ -414,8 +406,7 @@ namespace http
         }
 
         ccf::SignedReq ret = {
-          sig_raw, signed_raw.value(), body, signature_digest};
->>>>>>> master
+          sig_raw, signed_raw.value(), body, signature_digest, parsed_sign_params->key_id};
         return ret;
       }
 

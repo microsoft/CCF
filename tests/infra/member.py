@@ -104,7 +104,6 @@ class Member:
         kwargs = {}
         if disable_client_auth:
             kwargs["disable_client_auth"] = True
-            kwargs["key_id"] = self.member_id
         with remote_node.client(f"member{self.member_id}", **kwargs) as mc:
             r = mc.post(
                 "/gov/proposals",
