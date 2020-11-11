@@ -55,7 +55,7 @@ export function authentication(
     // We use jwt_decode() instead of jsrsasign's parse() as the latter does unnecessary work.
     let headerClaims: HeaderClaims;
     try {
-      headerClaims = jwt_decode<HeaderClaims>(token, { header: true });
+      headerClaims = jwt_decode(token, { header: true }) as HeaderClaims;
     } catch (e) {
       throw new UnauthorizedError(`malformed jwt: ${e.message}`);
     }
@@ -108,7 +108,7 @@ export function authentication(
     // Validate token body claims.
     let claims: BodyClaims;
     try {
-      claims = jwt_decode(token);
+      claims = jwt_decode(token) as BodyClaims;
     } catch (e) {
       // Shouldn't happen given earlier validation by jsrsasign.
       throw new UnauthorizedError(`malformed jwt: ${e.message}`);
