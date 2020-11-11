@@ -69,7 +69,7 @@ def make_module_set_proposal(path, content, network):
 
 def validate_openapi(client):
     api_response = client.get("/app/api")
-    assert api_response.status_code == http.HTTPStatus.OK, r.status_code
+    assert api_response.status_code == http.HTTPStatus.OK, api_response.status_code
     openapi_doc = api_response.body.json()
     try:
         openapi_spec_validator.validate_spec(openapi_doc)
