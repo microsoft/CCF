@@ -173,7 +173,7 @@ def test_user_id(network, args):
 
 @reqs.description("Test signed proposal over unauthenticated connection")
 def test_proposal_over_unauthenticated_connection(network, args):
-    primary, _ = network.find_nodes()
+    primary, backups = network.find_nodes()
     proposing_member = network.consortium.get_any_active_member()
     user_id = 0
 
@@ -185,6 +185,11 @@ def test_proposal_over_unauthenticated_connection(network, args):
         primary, proposal_body, disable_client_auth=True
     )
     assert proposal.state == infra.proposal.ProposalState.Open
+    # TODO: fix forwarding
+    #proposal = proposing_member.propose(
+    #    backups[0], proposal_body, disable_client_auth=True
+    #)
+    #assert proposal.state == infra.proposal.ProposalState.Open
 
 
 def run(args):

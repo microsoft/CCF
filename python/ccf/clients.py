@@ -310,7 +310,10 @@ class CurlClient:
                 cmd.extend(["--cert", self.cert])
 
             LOG.debug(f"Running: {' '.join(cmd)}")
-            rc = subprocess.run(cmd, capture_output=True, check=False)
+            env = {k: v for k, v in os.environ.items()}
+            if self.disable_client_auth:
+                env["DISABLE_CLIENT_AUTH"] = "1"
+            rc = subprocess.run(cmd, capture_output=True, check=False, env=env)
 
             if rc.returncode != 0:
                 if rc.returncode == 60:  # PEER_FAILED_VERIFICATION

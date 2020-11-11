@@ -15,6 +15,7 @@ next_is_cert=false
 url=$1
 command="post"
 
+fwd_args=()
 for item in "$@" ; do
     if [ "$next_is_url" == true ]; then
         url=$item
@@ -31,10 +32,16 @@ for item in "$@" ; do
     if [ "$next_is_privk" == true ]; then
         privk=$item
         next_is_privk=false
+        if [ -n "$DISABLE_CLIENT_AUTH" ]; then
+            continue
+        fi
     fi
     if [ "$next_is_cert" == true ]; then
         cert=$item
         next_is_cert=false
+        if [ -n "$DISABLE_CLIENT_AUTH" ]; then
+            continue
+        fi
     fi
     if [ "$item" == "--url" ]; then
         next_is_url=true
@@ -47,11 +54,19 @@ for item in "$@" ; do
     fi
     if [ "$item" == "--key" ]; then
         next_is_privk=true
+        if [ -n "$DISABLE_CLIENT_AUTH" ]; then
+            continue
+        fi
     fi
     if [ "$item" == "--cert" ]; then
         next_is_cert=true
+        if [ -n "$DISABLE_CLIENT_AUTH" ]; then
+            continue
+        fi
     fi
+    fwd_args+=("$item")
 done
+
 
 if [ -z "$privk" ]; then
     echo "Error: No private key found in arguments (--key)"
@@ -100,4 +115,4 @@ curl \
 -H "Digest: SHA-256=$req_digest" \
 -H "Authorization: Signature keyId=\"$key_id\",signature_algorithm=\"$signature_algorithm\",headers=\"(request-target) digest content-length\",signature=\"$signed_raw\"" \
 "${additional_curl_args[@]}" \
-"$@"
+"${fwd_args[@]}"
