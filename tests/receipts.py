@@ -6,6 +6,7 @@ import infra.net
 import suite.test_requirements as reqs
 import infra.e2e_args
 import infra.checker
+import base64
 
 from loguru import logger as LOG
 
@@ -42,7 +43,7 @@ def test(network, args):
                 result={"valid": True},
             )
             invalid = r.body.json()["receipt"]
-            invalid[-3] += 1
+            invalid = invalid.replace(invalid[-5], chr(ord(invalid[-5]) + 1), 1)
             check(
                 c.post("/app/receipt/verify", {"receipt": invalid}),
                 result={"valid": False},
