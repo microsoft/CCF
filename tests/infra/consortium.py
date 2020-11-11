@@ -37,12 +37,20 @@ class Consortium:
         # If a list of member IDs is passed in, generate fresh member identities.
         # Otherwise, recover the state of the consortium from the state of CCF.
         if member_ids is not None:
-            for m_id, m_data in member_ids:
+            self.recovery_threshold = 0
+            for m_id, has_share, m_data in member_ids:
                 new_member = infra.member.Member(
-                    m_id, curve, common_dir, share_script, key_generator, m_data
+                    m_id,
+                    curve,
+                    common_dir,
+                    share_script,
+                    has_share,
+                    key_generator,
+                    m_data,
                 )
+                if has_share:
+                    self.recovery_threshold += 1
                 self.members.append(new_member)
-            self.recovery_threshold = len(self.members)
         else:
             with remote_node.client("member0") as mc:
                 r = mc.post(
@@ -50,26 +58,33 @@ class Consortium:
                     {
                         "text": """tables = ...
                         non_retired_members = {}
-                        tables["public:ccf.gov.members"]:foreach(function(member_id, details)
-                        if details["status"] ~= "RETIRED" then
-                            table.insert(non_retired_members, {member_id, details["status"]})
+                        tables["public:ccf.gov.members"]:foreach(function(member_id, info)
+                        if info["status"] ~= "RETIRED" then
+                            table.insert(non_retired_members, {member_id, info})
                         end
                         end)
                         return non_retired_members
                         """
                     },
                 )
-                for m in r.body.json():
+                for m_id, info in r.body.json():
                     new_member = infra.member.Member(
-                        m[0], curve, self.common_dir, share_script
+                        m_id,
+                        curve,
+                        self.common_dir,
+                        share_script,
+                        is_recovery_member="encryption_pub_key" in info,
                     )
+                    status = info["status"]
                     if (
-                        infra.member.MemberStatus[m[1]]
+                        infra.member.MemberStatus[status]
                         == infra.member.MemberStatus.ACTIVE
                     ):
                         new_member.set_active()
                     self.members.append(new_member)
-                    LOG.info(f"Successfully recovered member {m[0]} with status {m[1]}")
+                    LOG.info(
+                        f"Successfully recovered member {m_id} with status {status}"
+                    )
 
                 r = mc.post(
                     "/gov/query",
@@ -108,27 +123,40 @@ class Consortium:
         for m in self.members:
             m.ack(remote_node)
 
-    def generate_and_propose_new_member(self, remote_node, curve, member_data=None):
+    def generate_and_propose_new_member(
+        self, remote_node, curve, recovery_member=True, member_data=None
+    ):
         # The Member returned by this function is in state ACCEPTED. The new Member
         # should ACK to become active.
         new_member_id = len(self.members)
         new_member = infra.member.Member(
-            new_member_id, curve, self.common_dir, self.share_script, self.key_generator
+            new_member_id,
+            curve,
+            self.common_dir,
+            self.share_script,
+            is_recovery_member=recovery_member,
+            key_generator=self.key_generator,
         )
 
         proposal_body, careful_vote = self.make_proposal(
             "new_member",
             os.path.join(self.common_dir, f"member{new_member_id}_cert.pem"),
-            os.path.join(self.common_dir, f"member{new_member_id}_enc_pubk.pem"),
+            os.path.join(self.common_dir, f"member{new_member_id}_enc_pubk.pem")
+            if recovery_member
+            else None,
             member_data,
         )
 
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return proposal, new_member, careful_vote
+        proposal.vote_for = careful_vote
 
-    def generate_and_add_new_member(self, remote_node, curve, member_data=None):
+        return (proposal, new_member, careful_vote)
+
+    def generate_and_add_new_member(
+        self, remote_node, curve, recovery_member=True, member_data=None
+    ):
         proposal, new_member, careful_vote = self.generate_and_propose_new_member(
-            remote_node, curve
+            remote_node, curve, recovery_member, member_data
         )
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
@@ -140,18 +168,34 @@ class Consortium:
     def get_members_info(self):
         info = []
         for m in self.members:
-            i = (f"member{m.member_id}_cert.pem", f"member{m.member_id}_enc_pubk.pem")
-            md = f"member{m.member_id}_data.json"
-            if os.path.exists(os.path.join(self.common_dir, md)):
-                i = i + (md,)
-            info.append(i)
+            info += [m.member_info]
         return info
 
     def get_active_members(self):
         return [member for member in self.members if member.is_active()]
 
-    def get_any_active_member(self):
-        return random.choice(self.get_active_members())
+    def get_active_recovery_members(self):
+        return [
+            member
+            for member in self.members
+            if (member.is_active() and member.is_recovery_member)
+        ]
+
+    def get_active_non_recovery_members(self):
+        return [
+            member
+            for member in self.members
+            if (member.is_active() and not member.is_recovery_member)
+        ]
+
+    def get_any_active_member(self, recovery_member=None):
+        if recovery_member is not None:
+            if recovery_member == True:
+                return random.choice(self.get_active_recovery_members())
+            elif recovery_member == False:
+                return random.choice(self.get_active_non_recovery_members())
+        else:
+            return random.choice(self.get_active_members())
 
     def get_member_by_id(self, member_id):
         return next(
@@ -355,7 +399,7 @@ class Consortium:
         with remote_node.client() as nc:
             check_commit = infra.checker.Checker(nc)
 
-            for m in self.get_active_members():
+            for m in self.get_active_recovery_members():
                 r = m.get_and_submit_recovery_share(remote_node)
                 submitted_shares_count += 1
                 check_commit(r)
@@ -371,8 +415,11 @@ class Consortium:
             "set_recovery_threshold", recovery_threshold
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        self.recovery_threshold = recovery_threshold
-        return self.vote_using_majority(remote_node, proposal, careful_vote)
+        proposal.vote_for = careful_vote
+        r = self.vote_using_majority(remote_node, proposal, careful_vote)
+        if proposal.state == infra.proposal.ProposalState.Accepted:
+            self.recovery_threshold = recovery_threshold
+        return r
 
     def add_new_code(self, remote_node, new_code_id):
         proposal_body, careful_vote = self.make_proposal("new_node_code", new_code_id)

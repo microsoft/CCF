@@ -80,14 +80,14 @@ def at_least_n_nodes(n):
     return ensure_reqs(check)
 
 
-def sufficient_member_count():
+def sufficient_recovery_member_count():
     def check(network, args, *nargs, **kwargs):
         if (
-            len(network.consortium.get_active_members())
+            len(network.consortium.get_active_recovery_members())
             <= network.consortium.recovery_threshold
         ):
             raise TestRequirementsNotMet(
-                "Cannot retire a member since number of active members"
+                "Cannot retire recovery member since number of active recovery members"
                 f" ({len(network.consortium.get_active_members()) - 1}) would be less than"
                 f" the recovery threshold ({network.consortium.recovery_threshold})"
             )

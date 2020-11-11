@@ -190,13 +190,19 @@ def cli_proposal(func):
 
 @cli_proposal
 def new_member(
-    member_cert_path: str, member_enc_pubk_path: str, member_data: Any = None, **kwargs
+    member_cert_path: str,
+    member_enc_pubk_path: Optional[str] = None,
+    member_data: Any = None,
+    **kwargs,
 ):
     LOG.debug("Generating new_member proposal")
 
     # Read certs
     member_cert = open(member_cert_path).read()
-    encryption_pub_key = open(member_enc_pubk_path).read()
+
+    encryption_pub_key = None
+    if member_enc_pubk_path is not None:
+        encryption_pub_key = open(member_enc_pubk_path).read()
 
     # Script which proposes adding a new member
     proposal_script_text = """
@@ -215,6 +221,18 @@ def new_member(
     }
 
     # Sample vote script which checks the expected member is being added, and no other actions are being taken
+
+    verify_encryption_pubk_text = (
+        f"""
+        expected_enc_pub_key = [====[{encryption_pub_key}]====]
+        if not call.args.encryption_pub_key == expected_enc_pub_key then
+        return false
+        end
+        """
+        if encryption_pub_key is not None
+        else ""
+    )
+
     verifying_vote_text = f"""
     tables, calls = ...
     if #calls ~= 1 then
@@ -231,10 +249,7 @@ def new_member(
     return false
     end
 
-    expected_enc_pub_key = [====[{encryption_pub_key}]====]
-    if not call.args.encryption_pub_key == expected_enc_pub_key then
-    return false
-    end
+    {verify_encryption_pubk_text}
 
     return true
     """

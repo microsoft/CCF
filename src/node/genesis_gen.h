@@ -86,10 +86,23 @@ namespace ccf
       cv->put(0, consensus_type);
     }
 
-    auto add_member(
-      const tls::Pem& member_cert,
-      const tls::Pem& encryption_pub_key,
-      const nlohmann::json& member_data = nullptr)
+    auto get_active_recovery_members()
+    {
+      auto members_view = tx.get_view(tables.members);
+      std::map<MemberId, tls::Pem> active_members_info;
+
+      members_view->foreach(
+        [&active_members_info](const MemberId& mid, const MemberInfo& mi) {
+          if (mi.status == MemberStatus::ACTIVE && mi.is_recovery())
+          {
+            active_members_info[mid] = mi.encryption_pub_key.value();
+          }
+          return true;
+        });
+      return active_members_info;
+    }
+
+    MemberId add_member(const MemberPubInfo& member_pub_info)
     {
       auto [m, mc, v, ma, sig] = tx.get_view(
         tables.members,
@@ -100,7 +113,8 @@ namespace ccf
 
       // The key to a CertDERs table must be a DER, for easy comparison against
       // the DER peer cert retrieved from the connection
-      auto member_cert_der = tls::make_verifier(member_cert)->der_cert_data();
+      auto member_cert_der =
+        tls::make_verifier(member_pub_info.cert)->der_cert_data();
 
       auto member_id = mc->get(member_cert_der);
       if (member_id.has_value())
@@ -110,13 +124,7 @@ namespace ccf
       }
 
       const auto id = get_next_id(v, ValueIds::NEXT_MEMBER_ID);
-      m->put(
-        id,
-        MemberInfo(
-          member_cert,
-          encryption_pub_key,
-          member_data,
-          MemberStatus::ACCEPTED));
+      m->put(id, MemberInfo(member_pub_info, MemberStatus::ACCEPTED));
       mc->put(member_cert_der, id);
 
       auto s = sig->get(0);
@@ -131,11 +139,6 @@ namespace ccf
       return id;
     }
 
-    auto add_member(const MemberPubInfo& info)
-    {
-      return add_member(info.cert, info.encryption_pub_key, info.member_data);
-    }
-
     void activate_member(MemberId member_id)
     {
       auto members = tx.get_view(tables.members);
@@ -146,15 +149,20 @@ namespace ccf
           "Member {} cannot be activated as they do not exist", member_id));
       }
 
-      if (member->status == MemberStatus::ACCEPTED)
+      // Only accepted members can transition to accepted state
+      if (member->status != MemberStatus::ACCEPTED)
       {
-        member->status = MemberStatus::ACTIVE;
-        if (get_active_members_count() >= max_active_members_count)
-        {
-          throw std::logic_error(fmt::format(
-            "No more than {} active members are allowed",
-            max_active_members_count));
-        }
+        return;
+      }
+
+      member->status = MemberStatus::ACTIVE;
+      if (
+        member->is_recovery() &&
+        (get_active_recovery_members().size() >= max_active_recovery_members))
+      {
+        throw std::logic_error(fmt::format(
+          "No more than {} active recovery members are allowed",
+          max_active_recovery_members));
       }
       members->put(member_id, member.value());
     }
@@ -170,20 +178,30 @@ namespace ccf
         return false;
       }
 
-      if (member_to_retire->status == MemberStatus::ACTIVE)
+      if (member_to_retire->status != MemberStatus::ACTIVE)
       {
-        // If the member was active, it had a recovery share. Check that
-        // the new number of active members is still sufficient for
-        // recovery.
-        auto active_members_count_after = get_active_members_count() - 1;
+        LOG_DEBUG_FMT(
+          "Could not retire member {}: member is not active", member_id);
+        return true;
+      }
+
+      // If the member was active and had a recovery share, check that
+      // the new number of active members is still sufficient for
+      // recovery
+      if (member_to_retire->is_recovery())
+      {
+        // Because the member to retire is active, there is at least one active
+        // member (i.e. get_active_recovery_members_count_after >= 0)
+        size_t get_active_recovery_members_count_after =
+          get_active_recovery_members().size() - 1;
         auto recovery_threshold = get_recovery_threshold();
-        if (active_members_count_after < recovery_threshold)
+        if (get_active_recovery_members_count_after < recovery_threshold)
         {
           LOG_FAIL_FMT(
-            "Failed to retire member {}: number of active members ({}) "
-            "would be less than recovery threshold ({})",
+            "Failed to retire member {}: number of active recovery members "
+            "({}) would be less than recovery threshold ({})",
             member_id,
-            active_members_count_after,
+            get_active_recovery_members_count_after,
             recovery_threshold);
           return false;
         }
@@ -297,12 +315,13 @@ namespace ccf
     {
       auto service_view = tx.get_view(tables.service);
 
-      if (get_active_members_count() < get_recovery_threshold())
+      auto active_recovery_members_count = get_active_recovery_members().size();
+      if (active_recovery_members_count < get_recovery_threshold())
       {
         LOG_FAIL_FMT(
-          "Cannot open network as number of active members "
-          "({}) is less than recovery threshold ({})",
-          get_active_members_count(),
+          "Cannot open network as number of active recovery members ({}) is "
+          "less than recovery threshold ({})",
+          active_recovery_members_count,
           get_recovery_threshold());
         return false;
       }
@@ -409,50 +428,17 @@ namespace ccf
       codeid_view->put(node_code_id, CodeStatus::ACCEPTED);
     }
 
-    size_t get_active_members_count()
-    {
-      auto members_view = tx.get_view(tables.members);
-      size_t active_members_count = 0;
-
-      members_view->foreach(
-        [&active_members_count](const MemberId&, const MemberInfo& mi) {
-          if (mi.status == MemberStatus::ACTIVE)
-          {
-            active_members_count++;
-          }
-          return true;
-        });
-
-      return active_members_count;
-    }
-
-    auto get_active_members_enc_pub()
-    {
-      auto members_view = tx.get_view(tables.members);
-      std::map<MemberId, tls::Pem> active_members_info;
-
-      members_view->foreach(
-        [&active_members_info](const MemberId& mid, const MemberInfo& mi) {
-          if (mi.status == MemberStatus::ACTIVE)
-          {
-            active_members_info[mid] = mi.encryption_pub_key;
-          }
-          return true;
-        });
-      return active_members_info;
-    }
-
     void add_key_share_info(const RecoverySharesInfo& key_share_info)
     {
       auto shares_view = tx.get_view(tables.shares);
       shares_view->put(0, key_share_info);
     }
 
-    bool set_recovery_threshold(size_t threshold)
+    bool set_recovery_threshold(size_t threshold, bool allow_zero = false)
     {
       auto config_view = tx.get_view(tables.config);
 
-      if (threshold == 0)
+      if (!allow_zero && threshold == 0)
       {
         LOG_FAIL_FMT("Cannot set recovery threshold to 0");
         return false;
@@ -477,14 +463,15 @@ namespace ccf
       }
       else if (service_status.value() == ServiceStatus::OPEN)
       {
-        auto active_members_count = get_active_members_count();
-        if (threshold > active_members_count)
+        auto get_active_recovery_members_count =
+          get_active_recovery_members().size();
+        if (threshold > get_active_recovery_members_count)
         {
           LOG_FAIL_FMT(
             "Cannot set recovery threshold to {} as it is greater than the "
-            "number of active members ({})",
+            "number of active recovery members ({})",
             threshold,
-            active_members_count);
+            get_active_recovery_members_count);
           return false;
         }
       }

@@ -93,13 +93,15 @@ namespace aft
         it->second.new_view_sent == false)
       {
         it->second.new_view_sent = true;
+        last_valid_view = view;
         return ResultAddView::APPEND_NEW_VIEW_MESSAGE;
       }
 
       return ResultAddView::OK;
     }
 
-    void write_view_change_confirmation_append_entry(kv::Consensus::View view)
+    kv::Consensus::SeqNo write_view_change_confirmation_append_entry(
+      kv::Consensus::View view)
     {
       auto it = view_changes.find(view);
       if (it == view_changes.end())
@@ -116,12 +118,29 @@ namespace aft
         nv.view_change_messages.emplace(it.first, it.second);
       }
 
-      store->write_view_change_confirmation(nv);
+      return store->write_view_change_confirmation(nv);
     }
 
-    void clear()
+    bool check_evidence(kv::Consensus::View view) const
     {
+      return last_valid_view == view;
+    }
+
+    void clear(bool is_primary, kv::Consensus::View view)
+    {
+      for (auto it = view_changes.begin(); it != view_changes.end();)
+      {
+        if (is_primary && it->first != view)
+        {
+          it = view_changes.erase(it);
+        }
+        else
+        {
+          ++it;
+        }
+      }
       view_changes.clear();
+      last_valid_view = view;
     }
 
   private:
@@ -130,6 +149,7 @@ namespace aft
     std::chrono::milliseconds time_previous_view_change_increment =
       std::chrono::milliseconds(0);
     kv::Consensus::View last_view_change_sent = 0;
+    kv::Consensus::View last_valid_view = aft::starting_view_change;
     const std::chrono::milliseconds time_between_attempts;
 
     bool should_send_new_view(size_t received_requests, size_t node_count) const

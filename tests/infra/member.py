@@ -10,6 +10,7 @@ import http
 import os
 import base64
 import json
+from typing import NamedTuple, Optional
 
 
 class NoRecoveryShareFound(Exception):
@@ -24,6 +25,12 @@ class MemberStatus(Enum):
     RETIRED = 2
 
 
+class MemberInfo(NamedTuple):
+    certificate_file: str
+    encryption_pub_key_file: Optional[str]
+    member_data_file: Optional[str]
+
+
 class Member:
     def __init__(
         self,
@@ -31,6 +38,7 @@ class Member:
         curve,
         common_dir,
         share_script,
+        is_recovery_member=True,
         key_generator=None,
         member_data=None,
     ):
@@ -39,17 +47,33 @@ class Member:
         self.status_code = MemberStatus.ACCEPTED
         self.share_script = share_script
         self.member_data = member_data
+        self.is_recovery_member = is_recovery_member
+
+        self.member_info = MemberInfo(
+            f"member{self.member_id}_cert.pem",
+            f"member{self.member_id}_enc_pubk.pem" if is_recovery_member else None,
+            f"member{self.member_id}_data.json" if member_data else None,
+        )
 
         if key_generator is not None:
-            # For now, all members are given an encryption key (for recovery)
             member = f"member{member_id}"
-            infra.proc.ccall(
-                key_generator,
+
+            key_generator_args = [
                 "--name",
                 f"{member}",
                 "--curve",
                 f"{curve.name}",
                 "--gen-enc-key",
+            ]
+
+            if is_recovery_member:
+                key_generator_args += [
+                    "--gen-enc-key",
+                ]
+
+            infra.proc.ccall(
+                key_generator,
+                *key_generator_args,
                 path=self.common_dir,
                 log_output=False,
             ).check_returncode()
@@ -60,15 +84,12 @@ class Member:
                 os.path.join(self.common_dir, f"member{self.member_id}_privk.pem")
             )
             assert os.path.isfile(
-                os.path.join(self.common_dir, f"member{self.member_id}_cert.pem")
-            )
-            assert os.path.isfile(
-                os.path.join(self.common_dir, f"member{self.member_id}_enc_privk.pem")
+                os.path.join(self.common_dir, self.member_info.certificate_file)
             )
 
-        if member_data is not None:
+        if self.member_data is not None:
             with open(
-                os.path.join(self.common_dir, f"member{self.member_id}_data.json"), "w"
+                os.path.join(self.common_dir, self.member_info.member_data_file), "w"
             ) as md:
                 json.dump(member_data, md)
 
@@ -131,6 +152,9 @@ class Member:
             return r
 
     def get_and_decrypt_recovery_share(self, remote_node):
+        if not self.is_recovery_member:
+            raise ValueError(f"Member {self.member_id} does not have a recovery share")
+
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.get("/gov/recovery_share")
             if r.status_code != http.HTTPStatus.OK.value:
@@ -146,7 +170,9 @@ class Member:
                 )
 
     def get_and_submit_recovery_share(self, remote_node):
-        # For now, all members are given an encryption key (for recovery)
+        if not self.is_recovery_member:
+            raise ValueError(f"Member {self.member_id} does not have a recovery share")
+
         res = infra.proc.ccall(
             self.share_script,
             f"https://{remote_node.host}:{remote_node.rpc_port}",
