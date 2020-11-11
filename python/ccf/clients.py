@@ -304,9 +304,9 @@ class CurlClient:
 
             if self.ca:
                 cmd.extend(["--cacert", self.ca])
-            if self.key and not self.disable_client_auth:
+            if self.key:
                 cmd.extend(["--key", self.key])
-            if self.cert and not self.disable_client_auth:
+            if self.cert:
                 cmd.extend(["--cert", self.cert])
 
             LOG.debug(f"Running: {' '.join(cmd)}")
@@ -579,11 +579,15 @@ class CCFClient:
         self.is_connected = False
 
         if os.getenv("CURL_CLIENT"):
-            self.client_impl = CurlClient(host, port, ca, cert, key, disable_client_auth)
+            self.client_impl = CurlClient(
+                host, port, ca, cert, key, disable_client_auth
+            )
         elif os.getenv("WEBSOCKETS_CLIENT") or ws:
             self.client_impl = WSClient(host, port, ca, cert, key, disable_client_auth)
         else:
-            self.client_impl = RequestClient(host, port, ca, cert, key, disable_client_auth)
+            self.client_impl = RequestClient(
+                host, port, ca, cert, key, disable_client_auth
+            )
 
     def _response(self, response: Response) -> Response:
         LOG.info(response)

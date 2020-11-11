@@ -405,8 +405,11 @@ namespace http
           signature_digest = MBEDTLS_MD_SHA256;
         }
 
-        ccf::SignedReq ret = {
-          sig_raw, signed_raw.value(), body, signature_digest, parsed_sign_params->key_id};
+        ccf::SignedReq ret = {sig_raw,
+                              signed_raw.value(),
+                              body,
+                              signature_digest,
+                              parsed_sign_params->key_id};
         return ret;
       }
 
