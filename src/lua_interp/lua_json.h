@@ -4,8 +4,6 @@
 
 #include "lua_user_data.h"
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 #include <nlohmann/json.hpp>
 
 /**
@@ -16,16 +14,6 @@ namespace ccf
 {
   namespace lua
   {
-    static void expect_top(lua_State* l, int i)
-    {
-      const auto actual = lua_gettop(l);
-      if (actual != i)
-      {
-        throw ex(fmt::format(
-          "Expected {} items in Lua stack, actually have {}", i, actual));
-      }
-    }
-
     /**
      * Push a json value onto the lua stack
      *
