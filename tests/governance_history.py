@@ -9,6 +9,7 @@ import ccf.ledger
 from infra.proposal import ProposalState
 import http
 import json
+import base64
 from loguru import logger as LOG
 
 
@@ -40,9 +41,9 @@ def count_governance_operations(ledger):
                 assert member_id in members
                 cert = members[member_id]
                 sr = signed_request["signed_request"]
-                sig = bytes(sr["sig"])
-                req = bytes(sr["req"])
-                request_body = bytes(sr["request_body"])
+                sig = base64.b64decode(sr["sig"])
+                req = base64.b64decode(sr["req"])
+                request_body = base64.b64decode(sr["request_body"])
                 digest = sr["md"]
                 infra.crypto.verify_request_sig(
                     cert.encode(), sig, req, request_body, digest

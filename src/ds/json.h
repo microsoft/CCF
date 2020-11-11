@@ -2,8 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "json_schema.h"
-
-// TODO: Shouldn't be including tls from ds!
 #include "tls/base64.h"
 
 #define FMT_HEADER_ONLY
