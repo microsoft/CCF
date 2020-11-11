@@ -32,6 +32,12 @@ The response body (the JSON value ``true``) indicates that the request was execu
 Signing
 -------
 
-In some situations CCF requires signed requests, for example for member votes. The signing scheme is compatible with the `IETF HTTP Signatures draft RFC <https://tools.ietf.org/html/draft-cavage-http-signatures-12>`_. We provide a wrapper script (``scurl.sh``) around ``curl`` to submit signed requests from the command line.
+In some situations CCF requires signed requests, for example for member votes.
+The signing scheme is compatible with the `IETF HTTP Signatures draft RFC <https://tools.ietf.org/html/draft-cavage-http-signatures-12>`_.
+We provide a wrapper script (``scurl.sh``) around ``curl`` to submit signed requests from the command line.
 
-These commands can also be signed and transmitted by external libraries. For example, the CCF test infrastructure uses `an auth plugin <https://pypi.org/project/requests-http-signature/>`_ for `Python Requests <https://requests.readthedocs.io/en/master/>`_.
+CCF identifies the signing identity for a request via the SHA-256 digest of its certificate, represented as a hex string.
+That value must be set in the ``keyId`` field of the ``Authorize`` header for a signed request.
+
+These commands can also be signed and transmitted by external libraries.
+For example, the CCF test infrastructure uses `an auth plugin <https://pypi.org/project/requests-http-signature/>`_ for `Python Requests <https://requests.readthedocs.io/en/master/>`_.

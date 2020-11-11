@@ -30,7 +30,6 @@ namespace ccf
       endpoints.openapi_info.title = "CCF Application API";
     }
 
-
     std::optional<tls::Pem> resolve_caller_id(
       ObjectId caller_id, kv::Tx& tx) override
     {
@@ -48,7 +47,8 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx) override
     {
       // Lookup the caller users's certificate from the forwarded caller id
-      auto caller_cert = resolve_caller_id(ctx->session->original_caller->caller_id, tx);
+      auto caller_cert =
+        resolve_caller_id(ctx->session->original_caller->caller_id, tx);
       if (!caller_cert.has_value())
       {
         return false;

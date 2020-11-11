@@ -187,7 +187,7 @@ def test_proposal_over_unauthenticated_connection(network, args):
     assert proposal.state == infra.proposal.ProposalState.Open
 
     proposal = proposing_member.propose(
-       backups[0], proposal_body, disable_client_auth=True
+        backups[0], proposal_body, disable_client_auth=True
     )
     assert proposal.state == infra.proposal.ProposalState.Open
 
@@ -197,19 +197,19 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        #network = test_member_data(network, args)
-        #network = test_quote(network, args)
-        #network = test_user(network, args)
-        #network = test_no_quote(network, args)
-        #network = test_user_id(network, args)
+        network = test_member_data(network, args)
+        network = test_quote(network, args)
+        network = test_user(network, args)
+        network = test_no_quote(network, args)
+        network = test_user_id(network, args)
         network = test_proposal_over_unauthenticated_connection(network, args)
 
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
-    #if args.enclave_type == "virtual":
-    #    LOG.warning("This test can only run in real enclaves, skipping")
-    #    sys.exit(0)
+    if args.enclave_type == "virtual":
+        LOG.warning("This test can only run in real enclaves, skipping")
+        sys.exit(0)
 
     args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)

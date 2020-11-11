@@ -1842,7 +1842,8 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx) override
     {
       // Lookup the caller member's certificate from the forwarded caller id
-      auto caller_cert = resolve_caller_id(ctx->session->original_caller->caller_id, tx);
+      auto caller_cert =
+        resolve_caller_id(ctx->session->original_caller->caller_id, tx);
       if (!caller_cert.has_value())
       {
         return false;

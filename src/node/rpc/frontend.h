@@ -738,11 +738,10 @@ namespace ccf
       return true;
     }
 
-    virtual std::optional<tls::Pem> resolve_caller_id(
-      ObjectId, kv::Tx&)
-      {
-        return std::nullopt;
-      }
+    virtual std::optional<tls::Pem> resolve_caller_id(ObjectId, kv::Tx&)
+    {
+      return std::nullopt;
+    }
 
     virtual bool is_members_frontend() override
     {
