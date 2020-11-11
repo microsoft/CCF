@@ -3,6 +3,8 @@
 
 import { Hidden, Controller, Get, Route } from "@tsoa/runtime";
 
+import { MS_APP_ID, MS_APP_ID_URI } from '../authentication'
+
 const HEADER_HTML = `
 <!doctype html>
 <html lang="en">
@@ -46,14 +48,14 @@ const apiUrl = window.location.origin + '/app/polls'
 const siteUrl = window.location.origin + '/app/site'
 
 // "CCF Demo App" app registration
-const MS_APP_ID = "1773214f-72b8-48f9-ae18-81e30fab04db"
+const MS_APP_ID = "${MS_APP_ID}"
 // Note: Even though a scope is not strictly required for this app,
 // it is needed so that Microsoft produces standard-compliant JWTs.
 // Creating and requesting a scope of our own app changes the token audience
 // to our app instead of being Microsoft (which is the default).
 // See also https://xsreality.medium.com/making-azure-ad-oidc-compliant-5734b70c43ff
 // and https://docs.microsoft.com/en-us/azure/active-directory/develop/scenario-protected-web-api-overview.
-const MS_LOGIN_SCOPES = ["api://1773214f-72b8-48f9-ae18-81e30fab04db/Polls.Access"]
+const MS_LOGIN_SCOPES = ["${MS_APP_ID_URI}/Polls.Access"]
 
 const msalInstance = new msal.PublicClientApplication({
     auth: {

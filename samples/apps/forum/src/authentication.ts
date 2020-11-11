@@ -29,8 +29,8 @@ interface MSAccessTokenClaims extends BodyClaims {
 
 // Replace the below string with your own app id by registering an app in Azure:
 // https://docs.microsoft.com/en-us/azure/active-directory/develop/quickstart-register-app
-const MS_APP_ID = "1773214f-72b8-48f9-ae18-81e30fab04db";
-const MS_APP_ID_URI = "api://1773214f-72b8-48f9-ae18-81e30fab04db";
+export const MS_APP_ID = "1773214f-72b8-48f9-ae18-81e30fab04db";
+export const MS_APP_ID_URI = "api://1773214f-72b8-48f9-ae18-81e30fab04db";
 
 export function authentication(
   request: ccf.Request,
