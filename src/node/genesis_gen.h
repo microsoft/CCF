@@ -129,7 +129,7 @@ namespace ccf
       m->put(id, MemberInfo(member_pub_info, MemberStatus::ACCEPTED));
       mc->put(member_cert_der, id);
 
-      crypto::Sha256Hash member_cert_digest(member_cert.contents());
+      crypto::Sha256Hash member_cert_digest(member_pub_info.cert.contents());
       md->put(member_cert_digest.hex_str(), id);
 
       auto s = sig->get(0);

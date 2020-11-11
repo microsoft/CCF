@@ -287,13 +287,11 @@ endif()
 add_executable(
   scenario_perf_client ${CCF_DIR}/samples/perf_client/scenario_perf_client.cpp
 )
-target_compile_options(scenario_perf_client PRIVATE -stdlib=libc++)
 use_client_mbedtls(scenario_perf_client)
 target_link_libraries(
   scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
                                http_parser.host
 )
-target_link_libraries(scenario_perf_client PRIVATE ${LINK_LIBCXX})
 install(TARGETS scenario_perf_client DESTINATION bin)
 
 # Lua for host and enclave
@@ -372,13 +370,8 @@ function(add_client_exe name)
   )
 
   add_executable(${name} ${PARSED_ARGS_SRCS})
-  # Not necessary in principle, but libc++ for our target compiler (clang-8) has
-  # more complete C++17 than the platform libstdc++ on our target OS (Ubuntu
-  # 18.04)
-  target_compile_options(${name} PRIVATE -stdlib=libc++)
 
   target_link_libraries(${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT})
-  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX})
   target_include_directories(
     ${name} PRIVATE ${CCF_DIR}/samples/perf_client ${PARSED_ARGS_INCLUDE_DIRS}
   )

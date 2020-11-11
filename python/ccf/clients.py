@@ -555,7 +555,6 @@ class CCFClient:
     :param str description: Message to print on each request emitted with this client.
     :param bool ws: Use WebSocket client (experimental).
     :param bool disable_client_auth: Do not use the provided client identity to authenticate. The client identity will still be used to sign if ``signed`` is set to True when making requests.
-    :param int key_id: keyId value to be set in Authorize header if requests are signed
 
     A :py:exc:`CCFConnectionException` exception is raised if the connection is not established successfully within ``connection_timeout`` seconds.
     """
@@ -573,7 +572,6 @@ class CCFClient:
         description: Optional[str] = None,
         ws: bool = False,
         disable_client_auth: bool = False,
-        key_id: Optional[int] = None,
     ):
         self.connection_timeout = connection_timeout
         self.description = description
@@ -581,15 +579,11 @@ class CCFClient:
         self.is_connected = False
 
         if os.getenv("CURL_CLIENT"):
-            self.client_impl = CurlClient(
-                host, port, ca, cert, key, disable_client_auth
-            )  # TODO: add key_id
+            self.client_impl = CurlClient(host, port, ca, cert, key, disable_client_auth)
         elif os.getenv("WEBSOCKETS_CLIENT") or ws:
             self.client_impl = WSClient(host, port, ca, cert, key, disable_client_auth)
         else:
-            self.client_impl = RequestClient(
-                host, port, ca, cert, key, disable_client_auth, key_id
-            )
+            self.client_impl = RequestClient(host, port, ca, cert, key, disable_client_auth)
 
     def _response(self, response: Response) -> Response:
         LOG.info(response)
