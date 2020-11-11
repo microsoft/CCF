@@ -4,6 +4,8 @@
 
 #include "lua_user_data.h"
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <nlohmann/json.hpp>
 
 /**
@@ -14,6 +16,16 @@ namespace ccf
 {
   namespace lua
   {
+    static void expect_top(lua_State* l, int i)
+    {
+      const auto actual = lua_gettop(l);
+      if (actual != i)
+      {
+        throw ex(fmt::format(
+          "Expected {} items in Lua stack, actually have {}", i, actual));
+      }
+    }
+
     /**
      * Push a json value onto the lua stack
      *
@@ -24,6 +36,8 @@ namespace ccf
     template <>
     inline void push_raw(lua_State* l, const nlohmann::json& j)
     {
+      const auto stack_before = lua_gettop(l);
+
       switch (j.type())
       {
         case nlohmann::json::value_t::null:
@@ -99,11 +113,14 @@ namespace ccf
           throw ex("Unhandled json type, unable to push onto lua stack");
         }
       }
+
+      expect_top(l, stack_before + 1);
     }
 
     template <>
     inline nlohmann::json check_get(lua_State* l, int arg)
     {
+      const auto stack_before = lua_gettop(l);
       arg = sanitize_stack_idx(l, arg);
 
       nlohmann::json j;
@@ -154,7 +171,7 @@ namespace ccf
             // is the key an integer
             if (!lua_isinteger(l, ikey))
             {
-              lua_pop(l, 1);
+              lua_pop(l, 2);
               break;
             }
             saw_integer_key = true;
@@ -163,7 +180,7 @@ namespace ccf
             if (const auto key = lua_tointegerx(l, ikey, nullptr);
                 key != ++prev_key)
             {
-              lua_pop(l, 1);
+              lua_pop(l, 2);
               break;
             }
 
@@ -184,8 +201,7 @@ namespace ccf
           if (saw_integer_key)
             non_string_key();
 
-          // failed to create array; pop the last iterated key from the stack
-          lua_pop(l, 1);
+          expect_top(l, stack_before);
 
           // (2) parse the table as dictionary instead
           // since json only supports strings as keys, we throw for anything
@@ -210,8 +226,7 @@ namespace ccf
             break;
           }
 
-          // failed to create object; pop the last iterated key from the stack
-          lua_pop(l, 1);
+          expect_top(l, stack_before);
 
           // (3) Have an empty Lua table. See if there is a metatable to
           // distinguish empty-object (will be present if this value was
@@ -229,7 +244,6 @@ namespace ccf
               {
                 j = nlohmann::json::array();
               }
-              break;
             }
 
             // pop metatable and requested field
@@ -247,6 +261,7 @@ namespace ccf
           throw ex(
             "Encountered unexpected lua type while constructing json object.");
       }
+      expect_top(l, stack_before);
       return j;
     }
   } // namespace lua
