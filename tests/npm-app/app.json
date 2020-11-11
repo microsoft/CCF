@@ -184,7 +184,6 @@
                 "application/json": {
                   "schema": {
                     "items": {
-                      "items": {},
                       "type": "array"
                     },
                     "type": "array"
@@ -200,7 +199,6 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {},
                   "type": "array"
                 }
               }
