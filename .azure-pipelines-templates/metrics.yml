@@ -3,22 +3,22 @@ steps:
     env:
       METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
     workingDirectory: tests
-    displayName: 'Mark metrics upload as complete'
+    displayName: "Mark metrics upload as complete"
 
   - script: ./cimetrics_env.sh python -m cimetrics.plot
     env:
       METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
     workingDirectory: tests
-    displayName: 'Plot cimetrics'
+    displayName: "Plot cimetrics"
 
   - script: ./cimetrics_env.sh python -m cimetrics.github_pr
     env:
       GITHUB_TOKEN: $(GITHUB_TOKEN)
     workingDirectory: tests
-    displayName: 'Post cimetrics graphs as PR comment'
+    displayName: "Post cimetrics graphs as PR comment"
 
   - task: PublishBuildArtifacts@1
     inputs:
       pathtoPublish: _cimetrics
       artifactName: cimetrics
-    displayName: 'Publish cimetrics graphs as build artifact'
+    displayName: "Publish cimetrics graphs as build artifact"

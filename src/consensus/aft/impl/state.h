@@ -98,7 +98,8 @@ namespace aft
       my_node_id(my_node_id_),
       current_view(0),
       last_idx(0),
-      commit_idx(0)
+      commit_idx(0),
+      new_view_idx(0)
     {}
 
     SpinLock lock;
@@ -113,5 +114,6 @@ namespace aft
     kv::Version bft_watermark_idx;
 
     ViewHistory view_history;
+    kv::Version new_view_idx;
   };
 }

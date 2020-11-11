@@ -32,7 +32,7 @@ namespace aft
 
     bool is_primary() override
     {
-      return aft->is_leader();
+      return aft->is_primary();
     }
 
     bool is_backup() override
