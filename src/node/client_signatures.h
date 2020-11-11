@@ -26,13 +26,13 @@ namespace ccf
   {
     // signature
     std::vector<uint8_t> sig = {};
-    // the signed content
+    // signed content
     std::vector<uint8_t> req = {};
 
-    // the request body
+    // request body
     std::vector<uint8_t> request_body = {};
 
-    // the hashing algorithm used
+    // signature hashing algorithm used
     mbedtls_md_type_t md = MBEDTLS_MD_NONE;
 
     // The key id, if declared in the request

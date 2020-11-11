@@ -1,42 +1,44 @@
 {
-    "version": "0.2.0",
-    "inputs": [{
-        "id": "node",
-        "default": "0",
-        "description": "Choose the node to debug (must be enabled with -d <n>)",
-        "options": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
-        "type": "pickString"
-    }],
-    "configurations": [
+  "version": "0.2.0",
+  "inputs": [
+    {
+      "id": "node",
+      "default": "0",
+      "description": "Choose the node to debug (must be enabled with -d <n>)",
+      "options": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+      "type": "pickString"
+    }
+  ],
+  "configurations": [
+    {
+      "name": "Debug node",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "/bin/bash",
+      "args": ["/tmp/vscode-gdb.sh", "${input:node}"],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "additionalSOLibSearchPath": "${workspaceFolder}/build",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
         {
-            "name": "Debug node",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "/bin/bash",
-            "args": ["/tmp/vscode-gdb.sh", "${input:node}"],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "additionalSOLibSearchPath": "${workspaceFolder}/build",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Follow fork",
-                    "text": "set follow-fork-mode child",
-                    "ignoreFailures": false
-                },
-                {
-                    "description": "Ignore SIGILL",
-                    "text": "handle SIGILL nostop",
-                    "ignoreFailures": false
-                },
-                {
-                    "description": "Enable pretty-printing",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ]
+          "description": "Follow fork",
+          "text": "set follow-fork-mode child",
+          "ignoreFailures": false
+        },
+        {
+          "description": "Ignore SIGILL",
+          "text": "handle SIGILL nostop",
+          "ignoreFailures": false
+        },
+        {
+          "description": "Enable pretty-printing",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
         }
-    ]
+      ]
+    }
+  ]
 }

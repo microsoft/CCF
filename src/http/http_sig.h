@@ -111,13 +111,13 @@ namespace http
       throw std::logic_error("Unable to sign HTTP request");
     }
 
-    const auto signature = kp->sign(to_sign.value(), MBEDTLS_MD_SHA256);
+    const auto signature = kp->sign(to_sign.value());
 
     auto auth_value = fmt::format(
       "Signature "
       "keyId=\"ignored\",algorithm=\"{}\",headers=\"{}\",signature="
       "\"{}\"",
-      auth::SIGN_ALGORITHM_SHA256,
+      auth::SIGN_ALGORITHM_HS_2019,
       fmt::format("{}", fmt::join(headers_to_sign, " ")),
       tls::b64_from_raw(signature.data(), signature.size()));
 
@@ -146,12 +146,10 @@ namespace http
   // Implements verification of "Signature" scheme from
   // https://tools.ietf.org/html/draft-cavage-http-signatures-12
   //
-  // Tested with RequestClient in tests/infra/clients.py
-  //
   // Notes:
   //    - Only supports public key crytography (i.e. no HMAC)
-  //    - Only supports SHA-256 as digest algorithm
-  //    - Only supports ecdsa-sha256 as signature algorithm
+  //    - Only supports SHA-256 as request digest algorithm
+  //    - Only supports ecdsa-sha256 and hs2019 as signature algorithms
   //    - keyId can be set to a SHA-256 digest of a cert against which the
   //    signature verifies
   class HttpSignatureVerifier
@@ -170,11 +168,11 @@ namespace http
       auto next_space = auth_header_value.find(" ");
       if (next_space == std::string::npos)
       {
-        LOG_FAIL_FMT("Authorization header only contains one field!");
+        LOG_FAIL_FMT("Authorization header only contains one field");
         return false;
       }
       auto auth_scheme = auth_header_value.substr(0, next_space);
-      if (auth_scheme != auth::AUTH_SCHEME)
+      if (auth_scheme != auth::SIGN_AUTH_SCHEME)
       {
         return false;
       }
@@ -206,8 +204,8 @@ namespace http
       auto sha_key = digest->second.substr(0, equal_pos);
       if (sha_key != auth::DIGEST_SHA256)
       {
-        error_reason =
-          fmt::format("Only {} digest is supported", auth::DIGEST_SHA256);
+        error_reason = fmt::format(
+          "Only {} for request digest is supported", auth::DIGEST_SHA256);
         return false;
       }
 
@@ -297,7 +295,9 @@ namespace http
           else if (k == auth::SIGN_PARAMS_ALGORITHM)
           {
             sig_params.signature_algorithm = v;
-            if (v != auth::SIGN_ALGORITHM_SHA256)
+            if (
+              v != auth::SIGN_ALGORITHM_ECDSA_SHA256 &&
+              v != auth::SIGN_ALGORITHM_HS_2019)
             {
               LOG_FAIL_FMT("Signature algorithm {} is not supported", v);
               return std::nullopt;
@@ -397,11 +397,25 @@ namespace http
         }
 
         auto sig_raw = tls::raw_from_b64(parsed_sign_params->signature);
+<<<<<<< HEAD
         ccf::SignedReq ret = {sig_raw,
                               signed_raw.value(),
                               body,
                               MBEDTLS_MD_SHA256,
                               parsed_sign_params->key_id};
+=======
+
+        mbedtls_md_type_t signature_digest = MBEDTLS_MD_NONE;
+        if (
+          parsed_sign_params->signature_algorithm ==
+          auth::SIGN_ALGORITHM_ECDSA_SHA256)
+        {
+          signature_digest = MBEDTLS_MD_SHA256;
+        }
+
+        ccf::SignedReq ret = {
+          sig_raw, signed_raw.value(), body, signature_digest};
+>>>>>>> master
         return ret;
       }
 

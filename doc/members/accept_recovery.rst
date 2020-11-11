@@ -47,9 +47,9 @@ Once the proposal to recover the network has passed under the rules of the :term
 Submitting Recovery Shares
 --------------------------
 
-To restore private transactions and complete the recovery procedure, members should submit their recovery shares. The number of members required to submit their shares is set by the ``recovery_threshold`` CCF configuration parameter and :ref:`can be updated by the consortium at any time <members/common_member_operations:Updating Recovery Threshold>`.
+To restore private transactions and complete the recovery procedure, recovery members (i.e. members whose public encryption key has been registered in CCF) should submit their recovery shares. The number of members required to submit their shares is set by the ``recovery_threshold`` CCF configuration parameter and :ref:`can be updated by the consortium at any time <members/common_member_operations:Updating Recovery Threshold>`.
 
-.. note:: The members who submit their recovery shares do not necessarily have to be the members who previously accepted the recovery.
+.. note:: The recovery members who submit their recovery shares do not necessarily have to be the members who previously accepted the recovery.
 
 The recovery share retrieval, decryption and submission steps are conveniently performed by the ``submit_recovery_share.sh`` script as follows:
 
@@ -77,7 +77,7 @@ When the recovery threshold is reached, the ``POST recovery_share`` RPC returns 
 
 Once the recovery of the private ledger is complete on a quorum of nodes that have joined the new network, the ledger is fully recovered and users are able to continue issuing business transactions.
 
-.. note:: Recovery shares are updated every time a new member is added or retired and when the ledger is rekeyed. It also possible for members to update the recovery shares via the ``update_recovery_shares`` proposal.
+.. note:: Recovery shares are updated every time a new recovery member is added or retired and when the ledger is rekeyed. It also possible for members to update the recovery shares via the ``update_recovery_shares`` proposal.
 
 Summary Diagram
 ---------------
