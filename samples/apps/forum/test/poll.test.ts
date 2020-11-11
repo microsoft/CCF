@@ -86,7 +86,7 @@ class FakeAuth {
 // each test uses a different poll topic.
 
 describe("/polls", function () {
-  this.timeout(30000);
+  this.timeout(35000);
 
   const fakeAuth = new FakeAuth();
 
