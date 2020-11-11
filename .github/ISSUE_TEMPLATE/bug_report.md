@@ -1,10 +1,9 @@
 ---
 name: Bug report
 about: Create a bug report
-title: ''
+title: ""
 labels: bug
-assignees: ''
-
+assignees: ""
 ---
 
 **Describe the bug**

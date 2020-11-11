@@ -378,8 +378,7 @@ std::pair<http::Request, ccf::SignedReq> create_signed_request(
 
   ccf::SignedReq signed_req{details.signature,
                             details.to_sign,
-                            body == nullptr ? std::vector<uint8_t>() : *body,
-                            MBEDTLS_MD_SHA256};
+                            body == nullptr ? std::vector<uint8_t>() : *body};
   return {s, signed_req};
 }
 
@@ -428,8 +427,6 @@ auto invalid_caller_der = tls::make_verifier(invalid_caller) -> der_cert_data();
 
 auto anonymous_caller_der = std::vector<uint8_t>();
 
-std::vector<uint8_t> dummy_enc_pubk = {1, 2, 3};
-
 auto user_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, user_caller_der);
 auto backup_user_session = make_shared<enclave::SessionContext>(
@@ -464,8 +461,8 @@ void prepare_callers(NetworkState& network)
   g.create_service({});
   user_id = g.add_user({user_caller});
   nos_id = g.add_user({nos_caller});
-  member_id = g.add_member(member_caller, dummy_enc_pubk);
-  invalid_member_id = g.add_member(invalid_caller, dummy_enc_pubk);
+  member_id = g.add_member(member_caller);
+  invalid_member_id = g.add_member(invalid_caller);
   CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 

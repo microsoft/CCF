@@ -73,7 +73,7 @@ namespace ccf
       kv::NodeId from,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno) = 0;
-    virtual void write_view_change_confirmation(
+    virtual kv::Consensus::SeqNo write_view_change_confirmation(
       ccf::ViewChangeConfirmation& new_view) = 0;
     virtual bool verify_view_change_request_confirmation(
       ccf::ViewChangeConfirmation& new_view, kv::NodeId from) = 0;
@@ -246,7 +246,7 @@ namespace ccf
         new_view.signature.size());
     }
 
-    void write_view_change_confirmation(
+    kv::Consensus::SeqNo write_view_change_confirmation(
       ccf::ViewChangeConfirmation& new_view) override
     {
       kv::Tx tx(&store);
@@ -268,6 +268,8 @@ namespace ccf
           new_view.view,
           new_view.seqno));
       }
+
+      return tx.commit_version();
     }
 
     crypto::Sha256Hash hash_new_view(ccf::ViewChangeConfirmation& new_view)

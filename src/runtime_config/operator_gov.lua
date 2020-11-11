@@ -12,8 +12,24 @@ return {
   REJECTED = -1
   STATE_ACTIVE = "ACTIVE"
 
+  -- returns true if the member is a recovery member
+  function is_recovery_member(member)
+    member_info = tables["public:ccf.gov.members"]:get(member)
+    if member_info then
+      member_enc_pubk = member_info.encryption_pub_key
+      if member_enc_pubk then
+        return true
+      end
+    end
+    return false
+  end
+
   -- defines which of the members are operators
   function is_operator(member)
+    -- Operators cannot be recovery members
+    if is_recovery_member(member) then
+      return false
+    end
     member_info = tables["public:ccf.gov.members"]:get(member)
     if member_info then
       member_data = member_info.member_data

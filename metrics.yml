@@ -1,9 +1,9 @@
-db: 'ccf'
-collection: 'perf'
-view: 'trend'
+db: "ccf"
+collection: "perf"
+view: "trend"
 columns: 3
 span: 50
 ewma_span: 4
-pr_user: 'ccf-bot'
+pr_user: "ccf-bot"
 monitoring_issue: 1063
 monitoring_span: 150

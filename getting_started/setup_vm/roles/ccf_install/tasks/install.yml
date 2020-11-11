@@ -17,7 +17,7 @@
     src: "/tmp/{{ ccf_tarball }}"
     dest: "/opt/ccf-{{ ccf_ver }}"
     extra_opts:
-    - --strip-components=1
+      - --strip-components=1
   become: true
 
 - name: Copy cchost

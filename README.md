@@ -13,17 +13,17 @@ Leveraging the power of trusted execution environments (TEEs), decentralised sys
 
 ## Get Started with CCF
 
-* [Install](https://microsoft.github.io/CCF/master/quickstart/install.html) CCF on Linux
-* Read a [short overview of CCF](https://microsoft.github.io/CCF/master/concepts.html) and get familiar with CCF's core concepts
-* [Build new CCF applications](https://microsoft.github.io/CCF/master/developers/index.html) in TypeScript/JavaScript or C++
-* [Contribute](https://microsoft.github.io/CCF/master/quickstart/contribute.html) to this repository, following the [contribution guidelines](.github/CONTRIBUTING.md)
-* Submit [bugs](https://github.com/microsoft/CCF/issues/new?assignees=&labels=bug&template=bug_report.md&title=) and [feature requests](https://github.com/microsoft/CCF/issues/new?assignees=&labels=enhancement&template=feature_request.md&title=)
+- [Install](https://microsoft.github.io/CCF/master/quickstart/install.html) CCF on Linux
+- Read a [short overview of CCF](https://microsoft.github.io/CCF/master/concepts.html) and get familiar with CCF's core concepts
+- [Build new CCF applications](https://microsoft.github.io/CCF/master/developers/index.html) in TypeScript/JavaScript or C++
+- [Contribute](https://microsoft.github.io/CCF/master/quickstart/contribute.html) to this repository, following the [contribution guidelines](.github/CONTRIBUTING.md)
+- Submit [bugs](https://github.com/microsoft/CCF/issues/new?assignees=&labels=bug&template=bug_report.md&title=) and [feature requests](https://github.com/microsoft/CCF/issues/new?assignees=&labels=enhancement&template=feature_request.md&title=)
 
 ## Learn More
 
-* Browse the [documentation](https://microsoft.github.io/CCF/)
-* Read the [Technical Report](CCF-TECHNICAL-REPORT.pdf) for a more detailed description
-* Learn more about [Azure Confidential Computing](https://azure.microsoft.com/solutions/confidential-compute/) offerings like Azure DC-series (which support Intel SGX TEE) and the [Open Enclave](https://github.com/openenclave/openenclave) SDK
+- Browse the [documentation](https://microsoft.github.io/CCF/)
+- Read the [Technical Report](CCF-TECHNICAL-REPORT.pdf) for a more detailed description
+- Learn more about [Azure Confidential Computing](https://azure.microsoft.com/solutions/confidential-compute/) offerings like Azure DC-series (which support Intel SGX TEE) and the [Open Enclave](https://github.com/openenclave/openenclave) SDK
 
 ## Third-party components
 

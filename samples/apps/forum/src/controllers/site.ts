@@ -1,12 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-import {
-    Hidden,
-    Controller,
-    Get,
-    Route,
-} from "@tsoa/runtime";
+import { Hidden, Controller, Get, Route } from "@tsoa/runtime";
+
+import { MS_APP_ID, MS_APP_ID_URI } from "../authentication";
 
 const HEADER_HTML = `
 <!doctype html>
@@ -41,20 +38,28 @@ const HEADER_HTML = `
   <script src="//code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
   <script src="//cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ho+j7jyWK8fNQe+A12Hb8AhRq26LrZ/JpcUGGOn+Y7RsweNrtN/tE3MoK7ZeZDyx" crossorigin="anonymous"></script>
   <script src="//cdn.jsdelivr.net/npm/js-cookie@3.0.0-rc.1/dist/js.cookie.min.js"></script>
-  <script src="//cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script>
   <script src="//cdn.jsdelivr.net/npm/jstat@1.9.4/dist/jstat.min.js"></script>
   <script src="//cdn.plot.ly/plotly-1.57.0.min.js"></script>
   <script src="//unpkg.com/papaparse@5.3.0/papaparse.min.js"></script>
-  <script src="//alcdn.msauth.net/browser/2.1.0/js/msal-browser.min.js"></script>
+  <script src="//alcdn.msauth.net/browser/2.4.1/js/msal-browser.min.js"></script>
   <script src="//cdn.jsdelivr.net/npm/jwt-decode@3.0.0/build/jwt-decode.js"></script>
   <script>
 const apiUrl = window.location.origin + '/app/polls'
 const siteUrl = window.location.origin + '/app/site'
 
+// "CCF Demo App" app registration
+const MS_APP_ID = "${MS_APP_ID}"
+// Note: Even though a scope is not strictly required for this app,
+// it is needed so that Microsoft produces standard-compliant JWTs.
+// Creating and requesting a scope of our own app changes the token audience
+// to our app instead of being Microsoft (which is the default).
+// See also https://xsreality.medium.com/making-azure-ad-oidc-compliant-5734b70c43ff
+// and https://docs.microsoft.com/en-us/azure/active-directory/develop/scenario-protected-web-api-overview.
+const MS_LOGIN_SCOPES = ["${MS_APP_ID_URI}/Polls.Access"]
+
 const msalInstance = new msal.PublicClientApplication({
     auth: {
-        // "CCF Demo App" app registration
-        clientId: "1773214f-72b8-48f9-ae18-81e30fab04db",
+        clientId: MS_APP_ID,
         // Only the start page is registered as redirect URI
         redirectUri: siteUrl
     }
@@ -73,33 +78,9 @@ async function handleRedirectLogin() {
 }
 
 function login() {
-    msalInstance.loginRedirect({})
-}
-
-function getRandomInt(min, max) {
-    min = Math.ceil(min)
-    max = Math.floor(max)
-    return Math.floor(Math.random() * (max - min + 1)) + min
-}
-
-function base64url(source) {
-    source = CryptoJS.enc.Utf8.parse(source)
-    return CryptoJS.enc.Base64.stringify(source).replace(/=+$/, '').replace(/\\+/g, '-').replace(/\\//g, '_')
-} 
-
-function generateGuestUserJWT() {
-    const user = 'guest' + getRandomInt(0, 1000).toString()
-    const secret = 'foobar'
-    const header = JSON.stringify({
-        alg: "HS256",
-        typ: "JWT"
+    msalInstance.loginRedirect({
+        scopes: MS_LOGIN_SCOPES
     })
-    const payload = JSON.stringify({
-        sub: user
-    })
-    const unsignedToken = base64url(header) + "." + base64url(payload)
-    const token = unsignedToken + "." + base64url(CryptoJS.HmacSHA256(unsignedToken, secret))
-    return token
 }
 
 async function initUser() {
@@ -110,25 +91,21 @@ async function initUser() {
         Cookies.set(jwtCookieName, jwt)
     } else {
         window.jwt = Cookies.get(jwtCookieName)
-        if (!window.jwt) {
-            window.jwt = generateGuestUserJWT()
-            Cookies.set(jwtCookieName, window.jwt)
-        }
     }
     console.log('JWT:', window.jwt)
 }
 
 function getUserName() {
+    if (!window.jwt) {
+        return 'not logged in'
+    }
     const payload = jwt_decode(window.jwt)
-    // upn = human readable username of Microsoft JWTs
-    const user = payload.upn ?? payload.sub
+    const user = payload.upn
     return user
 }
 
 function isLoggedIn() {
-    const payload = jwt_decode(window.jwt)
-    const loggedIn = !payload.sub.startsWith('guest')
-    return loggedIn
+    return !!window.jwt
 }
   </script>
   <script>
@@ -372,12 +349,12 @@ function isLoggedIn() {
         <button id="login-btn" class="btn btn-outline-success">Login</button>
     </div>
 </nav>
-`
+`;
 
 const FOOTER_HTML = `
 </body>
 </html>
-`
+`;
 
 const START_HTML = `
 ${HEADER_HTML}
@@ -405,7 +382,7 @@ ${HEADER_HTML}
 </main>
 
 ${FOOTER_HTML}
-`
+`;
 
 const SAMPLE_POLLS = `\`"Topic","Opinion Type"
 
@@ -423,7 +400,7 @@ const SAMPLE_POLLS = `\`"Topic","Opinion Type"
 "Woodgrove Bank - 3Y CDS Spread",number
 "Proseware - 3Y CDS Spread",number
 "Fabrikam - 3Y CDS Spread",number
-\``
+\``;
 
 const CREATE_POLLS_HTML = `
 ${HEADER_HTML}
@@ -470,7 +447,7 @@ $('#sample-polls-btn').addEventListener('click', async () => {
 </script>
 
 ${FOOTER_HTML}
-`
+`;
 
 const SAMPLE_OPINIONS = `\`"Topic","Opinion"
 
@@ -486,7 +463,7 @@ Fabrikam - 1Y CDS Spread,270
 Woodgrove Bank - 3Y CDS Spread,159
 Proseware - 3Y CDS Spread,156
 Fabrikam - 3Y CDS Spread,380
-\``
+\``;
 
 const SUBMIT_OPINIONS_HTML = `
 ${HEADER_HTML}
@@ -537,7 +514,7 @@ $('#sample-opinions-btn').addEventListener('click', async () => {
 
 </script>
 ${FOOTER_HTML}
-`
+`;
 
 const VIEW_HTML = `
 ${HEADER_HTML}
@@ -569,35 +546,34 @@ main()
 
 </script>
 ${FOOTER_HTML}
-`
+`;
 
-const HTML_CONTENT_TYPE = 'text/html'
+const HTML_CONTENT_TYPE = "text/html";
 
 @Hidden()
 @Route("site")
 export class SiteController extends Controller {
+  @Get()
+  public getStartPage(): any {
+    this.setHeader("content-type", HTML_CONTENT_TYPE);
+    return START_HTML;
+  }
 
-    @Get()
-    public getStartPage(): any {
-        this.setHeader('content-type', HTML_CONTENT_TYPE)
-        return START_HTML
-    }
+  @Get("polls/create")
+  public getPollsCreatePage(): any {
+    this.setHeader("content-type", HTML_CONTENT_TYPE);
+    return CREATE_POLLS_HTML;
+  }
 
-    @Get('polls/create')
-    public getPollsCreatePage(): any {
-        this.setHeader('content-type', HTML_CONTENT_TYPE)
-        return CREATE_POLLS_HTML
-    }
+  @Get("opinions/submit")
+  public getOpinionsSubmitPage(): any {
+    this.setHeader("content-type", HTML_CONTENT_TYPE);
+    return SUBMIT_OPINIONS_HTML;
+  }
 
-    @Get('opinions/submit')
-    public getOpinionsSubmitPage(): any {
-        this.setHeader('content-type', HTML_CONTENT_TYPE)
-        return SUBMIT_OPINIONS_HTML
-    }
-
-    @Get('view')
-    public getViewPage(): any {
-        this.setHeader('content-type', HTML_CONTENT_TYPE)
-        return VIEW_HTML
-    }
+  @Get("view")
+  public getViewPage(): any {
+    this.setHeader("content-type", HTML_CONTENT_TYPE);
+    return VIEW_HTML;
+  }
 }

@@ -7,79 +7,10 @@ import infra.network
 import infra.consortium
 import ccf.proposal_generator
 from infra.proposal import ProposalState
-import random
 
 import suite.test_requirements as reqs
 
 from loguru import logger as LOG
-
-
-@reqs.description("Set recovery threshold")
-def test_set_recovery_threshold(network, args, recovery_threshold=None):
-    if recovery_threshold is None:
-        # If the recovery threshold is not specified, a new threshold is
-        # randomly selected based on the number of active members. The new
-        # recovery threshold is guaranteed to be different from the
-        # previous one.
-        list_recovery_threshold = list(
-            range(1, len(network.consortium.get_active_members()) + 1)
-        )
-        list_recovery_threshold.remove(network.consortium.recovery_threshold)
-        recovery_threshold = random.choice(list_recovery_threshold)
-
-    primary, _ = network.find_primary()
-    network.consortium.set_recovery_threshold(primary, recovery_threshold)
-    LOG.info(f"Recovery threshold is now {recovery_threshold}")
-
-    return network
-
-
-@reqs.description("Add a new member to the consortium (+ activation)")
-def test_add_member(network, args):
-    primary, _ = network.find_primary()
-
-    member_data = {
-        "example": "of",
-        "structured": ["and", {"nested": "arbitrary data"}],
-    }
-
-    new_member = network.consortium.generate_and_add_new_member(
-        primary,
-        curve=infra.network.ParticipantsCurve(args.participants_curve).next(),
-        member_data=member_data,
-    )
-
-    try:
-        new_member.get_and_decrypt_recovery_share(primary)
-        assert False, "New accepted members are not given recovery shares"
-    except infra.member.NoRecoveryShareFound as e:
-        assert e.response.body.text() == "Only active members are given recovery shares"
-
-    r = new_member.ack(primary)
-    with primary.client() as nc:
-        check_commit = infra.checker.Checker(nc)
-        check_commit(r)
-
-    return network
-
-
-@reqs.description("Retire an existing member")
-@reqs.sufficient_member_count()
-def test_retire_member(network, args, member_to_retire=None):
-    primary, _ = network.find_primary()
-
-    if member_to_retire is None:
-        member_to_retire = network.consortium.get_any_active_member()
-    network.consortium.retire_member(primary, member_to_retire)
-
-    return network
-
-
-@reqs.description("Issue new recovery shares (without re-key)")
-def test_update_recovery_shares(network, args):
-    primary, _ = network.find_primary()
-    network.consortium.update_recovery_shares(primary)
-    return network
 
 
 @reqs.description("Send an unsigned request where signature is required")
@@ -105,36 +36,6 @@ def test_missing_signature(network, args):
         assert "digest" in required_headers, required_headers
 
     return network
-
-
-def assert_recovery_shares_update(func, network, args, **kwargs):
-    primary, _ = network.find_primary()
-
-    recovery_threshold_before = network.consortium.recovery_threshold
-    active_members_before = network.consortium.get_active_members()
-    already_active_member = network.consortium.get_any_active_member()
-    saved_share = already_active_member.get_and_decrypt_recovery_share(primary)
-
-    if func is test_retire_member:
-        # When retiring a member, the active member which retrieved their share
-        # should not be retired for them to be able to compare their share afterwards.
-        member_to_retire = [
-            m
-            for m in network.consortium.get_active_members()
-            if m is not already_active_member
-        ][0]
-        func(network, args, member_to_retire)
-    elif func is test_set_recovery_threshold and "recovery_threshold" in kwargs:
-        func(network, args, recovery_threshold=kwargs["recovery_threshold"])
-    else:
-        func(network, args)
-
-    if (
-        recovery_threshold_before != network.consortium.recovery_threshold
-        or active_members_before != network.consortium.get_active_members
-    ):
-        new_share = already_active_member.get_and_decrypt_recovery_share(primary)
-        assert saved_share != new_share, "New recovery shares should have been issued"
 
 
 def run(args):
@@ -259,63 +160,6 @@ def run(args):
         LOG.debug("Further votes fail")
         response = new_member.vote(primary, trust_node_proposal, careful_vote)
         assert response.status_code == params_error
-
-        # Membership changes trigger re-sharing and re-keying and are
-        # only supported with Raft
-        if args.consensus == "cft":
-            LOG.debug("New member proposes to retire member 0")
-            network.consortium.retire_member(
-                primary, network.consortium.get_member_by_id(0)
-            )
-
-            LOG.debug("Retired member cannot make a new proposal")
-            try:
-                network.consortium.get_member_by_id(0).propose(
-                    primary, proposal_trust_0
-                )
-                assert False, "Retired member cannot make a new proposal"
-            except infra.proposal.ProposalNotCreated as e:
-                assert e.response.status_code == http.HTTPStatus.FORBIDDEN.value
-                assert e.response.body.text() == "Member is not active"
-
-            LOG.debug("New member should still be able to make a new proposal")
-            new_proposal = new_member.propose(primary, proposal_trust_0)
-            assert new_proposal.state == ProposalState.Open
-
-            LOG.info(
-                "Recovery threshold is originally set to the original number of members"
-            )
-            LOG.info("Retiring a member should not be possible")
-            try:
-                assert_recovery_shares_update(test_retire_member, network, args)
-                assert False, "Retiring a member should not be possible"
-            except infra.proposal.ProposalNotAccepted as e:
-                assert e.proposal.state == infra.proposal.ProposalState.Failed
-
-            assert_recovery_shares_update(test_add_member, network, args)
-            assert_recovery_shares_update(test_retire_member, network, args)
-
-        LOG.info("Set different recovery thresholds")
-        assert_recovery_shares_update(
-            test_set_recovery_threshold, network, args, recovery_threshold=1
-        )
-        test_set_recovery_threshold(
-            network,
-            args,
-            recovery_threshold=network.consortium.recovery_threshold,
-        )
-
-        LOG.info(
-            "Setting the recovery threshold above the number of active members is not possible"
-        )
-        try:
-            test_set_recovery_threshold(
-                network,
-                args,
-                recovery_threshold=len(network.consortium.get_active_members()) + 1,
-            )
-        except infra.proposal.ProposalNotAccepted as e:
-            assert e.proposal.state == infra.proposal.ProposalState.Failed
 
 
 if __name__ == "__main__":
