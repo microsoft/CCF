@@ -284,8 +284,9 @@ namespace ccf
           endpoints.get_caller_id_by_digest(tx, signed_request->key_id);
         if (cid != INVALID_ID)
         {
-          LOG_INFO_FMT(
-            "Caller ID is {} replaced by signed_request caller id {}",
+          LOG_TRACE_FMT(
+            "Session-level caller ID is {} replaced by caller id contained in "
+            "signed request {}",
             caller_id,
             cid);
           caller_id = cid;
