@@ -860,7 +860,7 @@ namespace aft
 
       // When we are running with in a Byzantine model we cannot trust that the
       // replica is sending up this data is correct so we need to validate
-      // additional properties that go above an beyond the non-byzantine
+      // additional properties that go above and beyond the non-byzantine
       // scenario.
       bool confirm_evidence = false;
       if (consensus_type == ConsensusType::BFT)
@@ -868,7 +868,7 @@ namespace aft
         if (active_nodes().size() == 0)
         {
           // The replica is just starting up, we want to check that this replica
-          // is part of the network we joined but that is dependant on Byzantine
+          // is part of the network we joined but that is dependent on Byzantine
           // identity
         }
         else if (get_primary(r.term) != r.from_node)
