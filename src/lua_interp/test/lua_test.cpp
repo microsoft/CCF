@@ -307,6 +307,31 @@ TEST_CASE("json")
   }
 }
 
+TEST_CASE("vectors")
+{
+  constexpr auto return_arg = "return ...";
+  constexpr auto append_first = "t = ...; table.insert(t, t[1]); return t";
+
+  SUBCASE("bytes")
+  {
+    std::vector<uint8_t> v1, v2;
+    v2 = Interpreter().invoke<std::vector<uint8_t>>(return_arg, v1);
+    REQUIRE(v1 == v2);
+
+    v1 = {1};
+    v2 = Interpreter().invoke<std::vector<uint8_t>>(return_arg, v1);
+    REQUIRE(v1 == v2);
+
+    v1 = {42, 100, 110, 7};
+    v2 = Interpreter().invoke<std::vector<uint8_t>>(return_arg, v1);
+    REQUIRE(v1 == v2);
+
+    v2 = Interpreter().invoke<std::vector<uint8_t>>(append_first, v1);
+    v1.push_back(v1[0]);
+    REQUIRE(v1 == v2);
+  }
+}
+
 TEST_CASE("push table and attempt to print")
 {
   static constexpr auto script = R"xxx(
