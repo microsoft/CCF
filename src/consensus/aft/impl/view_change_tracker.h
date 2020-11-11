@@ -100,25 +100,59 @@ namespace aft
       return ResultAddView::OK;
     }
 
+    // TODO we generate the view here
     kv::Consensus::SeqNo write_view_change_confirmation_append_entry(
       kv::Consensus::View view)
     {
-      auto it = view_changes.find(view);
-      if (it == view_changes.end())
-      {
-        throw std::logic_error(fmt::format(
-          "Cannot write unknown view-change to ledger, view:{}", view));
-      }
-
-      auto& vc = it->second;
-      ccf::ViewChangeConfirmation nv(vc.view, vc.seqno);
-
-      for (auto it : vc.received_view_changes)
-      {
-        nv.view_change_messages.emplace(it.first, it.second);
-      }
-
+      ccf::ViewChangeConfirmation nv =
+        create_view_change_confirmation_msg(view);
       return store->write_view_change_confirmation(nv);
+    }
+
+    std::vector<uint8_t> get_serialized_view_change_confirmation(
+      kv::Consensus::View view)
+    {
+      ccf::ViewChangeConfirmation nv =
+        create_view_change_confirmation_msg(view);
+      nlohmann::json j;
+      to_json(j, nv);
+      std::string s = j.dump();
+
+      std::vector<uint8_t> ret;
+      ret.resize(s.size()+1);
+      std::copy(s.begin(), s.end(), ret.data());
+
+      return ret;
+    }
+
+    bool add_unknown_primary_evidence(
+      std::vector<uint8_t>& data, kv::Consensus::View view, uint32_t node_count)
+    {
+      nlohmann::json j = nlohmann::json::parse(data.data());
+      auto vc = j.get<ccf::ViewChangeConfirmation>();
+
+      if (view != vc.view)
+      {
+        return false;
+      }
+
+      if (
+        vc.view_change_messages.size() < ccf::get_message_threshold(node_count))
+      {
+        return false;
+      }
+
+      for (auto it : vc.view_change_messages)
+      {
+        if (!store->verify_view_change_request(
+              it.second, it.first, vc.view, vc.seqno))
+        {
+          return false;
+        }
+      }
+
+      last_valid_view = view;
+      return true;
     }
 
     bool check_evidence(kv::Consensus::View view) const
@@ -151,6 +185,26 @@ namespace aft
     kv::Consensus::View last_view_change_sent = 0;
     kv::Consensus::View last_valid_view = aft::starting_view_change;
     const std::chrono::milliseconds time_between_attempts;
+
+    ccf::ViewChangeConfirmation create_view_change_confirmation_msg(kv::Consensus::View view)
+    {
+      auto it = view_changes.find(view);
+      if (it == view_changes.end())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot write unknown view-change to ledger, view:{}", view));
+      }
+
+      auto& vc = it->second;
+      ccf::ViewChangeConfirmation nv(vc.view, vc.seqno);
+
+      for (auto it : vc.received_view_changes)
+      {
+        nv.view_change_messages.emplace(it.first, it.second);
+      }
+
+      return nv;
+    }
 
     bool should_send_new_view(size_t received_requests, size_t node_count) const
     {

@@ -1517,7 +1517,12 @@ namespace aft
         // We need to provide evidence to the replica that we can send it append
         // entries. This should only happened if there is some kind of network
         // partition.
-        throw std::logic_error("Not implemented yet");
+        kv::Consensus::View view = 1;
+        kv::Consensus::SeqNo seqno = 1;
+        ViewChangeEvidenceMsg vw = {
+          {bft_view_change_evidence, state->my_node_id}, view, seqno};
+
+        channels->send_authenticated(ccf::NodeMsgType::consensus_msg, r.from_node, vw);
       }
 
       if (r.success != AppendEntriesResponseType::OK)

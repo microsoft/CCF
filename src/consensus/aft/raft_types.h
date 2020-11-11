@@ -152,7 +152,8 @@ namespace aft
     bft_request,
     bft_signature_received_ack,
     bft_nonce_reveal,
-    bft_view_change
+    bft_view_change,
+    bft_view_change_evidence
   };
 
 #pragma pack(push, 1)
@@ -209,6 +210,12 @@ namespace aft
   };
 
   struct RequestViewChangeMsg : RaftHeader
+  {
+    kv::Consensus::View view = 0;
+    kv::Consensus::SeqNo seqno = 0;
+  };
+
+  struct ViewChangeEvidenceMsg : RaftHeader
   {
     kv::Consensus::View view = 0;
     kv::Consensus::SeqNo seqno = 0;
