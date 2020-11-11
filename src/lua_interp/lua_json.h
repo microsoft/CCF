@@ -39,6 +39,14 @@ namespace ccf
             push_raw(l, it.value());
             lua_setfield(l, -2, it.key().c_str());
           }
+          // Set custom __was_object metatable property
+          if (lua_getmetatable(l, -1) == 0)
+          {
+            lua_newtable(l);
+          }
+          lua_pushboolean(l, true);
+          lua_setfield(l, -2, "__was_object");
+          lua_setmetatable(l, -2);
           break;
         }
         case nlohmann::json::value_t::array:
@@ -51,6 +59,14 @@ namespace ccf
             lua_seti(
               l, -2, ++i); // lua 'arrays' are 1-indexed, so pre-increment
           }
+          // Set custom __was_object metatable property
+          if (lua_getmetatable(l, -1) == 0)
+          {
+            lua_newtable(l);
+          }
+          lua_pushboolean(l, false);
+          lua_setfield(l, -2, "__was_object");
+          lua_setmetatable(l, -2);
           break;
         }
         case nlohmann::json::value_t::string:
@@ -128,7 +144,7 @@ namespace ccf
           // (1) attempt to create a json array
           // there must a sequence of integer keys starting from 1
           auto a = nlohmann::json::array();
-          bool is_array = true;
+          bool is_array = false;
           bool saw_integer_key = false;
           int prev_key = 0;
           lua_pushnil(l); // first key
@@ -137,13 +153,19 @@ namespace ccf
             is_array = false;
             // is the key an integer
             if (!lua_isinteger(l, ikey))
+            {
+              lua_pop(l, 1);
               break;
+            }
             saw_integer_key = true;
 
             // does the key come directly after the previous one?
             if (const auto key = lua_tointegerx(l, ikey, nullptr);
                 key != ++prev_key)
+            {
+              lua_pop(l, 1);
               break;
+            }
 
             is_array = true;
             a.push_back(check_get<nlohmann::json>(l, ivalue));
@@ -162,12 +184,13 @@ namespace ccf
           if (saw_integer_key)
             non_string_key();
 
-          // failed to create array; pop the remaining k-v pair from the stack
-          lua_pop(l, 2);
+          // failed to create array; pop the last iterated key from the stack
+          lua_pop(l, 1);
 
           // (2) parse the table as dictionary instead
           // since json only supports strings as keys, we throw for anything
           // else
+          j = nlohmann::json::object();
           lua_pushnil(l); // first key
           while (lua_next(l, arg) != 0)
           {
@@ -181,6 +204,38 @@ namespace ccf
             // pop value and keep original key for next iteration
             lua_pop(l, 1);
           }
+          if (!j.empty())
+          {
+            // Found some keys, done
+            break;
+          }
+
+          // failed to create object; pop the last iterated key from the stack
+          lua_pop(l, 1);
+
+          // (3) Have an empty Lua table. See if there is a metatable to
+          // distinguish empty-object (will be present if this value was
+          // originally a JSON object) from empty-array
+          if (lua_getmetatable(l, -1) != 0)
+          {
+            lua_getfield(l, -1, "__was_object");
+            if (lua_isboolean(l, -1))
+            {
+              if (lua_toboolean(l, -1))
+              {
+                j = nlohmann::json::object();
+              }
+              else
+              {
+                j = nlohmann::json::array();
+              }
+              break;
+            }
+
+            // pop metatable and requested field
+            lua_pop(l, 2);
+          }
+
           break;
         }
         case LUA_TUSERDATA:
