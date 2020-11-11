@@ -673,6 +673,14 @@ if(BUILD_TESTS)
     CONSENSUS cft
   )
 
+  add_e2e_test(
+    NAME governance_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
+  )
+
+
   if(QUOTES_ENABLED)
     add_e2e_test(
       NAME reconfiguration_test
@@ -695,12 +703,6 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --raft-election-timeout 4000
     )
 
-    add_e2e_test(
-      NAME governance_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-      CONSENSUS cft
-      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
-    )
 
     add_e2e_test(
       NAME governance_ca_certs_test

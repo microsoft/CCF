@@ -290,6 +290,9 @@ namespace ccf
             caller_id,
             cid);
           caller_id = cid;
+          auto caller_cert = resolve_caller_id(cid, tx);
+          if (caller_cert.has_value())
+            ctx->session->caller_cert = caller_cert.value().raw();
         }
       }
 
@@ -734,6 +737,12 @@ namespace ccf
     {
       return true;
     }
+
+    virtual std::optional<tls::Pem> resolve_caller_id(
+      ObjectId, kv::Tx&)
+      {
+        return std::nullopt;
+      }
 
     virtual bool is_members_frontend() override
     {

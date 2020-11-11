@@ -30,18 +30,31 @@ namespace ccf
       endpoints.openapi_info.title = "CCF Application API";
     }
 
+
+    std::optional<tls::Pem> resolve_caller_id(
+      ObjectId caller_id, kv::Tx& tx) override
+    {
+      auto users_view = tx.get_view<Users>(Tables::USERS);
+      auto caller = users_view->get(caller_id);
+      if (!caller.has_value())
+      {
+        return std::nullopt;
+      }
+
+      return caller.value().cert;
+    }
+
     bool lookup_forwarded_caller_cert(
       std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx) override
     {
-      // Lookup the calling user's certificate from the forwarded caller id
-      auto users_view = tx.get_view<Users>(Tables::USERS);
-      auto caller = users_view->get(ctx->session->original_caller->caller_id);
-      if (!caller.has_value())
+      // Lookup the caller users's certificate from the forwarded caller id
+      auto caller_cert = resolve_caller_id(ctx->session->original_caller->caller_id, tx);
+      if (!caller_cert.has_value())
       {
         return false;
       }
 
-      ctx->session->caller_cert = caller.value().cert.raw();
+      ctx->session->caller_cert = caller_cert.value().raw();
       return true;
     }
 
@@ -87,7 +100,8 @@ namespace ccf
       CommonEndpointRegistry(
         get_actor_prefix(ActorsType::users),
         *network.tables,
-        Tables::USER_CERT_DERS)
+        Tables::USER_CERT_DERS,
+        Tables::USER_DIGESTS)
     {}
   };
 
