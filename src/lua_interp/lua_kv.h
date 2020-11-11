@@ -44,14 +44,14 @@ namespace ccf
         sanitize_stack_idx(l, n_args);
 
         auto tx = UD::unbox(l, -2);
-        const K key = lua::check_get<nlohmann::json>(l, -1);
+        const K key = get_internal<K>(l, -1);
         const auto search = tx->get(key);
         if (!search)
         {
           lua_pushnil(l);
           return 1;
         }
-        lua::push_raw<nlohmann::json>(l, *search);
+        push_internal(l, *search);
         return 1;
       }
 
@@ -69,14 +69,14 @@ namespace ccf
         sanitize_stack_idx(l, n_args);
 
         auto tx = UD::unbox(l, -2);
-        const K key = lua::check_get<nlohmann::json>(l, -1);
+        const K key = get_internal<K>(l, -1);
         const auto search = tx->get_globally_committed(key);
         if (!search)
         {
           lua_pushnil(l);
           return 1;
         }
-        lua::push_raw<nlohmann::json>(l, *search);
+        push_internal(l, *search);
         return 1;
       }
 
@@ -96,8 +96,8 @@ namespace ccf
         sanitize_stack_idx(l, n_args);
 
         auto tx = UD::unbox(l, -3);
-        const K key = lua::check_get<nlohmann::json>(l, -2);
-        const V value = lua::check_get<nlohmann::json>(l, -1);
+        const K key = get_internal<K>(l, -2);
+        const V value = get_internal<V>(l, -1);
         const auto b = tx->put(key, value);
         lua_pushboolean(l, b);
         return 1;
@@ -109,7 +109,7 @@ namespace ccf
         sanitize_stack_idx(l, n_args);
 
         auto tx = UD::unbox(l, -2);
-        const K key = lua::check_get<nlohmann::json>(l, -1);
+        const K key = get_internal<K>(l, -1);
         const auto b = tx->remove(key);
         lua_pushboolean(l, b);
         return 1;
@@ -133,15 +133,15 @@ namespace ccf
 
           // Translate the arguments using nlohmann::json and push them to the
           // stack
-          lua::push_raw<nlohmann::json>(l, k);
-          lua::push_raw<nlohmann::json>(l, v);
+          push_internal(l, k);
+          push_internal(l, v);
 
           // Call the lua functor. This pops the args and functor-copy
           const auto ret = lua_pcall(l, 2, 0, 0);
 
           if (ret != 0)
           {
-            const auto err = lua::check_get<std::string>(l, -1);
+            const auto err = get_internal<std::string>(l, -1);
             throw lua::ex(err);
           }
 
@@ -149,6 +149,35 @@ namespace ccf
         });
 
         return 0;
+      }
+
+    private:
+      // Bodge: Special-case byte-vector. Via JSON we would produce a base64
+      // string, but instead we build a Lua list directly
+      template <typename T>
+      static T get_internal(lua_State* l, int idx)
+      {
+        if constexpr (std::is_same_v<T, std::vector<uint8_t>>)
+        {
+          return lua::check_get<T>(l, idx);
+        }
+        else
+        {
+          return lua::check_get<nlohmann::json>(l, idx);
+        }
+      }
+
+      template <typename T>
+      static void push_internal(lua_State* l, const T& t)
+      {
+        if constexpr (std::is_same_v<T, std::vector<uint8_t>>)
+        {
+          lua::push_raw<T>(l, t);
+        }
+        else
+        {
+          lua::push_raw<nlohmann::json>(l, t);
+        }
       }
     };
 

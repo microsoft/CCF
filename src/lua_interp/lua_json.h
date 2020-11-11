@@ -33,7 +33,7 @@ namespace ccf
         }
         case nlohmann::json::value_t::object:
         {
-          lua_newtable(l);
+          lua_createtable(l, 0, j.size());
           for (auto it = j.begin(); it != j.end(); ++it)
           {
             push_raw(l, it.value());
@@ -43,7 +43,7 @@ namespace ccf
         }
         case nlohmann::json::value_t::array:
         {
-          lua_newtable(l);
+          lua_createtable(l, j.size(), 0);
           size_t i = 0;
           for (const auto& v : j)
           {
