@@ -1,6 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+import * as fs from "fs";
+import * as tmp from "tmp";
+import * as crypto from "crypto";
+import * as forge from "node-forge";
+import * as selfsigned from "selfsigned";
 import { assert } from "chai";
 import bent from "bent";
 import jwt from "jsonwebtoken";
@@ -16,27 +21,79 @@ import {
   GetPollResponse,
 } from "../src/controllers/poll";
 
+tmp.setGracefulCleanup();
+
 const APP_BUNDLE_DIR = "dist";
 const ENDPOINT_URL = `${NODE_ADDR}/app/polls`;
+
+class FakeAuth {
+  privateKeyPem: string;
+  jwtIssuerFile: tmp.FileResult;
+  keyId = "12345";
+  issuer = "https://demo";
+
+  constructor() {
+    const keys = crypto.generateKeyPairSync("rsa", {
+      modulusLength: 2048,
+      publicKeyEncoding: {
+        type: "spki",
+        format: "pem",
+      },
+      privateKeyEncoding: {
+        type: "pkcs8",
+        format: "pem",
+      },
+    });
+    const certPem = selfsigned.generate(null, {
+      algorithm: "sha256",
+      keyPair: {
+        privateKey: keys.privateKey,
+        publicKey: keys.publicKey,
+      },
+    }).cert;
+    const cert = forge.pki.certificateFromPem(certPem);
+    const certDer = forge.asn1
+      .toDer(forge.pki.certificateToAsn1(cert))
+      .getBytes();
+    const certDerB64 = forge.util.encode64(certDer);
+
+    this.privateKeyPem = keys.privateKey;
+    this.jwtIssuerFile = tmp.fileSync();
+
+    const jwtIssuer = {
+      issuer: this.issuer,
+      jwks: { keys: [{ kty: "RSA", kid: this.keyId, x5c: [certDerB64] }] },
+    };
+    fs.writeFileSync(this.jwtIssuerFile.name, JSON.stringify(jwtIssuer));
+  }
+
+  user(userId: number) {
+    const payload = {
+      sub: "user" + userId,
+    };
+    const token = jwt.sign(payload, this.privateKeyPem, {
+      algorithm: "RS256",
+      keyid: this.keyId,
+      issuer: this.issuer,
+    });
+    return {
+      authorization: `Bearer ${token}'`,
+    };
+  }
+}
 
 // Note: In order to use a single CCF instance (and hence keep tests fast),
 // each test uses a different poll topic.
 
-function getAuth(userId: number) {
-  const payload = {
-    sub: "user" + userId,
-  };
-  const secret = "dummy";
-  const token = jwt.sign(payload, secret);
-  return {
-    authorization: `Bearer ${token}'`,
-  };
-}
-
 describe("/polls", function () {
-  this.timeout(30000);
+  this.timeout(35000);
 
-  setupMochaCCFSandbox(APP_BUNDLE_DIR);
+  const fakeAuth = new FakeAuth();
+
+  setupMochaCCFSandbox({
+    app_bundle_dir: APP_BUNDLE_DIR,
+    jwt_issuer_paths: [fakeAuth.jwtIssuerFile.name],
+  });
 
   describe("POST /{topic}", function () {
     it("creates numeric polls", async function () {
@@ -44,22 +101,38 @@ describe("/polls", function () {
       const body: CreatePollRequest = {
         type: "number",
       };
-      await bent("POST", 201)(`${ENDPOINT_URL}/${topic}`, body, getAuth(1));
+      await bent("POST", 201)(
+        `${ENDPOINT_URL}/${topic}`,
+        body,
+        fakeAuth.user(1)
+      );
     });
     it("creates string polls", async function () {
       const topic = "post-b";
       const body: CreatePollRequest = {
         type: "string",
       };
-      await bent("POST", 201)(`${ENDPOINT_URL}/${topic}`, body, getAuth(1));
+      await bent("POST", 201)(
+        `${ENDPOINT_URL}/${topic}`,
+        body,
+        fakeAuth.user(1)
+      );
     });
     it("rejects creating polls with an existing topic", async function () {
       const topic = "post-c";
       const body: CreatePollRequest = {
         type: "string",
       };
-      await bent("POST", 201)(`${ENDPOINT_URL}/${topic}`, body, getAuth(1));
-      await bent("POST", 403)(`${ENDPOINT_URL}/${topic}`, body, getAuth(1));
+      await bent("POST", 201)(
+        `${ENDPOINT_URL}/${topic}`,
+        body,
+        fakeAuth.user(1)
+      );
+      await bent("POST", 403)(
+        `${ENDPOINT_URL}/${topic}`,
+        body,
+        fakeAuth.user(1)
+      );
     });
     it("rejects creating polls without authorization", async function () {
       const topic = "post-d";
@@ -77,7 +150,7 @@ describe("/polls", function () {
           "post-multiple-b": { type: "string" },
         },
       };
-      await bent("POST", 201)(`${ENDPOINT_URL}`, body, getAuth(1));
+      await bent("POST", 201)(`${ENDPOINT_URL}`, body, fakeAuth.user(1));
     });
     it("rejects creating polls with an existing topic", async function () {
       const body: CreatePollsRequest = {
@@ -85,8 +158,8 @@ describe("/polls", function () {
           "post-multiple-c": { type: "number" },
         },
       };
-      await bent("POST", 201)(`${ENDPOINT_URL}`, body, getAuth(1));
-      await bent("POST", 403)(`${ENDPOINT_URL}`, body, getAuth(1));
+      await bent("POST", 201)(`${ENDPOINT_URL}`, body, fakeAuth.user(1));
+      await bent("POST", 403)(`${ENDPOINT_URL}`, body, fakeAuth.user(1));
     });
     it("rejects creating polls without authorization", async function () {
       const body: CreatePollsRequest = {
@@ -103,7 +176,11 @@ describe("/polls", function () {
       const pollBody: CreatePollRequest = {
         type: "number",
       };
-      await bent("POST", 201)(`${ENDPOINT_URL}/${topic}`, pollBody, getAuth(1));
+      await bent("POST", 201)(
+        `${ENDPOINT_URL}/${topic}`,
+        pollBody,
+        fakeAuth.user(1)
+      );
 
       const opinionBody: SubmitOpinionRequest = {
         opinion: 1.2,
@@ -111,7 +188,7 @@ describe("/polls", function () {
       await bent("PUT", 204)(
         `${ENDPOINT_URL}/${topic}`,
         opinionBody,
-        getAuth(1)
+        fakeAuth.user(1)
       );
     });
     it("rejects opinions with mismatching data type", async function () {
@@ -119,7 +196,11 @@ describe("/polls", function () {
       const pollBody: CreatePollRequest = {
         type: "number",
       };
-      await bent("POST", 201)(`${ENDPOINT_URL}/${topic}`, pollBody, getAuth(1));
+      await bent("POST", 201)(
+        `${ENDPOINT_URL}/${topic}`,
+        pollBody,
+        fakeAuth.user(1)
+      );
 
       const opinionBody: SubmitOpinionRequest = {
         opinion: "foo",
@@ -127,21 +208,29 @@ describe("/polls", function () {
       await bent("PUT", 400)(
         `${ENDPOINT_URL}/${topic}`,
         opinionBody,
-        getAuth(1)
+        fakeAuth.user(1)
       );
     });
     it("rejects opinions for unknown topics", async function () {
       const body: SubmitOpinionRequest = {
         opinion: 1.2,
       };
-      await bent("PUT", 404)(`${ENDPOINT_URL}/non-existing`, body, getAuth(1));
+      await bent("PUT", 404)(
+        `${ENDPOINT_URL}/non-existing`,
+        body,
+        fakeAuth.user(1)
+      );
     });
     it("rejects opinions without authorization", async function () {
       const topic = "put-c";
       const pollBody: CreatePollRequest = {
         type: "number",
       };
-      await bent("POST", 201)(`${ENDPOINT_URL}/${topic}`, pollBody, getAuth(1));
+      await bent("POST", 201)(
+        `${ENDPOINT_URL}/${topic}`,
+        pollBody,
+        fakeAuth.user(1)
+      );
 
       const opinionBody: SubmitOpinionRequest = {
         opinion: 1.2,
@@ -159,7 +248,7 @@ describe("/polls", function () {
           [topicB]: { type: "string" },
         },
       };
-      await bent("POST", 201)(`${ENDPOINT_URL}`, body, getAuth(1));
+      await bent("POST", 201)(`${ENDPOINT_URL}`, body, fakeAuth.user(1));
 
       const opinionBody: SubmitOpinionsRequest = {
         opinions: {
@@ -167,7 +256,7 @@ describe("/polls", function () {
           [topicB]: { opinion: "foo" },
         },
       };
-      await bent("PUT", 204)(`${ENDPOINT_URL}`, opinionBody, getAuth(1));
+      await bent("PUT", 204)(`${ENDPOINT_URL}`, opinionBody, fakeAuth.user(1));
     });
     it("rejects opinions with mismatching data type", async function () {
       const topicA = "put-multiple-c";
@@ -178,7 +267,7 @@ describe("/polls", function () {
           [topicB]: { type: "string" },
         },
       };
-      await bent("POST", 201)(`${ENDPOINT_URL}`, body, getAuth(1));
+      await bent("POST", 201)(`${ENDPOINT_URL}`, body, fakeAuth.user(1));
 
       const opinionBody: SubmitOpinionsRequest = {
         opinions: {
@@ -186,7 +275,7 @@ describe("/polls", function () {
           [topicB]: { opinion: 1.6 },
         },
       };
-      await bent("PUT", 400)(`${ENDPOINT_URL}`, opinionBody, getAuth(1));
+      await bent("PUT", 400)(`${ENDPOINT_URL}`, opinionBody, fakeAuth.user(1));
     });
     it("rejects opinions for unknown topics", async function () {
       const body: SubmitOpinionsRequest = {
@@ -194,7 +283,7 @@ describe("/polls", function () {
           "non-existing": { opinion: 1.5 },
         },
       };
-      await bent("PUT", 400)(`${ENDPOINT_URL}`, body, getAuth(1));
+      await bent("PUT", 400)(`${ENDPOINT_URL}`, body, fakeAuth.user(1));
     });
     it("rejects opinions without authorization", async function () {
       const topic = "put-multiple-e";
@@ -203,7 +292,7 @@ describe("/polls", function () {
           [topic]: { type: "number" },
         },
       };
-      await bent("POST", 201)(`${ENDPOINT_URL}`, pollBody, getAuth(1));
+      await bent("POST", 201)(`${ENDPOINT_URL}`, pollBody, fakeAuth.user(1));
 
       const opinionBody: SubmitOpinionsRequest = {
         opinions: {
@@ -219,7 +308,11 @@ describe("/polls", function () {
       const pollBody: CreatePollRequest = {
         type: "number",
       };
-      await bent("POST", 201)(`${ENDPOINT_URL}/${topic}`, pollBody, getAuth(1));
+      await bent("POST", 201)(
+        `${ENDPOINT_URL}/${topic}`,
+        pollBody,
+        fakeAuth.user(1)
+      );
 
       let opinions = [1.5, 0.9, 1.2, 1.5, 0.9, 1.2, 1.5, 0.9, 1.2, 1.5];
       for (let i = 0; i < opinions.length; i++) {
@@ -229,14 +322,14 @@ describe("/polls", function () {
         await bent("PUT", 204)(
           `${ENDPOINT_URL}/${topic}`,
           opinionBody,
-          getAuth(i)
+          fakeAuth.user(i)
         );
       }
 
       let aggregated: NumericPollResponse = await bent("GET", "json", 200)(
         `${ENDPOINT_URL}/${topic}`,
         null,
-        getAuth(1)
+        fakeAuth.user(1)
       );
       assert.equal(
         aggregated.statistics.mean,
@@ -248,7 +341,11 @@ describe("/polls", function () {
       const pollBody: CreatePollRequest = {
         type: "string",
       };
-      await bent("POST", 201)(`${ENDPOINT_URL}/${topic}`, pollBody, getAuth(1));
+      await bent("POST", 201)(
+        `${ENDPOINT_URL}/${topic}`,
+        pollBody,
+        fakeAuth.user(1)
+      );
 
       let opinions = [
         "foo",
@@ -269,14 +366,14 @@ describe("/polls", function () {
         await bent("PUT", 204)(
           `${ENDPOINT_URL}/${topic}`,
           opinionBody,
-          getAuth(i)
+          fakeAuth.user(i)
         );
       }
 
       let aggregated: StringPollResponse = await bent("GET", "json", 200)(
         `${ENDPOINT_URL}/${topic}`,
         null,
-        getAuth(1)
+        fakeAuth.user(1)
       );
       assert.equal(aggregated.statistics.counts["foo"], 7);
       assert.equal(aggregated.statistics.counts["bar"], 3);
@@ -286,7 +383,11 @@ describe("/polls", function () {
       const pollBody: CreatePollRequest = {
         type: "number",
       };
-      await bent("POST", 201)(`${ENDPOINT_URL}/${topic}`, pollBody, getAuth(1));
+      await bent("POST", 201)(
+        `${ENDPOINT_URL}/${topic}`,
+        pollBody,
+        fakeAuth.user(1)
+      );
 
       for (let i = 0; i < MINIMUM_OPINION_THRESHOLD - 1; i++) {
         const opinionBody: SubmitOpinionRequest = {
@@ -295,19 +396,23 @@ describe("/polls", function () {
         await bent("PUT", 204)(
           `${ENDPOINT_URL}/${topic}`,
           opinionBody,
-          getAuth(i)
+          fakeAuth.user(i)
         );
       }
 
       const poll: GetPollResponse = await bent("GET", "json", 200)(
         `${ENDPOINT_URL}/${topic}`,
         null,
-        getAuth(1)
+        fakeAuth.user(1)
       );
       assert.notExists(poll.statistics);
     });
     it("rejects returning aggregated opinions for unknown topics", async function () {
-      await bent("GET", 404)(`${ENDPOINT_URL}/non-existing`, null, getAuth(1));
+      await bent("GET", 404)(
+        `${ENDPOINT_URL}/non-existing`,
+        null,
+        fakeAuth.user(1)
+      );
     });
   });
 });
