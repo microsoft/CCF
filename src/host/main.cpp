@@ -248,23 +248,23 @@ int main(int argc, char** argv)
       "election.")
     ->capture_default_str();
 
-  size_t pbft_view_change_timeout = 5000;
+  size_t bft_view_change_timeout = 5000;
   app
     .add_option(
-      "--pbft_view-change-timeout-ms",
-      pbft_view_change_timeout,
-      "Pbft view change timeout in milliseconds. If a backup does not receive "
+      "--bft_view-change-timeout-ms",
+      bft_view_change_timeout,
+      "bft view change timeout in milliseconds. If a backup does not receive "
       "the pre-prepare message for a request forwarded to the primary after "
       "this "
       "timeout, the backup triggers a new view change.")
     ->capture_default_str();
 
-  size_t pbft_status_interval = 100;
+  size_t bft_status_interval = 100;
   app
     .add_option(
-      "--pbft-status-interval-ms",
-      pbft_status_interval,
-      "Pbft status timer interval in milliseconds. All pbft nodes send "
+      "--bft-status-interval-ms",
+      bft_status_interval,
+      "bft status timer interval in milliseconds. All bft nodes send "
       "messages "
       "containing their status to all other known nodes at regular intervals "
       "defined by this timer interval.")
@@ -639,8 +639,8 @@ int main(int argc, char** argv)
     CCFConfig ccf_config;
     ccf_config.consensus_config = {raft_timeout,
                                    raft_election_timeout,
-                                   pbft_view_change_timeout,
-                                   pbft_status_interval};
+                                   bft_view_change_timeout,
+                                   bft_status_interval};
     ccf_config.signature_intervals = {sig_tx_interval, sig_ms_interval};
     ccf_config.node_info_network = {rpc_address.hostname,
                                     public_rpc_address.hostname,
