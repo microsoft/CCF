@@ -4,7 +4,6 @@
 import {
   Body,
   Path,
-  Header,
   SuccessResponse,
   Request,
   Response,
@@ -125,12 +124,6 @@ export class PollController extends Controller {
     ccf.string,
     ccf.json<kv.Poll>()
   );
-  private kvTopics = new ccf.TypedKVMap(
-    ccf.kv.topics,
-    ccf.string,
-    ccf.json<string[]>()
-  );
-  private kvTopicsKey = "all";
 
   @SuccessResponse(201, "Poll has been successfully created")
   @Response<ErrorResponse>(
@@ -153,9 +146,6 @@ export class PollController extends Controller {
       type: body.type,
       opinions: {},
     });
-    const topics = this._getTopics();
-    topics.push(topic);
-    this.kvTopics.set(this.kvTopicsKey, topics);
     this.setStatus(201);
   }
 
@@ -180,9 +170,6 @@ export class PollController extends Controller {
         type: poll.type,
         opinions: {},
       });
-      const topics = this._getTopics();
-      topics.push(topic);
-      this.kvTopics.set(this.kvTopicsKey, topics);
     }
     this.setStatus(201);
   }
@@ -281,7 +268,11 @@ export class PollController extends Controller {
   }
 
   _getTopics(): string[] {
-    return this.kvTopics.get(this.kvTopicsKey) ?? [];
+    const topics = [];
+    this.kvPolls.forEach((val, key) => {
+      topics.push(key);
+    });
+    return topics;
   }
 
   _getPoll(user: string, topic: string): GetPollResponse {

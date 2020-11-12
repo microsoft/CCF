@@ -5,7 +5,7 @@ import * as fs from "fs";
 import * as path from "path";
 import jwt from "jsonwebtoken";
 
-const hmac_secret = "secret";
+const demoJwtKeyPath = "test/jwt_demo_key.pem";
 
 function main() {
   const args = process.argv.slice(2);
@@ -16,11 +16,16 @@ function main() {
   const folder = args[0];
   const count = parseInt(args[1]);
   console.log(`Generating ${count} JWTs in ${folder}`);
+  const demoJwtKey = fs.readFileSync(demoJwtKeyPath, "utf8");
   for (let i = 0; i < count; i++) {
     const payload = {
       sub: "user" + i,
     };
-    const token = jwt.sign(payload, hmac_secret);
+    const token = jwt.sign(payload, demoJwtKey, {
+      algorithm: "RS256",
+      issuer: "https://demo",
+      keyid: "demo-key",
+    });
     const jwtPath = path.join(folder, "user" + i + ".jwt");
     console.log(`Writing ${jwtPath}`);
     fs.writeFileSync(jwtPath, token);
