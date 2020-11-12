@@ -218,7 +218,6 @@ namespace aft
   struct ViewChangeEvidenceMsg : RaftHeader
   {
     kv::Consensus::View view = 0;
-    kv::Consensus::SeqNo seqno = 0;
   };
 
   struct RequestVote : RaftHeader

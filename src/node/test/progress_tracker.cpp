@@ -668,12 +668,14 @@ TEST_CASE("Sending evidence out of band")
           .RETURN(true)
           .TIMES(AT_LEAST(1));
 
-        REQUIRE(vct_2.add_unknown_primary_evidence(data, view, node_count));
+        REQUIRE(vct_2.add_unknown_primary_evidence(
+          {data.data(), data.size()}, view, node_count));
         REQUIRE(vct_2.check_evidence(view));
       }
       else
       {
-        REQUIRE(!vct_2.add_unknown_primary_evidence(data, view, node_count));
+        REQUIRE(!vct_2.add_unknown_primary_evidence(
+          {data.data(), data.size()}, view, node_count));
         REQUIRE(!vct_2.check_evidence(view));
       }
       REQUIRE(!vct_2.check_evidence(view + 1));

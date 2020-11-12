@@ -528,6 +528,10 @@ namespace aft
           recv_view_change(data, size);
           break;
 
+        case bft_view_change_evidence:
+          recv_view_change_evidence(data, size);
+          break;
+
         default:
         {
         }
@@ -671,6 +675,48 @@ namespace aft
       {
         append_new_view(r.view);
       }
+    }
+
+    void recv_view_change_evidence(const uint8_t* data, size_t size)
+    {
+      ViewChangeEvidenceMsg r;
+      try
+      {
+        r = channels
+              ->template recv_authenticated_with_load<ViewChangeEvidenceMsg>(
+                data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_FMT("Error in recv_view_change_evidence message");
+        LOG_DEBUG_FMT(
+          "Error in recv_view_change_evidence message: {}", err.what());
+        return;
+      }
+
+      auto node = nodes.find(r.from_node);
+      if (node == nodes.end())
+      {
+        // Ignore if we don't recognise the node.
+        LOG_FAIL_FMT(
+          "Recv nonce reveal to {} from {}: unknown node",
+          state->my_node_id,
+          r.from_node);
+        return;
+      }
+
+      if (r.from_node != state->requested_evidence_from)
+      {
+        // Ignore if we didn't request this evidence.
+        LOG_FAIL_FMT(
+          "we received evidence which we did not request, ignoring it {}",
+          r.from_node);
+        return;
+      }
+      state->requested_evidence_from = NoNode;
+
+      view_change_tracker->add_unknown_primary_evidence(
+        {data, size}, r.view, node_count());
     }
 
     bool is_first_request = true;
@@ -1517,12 +1563,21 @@ namespace aft
         // We need to provide evidence to the replica that we can send it append
         // entries. This should only happened if there is some kind of network
         // partition.
-        kv::Consensus::View view = 1;
-        kv::Consensus::SeqNo seqno = 1;
+        state->requested_evidence_from = r.from_node;
         ViewChangeEvidenceMsg vw = {
-          {bft_view_change_evidence, state->my_node_id}, view, seqno};
+          {bft_view_change_evidence, state->my_node_id}, state->current_view};
 
-        channels->send_authenticated(ccf::NodeMsgType::consensus_msg, r.from_node, vw);
+        std::vector<uint8_t> data =
+          view_change_tracker->get_serialized_view_change_confirmation(
+            state->current_view);
+
+        data.insert(
+          data.begin(),
+          reinterpret_cast<uint8_t*>(&vw),
+          reinterpret_cast<uint8_t*>(&vw) + sizeof(ViewChangeEvidenceMsg));
+
+        channels->send_authenticated(
+          ccf::NodeMsgType::consensus_msg, r.from_node, data);
       }
 
       if (r.success != AppendEntriesResponseType::OK)

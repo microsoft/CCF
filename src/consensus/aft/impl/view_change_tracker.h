@@ -100,7 +100,6 @@ namespace aft
       return ResultAddView::OK;
     }
 
-    // TODO we generate the view here
     kv::Consensus::SeqNo write_view_change_confirmation_append_entry(
       kv::Consensus::View view)
     {
@@ -119,16 +118,16 @@ namespace aft
       std::string s = j.dump();
 
       std::vector<uint8_t> ret;
-      ret.resize(s.size()+1);
+      ret.resize(s.size() + 1);
       std::copy(s.begin(), s.end(), ret.data());
 
       return ret;
     }
 
     bool add_unknown_primary_evidence(
-      std::vector<uint8_t>& data, kv::Consensus::View view, uint32_t node_count)
+      CBuffer data, kv::Consensus::View view, uint32_t node_count)
     {
-      nlohmann::json j = nlohmann::json::parse(data.data());
+      nlohmann::json j = nlohmann::json::parse(data.p);
       auto vc = j.get<ccf::ViewChangeConfirmation>();
 
       if (view != vc.view)
@@ -186,7 +185,8 @@ namespace aft
     kv::Consensus::View last_valid_view = aft::starting_view_change;
     const std::chrono::milliseconds time_between_attempts;
 
-    ccf::ViewChangeConfirmation create_view_change_confirmation_msg(kv::Consensus::View view)
+    ccf::ViewChangeConfirmation create_view_change_confirmation_msg(
+      kv::Consensus::View view)
     {
       auto it = view_changes.find(view);
       if (it == view_changes.end())
