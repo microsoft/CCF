@@ -9,11 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Support for non-recovery members (#1866):
-  - Only members with an associated public encryption key are handed recovery shares.
+- Support for non-recovery members: only members with an associated public encryption key are handed recovery shares (#1866).
 - AFT consensus verify entry validity (#1864).
 - JWT validation in forum sample app (#1867).
-- JavaScript endpoints OpenAPI definion is now included in `/api` (#1874).
+- JavaScript endpoints OpenAPI definition is now included in `/api` (#1874).
 
 ### Changed
 
