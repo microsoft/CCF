@@ -18,7 +18,7 @@ Corresponding public keys in the form of certificates are needed to validate the
 .. note::
 
     Most IdPs support the OpenID Connect Discovery specification which defines how to discover the location to the  certificates.
-    In short, the IdP issuer URL, for example ``https://login.microsoftonline.com/common/v2.0``, is suffixed with ``/.well-known/openid-configuration`` and the ``jwks_uri`` field of the JSON document at that URL is the location of the JWKS     document containing the certificates currently in use. In this example, it would be `<https://login.microsoftonline.com/    common/discovery/v2.0/keys>`_.
+    In short, the IdP issuer URL, for example ``https://login.microsoftonline.com/common/v2.0``, is suffixed with ``/.well-known/openid-configuration`` and the ``jwks_uri`` field of the JSON document at that URL is the location of the JWKS document containing the certificates currently in use. In this example, it would be `<https://login.microsoftonline.com/common/discovery/v2.0/keys>`_.
 
 Before adding public token signing keys to a running CCF network, the IdP has to be stored as token issuer with a ``set_jwt_issuer`` proposal:
 
