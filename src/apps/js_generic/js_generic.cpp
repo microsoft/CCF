@@ -1257,13 +1257,28 @@ namespace ccfapp
     {
       UserEndpointRegistry::build_api(document, tx);
 
-      auto scripts = tx.get_view(this->network.app_scripts);
-      scripts->foreach([&document](const auto& key, const auto&) {
-        const auto [verb, method] = split_script_key(key);
+      auto endpoints_view =
+        tx.get_view<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
 
-        ds::openapi::path_operation(ds::openapi::path(document, method), verb);
-        return true;
-      });
+      endpoints_view->foreach(
+        [&document](const auto& key, const auto& properties) {
+          const auto http_verb = key.verb.get_http_method();
+          if (!http_verb.has_value())
+          {
+            return true;
+          }
+
+          auto& path_op = ds::openapi::path_operation(
+            ds::openapi::path(document, key.uri_path), http_verb.value());
+
+          if (!properties.openapi.empty())
+          {
+            path_op.insert(
+              properties.openapi.cbegin(), properties.openapi.cend());
+          }
+
+          return true;
+        });
     }
   };
 

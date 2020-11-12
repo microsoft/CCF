@@ -82,7 +82,36 @@
         "execute_locally": true,
         "require_client_signature": false,
         "require_client_identity": true,
-        "readonly": true
+        "readonly": true,
+        "openapi": {
+          "parameters": [
+            {
+              "name": "op",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "enum": ["add", "sub", "mul"]
+              }
+            },
+            {
+              "name": "left",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "number"
+              }
+            },
+            {
+              "name": "right",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "number"
+              }
+            }
+          ]
+        }
       }
     }
   }
