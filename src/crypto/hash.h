@@ -34,6 +34,11 @@ namespace crypto
       return os;
     }
 
+    std::string hex_str() const
+    {
+      return fmt::format("{:02x}", fmt::join(h, ""));
+    };
+
     MSGPACK_DEFINE(h);
   };
 

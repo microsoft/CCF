@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- Governance endpoints no longer require session-level client authentication matching a member identity, the request signature now serves as authentication. The purpose of this change is to facilitate member key storage in systems such as HSMs (#1870).
+- The `keyId` field in the Authorization header must now be set to the hex-encoded SHA-256 digest of the corresponding member certificate encoded in PEM format. The `scurl.sh` script and Python client have been modified accordingly. `scurl.sh` can be run with `DISABLE_CLIENT_AUTH=1` (equivalent `disable_client_auth=False` argument to Python client) to issue signed requests without session-level client authentication (#1870).
+
 ## [0.14.3]
 
 ### Added
