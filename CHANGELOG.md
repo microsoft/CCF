@@ -9,15 +9,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Support for [hs2019 scheme](https://tools.ietf.org/html/draft-cavage-http-signatures-12) for HTTP signatures (#1872).
-  - `ecdsa-sha256` scheme will be deprecated in the next release.
-- JavaScript endpoints OpenAPI definion is now included in `/api` (#1874).
-
-### Changed
-
 - Support for non-recovery members (#1866):
   - Only members with an associated public encryption key are handed recovery shares.
-  - Maximum number of consortium members is limited to 255 only for recovery members.
+- Support for [hs2019 scheme](https://tools.ietf.org/html/draft-cavage-http-signatures-12) for HTTP signatures (#1872).
+  - `ecdsa-sha256` scheme will be deprecated in the next release.
+- AFT consensus verify entry validity (#1864).
+- JWT validation in forum sample app (#1867).
+- JavaScript endpoints OpenAPI definion is now included in `/api` (#1874).
 
 ## [0.14.3]
 
