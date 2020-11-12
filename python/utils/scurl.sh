@@ -71,10 +71,11 @@ if [ -z "$cert" ]; then
     echo "Error: No certificate found in arguments (--cert)"
     exit 1
 fi
-if [ -z "$privk" ]; then
-    echo "Error: No private key found in arguments (--key)"
-    exit 1
-fi
+# TODO: Revert, just no needed with HSM
+# if [ -z "$privk" ]; then
+#     echo "Error: No private key found in arguments (--key)"
+#     exit 1
+# fi
 
 additional_curl_args=()
 
@@ -105,31 +106,32 @@ string_to_sign="(request-target): ${command,,} ${url}
 digest: SHA-256=$req_digest
 content-length: $content_length"
 
-algorithm="hs2019"
+# https://tools.ietf.org/html/draft-cavage-http-signatures-12#appendix-E.2
+signature_algorithm="hs2019"
 
-hash_to_sign=$(echo -n "$string_to_sign" | openssl dgst -binary -sha384 | openssl base64 -A)
-
-signature_base64url=$(curl -s -X POST https://demo-vault-ccf.vault.azure.net/keys/key-sign-ccf-pub4/98fa9e4ddbf24b16a6cf3a75bad9b7c0/sign?api-version=7.1 --data "{\"alg\":\"ES384\", \"value\":\"$hash_to_sign\"}" -H "Authorization: Bearer ${AZ_TOKEN}" -H "Content-Type: application/json" | jq -r .value)
-
-signature=$(echo "$signature_base64url" | sed 's/-/+/g; s/_/\//g')
-echo $signature | openssl base64 -d > signature.in
-
-set -x
-ccf_compatible_signature=$(python3.8 ../python/utils/jws_to_der.py signature.in)
-
-
-
-echo $ccf_compatible_signature
-
+# Compute signature
 # signed_raw=$(echo -n "$string_to_sign" | openssl dgst -sha384 -sign "$privk" | openssl base64 -A)
-
-# echo "Signature: ${signed_raw}"
 
 # Compute key ID
 key_id=$(openssl dgst -sha256 "$cert" | cut -d ' ' -f 2)
 
+## HSM specific
+
+hash_to_sign=$(echo -n "$string_to_sign" | openssl dgst -binary -sha384 | openssl base64 -A)
+
+signature_base64url=$(curl -s -X POST ${AZ_VAULT_KID}/sign?api-version=7.1 --data "{\"alg\":\"ES384\", \"value\":\"$hash_to_sign\"}" -H "Authorization: Bearer ${AZ_TOKEN}" -H "Content-Type: application/json" | jq -r .value)
+
+signature=$(echo "$signature_base64url" | sed 's/-/+/g; s/_/\//g')
+echo $signature | openssl base64 -d > signature.in
+
+ccf_compatible_signature=$(python3.8 ../python/utils/jws_to_der.py signature.in)
+# End of hsm-specific
+
+set -x
+echo "lala"
+
 curl \
 -H "Digest: SHA-256=$req_digest" \
--H "Authorization: Signature keyId=\"$key_id\",signature_algorithm=\"$signature_algorithm\",headers=\"(request-target) digest content-length\",signature=\"$signed_raw\"" \
+-H "Authorization: Signature keyId=\"$key_id\",signature_algorithm=\"$signature_algorithm\",headers=\"(request-target) digest content-length\",signature=\"$ccf_compatible_signature\"" \
 "${additional_curl_args[@]}" \
 "${fwd_args[@]}"

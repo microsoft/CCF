@@ -56,7 +56,7 @@ Members' identity certificates should be generated on the `secp384r1` elliptic c
       }
     }
 
-    $ export IDENTITY_CERT_NAME="<identity_cert_name>"
+    $ export IDENTITY_CERT_NAME="<identity-cert-name>"
     $ az keyvault certificate create --vault-name $VAULT_NAME -n $IDENTITY_CERT_NAME -p @cert_policy.json
     # Outputs certificate details
 
@@ -68,7 +68,7 @@ Members' encryption keys should be RSA 2048 keys, generated with the ``az keyvau
 
 .. code-block:: bash
 
-    $ export ENCRYPTION_KEY_NAME="<encryption_key_name>"
+    $ export ENCRYPTION_KEY_NAME="<encryption-key-name>"
     $ az keyvault key create --vault-name $VAULT_NAME --name $ENCRYPTION_KEY_NAME --kty RSA --ops wrapKey unwrapKey encrypt decrypt
     # Outputs key details, including kid url
 
