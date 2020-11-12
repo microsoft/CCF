@@ -296,14 +296,25 @@ TEST_CASE("json")
   {
     constexpr auto code("return {}");
     const auto j = Interpreter().invoke<nlohmann::json>(code);
-    // an empty table is supposed to be translated into an empty array
-    REQUIRE(j.type() == nlohmann::json::value_t::array);
-    REQUIRE(!j.size());
-    // can we unserialize to map and vector?
-    map<int, int> m = j;
-    REQUIRE(!m.size());
-    vector<string> v = j;
-    REQUIRE(!v.size());
+    // an empty table is supposed to be translated into an empty object
+    REQUIRE(j.type() == nlohmann::json::value_t::object);
+    REQUIRE(j.empty());
+  }
+
+  SUBCASE("roundtrip empty object")
+  {
+    const auto j1 = nlohmann::json::object();
+    constexpr auto code("a = ...; b = a; return b");
+    const auto j2 = Interpreter().invoke<nlohmann::json>(code, j1);
+    REQUIRE(j1 == j2);
+  }
+
+  SUBCASE("roundtrip empty array")
+  {
+    const auto j1 = nlohmann::json::array();
+    constexpr auto code("a = ...; b = a; return b");
+    const auto j2 = Interpreter().invoke<nlohmann::json>(code, j1);
+    REQUIRE(j1 == j2);
   }
 }
 
