@@ -67,7 +67,10 @@ for item in "$@" ; do
     fwd_args+=("$item")
 done
 
-
+if [ -z "$cert" ]; then
+    echo "Error: No certificate found in arguments (--cert)"
+    exit 1
+fi
 if [ -z "$privk" ]; then
     echo "Error: No private key found in arguments (--key)"
     exit 1
