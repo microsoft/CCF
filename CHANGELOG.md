@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.15.0]
+
+### Added
+
+- Support for [hs2019 scheme](https://tools.ietf.org/html/draft-cavage-http-signatures-12) for HTTP signatures (#1872).
+  - `ecdsa-sha256` scheme will be deprecated in the next release.
+- JavaScript endpoints OpenAPI definion is now included in `/api` (#1874).
+
+### Changed
+
+- Support for non-recovery members (#1866):
+  - Only members with an associated public encryption key are handed recovery shares.
+  - Maximum number of consortium members is limited to 255 only for recovery members.
+
 ## [0.14.3]
 
 ### Added
@@ -507,6 +521,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.15.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.15.0
 [0.14.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.14.3
 [0.14.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.14.2
 [0.14.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.14.1
