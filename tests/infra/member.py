@@ -101,7 +101,9 @@ class Member:
         self.status_code = MemberStatus.ACTIVE
 
     def propose(self, remote_node, proposal, disable_client_auth=False):
-        with remote_node.client(f"member{self.member_id}", disable_client_auth=disable_client_auth) as mc:
+        with remote_node.client(
+            f"member{self.member_id}", disable_client_auth=disable_client_auth
+        ) as mc:
             r = mc.post(
                 "/gov/proposals",
                 proposal,
