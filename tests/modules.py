@@ -16,6 +16,7 @@ import infra.e2e_args
 import infra.crypto
 import suite.test_requirements as reqs
 import ccf.proposal_generator
+import openapi_spec_validator
 
 from loguru import logger as LOG
 
@@ -64,6 +65,20 @@ def make_module_set_proposal(path, content, network):
         primary, proposal_body
     )
     network.consortium.vote_using_majority(primary, proposal, careful_vote)
+
+
+def validate_openapi(client):
+    api_response = client.get("/app/api")
+    assert api_response.status_code == http.HTTPStatus.OK, api_response.status_code
+    openapi_doc = api_response.body.json()
+    try:
+        openapi_spec_validator.validate_spec(openapi_doc)
+    except Exception as e:
+        filename = "./bad_schema.json"
+        with open(filename, "w") as f:
+            json.dump(openapi_doc, f, indent=2)
+        LOG.error(f"Document written to {filename}")
+        raise e
 
 
 @reqs.description("Test module set and remove")
@@ -154,6 +169,8 @@ def test_app_bundle(network, args):
         assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
         assert r.headers["content-type"] == "application/json"
         assert r.body.json() == {"error": "invalid operand type"}, r.body
+
+        validate_openapi(c)
 
     LOG.info("Removing js app")
     proposal_body, careful_vote = ccf.proposal_generator.remove_js_app()
@@ -345,6 +362,8 @@ def test_npm_app(network, args):
         body = r.body.json()
         assert body["msg"].startswith("token signing key not found"), r.body
 
+        validate_openapi(c)
+
     LOG.info("Store JWT signing keys")
 
     issuer = "https://example.issuer"
@@ -414,6 +433,8 @@ def test_npm_tsoa_app(network, args):
         r = c.get("/app/crypto")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json()["available"], r.body
+
+        validate_openapi(c)
 
     return network
 

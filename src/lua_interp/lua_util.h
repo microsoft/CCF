@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -52,6 +54,16 @@ namespace ccf
     {
       const auto stack_size = lua_gettop(l);
       return idx < 0 ? stack_size + 1 + idx : idx;
+    }
+
+    static void expect_top(lua_State* l, int i)
+    {
+      const auto actual = lua_gettop(l);
+      if (actual != i)
+      {
+        throw ex(fmt::format(
+          "Expected {} items in Lua stack, actually have {}", i, actual));
+      }
     }
 
     inline void push_raw(lua_State* l, const char* s)
