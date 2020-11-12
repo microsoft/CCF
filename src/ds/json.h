@@ -81,31 +81,35 @@ namespace std
   {
     if constexpr (std::is_same_v<T, uint8_t>)
     {
-      if (!j.is_string())
+      if (j.is_string())
       {
-        throw JsonParseError("Expected base-64 string, found: " + j.dump());
+        t = tls::raw_from_b64(j.get<std::string>());
+        return;
       }
-
-      t = tls::raw_from_b64(j.get<std::string>());
     }
-    else
-    {
-      if (!j.is_array())
-      {
-        throw JsonParseError("Expected array, found: " + j.dump());
-      }
 
-      for (auto i = 0u; i < j.size(); ++i)
+    // NB: Fall-through. So we can convert _from_ [1,2,3] to
+    // std::vector<uint8_t>, but would prefer (and will produce in to_json) a
+    // base64 string
+
+    if (!j.is_array())
+    {
+      throw JsonParseError("Expected array, found: " + j.dump());
+    }
+
+    t.clear();
+    t.reserve(j.size());
+
+    for (auto i = 0u; i < j.size(); ++i)
+    {
+      try
       {
-        try
-        {
-          t.push_back(j.at(i).template get<T>());
-        }
-        catch (JsonParseError& jpe)
-        {
-          jpe.pointer_elements.push_back(std::to_string(i));
-          throw;
-        }
+        t.push_back(j.at(i).template get<T>());
+      }
+      catch (JsonParseError& jpe)
+      {
+        jpe.pointer_elements.push_back(std::to_string(i));
+        throw;
       }
     }
   }

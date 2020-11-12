@@ -64,15 +64,14 @@ namespace ccf
     {
       std::string pem = get_var_string_from_args(l);
       std::vector<uint8_t> der = tls::make_verifier(pem)->der_cert_data();
-      nlohmann::json json = der;
-      lua::push_raw(l, json);
+      lua::push_raw(l, der);
       return 1;
     }
 
     static int lua_verify_cert_and_get_claims(lua_State* l)
     {
-      LOG_INFO_FMT("lua_verify_cert_and_get_claims");
       nlohmann::json json = lua::check_get<nlohmann::json>(l, -1);
+
       std::vector<uint8_t> cert_der = json;
 
       std::map<std::string, std::vector<uint8_t>> claims;
