@@ -43,9 +43,10 @@ namespace ccf
     //
     // Governance tables
     //
-    // members and member_certs tables should always be in sync
+    // members, member_certs and member_digests tables should always be in sync
     Members members;
     CertDERs member_certs;
+    CertDigests member_digests;
 
     Scripts gov_scripts;
     Modules modules;
@@ -68,9 +69,10 @@ namespace ccf
     //
     // User tables
     //
-    // users and user_certs tables should always be in sync
+    // users, user_certs and user_digests tables should always be in sync
     Users users;
     CertDERs user_certs;
+    CertDigests user_digests;
 
     ClientSignatures user_client_signatures;
 
@@ -111,6 +113,7 @@ namespace ccf
             aft::replicate_type_bft, aft::replicated_tables_bft)),
       members(Tables::MEMBERS),
       member_certs(Tables::MEMBER_CERT_DERS),
+      member_digests(Tables::MEMBER_DIGESTS),
       gov_scripts(Tables::GOV_SCRIPTS),
       modules(Tables::MODULES),
       proposals(Tables::PROPOSALS),
@@ -128,6 +131,7 @@ namespace ccf
       jwt_public_signing_key_issuer(Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER),
       users(Tables::USERS),
       user_certs(Tables::USER_CERT_DERS),
+      user_digests(Tables::USER_DIGESTS),
       user_client_signatures(Tables::USER_CLIENT_SIGNATURES),
       nodes(Tables::NODES),
       app_scripts(Tables::APP_SCRIPTS),

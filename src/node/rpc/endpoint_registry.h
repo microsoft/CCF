@@ -442,6 +442,7 @@ namespace ccf
     kv::TxHistory* history = nullptr;
 
     std::string certs_table_name;
+    std::string digests_table_name;
 
     static void add_query_parameters(
       nlohmann::json& document,
@@ -473,9 +474,11 @@ namespace ccf
     EndpointRegistry(
       const std::string& method_prefix_,
       kv::Store&,
-      const std::string& certs_table_name_ = "") :
+      const std::string& certs_table_name_ = "",
+      const std::string& digests_table_name_ = "") :
       method_prefix(method_prefix_),
-      certs_table_name(certs_table_name_)
+      certs_table_name(certs_table_name_),
+      digests_table_name(digests_table_name_)
     {}
 
     virtual ~EndpointRegistry() {}
@@ -817,16 +820,40 @@ namespace ccf
       return !certs_table_name.empty();
     }
 
-    virtual CallerId get_caller_id(
-      kv::Tx& tx, const std::vector<uint8_t>& caller)
+    bool has_digests()
     {
-      if (!has_certs() || caller.empty())
+      return !digests_table_name.empty();
+    }
+
+    virtual CallerId get_caller_id(
+      kv::Tx& tx, const std::vector<uint8_t>& caller_cert)
+    {
+      if (!has_certs() || caller_cert.empty())
       {
         return INVALID_ID;
       }
 
       auto certs_view = tx.get_view<CertDERs>(certs_table_name);
-      auto caller_id = certs_view->get(caller);
+      auto caller_id = certs_view->get(caller_cert);
+
+      if (!caller_id.has_value())
+      {
+        return INVALID_ID;
+      }
+
+      return caller_id.value();
+    }
+
+    virtual CallerId get_caller_id_by_digest(
+      kv::Tx& tx, const std::string& caller_cert_digest)
+    {
+      if (!has_digests() || caller_cert_digest.empty())
+      {
+        return INVALID_ID;
+      }
+
+      auto digests_view = tx.get_view<CertDigests>(digests_table_name);
+      auto caller_id = digests_view->get(caller_cert_digest);
 
       if (!caller_id.has_value())
       {

@@ -11,11 +11,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Support for non-recovery members (#1866):
   - Only members with an associated public encryption key are handed recovery shares.
-- Support for [hs2019 scheme](https://tools.ietf.org/html/draft-cavage-http-signatures-12) for HTTP signatures (#1872).
-  - `ecdsa-sha256` scheme will be deprecated in the next release.
 - AFT consensus verify entry validity (#1864).
 - JWT validation in forum sample app (#1867).
 - JavaScript endpoints OpenAPI definion is now included in `/api` (#1874).
+
+### Changed
+
+- The `keyId` field in the Authorization header must now be set to the hex-encoded SHA-256 digest of the corresponding member certificate encoded in PEM format. The `scurl.sh` script and Python client have been modified accordingly. `scurl.sh` can be run with `DISABLE_CLIENT_AUTH=1` (equivalent `disable_client_auth=False` argument to Python client) to issue signed requests without session-level client authentication (#1870).
+- Governance endpoints no longer require session-level client authentication matching a member identity, the request signature now serves as authentication. The purpose of this change is to facilitate member key storage in systems such as HSMs (#1870).
+- Support for [hs2019 scheme](https://tools.ietf.org/html/draft-cavage-http-signatures-12) for HTTP signatures (#1872).
+  - `ecdsa-sha256` scheme will be deprecated in the next release.
 
 ## [0.14.3]
 
