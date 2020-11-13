@@ -54,7 +54,7 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 
   DOCTEST_INFO("DOCTEST_REQUIRE Initial State");
 
-  DOCTEST_REQUIRE(!r0.is_leader());
+  DOCTEST_REQUIRE(!r0.is_primary());
   DOCTEST_REQUIRE(r0.leader() == aft::NoNode);
   DOCTEST_REQUIRE(r0.get_term() == 0);
   DOCTEST_REQUIRE(r0.get_commit_idx() == 0);
@@ -63,10 +63,10 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     "In the absence of other nodes, become leader after election timeout");
 
   r0.periodic(ms(0));
-  DOCTEST_REQUIRE(!r0.is_leader());
+  DOCTEST_REQUIRE(!r0.is_primary());
 
   r0.periodic(election_timeout * 2);
-  DOCTEST_REQUIRE(r0.is_leader());
+  DOCTEST_REQUIRE(r0.is_primary());
   DOCTEST_REQUIRE(r0.leader() == node_id);
 }
 
@@ -100,7 +100,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
   DOCTEST_INFO("Become leader after election timeout");
 
   r0.periodic(election_timeout * 2);
-  DOCTEST_REQUIRE(r0.is_leader());
+  DOCTEST_REQUIRE(r0.is_primary());
 
   DOCTEST_INFO("Observe that data is committed on replicate immediately");
 
@@ -262,7 +262,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO(
     "Node 0 is now leader, and sends empty append entries to other nodes");
 
-  DOCTEST_REQUIRE(r0.is_leader());
+  DOCTEST_REQUIRE(r0.is_primary());
   DOCTEST_REQUIRE(
     ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size() ==
     2);
@@ -436,7 +436,7 @@ DOCTEST_TEST_CASE(
       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries_response,
       [](const auto& msg) {
         DOCTEST_REQUIRE(msg.last_log_idx == 0);
-        DOCTEST_REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
       }));
   DOCTEST_REQUIRE(
     1 ==
@@ -445,7 +445,7 @@ DOCTEST_TEST_CASE(
       ((aft::ChannelStubProxy*)r2.channels.get())->sent_append_entries_response,
       [](const auto& msg) {
         DOCTEST_REQUIRE(msg.last_log_idx == 0);
-        DOCTEST_REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
       }));
 
   DOCTEST_INFO("There ought to be no messages pending anywhere now");
@@ -493,7 +493,7 @@ DOCTEST_TEST_CASE(
       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries_response,
       [](const auto& msg) {
         DOCTEST_REQUIRE(msg.last_log_idx == 1);
-        DOCTEST_REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
       }));
   DOCTEST_REQUIRE(
     1 ==
@@ -502,7 +502,7 @@ DOCTEST_TEST_CASE(
       ((aft::ChannelStubProxy*)r2.channels.get())->sent_append_entries_response,
       [](const auto& msg) {
         DOCTEST_REQUIRE(msg.last_log_idx == 1);
-        DOCTEST_REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
       }));
 }
 
@@ -603,7 +603,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries_response,
       [](const auto& msg) {
         DOCTEST_REQUIRE(msg.last_log_idx == 0);
-        DOCTEST_REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
       }));
 
   DOCTEST_REQUIRE(
@@ -636,7 +636,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries_response,
       [](const auto& msg) {
         DOCTEST_REQUIRE(msg.last_log_idx == 1);
-        DOCTEST_REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
       }));
 
   DOCTEST_INFO("Node 2 joins the ensemble");
@@ -741,7 +741,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
         ((aft::ChannelStubProxy*)r1.channels.get())
           ->sent_request_vote_response));
 
-    DOCTEST_REQUIRE(r0.is_leader());
+    DOCTEST_REQUIRE(r0.is_primary());
     DOCTEST_REQUIRE(
       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size() ==
       1);
@@ -804,7 +804,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
                  .second;
     ((aft::ChannelStubProxy*)r1.channels.get())
       ->sent_append_entries_response.pop_front();
-    aer.success = false;
+    aer.success = aft::AppendEntriesResponseType::FAIL;
     r0.recv_message(reinterpret_cast<uint8_t*>(&aer), sizeof(aer));
     DOCTEST_REQUIRE(
       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size() ==
@@ -867,7 +867,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
                  .second;
     ((aft::ChannelStubProxy*)r1.channels.get())
       ->sent_append_entries_response.pop_front();
-    aer.success = false;
+    aer.success = aft::AppendEntriesResponseType::FAIL;
     r0.recv_message(reinterpret_cast<uint8_t*>(&aer), sizeof(aer));
     DOCTEST_REQUIRE(
       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size() ==
@@ -984,7 +984,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries_response,
       [](const auto& msg) {
         DOCTEST_REQUIRE(msg.last_log_idx == 0);
-        DOCTEST_REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
       }));
 
   DOCTEST_REQUIRE(

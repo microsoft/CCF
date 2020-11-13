@@ -372,7 +372,6 @@ function(add_client_exe name)
   add_executable(${name} ${PARSED_ARGS_SRCS})
 
   target_link_libraries(${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT})
-
   target_include_directories(
     ${name} PRIVATE ${CCF_DIR}/samples/perf_client ${PARSED_ARGS_INCLUDE_DIRS}
   )

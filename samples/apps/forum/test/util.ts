@@ -10,15 +10,23 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 const NODE_HOST = "127.0.0.1:8000";
 export const NODE_ADDR = "https://" + NODE_HOST;
 
-export function getCCFSandboxCmdAndArgs(app_bundle_dir: string) {
+interface CCFSandboxOpts {
+  app_bundle_dir: string;
+  jwt_issuer_paths?: string[];
+}
+
+export function getCCFSandboxCmdAndArgs(opts: CCFSandboxOpts) {
   const CCF_SANDBOX_ARGS = [
     "--node",
     "local://" + NODE_HOST,
     "--js-app-bundle",
-    app_bundle_dir,
+    opts.app_bundle_dir,
     "--workspace",
     ".workspace_ccf",
   ];
+  for (const jwt_issuer_path of opts.jwt_issuer_paths || []) {
+    CCF_SANDBOX_ARGS.push("--jwt-issuer", jwt_issuer_path);
+  }
   if (process.env.VERBOSE == "1") {
     CCF_SANDBOX_ARGS.push("--verbose");
   }
@@ -55,8 +63,8 @@ export function getCCFSandboxCmdAndArgs(app_bundle_dir: string) {
   };
 }
 
-export function setupMochaCCFSandbox(app_bundle_dir: string) {
-  const { command, args } = getCCFSandboxCmdAndArgs(app_bundle_dir);
+export function setupMochaCCFSandbox(opts: CCFSandboxOpts) {
+  const { command, args } = getCCFSandboxCmdAndArgs(opts);
 
   let sandboxProcess: ChildProcess;
   before(function () {

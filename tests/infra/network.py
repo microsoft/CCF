@@ -67,7 +67,7 @@ class Network:
         "sig_tx_interval",
         "sig_ms_interval",
         "raft_election_timeout",
-        "pbft_view_change_timeout",
+        "bft_view_change_timeout",
         "consensus",
         "memory_reserve_startup",
         "log_format_json",
@@ -291,7 +291,7 @@ class Network:
                 raise
 
         self.election_duration = (
-            args.pbft_view_change_timeout / 1000
+            args.bft_view_change_timeout / 1000
             if args.consensus == "bft"
             else args.raft_election_timeout / 1000
         ) * 2

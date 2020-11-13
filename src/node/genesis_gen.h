@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "code_id.h"
+#include "crypto/hash.h"
 #include "entities.h"
 #include "kv/tx.h"
 #include "lua_interp/lua_interp.h"
@@ -104,9 +105,10 @@ namespace ccf
 
     MemberId add_member(const MemberPubInfo& member_pub_info)
     {
-      auto [m, mc, v, ma, sig] = tx.get_view(
+      auto [m, mc, md, v, ma, sig] = tx.get_view(
         tables.members,
         tables.member_certs,
+        tables.member_digests,
         tables.values,
         tables.member_acks,
         tables.signatures);
@@ -126,6 +128,9 @@ namespace ccf
       const auto id = get_next_id(v, ValueIds::NEXT_MEMBER_ID);
       m->put(id, MemberInfo(member_pub_info, MemberStatus::ACCEPTED));
       mc->put(member_cert_der, id);
+
+      crypto::Sha256Hash member_cert_digest(member_pub_info.cert.contents());
+      md->put(member_cert_digest.hex_str(), id);
 
       auto s = sig->get(0);
       if (!s)
@@ -226,8 +231,8 @@ namespace ccf
 
     auto add_user(const ccf::UserInfo& user_info)
     {
-      auto [u, uc, v] =
-        tx.get_view(tables.users, tables.user_certs, tables.values);
+      auto [u, uc, ud, v] = tx.get_view(
+        tables.users, tables.user_certs, tables.user_digests, tables.values);
 
       auto user_cert_der = tls::make_verifier(user_info.cert)->der_cert_data();
 
@@ -242,6 +247,9 @@ namespace ccf
       const auto id = get_next_id(v, ValueIds::NEXT_USER_ID);
       u->put(id, user_info);
       uc->put(user_cert_der, id);
+
+      crypto::Sha256Hash user_cert_digest(user_info.cert.contents());
+      ud->put(user_cert_digest.hex_str(), id);
       return id;
     }
 

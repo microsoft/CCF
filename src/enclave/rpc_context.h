@@ -141,7 +141,7 @@ namespace enclave
       caller_cert(caller_cert_)
     {}
 
-    // Constructor used for forwarded and PBFT RPC
+    // Constructor used for forwarded and BFT RPC
     SessionContext(
       size_t fwd_session_id_,
       ccf::CallerId caller_id_,
@@ -161,8 +161,8 @@ namespace enclave
 
     virtual FrameFormat frame_format() const = 0;
 
-    // raw pbft Request
-    std::vector<uint8_t> pbft_raw = {};
+    // raw bft Request
+    std::vector<uint8_t> bft_raw = {};
 
     bool is_create_request = false;
     bool execute_on_node = false;
@@ -170,10 +170,9 @@ namespace enclave
     RpcContext(std::shared_ptr<SessionContext> s) : session(s) {}
 
     RpcContext(
-      std::shared_ptr<SessionContext> s,
-      const std::vector<uint8_t>& pbft_raw_) :
+      std::shared_ptr<SessionContext> s, const std::vector<uint8_t>& bft_raw_) :
       session(s),
-      pbft_raw(pbft_raw_)
+      bft_raw(bft_raw_)
     {}
 
     virtual ~RpcContext() {}

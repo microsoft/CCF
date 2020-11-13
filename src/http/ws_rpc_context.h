@@ -61,8 +61,8 @@ namespace ws
       const std::string_view& path_,
       const std::vector<uint8_t>& body_,
       const std::vector<uint8_t>& raw_request_ = {},
-      const std::vector<uint8_t>& raw_pbft_ = {}) :
-      RpcContext(s, raw_pbft_),
+      const std::vector<uint8_t>& raw_bft_ = {}) :
+      RpcContext(s, raw_bft_),
       request_index(request_index_),
       path(path_),
       method(path_),
