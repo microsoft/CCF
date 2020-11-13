@@ -191,7 +191,7 @@ def cli_proposal(func):
 @cli_proposal
 def new_member(
     member_cert_path: str,
-    member_enc_pubk_path: str = None,  # TODO: This seems to be failing!
+    member_enc_pubk_path: str = None,
     member_data: Any = None,
     **kwargs,
 ):
