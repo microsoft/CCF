@@ -670,7 +670,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetQuotes__Out"
+                  "$ref": "#/components/schemas/GetQuotes__Quote"
                 }
               }
             },

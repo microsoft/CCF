@@ -33,6 +33,10 @@ else
   npx prettier --check .
 fi
 
+npm install --loglevel=error @apidevtools/swagger-cli 1>/dev/null
+echo "OpenAPI"
+find doc/schemas/*.json -exec npx swagger-cli validate {} \;
+
 echo "Copyright notice headers"
 python3.8 "$SCRIPT_DIR"/notice-check.py
 
