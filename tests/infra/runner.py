@@ -19,7 +19,7 @@ logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 def minimum_number_of_local_nodes(args):
     """
-    If we are using bft then we need to have 4 nodes. CFT will run with 1 nodes, unless it expects a backup
+    If we are using bft then we need to have 3 nodes. CFT will run with 1 nodes, unless it expects a backup
     """
     if args.consensus == "bft":
         return 3
