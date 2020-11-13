@@ -578,7 +578,7 @@ class CCFRemote(object):
         sig_tx_interval=5000,
         sig_ms_interval=1000,
         raft_election_timeout=1000,
-        pbft_view_change_timeout=5000,
+        bft_view_change_timeout=5000,
         consensus="cft",
         worker_threads=0,
         memory_reserve_startup=0,
@@ -627,7 +627,7 @@ class CCFRemote(object):
         enclave_path = os.path.join(".", os.path.basename(lib_path))
 
         election_timeout_arg = (
-            f"--pbft_view-change-timeout-ms={pbft_view_change_timeout}"
+            f"--bft_view-change-timeout-ms={bft_view_change_timeout}"
             if consensus == "bft"
             else f"--raft-election-timeout-ms={raft_election_timeout}"
         )
@@ -680,15 +680,24 @@ class CCFRemote(object):
                 "--network-cert-file=networkcert.pem",
                 f"--gov-script={os.path.basename(gov_script)}",
             ]
+            data_files += [os.path.join(os.path.basename(self.common_dir), gov_script)]
             if members_info is None:
                 raise ValueError(
-                    "Starting node should be given at least one tuple of (member certificate, member public encryption key[, member data])"
+                    "Starting node should be given at least one member info"
                 )
             for mi in members_info:
+                member_info_cmd = f"--member-info={mi.certificate_file}"
+                if mi.encryption_pub_key_file is not None:
+                    member_info_cmd += f",{mi.encryption_pub_key_file}"
+                elif mi.member_data_file is not None:
+                    member_info_cmd += ","
+                if mi.member_data_file is not None:
+                    member_info_cmd += f",{mi.member_data_file}"
                 for mf in mi:
-                    data_files.append(os.path.join(self.common_dir, mf))
-                cmd += [f"--member-info={','.join(mi)}"]
-            data_files += [os.path.join(os.path.basename(self.common_dir), gov_script)]
+                    if mf is not None:
+                        data_files.append(os.path.join(self.common_dir, mf))
+                cmd += [member_info_cmd]
+
         elif start_type == StartType.join:
             cmd += [
                 "join",
@@ -697,8 +706,10 @@ class CCFRemote(object):
                 f"--join-timer={join_timer}",
             ]
             data_files += [os.path.join(self.common_dir, "networkcert.pem")]
+
         elif start_type == StartType.recover:
             cmd += ["recover", "--network-cert-file=networkcert.pem"]
+
         else:
             raise ValueError(
                 f"Unexpected CCFRemote start type {start_type}. Should be start, join or recover"

@@ -650,15 +650,16 @@ namespace ccf
 
            if (!g.retire_member(member_id))
            {
-             LOG_FAIL_FMT("Failed to retire member {}", member_id);
              return false;
            }
 
-           if (member_info->status == MemberStatus::ACTIVE)
+           if (
+             member_info->status == MemberStatus::ACTIVE &&
+             member_info->is_recovery())
            {
-             // A retired member should not have access to the private ledger
-             // going forward. New recovery shares are also issued to remaining
-             // active members.
+             // A retired member with recovery share should not have access to
+             // the private ledger going forward so rekey ledger, issuing new
+             // share to remaining active members
              if (!node.rekey_ledger(tx))
              {
                return false;
@@ -844,9 +845,6 @@ namespace ccf
              this->network.node_code_ids,
              proposal_id);
          }},
-        // For now, members can propose to accept a recovery with shares. In
-        // that case, members will have to submit their shares after this
-        // proposal is accepted.
         {"accept_recovery",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json&) {
            if (node.is_part_of_public_network())
@@ -868,8 +866,8 @@ namespace ccf
         {"open_network",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json&) {
            // On network open, the service checks that a sufficient number of
-           // members have become active. If so, recovery shares are allocated
-           // to each active member.
+           // recovery members have become active. If so, recovery shares are
+           // allocated to each recovery member
            try
            {
              share_manager.issue_shares(tx);
@@ -1172,7 +1170,8 @@ namespace ccf
       CommonEndpointRegistry(
         get_actor_prefix(ActorsType::members),
         *network.tables,
-        Tables::MEMBER_CERT_DERS),
+        Tables::MEMBER_CERT_DERS,
+        Tables::MEMBER_DIGESTS),
       network(network),
       node(node),
       share_manager(share_manager),
@@ -1503,8 +1502,10 @@ namespace ccf
       auto ack = [this](EndpointContext& args, nlohmann::json&& params) {
         const auto signed_request = args.rpc_ctx->get_signed_request();
 
-        auto [ma_view, sig_view] =
-          args.tx.get_view(this->network.member_acks, this->network.signatures);
+        auto [ma_view, sig_view, members_view] = args.tx.get_view(
+          this->network.member_acks,
+          this->network.signatures,
+          this->network.members);
         const auto ma = ma_view->get(args.caller_id);
         if (!ma)
         {
@@ -1533,18 +1534,32 @@ namespace ccf
 
         // update member status to ACTIVE
         GenesisGenerator g(this->network, args.tx);
-        g.activate_member(args.caller_id);
+        try
+        {
+          g.activate_member(args.caller_id);
+        }
+        catch (const std::logic_error& e)
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            fmt::format("Error activating new member: {}", e.what()));
+        }
 
         auto service_status = g.get_service_status();
         if (!service_status.has_value())
         {
-          throw std::logic_error("No service currently available");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "No service currently available");
         }
 
-        if (service_status.value() == ServiceStatus::OPEN)
+        auto member_info = members_view->get(args.caller_id);
+        if (
+          service_status.value() == ServiceStatus::OPEN &&
+          member_info->is_recovery())
         {
-          // When the service is OPEN, new active members are allocated new
-          // recovery shares
+          // When the service is OPEN and the new active member is a recovery
+          // member, all recovery members are allocated new recovery shares
           try
           {
             share_manager.issue_shares(args.tx);
@@ -1607,7 +1622,7 @@ namespace ccf
           if (!encrypted_share.has_value())
           {
             return make_error(
-              HTTP_STATUS_BAD_REQUEST,
+              HTTP_STATUS_NOT_FOUND,
               fmt::format(
                 "Recovery share not found for member {}", args.caller_id));
           }
@@ -1679,7 +1694,7 @@ namespace ccf
         }
 
         LOG_DEBUG_FMT(
-          "Reached secret sharing threshold {}", g.get_recovery_threshold());
+          "Reached recovery threshold {}", g.get_recovery_threshold());
 
         try
         {
@@ -1733,7 +1748,16 @@ namespace ccf
           g.add_member(info);
         }
 
-        g.set_recovery_threshold(in.recovery_threshold);
+        // Note that it is acceptable to start a network without any member
+        // having a recovery share. The service will check that at least one
+        // recovery member is added before the service is opened.
+        if (!g.set_recovery_threshold(in.recovery_threshold, true))
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            fmt::format(
+              "Could not set recovery threshold to {}", in.recovery_threshold));
+        }
 
         g.add_consensus(in.consensus_type);
 
@@ -1801,18 +1825,31 @@ namespace ccf
       members(&network.members)
     {}
 
+    std::optional<tls::Pem> resolve_caller_id(
+      ObjectId caller_id, kv::Tx& tx) override
+    {
+      auto members_view = tx.get_view(*members);
+      auto caller = members_view->get(caller_id);
+      if (!caller.has_value())
+      {
+        return std::nullopt;
+      }
+
+      return caller.value().cert;
+    }
+
     bool lookup_forwarded_caller_cert(
       std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx) override
     {
       // Lookup the caller member's certificate from the forwarded caller id
-      auto members_view = tx.get_view(*members);
-      auto caller = members_view->get(ctx->session->original_caller->caller_id);
-      if (!caller.has_value())
+      auto caller_cert =
+        resolve_caller_id(ctx->session->original_caller->caller_id, tx);
+      if (!caller_cert.has_value())
       {
         return false;
       }
 
-      ctx->session->caller_cert = caller.value().cert.raw();
+      ctx->session->caller_cert = caller_cert.value().raw();
       return true;
     }
 

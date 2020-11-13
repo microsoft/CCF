@@ -14,16 +14,19 @@ The ``keygenerator.sh`` script can be used to generate the member’s certificat
 
 .. code-block:: bash
 
-    $ keygenerator.sh --name member_name --gen-enc-key
+    $ keygenerator.sh --name member_name [--gen-enc-key]
     -- Generating identity private key and certificate for participant "member_name"...
     Identity curve: secp384r1
     Identity private key generated at:   member_name_privk.pem
     Identity certificate generated at:   member_name_cert.pem (to be registered in CCF)
+    # Only if --gen-enc-key is used:
     -- Generating RSA encryption key pair for participant "member_name"...
     Encryption private key generated at:  member_name_enc_privk.pem
     Encryption public key generated at:   member_name_enc_pubk.pem (to be registered in CCF)
 
-The member’s private keys (e.g. ``member_name_privk.pem`` and ``member_name_enc_privk.pem``) should be stored on a trusted device while the certificate (e.g. ``member_name_cert.pem``) and public encryption key (e.g. ``member_name_enc_pubk.pem``) should be registered in CCF by members.
+Members that are registered in CCF `with` a public encryption key are recovery members. Each recovery member is given a recovery share (see :ref:`members/accept_recovery:Submitting Recovery Shares`) that can be used to recover a defunct service. Members registered `without` a public encryption key are not given recovery shares and cannot recover the defunct service.
+
+The member’s identity and encryption private keys (e.g. ``member_name_privk.pem`` and ``member_name_enc_privk.pem``) should be stored on a trusted device (e.g. HSM) while the certificate (e.g. ``member_name_cert.pem``) and public encryption key (e.g. ``member_name_enc_pubk.pem``) should be registered in CCF by members.
 
 .. note:: See :ref:`design/cryptography:Algorithms and Curves` for the list of supported cryptographic curves for member identity.
 

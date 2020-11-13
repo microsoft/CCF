@@ -9,6 +9,7 @@ import recovery
 import rekey
 import election
 import code_update
+import membership
 
 from inspect import signature, Parameter
 
@@ -29,13 +30,13 @@ suites["rekey_recovery"] = suite_rekey_recovery
 
 # This suite tests that membership changes and recoveries can be interleaved
 suite_membership_recovery = [
-    memberclient.test_add_member,
+    membership.test_add_member,
     recovery.test,
-    memberclient.test_retire_member,
+    membership.test_retire_member,
     recovery.test,
-    memberclient.test_set_recovery_threshold,
+    membership.test_set_recovery_threshold,
     recovery.test,
-    memberclient.test_update_recovery_shares,
+    membership.test_update_recovery_shares,
     recovery.test,
 ]
 suites["membership_recovery"] = suite_membership_recovery
@@ -78,11 +79,13 @@ all_tests_suite = [
     e2e_logging.test_user_data_ACL,
     e2e_logging.test_view_history,
     e2e_logging.test_tx_statuses,
+    # membership:
+    membership.test_set_recovery_threshold,
+    membership.test_add_member,
+    membership.test_retire_member,
+    membership.test_retire_member,
+    membership.test_update_recovery_shares,
     # memberclient:
-    memberclient.test_set_recovery_threshold,
-    memberclient.test_add_member,
-    memberclient.test_retire_member,
-    memberclient.test_update_recovery_shares,
     memberclient.test_missing_signature,
     # receipts:
     receipts.test,

@@ -30,33 +30,25 @@ MSGPACK_ADD_ENUM(ccf::MemberStatus);
 namespace ccf
 {
   // Current limitations of secret sharing library (sss).
-  // This could be mitigated by not handing a recovery share to every member.
-  static constexpr size_t max_active_members_count = 255;
+  static constexpr size_t max_active_recovery_members = 255;
 
   struct MemberPubInfo
   {
     tls::Pem cert;
-    tls::Pem encryption_pub_key;
+
+    // If encryption public key is set, the member is a recovery member
+    std::optional<tls::Pem> encryption_pub_key = std::nullopt;
     nlohmann::json member_data = nullptr;
 
     MemberPubInfo() {}
 
     MemberPubInfo(
       const tls::Pem& cert_,
-      const tls::Pem& encryption_pub_key_,
-      const nlohmann::json& member_data_) :
+      const std::optional<tls::Pem>& encryption_pub_key_ = std::nullopt,
+      const nlohmann::json& member_data_ = nullptr) :
       cert(cert_),
       encryption_pub_key(encryption_pub_key_),
       member_data(member_data_)
-    {}
-
-    MemberPubInfo(
-      std::vector<uint8_t>&& cert_,
-      std::vector<uint8_t>&& encryption_pub_key_,
-      nlohmann::json&& member_data_) :
-      cert(std::move(cert_)),
-      encryption_pub_key(std::move(encryption_pub_key_)),
-      member_data(std::move(member_data_))
     {}
 
     bool operator==(const MemberPubInfo& rhs) const
@@ -65,11 +57,16 @@ namespace ccf
         member_data == rhs.member_data;
     }
 
+    bool is_recovery() const
+    {
+      return encryption_pub_key.has_value();
+    }
+
     MSGPACK_DEFINE(cert, encryption_pub_key, member_data);
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(MemberPubInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(MemberPubInfo, cert, encryption_pub_key)
-  DECLARE_JSON_OPTIONAL_FIELDS(MemberPubInfo, member_data)
+  DECLARE_JSON_REQUIRED_FIELDS(MemberPubInfo, cert)
+  DECLARE_JSON_OPTIONAL_FIELDS(MemberPubInfo, encryption_pub_key, member_data)
 
   struct MemberInfo : public MemberPubInfo
   {
@@ -77,12 +74,8 @@ namespace ccf
 
     MemberInfo() {}
 
-    MemberInfo(
-      const tls::Pem& cert_,
-      const tls::Pem& encryption_pub_key_,
-      const nlohmann::json& member_data_,
-      MemberStatus status_) :
-      MemberPubInfo(cert_, encryption_pub_key_, member_data_),
+    MemberInfo(const MemberPubInfo& member_pub_info, MemberStatus status_) :
+      MemberPubInfo(member_pub_info),
       status(status_)
     {}
 

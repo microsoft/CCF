@@ -18,6 +18,7 @@ from cryptography.hazmat.backends import default_backend
 import struct
 import base64
 import re
+import hashlib
 from typing import Union, Optional, List, Any
 
 import requests
@@ -237,12 +238,15 @@ class CurlClient:
     These commands could also be run manually, or used by another client tool.
     """
 
-    def __init__(self, host, port, ca=None, cert=None, key=None):
+    def __init__(
+        self, host, port, ca=None, cert=None, key=None, disable_client_auth=False
+    ):
         self.host = host
         self.port = port
         self.ca = ca
         self.cert = cert
         self.key = key
+        self.disable_client_auth = disable_client_auth
 
         ca_curve = get_curve(self.ca)
         if ca_curve.name == "secp256k1":
@@ -306,7 +310,10 @@ class CurlClient:
                 cmd.extend(["--cert", self.cert])
 
             LOG.debug(f"Running: {' '.join(cmd)}")
-            rc = subprocess.run(cmd, capture_output=True, check=False)
+            env = {k: v for k, v in os.environ.items()}
+            if self.disable_client_auth:
+                env["DISABLE_CLIENT_AUTH"] = "1"
+            rc = subprocess.run(cmd, capture_output=True, check=False, env=env)
 
             if rc.returncode != 0:
                 if rc.returncode == 60:  # PEER_FAILED_VERIFICATION
@@ -367,16 +374,22 @@ class RequestClient:
         ca: str,
         cert: Optional[str] = None,
         key: Optional[str] = None,
+        disable_client_auth: bool = False,
+        key_id: Optional[int] = False,
     ):
         self.host = host
         self.port = port
         self.ca = ca
         self.cert = cert
         self.key = key
+        self.key_id = None
         self.session = requests.Session()
         self.session.verify = self.ca
-        if self.cert is not None and self.key is not None:
+        if (self.cert is not None and self.key is not None) and not disable_client_auth:
             self.session.cert = (self.cert, self.key)
+        if self.cert:
+            with open(self.cert) as cert_file:
+                self.key_id = hashlib.sha256(cert_file.read().encode()).hexdigest()
         self.session.mount("https://", TlsAdapter(self.ca))
 
     def request(
@@ -396,8 +409,7 @@ class RequestClient:
             auth_value = HTTPSignatureAuth_AlwaysDigest(
                 algorithm="ecdsa-sha256",
                 key=open(self.key, "rb").read(),
-                # key_id needs to be specified but is unused
-                key_id="tls",
+                key_id=self.key_id,
                 headers=["(request-target)", "Digest", "Content-Length"],
             )
 
@@ -458,6 +470,7 @@ class WSClient:
         ca: str,
         cert: Optional[str] = None,
         key: Optional[str] = None,
+        disable_client_auth: bool = False,
     ):
         self.host = host
         self.port = port
@@ -465,6 +478,7 @@ class WSClient:
         self.cert = cert
         self.key = key
         self.ws = None
+        self.disable_client_auth = disable_client_auth
 
         ca_curve = get_curve(self.ca)
         if ca_curve.name == "secp256k1":
@@ -490,8 +504,8 @@ class WSClient:
                 self.ws = websocket.create_connection(
                     f"wss://{self.host}:{self.port}",
                     sslopt={
-                        "certfile": self.cert,
-                        "keyfile": self.key,
+                        "certfile": self.cert if not self.disable_client_auth else None,
+                        "keyfile": self.key if not self.disable_client_auth else None,
                         "ca_certs": self.ca,
                     },
                     timeout=timeout,
@@ -528,7 +542,7 @@ class CCFClient:
     """
     Client used to connect securely and issue requests to a given CCF node.
 
-    This is a very thin wrapper around Python Requests with TLS with added:
+    This is a wrapper around either Python Requests, curl or a websockets client over TLS with added:
 
     - Retry logic when connecting to nodes that are joining the network
     - Support for HTTP signatures (https://tools.ietf.org/html/draft-cavage-http-signatures-12).
@@ -543,6 +557,7 @@ class CCFClient:
     :param int connection_timeout: Maximum time to wait for successful connection establishment before giving up.
     :param str description: Message to print on each request emitted with this client.
     :param bool ws: Use WebSocket client (experimental).
+    :param bool disable_client_auth: Do not use the provided client identity to authenticate. The client identity will still be used to sign if ``signed`` is set to True when making requests.
 
     A :py:exc:`CCFConnectionException` exception is raised if the connection is not established successfully within ``connection_timeout`` seconds.
     """
@@ -559,6 +574,7 @@ class CCFClient:
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
         description: Optional[str] = None,
         ws: bool = False,
+        disable_client_auth: bool = False,
     ):
         self.connection_timeout = connection_timeout
         self.description = description
@@ -566,11 +582,15 @@ class CCFClient:
         self.is_connected = False
 
         if os.getenv("CURL_CLIENT"):
-            self.client_impl = CurlClient(host, port, ca, cert, key)
+            self.client_impl = CurlClient(
+                host, port, ca, cert, key, disable_client_auth
+            )
         elif os.getenv("WEBSOCKETS_CLIENT") or ws:
-            self.client_impl = WSClient(host, port, ca, cert, key)
+            self.client_impl = WSClient(host, port, ca, cert, key, disable_client_auth)
         else:
-            self.client_impl = RequestClient(host, port, ca, cert, key)
+            self.client_impl = RequestClient(
+                host, port, ca, cert, key, disable_client_auth
+            )
 
     def _response(self, response: Response) -> Response:
         LOG.info(response)

@@ -156,8 +156,8 @@ namespace http
       const http::HeaderMap& headers_,
       const std::vector<uint8_t>& body_,
       const std::vector<uint8_t>& raw_request_ = {},
-      const std::vector<uint8_t>& raw_pbft_ = {}) :
-      RpcContext(s, raw_pbft_),
+      const std::vector<uint8_t>& raw_bft_ = {}) :
+      RpcContext(s, raw_bft_),
       request_index(request_index_),
       verb(verb_),
       path(path_),
@@ -345,7 +345,7 @@ namespace enclave
   inline std::shared_ptr<RpcContext> make_rpc_context(
     std::shared_ptr<enclave::SessionContext> s,
     const std::vector<uint8_t>& packed,
-    const std::vector<uint8_t>& raw_pbft = {})
+    const std::vector<uint8_t>& raw_bft = {})
   {
     http::SimpleRequestProcessor processor;
     http::RequestParser parser(processor);
@@ -382,14 +382,14 @@ namespace enclave
       msg.headers,
       msg.body,
       packed,
-      raw_pbft);
+      raw_bft);
   }
 
   inline std::shared_ptr<enclave::RpcContext> make_fwd_rpc_context(
     std::shared_ptr<enclave::SessionContext> s,
     const std::vector<uint8_t>& packed,
     enclave::FrameFormat frame_format,
-    const std::vector<uint8_t>& raw_pbft = {})
+    const std::vector<uint8_t>& raw_bft = {})
   {
     http::SimpleRequestProcessor processor;
 
@@ -432,7 +432,7 @@ namespace enclave
           msg.headers,
           msg.body,
           packed,
-          raw_pbft);
+          raw_bft);
       }
       case enclave::FrameFormat::ws:
       {
@@ -459,7 +459,7 @@ namespace enclave
         const auto& msg = processor.received.front();
 
         return std::make_shared<ws::WsRpcContext>(
-          0, s, msg.path, msg.body, packed, raw_pbft);
+          0, s, msg.path, msg.body, packed, raw_bft);
       }
       default:
         throw std::logic_error("Unknown Frame Format");

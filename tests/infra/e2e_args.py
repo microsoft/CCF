@@ -147,8 +147,8 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=100000,
     )
     parser.add_argument(
-        "--pbft-view-change-timeout",
-        help="Pbft maximum view change timeout for each node in the network",
+        "--bft-view-change-timeout",
+        help="bft maximum view change timeout for each node in the network",
         type=int,
         default=5000,
     )
@@ -166,9 +166,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
     parser.add_argument(
         "--pdb", help="Break to debugger on exception", action="store_true"
-    )
-    parser.add_argument(
-        "--notify-server", help="Server host to notify progress to (host:port)"
     )
     parser.add_argument(
         "--workspace",
@@ -227,6 +224,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--initial-user-count",
         help="Number of users when initializing the network",
+        type=int,
+        default=3,
+    )
+    parser.add_argument(
+        "--initial-recovery-member-count",
+        help="Number of initial members that are handed recovery shares",
         type=int,
         default=3,
     )

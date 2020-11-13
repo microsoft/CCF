@@ -272,6 +272,30 @@ namespace ccf
       auto& metrics = endpoints.get_metrics(endpoint);
       metrics.calls++;
 
+      const auto signed_request = ctx->get_signed_request();
+      // On signed requests, the effective caller id is the key id that
+      // signed the request, the session-level identity is unimportant
+      // NOTE: this is only verified by verify_client_signature() later down,
+      // caller_id is only tentative at this point if we extract it from the
+      // signed request
+      if (signed_request.has_value())
+      {
+        auto cid =
+          endpoints.get_caller_id_by_digest(tx, signed_request->key_id);
+        if (cid != INVALID_ID)
+        {
+          LOG_TRACE_FMT(
+            "Session-level caller ID is {} replaced by caller id contained in "
+            "signed request {}",
+            caller_id,
+            cid);
+          caller_id = cid;
+          auto caller_cert = resolve_caller_id(cid, tx);
+          if (caller_cert.has_value())
+            ctx->session->caller_cert = caller_cert.value().raw();
+        }
+      }
+
       if (endpoint->properties.require_client_identity && endpoints.has_certs())
       {
         // Only if endpoint requires client identity.
@@ -292,7 +316,6 @@ namespace ccf
       bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
         ctx->is_create_request;
 
-      const auto signed_request = ctx->get_signed_request();
       if (
         endpoint->properties.require_client_signature &&
         !signed_request.has_value())
@@ -303,8 +326,6 @@ namespace ccf
         return ctx->serialise_response();
       }
 
-      // By default, signed requests are verified and recorded, even on
-      // endpoints that do not require client signatures
       bool should_record_client_signature = false;
       if (signed_request.has_value())
       {
@@ -323,6 +344,8 @@ namespace ccf
           return ctx->serialise_response();
         }
 
+        // By default, signed requests are verified and recorded, even on
+        // endpoints that do not require client signatures
         if (is_primary)
         {
           should_record_client_signature = true;
@@ -713,6 +736,11 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext>, kv::Tx&)
     {
       return true;
+    }
+
+    virtual std::optional<tls::Pem> resolve_caller_id(ObjectId, kv::Tx&)
+    {
+      return std::nullopt;
     }
 
     virtual bool is_members_frontend() override

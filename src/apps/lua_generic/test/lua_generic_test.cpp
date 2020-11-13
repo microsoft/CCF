@@ -106,7 +106,6 @@ struct NodeContext : public ccfapp::AbstractNodeContext
 
 auto user_caller = kp -> self_sign("CN=name");
 auto user_caller_der = tls::make_verifier(user_caller) -> der_cert_data();
-std::vector<uint8_t> dummy_enc_pubk = {1, 2, 3};
 
 auto init_frontend(
   NetworkTables& network,
@@ -123,7 +122,7 @@ auto init_frontend(
   for (uint8_t i = 0; i < n_members; i++)
   {
     member_certs.push_back(kp->self_sign("CN=name_member"));
-    gen.add_member(member_certs.back(), dummy_enc_pubk);
+    gen.add_member(member_certs.back());
   }
 
   if (created_members != nullptr)
@@ -310,18 +309,14 @@ TEST_CASE("simple lua apps")
     auto get_ctx = enclave::make_rpc_context(user_session, packed);
     // expect to see 3 members in state active
     map<string, MemberInfo> expected = {
-      {"0",
-       {active_members[0], dummy_enc_pubk, nullptr, MemberStatus::ACCEPTED}},
-      {"1",
-       {active_members[1], dummy_enc_pubk, nullptr, MemberStatus::ACCEPTED}},
-      {"2",
-       {active_members[2], dummy_enc_pubk, nullptr, MemberStatus::ACCEPTED}}};
+      {"0", {{active_members[0]}, MemberStatus::ACCEPTED}},
+      {"1", {{active_members[1]}, MemberStatus::ACCEPTED}},
+      {"2", {{active_members[2]}, MemberStatus::ACCEPTED}}};
     check_success(frontend->process(get_ctx).value(), expected);
 
     // (2) try to write to members table
     const auto put_packed = make_pc(
-      "put_member",
-      {{"k", 99}, {"v", MemberInfo{{}, {}, nullptr, MemberStatus::ACCEPTED}}});
+      "put_member", {{"k", 99}, {"v", MemberInfo{{}, MemberStatus::ACCEPTED}}});
     auto put_ctx = enclave::make_rpc_context(user_session, put_packed);
     check_error(
       frontend->process(put_ctx).value(), HTTP_STATUS_INTERNAL_SERVER_ERROR);

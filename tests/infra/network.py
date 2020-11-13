@@ -67,7 +67,7 @@ class Network:
         "sig_tx_interval",
         "sig_ms_interval",
         "raft_election_timeout",
-        "pbft_view_change_timeout",
+        "bft_view_change_timeout",
         "consensus",
         "memory_reserve_startup",
         "log_format_json",
@@ -291,7 +291,7 @@ class Network:
                 raise
 
         self.election_duration = (
-            args.pbft_view_change_timeout / 1000
+            args.bft_view_change_timeout / 1000
             if args.consensus == "bft"
             else args.raft_election_timeout / 1000
         ) * 2
@@ -340,17 +340,23 @@ class Network:
         self._setup_common_folder(args.gov_script)
 
         mc = max(1, args.initial_member_count)
-        initial_member_ids = [(i, None) for i in range(mc)]
-        initial_member_ids.extend(
-            (i, {"is_operator": True})
-            for i in range(mc, mc + args.initial_operator_count)
-        )
+        initial_members_info = []
+        for i in range(mc):
+            initial_members_info += [
+                (
+                    i,
+                    (i < args.initial_recovery_member_count),
+                    {"is_operator": True}
+                    if (i < args.initial_operator_count)
+                    else None,
+                )
+            ]
 
         self.consortium = infra.consortium.Consortium(
             self.common_dir,
             self.key_generator,
             self.share_script,
-            initial_member_ids,
+            initial_members_info,
             args.participants_curve,
         )
         initial_users = list(range(max(0, args.initial_user_count)))
@@ -385,7 +391,7 @@ class Network:
             self.consortium.set_jwt_issuer(remote_node=primary, json_path=path)
 
         self.consortium.add_users(primary, initial_users)
-        LOG.info("Initial set of users added")
+        LOG.info(f"Initial set of users added: {len(initial_users)}")
 
         self.consortium.open_network(remote_node=primary)
         self.status = ServiceStatus.OPEN
