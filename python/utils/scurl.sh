@@ -4,16 +4,18 @@
 
 set -e
 
-# Loop through all arguments and find url, request data, command and private key
+# Loop through all arguments and find url, request data, command, private key and user cert
 # NB: For simplicity, assume url is the first argument or preceded by --url. curl is slightly more permissive
 next_is_url=false
 next_is_data=false
 next_is_command=false
 next_is_privk=false
+next_is_cert=false
 
 url=$1
 command="post"
 
+fwd_args=()
 for item in "$@" ; do
     if [ "$next_is_url" == true ]; then
         url=$item
@@ -30,6 +32,16 @@ for item in "$@" ; do
     if [ "$next_is_privk" == true ]; then
         privk=$item
         next_is_privk=false
+        if [ -n "$DISABLE_CLIENT_AUTH" ]; then
+            continue
+        fi
+    fi
+    if [ "$next_is_cert" == true ]; then
+        cert=$item
+        next_is_cert=false
+        if [ -n "$DISABLE_CLIENT_AUTH" ]; then
+            continue
+        fi
     fi
     if [ "$item" == "--url" ]; then
         next_is_url=true
@@ -42,9 +54,23 @@ for item in "$@" ; do
     fi
     if [ "$item" == "--key" ]; then
         next_is_privk=true
+        if [ -n "$DISABLE_CLIENT_AUTH" ]; then
+            continue
+        fi
     fi
+    if [ "$item" == "--cert" ]; then
+        next_is_cert=true
+        if [ -n "$DISABLE_CLIENT_AUTH" ]; then
+            continue
+        fi
+    fi
+    fwd_args+=("$item")
 done
 
+if [ -z "$cert" ]; then
+    echo "Error: No certificate found in arguments (--cert)"
+    exit 1
+fi
 if [ -z "$privk" ]; then
     echo "Error: No private key found in arguments (--key)"
     exit 1
@@ -85,8 +111,11 @@ signature_algorithm="hs2019"
 # Compute signature
 signed_raw=$(echo -n "$string_to_sign" | openssl dgst -sha384 -sign "$privk" | openssl base64 -A)
 
+# Compute key ID
+key_id=$(openssl dgst -sha256 "$cert" | cut -d ' ' -f 2)
+
 curl \
 -H "Digest: SHA-256=$req_digest" \
--H "Authorization: Signature keyId=\"tls\",signature_algorithm=\"$signature_algorithm\",headers=\"(request-target) digest content-length\",signature=\"$signed_raw\"" \
+-H "Authorization: Signature keyId=\"$key_id\",signature_algorithm=\"$signature_algorithm\",headers=\"(request-target) digest content-length\",signature=\"$signed_raw\"" \
 "${additional_curl_args[@]}" \
-"$@"
+"${fwd_args[@]}"

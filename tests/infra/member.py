@@ -100,8 +100,10 @@ class Member:
         # Use this with caution (i.e. only when the network is opening)
         self.status_code = MemberStatus.ACTIVE
 
-    def propose(self, remote_node, proposal):
-        with remote_node.client(f"member{self.member_id}") as mc:
+    def propose(self, remote_node, proposal, disable_client_auth=False):
+        with remote_node.client(
+            f"member{self.member_id}", disable_client_auth=disable_client_auth
+        ) as mc:
             r = mc.post(
                 "/gov/proposals",
                 proposal,
