@@ -6,14 +6,6 @@ from pyasn1.codec.der.encoder import encode
 import base64
 
 
-file = sys.argv[1]
-
-out_file = f"{file}.der"
-
-with open(file, "rb") as f:
-    jws = f.read()
-
-
 class DERSignature(Sequence):
     componentType = NamedTypes(
         NamedType("r", Integer()),
@@ -21,15 +13,17 @@ class DERSignature(Sequence):
     )
 
 
-sig = DERSignature()
-sig["r"] = int.from_bytes(jws[:48], byteorder="big")
-sig["s"] = int.from_bytes(jws[-48:], byteorder="big")
-output_buf = encode(sig)
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Error: base64url signature should be specified as first argument")
+        sys.exit(1)
 
-print(base64.b64encode(output_buf).decode())
+    jws_raw = base64.urlsafe_b64decode(sys.argv[1])
+    jws_raw_len = len(jws_raw)
 
+    sig = DERSignature()
+    sig["r"] = int.from_bytes(jws_raw[: int(jws_raw_len / 2)], byteorder="big")
+    sig["s"] = int.from_bytes(jws_raw[-int(jws_raw_len / 2) :], byteorder="big")
+    output_buf = encode(sig)
 
-with open(out_file, "wb") as out:
-    out.write(output_buf)
-
-# print(f"DER signature file writen to {out_file}")
+    print(base64.b64encode(output_buf).decode())

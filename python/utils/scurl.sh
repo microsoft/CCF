@@ -109,29 +109,27 @@ content-length: $content_length"
 # https://tools.ietf.org/html/draft-cavage-http-signatures-12#appendix-E.2
 signature_algorithm="hs2019"
 
+# Compute key ID
+key_id=$(openssl dgst -sha256 "$cert" | cut -d ' ' -f 2)
+
+
 # Compute signature
 # signed_raw=$(echo -n "$string_to_sign" | openssl dgst -sha384 -sign "$privk" | openssl base64 -A)
 
-# Compute key ID
-key_id=$(openssl dgst -sha256 "$cert" | cut -d ' ' -f 2)
 
 ## HSM specific
 
 hash_to_sign=$(echo -n "$string_to_sign" | openssl dgst -binary -sha384 | openssl base64 -A)
 
-signature_base64url=$(curl -s -X POST ${AZ_VAULT_KID}/sign?api-version=7.1 --data "{\"alg\":\"ES384\", \"value\":\"$hash_to_sign\"}" -H "Authorization: Bearer ${AZ_TOKEN}" -H "Content-Type: application/json" | jq -r .value)
+signature_base64url=$(curl -s -X POST ${IDENTITY_AKV_KID}/sign?api-version=7.1 --data "{\"alg\":\"ES384\", \"value\":\"$hash_to_sign\"}" -H "Authorization: Bearer ${AZ_TOKEN}" -H "Content-Type: application/json" | jq -r .value)
 
-signature=$(echo "$signature_base64url" | sed 's/-/+/g; s/_/\//g')
-echo $signature | openssl base64 -d > signature.in
-
-ccf_compatible_signature=$(python3.8 ../python/utils/jws_to_der.py signature.in)
+signed_raw=$(python3.8 ../python/utils/jws_to_der.py ${signature_base64url})
 # End of hsm-specific
 
 set -x
-echo "lala"
 
 curl \
 -H "Digest: SHA-256=$req_digest" \
--H "Authorization: Signature keyId=\"$key_id\",signature_algorithm=\"$signature_algorithm\",headers=\"(request-target) digest content-length\",signature=\"$ccf_compatible_signature\"" \
+-H "Authorization: Signature keyId=\"$key_id\",signature_algorithm=\"$signature_algorithm\",headers=\"(request-target) digest content-length\",signature=\"$signed_raw\"" \
 "${additional_curl_args[@]}" \
 "${fwd_args[@]}"
