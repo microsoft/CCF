@@ -14,6 +14,7 @@ next_is_cert=false
 
 url=$1
 command="post"
+is_print_digest_to_sign=false
 
 fwd_args=()
 for item in "$@" ; do
@@ -64,6 +65,10 @@ for item in "$@" ; do
             continue
         fi
     fi
+    if [ "$item" == "--print-digest-to-sign" ]; then
+        is_print_digest_to_sign=true
+        continue
+    fi
     fwd_args+=("$item")
 done
 
@@ -71,11 +76,10 @@ if [ -z "$cert" ]; then
     echo "Error: No certificate found in arguments (--cert)"
     exit 1
 fi
-# TODO: Revert, just no needed with HSM
-# if [ -z "$privk" ]; then
-#     echo "Error: No private key found in arguments (--key)"
-#     exit 1
-# fi
+if [ -z "$privk" ] && [ "$is_print_digest_to_sign" == false ]; then
+    echo "Error: No private key found in arguments (--key)"
+    exit 1
+fi
 
 additional_curl_args=()
 
@@ -112,21 +116,18 @@ signature_algorithm="hs2019"
 # Compute key ID
 key_id=$(openssl dgst -sha256 "$cert" | cut -d ' ' -f 2)
 
+if [ "$is_print_digest_to_sign" == true ]; then
+    hash_to_sign=$(echo -n "$string_to_sign" | openssl dgst -binary -sha384 | openssl base64 -A)
+    echo "Hash to sign: $hash_to_sign"
+    echo "Request headers:"
+    echo "-H 'Digest: SHA-256=$req_digest'"
+    echo "-H 'Authorization: Signature keyId=\"$key_id\",signature_algorithm=\"$signature_algorithm\",headers=\"(request-target) digest content-length\",signature=\"<insert_base64_signature_here>\"'"
+    echo "${additional_curl_args[@]}"
+    exit 0
+fi
 
 # Compute signature
-# signed_raw=$(echo -n "$string_to_sign" | openssl dgst -sha384 -sign "$privk" | openssl base64 -A)
-
-
-## HSM specific
-
-hash_to_sign=$(echo -n "$string_to_sign" | openssl dgst -binary -sha384 | openssl base64 -A)
-
-signature_base64url=$(curl -s -X POST ${IDENTITY_AKV_KID}/sign?api-version=7.1 --data "{\"alg\":\"ES384\", \"value\":\"$hash_to_sign\"}" -H "Authorization: Bearer ${AZ_TOKEN}" -H "Content-Type: application/json" | jq -r .value)
-
-signed_raw=$(python3.8 ../python/utils/jws_to_der.py ${signature_base64url})
-# End of hsm-specific
-
-set -x
+signed_raw=$(echo -n "$string_to_sign" | openssl dgst -sha384 -sign "$privk" | openssl base64 -A)
 
 curl \
 -H "Digest: SHA-256=$req_digest" \

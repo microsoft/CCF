@@ -10,12 +10,12 @@ Before creating a new CCF network, the identity of the initial member(s) of the 
     :maxdepth: 2
     :caption: Contents:
 
-    keys
     proposals
     open_network
     accept_recovery
     common_member_operations
     adding_member
+    hsm_keys
     member_rpc_api
 
 

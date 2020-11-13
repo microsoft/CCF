@@ -8,6 +8,8 @@ It is possible for existing members to add new members to the consortium after a
 Generating Member Keys and Certificates
 ---------------------------------------
 
+.. note:: See :doc:`/members/hsm_keys` for a guide on how to used member keys and certificate store in Azure Key Vault.
+
 First, the identity and encryption public and private key pairs of the new member should be created.
 
 The ``keygenerator.sh`` script can be used to generate the member’s certificate and associated private key as well as their encryption public and private keys.
