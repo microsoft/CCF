@@ -404,6 +404,35 @@ int main(int argc, char** argv)
     "RPC over TLS listening address of target network node")
     ->required();
 
+
+  auto http_test = app.add_subcommand("http-test", "Run http test");
+  http_test->configurable();
+
+  std::string ca_cert_file = "cacert.pem";
+  http_test
+    ->add_option(
+      "--ca-cert-file",
+      ca_cert_file,
+      "Path to CA certificate for TLS connection validation")
+    ->capture_default_str()
+    ->check(CLI::ExistingFile);
+
+  cli::ParsedAddress http_address;
+  cli::add_address_option(
+    *http_test,
+    http_address,
+    "--http-address",
+    "domain:port")
+    ->required();
+
+  std::string http_path = "/";
+  http_test
+    ->add_option(
+      "--http-path",
+      http_path,
+      "HTTP path of URL")
+    ->capture_default_str();
+
   auto recover = app.add_subcommand("recover", "Recover crashed network");
   recover->configurable();
 
@@ -697,6 +726,20 @@ int main(int argc, char** argv)
       ccf_config.joining.target_port = target_rpc_address.port;
       ccf_config.joining.network_cert = files::slurp(network_cert_file);
       ccf_config.joining.join_timer = join_timer;
+    }
+    else if (*http_test)
+    {
+      LOG_INFO_FMT(
+        "Running http test for https://{}:{}{}",
+        http_address.hostname,
+        http_address.port,
+        http_path);
+      start_type = StartType::HTTP_Test;
+
+      ccf_config.http_test.target_host = http_address.hostname;
+      ccf_config.http_test.target_port = http_address.port;
+      ccf_config.http_test.target_path = http_path;
+      ccf_config.http_test.ca_cert = files::slurp(ca_cert_file);
     }
     else if (*recover)
     {

@@ -77,6 +77,16 @@ struct CCFConfig
   };
   Joining joining = {};
 
+  struct HTTP_Test
+  {
+    std::string target_host;
+    std::string target_port;
+    std::string target_path;
+    std::vector<uint8_t> ca_cert;
+    MSGPACK_DEFINE(target_host, target_port, target_path, ca_cert);
+  };
+  HTTP_Test http_test = {};
+
   std::string subject_name;
   std::vector<tls::SubjectAltName> subject_alternative_names;
 
@@ -89,6 +99,7 @@ struct CCFConfig
     signature_intervals,
     genesis,
     joining,
+    http_test,
     subject_name,
     subject_alternative_names);
 };

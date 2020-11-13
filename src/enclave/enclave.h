@@ -302,6 +302,10 @@ namespace enclave
         {
           node->start_ledger_recovery();
         }
+        else if (start_type == StartType::HTTP_Test)
+        {
+          node->http_test(ccf_config);
+        }
 
         bp.run(circuit.read_from_outside(), [](size_t num_consecutive_idles) {
           static std::chrono::microseconds idling_start_time;

@@ -7,5 +7,6 @@ enum StartType
   New = 1,
   Join = 2,
   Recover = 3,
+  HTTP_Test = 4,
   Unknown = 100
 };
