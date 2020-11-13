@@ -259,7 +259,7 @@ def test_metrics(network, args):
 @reqs.supports_methods("log/private", "log/private/historical")
 def test_historical_query(network, args):
     if args.consensus == "bft":
-        LOG.warning("Skipping historical queries in PBFT")
+        LOG.warning("Skipping historical queries in BFT")
         return network
 
     if args.package == "liblogging":
@@ -388,13 +388,13 @@ def test_user_data_ACL(network, args):
 @reqs.description("Check for commit of every prior transaction")
 def test_view_history(network, args):
     if args.consensus == "bft":
-        # This appears to work in PBFT, but it is unacceptably slow:
+        # This appears to work in BFT, but it is unacceptably slow:
         # - Each /tx request is a write, with a non-trivial roundtrip response time
         # - Since each read (eg - /tx and /commit) has produced writes and a unique tx ID,
         #    there are too many IDs to test exhaustively
         # We could rectify this by making this test non-exhaustive (bisecting for view changes,
         # sampling within a view), but for now it is exhaustive and Raft-only
-        LOG.warning("Skipping view reconstruction in PBFT")
+        LOG.warning("Skipping view reconstruction in BFT")
         return network
 
     check = infra.checker.Checker()

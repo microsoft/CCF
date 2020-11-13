@@ -72,6 +72,6 @@ namespace ccf
     {}
   };
 
-  using RaftTxEncryptor = LedgerSecretsMixin<SeqTrackingMixin<kv::TxEncryptor>>;
-  using PbftTxEncryptor = LedgerSecretsMixin<kv::TxEncryptor>;
+  using CftTxEncryptor = LedgerSecretsMixin<SeqTrackingMixin<kv::TxEncryptor>>;
+  using BftTxEncryptor = LedgerSecretsMixin<kv::TxEncryptor>;
 }
