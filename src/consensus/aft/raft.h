@@ -708,9 +708,7 @@ namespace aft
       if (r.from_node != state->requested_evidence_from)
       {
         // Ignore if we didn't request this evidence.
-        LOG_FAIL_FMT(
-          "we received evidence which we did not request, ignoring it {}",
-          r.from_node);
+        LOG_FAIL_FMT("Received unrequested evidence from {}", r.from_node);
         return;
       }
       state->requested_evidence_from = NoNode;

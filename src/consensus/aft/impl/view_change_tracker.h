@@ -116,12 +116,7 @@ namespace aft
       nlohmann::json j;
       to_json(j, nv);
       std::string s = j.dump();
-
-      std::vector<uint8_t> ret;
-      ret.resize(s.size() + 1);
-      std::copy(s.begin(), s.end(), ret.data());
-
-      return ret;
+      return {s.begin(), s.end() + 1};
     }
 
     bool add_unknown_primary_evidence(
