@@ -401,11 +401,6 @@ namespace aft
     {
       if (consensus_type == ConsensusType::BFT && is_follower())
       {
-        for (auto& [index, data, globally_committable] : entries)
-        {
-          state->last_idx = index;
-          ledger->put_entry(*data, globally_committable, false);
-        }
         return true;
       }
 
@@ -540,6 +535,7 @@ namespace aft
 
     void periodic(std::chrono::milliseconds elapsed)
     {
+      std::unique_lock<SpinLock> guard(state->lock);
       if (consensus_type == ConsensusType::BFT)
       {
         auto time = threading::ThreadMessaging::thread_messaging
@@ -595,12 +591,19 @@ namespace aft
                 *vc, id(), new_view, seqno, node_count()) &&
             get_primary(new_view) == id())
           {
+            // We need to reobtain the lock when writing to the ledger so we
+            // need to release it at this time.
+            //
+            // It is safe to release the lock here because there is no
+            // concurrency based dependency between appending to the ledger and
+            // replicating the ledger to other machines.
+            guard.unlock();
             append_new_view(new_view);
+            guard.lock();
           }
         }
       }
 
-      std::lock_guard<SpinLock> guard(state->lock);
       timeout_elapsed += elapsed;
 
       if (replica_state == Leader)
