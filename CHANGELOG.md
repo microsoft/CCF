@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Changed
 
-- `/gov/ack/update_state_digest` and `/gov/ack` now only returns/accepts a hex string (#1873).
+- `/gov/ack/update_state_digest` and `/gov/ack` now only return/accept a hex string (#1873).
 - `/node/quote` schema update (#1885).
 - AFT consensus improvements (#1880, #1881).
 
