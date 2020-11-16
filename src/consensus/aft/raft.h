@@ -1179,16 +1179,8 @@ namespace aft
           {
             if (consensus_type == ConsensusType::BFT)
             {
-              LOG_INFO_FMT(
-                "AAAAAA - i:{} - recv_append_entries - before:{}",
-                i,
-                state->last_idx);
               state->last_idx =
                 executor->commit_replayed_request(tx, request_tracker);
-              LOG_INFO_FMT(
-                "AAAAAA - i:{} - recv_append_entries - after:{}",
-                i,
-                state->last_idx);
             }
             break;
           }
