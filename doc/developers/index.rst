@@ -18,6 +18,7 @@ These endpoints can read or mutate the state of a unique :doc:`developers/kv/ind
   build_app
   run_app
   demo
+  auth/index.rst
   kv/index.rst
   upgrading_app
   api

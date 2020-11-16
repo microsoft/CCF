@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/aft/raft_types.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "kv/kv_types.h"
@@ -99,7 +100,8 @@ namespace aft
       current_view(0),
       last_idx(0),
       commit_idx(0),
-      new_view_idx(0)
+      new_view_idx(0),
+      requested_evidence_from(NoNode)
     {}
 
     SpinLock lock;
@@ -115,5 +117,6 @@ namespace aft
 
     ViewHistory view_history;
     kv::Version new_view_idx;
+    kv::NodeId requested_evidence_from;
   };
 }
