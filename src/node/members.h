@@ -96,12 +96,11 @@ namespace ccf
   struct StateDigest
   {
     //! the next state digest the member is supposed to sign
-    std::vector<uint8_t> state_digest;
+    std::string state_digest;
 
     StateDigest() {}
 
-    StateDigest(const crypto::Sha256Hash& root) :
-      state_digest(root.h.begin(), root.h.end())
+    StateDigest(const crypto::Sha256Hash& root) : state_digest(root.hex_str())
     {}
 
     MSGPACK_DEFINE(state_digest);

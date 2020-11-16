@@ -212,11 +212,11 @@ auto activate(
 {
   const auto state_digest_req =
     create_request(nullptr, "ack/update_state_digest");
-  const auto ack = parse_response_body<std::vector<uint8_t>>(
+  const auto ack = parse_response_body<StateDigest>(
     frontend_process(frontend, state_digest_req, caller));
 
   StateDigest params;
-  params.state_digest = ack;
+  params.state_digest = ack.state_digest;
   const auto ack_req = create_signed_request(params, "ack", kp);
   return frontend_process(frontend, ack_req, caller);
 }
@@ -639,16 +639,15 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       // (2) ask for a fresher digest of state
       const auto freshen_state_digest_req =
         create_request(nullptr, "ack/update_state_digest");
-      const auto freshen_state_digest =
-        parse_response_body<std::vector<uint8_t>>(frontend_process(
-          frontend, freshen_state_digest_req, new_member->cert));
-      DOCTEST_CHECK(freshen_state_digest != ack0.state_digest);
+      const auto freshen_state_digest = parse_response_body<StateDigest>(
+        frontend_process(frontend, freshen_state_digest_req, new_member->cert));
+      DOCTEST_CHECK(freshen_state_digest.state_digest != ack0.state_digest);
 
       // (3) read ack entry again and check that the state digest has changed
       const auto ack1 = parse_response_body<StateDigest>(
         frontend_process(frontend, read_state_digest_req, new_member->cert));
       DOCTEST_CHECK(ack0.state_digest != ack1.state_digest);
-      DOCTEST_CHECK(freshen_state_digest == ack1.state_digest);
+      DOCTEST_CHECK(freshen_state_digest.state_digest == ack1.state_digest);
 
       // (4) sign stale state and send it
       StateDigest params;
@@ -1601,11 +1600,11 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
       DOCTEST_INFO("New operator acks to become active");
       const auto state_digest_req =
         create_request(nullptr, "ack/update_state_digest");
-      const auto ack = parse_response_body<std::vector<uint8_t>>(
+      const auto ack = parse_response_body<StateDigest>(
         frontend_process(frontend, state_digest_req, new_operator_cert));
 
       StateDigest params;
-      params.state_digest = ack;
+      params.state_digest = ack.state_digest;
       const auto ack_req =
         create_signed_request(params, "ack", new_operator_kp);
       const auto resp = frontend_process(frontend, ack_req, new_operator_cert);
