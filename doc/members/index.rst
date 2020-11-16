@@ -15,6 +15,7 @@ Before creating a new CCF network, the identity of the initial member(s) of the 
     accept_recovery
     common_member_operations
     adding_member
+    hsm_keys
     member_rpc_api
 
 
