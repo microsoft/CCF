@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
 import sys
 
 from pyasn1.type.namedtype import NamedTypes, NamedType
