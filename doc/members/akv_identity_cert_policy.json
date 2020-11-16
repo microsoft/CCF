@@ -1,0 +1,30 @@
+{
+  "issuerParameters": {
+    "certificateTransparency": null,
+    "name": "Self"
+  },
+  "keyProperties": {
+    "curve": "P-384",
+    "exportable": true,
+    "keyType": "EC",
+    "reuseKey": true
+  },
+  "lifetimeActions": [
+    {
+      "action": {
+        "actionType": "AutoRenew"
+      },
+      "trigger": {
+        "daysBeforeExpiry": 90
+      }
+    }
+  ],
+  "secretProperties": {
+    "contentType": "application/x-pkcs12"
+  },
+  "x509CertificateProperties": {
+    "keyUsage": ["digitalSignature"],
+    "subject": "CN=Member",
+    "validityInMonths": 12
+  }
+}
