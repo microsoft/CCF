@@ -19,16 +19,22 @@ namespace tls
     auth_required
   };
 
+  // This class represents the authentication/authorization context for a TLS
+  // session. At least, it contains the peer's CA. At most, it also contains our
+  // own private key/certificate which will be presented in the TLS handshake.
+  // The peer's certificate verification can be overridden with the auth
+  // parameter.
   class Cert
   {
   private:
+    std::shared_ptr<CA> peer_ca;
     std::optional<std::string> peer_hostname;
+
     mbedtls_x509_crt own_cert;
     mbedtls_pk_context own_pkey;
-    std::shared_ptr<CA> peer_ca;
-    Auth auth;
+    bool has_own_cert;
 
-    bool has_cert;
+    Auth auth;
 
   public:
     Cert(
@@ -38,10 +44,10 @@ namespace tls
       CBuffer pw = nullb,
       Auth auth_ = auth_default,
       const std::optional<std::string>& peer_hostname_ = std::nullopt) :
-      peer_hostname(peer_hostname_),
       peer_ca(peer_ca_),
-      auth(auth_),
-      has_cert(false)
+      peer_hostname(peer_hostname_),
+      has_own_cert(false),
+      auth(auth_)
     {
       mbedtls_x509_crt_init(&own_cert);
       mbedtls_pk_init(&own_pkey);
@@ -64,7 +70,7 @@ namespace tls
           throw std::logic_error("Could not parse key: " + error_string(rc));
         }
 
-        has_cert = true;
+        has_own_cert = true;
       }
     }
 
@@ -96,7 +102,7 @@ namespace tls
         mbedtls_ssl_conf_authmode(cfg, authmode(auth));
       }
 
-      if (has_cert)
+      if (has_own_cert)
       {
         mbedtls_ssl_conf_own_cert(cfg, &own_cert, &own_pkey);
       }
@@ -114,16 +120,20 @@ namespace tls
       {
         case auth_none:
         {
+          // Peer certificate is not checked
           return MBEDTLS_SSL_VERIFY_NONE;
         }
 
         case auth_optional:
         {
+          // Peer certificate is checked but handshake continues even if
+          // verification fails
           return MBEDTLS_SSL_VERIFY_OPTIONAL;
         }
 
         case auth_required:
         {
+          // Peer must present a valid certificate
           return MBEDTLS_SSL_VERIFY_REQUIRED;
         }
 
