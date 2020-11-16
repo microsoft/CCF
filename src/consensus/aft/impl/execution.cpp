@@ -34,7 +34,7 @@ namespace aft
     if (!actor_opt.has_value())
     {
       throw std::logic_error(fmt::format(
-        "Failed to extract actor from PBFT request. Method is '{}'",
+        "Failed to extract actor from BFT request. Method is '{}'",
         r_ctx->ctx->get_method()));
     }
 
@@ -58,9 +58,9 @@ namespace aft
     std::shared_ptr<enclave::RpcHandler>& frontend =
       request->get_request_ctx().frontend;
 
-    ctx->pbft_raw.resize(request->size());
+    ctx->bft_raw.resize(request->size());
     request->serialize_message(
-      NoNode, ctx->pbft_raw.data(), ctx->pbft_raw.size());
+      NoNode, ctx->bft_raw.data(), ctx->bft_raw.size());
 
     if (request_tracker != nullptr)
     {

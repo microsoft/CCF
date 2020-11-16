@@ -20,7 +20,7 @@ TEST_CASE("Simple encryption/decryption")
   uint64_t node_id = 0;
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
   secrets->init();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
   encryptor->set_iv_id(node_id);
 
   std::vector<uint8_t> plain(128, 0x42);
@@ -41,12 +41,12 @@ TEST_CASE("Simple encryption/decryption")
 }
 
 TEST_CASE(
-  "Subsequent ciphers from same plaintext are different - RaftTxEncryptor")
+  "Subsequent ciphers from same plaintext are different - CftTxEncryptor")
 {
   uint64_t node_id = 0;
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
   secrets->init();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
   encryptor->set_iv_id(node_id);
 
   std::vector<uint8_t> plain(128, 0x42);
@@ -68,12 +68,12 @@ TEST_CASE(
 }
 
 TEST_CASE(
-  "Different node ciphers from same plaintext are different - RaftTxEncryptor")
+  "Different node ciphers from same plaintext are different - CftTxEncryptor")
 {
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
   secrets->init();
-  auto encryptor_0 = std::make_shared<ccf::RaftTxEncryptor>(secrets);
-  auto encryptor_1 = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  auto encryptor_0 = std::make_shared<ccf::CftTxEncryptor>(secrets);
+  auto encryptor_1 = std::make_shared<ccf::CftTxEncryptor>(secrets);
   encryptor_0->set_iv_id(0);
   encryptor_1->set_iv_id(1);
 
@@ -95,11 +95,11 @@ TEST_CASE(
   REQUIRE(serialised_header != serialised_header2);
 }
 
-TEST_CASE("Two ciphers from same plaintext are different - PbftTxEncryptor")
+TEST_CASE("Two ciphers from same plaintext are different - BftTxEncryptor")
 {
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
   secrets->init();
-  auto encryptor = std::make_shared<ccf::PbftTxEncryptor>(secrets);
+  auto encryptor = std::make_shared<ccf::BftTxEncryptor>(secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
   std::vector<uint8_t> cipher;
@@ -122,11 +122,11 @@ TEST_CASE("Two ciphers from same plaintext are different - PbftTxEncryptor")
 
 TEST_CASE(
   "Different node ciphers from same plaintext with and without snapshots - "
-  "PbftTxEncryptor")
+  "BftTxEncryptor")
 {
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
   secrets->init();
-  auto encryptor = std::make_shared<ccf::PbftTxEncryptor>(secrets);
+  auto encryptor = std::make_shared<ccf::BftTxEncryptor>(secrets);
   encryptor->set_iv_id(0x7FFFFFFF);
 
   std::vector<uint8_t> plain(128, 0x42);
@@ -155,7 +155,7 @@ TEST_CASE("Additional data")
   // Setting 1 ledger secret, valid for version 1+
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
   secrets->init();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
   std::vector<uint8_t> cipher;
@@ -190,7 +190,7 @@ TEST_CASE("Encryption/decryption with multiple ledger secrets")
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
   secrets->init();
   secrets->add_new_secret(4, LedgerSecret());
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
   encryptor->set_iv_id(node_id);
 
   INFO("Encryption with key at version 1");

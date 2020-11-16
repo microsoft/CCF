@@ -1594,13 +1594,13 @@ namespace ccf
           auto s = sig_view->get(0);
           if (s)
           {
-            ma->state_digest =
-              std::vector<uint8_t>(s->root.h.begin(), s->root.h.end());
-
+            ma->state_digest = s->root.hex_str();
             ma_view->put(caller_id, ma.value());
           }
+          nlohmann::json j;
+          j["state_digest"] = ma->state_digest;
 
-          return make_success(ma->state_digest);
+          return make_success(j);
         };
       make_endpoint(
         "ack/update_state_digest", HTTP_POST, json_adapter(update_state_digest))

@@ -901,12 +901,12 @@ namespace ccf
       if (network.consensus_type == ConsensusType::BFT)
       {
         recovery_encryptor =
-          std::make_shared<PbftTxEncryptor>(network.ledger_secrets, true);
+          std::make_shared<BftTxEncryptor>(network.ledger_secrets, true);
       }
       else if (network.consensus_type == ConsensusType::CFT)
       {
         recovery_encryptor =
-          std::make_shared<RaftTxEncryptor>(network.ledger_secrets, true);
+          std::make_shared<CftTxEncryptor>(network.ledger_secrets, true);
         recovery_encryptor->set_iv_id(self); // RaftEncryptor uses node ID in iv
       }
       else
@@ -1655,7 +1655,7 @@ namespace ccf
         std::move(view_change_tracker),
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
-        std::chrono::milliseconds(consensus_config.pbft_view_change_timeout),
+        std::chrono::milliseconds(consensus_config.bft_view_change_timeout),
         sig_tx_interval,
         public_only);
 
@@ -1742,11 +1742,11 @@ namespace ccf
 #else
       if (network.consensus_type == ConsensusType::BFT)
       {
-        encryptor = std::make_shared<PbftTxEncryptor>(network.ledger_secrets);
+        encryptor = std::make_shared<BftTxEncryptor>(network.ledger_secrets);
       }
       else if (network.consensus_type == ConsensusType::CFT)
       {
-        encryptor = std::make_shared<RaftTxEncryptor>(network.ledger_secrets);
+        encryptor = std::make_shared<CftTxEncryptor>(network.ledger_secrets);
         encryptor->set_iv_id(self); // RaftEncryptor uses node ID in iv
       }
       else

@@ -302,7 +302,7 @@ namespace ccf
       };
       make_read_only_endpoint(
         "quote", HTTP_GET, json_read_only_adapter(get_quote))
-        .set_auto_schema<GetQuotes>()
+        .set_auto_schema<void, GetQuotes::Quote>()
         .set_forwarding_required(ForwardingRequired::Never)
         .install();
 
