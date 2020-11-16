@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.15.1]
+
+## Added
+
+- [JWT documentation](https://microsoft.github.io/CCF/master/developers/auth/jwt.html#jwt-authentication) (#1875).
+- [Member keys in HSM documentation](https://microsoft.github.io/CCF/master/members/hsm_keys.html) (#1884).
+
+## Changed
+
+- `/gov/ack/update_state_digest` and `/gov/ack` now only returns/accepts a hex string (#1873).
+- `/node/quote` schema update (#1885).
+- AFT consensus improvements (#1880, #1881).
+
 ## [0.15.0]
 
 ### Added
@@ -523,6 +536,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.15.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.15.1
 [0.15.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.15.0
 [0.14.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.14.3
 [0.14.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.14.2
