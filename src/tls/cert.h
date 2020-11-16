@@ -33,11 +33,11 @@ namespace tls
   public:
     Cert(
       std::shared_ptr<CA> peer_ca_,
-      const tls::Pem& own_cert_ = nullb,
-      const tls::Pem& own_pkey_ = {},
+      const std::optional<tls::Pem>& own_cert_ = std::nullopt,
+      const std::optional<tls::Pem>& own_pkey_ = std::nullopt,
       CBuffer pw = nullb,
       Auth auth_ = auth_default,
-      std::optional<std::string> peer_hostname_ = std::nullopt) :
+      const std::optional<std::string>& peer_hostname_ = std::nullopt) :
       peer_hostname(peer_hostname_),
       peer_ca(peer_ca_),
       auth(auth_),
@@ -46,10 +46,10 @@ namespace tls
       mbedtls_x509_crt_init(&own_cert);
       mbedtls_pk_init(&own_pkey);
 
-      if ((!own_cert_.empty()) && (own_pkey_.size() > 0))
+      if (own_cert_.has_value() && own_pkey_.has_value())
       {
-        int rc =
-          mbedtls_x509_crt_parse(&own_cert, own_cert_.data(), own_cert_.size());
+        int rc = mbedtls_x509_crt_parse(
+          &own_cert, own_cert_->data(), own_cert_->size());
 
         if (rc != 0)
         {
@@ -58,7 +58,7 @@ namespace tls
         }
 
         rc = mbedtls_pk_parse_key(
-          &own_pkey, own_pkey_.data(), own_pkey_.size(), pw.p, pw.n);
+          &own_pkey, own_pkey_->data(), own_pkey_->size(), pw.p, pw.n);
         if (rc != 0)
         {
           throw std::logic_error("Could not parse key: " + error_string(rc));
