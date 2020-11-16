@@ -5,7 +5,7 @@ This page explains how members' identity certificates and encryption keys stored
 
 .. note::
 
-    It is assumed that the CCF member has already access to an existing Azure Key Vault. See `here <https://docs.microsoft.com/en-us/azure/key-vault/secrets/quick-create-portal#create-a-vault>`_ for more details on how to create one. Using the `Azure CLI <https://docs.microsoft.com/en-us/cli/azure/install-azure-cli>`_, it is possible to check the list of available Key Vault instances:
+    It is assumed that CCF members already have access to an existing Azure Key Vault. See `here <https://docs.microsoft.com/en-us/azure/key-vault/secrets/quick-create-portal#create-a-vault>`_ for more details on how to create one. Using the `Azure CLI <https://docs.microsoft.com/en-us/cli/azure/install-azure-cli>`_, it is possible to check the list of available Key Vault instances:
 
     .. code-block:: bash
 
