@@ -612,9 +612,7 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       
       auto ca = std::make_shared<tls::CA>(config.http_test.ca_cert);
-      auto ca_cert = std::make_shared<tls::Cert>(ca,
-        // not really needed...
-        node_cert, node_sign_kp->private_key_pem());
+      auto ca_cert = std::make_shared<tls::Cert>(ca);
 
       auto client = rpcsessions->create_client(ca_cert);
 
