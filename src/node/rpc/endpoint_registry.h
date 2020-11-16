@@ -347,6 +347,20 @@ namespace ccf
         return *this;
       }
 
+      // TODO docs
+      Endpoint& set_require_jwt_authentication(bool v)
+      {
+        properties.require_jwt_authentication = v;
+        return *this;
+      }
+
+      // TODO docs
+      Endpoint& set_handle_jwt_errors_in_app(bool v)
+      {
+        properties.handle_jwt_errors_in_app = v;
+        return *this;
+      }
+
       /** Indicates that the execution of the Endpoint does not require
        * consensus from other nodes in the network.
        *

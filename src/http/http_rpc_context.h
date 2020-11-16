@@ -66,6 +66,8 @@ namespace http
     std::vector<uint8_t> serialised_request = {};
     std::optional<ccf::SignedReq> signed_request = std::nullopt;
 
+    // TODO add new "user" field
+
     http::HeaderMap response_headers;
     std::vector<uint8_t> response_body = {};
     http_status response_status = HTTP_STATUS_OK;

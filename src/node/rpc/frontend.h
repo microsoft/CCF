@@ -11,6 +11,7 @@
 #include "node/nodes.h"
 #include "rpc_exception.h"
 #include "tls/verifier.h"
+#include "http/http_jwt.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -350,6 +351,24 @@ namespace ccf
         {
           should_record_client_signature = true;
         }
+      }
+
+      if (endpoint->properties.require_jwt_authentication) {
+        auto headers = ctx->get_request_headers();
+        std::string error_reason;
+        auto token = http::JwtVerifier::parse_and_verify_token(headers, error_reason);
+        if (!token.has_value())
+        {
+          if (!endpoint->properties.handle_jwt_errors_in_app)
+          {
+            set_response_unauthorized(
+              ctx, fmt::format("'{}' {}", ctx->get_method(), error_reason));
+            update_metrics(ctx, metrics);
+            return ctx->serialise_response();
+          }
+          // TODO set error in "user" data
+        }
+        // TODO set "user" data with token claims etc.
       }
 
       update_history();

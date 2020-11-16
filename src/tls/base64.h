@@ -39,6 +39,24 @@ namespace tls
     return decoded;
   }
 
+  inline std::vector<uint8_t> raw_from_b64url(const std::string_view& b64url_string)
+  {
+    std::string b64_string = std::string(b64url_string);
+    for (size_t i=0; i < b64_string.size(); i++)
+    {
+      switch (b64_string[i])
+      {
+        case '-':
+          b64_string[i] = '+';
+          break;
+        case '_':
+          b64_string[i] = '/';
+          break;
+      }
+    }
+    return raw_from_b64(b64_string);
+  }
+
   inline std::string b64_from_raw(const uint8_t* data, size_t size)
   {
     size_t len_written = 0;
@@ -73,5 +91,23 @@ namespace tls
   inline std::string b64_from_raw(const std::vector<uint8_t>& data)
   {
     return b64_from_raw(data.data(), data.size());
+  }
+
+  inline std::string b64url_from_raw(const std::vector<uint8_t>& data)
+  {
+    std::string b64_string = b64_from_raw(data);
+    for (size_t i=0; i < b64_string.size(); i++)
+    {
+      switch (b64_string[i])
+      {
+        case '+':
+          b64_string[i] = '-';
+          break;
+        case '/':
+          b64_string[i] = '_';
+          break;
+      }
+    }
+    return b64_string;
   }
 }

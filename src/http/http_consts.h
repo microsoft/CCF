@@ -52,6 +52,8 @@ namespace http
 
     static constexpr auto SIGN_PARAMS_DELIMITER = ",";
     static constexpr auto SIGN_PARAMS_HEADERS_DELIMITER = " ";
+
+    static constexpr auto BEARER_AUTH_SCHEME = "Bearer";
   }
 
   static constexpr char const* required_signature_headers[] = {
