@@ -728,6 +728,8 @@ int main(int argc, char** argv)
       LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
     }
 
+    char* enclave_version;
+
     enclave.create_node(
       enclave_config,
       ccf_config,
@@ -736,7 +738,10 @@ int main(int argc, char** argv)
       start_type,
       consensus,
       num_worker_threads,
-      time_updater->behaviour.get_value());
+      time_updater->behaviour.get_value(),
+      &enclave_version);
+
+    LOG_FAIL_FMT("Enclave version is: {}", enclave_version);
 
     LOG_INFO_FMT("Created new node");
 

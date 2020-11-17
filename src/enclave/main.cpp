@@ -6,6 +6,7 @@
 #include "enclave.h"
 #include "enclave_time.h"
 #include "oe_shim.h"
+#include "version.h"
 
 #include <chrono>
 #include <msgpack/msgpack.hpp>
@@ -47,7 +48,8 @@ extern "C"
     StartType start_type,
     ConsensusType consensus_type,
     size_t num_worker_threads,
-    void* time_location)
+    void* time_location,
+    char** enclave_version)
   {
     std::lock_guard<SpinLock> guard(create_lock);
 
@@ -79,6 +81,13 @@ extern "C"
     {
       return false;
     }
+
+    if (!oe_is_outside_enclave(enclave_version, sizeof(char*)))
+    {
+      return false;
+    }
+
+    *enclave_version = oe_host_strndup("Hello world", 12);
 
     EnclaveConfig ec = *static_cast<EnclaveConfig*>(enclave_config);
 

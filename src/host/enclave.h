@@ -76,7 +76,8 @@ namespace host
       StartType start_type,
       ConsensusType consensus_type,
       size_t num_worker_thread,
-      void* time_location)
+      void* time_location,
+      char** enclave_version)
     {
       bool ret;
       size_t node_cert_len = 0;
@@ -100,7 +101,8 @@ namespace host
         start_type,
         consensus_type,
         num_worker_thread,
-        time_location);
+        time_location,
+        enclave_version);
 
       if (err != OE_OK)
       {
