@@ -10,7 +10,7 @@ Start Here
 
 - :doc:`/concepts`
 - :doc:`/quickstart/install`
-- :doc:`Run a sample CCF application </devlopers/run_app>`
+- :doc:`Run a sample CCF application </developers/run_app>`
 - :doc:`Use CCF </users/index>`
 - :doc:`/quickstart/create_vm`
 - `What's new in the latest version of CCF? <https://github.com/microsoft/CCF/releases/latest>`_
