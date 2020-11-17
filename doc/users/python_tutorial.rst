@@ -1,7 +1,7 @@
 Python Client Tutorial
 ======================
 
-This tutorial describes how a Python client can securely issue requests to a running CCF network. It is assumed that the CCF network has already been started (e.g. after having :doc:`deployed a sandbox service </quickstart/test_network>`).
+This tutorial describes how a Python client can securely issue requests to a running CCF network. It is assumed that the CCF network has already been started (e.g. after having :doc:`deployed a sandbox service </developers/run_app>`).
 
 .. note:: See :ref:`Python Client API <users/python_api:Python Client API>` for the complete API specification.
 
@@ -26,7 +26,7 @@ Set the following CCF node variables:
     port = <node-port>              # Node port (int)
     ca = "<path/to/network/cert>"   # Network certificate path
 
-.. note:: :doc:`When starting a CCF sandbox </quickstart/test_network>`, use any node's IP address and port number. All certificates and keys can be found in the associated ``common_dir`` folder.
+.. note:: :doc:`When starting a CCF sandbox </developers/run_app>`, use any node's IP address and port number. All certificates and keys can be found in the associated ``common_dir`` folder.
 
 Create a new :py:class:`ccf.clients.CCFClient` instance which will create a secure TLS connection to the target node part of the network specified via ``ca``:
 
