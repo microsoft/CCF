@@ -7,7 +7,7 @@ Applications can be written in JavaScript or C++. An application consists of a c
 
 .. warning:: Lua applications will soon be deprecated.
 
-These endpoints can read or mutate the state of a unique :doc:`developers/kv/index` that represents the internal state of the application. Applications define a set of ``Maps`` (see :ref:`developers/kv/kv_how_to:Creating a Map`), mapping from a key to a value. When an application endpoint is triggered, the effects on the Store are committed atomically.
+These endpoints can read or mutate the state of a unique :ref:`developers/kv/index:Key-Value Store` that represents the internal state of the application. Applications define a set of ``Maps`` (see :ref:`developers/kv/kv_how_to:Creating a Map`), mapping from a key to a value. When an application endpoint is triggered, the effects on the Store are committed atomically.
 
 .. toctree::
   :maxdepth: 2
