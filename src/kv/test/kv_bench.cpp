@@ -99,7 +99,7 @@ static void serialise_as(picobench::state& s)
 
   kv::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
   encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
 

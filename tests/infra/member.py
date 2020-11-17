@@ -148,7 +148,7 @@ class Member:
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.post(
                 "/gov/ack",
-                body= state_digest,
+                body=state_digest,
                 signed=True,
             )
             assert r.status_code == 200, f"Error ACK: {r}"
