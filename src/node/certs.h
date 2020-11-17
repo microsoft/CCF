@@ -7,4 +7,7 @@ namespace ccf
 {
   using CertDERs = kv::RawCopySerialisedMap<Cert, ObjectId>;
   using CACertDERs = kv::RawCopySerialisedMap<std::string, Cert>;
+
+  // Mapping from hex-encoded digest of PEM cert to entity id
+  using CertDigests = kv::Map<std::string, ObjectId>;
 }

@@ -3,10 +3,12 @@ Adding New Members
 
 It is possible for existing members to add new members to the consortium after a CCF network has been started.
 
-.. note:: The maximum number of active consortium members at any given time is 255.
+.. note:: The maximum number of allowed active recovery members (i.e. those with a recovery share) at any given time is 255.
 
 Generating Member Keys and Certificates
 ---------------------------------------
+
+.. note:: See :doc:`/members/hsm_keys` for a guide on how to used member keys and certificate store in Azure Key Vault.
 
 First, the identity and encryption public and private key pairs of the new member should be created.
 

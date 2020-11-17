@@ -67,7 +67,7 @@ static void serialise(picobench::state& s)
 
   kv::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
   encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
 
@@ -129,7 +129,7 @@ static void deserialise(picobench::state& s)
   kv::Store kv_store2;
 
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
   encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
   kv_store2.set_encryptor(encryptor);
@@ -164,7 +164,7 @@ static void commit_latency(picobench::state& s)
 
   kv::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
   encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
 
@@ -202,7 +202,7 @@ static void ser_snap(picobench::state& s)
 
   kv::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
   encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
 
@@ -237,7 +237,7 @@ static void des_snap(picobench::state& s)
   kv::Store kv_store;
   kv::Store kv_store2;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
   encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
   kv_store2.set_encryptor(encryptor);

@@ -516,7 +516,7 @@ TEST_CASE("view-change-tracker timeout tests")
 {
   INFO("Check timeout works correctly");
   {
-    aft::ViewChangeTracker vct(0, std::chrono::seconds(10));
+    aft::ViewChangeTracker vct(nullptr, std::chrono::seconds(10));
     REQUIRE(vct.should_send_view_change(std::chrono::seconds(1)) == false);
     REQUIRE(vct.get_target_view() == 0);
     REQUIRE(vct.should_send_view_change(std::chrono::seconds(11)));
@@ -537,7 +537,7 @@ TEST_CASE("view-change-tracker statemachine tests")
 
   INFO("Can trigger view change");
   {
-    aft::ViewChangeTracker vct(0, std::chrono::seconds(10));
+    aft::ViewChangeTracker vct(nullptr, std::chrono::seconds(10));
     for (uint32_t i = 0; i < node_count; ++i)
     {
       auto r = vct.add_request_view_change(v, i, view, seqno, node_count);
@@ -560,7 +560,7 @@ TEST_CASE("view-change-tracker statemachine tests")
 
   INFO("Can differentiate view change for different view");
   {
-    aft::ViewChangeTracker vct(0, std::chrono::seconds(10));
+    aft::ViewChangeTracker vct(nullptr, std::chrono::seconds(10));
     for (uint32_t i = 0; i < node_count; ++i)
     {
       auto r = vct.add_request_view_change(v, i, i, seqno, node_count);
@@ -627,5 +627,58 @@ TEST_CASE("test progress_tracker apply_view_change")
 
     bool result = pt->apply_view_change_message(v, 1, 1, 42);
     REQUIRE(result == false);
+  }
+}
+
+TEST_CASE("Sending evidence out of band")
+{
+  using trompeloeil::_;
+
+  ccf::ViewChangeRequest v;
+  kv::Consensus::View view = 3;
+  kv::Consensus::SeqNo seqno = 1;
+  constexpr uint32_t node_count = 4;
+
+  INFO("Can trigger view change");
+  {
+    aft::ViewChangeTracker vct(nullptr, std::chrono::seconds(10));
+    for (uint32_t i = 0; i < node_count; ++i)
+    {
+      auto r = vct.add_request_view_change(v, i, view, seqno, node_count);
+      if (i == 2)
+      {
+        REQUIRE(
+          r == aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE);
+      }
+      else
+      {
+        REQUIRE(r == aft::ViewChangeTracker::ResultAddView::OK);
+      }
+
+      auto data = vct.get_serialized_view_change_confirmation(view);
+      std::shared_ptr<ccf::ProgressTrackerStore> store =
+        std::make_unique<StoreMock>();
+
+      aft::ViewChangeTracker vct_2(store, std::chrono::seconds(10));
+      if (i >= 2)
+      {
+        REQUIRE_CALL(
+          *reinterpret_cast<StoreMock*>(store.get()),
+          verify_view_change_request(_, _, _, _))
+          .RETURN(true)
+          .TIMES(AT_LEAST(1));
+
+        REQUIRE(vct_2.add_unknown_primary_evidence(
+          {data.data(), data.size()}, view, node_count));
+        REQUIRE(vct_2.check_evidence(view));
+      }
+      else
+      {
+        REQUIRE(!vct_2.add_unknown_primary_evidence(
+          {data.data(), data.size()}, view, node_count));
+        REQUIRE(!vct_2.check_evidence(view));
+      }
+      REQUIRE(!vct_2.check_evidence(view + 1));
+    }
   }
 }

@@ -1169,7 +1169,8 @@ namespace ccf
       CommonEndpointRegistry(
         get_actor_prefix(ActorsType::members),
         *network.tables,
-        Tables::MEMBER_CERT_DERS),
+        Tables::MEMBER_CERT_DERS,
+        Tables::MEMBER_DIGESTS),
       network(network),
       node(node),
       share_manager(share_manager),
@@ -1592,13 +1593,13 @@ namespace ccf
           auto s = sig_view->get(0);
           if (s)
           {
-            ma->state_digest =
-              std::vector<uint8_t>(s->root.h.begin(), s->root.h.end());
-
+            ma->state_digest = s->root.hex_str();
             ma_view->put(caller_id, ma.value());
           }
+          nlohmann::json j;
+          j["state_digest"] = ma->state_digest;
 
-          return make_success(ma->state_digest);
+          return make_success(j);
         };
       make_endpoint(
         "ack/update_state_digest", HTTP_POST, json_adapter(update_state_digest))
@@ -1823,18 +1824,31 @@ namespace ccf
       members(&network.members)
     {}
 
+    std::optional<tls::Pem> resolve_caller_id(
+      ObjectId caller_id, kv::Tx& tx) override
+    {
+      auto members_view = tx.get_view(*members);
+      auto caller = members_view->get(caller_id);
+      if (!caller.has_value())
+      {
+        return std::nullopt;
+      }
+
+      return caller.value().cert;
+    }
+
     bool lookup_forwarded_caller_cert(
       std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx) override
     {
       // Lookup the caller member's certificate from the forwarded caller id
-      auto members_view = tx.get_view(*members);
-      auto caller = members_view->get(ctx->session->original_caller->caller_id);
-      if (!caller.has_value())
+      auto caller_cert =
+        resolve_caller_id(ctx->session->original_caller->caller_id, tx);
+      if (!caller_cert.has_value())
       {
         return false;
       }
 
-      ctx->session->caller_cert = caller.value().cert.raw();
+      ctx->session->caller_cert = caller_cert.value().raw();
       return true;
     }
 

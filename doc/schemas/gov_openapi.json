@@ -359,7 +359,7 @@
       "StateDigest": {
         "properties": {
           "state_digest": {
-            "$ref": "#/components/schemas/uint8_array"
+            "$ref": "#/components/schemas/string"
           }
         },
         "required": [
