@@ -605,8 +605,8 @@ class Network:
     def _wait_for_app_open(self, node, timeout=3):
         end_time = time.time() + timeout
         while time.time() < end_time:
-            # As an operator, query any /app endpoint to find out if the app
-            # is open to users
+            # As an operator, query a well-known /app endpoint to find out
+            # if the app has been opened to users
             with node.client() as c:
                 r = c.get("/app/commit")
                 if not (r.status_code == http.HTTPStatus.NOT_FOUND.value):
