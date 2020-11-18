@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/ccf_deprecated.h"
 #include "frontend.h"
 #include "node/client_signatures.h"
 #include "node/network_tables.h"
