@@ -20,14 +20,12 @@ namespace aft
   private:
     std::unique_ptr<Aft<T...>> aft;
     ConsensusType consensus_type;
-    bool is_open;
 
   public:
     Consensus(std::unique_ptr<Aft<T...>> raft_, ConsensusType consensus_type_) :
       kv::Consensus(raft_->id()),
       aft(std::move(raft_)),
-      consensus_type(consensus_type_),
-      is_open(false)
+      consensus_type(consensus_type_)
     {}
 
     bool is_primary() override
@@ -142,12 +140,6 @@ namespace aft
     uint32_t node_count() override
     {
       return aft->node_count();
-    }
-
-    void open_network() override
-    {
-      is_open = true;
-      return;
     }
 
     void emit_signature() override {}
