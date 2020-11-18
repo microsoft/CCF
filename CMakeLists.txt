@@ -657,7 +657,7 @@ if(BUILD_TESTS)
 
   add_e2e_test(
     NAME modules_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/modules.py
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
     CONSENSUS cft
   )
 
