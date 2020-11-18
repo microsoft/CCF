@@ -19,7 +19,6 @@ namespace asynchost
     const std::string snapshot_dir;
     static constexpr auto snapshot_file_prefix = "snapshot";
     static constexpr auto snapshot_idx_delimiter = "_";
-    static constexpr auto snapshot_evidence_idx_delimiter = "at";
     static constexpr auto snapshot_committed_suffix = "committed";
 
     bool is_committed_snapshot_file(const std::string& file_name)
