@@ -732,6 +732,24 @@ namespace ccf
            const auto parsed = args.get<SetJwtIssuer>();
            auto issuers = tx.get_view(this->network.jwt_issuers);
 
+           if (parsed.auto_refresh)
+           {
+             if (!parsed.ca_cert_name.has_value())
+             {
+               LOG_FAIL_FMT(
+                "Proposal {}: ca_cert_name is missing but required if auto_refresh is true",
+                proposal_id);
+               return false;
+             }
+             if (!nonstd::starts_with(parsed.issuer, "https://"))
+             {
+               LOG_FAIL_FMT(
+                "Proposal {}: issuer must be a valid URL starting with https:// if auto_refresh is true",
+                proposal_id);
+               return false;
+             }
+           }
+
            bool success = true;
            if (parsed.jwks.has_value())
            {
@@ -1798,6 +1816,38 @@ namespace ccf
         return make_success(true);
       };
       make_endpoint("create", HTTP_POST, json_adapter(create))
+        .set_require_client_identity(false)
+        .install();
+      
+      auto internal_set_jwt_public_signing_keys =
+        [this](kv::Tx& tx, CallerId, nlohmann::json&& args) {
+          // TODO check request is coming from own node
+                    
+          const auto parsed = args.get<SetJwtPublicSigningKeys>();
+
+          auto issuers = tx.get_view(this->network.jwt_issuers);
+          auto issuer_metadata_ = issuers->get(parsed.issuer);
+          if (!issuer_metadata_.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              fmt::format("{} is not a valid issuer", parsed.issuer));
+          }
+          auto& issuer_metadata = issuer_metadata_.value();
+
+          ObjectId dummy = 0;
+          if (!set_jwt_public_signing_keys(
+            tx, dummy, parsed.issuer, issuer_metadata, parsed.jwks))
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              fmt::format("error while storing signing keys for issuer {}", parsed.issuer));
+          }
+
+          return make_success(true);
+        };
+      make_endpoint(
+        "internal/set_jwt_public_signing_keys", HTTP_POST, json_adapter(internal_set_jwt_public_signing_keys))
         .set_require_client_identity(false)
         .install();
     }

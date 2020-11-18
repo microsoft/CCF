@@ -458,6 +458,8 @@ def set_jwt_issuer(json_path: str, **kwargs):
         "issuer": obj["issuer"],
         "key_filter": obj.get("key_filter", "all"),
         "key_policy": obj.get("key_policy"),
+        "ca_cert_name": obj.get("ca_cert_name"),
+        "auto_refresh": obj.get("auto_refresh", False),
         "jwks": obj.get("jwks"),
     }
     return build_proposal("set_jwt_issuer", args, **kwargs)

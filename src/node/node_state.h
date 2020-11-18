@@ -596,6 +596,180 @@ namespace ccf
         std::chrono::milliseconds(config.joining.join_timer));
     }
 
+    void refresh_jwt_keys()
+    {
+      auto tx = network.tables->create_read_only_tx();
+      auto jwt_issuers_view = tx.get_read_only_view(network.jwt_issuers);
+      auto ca_certs_view = tx.get_read_only_view(network.ca_certs);
+      jwt_issuers_view->foreach([this,&ca_certs_view](
+              const JwtIssuer& issuer, const JwtIssuerMetadata& metadata) {
+        if (!metadata.auto_refresh)
+        {
+          LOG_DEBUG_FMT(
+            "Skipping JWT issuer '{}' during key auto-refresh",
+            issuer);
+          return true;
+        }
+        auto& ca_cert_name = metadata.ca_cert_name.value();
+        auto ca_cert_der = ca_certs_view->get(ca_cert_name);
+        if (!ca_cert_der.has_value())
+        {
+          LOG_FATAL_FMT(
+            "CA cert with name '{}' not found while refreshing JWT keys for issuer {}",
+            ca_cert_name,
+            issuer);
+          return true;
+        }
+        auto ca = std::make_shared<tls::CA>(ca_cert_der.value());
+        auto ca_cert = std::make_shared<tls::Cert>(ca);
+        
+        auto metadata_url = issuer + "/.well-known/openid-configuration";
+
+        auto url_protocol_length = 8; // https://
+        auto metadata_url_path_start = issuer.find('/', url_protocol_length);
+        auto metadata_url_host = issuer.substr(url_protocol_length, metadata_url_path_start - url_protocol_length);
+        auto metadata_url_path = issuer.substr(metadata_url_path_start);
+        
+        auto http_client = rpcsessions->create_client(ca_cert);
+        http_client->connect(
+          metadata_url_host,
+          "443",
+          [this,&issuer,&ca_cert,&url_protocol_length](
+            http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
+            std::lock_guard<SpinLock> guard(lock);
+            
+            if (status != HTTP_STATUS_OK)
+            {
+              LOG_FAIL_FMT(
+                "An error occurred while requesting the OpenID metadata document: {} {}{}",
+                status,
+                http_status_str(status),
+                data.empty() ?
+                  "" :
+                  fmt::format("  '{}'", std::string(data.begin(), data.end())));
+              return false;
+            }
+
+            auto metadata = nlohmann::json::parse(data);
+            auto jwks_url = metadata.at("jwks_uri").get<std::string>();
+
+            auto jwks_url_path_start = jwks_url.find('/', url_protocol_length);
+            auto jwks_url_host = jwks_url.substr(url_protocol_length, jwks_url_path_start - url_protocol_length);
+            auto jwks_url_path = jwks_url.substr(jwks_url_path_start);
+
+            auto http_client = rpcsessions->create_client(ca_cert);
+            http_client->connect(
+              jwks_url_host,
+              "443",
+              [this,&issuer](
+                http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
+                std::lock_guard<SpinLock> guard(lock);
+                
+                if (status != HTTP_STATUS_OK)
+                {
+                  LOG_FAIL_FMT(
+                    "An error occurred while requesting the JWKS document: {} {}{}",
+                    status,
+                    http_status_str(status),
+                    data.empty() ?
+                      "" :
+                      fmt::format("  '{}'", std::string(data.begin(), data.end())));
+                  return false;
+                }
+
+                // call internal endpoint to update keys
+                auto jwks = nlohmann::json::parse(data).get<JsonWebKeySet>();
+                auto msg = SetJwtPublicSigningKeys{ issuer, jwks };
+                auto body = serdes::pack(msg, serdes::Pack::Text);
+
+                http::Request request(fmt::format(
+                  "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::members), "internal/set_jwt_public_signing_keys"));
+                request.set_header(
+                  http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+                request.set_body(&body);
+                // TODO cannot sign as frontend would deny access
+                //      -> add special skip_verification flag (like is_create_request)?
+                //http::sign_request(request, node_sign_kp);
+                auto packed = request.build_request();
+                
+                auto node_session = std::make_shared<enclave::SessionContext>(
+                  enclave::InvalidSessionId, node_cert.raw());
+                auto ctx = enclave::make_rpc_context(node_session, packed);
+
+                const auto actor_opt = http::extract_actor(*ctx);
+                if (!actor_opt.has_value())
+                {
+                  throw std::logic_error("Unable to get actor");
+                }
+
+                const auto actor = rpc_map->resolve(actor_opt.value());
+                auto frontend_opt = this->rpc_map->find(actor);
+                if (!frontend_opt.has_value())
+                {
+                  throw std::logic_error(
+                    "RpcMap::find returned invalid (empty) frontend");
+                }
+                auto frontend = frontend_opt.value();
+                frontend->process(ctx);
+                return true;
+            });
+            
+            LOG_DEBUG_FMT(
+              "Requesting JWKS document at {}",
+              jwks_url);
+            
+            http::Request r(jwks_url_path, HTTP_GET);
+            r.set_header(http::headers::HOST, jwks_url_host);
+            http_client->send_request(r.build_request());
+
+            return true;
+          });
+
+        LOG_DEBUG_FMT(
+          "Requesting OpenID metadata document at {}",
+          metadata_url);
+
+        http::Request r(metadata_url_path, HTTP_GET);
+        r.set_header(http::headers::HOST, metadata_url_host);
+        http_client->send_request(r.build_request());
+        return true;
+      });
+    }
+
+    void auto_refresh_jwt_keys(CCFConfig& config)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      
+      struct RefreshTimeMsg
+      {
+        RefreshTimeMsg(NodeState& self_, CCFConfig& config_) :
+          self(self_),
+          config(config_)
+        {}
+
+        NodeState& self;
+        CCFConfig& config;
+      };
+
+      auto refresh_msg = std::make_unique<threading::Tmsg<RefreshTimeMsg>>(
+        [](std::unique_ptr<threading::Tmsg<RefreshTimeMsg>> msg) {
+          auto delay =
+            std::chrono::seconds(msg->data.config.jwt_key_refresh_interval);
+          threading::ThreadMessaging::thread_messaging.add_task_after(
+            std::move(msg), delay);
+          if (msg->data.self.consensus->is_primary())
+          {
+            msg->data.self.refresh_jwt_keys();
+          }
+        },
+        *this,
+        config);
+
+      threading::ThreadMessaging::thread_messaging.add_task_after(
+        std::move(refresh_msg),
+        std::chrono::seconds(config.jwt_key_refresh_interval));
+    }
+
     //
     // funcs in state "readingPublicLedger"
     //
