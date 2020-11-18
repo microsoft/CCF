@@ -27,12 +27,6 @@ namespace kv
       map<std::string, std::pair<kv::Version, std::shared_ptr<untyped::Map>>>;
     Maps maps;
 
-    // Store the Defs created by calls to create(), so we can still return &s to
-    // match the old API. Doesn't create a real map! Just an association between
-    // the types and name
-    using MapDefs = std::map<std::string, std::shared_ptr<NamedMap>>;
-    MapDefs map_defs;
-
     using Hooks = std::map<std::string, kv::untyped::Map::CommitHook>;
     Hooks local_hooks;
     Hooks global_hooks;
