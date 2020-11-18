@@ -3,13 +3,21 @@
 import os
 import tempfile
 import json
+import time
 import base64
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from http import HTTPStatus
+import ssl
+import threading
+from contextlib import AbstractContextManager
 import infra.network
 import infra.path
 import infra.proc
 import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
+from infra.proposal import ProposalState
+import ccf.proposal_generator
 
 from loguru import logger as LOG
 
@@ -252,6 +260,103 @@ def test_jwt_with_sgx_key_filter(network, args):
     return network
 
 
+class OpenIDProviderServer(AbstractContextManager):
+    def __init__(self, port: int, tls_key_pem: str, tls_cert_pem: str, jwks: dict):
+        host = "localhost"
+        metadata = {"jwks_uri": f"https://{host}:{port}/keys"}
+        routes = {"/.well-known/openid-configuration": metadata, "/keys": jwks}
+
+        class MyHTTPRequestHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                body = routes.get(self.path)
+                if body is None:
+                    self.send_error(HTTPStatus.NOT_FOUND)
+                    return
+                self.send_response(HTTPStatus.OK)
+                self.end_headers()
+                self.wfile.write(json.dumps(body).encode())
+
+        with tempfile.NamedTemporaryFile(
+            prefix="ccf", mode="w+"
+        ) as keyfile_fp, tempfile.NamedTemporaryFile(
+            prefix="ccf", mode="w+"
+        ) as certfile_fp:
+            keyfile_fp.write(tls_key_pem)
+            keyfile_fp.flush()
+            certfile_fp.write(tls_cert_pem)
+            certfile_fp.flush()
+
+            self.httpd = HTTPServer((host, port), MyHTTPRequestHandler)
+            self.httpd.socket = ssl.wrap_socket(
+                self.httpd.socket,
+                keyfile=keyfile_fp.name,
+                certfile=certfile_fp.name,
+                server_side=True,
+            )
+            self.thread = threading.Thread(None, self.httpd.serve_forever)
+            self.thread.start()
+
+    def __exit__(self):
+        self.httpd.shutdown()
+        self.httpd.server_close()
+        self.thread.join()
+
+
+@reqs.description("JWT with auto_refresh enabled")
+def test_jwt_key_auto_refresh(network, args):
+    primary, _ = network.find_nodes()
+
+    key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
+    cert_pem = infra.crypto.generate_cert(key_priv_pem)
+    kid = "my_kid"
+    issuer_host = "localhost"
+    issuer_port = 8888
+    issuer = f"https://{issuer_host}:{issuer_port}"
+
+    LOG.info("Add CA cert for JWT issuer")
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_fp:
+        ca_cert_fp.write(key_pub_pem)
+        ca_cert_fp.flush()
+        proposal_body, _ = ccf.proposal_generator.update_ca_cert("jwt", ca_cert_fp.name)
+        proposal = network.consortium.get_any_active_member().propose(
+            primary, proposal_body
+        )
+        assert proposal.state == ProposalState.Accepted
+
+    LOG.info("Add JWT issuer with auto-refresh")
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+        json.dump(
+            {"issuer": issuer, "auto_refresh": True, "ca_cert_name": "jwt"}, metadata_fp
+        )
+        metadata_fp.flush()
+        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+    LOG.info("Start local OpenID endpoint server")
+    jwks = create_jwks(kid, cert_pem)
+    with OpenIDProviderServer(issuer_port, key_pub_pem, cert_pem, jwks):
+        LOG.info("Wait for key refresh to happen")
+        # Note: refresh interval is set to 1s, see network args below.
+        time.sleep(2)
+
+        LOG.info("Check that keys got refreshed")
+        with primary.client(
+            f"member{network.consortium.get_any_active_member().member_id}"
+        ) as c:
+            r = c.post(
+                "/gov/read",
+                {"table": "public:ccf.gov.jwt_public_signing_keys", "key": kid},
+            )
+            assert r.status_code == 200, r.status_code
+            # Note that /gov/read returns all data as JSON.
+            # Here, the stored data is a uint8 array, therefore it
+            # is returned as an array of integers.
+            cert_kv_der = bytes(r.body.json())
+            cert_kv_pem = infra.crypto.cert_der_to_pem(cert_kv_der)
+            assert infra.crypto.are_certs_equal(
+                cert_pem, cert_kv_pem
+            ), "stored cert not equal to input cert"
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -260,6 +365,7 @@ def run(args):
         network = test_jwt_without_key_policy(network, args)
         network = test_jwt_with_sgx_key_policy(network, args)
         network = test_jwt_with_sgx_key_filter(network, args)
+        network = test_jwt_key_auto_refresh(network, args)
 
 
 if __name__ == "__main__":
@@ -267,4 +373,5 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    args.jwt_key_refresh_interval_s = 1
     run(args)
