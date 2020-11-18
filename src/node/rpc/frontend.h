@@ -353,22 +353,42 @@ namespace ccf
         }
       }
 
+      std::optional<Jwt> jwt;
       if (endpoint->properties.require_jwt_authentication) {
         auto headers = ctx->get_request_headers();
         std::string error_reason;
-        auto token = http::JwtVerifier::parse_and_verify_token(headers, error_reason);
-        if (!token.has_value())
+        auto token = http::JwtVerifier::extract_token(headers, error_reason);
+        auto keys_view = tx.get_view<JwtPublicSigningKeys>(ccf::Tables::JWT_PUBLIC_SIGNING_KEYS);
+        auto key_isser_view = tx.get_view<JwtPublicSigningKeyIssuer>(ccf::Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER);
+        std::string key_issuer;
+        if (token.has_value())
         {
-          if (!endpoint->properties.handle_jwt_errors_in_app)
+          auto key_id = token.value().header_typed.kid;
+          auto token_key = keys_view->get(key_id);
+          if (!token_key.has_value())
           {
-            set_response_unauthorized(
-              ctx, fmt::format("'{}' {}", ctx->get_method(), error_reason));
-            update_metrics(ctx, metrics);
-            return ctx->serialise_response();
+            error_reason = "JWT signing key not found";
           }
-          // TODO set error in "user" data
+          else if (!http::JwtVerifier::validate_token_signature(token.value(), token_key.value()))
+          {
+            error_reason = "JWT signature is invalid";
+          }
+          else
+          {
+            key_issuer = key_issuer_view->get(key_id).value();
+          }          
         }
-        // TODO set "user" data with token claims etc.
+        if (!error_reason.empty())
+        {
+          set_response_unauthorized(
+            ctx, fmt::format("'{}' {}", ctx->get_method(), error_reason));
+          update_metrics(ctx, metrics);
+          return ctx->serialise_response();
+        }
+        else
+        {
+          jwt = Jwt{key_issuer, token.value().header, token.value().payload};
+        }
       }
 
       update_history();
@@ -410,7 +430,19 @@ namespace ccf
         }
       }
 
-      auto args = EndpointContext{ctx, tx, caller_id};
+      // TODO should multiple auth types be supported at once?
+      //     is auth type a good thing? maybe it's redundant?
+      auto auth_type = AuthenticationType::None;
+      if (caller_id != INVALID_ID)
+      {
+        auth_type = AuthenticationType::Certificate;
+      }
+      else if (jwt.has_value())
+      {
+        auth_type = AuthenticationType::Jwt;
+      }
+      auto auth = Authentication{auth_type, caller_id, jwt};
+      auto args = EndpointContext{ctx, tx, auth};
 
       tx_count++;
 

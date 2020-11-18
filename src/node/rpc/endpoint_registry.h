@@ -23,11 +23,32 @@ namespace ccf
 {
   using namespace endpoints;
 
+  enum class AuthenticationType
+  {
+    None,
+    Certificate,
+    Jwt
+  };
+
+  struct Jwt
+  {
+    std::string key_issuer;
+    nlohmann::json header;
+    nlohmann::json payload;
+  };
+
+  struct Authentication
+  {
+    AuthenticationType type;
+    CallerId caller_id;
+    std::optional<Jwt> jwt;
+  };
+
   struct EndpointContext
   {
     std::shared_ptr<enclave::RpcContext> rpc_ctx;
     kv::Tx& tx;
-    CallerId caller_id;
+    Authentication auth;
   };
   using EndpointFunction = std::function<void(EndpointContext& args)>;
 
@@ -357,7 +378,7 @@ namespace ccf
       // TODO docs
       Endpoint& set_handle_jwt_errors_in_app(bool v)
       {
-        properties.handle_jwt_errors_in_app = v;
+        properties.handle_auth_errors_in_app = v;
         return *this;
       }
 

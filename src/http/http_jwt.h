@@ -5,6 +5,8 @@
 #include "http_consts.h"
 #include "http_parser.h"
 #include "tls/base64.h"
+#include "tls/key_pair.h"
+#include "crypto/hash.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -36,8 +38,8 @@ namespace http
     {
       nlohmann::json header;
       JwtHeader header_typed;
-      nlohmann::json body;
-      std::string_view signature;
+      nlohmann::json payload;
+      std::vector<uint8_t> signature;
       std::string_view signed_content;
     };
 
@@ -80,28 +82,29 @@ namespace http
         return std::nullopt;
       }
       size_t header_size = first_dot;
-      size_t body_size = second_dot - first_dot - 1;
+      size_t payload_size = second_dot - first_dot - 1;
       std::string_view header_b64url = token.substr(0, header_size);
-      std::string_view body_b64url = token.substr(first_dot + 1, body_size);
+      std::string_view payload_b64url = token.substr(first_dot + 1, payload_size);
+      std::string_view signature_b64url = token.substr(second_dot + 1);
       auto header_raw = tls::raw_from_b64url(header_b64url);
-      auto body_raw = tls::raw_from_b64url(body_b64url);
-      auto signature = token.substr(second_dot + 1);
+      auto payload_raw = tls::raw_from_b64url(payload_b64url);
+      auto signature_raw = tls::raw_from_b64url(signature_b64url);
       auto signed_content = token.substr(0, second_dot);
       nlohmann::json header;
-      nlohmann::json body;
+      nlohmann::json payload;
       try
       {
         header = nlohmann::json::parse(header_raw);
-        body = nlohmann::json::parse(body_raw);
+        payload = nlohmann::json::parse(payload_raw);
       }
       catch (const nlohmann::json::parse_error& e)
       {
-        error_reason = fmt::format("JWT header or body is not valid JSON: {}", e.what());
+        error_reason = fmt::format("JWT header or payload is not valid JSON: {}", e.what());
         return std::nullopt;
       }
-      if (!header.is_object() || !body.is_object())
+      if (!header.is_object() || !payload.is_object())
       {
-        error_reason = "JWT header or body is not an object";
+        error_reason = "JWT header or payload is not an object";
         return std::nullopt;
       }
       JwtHeader header_typed;
@@ -114,13 +117,14 @@ namespace http
         error_reason = fmt::format("JWT header does not follow schema: {}", e.what());
         return std::nullopt;
       }
-      return {
+      Token parsed = {
         .header = header,
         .header_typed = header_typed,
-        .body = body,
-        .signature = signature,
+        .payload = payload,
+        .signature = signature_raw,
         .signed_content = signed_content
       };
+      return parsed;
     }
 
     static std::optional<Token> extract_token(
@@ -138,18 +142,18 @@ namespace http
       {
         return std::nullopt;
       }
-      auto parsed = parse_token(token, header, body, signature, signed_content, error_reason);
+      auto parsed = parse_token(token, error_reason);
       return parsed;
     }
 
-    static bool validate_token(
-      const Token& token, std::vector<uint8_t> cert_der,
-      std::string& error_reason)
+    static bool validate_token_signature(
+      const Token& token, std::vector<uint8_t> cert_der)
     {
-      crypto::Sha256Hash current_hash(token.signed_content);
-      // TODO decrypt signature with given cert to get original hash
-      std::vector<uint8_t> original_hash;
-      // TODO check if hashes match
+      auto key = tls::make_public_key(cert_der);
+      bool valid = key->verify(
+        (uint8_t*) token.signed_content.data(), token.signed_content.size(),
+        token.signature.data(), token.signature.size());
+      return valid;
     }
   };
 }
