@@ -296,7 +296,14 @@ namespace enclave
 
         if (start_type == StartType::Join)
         {
-          node->join(ccf_config);
+          if (!ccf_config.startup_snapshot.empty())
+          {
+            node->start_ledger_recovery();
+          }
+          else
+          {
+            node->join(ccf_config);
+          }
         }
         else if (start_type == StartType::Recover)
         {

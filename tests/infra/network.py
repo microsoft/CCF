@@ -449,6 +449,7 @@ class Network:
             )
 
         self.consortium.check_for_service(primary, ServiceStatus.OPEN)
+        time.sleep(10)
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):

@@ -301,6 +301,47 @@ namespace ccf
           // has joined
           accept_node_tls_connections();
 
+          bool from_snapshot = !args.config.startup_snapshot.empty();
+          if (from_snapshot)
+          {
+            setup_history();
+
+            // TODO: It seems necessary to give LedgerSecrets to the encryptor
+            // for now but this should become optional
+            network.ledger_secrets = std::make_shared<LedgerSecrets>();
+            // It is necessary to give an encryptor to the store for it to
+            // deserialise the public domain when recovering the public ledger.
+            // Once the public recovery is complete, the existing encryptor is
+            // replaced with a new one initialised with recovered ledger
+            // secrets.
+            setup_encryptor(network.consensus_type);
+            // Keep a reference to snapshot for private recovery
+            recovery_snapshot = std::make_unique<std::vector<uint8_t>>(
+              args.config.startup_snapshot);
+
+            LOG_DEBUG_FMT(
+              "Deserialising public snapshot ({})", recovery_snapshot->size());
+            auto rc = network.tables->deserialise_snapshot(
+              *recovery_snapshot, &view_history, true);
+            if (rc != kv::DeserialiseSuccess::PASS)
+            {
+              throw std::logic_error(
+                fmt::format("Failed to apply public snapshot: {}", rc));
+            }
+
+            ledger_idx = network.tables->current_version();
+            last_recovered_signed_idx = ledger_idx;
+            snapshotter->set_last_snapshot_idx(ledger_idx);
+
+            LOG_DEBUG_FMT("Snapshot deserialised at seqno {}", ledger_idx);
+
+            sm.advance(State::readingPublicLedger);
+          }
+          else
+          {
+            sm.advance(State::pending);
+          }
+
           sm.advance(State::pending);
 
           return Success<CreateNew::Out>({node_cert, {}});
@@ -314,7 +355,7 @@ namespace ccf
           network.ledger_secrets = std::make_shared<LedgerSecrets>();
 
           setup_history();
-          setup_consensus();
+          // setup_consensus(); // TODO: This doesn't seem necessary
 
           // It is necessary to give an encryptor to the store for it to
           // deserialise the public domain when recovering the public ledger.
@@ -632,35 +673,64 @@ namespace ccf
         auto tx = network.tables->create_tx();
         GenesisGenerator g(network, tx);
         auto last_sig = g.get_last_signature();
-        if (last_sig.has_value())
+
+        if (!last_sig.has_value())
         {
-          LOG_DEBUG_FMT(
-            "Read signature at {} for view {}", ledger_idx, last_sig->view);
-          // Initial transactions, before the first signature, must have
-          // happened in the first signature's view (eg - if the first
-          // signature is at seqno 20 in view 4, then transactions 1->19 must
-          // also have been in view 4). The brief justification is that while
-          // the first node may start in an arbitrarily high view (it does not
-          // necessarily start in view 1), it cannot _change_ view before a
-          // valid signature.
-          const auto view_start_idx =
-            view_history.empty() ? 1 : last_recovered_signed_idx + 1;
-          CCF_ASSERT_FMT(
-            last_sig->view >= 0,
-            "last_sig->view is invalid, {}",
-            last_sig->view);
-          for (auto i = view_history.size();
-               i < static_cast<size_t>(last_sig->view);
-               ++i)
-          {
-            view_history.push_back(view_start_idx);
-          }
-          last_recovered_signed_idx = ledger_idx;
+          throw std::logic_error("Signature missing");
+        }
+
+        LOG_DEBUG_FMT(
+          "Read signature at {} for view {}", ledger_idx, last_sig->view);
+        // Initial transactions, before the first signature, must have
+        // happened in the first signature's view (eg - if the first
+        // signature is at seqno 20 in view 4, then transactions 1->19 must
+        // also have been in view 4). The brief justification is that while
+        // the first node may start in an arbitrarily high view (it does not
+        // necessarily start in view 1), it cannot _change_ view before a
+        // valid signature.
+        const auto view_start_idx =
+          view_history.empty() ? 1 : last_recovered_signed_idx + 1;
+        CCF_ASSERT_FMT(
+          last_sig->view >= 0, "last_sig->view is invalid, {}", last_sig->view);
+        for (auto i = view_history.size();
+             i < static_cast<size_t>(last_sig->view);
+             ++i)
+        {
+          view_history.push_back(view_start_idx);
+        }
+        last_recovered_signed_idx = ledger_idx;
+      }
+      else if (result == kv::DeserialiseSuccess::PASS_SNAPSHOT_EVIDENCE)
+      {
+        static consensus::Index snapshot_evidence_idx = ledger_idx;
+        LOG_FAIL_FMT("Found snapshot evidence at {}", snapshot_evidence_idx);
+
+        auto tx = network.tables->create_tx();
+        auto snapshot_evidence_view = tx.get_view(network.snapshot_evidence);
+        if (!snapshot_evidence_view)
+        {
+          throw std::logic_error("Invalid snapshot evidence");
+        }
+
+        auto snapshot_evidence = snapshot_evidence_view->get(0);
+        if (!snapshot_evidence.has_value())
+        {
+          throw std::logic_error("Invalid snapshot evidence");
+        }
+
+        if (
+          snapshot_evidence->hash !=
+          crypto::Sha256Hash(*recovery_snapshot.get()))
+        {
+          throw std::logic_error("Snapshot doesn't match!");
         }
         else
         {
-          throw std::logic_error("Invalid signature");
+          LOG_FAIL_FMT("Snapshot evidence matched!!");
         }
+
+        // TODO: Hash snapshot and verify that it matches - don't fail if it
+        // doesn't!
       }
 
       read_ledger_idx(++ledger_idx);

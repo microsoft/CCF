@@ -778,6 +778,12 @@ namespace kv
           success = DeserialiseSuccess::PASS_SIGNATURE;
         }
 
+        auto search = changes.find(ccf::Tables::SNAPSHOT_EVIDENCE);
+        if (search != changes.end())
+        {
+          success = DeserialiseSuccess::PASS_SNAPSHOT_EVIDENCE;
+        }
+
         if (h)
         {
           h->append(data.data(), data.size());
@@ -907,7 +913,7 @@ namespace kv
 
           auto h = get_history();
           h->append(data.data(), data.size());
-          success = DeserialiseSuccess::NEW_VIEW;
+          success = DeserialiseSuccess::PASS_NEW_VIEW;
         }
         else if (changes.find(ccf::Tables::AFT_REQUESTS) == changes.end())
         {

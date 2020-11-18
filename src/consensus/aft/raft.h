@@ -1151,7 +1151,7 @@ namespace aft
           {
             break;
           }
-          case kv::DeserialiseSuccess::NEW_VIEW:
+          case kv::DeserialiseSuccess::PASS_NEW_VIEW:
           {
             view_change_tracker->clear(get_primary(sig_term) == id(), sig_term);
             request_tracker->clear();
