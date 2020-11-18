@@ -21,25 +21,7 @@ import openapi_spec_validator
 from loguru import logger as LOG
 
 THIS_DIR = os.path.dirname(__file__)
-
-MODULE_PATH_1 = "/app/foo.js"
-MODULE_PATH_2 = "/app/bar.js"
-
-# For the purpose of resolving relative import paths,
-# app script modules are currently assumed to be located at /.
-# This will likely change.
-APP_SCRIPT = """
-return {
-  ["POST test_module"] = [[
-    import {bar} from "./app/bar.js";
-    export default function()
-    {
-      return { body: bar(), statusCode: 201 };
-    }
-  ]]
-}
-"""
-
+PARENT_DIR = os.path.normpath(os.path.join(THIS_DIR, os.path.pardir))
 
 def make_module_set_proposal(module_path, file_path, network):
     primary, _ = network.find_nodes()
@@ -71,21 +53,23 @@ def test_module_set_and_remove(network, args):
     primary, _ = network.find_nodes()
 
     LOG.info("Member makes a module set proposal")
-    module_file_path = os.path.join(THIS_DIR, "foo.js")
-    make_module_set_proposal(MODULE_PATH_1, module_file_path, network)
+    bundle_dir = os.path.join(THIS_DIR, "basic-module-import")
+    module_file_path = os.path.join(bundle_dir, "src", "foo.js")
+    module_path = "/anything/you/want/when/setting/manually/dot/js.js"
+    make_module_set_proposal(module_path, module_file_path, network)
     module_content = open(module_file_path, "r").read()
 
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
         r = c.post(
-            "/gov/read", {"table": "public:ccf.gov.modules", "key": MODULE_PATH_1}
+            "/gov/read", {"table": "public:ccf.gov.modules", "key": module_path}
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json()["js"] == module_content, r.body
 
     LOG.info("Member makes a module remove proposal")
-    proposal_body, careful_vote = ccf.proposal_generator.remove_module(MODULE_PATH_1)
+    proposal_body, careful_vote = ccf.proposal_generator.remove_module(module_path)
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
@@ -95,7 +79,7 @@ def test_module_set_and_remove(network, args):
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
         r = c.post(
-            "/gov/read", {"table": "public:ccf.gov.modules", "key": MODULE_PATH_1}
+            "/gov/read", {"table": "public:ccf.gov.modules", "key": module_path}
         )
         assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
     return network
@@ -105,15 +89,9 @@ def test_module_set_and_remove(network, args):
 def test_module_import(network, args):
     primary, _ = network.find_nodes()
 
-    # Add modules
-    make_module_set_proposal(MODULE_PATH_1, os.path.join(THIS_DIR, "foo.js"), network)
-    make_module_set_proposal(MODULE_PATH_2, os.path.join(THIS_DIR, "bar.js"), network)
-
-    # Update JS app which imports module
-    with tempfile.NamedTemporaryFile("w") as f:
-        f.write(APP_SCRIPT)
-        f.flush()
-        network.consortium.set_js_app(remote_node=primary, app_script_path=f.name)
+    # Update JS app, deploying modules _and_ app script that imports module
+    bundle_dir = os.path.join(THIS_DIR, "basic-module-import")
+    network.consortium.deploy_js_app(primary, bundle_dir)
 
     with primary.client("user0") as c:
         r = c.post("/app/test_module", {})
@@ -130,7 +108,7 @@ def test_app_bundle(network, args):
     LOG.info("Deploying js app bundle archive")
     # Testing the bundle archive support of the Python client here.
     # Plain bundle folders are tested in the npm-based app tests.
-    bundle_dir = os.path.join(THIS_DIR, "js-app-bundle")
+    bundle_dir = os.path.join(PARENT_DIR, "js-app-bundle")
     with tempfile.TemporaryDirectory(prefix="ccf") as tmp_dir:
         bundle_path = shutil.make_archive(
             os.path.join(tmp_dir, "bundle"), "zip", bundle_dir
@@ -184,7 +162,7 @@ def test_app_bundle(network, args):
 def test_dynamic_endpoints(network, args):
     primary, _ = network.find_nodes()
 
-    bundle_dir = os.path.join(THIS_DIR, "js-app-bundle")
+    bundle_dir = os.path.join(PARENT_DIR, "js-app-bundle")
 
     LOG.info("Deploying initial js app bundle archive")
     network.consortium.deploy_js_app(primary, bundle_dir)
@@ -254,7 +232,7 @@ def test_npm_app(network, args):
     primary, _ = network.find_nodes()
 
     LOG.info("Building npm app")
-    app_dir = os.path.join(THIS_DIR, "npm-app")
+    app_dir = os.path.join(PARENT_DIR, "npm-app")
     subprocess.run(["npm", "install"], cwd=app_dir, check=True)
     subprocess.run(["npm", "run", "build"], cwd=app_dir, check=True)
 
@@ -395,7 +373,7 @@ def test_npm_tsoa_app(network, args):
     primary, _ = network.find_nodes()
 
     LOG.info("Building tsoa npm app")
-    app_dir = os.path.join(THIS_DIR, "npm-tsoa-app")
+    app_dir = os.path.join(PARENT_DIR, "npm-tsoa-app")
     subprocess.run(["npm", "install"], cwd=app_dir, check=True)
     subprocess.run(["npm", "run", "build"], cwd=app_dir, check=True)
 
@@ -433,10 +411,10 @@ def run(args):
         network.start_and_join(args)
         network = test_module_set_and_remove(network, args)
         network = test_module_import(network, args)
-        # network = test_app_bundle(network, args)
-        # network = test_dynamic_endpoints(network, args)
-        # network = test_npm_app(network, args)
-        # network = test_npm_tsoa_app(network, args)
+        network = test_app_bundle(network, args)
+        network = test_dynamic_endpoints(network, args)
+        network = test_npm_app(network, args)
+        network = test_npm_tsoa_app(network, args)
 
 
 if __name__ == "__main__":
