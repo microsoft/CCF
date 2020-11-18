@@ -12,15 +12,14 @@ function get_id_from_request_query(request) {
 function get_record(map, id) {
   const msg = map.get(id);
   if (msg === undefined) {
-    return { body: {error: 'No such key' } };
+    return { body: { error: "No such key" } };
   }
-  return { body: {msg: ccf.bufToStr(msg)} };
+  return { body: { msg: ccf.bufToStr(msg) } };
 }
 
 function delete_record(map, id) {
-  if (!map.delete(id)) 
-  {
-    return { body: {error: 'No such key'} }
+  if (!map.delete(id)) {
+    return { body: { error: "No such key" } };
   }
   return { body: true };
 }
@@ -37,13 +36,19 @@ export function get_public(request) {
 
 export function post_private(request) {
   let params = request.body.json();
-  ccf.kv["records"].set(ccf.strToBuf(params.id.toString()), ccf.strToBuf(params.msg));
+  ccf.kv["records"].set(
+    ccf.strToBuf(params.id.toString()),
+    ccf.strToBuf(params.msg)
+  );
   return { body: true };
 }
 
 export function post_public(request) {
   let params = request.body.json();
-  ccf.kv["public:records"].set(ccf.strToBuf(params.id.toString()), ccf.strToBuf(params.msg));
+  ccf.kv["public:records"].set(
+    ccf.strToBuf(params.id.toString()),
+    ccf.strToBuf(params.msg)
+  );
   return { body: true };
 }
 
