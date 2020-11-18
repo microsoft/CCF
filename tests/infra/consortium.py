@@ -361,7 +361,7 @@ class Consortium:
 
     def set_js_app(self, remote_node, app_script_path):
         LOG.error(
-           "set_js_app proposal type is deprecated - please update to use deploy_js_app instead"
+           "set_js_app proposal type is deprecated - update to use deploy_js_app instead"
         )
         proposal_body, careful_vote = self.make_proposal("set_js_app", app_script_path)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
