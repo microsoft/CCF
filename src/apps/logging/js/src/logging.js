@@ -1,71 +1,58 @@
-export function get_private(request) {
+function get_id_from_request_query(request) {
   const elements = request.query.split("&");
   for (const kv of elements) {
     const [k, v] = kv.split("=");
     if (k == "id") {
-      const msg = ccf.kv.data.get(ccf.strToBuf(v));
-      if (msg === undefined) {
-        return { body: {error: 'No such key' } };
-      }
-      return { body: {msg: ccf.bufToStr(msg)} };
+      return ccf.strToBuf(v);
     }
   }
   throw new Error("Could not find 'id' in query");
 }
 
-export function get_public(request) {
-  const elements = request.query.split("&");
-  for (const kv of elements) {
-    const [k, v] = kv.split("=");
-    if (k == "id") {
-      const msg = ccf.kv.data.get(ccf.strToBuf(v));
-      if (msg === undefined) {
-        return { body: {error: 'No such key' } };
-      }
-      return { body: {msg: ccf.bufToStr(msg)} };
-    }
+function get_record(map, id) {
+  const msg = map.get(id);
+  if (msg === undefined) {
+    return { body: {error: 'No such key' } };
   }
-  throw new Error("Could not find 'id' in query");
+  return { body: {msg: ccf.bufToStr(msg)} };
+}
+
+function delete_record(map, id) {
+  if (!map.delete(id)) 
+  {
+    return { body: {error: 'No such key'} }
+  }
+  return { body: true };
+}
+
+export function get_private(request) {
+  const id = get_id_from_request_query(request);
+  return get_record(ccf.kv["records"], id);
+}
+
+export function get_public(request) {
+  const id = get_id_from_request_query(request);
+  return get_record(ccf.kv["public:records"], id);
 }
 
 export function post_private(request) {
   let params = request.body.json();
-  ccf.kv.data.set(ccf.strToBuf(params.id.toString()), ccf.strToBuf(params.msg));
+  ccf.kv["records"].set(ccf.strToBuf(params.id.toString()), ccf.strToBuf(params.msg));
   return { body: true };
 }
 
 export function post_public(request) {
   let params = request.body.json();
-  ccf.kv.data.set(ccf.strToBuf(params.id.toString()), ccf.strToBuf(params.msg));
+  ccf.kv["public:records"].set(ccf.strToBuf(params.id.toString()), ccf.strToBuf(params.msg));
   return { body: true };
 }
 
 export function delete_private(request) {
-  const elements = request.query.split("&");
-  for (const kv of elements) {
-    const [k, v] = kv.split("=");
-    if (k == "id") {
-      if (!ccf.kv.data.delete(ccf.strToBuf(v))) 
-      {
-        return { body: {error: 'No such key'} }
-      }
-      return { body: true };
-    }
-  }
-  throw new Error("Could not find 'id' in query");
+  const id = get_id_from_request_query(request);
+  return delete_record(ccf.kv["records"], id);
 }
 
 export function delete_public(request) {
-  const elements = request.query.split("&");
-  for (const kv of elements) {
-    const [k, v] = kv.split("=");
-    if (k == "id") {
-      if (!ccf.kv.data.delete(ccf.strToBuf(v))) 
-      {
-        return { body: {error: 'No such key'} }
-      }
-      return { body: true };
-    }
-  }
-  throw new Error("Could not find 'id' in query");
+  const id = get_id_from_request_query(request);
+  return delete_record(ccf.kv["public:records"], id);
 }
