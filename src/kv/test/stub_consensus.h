@@ -150,11 +150,6 @@ namespace kv
       return {};
     }
 
-    void open_network() override
-    {
-      return;
-    }
-
     uint32_t node_count() override
     {
       return 0;

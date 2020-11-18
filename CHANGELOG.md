@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Members can no longer vote multiple times on governance proposals (#1743).
 
+## Removed
+
+- `kv::Store::create` is removed.
+
 ## [0.15.1]
 
 ## Added
