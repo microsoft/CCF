@@ -375,7 +375,9 @@ class Network:
             )
 
         if args.js_app_script:
-            LOG.error("--js-app-script is deprecated - update to --js-app-bundle instead")
+            LOG.error(
+                "--js-app-script is deprecated - update to --js-app-bundle instead"
+            )
             infra.proc.ccall(
                 "cp", args.js_app_script, args.binary_dir
             ).check_returncode()

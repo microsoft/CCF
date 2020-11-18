@@ -23,6 +23,7 @@ from loguru import logger as LOG
 THIS_DIR = os.path.dirname(__file__)
 PARENT_DIR = os.path.normpath(os.path.join(THIS_DIR, os.path.pardir))
 
+
 def make_module_set_proposal(module_path, file_path, network):
     primary, _ = network.find_nodes()
     proposal_body, careful_vote = ccf.proposal_generator.set_module(
@@ -62,9 +63,7 @@ def test_module_set_and_remove(network, args):
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
-        r = c.post(
-            "/gov/read", {"table": "public:ccf.gov.modules", "key": module_path}
-        )
+        r = c.post("/gov/read", {"table": "public:ccf.gov.modules", "key": module_path})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json()["js"] == module_content, r.body
 
@@ -78,9 +77,7 @@ def test_module_set_and_remove(network, args):
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
-        r = c.post(
-            "/gov/read", {"table": "public:ccf.gov.modules", "key": module_path}
-        )
+        r = c.post("/gov/read", {"table": "public:ccf.gov.modules", "key": module_path})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
     return network
 

@@ -1,5 +1,5 @@
-import { foo } from "./foo.js"
+import { foo } from "./foo.js";
 
 export function bar() {
-    return foo();
+  return foo();
 }
