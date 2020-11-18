@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/ccf_deprecated.h"
 #include "ds/ccf_exception.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
@@ -143,68 +142,6 @@ namespace kv
     EncryptorPtr get_encryptor() override
     {
       return encryptor;
-    }
-
-    template <class K, class V>
-    CCF_DEPRECATED(
-      "SecurityDomain should not be passed explicitly, but encoded in the "
-      "map's name. 'public:' prefix indicates a PUBLIC table, all others are "
-      "PRIVATE")
-    Map<K, V>& create(const std::string& name, SecurityDomain security_domain)
-    {
-      return create<Map<K, V>>(name, security_domain);
-    }
-
-    template <class M>
-    CCF_DEPRECATED(
-      "SecurityDomain should not be passed explicitly, but encoded in the "
-      "map's name. 'public:' prefix indicates a PUBLIC table, all others are "
-      "PRIVATE")
-    M& create(const std::string& name, SecurityDomain security_domain)
-    {
-      if (has_map_internal(name))
-        throw std::logic_error(fmt::format("Map '{}' already exists", name));
-
-      const auto [sec_dom, acc_cat] = kv::parse_map_name(name);
-      if (sec_dom != security_domain)
-      {
-        throw std::logic_error(fmt::format(
-          "Map '{}' cannot be created with the requested SecurityDomain "
-          "(public maps must begin with public: prefix)",
-          name));
-      }
-
-      return create<M>(name);
-    }
-
-    template <class K, class V>
-    CCF_DEPRECATED(
-      "Maps do not need to be explicitly created from a Store. They will be "
-      "created on-demand when they are used by a Tx, and can be instantiated "
-      "anywhere as kv::Map<K, V> my_map(my_map_name);")
-    Map<K, V>& create(const std::string& name)
-    {
-      return create<Map<K, V>>(name);
-    }
-
-    template <class M>
-    CCF_DEPRECATED(
-      "Maps do not need to be explicitly created from a Store. They will be "
-      "created on-demand when they are used by a Tx, and can be instantiated "
-      "anywhere as kv::Map<K, V> my_map(my_map_name);")
-    M& create(const std::string& name)
-    {
-      std::lock_guard<SpinLock> mguard(maps_lock);
-
-      const auto it = map_defs.find(name);
-      if (it != map_defs.end())
-      {
-        throw std::logic_error("Map already exists");
-      }
-
-      auto result = std::make_shared<M>(name);
-      map_defs[name] = result;
-      return *result;
     }
 
     /** Get a map by name, iff it exists at the given version.
