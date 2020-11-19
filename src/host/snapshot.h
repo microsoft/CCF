@@ -39,8 +39,8 @@ namespace asynchost
       auto pos = file_name.find(snapshot_idx_delimiter);
       if (pos == std::string::npos)
       {
-        throw std::logic_error(
-          fmt::format("Snapshot file name {} does not contain idx", file_name));
+        throw std::logic_error(fmt::format(
+          "Snapshot file name {} does not contain seqno", file_name));
       }
 
       return std::stol(file_name.substr(pos + 1));
@@ -71,19 +71,29 @@ namespace asynchost
         reinterpret_cast<const char*>(snapshot_data), snapshot_size);
     }
 
-    void commit_snapshot(consensus::Index idx)
+    void commit_snapshot(
+      consensus::Index snapshot_idx, consensus::Index evidence_idx)
     {
+      // Find previously-generated snapshot for snapshot_idx and rename file,
+      // including evidence_idx in name too
       for (auto const& f : fs::directory_iterator(snapshot_dir))
       {
         auto file_name = f.path().filename().string();
         if (
           !is_committed_snapshot_file(file_name) &&
-          get_snapshot_idx_from_file_name(file_name) == idx)
+          get_snapshot_idx_from_file_name(file_name) == snapshot_idx)
         {
-          LOG_INFO_FMT("Committing snapshot file {}", file_name);
+          LOG_INFO_FMT(
+            "Committing snapshot file \"{}\" with evidence at {}",
+            file_name,
+            evidence_idx);
 
-          const auto committed_file_name =
-            fmt::format("{}.{}", file_name, snapshot_committed_suffix);
+          const auto committed_file_name = fmt::format(
+            "{}.{}{}{}",
+            file_name,
+            snapshot_committed_suffix,
+            snapshot_idx_delimiter,
+            evidence_idx);
 
           fs::rename(
             fs::path(snapshot_dir) / fs::path(file_name),
@@ -92,6 +102,8 @@ namespace asynchost
           return;
         }
       }
+
+      LOG_FAIL_FMT("Could not find snapshot to commit at {}", snapshot_idx);
     }
 
   public:
@@ -153,8 +165,9 @@ namespace asynchost
         disp,
         consensus::snapshot_commit,
         [this](const uint8_t* data, size_t size) {
-          auto idx = serialized::read<consensus::Index>(data, size);
-          commit_snapshot(idx);
+          auto snapshot_idx = serialized::read<consensus::Index>(data, size);
+          auto evidence_idx = serialized::read<consensus::Index>(data, size);
+          commit_snapshot(snapshot_idx, evidence_idx);
         });
     }
   };
