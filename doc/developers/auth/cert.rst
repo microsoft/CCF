@@ -1,8 +1,13 @@
 Certificate Authentication
 ==========================
 
-CCF's primary authentication mechanism relies on users specifying their certificate and private key in the TLS handshake (e.g. using the ``--key`` and ``--cert`` argument to ``curl``).
+User identities in CCF are X.509 certificates. They can be added or removed via governance proposals, which are subject to the consortium constitution rules (see :ref:`members/open_network:Adding Users`).
 
-Users should have previously been trusted by the consortium of members for them to use this authentication mechanism (see :ref:`members/open_network.html:Adding Users`). 
+Requests sent by users can be authenticated one of two ways:
 
-This can be disabled for a specific application endpoint, via the ``set_require_client_identity`` property. If certificate authentication is disabled, the application should authenticate and authorise users based on other mechanisms (e.g. :doc:`/developers/auth/jwt`).
+- via the TLS handshake, in which a client uses the user private key to prove its identity (e.g. using the ``--key`` and ``--cert`` argument to ``curl``)
+- by :ref:`users/issue_commands:Signing` the request contents with the user private key, following the scheme described `here <https://tools.ietf.org/html/draft-cavage-http-signatures-12>`_.
+
+TLS session-based authentication can be disabled for a specific application endpoint, via the :cpp:func:`ccf::EndpointRegistry::Endpoint::set_require_client_identity()`,
+to allow the application to authenticate and authorise users based on other mechanisms, such as :doc:`/developers/auth/jwt`.
+Signature-based authentication can be made mandatory with :cpp:func:`ccf::EndpointRegistry::Endpoint::set_require_client_signature()`, but cannot be disabled.
