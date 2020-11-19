@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.15.2]
+
+## Changed
+
+- Members can no longer vote multiple times on governance proposals (#1743).
+
+## Removed
+
+- `kv::Store::create` is removed.
+
 ## [0.15.1]
 
 ## Added
@@ -536,6 +546,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.15.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.15.2
 [0.15.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.15.1
 [0.15.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.15.0
 [0.14.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.14.3
