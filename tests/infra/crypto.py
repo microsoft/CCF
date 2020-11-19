@@ -147,12 +147,12 @@ def generate_rsa_keypair(key_size: int) -> Tuple[str, str]:
     return priv_pem, pub_pem
 
 
-def generate_cert(priv_key_pem: str) -> str:
+def generate_cert(priv_key_pem: str, cn="dummy") -> str:
     priv = load_pem_private_key(priv_key_pem.encode("ascii"), None, default_backend())
     pub = priv.public_key()
     subject = issuer = x509.Name(
         [
-            x509.NameAttribute(NameOID.COMMON_NAME, "dummy"),
+            x509.NameAttribute(NameOID.COMMON_NAME, cn),
         ]
     )
     cert = (

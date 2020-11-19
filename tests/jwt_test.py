@@ -307,13 +307,14 @@ class OpenIDProviderServer(AbstractContextManager):
 def test_jwt_key_auto_refresh(network, args):
     primary, _ = network.find_nodes()
 
-    key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
-    cert_pem = infra.crypto.generate_cert(key_priv_pem)
     ca_cert_name = "jwt"
     kid = "my_kid"
     issuer_host = "localhost"
     issuer_port = 12345
     issuer = f"https://{issuer_host}:{issuer_port}"
+
+    key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+    cert_pem = infra.crypto.generate_cert(key_priv_pem, cn=issuer_host)
 
     LOG.info("Add CA cert for JWT issuer")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_fp:
