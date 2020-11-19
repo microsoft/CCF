@@ -37,7 +37,7 @@ def is_addr_local(host, port):
 
 
 def is_snapshot_committed(file_name):
-    return file_name.endswith(".committed")
+    return ".committed" in file_name
 
 
 def get_snapshot_seqno(file_name):
