@@ -1401,6 +1401,10 @@ namespace ccf
         }
 
         const auto vote = params.get<Vote>();
+        if (proposal->votes.find(args.caller_id) != proposal->votes.end())
+        {
+          return make_error(HTTP_STATUS_BAD_REQUEST, "Vote already submitted");
+        }
         proposal->votes[args.caller_id] = vote.ballot;
         proposals->put(proposal_id, proposal.value());
 
