@@ -1,58 +1,57 @@
 CCF Documentation
 =================
 
-.. image:: img/ccf.svg
-  :width: 330
-  :align: right
+.. panels::
 
-Start Here
-----------
+    :fa:`compass` :doc:`concepts`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- :doc:`/concepts`
-- :doc:`/quickstart/install`
-- :doc:`Run a sample CCF application </developers/run_app>`
-- :doc:`Use CCF </users/index>`
-- :doc:`/quickstart/create_vm`
-- `What's new in the latest version of CCF? <https://github.com/microsoft/CCF/releases/latest>`_
+    .. image:: img/ccf.svg
+      :width: 110
+      :align: right
 
+    Introduction to CCF and its core concepts through a sample app. Start Here.
 
-Build Applications
-------------------
+    ---
 
-- :doc:`quickstart/build_setup`
-- :doc:`developers/js_app`
-- :doc:`developers/example`
-- :doc:`developers/build_app`
-- :doc:`developers/run_app`
-- :doc:`developers/api`
+    :fa:`tools` :doc:`developers/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-CCF Roles
----------
+    Build a CCF application.
+      - :doc:`developers/example`
+      - :doc:`developers/js_app`
 
-- :doc:`operators/index`
-- :doc:`members/index`
-- :doc:`users/index`
-- :doc:`Offline Audit <audit/index>`
+    ---
 
-More Concepts
--------------
+    :fa:`user` :doc:`users/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- :doc:`design/constitution`
-- :doc:`design/consensus`
-- :doc:`design/cryptography`
-- :doc:`design/performance` and :doc:`design/threading`
+    Interact with a CCF application as a user.
 
-Contribute
-----------
+    ---
 
-- :doc:`quickstart/contribute`
-- `Contribution Guidelines <https://github.com/microsoft/CCF/blob/master/.github/CONTRIBUTING.md>`_
+    :fa:`tachometer-alt` :doc:`operators/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+    Provision and operate a CCF network that underpins an application.
+
+    ---
+
+    :fa:`users` :doc:`members/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Monitor node resource consumption.
+
+    ---
+
+    :fa:`eye` :doc:`audit/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Audit a CCF network and its history.
 
 .. toctree::
     :maxdepth: 1
     :hidden:
-    :titlesonly:
 
     concepts
     developers/index.rst
