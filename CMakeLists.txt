@@ -759,14 +759,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME lua_e2e_logging_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --app-script
-                    ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
-  )
-
-  add_e2e_test(
     NAME member_client_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
     CONSENSUS cft
