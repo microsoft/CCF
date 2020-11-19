@@ -636,7 +636,7 @@ namespace ccf
         http_client->connect(
           std::string(metadata_url.host),
           std::string(metadata_url_port),
-          [this,&issuer,&ca_cert](
+          [this,issuer,ca_cert](
             http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
             std::lock_guard<SpinLock> guard(lock);
             
@@ -670,7 +670,7 @@ namespace ccf
             http_client->connect(
               std::string(jwks_url.host),
               std::string(jwks_url_port),
-              [this,&issuer](
+              [this,issuer](
                 http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
                 std::lock_guard<SpinLock> guard(lock);
                 
@@ -685,6 +685,10 @@ namespace ccf
                       fmt::format("  '{}'", std::string(data.begin(), data.end())));
                   return false;
                 }
+
+                LOG_DEBUG_FMT(
+                  "Received JWKS document for JWT issuer '{}'",
+                  issuer);
 
                 // call internal endpoint to update keys
                 auto jwks = nlohmann::json::parse(data).get<JsonWebKeySet>();
