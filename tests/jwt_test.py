@@ -272,10 +272,14 @@ class OpenIDProviderServer(AbstractContextManager):
                 if body is None:
                     self.send_error(HTTPStatus.NOT_FOUND)
                     return
-                LOG.debug("OpenID provider server: {}", self.path)
+                body = json.dumps(body).encode()
                 self.send_response(HTTPStatus.OK)
+                self.send_header('Content-Length', str(len(body)))
                 self.end_headers()
-                self.wfile.write(json.dumps(body).encode())
+                self.wfile.write(body)
+            
+            def log_message(self, fmt: str, *args):
+                LOG.debug(f"OpenIDProviderServer: {fmt % args}")
 
         with tempfile.NamedTemporaryFile(
             prefix="ccf", mode="w+"
@@ -335,7 +339,7 @@ def test_jwt_key_auto_refresh(network, args):
     with OpenIDProviderServer(issuer_port, key_priv_pem, cert_pem, jwks):
         LOG.info("Wait for key refresh to happen")
         # Note: refresh interval is set to 1s, see network args below.
-        time.sleep(5)
+        time.sleep(2)
 
         LOG.info("Check that keys got refreshed")
         with primary.client(
