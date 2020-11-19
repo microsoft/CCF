@@ -164,6 +164,40 @@ namespace http
       extract_url_field(parser_url, UF_QUERY, url));
   }
 
+  struct URL
+  {
+    std::string_view schema;
+    std::string_view host;
+    std::string_view port;
+    std::string_view path;
+    std::string_view query;
+    std::string_view fragment;
+  };
+
+  inline URL parse_url_full(const std::string& url)
+  {
+    LOG_TRACE_FMT("Received url to parse: {}", url);
+
+    http_parser_url parser_url;
+    http_parser_url_init(&parser_url);
+
+    const auto err =
+      http_parser_parse_url(url.data(), url.size(), 0, &parser_url);
+    if (err != 0)
+    {
+      throw std::runtime_error(fmt::format("Error parsing url: {}", err));
+    }
+
+    return {
+      extract_url_field(parser_url, UF_SCHEMA, url),
+      extract_url_field(parser_url, UF_HOST, url),
+      extract_url_field(parser_url, UF_PORT, url),
+      extract_url_field(parser_url, UF_PATH, url),
+      extract_url_field(parser_url, UF_QUERY, url),
+      extract_url_field(parser_url, UF_FRAGMENT, url)
+    };
+  }
+
   class Parser
   {
   protected:

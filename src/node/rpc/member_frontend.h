@@ -731,6 +731,7 @@ namespace ccf
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<SetJwtIssuer>();
            auto issuers = tx.get_view(this->network.jwt_issuers);
+           auto ca_certs = tx.get_read_only_view(this->network.ca_certs);
 
            if (parsed.auto_refresh)
            {
@@ -741,10 +742,36 @@ namespace ccf
                 proposal_id);
                return false;
              }
-             if (!nonstd::starts_with(parsed.issuer, "https://"))
+             if (!ca_certs->has(parsed.ca_cert_name.value()))
              {
                LOG_FAIL_FMT(
-                "Proposal {}: issuer must be a valid URL starting with https:// if auto_refresh is true",
+                "Proposal {}: No CA cert found with name '{}'",
+                proposal_id,
+                parsed.ca_cert_name.value());
+               return false;
+             }
+             http::URL issuer_url;
+             try {
+               issuer_url = http::parse_url_full(parsed.issuer);
+             }
+             catch (const std::runtime_error&)
+             {
+               LOG_FAIL_FMT(
+                "Proposal {}: issuer must be a URL if auto_refresh is true",
+                proposal_id);
+               return false;
+             }
+             if (issuer_url.schema != "https")
+             {
+               LOG_FAIL_FMT(
+                "Proposal {}: issuer must be a URL starting with https:// if auto_refresh is true",
+                proposal_id);
+               return false;
+             }
+             if (!issuer_url.query.empty() || !issuer_url.fragment.empty())
+             {
+               LOG_FAIL_FMT(
+                "Proposal {}: issuer must be a URL without query/fragment if auto_refresh is true",
                 proposal_id);
                return false;
              }

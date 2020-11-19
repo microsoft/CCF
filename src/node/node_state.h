@@ -623,18 +623,15 @@ namespace ccf
         auto ca = std::make_shared<tls::CA>(ca_cert_der.value());
         auto ca_cert = std::make_shared<tls::Cert>(ca);
         
-        auto metadata_url = issuer + "/.well-known/openid-configuration";
-
-        auto url_protocol_length = 8; // https://
-        auto metadata_url_path_start = issuer.find('/', url_protocol_length);
-        auto metadata_url_host = issuer.substr(url_protocol_length, metadata_url_path_start - url_protocol_length);
-        auto metadata_url_path = issuer.substr(metadata_url_path_start);
+        auto metadata_url_str = issuer + "/.well-known/openid-configuration";
+        auto metadata_url = http::parse_url_full(metadata_url_str);
+        auto metadata_url_port = !metadata_url.port.empty() ? metadata_url.port : "443";
         
         auto http_client = rpcsessions->create_client(ca_cert);
         http_client->connect(
-          metadata_url_host,
-          "443",
-          [this,&issuer,&ca_cert,&url_protocol_length](
+          std::string(metadata_url.host),
+          std::string(metadata_url_port),
+          [this,&issuer,&ca_cert](
             http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
             std::lock_guard<SpinLock> guard(lock);
             
@@ -651,16 +648,15 @@ namespace ccf
             }
 
             auto metadata = nlohmann::json::parse(data);
-            auto jwks_url = metadata.at("jwks_uri").get<std::string>();
+            auto jwks_url_str = metadata.at("jwks_uri").get<std::string>();
 
-            auto jwks_url_path_start = jwks_url.find('/', url_protocol_length);
-            auto jwks_url_host = jwks_url.substr(url_protocol_length, jwks_url_path_start - url_protocol_length);
-            auto jwks_url_path = jwks_url.substr(jwks_url_path_start);
+            auto jwks_url = http::parse_url_full(jwks_url_str);
+            auto jwks_url_port = !jwks_url.port.empty() ? jwks_url.port : "443";
 
             auto http_client = rpcsessions->create_client(ca_cert);
             http_client->connect(
-              jwks_url_host,
-              "443",
+              std::string(jwks_url.host),
+              std::string(jwks_url_port),
               [this,&issuer](
                 http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
                 std::lock_guard<SpinLock> guard(lock);
@@ -715,22 +711,26 @@ namespace ccf
             });
             
             LOG_DEBUG_FMT(
-              "Requesting JWKS document at {}",
-              jwks_url);
+              "Requesting JWKS document at https://{}:{}{}",
+              jwks_url.host,
+              jwks_url_port,
+              jwks_url.path);
             
-            http::Request r(jwks_url_path, HTTP_GET);
-            r.set_header(http::headers::HOST, jwks_url_host);
+            http::Request r(jwks_url.path, HTTP_GET);
+            r.set_header(http::headers::HOST, std::string(jwks_url.host));
             http_client->send_request(r.build_request());
 
             return true;
           });
 
         LOG_DEBUG_FMT(
-          "Requesting OpenID metadata document at {}",
-          metadata_url);
+          "Requesting OpenID metadata document at https://{}:{}{}",
+          metadata_url.host,
+          metadata_url_port,
+          metadata_url.path);
 
-        http::Request r(metadata_url_path, HTTP_GET);
-        r.set_header(http::headers::HOST, metadata_url_host);
+        http::Request r(metadata_url.path, HTTP_GET);
+        r.set_header(http::headers::HOST, std::string(metadata_url.host));
         http_client->send_request(r.build_request());
         return true;
       });
