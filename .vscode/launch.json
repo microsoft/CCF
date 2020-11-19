@@ -46,8 +46,34 @@
       "request": "launch",
       "program": "${workspaceFolder}/build/cchost.virtual",
       "args": [
-        "--enclave-file", "./liblogging.virtual.so", "--enclave-type", "virtual", "--consensus", "cft", "--node-address", "127.0.0.1:8001", "--rpc-address", "127.0.0.1:8002",+
+        "--enclave-file", "./liblogging.virtual.so", "--enclave-type", "virtual", "--consensus", "cft", "--node-address", "127.0.0.1:8001", "--rpc-address", "127.0.0.1:8002",
         "http-test", "--http-address", "login.microsoftonline.com:443", "--http-path", "/common/v2.0/.well-known/openid-configuration"],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}/build",
+      "additionalSOLibSearchPath": "${workspaceFolder}/build",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Ignore SIGILL",
+          "text": "handle SIGILL nostop",
+          "ignoreFailures": false
+        },
+        {
+          "description": "Enable pretty-printing",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    }, {
+      "name": "Test http (2)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/cchost.virtual",
+      "args": [
+        "--enclave-file", "./liblogging.virtual.so", "--enclave-type", "virtual", "--consensus", "cft", "--node-address", "127.0.0.1:8001", "--rpc-address", "127.0.0.1:8002",
+        "http-test", "--http-address", "localhost:8860", "--http-path", "/.well-known/openid-configuration", "--ca-cert-file", "./server_test_cert.pem"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}/build",
       "additionalSOLibSearchPath": "${workspaceFolder}/build",
