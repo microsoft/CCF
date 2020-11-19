@@ -64,13 +64,13 @@ benchmark_specs = {
     "digest_bench.csv": [
         {
             "_name": "evercrypt sha256 (/s)^",
-            "Suite": "evercrypt_sha256",
+            "Suite": "evercrypt_digest_sha256",
             "Benchmark": "SHA-256",
             "D": "524288",
         },
         {
             "_name": "mbedtls sha256 (/s)^",
-            "Suite": "mbedtls_sha256",
+            "Suite": "mbedtls_digest_sha256",
             "Benchmark": "SHA-256",
             "D": "524288",
         },
