@@ -61,6 +61,20 @@ benchmark_specs = {
             "D": "1",
         },
     ],
+    "digest_bench.csv": [
+        {
+            "_name": "evercrypt sha256 (/s)^",
+            "Suite": "evercrypt_sha256",
+            "Benchmark": "SHA-256",
+            "D": "524288",
+        },
+        {
+            "_name": "mbedtls sha256 (/s)^",
+            "Suite": "mbedtls_sha256",
+            "Benchmark": "SHA-256",
+            "D": "524288",
+        },
+    ],
 }
 
 if __name__ == "__main__":
