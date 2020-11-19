@@ -57,7 +57,7 @@ namespace asynchost
       if (fs::exists(full_snapshot_path))
       {
         throw std::logic_error(fmt::format(
-          "Error: Cannot write snapshot at {} since file already exists: {}",
+          "Cannot write snapshot at {} since file already exists: {}",
           idx,
           full_snapshot_path));
       }
