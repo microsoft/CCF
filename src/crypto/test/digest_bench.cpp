@@ -24,7 +24,7 @@ static void sha256_bench(picobench::state& s)
   crypto::Sha256Hash h;
 
   s.start_timer();
-  for (size_t i = 0; i < 1000; ++i)
+  for (size_t i = 0; i < 10; ++i)
   {
     if constexpr (IMPL == HashImpl::mbedtls)
     {
