@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [0.15.2]
 
+## Changed
+
+- Members can no longer vote multiple times on governance proposals (#1743).
+
 ## Deprecated
 
 - `set_js_app` proposal and `--js-app-script` argument are deprecated, and should be replaced by `deploy_js_app` and `--js-app-bundle`. See #1895 for an example of converting from the old style (JS embedded in a Lua script) to the new style (app bundle described by `app.json`).
@@ -546,6 +550,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.15.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.15.2
 [0.15.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.15.1
 [0.15.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.15.0
 [0.14.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.14.3
