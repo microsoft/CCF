@@ -648,11 +648,10 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME lua_e2e_batched
+    NAME js_batched_stress_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --app-script
-                    ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua
+    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/src/apps/batched
   )
 
   add_e2e_test(

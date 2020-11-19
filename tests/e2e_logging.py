@@ -619,8 +619,6 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     if args.js_app_script:
         args.package = "libjs_generic"
-    elif args.app_script:
-        args.package = "liblua_generic"
     else:
         args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
