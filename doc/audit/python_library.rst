@@ -1,5 +1,5 @@
-Parsing the Ledger with Python
-==============================
+Python Library
+==============
 
 This page describes the Python API of the :py:class:`ccf.ledger` module which can be used by auditors to parse a CCF ledger. To install the `ccf` Python package, run:
 
