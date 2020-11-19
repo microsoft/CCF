@@ -13,6 +13,7 @@ import infra.consortium
 from ccf.tx_status import TxStatus
 import random
 from math import ceil
+import http
 
 from loguru import logger as LOG
 
@@ -450,6 +451,7 @@ class Network:
             self.wait_for_state(
                 node, "partOfNetwork", timeout=args.ledger_recovery_timeout
             )
+            self._wait_for_app_open(node)
 
         self.consortium.check_for_service(primary, ServiceStatus.OPEN)
         LOG.success("***** Recovered network is now open *****")
@@ -602,6 +604,18 @@ class Network:
             )
         if state == "partOfNetwork":
             self.status = ServiceStatus.OPEN
+
+    def _wait_for_app_open(self, node, timeout=3):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            # As an operator, query a well-known /app endpoint to find out
+            # if the app has been opened to users
+            with node.client() as c:
+                r = c.get("/app/commit")
+                if not (r.status_code == http.HTTPStatus.NOT_FOUND.value):
+                    return
+                time.sleep(0.1)
+        raise TimeoutError(f"Application frontend was not open after {timeout}s")
 
     def _get_node_by_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
