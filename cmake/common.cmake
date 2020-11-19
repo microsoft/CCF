@@ -341,12 +341,6 @@ set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
                           ${WORKER_THREADS}
 )
 
-add_ccf_app(lua_generic SRCS ${CCF_DIR}/src/apps/lua_generic/lua_generic.cpp)
-sign_app_library(
-  lua_generic.enclave ${CCF_DIR}/src/apps/lua_generic/oe_sign.conf
-  ${CCF_DIR}/src/apps/sample_key.pem
-)
-
 # SNIPPET_START: JS generic application
 add_ccf_app(
   js_generic

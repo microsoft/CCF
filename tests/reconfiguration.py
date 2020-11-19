@@ -100,8 +100,11 @@ def test_add_node_untrusted_code(network, args):
         LOG.info("Adding an invalid node (unknown code id)")
         code_not_found_exception = None
         try:
+            lib_name = (
+                "liblogging" if args.package == "libjs_generic" else "libjs_generic"
+            )
             network.create_and_add_pending_node(
-                "liblua_generic", "local://localhost", args, timeout=3
+                lib_name, "local://localhost", args, timeout=3
             )
         except infra.network.CodeIdNotFound as err:
             code_not_found_exception = err

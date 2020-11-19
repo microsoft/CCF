@@ -437,16 +437,6 @@ if(BUILD_TESTS)
     endif()
 
     add_unit_test(
-      lua_generic_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/lua_generic/test/lua_generic_test.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/lua_generic/lua_generic.cpp
-    )
-    target_include_directories(lua_generic_test PRIVATE ${LUA_DIR})
-    target_link_libraries(
-      lua_generic_test PRIVATE lua.host secp256k1.host http_parser.host
-    )
-
-    add_unit_test(
       lua_test ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_kv.cpp
     )
