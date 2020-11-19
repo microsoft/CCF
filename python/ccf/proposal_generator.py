@@ -18,8 +18,6 @@ import cryptography.hazmat.backends as crypto_backends
 from loguru import logger as LOG  # type: ignore
 
 
-CERT_OID_SGX_QUOTE = "1.2.840.113556.10.1.1"
-
 
 def dump_to_file(output_path: str, obj: dict, dump_args: dict):
     with open(output_path, "w") as f:
@@ -432,19 +430,11 @@ def update_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
 
     if not skip_checks:
         try:
-            cert = x509.load_pem_x509_certificate(
+            x509.load_pem_x509_certificate(
                 cert_pem.encode(), crypto_backends.default_backend()
             )
         except Exception as exc:
             raise ValueError("Cannot parse PEM certificate") from exc
-
-        try:
-            oid = x509.ObjectIdentifier(CERT_OID_SGX_QUOTE)
-            _ = cert.extensions.get_extension_for_oid(oid)
-        except x509.ExtensionNotFound as exc:
-            raise ValueError(
-                "X.509 extension with SGX quote not found in certificate"
-            ) from exc
 
     args = {"name": cert_name, "cert": cert_pem}
     return build_proposal("update_ca_cert", args, **kwargs)

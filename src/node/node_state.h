@@ -289,6 +289,7 @@ namespace ccf
           }
 
           accept_network_tls_connections(args.config);
+          auto_refresh_jwt_keys(args.config);
 
           reset_data(quote);
           sm.advance(State::partOfNetwork);
@@ -300,6 +301,7 @@ namespace ccf
           // TLS connections are not endorsed by the network until the node
           // has joined
           accept_node_tls_connections();
+          auto_refresh_jwt_keys(args.config);
 
           sm.advance(State::pending);
 
@@ -355,6 +357,7 @@ namespace ccf
           }
 
           accept_network_tls_connections(args.config);
+          auto_refresh_jwt_keys(args.config);
 
           sm.advance(State::readingPublicLedger);
 
@@ -598,6 +601,7 @@ namespace ccf
 
     void refresh_jwt_keys()
     {
+      LOG_DEBUG_FMT("Starting JWT key auto-refresh");
       auto tx = network.tables->create_read_only_tx();
       auto jwt_issuers_view = tx.get_read_only_view(network.jwt_issuers);
       auto ca_certs_view = tx.get_read_only_view(network.ca_certs);
@@ -610,6 +614,7 @@ namespace ccf
             issuer);
           return true;
         }
+        LOG_DEBUG_FMT("Refreshing JWT keys for issuer '{}'", issuer);
         auto& ca_cert_name = metadata.ca_cert_name.value();
         auto ca_cert_der = ca_certs_view->get(ca_cert_name);
         if (!ca_cert_der.has_value())
@@ -647,8 +652,16 @@ namespace ccf
               return false;
             }
 
+            LOG_DEBUG_FMT(
+              "Received OpenID metadata document for JWT issuer '{}'",
+              issuer);
+
             auto metadata = nlohmann::json::parse(data);
             auto jwks_url_str = metadata.at("jwks_uri").get<std::string>();
+
+            LOG_DEBUG_FMT(
+              "Extracted 'jwks_uri' from OpenID metadata document for JWT issuer '{}': {}",
+              issuer, jwks_url_str);
 
             auto jwks_url = http::parse_url_full(jwks_url_str);
             auto jwks_url_port = !jwks_url.port.empty() ? jwks_url.port : "443";
@@ -736,38 +749,55 @@ namespace ccf
       });
     }
 
-    void auto_refresh_jwt_keys(CCFConfig& config)
+    void auto_refresh_jwt_keys(const CCFConfig& config)
     {
-      std::lock_guard<SpinLock> guard(lock);
-      
+      auto jwt_key_refresh_interval = config.jwt_key_refresh_interval;
+
       struct RefreshTimeMsg
       {
-        RefreshTimeMsg(NodeState& self_, CCFConfig& config_) :
+        RefreshTimeMsg(NodeState& self_, size_t jwt_key_refresh_interval) :
           self(self_),
-          config(config_)
+          jwt_key_refresh_interval(jwt_key_refresh_interval)
         {}
 
         NodeState& self;
-        CCFConfig& config;
+        size_t jwt_key_refresh_interval;
       };
 
       auto refresh_msg = std::make_unique<threading::Tmsg<RefreshTimeMsg>>(
         [](std::unique_ptr<threading::Tmsg<RefreshTimeMsg>> msg) {
+          if (!msg->data.self.consensus->is_primary())
+          {
+             LOG_DEBUG_FMT(
+              "Node is not primary, skipping JWT key auto-refresh");
+          }
+          else
+          {
+            try
+            {
+              msg->data.self.refresh_jwt_keys();
+            }
+            catch (std::exception& e)
+            {
+             LOG_FATAL_FMT(
+              "Unexpected error happened during JWT key auto-refresh: {}", e.what());
+            }
+          }
+          LOG_DEBUG_FMT(
+              "Scheduling JWT key auto-refresh in {}s", msg->data.jwt_key_refresh_interval);
           auto delay =
-            std::chrono::seconds(msg->data.config.jwt_key_refresh_interval);
+            std::chrono::seconds(msg->data.jwt_key_refresh_interval);
           threading::ThreadMessaging::thread_messaging.add_task_after(
             std::move(msg), delay);
-          if (msg->data.self.consensus->is_primary())
-          {
-            msg->data.self.refresh_jwt_keys();
-          }
         },
         *this,
-        config);
+        jwt_key_refresh_interval);
 
+      LOG_DEBUG_FMT(
+              "Scheduling JWT key auto-refresh in {}s", jwt_key_refresh_interval);
       threading::ThreadMessaging::thread_messaging.add_task_after(
         std::move(refresh_msg),
-        std::chrono::seconds(config.jwt_key_refresh_interval));
+        std::chrono::seconds(jwt_key_refresh_interval));
     }
 
     //

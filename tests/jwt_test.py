@@ -272,6 +272,7 @@ class OpenIDProviderServer(AbstractContextManager):
                 if body is None:
                     self.send_error(HTTPStatus.NOT_FOUND)
                     return
+                LOG.debug("OpenID provider server: {}", self.path)
                 self.send_response(HTTPStatus.OK)
                 self.end_headers()
                 self.wfile.write(json.dumps(body).encode())
@@ -296,7 +297,7 @@ class OpenIDProviderServer(AbstractContextManager):
             self.thread = threading.Thread(None, self.httpd.serve_forever)
             self.thread.start()
 
-    def __exit__(self):
+    def __exit__(self, exc_type, exc_value, traceback):
         self.httpd.shutdown()
         self.httpd.server_close()
         self.thread.join()
@@ -308,35 +309,32 @@ def test_jwt_key_auto_refresh(network, args):
 
     key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
     cert_pem = infra.crypto.generate_cert(key_priv_pem)
+    ca_cert_name = "jwt"
     kid = "my_kid"
     issuer_host = "localhost"
-    issuer_port = 8888
+    issuer_port = 12345
     issuer = f"https://{issuer_host}:{issuer_port}"
 
     LOG.info("Add CA cert for JWT issuer")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_fp:
-        ca_cert_fp.write(key_pub_pem)
+        ca_cert_fp.write(cert_pem)
         ca_cert_fp.flush()
-        proposal_body, _ = ccf.proposal_generator.update_ca_cert("jwt", ca_cert_fp.name)
-        proposal = network.consortium.get_any_active_member().propose(
-            primary, proposal_body
-        )
-        assert proposal.state == ProposalState.Accepted
+        network.consortium.update_ca_cert(primary, ca_cert_name, ca_cert_fp.name)
 
     LOG.info("Add JWT issuer with auto-refresh")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
         json.dump(
-            {"issuer": issuer, "auto_refresh": True, "ca_cert_name": "jwt"}, metadata_fp
+            {"issuer": issuer, "auto_refresh": True, "ca_cert_name": ca_cert_name}, metadata_fp
         )
         metadata_fp.flush()
         network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
     LOG.info("Start local OpenID endpoint server")
     jwks = create_jwks(kid, cert_pem)
-    with OpenIDProviderServer(issuer_port, key_pub_pem, cert_pem, jwks):
+    with OpenIDProviderServer(issuer_port, key_priv_pem, cert_pem, jwks):
         LOG.info("Wait for key refresh to happen")
         # Note: refresh interval is set to 1s, see network args below.
-        time.sleep(2)
+        time.sleep(5)
 
         LOG.info("Check that keys got refreshed")
         with primary.client(
@@ -362,9 +360,9 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        network = test_jwt_without_key_policy(network, args)
-        network = test_jwt_with_sgx_key_policy(network, args)
-        network = test_jwt_with_sgx_key_filter(network, args)
+        #network = test_jwt_without_key_policy(network, args)
+        #network = test_jwt_with_sgx_key_policy(network, args)
+        #network = test_jwt_with_sgx_key_filter(network, args)
         network = test_jwt_key_auto_refresh(network, args)
 
 
