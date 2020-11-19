@@ -136,4 +136,4 @@ if __name__ == "__main__":
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
 
     run(args)
-    #run_to_destruction(args)
+    run_to_destruction(args)
