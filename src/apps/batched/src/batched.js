@@ -13,7 +13,7 @@ export function submit_batch(request) {
   }
 
   return {
-    body: count
+    body: count,
   };
 }
 
@@ -27,6 +27,6 @@ export function fetch_batch(request) {
     results.push({ id: id, msg: msg });
   }
   return {
-    body: results
+    body: results,
   };
 }
