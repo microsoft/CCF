@@ -105,12 +105,14 @@ namespace kv::untyped
     using StateSnapshot = kv::Snapshot<K, V, H>;
 
     using CommitHook = CommitHook<Write>;
+    using MapHook = MapHook<Write>;
 
   private:
     AbstractStore* store;
     Roll roll;
     CommitHook local_hook = nullptr;
     CommitHook global_hook = nullptr;
+    MapHook hook = nullptr;
     std::list<std::pair<Version, Write>> commit_deltas;
     SpinLock sl;
     const SecurityDomain security_domain;
@@ -535,6 +537,11 @@ namespace kv::untyped
     AbstractStore* get_store() override
     {
       return store;
+    }
+
+    void set_map_hook(const MapHook& hook_)
+    {
+      hook = hook_;
     }
 
     /** Set handler to be called on local transaction commit

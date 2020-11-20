@@ -23,6 +23,7 @@ namespace kv
     using Write = std::map<K, std::optional<V>>;
 
     using CommitHook = CommitHook<Write>;
+    using MapHook = MapHook<Write>;
 
     using ReadOnlyTxView = kv::ReadOnlyTxView<K, V, KSerialiser, VSerialiser>;
     using TxView = kv::TxView<K, V, KSerialiser, VSerialiser>;
@@ -52,6 +53,29 @@ namespace kv
         }
 
         hook(v, typed_writes);
+      };
+    }
+
+    static kv::untyped::Map::MapHook wrap_map_hook(const MapHook& hook)
+    {
+      return [hook](Version v, const kv::untyped::Write& w) {
+        Write typed_writes;
+        for (const auto& [uk, opt_uv] : w)
+        {
+          if (!opt_uv.has_value())
+          {
+            // Deletions are indicated by nullopt. We cannot deserialise them,
+            // they are deletions here as well
+            typed_writes[KSerialiser::from_serialised(uk)] = std::nullopt;
+          }
+          else
+          {
+            typed_writes[KSerialiser::from_serialised(uk)] =
+              VSerialiser::from_serialised(opt_uv.value());
+          }
+        }
+
+        return hook(v, typed_writes);
       };
     }
   };

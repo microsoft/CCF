@@ -84,4 +84,14 @@ namespace kv
   /// Signature for transaction commit handlers
   template <typename W>
   using CommitHook = std::function<void(Version, const W&)>;
+
+  class ConsensusHook
+  {
+  public:
+    virtual void operator()(const kv::Consensus&) = 0;
+    virtual ~ConsensusHook() {};
+  };
+
+  template <typename W>
+  using MapHook = std::function<std::unique_ptr<ConsensusHook>(Version, const W&)>;
 }

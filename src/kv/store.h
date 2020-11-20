@@ -28,8 +28,10 @@ namespace kv
     Maps maps;
 
     using Hooks = std::map<std::string, kv::untyped::Map::CommitHook>;
+    using MapHooks = std::map<std::string, kv::untyped::Map::MapHook>;
     Hooks local_hooks;
     Hooks global_hooks;
+    MapHooks map_hooks;
 
     std::shared_ptr<Consensus> consensus = nullptr;
     std::shared_ptr<TxHistory> history = nullptr;
@@ -1157,6 +1159,17 @@ namespace kv
       {
         lhs->unlock();
         rhs->unlock();
+      }
+    }
+
+    void set_map_hook(const std::string& map_name, const kv::untyped::Map::MapHook& hook)
+    {
+      map_hooks[map_name] = hook;
+
+      const auto it = maps.find(map_name);
+      if (it != maps.end())
+      {
+        it->second.second->set_map_hook(hook);
       }
     }
 

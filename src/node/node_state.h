@@ -23,6 +23,7 @@
 #include "snapshotter.h"
 #include "tls/client.h"
 #include "tls/entropy.h"
+#include "hooks.h"
 
 #ifdef USE_NULL_ENCRYPTOR
 #  include "kv/test/null_encryptor.h"
@@ -1663,6 +1664,16 @@ namespace ccf
 
       network.tables->set_consensus(consensus);
       cmd_forwarder->set_request_tracker(request_tracker);
+
+      network.tables->set_map_hook(
+        network.nodes.get_name(),
+        network.nodes.wrap_map_hook(
+          [](kv::Version version, const Nodes::Write& w) -> std::unique_ptr<kv::ConsensusHook> {
+            (void) version;
+            (void) w;
+            return std::make_unique<ConfigurationChangeHook>();
+          }
+        ));
 
       // When a node is added, even locally, inform raft so that it
       // can add a new active configuration.
