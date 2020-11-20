@@ -410,7 +410,9 @@ namespace ccf
       auto key_issuer =
         tx.get_view(this->network.jwt_public_signing_key_issuer);
 
-      auto log_prefix = proposal_id != INVALID_ID ? fmt::format("Proposal {}", proposal_id) : "JWT key auto-refresh";
+      auto log_prefix = proposal_id != INVALID_ID ?
+        fmt::format("Proposal {}", proposal_id) :
+        "JWT key auto-refresh";
 
       // add keys
       if (jwks.keys.empty())
@@ -441,9 +443,13 @@ namespace ccf
         {
           der = tls::raw_from_b64(der_base64);
         }
-        catch(const std::invalid_argument& e)
+        catch (const std::invalid_argument& e)
         {
-          LOG_FAIL_FMT("{}: Could not parse x5c of key id {}: {}", log_prefix, jwk.kid, e.what());
+          LOG_FAIL_FMT(
+            "{}: Could not parse x5c of key id {}: {}",
+            log_prefix,
+            jwk.kid,
+            e.what());
           return false;
         }
 
@@ -521,15 +527,12 @@ namespace ccf
           }
         }
         LOG_INFO_FMT(
-          "{}: Storing JWT signing key with kid {}",
-          log_prefix,
-          jwk.kid);
+          "{}: Storing JWT signing key with kid {}", log_prefix, jwk.kid);
         new_keys.emplace(jwk.kid, der);
       }
       if (new_keys.empty())
       {
-        LOG_FAIL_FMT(
-          "{}: no keys left after applying filter", log_prefix);
+        LOG_FAIL_FMT("{}: no keys left after applying filter", log_prefix);
         return false;
       }
 
@@ -748,41 +751,45 @@ namespace ccf
              if (!parsed.ca_cert_name.has_value())
              {
                LOG_FAIL_FMT(
-                "Proposal {}: ca_cert_name is missing but required if auto_refresh is true",
-                proposal_id);
+                 "Proposal {}: ca_cert_name is missing but required if "
+                 "auto_refresh is true",
+                 proposal_id);
                return false;
              }
              if (!ca_certs->has(parsed.ca_cert_name.value()))
              {
                LOG_FAIL_FMT(
-                "Proposal {}: No CA cert found with name '{}'",
-                proposal_id,
-                parsed.ca_cert_name.value());
+                 "Proposal {}: No CA cert found with name '{}'",
+                 proposal_id,
+                 parsed.ca_cert_name.value());
                return false;
              }
              http::URL issuer_url;
-             try {
+             try
+             {
                issuer_url = http::parse_url_full(parsed.issuer);
              }
              catch (const std::runtime_error&)
              {
                LOG_FAIL_FMT(
-                "Proposal {}: issuer must be a URL if auto_refresh is true",
-                proposal_id);
+                 "Proposal {}: issuer must be a URL if auto_refresh is true",
+                 proposal_id);
                return false;
              }
              if (issuer_url.schema != "https")
              {
                LOG_FAIL_FMT(
-                "Proposal {}: issuer must be a URL starting with https:// if auto_refresh is true",
-                proposal_id);
+                 "Proposal {}: issuer must be a URL starting with https:// if "
+                 "auto_refresh is true",
+                 proposal_id);
                return false;
              }
              if (!issuer_url.query.empty() || !issuer_url.fragment.empty())
              {
                LOG_FAIL_FMT(
-                "Proposal {}: issuer must be a URL without query/fragment if auto_refresh is true",
-                proposal_id);
+                 "Proposal {}: issuer must be a URL without query/fragment if "
+                 "auto_refresh is true",
+                 proposal_id);
                return false;
              }
            }
@@ -1855,44 +1862,51 @@ namespace ccf
       make_endpoint("create", HTTP_POST, json_adapter(create))
         .set_require_client_identity(false)
         .install();
-      
+
       // Only called from node. See node_state.h.
-      auto refresh_jwt_keys =
-        [this](EndpointContext& args, nlohmann::json&& body) {
-          // All errors are server errors since the client is the server.
+      auto refresh_jwt_keys = [this](
+                                EndpointContext& args, nlohmann::json&& body) {
+        // All errors are server errors since the client is the server.
 
-          SetJwtPublicSigningKeys parsed;
-          try
-          {
-            parsed = body.get<SetJwtPublicSigningKeys>();
-          }
-          catch (JsonParseError& e)
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              "unable to parse body");
-          }
+        SetJwtPublicSigningKeys parsed;
+        try
+        {
+          parsed = body.get<SetJwtPublicSigningKeys>();
+        }
+        catch (JsonParseError& e)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "unable to parse body");
+        }
 
-          auto issuers = args.tx.get_view(this->network.jwt_issuers);
-          auto issuer_metadata_ = issuers->get(parsed.issuer);
-          if (!issuer_metadata_.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              fmt::format("{} is not a valid issuer", parsed.issuer));
-          }
-          auto& issuer_metadata = issuer_metadata_.value();
+        auto issuers = args.tx.get_view(this->network.jwt_issuers);
+        auto issuer_metadata_ = issuers->get(parsed.issuer);
+        if (!issuer_metadata_.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            fmt::format("{} is not a valid issuer", parsed.issuer));
+        }
+        auto& issuer_metadata = issuer_metadata_.value();
 
-          if (!set_jwt_public_signing_keys(
-            args.tx, INVALID_ID, parsed.issuer, issuer_metadata, parsed.jwks))
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              fmt::format("error while storing signing keys for issuer {}", parsed.issuer));
-          }
+        if (!issuer_metadata.auto_refresh)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            fmt::format("{} does not have auto_refresh enabled", parsed.issuer));
+        }
 
-          return make_success(true);
-        };
+        if (!set_jwt_public_signing_keys(
+              args.tx, INVALID_ID, parsed.issuer, issuer_metadata, parsed.jwks))
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            fmt::format(
+              "error while storing signing keys for issuer {}", parsed.issuer));
+        }
+
+        return make_success(true);
+      };
       make_endpoint(
         "jwt_keys/refresh", HTTP_POST, json_adapter(refresh_jwt_keys))
         .set_require_client_identity(false)

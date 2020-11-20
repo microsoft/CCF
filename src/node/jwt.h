@@ -49,7 +49,8 @@ namespace ccf
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JwtIssuerMetadata);
   DECLARE_JSON_REQUIRED_FIELDS(JwtIssuerMetadata, key_filter);
-  DECLARE_JSON_OPTIONAL_FIELDS(JwtIssuerMetadata, key_policy, ca_cert_name, auto_refresh);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    JwtIssuerMetadata, key_policy, ca_cert_name, auto_refresh);
 
   using JwtIssuer = std::string;
   using JwtKeyId = std::string;

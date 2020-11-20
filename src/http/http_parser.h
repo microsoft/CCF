@@ -188,14 +188,12 @@ namespace http
       throw std::invalid_argument(fmt::format("Error parsing url: {}", err));
     }
 
-    return {
-      extract_url_field(parser_url, UF_SCHEMA, url),
-      extract_url_field(parser_url, UF_HOST, url),
-      extract_url_field(parser_url, UF_PORT, url),
-      extract_url_field(parser_url, UF_PATH, url),
-      extract_url_field(parser_url, UF_QUERY, url),
-      extract_url_field(parser_url, UF_FRAGMENT, url)
-    };
+    return {extract_url_field(parser_url, UF_SCHEMA, url),
+            extract_url_field(parser_url, UF_HOST, url),
+            extract_url_field(parser_url, UF_PORT, url),
+            extract_url_field(parser_url, UF_PATH, url),
+            extract_url_field(parser_url, UF_QUERY, url),
+            extract_url_field(parser_url, UF_FRAGMENT, url)};
   }
 
   class Parser
