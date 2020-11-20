@@ -1859,8 +1859,6 @@ namespace ccf
       // Only called from node. See node_state.h.
       auto refresh_jwt_keys =
         [this](EndpointContext& args, nlohmann::json&& body) {
-          // TODO check request is coming from own node
-          
           // All errors are server errors since the client is the server.
 
           SetJwtPublicSigningKeys parsed;

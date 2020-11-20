@@ -609,8 +609,8 @@ namespace ccf
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       request.set_body(&body);
-      // TODO cannot sign as frontend would deny access
-      //      -> add special skip_verification flag (like is_create_request)?
+      // TODO need custom authentication policy that accepts only node certs
+      // see https://github.com/microsoft/CCF/issues/1904
       //http::sign_request(request, node_sign_kp);
       auto packed = request.build_request();
       
@@ -643,6 +643,120 @@ namespace ccf
       send_refresh_jwt_keys(msg);
     }
 
+    void handle_jwt_jwks_response(
+      const std::string& issuer,
+      http_status status, std::vector<uint8_t>&& data)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+          
+      if (status != HTTP_STATUS_OK)
+      {
+        LOG_FAIL_FMT(
+          "JWT key auto-refresh: Error while requesting JWKS: {} {}{}",
+          status,
+          http_status_str(status),
+          data.empty() ?
+            "" :
+            fmt::format("  '{}'", std::string(data.begin(), data.end())));
+        send_refresh_jwt_keys_error();
+        return;
+      }
+
+      LOG_DEBUG_FMT(
+        "JWT key auto-refresh: Received JWKS for issuer '{}'",
+        issuer);
+
+      JsonWebKeySet jwks;
+      try
+      {
+        jwks = nlohmann::json::parse(data).get<JsonWebKeySet>();
+      }
+      catch (std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "JWT key auto-refresh: Cannot parse JWKS for issuer '{}': {}",
+          issuer, e.what());
+        send_refresh_jwt_keys_error();
+        return;
+      }
+
+      // call internal endpoint to update keys
+      auto msg = SetJwtPublicSigningKeys{ issuer, jwks };
+      send_refresh_jwt_keys(msg);
+    }
+
+    void handle_jwt_metadata_response(
+      const std::string& issuer, std::shared_ptr<tls::Cert> ca_cert,
+      http_status status, std::vector<uint8_t>&& data)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      
+      if (status != HTTP_STATUS_OK)
+      {
+        LOG_FAIL_FMT(
+          "JWT key auto-refresh: Error while requesting OpenID metadata: {} {}{}",
+          status,
+          http_status_str(status),
+          data.empty() ?
+            "" :
+            fmt::format("  '{}'", std::string(data.begin(), data.end())));
+        send_refresh_jwt_keys_error();
+        return;
+      }
+
+      LOG_DEBUG_FMT(
+        "JWT key auto-refresh: Received OpenID metadata for issuer '{}'",
+        issuer);
+
+      std::string jwks_url_str;
+      try
+      {
+        auto metadata = nlohmann::json::parse(data);
+        jwks_url_str = metadata.at("jwks_uri").get<std::string>();
+      }
+      catch (std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "JWT key auto-refresh: Cannot parse OpenID metadata for issuer '{}': {}",
+          issuer, e.what());
+        send_refresh_jwt_keys_error();
+        return;
+      }
+      http::URL jwks_url;
+      try
+      {
+        jwks_url = http::parse_url_full(jwks_url_str);
+      }
+      catch (std::invalid_argument& e)
+      {
+        LOG_FAIL_FMT(
+          "JWT key auto-refresh: Cannot parse jwks_uri for issuer '{}': {}",
+          issuer, jwks_url_str);
+        send_refresh_jwt_keys_error();
+        return;
+      }
+      auto jwks_url_port = !jwks_url.port.empty() ? jwks_url.port : "443";
+
+      LOG_DEBUG_FMT(
+        "JWT key auto-refresh: Requesting JWKS at https://{}:{}{}",
+        jwks_url.host,
+        jwks_url_port,
+        jwks_url.path);
+      auto http_client = rpcsessions->create_client(ca_cert);
+      // Note: Connection errors are not signalled and hence not tracked in endpoint metrics currently.
+      http_client->connect(
+        std::string(jwks_url.host),
+        std::string(jwks_url_port),
+        [this,issuer](
+          http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
+          handle_jwt_jwks_response(issuer, status, std::move(data));
+          return true;
+      });      
+      http::Request r(jwks_url.path, HTTP_GET);
+      r.set_header(http::headers::HOST, std::string(jwks_url.host));
+      http_client->send_request(r.build_request());
+    }
+
     void refresh_jwt_keys()
     {
       auto tx = network.tables->create_read_only_tx();
@@ -653,7 +767,7 @@ namespace ccf
         if (!metadata.auto_refresh)
         {
           LOG_DEBUG_FMT(
-            "JWT key auto-refresh: Skipping issuer '{}'",
+            "JWT key auto-refresh: Skipping issuer '{}', auto-refresh is disabled",
             issuer);
           return true;
         }
@@ -676,125 +790,21 @@ namespace ccf
         auto metadata_url = http::parse_url_full(metadata_url_str);
         auto metadata_url_port = !metadata_url.port.empty() ? metadata_url.port : "443";
         
-        auto http_client = rpcsessions->create_client(ca_cert);
-        // Connection errors are not signalled and hence not tracked in endpoint metrics currently.
-        http_client->connect(
-          std::string(metadata_url.host),
-          std::string(metadata_url_port),
-          [this,issuer,ca_cert](
-            http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
-            std::lock_guard<SpinLock> guard(lock);
-            
-            if (status != HTTP_STATUS_OK)
-            {
-              LOG_FAIL_FMT(
-                "JWT key auto-refresh: Error while requesting OpenID metadata: {} {}{}",
-                status,
-                http_status_str(status),
-                data.empty() ?
-                  "" :
-                  fmt::format("  '{}'", std::string(data.begin(), data.end())));
-              send_refresh_jwt_keys_error();
-              return true;
-            }
-
-            LOG_DEBUG_FMT(
-              "JWT key auto-refresh: Received OpenID metadata for issuer '{}'",
-              issuer);
-
-            std::string jwks_url_str;
-            try
-            {
-              auto metadata = nlohmann::json::parse(data);
-              jwks_url_str = metadata.at("jwks_uri").get<std::string>();
-            }
-            catch (std::exception& e)
-            {
-              LOG_FAIL_FMT(
-                "JWT key auto-refresh: Cannot parse OpenID metadata for issuer '{}': {}",
-                issuer, e.what());
-              send_refresh_jwt_keys_error();
-              return true;
-            }
-            http::URL jwks_url;
-            try
-            {
-              jwks_url = http::parse_url_full(jwks_url_str);
-            }
-            catch (std::invalid_argument& e)
-            {
-              LOG_FAIL_FMT(
-                "JWT key auto-refresh: Cannot parse jwks_uri for issuer '{}': {}",
-                issuer, jwks_url_str);
-              send_refresh_jwt_keys_error();
-              return true;
-            }
-            auto jwks_url_port = !jwks_url.port.empty() ? jwks_url.port : "443";
-
-            auto http_client = rpcsessions->create_client(ca_cert);
-            http_client->connect(
-              std::string(jwks_url.host),
-              std::string(jwks_url_port),
-              [this,issuer](
-                http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
-                std::lock_guard<SpinLock> guard(lock);
-                
-                if (status != HTTP_STATUS_OK)
-                {
-                  LOG_FAIL_FMT(
-                    "JWT key auto-refresh: Error while requesting JWKS: {} {}{}",
-                    status,
-                    http_status_str(status),
-                    data.empty() ?
-                      "" :
-                      fmt::format("  '{}'", std::string(data.begin(), data.end())));
-                  send_refresh_jwt_keys_error();
-                  return true;
-                }
-
-                LOG_DEBUG_FMT(
-                  "JWT key auto-refresh: Received JWKS for issuer '{}'",
-                  issuer);
-
-                JsonWebKeySet jwks;
-                try
-                {
-                  jwks = nlohmann::json::parse(data).get<JsonWebKeySet>();
-                }
-                catch (std::exception& e)
-                {
-                  LOG_FAIL_FMT(
-                    "JWT key auto-refresh: Cannot parse JWKS for issuer '{}': {}",
-                    issuer, e.what());
-                  send_refresh_jwt_keys_error();
-                  return true;
-                }
-
-                // call internal endpoint to update keys
-                auto msg = SetJwtPublicSigningKeys{ issuer, jwks };
-                send_refresh_jwt_keys(msg);
-                return true;
-            });
-            
-            LOG_DEBUG_FMT(
-              "JWT key auto-refresh: Requesting JWKS at https://{}:{}{}",
-              jwks_url.host,
-              jwks_url_port,
-              jwks_url.path);
-            
-            http::Request r(jwks_url.path, HTTP_GET);
-            r.set_header(http::headers::HOST, std::string(jwks_url.host));
-            http_client->send_request(r.build_request());
-
-            return true;
-          });
-
         LOG_DEBUG_FMT(
           "JWT key auto-refresh: Requesting OpenID metadata at https://{}:{}{}",
           metadata_url.host,
           metadata_url_port,
           metadata_url.path);
-
+        auto http_client = rpcsessions->create_client(ca_cert);
+        // Note: Connection errors are not signalled and hence not tracked in endpoint metrics currently.
+        http_client->connect(
+          std::string(metadata_url.host),
+          std::string(metadata_url_port),
+          [this,issuer,ca_cert](
+            http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
+              handle_jwt_metadata_response(issuer, ca_cert, status, std::move(data));
+              return true;
+          });
         http::Request r(metadata_url.path, HTTP_GET);
         r.set_header(http::headers::HOST, std::string(metadata_url.host));
         http_client->send_request(r.build_request());
@@ -804,17 +814,17 @@ namespace ccf
 
     void auto_refresh_jwt_keys(const CCFConfig& config)
     {
-      auto jwt_key_refresh_interval = config.jwt_key_refresh_interval;
+      auto jwt_key_refresh_interval_s = config.jwt_key_refresh_interval_s;
 
       struct RefreshTimeMsg
       {
-        RefreshTimeMsg(NodeState& self_, size_t jwt_key_refresh_interval) :
+        RefreshTimeMsg(NodeState& self_, size_t jwt_key_refresh_interval_s) :
           self(self_),
-          jwt_key_refresh_interval(jwt_key_refresh_interval)
+          jwt_key_refresh_interval_s(jwt_key_refresh_interval_s)
         {}
 
         NodeState& self;
-        size_t jwt_key_refresh_interval;
+        size_t jwt_key_refresh_interval_s;
       };
 
       auto refresh_msg = std::make_unique<threading::Tmsg<RefreshTimeMsg>>(
@@ -829,20 +839,20 @@ namespace ccf
             msg->data.self.refresh_jwt_keys();
           }
           LOG_DEBUG_FMT(
-              "JWT key auto-refresh: Scheduling in {}s", msg->data.jwt_key_refresh_interval);
+              "JWT key auto-refresh: Scheduling in {}s", msg->data.jwt_key_refresh_interval_s);
           auto delay =
-            std::chrono::seconds(msg->data.jwt_key_refresh_interval);
+            std::chrono::seconds(msg->data.jwt_key_refresh_interval_s);
           threading::ThreadMessaging::thread_messaging.add_task_after(
             std::move(msg), delay);
         },
         *this,
-        jwt_key_refresh_interval);
+        jwt_key_refresh_interval_s);
 
       LOG_DEBUG_FMT(
-              "JWT key auto-refresh: Scheduling in {}s", jwt_key_refresh_interval);
+              "JWT key auto-refresh: Scheduling in {}s", jwt_key_refresh_interval_s);
       threading::ThreadMessaging::thread_messaging.add_task_after(
         std::move(refresh_msg),
-        std::chrono::seconds(jwt_key_refresh_interval));
+        std::chrono::seconds(jwt_key_refresh_interval_s));
     }
 
     //

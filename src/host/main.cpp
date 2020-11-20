@@ -318,11 +318,11 @@ int main(int argc, char** argv)
     "Subject Alternative Name in node certificate. Can be either "
     "iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld");
 
-  size_t jwt_key_refresh_interval = 1800;
+  size_t jwt_key_refresh_interval_s = 1800;
   app
     .add_option(
       "--jwt-key-refresh-interval-s",
-      jwt_key_refresh_interval,
+      jwt_key_refresh_interval_s,
       "Interval in seconds for JWT public signing key refresh.")
     ->capture_default_str();
 
@@ -661,7 +661,7 @@ int main(int argc, char** argv)
     ccf_config.subject_name = subject_name;
     ccf_config.subject_alternative_names = subject_alternative_names;
 
-    ccf_config.jwt_key_refresh_interval = jwt_key_refresh_interval;
+    ccf_config.jwt_key_refresh_interval_s = jwt_key_refresh_interval_s;
 
     if (*start)
     {
