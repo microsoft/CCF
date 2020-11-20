@@ -18,7 +18,6 @@ import cryptography.hazmat.backends as crypto_backends
 from loguru import logger as LOG  # type: ignore
 
 
-
 def dump_to_file(output_path: str, obj: dict, dump_args: dict):
     with open(output_path, "w") as f:
         json.dump(obj, f, **dump_args)

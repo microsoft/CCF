@@ -77,7 +77,7 @@ class Network:
         "ledger_chunk_bytes",
         "domain",
         "snapshot_tx_interval",
-        "jwt_key_refresh_interval_s"
+        "jwt_key_refresh_interval_s",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups

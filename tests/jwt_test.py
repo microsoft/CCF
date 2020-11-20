@@ -266,19 +266,23 @@ class OpenIDProviderServer(AbstractContextManager):
         metadata = {"jwks_uri": f"https://{host}:{port}/keys"}
         self.jwks = jwks
         self_ = self
+
         class MyHTTPRequestHandler(BaseHTTPRequestHandler):
             def do_GET(self):
-                routes = {"/.well-known/openid-configuration": metadata, "/keys": self_.jwks}
+                routes = {
+                    "/.well-known/openid-configuration": metadata,
+                    "/keys": self_.jwks,
+                }
                 body = routes.get(self.path)
                 if body is None:
                     self.send_error(HTTPStatus.NOT_FOUND)
                     return
                 body = json.dumps(body).encode()
                 self.send_response(HTTPStatus.OK)
-                self.send_header('Content-Length', str(len(body)))
+                self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
-            
+
             def log_message(self, fmt: str, *args):
                 LOG.debug(f"OpenIDProviderServer: {fmt % args}")
 
@@ -348,13 +352,13 @@ def test_jwt_key_auto_refresh(network, args):
                     cert_pem, cert_kv_pem
                 ), "stored cert not equal to input cert"
 
-    def get_jwt_refresh_endpoint_metrics() -> dict:            
+    def get_jwt_refresh_endpoint_metrics() -> dict:
         with primary.client(
-                f"member{network.consortium.get_any_active_member().member_id}"
-            ) as c:
+            f"member{network.consortium.get_any_active_member().member_id}"
+        ) as c:
             r = c.get("/gov/endpoint_metrics")
             m = r.body.json()["metrics"]["jwt_keys/refresh"]["POST"]
-            assert m["errors"] == 0, m["errors"] # not used in jwt refresh endpoint
+            assert m["errors"] == 0, m["errors"]  # not used in jwt refresh endpoint
             m["successes"] = m["calls"] - m["failures"]
             return m
 
@@ -364,7 +368,8 @@ def test_jwt_key_auto_refresh(network, args):
         LOG.info("Add JWT issuer with auto-refresh")
         with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
             json.dump(
-                {"issuer": issuer, "auto_refresh": True, "ca_cert_name": ca_cert_name}, metadata_fp
+                {"issuer": issuer, "auto_refresh": True, "ca_cert_name": ca_cert_name},
+                metadata_fp,
             )
             metadata_fp.flush()
             network.consortium.set_jwt_issuer(primary, metadata_fp.name)
