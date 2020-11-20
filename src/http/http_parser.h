@@ -156,7 +156,7 @@ namespace http
       http_parser_parse_url(url.data(), url.size(), 0, &parser_url);
     if (err != 0)
     {
-      throw std::runtime_error(fmt::format("Error parsing url: {}", err));
+      throw std::invalid_argument(fmt::format("Error parsing url: {}", err));
     }
 
     return std::make_pair(
@@ -185,7 +185,7 @@ namespace http
       http_parser_parse_url(url.data(), url.size(), 0, &parser_url);
     if (err != 0)
     {
-      throw std::runtime_error(fmt::format("Error parsing url: {}", err));
+      throw std::invalid_argument(fmt::format("Error parsing url: {}", err));
     }
 
     return {

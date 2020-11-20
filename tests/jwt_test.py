@@ -264,10 +264,11 @@ class OpenIDProviderServer(AbstractContextManager):
     def __init__(self, port: int, tls_key_pem: str, tls_cert_pem: str, jwks: dict):
         host = "localhost"
         metadata = {"jwks_uri": f"https://{host}:{port}/keys"}
-        routes = {"/.well-known/openid-configuration": metadata, "/keys": jwks}
-
+        self.jwks = jwks
+        self_ = self
         class MyHTTPRequestHandler(BaseHTTPRequestHandler):
             def do_GET(self):
+                routes = {"/.well-known/openid-configuration": metadata, "/keys": self_.jwks}
                 body = routes.get(self.path)
                 if body is None:
                     self.send_error(HTTPStatus.NOT_FOUND)
@@ -347,9 +348,19 @@ def test_jwt_key_auto_refresh(network, args):
                     cert_pem, cert_kv_pem
                 ), "stored cert not equal to input cert"
 
+    def get_jwt_refresh_endpoint_metrics() -> dict:            
+        with primary.client(
+                f"member{network.consortium.get_any_active_member().member_id}"
+            ) as c:
+            r = c.get("/gov/endpoint_metrics")
+            m = r.body.json()["metrics"]["jwt_keys/refresh"]["POST"]
+            assert m["errors"] == 0, m["errors"] # not used in jwt refresh endpoint
+            m["successes"] = m["calls"] - m["failures"]
+            return m
+
     LOG.info("Start OpenID endpoint server")
     jwks = create_jwks(kid, cert_pem)
-    with OpenIDProviderServer(issuer_port, key_priv_pem, cert_pem, jwks):
+    with OpenIDProviderServer(issuer_port, key_priv_pem, cert_pem, jwks) as server:
         LOG.info("Add JWT issuer with auto-refresh")
         with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
             json.dump(
@@ -364,10 +375,21 @@ def test_jwt_key_auto_refresh(network, args):
 
         LOG.info("Check that keys got refreshed")
         check_kv_jwt_key_matches(kid, cert_pem)
-    
-    LOG.info("Simulate OpenID endpoint server downtime")
-    time.sleep(3)
-    # TODO check failure metrics
+
+        LOG.info("Check that JWT refresh endpoint has no failures")
+        m = get_jwt_refresh_endpoint_metrics()
+        assert m["failures"] == 0, m["failures"]
+        assert m["successes"] > 0, m["successes"]
+
+        LOG.info("Serve invalid JWKS")
+        server.jwks = {"foo": "bar"}
+
+        LOG.info("Wait for key refresh to happen")
+        time.sleep(2)
+
+        LOG.info("Check that JWT refresh endpoint has some failures")
+        m = get_jwt_refresh_endpoint_metrics()
+        assert m["failures"] > 0, m["failures"]
 
     LOG.info("Restart OpenID endpoint server with new keys")
     kid2 = "my_kid_2"
@@ -376,7 +398,6 @@ def test_jwt_key_auto_refresh(network, args):
     jwks = create_jwks(kid2, cert2_pem)
     with OpenIDProviderServer(issuer_port, key_priv_pem, cert_pem, jwks):
         LOG.info("Wait for key refresh to happen")
-        # Note: refresh interval is set to 1s, see network args below.
         time.sleep(2)
 
         LOG.info("Check that keys got refreshed")
