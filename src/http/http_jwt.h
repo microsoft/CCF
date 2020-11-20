@@ -143,6 +143,7 @@ namespace http
     static bool validate_token_signature(
       const Token& token, std::vector<uint8_t> cert_der)
     {
+      // TODO doesn't work for certs, only keys
       auto key = tls::make_public_key(cert_der);
       bool valid = key->verify(
         (uint8_t*) token.signed_content.data(), token.signed_content.size(),
