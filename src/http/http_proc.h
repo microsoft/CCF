@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <cctype>
 #include <endian.h>
-#include <http-parser/http_parser.h>
+#include <llhttp/llhttp.h>
 #include <map>
 #include <queue>
 #include <string>
@@ -19,7 +19,7 @@ namespace http
   {
   public:
     virtual void handle_request(
-      http_method method,
+      llhttp_method method,
       const std::string_view& path,
       const std::string& query,
       HeaderMap&& headers,

@@ -102,7 +102,7 @@ void set_whitelists(GenesisGenerator& gen)
 std::vector<uint8_t> create_text_request(
   const std::string& text,
   const string& method_name,
-  http_method verb = HTTP_POST)
+  llhttp_method verb = HTTP_POST)
 {
   http::Request r(method_name, verb);
   const auto body = std::vector<uint8_t>(text.begin(), text.end());
@@ -111,7 +111,7 @@ std::vector<uint8_t> create_text_request(
 }
 
 std::vector<uint8_t> create_request(
-  const json& params, const string& method_name, http_method verb = HTTP_POST)
+  const json& params, const string& method_name, llhttp_method verb = HTTP_POST)
 {
   http::Request r(method_name, verb);
   const auto body = params.is_null() ? std::vector<uint8_t>() :
@@ -124,7 +124,7 @@ std::vector<uint8_t> create_signed_request(
   const json& params,
   const string& method_name,
   const tls::KeyPairPtr& kp_,
-  http_method verb = HTTP_POST)
+  llhttp_method verb = HTTP_POST)
 {
   http::Request r(method_name, verb);
 

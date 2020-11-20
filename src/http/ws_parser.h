@@ -221,7 +221,7 @@ namespace ws
           std::vector<uint8_t> body(data, data + s);
 
           proc.handle_request(
-            http_method::HTTP_POST,
+            llhttp_method::HTTP_POST,
             path,
             {},
             {{"Content-type", "application/json"}},

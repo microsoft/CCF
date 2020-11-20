@@ -334,14 +334,14 @@ struct SignedRequestProcessor : public http::SimpleRequestProcessor
   std::queue<ccf::SignedReq> signed_reqs;
 
   virtual void handle_request(
-    http_method method,
+    llhttp_method method,
     const std::string_view& path,
     const std::string& query,
     http::HeaderMap&& headers,
     std::vector<uint8_t>&& body) override
   {
     const auto signed_req = http::HttpSignatureVerifier::parse(
-      http_method_str(method), path, query, headers, body);
+      llhttp_method_name(method), path, query, headers, body);
     DOCTEST_REQUIRE(signed_req.has_value());
 
     signed_reqs.push(signed_req.value());

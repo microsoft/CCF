@@ -8,7 +8,7 @@
 
 #include <algorithm>
 #include <cctype>
-#include <http-parser/http_parser.h>
+#include <llhttp/llhttp.h>
 #include <map>
 #include <queue>
 #include <string>
@@ -72,7 +72,7 @@ namespace http
   public:
     struct Request
     {
-      http_method method;
+      llhttp_method method;
       std::string path;
       std::string query;
       http::HeaderMap headers;
@@ -82,7 +82,7 @@ namespace http
     std::queue<Request> received;
 
     virtual void handle_request(
-      http_method method,
+      llhttp_method method,
       const std::string_view& path,
       const std::string& query,
       http::HeaderMap&& headers,
@@ -120,55 +120,51 @@ namespace http
     IN_MESSAGE
   };
 
-  static int on_msg_begin(http_parser* parser);
-  static int on_url(http_parser* parser, const char* at, size_t length);
-  static int on_header_field(
-    http_parser* parser, const char* at, size_t length);
-  static int on_header_value(
-    http_parser* parser, const char* at, size_t length);
-  static int on_headers_complete(http_parser* parser);
-  static int on_body(http_parser* parser, const char* at, size_t length);
-  static int on_msg_end(http_parser* parser);
+  static int on_msg_begin(llhttp_t* parser);
+  static int on_url(llhttp_t* parser, const char* at, size_t length);
+  static int on_header_field(llhttp_t* parser, const char* at, size_t length);
+  static int on_header_value(llhttp_t* parser, const char* at, size_t length);
+  static int on_headers_complete(llhttp_t* parser);
+  static int on_body(llhttp_t* parser, const char* at, size_t length);
+  static int on_msg_end(llhttp_t* parser);
 
-  inline std::string_view extract_url_field(
-    const http_parser_url& parser_url,
-    http_parser_url_fields field,
-    const std::string& url)
-  {
-    if ((1 << field) & parser_url.field_set)
-    {
-      const auto& data = parser_url.field_data[field];
-      const auto start = url.data();
-      return std::string_view(start + data.off, data.len);
-    }
+  // inline std::string_view extract_url_field(
+  //   const http_parser_url& parser_url,
+  //   http_parser_url_fields field,
+  //   const std::string& url)
+  // {
+  //   if ((1 << field) & parser_url.field_set)
+  //   {
+  //     const auto& data = parser_url.field_data[field];
+  //     const auto start = url.data();
+  //     return std::string_view(start + data.off, data.len);
+  //   }
 
-    return {};
-  }
+  //   return {};
+  // }
 
   inline auto parse_url(const std::string& url)
   {
     LOG_TRACE_FMT("Received url to parse: {}", std::string_view(url));
 
-    http_parser_url parser_url;
-    http_parser_url_init(&parser_url);
+    // http_parser_url parser_url;
+    // http_parser_url_init(&parser_url);
 
-    const auto err =
-      http_parser_parse_url(url.data(), url.size(), 0, &parser_url);
-    if (err != 0)
-    {
-      throw std::runtime_error(fmt::format("Error parsing url: {}", err));
-    }
+    // const auto err =
+    //   http_parser_parse_url(url.data(), url.size(), 0, &parser_url);
+    // if (err != 0)
+    // {
+    //   throw std::runtime_error(fmt::format("Error parsing url: {}", err));
+    // }
 
-    return std::make_pair(
-      extract_url_field(parser_url, UF_PATH, url),
-      extract_url_field(parser_url, UF_QUERY, url));
+    return std::make_pair(url, "");
   }
 
   class Parser
   {
   protected:
-    http_parser parser;
-    http_parser_settings settings;
+    llhttp_t parser;
+    llhttp_settings_t settings;
     State state = DONE;
 
     std::vector<uint8_t> body_buf;
@@ -183,9 +179,9 @@ namespace http
       partial_parsed_header.second.clear();
     }
 
-    Parser(http_parser_type type)
+    Parser(llhttp_type_t type)
     {
-      http_parser_settings_init(&settings);
+      llhttp_settings_init(&settings);
 
       settings.on_message_begin = on_msg_begin;
       settings.on_header_field = on_header_field;
@@ -194,30 +190,29 @@ namespace http
       settings.on_body = on_body;
       settings.on_message_complete = on_msg_end;
 
-      http_parser_init(&parser, type);
+      llhttp_init(&parser, type, &settings);
       parser.data = this;
     }
 
   public:
-    http_parser* get_raw_parser()
+    llhttp_t* get_raw_parser()
     {
       return &parser;
     }
 
     size_t execute(const uint8_t* data, size_t size)
     {
-      auto parsed =
-        http_parser_execute(&parser, &settings, (const char*)data, size);
+      auto parsed = llhttp_execute(&parser, (const char*)data, size);
 
       LOG_TRACE_FMT("Parsed {} bytes", parsed);
 
-      auto err = HTTP_PARSER_ERRNO(&parser);
+      auto err = llhttp_get_errno(&parser);
       if (err)
       {
         throw std::runtime_error(fmt::format(
           "HTTP parsing failed: '{}: {}' while parsing fragment '{}'",
-          http_errno_name(err),
-          http_errno_description(err),
+          llhttp_errno_name(err),
+          llhttp_get_error_reason(&parser),
           std::string((char const*)data, size)));
       }
 
@@ -294,42 +289,42 @@ namespace http
     }
   };
 
-  static int on_msg_begin(http_parser* parser)
+  static int on_msg_begin(llhttp_t* parser)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->new_message();
     return 0;
   }
 
-  static int on_header_field(http_parser* parser, const char* at, size_t length)
+  static int on_header_field(llhttp_t* parser, const char* at, size_t length)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->header_field(at, length);
     return 0;
   }
 
-  static int on_header_value(http_parser* parser, const char* at, size_t length)
+  static int on_header_value(llhttp_t* parser, const char* at, size_t length)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->header_value(at, length);
     return 0;
   }
 
-  static int on_headers_complete(http_parser* parser)
+  static int on_headers_complete(llhttp_t* parser)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->headers_complete();
     return 0;
   }
 
-  static int on_body(http_parser* parser, const char* at, size_t length)
+  static int on_body(llhttp_t* parser, const char* at, size_t length)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->append_body(at, length);
     return 0;
   }
 
-  static int on_msg_end(http_parser* parser)
+  static int on_msg_end(llhttp_t* parser)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->end_message();
@@ -366,7 +361,7 @@ namespace http
       if (url.empty())
       {
         proc.handle_request(
-          http_method(parser.method),
+          llhttp_method(parser.method),
           {},
           {},
           std::move(headers),
@@ -377,7 +372,7 @@ namespace http
         const auto [path, query] = parse_url(url);
         std::string decoded_query = url_decode(query);
         proc.handle_request(
-          http_method(parser.method),
+          llhttp_method(parser.method),
           path,
           decoded_query,
           std::move(headers),
@@ -386,7 +381,7 @@ namespace http
     }
   };
 
-  static int on_url(http_parser* parser, const char* at, size_t length)
+  static int on_url(llhttp_t* parser, const char* at, size_t length)
   {
     RequestParser* p = reinterpret_cast<RequestParser*>(parser->data);
     p->append_url(at, length);

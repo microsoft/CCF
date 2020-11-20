@@ -7,7 +7,7 @@
 #include "http/http_consts.h"
 #include "node/rpc/serdes.h"
 
-#include <http-parser/http_parser.h>
+#include <llhttp/llhttp.h>
 
 namespace ccf
 {

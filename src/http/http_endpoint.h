@@ -176,7 +176,7 @@ namespace http
     }
 
     void handle_request(
-      http_method verb,
+      llhttp_method verb,
       const std::string_view& path,
       const std::string& query,
       http::HeaderMap&& headers,
@@ -184,7 +184,7 @@ namespace http
     {
       LOG_TRACE_FMT(
         "Processing msg({}, {}, {}, [{} bytes])",
-        http_method_str(verb),
+        llhttp_method_name(verb),
         path,
         query,
         body.size());

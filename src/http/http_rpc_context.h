@@ -150,7 +150,7 @@ namespace http
     HttpRpcContext(
       size_t request_index_,
       std::shared_ptr<enclave::SessionContext> s,
-      http_method verb_,
+      llhttp_method verb_,
       const std::string_view& path_,
       const std::string_view& query_,
       const http::HeaderMap& headers_,
@@ -359,7 +359,7 @@ namespace enclave
         "{} ({}: {})",
         parsed_count,
         err_no,
-        http_errno_name(err_no),
+        llhttp_errno_name(err_no),
         http_errno_description(err_no)));
     }
 
@@ -408,7 +408,7 @@ namespace enclave
             "{} ({}: {})",
             parsed_count,
             err_no,
-            http_errno_name(err_no),
+            llhttp_errno_name(err_no),
             http_errno_description(err_no)));
         }
 
