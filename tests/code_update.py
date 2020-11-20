@@ -186,7 +186,7 @@ if __name__ == "__main__":
         LOG.warning("Skipping code update test with virtual enclave")
         sys.exit()
 
-    args.package = args.app_script and "liblua_generic" or "liblogging"
+    args.package = "liblogging"
     args.patched_file_name = "{}.patched".format(args.package)
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     run(args)

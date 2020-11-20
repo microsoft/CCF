@@ -1,0 +1,28 @@
+{
+  "endpoints": {
+    "/batch/submit": {
+      "post": {
+        "js_module": "batched.js",
+        "js_function": "submit_batch",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_signature": false,
+        "require_client_identity": true,
+        "readonly": true,
+        "openapi": {}
+      }
+    },
+    "/batch/fetch": {
+      "post": {
+        "js_module": "batched.js",
+        "js_function": "fetch_batch",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_signature": false,
+        "require_client_identity": true,
+        "readonly": true,
+        "openapi": {}
+      }
+    }
+  }
+}

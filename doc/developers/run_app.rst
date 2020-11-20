@@ -79,4 +79,4 @@ Additionally, the ``cchost`` binary must be told that the enclave type is debug:
 
 .. code-block:: bash
 
-    $ cchost --enclave-file liblua_generic.enclave.so.debuggable --enclave-type debug [args]
+    $ cchost --enclave-file liblogging.enclave.so.debuggable --enclave-type debug [args]
