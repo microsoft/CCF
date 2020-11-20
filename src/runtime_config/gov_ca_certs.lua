@@ -104,7 +104,11 @@ return {
     table.insert(self, {func=_func, args=_args})
     return self
   end
-  Calls =  setmetatable({}, {__index = __Calls})
+
+  function __Calls:empty()
+    return self
+  end
+  Calls = setmetatable({}, {__index = __Calls, __was_object=false})
   ]],
 
   -- scripts that can be proposed to be called
