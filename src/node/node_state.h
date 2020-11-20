@@ -1733,7 +1733,6 @@ namespace ccf
               it->second.value().status == ServiceStatus::OPEN &&
               this->network.identity->cert == it->second->cert)
             {
-              this->consensus->open_network();
               open_user_frontend();
               LOG_INFO_FMT("Network is OPEN, now accepting user transactions");
             }

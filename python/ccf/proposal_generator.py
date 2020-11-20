@@ -299,6 +299,9 @@ def set_lua_app(app_script_path: str, **kwargs):
 
 @cli_proposal
 def set_js_app(app_script_path: str, **kwargs):
+    LOG.error(
+        "set_js_app proposal type is deprecated - update to use deploy_js_app instead"
+    )
     with open(app_script_path) as f:
         app_script = f.read()
     return build_proposal("set_js_app", app_script, **kwargs)
