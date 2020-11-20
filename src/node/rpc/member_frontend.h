@@ -1897,7 +1897,8 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            fmt::format("{} does not have auto_refresh enabled", parsed.issuer));
+            fmt::format(
+              "{} does not have auto_refresh enabled", parsed.issuer));
         }
 
         if (!set_jwt_public_signing_keys(
