@@ -20,5 +20,5 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(UserInfo, cert);
   DECLARE_JSON_OPTIONAL_FIELDS(UserInfo, user_data);
 
-  using Users = kv::Map<UserId, UserInfo>;
+  using Users = kv::MsgPackSerialisedMap<UserId, UserInfo>;
 }
