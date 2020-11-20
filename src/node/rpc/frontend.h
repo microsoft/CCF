@@ -8,6 +8,7 @@
 #include "enclave/rpc_handler.h"
 #include "forwarder.h"
 #include "node/client_signatures.h"
+#include "node/jwt.h"
 #include "node/nodes.h"
 #include "rpc_exception.h"
 #include "tls/verifier.h"
@@ -359,7 +360,7 @@ namespace ccf
         std::string error_reason;
         auto token = http::JwtVerifier::extract_token(headers, error_reason);
         auto keys_view = tx.get_view<JwtPublicSigningKeys>(ccf::Tables::JWT_PUBLIC_SIGNING_KEYS);
-        auto key_isser_view = tx.get_view<JwtPublicSigningKeyIssuer>(ccf::Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER);
+        auto key_issuer_view = tx.get_view<JwtPublicSigningKeyIssuer>(ccf::Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER);
         std::string key_issuer;
         if (token.has_value())
         {

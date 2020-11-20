@@ -66,7 +66,7 @@ namespace http
     {
       constexpr char separator = '.';
       size_t first_dot = token.find(separator);
-      size_t second_dot;
+      size_t second_dot = std::string::npos;
       if (first_dot != std::string::npos)
       {
         second_dot = token.find(separator, first_dot + 1);
@@ -117,13 +117,7 @@ namespace http
         error_reason = fmt::format("JWT header does not follow schema: {}", e.what());
         return std::nullopt;
       }
-      Token parsed = {
-        .header = header,
-        .header_typed = header_typed,
-        .payload = payload,
-        .signature = signature_raw,
-        .signed_content = signed_content
-      };
+      Token parsed = { header, header_typed, payload, signature_raw, signed_content };
       return parsed;
     }
 
