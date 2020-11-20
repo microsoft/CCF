@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import tempfile
 import http
 import infra.network
 import infra.path
@@ -9,64 +8,10 @@ import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
 
-APP_SCRIPT = """
-return {
-  ["POST text"] = [[
-    export default function(request)
-    {
-      if (request.headers['content-type'] !== 'text/plain')
-        throw new Error('unexpected content-type: ' + request.headers['content-type']);
-      const text = request.body.text();
-      if (text !== 'text')
-        throw new Error('unexpected body: ' + text);
-      return { body: 'text' };
-    }
-  ]],
-  ["POST json"] = [[
-    export default function(request)
-    {
-      if (request.headers['content-type'] !== 'application/json')
-        throw new Error('unexpected content type: ' + request.headers['content-type']);
-      const obj = request.body.json();
-      if (obj.foo !== 'bar')
-        throw new Error('unexpected body: ' + obj);
-      return { body: { foo: 'bar' } };
-    }
-  ]],
-  ["POST binary"] = [[
-    export default function(request)
-    {
-      if (request.headers['content-type'] !== 'application/octet-stream')
-        throw new Error('unexpected content type: ' + request.headers['content-type']);
-      const buf = request.body.arrayBuffer();
-      if (buf.byteLength !== 42)
-        throw new Error(`unexpected body size: ${buf.byteLength}`);
-      return { body: new ArrayBuffer(42) };
-    }
-  ]],
-  ["POST custom"] = [[
-    export default function(request)
-    {
-      if (request.headers['content-type'] !== 'foo/bar')
-        throw new Error('unexpected content type: ' + request.headers['content-type']);
-      const text = request.body.text();
-      if (text !== 'text')
-        throw new Error('unexpected body: ' + text);
-      return { body: 'text' };
-    }
-  ]]
-}
-"""
-
 
 @reqs.description("Test content types")
 def test_content_types(network, args):
     primary, _ = network.find_nodes()
-
-    with tempfile.NamedTemporaryFile("w") as f:
-        f.write(APP_SCRIPT)
-        f.flush()
-        network.consortium.set_js_app(remote_node=primary, app_script_path=f.name)
 
     with primary.client("user0") as c:
         r = c.post("/app/text", body="text")
@@ -95,11 +40,6 @@ def test_content_types(network, args):
 @reqs.description("Test unknown path")
 def test_unknown_path(network, args):
     primary, _ = network.find_nodes()
-
-    with tempfile.NamedTemporaryFile("w") as f:
-        f.write(APP_SCRIPT)
-        f.flush()
-        network.consortium.set_js_app(remote_node=primary, app_script_path=f.name)
 
     with primary.client("user0") as c:
         r = c.get("/app/not/a/real/path")

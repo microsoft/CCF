@@ -67,9 +67,13 @@ namespace ccf
         consensus::snapshot, to_host, idx, serialised_snapshot);
     }
 
-    void commit_snapshot(consensus::Index idx)
+    void commit_snapshot(
+      consensus::Index snapshot_idx, consensus::Index evidence_idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(consensus::snapshot_commit, to_host, idx);
+      // The snapshot_idx is used to retrieve the correct snapshot file
+      // previously generated. The evidence_idx is recorded as metadata.
+      RINGBUFFER_WRITE_MESSAGE(
+        consensus::snapshot_commit, to_host, snapshot_idx, evidence_idx);
     }
 
     struct SnapshotMsg
@@ -100,7 +104,9 @@ namespace ccf
       if (rc != kv::CommitSuccess::OK)
       {
         LOG_FAIL_FMT(
-          "Could not commit snapshot evidence for idx {}: {}", snapshot_v, rc);
+          "Could not commit snapshot evidence for seqno {}: {}",
+          snapshot_v,
+          rc);
         return;
       }
 
@@ -112,7 +118,8 @@ namespace ccf
         {snapshot_idx, snapshot_evidence_idx});
 
       LOG_DEBUG_FMT(
-        "Snapshot successfully generated for idx {}, with evidence idx {}: {}",
+        "Snapshot successfully generated for seqno {}, with evidence seqno {}: "
+        "{}",
         snapshot_idx,
         snapshot_evidence_idx,
         snapshot_hash);
@@ -159,8 +166,8 @@ namespace ccf
       if (idx < last_snapshot_idx)
       {
         throw std::logic_error(fmt::format(
-          "Cannot snapshot at idx {} which is earlier than last snapshot idx "
-          "{}",
+          "Cannot snapshot at seqno {} which is earlier than last snapshot "
+          "seqno {}",
           idx,
           last_snapshot_idx));
       }
@@ -195,7 +202,8 @@ namespace ccf
       while (!snapshot_evidence_indices.empty() &&
              (snapshot_evidence_indices.front().evidence_idx <= idx))
       {
-        commit_snapshot(snapshot_evidence_indices.front().idx);
+        auto snapshot_info = snapshot_evidence_indices.front();
+        commit_snapshot(snapshot_info.idx, snapshot_info.evidence_idx);
         snapshot_evidence_indices.pop_front();
       }
     }

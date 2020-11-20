@@ -657,20 +657,24 @@ if(BUILD_TESTS)
 
   add_e2e_test(
     NAME modules_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/modules.py
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
     CONSENSUS cft
   )
 
   add_e2e_test(
     NAME custom_authorization_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/custom_authorization.py
+    PYTHON_SCRIPT
+      ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
     CONSENSUS cft
+    ADDITIONAL_ARGS --js-app-bundle
+                    ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization
   )
 
   add_e2e_test(
     NAME content_types_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/content_types.py
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-content-types/content_types.py
     CONSENSUS cft
+    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/tests/js-content-types
   )
 
   if(QUOTES_ENABLED)
@@ -741,8 +745,7 @@ if(BUILD_TESTS)
     NAME js_e2e_logging_raft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-script
-                    ${CMAKE_SOURCE_DIR}/src/apps/logging/logging_js.lua
+    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/src/apps/logging/js
   )
 
   add_e2e_test(
