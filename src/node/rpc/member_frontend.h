@@ -587,14 +587,6 @@ namespace ccf
       std::string,
       std::function<bool(ObjectId, kv::Tx&, const nlohmann::json&)>>
       hardcoded_funcs = {
-        // set the lua application script
-        {"set_lua_app",
-         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
-           const std::string app = args;
-           set_app_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
-
-           return true;
-         }},
         // set the js application script
         {"set_js_app",
          [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
@@ -1400,6 +1392,10 @@ namespace ccf
         }
 
         const auto vote = params.get<Vote>();
+        if (proposal->votes.find(args.caller_id) != proposal->votes.end())
+        {
+          return make_error(HTTP_STATUS_BAD_REQUEST, "Vote already submitted");
+        }
         proposal->votes[args.caller_id] = vote.ballot;
         proposals->put(proposal_id, proposal.value());
 

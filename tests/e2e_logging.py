@@ -299,49 +299,6 @@ def test_forwarding_frontends(network, args):
     return network
 
 
-@reqs.description("Uninstalling Lua application")
-@reqs.lua_generic_app
-def test_update_lua(network, args):
-    if args.package == "liblua_generic":
-        LOG.info("Updating Lua application")
-        primary, _ = network.find_primary()
-
-        check = infra.checker.Checker()
-
-        # Create a new lua application file (minimal app)
-        new_app_file = "new_lua_app.lua"
-        with open(new_app_file, "w") as qfile:
-            qfile.write(
-                """
-                    return {
-                    ping = [[
-                        tables, args = ...
-                        return {result = "pong"}
-                    ]],
-                    }"""
-            )
-
-        network.consortium.set_lua_app(
-            remote_node=primary, app_script_path=new_app_file
-        )
-        with primary.client("user0") as c:
-            check(c.post("/app/ping"), result="pong")
-
-            LOG.debug("Check that former endpoints no longer exists")
-            for endpoint in [
-                "/app/log/private",
-                "/app/log/public",
-            ]:
-                check(
-                    c.post(endpoint),
-                    error=lambda status, msg: status == http.HTTPStatus.NOT_FOUND.value,
-                )
-    else:
-        LOG.warning("Skipping Lua app update as application is not Lua")
-
-    return network
-
-
 @reqs.description("Test user-data used for access permissions")
 @reqs.supports_methods("log/private/admin_only")
 def test_user_data_ACL(network, args):
@@ -602,7 +559,6 @@ def run(args):
         network = test_large_messages(network, args)
         network = test_remove(network, args)
         network = test_forwarding_frontends(network, args)
-        network = test_update_lua(network, args)
         network = test_user_data_ACL(network, args)
         network = test_cert_prefix(network, args)
         network = test_anonymous_caller(network, args)
@@ -619,8 +575,6 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     if args.js_app_script:
         args.package = "libjs_generic"
-    elif args.app_script:
-        args.package = "liblua_generic"
     else:
         args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)

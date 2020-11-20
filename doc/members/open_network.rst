@@ -117,32 +117,6 @@ All other users have empty or non-matching user-data, so will receive a HTTP err
 
     Only admins may access this endpoint
 
-Registering the Lua Application
--------------------------------
-
-.. note:: This section only applies when deploying Lua applications (i.e. using the ``liblua_generic.enclave.so.signed`` enclave library). For C++ applications, this step should be skipped.
-
-.. code-block:: bash
-
-    $ cat set_lua_app.json
-    {
-        "parameter": "<proposed lua app>",
-        "script": {
-            "text": "tables, app = ...; return Calls:call(\"set_lua_app\", app)"
-        }
-    }
-
-    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member0_privk --cert member0_cert --data-binary @set_lua_app.json -H "content-type: application/json"
-    {
-        "proposal_id": 7,
-        "proposer_id": 0,
-        "state": "OPEN"
-    }
-
-Other members are then able to vote for the proposal using the returned proposal id (here ``7``).
-
-The Lua application is successfully registered once the proposal has received enough votes under the rules of the :term:`Constitution`. At this point, the endpoints specified in the app script are callable by users under the ``/app`` path prefix.
-
 Opening the Network
 -------------------
 

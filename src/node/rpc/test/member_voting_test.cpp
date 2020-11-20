@@ -451,6 +451,75 @@ DOCTEST_TEST_CASE("Proposer ballot")
   }
 }
 
+DOCTEST_TEST_CASE("Reject duplicate vote")
+{
+  NetworkState network;
+  network.tables->set_encryptor(encryptor);
+  auto gen_tx = network.tables->create_tx();
+  GenesisGenerator gen(network, gen_tx);
+  gen.init_values();
+  gen.create_service({});
+
+  const auto proposer_cert = get_cert(0, kp);
+  const auto proposer_id = gen.add_member(proposer_cert);
+  gen.activate_member(proposer_id);
+
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
+  gen.finalize();
+
+  ShareManager share_manager(network);
+  StubNodeState node(share_manager);
+  MemberRpcFrontend frontend(network, node, share_manager);
+  frontend.open();
+
+  size_t proposal_id;
+
+  const ccf::Script vote_for("return true");
+  const ccf::Script vote_against("return false");
+  {
+    DOCTEST_INFO("Propose, no votes");
+
+    const auto proposed_member = get_cert(2, kp);
+
+    Propose::In proposal;
+    proposal.script = std::string(R"xxx(
+      tables, member_info = ...
+      return Calls:call("new_member", member_info)
+    )xxx");
+    proposal.parameter["cert"] = proposed_member;
+    proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
+    const auto propose = create_signed_request(proposal, "proposals", kp);
+    const auto r = frontend_process(frontend, propose, proposer_cert);
+
+    // the proposal should be accepted, but not succeed immediately
+    const auto result = parse_response_body<Propose::Out>(r);
+    DOCTEST_CHECK(result.state == ProposalState::OPEN);
+
+    proposal_id = result.proposal_id;
+  }
+
+  {
+    DOCTEST_INFO("Proposer votes for");
+
+    const auto vote = create_signed_request(
+      Vote{vote_for}, fmt::format("proposals/{}/votes", proposal_id), kp);
+    const auto r = frontend_process(frontend, vote, proposer_cert);
+
+    // The vote should now succeed
+    check_result_state(r, ProposalState::ACCEPTED);
+  }
+
+  {
+    DOCTEST_INFO("Proposer cannot vote again");
+
+    const auto vote = create_signed_request(
+      Vote{vote_against}, fmt::format("proposals/{}/votes", proposal_id), kp);
+    check_error(
+      frontend_process(frontend, vote, proposer_cert), HTTP_STATUS_BAD_REQUEST);
+  }
+}
+
 struct NewMember
 {
   MemberId id;
