@@ -51,7 +51,7 @@ Each member and user is identified by the cert with which they were registered w
 
 When using curl the server's identity is provided by ``--cacert`` and the client identity by ``--cert`` and ``--key``. Resources under the ``/gov`` path require member identities, while those under ``/app`` typically require user identities.
 
-These certificates and keys are copied by the start network script to the common workspace directory, displayed by the start network script. By default this is ``workspace/test_network_common``.
+These certificates and keys are copied by the sandbox script to the common workspace directory, displayed by the start network script. By default this is ``workspace/sandbox_common``.
 
 Basic Commands
 --------------
@@ -60,7 +60,7 @@ For ease of access, we copy the generated PEMs to the current directory:
 
 .. code-block:: bash
 
-    $ cp workspace/test_network_common/*.pem .
+    $ cp workspace/sandbox_common/*.pem .
 
 Now we can submit a first command, to find the current commit index of the test network:
 
@@ -118,10 +118,10 @@ Note that the paths to these handlers is arbitrary. The names of the endpoints d
 
 .. code-block:: bash
 
-    $ grep "Logged to public table" workspace/test_network_0/0.ledger/ledger_1 -q && echo "Visible" || echo "Not visible"
+    $ grep "Logged to public table" workspace/sandbox_0/0.ledger/ledger_1 -q && echo "Visible" || echo "Not visible"
     Visible
 
-    $ grep "Logged to private table" workspace/test_network_0/0.ledger/ledger_1 -q && echo "Visible" || echo "Not visible"
+    $ grep "Logged to private table" workspace/sandbox_0/0.ledger/ledger_1 -q && echo "Visible" || echo "Not visible"
     Not visible
 
 .. _curl: https://curl.haxx.se/
