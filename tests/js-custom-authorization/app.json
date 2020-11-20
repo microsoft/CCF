@@ -1,0 +1,16 @@
+{
+  "endpoints": {
+    "/custom_auth": {
+      "get": {
+        "js_module": "custom_authorization.js",
+        "js_function": "compare_bearer",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_signature": false,
+        "require_client_identity": true,
+        "readonly": true,
+        "openapi": {}
+      }
+    }
+  }
+}

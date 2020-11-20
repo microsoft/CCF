@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Members can no longer vote multiple times on governance proposals (#1743).
 
+## Deprecated
+
+- `set_js_app` proposal and `--js-app-script` argument are deprecated, and should be replaced by `deploy_js_app` and `--js-app-bundle`. See #1895 for an example of converting from the old style (JS embedded in a Lua script) to the new style (app bundle described by `app.json`).
+
 ## Removed
 
 - `kv::Store::create` is removed.
