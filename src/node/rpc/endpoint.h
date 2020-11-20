@@ -53,7 +53,6 @@ namespace ccf
       bool require_client_signature = false;
       bool require_client_identity = true;
       bool require_jwt_authentication = false;
-      bool handle_auth_errors_in_app = false;
 
       nlohmann::json openapi;
 
@@ -63,7 +62,6 @@ namespace ccf
         require_client_signature,
         require_client_identity,
         require_jwt_authentication,
-        handle_auth_errors_in_app,
         openapi);
     };
 
@@ -77,7 +75,6 @@ namespace ccf
     DECLARE_JSON_OPTIONAL_FIELDS(
       EndpointProperties,
       require_jwt_authentication,
-      handle_auth_errors_in_app,
       openapi);
 
     struct EndpointDefinition

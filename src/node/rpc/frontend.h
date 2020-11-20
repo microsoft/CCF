@@ -430,19 +430,7 @@ namespace ccf
         }
       }
 
-      // TODO should multiple auth types be supported at once?
-      //     is auth type a good thing? maybe it's redundant?
-      auto auth_type = AuthenticationType::None;
-      if (caller_id != INVALID_ID)
-      {
-        auth_type = AuthenticationType::Certificate;
-      }
-      else if (jwt.has_value())
-      {
-        auth_type = AuthenticationType::Jwt;
-      }
-      auto auth = Authentication{auth_type, caller_id, jwt};
-      auto args = EndpointContext{ctx, tx, auth};
+      auto args = EndpointContext{ctx, tx, caller_id};
 
       tx_count++;
 
