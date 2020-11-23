@@ -13,13 +13,42 @@ namespace fs = std::filesystem;
 
 namespace asynchost
 {
+  static constexpr auto snapshot_file_prefix = "snapshot";
+  static constexpr auto snapshot_idx_delimiter = "_";
+  static constexpr auto snapshot_committed_suffix = "committed";
+
+  size_t get_snapshot_idx_from_file_name(const std::string& file_name)
+  {
+    auto pos = file_name.find(snapshot_idx_delimiter);
+    if (pos == std::string::npos)
+    {
+      throw std::logic_error(fmt::format(
+        "Snapshot file name \"{}\" does not contain seqno", file_name));
+    }
+
+    return std::stol(file_name.substr(pos + 1));
+  }
+
+  std::optional<size_t> get_snapshot_evidence_idx_from_file_name(
+    const std::string& file_name)
+  {
+    auto pos = file_name.find(
+      fmt::format("{}{}", snapshot_committed_suffix, snapshot_idx_delimiter));
+    if (pos == std::string::npos)
+    {
+      // Snapshot is not yet committed
+      return std::nullopt;
+    }
+
+    auto committed_suffix = file_name.substr(pos);
+    return std::stol(committed_suffix.substr(
+      committed_suffix.find(snapshot_idx_delimiter) + 1));
+  }
+
   class SnapshotManager
   {
   private:
     const std::string snapshot_dir;
-    static constexpr auto snapshot_file_prefix = "snapshot";
-    static constexpr auto snapshot_idx_delimiter = "_";
-    static constexpr auto snapshot_committed_suffix = "committed";
 
     bool is_committed_snapshot_file(const std::string& file_name)
     {
@@ -32,18 +61,6 @@ namespace asynchost
       }
       return (
         file_name.find(snapshot_committed_suffix, pos) != std::string::npos);
-    }
-
-    size_t get_snapshot_idx_from_file_name(const std::string& file_name)
-    {
-      auto pos = file_name.find(snapshot_idx_delimiter);
-      if (pos == std::string::npos)
-      {
-        throw std::logic_error(fmt::format(
-          "Snapshot file name {} does not contain seqno", file_name));
-      }
-
-      return std::stol(file_name.substr(pos + 1));
     }
 
     void write_snapshot(
@@ -122,6 +139,7 @@ namespace asynchost
       }
     }
 
+    // TODO: Check that evidence for this file is in a chunk that we know
     std::optional<std::string> find_latest_committed_snapshot()
     {
       std::optional<std::string> snapshot_file = std::nullopt;

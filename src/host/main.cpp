@@ -439,11 +439,10 @@ int main(int argc, char** argv)
         rpc_address.hostname));
     }
 
-    if ((*start || *join) && files::exists(ledger_dir))
+    if (*start && files::exists(ledger_dir))
     {
       throw std::logic_error(fmt::format(
-        "On start and join, ledger directory should not exist ({})",
-        ledger_dir));
+        "On start, ledger directory should not exist ({})", ledger_dir));
     }
     else if (*recover && !files::exists(ledger_dir))
     {
@@ -706,14 +705,29 @@ int main(int argc, char** argv)
 
     if (*join || *recover)
     {
+      // TODO: It should be guaranteed that find_latest_committed_snapshot
+      // returns the latest committed snapshot, including evidence seqno
       auto snapshot_file = snapshots.find_latest_committed_snapshot();
       if (snapshot_file.has_value())
       {
-        ccf_config.startup_snapshot = files::slurp(snapshot_file.value());
+        auto& snapshot = snapshot_file.value();
+        auto snapshot_evidence_idx =
+          asynchost::get_snapshot_evidence_idx_from_file_name(snapshot);
+        if (!snapshot_evidence_idx.has_value())
+        {
+          throw std::logic_error(fmt::format(
+            "Snapshot file \"{}\" does not include snapshot evidence seqno",
+            snapshot));
+        }
+
+        ccf_config.startup_snapshot = files::slurp(snapshot);
+        ccf_config.startup_snapshot_evidence_seqno =
+          snapshot_evidence_idx.value();
         LOG_INFO_FMT(
-          "Found latest snapshot file: {} (size: {})",
-          snapshot_file.value(),
-          ccf_config.startup_snapshot.size());
+          "Found latest snapshot file: {} (size: {}, evidence seqno: {})",
+          snapshot,
+          ccf_config.startup_snapshot.size(),
+          ccf_config.startup_snapshot_evidence_seqno);
       }
       else
       {

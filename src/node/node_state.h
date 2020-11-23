@@ -177,7 +177,10 @@ namespace ccf
     // This should really be a reference but because there are two ecalls,
     // this is currently not possible:
     // https://github.com/microsoft/CCF/issues/857
-    std::unique_ptr<std::vector<uint8_t>> recovery_snapshot = nullptr;
+    std::unique_ptr<std::vector<uint8_t>> recovery_snapshot =
+      nullptr; // TODO: Rename as it works with join as well
+    std::optional<size_t> recovery_snapshot_evidence_seqno;
+    bool snapshot_is_verified = true;
     size_t recovery_snapshot_tx_interval = Snapshotter::max_tx_interval;
 
     consensus::Index ledger_idx = 0;
@@ -329,9 +332,16 @@ namespace ccf
                 fmt::format("Failed to apply public snapshot: {}", rc));
             }
 
+            recovery_snapshot_evidence_seqno =
+              args.config.startup_snapshot_evidence_seqno;
+
+            LOG_FAIL_FMT(
+              "Recovery snapshot evidence at {}",
+              recovery_snapshot_evidence_seqno.value());
             ledger_idx = network.tables->current_version();
             last_recovered_signed_idx = ledger_idx;
             snapshotter->set_last_snapshot_idx(ledger_idx);
+            snapshot_is_verified = false;
 
             LOG_DEBUG_FMT("Snapshot deserialised at seqno {}", ledger_idx);
 
@@ -341,8 +351,6 @@ namespace ccf
           {
             sm.advance(State::pending);
           }
-
-          sm.advance(State::pending);
 
           return Success<CreateNew::Out>({node_cert, {}});
         }
@@ -378,7 +386,7 @@ namespace ccf
             recovery_snapshot = std::make_unique<std::vector<uint8_t>>(
               args.config.startup_snapshot);
 
-            LOG_DEBUG_FMT(
+            LOG_INFO_FMT(
               "Deserialising public snapshot ({})", recovery_snapshot->size());
             auto rc = network.tables->deserialise_snapshot(
               *recovery_snapshot, &view_history, true);
@@ -392,7 +400,7 @@ namespace ccf
             last_recovered_signed_idx = ledger_idx;
             snapshotter->set_last_snapshot_idx(ledger_idx);
 
-            LOG_DEBUG_FMT("Snapshot deserialised at seqno {}", ledger_idx);
+            LOG_INFO_FMT("Snapshot deserialised at seqno {}", ledger_idx);
           }
 
           accept_network_tls_connections(args.config);
@@ -653,7 +661,7 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::readingPublicLedger);
 
-      LOG_DEBUG_FMT(
+      LOG_INFO_FMT(
         "Deserialising public ledger entry ({})", ledger_entry.size());
 
       // When reading the public ledger, deserialise in the real store
@@ -702,31 +710,37 @@ namespace ccf
       }
       else if (result == kv::DeserialiseSuccess::PASS_SNAPSHOT_EVIDENCE)
       {
-        static consensus::Index snapshot_evidence_idx = ledger_idx;
-        LOG_FAIL_FMT("Found snapshot evidence at {}", snapshot_evidence_idx);
+        LOG_FAIL_FMT("Found snapshot evidence at {}", ledger_idx);
 
-        auto tx = network.tables->create_tx();
-        auto snapshot_evidence_view = tx.get_view(network.snapshot_evidence);
+        auto tx = network.tables->create_read_only_tx();
+        auto snapshot_evidence_view =
+          tx.get_read_only_view(network.snapshot_evidence);
         if (!snapshot_evidence_view)
         {
           throw std::logic_error("Invalid snapshot evidence");
         }
 
-        auto snapshot_evidence = snapshot_evidence_view->get(0);
-        if (!snapshot_evidence.has_value())
+        if (ledger_idx == recovery_snapshot_evidence_seqno.value())
         {
-          throw std::logic_error("Invalid snapshot evidence");
-        }
+          auto snapshot_evidence = snapshot_evidence_view->get(0);
+          if (!snapshot_evidence.has_value())
+          {
+            throw std::logic_error("Invalid snapshot evidence");
+          }
 
-        if (
-          snapshot_evidence->hash !=
-          crypto::Sha256Hash(*recovery_snapshot.get()))
-        {
-          throw std::logic_error("Snapshot doesn't match!");
-        }
-        else
-        {
-          LOG_FAIL_FMT("Snapshot evidence matched!!");
+          if (
+            snapshot_evidence->hash !=
+            crypto::Sha256Hash(*recovery_snapshot.get()))
+          {
+            LOG_FAIL_FMT("");
+            throw std::logic_error("Snapshot doesn't match!");
+          }
+          else
+          {
+            static consensus::Index snapshot_evidence_idx = ledger_idx;
+            (void)snapshot_evidence_idx;
+            LOG_FAIL_FMT("Snapshot evidence matched!!");
+          }
         }
 
         // TODO: Hash snapshot and verify that it matches - don't fail if it
@@ -739,6 +753,13 @@ namespace ccf
     void recover_public_ledger_end_unsafe()
     {
       sm.expect(State::readingPublicLedger);
+
+      if (!snapshot_is_verified)
+      {
+        throw std::logic_error("Snapshot isn't authentic");
+      }
+
+      LOG_FAIL_FMT("Snapshot is authentic!!");
 
       // For now, we rollback at the latest signed idx. However, it is
       // possible that the snapshot evidence is rolled back. This should be
@@ -996,7 +1017,7 @@ namespace ccf
 
       if (recovery_snapshot)
       {
-        LOG_DEBUG_FMT(
+        LOG_INFO_FMT(
           "Deserialising private snapshot for recovery ({})",
           recovery_snapshot->size());
         std::vector<kv::Version> view_history;

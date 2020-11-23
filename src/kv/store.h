@@ -709,7 +709,7 @@ namespace kv
           success = DeserialiseSuccess::PASS_SIGNATURE;
         }
 
-        auto search = changes.find(ccf::Tables::SNAPSHOT_EVIDENCE);
+        search = changes.find(ccf::Tables::SNAPSHOT_EVIDENCE);
         if (search != changes.end())
         {
           success = DeserialiseSuccess::PASS_SNAPSHOT_EVIDENCE;
