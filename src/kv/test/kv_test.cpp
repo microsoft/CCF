@@ -1417,7 +1417,7 @@ TEST_CASE("Store clear")
 
   INFO("Apply transactions and compact store");
   {
-    size_t tx_count = 100;
+    size_t tx_count = 10;
     for (int i = 0; i < tx_count; i++)
     {
       auto tx = kv_store.create_tx();
@@ -1441,7 +1441,7 @@ TEST_CASE("Store clear")
     REQUIRE(tx_id.version != 0);
   }
 
-  INFO("Verify that store state is clearer");
+  INFO("Verify that store state is cleared");
   {
     kv_store.clear();
     auto current_version = kv_store.current_version();
