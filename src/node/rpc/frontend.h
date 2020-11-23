@@ -7,12 +7,12 @@
 #include "ds/spin_lock.h"
 #include "enclave/rpc_handler.h"
 #include "forwarder.h"
+#include "http/http_jwt.h"
 #include "node/client_signatures.h"
 #include "node/jwt.h"
 #include "node/nodes.h"
 #include "rpc_exception.h"
 #include "tls/verifier.h"
-#include "http/http_jwt.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -355,12 +355,15 @@ namespace ccf
       }
 
       std::optional<Jwt> jwt;
-      if (endpoint->properties.require_jwt_authentication) {
+      if (endpoint->properties.require_jwt_authentication)
+      {
         auto headers = ctx->get_request_headers();
         std::string error_reason;
         auto token = http::JwtVerifier::extract_token(headers, error_reason);
-        auto keys_view = tx.get_view<JwtPublicSigningKeys>(ccf::Tables::JWT_PUBLIC_SIGNING_KEYS);
-        auto key_issuer_view = tx.get_view<JwtPublicSigningKeyIssuer>(ccf::Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER);
+        auto keys_view = tx.get_view<JwtPublicSigningKeys>(
+          ccf::Tables::JWT_PUBLIC_SIGNING_KEYS);
+        auto key_issuer_view = tx.get_view<JwtPublicSigningKeyIssuer>(
+          ccf::Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER);
         std::string key_issuer;
         if (token.has_value())
         {
@@ -370,14 +373,15 @@ namespace ccf
           {
             error_reason = "JWT signing key not found";
           }
-          else if (!http::JwtVerifier::validate_token_signature(token.value(), token_key.value()))
+          else if (!http::JwtVerifier::validate_token_signature(
+                     token.value(), token_key.value()))
           {
             error_reason = "JWT signature is invalid";
           }
           else
           {
             key_issuer = key_issuer_view->get(key_id).value();
-          }          
+          }
         }
         if (!error_reason.empty())
         {

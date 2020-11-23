@@ -17,7 +17,7 @@ from loguru import logger as LOG
 @reqs.description("JWT authentication")
 def test_jwt_auth(network, args):
     primary, _ = network.find_nodes()
-    
+
     jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
     jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
 

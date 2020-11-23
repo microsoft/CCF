@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/hash.h"
 #include "http_consts.h"
 #include "http_parser.h"
 #include "tls/base64.h"
 #include "tls/key_pair.h"
-#include "crypto/hash.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -19,9 +19,7 @@ namespace http
   {
     RS256
   };
-  DECLARE_JSON_ENUM(
-    JwtCryptoAlgorithm,
-    {{JwtCryptoAlgorithm::RS256, "RS256"}});
+  DECLARE_JSON_ENUM(JwtCryptoAlgorithm, {{JwtCryptoAlgorithm::RS256, "RS256"}});
 
   struct JwtHeader
   {
@@ -43,7 +41,8 @@ namespace http
       std::string_view signed_content;
     };
 
-    static bool parse_auth_scheme(std::string_view& auth_header_value, std::string& error_reason)
+    static bool parse_auth_scheme(
+      std::string_view& auth_header_value, std::string& error_reason)
     {
       auto next_space = auth_header_value.find(" ");
       if (next_space == std::string::npos)
@@ -55,14 +54,16 @@ namespace http
       if (auth_scheme != auth::BEARER_AUTH_SCHEME)
       {
         error_reason = fmt::format(
-          "Authorization header does not have {} scheme", auth::BEARER_AUTH_SCHEME);
+          "Authorization header does not have {} scheme",
+          auth::BEARER_AUTH_SCHEME);
         return false;
       }
       auth_header_value = auth_header_value.substr(next_space + 1);
       return true;
     }
 
-    static std::optional<Token> parse_token(std::string_view& token, std::string& error_reason)
+    static std::optional<Token> parse_token(
+      std::string_view& token, std::string& error_reason)
     {
       constexpr char separator = '.';
       size_t first_dot = token.find(separator);
@@ -76,7 +77,9 @@ namespace http
       {
         extra_dot = token.find(separator, second_dot + 1);
       }
-      if (first_dot == std::string::npos || second_dot == std::string::npos || extra_dot != std::string::npos)
+      if (
+        first_dot == std::string::npos || second_dot == std::string::npos ||
+        extra_dot != std::string::npos)
       {
         error_reason = "Malformed JWT: must contain exactly 3 parts";
         return std::nullopt;
@@ -84,7 +87,8 @@ namespace http
       size_t header_size = first_dot;
       size_t payload_size = second_dot - first_dot - 1;
       std::string_view header_b64url = token.substr(0, header_size);
-      std::string_view payload_b64url = token.substr(first_dot + 1, payload_size);
+      std::string_view payload_b64url =
+        token.substr(first_dot + 1, payload_size);
       std::string_view signature_b64url = token.substr(second_dot + 1);
       auto header_raw = tls::raw_from_b64url(header_b64url);
       auto payload_raw = tls::raw_from_b64url(payload_b64url);
@@ -99,7 +103,8 @@ namespace http
       }
       catch (const nlohmann::json::parse_error& e)
       {
-        error_reason = fmt::format("JWT header or payload is not valid JSON: {}", e.what());
+        error_reason =
+          fmt::format("JWT header or payload is not valid JSON: {}", e.what());
         return std::nullopt;
       }
       if (!header.is_object() || !payload.is_object())
@@ -114,16 +119,17 @@ namespace http
       }
       catch (const nlohmann::json::exception& e)
       {
-        error_reason = fmt::format("JWT header does not follow schema: {}", e.what());
+        error_reason =
+          fmt::format("JWT header does not follow schema: {}", e.what());
         return std::nullopt;
       }
-      Token parsed = { header, header_typed, payload, signature_raw, signed_content };
+      Token parsed = {
+        header, header_typed, payload, signature_raw, signed_content};
       return parsed;
     }
 
     static std::optional<Token> extract_token(
-      const http::HeaderMap& headers,
-      std::string& error_reason)
+      const http::HeaderMap& headers, std::string& error_reason)
     {
       const auto auth_it = headers.find(headers::AUTHORIZATION);
       if (auth_it == headers.end())
@@ -145,8 +151,10 @@ namespace http
     {
       auto verifier = tls::make_unique_verifier(cert_der);
       bool valid = verifier->verify(
-        (uint8_t*) token.signed_content.data(), token.signed_content.size(),
-        token.signature.data(), token.signature.size(),
+        (uint8_t*)token.signed_content.data(),
+        token.signed_content.size(),
+        token.signature.data(),
+        token.signature.size(),
         MBEDTLS_MD_SHA256);
       return valid;
     }

@@ -672,11 +672,9 @@ if(BUILD_TESTS)
 
   add_e2e_test(
     NAME authentication_test
-    PYTHON_SCRIPT
-      ${CMAKE_SOURCE_DIR}/tests/js-authentication/authentication.py
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-authentication/authentication.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle
-                    ${CMAKE_SOURCE_DIR}/tests/js-authentication
+    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/tests/js-authentication
   )
 
   add_e2e_test(

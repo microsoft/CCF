@@ -39,10 +39,11 @@ namespace tls
     return decoded;
   }
 
-  inline std::vector<uint8_t> raw_from_b64url(const std::string_view& b64url_string)
+  inline std::vector<uint8_t> raw_from_b64url(
+    const std::string_view& b64url_string)
   {
     std::string b64_string = std::string(b64url_string);
-    for (size_t i=0; i < b64_string.size(); i++)
+    for (size_t i = 0; i < b64_string.size(); i++)
     {
       switch (b64_string[i])
       {
@@ -54,11 +55,12 @@ namespace tls
           break;
       }
     }
-    auto padding = b64_string.size() % 4 == 2 ? 2 : b64_string.size() % 4 == 3 ? 1 : 0;
+    auto padding =
+      b64_string.size() % 4 == 2 ? 2 : b64_string.size() % 4 == 3 ? 1 : 0;
     while (padding > 0)
     {
-        b64_string.push_back('=');
-        padding--;
+      b64_string.push_back('=');
+      padding--;
     }
     return raw_from_b64(b64_string);
   }

@@ -73,9 +73,7 @@ namespace ccf
       require_client_signature,
       require_client_identity);
     DECLARE_JSON_OPTIONAL_FIELDS(
-      EndpointProperties,
-      require_jwt_authentication,
-      openapi);
+      EndpointProperties, require_jwt_authentication, openapi);
 
     struct EndpointDefinition
     {
