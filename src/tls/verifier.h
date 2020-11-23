@@ -42,6 +42,8 @@ namespace tls
      * @param hash_size Number of bytes in hash sequence
      * @param signature First byte in signature sequence
      * @param signature_size Number of bytes in signature sequence
+     * @param md_type Digest algorithm to use. Derived from the
+     * public key if MBEDTLS_MD_NONE.
      *
      * @return Whether the signature matches the hash and the key
      */
@@ -49,9 +51,11 @@ namespace tls
       const uint8_t* hash,
       size_t hash_size,
       const uint8_t* signature,
-      size_t signature_size) const
+      size_t signature_size,
+      mbedtls_md_type_t md_type = {}) const
     {
-      const auto md_type = get_md_for_ec(get_ec_from_context(cert.pk));
+      if (md_type == MBEDTLS_MD_NONE)
+        md_type = get_md_for_ec(get_ec_from_context(cert.pk));
 
       int rc = mbedtls_pk_verify(
         &cert.pk, md_type, hash, hash_size, signature, signature_size);
@@ -68,23 +72,27 @@ namespace tls
      *
      * @param hash Hash produced from contents as a sequence of bytes
      * @param signature Signature as a sequence of bytes
+     * @param md_type Digest algorithm to use. Derived from the
+     * public key if MBEDTLS_MD_NONE.
      *
      * @return Whether the signature matches the hash and the key
      */
     bool verify_hash(
       const std::vector<uint8_t>& hash,
-      const std::vector<uint8_t>& signature) const
+      const std::vector<uint8_t>& signature,
+      mbedtls_md_type_t md_type = {}) const
     {
       return verify_hash(
-        hash.data(), hash.size(), signature.data(), signature.size());
+        hash.data(), hash.size(), signature.data(), signature.size(), md_type);
     }
 
     bool verify_hash(
       const std::vector<uint8_t>& hash,
       const uint8_t* sig,
-      size_t sig_size) const
+      size_t sig_size,
+      mbedtls_md_type_t md_type = {}) const
     {
-      return verify_hash(hash.data(), hash.size(), sig, sig_size);
+      return verify_hash(hash.data(), hash.size(), sig, sig_size, md_type);
     }
 
     /**
@@ -121,7 +129,7 @@ namespace tls
       HashBytes hash;
       do_hash(cert.pk, contents, contents_size, hash, md_type);
 
-      return verify_hash(hash, sig, sig_size);
+      return verify_hash(hash, sig, sig_size, md_type);
     }
 
     const mbedtls_x509_crt* raw()
@@ -183,7 +191,8 @@ namespace tls
       const uint8_t* hash,
       size_t hash_size,
       const uint8_t* signature,
-      size_t signature_size) const override
+      size_t signature_size,
+      mbedtls_md_type_t = {}) const override
     {
       bool ok = verify_secp256k_bc(
         bc_ctx->p, signature, signature_size, hash, hash_size, &bc_pub);
@@ -213,16 +222,17 @@ namespace tls
         fmt::format("Failed to parse certificate: {}", error_string(rc)));
     }
 
-    const auto curve = get_ec_from_context(x509.pk);
+    if (x509.pk.pk_info == mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY))
+    {
+      const auto curve = get_ec_from_context(x509.pk);
 
-    if (curve == MBEDTLS_ECP_DP_SECP256K1 && use_bitcoin_impl)
-    {
-      return std::make_unique<Verifier_k1Bitcoin>(x509);
+      if (curve == MBEDTLS_ECP_DP_SECP256K1 && use_bitcoin_impl)
+      {
+        return std::make_unique<Verifier_k1Bitcoin>(x509);
+      }
     }
-    else
-    {
-      return std::make_unique<Verifier>(x509);
-    }
+
+    return std::make_unique<Verifier>(x509);
   }
 
   inline VerifierPtr make_verifier(
