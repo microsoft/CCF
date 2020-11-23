@@ -179,7 +179,13 @@ namespace http
     {
       auto err_no = llhttp_execute(&parser, (const char*)data, size);
 
-      if (err_no != HPE_OK)
+      if (err_no == HPE_PAUSED_UPGRADE)
+      {
+        // Assume Upgrade requests will be handled by caller inspecting headers,
+        // so we can instantly resume the parser.
+        llhttp_resume_after_upgrade(&parser);
+      }
+      else if (err_no != HPE_OK)
       {
         throw std::runtime_error(fmt::format(
           "HTTP parsing failed: '{}: {}' while parsing fragment '{}'",
