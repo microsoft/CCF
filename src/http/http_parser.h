@@ -121,21 +121,25 @@ namespace http
     IN_MESSAGE
   };
 
-  static int on_msg_begin(llhttp_t* parser);
-  static int on_url(llhttp_t* parser, const char* at, size_t length);
-  static int on_header_field(llhttp_t* parser, const char* at, size_t length);
-  static int on_header_value(llhttp_t* parser, const char* at, size_t length);
-  static int on_headers_complete(llhttp_t* parser);
-  static int on_body(llhttp_t* parser, const char* at, size_t length);
-  static int on_msg_end(llhttp_t* parser);
+  static llhttp_errno_t on_msg_begin(llhttp_t* parser);
+  static llhttp_errno_t on_url(llhttp_t* parser, const char* at, size_t length);
+  static llhttp_errno_t on_header_field(
+    llhttp_t* parser, const char* at, size_t length);
+  static llhttp_errno_t on_header_value(
+    llhttp_t* parser, const char* at, size_t length);
+  static llhttp_errno_t on_headers_complete(llhttp_t* parser);
+  static llhttp_errno_t on_body(
+    llhttp_t* parser, const char* at, size_t length);
+  static llhttp_errno_t on_msg_end(llhttp_t* parser);
 
   inline auto parse_url(const std::string_view& url)
   {
     LOG_TRACE_FMT("Received url to parse: {}", std::string_view(url));
 
     const auto path_end = url.find('?');
-    const auto query_start = path_end == std::string::npos ? url.size() : path_end + 1;
-    
+    const auto query_start =
+      path_end == std::string::npos ? url.size() : path_end + 1;
+
     return std::make_pair(url.substr(0, path_end), url.substr(query_start));
   }
 
@@ -268,46 +272,48 @@ namespace http
     }
   };
 
-  static int on_msg_begin(llhttp_t* parser)
+  static llhttp_errno_t on_msg_begin(llhttp_t* parser)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->new_message();
-    return 0;
+    return HPE_OK;
   }
 
-  static int on_header_field(llhttp_t* parser, const char* at, size_t length)
+  static llhttp_errno_t on_header_field(
+    llhttp_t* parser, const char* at, size_t length)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->header_field(at, length);
-    return 0;
+    return HPE_OK;
   }
 
-  static int on_header_value(llhttp_t* parser, const char* at, size_t length)
+  static llhttp_errno_t on_header_value(
+    llhttp_t* parser, const char* at, size_t length)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->header_value(at, length);
-    return 0;
+    return HPE_OK;
   }
 
-  static int on_headers_complete(llhttp_t* parser)
+  static llhttp_errno_t on_headers_complete(llhttp_t* parser)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->headers_complete();
-    return 0;
+    return HPE_OK;
   }
 
-  static int on_body(llhttp_t* parser, const char* at, size_t length)
+  static llhttp_errno_t on_body(llhttp_t* parser, const char* at, size_t length)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->append_body(at, length);
-    return 0;
+    return HPE_OK;
   }
 
-  static int on_msg_end(llhttp_t* parser)
+  static llhttp_errno_t on_msg_end(llhttp_t* parser)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->end_message();
-    return 0;
+    return HPE_OK;
   }
 
   // Request-specific
@@ -360,11 +366,11 @@ namespace http
     }
   };
 
-  static int on_url(llhttp_t* parser, const char* at, size_t length)
+  static llhttp_errno_t on_url(llhttp_t* parser, const char* at, size_t length)
   {
     RequestParser* p = reinterpret_cast<RequestParser*>(parser->data);
     p->append_url(at, length);
-    return 0;
+    return HPE_OK;
   }
 
   // Response-specific
