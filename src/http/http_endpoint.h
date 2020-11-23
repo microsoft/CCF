@@ -99,34 +99,10 @@ namespace http
 
           try
           {
-            const auto used = p.execute(data, n_read);
-            if (used == 0)
-            {
-              // Parsing error
-              LOG_FAIL_FMT("Failed to parse request");
-              return;
-            }
-            else if (used > n_read)
-            {
-              // Something has gone very wrong
-              LOG_FAIL_FMT(
-                "Unexpected return result - tried to parse {} bytes, actually "
-                "parsed {}",
-                n_read,
-                used);
-              return;
-            }
-            else if (used == n_read)
-            {
-              // Used all provided bytes - check if more are available
-              n_read = read(buf.data(), buf.size(), false);
-            }
-            else
-            {
-              // Used some bytes - pass over these and retry with remainder
-              data += used;
-              n_read -= used;
-            }
+            p.execute(data, n_read);
+
+            // Used all provided bytes - check if more are available
+            n_read = read(buf.data(), buf.size(), false);
           }
           catch (const std::exception& e)
           {

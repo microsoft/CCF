@@ -172,9 +172,7 @@ auto frontend_process(
   http::SimpleResponseProcessor processor;
   http::ResponseParser parser(processor);
 
-  const auto parsed_count =
-    parser.execute(serialized_response->data(), serialized_response->size());
-  DOCTEST_REQUIRE(parsed_count == serialized_response->size());
+  parser.execute(serialized_response->data(), serialized_response->size());
   DOCTEST_REQUIRE(processor.received.size() == 1);
 
   return processor.received.front();
