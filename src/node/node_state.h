@@ -179,8 +179,9 @@ namespace ccf
     // https://github.com/microsoft/CCF/issues/857
     std::unique_ptr<std::vector<uint8_t>> recovery_snapshot =
       nullptr; // TODO: Rename as it works with join as well
+    std::optional<size_t> recovery_snapshot_seqno;
     std::optional<size_t> recovery_snapshot_evidence_seqno;
-    bool snapshot_is_verified = true;
+    bool is_snapshot_verified = true;
     size_t recovery_snapshot_tx_interval = Snapshotter::max_tx_interval;
 
     consensus::Index ledger_idx = 0;
@@ -341,7 +342,8 @@ namespace ccf
             ledger_idx = network.tables->current_version();
             last_recovered_signed_idx = ledger_idx;
             snapshotter->set_last_snapshot_idx(ledger_idx);
-            snapshot_is_verified = false;
+            is_snapshot_verified = false;
+            recovery_snapshot_seqno = ledger_idx;
 
             LOG_DEBUG_FMT("Snapshot deserialised at seqno {}", ledger_idx);
 
@@ -609,7 +611,7 @@ namespace ccf
 
     void join(CCFConfig& config)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      // std::lock_guard<SpinLock> guard(lock); // TODO: Remove this
       sm.expect(State::pending);
 
       initiate_join(config);
@@ -738,6 +740,7 @@ namespace ccf
           else
           {
             static consensus::Index snapshot_evidence_idx = ledger_idx;
+            is_snapshot_verified = true;
             (void)snapshot_evidence_idx;
             LOG_FAIL_FMT("Snapshot evidence matched!!");
           }
@@ -754,12 +757,24 @@ namespace ccf
     {
       sm.expect(State::readingPublicLedger);
 
-      if (!snapshot_is_verified)
+      if (!is_snapshot_verified)
       {
         throw std::logic_error("Snapshot isn't authentic");
       }
 
       LOG_FAIL_FMT("Snapshot is authentic!!");
+
+      // TODO: On join:
+      // 1. Clear store and truncate ledger to snapshot idx
+      ledger_truncate(recovery_snapshot_seqno.value());
+
+      sm.advance(State::pending);
+
+      // join();
+
+      LOG_FAIL_FMT("TODO: Join there");
+
+      return;
 
       // For now, we rollback at the latest signed idx. However, it is
       // possible that the snapshot evidence is rolled back. This should be
@@ -955,6 +970,7 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
 
+      LOG_FAIL_FMT("End of recovery");
       if (is_reading_public_ledger())
       {
         recover_public_ledger_end_unsafe();

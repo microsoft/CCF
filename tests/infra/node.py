@@ -114,7 +114,6 @@ class Node:
         snapshot_dir,
         **kwargs,
     ):
-        LOG.warning(kwargs)
         self._start(
             infra.remote.StartType.join,
             lib_name,
