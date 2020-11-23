@@ -67,13 +67,13 @@ def test_add_node_from_backup(network, args):
 @reqs.description("Adding a valid node from snapshot")
 @reqs.at_least_n_nodes(2)
 # @reqs.add_from_snapshot()
-def test_add_node_from_snapshot(network, args, copy_ledger_read_only=True):
+def test_add_node_from_snapshot(network, args, copy_ledger=True):
     new_node = network.create_and_trust_node(
         args.package,
         "local://localhost",
         args,
         from_snapshot=True,
-        copy_ledger_read_only=copy_ledger_read_only,
+        copy_ledger=copy_ledger,
     )
     assert new_node
     return network
@@ -162,7 +162,7 @@ def run(args):
         # test_add_node(network, args)
         # test_retire_primary(network, args)
 
-        test_add_node_from_snapshot(network, args, copy_ledger_read_only=True)
+        test_add_node_from_snapshot(network, args, copy_ledger=True)
 
         # if args.snapshot_tx_interval is not None:
         #     test_add_node_from_snapshot(network, args, copy_ledger_read_only=True)

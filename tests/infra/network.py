@@ -177,7 +177,7 @@ class Network:
         recovery=False,
         from_snapshot=False,
         snapshot_dir=None,
-        copy_ledger_read_only=False,
+        copy_ledger=False,
     ):
         forwarded_args = {
             arg: getattr(args, arg)
@@ -199,16 +199,20 @@ class Network:
                 len(os.listdir(snapshot_dir)) > 0
             ), f"There are no snapshots to resume from in directory {snapshot_dir}"
 
-        read_only_ledger_dirs = []
+        committed_ledger_dirs = []
+        current_ledger_dir = None
         if snapshot_dir is not None:
             LOG.info(f"Joining from snapshot: {snapshot_dir}")
-            if copy_ledger_read_only:
-                read_only_ledger_dirs = target_node.get_ledger(
+            if copy_ledger:
+                current_ledger_dir, committed_ledger_dirs = target_node.get_ledger(
                     include_read_only_dirs=True
                 )
+                # TODO: Message looks wrong
                 LOG.info(
-                    f"Copying target node ledger to read-only ledger directory {read_only_ledger_dirs}"
+                    f"Copying target node ledger to read-only ledger directory {committed_ledger_dirs}"
                 )
+                # TODO: Get rid of list if possible
+                committed_ledger_dirs = [committed_ledger_dirs]
 
         node.join(
             lib_name=lib_name,
@@ -217,7 +221,8 @@ class Network:
             common_dir=self.common_dir,
             target_rpc_address=f"{target_node.host}:{target_node.rpc_port}",
             snapshot_dir=snapshot_dir,
-            read_only_ledger_dirs=read_only_ledger_dirs,
+            ledger_dir=current_ledger_dir,
+            read_only_ledger_dirs=committed_ledger_dirs,
             **forwarded_args,
         )
 
@@ -482,7 +487,7 @@ class Network:
         args,
         target_node=None,
         from_snapshot=False,
-        copy_ledger_read_only=False,
+        copy_ledger=False,
         timeout=JOIN_TIMEOUT,
     ):
         """
@@ -497,7 +502,7 @@ class Network:
             args,
             target_node,
             from_snapshot=from_snapshot,
-            copy_ledger_read_only=copy_ledger_read_only,
+            copy_ledger=copy_ledger,
         )
         primary, _ = self.find_primary()
         try:
@@ -535,14 +540,14 @@ class Network:
         args,
         target_node=None,
         from_snapshot=False,
-        copy_ledger_read_only=False,
+        copy_ledger=False,
     ):
         """
         Create a new node, add it to the network and let members vote to trust
         it so that it becomes part of the consensus protocol.
         """
         new_node = self.create_and_add_pending_node(
-            lib_name, host, args, target_node, from_snapshot, copy_ledger_read_only
+            lib_name, host, args, target_node, from_snapshot, copy_ledger
         )
 
         primary, _ = self.find_primary()

@@ -11,6 +11,7 @@ import os
 import socket
 import time
 import re
+from shutil import copy2
 
 from loguru import logger as LOG
 
@@ -36,7 +37,7 @@ def is_addr_local(host, port):
             return False
 
 
-def is_snapshot_committed(file_name):
+def is_file_committed(file_name):
     return ".committed" in file_name
 
 
@@ -113,6 +114,7 @@ class Node:
         snapshot_dir,
         **kwargs,
     ):
+        LOG.warning(kwargs)
         self._start(
             infra.remote.StartType.join,
             lib_name,
@@ -264,7 +266,33 @@ class Node:
             raise TimeoutError(f"Node {self.node_id} failed to join the network") from e
 
     def get_ledger(self, **kwargs):
-        return self.remote.get_ledger(**kwargs)
+        """
+        Triage committed and un-committed (i.e. current) ledger files
+        """
+        main_ledger_dir, read_only_ledger_dirs = self.remote.get_ledger(**kwargs)
+
+        current_ledger_dir = os.path.join(
+            self.common_dir, f"{self.node_id}.ledger.current"
+        )
+        committed_ledger_dir = os.path.join(
+            self.common_dir, f"{self.node_id}.ledger.committed"
+        )
+        os.mkdir(current_ledger_dir)
+        os.mkdir(committed_ledger_dir)
+
+        for f in os.listdir(main_ledger_dir):
+            copy2(
+                os.path.join(main_ledger_dir, f),
+                committed_ledger_dir if is_file_committed(f) else current_ledger_dir,
+            )
+
+        for ro_dir in read_only_ledger_dirs:
+            for f in os.listdir(ro_dir):
+                # Uncommitted ledger files from r/o ledger directory are ignored by CCF
+                if is_file_committed(f):
+                    copy2(os.path.join(ro_dir, f), committed_ledger_dir)
+
+        return current_ledger_dir, committed_ledger_dir
 
     def get_committed_snapshots(self):
         # Wait for all available snapshot files to be committed before
@@ -277,7 +305,7 @@ class Node:
                 committed = True
                 uncommitted_snapshots = []
                 for f in list_src_dir_func(src_dir):
-                    is_committed = is_snapshot_committed(f)
+                    is_committed = is_file_committed(f)
                     if not is_committed:
                         uncommitted_snapshots.append(f)
                     committed &= is_committed
