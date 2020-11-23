@@ -41,7 +41,7 @@ DOCTEST_TEST_CASE("Complete request")
     auto request = http::Request(url, method);
     request.set_body(&r);
     auto req = request.build_request();
-    auto parsed = p.execute(req.data(), req.size());
+    p.execute(req.data(), req.size());
 
     DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
@@ -65,7 +65,7 @@ DOCTEST_TEST_CASE("Complete response")
     auto response = http::Response(status);
     response.set_body(&r);
     auto res = response.build_response();
-    auto parsed = p.execute(res.data(), res.size());
+    p.execute(res.data(), res.size());
 
     DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
@@ -107,10 +107,8 @@ DOCTEST_TEST_CASE("Partial request")
   auto req = http::build_post_request(r0);
   size_t offset = 10;
 
-  auto parsed = p.execute(req.data(), req.size() - offset);
-  DOCTEST_CHECK(parsed == req.size() - offset);
-  parsed = p.execute(req.data() + req.size() - offset, offset);
-  DOCTEST_CHECK(parsed == offset);
+  p.execute(req.data(), req.size() - offset);
+  p.execute(req.data() + req.size() - offset, offset);
 
   DOCTEST_CHECK(!sp.received.empty());
   const auto& m = sp.received.front();
@@ -125,12 +123,10 @@ DOCTEST_TEST_CASE("Partial body")
 
   const auto r0 = s_to_v(request_0);
   auto req = http::build_post_request(r0);
-  size_t offset = http::build_post_header(r0).size() + 4;
+  size_t offset = http::build_post_header(r0).size() + r0.size() / 3;
 
-  auto parsed = p.execute(req.data(), req.size() - offset);
-  DOCTEST_CHECK(parsed == req.size() - offset);
-  parsed = p.execute(req.data() + req.size() - offset, offset);
-  DOCTEST_CHECK(parsed == offset);
+  p.execute(req.data(), req.size() - offset);
+  p.execute(req.data() + req.size() - offset, offset);
 
   DOCTEST_CHECK(!sp.received.empty());
   const auto& m = sp.received.front();
@@ -151,8 +147,7 @@ DOCTEST_TEST_CASE("Multiple requests")
 
   DOCTEST_SUBCASE("All at once")
   {
-    auto parsed = p.execute(req.data(), req.size());
-    DOCTEST_CHECK(parsed == req.size());
+    p.execute(req.data(), req.size());
   }
 
   DOCTEST_SUBCASE("In chunks")
@@ -165,8 +160,7 @@ DOCTEST_TEST_CASE("Multiple requests")
     while (remaining > 0)
     {
       const auto next = std::min(remaining, chunk_size);
-      auto parsed = p.execute(next_data, next);
-      DOCTEST_CHECK(parsed == req.size());
+      p.execute(next_data, next);
       next_data += next;
       remaining -= next;
     }
@@ -174,10 +168,10 @@ DOCTEST_TEST_CASE("Multiple requests")
 
   DOCTEST_SUBCASE("Byte-by-byte")
   {
+    constexpr size_t next = 1;
     for (size_t i = 0; i < req.size(); ++i)
     {
-      auto parsed = p.execute(req.data() + i, 1);
-      DOCTEST_CHECK(parsed == 1);
+      p.execute(req.data() + i, next);
     }
   }
 
@@ -208,7 +202,7 @@ DOCTEST_TEST_CASE("Method parsing")
   {
     const auto r = s_to_v(choice ? request_0 : request_1);
     auto req = http::build_request(method, r);
-    auto parsed = p.execute(req.data(), req.size());
+    p.execute(req.data(), req.size());
 
     DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
@@ -235,8 +229,7 @@ DOCTEST_TEST_CASE("URL parsing")
   r.set_body(&body);
   auto req = r.build_request();
 
-  auto parsed = p.execute(req.data(), req.size());
-  DOCTEST_CHECK(parsed == req.size());
+  p.execute(req.data(), req.size());
 
   DOCTEST_CHECK(!sp.received.empty());
   const auto& m = sp.received.front();
@@ -282,8 +275,7 @@ DOCTEST_TEST_CASE("Pessimal transport")
       // Simulate dreadful transport - send 1 byte at a time
       size_t next = 1;
       next = std::min(next, req.size() - done);
-      auto parsed = p.execute(req.data() + done, next);
-      DOCTEST_CHECK(parsed == next);
+      p.execute(req.data() + done, next);
       done += next;
     }
 
@@ -328,7 +320,7 @@ DOCTEST_TEST_CASE("Escaping")
     http::RequestParser p(sp);
 
     const std::vector<uint8_t> req(request.begin(), request.end());
-    auto parsed = p.execute(req.data(), req.size());
+    p.execute(req.data(), req.size());
 
     DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
@@ -347,7 +339,7 @@ DOCTEST_TEST_CASE("Escaping")
     http::RequestParser p(sp);
 
     const std::vector<uint8_t> req(request.begin(), request.end());
-    auto parsed = p.execute(req.data(), req.size());
+    p.execute(req.data(), req.size());
 
     DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
@@ -423,8 +415,7 @@ DOCTEST_TEST_CASE("Signatures")
     SignedRequestProcessor sp;
     http::RequestParser p(sp);
 
-    auto parsed = p.execute(serial_request.data(), serial_request.size());
-    DOCTEST_REQUIRE(parsed == serial_request.size());
+    p.execute(serial_request.data(), serial_request.size());
     DOCTEST_REQUIRE(!sp.signed_reqs.empty());
   }
 
@@ -448,8 +439,7 @@ DOCTEST_TEST_CASE("Signatures")
       SignedRequestProcessor sp;
       http::RequestParser p(sp);
 
-      auto parsed = p.execute(serial_request.data(), serial_request.size());
-      DOCTEST_REQUIRE(parsed == serial_request.size());
+      p.execute(serial_request.data(), serial_request.size());
       DOCTEST_REQUIRE(sp.signed_reqs.size() == 1);
 
       sp.signed_reqs.pop();
@@ -525,8 +515,7 @@ DOCTEST_TEST_CASE("Signatures")
 
       SignedRequestProcessor sp;
       http::RequestParser p(sp);
-      auto parsed = p.execute(serial_request.data(), serial_request.size());
-      DOCTEST_REQUIRE(parsed == serial_request.size());
+      p.execute(serial_request.data(), serial_request.size());
       DOCTEST_REQUIRE(sp.signed_reqs.size() == 1);
     }
   }

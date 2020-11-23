@@ -121,16 +121,13 @@ namespace http
     IN_MESSAGE
   };
 
-  static llhttp_errno_t on_msg_begin(llhttp_t* parser);
-  static llhttp_errno_t on_url(llhttp_t* parser, const char* at, size_t length);
-  static llhttp_errno_t on_header_field(
-    llhttp_t* parser, const char* at, size_t length);
-  static llhttp_errno_t on_header_value(
-    llhttp_t* parser, const char* at, size_t length);
-  static llhttp_errno_t on_headers_complete(llhttp_t* parser);
-  static llhttp_errno_t on_body(
-    llhttp_t* parser, const char* at, size_t length);
-  static llhttp_errno_t on_msg_end(llhttp_t* parser);
+  static int on_msg_begin(llhttp_t* parser);
+  static int on_url(llhttp_t* parser, const char* at, size_t length);
+  static int on_header_field(llhttp_t* parser, const char* at, size_t length);
+  static int on_header_value(llhttp_t* parser, const char* at, size_t length);
+  static int on_headers_complete(llhttp_t* parser);
+  static int on_body(llhttp_t* parser, const char* at, size_t length);
+  static int on_msg_end(llhttp_t* parser);
 
   inline auto parse_url(const std::string_view& url)
   {
@@ -178,28 +175,18 @@ namespace http
     }
 
   public:
-    llhttp_t* get_raw_parser()
+    void execute(const uint8_t* data, size_t size)
     {
-      return &parser;
-    }
+      auto err_no = llhttp_execute(&parser, (const char*)data, size);
 
-    size_t execute(const uint8_t* data, size_t size)
-    {
-      auto parsed = llhttp_execute(&parser, (const char*)data, size);
-
-      LOG_TRACE_FMT("Parsed {} bytes", parsed);
-
-      auto err = llhttp_get_errno(&parser);
-      if (err)
+      if (err_no != HPE_OK)
       {
         throw std::runtime_error(fmt::format(
           "HTTP parsing failed: '{}: {}' while parsing fragment '{}'",
-          llhttp_errno_name(err),
+          llhttp_errno_name(err_no),
           llhttp_get_error_reason(&parser),
           std::string((char const*)data, size)));
       }
-
-      return parsed;
     }
 
     void append_body(const char* at, size_t length)
@@ -272,44 +259,42 @@ namespace http
     }
   };
 
-  static llhttp_errno_t on_msg_begin(llhttp_t* parser)
+  static int on_msg_begin(llhttp_t* parser)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->new_message();
     return HPE_OK;
   }
 
-  static llhttp_errno_t on_header_field(
-    llhttp_t* parser, const char* at, size_t length)
+  static int on_header_field(llhttp_t* parser, const char* at, size_t length)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->header_field(at, length);
     return HPE_OK;
   }
 
-  static llhttp_errno_t on_header_value(
-    llhttp_t* parser, const char* at, size_t length)
+  static int on_header_value(llhttp_t* parser, const char* at, size_t length)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->header_value(at, length);
     return HPE_OK;
   }
 
-  static llhttp_errno_t on_headers_complete(llhttp_t* parser)
+  static int on_headers_complete(llhttp_t* parser)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->headers_complete();
     return HPE_OK;
   }
 
-  static llhttp_errno_t on_body(llhttp_t* parser, const char* at, size_t length)
+  static int on_body(llhttp_t* parser, const char* at, size_t length)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->append_body(at, length);
     return HPE_OK;
   }
 
-  static llhttp_errno_t on_msg_end(llhttp_t* parser)
+  static int on_msg_end(llhttp_t* parser)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->end_message();
@@ -366,7 +351,7 @@ namespace http
     }
   };
 
-  static llhttp_errno_t on_url(llhttp_t* parser, const char* at, size_t length)
+  static int on_url(llhttp_t* parser, const char* at, size_t length)
   {
     RequestParser* p = reinterpret_cast<RequestParser*>(parser->data);
     p->append_url(at, length);
