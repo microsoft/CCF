@@ -16,8 +16,6 @@ import infra.proc
 import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
-from infra.proposal import ProposalState
-import ccf.proposal_generator
 
 from loguru import logger as LOG
 
@@ -283,7 +281,7 @@ class OpenIDProviderServer(AbstractContextManager):
                 self.end_headers()
                 self.wfile.write(body)
 
-            def log_message(self, fmt: str, *args):
+            def log_message(self, fmt, *args):  # pylint: disable=arguments-differ
                 LOG.debug(f"OpenIDProviderServer: {fmt % args}")
 
         with tempfile.NamedTemporaryFile(
@@ -387,9 +385,11 @@ def test_jwt_key_auto_refresh(network, args):
         server.jwks = {"foo": "bar"}
 
         LOG.info("Check that JWT refresh endpoint has some failures")
+
         def check_has_failures():
             m = get_jwt_refresh_endpoint_metrics()
             assert m["failures"] > 0, m["failures"]
+
         with_timeout(check_has_failures, timeout=5)
 
     LOG.info("Restart OpenID endpoint server with new keys")
@@ -408,7 +408,7 @@ def with_timeout(fn, timeout):
     while True:
         try:
             return fn()
-        except:
+        except Exception:
             if time.time() - t0 < timeout:
                 time.sleep(0.1)
             else:
