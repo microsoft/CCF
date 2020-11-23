@@ -323,7 +323,7 @@ namespace ccf
               recovery_snapshot_evidence_seqno.value());
             ledger_idx = network.tables->current_version();
             last_recovered_signed_idx = ledger_idx;
-            snapshotter->set_last_snapshot_idx(ledger_idx);
+            // snapshotter->set_last_snapshot_idx(ledger_idx);
             is_snapshot_verified = false;
             recovery_snapshot_seqno = ledger_idx;
 
@@ -418,6 +418,7 @@ namespace ccf
         config.joining.target_port,
         [this, &config](
           http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
+          LOG_FAIL_FMT("message!");
           std::lock_guard<SpinLock> guard(lock);
           if (!sm.check(State::pending))
           {
@@ -764,14 +765,12 @@ namespace ccf
 
       LOG_FAIL_FMT("Success: snapshot is authentic!!");
 
-      // TODO: Clear store properly
+      network.tables->clear();
       ledger_truncate(recovery_snapshot_seqno.value());
 
       sm.advance(State::pending);
 
       join(config);
-
-      LOG_FAIL_FMT("TODO: Join there");
     }
 
     void recover_public_ledger_end_unsafe()
