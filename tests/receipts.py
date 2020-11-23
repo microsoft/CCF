@@ -6,7 +6,6 @@ import infra.net
 import suite.test_requirements as reqs
 import infra.e2e_args
 import infra.checker
-import base64
 
 from loguru import logger as LOG
 
