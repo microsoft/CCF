@@ -601,14 +601,6 @@ namespace ccf
       std::string,
       std::function<bool(ObjectId, kv::Tx&, const nlohmann::json&)>>
       hardcoded_funcs = {
-        // set the lua application script
-        {"set_lua_app",
-         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
-           const std::string app = args;
-           set_app_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
-
-           return true;
-         }},
         // set the js application script
         {"set_js_app",
          [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
