@@ -1872,12 +1872,39 @@ namespace ccf
                                 EndpointContext& args, nlohmann::json&& body) {
         // All errors are server errors since the client is the server.
 
+        if (!consensus)
+        {
+          LOG_FAIL_FMT("JWT key auto-refresh: no consensus available");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "no consensus available");
+        }
+
+        auto primary_id = consensus->primary();
+        auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
+        auto info = nodes_view->get(primary_id);
+        if (!info.has_value())
+        {
+          LOG_FAIL_FMT("JWT key auto-refresh: could not find node info of primary");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "could not find node info of primary");
+        }
+
+        auto primary_cert_pem = info.value().cert;
+        auto cert_der = args.rpc_ctx->session->caller_cert;
+        auto caller_cert_pem = tls::cert_der_to_pem(cert_der);
+        if (caller_cert_pem != primary_cert_pem)
+        {
+          LOG_FAIL_FMT("JWT key auto-refresh: request does not originate from primary");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "request does not originate from primary");
+        }
+
         SetJwtPublicSigningKeys parsed;
         try
         {
           parsed = body.get<SetJwtPublicSigningKeys>();
         }
-        catch (JsonParseError& e)
+        catch (const JsonParseError& e)
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR, "unable to parse body");
@@ -1887,6 +1914,7 @@ namespace ccf
         auto issuer_metadata_ = issuers->get(parsed.issuer);
         if (!issuer_metadata_.has_value())
         {
+          LOG_FAIL_FMT(fmt::format("JWT key auto-refresh: {} is not a valid issuer", parsed.issuer));
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             fmt::format("{} is not a valid issuer", parsed.issuer));
@@ -1895,6 +1923,8 @@ namespace ccf
 
         if (!issuer_metadata.auto_refresh)
         {
+          LOG_FAIL_FMT(fmt::format(
+              "JWT key auto-refresh: {} does not have auto_refresh enabled", parsed.issuer));
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             fmt::format(
@@ -1904,6 +1934,8 @@ namespace ccf
         if (!set_jwt_public_signing_keys(
               args.tx, INVALID_ID, parsed.issuer, issuer_metadata, parsed.jwks))
         {
+          LOG_FAIL_FMT(fmt::format(
+              "JWT key auto-refresh: error while storing signing keys for issuer {}", parsed.issuer));
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             fmt::format(
