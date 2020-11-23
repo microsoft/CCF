@@ -350,18 +350,7 @@ namespace enclave
     http::SimpleRequestProcessor processor;
     http::RequestParser parser(processor);
 
-    const auto parsed_count = parser.execute(packed.data(), packed.size());
-    if (parsed_count != packed.size())
-    {
-      const auto err_no = (http_errno)parser.get_raw_parser()->http_errno;
-      throw std::logic_error(fmt::format(
-        "Failed to fully parse HTTP request. Parsed only {} bytes. Error code "
-        "{} ({}: {})",
-        parsed_count,
-        err_no,
-        llhttp_errno_name(err_no),
-        http_errno_description(err_no)));
-    }
+    parser.execute(packed.data(), packed.size());
 
     if (processor.received.size() != 1)
     {
@@ -391,51 +380,15 @@ namespace enclave
     enclave::FrameFormat frame_format,
     const std::vector<uint8_t>& raw_bft = {})
   {
-    http::SimpleRequestProcessor processor;
-
     switch (frame_format)
     {
       case enclave::FrameFormat::http:
       {
-        http::RequestParser parser(processor);
-        const auto parsed_count = parser.execute(packed.data(), packed.size());
-        if (parsed_count != packed.size())
-        {
-          const auto err_no = (http_errno)parser.get_raw_parser()->http_errno;
-          throw std::logic_error(fmt::format(
-            "Failed to fully parse HTTP request. Parsed only {} bytes. Error "
-            "code "
-            "{} ({}: {})",
-            parsed_count,
-            err_no,
-            llhttp_errno_name(err_no),
-            http_errno_description(err_no)));
-        }
-
-        if (processor.received.size() != 1)
-        {
-          throw std::logic_error(fmt::format(
-            "Expected packed to contain a single complete HTTP message. "
-            "Actually "
-            "parsed {} messages",
-            processor.received.size()));
-        }
-
-        const auto& msg = processor.received.front();
-
-        return std::make_shared<http::HttpRpcContext>(
-          0,
-          s,
-          msg.method,
-          msg.path,
-          msg.query,
-          msg.headers,
-          msg.body,
-          packed,
-          raw_bft);
+        return make_rpc_context(s, packed, raw_bft);
       }
       case enclave::FrameFormat::ws:
       {
+        http::SimpleRequestProcessor processor;
         ws::RequestParser parser(processor);
 
         auto next_read = ws::INITIAL_READ;
@@ -464,6 +417,5 @@ namespace enclave
       default:
         throw std::logic_error("Unknown Frame Format");
     }
-    http::RequestParser parser(processor);
   }
 }
