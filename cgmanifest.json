@@ -144,6 +144,15 @@
           "commitHash": "08cba57ed7207c8ad5c94fd2a20dc0bfecabe878"
         }
       }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/nodejs/llhttp",
+          "commitHash": "8b3939e29a01ffbf9e481a76db81e372f0fb2f0c"
+        }
+      }
     }
   ],
   "Version": 1
