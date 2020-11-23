@@ -100,8 +100,11 @@ def test_add_node_untrusted_code(network, args):
         LOG.info("Adding an invalid node (unknown code id)")
         code_not_found_exception = None
         try:
+            lib_name = (
+                "liblogging" if args.package == "libjs_generic" else "libjs_generic"
+            )
             network.create_and_add_pending_node(
-                "liblua_generic", "local://localhost", args, timeout=3
+                lib_name, "local://localhost", args, timeout=3
             )
         except infra.network.CodeIdNotFound as err:
             code_not_found_exception = err
@@ -179,7 +182,7 @@ def run(args):
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
-    args.package = args.app_script and "liblua_generic" or "liblogging"
+    args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.initial_user_count = 1
     run(args)

@@ -17,16 +17,49 @@
 
 namespace kv
 {
-  class Store : public AbstractStore
+  class StoreState
   {
-  private:
+  protected:
     // All collections of Map must be ordered so that we lock their contained
     // maps in a stable order. The order here is by map name. The version
     // indicates the version at which the Map was created.
     using Maps = std::
       map<std::string, std::pair<kv::Version, std::shared_ptr<untyped::Map>>>;
+    SpinLock maps_lock;
     Maps maps;
 
+    SpinLock version_lock;
+    Version version = 0;
+    Version compacted = 0;
+    Term term = 0;
+    Version last_replicated = 0;
+    Version last_committable = 0;
+    Version rollback_count = 0;
+
+    std::unordered_map<Version, std::pair<PendingTx, bool>> pending_txs;
+
+  public:
+    void clear()
+    {
+      std::lock_guard<SpinLock> mguard(maps_lock);
+      std::lock_guard<SpinLock> vguard(version_lock);
+
+      maps.clear();
+      pending_txs.clear();
+
+      version = 0;
+      compacted = 0;
+      term = 0;
+
+      last_replicated = 0;
+      last_committable = 0;
+      rollback_count = 0;
+    }
+  };
+
+  class Store : public AbstractStore, public StoreState
+  {
+  private:
     using Hooks = std::map<std::string, kv::untyped::Map::CommitHook>;
     Hooks local_hooks;
     Hooks global_hooks;
@@ -35,17 +68,7 @@ namespace kv
     std::shared_ptr<TxHistory> history = nullptr;
     std::shared_ptr<ccf::ProgressTracker> progress_tracker = nullptr;
     EncryptorPtr encryptor = nullptr;
-    Version version = 0;
-    Version compacted = 0;
-    Term term = 0;
 
-    SpinLock maps_lock;
-    SpinLock version_lock;
-
-    std::unordered_map<Version, std::pair<PendingTx, bool>> pending_txs;
-    Version last_replicated = 0;
-    Version last_committable = 0;
-    Version rollback_count = 0;
     kv::ReplicateType replicate_type = kv::ReplicateType::ALL;
     std::unordered_set<std::string> replicated_tables;
 
