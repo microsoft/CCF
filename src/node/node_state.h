@@ -12,9 +12,9 @@
 #include "genesis_gen.h"
 #include "history.h"
 #include "network_state.h"
+#include "node/jwt_key_auto_refresh.h"
 #include "node/progress_tracker.h"
 #include "node/rpc/serdes.h"
-#include "node/jwt_key_auto_refresh.h"
 #include "node_to_node.h"
 #include "rpc/frontend.h"
 #include "rpc/member_frontend.h"
@@ -605,16 +605,22 @@ namespace ccf
         std::chrono::milliseconds(config.joining.join_timer));
     }
 
-
     void auto_refresh_jwt_keys(const CCFConfig& config)
     {
       if (!consensus)
       {
-        LOG_INFO_FMT("JWT key auto-refresh: consensus not initialized, not starting auto-refresh");
+        LOG_INFO_FMT(
+          "JWT key auto-refresh: consensus not initialized, not starting "
+          "auto-refresh");
         return;
       }
       jwt_key_auto_refresh = std::make_shared<JwtKeyAutoRefresh>(
-        config.jwt_key_refresh_interval_s, network, consensus, rpcsessions, rpc_map, node_cert);
+        config.jwt_key_refresh_interval_s,
+        network,
+        consensus,
+        rpcsessions,
+        rpc_map,
+        node_cert);
       jwt_key_auto_refresh->start();
     }
 
