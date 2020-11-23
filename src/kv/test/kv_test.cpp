@@ -1404,3 +1404,55 @@ TEST_CASE("Mid-tx compaction")
     // intersect a compaction
   }
 }
+
+TEST_CASE("Store clear")
+{
+  kv::Store kv_store;
+  kv_store.set_term(42);
+
+  auto map_a_name = "public:A";
+  auto map_b_name = "public:B";
+  MapTypes::StringNum map_a(map_a_name);
+  MapTypes::StringNum map_b(map_b_name);
+
+  INFO("Apply transactions and compact store");
+  {
+    size_t tx_count = 100;
+    for (int i = 0; i < tx_count; i++)
+    {
+      auto tx = kv_store.create_tx();
+      auto [view_a, view_b] = tx.get_view(map_a, map_b);
+
+      view_a->put("key" + std::to_string(i), 42);
+      view_b->put("key" + std::to_string(i), 42);
+      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    }
+
+    auto current_version = kv_store.current_version();
+    kv_store.compact(current_version);
+
+    REQUIRE(kv_store.get_map(current_version, map_a_name) != nullptr);
+    REQUIRE(kv_store.get_map(current_version, map_b_name) != nullptr);
+
+    REQUIRE(kv_store.current_version() != 0);
+    REQUIRE(kv_store.commit_version() != 0);
+    auto tx_id = kv_store.current_txid();
+    REQUIRE(tx_id.term != 0);
+    REQUIRE(tx_id.version != 0);
+  }
+
+  INFO("Verify that store state is clearer");
+  {
+    kv_store.clear();
+    auto current_version = kv_store.current_version();
+
+    REQUIRE(kv_store.get_map(current_version, map_a_name) == nullptr);
+    REQUIRE(kv_store.get_map(current_version, map_b_name) == nullptr);
+
+    REQUIRE(kv_store.current_version() == 0);
+    REQUIRE(kv_store.commit_version() == 0);
+    auto tx_id = kv_store.current_txid();
+    REQUIRE(tx_id.term == 0);
+    REQUIRE(tx_id.version == 0);
+  }
+}
