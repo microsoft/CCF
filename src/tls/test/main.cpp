@@ -347,6 +347,22 @@ TEST_CASE("base64")
   }
 }
 
+TEST_CASE("base64url")
+{
+  for (size_t length = 1; length < 20; ++length)
+  {
+    std::vector<uint8_t> raw(length);
+    std::generate(raw.begin(), raw.end(), rand);
+
+    auto encoded = tls::b64_from_raw(raw.data(), raw.size());
+    std::replace(encoded.begin(), encoded.end(), '+', '-' );
+    std::replace(encoded.begin(), encoded.end(), '/', '_' );
+    encoded.erase(std::find(encoded.begin(), encoded.end(), '='), encoded.end());
+    const auto decoded = tls::raw_from_b64url(encoded);
+    REQUIRE(decoded == raw);
+  }
+}
+
 TEST_CASE("Wrap, unwrap with RSAKeyPair")
 {
   size_t input_len = 64;
