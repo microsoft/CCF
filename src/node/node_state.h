@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "call_types.h"
 #include "consensus/aft/raft_consensus.h"
 #include "consensus/ledger_enclave.h"
 #include "ds/logger.h"
@@ -63,6 +62,12 @@ namespace ccf
     aft::Consensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
   using RaftType = aft::Aft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
 
+  struct NodeCreateInfo
+  {
+    tls::Pem node_cert;
+    tls::Pem network_cert;
+  };
+
   template <typename T>
   class StateMachine
   {
@@ -100,28 +105,6 @@ namespace ccf
   class NodeState : public ccf::AbstractNodeState
   {
   private:
-    template <typename T>
-    using Result = std::pair<T, bool>;
-
-    template <typename T>
-    static Result<T> Success(T&& v)
-    {
-      return {std::forward<T>(v), true};
-    }
-
-    template <typename T>
-    static Result<T> Fail()
-    {
-      return {{}, false};
-    }
-
-    template <typename T>
-    static Result<T> Fail(const char* s)
-    {
-      LOG_DEBUG_FMT(s);
-      return {{}, false};
-    }
-
     //
     // this node's core state
     //
@@ -232,12 +215,12 @@ namespace ccf
     //
     // funcs in state "initialized"
     //
-    auto create(const CreateNew::In& args)
+    NodeCreateInfo create(StartType start_type, const CCFConfig& config)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::initialized);
 
-      create_node_cert(args.config);
+      create_node_cert(config);
       open_node_frontend();
 
 #ifdef GET_QUOTE
@@ -247,20 +230,19 @@ namespace ccf
           QuoteGenerator::get_quote(node_sign_kp->public_key_pem());
         if (!quote_opt.has_value())
         {
-          return Fail<CreateNew::Out>("Quote could not be retrieved");
+          throw std::runtime_error("Quote could not be retrieved");
         }
         quote = quote_opt.value();
         auto node_code_id_opt = QuoteGenerator::get_code_id(quote);
         if (!node_code_id_opt.has_value())
         {
-          return Fail<CreateNew::Out>(
-            "Code ID could not be retrieved from quote");
+          throw std::runtime_error("Code ID could not be retrieved from quote");
         }
         node_code_id = node_code_id_opt.value();
       }
 #endif
 
-      switch (args.start_type)
+      switch (start_type)
       {
         case StartType::New:
         {
@@ -277,7 +259,7 @@ namespace ccf
           setup_progress_tracker();
           setup_history();
 
-          snapshotter->set_tx_interval(args.config.snapshot_tx_interval);
+          snapshotter->set_tx_interval(config.snapshot_tx_interval);
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -286,18 +268,18 @@ namespace ccf
           // network
           open_member_frontend();
 
-          if (!create_and_send_request(args, quote))
+          if (!create_and_send_request(config, quote))
           {
-            return Fail<CreateNew::Out>(
+            throw std::runtime_error(
               "Genesis transaction could not be committed");
           }
 
-          accept_network_tls_connections(args.config);
+          accept_network_tls_connections(config);
 
           reset_data(quote);
           sm.advance(State::partOfNetwork);
 
-          return Success<CreateNew::Out>({node_cert, network.identity->cert});
+          return {node_cert, network.identity->cert};
         }
         case StartType::Join:
         {
@@ -305,7 +287,7 @@ namespace ccf
           // has joined
           accept_node_tls_connections();
 
-          bool from_snapshot = !args.config.startup_snapshot.empty();
+          bool from_snapshot = !config.startup_snapshot.empty();
           if (from_snapshot)
           {
             setup_history();
@@ -320,8 +302,8 @@ namespace ccf
             // secrets.
             setup_encryptor(network.consensus_type);
             // Keep a reference to snapshot for private recovery
-            recovery_snapshot = std::make_unique<std::vector<uint8_t>>(
-              args.config.startup_snapshot);
+            recovery_snapshot =
+              std::make_unique<std::vector<uint8_t>>(config.startup_snapshot);
 
             LOG_DEBUG_FMT(
               "Deserialising public snapshot ({})", recovery_snapshot->size());
@@ -334,7 +316,7 @@ namespace ccf
             }
 
             recovery_snapshot_evidence_seqno =
-              args.config.startup_snapshot_evidence_seqno;
+              config.startup_snapshot_evidence_seqno;
 
             LOG_FAIL_FMT(
               "Recovery snapshot evidence at {}",
@@ -347,18 +329,18 @@ namespace ccf
 
             LOG_DEBUG_FMT("Snapshot deserialised at seqno {}", ledger_idx);
 
-            sm.advance(State::readingPublicLedger);
+            sm.advance(State::verifyingSnapshot);
           }
           else
           {
             sm.advance(State::pending);
           }
 
-          return Success<CreateNew::Out>({node_cert, {}});
+          return {node_cert, {}};
         }
         case StartType::Recover:
         {
-          node_info_network = args.config.node_info_network;
+          node_info_network = config.node_info_network;
 
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
@@ -374,19 +356,18 @@ namespace ccf
           // secrets.
           setup_encryptor(network.consensus_type);
 
-          bool from_snapshot = !args.config.startup_snapshot.empty();
-
-          setup_recovery_hook(from_snapshot);
-
           // Snapshot generation is disabled until private recovery is
           // complete
-          recovery_snapshot_tx_interval = args.config.snapshot_tx_interval;
+          recovery_snapshot_tx_interval = config.snapshot_tx_interval;
+
+          bool from_snapshot = !config.startup_snapshot.empty();
+          setup_recovery_hook(from_snapshot);
 
           if (from_snapshot)
           {
             // Keep a reference to snapshot for private recovery
-            recovery_snapshot = std::make_unique<std::vector<uint8_t>>(
-              args.config.startup_snapshot);
+            recovery_snapshot =
+              std::make_unique<std::vector<uint8_t>>(config.startup_snapshot);
 
             LOG_INFO_FMT(
               "Deserialising public snapshot ({})", recovery_snapshot->size());
@@ -405,16 +386,16 @@ namespace ccf
             LOG_INFO_FMT("Snapshot deserialised at seqno {}", ledger_idx);
           }
 
-          accept_network_tls_connections(args.config);
+          accept_network_tls_connections(config);
 
           sm.advance(State::readingPublicLedger);
 
-          return Success<CreateNew::Out>({node_cert, network.identity->cert});
+          return {node_cert, network.identity->cert};
         }
         default:
         {
-          throw std::logic_error(fmt::format(
-            "Node was started in unknown mode {}", args.start_type));
+          throw std::logic_error(
+            fmt::format("Node was started in unknown mode {}", start_type));
         }
       }
     }
@@ -611,7 +592,7 @@ namespace ccf
 
     void join(CCFConfig& config)
     {
-      // std::lock_guard<SpinLock> guard(lock); // TODO: Remove this
+      // std::lock_guard<SpinLock> guard(lock); // TODO: Add this lock back
       sm.expect(State::pending);
 
       initiate_join(config);
@@ -648,12 +629,21 @@ namespace ccf
     }
 
     //
-    // funcs in state "readingPublicLedger"
+    // funcs in state "readingPublicLedger" or "verifyingSnapshot"
     //
     void start_ledger_recovery()
     {
       std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::readingPublicLedger);
+      if (
+        !sm.check(State::readingPublicLedger) &&
+        !sm.check(State::verifyingSnapshot))
+      {
+        throw std::logic_error(fmt::format(
+          "Node should be in state {} or {} to recover public ledger entry",
+          State::readingPublicLedger,
+          State::verifyingSnapshot));
+      }
+
       LOG_INFO_FMT("Starting public recovery");
       read_ledger_idx(++ledger_idx);
     }
@@ -661,7 +651,15 @@ namespace ccf
     void recover_public_ledger_entry(const std::vector<uint8_t>& ledger_entry)
     {
       std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::readingPublicLedger);
+      if (
+        !sm.check(State::readingPublicLedger) &&
+        !sm.check(State::verifyingSnapshot))
+      {
+        throw std::logic_error(fmt::format(
+          "Node should be in state {} or {} to recover public ledger entry",
+          State::readingPublicLedger,
+          State::verifyingSnapshot));
+      }
 
       LOG_INFO_FMT(
         "Deserialising public ledger entry ({})", ledger_entry.size());
@@ -746,35 +744,39 @@ namespace ccf
           }
         }
 
-        // TODO: Hash snapshot and verify that it matches - don't fail if it
-        // doesn't!
+        // TODO: Check for evidence being globally committed as well
+        // i.e. check in signature that signature contains a commit seqno >
+        // evidence seqno
       }
 
       read_ledger_idx(++ledger_idx);
     }
 
-    void recover_public_ledger_end_unsafe()
+    void verify_snapshot_end_unsafe(CCFConfig& config)
     {
-      sm.expect(State::readingPublicLedger);
+      sm.expect(State::verifyingSnapshot);
 
       if (!is_snapshot_verified)
       {
-        throw std::logic_error("Snapshot isn't authentic");
+        throw std::logic_error(
+          "Snapshot evidence was not committed in ledger suffix");
       }
 
-      LOG_FAIL_FMT("Snapshot is authentic!!");
+      LOG_FAIL_FMT("Success: snapshot is authentic!!");
 
-      // TODO: On join:
-      // 1. Clear store and truncate ledger to snapshot idx
+      // TODO: Clear store properly
       ledger_truncate(recovery_snapshot_seqno.value());
 
       sm.advance(State::pending);
 
-      // join();
+      join(config);
 
       LOG_FAIL_FMT("TODO: Join there");
+    }
 
-      return;
+    void recover_public_ledger_end_unsafe()
+    {
+      sm.expect(State::readingPublicLedger);
 
       // For now, we rollback at the latest signed idx. However, it is
       // possible that the snapshot evidence is rolled back. This should be
@@ -966,11 +968,10 @@ namespace ccf
     //
     // funcs in state "readingPublicLedger" or "readingPrivateLedger"
     //
-    void recover_ledger_end()
+    void recover_ledger_end(CCFConfig& config)
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      LOG_FAIL_FMT("End of recovery");
       if (is_reading_public_ledger())
       {
         recover_public_ledger_end_unsafe();
@@ -979,11 +980,15 @@ namespace ccf
       {
         recover_private_ledger_end_unsafe();
       }
+      else if (is_verifying_snapshot())
+      {
+        verify_snapshot_end_unsafe(config);
+      }
       else
       {
         throw std::logic_error(
           "Cannot end ledger recovery if not reading public or private "
-          "ledger");
+          "ledger or verifying snapshot");
       }
     }
 
@@ -1179,6 +1184,11 @@ namespace ccf
     bool is_reading_private_ledger() const override
     {
       return sm.check(State::readingPrivateLedger);
+    }
+
+    bool is_verifying_snapshot() const override
+    {
+      return sm.check(State::verifyingSnapshot);
     }
 
     bool is_part_of_public_network() const override
@@ -1392,25 +1402,25 @@ namespace ccf
     }
 
     std::vector<uint8_t> serialize_create_request(
-      const CreateNew::In& args, const std::vector<uint8_t>& quote)
+      const CCFConfig& config, const std::vector<uint8_t>& quote)
     {
       CreateNetworkNodeToNode::In create_params;
 
-      for (auto& m_info : args.config.genesis.members_info)
+      for (const auto& m_info : config.genesis.members_info)
       {
         create_params.members_info.push_back(m_info);
       }
 
-      create_params.gov_script = args.config.genesis.gov_script;
+      create_params.gov_script = config.genesis.gov_script;
       create_params.node_cert = node_cert;
       create_params.network_cert = network.identity->cert;
       create_params.quote = quote;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest =
         std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
-      create_params.node_info_network = args.config.node_info_network;
+      create_params.node_info_network = config.node_info_network;
       create_params.consensus_type = network.consensus_type;
-      create_params.recovery_threshold = args.config.genesis.recovery_threshold;
+      create_params.recovery_threshold = config.genesis.recovery_threshold;
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
@@ -1504,10 +1514,10 @@ namespace ccf
     }
 
     bool create_and_send_request(
-      const CreateNew::In& args, const std::vector<uint8_t>& quote)
+      const CCFConfig& config, const std::vector<uint8_t>& quote)
     {
       const auto create_success =
-        send_create_request(serialize_create_request(args, quote));
+        send_create_request(serialize_create_request(config, quote));
       if (network.consensus_type == ConsensusType::BFT)
       {
         return true;
