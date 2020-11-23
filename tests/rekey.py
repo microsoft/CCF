@@ -44,6 +44,6 @@ def run(args):
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
-    args.package = args.app_script and "liblua_generic" or "liblogging"
+    args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     run(args)
