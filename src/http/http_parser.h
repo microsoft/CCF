@@ -12,6 +12,7 @@
 #include <map>
 #include <queue>
 #include <string>
+#include <string_view>
 
 namespace http
 {
@@ -128,36 +129,14 @@ namespace http
   static int on_body(llhttp_t* parser, const char* at, size_t length);
   static int on_msg_end(llhttp_t* parser);
 
-  // inline std::string_view extract_url_field(
-  //   const http_parser_url& parser_url,
-  //   http_parser_url_fields field,
-  //   const std::string& url)
-  // {
-  //   if ((1 << field) & parser_url.field_set)
-  //   {
-  //     const auto& data = parser_url.field_data[field];
-  //     const auto start = url.data();
-  //     return std::string_view(start + data.off, data.len);
-  //   }
-
-  //   return {};
-  // }
-
-  inline auto parse_url(const std::string& url)
+  inline auto parse_url(const std::string_view& url)
   {
     LOG_TRACE_FMT("Received url to parse: {}", std::string_view(url));
 
-    // http_parser_url parser_url;
-    // http_parser_url_init(&parser_url);
-
-    // const auto err =
-    //   http_parser_parse_url(url.data(), url.size(), 0, &parser_url);
-    // if (err != 0)
-    // {
-    //   throw std::runtime_error(fmt::format("Error parsing url: {}", err));
-    // }
-
-    return std::make_pair(url, "");
+    const auto path_end = url.find('?');
+    const auto query_start = path_end == std::string::npos ? url.size() : path_end + 1;
+    
+    return std::make_pair(url.substr(0, path_end), url.substr(query_start));
   }
 
   class Parser
