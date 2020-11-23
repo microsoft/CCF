@@ -420,9 +420,9 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        # network = test_jwt_without_key_policy(network, args)
-        # network = test_jwt_with_sgx_key_policy(network, args)
-        # network = test_jwt_with_sgx_key_filter(network, args)
+        network = test_jwt_without_key_policy(network, args)
+        network = test_jwt_with_sgx_key_policy(network, args)
+        network = test_jwt_with_sgx_key_filter(network, args)
         network = test_jwt_key_auto_refresh(network, args)
 
 
