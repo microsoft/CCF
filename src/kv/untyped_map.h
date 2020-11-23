@@ -241,15 +241,16 @@ namespace kv::untyped
         }
       }
 
-      void post_commit() override
+      std::shared_ptr<ConsensusHook> post_commit() override
       {
         // This is run separately from commit so that all commits in the Tx
         // have been applied before local hooks are run. The maps in the Tx
         // are still locked when post_commit is run.
         if (change_set.writes.empty())
-          return;
+          return nullptr;
 
         map.trigger_local_hook(commit_version, change_set.writes);
+        return map.trigger_map_hook(commit_version, change_set.writes);
       }
 
       void set_commit_version(Version v)
@@ -444,10 +445,11 @@ namespace kv::untyped
         }
       }
 
-      void post_commit() override
+      std::shared_ptr<ConsensusHook> post_commit() override
       {
         auto r = map.roll.commits->get_head();
         map.trigger_local_hook(change_set.version, r->writes);
+        return map.trigger_map_hook(change_set.version, r->writes);
       }
     };
 
@@ -821,6 +823,15 @@ namespace kv::untyped
       {
         local_hook(version, writes);
       }
+    }
+
+    std::shared_ptr<ConsensusHook> trigger_map_hook(Version version, const Write& writes)
+    {
+      if (hook)
+      {
+        return hook(version, writes);
+      }
+      return nullptr;
     }
   };
 }

@@ -442,6 +442,13 @@ namespace kv
     virtual bool has_writes() const = 0;
   };
 
+  class ConsensusHook
+  {
+  public:
+    virtual void operator()(const kv::Consensus&) = 0;
+    virtual ~ConsensusHook() {};
+  };
+
   class AbstractCommitter
   {
   public:
@@ -450,7 +457,7 @@ namespace kv
     virtual bool has_writes() = 0;
     virtual bool prepare() = 0;
     virtual void commit(Version v) = 0;
-    virtual void post_commit() = 0;
+    virtual std::shared_ptr<ConsensusHook> post_commit() = 0;
   };
 
   class AbstractTxView

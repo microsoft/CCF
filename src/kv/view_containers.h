@@ -124,6 +124,7 @@ namespace kv
         it->second->commit(version);
       }
 
+      // Collect ConsensusHooks
       for (auto it = views.begin(); it != views.end(); ++it)
       {
         it->second->post_commit();
@@ -143,6 +144,6 @@ namespace kv
       return std::nullopt;
     }
 
-    return version;
+    return {version};
   }
 }
