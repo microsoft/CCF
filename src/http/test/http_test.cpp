@@ -149,8 +149,37 @@ DOCTEST_TEST_CASE("Multiple requests")
   auto req1 = http::build_post_request(r1);
   std::copy(req1.begin(), req1.end(), std::back_inserter(req));
 
-  auto parsed = p.execute(req.data(), req.size());
-  DOCTEST_CHECK(parsed == req.size());
+  DOCTEST_SUBCASE("All at once")
+  {
+    auto parsed = p.execute(req.data(), req.size());
+    DOCTEST_CHECK(parsed == req.size());
+  }
+
+  DOCTEST_SUBCASE("In chunks")
+  {
+    constexpr auto chunks = 7;
+    const auto chunk_size = req.size() / chunks;
+    auto remaining = req.size();
+    auto next_data = req.data();
+
+    while (remaining > 0)
+    {
+      const auto next = std::min(remaining, chunk_size);
+      auto parsed = p.execute(next_data, next);
+      DOCTEST_CHECK(parsed == req.size());
+      next_data += next;
+      remaining -= next;
+    }
+  }
+
+  DOCTEST_SUBCASE("Byte-by-byte")
+  {
+    for (size_t i = 0; i < req.size(); ++i)
+    {
+      auto parsed = p.execute(req.data() + i, 1);
+      DOCTEST_CHECK(parsed == 1);
+    }
+  }
 
   {
     DOCTEST_CHECK(!sp.received.empty());
