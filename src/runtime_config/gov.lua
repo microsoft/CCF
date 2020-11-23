@@ -106,4 +106,11 @@ return {
   end
   return true]],
 
+  update_ca_cert = [[
+  tables, args = ...
+  t = tables["public:ccf.gov.ca_cert_ders"]
+  cert_der = pem_to_der(args.cert)
+  t:put(args.name, cert_der)
+  return true
+  ]],
 }
