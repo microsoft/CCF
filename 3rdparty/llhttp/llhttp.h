@@ -17,10 +17,6 @@ extern "C" {
 
 #include <stdint.h>
 
-// vvv LOCAL MODIFICATION
-#include "polyfill.h"
-// ^^^ LOCAL MODIFICATION
-
 typedef struct llhttp__internal_s llhttp__internal_t;
 struct llhttp__internal_s {
   int32_t _index;

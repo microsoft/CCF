@@ -4,6 +4,7 @@
 
 #include "ds/json.h"
 #include "ds/nonstd.h"
+#include "http/http_status.h"
 
 #include <llhttp/llhttp.h>
 #include <nlohmann/json.hpp>
