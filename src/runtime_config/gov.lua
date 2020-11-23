@@ -83,7 +83,15 @@ return {
     table.insert(self, {func=_func, args=_args})
     return self
   end
-  Calls =  setmetatable({}, {__index = __Calls})
+  Calls = setmetatable({}, {__index = __Calls})
+
+  function empty_list()
+    return setmetatable({}, {__was_object=false})
+  end
+
+  function empty_object()
+    return setmetatable({}, {__was_object=true})
+  end
   ]],
 
   -- scripts that can be proposed to be called
@@ -98,4 +106,11 @@ return {
   end
   return true]],
 
+  update_ca_cert = [[
+  tables, args = ...
+  t = tables["public:ccf.gov.ca_cert_ders"]
+  cert_der = pem_to_der(args.cert)
+  t:put(args.name, cert_der)
+  return true
+  ]],
 }

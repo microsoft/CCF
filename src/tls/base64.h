@@ -32,7 +32,7 @@ namespace tls
       decoded.data(), decoded.size(), &len_written, data, size);
     if (rc != 0)
     {
-      throw std::logic_error(
+      throw std::invalid_argument(
         fmt::format("Could not decode base64 string: {}", error_string(rc)));
     }
 

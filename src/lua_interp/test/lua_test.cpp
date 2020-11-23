@@ -301,6 +301,17 @@ TEST_CASE("json")
     REQUIRE(j.empty());
   }
 
+  SUBCASE("empty array")
+  {
+    // With some work, it is possible to build a table that will become an empty
+    // JSON array
+    constexpr auto code(
+      "t = {}; setmetatable(t, {__was_object = false}); return t");
+    const auto j = Interpreter().invoke<nlohmann::json>(code);
+    REQUIRE(j.type() == nlohmann::json::value_t::array);
+    REQUIRE(j.empty());
+  }
+
   SUBCASE("roundtrip empty object")
   {
     const auto j1 = nlohmann::json::object();
