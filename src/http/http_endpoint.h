@@ -155,7 +155,7 @@ namespace http
       llhttp_method verb,
       const std::string_view& path,
       const std::string& query,
-      const std::string& fragment,
+      const std::string&,
       http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
