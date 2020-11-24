@@ -419,7 +419,7 @@ def set_recovery_threshold(threshold: int, **kwargs):
 
 
 @cli_proposal
-def update_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
+def set_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
     with open(cert_path) as f:
         cert_pem = f.read()
 
@@ -432,7 +432,12 @@ def update_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
             raise ValueError("Cannot parse PEM certificate") from exc
 
     args = {"name": cert_name, "cert": cert_pem}
-    return build_proposal("update_ca_cert", args, **kwargs)
+    return build_proposal("set_ca_cert", args, **kwargs)
+
+
+@cli_proposal
+def remove_ca_cert(cert_name, **kwargs):
+    return build_proposal("remove_ca_cert", cert_name, **kwargs)
 
 
 @cli_proposal
