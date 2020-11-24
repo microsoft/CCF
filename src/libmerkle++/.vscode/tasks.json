@@ -1,0 +1,16 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cppbuild",
+			"label": "Build Debug",
+			"command": "make",
+			"args": [ "-j8" ],
+			"options": {
+				"cwd": "${workspaceFolder}/build"
+			},
+			"problemMatcher": [ "$gcc" ],
+			"group": "build"
+		}
+	]
+}
