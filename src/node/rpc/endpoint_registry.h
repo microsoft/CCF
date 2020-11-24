@@ -640,6 +640,9 @@ namespace ccf
 
       for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
       {
+        // Special endpoint, can only be called from the node.
+        if (path == "jwt_keys/refresh")
+          continue;
         for (const auto& [verb, endpoint] : verb_endpoints)
         {
           add_endpoint_to_api_document(document, endpoint);

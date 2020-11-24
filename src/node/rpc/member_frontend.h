@@ -410,10 +410,14 @@ namespace ccf
       auto key_issuer =
         tx.get_view(this->network.jwt_public_signing_key_issuer);
 
+      auto log_prefix = proposal_id != INVALID_ID ?
+        fmt::format("Proposal {}", proposal_id) :
+        "JWT key auto-refresh";
+
       // add keys
       if (jwks.keys.empty())
       {
-        LOG_FAIL_FMT("Proposal {}: JWKS has no keys", proposal_id);
+        LOG_FAIL_FMT("{}: JWKS has no keys", log_prefix, proposal_id);
         return false;
       }
       std::map<std::string, std::vector<uint8_t>> new_keys;
@@ -422,19 +426,32 @@ namespace ccf
         if (keys->has(jwk.kid) && key_issuer->get(jwk.kid).value() != issuer)
         {
           LOG_FAIL_FMT(
-            "Proposal {}: key id {} already added for different issuer",
-            proposal_id,
+            "{}: key id {} already added for different issuer",
+            log_prefix,
             jwk.kid);
           return false;
         }
         if (jwk.x5c.empty())
         {
-          LOG_FAIL_FMT("Proposal {}: JWKS is invalid (empty x5c)", proposal_id);
+          LOG_FAIL_FMT("{}: JWKS is invalid (empty x5c)", log_prefix);
           return false;
         }
 
         auto& der_base64 = jwk.x5c[0];
-        auto der = tls::raw_from_b64(der_base64);
+        ccf::Cert der;
+        try
+        {
+          der = tls::raw_from_b64(der_base64);
+        }
+        catch (const std::invalid_argument& e)
+        {
+          LOG_FAIL_FMT(
+            "{}: Could not parse x5c of key id {}: {}",
+            log_prefix,
+            jwk.kid,
+            e.what());
+          return false;
+        }
 
         std::map<std::string, std::vector<uint8_t>> claims;
         bool has_key_policy_sgx_claims =
@@ -458,9 +475,9 @@ namespace ccf
           claims.empty())
         {
           LOG_INFO_FMT(
-            "Proposal {}: Skipping JWT signing key with kid {} (not OE "
+            "{}: Skipping JWT signing key with kid {} (not OE "
             "attested)",
-            proposal_id,
+            log_prefix,
             jwk.kid);
           continue;
         }
@@ -473,8 +490,8 @@ namespace ccf
             if (claims.find(claim_name) == claims.end())
             {
               LOG_FAIL_FMT(
-                "Proposal {}: JWKS kid {} is missing the {} SGX claim",
-                proposal_id,
+                "{}: JWKS kid {} is missing the {} SGX claim",
+                log_prefix,
                 jwk.kid,
                 claim_name);
               return false;
@@ -485,8 +502,8 @@ namespace ccf
             if (expected_claim_val_hex != actual_claim_val_hex)
             {
               LOG_FAIL_FMT(
-                "Proposal {}: JWKS kid {} has a mismatching {} SGX claim",
-                proposal_id,
+                "{}: JWKS kid {} has a mismatching {} SGX claim",
+                log_prefix,
                 jwk.kid,
                 claim_name);
               return false;
@@ -499,27 +516,23 @@ namespace ccf
           {
             tls::check_is_cert(der);
           }
-          catch (std::exception& exc)
+          catch (std::invalid_argument& exc)
           {
             LOG_FAIL_FMT(
-              "Proposal {}: JWKS kid {} has an invalid X.509 certificate: "
-              "{}",
-              proposal_id,
+              "{}: JWKS kid {} has an invalid X.509 certificate: {}",
+              log_prefix,
               jwk.kid,
               exc.what());
             return false;
           }
         }
         LOG_INFO_FMT(
-          "Proposal {}: Storing JWT signing key with kid {}",
-          proposal_id,
-          jwk.kid);
+          "{}: Storing JWT signing key with kid {}", log_prefix, jwk.kid);
         new_keys.emplace(jwk.kid, der);
       }
       if (new_keys.empty())
       {
-        LOG_FAIL_FMT(
-          "Proposal {}: no keys left after applying filter", proposal_id);
+        LOG_FAIL_FMT("{}: no keys left after applying filter", log_prefix);
         return false;
       }
 
@@ -723,6 +736,55 @@ namespace ccf
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<SetJwtIssuer>();
            auto issuers = tx.get_view(this->network.jwt_issuers);
+           auto ca_certs = tx.get_read_only_view(this->network.ca_certs);
+
+           if (parsed.auto_refresh)
+           {
+             if (!parsed.ca_cert_name.has_value())
+             {
+               LOG_FAIL_FMT(
+                 "Proposal {}: ca_cert_name is missing but required if "
+                 "auto_refresh is true",
+                 proposal_id);
+               return false;
+             }
+             if (!ca_certs->has(parsed.ca_cert_name.value()))
+             {
+               LOG_FAIL_FMT(
+                 "Proposal {}: No CA cert found with name '{}'",
+                 proposal_id,
+                 parsed.ca_cert_name.value());
+               return false;
+             }
+             http::URL issuer_url;
+             try
+             {
+               issuer_url = http::parse_url_full(parsed.issuer);
+             }
+             catch (const std::runtime_error&)
+             {
+               LOG_FAIL_FMT(
+                 "Proposal {}: issuer must be a URL if auto_refresh is true",
+                 proposal_id);
+               return false;
+             }
+             if (issuer_url.schema != "https")
+             {
+               LOG_FAIL_FMT(
+                 "Proposal {}: issuer must be a URL starting with https:// if "
+                 "auto_refresh is true",
+                 proposal_id);
+               return false;
+             }
+             if (!issuer_url.query.empty() || !issuer_url.fragment.empty())
+             {
+               LOG_FAIL_FMT(
+                 "Proposal {}: issuer must be a URL without query/fragment if "
+                 "auto_refresh is true",
+                 proposal_id);
+               return false;
+             }
+           }
 
            bool success = true;
            if (parsed.jwks.has_value())
@@ -1794,6 +1856,96 @@ namespace ccf
         return make_success(true);
       };
       make_endpoint("create", HTTP_POST, json_adapter(create))
+        .set_require_client_identity(false)
+        .install();
+
+      // Only called from node. See node_state.h.
+      auto refresh_jwt_keys = [this](
+                                EndpointContext& args, nlohmann::json&& body) {
+        // All errors are server errors since the client is the server.
+
+        if (!consensus)
+        {
+          LOG_FAIL_FMT("JWT key auto-refresh: no consensus available");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "no consensus available");
+        }
+
+        auto primary_id = consensus->primary();
+        auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
+        auto info = nodes_view->get(primary_id);
+        if (!info.has_value())
+        {
+          LOG_FAIL_FMT(
+            "JWT key auto-refresh: could not find node info of primary");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "could not find node info of primary");
+        }
+
+        auto primary_cert_pem = info.value().cert;
+        auto cert_der = args.rpc_ctx->session->caller_cert;
+        auto caller_cert_pem = tls::cert_der_to_pem(cert_der);
+        if (caller_cert_pem != primary_cert_pem)
+        {
+          LOG_FAIL_FMT(
+            "JWT key auto-refresh: request does not originate from primary");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "request does not originate from primary");
+        }
+
+        SetJwtPublicSigningKeys parsed;
+        try
+        {
+          parsed = body.get<SetJwtPublicSigningKeys>();
+        }
+        catch (const JsonParseError& e)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "unable to parse body");
+        }
+
+        auto issuers = args.tx.get_view(this->network.jwt_issuers);
+        auto issuer_metadata_ = issuers->get(parsed.issuer);
+        if (!issuer_metadata_.has_value())
+        {
+          LOG_FAIL_FMT(fmt::format(
+            "JWT key auto-refresh: {} is not a valid issuer", parsed.issuer));
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            fmt::format("{} is not a valid issuer", parsed.issuer));
+        }
+        auto& issuer_metadata = issuer_metadata_.value();
+
+        if (!issuer_metadata.auto_refresh)
+        {
+          LOG_FAIL_FMT(fmt::format(
+            "JWT key auto-refresh: {} does not have auto_refresh enabled",
+            parsed.issuer));
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            fmt::format(
+              "{} does not have auto_refresh enabled", parsed.issuer));
+        }
+
+        if (!set_jwt_public_signing_keys(
+              args.tx, INVALID_ID, parsed.issuer, issuer_metadata, parsed.jwks))
+        {
+          LOG_FAIL_FMT(fmt::format(
+            "JWT key auto-refresh: error while storing signing keys for issuer "
+            "{}",
+            parsed.issuer));
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            fmt::format(
+              "error while storing signing keys for issuer {}", parsed.issuer));
+        }
+
+        return make_success(true);
+      };
+      make_endpoint(
+        "jwt_keys/refresh", HTTP_POST, json_adapter(refresh_jwt_keys))
         .set_require_client_identity(false)
         .install();
     }
