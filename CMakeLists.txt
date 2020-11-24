@@ -226,17 +226,27 @@ function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   endif()
 endfunction()
 
+# Generate an ephemeral signing key
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
+  COMMAND openssl genrsa -out ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem -3
+          3072
+)
+add_custom_target(
+  signing_key ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
+)
+
 add_ccf_app(
   logging SRCS src/apps/logging/logging.cpp
                src/apps/logging/stub_for_code_signing.cpp
 )
 sign_app_library(
   logging.enclave ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+  ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 create_patched_enclave_lib(
   logging ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+  ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 
 if(BUILD_TESTS)
