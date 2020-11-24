@@ -69,9 +69,6 @@ def test_share_resilience(network, args, from_snapshot=False):
             check_commit(m.get_and_submit_recovery_share(primary))
             submitted_shares_count += 1
 
-    # Here, we kill the current primary instead of just suspending it.
-    # However, because of https://github.com/microsoft/CCF/issues/99#issuecomment-630875387,
-    # the new primary will most likely be the previous primary, which defies the point of this test.
     LOG.info(
         f"Shutting down node {primary.node_id} before submitting last recovery share"
     )
@@ -149,7 +146,6 @@ checked. Note that the key for each logging message is unique (per table).
 
     args = infra.e2e_args.cli_args(add)
     args.package = "liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=0)
-    args.nodes = ["local://localhost"] * (2)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
 
     run(args)

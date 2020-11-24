@@ -309,6 +309,8 @@ namespace enclave
 
         if (start_type == StartType::Join)
         {
+          // When joining from a snapshot, deserialise ledger suffix to verify
+          // snapshot evidence. Otherwise, attempt to join straight away
           if (!ccf_config.startup_snapshot.empty())
           {
             node->start_ledger_recovery();

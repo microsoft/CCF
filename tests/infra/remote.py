@@ -789,11 +789,6 @@ class CCFRemote(object):
     # but when nodes started from snapshots are fully supported in the test
     # suite, this argument will probably default to True (or be deleted entirely)
     def get_ledger(self, include_read_only_dirs=False):
-        """
-        TODO:
-            1. Copy all files from main ledger dir that are not committed
-
-        """
         self.remote.get(self.ledger_dir_name, self.common_dir)
         read_only_ledger_dirs = []
         if include_read_only_dirs:
