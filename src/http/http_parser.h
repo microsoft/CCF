@@ -11,6 +11,7 @@
 #include <llhttp/llhttp.h>
 #include <map>
 #include <queue>
+#include <regex>
 #include <string>
 #include <string_view>
 
@@ -142,34 +143,41 @@ namespace http
 
   struct URL
   {
-    std::string_view schema;
-    std::string_view host;
-    std::string_view port;
-    std::string_view path;
-    std::string_view query;
-    std::string_view fragment;
+    std::string scheme;
+    std::string host;
+    std::string port;
+    std::string path;
+    std::string query;
+    std::string fragment;
   };
 
   inline URL parse_url_full(const std::string& url)
   {
     LOG_TRACE_FMT("Received url to parse: {}", url);
 
-    http_parser_url parser_url;
-    http_parser_url_init(&parser_url);
+    // From https://tools.ietf.org/html/rfc3986#appendix-B
+    std::regex url_regex(
+      "^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\?([^#]*))?(#(.*))?");
 
-    const auto err =
-      http_parser_parse_url(url.data(), url.size(), 0, &parser_url);
-    if (err != 0)
+    std::smatch match;
+    if (!std::regex_match(url, match, url_regex))
     {
-      throw std::invalid_argument(fmt::format("Error parsing url: {}", err));
+      throw std::invalid_argument(fmt::format("Unable to parse url: {}", url));
     }
+    const auto host_port = match[4].str();
+    const auto last_colon = host_port.rfind(':');
 
-    return {extract_url_field(parser_url, UF_SCHEMA, url),
-            extract_url_field(parser_url, UF_HOST, url),
-            extract_url_field(parser_url, UF_PORT, url),
-            extract_url_field(parser_url, UF_PATH, url),
-            extract_url_field(parser_url, UF_QUERY, url),
-            extract_url_field(parser_url, UF_FRAGMENT, url)};
+    URL u;
+    u.scheme = match[2].str();
+    u.host = host_port.substr(0, last_colon);
+    if (last_colon != std::string::npos)
+    {
+      u.port = host_port.substr(last_colon + 1);
+    }
+    u.path = match[5].str();
+    u.query = match[7].str();
+    u.fragment = match[9].str();
+    return u;
   }
 
   class Parser

@@ -350,6 +350,43 @@ DOCTEST_TEST_CASE("Escaping")
   }
 }
 
+DOCTEST_TEST_CASE("URL parser")
+{
+  // Test cases taken from https://tools.ietf.org/html/rfc3986
+  {
+    constexpr auto url_s = "http://www.ietf.org/rfc/rfc2396.txt";
+    const auto url = http::parse_url_full(url_s);
+    DOCTEST_CHECK(url.scheme == "http");
+    DOCTEST_CHECK(url.host == "www.ietf.org");
+    DOCTEST_CHECK(url.port.empty());
+    DOCTEST_CHECK(url.path == "/rfc/rfc2396.txt");
+    DOCTEST_CHECK(url.query.empty());
+    DOCTEST_CHECK(url.fragment.empty());
+  }
+
+  {
+    constexpr auto url_s = "ftp://ftp.is.co.za/rfc/rfc1808.txt";
+    const auto url = http::parse_url_full(url_s);
+    DOCTEST_CHECK(url.scheme == "ftp");
+    DOCTEST_CHECK(url.host == "ftp.is.co.za");
+    DOCTEST_CHECK(url.port.empty());
+    DOCTEST_CHECK(url.path == "/rfc/rfc1808.txt");
+    DOCTEST_CHECK(url.query.empty());
+    DOCTEST_CHECK(url.fragment.empty());
+  }
+
+  {
+    constexpr auto url_s = "foo://example.com:8042/over/there?name=ferret#nose";
+    const auto url = http::parse_url_full(url_s);
+    DOCTEST_CHECK(url.scheme == "foo");
+    DOCTEST_CHECK(url.host == "example.com");
+    DOCTEST_CHECK(url.port == "8042");
+    DOCTEST_CHECK(url.path == "/over/there");
+    DOCTEST_CHECK(url.query == "name=ferret");
+    DOCTEST_CHECK(url.fragment == "nose");
+  }
+}
+
 struct SignedRequestProcessor : public http::SimpleRequestProcessor
 {
   std::queue<ccf::SignedReq> signed_reqs;
