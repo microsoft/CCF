@@ -347,6 +347,14 @@ namespace ccf
         return *this;
       }
 
+      // TODO: Document
+      template <typename T, typename... Ts>
+      Endpoint& add_authentication_policy(Ts&&... ts)
+      {
+        authn_policies.push_back(std::make_shared<T>(std::forward<Ts>(ts)...));
+        return *this;
+      }
+
       /** Indicates that the execution of the Endpoint does not require
        * consensus from other nodes in the network.
        *

@@ -4,6 +4,7 @@
 #include "formatters.h"
 #include "logging_schema.h"
 #include "node/quote.h"
+#include "node/rpc/authentication.h"
 #include "node/rpc/user_frontend.h"
 
 #define FMT_HEADER_ONLY
@@ -64,6 +65,7 @@ namespace loggingapp
       // SNIPPET_START: install_record
       make_endpoint("log/private", HTTP_POST, ccf::json_adapter(record))
         .set_auto_schema<LoggingRecord::In, bool>()
+        .add_authentication_policy<UserCertAuthnPolicy>()
         .install();
       // SNIPPET_END: install_record
 

@@ -272,6 +272,32 @@ namespace ccf
       auto& metrics = endpoints.get_metrics(endpoint);
       metrics.calls++;
 
+      std::unique_ptr<AuthnIdentity> identity = nullptr;
+
+      // If any auth policy was required, check that at least one is accepted
+      if (!endpoint->authn_policies.empty())
+      {
+        for (const auto& policy : endpoint->authn_policies)
+        {
+          identity = policy->authenticate(tx, ctx);
+          if (identity != nullptr)
+          {
+            break;
+          }
+        }
+
+        if (identity != nullptr)
+        {
+          // TODO: Don't need to set this via ctx, just pass as EndpointArgs?
+          //ctx->set_caller_identity(std::move(identity));
+        }
+        else
+        {
+          endpoint->authn_policies[0]->set_unauthenticated_error(ctx);
+          return ctx->serialise_response();
+        }
+      }
+
       const auto signed_request = ctx->get_signed_request();
       // On signed requests, the effective caller id is the key id that
       // signed the request, the session-level identity is unimportant

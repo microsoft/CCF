@@ -4,6 +4,7 @@
 
 #include "ds/json.h"
 #include "kv/map.h"
+#include "authentication.h"
 
 #include <string>
 #include <utility>
@@ -78,6 +79,7 @@ namespace ccf
 
       EndpointKey dispatch;
       EndpointProperties properties;
+      std::vector<std::shared_ptr<AuthnPolicy>> authn_policies;
     };
 
     using EndpointDefinitionPtr = std::shared_ptr<EndpointDefinition>;
