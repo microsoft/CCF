@@ -380,6 +380,17 @@ DOCTEST_TEST_CASE("URL parser")
   }
 
   {
+    constexpr auto url_s = "foo://example.com";
+    const auto url = http::parse_url_full(url_s);
+    DOCTEST_CHECK(url.scheme == "foo");
+    DOCTEST_CHECK(url.host == "example.com");
+    DOCTEST_CHECK(url.port.empty());
+    DOCTEST_CHECK(url.path.empty());
+    DOCTEST_CHECK(url.query.empty());
+    DOCTEST_CHECK(url.fragment.empty());
+  }
+
+  {
     constexpr auto url_s = "foo://example.com:8042/over/there?name=ferret#nose";
     const auto url = http::parse_url_full(url_s);
     DOCTEST_CHECK(url.scheme == "foo");
@@ -388,6 +399,28 @@ DOCTEST_TEST_CASE("URL parser")
     DOCTEST_CHECK(url.path == "/over/there");
     DOCTEST_CHECK(url.query == "name=ferret");
     DOCTEST_CHECK(url.fragment == "nose");
+  }
+
+  {
+    constexpr auto url_s = "https://[2001:0db8:0000:0000:0000::1428:57ab]:8042/over/there#nose";
+    const auto url = http::parse_url_full(url_s);
+    DOCTEST_CHECK(url.scheme == "https");
+    DOCTEST_CHECK(url.host == "[2001:0db8:0000:0000:0000::1428:57ab]");
+    DOCTEST_CHECK(url.port == "8042");
+    DOCTEST_CHECK(url.path == "/over/there");
+    DOCTEST_CHECK(url.query.empty());
+    DOCTEST_CHECK(url.fragment == "nose");
+  }
+
+  {
+    constexpr auto url_s = "http://[::ffff:0c22:384e]/";
+    const auto url = http::parse_url_full(url_s);
+    DOCTEST_CHECK(url.scheme == "http");
+    DOCTEST_CHECK(url.host == "[::ffff:0c22:384e]");
+    DOCTEST_CHECK(url.port.empty());
+    DOCTEST_CHECK(url.path == "/");
+    DOCTEST_CHECK(url.query.empty());
+    DOCTEST_CHECK(url.fragment.empty());
   }
 }
 

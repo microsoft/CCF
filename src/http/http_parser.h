@@ -177,15 +177,22 @@ namespace http
     {
       throw std::invalid_argument(fmt::format("Unable to parse url: {}", url));
     }
+
     const auto host_port = match[4].str();
-    const auto last_colon = host_port.rfind(':');
+
+    // IPv6 hosts may contain colons, so only search for port after the closing
+    // square bracket
+    const auto closing_bracket = host_port.rfind(']');
+    const auto port_delim_start =
+      closing_bracket == std::string::npos ? 0 : closing_bracket;
+    const auto port_delim = host_port.find(':', port_delim_start);
 
     URL u;
     u.scheme = match[2].str();
-    u.host = host_port.substr(0, last_colon);
-    if (last_colon != std::string::npos)
+    u.host = host_port.substr(0, port_delim);
+    if (port_delim != std::string::npos)
     {
-      u.port = host_port.substr(last_colon + 1);
+      u.port = host_port.substr(port_delim + 1);
     }
     u.path = match[5].str();
     u.query = match[7].str();
@@ -402,8 +409,6 @@ namespace http
         const auto [path, query, fragment] = split_url_path(url);
         const std::string decoded_query = url_decode(query);
         const std::string decoded_fragment = url_decode(fragment);
-        LOG_INFO_FMT(
-          "path: {}, query: {}, fragment: {}", path, query, fragment);
         proc.handle_request(
           llhttp_method(parser.method),
           path,
