@@ -228,6 +228,16 @@ namespace ccf
       ctx->set_response_body(std::move(msg));
     }
 
+    void set_response_unauthorized_jwt(
+      std::shared_ptr<enclave::RpcContext>& ctx, std::string&& msg) const
+    {
+      ctx->set_response_status(HTTP_STATUS_UNAUTHORIZED);
+      ctx->set_response_header(
+        http::headers::WWW_AUTHENTICATE,
+        "Bearer realm=\"JWT bearer token access\", error=\"invalid_token\"");
+      ctx->set_response_body(std::move(msg));
+    }
+
     std::optional<std::vector<uint8_t>> process_command(
       std::shared_ptr<enclave::RpcContext> ctx,
       kv::Tx& tx,
@@ -385,7 +395,7 @@ namespace ccf
         }
         if (!error_reason.empty())
         {
-          set_response_unauthorized(
+          set_response_unauthorized_jwt(
             ctx, fmt::format("'{}' {}", ctx->get_method(), error_reason));
           update_metrics(ctx, metrics);
           return ctx->serialise_response();
