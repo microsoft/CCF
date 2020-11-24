@@ -673,6 +673,34 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/tests/js-content-types
   )
 
+  add_e2e_test(
+    NAME governance_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
+  )
+
+  add_e2e_test(
+    NAME governance_ca_certs_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_ca_certs.py GOV_SCRIPT
+                  ${CCF_DIR}/src/runtime_config/gov_ca_certs.lua
+    CONSENSUS cft
+  )
+
+  add_e2e_test(
+    NAME governance_ca_cert_mismatch_test
+    PYTHON_SCRIPT
+      ${CMAKE_SOURCE_DIR}/tests/governance_ca_cert_mismatch.py GOV_SCRIPT
+      ${CCF_DIR}/src/runtime_config/gov_ca_cert_mismatch.lua
+    CONSENSUS cft
+  )
+
+  add_e2e_test(
+    NAME jwt_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
+    CONSENSUS cft
+  )
+
   if(QUOTES_ENABLED)
     add_e2e_test(
       NAME reconfiguration_test
@@ -693,34 +721,6 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
       CONSENSUS cft
       ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --raft-election-timeout 4000
-    )
-
-    add_e2e_test(
-      NAME governance_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-      CONSENSUS cft
-      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
-    )
-
-    add_e2e_test(
-      NAME governance_ca_certs_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_ca_certs.py GOV_SCRIPT
-                    ${CCF_DIR}/src/runtime_config/gov_ca_certs.lua
-      CONSENSUS cft
-    )
-
-    add_e2e_test(
-      NAME governance_ca_cert_mismatch_test
-      PYTHON_SCRIPT
-        ${CMAKE_SOURCE_DIR}/tests/governance_ca_cert_mismatch.py GOV_SCRIPT
-        ${CCF_DIR}/src/runtime_config/gov_ca_cert_mismatch.lua
-      CONSENSUS cft
-    )
-
-    add_e2e_test(
-      NAME jwt_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
-      CONSENSUS cft
     )
   endif()
 

@@ -76,15 +76,6 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/nodejs/http-parser",
-          "commitHash": "2343fd6b5214b2ded2cdcf76de2bf60903bb90cd"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
           "repositoryUrl": "https://github.com/project-everest/hacl-star",
           "commitHash": "983baba407d2c91134ee270656a3d2c35683e1ff"
         }
@@ -142,6 +133,15 @@
         "git": {
           "repositoryUrl": "https://github.com/rollbear/trompeloeil",
           "commitHash": "08cba57ed7207c8ad5c94fd2a20dc0bfecabe878"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/nodejs/llhttp",
+          "commitHash": "8b3939e29a01ffbf9e481a76db81e372f0fb2f0c"
         }
       }
     }
