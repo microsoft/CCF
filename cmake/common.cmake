@@ -172,7 +172,10 @@ set(LUA_SOURCES
     ${LUA_DIR}/lzio.c
 )
 
-set(HTTP_PARSER_SOURCES ${CCF_DIR}/3rdparty/http-parser/http_parser.c)
+set(HTTP_PARSER_SOURCES
+    ${CCF_DIR}/3rdparty/llhttp/api.c ${CCF_DIR}/3rdparty/llhttp/http.c
+    ${CCF_DIR}/3rdparty/llhttp/llhttp.c
+)
 
 find_library(CRYPTO_LIBRARY crypto)
 

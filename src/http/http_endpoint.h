@@ -99,34 +99,10 @@ namespace http
 
           try
           {
-            const auto used = p.execute(data, n_read);
-            if (used == 0)
-            {
-              // Parsing error
-              LOG_FAIL_FMT("Failed to parse request");
-              return;
-            }
-            else if (used > n_read)
-            {
-              // Something has gone very wrong
-              LOG_FAIL_FMT(
-                "Unexpected return result - tried to parse {} bytes, actually "
-                "parsed {}",
-                n_read,
-                used);
-              return;
-            }
-            else if (used == n_read)
-            {
-              // Used all provided bytes - check if more are available
-              n_read = read(buf.data(), buf.size(), false);
-            }
-            else
-            {
-              // Used some bytes - pass over these and retry with remainder
-              data += used;
-              n_read -= used;
-            }
+            p.execute(data, n_read);
+
+            // Used all provided bytes - check if more are available
+            n_read = read(buf.data(), buf.size(), false);
           }
           catch (const std::exception& e)
           {
@@ -176,15 +152,16 @@ namespace http
     }
 
     void handle_request(
-      http_method verb,
+      llhttp_method verb,
       const std::string_view& path,
       const std::string& query,
+      const std::string&,
       http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
       LOG_TRACE_FMT(
         "Processing msg({}, {}, {}, [{} bytes])",
-        http_method_str(verb),
+        llhttp_method_name(verb),
         path,
         query,
         body.size());

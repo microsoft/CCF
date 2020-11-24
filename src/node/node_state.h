@@ -1351,16 +1351,7 @@ namespace ccf
       http::SimpleResponseProcessor processor;
       http::ResponseParser parser(processor);
 
-      const auto parsed_count =
-        parser.execute(response.data(), response.size());
-      if (parsed_count != response.size())
-      {
-        LOG_FAIL_FMT(
-          "Tried to parse {} response bytes, actually parsed {}",
-          response.size(),
-          parsed_count);
-        return false;
-      }
+      parser.execute(response.data(), response.size());
 
       if (processor.received.size() != 1)
       {
