@@ -767,7 +767,7 @@ namespace ccf
                  proposal_id);
                return false;
              }
-             if (issuer_url.schema != "https")
+             if (issuer_url.scheme != "https")
              {
                LOG_FAIL_FMT(
                  "Proposal {}: issuer must be a URL starting with https:// if "
