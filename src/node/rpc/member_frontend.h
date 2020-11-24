@@ -52,59 +52,7 @@ namespace ccf
       lua::Interpreter& li,
       const std::optional<Script>& env_script) const override
     {
-      auto l = li.get_state();
-      lua_register(l, "pem_to_der", lua_pem_to_der);
-      lua_register(
-        l, "verify_cert_and_get_claims", lua_verify_cert_and_get_claims);
-
       TxScriptRunner::setup_environment(li, env_script);
-    }
-
-    static int lua_pem_to_der(lua_State* l)
-    {
-      std::string pem = get_var_string_from_args(l);
-      std::vector<uint8_t> der = tls::make_verifier(pem)->der_cert_data();
-      nlohmann::json json = der;
-      lua::push_raw(l, json);
-      return 1;
-    }
-
-    static int lua_verify_cert_and_get_claims(lua_State* l)
-    {
-      nlohmann::json json = lua::check_get<nlohmann::json>(l, -1);
-      std::vector<uint8_t> cert_der = json;
-
-      std::map<std::string, std::vector<uint8_t>> claims;
-
-      oe_verifier_initialize();
-      oe_result_t res = oe_verify_attestation_certificate_with_evidence(
-        cert_der.data(),
-        cert_der.size(),
-        oe_verify_attestation_certificate_with_evidence_cb,
-        &claims);
-
-      if (res != OE_OK)
-      {
-        // Validation should happen before the proposal is registered.
-        // See https://github.com/microsoft/CCF/issues/1458.
-        throw std::runtime_error(fmt::format(
-          "Invalid certificate, "
-          "oe_verify_attestation_certificate_with_evidence() returned {}",
-          res));
-      }
-
-      lua_newtable(l);
-      const int table_idx = -2;
-
-      for (auto const& item : claims)
-      {
-        std::string val_hex = fmt::format("{:02x}", fmt::join(item.second, ""));
-        LOG_INFO_FMT("claim[{}] = {}", item.first, val_hex);
-        lua::push_raw(l, val_hex);
-        lua_setfield(l, table_idx, item.first.c_str());
-      }
-
-      return 1;
     }
 
   public:
@@ -220,6 +168,14 @@ namespace ccf
   };
   DECLARE_JSON_TYPE(SetJwtPublicSigningKeys)
   DECLARE_JSON_REQUIRED_FIELDS(SetJwtPublicSigningKeys, issuer, jwks)
+
+  struct SetCaCert
+  {
+    std::string name;
+    std::string cert;
+  };
+  DECLARE_JSON_TYPE(SetCaCert)
+  DECLARE_JSON_REQUIRED_FIELDS(SetCaCert, name, cert)
 
   class MemberEndpoints : public CommonEndpointRegistry
   {
@@ -729,6 +685,34 @@ namespace ccf
 
            user_info->user_data = parsed.user_data;
            users_view->put(parsed.user_id, user_info.value());
+           return true;
+         }},
+        {"set_ca_cert",
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const auto parsed = args.get<SetCaCert>();
+           auto ca_certs = tx.get_view(this->network.ca_certs);
+           std::vector<uint8_t> cert_der;
+           try
+           {
+             cert_der = tls::cert_pem_to_der(parsed.cert);
+           }
+           catch (const std::invalid_argument& e)
+           {
+             LOG_FAIL_FMT(
+               "Proposal {}: certificate is not a valid X.509 certificate in "
+               "PEM format: {}",
+               proposal_id,
+               e.what());
+             return false;
+           }
+           ca_certs->put(parsed.name, cert_der);
+           return true;
+         }},
+        {"remove_ca_cert",
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
+           const auto cert_name = args.get<std::string>();
+           auto ca_certs = tx.get_view(this->network.ca_certs);
+           ca_certs->remove(cert_name);
            return true;
          }},
         {"set_jwt_issuer",
