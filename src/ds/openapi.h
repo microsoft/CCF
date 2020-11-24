@@ -4,8 +4,9 @@
 
 #include "ds/json.h"
 #include "ds/nonstd.h"
+#include "http/http_status.h"
 
-#include <http-parser/http_parser.h>
+#include <llhttp/llhttp.h>
 #include <nlohmann/json.hpp>
 #include <string>
 
@@ -99,10 +100,10 @@ namespace ds
     }
 
     static inline nlohmann::json& path_operation(
-      nlohmann::json& path, http_method verb)
+      nlohmann::json& path, llhttp_method verb)
     {
       // HTTP_GET becomes the string "get"
-      std::string s = http_method_str(verb);
+      std::string s = llhttp_method_name(verb);
       nonstd::to_lower(s);
       auto& po = access::get_object(path, s);
       // responses is required field in a path_operation
@@ -300,7 +301,7 @@ namespace ds
     static inline void add_request_body_schema(
       nlohmann::json& document,
       const std::string& uri,
-      http_method verb,
+      llhttp_method verb,
       const std::string& content_type,
       const std::string& schema_name,
       const nlohmann::json& schema_)
@@ -316,7 +317,7 @@ namespace ds
     static inline void add_request_body_schema(
       nlohmann::json& document,
       const std::string& uri,
-      http_method verb,
+      llhttp_method verb,
       const std::string& content_type)
     {
       auto& rb = request_body(path_operation(path(document, uri), verb));
@@ -342,7 +343,7 @@ namespace ds
     static inline void add_request_parameter_schema(
       nlohmann::json& document,
       const std::string& uri,
-      http_method verb,
+      llhttp_method verb,
       const nlohmann::json& param)
     {
       auto& params = parameters(path_operation(path(document, uri), verb));
@@ -352,7 +353,7 @@ namespace ds
     static inline void add_response_schema(
       nlohmann::json& document,
       const std::string& uri,
-      http_method verb,
+      llhttp_method verb,
       http_status status,
       const std::string& content_type,
       const std::string& schema_name,
@@ -368,7 +369,7 @@ namespace ds
     static inline void add_response_schema(
       nlohmann::json& document,
       const std::string& uri,
-      http_method verb,
+      llhttp_method verb,
       http_status status,
       const std::string& content_type)
     {
