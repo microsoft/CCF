@@ -188,7 +188,7 @@ namespace ccf
 
       bool is_snapshot_verified()
       {
-        return has_evidence; // && is_evidence_committed; TODO: Add this back
+        return has_evidence && is_evidence_committed;
       }
 
       ~StartupSnapshotInfo()
@@ -422,7 +422,6 @@ namespace ccf
         config.joining.target_port,
         [this, &config](
           http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
-          LOG_FAIL_FMT("message!");
           std::lock_guard<SpinLock> guard(lock);
           if (!sm.check(State::pending))
           {
@@ -711,14 +710,11 @@ namespace ccf
         }
         last_recovered_signed_idx = ledger_idx;
 
-        LOG_FAIL_FMT(
-          "Signature proves that commit was at {}", last_sig->commit_seqno);
-
         if (
           startup_snapshot_info && startup_snapshot_info->has_evidence &&
           last_sig->commit_seqno >= startup_snapshot_info->evidence_seqno)
         {
-          LOG_FAIL_FMT("Snapshot evidence at {} is committed");
+          LOG_FAIL_FMT("Snapshot evidence at {} is committed", ledger_idx);
           startup_snapshot_info->is_evidence_committed = true;
         }
       }

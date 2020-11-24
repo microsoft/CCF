@@ -41,8 +41,21 @@ def is_file_committed(file_name):
     return ".committed" in file_name
 
 
-def get_snapshot_seqno(file_name):
-    return int(re.findall(r"\d+", file_name)[0])
+def get_snapshot_seqnos(file_name):
+    # Return snapshot seqno and evidence seqno
+    seqnos = re.findall(r"\d+", file_name)
+    return int(seqnos[0]), int(seqnos[1])
+
+
+def find_latest_snapshot(snapshot_dir):
+    latest_snapshot = None
+    snapshot_max_seqno = 0
+    for s in os.listdir(snapshot_dir):
+        snapshot_seqno, _ = get_snapshot_seqnos(s)
+        if snapshot_seqno > snapshot_max_seqno:
+            snapshot_max_seqno = snapshot_seqno
+            latest_snapshot = s
+    return latest_snapshot
 
 
 class Node:

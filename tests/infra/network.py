@@ -196,14 +196,49 @@ class Network:
         # specified
         if from_snapshot and snapshot_dir is None:
             snapshot_dir = target_node.get_committed_snapshots()
+            LOG.error(os.listdir(snapshot_dir))
             assert (
                 len(os.listdir(snapshot_dir)) > 0
             ), f"There are no snapshots to resume from in directory {snapshot_dir}"
 
+            latest_snapshot_file = infra.node.find_latest_snapshot(snapshot_dir)
+            LOG.error(latest_snapshot_file)
+
+            # Wait for commit of snapshot evidence to be recorded in signature
+            with target_node.client() as c:
+                r = c.get("/node/state")
+                last_signed_seqno = r.body.json()["last_signed_seqno"]
+                LOG.error(last_signed_seqno)
+                r = c.get("/node/commit")
+                current_commit_seqno = r.body.json()["seqno"]
+                assert (
+                    last_signed_seqno >= current_commit_seqno
+                )  # TODO: We should wait here instead
+
+            # with target_node.client("user0") as c:
+            #     r = c.post("/app/log/private", {"id": 0, "msg": "msg"})
+            #     c.wait_for_commit(r)
+
+            # with target_node.client() as c:
+            #     r = c.get("/node/state")
+
+            # while True:
+
+            # if last_signed_seqno:
+            #     pass
+
+            # input("")
+
+            # TODO: Wait for snapshot evidence to have proof that it is committed
+            # 1. Select latest committed snapshot and retrieve evidence seqno
+            # 2. Get latest signed index from node and wait for it to be > evidence seqno and globally committed
+            # 3. Issue a transaction and wait for it to be globally committed
+            # => Snapshot evidence is now globally committed
+
         committed_ledger_dirs = []
         current_ledger_dir = None
         if snapshot_dir is not None:
-            LOG.info(f"Joining from snapshot: {snapshot_dir}")
+            LOG.info(f"Joining from snapshot directory: {snapshot_dir}")
             # Only when joining from snapshot, retrieve ledger dir from target node
             # if the ledger directory is not specified. When joining without snapshot,
             # the entire ledger will be retransmitted by primary node

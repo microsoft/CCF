@@ -68,11 +68,6 @@ def test_add_node_from_backup(network, args):
 @reqs.at_least_n_nodes(2)
 # @reqs.add_from_snapshot()
 def test_add_node_from_snapshot(network, args, copy_ledger=True):
-    import time
-
-    network.txs.issue(network, number_txs=2)
-    time.sleep(10)
-
     new_node = network.create_and_trust_node(
         args.package,
         "local://localhost",
