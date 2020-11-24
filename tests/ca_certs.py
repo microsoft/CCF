@@ -9,7 +9,6 @@ import infra.path
 import infra.proc
 import infra.net
 import infra.e2e_args
-from infra.proposal import ProposalState
 import suite.test_requirements as reqs
 import ccf.proposal_generator
 
@@ -29,7 +28,7 @@ def test_cert_store(network, args):
         f.write("foo")
         f.flush()
         try:
-            proposal_body, _ = ccf.proposal_generator.set_ca_cert(cert_name, f.name)
+            ccf.proposal_generator.set_ca_cert(cert_name, f.name)
         except ValueError:
             pass
         else:
