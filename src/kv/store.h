@@ -81,11 +81,13 @@ namespace kv
     // Tables, but its versioning invariants are ignored.
     const bool strict_versions = true;
 
+
     DeserialiseSuccess commit_deserialised(
       OrderedChanges& changes, Version& v, const MapCollection& new_maps)
     {
+      std::vector<std::shared_ptr<ConsensusHook>> hooks;
       auto c = apply_changes(
-        changes, [v]() { return v; }, new_maps);
+        changes, [v]() { return v; }, hooks, new_maps);
       if (!c.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
@@ -433,11 +435,13 @@ namespace kv
         return DeserialiseSuccess::FAILED;
       }
 
+      std::vector<std::shared_ptr<ConsensusHook>> hooks;
+
       // Each map is committed at a different version, independently of the
       // overall snapshot version. The commit versions for each map are
       // contained in the snapshot and applied when the snapshot is committed.
       auto r = apply_changes(
-        changes, []() { return NoVersion; }, new_maps);
+        changes, []() { return NoVersion; }, hooks, new_maps);
       if (!r.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised snapshot at version {}", v);

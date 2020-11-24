@@ -38,6 +38,7 @@ namespace kv
   static inline std::optional<Version> apply_changes(
     OrderedChanges& changes,
     std::function<Version()> f,
+    std::vector<std::shared_ptr<ConsensusHook>>& hooks,
     const MapCollection& new_maps = {},
     const std::optional<Version>& new_maps_conflict_version = std::nullopt)
   {
@@ -127,7 +128,11 @@ namespace kv
       // Collect ConsensusHooks
       for (auto it = views.begin(); it != views.end(); ++it)
       {
-        it->second->post_commit();
+        auto hook_ptr = it->second->post_commit();
+        if (hook_ptr != nullptr)
+        {
+          hooks.push_back(hook_ptr);
+        }
       }
     }
 
