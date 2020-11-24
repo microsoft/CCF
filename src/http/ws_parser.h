@@ -224,6 +224,7 @@ namespace ws
             llhttp_method::HTTP_POST,
             path,
             {},
+            {},
             {{"Content-type", "application/json"}},
             std::move(body));
           state = INIT;

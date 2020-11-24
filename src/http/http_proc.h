@@ -22,6 +22,7 @@ namespace http
       llhttp_method method,
       const std::string_view& path,
       const std::string& query,
+      const std::string& fragment,
       HeaderMap&& headers,
       std::vector<uint8_t>&& body) = 0;
   };

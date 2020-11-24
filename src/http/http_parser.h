@@ -77,6 +77,7 @@ namespace http
       llhttp_method method;
       std::string path;
       std::string query;
+      std::string fragment;
       http::HeaderMap headers;
       std::vector<uint8_t> body;
     };
@@ -87,11 +88,16 @@ namespace http
       llhttp_method method,
       const std::string_view& path,
       const std::string& query,
+      const std::string& fragment,
       http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
-      received.emplace(
-        Request{method, std::string(path), std::string(query), headers, body});
+      received.emplace(Request{method,
+                               std::string(path),
+                               std::string(query),
+                               std::string(fragment),
+                               headers,
+                               body});
     }
   };
 
@@ -130,7 +136,7 @@ namespace http
   static int on_body(llhttp_t* parser, const char* at, size_t length);
   static int on_msg_end(llhttp_t* parser);
 
-  inline auto parse_url(const std::string_view& url)
+  inline auto split_url_path(const std::string_view& url)
   {
     LOG_TRACE_FMT("Received url to parse: {}", std::string_view(url));
 
@@ -138,7 +144,14 @@ namespace http
     const auto query_start =
       path_end == std::string::npos ? url.size() : path_end + 1;
 
-    return std::make_pair(url.substr(0, path_end), url.substr(query_start));
+    const auto query_end = url.find('#', query_start);
+    const auto fragment_start =
+      query_end == std::string::npos ? url.size() : query_end + 1;
+
+    return std::make_tuple(
+      url.substr(0, path_end),
+      url.substr(query_start, query_end - query_start),
+      url.substr(fragment_start));
   }
 
   struct URL
@@ -380,17 +393,22 @@ namespace http
           llhttp_method(parser.method),
           {},
           {},
+          {},
           std::move(headers),
           std::move(body_buf));
       }
       else
       {
-        const auto [path, query] = parse_url(url);
-        std::string decoded_query = url_decode(query);
+        const auto [path, query, fragment] = split_url_path(url);
+        const std::string decoded_query = url_decode(query);
+        const std::string decoded_fragment = url_decode(fragment);
+        LOG_INFO_FMT(
+          "path: {}, query: {}, fragment: {}", path, query, fragment);
         proc.handle_request(
           llhttp_method(parser.method),
           path,
           decoded_query,
+          decoded_fragment,
           std::move(headers),
           std::move(body_buf));
       }

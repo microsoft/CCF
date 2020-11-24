@@ -313,7 +313,10 @@ DOCTEST_TEST_CASE("Escaping")
 
   {
     const std::string request =
-      "GET /foo/bar?this=that&awkward=escaped+string+%3A%3B-%3D%3F%21%22 "
+      "GET "
+      "/foo/"
+      "bar?this=that&awkward=escaped+string+%3A%3B-%3D%3F%21%22%25%23#"
+      "AndThisFragment+%3A%3B-%3D%3F%21%22%25%23 "
       "HTTP/1.1\r\n\r\n";
 
     http::SimpleRequestProcessor sp;
@@ -326,7 +329,8 @@ DOCTEST_TEST_CASE("Escaping")
     const auto& m = sp.received.front();
     DOCTEST_CHECK(m.method == HTTP_GET);
     DOCTEST_CHECK(m.path == "/foo/bar");
-    DOCTEST_CHECK(m.query == "this=that&awkward=escaped string :;-=?!\"");
+    DOCTEST_CHECK(m.query == "this=that&awkward=escaped string :;-=?!\"%#");
+    DOCTEST_CHECK(m.fragment == "AndThisFragment :;-=?!\"%#");
   }
 
   {
@@ -395,6 +399,7 @@ struct SignedRequestProcessor : public http::SimpleRequestProcessor
     llhttp_method method,
     const std::string_view& path,
     const std::string& query,
+    const std::string& fragment,
     http::HeaderMap&& headers,
     std::vector<uint8_t>&& body) override
   {
@@ -405,7 +410,7 @@ struct SignedRequestProcessor : public http::SimpleRequestProcessor
     signed_reqs.push(signed_req.value());
 
     http::SimpleRequestProcessor::handle_request(
-      method, path, query, std::move(headers), std::move(body));
+      method, path, query, fragment, std::move(headers), std::move(body));
   }
 };
 
