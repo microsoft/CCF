@@ -8,7 +8,7 @@
 #include "node/client_signatures.h"
 #include "node/entities.h"
 
-#include <http-parser/http_parser.h>
+#include <llhttp/llhttp.h>
 #include <variant>
 #include <vector>
 
@@ -16,9 +16,9 @@ namespace ccf
 {
   static_assert(
     static_cast<int>(ws::Verb::WEBSOCKET) <
-    static_cast<int>(http_method::HTTP_DELETE));
+    static_cast<int>(llhttp_method::HTTP_DELETE));
   /*!
-    Extension of http_method including a special "WEBSOCKET" method,
+    Extension of llhttp_method including a special "WEBSOCKET" method,
     to allow make_*_endpoint() to be a single uniform interface to define
     handlers for either use cases.
 
@@ -33,17 +33,17 @@ namespace ccf
 
   public:
     RESTVerb() : verb(std::numeric_limits<int>::min()) {}
-    RESTVerb(const http_method& hm) : verb(hm) {}
+    RESTVerb(const llhttp_method& hm) : verb(hm) {}
     RESTVerb(const ws::Verb& wv) : verb(wv) {}
 
-    std::optional<http_method> get_http_method() const
+    std::optional<llhttp_method> get_http_method() const
     {
       if (verb == ws::WEBSOCKET)
       {
         return std::nullopt;
       }
 
-      return static_cast<http_method>(verb);
+      return static_cast<llhttp_method>(verb);
     }
 
     const char* c_str() const
@@ -54,7 +54,7 @@ namespace ccf
       }
       else
       {
-        return http_method_str(static_cast<http_method>(verb));
+        return llhttp_method_name(static_cast<llhttp_method>(verb));
       }
     }
 

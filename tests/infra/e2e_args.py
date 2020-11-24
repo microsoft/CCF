@@ -108,7 +108,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Path to governance script",
         type=absolute_path_to_existing_file,
     )
-    parser.add_argument("-s", "--app-script", help="Path to app script")
     parser.add_argument("-j", "--js-app-script", help="Path to js app script")
     parser.add_argument("--js-app-bundle", help="Path to js app bundle")
     parser.add_argument(
@@ -247,6 +246,11 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--snapshot-tx-interval",
         help="Number of transactions between two snapshots",
+        default=None,
+    )
+    parser.add_argument(
+        "--jwt-key-refresh-interval-s",
+        help="JWT key refresh interval in seconds",
         default=None,
     )
 

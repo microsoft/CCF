@@ -890,7 +890,7 @@ namespace tls
     mbedtls_x509_crt_free(&cert);
     if (rc != 0)
     {
-      throw std::runtime_error(fmt::format(
+      throw std::invalid_argument(fmt::format(
         "Failed to parse certificate, mbedtls_x509_crt_parse: {}",
         tls::error_string(rc)));
     }

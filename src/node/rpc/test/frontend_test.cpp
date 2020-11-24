@@ -387,8 +387,7 @@ http::SimpleResponseProcessor::Response parse_response(const vector<uint8_t>& v)
   http::SimpleResponseProcessor processor;
   http::ResponseParser parser(processor);
 
-  const auto parsed_count = parser.execute(v.data(), v.size());
-  REQUIRE(parsed_count == v.size());
+  parser.execute(v.data(), v.size());
   REQUIRE(processor.received.size() == 1);
 
   return processor.received.front();
@@ -903,9 +902,9 @@ TEST_CASE("Restricted verbs")
   TestRestrictedVerbsFrontend frontend(*network.tables);
 
   for (auto verb = HTTP_DELETE; verb <= HTTP_SOURCE;
-       verb = (http_method)(size_t(verb) + 1))
+       verb = (llhttp_method)(size_t(verb) + 1))
   {
-    INFO(http_method_str(verb));
+    INFO(llhttp_method_name(verb));
 
     {
       http::Request get("get_only", verb);
@@ -923,7 +922,7 @@ TEST_CASE("Restricted verbs")
         const auto it = response.headers.find(http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
-        CHECK(v.find(http_method_str(HTTP_GET)) != std::string::npos);
+        CHECK(v.find(llhttp_method_name(HTTP_GET)) != std::string::npos);
       }
     }
 
@@ -943,7 +942,7 @@ TEST_CASE("Restricted verbs")
         const auto it = response.headers.find(http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
-        CHECK(v.find(http_method_str(HTTP_POST)) != std::string::npos);
+        CHECK(v.find(llhttp_method_name(HTTP_POST)) != std::string::npos);
       }
     }
 
@@ -964,9 +963,9 @@ TEST_CASE("Restricted verbs")
         const auto it = response.headers.find(http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
-        CHECK(v.find(http_method_str(HTTP_PUT)) != std::string::npos);
-        CHECK(v.find(http_method_str(HTTP_DELETE)) != std::string::npos);
-        CHECK(v.find(http_method_str(verb)) == std::string::npos);
+        CHECK(v.find(llhttp_method_name(HTTP_PUT)) != std::string::npos);
+        CHECK(v.find(llhttp_method_name(HTTP_DELETE)) != std::string::npos);
+        CHECK(v.find(llhttp_method_name(verb)) == std::string::npos);
       }
     }
   }

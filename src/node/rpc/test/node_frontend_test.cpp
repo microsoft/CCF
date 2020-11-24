@@ -60,9 +60,7 @@ TResponse frontend_process(
   http::SimpleResponseProcessor processor;
   http::ResponseParser parser(processor);
 
-  const auto parsed_count =
-    parser.execute(serialised_response->data(), serialised_response->size());
-  REQUIRE(parsed_count == serialised_response->size());
+  parser.execute(serialised_response->data(), serialised_response->size());
   REQUIRE(processor.received.size() == 1);
 
   return processor.received.front();

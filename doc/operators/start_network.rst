@@ -151,7 +151,7 @@ Summary diagram
 
 Once a node is part of the network (started with either the ``start`` or ``join`` option), members are authorised to issue governance transactions and eventually open the network (see :doc:`/members/open_network`). Only then are users authorised to issue commands to CCF.
 
-.. note:: After the network is open to users, members can still issue governance transactions to CCF (for example, adding new users or additional members to the consortium or updating the Lua app, when applicable). See :doc:`/members/index` for more information about member governance.
+.. note:: After the network is open to users, members can still issue governance transactions to CCF (for example, adding new users or additional members to the consortium). See :doc:`/members/index` for more information about member governance.
 
 The following diagram summarises the steps required to bootstrap a CCF network:
 

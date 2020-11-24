@@ -1235,7 +1235,7 @@ namespace ccfapp
       EndpointRegistry::execute_endpoint(e, args);
     }
 
-    static std::pair<http_method, std::string> split_script_key(
+    static std::pair<llhttp_method, std::string> split_script_key(
       const std::string& key)
     {
       size_t s = key.find(' ');

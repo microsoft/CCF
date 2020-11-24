@@ -14,7 +14,7 @@
 #include "serialization.h"
 
 #include <functional>
-#include <http-parser/http_parser.h>
+#include <llhttp/llhttp.h>
 #include <nlohmann/json.hpp>
 #include <regex>
 #include <set>
@@ -448,7 +448,7 @@ namespace ccf
       nlohmann::json& document,
       const std::string& uri,
       const nlohmann::json& schema,
-      http_method verb)
+      llhttp_method verb)
     {
       if (schema["type"] != "object")
       {
@@ -626,6 +626,9 @@ namespace ccf
 
       for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
       {
+        // Special endpoint, can only be called from the node.
+        if (path == "jwt_keys/refresh")
+          continue;
         for (const auto& [verb, endpoint] : verb_endpoints)
         {
           add_endpoint_to_api_document(document, endpoint);

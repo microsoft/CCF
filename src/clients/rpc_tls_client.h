@@ -60,7 +60,7 @@ protected:
     const std::string& method,
     const CBuffer params,
     const std::string& content_type,
-    http_method verb)
+    llhttp_method verb)
   {
     auto path = method;
     if (prefix.has_value())
@@ -96,7 +96,7 @@ protected:
     const std::string& method,
     const CBuffer params,
     const std::string& content_type,
-    http_method verb)
+    llhttp_method verb)
   {
     if (is_ws)
       return gen_ws_request_internal(method, params);
@@ -149,7 +149,7 @@ public:
     const std::string& method,
     const CBuffer params,
     const std::string& content_type,
-    http_method verb = HTTP_POST)
+    llhttp_method verb = HTTP_POST)
   {
     return {gen_request_internal(method, params, content_type, verb),
             next_send_id++};
@@ -158,7 +158,7 @@ public:
   PreparedRpc gen_request(
     const std::string& method,
     const nlohmann::json& params = nullptr,
-    http_method verb = HTTP_POST)
+    llhttp_method verb = HTTP_POST)
   {
     std::vector<uint8_t> body;
     if (!params.is_null())
@@ -175,7 +175,7 @@ public:
   Response call(
     const std::string& method,
     const nlohmann::json& params = nullptr,
-    http_method verb = HTTP_POST)
+    llhttp_method verb = HTTP_POST)
   {
     return call_raw(gen_request(method, params, verb));
   }
@@ -183,7 +183,7 @@ public:
   Response call(
     const std::string& method,
     const CBuffer& params,
-    http_method verb = HTTP_POST)
+    llhttp_method verb = HTTP_POST)
   {
     return call_raw(gen_request(
       method, params, http::headervalues::contenttype::OCTET_STREAM, verb));

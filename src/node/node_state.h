@@ -12,6 +12,7 @@
 #include "genesis_gen.h"
 #include "history.h"
 #include "network_state.h"
+#include "node/jwt_key_auto_refresh.h"
 #include "node/progress_tracker.h"
 #include "node/rpc/serdes.h"
 #include "node_to_node.h"
@@ -183,6 +184,11 @@ namespace ccf
 
     consensus::Index ledger_idx = 0;
 
+    //
+    // JWT key auto-refresh
+    //
+    std::shared_ptr<JwtKeyAutoRefresh> jwt_key_auto_refresh;
+
   public:
     NodeState(
       ringbuffer::AbstractWriterFactory& writer_factory,
@@ -290,6 +296,7 @@ namespace ccf
           }
 
           accept_network_tls_connections(args.config);
+          auto_refresh_jwt_keys(args.config);
 
           reset_data(quote);
           sm.advance(State::partOfNetwork);
@@ -301,6 +308,7 @@ namespace ccf
           // TLS connections are not endorsed by the network until the node
           // has joined
           accept_node_tls_connections();
+          auto_refresh_jwt_keys(args.config);
 
           sm.advance(State::pending);
 
@@ -356,6 +364,7 @@ namespace ccf
           }
 
           accept_network_tls_connections(args.config);
+          auto_refresh_jwt_keys(args.config);
 
           sm.advance(State::readingPublicLedger);
 
@@ -595,6 +604,25 @@ namespace ccf
       threading::ThreadMessaging::thread_messaging.add_task_after(
         std::move(join_timer_msg),
         std::chrono::milliseconds(config.joining.join_timer));
+    }
+
+    void auto_refresh_jwt_keys(const CCFConfig& config)
+    {
+      if (!consensus)
+      {
+        LOG_INFO_FMT(
+          "JWT key auto-refresh: consensus not initialized, not starting "
+          "auto-refresh");
+        return;
+      }
+      jwt_key_auto_refresh = std::make_shared<JwtKeyAutoRefresh>(
+        config.jwt_key_refresh_interval_s,
+        network,
+        consensus,
+        rpcsessions,
+        rpc_map,
+        node_cert);
+      jwt_key_auto_refresh->start();
     }
 
     //
@@ -1324,16 +1352,7 @@ namespace ccf
       http::SimpleResponseProcessor processor;
       http::ResponseParser parser(processor);
 
-      const auto parsed_count =
-        parser.execute(response.data(), response.size());
-      if (parsed_count != response.size())
-      {
-        LOG_FAIL_FMT(
-          "Tried to parse {} response bytes, actually parsed {}",
-          response.size(),
-          parsed_count);
-        return false;
-      }
+      parser.execute(response.data(), response.size());
 
       if (processor.received.size() != 1)
       {
