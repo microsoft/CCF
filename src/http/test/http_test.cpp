@@ -402,7 +402,8 @@ DOCTEST_TEST_CASE("URL parser")
   }
 
   {
-    constexpr auto url_s = "https://[2001:0db8:0000:0000:0000::1428:57ab]:8042/over/there#nose";
+    constexpr auto url_s =
+      "https://[2001:0db8:0000:0000:0000::1428:57ab]:8042/over/there#nose";
     const auto url = http::parse_url_full(url_s);
     DOCTEST_CHECK(url.scheme == "https");
     DOCTEST_CHECK(url.host == "[2001:0db8:0000:0000:0000::1428:57ab]");
