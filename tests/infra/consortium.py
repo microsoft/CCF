@@ -387,10 +387,15 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def update_ca_cert(self, remote_node, cert_name, cert_pem_path):
+    def set_ca_cert(self, remote_node, cert_name, cert_pem_path, skip_checks=False):
         proposal_body, careful_vote = self.make_proposal(
-            "update_ca_cert", cert_name, cert_pem_path
+            "set_ca_cert", cert_name, cert_pem_path, skip_checks=skip_checks
         )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def remove_ca_cert(self, remote_node, cert_name):
+        proposal_body, careful_vote = self.make_proposal("remove_ca_cert", cert_name)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 

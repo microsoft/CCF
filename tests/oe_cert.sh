@@ -25,8 +25,8 @@ openssl rsa -in ca_cert_key.priv -outform PEM -pubout -out ca_cert_key.pub
     --cert ca_cert_key.priv ca_cert_key.pub \
     --out ca_cert.der
 
-openssl x509 -inform DER -in ca_cert.der -out ca_cert.pem
+openssl x509 -inform DER -in ca_cert.der -out oe_cert.pem
 openssl x509 -inform DER -in ca_cert.der -text
-echo "New attested certificate written to ca_cert.pem"
+echo "New attested certificate written to oe_cert.pem"
 
 rm ca_cert_key.priv ca_cert_key.pub ca_cert.der
