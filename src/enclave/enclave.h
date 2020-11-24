@@ -283,7 +283,14 @@ namespace enclave
             {
               case consensus::LedgerRequestPurpose::Recovery:
               {
-                node->recover_ledger_end(ccf_config);
+                if (node->is_verifying_snapshot())
+                {
+                  node->verify_snapshot_end(ccf_config);
+                }
+                else
+                {
+                  node->recover_ledger_end();
+                }
                 break;
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:

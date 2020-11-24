@@ -171,10 +171,11 @@ namespace ccf
       consensus::Index seqno;
       consensus::Index evidence_seqno;
 
+      bool has_evidence = false;
       // The snapshot to startup from (on join or recovery) is only valid once a
       // signature ledger entry confirms that the snapshot evidence was
       // committed
-      bool is_verified = false;
+      bool is_evidence_committed = false;
 
       StartupSnapshotInfo(
         std::unique_ptr<std::vector<uint8_t>>&& raw_,
@@ -186,9 +187,6 @@ namespace ccf
       {}
     };
     std::optional<StartupSnapshotInfo> startup_snapshot_info = std::nullopt;
-
-    // TODO: Remove these
-    std::optional<size_t> recovery_snapshot_evidence_seqno;
 
   public:
     NodeState(
@@ -725,13 +723,23 @@ namespace ccf
           view_history.push_back(view_start_idx);
         }
         last_recovered_signed_idx = ledger_idx;
+
+        LOG_FAIL_FMT(
+          "Signature proves that commit was at {}", last_sig->commit_seqno);
+
+        if (
+          startup_snapshot_info.has_value() &&
+          startup_snapshot_info->has_evidence &&
+          last_sig->commit_seqno >= startup_snapshot_info->evidence_seqno)
+        {
+          LOG_FAIL_FMT("Snapshot evidence at {} is committed");
+          startup_snapshot_info->is_evidence_committed = true;
+        }
       }
       else if (
         result == kv::DeserialiseSuccess::PASS_SNAPSHOT_EVIDENCE &&
         startup_snapshot_info.has_value())
       {
-        LOG_FAIL_FMT("Found snapshot evidence at {}", ledger_idx);
-
         auto tx = network.tables->create_read_only_tx();
         auto snapshot_evidence_view =
           tx.get_read_only_view(network.snapshot_evidence);
@@ -749,28 +757,23 @@ namespace ccf
           }
 
           if (
-            snapshot_evidence->hash !=
+            snapshot_evidence->hash ==
             crypto::Sha256Hash(*startup_snapshot_info->raw.get()))
           {
-            throw std::logic_error("Snapshot doesn't match!");
-          }
-          else
-          {
-            startup_snapshot_info->is_verified = true;
-            LOG_FAIL_FMT("Snapshot evidence matched!!");
+            LOG_DEBUG_FMT(
+              "Snapshot evidence for snapshot found at {}",
+              startup_snapshot_info->evidence_seqno);
+            startup_snapshot_info->has_evidence = true;
           }
         }
-
-        // TODO: Check for evidence being globally committed as well
-        // i.e. check in signature that signature contains a commit seqno >
-        // evidence seqno
       }
 
       read_ledger_idx(++ledger_idx);
     }
 
-    void verify_snapshot_end_unsafe(CCFConfig& config)
+    void verify_snapshot_end(CCFConfig& config)
     {
+      std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::verifyingSnapshot);
 
       if (!startup_snapshot_info.has_value())
@@ -778,19 +781,21 @@ namespace ccf
         throw std::logic_error("Startup snapshot info is not set");
       }
 
-      if (!startup_snapshot_info->is_verified)
+      if (!startup_snapshot_info->has_evidence)
       {
-        throw std::logic_error(
-          "Snapshot evidence was not committed in ledger suffix");
+        throw std::logic_error("Snapshot evidence was not found in ledger");
       }
 
-      LOG_FAIL_FMT("Success: snapshot is authentic!!");
+      // if (!startup_snapshot_info->is_evidence_committed)
+      // {
+      //   throw std::logic_error("Snapshot evidence was not committed in
+      //   ledger");
+      // }
 
       network.tables->clear();
       ledger_truncate(startup_snapshot_info->seqno);
 
       sm.advance(State::pending);
-
       join(config);
     }
 
@@ -988,7 +993,7 @@ namespace ccf
     //
     // funcs in state "readingPublicLedger" or "readingPrivateLedger"
     //
-    void recover_ledger_end(CCFConfig& config)
+    void recover_ledger_end()
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -1000,15 +1005,11 @@ namespace ccf
       {
         recover_private_ledger_end_unsafe();
       }
-      else if (is_verifying_snapshot())
-      {
-        verify_snapshot_end_unsafe(config);
-      }
       else
       {
         throw std::logic_error(
           "Cannot end ledger recovery if not reading public or private "
-          "ledger or verifying snapshot");
+          "ledger");
       }
     }
 
