@@ -134,7 +134,7 @@ def test_jwt_without_key_policy(network, args):
 def test_jwt_with_sgx_key_policy(network, args):
     primary, _ = network.find_nodes()
 
-    oe_cert_path = os.path.join(this_dir, "ca_cert.pem")
+    oe_cert_path = os.path.join(this_dir, "oe_cert.pem")
     with open(oe_cert_path) as f:
         oe_cert_pem = f.read()
 
@@ -214,7 +214,7 @@ def test_jwt_with_sgx_key_policy(network, args):
 def test_jwt_with_sgx_key_filter(network, args):
     primary, _ = network.find_nodes()
 
-    oe_cert_path = os.path.join(this_dir, "ca_cert.pem")
+    oe_cert_path = os.path.join(this_dir, "oe_cert.pem")
     with open(oe_cert_path) as f:
         oe_cert_pem = f.read()
     oe_kid = "oe_kid"
@@ -327,7 +327,7 @@ def test_jwt_key_auto_refresh(network, args):
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_fp:
         ca_cert_fp.write(cert_pem)
         ca_cert_fp.flush()
-        network.consortium.update_ca_cert(primary, ca_cert_name, ca_cert_fp.name)
+        network.consortium.set_ca_cert(primary, ca_cert_name, ca_cert_fp.name)
 
     def check_kv_jwt_key_matches(kid, cert_pem):
         with primary.client(

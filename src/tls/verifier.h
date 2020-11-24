@@ -245,4 +245,9 @@ namespace tls
   {
     return make_verifier(der_cert_raw)->cert_pem();
   }
+
+  inline std::vector<uint8_t> cert_pem_to_der(const std::string& pem_cert_raw)
+  {
+    return make_verifier(pem_cert_raw)->der_cert_data();
+  }
 }
