@@ -175,9 +175,10 @@ class Network:
         args,
         target_node=None,
         recovery=False,
+        copy_ledger=False,
+        ledger_dir=None,
         from_snapshot=False,
         snapshot_dir=None,
-        copy_ledger=False,
     ):
         forwarded_args = {
             arg: getattr(args, arg)
@@ -203,16 +204,24 @@ class Network:
         current_ledger_dir = None
         if snapshot_dir is not None:
             LOG.info(f"Joining from snapshot: {snapshot_dir}")
+
+            LOG.error(f"Copy ledger: {copy_ledger}/{ledger_dir}")
+            input("")
+
+            # Only retrieve ledger dir from target node if the ledger directory is not specified
             if copy_ledger:
-                current_ledger_dir, committed_ledger_dirs = target_node.get_ledger(
-                    include_read_only_dirs=True
-                )
-                # TODO: Message looks wrong
-                LOG.info(
-                    f"Copying target node ledger to read-only ledger directory {committed_ledger_dirs}"
-                )
-                # TODO: Get rid of list if possible
-                committed_ledger_dirs = [committed_ledger_dirs]
+                if ledger_dir is None:
+                    current_ledger_dir, committed_ledger_dirs = target_node.get_ledger(
+                        include_read_only_dirs=True
+                    )
+                    # TODO: Message looks wrong
+                    LOG.info(
+                        f"Copying target node ledger to read-only ledger directory {committed_ledger_dirs}"
+                    )
+                    # TODO: Get rid of list if possible
+                    committed_ledger_dirs = [committed_ledger_dirs]
+                else:
+                    current_ledger_dir = ledger_dir
 
         node.join(
             lib_name=lib_name,
@@ -290,6 +299,8 @@ class Network:
                         args.package,
                         args,
                         recovery=recovery,
+                        copy_ledger=ledger_dir is not None,
+                        ledger_dir=ledger_dir,
                         snapshot_dir=snapshot_dir,
                     )
             except Exception:

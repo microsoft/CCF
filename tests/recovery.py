@@ -110,12 +110,12 @@ def run(args):
 
         for i in range(args.recovery):
             # Alternate between recovery with primary change and stable primary-ship
-            if i % 2 == 0:
-                recovered_network = test_share_resilience(
-                    network, args, args.use_snapshot
-                )
-            else:
-                recovered_network = test(network, args, args.use_snapshot)
+            # if i % 2 == 0:
+            #     recovered_network = test_share_resilience(
+            #         network, args, args.use_snapshot
+            #     )
+            # else:
+            recovered_network = test(network, args, args.use_snapshot)
             network.stop_all_nodes()
             network = recovered_network
             LOG.success("Recovery complete on all nodes")
@@ -149,6 +149,7 @@ checked. Note that the key for each logging message is unique (per table).
 
     args = infra.e2e_args.cli_args(add)
     args.package = "liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.nodes = infra.e2e_args.min_nodes(args, f=0)
+    args.nodes = ["local://localhost"] * (2)
 
     run(args)

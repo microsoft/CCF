@@ -306,8 +306,7 @@ namespace ccf
           // has joined
           accept_node_tls_connections();
 
-          bool from_snapshot = !config.startup_snapshot.empty();
-          if (from_snapshot)
+          if (!config.startup_snapshot.empty())
           {
             setup_history();
 
@@ -333,16 +332,16 @@ namespace ccf
             }
 
             LOG_DEBUG_FMT(
-              "Snapshot deserialised at seqno {}",
+              "Public snapshot deserialised at seqno {}",
               network.tables->current_version());
+
+            ledger_idx = network.tables->current_version();
+            last_recovered_signed_idx = ledger_idx;
 
             startup_snapshot_info = std::make_optional<StartupSnapshotInfo>(
               std::make_unique<std::vector<uint8_t>>(config.startup_snapshot),
               ledger_idx,
               config.startup_snapshot_evidence_seqno);
-
-            ledger_idx = network.tables->current_version();
-            last_recovered_signed_idx = ledger_idx;
 
             sm.advance(State::verifyingSnapshot);
           }
@@ -380,14 +379,11 @@ namespace ccf
 
           if (from_snapshot)
           {
-            // Keep a reference to snapshot for private recovery
-            recovery_snapshot =
-              std::make_unique<std::vector<uint8_t>>(config.startup_snapshot);
-
             LOG_INFO_FMT(
-              "Deserialising public snapshot ({})", recovery_snapshot->size());
+              "Deserialising public snapshot ({})",
+              config.startup_snapshot.size());
             auto rc = network.tables->deserialise_snapshot(
-              *recovery_snapshot, &view_history, true);
+              config.startup_snapshot, &view_history, true);
             if (rc != kv::DeserialiseSuccess::PASS)
             {
               throw std::logic_error(
@@ -398,7 +394,13 @@ namespace ccf
             last_recovered_signed_idx = ledger_idx;
             snapshotter->set_last_snapshot_idx(ledger_idx);
 
-            LOG_INFO_FMT("Snapshot deserialised at seqno {}", ledger_idx);
+            startup_snapshot_info = std::make_optional<StartupSnapshotInfo>(
+              std::make_unique<std::vector<uint8_t>>(config.startup_snapshot),
+              ledger_idx,
+              config.startup_snapshot_evidence_seqno);
+
+            LOG_INFO_FMT(
+              "Public snapshot deserialised at seqno {}", ledger_idx);
           }
 
           accept_network_tls_connections(config);
@@ -786,6 +788,7 @@ namespace ccf
         throw std::logic_error("Snapshot evidence was not found in ledger");
       }
 
+      // TODO: Uncomment this once this is back
       // if (!startup_snapshot_info->is_evidence_committed)
       // {
       //   throw std::logic_error("Snapshot evidence was not committed in
@@ -802,6 +805,26 @@ namespace ccf
     void recover_public_ledger_end_unsafe()
     {
       sm.expect(State::readingPublicLedger);
+
+      if (startup_snapshot_info.has_value())
+      {
+        // If public recovery started from a snapshot, check that the evidence
+        // from the snapshot has been verified
+
+        if (!startup_snapshot_info->has_evidence)
+        {
+          throw std::logic_error("Snapshot evidence was not found in ledger");
+        }
+
+        // TODO: Uncomment this once this is back
+        // if (!startup_snapshot_info->is_evidence_committed)
+        // {
+        //   throw std::logic_error("Snapshot evidence was not committed in
+        //   ledger");
+        // }
+
+        LOG_FAIL_FMT("Snapshot has been verified");
+      }
 
       // For now, we rollback at the latest signed idx. However, it is
       // possible that the snapshot evidence is rolled back. This should be
@@ -1057,24 +1080,29 @@ namespace ccf
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
       recovery_root = h->get_replicated_state_root();
 
-      if (recovery_snapshot)
+      if (startup_snapshot_info.has_value())
       {
         LOG_INFO_FMT(
           "Deserialising private snapshot for recovery ({})",
-          recovery_snapshot->size());
+          startup_snapshot_info->raw->size());
         std::vector<kv::Version> view_history;
         auto rc = recovery_store->deserialise_snapshot(
-          *recovery_snapshot, &view_history);
+          *startup_snapshot_info->raw, &view_history);
         if (rc != kv::DeserialiseSuccess::PASS)
         {
           throw std::logic_error(fmt::format(
             "Could not deserialise snapshot in recovery store: {}", rc));
         }
 
-        reset_data(*recovery_snapshot);
+        // TODO: Is this the right way to do this? Should we reset the entire
+        // startup_snapshot_info instead?
+        reset_data(*startup_snapshot_info->raw);
       }
 
-      LOG_DEBUG_FMT("Recovery store successfully setup: {}", recovery_v);
+      LOG_DEBUG_FMT(
+        "Recovery store successfully setup at {}. Target recovery seqno: {}",
+        recovery_store->current_version(),
+        recovery_v);
     }
 
     bool accept_recovery(kv::Tx& tx) override

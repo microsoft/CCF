@@ -11,7 +11,7 @@ import os
 import socket
 import time
 import re
-from shutil import copy2
+from shutil import copy2, rmtree
 
 from loguru import logger as LOG
 
@@ -276,7 +276,12 @@ class Node:
         committed_ledger_dir = os.path.join(
             self.common_dir, f"{self.node_id}.ledger.committed"
         )
+        if os.path.isdir(current_ledger_dir):
+            rmtree(current_ledger_dir)
         os.mkdir(current_ledger_dir)
+
+        if os.path.isdir(committed_ledger_dir):
+            rmtree(committed_ledger_dir)
         os.mkdir(committed_ledger_dir)
 
         for f in os.listdir(main_ledger_dir):
