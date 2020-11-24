@@ -19,7 +19,7 @@ namespace tls
 
     // Obtain the size of the output buffer
     auto rc = mbedtls_base64_decode(nullptr, 0, &len_written, data, size);
-    if (rc != MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL)
+    if (rc < 0 && rc != MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL)
     {
       throw std::logic_error(fmt::format(
         "Could not obtain length of decoded base64 buffer: {}",
@@ -45,7 +45,7 @@ namespace tls
 
     // Obtain required size for output buffer
     auto rc = mbedtls_base64_encode(nullptr, 0, &len_written, data, size);
-    if (rc != MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL)
+    if (rc < 0 && rc != MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL)
     {
       throw std::logic_error(fmt::format(
         "Could not obtain length required for encoded base64 buffer: {}",
@@ -63,9 +63,12 @@ namespace tls
         fmt::format("Could not encode base64 string: {}", error_string(rc)));
     }
 
-    // mbedtls includes the terminating null, but std-string provides this
-    // already
-    b64_string.pop_back();
+    if (b64_string.size() > 0)
+    {
+      // mbedtls includes the terminating null, but std-string provides this
+      // already
+      b64_string.pop_back();
+    }
 
     return b64_string;
   }
