@@ -657,11 +657,6 @@ namespace ccf
       return {std::move(rep.value()), version};
     }
 
-    crypto::Sha256Hash get_merkle_root() override
-    {
-      return history->get_replicated_state_root();
-    }
-
     void update_merkle_tree() override
     {
       if (history != nullptr)
@@ -741,11 +736,6 @@ namespace ccf
     virtual std::optional<tls::Pem> resolve_caller_id(ObjectId, kv::Tx&)
     {
       return std::nullopt;
-    }
-
-    virtual bool is_members_frontend() override
-    {
-      return false;
     }
   };
 }
