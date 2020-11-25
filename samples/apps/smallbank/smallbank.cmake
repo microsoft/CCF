@@ -20,7 +20,7 @@ target_link_libraries(small_bank_client PRIVATE secp256k1.host http_parser.host)
 add_ccf_app(smallbank SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp)
 sign_app_library(
   smallbank.enclave ${CMAKE_CURRENT_LIST_DIR}/app/oe_sign.conf
-  ${CCF_DIR}/src/apps/sample_key.pem
+  ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 
 function(get_verification_file iterations output_var)
