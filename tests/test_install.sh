@@ -17,50 +17,33 @@ rm -rf "$working_dir"
 mkdir -p "$working_dir"
 cd "$working_dir"
 
+# Start ephemeral network in the background
+network_live_time=60
+timeout --signal=SIGINT --kill-after=${network_live_time}s --preserve-status ${network_live_time}s \
+"$INSTALL_PREFIX"/bin/sandbox.sh --verbose &
+
+# Wait for service to be open
+sleep 45
+
+# # Issue tutorial transactions to ephemeral network
 python3.8 -m venv env
 source env/bin/activate
-python -m pip install -U -r "$INSTALL_PREFIX"/bin/requirements.txt
+# python -m pip install -U -r "$INSTALL_PREFIX"/bin/requirements.txt
 python -m pip install ../../../python
+python ../../../python/tutorial.py ./workspace/sandbox_0/0.ledger/ ./workspace/sandbox_common/
 
 # Test Python package CLI
-../../test_python_cli.sh > test_python_cli.out
-
-# Start ephemeral network in the background
-network_info_file="network_info.txt"
-
-network_live_time=30
-timeout --signal=SIGINT --kill-after=${network_live_time}s --preserve-status ${network_live_time}s \
-python "$INSTALL_PREFIX"/bin/start_network.py \
-    -p liblogging \
-    -b "$INSTALL_PREFIX"/bin \
-    --library-dir ../../../build \
-    -g "$(pwd)"/../../../src/runtime_config/gov.lua \
-    --network-info-file "$network_info_file" \
-    -v &
-
-# Wait for network to be open and accessible
-while [ ! -f "$network_info_file" ]; do
-    sleep 1
-done
-
-# Issue tutorial transactions to ephemeral network
-python ../../../python/tutorial.py "$network_info_file"
+../../../tests//test_python_cli.sh > test_python_cli.out
 
 # Wait until original network has died
-sleep ${network_live_time}
-
-# ...and a tad longer to be sure
-sleep 5
+sleep 20
 
 # Recover network
-cp -r ./workspace/start_network_0/0.ledger .
+cp -r ./workspace/sandbox_0/0.ledger .
 
-timeout --signal=SIGINT --kill-after=${network_live_time}s --preserve-status ${network_live_time}s \
-python "$INSTALL_PREFIX"/bin/start_network.py \
-    -p liblogging \
-    -b "$INSTALL_PREFIX"/bin \
-    --library-dir ../../../build \
-    -v \
+recovered_network_live_time=30
+timeout --signal=SIGINT --kill-after=${recovered_network_live_time}s --preserve-status ${recovered_network_live_time}s \
+"$INSTALL_PREFIX"/bin/sandbox.sh --verbose \
     --recover \
     --ledger-dir 0.ledger \
-    --common-dir ./workspace/start_network_common/
+    --common-dir ./workspace/sandbox_common/

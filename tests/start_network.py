@@ -13,19 +13,6 @@ from loguru import logger as LOG
 DEFAULT_NODES = ["local://127.0.0.1:8000"]
 
 
-def dump_network_info(path, network, node):
-    network_info = {}
-    network_info["host"] = node.pubhost
-    network_info["port"] = node.rpc_port
-    network_info["ledger"] = node.remote.ledger_path()
-    network_info["common_dir"] = network.common_dir
-
-    with open(path, "w") as network_info_file:
-        json.dump(network_info, network_info_file)
-
-    LOG.debug(f"Dumped network information to {os.path.abspath(path)}")
-
-
 def run(args):
     hosts = args.node or DEFAULT_NODES
 
@@ -95,10 +82,6 @@ def run(args):
                 )
             )
 
-        # Dump primary info to file for tutorial testing
-        if args.network_info_file is not None:
-            dump_network_info(args.network_info_file, network, primary)
-
         LOG.info(
             f"You can now issue business transactions to the {args.package} application."
         )
@@ -135,11 +118,6 @@ if __name__ == "__main__":
             help="If set, start up logs are displayed",
             action="store_true",
             default=False,
-        )
-        parser.add_argument(
-            "--network-info-file",
-            help="Path to output file where network information will be dumped to (useful for scripting)",
-            default=None,
         )
         parser.add_argument(
             "-r",
