@@ -18,7 +18,8 @@ Before adding public token signing keys to a running CCF network, the IdP has to
 
     $ cat issuer.json
     {
-      "issuer": "my-issuer"
+      "issuer": "my-issuer",
+      "auto_refresh": false
     }
     $ python -m ccf.proposal_generator set_jwt_issuer issuer.json
 
