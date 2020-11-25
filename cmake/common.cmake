@@ -353,7 +353,7 @@ add_ccf_app(
 )
 sign_app_library(
   js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
-  ${CCF_DIR}/src/apps/sample_key.pem INSTALL_LIBS ON
+  ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem INSTALL_LIBS ON
 )
 # SNIPPET_END: JS generic application
 
