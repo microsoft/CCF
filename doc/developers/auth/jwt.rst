@@ -23,7 +23,7 @@ Before adding public token signing keys to a running CCF network, the IdP has to
     }
     $ python -m ccf.proposal_generator set_jwt_issuer issuer.json
 
-The ``issuer`` field is an arbitrary identifier and can be used during token validation to differentiate between multiple issuers.
+The ``issuer`` field is an arbitrary identifier and should be used during token validation to differentiate between multiple issuers.
 
 Note that ``issuer.json`` has some additional optional fields for more advanced scenarios.
 See :ref:`developers/auth/jwt:Advanced issuer configuration` for details.
