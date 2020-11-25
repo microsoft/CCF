@@ -719,7 +719,7 @@ if(BUILD_TESTS)
   endif()
 
   if(BUILD_SMALLBANK)
-    include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/smallbank/smallbank.cmake)
   endif()
 
   if(TLS_TEST)
