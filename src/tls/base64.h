@@ -39,6 +39,28 @@ namespace tls
     return decoded;
   }
 
+  inline std::vector<uint8_t> raw_from_b64url(
+    const std::string_view& b64url_string)
+  {
+    std::string b64_string = std::string(b64url_string);
+    for (size_t i = 0; i < b64_string.size(); i++)
+    {
+      switch (b64_string[i])
+      {
+        case '-':
+          b64_string[i] = '+';
+          break;
+        case '_':
+          b64_string[i] = '/';
+          break;
+      }
+    }
+    auto padding =
+      b64_string.size() % 4 == 2 ? 2 : b64_string.size() % 4 == 3 ? 1 : 0;
+    b64_string += std::string(padding, '=');
+    return raw_from_b64(b64_string);
+  }
+
   inline std::string b64_from_raw(const uint8_t* data, size_t size)
   {
     size_t len_written = 0;
