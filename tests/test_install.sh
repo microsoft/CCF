@@ -28,7 +28,6 @@ sleep 45
 # # Issue tutorial transactions to ephemeral network
 python3.8 -m venv env
 source env/bin/activate
-# python -m pip install -U -r "$INSTALL_PREFIX"/bin/requirements.txt
 python -m pip install ../../../python
 python ../../../python/tutorial.py ./workspace/sandbox_0/0.ledger/ ./workspace/sandbox_common/
 
