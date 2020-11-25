@@ -139,30 +139,22 @@ namespace Merkle
     void (*HASH_FUNCTION)(const HashT<HASH_SIZE> &l, const HashT<HASH_SIZE> &r, HashT<HASH_SIZE> &out)>
   class TreeT {
   protected:
-
     struct Node {
-      Node() :
-        left(nullptr), right(nullptr),
-        size(0), height(0),
-        dirty(true)
-       {}
-
-      Node(const HashT<HASH_SIZE> &hash) {
-        left = right = nullptr;
-        this->hash = hash;
-        size = height = 1;
-        dirty = false;
+      static Node* make(const HashT<HASH_SIZE> &hash)
+      {
+        auto r = new Node();
+        r->left = r->right = nullptr;
+        r->hash = hash;
+        r->size = r->height = 1;
+        r->dirty = false;
+        return r;
       }
 
-      static std::shared_ptr<Node> make(const HashT<HASH_SIZE> &hash) {
-        return std::make_shared<Node>(hash);
-      }
-
-      static std::shared_ptr<Node> make(std::shared_ptr<Node> &left, std::shared_ptr<Node> &right)
+      static Node* make(Node *left, Node *right)
       {
         assert(left && right);
 
-        auto r = std::make_shared<Node>();
+        auto r = new Node();
         r->left = left;
         r->right = right;
         r->dirty = true;
@@ -172,6 +164,12 @@ namespace Merkle
         return r;
       }
 
+      ~Node() {
+        parent = nullptr;
+        delete left;
+        delete right;
+      }
+
       bool is_full() const {
         size_t max_size =  (1 << height) - 1;
         assert(size <= max_size);
@@ -179,8 +177,8 @@ namespace Merkle
       }
 
       HashT<HASH_SIZE> hash;
-      std::weak_ptr<Node> parent;
-      std::shared_ptr<Node> left, right;
+      Node *parent;
+      Node *left, *right;
       size_t size, height;
       bool dirty;
     };
@@ -192,6 +190,7 @@ namespace Merkle
     TreeT(TreeT &&other)
       : _leaf_nodes(other._leaf_nodes), _root(other._root) {}
     ~TreeT() {
+      delete _root;
       for (auto n : _new_leaf_nodes)
         delete n;
     }
@@ -204,12 +203,12 @@ namespace Merkle
     typedef PathT<HASH_SIZE, HASH_FUNCTION> Path;
     typedef TreeT<HASH_SIZE, HASH_FUNCTION> Tree;
 
-    void insert_recursive(std::shared_ptr<Node> &n, std::shared_ptr<Node> &new_leaf) {
+    void insert_recursive(Node *&n, Node *new_leaf) {
       if (!n)
         n = new_leaf;
       else {
         if (n->is_full()) {
-          auto p = n->parent.lock();
+          auto p = n->parent;
           n = Node::make(n, new_leaf);
           n->parent = p;
         }
@@ -227,17 +226,17 @@ namespace Merkle
       }
     }
 
-    void insert_iterative(std::shared_ptr<Node> &root, std::shared_ptr<Node> &new_leaf) {
-      typedef struct { std::shared_ptr<Node> n; bool left; } StackElement;
-      static std::stack<StackElement> stack;
+    void insert_iterative(Node *&root, Node *new_leaf) {
+      typedef struct { Node *n; bool left; } StackElement;
+      static std::vector<StackElement> stack;
 
       if (!root) {
         root = new_leaf;
         return;
       }
 
-      std::shared_ptr<Node> n = root;
-      std::shared_ptr<Node> result = nullptr;
+      Node* n = root;
+      Node* result = nullptr;
       while (!result)
       {
         if (n->is_full())
@@ -245,8 +244,8 @@ namespace Merkle
         else {
           TRACE(std::cout << " @ " << n->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
           assert(n->left && n->right);
-          stack.push(StackElement());
-          StackElement &se = stack.top();
+          stack.push_back(StackElement());
+          StackElement &se = stack.back();
           se.n=n;
           if (!n->left->is_full()) {
             se.left=true;
@@ -260,8 +259,8 @@ namespace Merkle
       }
 
       while (!stack.empty()) {
-        StackElement &top = stack.top();
-        std::shared_ptr<Node> &n = top.n;
+        StackElement &top = stack.back();
+        Node *n = top.n;
 
         if (top.left)
           n->left = result;
@@ -272,7 +271,7 @@ namespace Merkle
         n->height = std::max(n->left->height, n->right->height) + 1;
 
         result = n;
-        stack.pop();
+        stack.pop_back();
       }
 
       root = result;
@@ -280,7 +279,7 @@ namespace Merkle
 
     void insert(const Hash &hash) {
       TRACE(std::cout << "> insert " << hash.to_string(TRACE_HASH_SIZE) << std::endl;);
-      _new_leaf_nodes.push_back(new Node(hash));
+      _new_leaf_nodes.push_back(Node::make(hash));
       statistics.num_insert++;
       TRACE(std::cout << this->to_string() << std::endl;);
     }
@@ -315,7 +314,7 @@ namespace Merkle
       TRACE(std::cout << "> root" << std::endl;);
       statistics.num_root++;
       build_incremental();
-      if (!_root || _root->dirty ) {
+      if (!_root || _root->dirty) {
         if (_leaf_nodes.empty())
           throw std::runtime_error("empty tree does not have a root");
         hash(_root);
@@ -334,8 +333,8 @@ namespace Merkle
       if (_root->dirty)
         hash(_root);
       auto leaf = _leaf_nodes[index];
-      std::shared_ptr<Node> last = leaf;
-      std::shared_ptr<Node> cur = leaf->parent.lock();
+      Node* last = leaf;
+      Node* cur = leaf->parent;
       while (cur) {
         bool last_is_left = cur->left == last;
         if (!last_is_left)
@@ -345,7 +344,7 @@ namespace Merkle
         e.hash = last_is_left ? cur->right->hash : cur->left->hash;
         elements.push_back(e);
         last = cur;
-        cur = cur->parent.lock();
+        cur = cur->parent;
       }
       return std::make_unique<Path>(leaf->hash, std::move(elements));
     }
@@ -378,8 +377,8 @@ namespace Merkle
 
     std::string to_string(size_t num_bytes = HASH_SIZE) {
       std::stringstream stream;
-      std::vector<std::shared_ptr<Node>> level, next_level;
-      std::shared_ptr<Node> previous = nullptr;
+      std::vector<Node*> level, next_level;
+      Node *previous = nullptr;
 
       if (_leaf_nodes.empty()) {
         stream << "<EMPTY>" << std::endl;
@@ -409,11 +408,11 @@ namespace Merkle
     }
 
   protected:
-    std::vector<std::shared_ptr<Node>> _leaf_nodes;
+    std::vector<Node*> _leaf_nodes;
     std::vector<Node*> _new_leaf_nodes;
-    std::shared_ptr<Node> _root = nullptr;
+    Node *_root = nullptr;
 
-    void hash(std::shared_ptr<Node> &n)
+    void hash(Node *n)
     {
       assert((n->left && n->right) || (!n->left && !n->right));
       if (n->left && n->left->dirty)
@@ -433,16 +432,19 @@ namespace Merkle
 
   public:
     void rebuild() {
-      std::vector<std::shared_ptr<Node>> level, next_level;
+      std::vector<Node*> level, next_level;
 
       TRACE(std::cout << "> rebuild" << std::endl);
       _root = nullptr;
       for (auto &n : _new_leaf_nodes)
-        _leaf_nodes.push_back(std::shared_ptr<Node>(n));
+        _leaf_nodes.push_back(n);
       _new_leaf_nodes.clear();
       for (auto n : _leaf_nodes)
-        n->parent.reset();
+        n->parent = nullptr;
       level = _leaf_nodes;
+
+      if (level.empty())
+        return;
 
       size_t level_no = 0;
       while (level.size() > 1) {
@@ -452,13 +454,13 @@ namespace Merkle
               std::cout << std::endl;);
 
         for (size_t i=0; i < level.size(); i += 2) {
-          std::shared_ptr<Node> left = level[i];
-          std::shared_ptr<Node> right = nullptr;
+          Node* left = level[i];
+          Node* right = nullptr;
           if (i + 1 < level.size())
             right = level[i+1];
 
-          auto lparent = left->parent.lock();
-          auto rparent = right ? right->parent.lock() : nullptr;
+          auto lparent = left->parent;
+          auto rparent = right ? right->parent : nullptr;
 
           assert(left);
           assert(!(lparent && right && rparent && lparent != rparent));
@@ -496,9 +498,8 @@ namespace Merkle
         TRACE(std::cout << "* build incremental " << _leaf_nodes.size() << " +" << _new_leaf_nodes.size() << std::endl;);
         // TODO: Make this go fast.
         for (auto &n : _new_leaf_nodes) {
-          auto snode = std::shared_ptr<Node>(n);
-          _leaf_nodes.push_back(snode);
-          insert_recursive(_root, snode);
+          _leaf_nodes.push_back(n);
+          insert_recursive(_root, n);
           // insert_iterative(_root, n);
         }
         _new_leaf_nodes.clear();

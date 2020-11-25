@@ -64,6 +64,10 @@ int main()
       assert(path->verify(treelike_root));
     }
   }
+  catch (std::exception &ex) {
+    std::cout << "Error: " << ex.what() << std::endl;
+    return 1;
+  }
   catch (...) {
     std::cout << "Error" << std::endl;
     return 1;

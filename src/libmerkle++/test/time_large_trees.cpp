@@ -16,7 +16,7 @@ int main() {
     const size_t num_leaves = 16*1024;
     const size_t root_interval = 128;
     #else
-    const size_t num_leaves = 4*1024*1024;
+    const size_t num_leaves = 16*1024*1024;
     const size_t root_interval = 1024;
     #endif
 
@@ -69,6 +69,10 @@ int main() {
       mt_free_hash(h);
     mt_free_hash(ec_root);
     mt_free(ec_mt);
+  }
+  catch (std::exception &ex) {
+    std::cout << "Error: " << ex.what() << std::endl;
+    return 1;
   }
   catch (...) {
     std::cout << "Error" << std::endl;
