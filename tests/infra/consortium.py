@@ -354,12 +354,10 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def set_lua_app(self, remote_node, app_script_path):
-        proposal_body, careful_vote = self.make_proposal("set_lua_app", app_script_path)
-        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal, careful_vote)
-
     def set_js_app(self, remote_node, app_script_path):
+        LOG.error(
+            "set_js_app proposal type is deprecated - update to use deploy_js_app instead"
+        )
         proposal_body, careful_vote = self.make_proposal("set_js_app", app_script_path)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
@@ -386,6 +384,18 @@ class Consortium:
         proposal_body, careful_vote = self.make_proposal(
             "set_jwt_public_signing_keys", issuer, jwks_path
         )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def set_ca_cert(self, remote_node, cert_name, cert_pem_path, skip_checks=False):
+        proposal_body, careful_vote = self.make_proposal(
+            "set_ca_cert", cert_name, cert_pem_path, skip_checks=skip_checks
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def remove_ca_cert(self, remote_node, cert_name):
+        proposal_body, careful_vote = self.make_proposal("remove_ca_cert", cert_name)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 

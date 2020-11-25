@@ -172,7 +172,10 @@ set(LUA_SOURCES
     ${LUA_DIR}/lzio.c
 )
 
-set(HTTP_PARSER_SOURCES ${CCF_DIR}/3rdparty/http-parser/http_parser.c)
+set(HTTP_PARSER_SOURCES
+    ${CCF_DIR}/3rdparty/llhttp/api.c ${CCF_DIR}/3rdparty/llhttp/http.c
+    ${CCF_DIR}/3rdparty/llhttp/llhttp.c
+)
 
 find_library(CRYPTO_LIBRARY crypto)
 
@@ -339,12 +342,6 @@ set(WORKER_THREADS
 set(CCF_NETWORK_TEST_DEFAULT_GOV ${CCF_DIR}/src/runtime_config/gov.lua)
 set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
                           ${WORKER_THREADS}
-)
-
-add_ccf_app(lua_generic SRCS ${CCF_DIR}/src/apps/lua_generic/lua_generic.cpp)
-sign_app_library(
-  lua_generic.enclave ${CCF_DIR}/src/apps/lua_generic/oe_sign.conf
-  ${CCF_DIR}/src/apps/sample_key.pem
 )
 
 # SNIPPET_START: JS generic application

@@ -590,6 +590,7 @@ class CCFRemote(object):
         ledger_chunk_bytes=(5 * 1000 * 1000),
         domain=None,
         snapshot_tx_interval=None,
+        jwt_key_refresh_interval_s=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -669,6 +670,9 @@ class CCFRemote(object):
 
         if snapshot_tx_interval:
             cmd += [f"--snapshot-tx-interval={snapshot_tx_interval}"]
+
+        if jwt_key_refresh_interval_s:
+            cmd += [f"--jwt-key-refresh-interval-s={jwt_key_refresh_interval_s}"]
 
         for read_only_ledger_dir in self.read_only_ledger_dirs:
             cmd += [f"--read-only-ledger-dir={os.path.basename(read_only_ledger_dir)}"]

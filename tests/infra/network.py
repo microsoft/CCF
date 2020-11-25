@@ -78,6 +78,7 @@ class Network:
         "ledger_chunk_bytes",
         "domain",
         "snapshot_tx_interval",
+        "jwt_key_refresh_interval_s",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -369,13 +370,10 @@ class Network:
 
         self.consortium.activate(primary)
 
-        if args.app_script:
-            infra.proc.ccall("cp", args.app_script, args.binary_dir).check_returncode()
-            self.consortium.set_lua_app(
-                remote_node=primary, app_script_path=args.app_script
-            )
-
         if args.js_app_script:
+            LOG.error(
+                "--js-app-script is deprecated - update to --js-app-bundle instead"
+            )
             infra.proc.ccall(
                 "cp", args.js_app_script, args.binary_dir
             ).check_returncode()

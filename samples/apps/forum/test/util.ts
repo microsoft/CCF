@@ -69,7 +69,7 @@ export function setupMochaCCFSandbox(opts: CCFSandboxOpts) {
   let sandboxProcess: ChildProcess;
   before(function () {
     this.timeout(60000); // first time takes longer due to venv install
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       sandboxProcess = spawn(command, args, {
         stdio: ["pipe", "pipe", "inherit"],
         timeout: 40000, // sandbox startup + max test duration
@@ -88,7 +88,7 @@ export function setupMochaCCFSandbox(opts: CCFSandboxOpts) {
 
   after(function () {
     this.timeout(5000);
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       sandboxProcess.on("exit", () => {
         resolve();
       });

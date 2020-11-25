@@ -80,6 +80,8 @@ struct CCFConfig
   std::string subject_name;
   std::vector<tls::SubjectAltName> subject_alternative_names;
 
+  size_t jwt_key_refresh_interval_s;
+
   MSGPACK_DEFINE(
     consensus_config,
     node_info_network,
@@ -90,7 +92,8 @@ struct CCFConfig
     genesis,
     joining,
     subject_name,
-    subject_alternative_names);
+    subject_alternative_names,
+    jwt_key_refresh_interval_s);
 };
 
 /// General administrative messages

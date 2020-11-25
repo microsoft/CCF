@@ -9,7 +9,6 @@ import infra.path
 import infra.proc
 import infra.net
 import infra.e2e_args
-from infra.proposal import ProposalState
 import suite.test_requirements as reqs
 import ccf.proposal_generator
 
@@ -18,55 +17,51 @@ from loguru import logger as LOG
 this_dir = os.path.dirname(__file__)
 
 
-@reqs.description("Add certificate with quote, query, update")
+@reqs.description("Add and remove CA certs")
 def test_cert_store(network, args):
     primary, _ = network.find_nodes()
+
+    cert_name = "mycert"
 
     LOG.info("Member builds a ca cert update proposal with malformed cert")
     with tempfile.NamedTemporaryFile("w") as f:
         f.write("foo")
         f.flush()
         try:
-            proposal_body, _ = ccf.proposal_generator.update_ca_cert("mycert", f.name)
+            ccf.proposal_generator.set_ca_cert(cert_name, f.name)
         except ValueError:
             pass
         else:
-            assert False, "update_ca_cert should have raised an error"
+            assert False, "set_ca_cert should have raised an error"
 
     LOG.info("Member makes a ca cert update proposal with malformed cert")
     with tempfile.NamedTemporaryFile("w") as f:
         f.write("foo")
         f.flush()
-        proposal_body, _ = ccf.proposal_generator.update_ca_cert(
-            "mycert", f.name, skip_checks=True
-        )
         try:
-            proposal = network.consortium.get_any_active_member().propose(
-                primary, proposal_body
-            )
-        except infra.proposal.ProposalNotCreated:
+            network.consortium.set_ca_cert(primary, cert_name, f.name, skip_checks=True)
+        except infra.proposal.ProposalNotAccepted:
             pass
         else:
-            assert False, "Proposal should not have been created"
+            assert False, "Proposal should not have been accepted"
 
     LOG.info("Member makes a ca cert update proposal with valid cert")
-    ca_cert_path = os.path.join(this_dir, "ca_cert.pem")
-    proposal_body, _ = ccf.proposal_generator.update_ca_cert("mycert", ca_cert_path)
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
-    assert proposal.state == ProposalState.Accepted
+    key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+    cert_pem = infra.crypto.generate_cert(key_priv_pem)
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as cert_pem_fp:
+        cert_pem_fp.write(cert_pem)
+        cert_pem_fp.flush()
+        network.consortium.set_ca_cert(primary, cert_name, cert_pem_fp.name)
 
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
         r = c.post(
-            "/gov/read", {"table": "public:ccf.gov.ca_cert_ders", "key": "mycert"}
+            "/gov/read", {"table": "public:ccf.gov.ca_cert_ders", "key": cert_name}
         )
         assert r.status_code == 200, r.status_code
-        cert_pem_str = open(ca_cert_path).read()
         cert_ref = x509.load_pem_x509_certificate(
-            cert_pem_str.encode(), crypto_backends.default_backend()
+            cert_pem.encode(), crypto_backends.default_backend()
         )
         cert_kv = x509.load_der_x509_certificate(
             # Note that /gov/read returns all data as JSON.
@@ -78,6 +73,17 @@ def test_cert_store(network, args):
         assert (
             cert_ref == cert_kv
         ), f"stored cert not equal to input cert: {cert_ref} != {cert_kv}"
+
+    LOG.info("Member removes a ca cert")
+    network.consortium.remove_ca_cert(primary, cert_name)
+
+    with primary.client(
+        f"member{network.consortium.get_any_active_member().member_id}"
+    ) as c:
+        r = c.post(
+            "/gov/read", {"table": "public:ccf.gov.ca_cert_ders", "key": cert_name}
+        )
+        assert r.status_code == 400, r.status_code
 
     return network
 

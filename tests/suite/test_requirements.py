@@ -141,10 +141,6 @@ def installed_package(p):
     return ensure_reqs(check)
 
 
-def lua_generic_app(func):
-    return installed_package("liblua_generic")(func)
-
-
 def recover(number_txs=5):
     # Runs some transactions before recovering the network and guarantees that all
     # transactions are successfully recovered
