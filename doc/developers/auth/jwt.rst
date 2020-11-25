@@ -6,19 +6,11 @@ JWT (`JSON Web Token <https://tools.ietf.org/html/rfc7519>`_) bearer authenticat
 Once the user has acquired a token from an IdP supported by the app, they can include it in HTTP requests in the ``Authorization`` header as `bearer token <https://tools.ietf.org/html/rfc6750>`_.
 The CCF app validates the token and can then use the user identity and other claims embedded in the token.
 
-CCF provides support for storing and retrieving public token signing keys required for validating tokens.
-In the future, CCF will support validating token signatures (currently the responsibility of apps) and automatically refreshing token signing keys from OpenID Provider Configuration endpoints.
+CCF provides support for managing public token signing keys required for validating tokens.
+In the future, CCF will support validating token signatures natively (currently the responsibility of apps).
 
-Storing public token signing keys
----------------------------------
-
-IdPs sign tokens with private keys that are periodically updated.
-Corresponding public keys in the form of certificates are needed to validate the signature of a token and are typically published by IdPs at a well-known location in JWKS (`JSON Web Key Set <https://tools.ietf.org/html/rfc7517>`_) format.
-
-.. note::
-
-    Most IdPs support the OpenID Connect Discovery specification which defines how to discover the location to the  certificates.
-    In short, the IdP issuer URL, for example ``https://login.microsoftonline.com/common/v2.0``, is suffixed with ``/.well-known/openid-configuration`` and the ``jwks_uri`` field of the JSON document at that URL is the location of the JWKS document containing the certificates currently in use. In this example, it would be `<https://login.microsoftonline.com/common/discovery/v2.0/keys>`_.
+Setting up a token issuer with manual key refresh
+-------------------------------------------------
 
 Before adding public token signing keys to a running CCF network, the IdP has to be stored as token issuer with a ``set_jwt_issuer`` proposal:
 
@@ -26,9 +18,11 @@ Before adding public token signing keys to a running CCF network, the IdP has to
 
     $ cat issuer.json
     {
-      "issuer": "https://login.microsoftonline.com/common/v2.0"
+      "issuer": "my-issuer"
     }
     $ python -m ccf.proposal_generator set_jwt_issuer issuer.json
+
+The ``issuer`` field is an arbitrary identifier and can be used during token validation to differentiate between multiple issuers.
 
 Note that ``issuer.json`` has some additional optional fields for more advanced scenarios.
 See :ref:`developers/auth/jwt:Advanced issuer configuration` for details.
@@ -37,9 +31,51 @@ After this proposal is accepted, signing keys for an issuer can be updated with 
 
 .. code-block:: bash
 
-    $ curl "https://login.microjsononline.com/common/discovery/v2.0/keys" -o jwks.json
-    $ ISSUER="https://login.microsoftonline.com/common/v2.0"
+    $ ISSUER="my-issuer"
     $ python -m ccf.proposal_generator set_jwt_public_signing_keys $ISSUER jwks.json
+
+``jwks.json`` contains the signing keys as JWKS (`JSON Web Key Set <https://tools.ietf.org/html/rfc7517>`_) document. 
+
+Setting up a token issuer with automatic key refresh
+----------------------------------------------------
+
+Most IdPs follow the OpenID Connect Discovery specification and publish their public token signing keys at a well-known location.
+In such cases, token issuers in CCF can be configured to automatically refresh their keys.
+
+The following extra conditions must be true compared to setting up an issuer with manual key refresh:
+
+- The ``issuer`` must be an OpenID Connect issuer URL, for example ``https://login.microsoftonline.com/common/v2.0``. During auto-refresh, the keys are fetched from that URL by appending ``/.well-known/openid-configuration``.
+- A CA certificate for the issuer URL must be stored so that the TLS connection to the IdP can be validated during key refresh.
+
+The CA certificate is stored with a ``set_ca_cert`` proposal:
+
+.. code-block:: bash
+
+    $ python -m ccf.proposal_generator set_ca_cert jwt_ms cacert.pem
+
+Now the issuer can be created with auto-refresh enabled:
+
+.. code-block:: bash
+
+    $ cat issuer.json
+    {
+      "issuer": "https://login.microsoftonline.com/common/v2.0",
+      "auto_refresh": true,
+      "ca_cert_name": "jwt_ms"
+    }
+    $ python -m ccf.proposal_generator set_jwt_issuer issuer.json
+
+.. note::
+
+    The key refresh interval is set via the ``--jwt-key-refresh-interval-s <seconds>`` CLI option for ``cchost``, where the default is 30 min.
+
+.. warning::
+
+    Currently, no initial automatic key refresh takes place when adding a new token issuer.
+    If this is an issue, consider updating keys manually the first time.
+
+Removing a token issuer
+-----------------------
 
 If an issuer should not be used anymore, then a ``remove_jwt_issuer`` proposal can be used to remove both the issuer and its signing keys:
 
