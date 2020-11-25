@@ -925,6 +925,10 @@ namespace ccf
            {
              LOG_FAIL_FMT("Proposal {}: Open network failed", proposal_id);
            }
+           else
+           {
+             node.open_user_frontend();
+           }
            return network_opened;
          }},
         {"rekey_ledger",
