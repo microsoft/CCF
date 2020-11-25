@@ -7,7 +7,9 @@
 #include "ds/spin_lock.h"
 #include "enclave/rpc_handler.h"
 #include "forwarder.h"
+#include "http/http_jwt.h"
 #include "node/client_signatures.h"
+#include "node/jwt.h"
 #include "node/nodes.h"
 #include "node/service.h"
 #include "rpc_exception.h"
@@ -228,6 +230,16 @@ namespace ccf
       ctx->set_response_body(std::move(msg));
     }
 
+    void set_response_unauthorized_jwt(
+      std::shared_ptr<enclave::RpcContext>& ctx, std::string&& msg) const
+    {
+      ctx->set_response_status(HTTP_STATUS_UNAUTHORIZED);
+      ctx->set_response_header(
+        http::headers::WWW_AUTHENTICATE,
+        "Bearer realm=\"JWT bearer token access\", error=\"invalid_token\"");
+      ctx->set_response_body(std::move(msg));
+    }
+
     std::optional<std::vector<uint8_t>> process_command(
       std::shared_ptr<enclave::RpcContext> ctx,
       kv::Tx& tx,
@@ -351,6 +363,48 @@ namespace ccf
         if (is_primary)
         {
           should_record_client_signature = true;
+        }
+      }
+
+      std::optional<Jwt> jwt;
+      if (endpoint->properties.require_jwt_authentication)
+      {
+        auto headers = ctx->get_request_headers();
+        std::string error_reason;
+        auto token = http::JwtVerifier::extract_token(headers, error_reason);
+        auto keys_view = tx.get_view<JwtPublicSigningKeys>(
+          ccf::Tables::JWT_PUBLIC_SIGNING_KEYS);
+        auto key_issuer_view = tx.get_view<JwtPublicSigningKeyIssuer>(
+          ccf::Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER);
+        std::string key_issuer;
+        if (token.has_value())
+        {
+          auto key_id = token.value().header_typed.kid;
+          auto token_key = keys_view->get(key_id);
+          if (!token_key.has_value())
+          {
+            error_reason = "JWT signing key not found";
+          }
+          else if (!http::JwtVerifier::validate_token_signature(
+                     token.value(), token_key.value()))
+          {
+            error_reason = "JWT signature is invalid";
+          }
+          else
+          {
+            key_issuer = key_issuer_view->get(key_id).value();
+          }
+        }
+        if (!error_reason.empty())
+        {
+          set_response_unauthorized_jwt(
+            ctx, fmt::format("'{}' {}", ctx->get_method(), error_reason));
+          update_metrics(ctx, metrics);
+          return ctx->serialise_response();
+        }
+        else
+        {
+          jwt = Jwt{key_issuer, token.value().header, token.value().payload};
         }
       }
 
@@ -690,11 +744,6 @@ namespace ccf
       return {std::move(rep.value()), version};
     }
 
-    crypto::Sha256Hash get_merkle_root() override
-    {
-      return history->get_replicated_state_root();
-    }
-
     void update_merkle_tree() override
     {
       if (history != nullptr)
@@ -774,11 +823,6 @@ namespace ccf
     virtual std::optional<tls::Pem> resolve_caller_id(ObjectId, kv::Tx&)
     {
       return std::nullopt;
-    }
-
-    virtual bool is_members_frontend() override
-    {
-      return false;
     }
   };
 }

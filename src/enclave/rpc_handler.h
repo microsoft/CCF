@@ -41,10 +41,8 @@ namespace enclave
       kv::Version version;
     };
 
-    virtual bool is_members_frontend() = 0;
     virtual ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx) = 0;
-    virtual crypto::Sha256Hash get_merkle_root() = 0;
     virtual void update_merkle_tree() = 0;
   };
 }
