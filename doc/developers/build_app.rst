@@ -28,7 +28,8 @@ It is also possible to sign an existing enclave application (e.g. ``libjs_generi
 
 .. code-block:: bash
 
-    $ /opt/openenclave/bin/oesign sign --enclave-image libjs_generic.enclave.so --config-file CCF/src/apps/js_generic/oe_sign.conf --key-file CCF/src/apps/sample_key.pem
+    $ openssl genrsa -out signing_key.pem -3 3072
+    $ /opt/openenclave/bin/oesign sign --enclave-image libjs_generic.enclave.so --config-file CCF/src/apps/js_generic/oe_sign.conf --key-file signing_key.pem
     Created libjs_generic.enclave.so.signed
     $ ls *.so.signed
     libjs_generic.enclave.so.signed
