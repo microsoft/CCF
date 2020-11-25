@@ -139,7 +139,6 @@ namespace asynchost
       }
     }
 
-    // TODO: Check that evidence for this file is in a chunk that we know
     std::optional<std::string> find_latest_committed_snapshot()
     {
       std::optional<std::string> snapshot_file = std::nullopt;

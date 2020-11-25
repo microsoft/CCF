@@ -547,7 +547,7 @@ if(BUILD_TESTS)
       --raft-election-timeout
       4000
       --snapshot-tx-interval
-      5
+      10
       --use-snapshot
   )
 

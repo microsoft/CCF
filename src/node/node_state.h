@@ -672,6 +672,11 @@ namespace ccf
       {
         LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
         network.tables->rollback(ledger_idx - 1);
+        if (sm.check(State::verifyingSnapshot))
+        {
+          throw std::logic_error(
+            "Error deserialising public ledger entry when verifying snapshot");
+        }
         recover_public_ledger_end_unsafe();
         return;
       }
@@ -714,7 +719,6 @@ namespace ccf
           startup_snapshot_info && startup_snapshot_info->has_evidence &&
           last_sig->commit_seqno >= startup_snapshot_info->evidence_seqno)
         {
-          LOG_FAIL_FMT("Snapshot evidence at {} is committed", ledger_idx);
           startup_snapshot_info->is_evidence_committed = true;
         }
       }

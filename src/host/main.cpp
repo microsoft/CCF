@@ -705,8 +705,6 @@ int main(int argc, char** argv)
 
     if (*join || *recover)
     {
-      // TODO: It should be guaranteed that find_latest_committed_snapshot
-      // returns the latest committed snapshot, including evidence seqno
       auto snapshot_file = snapshots.find_latest_committed_snapshot();
       if (snapshot_file.has_value())
       {

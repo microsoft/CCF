@@ -154,22 +154,8 @@ class Network:
             for n in self.nodes:
                 n.node_id = n.node_id + first_node_id
 
-    def create_node(self, host):
-        node_id = self._get_next_local_node_id()
-        debug = (
-            (str(node_id) in self.dbg_nodes) if self.dbg_nodes is not None else False
-        )
-        perf = (
-            (str(node_id) in self.perf_nodes) if self.perf_nodes is not None else False
-        )
-        node = infra.node.Node(
-            node_id, host, self.binary_dir, self.library_dir, debug, perf
-        )
-        self.nodes.append(node)
-        return node
-
-    def _wait_for_snapshot_evidence_commit_proof(self, node, snapshot, timeout=3):
-        # Wait for snapshot evidence to have ledger proof that it is committed
+    def wait_for_snapshot_evidence_commit_proof(self, node, snapshot, timeout=3):
+        # Wait for snapshot evidence to have ledger proof that it is committed.
         # To do so, wait until the evidence is committed, then issue a write and
         # wait for it to be committed. The corresponding signature will contain
         # a commit seqno greater than the evidence seqno
@@ -195,6 +181,33 @@ class Network:
         raise TimeoutError(
             f"Timeout waiting for snapshot evidence {snapshot} to have commit proof"
         )
+
+    def create_node(self, host):
+        node_id = self._get_next_local_node_id()
+        debug = (
+            (str(node_id) in self.dbg_nodes) if self.dbg_nodes is not None else False
+        )
+        perf = (
+            (str(node_id) in self.perf_nodes) if self.perf_nodes is not None else False
+        )
+        node = infra.node.Node(
+            node_id, host, self.binary_dir, self.library_dir, debug, perf
+        )
+        self.nodes.append(node)
+        return node
+
+    def get_committed_snapshots(self, node):
+        """
+        Returns committed snapshots, waiting for the latest available
+        snapshot to have evidence proof in ledger
+        """
+        snapshot_dir = node.get_committed_snapshots()
+        assert (
+            len(os.listdir(snapshot_dir)) > 0
+        ), f"There are no snapshots to resume from in directory {snapshot_dir}"
+        latest_snapshot_file = infra.node.find_latest_snapshot(snapshot_dir)
+        self.wait_for_snapshot_evidence_commit_proof(node, latest_snapshot_file)
+        return snapshot_dir
 
     def _add_node(
         self,
@@ -223,15 +236,7 @@ class Network:
         # Only retrieve snapshot from target node if the snapshot directory is not
         # specified
         if from_snapshot and snapshot_dir is None:
-            snapshot_dir = target_node.get_committed_snapshots()
-            assert (
-                len(os.listdir(snapshot_dir)) > 0
-            ), f"There are no snapshots to resume from in directory {snapshot_dir}"
-
-            latest_snapshot_file = infra.node.find_latest_snapshot(snapshot_dir)
-            self._wait_for_snapshot_evidence_commit_proof(
-                target_node, latest_snapshot_file
-            )
+            snapshot_dir = self.get_committed_snapshots(target_node)
 
         committed_ledger_dirs = []
         current_ledger_dir = None
@@ -491,7 +496,6 @@ class Network:
             self._wait_for_app_open(node)
 
         self.consortium.check_for_service(primary, ServiceStatus.OPEN)
-        time.sleep(10)
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):
@@ -573,13 +577,20 @@ class Network:
         target_node=None,
         from_snapshot=False,
         copy_ledger=False,
+        timeout=JOIN_TIMEOUT,
     ):
         """
         Create a new node, add it to the network and let members vote to trust
         it so that it becomes part of the consensus protocol.
         """
         new_node = self.create_and_add_pending_node(
-            lib_name, host, args, target_node, from_snapshot, copy_ledger
+            lib_name,
+            host,
+            args,
+            target_node,
+            from_snapshot,
+            copy_ledger,
+            timeout,
         )
 
         primary, _ = self.find_primary()
@@ -811,8 +822,8 @@ class Network:
         while time.time() < end_time:
             snapshots = primary.get_committed_snapshots()
             for s in os.listdir(snapshots):
-                if infra.node.get_snapshot_seqno(s) > seqno:
-                    LOG.info(f"Snapshot committed after seqno {seqno}: {s}")
+                if infra.node.get_snapshot_seqnos(s)[0] > seqno:
+                    LOG.debug(f"Snapshot committed after seqno {seqno}: {s}")
                     return
             time.sleep(0.1)
         raise TimeoutError(f"Snapshot after {seqno} was not committed after {timeout}s")

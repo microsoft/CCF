@@ -18,9 +18,7 @@ def test(network, args, from_snapshot=False):
     # Retrieve ledger and snapshots
     snapshot_dir = None
     if from_snapshot:
-        snapshot_dir = old_primary.get_committed_snapshots()
-        if not os.listdir(snapshot_dir):
-            raise RuntimeError(f"No snapshot found in {snapshot_dir}")
+        snapshot_dir = network.get_committed_snapshots(old_primary)
     ledger_dir = old_primary.get_ledger()[0]
 
     recovered_network = infra.network.Network(
@@ -41,9 +39,7 @@ def test_share_resilience(network, args, from_snapshot=False):
 
     snapshot_dir = None
     if from_snapshot:
-        snapshot_dir = old_primary.get_committed_snapshots()
-        if not os.listdir(snapshot_dir):
-            raise RuntimeError(f"No snapshot found in {snapshot_dir}")
+        snapshot_dir = network.get_committed_snapshots(old_primary)
     ledger_dir = old_primary.get_ledger()[0]
 
     recovered_network = infra.network.Network(
@@ -107,12 +103,12 @@ def run(args):
 
         for i in range(args.recovery):
             # Alternate between recovery with primary change and stable primary-ship
-            # if i % 2 == 0:
-            #     recovered_network = test_share_resilience(
-            #         network, args, args.use_snapshot
-            #     )
-            # else:
-            recovered_network = test(network, args, args.use_snapshot)
+            if i % 2 == 0:
+                recovered_network = test_share_resilience(
+                    network, args, args.use_snapshot
+                )
+            else:
+                recovered_network = test(network, args, args.use_snapshot)
             network.stop_all_nodes()
             network = recovered_network
             LOG.success("Recovery complete on all nodes")
