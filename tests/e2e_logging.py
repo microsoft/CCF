@@ -197,6 +197,37 @@ def test_anonymous_caller(network, args):
     return network
 
 
+@reqs.description("Use multiple auth types on the same endpoint")
+@reqs.supports_methods("multi_auth")
+def test_multi_auth(network, args):
+    if args.package == "liblogging":
+        primary, _ = network.find_primary()
+
+        response_bodies = set()
+
+        def require_new_response(r):
+            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+            r_body = r.body.text()
+            assert r_body not in response_bodies, r_body
+            response_bodies.add(r_body)
+            LOG.warning(r_body)
+
+        # Can be accessed anonymously, with no auth
+        with primary.client() as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
+
+        # Can be accessed authenticated as a user, via TLS cert
+        with primary.client("user0") as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
+
+        # Can be accessed authenticated as a different user, via TLS cert
+        with primary.client("user1") as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
+
+
 @reqs.description("Write non-JSON body")
 @reqs.supports_methods("log/private/raw_text/{id}", "log/private")
 def test_raw_text(network, args):
@@ -550,24 +581,25 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        network = test(
-            network,
-            args,
-            verify=args.package != "libjs_generic",
-        )
-        network = test_illegal(network, args, verify=args.package != "libjs_generic")
-        network = test_large_messages(network, args)
-        network = test_remove(network, args)
-        network = test_forwarding_frontends(network, args)
-        network = test_user_data_ACL(network, args)
-        network = test_cert_prefix(network, args)
-        network = test_anonymous_caller(network, args)
-        network = test_raw_text(network, args)
-        network = test_historical_query(network, args)
-        network = test_view_history(network, args)
-        network = test_primary(network, args)
-        network = test_metrics(network, args)
-        network = test_memory(network, args)
+        # network = test(
+        #     network,
+        #     args,
+        #     verify=args.package != "libjs_generic",
+        # )
+        # network = test_illegal(network, args, verify=args.package != "libjs_generic")
+        # network = test_large_messages(network, args)
+        # network = test_remove(network, args)
+        # network = test_forwarding_frontends(network, args)
+        # network = test_user_data_ACL(network, args)
+        # network = test_cert_prefix(network, args)
+        # network = test_anonymous_caller(network, args)
+        network = test_multi_auth(network, args)
+        # network = test_raw_text(network, args)
+        # network = test_historical_query(network, args)
+        # network = test_view_history(network, args)
+        # network = test_primary(network, args)
+        # network = test_metrics(network, args)
+        # network = test_memory(network, args)
 
 
 if __name__ == "__main__":

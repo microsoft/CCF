@@ -65,7 +65,6 @@ namespace loggingapp
       // SNIPPET_START: install_record
       make_endpoint("log/private", HTTP_POST, ccf::json_adapter(record))
         .set_auto_schema<LoggingRecord::In, bool>()
-        .add_authentication_policy<UserCertAuthnPolicy>()
         .install();
       // SNIPPET_END: install_record
 
@@ -224,6 +223,43 @@ namespace loggingapp
         ccf::json_adapter(log_record_anonymous))
         .set_auto_schema<LoggingRecord::In, bool>()
         .set_require_client_identity(false)
+        .install();
+
+      auto multi_auth = [](auto& ctx) {
+        if (
+          auto cert_ident =
+            ctx.template get_caller<ccf::UserCertAuthnIdentity>())
+        {
+          auto response = fmt::format(
+            "The caller is a user with ID: {}", cert_ident->user_id);
+          response += fmt::format(
+            "\nThe caller's user data is: {}", cert_ident->user_data.dump());
+          response += fmt::format(
+            "\nThe caller's cert is: {}", cert_ident->user_cert.str());
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_body(std::move(response));
+          return;
+        }
+        else if (
+          auto no_ident = ctx.template get_caller<ccf::EmptyAuthnIdentity>())
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_body("Unauthenticated");
+          return;
+        }
+        else
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          ctx.rpc_ctx->set_response_body("Unhandled auth type");
+          return;
+        }
+      };
+      make_endpoint("multi_auth", HTTP_GET, multi_auth)
+        .set_auto_schema<void, std::string>()
+        .add_authentication_policy(require_user_cert)
+        .add_authentication_policy(no_authentication)
+        .set_require_client_identity(false) // TODO: Shouldn't need this as well
         .install();
 
       // SNIPPET_START: log_record_text

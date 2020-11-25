@@ -27,7 +27,14 @@ namespace ccf
   {
     std::shared_ptr<enclave::RpcContext> rpc_ctx;
     kv::Tx& tx;
-    CallerId caller_id;
+    CallerId caller_id; // TODO: Remove this
+    const std::unique_ptr<AuthnIdentity> caller;
+
+    template <typename T>
+    const T* get_caller()
+    {
+      return dynamic_cast<const T*>(caller.get());
+    }
   };
   using EndpointFunction = std::function<void(EndpointContext& args)>;
 
@@ -37,6 +44,7 @@ namespace ccf
     std::shared_ptr<enclave::RpcContext> rpc_ctx;
     kv::ReadOnlyTx& tx;
     CallerId caller_id;
+    // TODO: Add AuthnIdentity here?
   };
   using ReadOnlyEndpointFunction =
     std::function<void(ReadOnlyEndpointContext& args)>;
@@ -348,10 +356,10 @@ namespace ccf
       }
 
       // TODO: Document
-      template <typename T, typename... Ts>
-      Endpoint& add_authentication_policy(Ts&&... ts)
+      Endpoint& add_authentication_policy(
+        const std::shared_ptr<AuthnPolicy>& policy)
       {
-        authn_policies.push_back(std::make_shared<T>(std::forward<Ts>(ts)...));
+        authn_policies.push_back(policy);
         return *this;
       }
 
@@ -451,6 +459,12 @@ namespace ccf
 
     std::string certs_table_name;
     std::string digests_table_name;
+
+    // Auth policies
+    std::shared_ptr<EmptyAuthnPolicy> no_authentication =
+      std::make_shared<EmptyAuthnPolicy>();
+    std::shared_ptr<UserCertAuthnPolicy> require_user_cert =
+      std::make_shared<UserCertAuthnPolicy>();
 
     static void add_query_parameters(
       nlohmann::json& document,

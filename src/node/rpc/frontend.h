@@ -417,7 +417,7 @@ namespace ccf
         }
       }
 
-      auto args = EndpointContext{ctx, tx, caller_id};
+      auto args = EndpointContext{ctx, tx, caller_id, std::move(identity)};
 
       tx_count++;
 
