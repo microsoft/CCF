@@ -38,7 +38,7 @@ def run(args):
         LOG.disable("infra")
         LOG.disable("ccf")
 
-    LOG.info(f"Starting {len(hosts)} CCF nodes...")
+    LOG.info(f"Starting {len(hosts)} CCF node{'s' if len(hosts) > 1 else ''}...")
     if args.enclave_type == "virtual":
         LOG.warning("Virtual mode enabled")
 
