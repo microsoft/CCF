@@ -721,6 +721,10 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
       auto tx = tables.create_tx();
+      if (!is_open(tx))
+      {
+        throw std::logic_error("Transaction failed");
+      }
 
       kv::Version version = kv::NoVersion;
 
