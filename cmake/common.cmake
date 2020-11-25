@@ -357,6 +357,8 @@ sign_app_library(
 )
 # SNIPPET_END: JS generic application
 
+install(DIRECTORY ${CCF_DIR}/src/apps/logging/js DESTINATION samples/logging)
+
 # Samples
 
 # Helper for building clients inheriting from perf_client
