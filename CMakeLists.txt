@@ -237,15 +237,15 @@ add_custom_target(
 )
 
 add_ccf_app(
-  logging SRCS src/apps/logging/logging.cpp
-               src/apps/logging/stub_for_code_signing.cpp
+  logging SRCS samples/apps/logging/logging.cpp
+               samples/apps/logging/stub_for_code_signing.cpp
 )
 sign_app_library(
-  logging.enclave ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+  logging.enclave ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/logging/oe_sign.conf
   ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 create_patched_enclave_lib(
-  logging ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+  logging ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/logging/oe_sign.conf
   ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 
@@ -735,7 +735,7 @@ if(BUILD_TESTS)
     NAME js_e2e_logging_raft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/src/apps/logging/js
+    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
   add_e2e_test(

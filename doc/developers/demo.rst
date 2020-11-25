@@ -84,7 +84,7 @@ Logging App Commands
 
 The business transaction endpoints defined by our application are available under the ``/app`` prefix. For example, consider the ``"log/private"`` endpoint installed by the C++ logging application:
 
-.. literalinclude:: ../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: install_record
     :end-before: SNIPPET_END: install_record
