@@ -7,27 +7,35 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [0.15.2]
 
-## Changed
+### Added
+
+- JWT key auto-refresh (#1908), can be enabled by providing `"auto_refresh": true` and `"ca_cert_name": "..."` in `set_jwt_issuer` proposal.
+  - Auto-refresh is currently only supported for providers following the OpenID Connect standard where keys are published under the `/.well-known/openid-configuration` path of the issuer URL.
+  - `ca_cert_name` refers to a certificate stored with a `set_ca_cert` proposal and is used to validate the TLS connection to the provider endpoint.
+- JWT signature validation (#1912), can be enabled with the `require_jwt_authentication` endpoint property.
+
+### Changed
 
 - Members can no longer vote multiple times on governance proposals (#1743).
+- `update_ca_cert` proposal has been replaced by `set_ca_cert`/`remove_ca_cert` (#1917).
 
-## Deprecated
+### Deprecated
 
 - `set_js_app` proposal and `--js-app-script` argument are deprecated, and should be replaced by `deploy_js_app` and `--js-app-bundle`. See #1895 for an example of converting from the old style (JS embedded in a Lua script) to the new style (app bundle described by `app.json`).
 
-## Removed
+### Removed
 
 - `kv::Store::create` is removed.
 - `luageneric` is removed.
 
 ## [0.15.1]
 
-## Added
+### Added
 
 - [JWT documentation](https://microsoft.github.io/CCF/master/developers/auth/jwt.html#jwt-authentication) (#1875).
 - [Member keys in HSM documentation](https://microsoft.github.io/CCF/master/members/hsm_keys.html) (#1884).
 
-## Changed
+### Changed
 
 - `/gov/ack/update_state_digest` and `/gov/ack` now only return/accept a hex string (#1873).
 - `/node/quote` schema update (#1885).

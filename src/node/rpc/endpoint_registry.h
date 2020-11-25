@@ -23,6 +23,14 @@ namespace ccf
 {
   using namespace endpoints;
 
+  // to be exposed in EndpointContext or similar
+  struct Jwt
+  {
+    std::string key_issuer;
+    nlohmann::json header;
+    nlohmann::json payload;
+  };
+
   struct EndpointContext
   {
     std::shared_ptr<enclave::RpcContext> rpc_ctx;
@@ -344,6 +352,12 @@ namespace ccf
         }
 
         properties.require_client_identity = v;
+        return *this;
+      }
+
+      Endpoint& set_require_jwt_authentication(bool v)
+      {
+        properties.require_jwt_authentication = v;
         return *this;
       }
 
