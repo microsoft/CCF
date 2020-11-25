@@ -12,6 +12,20 @@
 #include <stack>
 #include <sstream>
 
+
+#ifdef WIN32
+#include <stdlib.h>
+#if BYTE_ORDER == LITTLE_ENDIAN
+  #define htobe32(X) _byteswap_ulong(X)
+  #define be32toh(X) _byteswap_ulong(X)
+#else
+  #define htobe32(X) (X)
+  #define be32toh(X) (X)
+#endif
+#undef max
+#endif
+
+
 // All british.
 // Documentation strings.
 
@@ -137,7 +151,7 @@ namespace Merkle
         return r;
       }
 
-      static std::shared_ptr<Node> make(std::shared_ptr<Node> left, std::shared_ptr<Node> right)
+      static std::shared_ptr<Node> make(std::shared_ptr<Node> &left, std::shared_ptr<Node> &right)
       {
         assert(left && right);
 
@@ -145,17 +159,10 @@ namespace Merkle
         r->left = left;
         r->right = right;
         r->dirty = true;
-
-        r->size += left->size + right->size + 1;
+        r->size = left->size + right->size + 1;
         r->height = std::max(left->height, right->height) + 1;
-
         r->left->parent = r->right->parent = r;
         return r;
-      }
-
-      ~Node() {
-        if (left) left->parent.reset();
-        if (right) right->parent.reset();
       }
 
       bool is_full() const {
@@ -196,14 +203,10 @@ namespace Merkle
         else {
           TRACE(std::cout << " @ " << n->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
           assert(n->left && n->right);
-          if (!n->left->is_full()) {
+          if (!n->left->is_full())
             insert_recursive(n->left, new_leaf);
-            n->left->parent = n;
-          }
-          else {
+          else
             insert_recursive(n->right, new_leaf);
-            n->right->parent = n;
-          }
           n->dirty = true;
           n->size = n->left->size + n->right->size + 1;
           n->height = std::max(n->left->height, n->right->height) + 1;
@@ -215,41 +218,48 @@ namespace Merkle
       typedef struct { std::shared_ptr<Node> n; bool left; } StackElement;
       static std::stack<StackElement> stack;
 
+      if (!root) {
+        root = new_leaf;
+        return;
+      }
+
       std::shared_ptr<Node> n = root;
       std::shared_ptr<Node> result = nullptr;
-      while (!result || !stack.empty())
+      while (!result)
       {
-        if (result) {
-          n = stack.top().n;
-
-          if (stack.top().left)
-            n->left = result;
-          else
-            n->right = result;
-          result->parent = n;
-          n->dirty = true;
-          n->size = n->left->size + n->right->size + 1;
-          n->height = std::max(n->left->height, n->right->height) + 1;
-
-          result = n;
-          stack.pop();
-        }
-        else if (!n)
-          result = new_leaf;
-        else if (n->is_full())
+        if (n->is_full())
           result = Node::make(n, new_leaf);
         else {
           TRACE(std::cout << " @ " << n->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
           assert(n->left && n->right);
+          stack.push(StackElement());
+          StackElement &se = stack.top();
+          se.n=n;
           if (!n->left->is_full()) {
-            stack.push({ .n=n, .left=true });
+            se.left=true;
             n = n->left;
           }
           else {
-            stack.push({ .n=n, .left=false });
+            se.left=false;
             n = n->right;
           }
         }
+      }
+
+      while (!stack.empty()) {
+        StackElement &top = stack.top();
+        std::shared_ptr<Node> &n = top.n;
+
+        if (top.left)
+          n->left = result;
+        else
+          n->right = result;
+        n->dirty = true;
+        n->size = n->left->size + n->right->size + 1;
+        n->height = std::max(n->left->height, n->right->height) + 1;
+
+        result = n;
+        stack.pop();
       }
 
       root = result;
@@ -257,17 +267,9 @@ namespace Merkle
 
     void insert(const Hash &hash) {
       TRACE(std::cout << "> insert " << hash.to_string(TRACE_HASH_SIZE) << std::endl;);
-      auto new_leaf = Node::make(hash);
-      _leaf_nodes.push_back(new_leaf);
-      insert_recursive(_root, new_leaf);
-      // insert_iterative(_root, new_leaf);
-      statistics.num_insert++;
-      TRACE(std::cout << this->to_string() << std::endl;);
-    }
-
-    void insert_lazy(const Hash &hash) {
       _new_leaf_nodes.push_back(Node::make(hash));
       statistics.num_insert++;
+      TRACE(std::cout << this->to_string() << std::endl;);
     }
 
     void insert(const std::vector<Hash> &hashes) {
@@ -483,6 +485,7 @@ namespace Merkle
         for (auto &n : _new_leaf_nodes) {
           _leaf_nodes.push_back(n);
           insert_recursive(_root, n);
+          // insert_iterative(_root, n);
         }
         _new_leaf_nodes.clear();
       }

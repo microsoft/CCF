@@ -19,7 +19,7 @@ int main()
     auto hashes = make_hashes(num_leaves);
 
     for (size_t i = 0; i < hashes.size(); i++)
-      mt.insert_lazy(hashes[i]);
+      mt.insert(hashes[i]);
 
     mt.rebuild();
     Merkle::Tree::Hash rebuilt_root = mt.root();
@@ -44,16 +44,12 @@ int main()
 
     mt_free_hash(ec_hash);
     mt_free(ec_mt);
+    std::cout << std::endl;
 
-
-    std::cout << std::endl << std::endl;
 
     Merkle::Tree mtt;
-    for (auto h : hashes) {
+    for (auto h : hashes)
       mtt.insert(h);
-      // mtt.build_incremental();
-    }
-    // mtt.build_incremental();
     Merkle::Tree::Hash treelike_root = mtt.root();
     std::cout << "treelike: " << std::endl;
     std::cout << "R: " << treelike_root.to_string() << std::endl;
