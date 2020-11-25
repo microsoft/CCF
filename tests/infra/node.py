@@ -11,7 +11,6 @@ import os
 import socket
 import time
 import re
-from shutil import copy2, rmtree
 
 from loguru import logger as LOG
 
@@ -289,16 +288,11 @@ class Node:
         committed_ledger_dir = os.path.join(
             self.common_dir, f"{self.node_id}.ledger.committed"
         )
-        if os.path.isdir(current_ledger_dir):
-            rmtree(current_ledger_dir)
-        os.mkdir(current_ledger_dir)
-
-        if os.path.isdir(committed_ledger_dir):
-            rmtree(committed_ledger_dir)
-        os.mkdir(committed_ledger_dir)
+        infra.path.create_dir(current_ledger_dir)
+        infra.path.create_dir(committed_ledger_dir)
 
         for f in os.listdir(main_ledger_dir):
-            copy2(
+            infra.path.copy_dir(
                 os.path.join(main_ledger_dir, f),
                 committed_ledger_dir if is_file_committed(f) else current_ledger_dir,
             )
@@ -307,7 +301,7 @@ class Node:
             for f in os.listdir(ro_dir):
                 # Uncommitted ledger files from r/o ledger directory are ignored by CCF
                 if is_file_committed(f):
-                    copy2(os.path.join(ro_dir, f), committed_ledger_dir)
+                    infra.path.copy_dir(os.path.join(ro_dir, f), committed_ledger_dir)
 
         return current_ledger_dir, committed_ledger_dir
 
