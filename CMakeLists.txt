@@ -524,6 +524,12 @@ if(BUILD_TESTS)
     LINK_LIBS ccfcrypto.host secp256k1.host
   )
   add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
+  add_picobench(
+    digest_bench
+    SRCS src/crypto/test/digest_bench.cpp
+    LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
+    INCLUDE_DIRS ${EVERCRYPT_INC}
+  )
 
   # Storing signed governance operations
   add_e2e_test(
