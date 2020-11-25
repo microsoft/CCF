@@ -116,11 +116,18 @@ namespace ccf
     template <typename F0, typename F1>
     auto check_and_convert(lua_State* l, int arg, F0 check, F1 convert)
     {
-      sanitize_stack_idx(l, arg);
-      if (!check(l, arg)) // e.g., lua_isnumber()
+      arg = sanitize_stack_idx(l, arg);
+      const auto stack_before = lua_gettop(l);
+
+      const auto check_ok = check(l, arg); // e.g., lua_isnumber()
+      expect_top(l, stack_before);
+      if (!check_ok)
         throw ex("Lua stack object has wrong type.");
 
-      return convert(l, arg, nullptr); // e.g., lua_tonumberx()
+      const auto convert_result =
+        convert(l, arg, nullptr); // e.g., lua_tonumberx()
+      expect_top(l, stack_before);
+      return convert_result;
     }
 
     template <typename F0, typename F1>
