@@ -566,7 +566,7 @@ namespace ccf
       if (!is_open_)
       {
         auto sv = tx.get_view<Service>(Tables::SERVICE);
-        auto s = sv->get(0);
+        auto s = sv->get_globally_committed(0);
         if (
           s.has_value() && s.value().status == ServiceStatus::OPEN &&
           service_identity != nullptr && s.value().cert == *service_identity)
