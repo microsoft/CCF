@@ -168,6 +168,34 @@ class Network:
         self.nodes.append(node)
         return node
 
+    def _wait_for_snapshot_evidence_commit_proof(self, node, snapshot, timeout=3):
+        # Wait for snapshot evidence to have ledger proof that it is committed
+        # To do so, wait until the evidence is committed, then issue a write and
+        # wait for it to be committed. The corresponding signature will contain
+        # a commit seqno greater than the evidence seqno
+        _, snapshot_evidence_seqno = infra.node.get_snapshot_seqnos(snapshot)
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            with node.client() as c:
+                r = c.get("/node/commit")
+                current_commit_seqno = r.body.json()["seqno"]
+                if current_commit_seqno >= snapshot_evidence_seqno:
+                    with node.client(
+                        f"member{self.consortium.get_any_active_member().member_id}"
+                    ) as c:
+                        # Using update_state_digest here as a convenient write tx
+                        # that is not app-specific
+                        r = c.post("/gov/ack/update_state_digest")
+                        assert (
+                            r.status_code == 200
+                        ), f"Error ack/update_state_digest: {r}"
+                        c.wait_for_commit(r)
+                        return
+                time.sleep(0.1)
+        raise TimeoutError(
+            f"Timeout waiting for snapshot evidence {snapshot} to have commit proof"
+        )
+
     def _add_node(
         self,
         node,
@@ -196,44 +224,14 @@ class Network:
         # specified
         if from_snapshot and snapshot_dir is None:
             snapshot_dir = target_node.get_committed_snapshots()
-            LOG.error(os.listdir(snapshot_dir))
             assert (
                 len(os.listdir(snapshot_dir)) > 0
             ), f"There are no snapshots to resume from in directory {snapshot_dir}"
 
             latest_snapshot_file = infra.node.find_latest_snapshot(snapshot_dir)
-            LOG.error(latest_snapshot_file)
-
-            # Wait for commit of snapshot evidence to be recorded in signature
-            with target_node.client() as c:
-                r = c.get("/node/state")
-                last_signed_seqno = r.body.json()["last_signed_seqno"]
-                LOG.error(last_signed_seqno)
-                r = c.get("/node/commit")
-                current_commit_seqno = r.body.json()["seqno"]
-                assert (
-                    last_signed_seqno >= current_commit_seqno
-                )  # TODO: We should wait here instead
-
-            # with target_node.client("user0") as c:
-            #     r = c.post("/app/log/private", {"id": 0, "msg": "msg"})
-            #     c.wait_for_commit(r)
-
-            # with target_node.client() as c:
-            #     r = c.get("/node/state")
-
-            # while True:
-
-            # if last_signed_seqno:
-            #     pass
-
-            # input("")
-
-            # TODO: Wait for snapshot evidence to have proof that it is committed
-            # 1. Select latest committed snapshot and retrieve evidence seqno
-            # 2. Get latest signed index from node and wait for it to be > evidence seqno and globally committed
-            # 3. Issue a transaction and wait for it to be globally committed
-            # => Snapshot evidence is now globally committed
+            self._wait_for_snapshot_evidence_commit_proof(
+                target_node, latest_snapshot_file
+            )
 
         committed_ledger_dirs = []
         current_ledger_dir = None
@@ -246,11 +244,9 @@ class Network:
                 current_ledger_dir, committed_ledger_dirs = target_node.get_ledger(
                     include_read_only_dirs=True
                 )
-                # TODO: Message looks wrong
                 LOG.info(
                     f"Copying target node ledger to read-only ledger directory {committed_ledger_dirs}"
                 )
-                # TODO: Get rid of list if possible
                 committed_ledger_dirs = [committed_ledger_dirs]
             elif ledger_dir is not None:
                 current_ledger_dir = ledger_dir
