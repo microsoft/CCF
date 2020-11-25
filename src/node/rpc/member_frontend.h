@@ -1987,10 +1987,5 @@ namespace ccf
       ctx->session->caller_cert = caller_cert.value().raw();
       return true;
     }
-
-    virtual bool is_members_frontend() override
-    {
-      return true;
-    }
   };
 } // namespace ccf
