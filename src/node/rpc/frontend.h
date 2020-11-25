@@ -571,7 +571,8 @@ namespace ccf
           s.has_value() && s.value().status == ServiceStatus::OPEN &&
           service_identity != nullptr && s.value().cert == *service_identity)
         {
-          LOG_INFO_FMT("Service state is OPEN, now accepting user transactions");
+          LOG_INFO_FMT(
+            "Service state is OPEN, now accepting user transactions");
           is_open_ = true;
           endpoints.init_handlers(tables);
         }
