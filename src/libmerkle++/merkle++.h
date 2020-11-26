@@ -40,11 +40,11 @@ namespace Merkle
     uint8_t bytes[SIZE];
 
     HashT<SIZE>() {
-      memset(bytes, 0, SIZE);
+      std::fill(bytes, bytes + SIZE, 0);
     }
 
-    HashT<SIZE>(uint8_t *bytes) {
-      memcpy(this->bytes, bytes, SIZE);
+    HashT<SIZE>(const uint8_t *bytes) {
+      std::copy(bytes, bytes + SIZE, this->bytes);
     }
 
     std::string to_string(size_t num_bytes = SIZE) const {
@@ -57,7 +57,7 @@ namespace Merkle
     }
 
     HashT<SIZE> operator=(const HashT<SIZE> &other) {
-      memcpy(bytes, other.bytes, SIZE);
+      std::copy(other.bytes, other.bytes + SIZE, bytes);
       return *this;
     }
 
@@ -141,14 +141,21 @@ namespace Merkle
   protected:
 
     struct Node {
-      static std::shared_ptr<Node> make(const HashT<HASH_SIZE> &hash)
-      {
-        auto r = std::make_shared<Node>();
-        r->left = r->right = nullptr;
-        r->hash = hash;
-        r->size = r->height = 1;
-        r->dirty = false;
-        return r;
+      Node() :
+        left(nullptr), right(nullptr),
+        size(0), height(0),
+        dirty(true)
+       {}
+
+      Node(const HashT<HASH_SIZE> &hash) {
+        left = right = nullptr;
+        this->hash = hash;
+        size = height = 1;
+        dirty = false;
+      }
+
+      static std::shared_ptr<Node> make(const HashT<HASH_SIZE> &hash) {
+        return std::make_shared<Node>(hash);
       }
 
       static std::shared_ptr<Node> make(std::shared_ptr<Node> &left, std::shared_ptr<Node> &right)
@@ -184,7 +191,10 @@ namespace Merkle
       : _leaf_nodes(other._leaf_nodes), _root(other._root) {}
     TreeT(TreeT &&other)
       : _leaf_nodes(other._leaf_nodes), _root(other._root) {}
-    ~TreeT() {}
+    ~TreeT() {
+      for (auto n : _new_leaf_nodes)
+        delete n;
+    }
 
     TreeT(std::vector<uint8_t> &bytes) {
       throw std::runtime_error("not implemented yet");
@@ -198,8 +208,11 @@ namespace Merkle
       if (!n)
         n = new_leaf;
       else {
-        if (n->is_full())
+        if (n->is_full()) {
+          auto p = n->parent.lock();
           n = Node::make(n, new_leaf);
+          n->parent = p;
+        }
         else {
           TRACE(std::cout << " @ " << n->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
           assert(n->left && n->right);
@@ -267,7 +280,7 @@ namespace Merkle
 
     void insert(const Hash &hash) {
       TRACE(std::cout << "> insert " << hash.to_string(TRACE_HASH_SIZE) << std::endl;);
-      _new_leaf_nodes.push_back(Node::make(hash));
+      _new_leaf_nodes.push_back(new Node(hash));
       statistics.num_insert++;
       TRACE(std::cout << this->to_string() << std::endl;);
     }
@@ -397,7 +410,7 @@ namespace Merkle
 
   protected:
     std::vector<std::shared_ptr<Node>> _leaf_nodes;
-    std::vector<std::shared_ptr<Node>> _new_leaf_nodes;
+    std::vector<Node*> _new_leaf_nodes;
     std::shared_ptr<Node> _root = nullptr;
 
     void hash(std::shared_ptr<Node> &n)
@@ -425,7 +438,7 @@ namespace Merkle
       TRACE(std::cout << "> rebuild" << std::endl);
       _root = nullptr;
       for (auto &n : _new_leaf_nodes)
-        _leaf_nodes.push_back(n);
+        _leaf_nodes.push_back(std::shared_ptr<Node>(n));
       _new_leaf_nodes.clear();
       for (auto n : _leaf_nodes)
         n->parent.reset();
@@ -483,8 +496,9 @@ namespace Merkle
         TRACE(std::cout << "* build incremental " << _leaf_nodes.size() << " +" << _new_leaf_nodes.size() << std::endl;);
         // TODO: Make this go fast.
         for (auto &n : _new_leaf_nodes) {
-          _leaf_nodes.push_back(n);
-          insert_recursive(_root, n);
+          auto snode = std::shared_ptr<Node>(n);
+          _leaf_nodes.push_back(snode);
+          insert_recursive(_root, snode);
           // insert_iterative(_root, n);
         }
         _new_leaf_nodes.clear();
