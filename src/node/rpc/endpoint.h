@@ -52,6 +52,7 @@ namespace ccf
       bool execute_locally = false;
       bool require_client_signature = false;
       bool require_client_identity = true;
+      bool require_jwt_authentication = false;
 
       nlohmann::json openapi;
 
@@ -60,6 +61,7 @@ namespace ccf
         execute_locally,
         require_client_signature,
         require_client_identity,
+        require_jwt_authentication,
         openapi);
     };
 
@@ -70,7 +72,8 @@ namespace ccf
       execute_locally,
       require_client_signature,
       require_client_identity);
-    DECLARE_JSON_OPTIONAL_FIELDS(EndpointProperties, openapi);
+    DECLARE_JSON_OPTIONAL_FIELDS(
+      EndpointProperties, require_jwt_authentication, openapi);
 
     struct EndpointDefinition
     {
