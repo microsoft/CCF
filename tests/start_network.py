@@ -60,7 +60,10 @@ def run(args):
                     "No available snapshot to recover from. Entire transaction history will be replayed."
                 )
             network.start_in_recovery(
-                args, args.ledger_dir, args.snapshot_dir, args.common_dir
+                args,
+                args.ledger_dir,
+                snapshot_dir=args.snapshot_dir,
+                common_dir=args.common_dir,
             )
             network.recover(args)
         else:
