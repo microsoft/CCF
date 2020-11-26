@@ -5,7 +5,7 @@ set -ex
 
 function service_http_status()
 {
-    echo $(curl -o /dev/null -s https://127.0.0.1:8000/app/commit -w "%{http_code}" --key ./workspace/sandbox_common/user0_privk.pem --cert ./workspace/sandbox_common/user0_cert.pem --cacert ./workspace/sandbox_common/networkcert.pem)
+    curl -o /dev/null -s https://127.0.0.1:8000/app/commit -w "%{http_code}" --key ./workspace/sandbox_common/user0_privk.pem --cert ./workspace/sandbox_common/user0_cert.pem --cacert ./workspace/sandbox_common/networkcert.pem
 }
 
 if [ "$#" -ne 1 ]; then
@@ -28,13 +28,14 @@ timeout --signal=SIGINT --kill-after=${network_live_time}s --preserve-status ${n
 "$INSTALL_PREFIX"/bin/sandbox.sh --verbose &
 
 # Poll until service is open
-while [ ! $(service_http_status) == "200" ]; do
+while [ ! "$(service_http_status)" == "200" ]; do
     echo "Waiting for service to open..."
     sleep 1
 done
 
 # # Issue tutorial transactions to ephemeral network
 python3.8 -m venv env
+# shellcheck source=/dev/null
 source env/bin/activate
 python -m pip install ../../../python
 python ../../../python/tutorial.py ./workspace/sandbox_0/0.ledger/ ./workspace/sandbox_common/
@@ -43,7 +44,7 @@ python ../../../python/tutorial.py ./workspace/sandbox_0/0.ledger/ ./workspace/s
 ../../../tests//test_python_cli.sh > test_python_cli.out
 
 # Poll until service has died
-while [ $(service_http_status) == "200" ]; do
+while [ "$(service_http_status)" == "200" ]; do
     echo "Waiting for service to close..."
     sleep 1
 done
