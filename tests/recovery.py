@@ -10,22 +10,26 @@ from loguru import logger as LOG
 
 
 @reqs.description("Recovering a network")
-@reqs.recover(number_txs=2)
+@reqs.recover(number_txs=5)
 def test(network, args, from_snapshot=False):
     old_primary, _ = network.find_primary()
 
-    # Retrieve ledger and snapshots
     snapshot_dir = None
     if from_snapshot:
         snapshot_dir = network.get_committed_snapshots(old_primary)
-    ledger_dir = old_primary.get_ledger()[0]
+    current_ledger_dir, committed_ledger_dir = old_primary.get_ledger(
+        include_read_only_dirs=True
+    )
 
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
 
     recovered_network.start_in_recovery(
-        args, ledger_dir=ledger_dir, snapshot_dir=snapshot_dir
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dir=[committed_ledger_dir],
+        snapshot_dir=snapshot_dir,
     )
     recovered_network.recover(args)
     return recovered_network
@@ -39,12 +43,19 @@ def test_share_resilience(network, args, from_snapshot=False):
     snapshot_dir = None
     if from_snapshot:
         snapshot_dir = network.get_committed_snapshots(old_primary)
-    ledger_dir = old_primary.get_ledger()[0]
+    current_ledger_dir, committed_ledger_dir = old_primary.get_ledger(
+        include_read_only_dirs=True
+    )
 
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
-    recovered_network.start_in_recovery(args, ledger_dir, snapshot_dir)
+    recovered_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dir=[committed_ledger_dir],
+        snapshot_dir=snapshot_dir,
+    )
     primary, _ = recovered_network.find_primary()
     recovered_network.consortium.accept_recovery(primary)
 
@@ -102,12 +113,12 @@ def run(args):
 
         for i in range(args.recovery):
             # Alternate between recovery with primary change and stable primary-ship
-            if i % 2 == 0:
-                recovered_network = test_share_resilience(
-                    network, args, args.use_snapshot
-                )
-            else:
-                recovered_network = test(network, args, args.use_snapshot)
+            # if i % 2 == 0:
+            #     recovered_network = test_share_resilience(
+            #         network, args, args.use_snapshot
+            #     )
+            # else:
+            recovered_network = test(network, args, args.use_snapshot)
             network.stop_all_nodes()
             network = recovered_network
             LOG.success("Recovery complete on all nodes")
@@ -141,6 +152,7 @@ checked. Note that the key for each logging message is unique (per table).
 
     args = infra.e2e_args.cli_args(add)
     args.package = "liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    # args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.nodes = ["local://127.0.0.1", "local://127.0.0.1"]
 
     run(args)

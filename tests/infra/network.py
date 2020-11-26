@@ -279,7 +279,12 @@ class Network:
             node.network_state = infra.node.NodeNetworkState.joined
 
     def _start_all_nodes(
-        self, args, recovery=False, ledger_dir=None, snapshot_dir=None
+        self,
+        args,
+        recovery=False,
+        ledger_dir=None,
+        read_only_ledger_dirs=None,
+        snapshot_dir=None,
     ):
         hosts = self.hosts
 
@@ -313,6 +318,7 @@ class Network:
                             label=args.label,
                             common_dir=self.common_dir,
                             ledger_dir=ledger_dir,
+                            read_only_ledger_dirs=read_only_ledger_dirs,
                             snapshot_dir=snapshot_dir,
                             **forwarded_args,
                         )
@@ -448,6 +454,7 @@ class Network:
         self,
         args,
         ledger_dir,
+        committed_ledger_dir=None,
         snapshot_dir=None,
         common_dir=None,
     ):
@@ -463,7 +470,11 @@ class Network:
         )
 
         primary = self._start_all_nodes(
-            args, recovery=True, ledger_dir=ledger_dir, snapshot_dir=snapshot_dir
+            args,
+            recovery=True,
+            ledger_dir=ledger_dir,
+            read_only_ledger_dirs=committed_ledger_dir,
+            snapshot_dir=snapshot_dir,
         )
 
         # If a common directory was passed in, initialise the consortium from it
