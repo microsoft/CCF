@@ -6,6 +6,8 @@
 #include "ds/openapi.h"
 #include "enclave/rpc_context.h"
 #include "endpoint.h"
+#include "http/authentication/cert_auth.h"
+#include "http/authentication/sig_auth.h"
 #include "http/http_consts.h"
 #include "http/ws_consts.h"
 #include "kv/store.h"
@@ -371,6 +373,8 @@ namespace ccf
         return *this;
       }
 
+      // TODO: Deprecate this and those like it, reimplement via
+      // `add_authentication_policy`
       Endpoint& set_require_jwt_authentication(bool v)
       {
         properties.require_jwt_authentication = v;

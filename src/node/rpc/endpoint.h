@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ds/json.h"
+#include "http/authentication/authentication_types.h"
 #include "kv/map.h"
-#include "authentication.h"
 
 #include <string>
 #include <utility>

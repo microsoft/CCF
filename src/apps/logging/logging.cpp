@@ -4,7 +4,6 @@
 #include "formatters.h"
 #include "logging_schema.h"
 #include "node/quote.h"
-#include "node/rpc/authentication.h"
 #include "node/rpc/user_frontend.h"
 
 #define FMT_HEADER_ONLY
@@ -243,9 +242,11 @@ namespace loggingapp
           return;
         }
         else if (
-          auto signed_ident = ctx.template get_caller<ccf::UserSignatureAuthnIdentity>())
+          auto signed_ident =
+            ctx.template get_caller<ccf::UserSignatureAuthnIdentity>())
         {
-          auto response = std::string("Caller authenticated with HTTP signature");
+          auto response =
+            std::string("Caller authenticated with HTTP signature");
           response += fmt::format(
             "\nThe caller is a user with ID: {}", signed_ident->user_id);
           response += fmt::format(
