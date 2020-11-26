@@ -940,7 +940,7 @@ TEST_CASE("Deserialising from other Store")
   auto [view1, view2] = tx1.get_view(public_map, private_map);
   view1->put(42, "aardvark");
   view2->put(14, "alligator");
-  auto [success, reqid, data] = tx1.commit_reserved();
+  auto [success, reqid, data, hooks] = tx1.commit_reserved();
   REQUIRE(success == kv::CommitSuccess::OK);
 
   kv::Store clone;
@@ -966,7 +966,7 @@ TEST_CASE("Deserialise return status")
     auto tx = store.create_reserved_tx(store.next_version());
     auto data_view = tx.get_view(data);
     data_view->put(42, 42);
-    auto [success, reqid, data] = tx.commit_reserved();
+    auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
     REQUIRE(store.deserialise(data) == kv::DeserialiseSuccess::PASS);
@@ -977,7 +977,7 @@ TEST_CASE("Deserialise return status")
     auto sig_view = tx.get_view(signatures);
     ccf::PrimarySignature sigv(0, 2);
     sig_view->put(0, sigv);
-    auto [success, reqid, data] = tx.commit_reserved();
+    auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
     REQUIRE(store.deserialise(data) == kv::DeserialiseSuccess::PASS_SIGNATURE);
@@ -990,7 +990,7 @@ TEST_CASE("Deserialise return status")
     ccf::PrimarySignature sigv(0, 2);
     sig_view->put(0, sigv);
     data_view->put(43, 43);
-    auto [success, reqid, data] = tx.commit_reserved();
+    auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
     REQUIRE(store.deserialise(data) == kv::DeserialiseSuccess::FAILED);

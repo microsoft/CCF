@@ -320,7 +320,7 @@ namespace kv
 
           return store->commit(
             {term, version},
-            MovePendingTx(std::move(data), std::move(req_id)),
+            MovePendingTx(std::move(data), std::move(req_id), std::move(hooks)),
             false);
         }
         catch (const std::exception& e)
@@ -584,7 +584,6 @@ namespace kv
         throw std::logic_error("Reserved transaction cannot be empty");
 
       std::vector<std::shared_ptr<ConsensusHook>> hooks;
-
       auto c = apply_changes(
         all_changes, [this]() { return version; }, hooks, created_maps, version);
       success = c.has_value();
@@ -593,7 +592,7 @@ namespace kv
         throw std::logic_error("Failed to commit reserved transaction");
 
       committed = true;
-      return {CommitSuccess::OK, {0, 0, 0}, serialise()};
+      return {CommitSuccess::OK, {0, 0, 0}, serialise(), std::move(hooks)};
     }
   };
 }

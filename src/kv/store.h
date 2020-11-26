@@ -1003,7 +1003,7 @@ namespace kv
             break;
 
           auto& [pending_tx_, committable_] = search->second;
-          auto [success_, reqid, data_] = pending_tx_();
+          auto [success_, reqid, data_, hooks_] = pending_tx_();
           auto data_shared =
             std::make_shared<std::vector<uint8_t>>(std::move(data_));
 

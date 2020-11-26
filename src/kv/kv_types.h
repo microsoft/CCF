@@ -371,19 +371,29 @@ namespace kv
     virtual ConsensusType type() = 0;
   };
 
+  class ConsensusHook
+  {
+  public:
+    virtual void operator()(const kv::Consensus&) = 0;
+    virtual ~ConsensusHook() {};
+  };
+
   struct PendingTxInfo
   {
     CommitSuccess success;
     TxHistory::RequestID reqid;
     std::vector<uint8_t> data;
+    std::vector<std::shared_ptr<ConsensusHook>> hooks;
 
     PendingTxInfo(
       CommitSuccess success_,
       TxHistory::RequestID reqid_,
-      std::vector<uint8_t>&& data_) :
+      std::vector<uint8_t>&& data_,
+      std::vector<std::shared_ptr<ConsensusHook>>&& hooks_) :
       success(success_),
       reqid(std::move(reqid_)),
-      data(std::move(data_))
+      data(std::move(data_)),
+      hooks(std::move(hooks_))
     {}
   };
 
@@ -394,18 +404,20 @@ namespace kv
   private:
     std::vector<uint8_t> data;
     kv::TxHistory::RequestID req_id;
+    std::vector<std::shared_ptr<ConsensusHook>> hooks;
 
   public:
     MovePendingTx(
-      std::vector<uint8_t>&& data_, kv::TxHistory::RequestID&& req_id_) :
+      std::vector<uint8_t>&& data_, kv::TxHistory::RequestID&& req_id_, std::vector<std::shared_ptr<ConsensusHook>>&& hooks_) :
       data(std::move(data_)),
-      req_id(std::move(req_id_))
+      req_id(std::move(req_id_)),
+      hooks(std::move(hooks_))
     {}
 
     PendingTxInfo operator()()
     {
       return PendingTxInfo(
-        CommitSuccess::OK, std::move(req_id), std::move(data));
+        CommitSuccess::OK, std::move(req_id), std::move(data), std::move(hooks));
     }
   };
 
@@ -440,13 +452,6 @@ namespace kv
     virtual ~AbstractChangeSet() = default;
 
     virtual bool has_writes() const = 0;
-  };
-
-  class ConsensusHook
-  {
-  public:
-    virtual void operator()(const kv::Consensus&) = 0;
-    virtual ~ConsensusHook() {};
   };
 
   class AbstractCommitter

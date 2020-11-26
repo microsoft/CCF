@@ -441,7 +441,7 @@ TEST_CASE_TEMPLATE(
     view->put(k1, v1);
     view->put(k2, v2);
 
-    auto [success, reqid, data] = tx.commit_reserved();
+    auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
     kv_store.compact(kv_store.current_version());
 
@@ -612,7 +612,7 @@ TEST_CASE(
     data_view_d->put(46, 46);
     data_view_d_p->put(47, 47);
 
-    auto [success, reqid, data] = tx.commit_reserved();
+    auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
     REQUIRE(store.deserialise(data) == kv::DeserialiseSuccess::PASS);
 
