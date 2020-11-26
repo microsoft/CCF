@@ -13,7 +13,7 @@
 int main() {
   try {
     #ifndef NDEBUG
-    const size_t num_leaves = 16*1024;
+    const size_t num_leaves = 128*1024;
     const size_t root_interval = 128;
     #else
     const size_t num_leaves = 16*1024*1024;
@@ -33,7 +33,7 @@ int main() {
     // auto root = mt.root();
     auto stop = std::chrono::high_resolution_clock::now();
     double seconds = std::chrono::duration_cast<std::chrono::nanoseconds>(stop-start).count()/1e9;
-    std::cout << "NEW:"
+    std::cout << "NEW: "
       << mt.statistics.to_string()
       << " in " << seconds << " sec" << std::endl;
 

@@ -208,7 +208,7 @@ namespace Merkle
         n = new_leaf;
       else {
         if (n->is_full()) {
-          auto p = n->parent;
+          Node *p = n->parent;
           n = Node::make(n, new_leaf);
           n->parent = p;
         }
@@ -226,23 +226,24 @@ namespace Merkle
       }
     }
 
-    void insert_iterative(Node *&root, Node *new_leaf) {
-      typedef struct { Node *n; bool left; } StackElement;
-      static std::vector<StackElement> stack;
+    typedef struct { Node *n; bool left; } StackElement;
+    std::vector<StackElement> stack;
 
-      if (!root) {
-        root = new_leaf;
-        return;
-      }
-
-      Node* n = root;
-      Node* result = nullptr;
-      while (!result)
+    void mk_stack(Node *n, Node *new_leaf) {
+      while (true)
       {
-        if (n->is_full())
-          result = Node::make(n, new_leaf);
+        TRACE(std::cout << "  @ " << n->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
+
+        if (n->is_full()) {
+          Node *result = Node::make(n, new_leaf);
+          assert(!stack.empty() || result->parent == nullptr);
+          if (!stack.empty())
+            result->parent = stack.back().n;
+          stack.push_back(StackElement());
+          stack.back().n = result;
+          return;
+        }
         else {
-          TRACE(std::cout << " @ " << n->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
           assert(n->left && n->right);
           stack.push_back(StackElement());
           StackElement &se = stack.back();
@@ -257,31 +258,57 @@ namespace Merkle
           }
         }
       }
+    }
+
+    Node *process_stack(bool complete = true) {
+      TRACE(std::cout << "  X " << (complete ? "complete" : "continue") << ":";
+              for (size_t i = 0; i < stack.size(); i++) {
+                std::cout << " " << stack[i].n->hash.to_string(TRACE_HASH_SIZE);
+              }
+            std::cout << std::endl;);
+
+      Node *result = stack.back().n;
+      stack.pop_back();
 
       while (!stack.empty()) {
         StackElement &top = stack.back();
         Node *n = top.n;
+        bool left = top.left;
+        stack.pop_back();
 
-        if (top.left)
+        if (left)
           n->left = result;
         else
           n->right = result;
+
         n->dirty = true;
         n->size = n->left->size + n->right->size + 1;
         n->height = std::max(n->left->height, n->right->height) + 1;
 
         result = n;
-        stack.pop_back();
+
+        if (!complete && !n->is_full()) {
+          TRACE(std::cout << "  X save " << result->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
+          return result;
+        }
       }
 
-      root = result;
+      return result;
+    }
+
+    void insert_iterative(Node *&root, Node *new_leaf) {
+      if (stack.empty() && !root)
+        root = new_leaf;
+      else {
+        mk_stack(root, new_leaf);
+        root = process_stack(false);
+      }
     }
 
     void insert(const Hash &hash) {
       TRACE(std::cout << "> insert " << hash.to_string(TRACE_HASH_SIZE) << std::endl;);
       _new_leaf_nodes.push_back(Node::make(hash));
       statistics.num_insert++;
-      TRACE(std::cout << this->to_string() << std::endl;);
     }
 
     void insert(const std::vector<Hash> &hashes) {
@@ -314,6 +341,9 @@ namespace Merkle
       TRACE(std::cout << "> root" << std::endl;);
       statistics.num_root++;
       build_incremental();
+      if (!stack.empty())
+        _root = process_stack();
+      assert(_root->parent == nullptr);
       if (!_root || _root->dirty) {
         if (_leaf_nodes.empty())
           throw std::runtime_error("empty tree does not have a root");
@@ -328,14 +358,22 @@ namespace Merkle
     }
 
     std::unique_ptr<const Path> path(size_t index) {
+      if (index >= _leaf_nodes.size())
+        throw std::runtime_error("invalid leaf index");
+
       std::vector<typename Path::Element> elements;
       build_incremental();
+      if (!stack.empty())
+        _root = process_stack();
       if (_root->dirty)
         hash(_root);
       auto leaf = _leaf_nodes[index];
       Node* last = leaf;
       Node* cur = leaf->parent;
+      TRACE(std::cout << "> path to " << leaf->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
       while (cur) {
+        TRACE(std::cout << " - last: " << last->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
+        TRACE(std::cout << " - cur : " << cur->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
         bool last_is_left = cur->left == last;
         if (!last_is_left)
           assert (cur->right == last);
@@ -368,7 +406,7 @@ namespace Merkle
 
       std::string to_string() const {
         std::stringstream stream;
-        stream << " num_insert=" << num_insert
+        stream << "num_insert=" << num_insert
                << " num_hash=" << num_hash
                << " num_root=" << num_root;
         return stream.str();
@@ -402,7 +440,7 @@ namespace Merkle
         next_level.clear();
       }
 
-      stream << "S:" + statistics.to_string() << std::endl;
+      stream << "S: " + statistics.to_string() << std::endl;
 
       return stream.str();
     }
@@ -412,17 +450,17 @@ namespace Merkle
     std::vector<Node*> _new_leaf_nodes;
     Node *_root = nullptr;
 
-    void hash(Node *n)
+    void hash(Node *n, size_t indent=2)
     {
       assert((n->left && n->right) || (!n->left && !n->right));
       if (n->left && n->left->dirty)
-        hash(n->left);
+        hash(n->left, indent);
       if (n->right && n->right->dirty)
-        hash(n->right);
+        hash(n->right, indent);
       if (n->left && n->right) {
         HASH_FUNCTION(n->left->hash, n->right->hash, n->hash);
         statistics.num_hash++;
-        TRACE(std::cout << "  + h("
+        TRACE(std::cout << std::string(indent, ' ') << "+ h("
                         << n->left->hash.to_string(TRACE_HASH_SIZE) << ", "
                         << n->right->hash.to_string(TRACE_HASH_SIZE) << ") == "
                         << n->hash.to_string(TRACE_HASH_SIZE) << std::endl);
@@ -498,9 +536,11 @@ namespace Merkle
         TRACE(std::cout << "* build incremental " << _leaf_nodes.size() << " +" << _new_leaf_nodes.size() << std::endl;);
         // TODO: Make this go fast.
         for (auto &n : _new_leaf_nodes) {
+          TRACE(std::cout << " - insert " << n->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
           _leaf_nodes.push_back(n);
-          insert_recursive(_root, n);
-          // insert_iterative(_root, n);
+          // insert_recursive(_root, n);
+          insert_iterative(_root, n);
+          TRACE(std::cout << "-----" << std::endl << this->to_string(TRACE_HASH_SIZE) << "-----" << std::endl;);
         }
         _new_leaf_nodes.clear();
       }

@@ -14,7 +14,7 @@ int main()
 {
   try {
     #ifndef NDEBUG
-    const size_t num_comp = 512;
+    const size_t num_comp = 1024;
     #else
     const size_t num_comp = 4096;
     #endif
