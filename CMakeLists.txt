@@ -226,17 +226,27 @@ function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   endif()
 endfunction()
 
+# Generate an ephemeral signing key
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
+  COMMAND openssl genrsa -out ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem -3
+          3072
+)
+add_custom_target(
+  signing_key ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
+)
+
 add_ccf_app(
   logging SRCS src/apps/logging/logging.cpp
                src/apps/logging/stub_for_code_signing.cpp
 )
 sign_app_library(
   logging.enclave ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+  ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 create_patched_enclave_lib(
   logging ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+  ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 
 if(BUILD_TESTS)
@@ -514,6 +524,12 @@ if(BUILD_TESTS)
     LINK_LIBS ccfcrypto.host secp256k1.host
   )
   add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
+  add_picobench(
+    digest_bench
+    SRCS src/crypto/test/digest_bench.cpp
+    LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
+    INCLUDE_DIRS ${EVERCRYPT_INC}
+  )
 
   # Storing signed governance operations
   add_e2e_test(
@@ -660,10 +676,36 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME authentication_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-authentication/authentication.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/tests/js-authentication
+  )
+
+  add_e2e_test(
     NAME content_types_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-content-types/content_types.py
     CONSENSUS cft
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/tests/js-content-types
+  )
+
+  add_e2e_test(
+    NAME governance_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
+  )
+
+  add_e2e_test(
+    NAME ca_certs_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/ca_certs.py
+    CONSENSUS cft
+  )
+
+  add_e2e_test(
+    NAME jwt_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
+    CONSENSUS cft
   )
 
   if(QUOTES_ENABLED)
@@ -686,34 +728,6 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
       CONSENSUS cft
       ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --raft-election-timeout 4000
-    )
-
-    add_e2e_test(
-      NAME governance_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-      CONSENSUS cft
-      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
-    )
-
-    add_e2e_test(
-      NAME governance_ca_certs_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_ca_certs.py GOV_SCRIPT
-                    ${CCF_DIR}/src/runtime_config/gov_ca_certs.lua
-      CONSENSUS cft
-    )
-
-    add_e2e_test(
-      NAME governance_ca_cert_mismatch_test
-      PYTHON_SCRIPT
-        ${CMAKE_SOURCE_DIR}/tests/governance_ca_cert_mismatch.py GOV_SCRIPT
-        ${CCF_DIR}/src/runtime_config/gov_ca_cert_mismatch.lua
-      CONSENSUS cft
-    )
-
-    add_e2e_test(
-      NAME jwt_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
-      CONSENSUS cft
     )
   endif()
 
