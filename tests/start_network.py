@@ -5,8 +5,6 @@ import infra.network
 import http
 import time
 import sys
-import json
-import os
 from loguru import logger as LOG
 
 
