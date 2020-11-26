@@ -172,7 +172,10 @@ set(LUA_SOURCES
     ${LUA_DIR}/lzio.c
 )
 
-set(HTTP_PARSER_SOURCES ${CCF_DIR}/3rdparty/http-parser/http_parser.c)
+set(HTTP_PARSER_SOURCES
+    ${CCF_DIR}/3rdparty/llhttp/api.c ${CCF_DIR}/3rdparty/llhttp/http.c
+    ${CCF_DIR}/3rdparty/llhttp/llhttp.c
+)
 
 find_library(CRYPTO_LIBRARY crypto)
 
@@ -341,12 +344,6 @@ set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
                           ${WORKER_THREADS}
 )
 
-add_ccf_app(lua_generic SRCS ${CCF_DIR}/src/apps/lua_generic/lua_generic.cpp)
-sign_app_library(
-  lua_generic.enclave ${CCF_DIR}/src/apps/lua_generic/oe_sign.conf
-  ${CCF_DIR}/src/apps/sample_key.pem
-)
-
 # SNIPPET_START: JS generic application
 add_ccf_app(
   js_generic
@@ -356,7 +353,7 @@ add_ccf_app(
 )
 sign_app_library(
   js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
-  ${CCF_DIR}/src/apps/sample_key.pem INSTALL_LIBS ON
+  ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem INSTALL_LIBS ON
 )
 # SNIPPET_END: JS generic application
 

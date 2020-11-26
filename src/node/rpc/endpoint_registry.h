@@ -14,7 +14,7 @@
 #include "serialization.h"
 
 #include <functional>
-#include <http-parser/http_parser.h>
+#include <llhttp/llhttp.h>
 #include <nlohmann/json.hpp>
 #include <regex>
 #include <set>
@@ -22,6 +22,14 @@
 namespace ccf
 {
   using namespace endpoints;
+
+  // to be exposed in EndpointContext or similar
+  struct Jwt
+  {
+    std::string key_issuer;
+    nlohmann::json header;
+    nlohmann::json payload;
+  };
 
   struct EndpointContext
   {
@@ -347,6 +355,12 @@ namespace ccf
         return *this;
       }
 
+      Endpoint& set_require_jwt_authentication(bool v)
+      {
+        properties.require_jwt_authentication = v;
+        return *this;
+      }
+
       /** Indicates that the execution of the Endpoint does not require
        * consensus from other nodes in the network.
        *
@@ -448,7 +462,7 @@ namespace ccf
       nlohmann::json& document,
       const std::string& uri,
       const nlohmann::json& schema,
-      http_method verb)
+      llhttp_method verb)
     {
       if (schema["type"] != "object")
       {
@@ -626,6 +640,9 @@ namespace ccf
 
       for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
       {
+        // Special endpoint, can only be called from the node.
+        if (path == "jwt_keys/refresh")
+          continue;
         for (const auto& [verb, endpoint] : verb_endpoints)
         {
           add_endpoint_to_api_document(document, endpoint);

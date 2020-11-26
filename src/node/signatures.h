@@ -59,6 +59,6 @@ namespace ccf
   };
   DECLARE_JSON_TYPE_WITH_BASE(PrimarySignature, NodeSignature)
   DECLARE_JSON_REQUIRED_FIELDS(
-    PrimarySignature, seqno, view, commit_seqno, commit_view, root)
+    PrimarySignature, seqno, view, commit_seqno, commit_view, root, tree)
   using Signatures = kv::Map<ObjectId, PrimarySignature>;
 }

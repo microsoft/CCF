@@ -18,9 +18,6 @@ import cryptography.hazmat.backends as crypto_backends
 from loguru import logger as LOG  # type: ignore
 
 
-CERT_OID_SGX_QUOTE = "1.2.840.113556.10.1.1"
-
-
 def dump_to_file(output_path: str, obj: dict, dump_args: dict):
     with open(output_path, "w") as f:
         json.dump(obj, f, **dump_args)
@@ -294,14 +291,10 @@ def set_user_data(user_id: int, user_data: Any, **kwargs):
 
 
 @cli_proposal
-def set_lua_app(app_script_path: str, **kwargs):
-    with open(app_script_path) as f:
-        app_script = f.read()
-    return build_proposal("set_lua_app", app_script, **kwargs)
-
-
-@cli_proposal
 def set_js_app(app_script_path: str, **kwargs):
+    LOG.error(
+        "set_js_app proposal type is deprecated - update to use deploy_js_app instead"
+    )
     with open(app_script_path) as f:
         app_script = f.read()
     return build_proposal("set_js_app", app_script, **kwargs)
@@ -426,28 +419,25 @@ def set_recovery_threshold(threshold: int, **kwargs):
 
 
 @cli_proposal
-def update_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
+def set_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
     with open(cert_path) as f:
         cert_pem = f.read()
 
     if not skip_checks:
         try:
-            cert = x509.load_pem_x509_certificate(
+            x509.load_pem_x509_certificate(
                 cert_pem.encode(), crypto_backends.default_backend()
             )
         except Exception as exc:
             raise ValueError("Cannot parse PEM certificate") from exc
 
-        try:
-            oid = x509.ObjectIdentifier(CERT_OID_SGX_QUOTE)
-            _ = cert.extensions.get_extension_for_oid(oid)
-        except x509.ExtensionNotFound as exc:
-            raise ValueError(
-                "X.509 extension with SGX quote not found in certificate"
-            ) from exc
-
     args = {"name": cert_name, "cert": cert_pem}
-    return build_proposal("update_ca_cert", args, **kwargs)
+    return build_proposal("set_ca_cert", args, **kwargs)
+
+
+@cli_proposal
+def remove_ca_cert(cert_name, **kwargs):
+    return build_proposal("remove_ca_cert", cert_name, **kwargs)
 
 
 @cli_proposal
@@ -458,6 +448,8 @@ def set_jwt_issuer(json_path: str, **kwargs):
         "issuer": obj["issuer"],
         "key_filter": obj.get("key_filter", "all"),
         "key_policy": obj.get("key_policy"),
+        "ca_cert_name": obj.get("ca_cert_name"),
+        "auto_refresh": obj.get("auto_refresh", False),
         "jwks": obj.get("jwks"),
     }
     return build_proposal("set_jwt_issuer", args, **kwargs)

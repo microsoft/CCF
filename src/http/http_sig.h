@@ -99,7 +99,7 @@ namespace http
     add_digest_header(request);
 
     const auto to_sign = construct_raw_signed_string(
-      http_method_str(request.get_method()),
+      llhttp_method_name(request.get_method()),
       request.get_path(),
       request.get_formatted_query(),
       request.get_headers(),

@@ -35,7 +35,7 @@ namespace ccf
         }
         case nlohmann::json::value_t::object:
         {
-          lua_newtable(l);
+          lua_createtable(l, 0, j.size());
           for (auto it = j.begin(); it != j.end(); ++it)
           {
             push_raw(l, it.value());
@@ -44,7 +44,7 @@ namespace ccf
           // Set custom __was_object metatable property
           if (lua_getmetatable(l, -1) == 0)
           {
-            lua_newtable(l);
+            lua_createtable(l, 0, 1);
           }
           lua_pushboolean(l, true);
           lua_setfield(l, -2, "__was_object");
@@ -53,7 +53,7 @@ namespace ccf
         }
         case nlohmann::json::value_t::array:
         {
-          lua_newtable(l);
+          lua_createtable(l, j.size(), 0);
           size_t i = 0;
           for (const auto& v : j)
           {
@@ -64,7 +64,7 @@ namespace ccf
           // Set custom __was_object metatable property
           if (lua_getmetatable(l, -1) == 0)
           {
-            lua_newtable(l);
+            lua_createtable(l, 0, 1);
           }
           lua_pushboolean(l, false);
           lua_setfield(l, -2, "__was_object");
