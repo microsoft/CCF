@@ -533,7 +533,7 @@ namespace ccf
               self,
               (resp.network_info.public_only ? "public only" : "all domains"));
 
-            // The network identity is now know, the user frontend can be opened
+            // The network identity is now known, the user frontend can be opened
             // once the KV state catches up
             open_user_frontend();
           }
