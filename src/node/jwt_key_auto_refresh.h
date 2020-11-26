@@ -166,7 +166,7 @@ namespace ccf
 
     void handle_jwt_metadata_response(
       const std::string& issuer,
-      std::shared_ptr<tls::Cert> ca_cert,
+      std::shared_ptr<tls::CA> ca,
       http_status status,
       std::vector<uint8_t>&& data)
     {
@@ -220,6 +220,14 @@ namespace ccf
       }
       auto jwks_url_port = !jwks_url.port.empty() ? jwks_url.port : "443";
 
+      auto ca_cert = std::make_shared<tls::Cert>(
+        ca,
+        std::nullopt,
+        std::nullopt,
+        nullb,
+        tls::auth_required,
+        jwks_url.host);
+
       LOG_DEBUG_FMT(
         "JWT key auto-refresh: Requesting JWKS at https://{}:{}{}",
         jwks_url.host,
@@ -271,13 +279,20 @@ namespace ccf
           send_refresh_jwt_keys_error();
           return true;
         }
-        auto ca = std::make_shared<tls::CA>(ca_cert_der.value());
-        auto ca_cert = std::make_shared<tls::Cert>(ca);
 
         auto metadata_url_str = issuer + "/.well-known/openid-configuration";
         auto metadata_url = http::parse_url_full(metadata_url_str);
         auto metadata_url_port =
           !metadata_url.port.empty() ? metadata_url.port : "443";
+
+        auto ca = std::make_shared<tls::CA>(ca_cert_der.value());
+        auto ca_cert = std::make_shared<tls::Cert>(
+          ca,
+          std::nullopt,
+          std::nullopt,
+          nullb,
+          tls::auth_required,
+          metadata_url.host);
 
         LOG_DEBUG_FMT(
           "JWT key auto-refresh: Requesting OpenID metadata at https://{}:{}{}",
@@ -290,12 +305,11 @@ namespace ccf
         http_client->connect(
           std::string(metadata_url.host),
           std::string(metadata_url_port),
-          [this, issuer, ca_cert](
+          [this, issuer, ca](
             http_status status,
             http::HeaderMap&&,
             std::vector<uint8_t>&& data) {
-            handle_jwt_metadata_response(
-              issuer, ca_cert, status, std::move(data));
+            handle_jwt_metadata_response(issuer, ca, status, std::move(data));
             return true;
           });
         http::Request r(metadata_url.path, HTTP_GET);

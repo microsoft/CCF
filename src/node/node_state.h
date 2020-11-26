@@ -130,7 +130,8 @@ namespace ccf
     StateMachine<State> sm;
     SpinLock lock;
 
-    NodeId self;
+    static constexpr NodeId invalid_node_id = -1;
+    NodeId self = invalid_node_id;
     tls::KeyPairPtr node_sign_kp;
     tls::KeyPairPtr node_encrypt_kp;
     tls::Pem node_cert;
@@ -273,7 +274,7 @@ namespace ccf
           network.ledger_secrets = std::make_shared<LedgerSecrets>();
           network.ledger_secrets->init();
 
-          self = 0; // The first node id is always 0
+          set_node_id(0); // The first node id is always 0
 
           setup_encryptor(network.consensus_type);
           setup_consensus();
@@ -439,7 +440,7 @@ namespace ccf
             network.ledger_secrets =
               std::make_shared<LedgerSecrets>(resp.network_info.ledger_secrets);
 
-            self = resp.node_id;
+            set_node_id(resp.node_id);
 
             if (resp.network_info.consensus_type != network.consensus_type)
             {
@@ -723,11 +724,11 @@ namespace ccf
       g.create_service(network.identity->cert);
       g.retire_active_nodes();
 
-      self = g.add_node({node_info_network,
-                         node_cert,
-                         quote,
-                         node_encrypt_kp->public_key_pem().raw(),
-                         NodeStatus::PENDING});
+      set_node_id(g.add_node({node_info_network,
+                              node_cert,
+                              quote,
+                              node_encrypt_kp->public_key_pem().raw(),
+                              NodeStatus::PENDING}));
 
       setup_encryptor(network.consensus_type);
 
@@ -1196,6 +1197,18 @@ namespace ccf
     }
 
   private:
+    void set_node_id(NodeId n)
+    {
+      LOG_INFO_FMT("Setting self node ID: {}", n);
+      if (self != invalid_node_id)
+      {
+        throw std::logic_error(fmt::format(
+          "Trying to reset node ID. Was previously {}, proposed {}", self, n));
+      }
+
+      self = n;
+    }
+
     tls::SubjectAltName get_subject_alt_name(const CCFConfig& config)
     {
       // If a domain is passed at node creation, record domain in SAN for node
