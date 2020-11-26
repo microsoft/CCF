@@ -205,7 +205,7 @@ public:
 
   bool replicate(const kv::BatchVector& entries, View view) override
   {
-    for (auto& [version, data, committable] : entries)
+    for (auto& [version, data, committable, hooks] : entries)
     {
       count++;
       if (committable)
@@ -310,7 +310,7 @@ public:
 
   bool replicate(const kv::BatchVector& entries, View view) override
   {
-    for (auto& [version, data, committable] : entries)
+    for (auto& [version, data, committable, hook] : entries)
     {
       count++;
       if (version == rollback_at)

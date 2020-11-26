@@ -395,9 +395,9 @@ namespace aft
       return get_latest_configuration().size();
     }
 
-    template <typename T>
+    template <typename T, typename H>
     bool replicate(
-      const std::vector<std::tuple<Index, T, bool>>& entries, Term term)
+      const std::vector<std::tuple<Index, T, bool, H>>& entries, Term term)
     {
       if (consensus_type == ConsensusType::BFT && is_follower())
       {
@@ -426,7 +426,7 @@ namespace aft
 
       LOG_DEBUG_FMT("Replicating {} entries", entries.size());
 
-      for (auto& [index, data, is_globally_committable] : entries)
+      for (auto& [index, data, is_globally_committable, hooks] : entries)
       {
         bool globally_committable = is_globally_committable;
 
@@ -438,6 +438,11 @@ namespace aft
           state->my_node_id,
           index,
           (globally_committable ? " committable" : ""));
+
+        for (auto & hook: *hooks)
+        {
+          *hook(*this);
+        }
 
         bool force_ledger_chunk = false;
         if (globally_committable)

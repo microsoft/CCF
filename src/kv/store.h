@@ -1006,6 +1006,8 @@ namespace kv
           auto [success_, reqid, data_, hooks_] = pending_tx_();
           auto data_shared =
             std::make_shared<std::vector<uint8_t>>(std::move(data_));
+          auto hooks_shared =
+            std::make_shared<std::vector<std::shared_ptr<ConsensusHook>>>(std::move(hooks_));
 
           // NB: this cannot happen currently. Regular Tx only make it here if
           // they did succeed, and signatures cannot conflict because they
@@ -1023,7 +1025,7 @@ namespace kv
             "Batching {} ({})", last_replicated + offset, data_shared->size());
 
           batch.emplace_back(
-            last_replicated + offset, data_shared, committable_);
+            last_replicated + offset, data_shared, committable_, hooks_shared);
           pending_txs.erase(search);
         }
 

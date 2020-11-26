@@ -50,8 +50,17 @@ namespace kv
   DECLARE_JSON_TYPE(TxID);
   DECLARE_JSON_REQUIRED_FIELDS(TxID, term, version)
 
+  class Consensus;
+
+  class ConsensusHook
+  {
+  public:
+    virtual void operator()(const kv::Consensus&) = 0;
+    virtual ~ConsensusHook() {};
+  };
+
   using BatchVector = std::vector<
-    std::tuple<kv::Version, std::shared_ptr<std::vector<uint8_t>>, bool>>;
+    std::tuple<kv::Version, std::shared_ptr<std::vector<uint8_t>>, bool, std::shared_ptr<std::vector<std::shared_ptr<ConsensusHook>>>>>;
 
   enum CommitSuccess
   {
@@ -369,13 +378,6 @@ namespace kv
     virtual uint32_t node_count() = 0;
     virtual void emit_signature() = 0;
     virtual ConsensusType type() = 0;
-  };
-
-  class ConsensusHook
-  {
-  public:
-    virtual void operator()(const kv::Consensus&) = 0;
-    virtual ~ConsensusHook() {};
   };
 
   struct PendingTxInfo
