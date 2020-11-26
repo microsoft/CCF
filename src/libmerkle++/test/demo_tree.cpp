@@ -23,7 +23,7 @@ int main()
       for (size_t i = 0; i < hashes.size(); i++)
         mt.insert(hashes[i]);
 
-      mt.rebuild();
+      mt.build_from_scratch();
       Merkle::Tree::Hash rebuilt_root = mt.root();
       std::cout << "Scratch built: " << std::endl;
       std::cout << "R: " << rebuilt_root.to_string() << std::endl;
