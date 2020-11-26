@@ -309,10 +309,13 @@ class CurlClient:
             if self.cert:
                 cmd.extend(["--cert", self.cert])
 
-            LOG.debug(f"Running: {' '.join(cmd)}")
+            cmd_s = ' '.join(cmd)
             env = {k: v for k, v in os.environ.items()}
             if self.disable_client_auth:
                 env["DISABLE_CLIENT_AUTH"] = "1"
+                cmd_s = f"DISABLE_CLIENT_AUTH=1 {cmd_s}"
+
+            LOG.debug(f"Running: {cmd_s}")
             rc = subprocess.run(cmd, capture_output=True, check=False, env=env)
 
             if rc.returncode != 0:

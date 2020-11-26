@@ -226,33 +226,66 @@ namespace loggingapp
 
       auto multi_auth = [](auto& ctx) {
         if (
-          auto cert_ident =
+          auto user_cert_ident =
             ctx.template get_caller<ccf::UserCertAuthnIdentity>())
         {
-          auto response = std::string("Caller authenticated with a TLS cert");
+          auto response = std::string("User TLS cert");
           response += fmt::format(
-            "\nThe caller is a user with ID: {}", cert_ident->user_id);
+            "\nThe caller is a user with ID: {}", user_cert_ident->user_id);
           response += fmt::format(
-            "\nThe caller's user data is: {}", cert_ident->user_data.dump());
+            "\nThe caller's user data is: {}", user_cert_ident->user_data.dump());
           response += fmt::format(
-            "\nThe caller's cert is: {}", cert_ident->user_cert.str());
+            "\nThe caller's cert is: {}", user_cert_ident->user_cert.str());
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
           return;
         }
         else if (
-          auto signed_ident =
+          auto member_cert_ident =
+            ctx.template get_caller<ccf::MemberCertAuthnIdentity>())
+        {
+          auto response = std::string("Member TLS cert");
+          response += fmt::format(
+            "\nThe caller is a member with ID: {}", member_cert_ident->member_id);
+          response += fmt::format(
+            "\nThe caller's member data is: {}", member_cert_ident->member_data.dump());
+          response += fmt::format(
+            "\nThe caller's cert is: {}", member_cert_ident->member_cert.str());
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_body(std::move(response));
+          return;
+        }
+        else if (
+          auto user_sig_ident =
             ctx.template get_caller<ccf::UserSignatureAuthnIdentity>())
         {
           auto response =
-            std::string("Caller authenticated with HTTP signature");
+            std::string("User HTTP signature");
           response += fmt::format(
-            "\nThe caller is a user with ID: {}", signed_ident->user_id);
+            "\nThe caller is a user with ID: {}", user_sig_ident->user_id);
           response += fmt::format(
-            "\nThe caller's user data is: {}", signed_ident->user_data.dump());
+            "\nThe caller's user data is: {}", user_sig_ident->user_data.dump());
           response += fmt::format(
-            "\nThe caller's cert is: {}", signed_ident->user_cert.str());
+            "\nThe caller's cert is: {}", user_sig_ident->user_cert.str());
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_body(std::move(response));
+          return;
+        }
+        else if (
+          auto member_sig_ident =
+            ctx.template get_caller<ccf::MemberSignatureAuthnIdentity>())
+        {
+          auto response =
+            std::string("Member HTTP signature");
+          response += fmt::format(
+            "\nThe caller is a member with ID: {}", member_sig_ident->member_id);
+          response += fmt::format(
+            "\nThe caller's member data is: {}", member_sig_ident->member_data.dump());
+          response += fmt::format(
+            "\nThe caller's cert is: {}", member_sig_ident->member_cert.str());
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -274,8 +307,10 @@ namespace loggingapp
       };
       make_endpoint("multi_auth", HTTP_GET, multi_auth)
         .set_auto_schema<void, std::string>()
-        .add_authentication_policy(require_user_signature)
         .add_authentication_policy(require_user_cert)
+        .add_authentication_policy(require_user_signature)
+        .add_authentication_policy(require_member_cert)
+        .add_authentication_policy(require_member_signature)
         .add_authentication_policy(no_authentication)
         .set_require_client_identity(false) // TODO: Shouldn't need this as well
         .install();

@@ -485,6 +485,10 @@ namespace ccf
       std::make_shared<UserCertAuthnPolicy>();
     std::shared_ptr<UserSignatureAuthnPolicy> require_user_signature =
       std::make_shared<UserSignatureAuthnPolicy>();
+    std::shared_ptr<MemberCertAuthnPolicy> require_member_cert =
+      std::make_shared<MemberCertAuthnPolicy>();
+    std::shared_ptr<MemberSignatureAuthnPolicy> require_member_signature =
+      std::make_shared<MemberSignatureAuthnPolicy>();
 
     static void add_query_parameters(
       nlohmann::json& document,
