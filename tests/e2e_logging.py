@@ -210,11 +210,15 @@ def test_multi_auth(network, args):
             r_body = r.body.text()
             assert r_body not in response_bodies, r_body
             response_bodies.add(r_body)
-            LOG.warning(r_body)
 
         # Can be accessed anonymously, with no auth
         with primary.client() as c:
             r = c.get("/app/multi_auth")
+            require_new_response(r)
+
+        # Can be accessed authenticated as a user, via HTTP signature
+        with primary.client("user0", disable_client_auth=True) as c:
+            r = c.get("/app/multi_auth", signed=True)
             require_new_response(r)
 
         # Can be accessed authenticated as a user, via TLS cert

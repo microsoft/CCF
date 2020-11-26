@@ -230,12 +230,28 @@ namespace loggingapp
           auto cert_ident =
             ctx.template get_caller<ccf::UserCertAuthnIdentity>())
         {
-          auto response = fmt::format(
-            "The caller is a user with ID: {}", cert_ident->user_id);
+          auto response = std::string("Caller authenticated with a TLS cert");
+          response += fmt::format(
+            "\nThe caller is a user with ID: {}", cert_ident->user_id);
           response += fmt::format(
             "\nThe caller's user data is: {}", cert_ident->user_data.dump());
           response += fmt::format(
             "\nThe caller's cert is: {}", cert_ident->user_cert.str());
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_body(std::move(response));
+          return;
+        }
+        else if (
+          auto signed_ident = ctx.template get_caller<ccf::UserSignatureAuthnIdentity>())
+        {
+          auto response = std::string("Caller authenticated with HTTP signature");
+          response += fmt::format(
+            "\nThe caller is a user with ID: {}", signed_ident->user_id);
+          response += fmt::format(
+            "\nThe caller's user data is: {}", signed_ident->user_data.dump());
+          response += fmt::format(
+            "\nThe caller's cert is: {}", signed_ident->user_cert.str());
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -257,6 +273,7 @@ namespace loggingapp
       };
       make_endpoint("multi_auth", HTTP_GET, multi_auth)
         .set_auto_schema<void, std::string>()
+        .add_authentication_policy(require_user_signature)
         .add_authentication_policy(require_user_cert)
         .add_authentication_policy(no_authentication)
         .set_require_client_identity(false) // TODO: Shouldn't need this as well
