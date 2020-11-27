@@ -269,6 +269,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         else:
             args.library_dir = args.binary_dir
 
+    # js_app_script is deprecated
     if not args.package and (args.js_app_script or args.js_app_bundle):
         args.package = "libjs_generic"
 
