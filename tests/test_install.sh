@@ -25,7 +25,7 @@ cd "$working_dir"
 # Start ephemeral network in the background
 network_live_time=60
 timeout --signal=SIGINT --kill-after=${network_live_time}s --preserve-status ${network_live_time}s \
-"$INSTALL_PREFIX"/bin/sandbox.sh --verbose &
+"$INSTALL_PREFIX"/bin/sandbox.sh -e release --verbose &
 
 # Poll until service is open
 while [ ! "$(service_http_status)" == "200" ]; do
@@ -33,7 +33,7 @@ while [ ! "$(service_http_status)" == "200" ]; do
     sleep 1
 done
 
-# # Issue tutorial transactions to ephemeral network
+# Issue tutorial transactions to ephemeral network
 python3.8 -m venv env
 # shellcheck source=/dev/null
 source env/bin/activate
@@ -55,6 +55,7 @@ cp -r ./workspace/sandbox_0/0.ledger .
 recovered_network_live_time=30
 timeout --signal=SIGINT --kill-after=${recovered_network_live_time}s --preserve-status ${recovered_network_live_time}s \
 "$INSTALL_PREFIX"/bin/sandbox.sh --verbose \
+    -e release \
     --recover \
     --ledger-dir 0.ledger \
     --common-dir ./workspace/sandbox_common/
