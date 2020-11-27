@@ -211,37 +211,37 @@ def test_multi_auth(network, args):
             assert r_body not in response_bodies, r_body
             response_bodies.add(r_body)
 
-        LOG.info("anonymous, no auth")
+        LOG.info("Anonymous, no auth")
         with primary.client() as c:
             r = c.get("/app/multi_auth")
             require_new_response(r)
 
-        LOG.info("authenticated as a user, via TLS cert")
+        LOG.info("Authenticate as a user, via TLS cert")
         with primary.client("user0") as c:
             r = c.get("/app/multi_auth")
             require_new_response(r)
 
-        LOG.info("authenticated as a different user, via TLS cert")
+        LOG.info("Authenticate as a different user, via TLS cert")
         with primary.client("user1") as c:
             r = c.get("/app/multi_auth")
             require_new_response(r)
 
-        LOG.info("authenticated as a member, via TLS cert")
+        LOG.info("Authenticate as a member, via TLS cert")
         with primary.client("member0") as c:
             r = c.get("/app/multi_auth")
             require_new_response(r)
 
-        LOG.info("authenticated as a different member, via TLS cert")
+        LOG.info("Authenticate as a different member, via TLS cert")
         with primary.client("member1") as c:
             r = c.get("/app/multi_auth")
             require_new_response(r)
 
-        LOG.info("authenticated as a user, via HTTP signature")
+        LOG.info("Authenticate as a user, via HTTP signature")
         with primary.client("user0", disable_client_auth=True) as c:
             r = c.get("/app/multi_auth", signed=True)
             require_new_response(r)
 
-        LOG.info("authenticated as a member, via HTTP signature")
+        LOG.info("Authenticate as a member, via HTTP signature")
         with primary.client("member0", disable_client_auth=True) as c:
             r = c.get("/app/multi_auth", signed=True)
             require_new_response(r)

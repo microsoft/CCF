@@ -198,6 +198,13 @@ namespace ccf
         return false;
       }
 
+      if (caller.empty())
+      {
+        // TODO: Hack
+        LOG_FAIL_FMT("Trying to verify but caller is empty? Bailing...");
+        return true;
+      }
+
       tls::VerifierPtr verifier;
       {
         std::lock_guard<SpinLock> mguard(verifiers_lock);
