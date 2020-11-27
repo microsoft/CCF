@@ -10,7 +10,7 @@ set(CCF_PYTHON_VERSION "${CCF_VERSION}" CACHE PATH "Version of CCF Python packag
 
 include(${CCF_DIR}/cmake/preproject.cmake)
 
-project(tpal
+project(logging
   LANGUAGES C CXX
 )
 
