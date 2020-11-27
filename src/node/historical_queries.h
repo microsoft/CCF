@@ -247,6 +247,14 @@ namespace ccf::historical
           }
           break;
         }
+        case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE:
+        case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
+        case kv::DeserialiseSuccess::PASS_NONCES:
+        case kv::DeserialiseSuccess::PASS_NEW_VIEW:
+        case kv::DeserialiseSuccess::PASS_SNAPSHOT_EVIDENCE:
+        {
+          break;
+        }
         default:
         {
           throw std::logic_error("Unexpected deserialise result");
