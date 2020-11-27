@@ -3,6 +3,11 @@
 # Licensed under the Apache 2.0 License.
 set -ex
 
+function service_http_status()
+{
+    curl -o /dev/null -s https://127.0.0.1:8000/app/commit -w "%{http_code}" --key ./workspace/sandbox_common/user0_privk.pem --cert ./workspace/sandbox_common/user0_cert.pem --cacert ./workspace/sandbox_common/networkcert.pem
+}
+
 if [ "$#" -ne 1 ]; then
     echo "Install prefix should be passed as first argument to $0"
     exit 1
@@ -17,50 +22,40 @@ rm -rf "$working_dir"
 mkdir -p "$working_dir"
 cd "$working_dir"
 
-python3.8 -m venv env
-source env/bin/activate
-python -m pip install -U -r "$INSTALL_PREFIX"/bin/requirements.txt
-python -m pip install ../../../python
-
-# Test Python package CLI
-../../test_python_cli.sh > test_python_cli.out
-
 # Start ephemeral network in the background
-network_info_file="network_info.txt"
-
-network_live_time=30
+network_live_time=60
 timeout --signal=SIGINT --kill-after=${network_live_time}s --preserve-status ${network_live_time}s \
-python "$INSTALL_PREFIX"/bin/start_network.py \
-    -p liblogging \
-    -b "$INSTALL_PREFIX"/bin \
-    --library-dir ../../../build \
-    -g "$(pwd)"/../../../src/runtime_config/gov.lua \
-    --network-info-file "$network_info_file" \
-    -v &
+"$INSTALL_PREFIX"/bin/sandbox.sh -e release --verbose &
 
-# Wait for network to be open and accessible
-while [ ! -f "$network_info_file" ]; do
+# Poll until service is open
+while [ ! "$(service_http_status)" == "200" ]; do
+    echo "Waiting for service to open..."
     sleep 1
 done
 
 # Issue tutorial transactions to ephemeral network
-python ../../../python/tutorial.py "$network_info_file"
+python3.8 -m venv env
+# shellcheck source=/dev/null
+source env/bin/activate
+python -m pip install ../../../python
+python ../../../python/tutorial.py ./workspace/sandbox_0/0.ledger/ ./workspace/sandbox_common/
 
-# Wait until original network has died
-sleep ${network_live_time}
+# Test Python package CLI
+../../../tests//test_python_cli.sh > test_python_cli.out
 
-# ...and a tad longer to be sure
-sleep 5
+# Poll until service has died
+while [ "$(service_http_status)" == "200" ]; do
+    echo "Waiting for service to close..."
+    sleep 1
+done
 
 # Recover network
-cp -r ./workspace/start_network_0/0.ledger .
+cp -r ./workspace/sandbox_0/0.ledger .
 
-timeout --signal=SIGINT --kill-after=${network_live_time}s --preserve-status ${network_live_time}s \
-python "$INSTALL_PREFIX"/bin/start_network.py \
-    -p liblogging \
-    -b "$INSTALL_PREFIX"/bin \
-    --library-dir ../../../build \
-    -v \
+recovered_network_live_time=30
+timeout --signal=SIGINT --kill-after=${recovered_network_live_time}s --preserve-status ${recovered_network_live_time}s \
+"$INSTALL_PREFIX"/bin/sandbox.sh --verbose \
+    -e release \
     --recover \
     --ledger-dir 0.ledger \
-    --common-dir ./workspace/start_network_common/
+    --common-dir ./workspace/sandbox_common/

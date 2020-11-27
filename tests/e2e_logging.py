@@ -573,7 +573,7 @@ def run(args):
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
-    if args.js_app_script:
+    if args.js_app_bundle:
         args.package = "libjs_generic"
     else:
         args.package = "liblogging"

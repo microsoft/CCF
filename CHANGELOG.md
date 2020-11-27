@@ -9,14 +9,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- JWT key auto-refresh, can be enabled by providing `"auto_refresh": true` and `"ca_cert_name": "..."` in `set_jwt_issuer` proposal.
+- JWT key auto-refresh (#1908), can be enabled by providing `"auto_refresh": true` and `"ca_cert_name": "..."` in `set_jwt_issuer` proposal.
   - Auto-refresh is currently only supported for providers following the OpenID Connect standard where keys are published under the `/.well-known/openid-configuration` path of the issuer URL.
   - `ca_cert_name` refers to a certificate stored with a `set_ca_cert` proposal and is used to validate the TLS connection to the provider endpoint.
+- JWT signature validation (#1912), can be enabled with the `require_jwt_authentication` endpoint property.
 
 ### Changed
 
 - Members can no longer vote multiple times on governance proposals (#1743).
-- `update_ca_cert` proposal has been replaced by `set_ca_cert`/`remove_ca_cert`.
+- `update_ca_cert` proposal has been replaced by `set_ca_cert`/`remove_ca_cert` (#1917).
 
 ### Deprecated
 

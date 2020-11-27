@@ -10,20 +10,18 @@ import os
 import ccf.clients
 
 # Load client info file.
-if len(sys.argv) < 2:
-    print("Client info file should be specified as first argument")
+if len(sys.argv) < 3:
+    print(
+        "Error: Ledger directory and common directory should be specified as first and second arguments, respectively"
+    )
     sys.exit(1)
 
-client_info_file_path = sys.argv[1]
+ledger_dir = sys.argv[1]
+common_dir = sys.argv[2]
 
-client_info = {}
-with open(client_info_file_path) as client_info_file:
-    client_info = json.load(client_info_file)
-
-host = client_info["host"]
-port = client_info["port"]
-ledger_dir = client_info["ledger"]
-common_dir = client_info["common_dir"]
+# Assumes sandbox started with at least one node
+host = "127.0.0.1"
+port = 8000
 ca = os.path.join(common_dir, "networkcert.pem")
 cert = os.path.join(common_dir, "user0_cert.pem")
 key = os.path.join(common_dir, "user0_privk.pem")

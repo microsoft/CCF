@@ -28,7 +28,7 @@ The following command will run a simple one node test network on a single machin
     $ ../tests/sandbox.sh -p ./liblogging.virtual.so
     Setting up Python environment...
     Python environment successfully setup
-    [16:14:05.294] Starting 1 CCF nodes...
+    [16:14:05.294] Starting 1 CCF node...
     [16:14:05.295] Virtual mode enabled
     [16:14:10.010] Started CCF network with the following nodes:
     [16:14:10.011]   Node [0] = https://127.0.0.1:8000
@@ -84,7 +84,7 @@ Logging App Commands
 
 The business transaction endpoints defined by our application are available under the ``/app`` prefix. For example, consider the ``"log/private"`` endpoint installed by the C++ logging application:
 
-.. literalinclude:: ../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: install_record
     :end-before: SNIPPET_END: install_record
