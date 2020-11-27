@@ -11,5 +11,4 @@ include_directories(
   ${CCF_DIR}/include/ccf
   ${CCF_DIR}/include/3rdparty
   ${CCF_DIR}/generated
-  ${CCF_DIR}/include/3rdparty/msgpack-c
 )
