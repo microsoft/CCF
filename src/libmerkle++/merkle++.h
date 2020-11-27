@@ -78,28 +78,36 @@ namespace Merkle
     typedef enum { PATH_LEFT, PATH_RIGHT } Direction;
 
     typedef struct {
-      HashT<HASH_SIZE> hash;
+      const HashT<HASH_SIZE> *hash; // Do we want a copy here?
       Direction direction;
     } Element;
 
-    PathT(const HashT<HASH_SIZE> &leaf, std::vector<Element> &&elements)
-      : leaf(leaf), elements(elements) {}
-    PathT(const PathT &other);
-    PathT(PathT &&other);
-    PathT(std::vector<uint8_t> &bytes);
+    PathT(const HashT<HASH_SIZE> &leaf, std::list<Element> &&elements)
+      : leaf(leaf), elements(elements)
+    {}
+    PathT(const PathT &other) {
+      leaf = other.leaf;
+      elements = other.elements;
+    }
+    PathT(PathT &&other) {
+      leaf = std::move(other.leaf);
+      elements = std::move(other.elements);
+    }
+    PathT(std::vector<uint8_t> &bytes) {
+      throw std::runtime_error("not implemented yet");
+    }
 
     bool verify(const HashT<HASH_SIZE> &root) const {
       HashT<HASH_SIZE> result = leaf, tmp;
       TRACE(std::cout << "> verify " << leaf.to_string(TRACE_HASH_SIZE) << std::endl);
-      for (size_t i=0; i < elements.size(); i++) {
-        const Element &e = elements[i];
+      for (const Element &e : elements) {
         if (e.direction == PATH_LEFT) {
-          TRACE(std::cout << " - " << e.hash.to_string(TRACE_HASH_SIZE) << " x " << result.to_string(TRACE_HASH_SIZE) << std::endl);
-          HASH_FUNCTION(e.hash, result, tmp);
+          TRACE(std::cout << " - " << e.hash->to_string(TRACE_HASH_SIZE) << " x " << result.to_string(TRACE_HASH_SIZE) << std::endl);
+          HASH_FUNCTION(*e.hash, result, tmp);
         }
         else {
-          TRACE(std::cout << " - " << result.to_string(TRACE_HASH_SIZE) << " x " << e.hash.to_string(TRACE_HASH_SIZE) << std::endl);
-          HASH_FUNCTION(result, e.hash, tmp);
+          TRACE(std::cout << " - " << result.to_string(TRACE_HASH_SIZE) << " x " << e.hash->to_string(TRACE_HASH_SIZE) << std::endl);
+          HASH_FUNCTION(result, *e.hash, tmp);
         }
         std::swap(result, tmp);
       }
@@ -107,15 +115,23 @@ namespace Merkle
       return result == root;
     }
 
-    std::vector<uint8_t> serialise() const;
-    operator std::vector<uint8_t>() const; // ?
-    static void deserialise(std::vector<uint8_t> &bytes);
+    std::vector<uint8_t> serialise() const {
+      throw std::runtime_error("not implemented yet");
+    }
+
+    operator std::vector<uint8_t>() const {
+      return serialise();
+    }
+
+    static void deserialise(std::vector<uint8_t> &bytes) {
+      throw std::runtime_error("not implemented yet");
+    }
 
     size_t size() const { return elements.size(); }
 
-    const HashT<HASH_SIZE>& operator[](size_t i) const { return elements[i]; }
+    const HashT<HASH_SIZE>& operator[](size_t i) const { return *elements[i].hash; }
 
-    typedef typename std::vector<HashT<HASH_SIZE>>::const_iterator const_iterator;
+    typedef typename std::vector<Element>::const_iterator const_iterator;
     const_iterator begin() { return elements.begin(); }
     const_iterator end() { return elements.end(); }
 
@@ -123,13 +139,13 @@ namespace Merkle
       std::stringstream stream;
       stream << leaf.to_string(num_bytes);
       for (auto &e : elements)
-        stream << " " << e.hash.to_string(num_bytes) << (e.direction == PATH_LEFT ? "(L)" : "(R)");
+        stream << " " << e.hash->to_string(num_bytes) << (e.direction == PATH_LEFT ? "(L)" : "(R)");
       return stream.str();
     }
 
   protected:
     HashT<HASH_SIZE> leaf;
-    std::vector<Element> elements;
+    std::list<Element> elements;
   };
 
 
@@ -244,31 +260,38 @@ namespace Merkle
       throw std::runtime_error("not implemented yet");
     }
 
-    std::unique_ptr<const Path> path(size_t index) {
+    std::unique_ptr<Path> path(size_t index) {
       if (index >= leaf_nodes.size())
         throw std::runtime_error("invalid leaf index");
 
       compute_root();
 
-      std::vector<typename Path::Element> elements;
+      assert(index < _root->size);
+
+      std::list<typename Path::Element> elements;
       auto leaf = leaf_nodes[index];
-      Node* last = leaf;
-      Node* cur = leaf->parent;
-      TRACE(std::cout << "> path to " << leaf->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
-      while (cur) {
-        TRACE(std::cout << " - last: " << last->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
-        TRACE(std::cout << " - cur : " << cur->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
-        bool last_is_left = cur->left == last;
-        assert (last_is_left || cur->right == last);
-        typename Path::Element e;
-        e.direction = last_is_left ? Path::PATH_RIGHT : Path::PATH_LEFT;
-        e.hash = last_is_left ? cur->right->hash : cur->left->hash;
-        elements.push_back(e);
-        last = cur;
-        cur = cur->parent;
+
+      Node *cur = _root;
+      index <<= (sizeof(_root->height)*8 - _root->height + 1);
+      for (size_t height = _root->height; height > 1; height--) {
+        bool go_right = (index >> (8*sizeof(index)-1)) & 0x01;
+        TRACE(std::cout << " - cur: index=" << index << " " << cur->hash.to_string(TRACE_HASH_SIZE)
+                        << " (" << cur->size << "/" << cur->height << ")"
+                        << " (" << (go_right ? "R" : "L") << ")" << std::endl;);
+        if (cur->height == height) {
+          typename Path::Element e;
+          e.hash = go_right ? &cur->left->hash : &cur->right->hash;
+          e.direction = go_right ? Path::PATH_LEFT : Path::PATH_RIGHT;
+          elements.push_front(std::move(e));
+          cur = go_right ? cur->right : cur->left;
+        }
+        index <<= 1;
       }
 
-      return std::make_unique<const Path>(leaf->hash, std::move(elements));
+      if (cur != leaf)
+        throw std::runtime_error("BUG: path extraction failed");
+
+      return std::make_unique<Path>(leaf->hash, std::move(elements));
     }
 
     std::vector<uint8_t> serialise() const {
@@ -490,13 +513,16 @@ namespace Merkle
       return result;
     }
 
-    void insert_new_leaf(Node *&root, Node *new_leaf) {
+    void insert_new_leaf(Node *&root, Node *n) {
+      TRACE(std::cout << " - insert_new_leaf " << n->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
+      leaf_nodes.push_back(n);
       if (insertion_stack.empty() && !root)
-        root = new_leaf;
+        root = n;
       else {
-        continue_insertion_stack(root, new_leaf);
+        continue_insertion_stack(root, n);
         root = process_insertion_stack(false);
       }
+      TRACE(std::cout << "-----" << std::endl << this->to_string(TRACE_HASH_SIZE) << "-----" << std::endl;);
     }
 
   public:
@@ -566,13 +592,8 @@ namespace Merkle
       if (!new_leaf_nodes.empty()) {
         TRACE(std::cout << "* insert_new_leaves " << leaf_nodes.size() << " +" << new_leaf_nodes.size() << std::endl;);
         // TODO: Make this go fast when there are many leaves to insert.
-        for (auto &n : new_leaf_nodes) {
-          TRACE(std::cout << " - insert " << n->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
-          leaf_nodes.push_back(n);
-          // insert_new_leaf_recursive(_root, n);
+        for (auto &n : new_leaf_nodes)
           insert_new_leaf(_root, n);
-          // TRACE(std::cout << "-----" << std::endl << this->to_string(TRACE_HASH_SIZE) << "-----" << std::endl;);
-        }
         new_leaf_nodes.clear();
       }
     }
