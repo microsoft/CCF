@@ -236,6 +236,7 @@ namespace Merkle
       statistics.num_root++;
       compute_root();
       assert(_root && !_root->dirty);
+      TRACE(std::cout << " - root: " << _root->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
       return _root->hash;
     }
 
@@ -290,6 +291,19 @@ namespace Merkle
       if (index >= leaf_nodes.size())
         throw std::runtime_error("invalid leaf index");
       return leaf_nodes[index];
+    }
+
+    size_t num_nodes() const {
+      return (_root ? _root->size : 0) + new_leaf_nodes.size();
+    }
+
+    size_t num_leaves() const {
+      return leaf_nodes.size() + new_leaf_nodes.size();
+    }
+
+    size_t size() const {
+      // size in bytes for serialisation?
+      throw std::runtime_error("not implemented yet");
     }
 
     struct Statistics {
@@ -428,6 +442,7 @@ namespace Merkle
           insertion_stack.push_back(InsertionStackElement());
           InsertionStackElement &se = insertion_stack.back();
           se.n=n;
+          n->dirty = true;
           if (!n->left->is_full()) {
             se.left=true;
             n = n->left;
@@ -466,7 +481,7 @@ namespace Merkle
 
         result = n;
 
-        if (!complete && !n->is_full()) {
+        if (!complete && !result->is_full()) {
           TRACE(std::cout << "  X save " << result->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
           return result;
         }

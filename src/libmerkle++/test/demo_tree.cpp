@@ -1,5 +1,3 @@
-#include <cassert>
-
 #include <chrono>
 #include <iostream>
 #include <iomanip>
@@ -50,9 +48,12 @@ int main()
 
 
       Merkle::Tree mtt;
-      for (auto h : hashes)
+      Merkle::Tree::Hash treelike_root;
+      for (auto h : hashes) {
         mtt.insert(h);
-      Merkle::Tree::Hash treelike_root = mtt.root();
+        treelike_root = mtt.root();
+      }
+      treelike_root = mtt.root();
       std::cout << "Treelike: " << std::endl;
       std::cout << "R: " << treelike_root.to_string() << std::endl;
       std::cout << mtt.to_string(PRINT_HASH_SIZE) << std::endl;
@@ -65,7 +66,8 @@ int main()
       for (size_t i = 0; i < num_leaves; i++) {
         auto path = mtt.path(i);
         std::cout << "P" << std::setw(2) << std::setfill('0') << i << ": " << path->to_string(PRINT_HASH_SIZE) << " " << std::endl;
-        assert(path->verify(treelike_root));
+        if (!path->verify(treelike_root))
+          throw std::runtime_error("root hash mismatch");
       }
     }
   }
