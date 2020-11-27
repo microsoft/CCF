@@ -2,8 +2,6 @@
 # Licensed under the Apache 2.0 License.
 cmake_minimum_required(VERSION 3.11)
 
-include(GNUInstallDirs)
-
 set(CCF_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 include(${CCF_DIR}/cmake/preproject.cmake)
 include(${CCF_DIR}/cmake/version.cmake)
@@ -38,6 +36,8 @@ message(STATUS "CMAKE_INSTALL_PREFIX is '${CMAKE_INSTALL_PREFIX}'")
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake
         DESTINATION cmake
 )
+
+include(GNUInstallDirs)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/aft.cmake)
