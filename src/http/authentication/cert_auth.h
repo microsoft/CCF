@@ -63,10 +63,10 @@ namespace ccf
       ctx->set_response_body(std::move(error_reason));
     }
 
-    OpenAPISecuritySchema get_openapi_security_schema() const override
+    const OpenAPISecuritySchema& get_openapi_security_schema() const override
     {
       // TODO: There's no OpenAPI-compliant way to describe this cert auth?
-      return unauthenticated_schema();
+      return unauthenticated_schema;
     }
   };
 
@@ -124,11 +124,12 @@ namespace ccf
       ctx->set_response_body(std::move(error_reason));
     }
 
-    OpenAPISecuritySchema get_openapi_security_schema() const override
+    const OpenAPISecuritySchema& get_openapi_security_schema() const override
     {
       // TODO: There's no OpenAPI-compliant way to describe this cert auth?
-      return unauthenticated_schema();
+      return unauthenticated_schema;
     }
   };
+
   // TODO: Node cert auth?
 }

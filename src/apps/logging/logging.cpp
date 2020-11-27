@@ -329,7 +329,6 @@ namespace loggingapp
         .add_authentication_policy(member_signature_auth_policy)
         .add_authentication_policy(jwt_auth_policy)
         .add_authentication_policy(empty_auth_plicy)
-        .set_require_client_identity(false) // TODO: Shouldn't need this as well
         .install();
 
       // SNIPPET_START: log_record_text

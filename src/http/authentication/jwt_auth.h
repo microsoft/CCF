@@ -17,6 +17,9 @@ namespace ccf
 
   class JwtAuthnPolicy : public AuthnPolicy
   {
+  protected:
+    static const OpenAPISecuritySchema security_schema;
+
   public:
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx& tx,
@@ -70,13 +73,15 @@ namespace ccf
       ctx->set_response_body(std::move(error_reason));
     }
 
-    OpenAPISecuritySchema get_openapi_security_schema() const override
+    const OpenAPISecuritySchema& get_openapi_security_schema() const override
     {
-      auto schema = nlohmann::json::object();
-      schema["type"] = "http";
-      schema["scheme"] = "bearer";
-      schema["bearerFormat"] = "JWT";
-      return std::make_pair("bearer_jwt", schema);
+      return security_schema;
     }
   };
+
+  inline const AuthnPolicy::OpenAPISecuritySchema JwtAuthnPolicy::security_schema =
+    std::make_pair(
+      "bearer_jwt",
+      nlohmann::json{
+        {"type", "http"}, {"scheme", "bearer"}, {"bearerFormat", "JWT"}});
 }

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/ccf_deprecated.h"
 #include "ds/json_schema.h"
 #include "ds/openapi.h"
 #include "enclave/rpc_context.h"
@@ -330,6 +331,7 @@ namespace ccf
        * @param v Boolean indicating whether the request must be signed
        * @return This Endpoint for further modification
        */
+      CCF_DEPRECATED("Replace with add_authentication_policy")
       Endpoint& set_require_client_signature(bool v)
       {
         properties.require_client_signature = v;
@@ -350,18 +352,9 @@ namespace ccf
        * @param v Boolean indicating whether the user identity must be known
        * @return This Endpoint for further modification
        */
+      CCF_DEPRECATED("Replace with add_authentication_policy")
       Endpoint& set_require_client_identity(bool v)
       {
-        if (!v && registry != nullptr && !registry->has_certs())
-        {
-          LOG_INFO_FMT(
-            "Disabling client identity requirement on {} Endpoint has no "
-            "effect "
-            "since its registry does not have certificates table",
-            dispatch.uri_path);
-          return *this;
-        }
-
         properties.require_client_identity = v;
         return *this;
       }
@@ -602,6 +595,45 @@ namespace ccf
      */
     void install(Endpoint& endpoint)
     {
+      if (endpoint.authn_policies.empty())
+      {
+        // To handle old way of specifying auth, check for deprecated properties
+        // here
+        if (endpoint.properties.require_client_signature)
+        {
+          auto policy = get_sig_authn_policy();
+          if (policy != nullptr)
+          {
+            endpoint.authn_policies.push_back(std::move(policy));
+          }
+          else
+          {
+            LOG_FAIL_FMT(
+              "Client signatures requested for {}, but {} frontend has no sig "
+              "auth policy",
+              endpoint.dispatch.uri_path,
+              method_prefix);
+          }
+        }
+
+        if (endpoint.properties.require_client_identity)
+        {
+          auto policy = get_cert_authn_policy();
+          if (policy != nullptr)
+          {
+            endpoint.authn_policies.push_back(std::move(policy));
+          }
+          else
+          {
+            LOG_FAIL_FMT(
+              "Client identity requested for {}, but {} frontend has no cert "
+              "auth policy",
+              endpoint.dispatch.uri_path,
+              method_prefix);
+          }
+        }
+      }
+
       const auto template_spec =
         parse_path_template(endpoint.dispatch.uri_path);
       if (template_spec.has_value())
@@ -914,6 +946,20 @@ namespace ccf
 
       return caller_id.value();
     }
+
+    // TODO: This is only needed to support the deprecated
+    // set_require_client_identity
+    virtual std::shared_ptr<AuthnPolicy> get_cert_authn_policy()
+    {
+      return nullptr;
+    };
+
+    // TODO: This is only needed to support the deprecated
+    // set_require_client_signature
+    virtual std::shared_ptr<AuthnPolicy> get_sig_authn_policy()
+    {
+      return nullptr;
+    };
 
     void set_consensus(kv::Consensus* c)
     {

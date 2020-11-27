@@ -15,6 +15,9 @@ namespace ccf
 
   class UserSignatureAuthnPolicy : public AuthnPolicy
   {
+  protected:
+    static const OpenAPISecuritySchema security_schema;
+
   public:
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx& tx,
@@ -70,14 +73,16 @@ namespace ccf
       ctx->set_response_body(std::move(error_reason));
     }
 
-    OpenAPISecuritySchema get_openapi_security_schema() const override
+    const OpenAPISecuritySchema& get_openapi_security_schema() const override
     {
-      auto schema = nlohmann::json::object();
-      schema["type"] = "http";
-      schema["scheme"] = "signature";
-      return std::make_pair("user_signature", schema);
+      return security_schema;
     }
   };
+
+  inline const AuthnPolicy::OpenAPISecuritySchema
+    UserSignatureAuthnPolicy::security_schema = std::make_pair(
+      "user_signature",
+      nlohmann::json{{"type", "http"}, {"scheme", "signature"}});
 
   struct MemberSignatureAuthnIdentity : public AuthnIdentity
   {
@@ -88,6 +93,9 @@ namespace ccf
 
   class MemberSignatureAuthnPolicy : public AuthnPolicy
   {
+  protected:
+    static const OpenAPISecuritySchema security_schema;
+
   public:
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx& tx,
@@ -144,12 +152,14 @@ namespace ccf
       ctx->set_response_body(std::move(error_reason));
     }
 
-    OpenAPISecuritySchema get_openapi_security_schema() const override
+    const OpenAPISecuritySchema& get_openapi_security_schema() const override
     {
-      auto schema = nlohmann::json::object();
-      schema["type"] = "http";
-      schema["scheme"] = "signature";
-      return std::make_pair("member_signature", schema);
+      return security_schema;
     }
   };
+
+  inline const AuthnPolicy::OpenAPISecuritySchema
+    MemberSignatureAuthnPolicy::security_schema = std::make_pair(
+      "member_signature",
+      nlohmann::json{{"type", "http"}, {"scheme", "signature"}});
 }

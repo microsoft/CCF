@@ -18,10 +18,7 @@ namespace ccf
   {
   public:
     using OpenAPISecuritySchema = std::pair<std::string, nlohmann::json>;
-    static OpenAPISecuritySchema unauthenticated_schema()
-    {
-      return std::make_pair("", nlohmann::json());
-    }
+    static const OpenAPISecuritySchema unauthenticated_schema;
 
     virtual ~AuthnPolicy() = default;
 
@@ -34,8 +31,12 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext>& ctx,
       std::string&& error_reason) = 0;
 
-    virtual OpenAPISecuritySchema get_openapi_security_schema() const = 0;
+    virtual const OpenAPISecuritySchema& get_openapi_security_schema()
+      const = 0;
   };
+
+  inline const AuthnPolicy::OpenAPISecuritySchema AuthnPolicy::unauthenticated_schema =
+    std::make_pair("", nlohmann::json());
 
   // To make authentication _optional_, we list no-auth as one of several
   // specified policies
@@ -61,9 +62,9 @@ namespace ccf
       throw std::logic_error("Should not happen");
     }
 
-    OpenAPISecuritySchema get_openapi_security_schema() const override
+    const OpenAPISecuritySchema& get_openapi_security_schema() const override
     {
-      return unauthenticated_schema();
+      return unauthenticated_schema;
     }
   };
 }
