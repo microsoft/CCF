@@ -625,6 +625,34 @@ namespace asynchost
           max_chunk_threshold_size));
       }
 
+      // Recover last idx from read-only ledger directories
+      for (const auto& read_dir : read_ledger_dirs)
+      {
+        LOG_DEBUG_FMT("Recovering read-only ledger directory \"{}\"", read_dir);
+        if (!fs::is_directory(read_dir))
+        {
+          throw std::logic_error(
+            fmt::format("\"{}\" is not a directory", read_dir));
+        }
+
+        for (auto const& f : fs::directory_iterator(read_dir))
+        {
+          auto last_idx_ = get_last_idx_from_file_name(f.path().filename());
+          if (!last_idx_.has_value())
+          {
+            LOG_DEBUG_FMT(
+              "Read only ledger file \"{}\" is ignored as not committed",
+              f.path().filename());
+            continue;
+          }
+
+          if (last_idx_.value() > last_idx)
+          {
+            last_idx = last_idx_.value();
+          }
+        }
+      }
+
       if (fs::is_directory(ledger_dir))
       {
         // If the ledger directory exists, recover ledger files from it
@@ -649,7 +677,17 @@ namespace asynchost
           return a->get_last_idx() < b->get_last_idx();
         });
 
-        last_idx = get_latest_file()->get_last_idx();
+        auto main_ledger_dir_last_idx = get_latest_file()->get_last_idx();
+        if (main_ledger_dir_last_idx < last_idx)
+        {
+          throw std::logic_error(fmt::format(
+            "Ledger directory last idx ({}) is less than read-only "
+            "ledger directories last idx ({})",
+            main_ledger_dir_last_idx,
+            last_idx));
+        }
+
+        last_idx = main_ledger_dir_last_idx;
 
         for (auto f = files.begin(); f != files.end();)
         {
@@ -686,6 +724,8 @@ namespace asynchost
         }
         require_new_file = true;
       }
+
+      LOG_INFO_FMT("Recovered ledger entries up to {}", last_idx);
     }
 
     Ledger(const Ledger& that) = delete;
