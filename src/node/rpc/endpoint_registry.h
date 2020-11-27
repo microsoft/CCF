@@ -7,6 +7,7 @@
 #include "enclave/rpc_context.h"
 #include "endpoint.h"
 #include "http/authentication/cert_auth.h"
+#include "http/authentication/jwt_auth.h"
 #include "http/authentication/sig_auth.h"
 #include "http/http_consts.h"
 #include "http/ws_consts.h"
@@ -479,16 +480,18 @@ namespace ccf
     std::string digests_table_name;
 
     // Auth policies
-    std::shared_ptr<EmptyAuthnPolicy> no_authentication =
+    std::shared_ptr<EmptyAuthnPolicy> empty_auth_plicy =
       std::make_shared<EmptyAuthnPolicy>();
-    std::shared_ptr<UserCertAuthnPolicy> require_user_cert =
+    std::shared_ptr<UserCertAuthnPolicy> user_cert_auth_policy =
       std::make_shared<UserCertAuthnPolicy>();
-    std::shared_ptr<UserSignatureAuthnPolicy> require_user_signature =
+    std::shared_ptr<UserSignatureAuthnPolicy> user_signature_auth_policy =
       std::make_shared<UserSignatureAuthnPolicy>();
-    std::shared_ptr<MemberCertAuthnPolicy> require_member_cert =
+    std::shared_ptr<MemberCertAuthnPolicy> member_cert_auth_policy =
       std::make_shared<MemberCertAuthnPolicy>();
-    std::shared_ptr<MemberSignatureAuthnPolicy> require_member_signature =
+    std::shared_ptr<MemberSignatureAuthnPolicy> member_signature_auth_policy =
       std::make_shared<MemberSignatureAuthnPolicy>();
+    std::shared_ptr<JwtAuthnPolicy> jwt_auth_policy =
+      std::make_shared<JwtAuthnPolicy>();
 
     static void add_query_parameters(
       nlohmann::json& document,

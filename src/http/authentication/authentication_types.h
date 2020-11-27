@@ -26,10 +26,13 @@ namespace ccf
     virtual ~AuthnPolicy() = default;
 
     virtual std::unique_ptr<AuthnIdentity> authenticate(
-      kv::ReadOnlyTx& tx, const std::shared_ptr<enclave::RpcContext>& ctx) = 0;
+      kv::ReadOnlyTx& tx,
+      const std::shared_ptr<enclave::RpcContext>& ctx,
+      std::string& error_reason) = 0;
 
     virtual void set_unauthenticated_error(
-      std::shared_ptr<enclave::RpcContext>& ctx) = 0;
+      std::shared_ptr<enclave::RpcContext>& ctx,
+      std::string&& error_reason) = 0;
 
     virtual OpenAPISecuritySchema get_openapi_security_schema() const = 0;
   };
@@ -45,13 +48,15 @@ namespace ccf
   {
   public:
     std::unique_ptr<AuthnIdentity> authenticate(
-      kv::ReadOnlyTx&, const std::shared_ptr<enclave::RpcContext>&) override
+      kv::ReadOnlyTx&,
+      const std::shared_ptr<enclave::RpcContext>&,
+      std::string&) override
     {
       return std::make_unique<EmptyAuthnIdentity>();
     }
 
     void set_unauthenticated_error(
-      std::shared_ptr<enclave::RpcContext>&) override
+      std::shared_ptr<enclave::RpcContext>&, std::string&&) override
     {
       throw std::logic_error("Should not happen");
     }

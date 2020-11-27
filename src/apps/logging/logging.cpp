@@ -235,7 +235,7 @@ namespace loggingapp
           response += fmt::format(
             "\nThe caller's user data is: {}", user_cert_ident->user_data.dump());
           response += fmt::format(
-            "\nThe caller's cert is: {}", user_cert_ident->user_cert.str());
+            "\nThe caller's cert is:\n{}", user_cert_ident->user_cert.str());
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -251,7 +251,7 @@ namespace loggingapp
           response += fmt::format(
             "\nThe caller's member data is: {}", member_cert_ident->member_data.dump());
           response += fmt::format(
-            "\nThe caller's cert is: {}", member_cert_ident->member_cert.str());
+            "\nThe caller's cert is:\n{}", member_cert_ident->member_cert.str());
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -268,7 +268,7 @@ namespace loggingapp
           response += fmt::format(
             "\nThe caller's user data is: {}", user_sig_ident->user_data.dump());
           response += fmt::format(
-            "\nThe caller's cert is: {}", user_sig_ident->user_cert.str());
+            "\nThe caller's cert is:\n{}", user_sig_ident->user_cert.str());
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -285,7 +285,23 @@ namespace loggingapp
           response += fmt::format(
             "\nThe caller's member data is: {}", member_sig_ident->member_data.dump());
           response += fmt::format(
-            "\nThe caller's cert is: {}", member_sig_ident->member_cert.str());
+            "\nThe caller's cert is:\n{}", member_sig_ident->member_cert.str());
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_body(std::move(response));
+          return;
+        }
+        else if (
+          auto jwt_ident = ctx.template get_caller<ccf::JwtAuthnIdentity>())
+        {
+          auto response =
+            std::string("JWT");
+          response += fmt::format(
+            "\nThe caller is identified by a JWT issued by: {}", jwt_ident->key_issuer);
+          response += fmt::format(
+            "\nThe JWT header is:\n{}", jwt_ident->header.dump(2));
+          response += fmt::format(
+            "\nThe JWT payload is:\n{}", jwt_ident->payload.dump(2));
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -307,11 +323,12 @@ namespace loggingapp
       };
       make_endpoint("multi_auth", HTTP_GET, multi_auth)
         .set_auto_schema<void, std::string>()
-        .add_authentication_policy(require_user_cert)
-        .add_authentication_policy(require_user_signature)
-        .add_authentication_policy(require_member_cert)
-        .add_authentication_policy(require_member_signature)
-        .add_authentication_policy(no_authentication)
+        .add_authentication_policy(user_cert_auth_policy)
+        .add_authentication_policy(user_signature_auth_policy)
+        .add_authentication_policy(member_cert_auth_policy)
+        .add_authentication_policy(member_signature_auth_policy)
+        .add_authentication_policy(jwt_auth_policy)
+        .add_authentication_policy(empty_auth_plicy)
         .set_require_client_identity(false) // TODO: Shouldn't need this as well
         .install();
 

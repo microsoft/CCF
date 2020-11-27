@@ -22,7 +22,8 @@ namespace ccf
   public:
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx& tx,
-      const std::shared_ptr<enclave::RpcContext>& ctx) override
+      const std::shared_ptr<enclave::RpcContext>& ctx,
+      std::string& error_reason) override
     {
       const auto caller_cert = ctx->session->caller_cert;
 
@@ -46,15 +47,20 @@ namespace ccf
         identity->user_data = user->user_data;
         return identity;
       }
+      else
+      {
+        error_reason = "Could not find matching user certificate";
+      }
 
       return nullptr;
     }
 
     void set_unauthenticated_error(
-      std::shared_ptr<enclave::RpcContext>& ctx) override
+      std::shared_ptr<enclave::RpcContext>& ctx,
+      std::string&& error_reason) override
     {
       ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
-      ctx->set_response_body("Could not find matching user certificate");
+      ctx->set_response_body(std::move(error_reason));
     }
 
     OpenAPISecuritySchema get_openapi_security_schema() const override
@@ -76,7 +82,8 @@ namespace ccf
   public:
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx& tx,
-      const std::shared_ptr<enclave::RpcContext>& ctx) override
+      const std::shared_ptr<enclave::RpcContext>& ctx,
+      std::string& error_reason) override
     {
       const auto caller_cert = ctx->session->caller_cert;
 
@@ -91,7 +98,8 @@ namespace ccf
         const auto member = members_view->get(member_id.value());
         if (!member.has_value())
         {
-          throw std::logic_error("Members and member certs tables do not match");
+          throw std::logic_error(
+            "Members and member certs tables do not match");
         }
 
         auto identity = std::make_unique<MemberCertAuthnIdentity>();
@@ -100,15 +108,20 @@ namespace ccf
         identity->member_data = member->member_data;
         return identity;
       }
+      else
+      {
+        error_reason = "Could not find matching member certificate";
+      }
 
       return nullptr;
     }
 
     void set_unauthenticated_error(
-      std::shared_ptr<enclave::RpcContext>& ctx) override
+      std::shared_ptr<enclave::RpcContext>& ctx,
+      std::string&& error_reason) override
     {
       ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
-      ctx->set_response_body("Could not find matching member certificate");
+      ctx->set_response_body(std::move(error_reason));
     }
 
     OpenAPISecuritySchema get_openapi_security_schema() const override
@@ -117,58 +130,5 @@ namespace ccf
       return unauthenticated_schema();
     }
   };
-
-  // struct MemberCertAuthnIdentity : public AuthnIdentity
-  // {
-  //   MemberId member_id;
-  //   tls::Pem member_cert;
-  //   nlohmann::json member_data;
-  // };
-
-  // class MemberCertAuthnPolicy : public AuthnPolicy
-  // {
-  // public:
-  //   std::unique_ptr<AuthnIdentity> authenticate(
-  //     kv::ReadOnlyTx& tx,
-  //     const std::shared_ptr<enclave::RpcContext>& ctx) override
-  //   {
-  //     const auto caller_cert = ctx->session->caller_cert;
-
-  //     CertDERs members_by_cert(Tables::MEMBER_CERT_DERS);
-  //     auto by_certs_view = tx.get_read_only_view(members_by_cert);
-  //     const auto member_id = by_certs_view->get(caller_cert);
-
-  //     if (member_id.has_value())
-  //     {
-  //       Members members_table(Tables::MEMBERS);
-  //       auto members_view = tx.get_read_only_view(members_table);
-  //       const auto member = members_view->get(member_id.value());
-  //       if (!member.has_value())
-  //       {
-  //         throw std::logic_error("Members and member certs tables do not match");
-  //       }
-
-  //       auto identity = std::make_unique<MemberCertAuthnIdentity>();
-  //       identity->member_id = member_id.value();
-  //       identity->member_cert = member->cert;
-  //       identity->member_data = member->member_data;
-  //       return identity;
-  //     }
-
-  //     return nullptr;
-  //   }
-
-  //   void set_unauthenticated_error(
-  //     std::shared_ptr<enclave::RpcContext>& ctx) override
-  //   {
-  //     ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
-  //     ctx->set_response_body("Could not find matching member certificate");
-  //   }
-
-  //   OpenAPISecuritySchema get_openapi_security_schema() const override
-  //   {
-  //     // TODO: There's no OpenAPI-compliant way to describe this cert auth?
-  //     return unauthenticated_schema();
-  //   }
-  // };
+  // TODO: Node cert auth?
 }

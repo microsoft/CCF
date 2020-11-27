@@ -198,13 +198,6 @@ namespace ccf
         return false;
       }
 
-      if (caller.empty())
-      {
-        // TODO: Hack
-        LOG_FAIL_FMT("Trying to verify but caller is empty? Bailing...");
-        return true;
-      }
-
       tls::VerifierPtr verifier;
       {
         std::lock_guard<SpinLock> mguard(verifiers_lock);
@@ -296,9 +289,10 @@ namespace ccf
       // If any auth policy was required, check that at least one is accepted
       if (!endpoint->authn_policies.empty())
       {
+        std::string auth_error_reason;
         for (const auto& policy : endpoint->authn_policies)
         {
-          identity = policy->authenticate(tx, ctx);
+          identity = policy->authenticate(tx, ctx, auth_error_reason);
           if (identity != nullptr)
           {
             break;
@@ -308,11 +302,12 @@ namespace ccf
         if (identity != nullptr)
         {
           // TODO: Don't need to set this via ctx, just pass as EndpointArgs?
-          //ctx->set_caller_identity(std::move(identity));
+          // ctx->set_caller_identity(std::move(identity));
         }
         else
         {
-          endpoint->authn_policies[0]->set_unauthenticated_error(ctx);
+          endpoint->authn_policies[0]->set_unauthenticated_error(
+            ctx, std::move(auth_error_reason));
           return ctx->serialise_response();
         }
       }
@@ -381,6 +376,7 @@ namespace ccf
            (!(consensus != nullptr &&
               consensus->type() == ConsensusType::CFT) ||
             !ctx->session->original_caller.has_value())) &&
+          !ctx->session->caller_cert.empty() &&
           !verify_client_signature(
             ctx->session->caller_cert, caller_id, signed_request.value()))
         {
