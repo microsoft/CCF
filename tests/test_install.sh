@@ -18,7 +18,7 @@ echo "Install prefix is ${1}"
 # Setup env
 INSTALL_PREFIX="$1"
 working_dir="nested/run"
-# rm -rf "$working_dir"
+rm -rf "$working_dir"
 mkdir -p "$working_dir"
 cd "$working_dir"
 
