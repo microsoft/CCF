@@ -69,6 +69,8 @@ int main()
         if (!path->verify(treelike_root))
           throw std::runtime_error("root hash mismatch");
       }
+
+      std::cout << std::endl;
     }
   }
   catch (std::exception &ex) {

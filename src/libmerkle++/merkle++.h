@@ -131,7 +131,7 @@ namespace Merkle
 
     const HashT<HASH_SIZE>& operator[](size_t i) const { return *elements[i].hash; }
 
-    typedef typename std::vector<Element>::const_iterator const_iterator;
+    typedef typename std::list<Element>::const_iterator const_iterator;
     const_iterator begin() { return elements.begin(); }
     const_iterator end() { return elements.end(); }
 
@@ -202,9 +202,13 @@ namespace Merkle
   public:
     TreeT() {}
     TreeT(const TreeT &other)
-      : leaf_nodes(other.leaf_nodes), _root(other._root) {}
+      : leaf_nodes(other.leaf_nodes),
+        _root(other._root)
+    {}
     TreeT(TreeT &&other)
-      : leaf_nodes(other.leaf_nodes), _root(other._root) {}
+      : leaf_nodes(std::move(other.leaf_nodes)),
+        _root(std::move(other._root))
+    {}
     ~TreeT() {
       delete _root;
       for (auto n : new_leaf_nodes)
@@ -522,14 +526,14 @@ namespace Merkle
         continue_insertion_stack(root, n);
         root = process_insertion_stack(false);
       }
-      TRACE(std::cout << "-----" << std::endl << this->to_string(TRACE_HASH_SIZE) << "-----" << std::endl;);
+      // TRACE(std::cout << "-----" << std::endl << this->to_string(TRACE_HASH_SIZE) << "-----" << std::endl;);
     }
 
   public:
     void build_from_scratch() {
       std::vector<Node*> level, next_level;
 
-      TRACE(std::cout << "> rebuild_from_scratch" << std::endl);
+      TRACE(std::cout << "> build_from_scratch" << std::endl);
       _root = nullptr;
       for (auto &n : new_leaf_nodes)
         leaf_nodes.push_back(n);
