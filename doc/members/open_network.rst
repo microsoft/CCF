@@ -76,7 +76,7 @@ For each user, CCF also stores arbitrary user-data in a JSON object. This can on
 
 For example, the ``/log/private/admin_only`` endpoint in the C++ logging sample app uses user-data to restrict who is permitted to call it:
 
-.. literalinclude:: ../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: user_data_check
     :end-before: SNIPPET_END: user_data_check

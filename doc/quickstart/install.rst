@@ -41,12 +41,22 @@ The CCF Debian package (``ccf_<version>_amd64.deb``) contains the libraries and 
     $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_${CCF_VERSION}_amd64.deb
     $ sudo apt install ./ccf_${CCF_VERSION}_amd64.deb
 
-Assuming that CCF was installed under ``/opt``, the following command can be run to verify that CCF was installed successfully:
+Assuming that CCF was installed under ``/opt``, the following commands can be run to verify that CCF was installed successfully:
 
 .. code-block:: bash
 
     $ /opt/ccf-${CCF_VERSION}/bin/cchost --version
     CCF host: ccf-<version>
+
+    $ /opt/ccf-${CCF_VERSION}/bin/sandbox.sh
+    No package/app specified. Defaulting to installed JS logging app
+    Setting up Python environment...
+    Python environment successfully setup
+    [16:10:16.552] Starting 1 CCF node...
+    [16:10:16.552] Virtual mode enabled
+    [16:10:23.349] Started CCF network with the following nodes:
+    [16:10:23.350]   Node [0] = https://127.0.0.1:8000
+    ...
 
 The CCF install notably contains:
 
