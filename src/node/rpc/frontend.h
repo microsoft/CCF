@@ -596,8 +596,8 @@ namespace ccf
     void open(std::optional<tls::Pem*> identity = std::nullopt) override
     {
       std::lock_guard<SpinLock> mguard(open_lock);
-      // open() without an identity unconditionally opens the frontend
-      // if an identity is passed, the frontend must instead wait for
+      // open() without an identity unconditionally opens the frontend.
+      // If an identity is passed, the frontend must instead wait for
       // the KV to read that this is identity is present and open,
       // see is_open()
       if (identity.has_value())
