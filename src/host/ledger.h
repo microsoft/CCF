@@ -649,6 +649,7 @@ namespace asynchost
           if (last_idx_.value() > last_idx)
           {
             last_idx = last_idx_.value();
+            committed_idx = last_idx;
           }
         }
       }
@@ -725,7 +726,10 @@ namespace asynchost
         require_new_file = true;
       }
 
-      LOG_INFO_FMT("Recovered ledger entries up to {}", last_idx);
+      LOG_INFO_FMT(
+        "Recovered ledger entries up to {}, committed to {}",
+        last_idx,
+        committed_idx);
     }
 
     Ledger(const Ledger& that) = delete;
