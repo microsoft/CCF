@@ -13,6 +13,9 @@ import socket
 import os
 from collections import defaultdict
 import time
+import tempfile
+import base64
+import json
 import ccf.clients
 
 from loguru import logger as LOG
@@ -244,6 +247,28 @@ def test_multi_auth(network, args):
         LOG.info("Authenticate as a member, via HTTP signature")
         with primary.client("member0", disable_client_auth=True) as c:
             r = c.get("/app/multi_auth", signed=True)
+            require_new_response(r)
+
+        LOG.info("Authenticate via JWT token")
+        jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+        jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
+        jwt_kid = "my_key_id"
+        jwt_issuer = "https://example.issuer"
+        # Add JWT issuer
+        with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+            jwt_cert_der = infra.crypto.cert_pem_to_der(jwt_cert_pem)
+            der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
+            data = {
+                "issuer": jwt_issuer,
+                "jwks": {"keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]},
+            }
+            json.dump(data, metadata_fp)
+            metadata_fp.flush()
+            network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+        with primary.client() as c:
+            jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
+            r = c.get("/app/multi_auth", headers={"authorization": "Bearer " + jwt})
             require_new_response(r)
 
 
