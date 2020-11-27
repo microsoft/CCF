@@ -160,6 +160,9 @@ class Network:
         # To do so, wait until the evidence is committed, then issue a write and
         # wait for it to be committed. The corresponding signature will contain
         # a commit seqno greater than the evidence seqno
+        LOG.debug(
+            f"Waiting for proof of evidence of snapshot {snapshot} to be committed..."
+        )
         _, snapshot_evidence_seqno = infra.node.get_snapshot_seqnos(snapshot)
         end_time = time.time() + timeout
         while time.time() < end_time:
