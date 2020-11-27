@@ -19,11 +19,11 @@ jobs:
         parameters:
           cmake_args: "${{ parameters.cmake_args }}"
 
-      # - template: test.yml
-      #   parameters:
-      #     ctest_filter: ${{ parameters.ctest_filter }}
-      #     suite_name_suffix: "${{ parameters.target }} ${{ parameters.suffix }}"
-      #     ctest_timeout: ${{ parameters.ctest_timeout }}
+      - template: test.yml
+        parameters:
+          ctest_filter: ${{ parameters.ctest_filter }}
+          suite_name_suffix: "${{ parameters.target }} ${{ parameters.suffix }}"
+          ctest_timeout: ${{ parameters.ctest_timeout }}
 
       - ${{ if eq(parameters.suffix, 'Instrumented') }}:
           - template: coverage.yml
@@ -36,5 +36,5 @@ jobs:
           - template: metrics.yml
 
       - ${{ if eq(parameters.suffix, 'Release') }}:
-          # - template: publish_tls_report.yml
+          - template: publish_tls_report.yml
           - template: install.yml
