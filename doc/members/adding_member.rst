@@ -44,7 +44,7 @@ Activating a New Member
 
 A new member who gets registered in CCF is not yet able to participate in governance operations. To do so, the new member should first acknowledge that they are satisfied with the state of the service (for example, after auditing the current constitution and the nodes currently trusted).
 
-First, the new member should update and retrieve the latest state digest via the ``members/ack/update_state_digest`` command. In doing so, the new member confirms that they are satisfied with the current state of the service.
+First, the new member should update and retrieve the latest state digest via the ``/gov/ack/update_state_digest`` endpoint. In doing so, the new member confirms that they are satisfied with the current state of the service.
 
 .. code-block:: bash
 
@@ -54,7 +54,7 @@ First, the new member should update and retrieve the latest state digest via the
     }
 
 
-Then, the new member should sign the state digest returned by the ``members/ack/update_state_digest`` via the ``members/ack`` command, using the ``scurl.sh`` utility:
+Then, the new member should sign the state digest returned by the ``/gov/ack/update_state_digest`` via the ``/gov/ack`` endpoint, using the ``scurl.sh`` utility:
 
 .. code-block:: bash
 
