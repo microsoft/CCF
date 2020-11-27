@@ -77,6 +77,8 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     PUBLIC
       "$<BUILD_INTERFACE:${EVERCRYPT_INC}>"
       $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+      $<INSTALL_INTERFACE:include/ccf/>
+      $<INSTALL_INTERFACE:include/3rdparty/>
       $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt>
       $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin>
       $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
@@ -131,6 +133,8 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     PUBLIC
       "$<BUILD_INTERFACE:${EVERCRYPT_INC}>"
       $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+      $<INSTALL_INTERFACE:include/ccf/>
+      $<INSTALL_INTERFACE:include/3rdparty/>
       $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt>
       $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin>
       $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
