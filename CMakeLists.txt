@@ -168,7 +168,11 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   add_dependencies(ccf ccf.virtual)
 endif()
 
-install(EXPORT ccf DESTINATION cmake)
+install(
+  EXPORT ccf
+  DESTINATION cmake
+  FILE ccf-targets.cmake
+  )
 
 # Install all 3rd-party library includes
 install(

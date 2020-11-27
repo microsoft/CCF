@@ -1,0 +1,15 @@
+@PACKAGE_INIT@
+
+set(CCF_DIR "@CMAKE_INSTALL_PREFIX@")
+
+include("${CCF_DIR}/cmake/ccf-targets.cmake")
+include("${CCF_DIR}/cmake/preproject.cmake")
+include("${CCF_DIR}/cmake/ccf_app.cmake")
+include("${CCF_DIR}/cmake/tools.cmake")
+
+include_directories(
+  ${CCF_DIR}/include/ccf
+  ${CCF_DIR}/include/3rdparty
+  ${CCF_DIR}/generated
+  ${CCF_DIR}/include/3rdparty/msgpack-c
+)
