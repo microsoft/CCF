@@ -3,30 +3,8 @@
 
 cmake_minimum_required(VERSION 3.13)
 
-set(CCF_VERSION "0.15.2")
-set(CCF_DIR
-    "/opt/ccf-${CCF_VERSION}"
-    CACHE PATH "Path to CCF install"
-)
-set(CCF_PYTHON_VERSION
-    "${CCF_VERSION}"
-    CACHE PATH
-          "Version of CCF Python package to install (should match CCF version)"
-)
-include(${CCF_DIR}/cmake/preproject.cmake)
-
 project(logging LANGUAGES C CXX)
-
-# TODO: Should be obtained through FindPackage
-include(${CCF_DIR}/cmake/ccf.cmake)
-include(${CCF_DIR}/cmake/ccf_app.cmake)
-include(${CCF_DIR}/cmake/tools.cmake)
-
-include_directories(
-  ${CCF_DIR}/include/ccf ${CCF_DIR}/include/3rdparty ${CCF_DIR}/generated
-  ${CCF_DIR}/include/3rdparty/msgpack-c
-  ${CCF_DIR}/include/3rdparty/flatbuffers/include
-)
+find_package(ccf REQUIRED)
 
 add_ccf_app(logging SRCS logging.cpp)
 

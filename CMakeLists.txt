@@ -2,6 +2,8 @@
 # Licensed under the Apache 2.0 License.
 cmake_minimum_required(VERSION 3.11)
 
+include(GNUInstallDirs)
+
 set(CCF_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 include(${CCF_DIR}/cmake/preproject.cmake)
 include(${CCF_DIR}/cmake/version.cmake)
@@ -884,3 +886,23 @@ if(BUILD_TESTS)
       --use-websockets
   )
 endif()
+
+# Generate and install CMake export file for consumers using CMake
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf-config.cmake.in
+  ${CMAKE_BINARY_DIR}/cmake/ccf-config.cmake
+  INSTALL_DESTINATION
+  ${CMAKE_INSTALL_PREFIX}/cmake
+  PATH_VARS
+  CMAKE_INSTALL_LIBDIR
+  CMAKE_INSTALL_BINDIR
+  CMAKE_INSTALL_DATADIR
+  CMAKE_INSTALL_INCLUDEDIR)
+write_basic_package_version_file(
+  ${CMAKE_BINARY_DIR}/cmake/ccf-config-version.cmake
+  COMPATIBILITY SameMajorVersion)
+install(
+  FILES ${CMAKE_BINARY_DIR}/cmake/ccf-config.cmake
+        ${CMAKE_BINARY_DIR}/cmake/ccf-config-version.cmake
+  DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake)
