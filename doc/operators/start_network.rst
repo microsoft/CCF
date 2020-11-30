@@ -46,11 +46,6 @@ The :term:`Constitution`, as defined by the initial members, should be passed vi
 
 The network is now in its opening state and new nodes can join the network. :ref:`members can add other members and users via governance <members/open_network:Opening a Network>`.
 
-Network Identity
-~~~~~~~~~~~~~~~~
-
-The network certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using curl, this is passed as the ``--cacert`` argument.
-
 Virtual Mode
 ~~~~~~~~~~~~
 
