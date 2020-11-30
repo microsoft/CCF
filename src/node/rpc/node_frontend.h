@@ -409,6 +409,11 @@ namespace ccf
         .set_auto_schema<MemoryUsage>()
         .install();
     }
+
+    std::shared_ptr<AuthnPolicy> get_cert_authn_policy() override
+    {
+      return empty_auth_plicy;
+    }
   };
 
   class NodeRpcFrontend : public RpcFrontend

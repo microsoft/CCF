@@ -928,25 +928,6 @@ namespace ccf
       return caller_id.value();
     }
 
-    virtual CallerId get_caller_id_by_digest(
-      kv::Tx& tx, const std::string& caller_cert_digest)
-    {
-      if (!has_digests() || caller_cert_digest.empty())
-      {
-        return INVALID_ID;
-      }
-
-      auto digests_view = tx.get_view<CertDigests>(digests_table_name);
-      auto caller_id = digests_view->get(caller_cert_digest);
-
-      if (!caller_id.has_value())
-      {
-        return INVALID_ID;
-      }
-
-      return caller_id.value();
-    }
-
     // TODO: This is only needed to support the deprecated
     // set_require_client_identity
     virtual std::shared_ptr<AuthnPolicy> get_cert_authn_policy()

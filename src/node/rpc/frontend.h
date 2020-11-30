@@ -313,45 +313,6 @@ namespace ccf
       }
 
       const auto signed_request = ctx->get_signed_request();
-      // On signed requests, the effective caller id is the key id that
-      // signed the request, the session-level identity is unimportant
-      // NOTE: this is only verified by verify_client_signature() later down,
-      // caller_id is only tentative at this point if we extract it from the
-      // signed request
-      if (signed_request.has_value())
-      {
-        auto cid =
-          endpoints.get_caller_id_by_digest(tx, signed_request->key_id);
-        if (cid != INVALID_ID)
-        {
-          LOG_TRACE_FMT(
-            "Session-level caller ID is {} replaced by caller id contained in "
-            "signed request {}",
-            caller_id,
-            cid);
-          caller_id = cid;
-          auto caller_cert = resolve_caller_id(cid, tx);
-          if (caller_cert.has_value())
-            ctx->session->caller_cert = caller_cert.value().raw();
-        }
-      }
-
-      if (endpoint->properties.require_client_identity && endpoints.has_certs())
-      {
-        // Only if endpoint requires client identity.
-        // If a request is forwarded, check that the caller is known. Otherwise,
-        // only check that the caller id is valid.
-        if (
-          (ctx->session->original_caller.has_value() &&
-           !lookup_forwarded_caller_cert(ctx, tx)) ||
-          caller_id == INVALID_ID)
-        {
-          ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
-          ctx->set_response_body(invalid_caller_error_message());
-          update_metrics(ctx, metrics);
-          return ctx->serialise_response();
-        }
-      }
 
       bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
         ctx->is_create_request;
@@ -805,20 +766,6 @@ namespace ccf
 
       // reset tx_counter for next tick interval
       tx_count = 0;
-    }
-
-    // Return false if frontend believes it should be able to look up caller
-    // certs, but couldn't find caller. Default behaviour is that there are no
-    // caller certs, so nothing is changed but we return true
-    virtual bool lookup_forwarded_caller_cert(
-      std::shared_ptr<enclave::RpcContext>, kv::Tx&)
-    {
-      return true;
-    }
-
-    virtual std::optional<tls::Pem> resolve_caller_id(ObjectId, kv::Tx&)
-    {
-      return std::nullopt;
     }
   };
 }
