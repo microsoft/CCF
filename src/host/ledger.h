@@ -641,7 +641,7 @@ namespace asynchost
           if (!last_idx_.has_value())
           {
             LOG_DEBUG_FMT(
-              "Read only ledger file \"{}\" is ignored as not committed",
+              "Read-only ledger file \"{}\" is ignored as not committed",
               f.path().filename());
             continue;
           }
