@@ -70,14 +70,14 @@ def test_update_all_nodes(network, args):
 
     new_code_id = get_code_id(
         args.oe_binary,
-        infra.path.build_lib_path(args.patched_file_name, args.enclave_type),
+        infra.path.build_lib_path(args.replacement_package, args.enclave_type),
     )
 
     LOG.info(f"Adding a node with unsupported code id {new_code_id}")
     code_not_found_exception = None
     try:
         network.create_and_add_pending_node(
-            args.patched_file_name, "local://localhost", args, timeout=3
+            args.replacement_package, "local://localhost", args, timeout=3
         )
     except infra.network.CodeIdNotFound as err:
         code_not_found_exception = err
@@ -112,7 +112,7 @@ def test_update_all_nodes(network, args):
     )
     for _ in range(0, new_nodes_count):
         new_node = network.create_and_trust_node(
-            args.patched_file_name, "local://localhost", args
+            args.replacement_package, "local://localhost", args
         )
         assert new_node
         new_nodes.add(new_node)
@@ -128,7 +128,7 @@ def test_update_all_nodes(network, args):
 
     LOG.info("Adding another node to the network")
     new_node = network.create_and_trust_node(
-        args.patched_file_name, "local://localhost", args
+        args.replacement_package, "local://localhost", args
     )
     assert new_node
     network.wait_for_node_commit_sync()
@@ -163,7 +163,7 @@ def test_update_all_nodes(network, args):
 
     LOG.info("Adding another node with the new code to the network")
     new_node = network.create_and_trust_node(
-        args.patched_file_name, "local://localhost", args
+        args.replacement_package, "local://localhost", args
     )
     assert new_node
     network.wait_for_node_commit_sync()
@@ -187,6 +187,6 @@ if __name__ == "__main__":
         sys.exit()
 
     args.package = "liblogging"
-    args.patched_file_name = "{}.patched".format(args.package)
+    args.replacement_package = "libjs_generic"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     run(args)
