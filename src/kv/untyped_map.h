@@ -543,6 +543,7 @@ namespace kv::untyped
 
     void set_map_hook(const MapHook& hook_)
     {
+      LOG_INFO_FMT("SET MAP HOOK");
       hook = hook_;
     }
 

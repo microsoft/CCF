@@ -1193,11 +1193,13 @@ namespace kv
 
     void set_map_hook(const std::string& map_name, const kv::untyped::Map::MapHook& hook)
     {
+      LOG_INFO_FMT("HOOK THERE on {}", map_name);
       map_hooks[map_name] = hook;
 
       const auto it = maps.find(map_name);
       if (it != maps.end())
       {
+        LOG_INFO_FMT("HOOK on {}", map_name);
         it->second.second->set_map_hook(hook);
       }
     }

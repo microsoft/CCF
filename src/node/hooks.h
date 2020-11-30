@@ -10,7 +10,7 @@ namespace ccf
   class ConfigurationChangeHook : public kv::ConsensusHook
   {
   public:
-    void operator()(const kv::Consensus&) override
+    void call(void *) override
     {
       LOG_INFO_FMT("CONSENSUS HOOK");
     }

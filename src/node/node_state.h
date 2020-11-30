@@ -1697,12 +1697,14 @@ namespace ccf
       network.tables->set_consensus(consensus);
       cmd_forwarder->set_request_tracker(request_tracker);
 
+      LOG_INFO_FMT("HOOK HERE");
       network.tables->set_map_hook(
         network.nodes.get_name(),
         network.nodes.wrap_map_hook(
           [](kv::Version version, const Nodes::Write& w) -> std::unique_ptr<kv::ConsensusHook> {
             (void) version;
             (void) w;
+            LOG_INFO_FMT("MAP HOOK GENERATES CONSENSUS HOOK");
             return std::make_unique<ConfigurationChangeHook>();
           }
         ));

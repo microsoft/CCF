@@ -55,7 +55,7 @@ namespace kv
   class ConsensusHook
   {
   public:
-    virtual void operator()(const kv::Consensus&) = 0;
+    virtual void call(void *) = 0;
     virtual ~ConsensusHook() {};
   };
 

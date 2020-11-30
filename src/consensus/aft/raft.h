@@ -434,14 +434,15 @@ namespace aft
           return false;
 
         LOG_DEBUG_FMT(
-          "Replicated on leader {}: {}{}",
+          "Replicated on leader {}: {}{} ({} hooks)",
           state->my_node_id,
           index,
-          (globally_committable ? " committable" : ""));
+          (globally_committable ? " committable" : ""),
+          hooks->size());
 
         for (auto & hook: *hooks)
         {
-          *hook(*this);
+          hook->call(this);
         }
 
         bool force_ledger_chunk = false;
