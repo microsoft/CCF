@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "../ledger.h"
+#include "host/ledger.h"
 
-#include "../ds/serialized.h"
+#include "ds/serialized.h"
 
 #include <doctest/doctest.h>
 #include <string>
@@ -817,5 +817,47 @@ TEST_CASE("Multiple ledger paths")
     // Even though the ledger file for last_idx is in ledger_dir, the entry
     // cannot be read
     REQUIRE_FALSE(ledger.read_entry(last_idx).has_value());
+  }
+}
+
+TEST_CASE("Recover from read-only ledger directory only")
+{
+  static constexpr auto ledger_dir_2 = "ledger_dir_2";
+
+  fs::remove_all(ledger_dir);
+  fs::remove_all(ledger_dir_2);
+
+  size_t max_read_cache_size = 2;
+  size_t chunk_threshold = 30;
+  size_t chunk_count = 5;
+
+  size_t last_idx = 0;
+
+  INFO("Write many entries on first ledger");
+  {
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
+    TestEntrySubmitter entry_submitter(ledger);
+
+    // Writing some committed chunks
+    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    last_idx = entry_submitter.get_last_idx();
+    ledger.commit(last_idx);
+  }
+
+  INFO("Recover from read-only ledger entry only");
+  {
+    Ledger ledger(
+      ledger_dir_2, wf, chunk_threshold, max_read_cache_size, {ledger_dir});
+
+    read_entries_range_from_ledger(ledger, 1, last_idx);
+
+    TestEntrySubmitter entry_submitter(ledger, last_idx);
+
+    for (size_t i = 0; i < chunk_count; i++)
+    {
+      entry_submitter.write(true);
+    }
+
+    read_entries_range_from_ledger(ledger, 1, entry_submitter.get_last_idx());
   }
 }
