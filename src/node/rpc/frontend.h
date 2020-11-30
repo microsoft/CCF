@@ -721,6 +721,9 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
       auto tx = tables.create_tx();
+      // Note: this can only happen if the primary is malicious,
+      // and has executed a user transaction when the service wasn't
+      // open. The backup should ideally trigger a view change here.
       if (!is_open(tx))
       {
         throw std::logic_error("Transaction failed");
