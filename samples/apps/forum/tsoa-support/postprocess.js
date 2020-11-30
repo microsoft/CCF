@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import SwaggerParser from "@apidevtools/swagger-parser";
+import jsonmergepatch from "json-merge-patch";
 
 // endpoint metadata defaults when first added to endpoints.json
 const metadataDefaults = (readonly) => ({
@@ -186,8 +187,22 @@ SwaggerParser.dereference(openapiPath)
           );
           operation = null;
         }
-        if (!newEndpoints[url][method]["openapi"])
+        const patch = newEndpoints[url][method]["openapi_merge_patch"];
+        const replacement = newEndpoints[url][method]["openapi"];
+        if (patch && replacement) {
+          throw new Error(
+            `only one of "openapi" or "openapi_merge_patch" can be defined`
+          );
+        }
+        if (patch) {
+          newEndpoints[url][method]["openapi"] = jsonmergepatch.apply(
+            operation,
+            patch
+          );
+          delete newEndpoints[url][method]["openapi_merge_patch"];
+        } else if (!replacement) {
           newEndpoints[url][method]["openapi"] = operation;
+        }
       }
     }
     fs.mkdirSync(distDir, { recursive: true });
