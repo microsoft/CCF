@@ -97,7 +97,7 @@ A new node can only join an existing CCF network if its SGX quote is valid  [#re
 
 If the network has already been opened to users, members need to trust the joining node before it can become part of the network (see :ref:`members/common_member_operations:Trusting a New Node`).
 
-.. note:: To accelerate the joining procedure, it is possible for new nodes to join from a snapshot. More information on snapshots :ref:`here <operators/snapshots:Joining from Snapshot>`.
+.. note:: To accelerate the joining procedure, it is possible for new nodes to join from a snapshot. More information on snapshots :ref:`here <operators/ledger_snapshot:Joining from Snapshot>`.
 
 Using a Configuration File
 --------------------------
