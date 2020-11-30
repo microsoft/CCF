@@ -24,22 +24,66 @@
 struct auto_free_mbedtls_net_context
 {
   mbedtls_net_context ctx;
-  auto_free_mbedtls_net_context() { mbedtls_net_init(&ctx); }
-  ~auto_free_mbedtls_net_context() { mbedtls_net_free(&ctx); }
+  auto_free_mbedtls_net_context()
+  {
+    mbedtls_net_init(&ctx);
+  }
+  ~auto_free_mbedtls_net_context()
+  {
+    mbedtls_net_free(&ctx);
+  }
 };
 
 struct auto_free_mbedtls_ssl_context
 {
   mbedtls_ssl_context ctx;
-  auto_free_mbedtls_ssl_context() { mbedtls_ssl_init(&ctx); }
-  ~auto_free_mbedtls_ssl_context() { mbedtls_ssl_free(&ctx); }
+  auto_free_mbedtls_ssl_context()
+  {
+    mbedtls_ssl_init(&ctx);
+  }
+  ~auto_free_mbedtls_ssl_context()
+  {
+    mbedtls_ssl_free(&ctx);
+  }
 };
 
 struct auto_free_mbedtls_ssl_config
 {
   mbedtls_ssl_config cfg;
-  auto_free_mbedtls_ssl_config() { mbedtls_ssl_config_init(&cfg); }
-  ~auto_free_mbedtls_ssl_config() { mbedtls_ssl_config_free(&cfg); }
+  auto_free_mbedtls_ssl_config()
+  {
+    mbedtls_ssl_config_init(&cfg);
+  }
+  ~auto_free_mbedtls_ssl_config()
+  {
+    mbedtls_ssl_config_free(&cfg);
+  }
+};
+
+struct auto_free_mbedtls_entropy_context
+{
+  mbedtls_entropy_context ctx;
+  auto_free_mbedtls_entropy_context()
+  {
+    mbedtls_entropy_init(&ctx);
+  }
+  ~auto_free_mbedtls_entropy_context()
+  {
+    mbedtls_entropy_free(&ctx);
+  }
+};
+
+struct auto_free_mbedtls_ctr_drbg_context
+{
+  mbedtls_ctr_drbg_context ctx;
+  auto_free_mbedtls_ctr_drbg_context()
+  {
+    mbedtls_ctr_drbg_init(&ctx);
+  }
+  ~auto_free_mbedtls_ctr_drbg_context()
+  {
+    mbedtls_ctr_drbg_free(&ctx);
+  }
 };
 
 class TlsClient
@@ -49,13 +93,13 @@ private:
   std::string port;
   std::shared_ptr<tls::CA> node_ca;
   std::shared_ptr<tls::Cert> cert;
+  bool connected = false;
 
   auto_free_mbedtls_net_context server_fd;
   auto_free_mbedtls_ssl_context ssl;
   auto_free_mbedtls_ssl_config conf;
-
-  mbedtls_entropy_context entropy;
-  mbedtls_ctr_drbg_context ctr_drbg;
+  auto_free_mbedtls_entropy_context entropy;
+  auto_free_mbedtls_ctr_drbg_context ctr_drbg;
 
 public:
   TlsClient(
@@ -72,10 +116,10 @@ public:
   }
 
   TlsClient(const TlsClient& c) :
-  host(c.host),
-  port(c.port),
-  node_ca(c.node_ca),
-  cert(c.cert)
+    host(c.host),
+    port(c.port),
+    node_ca(c.node_ca),
+    cert(c.cert)
   {
     connect();
   }
@@ -83,18 +127,14 @@ public:
   virtual ~TlsClient()
   {
     // Signal the end of the connection
-    mbedtls_ssl_close_notify(&ssl.ctx);
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
+    if (connected)
+      mbedtls_ssl_close_notify(&ssl.ctx);
   }
 
   void connect()
   {
-    mbedtls_entropy_init(&entropy);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-
     auto err = mbedtls_ctr_drbg_seed(
-      &ctr_drbg, mbedtls_entropy_func, &entropy, nullptr, 0);
+      &ctr_drbg.ctx, mbedtls_entropy_func, &entropy.ctx, nullptr, 0);
     if (err)
       throw std::logic_error(tls::error_string(err));
 
@@ -116,8 +156,7 @@ public:
     if (node_ca != nullptr)
       node_ca->use(&conf.cfg);
 
-    mbedtls_ssl_conf_rng(&conf.cfg, mbedtls_ctr_drbg_random, &ctr_drbg);
-
+    mbedtls_ssl_conf_rng(&conf.cfg, mbedtls_ctr_drbg_random, &ctr_drbg.ctx);
     mbedtls_ssl_conf_authmode(&conf.cfg, MBEDTLS_SSL_VERIFY_REQUIRED);
 
     err = mbedtls_ssl_setup(&ssl.ctx, &conf.cfg);
@@ -140,6 +179,7 @@ public:
         (err != MBEDTLS_ERR_SSL_WANT_WRITE))
         throw std::logic_error(tls::error_string(err));
     }
+    connected = true;
   }
 
   auto get_ciphersuite_name()
@@ -169,6 +209,7 @@ public:
     }
     else if (ret == 0)
     {
+      connected = false;
       throw std::logic_error("Underlying transport closed");
     }
     else
@@ -195,6 +236,7 @@ public:
     }
     else if (ret == 0)
     {
+      connected = false;
       throw std::logic_error("Underlying transport closed");
     }
     else

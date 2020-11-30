@@ -131,8 +131,7 @@ public:
     ws_parser(*this)
   {}
 
-  HttpRpcTlsClient(
-    const HttpRpcTlsClient& c) :
+  HttpRpcTlsClient(const HttpRpcTlsClient& c) :
     TlsClient(c),
     parser(*this),
     ws_parser(*this)
