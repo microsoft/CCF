@@ -11,7 +11,7 @@ A C++ application exposes itself to CCF by implementing:
 
 The Logging application simply has:
 
-.. literalinclude:: ../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: rpc_handler
     :end-before: SNIPPET_END: rpc_handler
@@ -24,7 +24,7 @@ The Logging application simply has:
 
     The Logging application keeps its state in a pair of tables, one containing private encrypted logs and the other containing public unencrypted logs. Their type is defined as:
 
-    .. literalinclude:: ../../src/apps/logging/logging.cpp
+    .. literalinclude:: ../../samples/apps/logging/logging.cpp
         :language: cpp
         :start-after: SNIPPET: table_definition
         :lines: 1
@@ -32,7 +32,7 @@ The Logging application simply has:
 
     Table creation happens in the app's constructor:
 
-    .. literalinclude:: ../../src/apps/logging/logging.cpp
+    .. literalinclude:: ../../samples/apps/logging/logging.cpp
         :language: cpp
         :start-after: SNIPPET_START: constructor
         :end-before: SNIPPET_END: constructor
@@ -43,7 +43,7 @@ RPC Handler
 
 The type returned by :cpp:func:`ccfapp::get_rpc_handler()` should subclass :cpp:class:`ccf::UserRpcFrontend`, passing the base constructor a reference to an implementation of :cpp:class:`ccf::EndpointRegistry`:
 
-.. literalinclude:: ../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET: inherit_frontend
     :lines: 1
@@ -51,7 +51,7 @@ The type returned by :cpp:func:`ccfapp::get_rpc_handler()` should subclass :cpp:
 
 The logging app defines :cpp:class:`ccfapp::LoggerHandlers`, which creates and installs handler functions or lambdas for several different HTTP endpoints. Each of these functions takes as input the details of the current request (such as the URI which was called, the query string, the request body), interacts with the KV tables using the given :cpp:class:`kv::Tx` object, and returns a result:
 
-.. literalinclude:: ../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: record
     :end-before: SNIPPET_END: record
@@ -61,7 +61,7 @@ This example uses the ``json_adapter`` wrapper function, which handles parsing o
 
 Each function is installed as the handler for a specific HTTP resource, defined by a verb and URI:
 
-.. literalinclude:: ../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: install_record
     :end-before: SNIPPET_END: install_record
@@ -73,7 +73,7 @@ The return value from ``make_endpoint`` is an ``Endpoint&`` object which can be 
 
 To process the raw body directly, a handler should use the general lambda signature which takes a single ``EndpointContext&`` parameter. Examples of this are also included in the logging sample app. For instance the ``log_record_text`` handler takes a raw string as the request body:
 
-.. literalinclude:: ../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: log_record_text
     :end-before: SNIPPET_END: log_record_text
@@ -83,7 +83,7 @@ Rather than parsing the request body as JSON and extracting the message from it,
 
 This general signature also allows a handler to see additional caller context. An example of this is the ``log_record_prefix_cert`` handler:
 
-.. literalinclude:: ../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: log_record_prefix_cert
     :end-before: SNIPPET_END: log_record_prefix_cert
@@ -93,7 +93,7 @@ This uses mbedtls to parse the caller's TLS certificate, and prefixes the logged
 
 If a handler makes no writes to the KV, it may be installed as read-only:
 
-.. literalinclude:: ../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: install_get
     :end-before: SNIPPET_END: install_get
@@ -106,13 +106,13 @@ API Schema
 
 Instead of taking and returning `nlohmann::json` objects directly, the endpoint handlers use a macro-generated schema and parser converting compliant requests into a PoD C++ object:
 
-.. literalinclude:: ../../src/apps/logging/logging_schema.h
+.. literalinclude:: ../../samples/apps/logging/logging_schema.h
     :language: cpp
     :start-after: SNIPPET_START: macro_validation_macros
     :end-before: SNIPPET_END: macro_validation_macros
     :dedent: 2
 
-.. literalinclude:: ../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: macro_validation_record
     :end-before: SNIPPET_END: macro_validation_record

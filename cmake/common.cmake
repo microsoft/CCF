@@ -288,7 +288,7 @@ endif()
 
 # Perf scenario executable
 add_executable(
-  scenario_perf_client ${CCF_DIR}/samples/perf_client/scenario_perf_client.cpp
+  scenario_perf_client ${CCF_DIR}/src/perf_client/scenario_perf_client.cpp
 )
 use_client_mbedtls(scenario_perf_client)
 target_link_libraries(
@@ -357,6 +357,10 @@ sign_app_library(
 )
 # SNIPPET_END: JS generic application
 
+install(DIRECTORY ${CCF_DIR}/samples/apps/logging/js
+        DESTINATION samples/logging
+)
+
 # Samples
 
 # Helper for building clients inheriting from perf_client
@@ -370,7 +374,7 @@ function(add_client_exe name)
 
   target_link_libraries(${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT})
   target_include_directories(
-    ${name} PRIVATE ${CCF_DIR}/samples/perf_client ${PARSED_ARGS_INCLUDE_DIRS}
+    ${name} PRIVATE ${CCF_DIR}/src/perf_client ${PARSED_ARGS_INCLUDE_DIRS}
   )
 
   use_client_mbedtls(${name})

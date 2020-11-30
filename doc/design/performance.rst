@@ -84,7 +84,7 @@ For a finer grained view of performance the clients in these tests can also dump
 .. code-block:: bash
 
     cd build
-    python ../samples/perf_client/plot_tx_times.py --save-to perf_plot.png single client_0_test_sent.csv client_0_test_recv.csv
+    python ../samples/scripts/plot_tx_times.py --save-to perf_plot.png single client_0_test_sent.csv client_0_test_recv.csv
 
 The following plot was produced by this script, showing 1,000 transactions sent to the `SmallBank`_ sample application:
 
@@ -94,7 +94,7 @@ This displays several things:
 
     * The latency of each request (on the left y-axis), ie the delay between a request being sent and the corresponding response received, distinguishing
 
-        * the business transactions sent to SmallBank application (green dots) 
+        * the business transactions sent to SmallBank application (green dots)
         * the generic ``commit`` requests used to poll for global commit synchronisation (red dots)
 
     * The progress of the CCF commit version (on the right axis), showing both

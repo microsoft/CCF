@@ -10,6 +10,21 @@ PATH_HERE=$(dirname "$(realpath -s "$0")")
 VERSION_FILE="${PATH_HERE}"/../share/VERSION
 GOV_SCRIPT="${PATH_HERE}"/sandbox_gov.lua
 
+is_package_specified=false
+for item in "$@" ; do
+    if [ "$item" == "-p" ] || [ "$item" == "--package" ]; then
+        is_package_specified=true
+    fi
+done
+
+extra_args=("$@")
+if [ ${is_package_specified} == false ] && [ -f "${VERSION_FILE}" ]; then
+    # Only on install tree, default to installed js logging app
+    echo "No package/app specified. Defaulting to installed JS logging app"
+    extra_args+=(--package "${PATH_HERE}/../lib/libjs_generic")
+    extra_args+=(--js-app-bundle "${PATH_HERE}/../samples/logging/js")
+fi
+
 echo "Setting up Python environment..."
 
 if [ ! -f "${VENV_DIR}/bin/activate" ]; then
@@ -44,4 +59,4 @@ exec python "${START_NETWORK_SCRIPT}" \
     --gov-script "${GOV_SCRIPT}" \
     --ledger-chunk-bytes 5MB \
     --label sandbox \
-    "$@"
+    "${extra_args[@]}"
