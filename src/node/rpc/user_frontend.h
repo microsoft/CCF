@@ -12,12 +12,6 @@ namespace ccf
    */
   class UserRpcFrontend : public RpcFrontend
   {
-  protected:
-    std::string invalid_caller_error_message() const override
-    {
-      return "Could not find matching user certificate";
-    }
-
   public:
     UserRpcFrontend(kv::Store& tables, EndpointRegistry& h) :
       RpcFrontend(tables, h, Tables::USER_CLIENT_SIGNATURES)

@@ -1947,11 +1947,6 @@ namespace ccf
   class MemberRpcFrontend : public RpcFrontend
   {
   protected:
-    std::string invalid_caller_error_message() const override
-    {
-      return "Could not find matching member certificate";
-    }
-
     MemberEndpoints member_endpoints;
     Members* members;
 

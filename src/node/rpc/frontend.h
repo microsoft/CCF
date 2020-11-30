@@ -33,11 +33,6 @@ namespace ccf
       request_storing_disabled = true;
     }
 
-    virtual std::string invalid_caller_error_message() const
-    {
-      return "Could not find matching actor certificate";
-    }
-
   private:
     SpinLock verifiers_lock;
     std::map<CallerId, tls::VerifierPtr> verifiers;
