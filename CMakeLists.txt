@@ -905,7 +905,6 @@ configure_package_config_file(
   PATH_VARS
   CMAKE_INSTALL_LIBDIR
   CMAKE_INSTALL_BINDIR
-  CMAKE_INSTALL_DATADIR
   CMAKE_INSTALL_INCLUDEDIR)
 write_basic_package_version_file(
   ${CMAKE_BINARY_DIR}/cmake/ccf-config-version.cmake
