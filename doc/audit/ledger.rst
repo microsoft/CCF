@@ -1,9 +1,9 @@
 Ledger
 ======
 
-The CCF ledger is the persistent replicated append-only record of the transactions that have been executed by the network. It is written by the primary node when a transaction is executed and replicated to all backups which maintain their own duplicated copy. Each node in a network creates and maintains its own local copy of the ledger. Committed entries are always identical, but a node may be more or less up to date, and uncommitted entries may differ.
+.. The CCF ledger is the persistent replicated append-only record of the transactions that have been executed by the network. It is written by the primary node when a transaction is executed and replicated to all backups which maintain their own duplicated copy. Each node in a network creates and maintains its own local copy of the ledger. Committed entries are always identical, but a node may be more or less up to date, and uncommitted entries may differ.
 
-.. note:: A node writes its ledger to a directory as specified by the ``--ledger-dir`` command line argument.
+.. .. note:: A node writes its ledger to a directory as specified by the ``--ledger-dir`` command line argument.
 
 The entire service state is contained in the ledger (including both governance and application transactions). A single up-to-date copy of the ledger is enough to start a successor service if necessary, following the :doc:`/operators/recovery` procedure.
 
@@ -14,7 +14,7 @@ The ledger contains regular signature transactions (``ccf.signatures`` map) whic
 File Layout
 -----------
 
-The ledger directory contains a series of ledger files (or chunks). The size of each ledger file is controlled by the ``--ledger-chunk-bytes`` command line option.
+The size of each ledger file is controlled by the ``--ledger-chunk-bytes`` command line option.
 
 .. note:: When a new node joins from a snapshot (see :doc:`/operators/snapshots`), it is important that subsequent ledger files are the same on all nodes. To do so, a new ledger file is created every time a snapshot is generated, even if the specified size of the file has not yet been reached.
 
@@ -43,7 +43,7 @@ Ledger Encryption
 
 Each entry in the ledger corresponds to a transaction committed by the primary node.
 
-When a transaction is committed, each affected ``Store::Map`` is serialised in different security domains (i.e. public or private), based on the policy set when the ``Store::Map`` was created (default is private). A public ``Store::Map`` is serialised and stored in the ledger as plaintext while a private ``Store::Map`` is serialised and encrypted before being stored.
+When a transaction is committed, each affected ``Store::Map`` is serialised in different security domains (i.e. public or private), based on the name of the Map when it was created (default is private). A public ``Store::Map`` is serialised and stored in the ledger as plaintext while a private ``Store::Map`` is serialised and encrypted before being stored.
 
 Ledger entries are integrity-protected and encrypted using a symmetric key shared by all trusted nodes (see :doc:`/design/cryptography`). This key is kept secure inside each enclave. See :ref:`members/common_member_operations:Rekeying Ledger` for details on how members can rotate the ledger encryption key.
 
