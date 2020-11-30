@@ -192,8 +192,6 @@ namespace ccfapp
     // API loosely modeled after
     // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/wrapKey.
 
-    JSAutoFreeCtx auto_free(ctx);
-
     size_t key_size;
     uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
     if (!key)
@@ -209,6 +207,9 @@ namespace ccfapp
       js_dump_error(ctx);
       return JS_EXCEPTION;
     }
+
+    void* auto_free_ptr = JS_GetContextOpaque(ctx);
+    JSAutoFreeCtx& auto_free = *(JSAutoFreeCtx*)auto_free_ptr;
 
     JSValue wrap_algo = argv[2];
     auto wrap_algo_name_val =
@@ -895,6 +896,7 @@ namespace ccfapp
         throw std::runtime_error("Failed to initialise QuickJS context");
       }
       JSAutoFreeCtx auto_free(ctx);
+      JS_SetContextOpaque(ctx, &auto_free);
 
       // Set prototype for request body class
       JSValue body_proto = JS_NewObject(ctx);
