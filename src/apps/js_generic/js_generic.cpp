@@ -87,7 +87,10 @@ namespace ccfapp
     JSRuntime* rt;
 
     JSAutoFreeRuntime(JSRuntime* rt) : rt(rt) {}
-    ~JSAutoFreeRuntime() { JS_FreeRuntime(rt); }
+    ~JSAutoFreeRuntime()
+    {
+      JS_FreeRuntime(rt);
+    }
   };
 
   struct JSAutoFreeCtx
@@ -95,7 +98,10 @@ namespace ccfapp
     JSContext* ctx;
 
     JSAutoFreeCtx(JSContext* ctx) : ctx(ctx) {}
-    ~JSAutoFreeCtx() { JS_FreeContext(ctx); }
+    ~JSAutoFreeCtx()
+    {
+      JS_FreeContext(ctx);
+    }
 
     struct JSWrappedValue
     {
