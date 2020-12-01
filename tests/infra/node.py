@@ -290,7 +290,7 @@ class Node:
                 )
             return committed
 
-        return self.remote.get_committed_snapshots(wait_for_snapshots_to_be_committed)
+        return self.remote.get_committed_snapshots()
 
     def client_certs(self, identity=None):
         return {
