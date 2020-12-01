@@ -244,6 +244,12 @@ namespace kv
         {
           map->set_global_hook(global_it->second);
         }
+
+        const auto map_it = map_hooks.find(map_name);
+        if (map_it != map_hooks.end())
+        {
+          map->set_map_hook(map_it->second);
+        }
       }
     }
 
@@ -1212,6 +1218,7 @@ namespace kv
       const auto it = maps.find(map_name);
       if (it != maps.end())
       {
+        LOG_INFO_FMT("LOCAL HOOK on {}", map_name);
         it->second.second->set_local_hook(hook);
       }
     }
@@ -1224,6 +1231,17 @@ namespace kv
       if (it != maps.end())
       {
         it->second.second->unset_local_hook();
+      }
+    }
+
+    void unset_map_hook(const std::string& map_name)
+    {
+      local_hooks.erase(map_name);
+
+      const auto it = maps.find(map_name);
+      if (it != maps.end())
+      {
+        it->second.second->unset_map_hook();
       }
     }
 

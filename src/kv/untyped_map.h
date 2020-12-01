@@ -547,6 +547,11 @@ namespace kv::untyped
       hook = hook_;
     }
 
+    void unset_map_hook()
+    {
+      hook = nullptr;
+    }
+
     /** Set handler to be called on local transaction commit
      *
      * @param hook function to be called on local transaction commit
