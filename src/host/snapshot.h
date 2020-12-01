@@ -72,10 +72,12 @@ namespace asynchost
     }
 
     void commit_snapshot(
-      consensus::Index snapshot_idx, consensus::Index evidence_idx)
+      consensus::Index snapshot_idx,
+      consensus::Index evidence_idx,
+      consensus::Index evidence_commit_idx)
     {
       // Find previously-generated snapshot for snapshot_idx and rename file,
-      // including evidence_idx in name too
+      // including evidence_idx and evidence_commit_idx in name too
       for (auto const& f : fs::directory_iterator(snapshot_dir))
       {
         auto file_name = f.path().filename().string();
@@ -84,16 +86,20 @@ namespace asynchost
           get_snapshot_idx_from_file_name(file_name) == snapshot_idx)
         {
           LOG_INFO_FMT(
-            "Committing snapshot file \"{}\" with evidence at {}",
+            "Committing snapshot file \"{}\" with evidence at {} and evidence "
+            "proof committed at {}",
             file_name,
-            evidence_idx);
+            evidence_idx,
+            evidence_commit_idx);
 
           const auto committed_file_name = fmt::format(
-            "{}.{}{}{}",
+            "{}.{}{}{}{}{}",
             file_name,
             snapshot_committed_suffix,
             snapshot_idx_delimiter,
-            evidence_idx);
+            evidence_idx,
+            snapshot_idx_delimiter,
+            evidence_commit_idx);
 
           fs::rename(
             fs::path(snapshot_dir) / fs::path(file_name),
@@ -167,7 +173,9 @@ namespace asynchost
         [this](const uint8_t* data, size_t size) {
           auto snapshot_idx = serialized::read<consensus::Index>(data, size);
           auto evidence_idx = serialized::read<consensus::Index>(data, size);
-          commit_snapshot(snapshot_idx, evidence_idx);
+          auto evidence_commit_idx =
+            serialized::read<consensus::Index>(data, size);
+          commit_snapshot(snapshot_idx, evidence_idx, evidence_commit_idx);
         });
     }
   };

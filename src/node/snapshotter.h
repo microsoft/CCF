@@ -40,6 +40,11 @@ namespace ccf
       // At first, the evidence isn't committed
       std::optional<consensus::Index>
         evidence_commit_idx; // Records when the evidence was first committed
+
+      SnapshotInfo(consensus::Index idx, consensus::Index evidence_idx) :
+        idx(idx),
+        evidence_idx(evidence_idx)
+      {}
     };
     std::deque<SnapshotInfo> snapshot_evidence_indices;
 
@@ -73,12 +78,19 @@ namespace ccf
     }
 
     void commit_snapshot(
-      consensus::Index snapshot_idx, consensus::Index evidence_idx)
+      consensus::Index snapshot_idx,
+      consensus::Index evidence_idx,
+      consensus::Index evidence_commit_idx)
     {
       // The snapshot_idx is used to retrieve the correct snapshot file
-      // previously generated. The evidence_idx is recorded as metadata.
+      // previously generated. The evidence_idx and evidence_commit_idx are
+      // recorded as metadata.
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::snapshot_commit, to_host, snapshot_idx, evidence_idx);
+        consensus::snapshot_commit,
+        to_host,
+        snapshot_idx,
+        evidence_idx,
+        evidence_commit_idx);
     }
 
     struct SnapshotMsg
@@ -119,11 +131,12 @@ namespace ccf
       consensus::Index snapshot_idx = static_cast<consensus::Index>(snapshot_v);
       consensus::Index snapshot_evidence_idx =
         static_cast<consensus::Index>(tx.commit_version());
-      snapshot_evidence_indices.push_back(
-        {snapshot_idx, snapshot_evidence_idx});
+      snapshot_evidence_indices.emplace_back(
+        snapshot_idx, snapshot_evidence_idx);
 
       LOG_DEBUG_FMT(
-        "Snapshot successfully generated for seqno {}, with evidence seqno {}: "
+        "Snapshot successfully generated for seqno {}, with evidence seqno "
+        "{}: "
         "{}",
         snapshot_idx,
         snapshot_evidence_idx,
@@ -216,7 +229,7 @@ namespace ccf
               "Commit idx {} > evidence commit idx {}",
               idx,
               it->evidence_commit_idx.value());
-            commit_snapshot(it->idx, it->evidence_idx);
+            commit_snapshot(it->idx, it->evidence_idx, idx);
             auto it_ = it;
             it++;
             snapshot_evidence_indices.erase(it_);
