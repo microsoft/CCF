@@ -21,9 +21,6 @@ Glossary
   Intel SGX PSW
     Intel SGX Platform SoftWare which manages SGX enclaves loading as well as communication with architectural enclaves. More details `here <https://github.com/intel/linux-sgx>`_.
 
-  JSON-RPC
-    `JSON-RPC <https://en.wikipedia.org/wiki/JSON-RPC>`_ is a remote procedure call protocol encoded in JSON.
-
   Members
     Constitute the consortium governing a CCF network. Their public identity should be registered in CCF.
 
