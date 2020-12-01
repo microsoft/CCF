@@ -270,7 +270,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   add_warning_checks(cchost.virtual)
   add_san(cchost.virtual)
   add_lvi_mitigations(cchost.virtual)
-  enable_coverage(cchost.virtual)
   target_link_libraries(
     cchost.virtual
     PRIVATE uv
