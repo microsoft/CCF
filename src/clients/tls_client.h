@@ -28,6 +28,7 @@ private:
   std::string port;
   std::shared_ptr<tls::CA> node_ca;
   std::shared_ptr<tls::Cert> cert;
+  bool connected = false;
 
   mbedtls_net_context server_fd;
   mbedtls_entropy_context entropy;
@@ -35,33 +36,8 @@ private:
   mbedtls_ssl_context ssl;
   mbedtls_ssl_config conf;
 
-public:
-  TlsClient(
-    const std::string& host,
-    const std::string& port,
-    std::shared_ptr<tls::CA> node_ca = nullptr,
-    std::shared_ptr<tls::Cert> cert = nullptr) :
-    host(host),
-    port(port),
-    node_ca(node_ca),
-    cert(cert)
-  {
-    connect();
-  }
-
-  virtual ~TlsClient()
-  {
-    disconnect();
-  }
-
   void connect()
   {
-    mbedtls_net_init(&server_fd);
-    mbedtls_ssl_init(&ssl);
-    mbedtls_ssl_config_init(&conf);
-    mbedtls_entropy_init(&entropy);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-
     auto err = mbedtls_ctr_drbg_seed(
       &ctr_drbg, mbedtls_entropy_func, &entropy, nullptr, 0);
     if (err)
@@ -86,7 +62,6 @@ public:
       node_ca->use(&conf);
 
     mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
-
     mbedtls_ssl_conf_authmode(&conf, MBEDTLS_SSL_VERIFY_REQUIRED);
 
     err = mbedtls_ssl_setup(&ssl, &conf);
@@ -109,18 +84,66 @@ public:
         (err != MBEDTLS_ERR_SSL_WANT_WRITE))
         throw std::logic_error(tls::error_string(err));
     }
+    connected = true;
   }
 
-  void disconnect()
+  void teardown()
   {
-    // Signal the end of the connection
-    mbedtls_ssl_close_notify(&ssl);
-
     mbedtls_net_free(&server_fd);
     mbedtls_ssl_free(&ssl);
     mbedtls_ssl_config_free(&conf);
     mbedtls_ctr_drbg_free(&ctr_drbg);
     mbedtls_entropy_free(&entropy);
+  }
+
+  void init()
+  {
+    mbedtls_net_init(&server_fd);
+    mbedtls_ssl_init(&ssl);
+    mbedtls_ssl_config_init(&conf);
+    mbedtls_entropy_init(&entropy);
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+
+    try
+    {
+      connect();
+    }
+    catch (const std::exception&)
+    {
+      teardown();
+      throw;
+    }
+  }
+
+public:
+  TlsClient(
+    const std::string& host,
+    const std::string& port,
+    std::shared_ptr<tls::CA> node_ca = nullptr,
+    std::shared_ptr<tls::Cert> cert = nullptr) :
+    host(host),
+    port(port),
+    node_ca(node_ca),
+    cert(cert)
+  {
+    init();
+  }
+
+  TlsClient(const TlsClient& c) :
+    host(c.host),
+    port(c.port),
+    node_ca(c.node_ca),
+    cert(c.cert)
+  {
+    init();
+  }
+
+  virtual ~TlsClient()
+  {
+    // Signal the end of the connection
+    if (connected)
+      mbedtls_ssl_close_notify(&ssl);
+    teardown();
   }
 
   auto get_ciphersuite_name()
@@ -150,6 +173,7 @@ public:
     }
     else if (ret == 0)
     {
+      connected = false;
       throw std::logic_error("Underlying transport closed");
     }
     else
@@ -176,6 +200,7 @@ public:
     }
     else if (ret == 0)
     {
+      connected = false;
       throw std::logic_error("Underlying transport closed");
     }
     else

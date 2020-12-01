@@ -387,9 +387,9 @@ namespace loggingapp
       logger_handlers(network, context)
     {}
 
-    void open() override
+    void open(std::optional<tls::Pem*> identity = std::nullopt) override
     {
-      ccf::UserRpcFrontend::open();
+      ccf::UserRpcFrontend::open(identity);
       logger_handlers.openapi_info.title = "CCF Sample Logging App";
       logger_handlers.openapi_info.description =
         "This CCF sample app implements a simple logging application, securely "
