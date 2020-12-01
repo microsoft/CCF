@@ -31,8 +31,8 @@ namespace tls
     std::shared_ptr<CA> peer_ca;
     std::optional<std::string> peer_hostname;
 
-    mbedtls::X509Crt own_cert;
-    mbedtls_pk_context own_pkey;
+    mbedtls::X509Crt own_cert = nullptr;
+    mbedtls::PKContext own_pkey = nullptr;
     bool has_own_cert;
 
     Auth auth;
@@ -50,13 +50,16 @@ namespace tls
       has_own_cert(false),
       auth(auth_)
     {
-      mbedtls_x509_crt_init(own_cert.get());
-      mbedtls_pk_init(&own_pkey);
+      auto tmp_cert = mbedtls::make_unique<mbedtls::X509Crt>();
+      auto tmp_pkey = mbedtls::make_unique<mbedtls::PKContext>();
+
+      mbedtls_x509_crt_init(tmp_cert.get());
+      mbedtls_pk_init(tmp_pkey.get());
 
       if (own_cert_.has_value() && own_pkey_.has_value())
       {
         int rc = mbedtls_x509_crt_parse(
-          own_cert.get(), own_cert_->data(), own_cert_->size());
+          tmp_cert.get(), own_cert_->data(), own_cert_->size());
 
         if (rc != 0)
         {
@@ -65,7 +68,7 @@ namespace tls
         }
 
         rc = mbedtls_pk_parse_key(
-          &own_pkey, own_pkey_->data(), own_pkey_->size(), pw.p, pw.n);
+          tmp_pkey.get(), own_pkey_->data(), own_pkey_->size(), pw.p, pw.n);
         if (rc != 0)
         {
           throw std::logic_error("Could not parse key: " + error_string(rc));
@@ -73,12 +76,12 @@ namespace tls
 
         has_own_cert = true;
       }
+
+      own_cert = std::move(tmp_cert);
+      own_pkey = std::move(tmp_pkey);
     }
 
-    ~Cert()
-    {
-      mbedtls_pk_free(&own_pkey);
-    }
+    ~Cert() {}
 
     void use(mbedtls_ssl_context* ssl, mbedtls_ssl_config* cfg)
     {
@@ -104,7 +107,7 @@ namespace tls
 
       if (has_own_cert)
       {
-        mbedtls_ssl_conf_own_cert(cfg, own_cert.get(), &own_pkey);
+        mbedtls_ssl_conf_own_cert(cfg, own_cert.get(), own_pkey.get());
       }
     }
 
