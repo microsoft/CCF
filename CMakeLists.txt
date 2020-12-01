@@ -152,7 +152,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-  enable_coverage(ccf.virtual)
   use_client_mbedtls(ccf.virtual)
   add_san(ccf.virtual)
   add_lvi_mitigations(ccf.virtual)
