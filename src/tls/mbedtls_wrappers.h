@@ -21,7 +21,7 @@ namespace mbedtls
   }; \
   using NEW_TYPE = std::unique_ptr<MBED_TYPE, NEW_TYPE##_DELETER>; \
   template <> \
-  NEW_TYPE make_unique<NEW_TYPE>() \
+  inline NEW_TYPE make_unique<NEW_TYPE>() \
   { \
     return NEW_TYPE(new MBED_TYPE); \
   }
