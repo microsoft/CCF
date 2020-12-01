@@ -441,19 +441,20 @@ describe("REST API", function () {
             "csv-b": { type: "string" },
           },
         };
-        await bent("POST", 201)(`${POLL_ENDPOINT_URL}`, body, fakeAuth.user(1));
+        const userId = 42; // distinct from other test cases
+        await bent("POST", 201)(`${POLL_ENDPOINT_URL}`, body, fakeAuth.user(userId));
 
         const rows = [
           { Topic: "csv-a", Opinion: 1.4 },
           { Topic: "csv-b", Opinion: "foo" },
         ];
         const csv = unparse(rows);
-        await bent("POST", 204)(`${CSV_ENDPOINT_URL}`, csv, fakeAuth.user(1));
+        await bent("POST", 204)(`${CSV_ENDPOINT_URL}`, csv, fakeAuth.user(userId));
 
         const csvOut = await bent("GET", "string", 200)(
           `${CSV_ENDPOINT_URL}`,
           null,
-          fakeAuth.user(1)
+          fakeAuth.user(userId)
         );
         const kvRows = parse(csvOut, { header: true, dynamicTyping: true })
           .data;
