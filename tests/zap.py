@@ -15,12 +15,28 @@ def test(network, args):
     openapi_endpoint = f"https://{node.host}:{node.rpc_port}/node/api"
 
     args = [
-        "docker", "run", "--rm", "--network", "host", 
-        "-v", f"{args.binary_dir}:/zap/wrk",
-        "-t", "owasp/zap2docker-stable", "zap-api-scan.py",
-        "-t", openapi_endpoint, "-f", "openapi",
-        "-c", "zap.config",
-        "-l", "INFO", "-r", "zap_report.html", "-J", "zap_report.json"
+        "docker",
+        "run",
+        "--rm",
+        "--network",
+        "host",
+        "-v",
+        f"{args.binary_dir}:/zap/wrk",
+        "-t",
+        "owasp/zap2docker-stable",
+        "zap-api-scan.py",
+        "-t",
+        openapi_endpoint,
+        "-f",
+        "openapi",
+        "-c",
+        "zap.config",
+        "-l",
+        "INFO",
+        "-r",
+        "zap_report.html",
+        "-J",
+        "zap_report.json",
     ]
 
     subprocess.run(args, check=True)
