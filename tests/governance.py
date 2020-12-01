@@ -192,11 +192,25 @@ def test_proposal_over_unauthenticated_connection(network, args):
     assert proposal.state == infra.proposal.ProposalState.Open
 
 
+@reqs.description("Check node/ids endpoint")
+def test_node_ids(network, args):
+    nodes = network.find_nodes()
+    for node in nodes:
+        with node.client() as c:
+            r = c.get(f'/node/node/ids?host="{node.pubhost}"&port="{node.rpc_port}"')
+            assert r.status_code == 200
+            assert r.body.json()["nodes"] == [
+                {"node_id": node.node_id, "status": "TRUSTED"}
+            ]
+        return network
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
+        network = test_node_ids(network, args)
         network = test_member_data(network, args)
         network = test_quote(network, args)
         network = test_user(network, args)

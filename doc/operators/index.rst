@@ -57,7 +57,7 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     /quickstart/run_setup
     start_network
-    snapshots
+    ledger_snapshot
     recovery
     node_output
     resource_usage
