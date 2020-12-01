@@ -152,7 +152,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-  enable_coverage(ccf.virtual)
   use_client_mbedtls(ccf.virtual)
   add_san(ccf.virtual)
   add_lvi_mitigations(ccf.virtual)
@@ -200,32 +199,6 @@ install(FILES tests/sandbox/sandbox_gov.lua DESTINATION bin)
 install(FILES tests/start_network.py DESTINATION bin)
 install(FILES tests/requirements.txt DESTINATION bin)
 
-# Create patched alternative of library, to test code version changes
-function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
-  set(enc_name ${name}.enclave)
-  if(TARGET ${enc_name})
-    set(patched_name ${name}.patched.enclave)
-    set(patched_lib_name lib${patched_name}.so)
-    add_custom_command(
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
-      COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib${enc_name}.so
-              ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
-      COMMAND PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH} python3
-              patch_binary.py -p ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
-      WORKING_DIRECTORY ${CCF_DIR}/tests
-      DEPENDS ${enc_name}
-    )
-
-    add_custom_target(
-      ${patched_name} ALL
-      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
-    )
-    sign_app_library(
-      ${patched_name} ${app_oe_conf_path} ${enclave_sign_key_path}
-    )
-  endif()
-endfunction()
-
 # Generate an ephemeral signing key
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
@@ -236,16 +209,9 @@ add_custom_target(
   signing_key ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 
-add_ccf_app(
-  logging SRCS samples/apps/logging/logging.cpp
-               samples/apps/logging/stub_for_code_signing.cpp
-)
+add_ccf_app(logging SRCS samples/apps/logging/logging.cpp)
 sign_app_library(
   logging.enclave ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/logging/oe_sign.conf
-  ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
-)
-create_patched_enclave_lib(
-  logging ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/logging/oe_sign.conf
   ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 
