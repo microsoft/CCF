@@ -34,7 +34,7 @@ jobs:
 
   - template: common.yml
     parameters:
-      target: Perf
+      target: NoSGX
       env: "${{ parameters.env.NoSGX }}"
       cmake_args: "${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
       suffix: "Instrumented"
