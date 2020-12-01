@@ -89,11 +89,11 @@ private:
 
   void teardown()
   {
-    mbedtls_net_init(&server_fd);
-    mbedtls_ssl_init(&ssl);
-    mbedtls_ssl_config_init(&conf);
-    mbedtls_entropy_init(&entropy);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
+    mbedtls_net_free(&server_fd);
+    mbedtls_ssl_free(&ssl);
+    mbedtls_ssl_config_free(&conf);
+    mbedtls_ctr_drbg_free(&ctr_drbg);
+    mbedtls_entropy_free(&entropy);
   }
 
   void init()
