@@ -37,9 +37,8 @@ namespace ccf
       consensus::Index idx;
       consensus::Index evidence_idx;
 
-      // At first, the evidence isn't committed
-      std::optional<consensus::Index>
-        evidence_commit_idx; // Records when the evidence was first committed
+      // The evidence isn't committed when the snapshot is generated
+      std::optional<consensus::Index> evidence_commit_idx;
 
       SnapshotInfo(consensus::Index idx, consensus::Index evidence_idx) :
         idx(idx),
@@ -220,15 +219,10 @@ namespace ccf
       for (auto it = snapshot_evidence_indices.begin();
            it != snapshot_evidence_indices.end();)
       {
-        LOG_FAIL_FMT("Looking at snapshot at {}", it->idx);
         if (it->evidence_commit_idx.has_value())
         {
           if (idx > it->evidence_commit_idx.value())
           {
-            LOG_FAIL_FMT(
-              "Commit idx {} > evidence commit idx {}",
-              idx,
-              it->evidence_commit_idx.value());
             commit_snapshot(it->idx, it->evidence_idx, idx);
             auto it_ = it;
             it++;
@@ -238,7 +232,6 @@ namespace ccf
         }
         else if (idx >= it->evidence_idx)
         {
-          LOG_FAIL_FMT("Evidence committed at {}", idx);
           it->evidence_commit_idx = idx;
         }
         it++;
