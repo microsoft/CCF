@@ -5,6 +5,7 @@
 #include "consensus/ledger_enclave_types.h"
 #include "host/ledger.h"
 
+#include <charconv>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -66,10 +67,32 @@ namespace asynchost
         return std::nullopt;
       }
 
-      // TODO: Use from_chars
-      return std::make_pair(
-        std::stol(evidence_indices.substr(0, evidence_indices_separator_pos)),
-        std::stol(evidence_indices.substr(evidence_indices_separator_pos + 1)));
+      size_t evidence_idx;
+      std::string_view str_evidence_idx =
+        evidence_indices.substr(0, evidence_indices_separator_pos);
+      if (
+        std::from_chars(
+          str_evidence_idx.data(),
+          str_evidence_idx.data() + str_evidence_idx.size(),
+          evidence_idx)
+          .ec != std::errc())
+      {
+        return std::nullopt;
+      }
+
+      size_t evidence_commit_idx;
+      std::string_view str_evidence_commit_idx =
+        evidence_indices.substr(evidence_indices_separator_pos + 1);
+      if (
+        std::from_chars(
+          str_evidence_commit_idx.data(),
+          str_evidence_commit_idx.data() + str_evidence_commit_idx.size(),
+          evidence_commit_idx)
+          .ec != std::errc())
+      {
+        return std::nullopt;
+      }
+      return std::make_pair(evidence_idx, evidence_commit_idx);
     }
 
   public:
@@ -178,9 +201,7 @@ namespace asynchost
           get_snapshot_evidence_idx_from_file_name(file_name);
         if (!evidence_indices.has_value())
         {
-          LOG_INFO_FMT(
-            "Ignoring \"{}\" because it is not a committed snapshot file",
-            file_name);
+          LOG_INFO_FMT("Ignoring uncommitted snapshot file \"{}\"", file_name);
           continue;
         }
 
