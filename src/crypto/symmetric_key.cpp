@@ -4,7 +4,6 @@
 
 #include "ds/logger.h"
 #include "ds/thread_messaging.h"
-#include "error.h"
 #include "tls/error_string.h"
 
 #include <mbedtls/aes.h>

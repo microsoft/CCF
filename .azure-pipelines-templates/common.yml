@@ -26,9 +26,6 @@ jobs:
           ctest_timeout: ${{ parameters.ctest_timeout }}
 
       - ${{ if eq(parameters.suffix, 'Instrumented') }}:
-          - template: coverage.yml
-
-      - ${{ if eq(parameters.suffix, 'Instrumented') }}:
           - template: scan_build.yml
 
       - ${{ if eq(parameters.suffix, 'Perf') }}:
