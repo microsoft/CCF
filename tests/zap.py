@@ -23,8 +23,7 @@ def test(network, args):
         "-l", "INFO", "-r", "zap_report.html", "-J", "zap_report.json"
     ]
 
-    r = subprocess.run(args, check=False)
-    assert r.returncode == 0, r.returncode
+    subprocess.run(args, check=True)
 
 
 def run(args):
