@@ -564,6 +564,7 @@ namespace kv
     virtual EncryptorPtr get_encryptor() = 0;
     virtual DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
+      std::vector<std::shared_ptr<ConsensusHook>>& hooks,
       bool public_only = false,
       kv::Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;

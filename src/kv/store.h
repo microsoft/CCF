@@ -83,9 +83,11 @@ namespace kv
 
 
     DeserialiseSuccess commit_deserialised(
-      OrderedChanges& changes, Version& v, const MapCollection& new_maps)
+      OrderedChanges& changes,
+      Version& v,
+      const MapCollection& new_maps,
+      std::vector<std::shared_ptr<ConsensusHook>>& hooks)
     {
-      std::vector<std::shared_ptr<ConsensusHook>> hooks;
       auto c = apply_changes(
         changes, [v]() { return v; }, hooks, new_maps);
       if (!c.has_value())
@@ -610,6 +612,7 @@ namespace kv
 
     DeserialiseSuccess deserialise_views(
       const std::vector<uint8_t>& data,
+      std::vector<std::shared_ptr<ConsensusHook>>& hooks,
       bool public_only = false,
       Term* term_ = nullptr,
       Version* index_ = nullptr,
@@ -712,7 +715,7 @@ namespace kv
 
       if (commit)
       {
-        success = commit_deserialised(changes, v, new_maps);
+        success = commit_deserialised(changes, v, new_maps, hooks);
         if (success == DeserialiseSuccess::FAILED)
         {
           return success;
@@ -764,7 +767,7 @@ namespace kv
 
         if (changes.find(ccf::Tables::SIGNATURES) != changes.end())
         {
-          success = commit_deserialised(changes, v, new_maps);
+          success = commit_deserialised(changes, v, new_maps, hooks);
           if (success == DeserialiseSuccess::FAILED)
           {
             return success;
@@ -800,7 +803,7 @@ namespace kv
         }
         else if (changes.find(ccf::Tables::BACKUP_SIGNATURES) != changes.end())
         {
-          success = commit_deserialised(changes, v, new_maps);
+          success = commit_deserialised(changes, v, new_maps, hooks);
           if (success == DeserialiseSuccess::FAILED)
           {
             return success;
@@ -835,7 +838,7 @@ namespace kv
         }
         else if (changes.find(ccf::Tables::NONCES) != changes.end())
         {
-          success = commit_deserialised(changes, v, new_maps);
+          success = commit_deserialised(changes, v, new_maps, hooks);
           if (success == DeserialiseSuccess::FAILED)
           {
             return success;
@@ -857,7 +860,7 @@ namespace kv
         else if (changes.find(ccf::Tables::NEW_VIEWS) != changes.end())
         {
           LOG_INFO_FMT("Applying new view");
-          success = commit_deserialised(changes, v, new_maps);
+          success = commit_deserialised(changes, v, new_maps, hooks);
           if (success == DeserialiseSuccess::FAILED)
           {
             return success;
@@ -896,10 +899,11 @@ namespace kv
 
     DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
+      std::vector<std::shared_ptr<kv::ConsensusHook>>& hooks,
       bool public_only = false,
       Term* term = nullptr) override
     {
-      return deserialise_views(data, public_only, term);
+      return deserialise_views(data, hooks, public_only, term);
     }
 
     bool operator==(const Store& that) const
@@ -1199,13 +1203,11 @@ namespace kv
 
     void set_map_hook(const std::string& map_name, const kv::untyped::Map::MapHook& hook)
     {
-      LOG_INFO_FMT("HOOK THERE on {}", map_name);
       map_hooks[map_name] = hook;
 
       const auto it = maps.find(map_name);
       if (it != maps.end())
       {
-        LOG_INFO_FMT("HOOK on {}", map_name);
         it->second.second->set_map_hook(hook);
       }
     }
@@ -1218,7 +1220,6 @@ namespace kv
       const auto it = maps.find(map_name);
       if (it != maps.end())
       {
-        LOG_INFO_FMT("LOCAL HOOK on {}", map_name);
         it->second.second->set_local_hook(hook);
       }
     }

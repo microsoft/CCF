@@ -1097,16 +1097,18 @@ namespace aft
         auto tx = store->create_tx();
         kv::DeserialiseSuccess deserialise_success;
         ccf::PrimarySignature sig;
+        std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
         if (consensus_type == ConsensusType::BFT)
         {
           deserialise_success = store->deserialise_views(
-            entry, public_only, &sig_term, &sig_index, &tx, &sig);
+            entry, hooks, public_only, &sig_term, &sig_index, &tx, &sig);
         }
         else
         {
           deserialise_success =
-            store->deserialise(entry, public_only, &sig_term);
+            store->deserialise(entry, hooks, public_only, &sig_term);
         }
+        // TODO: apply hooks here
 
         bool globally_committable =
           (deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);

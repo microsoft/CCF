@@ -48,6 +48,7 @@ namespace aft
     virtual void set_term(Term t) = 0;
     virtual S deserialise_views(
       const std::vector<uint8_t>& data,
+      std::vector<std::shared_ptr<kv::ConsensusHook>>& hooks,
       bool public_only = false,
       kv::Term* term = nullptr,
       kv::Version* index_ = nullptr,
@@ -128,6 +129,7 @@ namespace aft
 
     S deserialise_views(
       const std::vector<uint8_t>& data,
+      std::vector<std::shared_ptr<kv::ConsensusHook>>& hooks,
       bool public_only = false,
       kv::Term* term = nullptr,
       kv::Version* index = nullptr,
@@ -136,7 +138,7 @@ namespace aft
     {
       auto p = x.lock();
       if (p)
-        return p->deserialise_views(data, public_only, term, index, tx, sig);
+        return p->deserialise_views(data, hooks, public_only, term, index, tx, sig);
       return S::FAILED;
     }
   };

@@ -7,12 +7,57 @@
 
 namespace ccf
 {
+  struct NodeAddr
+  {
+    std::string hostname;
+    std::string port;
+  };
+
   class ConfigurationChangeHook : public kv::ConsensusHook
   {
+    std::map<NodeId, std::optional<NodeAddr>> cfg_delta;
+
   public:
+    ConfigurationChangeHook(const Nodes::Write& w)
+    {
+      for (const auto& [node_id, opt_ni] : w)
+      {
+        const auto& ni = opt_ni.value();
+        switch (ni.status)
+        {
+          case NodeStatus::PENDING:
+          {
+            // Pending nodes are not added to consensus until they are
+            // trusted
+            break;
+          }
+          case NodeStatus::TRUSTED:
+          {
+            cfg_delta.try_emplace(node_id, NodeAddr{ni.nodehost, ni.nodeport});
+            break;
+          }
+          case NodeStatus::RETIRED:
+          {
+            cfg_delta.try_emplace(node_id, std::nullopt);
+            break;
+          }
+          default:
+          {
+          }
+        }
+      }  
+    }
+
     void call(void *) override
     {
       LOG_INFO_FMT("CONSENSUS HOOK");
+      for (const auto& [node_id, opt_ni] : cfg_delta)
+      {
+        if (opt_ni.has_value())
+          LOG_INFO_FMT("Add {} -> {}:{}", node_id, opt_ni->hostname, opt_ni->port);
+        else
+          LOG_INFO_FMT("Remove {}", node_id);
+      }
     }
   };
 }
