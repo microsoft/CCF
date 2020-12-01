@@ -3,11 +3,11 @@
 #pragma once
 
 #include "asn1_san.h"
-#include "csr.h"
 #include "curve.h"
 #include "entropy.h"
 #include "error_string.h"
 #include "hash.h"
+#include "mbedtls_wrappers.h"
 #include "pem.h"
 #include "san.h"
 
@@ -65,8 +65,7 @@ namespace tls
   class PublicKey
   {
   protected:
-    std::unique_ptr<mbedtls_pk_context> ctx =
-      std::make_unique<mbedtls_pk_context>();
+    mbedtls::PKContext ctx = nullptr;
 
     PublicKey() {}
 
@@ -74,15 +73,9 @@ namespace tls
     /**
      * Construct from a pre-initialised pk context
      */
-    PublicKey(std::unique_ptr<mbedtls_pk_context>&& c) : ctx(std::move(c)) {}
+    PublicKey(mbedtls::PKContext&& c) : ctx(std::move(c)) {}
 
-    virtual ~PublicKey()
-    {
-      if (ctx)
-      {
-        mbedtls_pk_free(ctx.get());
-      }
-    }
+    virtual ~PublicKey() = default;
 
     /**
      * Verify that a signature was produced on contents with the private key
@@ -258,7 +251,7 @@ namespace tls
           throw std::logic_error("mbedtls_pk_info_t not found");
         }
 
-        auto ctx = std::make_unique<mbedtls_pk_context>();
+        auto ctx = mbedtls::make_unique<mbedtls::PKContext>();
         mbedtls_pk_init(ctx.get());
 
         rc = mbedtls_pk_setup(ctx.get(), pk_info);
@@ -310,7 +303,7 @@ namespace tls
   inline PublicKeyPtr make_public_key(
     const Pem& public_pem, bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
-    auto ctx = std::make_unique<mbedtls_pk_context>();
+    auto ctx = mbedtls::make_unique<mbedtls::PKContext>();
     mbedtls_pk_init(ctx.get());
 
     int rc = mbedtls_pk_parse_public_key(
@@ -348,7 +341,7 @@ namespace tls
     const std::vector<uint8_t> public_der,
     bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
-    auto ctx = std::make_unique<mbedtls_pk_context>();
+    auto ctx = mbedtls::make_unique<mbedtls::PKContext>();
     mbedtls_pk_init(ctx.get());
 
     int rc = mbedtls_pk_parse_public_key(
@@ -374,29 +367,6 @@ namespace tls
 
   class KeyPair : public PublicKey
   {
-  private:
-    struct SignCsr
-    {
-      EntropyPtr entropy;
-      mbedtls_x509_csr csr;
-      mbedtls_mpi serial;
-      mbedtls_x509write_cert crt;
-
-      SignCsr() : entropy(create_entropy())
-      {
-        mbedtls_x509_csr_init(&csr);
-        mbedtls_mpi_init(&serial);
-        mbedtls_x509write_crt_init(&crt);
-      }
-
-      ~SignCsr()
-      {
-        mbedtls_x509_csr_free(&csr);
-        mbedtls_x509write_crt_free(&crt);
-        mbedtls_mpi_free(&serial);
-      }
-    };
-
   public:
     /**
      * Create a new public / private ECDSA key pair
@@ -434,8 +404,7 @@ namespace tls
     /**
      * Initialise from existing pre-parsed key
      */
-    KeyPair(std::unique_ptr<mbedtls_pk_context>&& k) : PublicKey(std::move(k))
-    {}
+    KeyPair(mbedtls::PKContext&& k) : PublicKey(std::move(k)) {}
 
     KeyPair(const KeyPair&) = delete;
 
@@ -549,12 +518,14 @@ namespace tls
      */
     Pem create_csr(const std::string& name)
     {
-      Csr csr;
+      auto csr = mbedtls::make_unique<mbedtls::X509WriteCsr>();
+      mbedtls_x509write_csr_init(csr.get());
+      mbedtls_x509write_csr_set_md_alg(csr.get(), MBEDTLS_MD_SHA512);
 
-      if (mbedtls_x509write_csr_set_subject_name(&csr.req, name.c_str()) != 0)
+      if (mbedtls_x509write_csr_set_subject_name(csr.get(), name.c_str()) != 0)
         return {};
 
-      mbedtls_x509write_csr_set_key(&csr.req, ctx.get());
+      mbedtls_x509write_csr_set_key(csr.get(), ctx.get());
 
       uint8_t buf[4096];
       memset(buf, 0, sizeof(buf));
@@ -562,7 +533,7 @@ namespace tls
 
       if (
         mbedtls_x509write_csr_pem(
-          &csr.req,
+          csr.get(),
           buf,
           sizeof(buf),
           entropy->get_rng(),
@@ -574,61 +545,64 @@ namespace tls
     }
 
     Pem sign_csr(
-      const Pem& csr,
+      const Pem& pem,
       const std::string& issuer,
       const std::vector<SubjectAltName> subject_alt_names,
       bool ca = false)
     {
-      SignCsr sign;
+      auto entropy = create_entropy();
+      auto csr = mbedtls::make_unique<mbedtls::X509Csr>();
+      auto serial = mbedtls::make_unique<mbedtls::MPI>();
+      auto crt = mbedtls::make_unique<mbedtls::X509WriteCrt>();
 
-      if (mbedtls_x509_csr_parse(&sign.csr, csr.data(), csr.size()) != 0)
+      mbedtls_x509_csr_init(csr.get());
+      mbedtls_mpi_init(serial.get());
+      mbedtls_x509write_crt_init(crt.get());
+
+      if (mbedtls_x509_csr_parse(csr.get(), pem.data(), pem.size()) != 0)
         return {};
 
       char subject[512];
-      auto r =
-        mbedtls_x509_dn_gets(subject, sizeof(subject), &sign.csr.subject);
+      auto r = mbedtls_x509_dn_gets(subject, sizeof(subject), &csr->subject);
 
       if (r < 0)
         return {};
 
       mbedtls_x509write_crt_set_md_alg(
-        &sign.crt, get_md_for_ec(get_ec_from_context(*ctx)));
-      mbedtls_x509write_crt_set_subject_key(&sign.crt, &sign.csr.pk);
-      mbedtls_x509write_crt_set_issuer_key(&sign.crt, ctx.get());
+        crt.get(), get_md_for_ec(get_ec_from_context(*ctx)));
+      mbedtls_x509write_crt_set_subject_key(crt.get(), &csr->pk);
+      mbedtls_x509write_crt_set_issuer_key(crt.get(), ctx.get());
 
       if (
         mbedtls_mpi_fill_random(
-          &sign.serial,
-          16,
-          sign.entropy->get_rng(),
-          sign.entropy->get_data()) != 0)
+          serial.get(), 16, entropy->get_rng(), entropy->get_data()) != 0)
         return {};
 
-      if (mbedtls_x509write_crt_set_subject_name(&sign.crt, subject) != 0)
+      if (mbedtls_x509write_crt_set_subject_name(crt.get(), subject) != 0)
         return {};
 
-      if (mbedtls_x509write_crt_set_issuer_name(&sign.crt, issuer.c_str()) != 0)
+      if (mbedtls_x509write_crt_set_issuer_name(crt.get(), issuer.c_str()) != 0)
         return {};
 
-      if (mbedtls_x509write_crt_set_serial(&sign.crt, &sign.serial) != 0)
+      if (mbedtls_x509write_crt_set_serial(crt.get(), serial.get()) != 0)
         return {};
 
       // Note: 825-day validity range
       // https://support.apple.com/en-us/HT210176
       if (
         mbedtls_x509write_crt_set_validity(
-          &sign.crt, "20191101000000", "20211231235959") != 0)
+          crt.get(), "20191101000000", "20211231235959") != 0)
         return {};
 
       if (
-        mbedtls_x509write_crt_set_basic_constraints(&sign.crt, ca ? 1 : 0, 0) !=
+        mbedtls_x509write_crt_set_basic_constraints(crt.get(), ca ? 1 : 0, 0) !=
         0)
         return {};
 
-      if (mbedtls_x509write_crt_set_subject_key_identifier(&sign.crt) != 0)
+      if (mbedtls_x509write_crt_set_subject_key_identifier(crt.get()) != 0)
         return {};
 
-      if (mbedtls_x509write_crt_set_authority_key_identifier(&sign.crt) != 0)
+      if (mbedtls_x509write_crt_set_authority_key_identifier(crt.get()) != 0)
         return {};
 
       // Because mbedtls does not support parsing x509v3 extensions from a
@@ -637,7 +611,7 @@ namespace tls
       try
       {
         auto rc =
-          x509write_crt_set_subject_alt_names(&sign.crt, subject_alt_names);
+          x509write_crt_set_subject_alt_names(crt.get(), subject_alt_names);
         if (rc != 0)
         {
           LOG_FAIL_FMT("Failed to set subject alternative names ({})", rc);
@@ -655,11 +629,11 @@ namespace tls
 
       if (
         mbedtls_x509write_crt_pem(
-          &sign.crt,
+          crt.get(),
           buf,
           sizeof(buf),
-          sign.entropy->get_rng(),
-          sign.entropy->get_data()) != 0)
+          entropy->get_rng(),
+          entropy->get_data()) != 0)
         return {};
 
       auto len = strlen((char*)buf);
@@ -799,11 +773,10 @@ namespace tls
 
   using KeyPairPtr = std::shared_ptr<KeyPair>;
 
-  inline std::unique_ptr<mbedtls_pk_context> parse_private_key(
+  inline mbedtls::PKContext parse_private_key(
     const Pem& pkey, CBuffer pw = nullb)
   {
-    std::unique_ptr<mbedtls_pk_context> key =
-      std::make_unique<mbedtls_pk_context>();
+    auto key = mbedtls::make_unique<mbedtls::PKContext>();
     mbedtls_pk_init(key.get());
 
     // keylen is +1 to include terminating null byte

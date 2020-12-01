@@ -210,7 +210,7 @@ namespace tls
   inline RSAPublicKeyPtr make_rsa_public_key(
     const uint8_t* public_pem_data, size_t public_pem_size)
   {
-    auto ctx = std::make_unique<mbedtls_pk_context>();
+    auto ctx = mbedtls::make_unique<mbedtls::PKContext>();
     mbedtls_pk_init(ctx.get());
 
     int rc =
