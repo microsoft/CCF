@@ -210,10 +210,7 @@ add_custom_target(
   signing_key ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 
-add_ccf_app(
-  logging SRCS samples/apps/logging/logging.cpp
-               samples/apps/logging/stub_for_code_signing.cpp
-)
+add_ccf_app(logging SRCS samples/apps/logging/logging.cpp)
 sign_app_library(
   logging.enclave ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/logging/oe_sign.conf
   ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
