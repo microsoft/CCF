@@ -19,8 +19,8 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     ---
 
-    :fa:`upload` :doc:`snapshots`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    :fa:`upload` :doc:`ledger_snapshot`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Provision a new execution node for an existing service quickly from a state snapshot.
 

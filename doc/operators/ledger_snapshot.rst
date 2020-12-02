@@ -1,5 +1,5 @@
-Ledger and Snapshots Management
-===============================
+Ledger and Snapshots
+====================
 
 The ledger and snapshot files written by CCF nodes to disk should be managed by operators to allow for safe backup of the service and application state as well as fast join and recovery procedures. This section describes how these files are generated and how operators should manage them effectively.
 
