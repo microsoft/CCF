@@ -117,6 +117,10 @@ html_sidebars = {
     "**": ["sidebar-search-bs.html", "sidebar-nav-bs.html"],
 }
 
+html_css_files = [
+    'css/custom.css',
+]
+
 
 # -- Options for HTMLHelp output ---------------------------------------------
 
