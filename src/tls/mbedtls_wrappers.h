@@ -2,7 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include <mbedtls/ctr_drbg.h>
+#include <mbedtls/entropy.h>
+#include <mbedtls/gcm.h>
+#include <mbedtls/net_sockets.h>
+#include <mbedtls/ssl.h>
+#include <mbedtls/x509.h>
 #include <mbedtls/x509_crt.h>
+#include <mbedtls/x509_csr.h>
 #include <memory>
 
 namespace mbedtls
@@ -11,7 +18,7 @@ namespace mbedtls
   T make_unique();
 
 #define DEFINE_MBEDTLS_WRAPPER(NEW_TYPE, MBED_TYPE, MBED_FREE_FN) \
-  struct NEW_TYPE##_DELETER \
+  struct NEW_TYPE##Deleter \
   { \
     void operator()(MBED_TYPE* ptr) \
     { \
@@ -19,7 +26,7 @@ namespace mbedtls
       delete ptr; \
     } \
   }; \
-  using NEW_TYPE = std::unique_ptr<MBED_TYPE, NEW_TYPE##_DELETER>; \
+  using NEW_TYPE = std::unique_ptr<MBED_TYPE, NEW_TYPE##Deleter>; \
   template <> \
   inline NEW_TYPE make_unique<NEW_TYPE>() \
   { \
@@ -31,13 +38,20 @@ namespace mbedtls
   DEFINE_MBEDTLS_WRAPPER(X509Crl, mbedtls_x509_crl, mbedtls_x509_crl_free);
   DEFINE_MBEDTLS_WRAPPER(X509Crt, mbedtls_x509_crt, mbedtls_x509_crt_free);
   DEFINE_MBEDTLS_WRAPPER(X509Csr, mbedtls_x509_csr, mbedtls_x509_csr_free);
-  DEFINE_MBEDTLS_WRAPPER(X509WriteCrt, mbedtls_x509write_cert, mbedtls_x509write_crt_free);
-  DEFINE_MBEDTLS_WRAPPER(X509WriteCsr, mbedtls_x509write_csr, mbedtls_x509write_csr_free);
+  DEFINE_MBEDTLS_WRAPPER(
+    X509WriteCrt, mbedtls_x509write_cert, mbedtls_x509write_crt_free);
+  DEFINE_MBEDTLS_WRAPPER(
+    X509WriteCsr, mbedtls_x509write_csr, mbedtls_x509write_csr_free);
   DEFINE_MBEDTLS_WRAPPER(SSLContext, mbedtls_ssl_context, mbedtls_ssl_free);
-  DEFINE_MBEDTLS_WRAPPER(SSLConfig, mbedtls_ssl_config, mbedtls_ssl_config_free);
+  DEFINE_MBEDTLS_WRAPPER(
+    SSLConfig, mbedtls_ssl_config, mbedtls_ssl_config_free);
   DEFINE_MBEDTLS_WRAPPER(ECDHContext, mbedtls_ecdh_context, mbedtls_ecdh_free);
-  DEFINE_MBEDTLS_WRAPPER(Entropy, mbedtls_entropy_context, mbedtls_entropy_free);
-  DEFINE_MBEDTLS_WRAPPER(CtrDrbg, mbedtls_ctr_drbg_context, mbedtls_ctr_drbg_free);
+  DEFINE_MBEDTLS_WRAPPER(
+    Entropy, mbedtls_entropy_context, mbedtls_entropy_free);
+  DEFINE_MBEDTLS_WRAPPER(
+    CtrDrbg, mbedtls_ctr_drbg_context, mbedtls_ctr_drbg_free);
+  DEFINE_MBEDTLS_WRAPPER(NetContext, mbedtls_net_context, mbedtls_net_free);
+  DEFINE_MBEDTLS_WRAPPER(GcmContext, mbedtls_gcm_context, mbedtls_gcm_free);
 
 #undef DEFINE_MBEDTLS_WRAPPER
 }

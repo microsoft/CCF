@@ -3,6 +3,7 @@
 #pragma once
 
 #include "intel_drng.h"
+#include "mbedtls_wrappers.h"
 #include "tls.h"
 
 #include <functional>

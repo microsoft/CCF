@@ -19,9 +19,7 @@ namespace tls
   public:
     RSAPublicKey() = default;
 
-    RSAPublicKey(std::unique_ptr<mbedtls_pk_context>&& c) :
-      PublicKey(std::move(c))
-    {}
+    RSAPublicKey(mbedtls::PKContext&& c) : PublicKey(std::move(c)) {}
 
     /**
      * Wrap data using RSA-OAEP-256
@@ -130,9 +128,7 @@ namespace tls
       }
     }
 
-    RSAKeyPair(std::unique_ptr<mbedtls_pk_context>&& k) :
-      RSAPublicKey(std::move(k))
-    {}
+    RSAKeyPair(mbedtls::PKContext&& k) : RSAPublicKey(std::move(k)) {}
 
     RSAKeyPair(const RSAKeyPair&) = delete;
 

@@ -841,7 +841,7 @@ namespace tls
         "Failed to parse certificate, mbedtls_x509_crt_parse: {}", rc));
     }
     uint8_t data[2048];
-    rc = mbedtls_pk_write_pubkey_pem(c.get().pk, data, max_pem_key_size);
+    rc = mbedtls_pk_write_pubkey_pem(&c->pk, data, max_pem_key_size);
     if (rc != 0)
     {
       throw std::runtime_error(fmt::format(

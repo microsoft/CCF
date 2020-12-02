@@ -34,6 +34,8 @@ namespace tls
 
     Verifier(const Verifier&) = delete;
 
+    virtual ~Verifier() = default;
+
     /**
      * Verify that a signature was produced on a hash with the private key
      * associated with the public key contained in the certificate.
