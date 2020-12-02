@@ -241,7 +241,7 @@ namespace ccf
       sm.expect(State::initialized);
 
       create_node_cert(args.config);
-      open_node_frontend();
+      open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
       if (network.consensus_type != ConsensusType::BFT)
@@ -287,7 +287,7 @@ namespace ccf
 
           // Open member frontend for members to configure and open the
           // network
-          open_member_frontend();
+          open_frontend(ActorsType::members);
 
           if (!create_and_send_request(args, quote))
           {
@@ -510,7 +510,7 @@ namespace ccf
                 sig->view);
             }
 
-            open_member_frontend();
+            open_frontend(ActorsType::members);
 
             accept_network_tls_connections(config);
 
@@ -532,6 +532,10 @@ namespace ccf
               "Node has now joined the network as node {}: {}",
               self,
               (resp.network_info.public_only ? "public only" : "all domains"));
+
+            // The network identity is now known, the user frontend can be
+            // opened once the KV state catches up
+            open_user_frontend();
           }
           else if (resp.node_status == NodeStatus::PENDING)
           {
@@ -784,7 +788,7 @@ namespace ccf
           "network");
       }
 
-      open_member_frontend();
+      open_frontend(ActorsType::members);
 
       sm.advance(State::partOfPublicNetwork);
     }
@@ -881,7 +885,7 @@ namespace ccf
             "Could not commit transaction when finishing network recovery");
         }
       }
-
+      open_user_frontend();
       reset_data(quote);
       sm.advance(State::partOfNetwork);
     }
@@ -1257,7 +1261,8 @@ namespace ccf
       LOG_INFO_FMT("Network TLS connections now accepted");
     }
 
-    void open_frontend(ccf::ActorsType actor)
+    void open_frontend(
+      ccf::ActorsType actor, std::optional<tls::Pem*> identity = std::nullopt)
     {
       auto fe = rpc_map->find(actor);
       if (!fe.has_value())
@@ -1265,22 +1270,12 @@ namespace ccf
         throw std::logic_error(
           fmt::format("Cannot open {} frontend", (int)actor));
       }
-      fe.value()->open();
+      fe.value()->open(identity);
     }
 
-    void open_node_frontend()
+    void open_user_frontend() override
     {
-      open_frontend(ActorsType::nodes);
-    }
-
-    void open_member_frontend()
-    {
-      open_frontend(ActorsType::members);
-    }
-
-    void open_user_frontend()
-    {
-      open_frontend(ActorsType::users);
+      open_frontend(ccf::ActorsType::users, &network.identity->cert);
     }
 
     void broadcast_ledger_secret(
@@ -1469,28 +1464,6 @@ namespace ccf
 
     void setup_basic_hooks()
     {
-      network.tables->set_global_hook(
-        network.service.get_name(),
-        network.service.wrap_commit_hook(
-          [this](kv::Version, const Service::Write& w) {
-            const auto it = w.find(0);
-            if (it == w.end() || !it->second.has_value())
-            {
-              throw std::logic_error(
-                "Unexpected: write to service table does not include key 0");
-            }
-
-            // Only open service to users if the current service is opened (i.e.
-            // past services openings are ignored)
-            if (
-              it->second.value().status == ServiceStatus::OPEN &&
-              this->network.identity->cert == it->second->cert)
-            {
-              open_user_frontend();
-              LOG_INFO_FMT("Network is OPEN, now accepting user transactions");
-            }
-          }));
-
       network.tables->set_local_hook(
         network.secrets.get_name(),
         network.secrets.wrap_commit_hook(
