@@ -131,6 +131,12 @@ public:
     ws_parser(*this)
   {}
 
+  HttpRpcTlsClient(const HttpRpcTlsClient& c) :
+    TlsClient(c),
+    parser(*this),
+    ws_parser(*this)
+  {}
+
   void upgrade_to_ws()
   {
     auto upgrade = gen_ws_upgrade_request();

@@ -232,7 +232,6 @@ function(add_ccf_app name)
 
     set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-    enable_coverage(${virt_name})
     use_client_mbedtls(${virt_name})
     add_san(${virt_name})
     add_lvi_mitigations(${virt_name})

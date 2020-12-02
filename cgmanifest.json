@@ -77,7 +77,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/project-everest/hacl-star",
-          "commitHash": "983baba407d2c91134ee270656a3d2c35683e1ff"
+          "commitHash": "b5343363688fbe0e3cdc0c488188708f09eb8a14"
         }
       }
     },
@@ -86,8 +86,8 @@
         "Type": "other",
         "Other": {
           "Name": "QuickJS",
-          "Version": "2020-09-06",
-          "DownloadUrl": "https://bellard.org/quickjs/quickjs-2020-09-06.tar.xz"
+          "Version": "2020-11-08",
+          "DownloadUrl": "https://bellard.org/quickjs/quickjs-2020-11-08.tar.xz"
         }
       }
     },
