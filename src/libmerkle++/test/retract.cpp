@@ -27,7 +27,7 @@ int main()
 
     size_t total_paths = 0, total_leaves = 0, total_retractions = 0;
 
-    for (size_t l=0; l < num_trees; l++) {
+    for (size_t k=0; k < num_trees; k++) {
       size_t num_leaves = 1 + (std::rand()/(double)RAND_MAX) * max_num_leaves;
       total_leaves += num_leaves;
 
@@ -57,9 +57,14 @@ int main()
         if (mt.min_index() == mt.max_index())
           break;
       }
-    }
 
-    std::cout << num_trees << " trees, " << total_leaves << " leaves, " << total_retractions << " retractions: OK." << std::endl;
+      if ((k && k % 1000 == 0) || k == num_trees-1)
+        std::cout << num_trees << " trees, "
+                  << total_leaves << " leaves, "
+                  << total_retractions << " retractions"
+                  << ": OK."
+                  << std::endl;
+    }
   }
   catch (std::exception &ex) {
     std::cout << "Error: " << ex.what() << std::endl;

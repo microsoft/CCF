@@ -92,7 +92,7 @@ int main()
           compare_roots(mt, ec_mt);
         }
 
-        if ((std::rand()/(double)RAND_MAX) > 0.75) {
+        if ((std::rand()/(double)RAND_MAX) > 0.9) {
           size_t index = random_index(mt);
           mt.retract_to(index);
           if (!mt_retract_to_pre(ec_mt, index))
