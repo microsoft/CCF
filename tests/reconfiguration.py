@@ -43,24 +43,14 @@ def check_can_progress(node, timeout=3):
         assert False, f"Stuck at {r}"
 
 
-def add_node(network, args):
+@reqs.description("Adding a valid node from primary")
+def test_add_node(network, args):
     new_node = network.create_and_trust_node(args.package, "local://localhost", args)
-    assert new_node
     with new_node.client() as c:
         s = c.get("/node/state")
         assert s.body.json()["id"] == new_node.node_id
+    assert new_node
     return network
-
-
-def retire_node(network, primary, backup_to_retire):
-    network.consortium.retire_node(primary, backup_to_retire)
-    backup_to_retire.stop()
-    return network
-
-
-@reqs.description("Adding a valid node from primary")
-def test_add_node(network, args):
-    return add_node(network, args)
 
 
 @reqs.description("Adding a valid node from a backup")
@@ -130,42 +120,11 @@ def test_add_node_untrusted_code(network, args):
 
 @reqs.description("Retiring a backup")
 @reqs.at_least_n_nodes(2)
-@reqs.can_kill_n_nodes(1)
 def test_retire_backup(network, args):
     primary, _ = network.find_primary()
     backup_to_retire = network.find_any_backup()
-    return retire_node(network, primary, backup_to_retire)
-
-
-@reqs.description("Retiring all backups (then recreating the same number of nodes)")
-def test_retire_all_backups(network, args):
-    primary, backups = network.find_nodes()
-    original_backups = len(backups)
-    for backup in backups:
-        network = retire_node(network, primary, backup)
-    check_can_progress(primary)
-    LOG.info(
-        f"Retired {original_backups} original backups, replacing them with same number of new backups"
-    )
-    for _ in range(original_backups):
-        network = add_node(network, args)
-    return network
-
-
-@reqs.description("Retiring the primary")
-@reqs.can_kill_n_nodes(1)
-def test_retire_primary(network, args):
-    pre_count = count_nodes(node_configs(network), network)
-
-    primary, backup = network.find_primary_and_any_backup()
-    network.consortium.retire_node(primary, primary)
-    new_primary, new_term = network.wait_for_new_primary(primary.node_id)
-    LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
-    check_can_progress(backup)
-    network.nodes.remove(primary)
-    post_count = count_nodes(node_configs(network), network)
-    assert pre_count == post_count + 1
-    primary.stop()
+    network.consortium.retire_node(primary, backup_to_retire)
+    backup_to_retire.stop()
     return network
 
 
@@ -202,7 +161,6 @@ def run(args):
         test_add_node(network, args)
         test_add_node_untrusted_code(network, args)
         test_retire_backup(network, args)
-        test_retire_all_backups(network, args)
         test_add_as_many_pending_nodes(network, args)
         test_add_node(network, args)
         test_retire_primary(network, args)
