@@ -32,6 +32,9 @@ jobs:
           - template: push_perf_data.yml
           - template: metrics.yml
 
+      - ${{ if eq(parameters.suffix, 'Fuzz') }}:
+          - template: publish_zap_report.yml
+
       - ${{ if eq(parameters.suffix, 'Release') }}:
           - template: publish_tls_report.yml
           - template: install.yml

@@ -35,8 +35,6 @@ def test(network, args):
         "INFO",
         "-r",
         "zap_report.html",
-        "-J",
-        "zap_report.json",
     ]
 
     subprocess.run(args, check=True)
