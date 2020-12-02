@@ -28,8 +28,6 @@ namespace tls
   public:
     MbedtlsEntropy()
     {
-      mbedtls_entropy_init(entropy.get());
-      mbedtls_ctr_drbg_init(drbg.get());
       mbedtls_ctr_drbg_seed(
         drbg.get(), mbedtls_entropy_func, entropy.get(), nullptr, 0);
     }

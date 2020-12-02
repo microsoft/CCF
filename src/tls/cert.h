@@ -53,9 +53,6 @@ namespace tls
       auto tmp_cert = mbedtls::make_unique<mbedtls::X509Crt>();
       auto tmp_pkey = mbedtls::make_unique<mbedtls::PKContext>();
 
-      mbedtls_x509_crt_init(tmp_cert.get());
-      mbedtls_pk_init(tmp_pkey.get());
-
       if (own_cert_.has_value() && own_pkey_.has_value())
       {
         int rc = mbedtls_x509_crt_parse(

@@ -170,7 +170,6 @@ namespace loggingapp
         }
 
         auto cert = mbedtls::make_unique<mbedtls::X509Crt>();
-        mbedtls_x509_crt_init(cert.get());
 
         const auto& cert_data = args.rpc_ctx->session->caller_cert;
         const auto ret =

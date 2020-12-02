@@ -22,9 +22,6 @@ namespace tls
       auto tmp_ca = mbedtls::make_unique<mbedtls::X509Crt>();
       auto tmp_crl = mbedtls::make_unique<mbedtls::X509Crl>();
 
-      mbedtls_x509_crt_init(tmp_ca.get());
-      mbedtls_x509_crl_init(tmp_crl.get());
-
       if (ca_.n > 0)
       {
         Pem pem_ca(ca_);

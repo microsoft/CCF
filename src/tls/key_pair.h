@@ -252,7 +252,6 @@ namespace tls
         }
 
         auto ctx = mbedtls::make_unique<mbedtls::PKContext>();
-        mbedtls_pk_init(ctx.get());
 
         rc = mbedtls_pk_setup(ctx.get(), pk_info);
         if (rc != 0)
@@ -304,7 +303,6 @@ namespace tls
     const Pem& public_pem, bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
     auto ctx = mbedtls::make_unique<mbedtls::PKContext>();
-    mbedtls_pk_init(ctx.get());
 
     int rc = mbedtls_pk_parse_public_key(
       ctx.get(), public_pem.data(), public_pem.size());
@@ -342,7 +340,6 @@ namespace tls
     bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
     auto ctx = mbedtls::make_unique<mbedtls::PKContext>();
-    mbedtls_pk_init(ctx.get());
 
     int rc = mbedtls_pk_parse_public_key(
       ctx.get(), public_der.data(), public_der.size());
@@ -374,7 +371,6 @@ namespace tls
     KeyPair(mbedtls_ecp_group_id ec)
     {
       EntropyPtr entropy = create_entropy();
-      mbedtls_pk_init(ctx.get());
 
       int rc = mbedtls_pk_setup(
         ctx.get(), mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
@@ -519,7 +515,6 @@ namespace tls
     Pem create_csr(const std::string& name)
     {
       auto csr = mbedtls::make_unique<mbedtls::X509WriteCsr>();
-      mbedtls_x509write_csr_init(csr.get());
       mbedtls_x509write_csr_set_md_alg(csr.get(), MBEDTLS_MD_SHA512);
 
       if (mbedtls_x509write_csr_set_subject_name(csr.get(), name.c_str()) != 0)
@@ -554,10 +549,6 @@ namespace tls
       auto csr = mbedtls::make_unique<mbedtls::X509Csr>();
       auto serial = mbedtls::make_unique<mbedtls::MPI>();
       auto crt = mbedtls::make_unique<mbedtls::X509WriteCrt>();
-
-      mbedtls_x509_csr_init(csr.get());
-      mbedtls_mpi_init(serial.get());
-      mbedtls_x509write_crt_init(crt.get());
 
       if (mbedtls_x509_csr_parse(csr.get(), pem.data(), pem.size()) != 0)
         return {};
@@ -777,7 +768,6 @@ namespace tls
     const Pem& pkey, CBuffer pw = nullb)
   {
     auto key = mbedtls::make_unique<mbedtls::PKContext>();
-    mbedtls_pk_init(key.get());
 
     // keylen is +1 to include terminating null byte
     int rc =
@@ -833,7 +823,6 @@ namespace tls
   static inline tls::Pem public_key_pem_from_cert(const tls::Pem& cert)
   {
     auto c = mbedtls::make_unique<mbedtls::X509Crt>();
-    mbedtls_x509_crt_init(c.get());
     int rc = mbedtls_x509_crt_parse(c.get(), cert.data(), cert.size());
     if (rc != 0)
     {

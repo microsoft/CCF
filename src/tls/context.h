@@ -31,8 +31,6 @@ namespace tls
       auto tmp_ssl = mbedtls::make_unique<mbedtls::SSLContext>();
       auto tmp_cfg = mbedtls::make_unique<mbedtls::SSLConfig>();
 
-      mbedtls_ssl_init(tmp_ssl.get());
-      mbedtls_ssl_config_init(tmp_cfg.get());
       mbedtls_ssl_conf_rng(
         tmp_cfg.get(), entropy->get_rng(), entropy->get_data());
 

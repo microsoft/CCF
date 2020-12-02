@@ -30,7 +30,6 @@ namespace tls
     KeyExchangeContext() : own_public(len_public), entropy(create_entropy())
     {
       ctx = mbedtls::make_unique<mbedtls::ECDHContext>();
-      mbedtls_ecdh_init(ctx.get());
       size_t len;
 
       int rc = mbedtls_ecp_group_load(&ctx->grp, domain_parameter);
@@ -59,7 +58,6 @@ namespace tls
     KeyExchangeContext(KeyPairPtr own_kp, PublicKeyPtr peer_pubk) :
       entropy(create_entropy())
     {
-      mbedtls_ecdh_init(ctx.get());
 
       int rc = mbedtls_ecdh_get_params(
         ctx.get(),

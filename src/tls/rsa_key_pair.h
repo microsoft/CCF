@@ -105,7 +105,6 @@ namespace tls
       size_t public_exponent = default_public_exponent)
     {
       EntropyPtr entropy = create_entropy();
-      mbedtls_pk_init(ctx.get());
 
       int rc =
         mbedtls_pk_setup(ctx.get(), mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
@@ -207,7 +206,6 @@ namespace tls
     const uint8_t* public_pem_data, size_t public_pem_size)
   {
     auto ctx = mbedtls::make_unique<mbedtls::PKContext>();
-    mbedtls_pk_init(ctx.get());
 
     int rc =
       mbedtls_pk_parse_public_key(ctx.get(), public_pem_data, public_pem_size);

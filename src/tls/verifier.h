@@ -208,7 +208,6 @@ namespace tls
     bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
     auto x509 = mbedtls::make_unique<mbedtls::X509Crt>();
-    mbedtls_x509_crt_init(x509.get());
     int rc = mbedtls_x509_crt_parse(x509.get(), cert.data(), cert.size());
     if (rc)
     {

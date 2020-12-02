@@ -16,7 +16,6 @@ namespace crypto
     for (uint32_t i = 0; i < ctxs.size(); ++i)
     {
       ctxs[i] = mbedtls::make_unique<mbedtls::GcmContext>();
-      mbedtls_gcm_init(ctxs[i].get());
 
       size_t n_bits;
       const auto n = static_cast<unsigned int>(rawKey.rawSize() * 8);

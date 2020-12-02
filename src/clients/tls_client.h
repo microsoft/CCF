@@ -44,12 +44,6 @@ private:
     auto tmp_ssl = mbedtls::make_unique<mbedtls::SSLContext>();
     auto tmp_conf = mbedtls::make_unique<mbedtls::SSLConfig>();
 
-    mbedtls_net_init(tmp_server_fd.get());
-    mbedtls_ssl_init(tmp_ssl.get());
-    mbedtls_ssl_config_init(tmp_conf.get());
-    mbedtls_entropy_init(tmp_entropy.get());
-    mbedtls_ctr_drbg_init(tmp_ctr_drbg.get());
-
     auto err = mbedtls_ctr_drbg_seed(
       tmp_ctr_drbg.get(), mbedtls_entropy_func, tmp_entropy.get(), nullptr, 0);
     if (err)
