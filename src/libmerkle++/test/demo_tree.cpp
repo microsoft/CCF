@@ -51,7 +51,6 @@ int main()
       Merkle::Tree::Hash treelike_root;
       for (auto h : hashes) {
         mtt.insert(h);
-        treelike_root = mtt.root();
       }
       treelike_root = mtt.root();
       std::cout << "Treelike: " << std::endl;
@@ -64,6 +63,7 @@ int main()
 
       std::cout << "Paths: " << std::endl;
       for (size_t i = 0; i < num_leaves; i++) {
+        mtt.flush_to(i);
         auto path = mtt.path(i);
         std::cout << "P" << std::setw(2) << std::setfill('0') << i << ": " << path->to_string(PRINT_HASH_SIZE) << " " << std::endl;
         if (!path->verify(treelike_root))

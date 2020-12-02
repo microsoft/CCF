@@ -28,8 +28,8 @@ int main()
     size_t total_paths = 0, total_leaves = 0;
 
     for (size_t l=0; l < num_trees; l++) {
-      size_t num_leaves = (std::rand()/(double)RAND_MAX) * max_num_leaves;
-      size_t num_paths = (std::rand()/(double)RAND_MAX) * max_num_paths;
+      size_t num_leaves = 1 + (std::rand()/(double)RAND_MAX) * max_num_leaves;
+      size_t num_paths = 1 + (std::rand()/(double)RAND_MAX) * max_num_paths;
 
       total_leaves += num_leaves;
       total_paths += num_paths;
