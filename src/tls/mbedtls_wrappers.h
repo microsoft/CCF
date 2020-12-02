@@ -35,6 +35,9 @@ namespace mbedtls
   DEFINE_MBEDTLS_WRAPPER(X509WriteCsr, mbedtls_x509write_csr, mbedtls_x509write_csr_free);
   DEFINE_MBEDTLS_WRAPPER(SSLContext, mbedtls_ssl_context, mbedtls_ssl_free);
   DEFINE_MBEDTLS_WRAPPER(SSLConfig, mbedtls_ssl_config, mbedtls_ssl_config_free);
+  DEFINE_MBEDTLS_WRAPPER(ECDHContext, mbedtls_ecdh_context, mbedtls_ecdh_free);
+  DEFINE_MBEDTLS_WRAPPER(Entropy, mbedtls_entropy_context, mbedtls_entropy_free);
+  DEFINE_MBEDTLS_WRAPPER(CtrDrbg, mbedtls_ctr_drbg_context, mbedtls_ctr_drbg_free);
 
 #undef DEFINE_MBEDTLS_WRAPPER
 }
