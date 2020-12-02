@@ -774,7 +774,7 @@ if(BUILD_TESTS)
       NAME zaptest_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/zap.py
       CONSENSUS cft
-      LABEL fuzztest
+      LABEL zaptest
     )
   endif()
 

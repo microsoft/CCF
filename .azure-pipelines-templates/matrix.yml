@@ -25,7 +25,7 @@ parameters:
     debug:
       cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DBUILD_SMALLBANK=OFF"
     perf:
-      cmake_args: '-DBUILD_UNIT_TESTS=OFF -DDISTRIBUTE_PERF_TESTS="`../.nodes.sh`"'
+      cmake_args: '-DBUILD_UNIT_TESTS=OFF -DZAP_TEST=ON -DDISTRIBUTE_PERF_TESTS="`../.nodes.sh`"'
 
   test:
     NoSGX:
@@ -33,7 +33,7 @@ parameters:
     SGX:
       ctest_args: '-LE "benchmark|perf|tlstest"'
     perf:
-      ctest_args: '-L "benchmark|perf"'
+      ctest_args: '-L "benchmark|perf|zaptest"'
 
 jobs:
   - template: checks.yml
