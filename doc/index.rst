@@ -19,14 +19,22 @@ CCF Documentation
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     .. image:: img/ts.svg
-      :width: 56
+      :width: 32
       :target: developers/js_app.html
       :alt: TypeScript
+      :align: left
+
+    .. image:: img/empty.svg
+      :height: 10
+      :align: left
 
     .. image:: img/cpp.svg
-      :width: 56
+      :width: 32
       :target: developers/example.html
       :alt: C++
+      :align: left
+
+    Write application logic against the CCF Key-Value store.
 
     ---
 
