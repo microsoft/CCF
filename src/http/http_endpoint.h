@@ -241,14 +241,6 @@ namespace http
           return;
         }
 
-        if (!search.value()->is_open())
-        {
-          send_raw(rpc_ctx->serialise_error(
-            HTTP_STATUS_NOT_FOUND,
-            fmt::format("Session '{}' is not open.\n", actor_s)));
-          return;
-        }
-
         auto response = search.value()->process(rpc_ctx);
 
         if (!response.has_value())

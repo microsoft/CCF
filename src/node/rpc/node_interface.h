@@ -32,5 +32,6 @@ namespace ccf
     virtual kv::Version get_last_recovered_signed_idx() = 0;
     virtual void initiate_private_recovery(kv::Tx& tx) = 0;
     virtual ExtendedState state() = 0;
+    virtual void open_user_frontend() = 0;
   };
 }
