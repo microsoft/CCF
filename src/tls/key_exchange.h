@@ -29,10 +29,10 @@ namespace tls
 
     KeyExchangeContext() : own_public(len_public), entropy(create_entropy())
     {
-      ctx = mbedtls::make_unique<mbedtls::ECDHContext>();
+      auto tmp_ctx = mbedtls::make_unique<mbedtls::ECDHContext>();
       size_t len;
 
-      int rc = mbedtls_ecp_group_load(&ctx->grp, domain_parameter);
+      int rc = mbedtls_ecp_group_load(&tmp_ctx->grp, domain_parameter);
 
       if (rc != 0)
       {
@@ -40,7 +40,7 @@ namespace tls
       }
 
       rc = mbedtls_ecdh_make_public(
-        ctx.get(),
+        tmp_ctx.get(),
         &len,
         own_public.data(),
         own_public.size(),
@@ -53,13 +53,17 @@ namespace tls
       }
 
       own_public.resize(len);
+
+      ctx = std::move(tmp_ctx);
     }
 
     KeyExchangeContext(KeyPairPtr own_kp, PublicKeyPtr peer_pubk) :
       entropy(create_entropy())
     {
+      auto tmp_ctx = mbedtls::make_unique<mbedtls::ECDHContext>();
+
       int rc = mbedtls_ecdh_get_params(
-        ctx.get(),
+        tmp_ctx.get(),
         mbedtls_pk_ec(*own_kp->get_raw_context()),
         MBEDTLS_ECDH_OURS);
       if (rc != 0)
@@ -68,13 +72,15 @@ namespace tls
       }
 
       rc = mbedtls_ecdh_get_params(
-        ctx.get(),
+        tmp_ctx.get(),
         mbedtls_pk_ec(*peer_pubk->get_raw_context()),
         MBEDTLS_ECDH_THEIRS);
       if (rc != 0)
       {
         throw std::logic_error(error_string(rc));
       }
+
+      ctx = std::move(tmp_ctx);
     }
 
     void free_ctx()
