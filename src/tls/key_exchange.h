@@ -58,7 +58,6 @@ namespace tls
     KeyExchangeContext(KeyPairPtr own_kp, PublicKeyPtr peer_pubk) :
       entropy(create_entropy())
     {
-
       int rc = mbedtls_ecdh_get_params(
         ctx.get(),
         mbedtls_pk_ec(*own_kp->get_raw_context()),

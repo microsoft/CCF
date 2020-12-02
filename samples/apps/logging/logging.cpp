@@ -172,8 +172,8 @@ namespace loggingapp
         auto cert = mbedtls::make_unique<mbedtls::X509Crt>();
 
         const auto& cert_data = args.rpc_ctx->session->caller_cert;
-        const auto ret =
-          mbedtls_x509_crt_parse(cert.get(), cert_data.data(), cert_data.size());
+        const auto ret = mbedtls_x509_crt_parse(
+          cert.get(), cert_data.data(), cert_data.size());
         if (ret != 0)
         {
           args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
