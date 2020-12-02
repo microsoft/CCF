@@ -1,18 +1,7 @@
-Overview
+Concepts
 ========
 
 This page gives a broad overview of the fundamentals of CCF. This is where you should start if you're new to CCF.
-
-.. note:: The following pages give a more in-depth description of CCF's core concepts and should be explored next:
-
-    .. toctree::
-        :maxdepth: 1
-
-        design/constitution
-        design/consensus
-        design/cryptography
-        design/performance
-        design/threading
 
 CCF in a Hundred Words
 ----------------------
@@ -30,7 +19,7 @@ Core Concepts
 
 The following diagram shows a basic CCF network made of 3 nodes. All nodes run the same application inside an enclave. The effects of user and member transactions are eventually committed to a replicated encrypted ledger. A consortium of members is in charge of governing the network.
 
-.. image:: img/ccf_concepts.svg
+.. image:: ../img/ccf_concepts.svg
 
 Network and Nodes
 ~~~~~~~~~~~~~~~~~
