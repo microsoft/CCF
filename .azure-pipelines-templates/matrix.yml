@@ -27,7 +27,7 @@ parameters:
     perf:
       cmake_args: '-DBUILD_UNIT_TESTS=OFF -DDISTRIBUTE_PERF_TESTS="`../.nodes.sh`"'
     fuzz:
-      cmake_args: '-DBUILD_UNIT_TESTS=OFF -DZAP_TEST=ON'
+      cmake_args: "-DBUILD_UNIT_TESTS=OFF -DZAP_TEST=ON"
 
   test:
     NoSGX:
