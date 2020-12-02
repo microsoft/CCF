@@ -65,7 +65,7 @@ namespace tls
   class PublicKey
   {
   protected:
-    mbedtls::PKContext ctx = nullptr;
+    mbedtls::PKContext ctx = mbedtls::make_unique<mbedtls::PKContext>();
 
     PublicKey() {}
 
