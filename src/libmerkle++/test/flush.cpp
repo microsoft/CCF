@@ -36,7 +36,7 @@ int main()
       Merkle::Tree mt;
       for (size_t i=0; i < hashes.size(); i++) {
         mt.insert(hashes[i]);
-        if ((std::rand()/(double)RAND_MAX) > 0.9) {
+        if ((std::rand()/(double)RAND_MAX) > 0.95) {
           mt.flush_to(random_index(mt));
           total_flushes++;
         }
@@ -49,12 +49,17 @@ int main()
           break;
       }
 
-      if ((k && k % 1000 == 0) || k == num_trees-1)
-        std::cout << num_trees << " trees, "
+      if ((k && k % 1000 == 0) || k == num_trees-1) {
+        static char time_str[256] = "";
+        std::time_t t = std::time(nullptr);
+        std::strftime(time_str, sizeof(time_str), "%R", std::localtime(&t));
+        std::cout << time_str << ": "
+                  << k << " trees, "
                   << total_leaves << " leaves, "
                   << total_flushes << " flushes"
                   << ": OK."
                   << std::endl;
+      }
     }
   }
   catch (std::exception &ex) {

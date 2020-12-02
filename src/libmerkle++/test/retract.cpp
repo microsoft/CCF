@@ -45,7 +45,7 @@ int main()
             std::runtime_error("invalid max index");
         }
 
-        if (i % 997 == 0) {
+        if ((std::rand()/(double)RAND_MAX) > 0.95) {
           mt.retract_to(random_index(mt));
           total_retractions++;
         }
@@ -58,12 +58,17 @@ int main()
           break;
       }
 
-      if ((k && k % 1000 == 0) || k == num_trees-1)
-        std::cout << num_trees << " trees, "
+      if ((k && k % 1000 == 0) || k == num_trees-1) {
+        static char time_str[256] = "";
+        std::time_t t = std::time(nullptr);
+        std::strftime(time_str, sizeof(time_str), "%R", std::localtime(&t));
+        std::cout << time_str << ": "
+                  << k << " trees, "
                   << total_leaves << " leaves, "
                   << total_retractions << " retractions"
                   << ": OK."
                   << std::endl;
+      }
     }
   }
   catch (std::exception &ex) {
