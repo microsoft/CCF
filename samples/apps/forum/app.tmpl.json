@@ -101,6 +101,44 @@
         "require_client_signature": false,
         "readonly": true
       }
+    },
+    "/csv": {
+      "get": {
+        "js_module": "build/CSVControllerProxy.js",
+        "js_function": "getOpinionsAsCSV",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_identity": false,
+        "require_client_signature": false,
+        "readonly": true,
+        "openapi_merge_patch": {
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": null,
+                "text/csv": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "js_module": "build/CSVControllerProxy.js",
+        "js_function": "submitOpinionsFromCSV",
+        "forwarding_required": "always",
+        "execute_locally": false,
+        "require_client_identity": false,
+        "require_client_signature": false,
+        "readonly": false,
+        "openapi_merge_patch": {
+          "requestBody": {
+            "content": {
+              "application/json": null,
+              "text/csv": {}
+            }
+          }
+        }
+      }
     }
   }
 }

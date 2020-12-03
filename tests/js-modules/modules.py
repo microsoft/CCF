@@ -365,42 +365,6 @@ def test_npm_app(network, args):
     return network
 
 
-@reqs.description("Test tsoa-based Node.js/npm app")
-def test_npm_tsoa_app(network, args):
-    primary, _ = network.find_nodes()
-
-    LOG.info("Building tsoa npm app")
-    app_dir = os.path.join(PARENT_DIR, "npm-tsoa-app")
-    subprocess.run(["npm", "install"], cwd=app_dir, check=True)
-    subprocess.run(["npm", "run", "build"], cwd=app_dir, check=True)
-
-    LOG.info("Deploying tsoa npm app")
-    bundle_dir = os.path.join(app_dir, "dist")
-    network.consortium.deploy_js_app(primary, bundle_dir)
-
-    LOG.info("Calling tsoa npm app endpoints")
-    with primary.client("user0") as c:
-        body = [1, 2, 3, 4]
-        r = c.post("/app/partition", body)
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json() == [[1, 3], [2, 4]], r.body
-
-        r = c.post("/app/proto", body)
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.headers["content-type"] == "application/x-protobuf"
-        # We could now decode the protobuf message but given all the machinery
-        # involved to make it happen (code generation with protoc) we'll leave it at that.
-        assert len(r.body) == 14, len(r.body)
-
-        r = c.get("/app/crypto")
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json()["available"], r.body
-
-        validate_openapi(c)
-
-    return network
-
-
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -411,7 +375,6 @@ def run(args):
         network = test_app_bundle(network, args)
         network = test_dynamic_endpoints(network, args)
         network = test_npm_app(network, args)
-        network = test_npm_tsoa_app(network, args)
 
 
 if __name__ == "__main__":
