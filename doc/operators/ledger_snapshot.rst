@@ -58,7 +58,7 @@ Snapshots are generated at regular intervals by the current primary node and sto
 
 To guarantee that the identity of the primary node that generated the snapshot can be verified offline, the SHA-256 digest of the snapshot (i.e. evidence) is recorded in the ``public:ccf.gov.snapshot_evidence`` table. The snapshot evidence will be signed by the primary node on the next signature transaction (see :ref:`operators/start_network:Signature Interval`).
 
-Committed snapshot files are named ``snapshot_<seqno>_<evidence_seqno.commited_<evidence_commit_seqno>``, with ``<seqno>`` the sequence number of the state of the key-value store at which they were generated, ``<evidence_seqno>`` the sequence number at which the snapshot evidence was recorded and ``<evidence_commit_seqno>`` the sequence number at which the snapsot evidence was committed.
+Committed snapshot files are named ``snapshot_<seqno>_<evidence_seqno>.commited_<evidence_commit_seqno>``, with ``<seqno>`` the sequence number of the state of the key-value store at which they were generated, ``<evidence_seqno>`` the sequence number at which the snapshot evidence was recorded and ``<evidence_commit_seqno>`` the sequence number at which the snapsot evidence was committed.
 
 Uncommitted snapshot files, i.e. those whose evidence has not yet been committed, are named ``snapshot_<seqno>_<evidence_seqno>``. These files will be ignored by CCF when joining or recovering a service as no evidence can attest of their validity.
 
