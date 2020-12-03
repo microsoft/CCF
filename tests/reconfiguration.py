@@ -124,11 +124,13 @@ def test_add_node_untrusted_code(network, args):
 
 @reqs.description("Retiring a backup")
 @reqs.at_least_n_nodes(2)
+@reqs.can_kill_n_nodes(1)
 def test_retire_backup(network, args):
     primary, _ = network.find_primary()
     backup_to_retire = network.find_any_backup()
     network.consortium.retire_node(primary, backup_to_retire)
     backup_to_retire.stop()
+    check_can_progress(primary)
     return network
 
 
