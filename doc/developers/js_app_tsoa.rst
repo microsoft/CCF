@@ -10,7 +10,7 @@ Using `tsoa <https://github.com/lukeautry/tsoa>`_ as framework provides the foll
 - App metadata (``app.json``) is auto-generated as much as possible.
 
 The source code for the example app can be found in the
-`tests/npm-tsoa-app <https://github.com/microsoft/CCF/tree/master/tests/npm-tsoa-app>`_
+`samples/apps/forum <https://github.com/microsoft/CCF/tree/master/samples/apps/forum>`_
 folder of the CCF git repository.
 
 .. note::
@@ -32,15 +32,19 @@ The sample app has the following folder layout:
 
 .. code-block:: bash
 
-    $ tree --dirsfirst npm-tsoa-app
-    npm-tsoa-app
+    $ tree --dirsfirst forum
+    forum
     ├── src
     │   ├── controllers
-    │   │   ├── crypto.ts
-    │   │   ├── partition.ts
-    │   │   └── proto.ts
-    │   └── types
-    │       └── ccf.ts
+    │   │   ├── csv.ts
+    │   │   ├── poll.ts
+    │   │   └── site.ts
+    │   ├── models
+    │   │   └── poll.ts
+    │   ├── types
+    │   │   └── ccf.ts
+    │   ├── authentication.ts
+    │   └── error_handler.ts
     ├── tsoa-support
     │   ├── entry.ts
     │   ├── postprocess.js
@@ -53,8 +57,12 @@ The sample app has the following folder layout:
 
 It contains these files:
 
-- ``src/controllers/*.ts``: :ref:`developers/js_app_tsoa:Endpoint handlers`.
+- ``src/controllers/*.ts``: :ref:`developers/js_app_tsoa:Controllers`.
+- ``src/models/*.ts``: Data models shared between endpoint handlers.
 - ``src/types/ccf.ts``: :ref:`developers/js_app_tsoa:Type definitions` for CCF objects.
+- ``src/authentication.ts``: `authentication module <https://tsoa-community.github.io/docs/authentication.html>`_. 
+  See also :ref:`developers/auth/jwt_ms_example:JWT Authentication example using Microsoft Identity Platform`.
+- ``src/error_handler.ts``: global error handler.
 - ``tsoa-support/*``: Supporting scripts used during :ref:`developers/js_app_tsoa:Conversion to an app bundle`.
 - ``app.tmpl.json``: :ref:`App metadata <developers/js_app_tsoa:Metadata>`.
 - ``package.json``: Dependencies and build command.
@@ -86,14 +94,7 @@ tsoa discovers controllers through a list of search locations specified in ``tso
         ]
     }
 
-As an example, the ``/partition`` route of the sample app is implemented as:
-
-.. literalinclude:: ../../tests/npm-tsoa-app/src/controllers/partition.ts
-   :language: ts
-
-Here, the request body is a JSON array with elements of arbitrary type,
-and the response body is an even/odd partitioning of those elements as nested JSON array.
-The example also shows how an external library, here ``lodash``, is imported and used.
+As an example, the ``/polls`` route of the sample app is implemented as in `src/controllers/poll.ts <https://github.com/microsoft/CCF/tree/master/samples/apps/forum/src/controllers/poll.ts>`_.
 
 For more information on how to write controllers,
 see the `tsoa documentation <https://tsoa-community.github.io/docs/getting-started.html#defining-a-simple-controller>`_.
@@ -109,14 +110,14 @@ CCF currently does not provide an npm package with TypeScript definitions
 for :ref:`CCF's JavaScript API <developers/js_app_bundle:JavaScript API>`.
 
 Instead, the definitions are part of the sample app in
-`src/types/ccf.ts <https://github.com/microsoft/CCF/tree/master/tests/npm-tsoa-app/src/types/ccf.ts>`_.
+`src/types/ccf.ts <https://github.com/microsoft/CCF/tree/samples/apps/forum/src/types/ccf.ts>`_.
 
 Using CCF's ``Response`` object is not needed when using tsoa because the return value always has to be the body itself.
 Headers and the status code can be set using `Controller methods <https://tsoa-community.github.io/reference/classes/_tsoa_runtime.controller-1.html>`_.
 
 Sometimes though it is necessary to access CCF's ``Request`` object, for example when the request body is not JSON.
 In this case, instead of using ``@Body() body: MyType`` as function argument, ``@Request() request: ccf.Request`` can be used.
-See `src/controllers/proto.ts <https://github.com/microsoft/CCF/tree/master/tests/npm-tsoa-app/src/controllers/proto.ts>`_
+See `src/controllers/csv.ts <https://github.com/microsoft/CCF/tree/master/samples/apps/forum/src/controllers/csv.ts>`_
 for a concrete example.
 
 .. warning::
