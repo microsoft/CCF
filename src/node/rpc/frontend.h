@@ -11,6 +11,7 @@
 #include "node/client_signatures.h"
 #include "node/jwt.h"
 #include "node/nodes.h"
+#include "node/service.h"
 #include "rpc_exception.h"
 #include "tls/verifier.h"
 
@@ -50,6 +51,7 @@ namespace ccf
     std::chrono::milliseconds sig_ms_interval = std::chrono::milliseconds(1000);
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
     bool request_storing_disabled = false;
+    tls::Pem* service_identity = nullptr;
 
     using PreExec = std::function<void(kv::Tx& tx, enclave::RpcContext& ctx)>;
 
@@ -576,19 +578,44 @@ namespace ccf
       cmd_forwarder = cmd_forwarder_;
     }
 
-    void open() override
+    void open(std::optional<tls::Pem*> identity = std::nullopt) override
+    {
+      std::lock_guard<SpinLock> mguard(open_lock);
+      // open() without an identity unconditionally opens the frontend.
+      // If an identity is passed, the frontend must instead wait for
+      // the KV to read that this is identity is present and open,
+      // see is_open()
+      if (identity.has_value())
+      {
+        service_identity = identity.value();
+      }
+      else
+      {
+        if (!is_open_)
+        {
+          is_open_ = true;
+          endpoints.init_handlers(tables);
+        }
+      }
+    }
+
+    bool is_open(kv::Tx& tx) override
     {
       std::lock_guard<SpinLock> mguard(open_lock);
       if (!is_open_)
       {
-        is_open_ = true;
-        endpoints.init_handlers(tables);
+        auto sv = tx.get_view<Service>(Tables::SERVICE);
+        auto s = sv->get_globally_committed(0);
+        if (
+          s.has_value() && s.value().status == ServiceStatus::OPEN &&
+          service_identity != nullptr && s.value().cert == *service_identity)
+        {
+          LOG_INFO_FMT(
+            "Service state is OPEN, now accepting user transactions");
+          is_open_ = true;
+          endpoints.init_handlers(tables);
+        }
       }
-    }
-
-    bool is_open() override
-    {
-      std::lock_guard<SpinLock> mguard(open_lock);
       return is_open_;
     }
 
@@ -607,6 +634,12 @@ namespace ccf
       update_consensus();
 
       auto tx = tables.create_tx();
+      if (!is_open(tx))
+      {
+        ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+        ctx->set_response_body("Frontend is not open.");
+        return ctx->serialise_response();
+      }
 
       auto caller_id = endpoints.get_caller_id(tx, ctx->session->caller_cert);
 
@@ -673,6 +706,13 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
       auto tx = tables.create_tx();
+      // Note: this can only happen if the primary is malicious,
+      // and has executed a user transaction when the service wasn't
+      // open. The backup should ideally trigger a view change here.
+      if (!is_open(tx))
+      {
+        throw std::logic_error("Transaction failed");
+      }
 
       kv::Version version = kv::NoVersion;
 

@@ -17,7 +17,7 @@ Using `cmake`, an application can be built and then signed using the functions p
 
 The :term:`Open Enclave` configuration file (``oe_sign.conf``) should be placed under the same directory as the source files for the application. For example:
 
-.. literalinclude:: ../../src/apps/logging/oe_sign.conf
+.. literalinclude:: ../../samples/apps/logging/oe_sign.conf
 
 .. note:: The `Open Enclave documentation <https://github.com/openenclave/openenclave/blob/master/docs/GettingStartedDocs/buildandsign.md#signing-an-SGX-enclave>`_ provides details about the enclave settings in the ``oe_sign.conf`` configuration file.
 

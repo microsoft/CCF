@@ -4,12 +4,10 @@
 
 #include "ds/logger.h"
 #include "ds/thread_messaging.h"
-#include "error.h"
 #include "tls/error_string.h"
 
 #include <mbedtls/aes.h>
 #include <mbedtls/error.h>
-#include <mbedtls/gcm.h>
 
 namespace crypto
 {
@@ -17,8 +15,7 @@ namespace crypto
   {
     for (uint32_t i = 0; i < ctxs.size(); ++i)
     {
-      ctxs[i] = new mbedtls_gcm_context;
-      mbedtls_gcm_init(ctxs[i]);
+      ctxs[i] = mbedtls::make_unique<mbedtls::GcmContext>();
 
       size_t n_bits;
       const auto n = static_cast<unsigned int>(rawKey.rawSize() * 8);
@@ -40,8 +37,8 @@ namespace crypto
           fmt::format("Need at least {} bits, only have {}", 128, n));
       }
 
-      int rc =
-        mbedtls_gcm_setkey(ctxs[i], MBEDTLS_CIPHER_ID_AES, rawKey.p, n_bits);
+      int rc = mbedtls_gcm_setkey(
+        ctxs[i].get(), MBEDTLS_CIPHER_ID_AES, rawKey.p, n_bits);
 
       if (rc != 0)
       {
@@ -52,24 +49,7 @@ namespace crypto
 
   KeyAesGcm::KeyAesGcm(KeyAesGcm&& that)
   {
-    ctxs = that.ctxs;
-
-    for (uint32_t i = 0; i < that.ctxs.size(); ++i)
-    {
-      that.ctxs[i] = nullptr;
-    }
-  }
-
-  KeyAesGcm::~KeyAesGcm()
-  {
-    for (auto ctx : ctxs)
-    {
-      if (ctx != nullptr)
-      {
-        mbedtls_gcm_free(ctx);
-        delete ctx;
-      }
-    }
+    ctxs = std::move(that.ctxs);
   }
 
   void KeyAesGcm::encrypt(
@@ -79,7 +59,7 @@ namespace crypto
     uint8_t* cipher,
     uint8_t tag[GCM_SIZE_TAG]) const
   {
-    auto ctx = ctxs[threading::get_current_thread_id()];
+    auto ctx = ctxs[threading::get_current_thread_id()].get();
     int rc = mbedtls_gcm_crypt_and_tag(
       ctx,
       MBEDTLS_GCM_ENCRYPT,
@@ -106,7 +86,7 @@ namespace crypto
     CBuffer aad,
     uint8_t* plain) const
   {
-    auto ctx = ctxs[threading::get_current_thread_id()];
+    auto ctx = ctxs[threading::get_current_thread_id()].get();
     return !mbedtls_gcm_auth_decrypt(
       ctx,
       cipher.n,
