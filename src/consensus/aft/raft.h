@@ -2026,7 +2026,7 @@ namespace aft
       state->commit_idx = idx;
 
       LOG_DEBUG_FMT("Compacting...");
-      snapshotter->compact(idx);
+      snapshotter->commit(idx);
       if (replica_state == Leader)
       {
         snapshotter->snapshot(idx);

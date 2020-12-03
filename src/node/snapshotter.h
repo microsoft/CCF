@@ -14,6 +14,7 @@
 #include "node/snapshot_evidence.h"
 
 #include <deque>
+#include <optional>
 
 namespace ccf
 {
@@ -35,6 +36,14 @@ namespace ccf
     {
       consensus::Index idx;
       consensus::Index evidence_idx;
+
+      // The evidence isn't committed when the snapshot is generated
+      std::optional<consensus::Index> evidence_commit_idx;
+
+      SnapshotInfo(consensus::Index idx, consensus::Index evidence_idx) :
+        idx(idx),
+        evidence_idx(evidence_idx)
+      {}
     };
     std::deque<SnapshotInfo> snapshot_evidence_indices;
 
@@ -61,19 +70,21 @@ namespace ccf
     }
 
     void record_snapshot(
-      consensus::Index idx, const std::vector<uint8_t>& serialised_snapshot)
+      consensus::Index idx,
+      consensus::Index evidence_idx,
+      const std::vector<uint8_t>& serialised_snapshot)
     {
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::snapshot, to_host, idx, serialised_snapshot);
+        consensus::snapshot, to_host, idx, evidence_idx, serialised_snapshot);
     }
 
     void commit_snapshot(
-      consensus::Index snapshot_idx, consensus::Index evidence_idx)
+      consensus::Index snapshot_idx, consensus::Index evidence_commit_idx)
     {
       // The snapshot_idx is used to retrieve the correct snapshot file
-      // previously generated. The evidence_idx is recorded as metadata.
+      // previously generated. The evidence_commit_idx is recorded as metadata.
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::snapshot_commit, to_host, snapshot_idx, evidence_idx);
+        consensus::snapshot_commit, to_host, snapshot_idx, evidence_commit_idx);
     }
 
     struct SnapshotMsg
@@ -90,7 +101,7 @@ namespace ccf
     void snapshot_(
       std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot)
     {
-      auto snapshot_v = snapshot->get_version();
+      auto snapshot_version = snapshot->get_version();
 
       auto serialised_snapshot =
         network.tables->serialise_snapshot(std::move(snapshot));
@@ -98,27 +109,31 @@ namespace ccf
       auto tx = network.tables->create_tx();
       auto view = tx.get_view(network.snapshot_evidence);
       auto snapshot_hash = crypto::Sha256Hash(serialised_snapshot);
-      view->put(0, {snapshot_hash, snapshot_v});
+      view->put(0, {snapshot_hash, snapshot_version});
 
       auto rc = tx.commit();
       if (rc != kv::CommitSuccess::OK)
       {
         LOG_FAIL_FMT(
           "Could not commit snapshot evidence for seqno {}: {}",
-          snapshot_v,
+          snapshot_version,
           rc);
         return;
       }
 
-      record_snapshot(snapshot_v, serialised_snapshot);
-      consensus::Index snapshot_idx = static_cast<consensus::Index>(snapshot_v);
+      auto evidence_version = tx.commit_version();
+
+      record_snapshot(snapshot_version, evidence_version, serialised_snapshot);
+      consensus::Index snapshot_idx =
+        static_cast<consensus::Index>(snapshot_version);
       consensus::Index snapshot_evidence_idx =
-        static_cast<consensus::Index>(tx.commit_version());
-      snapshot_evidence_indices.push_back(
-        {snapshot_idx, snapshot_evidence_idx});
+        static_cast<consensus::Index>(evidence_version);
+      snapshot_evidence_indices.emplace_back(
+        snapshot_idx, snapshot_evidence_idx);
 
       LOG_DEBUG_FMT(
-        "Snapshot successfully generated for seqno {}, with evidence seqno {}: "
+        "Snapshot successfully generated for seqno {}, with evidence seqno "
+        "{}: "
         "{}",
         snapshot_idx,
         snapshot_evidence_idx,
@@ -184,7 +199,7 @@ namespace ccf
       }
     }
 
-    void compact(consensus::Index idx)
+    void commit(consensus::Index idx)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -199,12 +214,25 @@ namespace ccf
         next_snapshot_indices.push_back(last_snapshot_idx);
       }
 
-      while (!snapshot_evidence_indices.empty() &&
-             (snapshot_evidence_indices.front().evidence_idx <= idx))
+      for (auto it = snapshot_evidence_indices.begin();
+           it != snapshot_evidence_indices.end();)
       {
-        auto snapshot_info = snapshot_evidence_indices.front();
-        commit_snapshot(snapshot_info.idx, snapshot_info.evidence_idx);
-        snapshot_evidence_indices.pop_front();
+        if (it->evidence_commit_idx.has_value())
+        {
+          if (idx > it->evidence_commit_idx.value())
+          {
+            commit_snapshot(it->idx, idx);
+            auto it_ = it;
+            it++;
+            snapshot_evidence_indices.erase(it_);
+            continue;
+          }
+        }
+        else if (idx >= it->evidence_idx)
+        {
+          it->evidence_commit_idx = idx;
+        }
+        it++;
       }
     }
 

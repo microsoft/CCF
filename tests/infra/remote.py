@@ -800,6 +800,10 @@ class CCFRemote(object):
                 ledger_dirs.append(os.path.join(self.common_dir, read_only_ledger_dir))
         return ledger_dirs
 
+    def get_snapshots(self):
+        self.remote.get(self.snapshot_dir_name, self.common_dir)
+        return os.path.join(self.common_dir, self.snapshot_dir_name)
+
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
         self.remote.get(
             self.snapshot_dir_name,
