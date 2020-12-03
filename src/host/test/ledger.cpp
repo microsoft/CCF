@@ -4,6 +4,7 @@
 #include "host/ledger.h"
 
 #include "ds/serialized.h"
+#include "host/snapshot.h"
 
 #include <doctest/doctest.h>
 #include <string>
@@ -14,6 +15,9 @@ using namespace asynchost;
 using frame_header_type = uint32_t;
 static constexpr size_t frame_header_size = sizeof(frame_header_type);
 static constexpr auto ledger_dir = "ledger_dir";
+static constexpr auto snapshot_dir = "snapshot_dir";
+
+static const auto dummy_snapshot = std::vector<uint8_t>(128, 42);
 
 constexpr auto buffer_size = 1024;
 auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
@@ -21,6 +25,17 @@ auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
 ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
 
 auto wf = ringbuffer::WriterFactory(eio);
+
+std::string get_snapshot_file_name(
+  size_t idx, size_t evidence_idx, size_t evidence_commit_idx)
+{
+  return fmt::format(
+    "{}/snapshot_{}_{}.committed_{}",
+    snapshot_dir,
+    idx,
+    evidence_idx,
+    evidence_commit_idx);
+}
 
 // Ledger entry type
 template <typename T>
@@ -859,5 +874,85 @@ TEST_CASE("Recover from read-only ledger directory only")
     }
 
     read_entries_range_from_ledger(ledger, 1, entry_submitter.get_last_idx());
+  }
+}
+
+TEST_CASE("Find latest snapshot with corresponding ledger chunk")
+{
+  fs::remove_all(ledger_dir);
+  fs::remove_all(snapshot_dir);
+
+  size_t chunk_threshold = 30;
+  size_t chunk_count = 5;
+  size_t last_idx = 0;
+
+  Ledger ledger(ledger_dir, wf, chunk_threshold);
+  TestEntrySubmitter entry_submitter(ledger);
+
+  SnapshotManager snapshots(snapshot_dir, ledger);
+
+  INFO("Write many entries on first ledger");
+  {
+    // Writing some committed chunks
+    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    last_idx = entry_submitter.get_last_idx();
+    ledger.commit(last_idx);
+  }
+
+  INFO("Create, commit and retrieve latest snapshot");
+  {
+    size_t snapshot_idx = last_idx / 2;
+    // Assumes evidence idx and evidence commit idx as next indices
+    size_t snapshot_evidence_idx = snapshot_idx + 1;
+    size_t snapshot_evidence_commit_idx = snapshot_evidence_idx + 1;
+
+    snapshots.write_snapshot(
+      snapshot_idx,
+      snapshot_evidence_idx,
+      dummy_snapshot.data(),
+      dummy_snapshot.size());
+
+    // Snapshot is not yet committed
+    REQUIRE_FALSE(snapshots.find_latest_committed_snapshot().has_value());
+
+    snapshots.commit_snapshot(snapshot_idx, snapshot_evidence_commit_idx);
+
+    auto snapshot_file_name = get_snapshot_file_name(
+      snapshot_idx, snapshot_evidence_idx, snapshot_evidence_commit_idx);
+
+    REQUIRE(
+      snapshots.find_latest_committed_snapshot().value() == snapshot_file_name);
+
+    fs::remove(snapshot_file_name);
+  }
+
+  INFO("Snapshot evidence commit past last ledger index");
+  {
+    // Snapshot evidence commit idx is past last ledger idx
+    size_t snapshot_idx = last_idx - 1;
+    size_t snapshot_evidence_idx = snapshot_idx + 1; // Still covered by ledger
+    size_t snapshot_evidence_commit_idx = snapshot_evidence_idx + 1;
+
+    snapshots.write_snapshot(
+      snapshot_idx,
+      snapshot_evidence_idx,
+      dummy_snapshot.data(),
+      dummy_snapshot.size());
+
+    snapshots.commit_snapshot(snapshot_idx, snapshot_evidence_commit_idx);
+
+    // Even though snapshot is committed, evidence commit is past last ledger
+    // index
+    REQUIRE_FALSE(snapshots.find_latest_committed_snapshot().has_value());
+
+    // Add another entry to ledger, so that ledger's last idx ==
+    // snapshot_evidence_commit_idx
+    entry_submitter.write(true); // note: is_committable flag does not matter
+
+    // Snapshot is now valid
+    REQUIRE(
+      snapshots.find_latest_committed_snapshot().value() ==
+      get_snapshot_file_name(
+        snapshot_idx, snapshot_evidence_idx, snapshot_evidence_commit_idx));
   }
 }

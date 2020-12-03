@@ -1,11 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "../ds/buffer.h"
-#include "../ds/serialized.h"
+#include "ds/buffer.h"
+#include "ds/serialized.h"
 #include "ds/thread_messaging.h"
-
-struct mbedtls_gcm_context;
+#include "tls/mbedtls_wrappers.h"
 
 namespace crypto
 {
@@ -139,14 +138,13 @@ namespace crypto
   {
   private:
     mutable std::
-      array<mbedtls_gcm_context*, threading::ThreadMessaging::max_num_threads>
+      array<mbedtls::GcmContext, threading::ThreadMessaging::max_num_threads>
         ctxs;
 
   public:
     KeyAesGcm(CBuffer rawKey);
     KeyAesGcm(const KeyAesGcm& that) = delete;
     KeyAesGcm(KeyAesGcm&& that);
-    ~KeyAesGcm();
 
     void encrypt(
       CBuffer iv,

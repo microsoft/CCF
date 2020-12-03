@@ -37,6 +37,8 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake
         DESTINATION cmake
 )
 
+include(GNUInstallDirs)
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/aft.cmake)
 
@@ -75,6 +77,8 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     PUBLIC
       "$<BUILD_INTERFACE:${EVERCRYPT_INC}>"
       $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+      $<INSTALL_INTERFACE:include/ccf/>
+      $<INSTALL_INTERFACE:include/3rdparty/>
       $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt>
       $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin>
       $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
@@ -129,6 +133,8 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     PUBLIC
       "$<BUILD_INTERFACE:${EVERCRYPT_INC}>"
       $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+      $<INSTALL_INTERFACE:include/ccf/>
+      $<INSTALL_INTERFACE:include/3rdparty/>
       $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt>
       $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin>
       $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
@@ -165,7 +171,11 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   add_dependencies(ccf ccf.virtual)
 endif()
 
-install(EXPORT ccf DESTINATION cmake)
+install(
+  EXPORT ccf
+  DESTINATION cmake
+  FILE ccf-targets.cmake
+)
 
 # Install all 3rd-party library includes
 install(
@@ -850,3 +860,20 @@ if(BUILD_TESTS)
       --use-websockets
   )
 endif()
+
+# Generate and install CMake export file for consumers using CMake
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf-config.cmake.in
+  ${CMAKE_BINARY_DIR}/cmake/ccf-config.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
+  PATH_VARS CMAKE_INSTALL_LIBDIR CMAKE_INSTALL_BINDIR CMAKE_INSTALL_INCLUDEDIR
+)
+write_basic_package_version_file(
+  ${CMAKE_BINARY_DIR}/cmake/ccf-config-version.cmake
+  COMPATIBILITY SameMajorVersion
+)
+install(FILES ${CMAKE_BINARY_DIR}/cmake/ccf-config.cmake
+              ${CMAKE_BINARY_DIR}/cmake/ccf-config-version.cmake
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
+)

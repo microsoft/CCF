@@ -9,7 +9,6 @@ import infra.path
 import ccf.clients
 import os
 import socket
-import time
 import re
 
 from loguru import logger as LOG
@@ -36,12 +35,13 @@ def is_addr_local(host, port):
             return False
 
 
-def is_snapshot_committed(file_name):
+def is_file_committed(file_name):
     return ".committed" in file_name
 
 
-def get_snapshot_seqno(file_name):
-    return int(re.findall(r"\d+", file_name)[0])
+def get_snapshot_seqnos(file_name):
+    # Returns the tuple (snapshot_seqno, evidence_seqno)
+    return int(re.findall(r"\d+", file_name)[0]), int(re.findall(r"\d+", file_name)[1])
 
 
 class Node:
@@ -266,31 +266,11 @@ class Node:
     def get_ledger(self, **kwargs):
         return self.remote.get_ledger(**kwargs)
 
-    def get_committed_snapshots(self):
-        # Wait for all available snapshot files to be committed before
-        # copying snapshot directory
-        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=3):
-            end_time = time.time() + timeout
-            committed = True
-            uncommitted_snapshots = []
-            while time.time() < end_time:
-                committed = True
-                uncommitted_snapshots = []
-                for f in list_src_dir_func(src_dir):
-                    is_committed = is_snapshot_committed(f)
-                    if not is_committed:
-                        uncommitted_snapshots.append(f)
-                    committed &= is_committed
-                if committed:
-                    break
-                time.sleep(0.1)
-            if not committed:
-                LOG.error(
-                    f"Error: Not all snapshots were committed after {timeout}s in {src_dir}: {uncommitted_snapshots}"
-                )
-            return committed
+    def get_snapshots(self):
+        return self.remote.get_snapshots()
 
-        return self.remote.get_committed_snapshots(wait_for_snapshots_to_be_committed)
+    def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
+        return self.remote.get_committed_snapshots(pre_condition_func)
 
     def client_certs(self, identity=None):
         return {
