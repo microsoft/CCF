@@ -16,34 +16,56 @@ Before issuing business transactions to CCF, the certificates of trusted users n
 
 .. panels::
 
-    :fa:`hand-paper` :doc:`issue_commands`
+    :fa:`terminal` :doc:`issue_commands`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Issuing commands against a CCF network hosting an application.
 
     ---
 
-    :fa:`hand-paper` :doc:`verify_tx`
+    :fa:`check` :doc:`verify_tx`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Checking the status of commands issued against a CCF network.
 
     ---
 
-    :fa:`hand-paper` :doc:`verify_quote`
+    :fa:`search` :doc:`verify_quote`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Checking the quote of a CCF node to confirm it is part of a valid network and running in Enclave.
 
     ---
 
-    :fa:`hand-paper` :doc:`python_tutorial`
+    .. image:: ../img/python.svg
+      :width: 22
+      :alt: C++
+      :align: left
+      
+    :doc:`python_tutorial`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Common user operations from a Python client.
 
     ---
 
 
-    :fa:`hand-paper` :doc:`python_api`
+    .. image:: ../img/python.svg
+      :width: 22
+      :alt: C++
+      :align: left
+      
+    :doc:`python_api`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Python client API reference.
 
     ---
 
-    :fa:`hand-paper` :doc:`rpc_api`
+    :fa:`terminal` :doc:`rpc_api`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    OpenAPI schema for user RPC API.
 
 
 .. toctree::

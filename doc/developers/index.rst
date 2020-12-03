@@ -47,35 +47,38 @@ These endpoints can read or mutate the state of a unique :ref:`developers/kv/ind
 
     ---
 
-    :fa:`hand-paper` :doc:`demo`
+    :fa:`rocket` :doc:`demo`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Running a CCF application demo from scratch.
 
     ---
 
-    :fa:`hand-paper` :doc:`auth/index`
+    :fa:`users` :doc:`auth/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    User authentication mechanisms in CCF.
 
     ---
 
-    :fa:`hand-paper` :doc:`auth/index`
+    :fa:`database` :doc:`kv/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Transactional access to state is provided by the Key-Value store.
 
     ---
 
-    :fa:`hand-paper` :doc:`kv/index`
+    :fa:`external-link-alt` :doc:`upgrading_app` 
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Application upgrade in CCF.
 
     ---
 
-    :fa:`hand-paper` :doc:`upgrading_app`
+    :fa:`terminal` :doc:`api`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    ---
-
-    :fa:`hand-paper` :doc:`api`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    C++ API reference.
 
 .. toctree::
     :hidden:
