@@ -98,14 +98,14 @@ namespace Merkle
     } Element;
 
     PathT(const HashT<HASH_SIZE> &leaf, std::list<Element> &&elements)
-      : leaf(leaf), elements(elements)
+      : _leaf(leaf), elements(elements)
     {}
     PathT(const PathT &other) {
-      leaf = other.leaf;
+      _leaf = other._leaf;
       elements = other.elements;
     }
     PathT(PathT &&other) {
-      leaf = std::move(other.leaf);
+      _leaf = std::move(other._leaf);
       elements = std::move(other.elements);
     }
     PathT(std::vector<uint8_t> &bytes) {
@@ -113,8 +113,8 @@ namespace Merkle
     }
 
     bool verify(const HashT<HASH_SIZE> &root) const {
-      HashT<HASH_SIZE> result = leaf, tmp;
-      TRACE(std::cout << "> verify " << leaf.to_string(TRACE_HASH_SIZE) << std::endl);
+      HashT<HASH_SIZE> result = _leaf, tmp;
+      TRACE(std::cout << "> verify " << _leaf.to_string(TRACE_HASH_SIZE) << std::endl);
       for (const Element &e : elements) {
         if (e.direction == PATH_LEFT) {
           TRACE(std::cout << " - " << e.hash.to_string(TRACE_HASH_SIZE) << " x " << result.to_string(TRACE_HASH_SIZE) << std::endl);
@@ -152,14 +152,16 @@ namespace Merkle
 
     std::string to_string(size_t num_bytes = HASH_SIZE) const {
       std::stringstream stream;
-      stream << leaf.to_string(num_bytes);
+      stream << _leaf.to_string(num_bytes);
       for (auto &e : elements)
         stream << " " << e.hash.to_string(num_bytes) << (e.direction == PATH_LEFT ? "(L)" : "(R)");
       return stream.str();
     }
 
+    const HashT<HASH_SIZE> &leaf() const { return _leaf; }
+
   protected:
-    HashT<HASH_SIZE> leaf;
+    HashT<HASH_SIZE> _leaf;
     std::list<Element> elements;
   };
 
@@ -175,8 +177,8 @@ namespace Merkle
         auto r = new Node();
         r->left = r->right = nullptr;
         r->hash = hash;
-        r->size = r->height = 1;
         r->dirty = false;
+        r->update_sizes();
         assert(r->invariant());
         return r;
       }
@@ -188,8 +190,7 @@ namespace Merkle
         r->left = left;
         r->right = right;
         r->dirty = true;
-        r->size = left->size + right->size + 1;
-        r->height = std::max(left->height, right->height) + 1;
+        r->update_sizes();
         r->left->parent = r->right->parent = r;
         assert(r->invariant());
         return r;
@@ -214,6 +215,15 @@ namespace Merkle
         size_t max_size =  (1 << height) - 1;
         assert(size <= max_size);
         return size == max_size;
+      }
+
+      void update_sizes() {
+        if (left && right) {
+          size = left->size + right->size + 1;
+          height = std::max(left->height, right->height) + 1;
+        }
+        else
+          size = height = 1;
       }
 
       HashT<HASH_SIZE> hash;
@@ -278,7 +288,7 @@ namespace Merkle
 
       assert(index < _root->size);
 
-      Node *final = walk_to(index, [this](Node *&n, bool go_right) {
+      Node *final = walk_to(index, false, [this](Node *&n, bool go_right) {
         if (go_right && n->left) {
           TRACE(std::cout << " - conflate " << n->left->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
           if (n->left && n->left->dirty)
@@ -319,7 +329,7 @@ namespace Merkle
 
       assert(_root && index < _root->size);
 
-      Node *final = walk_to(index, [this](Node *&n, bool go_right) {
+      Node *final = walk_to(index, true, [this](Node *&n, bool go_right) {
         bool go_left = !go_right;
         n->dirty = true;
         if (go_left && n->right) {
@@ -345,21 +355,7 @@ namespace Merkle
             n->dirty = true;
           }
 
-          if (n->parent) {
-            Node *parent = n->parent;
-
-            while (parent) {
-              size_t &parent_size = parent->size;
-              parent_size = 1;
-              parent_size += parent->left->size;
-              parent_size += parent->right->size;
-
-              parent->height = std::max(parent->left->height, parent->right->height) + 1;
-
-              parent = parent->parent;
-            }
-          }
-          else if (is_root) {
+          if (is_root) {
             TRACE(std::cout << " - new root: " << n->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
             assert(n->parent == nullptr);
             assert(_root == n);
@@ -399,18 +395,37 @@ namespace Merkle
       return _root->hash;
     }
 
-    std::unique_ptr<const Hash> past_root(size_t index) const {
-      throw std::runtime_error("not implemented yet");
+    std::shared_ptr<Hash> past_root(size_t index) {
+      TRACE(std::cout << "> past_root " << index << std::endl;);
+      statistics.num_past_root++;
+
+      auto p = path(index);
+      auto result = std::make_shared<Hash>(p->leaf());
+      TRACE(std::cout << " - " << p->to_string(TRACE_HASH_SIZE) << std::endl;
+            std::cout << " - " << result->to_string(TRACE_HASH_SIZE) << std::endl;);
+      for (auto e : *p) {
+        if (e.direction == Path::Direction::PATH_LEFT) {
+          Hash tmp;
+          HASH_FUNCTION(e.hash, *result, tmp);
+          *result = tmp;
+        }
+      }
+
+      return result;
     }
 
-    Node* walk_to(size_t index, std::function<bool(Node*&, bool)> f)
+    Node* walk_to(size_t index, bool update, std::function<bool(Node*&, bool)> f)
     {
       Node *cur = _root;
       size_t it = index << (sizeof(_root->height)*8 - _root->height + 1);
 
+      assert(walk_stack.empty());
+
       for (size_t height = _root->height; height > 1; ) {
         assert(cur->invariant());
         bool go_right = (it >> (8*sizeof(it)-1)) & 0x01;
+        if (update)
+          walk_stack.push_back(cur);
         TRACE(std::cout << " - at " << cur->hash.to_string(TRACE_HASH_SIZE)
                         << " (" << cur->size << "/" << cur->height << ")"
                         << " (" << (go_right ? "R" : "L") << ")" << std::endl;);
@@ -423,13 +438,18 @@ namespace Merkle
         height--;
       }
 
+      while (!walk_stack.empty()) {
+        walk_stack.back()->update_sizes();
+        walk_stack.pop_back();
+      }
+
       return cur;
     }
 
     std::unique_ptr<Path> path(size_t index) {
       TRACE(std::cout << "> path from " << index << std::endl;);
 
-      if (index < num_flushed || index >= num_leaves())
+      if (index < min_index() || max_index() < index)
         throw std::runtime_error("invalid leaf index");
 
       compute_root();
@@ -438,7 +458,7 @@ namespace Merkle
 
       std::list<typename Path::Element> elements;
 
-      Node *final = walk_to(index, [&elements](Node *n, bool go_right) {
+      Node *final = walk_to(index, false, [&elements](Node *n, bool go_right) {
           typename Path::Element e;
           e.hash = go_right ? n->left->hash : n->right->hash;
           e.direction = go_right ? Path::PATH_LEFT : Path::PATH_RIGHT;
@@ -503,7 +523,8 @@ namespace Merkle
     }
 
     struct Statistics {
-      size_t num_insert = 0, num_hash = 0, num_root = 0;
+      size_t num_insert = 0, num_hash = 0;
+      size_t num_root = 0, num_past_root = 0;
       size_t num_flush = 0, num_retract = 0;
 
       std::string to_string() const {
@@ -567,6 +588,7 @@ namespace Merkle
     typedef struct { Node *n; bool left; } InsertionStackElement;
     std::vector<InsertionStackElement> insertion_stack;
     std::vector<Node*> hashing_stack;
+    std::vector<Node*> walk_stack;
     size_t num_flushed = 0;
 
     void hash(Node *n, size_t indent=2)
@@ -628,8 +650,7 @@ namespace Merkle
           else
             insert_new_leaf_recursive(n->right, new_leaf);
           n->dirty = true;
-          n->size = n->left->size + n->right->size + 1;
-          n->height = std::max(n->left->height, n->right->height) + 1;
+          n->update_sizes();
         }
       }
     }
@@ -685,10 +706,8 @@ namespace Merkle
           n->left = result;
         else
           n->right = result;
-
         n->dirty = true;
-        n->size = n->left->size + n->right->size + 1;
-        n->height = std::max(n->left->height, n->right->height) + 1;
+        n->update_sizes();
 
         result = n;
 
