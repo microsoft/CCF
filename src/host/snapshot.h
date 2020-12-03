@@ -27,6 +27,7 @@ namespace asynchost
 
     size_t get_snapshot_idx_from_file_name(const std::string& file_name)
     {
+      // Assumes snapshot file is not committed
       auto pos = file_name.find(snapshot_idx_delimiter);
       if (pos == std::string::npos)
       {
@@ -37,40 +38,42 @@ namespace asynchost
       return std::stol(file_name.substr(pos + 1));
     }
 
-    // TODO: Change!
     std::optional<std::pair<size_t, size_t>>
     get_snapshot_evidence_idx_from_file_name(const std::string& file_name)
     {
-      auto pos = file_name.find(
-        fmt::format("{}{}", snapshot_committed_suffix, snapshot_idx_delimiter));
-      if (pos == std::string::npos)
+      // Returns snapshot evidence and evidence commit proof indices
+      auto commit_pos =
+        file_name.find(fmt::format(".{}", snapshot_committed_suffix));
+      if (commit_pos == std::string::npos)
       {
         // Snapshot is not yet committed
         return std::nullopt;
       }
 
-      auto committed_suffix = file_name.substr(pos);
-      auto committed_separator_pos =
-        committed_suffix.find(snapshot_idx_delimiter);
-      if (committed_separator_pos == std::string::npos)
+      auto idx_pos = file_name.find_first_of(snapshot_idx_delimiter);
+      if (idx_pos == std::string::npos)
       {
-        // Committed snapshot does not contain committed indices separator
+        // Snapshot has no idx
         return std::nullopt;
       }
 
-      auto evidence_indices =
-        committed_suffix.substr(committed_separator_pos + 1);
-      auto evidence_indices_separator_pos =
-        evidence_indices.find(snapshot_idx_delimiter);
-      if (evidence_indices_separator_pos == std::string::npos)
+      auto evidence_pos =
+        file_name.find_first_of(snapshot_idx_delimiter, idx_pos + 1);
+      if (evidence_pos == std::string::npos)
       {
-        // Committed snapshot does not contain evidence indices separator
+        // Snapshot has no evidence idx
+        return std::nullopt;
+      }
+
+      auto evidence_proof_pos = file_name.find_last_of(snapshot_idx_delimiter);
+      if (evidence_proof_pos == std::string::npos)
+      {
+        // Snapshot has no evidence proof idx
         return std::nullopt;
       }
 
       size_t evidence_idx;
-      std::string_view str_evidence_idx =
-        evidence_indices.substr(0, evidence_indices_separator_pos);
+      auto str_evidence_idx = file_name.substr(evidence_pos + 1, commit_pos);
       if (
         std::from_chars(
           str_evidence_idx.data(),
@@ -83,7 +86,7 @@ namespace asynchost
 
       size_t evidence_commit_idx;
       std::string_view str_evidence_commit_idx =
-        evidence_indices.substr(evidence_indices_separator_pos + 1);
+        file_name.substr(evidence_proof_pos + 1);
       if (
         std::from_chars(
           str_evidence_commit_idx.data(),

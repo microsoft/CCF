@@ -30,7 +30,7 @@ std::string get_snapshot_file_name(
   size_t idx, size_t evidence_idx, size_t evidence_commit_idx)
 {
   return fmt::format(
-    "{}/snapshot_{}.committed_{}_{}",
+    "{}/snapshot_{}_{}.committed_{}",
     snapshot_dir,
     idx,
     evidence_idx,
@@ -907,13 +907,15 @@ TEST_CASE("Find latest snapshot with corresponding ledger chunk")
     size_t snapshot_evidence_commit_idx = snapshot_evidence_idx + 1;
 
     snapshots.write_snapshot(
-      snapshot_idx, dummy_snapshot.data(), dummy_snapshot.size());
+      snapshot_idx,
+      snapshot_evidence_idx,
+      dummy_snapshot.data(),
+      dummy_snapshot.size());
 
     // Snapshot is not yet committed
     REQUIRE_FALSE(snapshots.find_latest_committed_snapshot().has_value());
 
-    snapshots.commit_snapshot(
-      snapshot_idx, snapshot_evidence_idx, snapshot_evidence_commit_idx);
+    snapshots.commit_snapshot(snapshot_idx, snapshot_evidence_commit_idx);
 
     auto snapshot_file_name = get_snapshot_file_name(
       snapshot_idx, snapshot_evidence_idx, snapshot_evidence_commit_idx);
@@ -932,10 +934,12 @@ TEST_CASE("Find latest snapshot with corresponding ledger chunk")
     size_t snapshot_evidence_commit_idx = snapshot_evidence_idx + 1;
 
     snapshots.write_snapshot(
-      snapshot_idx, dummy_snapshot.data(), dummy_snapshot.size());
+      snapshot_idx,
+      snapshot_evidence_idx,
+      dummy_snapshot.data(),
+      dummy_snapshot.size());
 
-    snapshots.commit_snapshot(
-      snapshot_idx, snapshot_evidence_idx, snapshot_evidence_commit_idx);
+    snapshots.commit_snapshot(snapshot_idx, snapshot_evidence_commit_idx);
 
     // Even though snapshot is committed, evidence commit is past last ledger
     // index
