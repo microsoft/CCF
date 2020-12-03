@@ -221,12 +221,13 @@ namespace http
         const auto actor_opt = http::extract_actor(*rpc_ctx);
         if (!actor_opt.has_value())
         {
-          send_raw(rpc_ctx->serialise_error(
+          rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
             fmt::format(
               "Request path must contain '/[actor]/[method]'. Unable to parse "
               "'{}'.\n",
-              rpc_ctx->get_method())));
+              rpc_ctx->get_method()));
+          send_raw(rpc_ctx->serialise_response());
           return;
         }
 
@@ -235,9 +236,10 @@ namespace http
         auto search = rpc_map->find(actor);
         if (actor == ccf::ActorsType::unknown || !search.has_value())
         {
-          send_raw(rpc_ctx->serialise_error(
+          rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
-            fmt::format("Unknown session '{}'.\n", actor_s)));
+            fmt::format("Unknown session '{}'.\n", actor_s));
+          send_raw(rpc_ctx->serialise_response());
           return;
         }
 

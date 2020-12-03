@@ -7,6 +7,7 @@
 #include "http_sig.h"
 #include "ws_parser.h"
 #include "ws_rpc_context.h"
+#include "node/rpc/error.h"
 
 namespace http
 {
@@ -35,14 +36,28 @@ namespace http
     return actor;
   }
 
-  static std::vector<uint8_t> error(size_t code, const std::string& msg)
+  inline std::vector<uint8_t> error(http_status status, std::string&& msg)
   {
-    http_status status = (http_status)code;
-    std::vector<uint8_t> data(msg.begin(), msg.end());
-    auto response = http::Response(status);
+    return error({status, http_status_str(status), msg});
+  }
+
+  inline std::vector<uint8_t> error(http_status status, std::string&& code, std::string&& msg)
+  {
+    return error({status, code, msg});
+  }
+
+  inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
+  {
+    nlohmann::json body = ccf::ODataErrorResponse{
+      ccf::ODataError{std::move(error.code), std::move(error.msg)}
+    };
+    const auto s = fmt::format("{}\n", body.dump());
+
+    std::vector<uint8_t> data(s.begin(), s.end());
+    auto response = http::Response(error.status);
 
     response.set_header(
-      http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+      http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
     response.set_body(&data);
 
     return response.build_response();
@@ -329,12 +344,6 @@ namespace http
 
       http_response.set_body(&response_body);
       return http_response.build_response();
-    }
-
-    virtual std::vector<uint8_t> serialise_error(
-      size_t code, const std::string& msg) const override
-    {
-      return error(code, msg);
     }
   };
 }

@@ -839,9 +839,10 @@ namespace ccfapp
         handler_script = scripts->get(verb_prefixed);
         if (!handler_script)
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-          args.rpc_ctx->set_response_body(fmt::format(
-            "No handler script found for method '{}'", verb_prefixed));
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND, 
+            fmt::format(
+              "No handler script found for method '{}'", verb_prefixed));
           return;
         }
       }

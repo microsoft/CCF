@@ -6,6 +6,7 @@
 #include "endpoint_registry.h"
 #include "http/http_consts.h"
 #include "node/rpc/serdes.h"
+#include "node/rpc/error.h"
 
 #include <llhttp/llhttp.h>
 
@@ -64,12 +65,6 @@ namespace ccf
 
   namespace jsonhandler
   {
-    struct ErrorDetails
-    {
-      http_status status;
-      std::string msg;
-    };
-
     using JsonAdapterResponse = std::variant<ErrorDetails, nlohmann::json>;
 
     static constexpr char const* pack_to_content_type(serdes::Pack p)
@@ -205,8 +200,7 @@ namespace ccf
       auto error = std::get_if<ErrorDetails>(&res);
       if (error != nullptr)
       {
-        ctx->set_response_status(error->status);
-        ctx->set_response_body(std::move(error->msg));
+        ctx->set_error(std::move(*error));
       }
       else
       {
@@ -251,7 +245,13 @@ namespace ccf
   static jsonhandler::JsonAdapterResponse make_error(
     http_status status, const std::string& msg = "")
   {
-    return jsonhandler::ErrorDetails{status, msg};
+    return ErrorDetails{status, "Error", msg};
+  }
+
+  static jsonhandler::JsonAdapterResponse make_error(
+    http_status status, const std::string& code, const std::string& msg)
+  {
+    return ErrorDetails{status, code, msg};
   }
 
 // -Wunused-function seems to _wrongly_ flag the following functions as unused

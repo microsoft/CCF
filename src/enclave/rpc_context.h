@@ -7,6 +7,7 @@
 #include "http/ws_consts.h"
 #include "node/client_signatures.h"
 #include "node/entities.h"
+#include "node/rpc/error.h"
 
 #include <llhttp/llhttp.h>
 #include <variant>
@@ -214,12 +215,31 @@ namespace enclave
       set_response_header(name, fmt::format("{}", n));
     }
 
+    virtual void set_error(http_status status, std::string&& msg)
+    {
+      set_error({status, http_status_str(status), msg});
+    }
+
+    virtual void set_error(http_status status, std::string&& code, std::string&& msg)
+    {
+      set_error({status, code, msg});
+    }
+
+    virtual void set_error(ccf::ErrorDetails&& error)
+    {
+      nlohmann::json body = ccf::ODataErrorResponse{
+        ccf::ODataError{std::move(error.code), std::move(error.msg)}
+      };
+      const auto s = fmt::format("{}\n", body.dump());
+      set_response_status(error.status);
+      set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
+      set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+    }
+
     virtual void set_apply_writes(bool apply) = 0;
     virtual bool should_apply_writes() const = 0;
 
     virtual std::vector<uint8_t> serialise_response() const = 0;
-
-    virtual std::vector<uint8_t> serialise_error(
-      size_t code, const std::string& msg) const = 0;
   };
 }

@@ -7,6 +7,7 @@
 #include "http_parser.h"
 #include "http_sig.h"
 #include "ws_builder.h"
+#include "node/rpc/error.h"
 
 namespace ws
 {
@@ -20,10 +21,25 @@ namespace ws
     return make_out_frame(code, seqno, view, global_commit, body);
   };
 
-  static std::vector<uint8_t> error(size_t code, const std::string& msg)
+  inline std::vector<uint8_t> error(http_status status, std::string&& msg)
   {
-    std::vector<uint8_t> ev(msg.begin(), msg.end());
-    return serialise(code, ev);
+    return error({status, http_status_str(status), msg});
+  }
+
+  inline std::vector<uint8_t> error(http_status status, std::string&& code, std::string&& msg)
+  {
+    return error({status, code, msg});
+  }
+
+  inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
+  {
+    nlohmann::json body = ccf::ODataErrorResponse{
+      ccf::ODataError{std::move(error.code), std::move(error.msg)}
+    };
+    const auto s = fmt::format("{}\n", body.dump());
+
+    std::vector<uint8_t> data(s.begin(), s.end());
+    return serialise(error.status, data);
   };
 
   class WsRpcContext : public enclave::RpcContext
@@ -205,12 +221,6 @@ namespace ws
     {
       return serialise(
         response_status, response_body, seqno, view, global_commit);
-    }
-
-    virtual std::vector<uint8_t> serialise_error(
-      size_t code, const std::string& msg) const override
-    {
-      return error(code, msg);
     }
   };
 }
