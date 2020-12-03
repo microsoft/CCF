@@ -3,45 +3,45 @@ Overview
 
 .. panels::
 
-    :fa:`table` :doc:`concepts`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    :fa:`lightbulb` :doc:`concepts`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    ...
+    CCF in a hundred words, and the fundamental concepts it implements. Start Here.
 
     ---
 
-    :fa:`project-diagram` :doc:`constitution`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    :fa:`scroll` :doc:`constitution`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    ...
+    Governance in a CCF network is implemented as an executable constitution.
 
     ---
 
     :fa:`book` :doc:`consensus`
-    ^^^^^^^^^^^^^^^^^^^^^^^^
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    ...
-
-    ---
-
-    :fa:`code` :doc:`cryptography`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    ...
+    Different consensus protocols can be used to replicate state in a CCF network.
 
     ---
 
-    :fa:`code` :doc:`performance`
+    :fa:`key` :doc:`cryptography`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    ...
+    CCF leverages a number of cryptographic techniques and primitives.
 
     ---
 
-    :fa:`code` :doc:`threading`
+    :fa:`tachometer-alt` :doc:`performance`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    One of the goals of the CCF implementation is to enable high-throughput, low-latency use cases.
+
+    ---
+
+    :fa:`stream` :doc:`threading`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    ...
+    CCF threading model.
 
 .. toctree::
     :hidden:
