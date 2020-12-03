@@ -14,9 +14,41 @@ To generate the certificate and private key of trusted users should be generated
 
 Before issuing business transactions to CCF, the certificates of trusted users need to be voted in by the consortium of members (see :ref:`members/open_network:Adding Users`).
 
+.. panels::
+
+    :fa:`hand-paper` :doc:`issue_commands`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    ---
+
+    :fa:`hand-paper` :doc:`verify_tx`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    ---
+
+    :fa:`hand-paper` :doc:`verify_quote`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    ---
+
+    :fa:`hand-paper` :doc:`python_tutorial`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    ---
+
+
+    :fa:`hand-paper` :doc:`python_api`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    ---
+
+    :fa:`hand-paper` :doc:`rpc_api`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    ---
+
 .. toctree::
-    :maxdepth: 2
-    :caption: Contents:
+    :hidden:
 
     issue_commands
     verify_tx
