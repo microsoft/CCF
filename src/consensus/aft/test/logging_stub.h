@@ -260,7 +260,7 @@ namespace aft
       return false;
     }
 
-    void compact(Index)
+    void commit(Index)
     {
       // For now, do not test snapshots in unit tests
       return;

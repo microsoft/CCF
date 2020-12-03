@@ -170,14 +170,6 @@ def run(args):
         if args.snapshot_tx_interval is not None:
             test_add_node_from_snapshot(network, args, copy_ledger_read_only=True)
 
-            try:
-                test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
-                assert (
-                    False
-                ), "Node added from snapshot without ledger should not be able to verify historical entries"
-            except app.LoggingTxsVerifyException:
-                pass
-
 
 if __name__ == "__main__":
 
