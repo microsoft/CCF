@@ -70,12 +70,6 @@ Now the issuer can be created with auto-refresh enabled:
 
     The key refresh interval is set via the ``--jwt-key-refresh-interval-s <seconds>`` CLI option for ``cchost``, where the default is 30 min.
 
-.. warning::
-
-    Currently, no initial automatic key refresh takes place when adding a new token issuer, see `#1929 <https://github.com/microsoft/CCF/issues/1929>`_.
-    This is a temporary limitation that will be addressed in a future release.
-    To work around this limitation, consider updating keys manually the first time.
-
 Removing a token issuer
 -----------------------
 
