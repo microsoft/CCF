@@ -48,6 +48,7 @@ namespace ccf
     bool ack_sent = false;
     bool reply_and_nonce_sent = false;
     bool nonces_committed_to_ledger = false;
+    bool wrote_sig_to_ledger = false;
   };
 
   class ProgressTrackerStore

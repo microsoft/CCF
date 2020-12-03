@@ -76,6 +76,16 @@ namespace ccf
           tx_id.version);
       }
 
+      auto& cert = it->second;
+      if (cert.wrote_sig_to_ledger)
+      {
+        LOG_TRACE_FMT(
+          "Already wrote append entry view:{}, seqno:{}, ignoring",
+          tx_id.term,
+          tx_id.version);
+        return kv::TxHistory::Result::OK;
+      }
+
       std::vector<uint8_t> sig_vec;
       CCF_ASSERT_FMT(
         signature_size <= sig.size(),
@@ -84,7 +94,6 @@ namespace ccf
         sig.size());
       sig_vec.assign(sig.begin(), sig.begin() + signature_size);
 
-      auto& cert = it->second;
       CCF_ASSERT(
         node_id != id ||
           std::equal(
@@ -114,7 +123,9 @@ namespace ccf
             }
           }
 
+          LOG_TRACE_FMT("Adding signatures to ledger seqno:{}", tx_id.version);
           store->write_backup_signatures(sig_value);
+          cert.wrote_sig_to_ledger = true;
         }
         return kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK;
       }
@@ -355,8 +366,9 @@ namespace ccf
         if (it == cert.sigs.end())
         {
           LOG_FAIL_FMT(
-            "Primary sent revealed nonce before sending a signature view:{}, "
+            "Node {} sent revealed nonce before sending a signature view:{}, "
             "seqno:{}",
+            revealed_nonce.node_id,
             nonces_value.tx_id.term,
             nonces_value.tx_id.version);
           return kv::TxHistory::Result::FAIL;
