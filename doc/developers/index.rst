@@ -9,28 +9,48 @@ These endpoints can read or mutate the state of a unique :ref:`developers/kv/ind
 
 .. panels::
 
-    :fa:`hand-paper` :doc:`example`
+    .. image:: ../img/cpp.svg
+      :width: 22
+      :alt: C++
+      :align: left
+    
+    :doc:`example`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    ---
-
-    :fa:`hand-paper` :doc:`js_app`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    Sample CCF application written in C++.
 
     ---
 
-    :fa:`hand-paper` :doc:`build_app`
+    .. image:: ../img/ts.svg
+      :width: 22
+      :alt: C++
+      :align: left
+    
+    :doc:`js_app`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Sample CCF application written in TypeScript or JavaScript.
 
     ---
 
-    :fa:`hand-paper` :doc:`run_app`
+    :fa:`tools` :doc:`build_app`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Building a CCF application.
+
+    ---
+
+    :fa:`cogs` :doc:`run_app`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Running a CCF application in a sandbox environment for development.
 
     ---
 
     :fa:`hand-paper` :doc:`demo`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Running a CCF application demo from scratch.
 
     ---
 

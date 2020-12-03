@@ -45,7 +45,6 @@ Before issuing business transactions to CCF, the certificates of trusted users n
     :fa:`hand-paper` :doc:`rpc_api`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    ---
 
 .. toctree::
     :hidden:
