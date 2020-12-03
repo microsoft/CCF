@@ -29,6 +29,7 @@ import {
 } from "../error_handler";
 import { User } from "../authentication";
 import * as ccf from "../types/ccf";
+import { kv } from "../models/poll";
 
 export const MINIMUM_OPINION_THRESHOLD = 10;
 
@@ -84,26 +85,6 @@ export {
   NumericPollResponse,
 };
 
-namespace kv {
-  type User = string;
-
-  interface PollBase<T> {
-    creator: string;
-    type: string;
-    opinions: Record<User, T>;
-  }
-
-  interface StringPoll extends PollBase<string> {
-    type: "string";
-  }
-
-  interface NumericPoll extends PollBase<number> {
-    type: "number";
-  }
-
-  export type Poll = StringPoll | NumericPoll;
-}
-
 // GET  /polls/{topic} return poll
 // POST /polls/{topic} create poll
 // PUT  /polls/{topic} submit opinion
@@ -119,11 +100,12 @@ namespace kv {
   "Schema validation error"
 )
 export class PollController extends Controller {
-  private kvPolls = new ccf.TypedKVMap(
-    ccf.kv.polls,
-    ccf.string,
-    ccf.json<kv.Poll>()
-  );
+  private kvPolls: kv.PollMap;
+
+  constructor() {
+    super();
+    this.kvPolls = kv.getPollMap();
+  }
 
   @SuccessResponse(201, "Poll has been successfully created")
   @Response<ErrorResponse>(
