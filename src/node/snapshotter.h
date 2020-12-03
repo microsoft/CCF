@@ -70,26 +70,21 @@ namespace ccf
     }
 
     void record_snapshot(
-      consensus::Index idx, const std::vector<uint8_t>& serialised_snapshot)
+      consensus::Index idx,
+      consensus::Index evidence_idx,
+      const std::vector<uint8_t>& serialised_snapshot)
     {
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::snapshot, to_host, idx, serialised_snapshot);
+        consensus::snapshot, to_host, idx, evidence_idx, serialised_snapshot);
     }
 
     void commit_snapshot(
-      consensus::Index snapshot_idx,
-      consensus::Index evidence_idx,
-      consensus::Index evidence_commit_idx)
+      consensus::Index snapshot_idx, consensus::Index evidence_commit_idx)
     {
       // The snapshot_idx is used to retrieve the correct snapshot file
-      // previously generated. The evidence_idx and evidence_commit_idx are
-      // recorded as metadata.
+      // previously generated. The evidence_commit_idx is recorded as metadata.
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::snapshot_commit,
-        to_host,
-        snapshot_idx,
-        evidence_idx,
-        evidence_commit_idx);
+        consensus::snapshot_commit, to_host, snapshot_idx, evidence_commit_idx);
     }
 
     struct SnapshotMsg
@@ -106,7 +101,7 @@ namespace ccf
     void snapshot_(
       std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot)
     {
-      auto snapshot_v = snapshot->get_version();
+      auto snapshot_version = snapshot->get_version();
 
       auto serialised_snapshot =
         network.tables->serialise_snapshot(std::move(snapshot));
@@ -114,22 +109,25 @@ namespace ccf
       auto tx = network.tables->create_tx();
       auto view = tx.get_view(network.snapshot_evidence);
       auto snapshot_hash = crypto::Sha256Hash(serialised_snapshot);
-      view->put(0, {snapshot_hash, snapshot_v});
+      view->put(0, {snapshot_hash, snapshot_version});
 
       auto rc = tx.commit();
       if (rc != kv::CommitSuccess::OK)
       {
         LOG_FAIL_FMT(
           "Could not commit snapshot evidence for seqno {}: {}",
-          snapshot_v,
+          snapshot_version,
           rc);
         return;
       }
 
-      record_snapshot(snapshot_v, serialised_snapshot);
-      consensus::Index snapshot_idx = static_cast<consensus::Index>(snapshot_v);
+      auto evidence_version = tx.commit_version();
+
+      record_snapshot(snapshot_version, evidence_version, serialised_snapshot);
+      consensus::Index snapshot_idx =
+        static_cast<consensus::Index>(snapshot_version);
       consensus::Index snapshot_evidence_idx =
-        static_cast<consensus::Index>(tx.commit_version());
+        static_cast<consensus::Index>(evidence_version);
       snapshot_evidence_indices.emplace_back(
         snapshot_idx, snapshot_evidence_idx);
 
@@ -223,7 +221,7 @@ namespace ccf
         {
           if (idx > it->evidence_commit_idx.value())
           {
-            commit_snapshot(it->idx, it->evidence_idx, idx);
+            commit_snapshot(it->idx, idx);
             auto it_ = it;
             it++;
             snapshot_evidence_indices.erase(it_);

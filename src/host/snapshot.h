@@ -37,6 +37,7 @@ namespace asynchost
       return std::stol(file_name.substr(pos + 1));
     }
 
+    // TODO: Change!
     std::optional<std::pair<size_t, size_t>>
     get_snapshot_evidence_idx_from_file_name(const std::string& file_name)
     {
@@ -113,10 +114,18 @@ namespace asynchost
     }
 
     void write_snapshot(
-      consensus::Index idx, const uint8_t* snapshot_data, size_t snapshot_size)
+      consensus::Index idx,
+      consensus::Index evidence_idx,
+      const uint8_t* snapshot_data,
+      size_t snapshot_size)
     {
       auto snapshot_file_name = fmt::format(
-        "{}{}{}", snapshot_file_prefix, snapshot_idx_delimiter, idx);
+        "{}{}{}{}{}",
+        snapshot_file_prefix,
+        snapshot_idx_delimiter,
+        idx,
+        snapshot_idx_delimiter,
+        evidence_idx);
       auto full_snapshot_path =
         fs::path(snapshot_dir) / fs::path(snapshot_file_name);
 
@@ -138,12 +147,10 @@ namespace asynchost
     }
 
     void commit_snapshot(
-      consensus::Index snapshot_idx,
-      consensus::Index evidence_idx,
-      consensus::Index evidence_commit_idx)
+      consensus::Index snapshot_idx, consensus::Index evidence_commit_idx)
     {
       // Find previously-generated snapshot for snapshot_idx and rename file,
-      // including evidence_idx and evidence_commit_idx in name too
+      // including evidence_commit_idx in name too
       for (auto const& f : fs::directory_iterator(snapshot_dir))
       {
         auto file_name = f.path().filename().string();
@@ -152,18 +159,15 @@ namespace asynchost
           get_snapshot_idx_from_file_name(file_name) == snapshot_idx)
         {
           LOG_INFO_FMT(
-            "Committing snapshot file \"{}\" with evidence at {} and evidence "
-            "proof committed at {}",
+            "Committing snapshot file \"{}\" with evidence proof committed at "
+            "{}",
             file_name,
-            evidence_idx,
             evidence_commit_idx);
 
           const auto committed_file_name = fmt::format(
-            "{}.{}{}{}{}{}",
+            "{}.{}{}{}",
             file_name,
             snapshot_committed_suffix,
-            snapshot_idx_delimiter,
-            evidence_idx,
             snapshot_idx_delimiter,
             evidence_commit_idx);
 
@@ -234,7 +238,8 @@ namespace asynchost
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, consensus::snapshot, [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
-          write_snapshot(idx, data, size);
+          auto evidence_idx = serialized::read<consensus::Index>(data, size);
+          write_snapshot(idx, evidence_idx, data, size);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
@@ -242,10 +247,9 @@ namespace asynchost
         consensus::snapshot_commit,
         [this](const uint8_t* data, size_t size) {
           auto snapshot_idx = serialized::read<consensus::Index>(data, size);
-          auto evidence_idx = serialized::read<consensus::Index>(data, size);
           auto evidence_commit_idx =
             serialized::read<consensus::Index>(data, size);
-          commit_snapshot(snapshot_idx, evidence_idx, evidence_commit_idx);
+          commit_snapshot(snapshot_idx, evidence_commit_idx);
         });
     }
   };

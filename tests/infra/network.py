@@ -195,7 +195,8 @@ class Network:
         # Only retrieve snapshot from target node if the snapshot directory is not
         # specified
         if from_snapshot and snapshot_dir is None:
-            snapshot_dir = target_node.get_committed_snapshots()
+            input("Which snapshots are created then?")
+            snapshot_dir = self.get_committed_snapshots(target_node)
             assert (
                 len(os.listdir(snapshot_dir)) > 0
             ), f"There are no snapshots to resume from in directory {snapshot_dir}"
@@ -763,16 +764,76 @@ class Network:
         raise error(f"A new primary was not elected after {timeout} seconds")
 
     def wait_for_snapshot_committed_for(self, seqno, timeout=3):
+        # First, check that snapshot exists for target seqno
+        snapshot_evidence_seqno = None
         primary, _ = self.find_primary()
+        all_snapshots = primary.get_snapshots()
+        for s in os.listdir(all_snapshots):
+            if infra.node.get_snapshot_seqnos(s)[0] > seqno:
+                snapshot_evidence_seqno = infra.node.get_snapshot_seqnos(s)[1]
+        if snapshot_evidence_seqno is None:
+            return False
+
+        # Then, if a snapshot covers the target seqno, wait until that snapshot
+        # is committed
         end_time = time.time() + timeout
         while time.time() < end_time:
-            snapshots = primary.get_committed_snapshots()
-            for s in os.listdir(snapshots):
-                if infra.node.get_snapshot_seqno(s) > seqno:
-                    LOG.info(f"Snapshot committed after seqno {seqno}: {s}")
-                    return
+            with primary.client() as c:
+                r = c.get("/node/commit")
+                current_commit_seqno = r.body.json()["seqno"]
+                if current_commit_seqno >= snapshot_evidence_seqno:
+                    with primary.client(
+                        f"member{self.consortium.get_any_active_member().member_id}"
+                    ) as c:
+                        # Using update_state_digest here as a convenient write tx
+                        # that is app agnostic
+                        r = c.post("/gov/ack/update_state_digest")
+                        assert (
+                            r.status_code == 200
+                        ), f"Error ack/update_state_digest: {r}"
+                        c.wait_for_commit(r)
+                        return True
             time.sleep(0.1)
         raise TimeoutError(f"Snapshot after {seqno} was not committed after {timeout}s")
+
+    def get_committed_snapshots(self, node):
+        # Wait for all available snapshot files to be committed before
+        # copying snapshot directory
+        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=3):
+            LOG.success("Issuing one request")
+            # primary, _ = self.find_primary()
+            # with primary.client(
+            #     f"member{self.consortium.get_any_active_member().member_id}"
+            # ) as c:
+            #     # Using update_state_digest here as a convenient write tx
+            #     # that is not app-specific
+            #     r = c.post("/gov/ack/update_state_digest")
+            #     assert r.status_code == 200, f"Error ack/update_state_digest: {r}"
+            #     c.wait_for_commit(r)
+
+            # input("State digest issued!")
+
+            end_time = time.time() + timeout
+            committed = True
+            uncommitted_snapshots = []
+            while time.time() < end_time:
+                committed = True
+                uncommitted_snapshots = []
+                for f in list_src_dir_func(src_dir):
+                    is_committed = infra.node.is_file_committed(f)
+                    if not is_committed:
+                        uncommitted_snapshots.append(f)
+                    committed &= is_committed
+                if committed:
+                    break
+                time.sleep(0.1)
+            if not committed:
+                LOG.error(
+                    f"Error: Not all snapshots were committed after {timeout}s in {src_dir}: {uncommitted_snapshots}"
+                )
+            return committed
+
+        return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
 
 @contextmanager
