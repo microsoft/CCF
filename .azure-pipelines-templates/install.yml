@@ -27,6 +27,10 @@ steps:
     workingDirectory: build
     displayName: Test installed CCF
 
+  - script: |
+      ./tests/test_install_build.sh
+    displayName: Test building a sample against installed CCF
+
   - task: PublishPipelineArtifact@1
     inputs:
       path: $(Build.ArtifactStagingDirectory)/$(pkgname)
