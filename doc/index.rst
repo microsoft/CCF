@@ -3,7 +3,7 @@ CCF Documentation
 
 .. panels::
 
-    :fa:`compass` :doc:`design/index`
+    :fa:`compass` :doc:`overview/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     .. image:: img/ccf.svg
@@ -68,7 +68,7 @@ CCF Documentation
     :maxdepth: 1
     :hidden:
 
-    design/index.rst
+    overview/index.rst
     developers/index.rst
     users/index.rst
     operators/index.rst

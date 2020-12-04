@@ -8,7 +8,7 @@ The ledger and snapshot files written by CCF nodes to disk should be managed by 
 Ledger
 ------
 
-The ledger is the persistent replicated append-only record of the transactions that have been executed by the CCF service. It is written by the primary node when a transaction is executed and replicated to all backups which maintain their own duplicated copy. Each node in a network creates and maintains its own local copy of the ledger. Committed entries are always identical between :ref:`a majority <design/consensus:CFT Consensus Protocol>` of nodes, but a node may be more or less up to date, and uncommitted entries may differ.
+The ledger is the persistent replicated append-only record of the transactions that have been executed by the CCF service. It is written by the primary node when a transaction is executed and replicated to all backups which maintain their own duplicated copy. Each node in a network creates and maintains its own local copy of the ledger. Committed entries are always identical between :ref:`a majority <overview/consensus:CFT Consensus Protocol>` of nodes, but a node may be more or less up to date, and uncommitted entries may differ.
 
 On each node, the ledger is written to disk in a directory specified by the ``--ledger-dir`` command line argument to ``cchost``.
 

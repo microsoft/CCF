@@ -30,7 +30,7 @@ Members that are registered in CCF `with` a public encryption key are recovery m
 
 The member’s identity and encryption private keys (e.g. ``member_name_privk.pem`` and ``member_name_enc_privk.pem``) should be stored on a trusted device (e.g. HSM) while the certificate (e.g. ``member_name_cert.pem``) and public encryption key (e.g. ``member_name_enc_pubk.pem``) should be registered in CCF by members.
 
-.. note:: See :ref:`design/cryptography:Algorithms and Curves` for the list of supported cryptographic curves for member identity.
+.. note:: See :ref:`overview/cryptography:Algorithms and Curves` for the list of supported cryptographic curves for member identity.
 
 Registering a New Member
 ------------------------
