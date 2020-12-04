@@ -251,7 +251,7 @@ int main(int argc, char** argv)
   size_t bft_view_change_timeout = 5000;
   app
     .add_option(
-      "--bft_view-change-timeout-ms",
+      "--bft-view-change-timeout-ms",
       bft_view_change_timeout,
       "bft view change timeout in milliseconds. If a backup does not receive "
       "the pre-prepare message for a request forwarded to the primary after "
