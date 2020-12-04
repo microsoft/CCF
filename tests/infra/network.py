@@ -155,37 +155,6 @@ class Network:
             for n in self.nodes:
                 n.node_id = n.node_id + first_node_id
 
-    def wait_for_snapshot_evidence_commit_proof(self, node, snapshot, timeout=3):
-        # Wait for snapshot evidence to have ledger proof that it is committed.
-        # To do so, wait until the evidence is committed, then issue a write and
-        # wait for it to be committed. The corresponding signature will contain
-        # a commit seqno greater than the evidence seqno
-        LOG.debug(
-            f"Waiting for proof of evidence of snapshot {snapshot} to be committed..."
-        )
-        _, snapshot_evidence_seqno = infra.node.get_snapshot_seqnos(snapshot)
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            with node.client() as c:
-                r = c.get("/node/commit")
-                current_commit_seqno = r.body.json()["seqno"]
-                if current_commit_seqno >= snapshot_evidence_seqno:
-                    with node.client(
-                        f"member{self.consortium.get_any_active_member().member_id}"
-                    ) as c:
-                        # Using update_state_digest here as a convenient write tx
-                        # that is not app-specific
-                        r = c.post("/gov/ack/update_state_digest")
-                        assert (
-                            r.status_code == 200
-                        ), f"Error ack/update_state_digest: {r}"
-                        c.wait_for_commit(r)
-                        return
-                time.sleep(0.1)
-        raise TimeoutError(
-            f"Timeout waiting for snapshot evidence {snapshot} to have commit proof"
-        )
-
     def create_node(self, host):
         node_id = self._get_next_local_node_id()
         debug = (
