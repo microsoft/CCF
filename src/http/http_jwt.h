@@ -72,7 +72,7 @@ namespace http
       {
         second_dot = token.find(separator, first_dot + 1);
       }
-      size_t extra_dot;
+      size_t extra_dot = std::string::npos;
       if (second_dot != std::string::npos)
       {
         extra_dot = token.find(separator, second_dot + 1);

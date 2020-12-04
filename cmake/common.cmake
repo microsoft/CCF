@@ -270,7 +270,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   add_warning_checks(cchost.virtual)
   add_san(cchost.virtual)
   add_lvi_mitigations(cchost.virtual)
-  enable_coverage(cchost.virtual)
   target_link_libraries(
     cchost.virtual
     PRIVATE uv
@@ -288,7 +287,7 @@ endif()
 
 # Perf scenario executable
 add_executable(
-  scenario_perf_client ${CCF_DIR}/samples/perf_client/scenario_perf_client.cpp
+  scenario_perf_client ${CCF_DIR}/src/perf_client/scenario_perf_client.cpp
 )
 use_client_mbedtls(scenario_perf_client)
 target_link_libraries(
@@ -374,7 +373,7 @@ function(add_client_exe name)
 
   target_link_libraries(${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT})
   target_include_directories(
-    ${name} PRIVATE ${CCF_DIR}/samples/perf_client ${PARSED_ARGS_INCLUDE_DIRS}
+    ${name} PRIVATE ${CCF_DIR}/src/perf_client ${PARSED_ARGS_INCLUDE_DIRS}
   )
 
   use_client_mbedtls(${name})

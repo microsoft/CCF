@@ -9,7 +9,6 @@ import infra.path
 import ccf.clients
 import os
 import socket
-import time
 import re
 
 from loguru import logger as LOG
@@ -41,20 +40,8 @@ def is_file_committed(file_name):
 
 
 def get_snapshot_seqnos(file_name):
-    # Return snapshot seqno and evidence seqno
-    seqnos = re.findall(r"\d+", file_name)
-    return int(seqnos[0]), int(seqnos[1])
-
-
-def find_latest_snapshot(snapshot_dir):
-    latest_snapshot = None
-    snapshot_max_seqno = 0
-    for s in os.listdir(snapshot_dir):
-        snapshot_seqno, _ = get_snapshot_seqnos(s)
-        if snapshot_seqno > snapshot_max_seqno:
-            snapshot_max_seqno = snapshot_seqno
-            latest_snapshot = s
-    return latest_snapshot
+    # Returns the tuple (snapshot_seqno, evidence_seqno)
+    return int(re.findall(r"\d+", file_name)[0]), int(re.findall(r"\d+", file_name)[1])
 
 
 class Node:
@@ -305,31 +292,11 @@ class Node:
 
         return current_ledger_dir, committed_ledger_dir
 
-    def get_committed_snapshots(self):
-        # Wait for all available snapshot files to be committed before
-        # copying snapshot directory
-        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=3):
-            end_time = time.time() + timeout
-            committed = True
-            uncommitted_snapshots = []
-            while time.time() < end_time:
-                committed = True
-                uncommitted_snapshots = []
-                for f in list_src_dir_func(src_dir):
-                    is_committed = is_file_committed(f)
-                    if not is_committed:
-                        uncommitted_snapshots.append(f)
-                    committed &= is_committed
-                if committed:
-                    break
-                time.sleep(0.1)
-            if not committed:
-                LOG.error(
-                    f"Error: Not all snapshots were committed after {timeout}s in {src_dir}: {uncommitted_snapshots}"
-                )
-            return committed
+    def get_snapshots(self):
+        return self.remote.get_snapshots()
 
-        return self.remote.get_committed_snapshots(wait_for_snapshots_to_be_committed)
+    def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
+        return self.remote.get_committed_snapshots(pre_condition_func)
 
     def client_certs(self, identity=None):
         return {
