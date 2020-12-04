@@ -628,7 +628,7 @@ class CCFRemote(object):
         enclave_path = os.path.join(".", os.path.basename(lib_path))
 
         election_timeout_arg = (
-            f"--bft_view-change-timeout-ms={bft_view_change_timeout}"
+            f"--bft-view-change-timeout-ms={bft_view_change_timeout}"
             if consensus == "bft"
             else f"--raft-election-timeout-ms={raft_election_timeout}"
         )
