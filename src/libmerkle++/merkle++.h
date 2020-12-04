@@ -9,6 +9,7 @@
 #include <memory>
 #include <list>
 #include <vector>
+#include <array>
 #include <stack>
 #include <sstream>
 #include <functional>
@@ -79,12 +80,24 @@ namespace Merkle
     }
 
     HashT<SIZE>(const std::vector<uint8_t> &bytes) {
+      if (bytes.size() < SIZE)
+        throw std::runtime_error("not enough bytes");
       deserialise(bytes);
     }
 
     HashT<SIZE>(const std::vector<uint8_t> &bytes, size_t &position) {
+      if (bytes.size() - position < SIZE)
+        throw std::runtime_error("not enough bytes");
       deserialise(bytes, position);
     }
+
+    HashT<SIZE>(const std::array<uint8_t, SIZE> &bytes) {
+      std::copy(bytes.data(), bytes.data() + SIZE, this->bytes);
+    }
+
+    size_t size() const { return SIZE; }
+
+    size_t byte_size() const { return SIZE; }
 
     std::string to_string(size_t num_bytes = SIZE) const {
       size_t num_chars = 2 * num_bytes;
@@ -113,6 +126,8 @@ namespace Merkle
     }
 
     void deserialise(const std::vector<uint8_t> &buffer, size_t &position) {
+      if (buffer.size() - position < SIZE)
+        throw std::runtime_error("not enough bytes");
       for (size_t i=0; i < sizeof(bytes); i++)
         bytes[i] = buffer[position++];
     }
@@ -141,8 +156,8 @@ namespace Merkle
       Direction direction;
     } Element;
 
-    PathT(const HashT<HASH_SIZE> &leaf, std::list<Element> &&elements)
-      : _leaf(leaf), elements(elements)
+    PathT(const HashT<HASH_SIZE> &leaf, size_t leaf_index, std::list<Element> &&elements, size_t max_index)
+      : _leaf(leaf), _leaf_index(leaf_index), _max_index(max_index), elements(elements)
     {}
     PathT(const PathT &other) {
       _leaf = other._leaf;
@@ -179,6 +194,8 @@ namespace Merkle
 
     void serialise(std::vector<uint8_t> &bytes) const {
       _leaf.serialise(bytes);
+      serialise_size_t(_leaf_index, bytes);
+      serialise_size_t(_max_index, bytes);
       serialise_size_t(elements.size(), bytes);
       for (auto &e : elements) {
         e.hash.serialise(bytes);
@@ -189,11 +206,16 @@ namespace Merkle
     void deserialise(const std::vector<uint8_t> &bytes, size_t &position) {
       elements.clear();
       _leaf.deserialise(bytes, position);
+      _leaf_index = deserialise_size_t(bytes, position);
+      _max_index = deserialise_size_t(bytes, position);
       size_t num_elements = deserialise_size_t(bytes, position);
       for (size_t i=0; i < num_elements; i++) {
         HashT<HASH_SIZE> hash(bytes, position);
         PathT::Direction direction = bytes[position++] != 0 ? PATH_LEFT : PATH_RIGHT;
-        elements.push_back({ .hash=hash, .direction=direction });
+        PathT::Element e;
+        e.hash = hash;
+        e.direction = direction;
+        elements.push_back(std::move(e));
       }
     }
 
@@ -209,6 +231,14 @@ namespace Merkle
     }
 
     size_t size() const { return elements.size(); }
+
+    size_t byte_size() const {
+      return sizeof(_leaf) +  elements.size() * sizeof(Element);
+    }
+
+    size_t leaf_index() const { return _leaf_index; }
+
+    size_t max_index() const { return _max_index; }
 
     const HashT<HASH_SIZE>& operator[](size_t i) const { return *elements[i].hash; }
 
@@ -246,6 +276,7 @@ namespace Merkle
 
   protected:
     HashT<HASH_SIZE> _leaf;
+    size_t _leaf_index, _max_index;
     std::list<Element> elements;
   };
 
@@ -320,6 +351,10 @@ namespace Merkle
     };
 
   public:
+    typedef HashT<HASH_SIZE> Hash;
+    typedef PathT<HASH_SIZE, HASH_FUNCTION> Path;
+    typedef TreeT<HASH_SIZE, HASH_FUNCTION> Tree;
+
     TreeT() {}
     TreeT(const TreeT &other)
       : leaf_nodes(other.leaf_nodes),
@@ -335,18 +370,21 @@ namespace Merkle
     TreeT(const std::vector<uint8_t> &bytes, size_t &position) {
       deserialise(bytes, position);
     }
+    TreeT(const Hash &root) {
+      insert(root);
+    }
     ~TreeT() {
       delete(_root);
       for (auto n : uninserted_leaf_nodes)
         delete(n);
     }
 
-    typedef HashT<HASH_SIZE> Hash;
-    typedef PathT<HASH_SIZE, HASH_FUNCTION> Path;
-    typedef TreeT<HASH_SIZE, HASH_FUNCTION> Tree;
-
     bool invariant() {
       return _root ? _root->invariant() : true;
+    }
+
+    void insert(const uint8_t *hash) {
+      insert(Hash(hash));
     }
 
     void insert(const Hash &hash) {
@@ -460,6 +498,7 @@ namespace Merkle
     }
 
     const Tree split(size_t index) {
+      (void)(index);
       throw std::runtime_error("not implemented yet");
     }
 
@@ -542,7 +581,7 @@ namespace Merkle
           return true;
       });
 
-      return std::make_unique<Path>(leaf_node(index)->hash, std::move(elements));
+      return std::make_unique<Path>(leaf_node(index)->hash, index, std::move(elements), max_index());
     }
 
     void serialise(std::vector<uint8_t> &bytes) {
@@ -564,7 +603,7 @@ namespace Merkle
           extras.push_back(n->left);
         return true;
       });
-      for (size_t i=extras.size()-1; i != -1; i--)
+      for (size_t i=extras.size()-1; i != SIZE_MAX; i--)
         extras[i]->hash.serialise(bytes);
     }
 
@@ -650,7 +689,7 @@ namespace Merkle
     const Hash& leaf(size_t index) const {
       if (index >= num_leaves())
         throw std::runtime_error("leaf index out of bounds");
-      return leaf_nodes[index-num_flushed];
+      return leaf_nodes[index-num_flushed]->hash;
     }
 
     const Node* leaf_node(size_t index) const {
@@ -683,7 +722,7 @@ namespace Merkle
 
     size_t byte_size() {
       size_t num_extras = 0;
-      walk_to(min_index(), false, [&num_extras](Node *&n, bool go_right) {
+      walk_to(min_index(), false, [&num_extras](Node *&, bool go_right) {
         if (go_right)
           num_extras++;
         return true;
