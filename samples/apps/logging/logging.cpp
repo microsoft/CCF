@@ -169,12 +169,11 @@ namespace loggingapp
           return;
         }
 
-        mbedtls_x509_crt cert;
-        mbedtls_x509_crt_init(&cert);
+        auto cert = mbedtls::make_unique<mbedtls::X509Crt>();
 
         const auto& cert_data = args.rpc_ctx->session->caller_cert;
-        const auto ret =
-          mbedtls_x509_crt_parse(&cert, cert_data.data(), cert_data.size());
+        const auto ret = mbedtls_x509_crt_parse(
+          cert.get(), cert_data.data(), cert_data.size());
         if (ret != 0)
         {
           args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
@@ -185,11 +184,9 @@ namespace loggingapp
           return;
         }
 
-        const auto log_line = fmt::format("{}: {}", cert.subject, in.msg);
+        const auto log_line = fmt::format("{}: {}", cert->subject, in.msg);
         auto view = args.tx.get_view(records);
         view->put(in.id, log_line);
-
-        mbedtls_x509_crt_free(&cert);
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         args.rpc_ctx->set_response_header(
