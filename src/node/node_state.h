@@ -661,6 +661,12 @@ namespace ccf
         rpc_map,
         node_cert);
       jwt_key_auto_refresh->start();
+
+      network.tables->set_local_hook(
+        network.jwt_issuers.get_name(),
+        [this](kv::Version, const kv::untyped::Write&) {
+          jwt_key_auto_refresh->schedule_once();
+        });
     }
 
     //

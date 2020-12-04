@@ -84,7 +84,7 @@ The latest version of the CCF Python tools package is `available on PyPi <https:
 
 .. note:: The CCF Python tools package does `not` provide utilities to build and deploy CCF applications.
 
-A step-by-step tutorial on how to use the CCF Python package is available :ref:`here <users/python_tutorial:Python Client Tutorial>`.
+A step-by-step tutorial on how to use the CCF Python package is available :ref:`here <use_apps/python_tutorial:Python Client Tutorial>`.
 
 Uninstall
 ---------
