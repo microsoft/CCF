@@ -242,12 +242,6 @@ namespace ccf
     return result_payload;
   }
 
-  static jsonhandler::JsonAdapterResponse make_error(
-    http_status status, const std::string& msg = "")
-  {
-    return ErrorDetails{status, "Error", msg};
-  }
-
   static inline jsonhandler::JsonAdapterResponse make_error(
     http_status status, const std::string& code, const std::string& msg)
   {

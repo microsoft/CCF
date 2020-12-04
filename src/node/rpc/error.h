@@ -39,12 +39,21 @@ namespace ccf
     // for inspiration.
 
     ERROR(InternalError)
+    ERROR(AuthorizationFailed)
     ERROR(ConsensusTypeMismatch)
     ERROR(InvalidInput)
     ERROR(InvalidQuote)
     ERROR(InvalidNodeState)
+    ERROR(InvalidResourceName)
     ERROR(NodeAlreadyExists)
     ERROR(ResourceNotFound)
+    ERROR(ProposalNotOpen)
+    ERROR(ProposalNotFound)
+    ERROR(VoteNotFound)
+    ERROR(KeyNotFound)
+    ERROR(StateDigestMismatch)
+    ERROR(RequestNotSigned)
+    ERROR(VoteAlreadyExists)
     ERROR(UnknownCertificate)
 
     #undef ERROR

@@ -52,7 +52,7 @@ namespace loggingapp
         if (in.msg.empty())
         {
           return ccf::make_error(
-            HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, "Cannot record an empty log message");
         }
 
         auto view = tx.get_view(records);
@@ -83,7 +83,7 @@ namespace loggingapp
             return ccf::make_success(LoggingGet::Out{r.value()});
 
           return ccf::make_error(
-            HTTP_STATUS_BAD_REQUEST, fmt::format("No such record: {}", in.id));
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::ResourceNotFound, fmt::format("No such record: {}", in.id));
         };
       // SNIPPET_END: get
 
@@ -112,7 +112,7 @@ namespace loggingapp
         if (in.msg.empty())
         {
           return ccf::make_error(
-            HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, "Cannot record an empty log message");
         }
 
         auto view = tx.get_view(public_records);
@@ -135,7 +135,7 @@ namespace loggingapp
             return ccf::make_success(LoggingGet::Out{r.value()});
 
           return ccf::make_error(
-            HTTP_STATUS_BAD_REQUEST, fmt::format("No such record: {}", in.id));
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::ResourceNotFound, fmt::format("No such record: {}", in.id));
         };
       // SNIPPET_END: get_public
       make_read_only_endpoint(
@@ -208,7 +208,7 @@ namespace loggingapp
           if (in.msg.empty())
           {
             return ccf::make_error(
-              HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
+              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, "Cannot record an empty log message");
           }
 
           const auto log_line = fmt::format("Anonymous: {}", in.msg);
@@ -350,7 +350,7 @@ namespace loggingapp
               !is_admin_it.value().get<bool>())
             {
               return ccf::make_error(
-                HTTP_STATUS_FORBIDDEN, "Only admins may access this endpoint");
+                HTTP_STATUS_FORBIDDEN, ccf::errors::AuthorizationFailed, "Only admins may access this endpoint");
             }
             // SNIPPET_END: user_data_check
           }
@@ -360,7 +360,7 @@ namespace loggingapp
           if (in.msg.empty())
           {
             return ccf::make_error(
-              HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
+              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, "Cannot record an empty log message");
           }
 
           auto view = ctx.tx.get_view(records);

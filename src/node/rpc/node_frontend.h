@@ -301,7 +301,7 @@ namespace ccf
         }
         else
         {
-          return make_error(HTTP_STATUS_NOT_FOUND, "Could not find node quote");
+          return make_error(HTTP_STATUS_NOT_FOUND, ccf::errors::ResourceNotFound, "Could not find node quote");
         }
       };
       make_read_only_endpoint(
@@ -328,7 +328,7 @@ namespace ccf
         {
           return make_success(service_state.value().status);
         }
-        return make_error(HTTP_STATUS_NOT_FOUND, "Network status is unknown");
+        return make_error(HTTP_STATUS_NOT_FOUND, ccf::errors::ResourceNotFound, "Network status is unknown");
       };
       make_read_only_endpoint(
         "network", HTTP_GET, json_read_only_adapter(network_status))
