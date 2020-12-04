@@ -394,7 +394,7 @@ namespace ccf
       }
 
       cert.nonces_committed_to_ledger = true;
-      try_update_watermark(cert, nonces_value.tx_id.version);
+      try_update_watermark(cert, nonces_value.tx_id.version, true);
       return kv::TxHistory::Result::OK;
     }
 
@@ -513,7 +513,7 @@ namespace ccf
         store->write_nonces(revealed_nonces);
       }
 
-      try_update_watermark(cert, tx_id.version);
+      try_update_watermark(cert, tx_id.version, is_primary);
     }
 
     Nonce get_my_nonce(kv::TxID tx_id)
@@ -807,11 +807,30 @@ namespace ccf
       return false;
     }
 
-    void try_update_watermark(CommitCert& cert, kv::Consensus::SeqNo seqno)
+    void try_update_watermark(
+      CommitCert& cert,
+      kv::Consensus::SeqNo seqno,
+      bool should_clear_old_entries)
     {
       if (cert.nonces_committed_to_ledger && seqno > highest_commit_level)
       {
         highest_commit_level = seqno;
+        if (should_clear_old_entries)
+        {
+          LOG_INFO_FMT("Removing all entries upto:{}", seqno);
+          for (auto it = certificates.begin();;)
+          {
+            CCF_ASSERT(
+              it != certificates.end(),
+              "Should never deleted all certificates");
+
+            if (it->first == seqno)
+            {
+              break;
+            }
+            it = certificates.erase(it);
+          }
+        }
       }
     }
 
