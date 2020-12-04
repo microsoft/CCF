@@ -30,4 +30,23 @@ namespace ccf
     std::string code;
     std::string msg;
   };
+
+  namespace errors
+  {
+    #define ERROR(code) constexpr const char* code = #code;
+
+    // See https://docs.microsoft.com/en-us/rest/api/storageservices/common-rest-api-error-codes
+    // for inspiration.
+
+    ERROR(InternalError)
+    ERROR(ConsensusTypeMismatch)
+    ERROR(InvalidInput)
+    ERROR(InvalidQuote)
+    ERROR(InvalidNodeState)
+    ERROR(NodeAlreadyExists)
+    ERROR(ResourceNotFound)
+    ERROR(UnknownCertificate)
+
+    #undef ERROR
+  }
 }

@@ -210,11 +210,11 @@ namespace http
         {
           if (is_websocket)
           {
-            send_raw(ws::error(HTTP_STATUS_BAD_REQUEST, e.what()));
+            send_raw(ws::error(HTTP_STATUS_INTERNAL_SERVER_ERROR, ccf::errors::InternalError, e.what()));
           }
           else
           {
-            send_raw(http::error(HTTP_STATUS_BAD_REQUEST, e.what()));
+            send_raw(http::error(HTTP_STATUS_INTERNAL_SERVER_ERROR, ccf::errors::InternalError, e.what()));
           }
         }
 
@@ -223,6 +223,7 @@ namespace http
         {
           rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
             fmt::format(
               "Request path must contain '/[actor]/[method]'. Unable to parse "
               "'{}'.\n",
@@ -238,7 +239,8 @@ namespace http
         {
           rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
-            fmt::format("Unknown session '{}'.\n", actor_s));
+            ccf::errors::ResourceNotFound,
+            fmt::format("Unknown actor '{}'.\n", actor_s));
           send_raw(rpc_ctx->serialise_response());
           return;
         }
@@ -263,12 +265,14 @@ namespace http
         {
           send_raw(ws::error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
             fmt::format("Exception:\n{}\n", e.what())));
         }
         else
         {
           send_raw(http::error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
             fmt::format("Exception:\n{}\n", e.what())));
         }
 

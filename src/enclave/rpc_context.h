@@ -217,12 +217,12 @@ namespace enclave
 
     virtual void set_error(http_status status, std::string&& msg)
     {
-      set_error({status, http_status_str(status), msg});
+      set_error({status, http_status_str(status), std::move(msg)});
     }
 
-    virtual void set_error(http_status status, std::string&& code, std::string&& msg)
+    virtual void set_error(http_status status, const std::string& code, std::string&& msg)
     {
-      set_error({status, code, msg});
+      set_error({status, code, std::move(msg)});
     }
 
     virtual void set_error(ccf::ErrorDetails&& error)

@@ -21,16 +21,6 @@ namespace ws
     return make_out_frame(code, seqno, view, global_commit, body);
   };
 
-  inline std::vector<uint8_t> error(http_status status, std::string&& msg)
-  {
-    return error({status, http_status_str(status), msg});
-  }
-
-  inline std::vector<uint8_t> error(http_status status, std::string&& code, std::string&& msg)
-  {
-    return error({status, code, msg});
-  }
-
   inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
   {
     nlohmann::json body = ccf::ODataErrorResponse{
@@ -40,7 +30,17 @@ namespace ws
 
     std::vector<uint8_t> data(s.begin(), s.end());
     return serialise(error.status, data);
-  };
+  }
+
+  inline std::vector<uint8_t> error(http_status status, std::string&& msg)
+  {
+    return error({status, http_status_str(status), std::move(msg)});
+  }
+
+  inline std::vector<uint8_t> error(http_status status, const std::string& code, std::string&& msg)
+  {
+    return error({status, code, std::move(msg)});
+  }
 
   class WsRpcContext : public enclave::RpcContext
   {

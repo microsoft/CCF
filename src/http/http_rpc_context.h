@@ -36,16 +36,6 @@ namespace http
     return actor;
   }
 
-  inline std::vector<uint8_t> error(http_status status, std::string&& msg)
-  {
-    return error({status, http_status_str(status), msg});
-  }
-
-  inline std::vector<uint8_t> error(http_status status, std::string&& code, std::string&& msg)
-  {
-    return error({status, code, msg});
-  }
-
   inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
   {
     nlohmann::json body = ccf::ODataErrorResponse{
@@ -61,7 +51,17 @@ namespace http
     response.set_body(&data);
 
     return response.build_response();
-  };
+  }
+
+  inline std::vector<uint8_t> error(http_status status, const std::string& code, std::string&& msg)
+  {
+    return error({status, code, std::move(msg)});
+  }
+
+  inline std::vector<uint8_t> error(http_status status, std::string&& msg)
+  {
+    return error({status, http_status_str(status), std::move(msg)});
+  }
 
   class HttpRpcContext : public enclave::RpcContext
   {

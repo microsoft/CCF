@@ -248,7 +248,7 @@ namespace ccf
     return ErrorDetails{status, "Error", msg};
   }
 
-  static jsonhandler::JsonAdapterResponse make_error(
+  static inline jsonhandler::JsonAdapterResponse make_error(
     http_status status, const std::string& code, const std::string& msg)
   {
     return ErrorDetails{status, code, msg};

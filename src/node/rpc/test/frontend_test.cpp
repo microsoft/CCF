@@ -112,7 +112,7 @@ public:
           const http_status error_code = (*it)["code"];
           const std::string error_msg = (*it)["message"];
 
-          return make_error((http_status)error_code, error_msg);
+          return make_error((http_status)error_code, "Error", error_msg);
         }
 
         return make_success(true);

@@ -76,6 +76,7 @@ namespace ccf
       {
         return make_error(
           HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::NodeAlreadyExists,
           fmt::format(
             "A node with the same node host {} and port {} already exists "
             "(node id: {})",
@@ -97,7 +98,7 @@ namespace ccf
         {
           const auto [code, message] =
             QuoteVerifier::quote_verification_error(verify_result);
-          return make_error(code, message);
+          return make_error(code, ccf::errors::InvalidQuote, message);
         }
       }
 #else
@@ -160,6 +161,7 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
             "Target node should be part of network to accept new nodes");
         }
 
@@ -167,6 +169,7 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::ConsensusTypeMismatch,
             fmt::format(
               "Node requested to join with consensus type {} but "
               "current consensus type is {}",
@@ -182,6 +185,7 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
             "No service is available to accept new node");
         }
 
@@ -246,7 +250,7 @@ namespace ccf
           else
           {
             return make_error(
-              HTTP_STATUS_BAD_REQUEST, "Joining node is not in expected state");
+              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidNodeState, "Joining node is not in expected state");
           }
         }
         else
