@@ -15,18 +15,13 @@ int main()
     const size_t num_leaves = 11;
     // for (size_t num_leaves = 1; num_leaves < 121; num_leaves++)
     {
-      Merkle::Tree mt;
       auto hashes = make_hashes(num_leaves);
 
-      for (size_t i = 0; i < hashes.size(); i++)
-        mt.insert(hashes[i]);
-
-      mt.build_from_scratch();
-      Merkle::Tree::Hash rebuilt_root = mt.root();
-      std::cout << "Scratch built: " << std::endl;
-      std::cout << "R: " << rebuilt_root.to_string() << std::endl;
+      Merkle::Tree mt;
+      for (auto h : hashes)
+        mt.insert(h);
+      Merkle::Tree::Hash root = mt.root();
       std::cout << mt.to_string(PRINT_HASH_SIZE) << std::endl;
-
 
       merkle_tree *ec_mt = NULL;
       uint8_t *ec_hash = mt_init_hash(32);
@@ -46,29 +41,21 @@ int main()
       mt_free(ec_mt);
       std::cout << std::endl;
 
-
-      Merkle::Tree mtt;
-      Merkle::Tree::Hash treelike_root;
-      for (auto h : hashes) {
-        mtt.insert(h);
-      }
-      treelike_root = mtt.root();
-      std::cout << "Treelike: " << std::endl;
-      std::cout << "R: " << treelike_root.to_string() << std::endl;
-      std::cout << mtt.to_string(PRINT_HASH_SIZE) << std::endl;
-
-      if (rebuilt_root != treelike_root)
-        throw std::runtime_error("root mismatch");
-
-
       std::cout << "Paths: " << std::endl;
       for (size_t i = 0; i < num_leaves; i++) {
-        mtt.flush_to(i);
-        auto path = mtt.path(i);
+        mt.flush_to(i);
+        auto path = mt.path(i);
         std::cout << "P" << std::setw(2) << std::setfill('0') << i << ": " << path->to_string(PRINT_HASH_SIZE) << " " << std::endl;
-        if (!path->verify(treelike_root))
+        if (!path->verify(root))
           throw std::runtime_error("root hash mismatch");
+        std::vector<uint8_t> chk = *path;
       }
+
+      std::vector<uint8_t> buffer;
+      mt.serialise(buffer);
+      Merkle::Tree dmt(buffer);
+      if (mt.root() != dmt.root())
+        throw std::runtime_error("root hash mismatch");
 
       std::cout << std::endl;
     }

@@ -25,7 +25,7 @@ int main()
     // std::srand(0);
     std::srand(std::time(0));
 
-    size_t total_paths = 0, total_leaves = 0, total_roots = 0;
+    size_t total_leaves = 0, total_roots = 0;
 
     for (size_t k=0; k < num_trees; k++) {
       std::map<size_t, Merkle::Hash> past_roots;

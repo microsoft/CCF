@@ -40,6 +40,22 @@
 
 namespace Merkle
 {
+  void serialise_size_t(size_t size, std::vector<uint8_t> &bytes) {
+    // TODO: endianness?
+    uint8_t *size_bytes = (uint8_t*)&size;
+    for (size_t i=0; i < sizeof(size_t); i++)
+      bytes.push_back(size_bytes[i]);
+  }
+
+  size_t deserialise_size_t(const std::vector<uint8_t> &bytes, size_t &index) {
+    // TODO: endianness?
+    size_t result = 0;
+    uint8_t *result_bytes = (uint8_t*)&result;
+    for (size_t i=0; i < sizeof(size_t); i++)
+      result_bytes[i] = bytes[index++];
+    return result;
+  }
+
   template<size_t SIZE>
   struct HashT {
     uint8_t bytes[SIZE];
@@ -62,11 +78,18 @@ namespace Merkle
       }
     }
 
+    HashT<SIZE>(const std::vector<uint8_t> &bytes) {
+      deserialise(bytes);
+    }
+
+    HashT<SIZE>(const std::vector<uint8_t> &bytes, size_t &position) {
+      deserialise(bytes, position);
+    }
+
     std::string to_string(size_t num_bytes = SIZE) const {
-      static char buf[3];
       size_t num_chars = 2 * num_bytes;
       std::string r(num_chars, '_');
-      for (size_t i = 0; i < num_bytes; i++)
+      for (size_t i=0; i < num_bytes; i++)
         snprintf(r.data() + 2*i, num_chars + 1 - 2*i, "%02X", bytes[i]);
       return r;
     }
@@ -82,6 +105,27 @@ namespace Merkle
 
     bool operator!=(const HashT<SIZE> &other) const {
       return memcmp(bytes, other.bytes, SIZE) != 0;
+    }
+
+    void serialise(std::vector<uint8_t> &buffer) const {
+      for (auto &b : bytes)
+        buffer.push_back(b);
+    }
+
+    void deserialise(const std::vector<uint8_t> &buffer, size_t &position) {
+      for (size_t i=0; i < sizeof(bytes); i++)
+        bytes[i] = buffer[position++];
+    }
+
+    void deserialise(const std::vector<uint8_t> &buffer) {
+      size_t position = 0;
+      deserialise(buffer, position);
+    }
+
+    operator std::vector<uint8_t>() const {
+      std::vector<uint8_t> bytes;
+      serialise(bytes);
+      return bytes;
     }
   };
 
@@ -108,8 +152,11 @@ namespace Merkle
       _leaf = std::move(other._leaf);
       elements = std::move(other.elements);
     }
-    PathT(std::vector<uint8_t> &bytes) {
-      throw std::runtime_error("not implemented yet");
+    PathT(const std::vector<uint8_t> &bytes) {
+      deserialise(bytes);
+    }
+    PathT(const std::vector<uint8_t> &bytes, size_t &position) {
+      deserialise(bytes, position);
     }
 
     bool verify(const HashT<HASH_SIZE> &root) const {
@@ -130,16 +177,35 @@ namespace Merkle
       return result == root;
     }
 
-    std::vector<uint8_t> serialise() const {
-      throw std::runtime_error("not implemented yet");
+    void serialise(std::vector<uint8_t> &bytes) const {
+      _leaf.serialise(bytes);
+      serialise_size_t(elements.size(), bytes);
+      for (auto &e : elements) {
+        e.hash.serialise(bytes);
+        bytes.push_back(e.direction == PATH_LEFT ? 1 : 0);
+      }
+    }
+
+    void deserialise(const std::vector<uint8_t> &bytes, size_t &position) {
+      elements.clear();
+      _leaf.deserialise(bytes, position);
+      size_t num_elements = deserialise_size_t(bytes, position);
+      for (size_t i=0; i < num_elements; i++) {
+        HashT<HASH_SIZE> hash(bytes, position);
+        PathT::Direction direction = bytes[position++] != 0 ? PATH_LEFT : PATH_RIGHT;
+        elements.push_back({ .hash=hash, .direction=direction });
+      }
+    }
+
+    void deserialise(const std::vector<uint8_t> &bytes) {
+      size_t position = 0;
+      deserialise(bytes, position);
     }
 
     operator std::vector<uint8_t>() const {
-      return serialise();
-    }
-
-    static void deserialise(std::vector<uint8_t> &bytes) {
-      throw std::runtime_error("not implemented yet");
+      std::vector<uint8_t> bytes;
+      serialise(bytes);
+      return bytes;
     }
 
     size_t size() const { return elements.size(); }
@@ -159,6 +225,24 @@ namespace Merkle
     }
 
     const HashT<HASH_SIZE> &leaf() const { return _leaf; }
+
+    bool operator==(const PathT<HASH_SIZE, HASH_FUNCTION> &other) const {
+      if (_leaf != other._leaf || elements.size() != other.elements.size())
+        return false;
+      auto it = elements.begin();
+      auto other_it = other.elements.begin();
+      while (it != elements.end() && other_it != other.elements.end()) {
+        if (it->hash != other_it->hash || it->direction != other_it->direction)
+          return false;
+        it++;
+        other_it++;
+      }
+      return true;
+    }
+
+    bool operator!=(const PathT<HASH_SIZE, HASH_FUNCTION> &other) {
+      return !this->operator==(other);
+    }
 
   protected:
     HashT<HASH_SIZE> _leaf;
@@ -197,17 +281,19 @@ namespace Merkle
       }
 
       bool invariant() {
-        bool c1 = (!parent || parent->left == this || parent->right == this);
+        bool c1 = !parent || parent->left == this || parent->right == this;
         bool c2 = (left && right) || (!left && !right);
+        bool c3 = !left || !right || (size == left->size + right->size + 1);
         bool cl = !left || left->invariant();
         bool cr = !right || right->invariant();
-        return c1 && c2 && cl && cr;
+        bool r =  c1 && c2 && c3 && cl && cr;
+        return r;
       }
 
       ~Node() {
         assert(invariant());
         parent = nullptr;
-        delete(left);
+        delete(left); // TODO: remove recursion?
         delete(right);
       }
 
@@ -243,23 +329,29 @@ namespace Merkle
       : leaf_nodes(std::move(other.leaf_nodes)),
         _root(std::move(other._root))
     {}
+    TreeT(const std::vector<uint8_t> &bytes) {
+      deserialise(bytes);
+    }
+    TreeT(const std::vector<uint8_t> &bytes, size_t &position) {
+      deserialise(bytes, position);
+    }
     ~TreeT() {
       delete(_root);
-      for (auto n : new_leaf_nodes)
+      for (auto n : uninserted_leaf_nodes)
         delete(n);
-    }
-
-    TreeT(std::vector<uint8_t> &bytes) {
-      throw std::runtime_error("not implemented yet");
     }
 
     typedef HashT<HASH_SIZE> Hash;
     typedef PathT<HASH_SIZE, HASH_FUNCTION> Path;
     typedef TreeT<HASH_SIZE, HASH_FUNCTION> Tree;
 
+    bool invariant() {
+      return _root ? _root->invariant() : true;
+    }
+
     void insert(const Hash &hash) {
       TRACE(std::cout << "> insert " << hash.to_string(TRACE_HASH_SIZE) << std::endl;);
-      new_leaf_nodes.push_back(Node::make(hash));
+      uninserted_leaf_nodes.push_back(Node::make(hash));
       statistics.num_insert++;
     }
 
@@ -277,18 +369,7 @@ namespace Merkle
       TRACE(std::cout << "> flush_to " << index << std::endl;);
       statistics.num_flush++;
 
-      if (index < min_index())
-        return;
-
-      if (index > max_index())
-        throw std::runtime_error("leaf index out of bounds");
-
-      if (index >= num_flushed + leaf_nodes.size())
-        insert_new_leaves(true);
-
-      assert(index < _root->size);
-
-      Node *final = walk_to(index, false, [this](Node *&n, bool go_right) {
+      walk_to(index, false, [this](Node *&n, bool go_right) {
         if (go_right && n->left) {
           TRACE(std::cout << " - conflate " << n->left->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
           if (n->left && n->left->dirty)
@@ -310,7 +391,7 @@ namespace Merkle
       TRACE(std::cout << "> retract_to " << index << std::endl;);
       statistics.num_retract++;
 
-      if (index > max_index())
+      if (max_index() < index)
         return;
 
       if (index < min_index())
@@ -318,16 +399,12 @@ namespace Merkle
 
       if (index >= num_flushed + leaf_nodes.size()) {
         size_t over = index - (num_flushed + leaf_nodes.size()) + 1;
-        while (new_leaf_nodes.size() > over) {
-          delete(new_leaf_nodes.back());
-          new_leaf_nodes.pop_back();
+        while (uninserted_leaf_nodes.size() > over) {
+          delete(uninserted_leaf_nodes.back());
+          uninserted_leaf_nodes.pop_back();
         }
         return;
       }
-
-      insert_new_leaves(true);
-
-      assert(_root && index < _root->size);
 
       Node *final = walk_to(index, true, [this](Node *&n, bool go_right) {
         bool go_left = !go_right;
@@ -416,6 +493,13 @@ namespace Merkle
 
     Node* walk_to(size_t index, bool update, std::function<bool(Node*&, bool)> f)
     {
+      if (index < min_index() || max_index() < index)
+        throw std::runtime_error("invalid leaf index");
+
+      compute_root();
+
+      assert(index < _root->size);
+
       Node *cur = _root;
       size_t it = index << (sizeof(_root->height)*8 - _root->height + 1);
 
@@ -448,17 +532,9 @@ namespace Merkle
 
     std::unique_ptr<Path> path(size_t index) {
       TRACE(std::cout << "> path from " << index << std::endl;);
-
-      if (index < min_index() || max_index() < index)
-        throw std::runtime_error("invalid leaf index");
-
-      compute_root();
-
-      assert(index < _root->size);
-
       std::list<typename Path::Element> elements;
 
-      Node *final = walk_to(index, false, [&elements](Node *n, bool go_right) {
+      walk_to(index, false, [&elements](Node *n, bool go_right) {
           typename Path::Element e;
           e.hash = go_right ? n->left->hash : n->right->hash;
           e.direction = go_right ? Path::PATH_LEFT : Path::PATH_RIGHT;
@@ -466,23 +542,105 @@ namespace Merkle
           return true;
       });
 
-      auto leaf = leaf_node(index);
-      if (final != leaf)
-        throw std::runtime_error("BUG: path extraction failed");
-
-      return std::make_unique<Path>(leaf->hash, std::move(elements));
+      return std::make_unique<Path>(leaf_node(index)->hash, std::move(elements));
     }
 
-    std::vector<uint8_t> serialise() const {
-      throw std::runtime_error("not implemented yet");
+    void serialise(std::vector<uint8_t> &bytes) {
+      compute_root();
+      TRACE(std::cout << "> serialise " << std::endl;
+            std::cout << to_string(TRACE_HASH_SIZE) << std::endl;);
+
+      serialise_size_t(leaf_nodes.size() + uninserted_leaf_nodes.size(), bytes);
+      serialise_size_t(num_flushed, bytes);
+      for (auto &n : leaf_nodes)
+        n->hash.serialise(bytes);
+      for (auto &n : uninserted_leaf_nodes)
+        n->hash.serialise(bytes);
+
+      // Find conflated/flushed nodes along the left edge of the tree.
+      std::vector<Node*> extras;
+      walk_to(min_index(), false, [&extras](Node *&n, bool go_right) {
+        if (go_right)
+          extras.push_back(n->left);
+        return true;
+      });
+      for (size_t i=extras.size()-1; i != -1; i--)
+        extras[i]->hash.serialise(bytes);
+    }
+
+    void deserialise(const std::vector<uint8_t> &bytes) {
+      size_t position = 0;
+      deserialise(bytes, position);
+    }
+
+    void deserialise(const std::vector<uint8_t> &bytes, size_t &position) {
+      delete(_root);
+      leaf_nodes.clear();
+      for (auto n : uninserted_leaf_nodes)
+        delete(n);
+      uninserted_leaf_nodes.clear();
+      insertion_stack.clear();
+      hashing_stack.clear();
+      walk_stack.clear();
+      _root = nullptr;
+
+      size_t num_leaf_nodes = deserialise_size_t(bytes, position);
+      num_flushed = deserialise_size_t(bytes, position);
+
+      leaf_nodes.reserve(num_leaf_nodes);
+      for (size_t i=0; i < num_leaf_nodes; i++) {
+        Node *n = Node::make(bytes.data() + position);
+        position += HASH_SIZE;
+        leaf_nodes.push_back(n);
+      }
+
+      std::vector<Node*> level = leaf_nodes, next_level;
+      size_t it = num_flushed;
+      TRACE(std::cout << "num_flushed=" << num_flushed << " it=" << it << std::endl;);
+      size_t level_no = 0;
+      while (it != 0 || level.size() > 1) {
+        // Restore extra hashes on the left edge of the tree
+        if (it & 0x01) {
+          Hash h(bytes, position);
+          TRACE(std::cout << "+";);
+          auto n = Node::make(h);
+          n->height = level_no+1;
+          n->size = (1 << n->height)-1;
+          assert(n->invariant());
+          level.insert(level.begin(), n);
+        }
+
+        TRACE(for (auto &n : level)
+                std::cout << " " << n->hash.to_string(TRACE_HASH_SIZE);
+              std::cout << std::endl;);
+
+        // Rebuild the level
+        for (size_t i=0; i < level.size(); i+=2) {
+          if (i+1 >= level.size())
+            next_level.push_back(level[i]);
+          else
+            next_level.push_back(Node::make(level[i], level[i+1]));
+        }
+
+        level.swap(next_level);
+        next_level.clear();
+
+        it >>= 1;
+        level_no++;
+      }
+
+      assert (level.size() == 0 || level.size() == 1);
+
+      if (level.size() == 1) {
+        _root = level[0];
+        assert(_root->invariant());
+      }
     }
 
     operator std::vector<uint8_t>() const {
-      return serialise();
-    }
-
-    static Tree* deserialise(std::vector<uint8_t> &bytes) {
-      throw std::runtime_error("not implemented yet");
+      std::vector<uint8_t> bytes;
+      serialise(bytes);
+      return bytes;
     }
 
     const Hash& operator[](size_t index) const {
@@ -496,33 +654,48 @@ namespace Merkle
     }
 
     const Node* leaf_node(size_t index) const {
-      if (index >= num_leaves())
+      if (index < min_index() || max_index() < index)
         throw std::runtime_error("leaf index out of bounds");
-      return leaf_nodes[index-num_flushed];
-    }
-
-    size_t num_nodes() const {
-      return (_root ? _root->size : 0) + new_leaf_nodes.size();
+      size_t real_index = index - num_flushed;
+      if (real_index < leaf_nodes.size())
+        return leaf_nodes[real_index];
+      else
+        return uninserted_leaf_nodes[real_index-leaf_nodes.size()];
     }
 
     size_t num_leaves() const {
-      return num_flushed + leaf_nodes.size() + new_leaf_nodes.size();
-    }
-
-    size_t max_index() const {
-      return num_leaves() - 1;
+      return num_flushed + leaf_nodes.size() + uninserted_leaf_nodes.size();
     }
 
     size_t min_index() const {
       return num_flushed;
     }
 
-    size_t size() const {
-      // size in bytes for serialisation?
-      throw std::runtime_error("not implemented yet");
+    size_t max_index() const {
+      return num_leaves() - 1;
     }
 
-    struct Statistics {
+    size_t size() {
+      if (!uninserted_leaf_nodes.empty())
+        insert_leaves();
+      return _root ? _root->size : 0;
+    }
+
+    size_t byte_size() {
+      size_t num_extras = 0;
+      walk_to(min_index(), false, [&num_extras](Node *&n, bool go_right) {
+        if (go_right)
+          num_extras++;
+        return true;
+      });
+
+      return sizeof(leaf_nodes.size()) +
+             sizeof(num_flushed) +
+             leaf_nodes.size() * sizeof(Hash) +
+             num_extras * sizeof(Hash);
+    }
+
+    mutable struct Statistics {
       size_t num_insert = 0, num_hash = 0;
       size_t num_root = 0, num_past_root = 0;
       size_t num_flush = 0, num_retract = 0;
@@ -538,19 +711,15 @@ namespace Merkle
       }
     } statistics;
 
-    std::string to_string(size_t num_bytes = HASH_SIZE) {
+    std::string to_string(size_t num_bytes = HASH_SIZE) const {
       static const std::string dirty_hash(2*num_bytes, '?');
       std::stringstream stream;
       std::vector<Node*> level, next_level;
-      Node *previous = nullptr;
 
       if (num_leaves() == 0) {
         stream << "<EMPTY>" << std::endl;
         return stream.str();
       }
-
-      // compute_root();
-      // insert_new_leaves();
 
       if (!_root) {
         stream << "No root." << std::endl;
@@ -561,7 +730,6 @@ namespace Merkle
         while (!level.empty()) {
           stream << level_no++ << ": ";
           for (auto n : level) {
-            // std::cout << "* " << n->hash.to_string(num_bytes) << std::endl;
             assert(n->invariant());
             stream << (n->dirty ? dirty_hash : n->hash.to_string(num_bytes));
             stream << "(" << n->size << "," << n->height << ")";
@@ -575,7 +743,11 @@ namespace Merkle
         }
       }
 
-      stream << "+: new leaves=" << new_leaf_nodes.size() << ", num_flushed=" << num_flushed << std::endl;
+      stream << "+: "
+             << "leaves=" << leaf_nodes.size() << ", "
+             << "uninserted leaves=" << uninserted_leaf_nodes.size() << ", "
+             << "flushed=" << num_flushed
+             << std::endl;
       stream << "S: " << statistics.to_string() << std::endl;
 
       return stream.str();
@@ -583,15 +755,16 @@ namespace Merkle
 
   protected:
     std::vector<Node*> leaf_nodes;
-    std::vector<Node*> new_leaf_nodes;
-    Node *_root = nullptr;
-    typedef struct { Node *n; bool left; } InsertionStackElement;
-    std::vector<InsertionStackElement> insertion_stack;
-    std::vector<Node*> hashing_stack;
-    std::vector<Node*> walk_stack;
+    std::vector<Node*> uninserted_leaf_nodes;
     size_t num_flushed = 0;
+    Node *_root = nullptr;
 
-    void hash(Node *n, size_t indent=2)
+    typedef struct { Node *n; bool left; } InsertionStackElement;
+    mutable std::vector<InsertionStackElement> insertion_stack;
+    mutable std::vector<Node*> hashing_stack;
+    mutable std::vector<Node*> walk_stack;
+
+    void hash(Node *n, size_t indent=2) const
     {
       assert(hashing_stack.empty());
       hashing_stack.reserve(n->height);
@@ -613,7 +786,9 @@ namespace Merkle
           TRACE(std::cout << std::string(indent, ' ') << "+ h("
                           << n->left->hash.to_string(TRACE_HASH_SIZE) << ", "
                           << n->right->hash.to_string(TRACE_HASH_SIZE) << ") == "
-                          << n->hash.to_string(TRACE_HASH_SIZE) << std::endl);
+                          << n->hash.to_string(TRACE_HASH_SIZE)
+                          << " (" << n->size << "/" << n->height << ")"
+                          << std::endl);
           n->dirty = false;
           hashing_stack.pop_back();
         }
@@ -621,11 +796,11 @@ namespace Merkle
     }
 
     void compute_root() {
-      insert_new_leaves();
-      if (!insertion_stack.empty())
-        _root = process_insertion_stack();
+      insert_leaves(true);
+      assert(_root);
+      assert(_root->invariant());
       assert(_root->parent == nullptr);
-      if (!_root || _root->dirty) {
+      if (_root->dirty) {
         if (num_leaves() == 0)
           throw std::runtime_error("empty tree does not have a root");
         hash(_root);
@@ -633,7 +808,7 @@ namespace Merkle
       }
     }
 
-    void insert_new_leaf_recursive(Node *&n, Node *new_leaf) {
+    void insert_leaf_recursive(Node *&n, Node *new_leaf) {
       if (!n)
         n = new_leaf;
       else {
@@ -646,9 +821,9 @@ namespace Merkle
           TRACE(std::cout << " @ " << n->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
           assert(n->left && n->right);
           if (!n->left->is_full())
-            insert_new_leaf_recursive(n->left, new_leaf);
+            insert_leaf_recursive(n->left, new_leaf);
           else
-            insert_new_leaf_recursive(n->right, new_leaf);
+            insert_leaf_recursive(n->right, new_leaf);
           n->dirty = true;
           n->update_sizes();
         }
@@ -659,6 +834,7 @@ namespace Merkle
       while (true)
       {
         TRACE(std::cout << "  @ " << n->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
+        assert(n->invariant());
 
         if (n->is_full()) {
           Node *result = Node::make(n, new_leaf);
@@ -689,12 +865,15 @@ namespace Merkle
 
     Node *process_insertion_stack(bool complete = true) {
       TRACE(std::cout << "  X " << (complete ? "complete" : "continue") << ":";
-            for (size_t i = 0; i < insertion_stack.size(); i++)
+            for (size_t i=0; i < insertion_stack.size(); i++)
               std::cout << " " << insertion_stack[i].n->hash.to_string(TRACE_HASH_SIZE);
             std::cout << std::endl;);
 
       Node *result = insertion_stack.back().n;
       insertion_stack.pop_back();
+
+      assert(result->dirty);
+      result->update_sizes();
 
       while (!insertion_stack.empty()) {
         InsertionStackElement &top = insertion_stack.back();
@@ -717,11 +896,13 @@ namespace Merkle
         }
       }
 
+      assert(result->invariant());
+
       return result;
     }
 
-    void insert_new_leaf(Node *&root, Node *n) {
-      TRACE(std::cout << " - insert_new_leaf " << n->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
+    void insert_leaf(Node *&root, Node *n) {
+      TRACE(std::cout << " - insert_leaf " << n->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
       leaf_nodes.push_back(n);
       if (insertion_stack.empty() && !root)
         root = n;
@@ -729,83 +910,18 @@ namespace Merkle
         continue_insertion_stack(root, n);
         root = process_insertion_stack(false);
       }
-      // TRACE(std::cout << "-----" << std::endl << this->to_string(TRACE_HASH_SIZE) << "-----" << std::endl;);
     }
 
-  public:
-    void build_from_scratch() {
-      std::vector<Node*> level, next_level;
-
-      TRACE(std::cout << "> build_from_scratch" << std::endl);
-      _root = nullptr;
-      for (auto &n : new_leaf_nodes)
-        leaf_nodes.push_back(n);
-      new_leaf_nodes.clear();
-      for (auto n : leaf_nodes)
-        n->parent = nullptr;
-      level = leaf_nodes;
-
-      if (level.empty())
-        return;
-
-      size_t level_no = 0;
-      while (level.size() > 1) {
-        TRACE(std::cout << " - " << level_no << ": ";
-              for (auto node : level)
-                std::cout << node->hash.to_string(TRACE_HASH_SIZE) << "(" << node->size << ") ";
-              std::cout << std::endl;);
-
-        for (size_t i=0; i < level.size(); i += 2) {
-          Node* left = level[i];
-          Node* right = nullptr;
-          if (i + 1 < level.size())
-            right = level[i+1];
-
-          auto lparent = left->parent;
-          auto rparent = right ? right->parent : nullptr;
-
-          assert(left);
-          assert(!(lparent && right && rparent && lparent != rparent));
-
-          if (lparent) {
-            assert(!right || lparent == rparent);
-            next_level.push_back(lparent);
-          }
-          else {
-            if (!right)
-              next_level.push_back(left);
-            else {
-              assert(left && right);
-              assert(!lparent && !rparent);
-              auto new_parent = Node::make(left, right);
-              hash(new_parent);
-              next_level.push_back(new_parent);
-            }
-          }
-        }
-
-        std::swap(level, next_level);
-        next_level.clear();
-        level_no++;
-      }
-
-      assert(level.size() == 1);
-      _root = level[0];
-      TRACE(std::cout << " - " << level_no << ": " << _root->hash.to_string(TRACE_HASH_SIZE) << "(" << _root->size << ")" << std::endl);
-      level.clear();
-    }
-
-    void insert_new_leaves(bool complete=false) {
-      if (!new_leaf_nodes.empty()) {
-        TRACE(std::cout << "* insert_new_leaves " << leaf_nodes.size() << " +" << new_leaf_nodes.size() << std::endl;);
+    void insert_leaves(bool complete=false) {
+      if (!uninserted_leaf_nodes.empty()) {
+        TRACE(std::cout << "* insert_leaves " << leaf_nodes.size() << " +" << uninserted_leaf_nodes.size() << std::endl;);
         // TODO: Make this go fast when there are many leaves to insert.
-        for (auto &n : new_leaf_nodes)
-          insert_new_leaf(_root, n);
-        new_leaf_nodes.clear();
-
-        if (complete && !insertion_stack.empty())
-          _root = process_insertion_stack();
+        for (auto &n : uninserted_leaf_nodes)
+          insert_leaf(_root, n);
+        uninserted_leaf_nodes.clear();
       }
+      if (complete && !insertion_stack.empty())
+        _root = process_insertion_stack();
     }
   };
 
@@ -830,7 +946,7 @@ namespace Merkle
 
     uint32_t cws[64] = {0};
 
-    for (int i = 0; i < 16; i++)
+    for (int i=0; i < 16; i++)
       cws[i] = be32toh(((int32_t *)block)[i]);
 
     for (int i = 16; i < 64; i++) {
@@ -844,10 +960,10 @@ namespace Merkle
     }
 
     uint32_t h[8];
-    for (int i = 0; i < 8; i++)
+    for (int i=0; i < 8; i++)
       h[i] = s[i];
 
-    for (int i = 0; i < 64; i++) {
+    for (int i=0; i < 64; i++) {
       uint32_t a0 = h[0], b0 = h[1], c0 = h[2], d0 = h[3], e0 = h[4], f0 = h[5], g0 = h[6], h03 = h[7];
       uint32_t w = cws[i];
       uint32_t t1 = h03 + ((e0 >> 6 | e0 << 26) ^ ((e0 >> 11 | e0 << 21) ^ (e0 >> 25 | e0 << 7))) + ((e0 & f0) ^ (~e0 & g0)) + constants[i] + w;
@@ -862,7 +978,7 @@ namespace Merkle
       h[7] = g0;
     }
 
-    for (int i = 0; i < 8; i++)
+    for (int i=0; i < 8; i++)
       ((uint32_t*)out.bytes)[i] = htobe32(s[i] + h[i]);
   }
 
@@ -880,7 +996,7 @@ void sha256_compress_openssl(const uint8_t *h1, const uint8_t *h2, uint8_t *out)
     printf("SHA256_Init error");
   SHA256_Transform(&ctx, &block[0]);
 
-  for (int i = 0; i < 8; i++)
+  for (int i=0; i < 8; i++)
     ((uint32_t *)out)[i] = htobe32(((uint32_t *)ctx.h)[i]);
 }
 #endif

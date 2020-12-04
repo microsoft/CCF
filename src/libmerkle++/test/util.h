@@ -11,6 +11,6 @@ inline std::vector<Merkle::Hash> make_hashes(size_t n, size_t print_size = 3) {
   return hashes;
 }
 
-size_t random_index(Merkle::Tree &mt) {
+inline size_t random_index(Merkle::Tree &mt) {
   return mt.min_index() + (std::rand()/(double)RAND_MAX) * (mt.max_index()-mt.min_index());
 }

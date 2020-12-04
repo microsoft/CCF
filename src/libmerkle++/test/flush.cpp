@@ -13,7 +13,7 @@ int main()
 {
   try {
     #ifndef NDEBUG
-    const size_t num_trees = 64;
+    const size_t num_trees = 32;
     const size_t max_num_leaves = 64*1024;
     const size_t max_flushes = 16;
     #else
@@ -25,7 +25,7 @@ int main()
     // std::srand(0);
     std::srand(std::time(0));
 
-    size_t total_paths = 0, total_leaves = 0, total_flushes = 0;
+    size_t total_leaves = 0, total_flushes = 0;
 
     for (size_t k=0; k < num_trees; k++) {
       size_t num_leaves = 1 + (std::rand()/(double)RAND_MAX) * max_num_leaves;
