@@ -19,6 +19,7 @@ namespace crypto
   void Sha256Hash::mbedtls_sha256(const CBuffer& data, uint8_t* h)
   {
     mbedtls_sha256_context ctx;
+    mbedtls_sha256_init(&ctx);
     mbedtls_sha256_starts_ret(&ctx, 0);
 
     mbedtls_sha256_update_ret(&ctx, data.p, data.rawSize());

@@ -734,9 +734,14 @@ namespace asynchost
 
     Ledger(const Ledger& that) = delete;
 
-    void init_idx(size_t idx)
+    void set_last_idx(size_t idx)
     {
       last_idx = idx;
+    }
+
+    size_t get_last_idx() const
+    {
+      return last_idx;
     }
 
     std::optional<std::vector<uint8_t>> read_entry(size_t idx)
@@ -891,7 +896,7 @@ namespace asynchost
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, consensus::ledger_init, [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
-          init_idx(idx);
+          set_last_idx(idx);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(

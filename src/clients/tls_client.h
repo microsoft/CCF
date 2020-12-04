@@ -30,26 +30,32 @@ private:
   std::shared_ptr<tls::Cert> cert;
   bool connected = false;
 
-  mbedtls_net_context server_fd;
-  mbedtls_entropy_context entropy;
-  mbedtls_ctr_drbg_context ctr_drbg;
-  mbedtls_ssl_context ssl;
-  mbedtls_ssl_config conf;
+  mbedtls::NetContext server_fd;
+  mbedtls::Entropy entropy;
+  mbedtls::CtrDrbg ctr_drbg;
+  mbedtls::SSLContext ssl;
+  mbedtls::SSLConfig conf;
 
-  void connect()
+  void init()
   {
+    auto tmp_server_fd = mbedtls::make_unique<mbedtls::NetContext>();
+    auto tmp_entropy = mbedtls::make_unique<mbedtls::Entropy>();
+    auto tmp_ctr_drbg = mbedtls::make_unique<mbedtls::CtrDrbg>();
+    auto tmp_ssl = mbedtls::make_unique<mbedtls::SSLContext>();
+    auto tmp_conf = mbedtls::make_unique<mbedtls::SSLConfig>();
+
     auto err = mbedtls_ctr_drbg_seed(
-      &ctr_drbg, mbedtls_entropy_func, &entropy, nullptr, 0);
+      tmp_ctr_drbg.get(), mbedtls_entropy_func, tmp_entropy.get(), nullptr, 0);
     if (err)
       throw std::logic_error(tls::error_string(err));
 
     err = mbedtls_net_connect(
-      &server_fd, host.c_str(), port.c_str(), MBEDTLS_NET_PROTO_TCP);
+      tmp_server_fd.get(), host.c_str(), port.c_str(), MBEDTLS_NET_PROTO_TCP);
     if (err)
       throw std::logic_error(tls::error_string(err));
 
     err = mbedtls_ssl_config_defaults(
-      &conf,
+      tmp_conf.get(),
       MBEDTLS_SSL_IS_CLIENT,
       MBEDTLS_SSL_TRANSPORT_STREAM,
       MBEDTLS_SSL_PRESET_DEFAULT);
@@ -57,14 +63,15 @@ private:
       throw std::logic_error(tls::error_string(err));
 
     if (cert != nullptr)
-      cert->use(&ssl, &conf);
+      cert->use(tmp_ssl.get(), tmp_conf.get());
     if (node_ca != nullptr)
-      node_ca->use(&conf);
+      node_ca->use(tmp_conf.get());
 
-    mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
-    mbedtls_ssl_conf_authmode(&conf, MBEDTLS_SSL_VERIFY_REQUIRED);
+    mbedtls_ssl_conf_rng(
+      tmp_conf.get(), mbedtls_ctr_drbg_random, tmp_ctr_drbg.get());
+    mbedtls_ssl_conf_authmode(tmp_conf.get(), MBEDTLS_SSL_VERIFY_REQUIRED);
 
-    err = mbedtls_ssl_setup(&ssl, &conf);
+    err = mbedtls_ssl_setup(tmp_ssl.get(), tmp_conf.get());
     if (err)
       throw std::logic_error(tls::error_string(err));
 
@@ -72,11 +79,15 @@ private:
       throw std::logic_error(tls::error_string(err));
 
     mbedtls_ssl_set_bio(
-      &ssl, &server_fd, mbedtls_net_send, mbedtls_net_recv, nullptr);
+      tmp_ssl.get(),
+      tmp_server_fd.get(),
+      mbedtls_net_send,
+      mbedtls_net_recv,
+      nullptr);
 
     while (true)
     {
-      err = mbedtls_ssl_handshake(&ssl);
+      err = mbedtls_ssl_handshake(tmp_ssl.get());
       if (err == 0)
         break;
       if (
@@ -85,34 +96,12 @@ private:
         throw std::logic_error(tls::error_string(err));
     }
     connected = true;
-  }
 
-  void teardown()
-  {
-    mbedtls_net_free(&server_fd);
-    mbedtls_ssl_free(&ssl);
-    mbedtls_ssl_config_free(&conf);
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
-  }
-
-  void init()
-  {
-    mbedtls_net_init(&server_fd);
-    mbedtls_ssl_init(&ssl);
-    mbedtls_ssl_config_init(&conf);
-    mbedtls_entropy_init(&entropy);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-
-    try
-    {
-      connect();
-    }
-    catch (const std::exception&)
-    {
-      teardown();
-      throw;
-    }
+    server_fd = std::move(tmp_server_fd);
+    entropy = std::move(tmp_entropy);
+    ctr_drbg = std::move(tmp_ctr_drbg);
+    ssl = std::move(tmp_ssl);
+    conf = std::move(tmp_conf);
   }
 
 public:
@@ -142,20 +131,19 @@ public:
   {
     // Signal the end of the connection
     if (connected)
-      mbedtls_ssl_close_notify(&ssl);
-    teardown();
+      mbedtls_ssl_close_notify(ssl.get());
   }
 
   auto get_ciphersuite_name()
   {
-    return mbedtls_ssl_get_ciphersuite(&ssl);
+    return mbedtls_ssl_get_ciphersuite(ssl.get());
   }
 
   void write(CBuffer b)
   {
     for (size_t written = 0; written < b.n;)
     {
-      auto ret = mbedtls_ssl_write(&ssl, b.p + written, b.n - written);
+      auto ret = mbedtls_ssl_write(ssl.get(), b.p + written, b.n - written);
       if (ret > 0)
         written += ret;
       else
@@ -166,7 +154,7 @@ public:
   std::vector<uint8_t> read(size_t read_size)
   {
     std::vector<uint8_t> buf(read_size);
-    auto ret = mbedtls_ssl_read(&ssl, buf.data(), buf.size());
+    auto ret = mbedtls_ssl_read(ssl.get(), buf.data(), buf.size());
     if (ret > 0)
     {
       buf.resize(ret);
@@ -186,14 +174,14 @@ public:
 
   bool bytes_available()
   {
-    return mbedtls_ssl_get_bytes_avail(&ssl) > 0;
+    return mbedtls_ssl_get_bytes_avail(ssl.get()) > 0;
   }
 
   std::vector<uint8_t> read_all()
   {
     constexpr auto read_size = 4096;
     std::vector<uint8_t> buf(read_size);
-    auto ret = mbedtls_ssl_read(&ssl, buf.data(), buf.size());
+    auto ret = mbedtls_ssl_read(ssl.get(), buf.data(), buf.size());
     if (ret > 0)
     {
       buf.resize(ret);
@@ -215,6 +203,6 @@ public:
   {
     int option = on ? 1 : 0;
     setsockopt(
-      server_fd.fd, IPPROTO_TCP, TCP_NODELAY, (char*)&option, sizeof(int));
+      server_fd->fd, IPPROTO_TCP, TCP_NODELAY, (char*)&option, sizeof(int));
   }
 };

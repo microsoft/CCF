@@ -81,5 +81,7 @@ namespace ccf
     {
       return {State::partOfNetwork, {}, {}};
     }
+
+    void open_user_frontend() override{};
   };
 }
