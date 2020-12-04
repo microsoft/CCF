@@ -733,7 +733,7 @@ int main(int argc, char** argv)
 
         ccf_config.startup_snapshot = files::slurp(snapshot);
         ccf_config.startup_snapshot_evidence_seqno =
-          snapshot_evidence_idx.value();
+          snapshot_evidence_idx->first;
         LOG_INFO_FMT(
           "Found latest snapshot file: {} (size: {}, evidence seqno: {})",
           snapshot,
@@ -742,9 +742,9 @@ int main(int argc, char** argv)
       }
       else
       {
-        LOG_INFO_FMT(
-          "No snapshot found, node will request transactions from the "
-          "beginning");
+        LOG_FAIL_FMT(
+          "No snapshot found. Node will request transactions all historical "
+          "transactions");
       }
     }
 

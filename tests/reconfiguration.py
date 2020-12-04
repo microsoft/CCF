@@ -67,11 +67,11 @@ def test_add_node_from_backup(network, args):
 @reqs.description("Adding a valid node from snapshot")
 @reqs.at_least_n_nodes(2)
 @reqs.add_from_snapshot()
-def test_add_node_from_snapshot(network, args, copy_ledger=True):
-    kwargs = {"from_snapshot": True, "copy_ledger": copy_ledger}
+def test_add_node_from_snapshot(network, args, copy_ledger_read_only=True):
+    kwargs = {"from_snapshot": True, "copy_ledger_read_only": copy_ledger_read_only}
     # Shorter timeout if the ledger isn't copied as the new node
     # will fail to verify ledger evidence
-    if not copy_ledger:
+    if not copy_ledger_read_only:
         kwargs["timeout"] = 3
     new_node = network.create_and_trust_node(
         args.package,
@@ -173,14 +173,15 @@ def run(args):
 
         if args.snapshot_tx_interval is not None:
             test_add_node_from_snapshot(network, args, copy_ledger_read_only=True)
-            try:
-                test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
-                assert (
-                    False
-                ), "Node cannot join from snapshot without verifying snapshot evidence in ledger"
-            except TimeoutError:
-                LOG.success(
-                    "Node cannot join from snapshot without verifying snapshot evidence in ledger"
+            test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+            errors, _ = network.get_joined_nodes()[-1].stop()
+            if not any(
+                "No snapshot found. Node will request transactions all historical transactions"
+                in s
+                for s in errors
+            ):
+                raise ValueError(
+                    "New node shouldn't join from snapshot if snapshot cannot be verified"
                 )
 
 

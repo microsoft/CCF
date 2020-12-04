@@ -281,7 +281,7 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::initialized);
 
-      create_node_cert(args.config);
+      create_node_cert(config);
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE

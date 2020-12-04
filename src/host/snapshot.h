@@ -66,8 +66,7 @@ namespace asynchost
     }
 
     size_t evidence_commit_idx;
-    std::string_view str_evidence_commit_idx =
-      file_name.substr(evidence_proof_pos + 1);
+    auto str_evidence_commit_idx = file_name.substr(evidence_proof_pos + 1);
     if (
       std::from_chars(
         str_evidence_commit_idx.data(),

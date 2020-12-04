@@ -220,10 +220,10 @@ class Network:
         args,
         target_node=None,
         recovery=False,
-        copy_ledger=False,
         ledger_dir=None,
         from_snapshot=False,
         snapshot_dir=None,
+        copy_ledger_read_only=False,
     ):
         forwarded_args = {
             arg: getattr(args, arg)
@@ -252,7 +252,7 @@ class Network:
             # Only when joining from snapshot, retrieve ledger dir from target node
             # if the ledger directory is not specified. When joining without snapshot,
             # the entire ledger will be retransmitted by primary node
-            if copy_ledger and ledger_dir is None:
+            if copy_ledger_read_only and ledger_dir is None:
                 current_ledger_dir, committed_ledger_dirs = target_node.get_ledger(
                     include_read_only_dirs=True
                 )
@@ -541,7 +541,7 @@ class Network:
         args,
         target_node=None,
         from_snapshot=False,
-        copy_ledger=False,
+        copy_ledger_read_only=False,
         timeout=JOIN_TIMEOUT,
     ):
         """
@@ -556,7 +556,7 @@ class Network:
             args,
             target_node,
             from_snapshot=from_snapshot,
-            copy_ledger=copy_ledger,
+            copy_ledger_read_only=copy_ledger_read_only,
         )
         primary, _ = self.find_primary()
         try:
@@ -595,6 +595,7 @@ class Network:
         target_node=None,
         from_snapshot=False,
         copy_ledger=False,
+        copy_ledger_read_only=False,
         timeout=JOIN_TIMEOUT,
     ):
         """
@@ -607,7 +608,7 @@ class Network:
             args,
             target_node,
             from_snapshot,
-            copy_ledger,
+            copy_ledger_read_only,
             timeout,
         )
 
