@@ -54,6 +54,7 @@ extensions = [
     "sphinx_copybutton",
     "sphinx.ext.autodoc",
     "sphinxcontrib.openapi",
+    "sphinx_panels"
 ]
 
 autosectionlabel_prefix_document = True
@@ -115,6 +116,10 @@ html_static_path = ["_static"]
 html_sidebars = {
     "**": ["sidebar-search-bs.html", "sidebar-nav-bs.html"],
 }
+
+html_css_files = [
+    'css/custom.css',
+]
 
 
 # -- Options for HTMLHelp output ---------------------------------------------
