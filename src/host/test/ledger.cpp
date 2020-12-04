@@ -1,8 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "ds/serialized.h"
 #include "host/ledger.h"
+
+#include "ds/serialized.h"
 #include "host/snapshot.h"
 
 #include <doctest/doctest.h>
