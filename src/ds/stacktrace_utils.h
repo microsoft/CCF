@@ -1,7 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Copyright (c) 1999 Miguel Castro, Barbara Liskov.
-// Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
-// Licensed under the MIT license.
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
 #pragma once
 
 #ifndef INSIDE_ENCLAVE
