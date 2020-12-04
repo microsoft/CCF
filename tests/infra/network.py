@@ -200,19 +200,6 @@ class Network:
         self.nodes.append(node)
         return node
 
-    def get_committed_snapshots(self, node):
-        """
-        Returns committed snapshots, waiting for the latest available
-        snapshot to have evidence proof in ledger
-        """
-        snapshot_dir = node.get_committed_snapshots()
-        assert (
-            len(os.listdir(snapshot_dir)) > 0
-        ), f"There are no snapshots to resume from in directory {snapshot_dir}"
-        latest_snapshot_file = infra.node.find_latest_snapshot(snapshot_dir)
-        self.wait_for_snapshot_evidence_commit_proof(node, latest_snapshot_file)
-        return snapshot_dir
-
     def _add_node(
         self,
         node,
