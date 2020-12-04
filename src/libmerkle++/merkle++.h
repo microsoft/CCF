@@ -689,7 +689,10 @@ namespace Merkle
     const Hash& leaf(size_t index) const {
       if (index >= num_leaves())
         throw std::runtime_error("leaf index out of bounds");
-      return leaf_nodes[index-num_flushed]->hash;
+      if (index - num_flushed >= leaf_nodes.size())
+        return uninserted_leaf_nodes[index - num_flushed - leaf_nodes.size()]->hash;
+      else
+        return leaf_nodes[index-num_flushed]->hash;
     }
 
     const Node* leaf_node(size_t index) const {

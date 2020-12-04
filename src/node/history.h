@@ -283,7 +283,9 @@ namespace ccf
     crypto::Sha256Hash get_root() const
     {
       const Merkle::Hash &root = tree->root();
-      return crypto::Sha256Hash({ root.bytes, root.size() });
+      crypto::Sha256Hash result;
+      std::copy(root.bytes, root.bytes+root.size(), result.h.begin());
+      return result;
     }
 
     void operator=(const MerkleTreeHistory& rhs)
@@ -353,7 +355,9 @@ namespace ccf
     crypto::Sha256Hash get_leaf(uint64_t index)
     {
       const Merkle::Hash &leaf = tree->leaf(index);
-      return crypto::Sha256Hash({ leaf.bytes, leaf.size() });
+      crypto::Sha256Hash result;
+      std::copy(leaf.bytes, leaf.bytes+leaf.size(), result.h.begin());
+      return result;
     }
   };
 
