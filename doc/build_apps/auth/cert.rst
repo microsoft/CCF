@@ -9,5 +9,5 @@ Requests sent by users can be authenticated one of two ways:
 - by :ref:`users/issue_commands:Signing` the request contents with the user private key, following the scheme described `here <https://tools.ietf.org/html/draft-cavage-http-signatures-12>`_.
 
 TLS session-based authentication can be disabled for a specific application endpoint, via the :cpp:func:`ccf::EndpointRegistry::Endpoint::set_require_client_identity()`,
-to allow the application to authenticate and authorise users based on other mechanisms, such as :doc:`/developers/auth/jwt`.
+to allow the application to authenticate and authorise users based on other mechanisms, such as :doc:`/build_apps/auth/jwt`.
 Signature-based authentication can be made mandatory with :cpp:func:`ccf::EndpointRegistry::Endpoint::set_require_client_signature()`, but cannot be disabled.

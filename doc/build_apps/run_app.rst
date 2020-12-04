@@ -7,7 +7,7 @@ Running CCF Applications
     - The CCF runtime environment has successfully been setup (see :ref:`environment setup instructions <quickstart/run_setup:Setup CCF Runtime Environment>`).
     - CCF is installed (see :ref:`installation steps <quickstart/install:Install>`)
 
-The quickest way to start a CCF sandbox is to use the `sandbox.sh <https://github.com/microsoft/CCF/blob/master/tests/sandbox/sandbox.sh>`_ test script, specifying the :doc:`enclave image </developers/index>` to run.
+The quickest way to start a CCF sandbox is to use the `sandbox.sh <https://github.com/microsoft/CCF/blob/master/tests/sandbox/sandbox.sh>`_ test script, specifying the :doc:`enclave image </build_apps/index>` to run.
 
 The script creates a new one node CCF test network running locally. All the governance requests required to open the network to users are automatically issued.
 

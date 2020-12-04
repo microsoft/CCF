@@ -3,8 +3,8 @@ Developer API
 
 A CCF application is composed of the following:
 
-- The :ref:`Application Entry Point <developers/api:Application Entry Point>` which registers the application in CCF.
-- A collection of :cpp:class:`endpoints <ccf::EndpointRegistry::Endpoint>` handling HTTP requests and grouped in a single :cpp:class:`ccf::EndpointRegistry`. An :cpp:class:`endpoint <ccf::EndpointRegistry::Endpoint>` reads and writes to the key-value store via the :ref:`Key-Value Store API <developers/kv/api:Key-Value Store API>`.
+- The :ref:`Application Entry Point <build_apps/api:Application Entry Point>` which registers the application in CCF.
+- A collection of :cpp:class:`endpoints <ccf::EndpointRegistry::Endpoint>` handling HTTP requests and grouped in a single :cpp:class:`ccf::EndpointRegistry`. An :cpp:class:`endpoint <ccf::EndpointRegistry::Endpoint>` reads and writes to the key-value store via the :ref:`Key-Value Store API <build_apps/kv/api:Key-Value Store API>`.
 
 Application Entry Point
 -----------------------

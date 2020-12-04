@@ -34,7 +34,7 @@ A bundle has the following folder structure:
     │   └── app.js
     └── app.json
 
-It consists of :ref:`metadata <developers/js_app_bundle:Metadata>` (``app.json``) and one or more :ref:`JavaScript modules <developers/js_app_bundle:JavaScript API>` (``src/``).
+It consists of :ref:`metadata <build_apps/js_app_bundle:Metadata>` (``app.json``) and one or more :ref:`JavaScript modules <build_apps/js_app_bundle:JavaScript API>` (``src/``).
 JavaScript modules can `import <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import>`_ other modules using relative path names.
 
 You can find an example app bundle in the
@@ -85,7 +85,7 @@ You can find an example metadata file at
 in the CCF git repository.
 
 .. note::
-    See the :ref:`tsoa-based app example <developers/js_app_tsoa:TypeScript Application using tsoa>` on how to generate OpenAPI definitions with TypeScript.
+    See the :ref:`tsoa-based app example <build_apps/js_app_tsoa:TypeScript Application using tsoa>` on how to generate OpenAPI definitions with TypeScript.
 
 .. warning::
     CCF currently ignores all fields except ``"js_module"`` and ``"js_function"``.
@@ -149,7 +149,7 @@ It validates the request body and returns the result of a mathematical operation
    :language: js
 
 .. note::
-    See the :ref:`tsoa-based app example <developers/js_app_tsoa:TypeScript Application using tsoa>` on how to automatically validate
+    See the :ref:`tsoa-based app example <build_apps/js_app_tsoa:TypeScript Application using tsoa>` on how to automatically validate
     JSON request data using TypeScript types.
 
 Deployment

@@ -41,7 +41,7 @@ The Key-Value Store is a collection of maps (associating a key to a value) that 
 
 Since all nodes in the CCF network can read the content of private maps, it is up to the application logic to control the access to such maps. Since every application endpoint has access to the identity of the user triggering it, it is easy to restrict which maps (and entries in those maps) a user can read or write to.
 
-.. note:: Find out how to build CCF applications in the :doc:`../developers/index` section.
+.. note:: Find out how to build CCF applications in the :doc:`../build_apps/index` section.
 
 Ledger
 ~~~~~~

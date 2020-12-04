@@ -16,4 +16,4 @@ When a transaction is committed, each affected ``Store::Map`` is serialised in d
 
 Ledger entries are integrity-protected and encrypted using a symmetric key shared by all trusted nodes (see :doc:`/overview/cryptography`). This key is kept secure inside each enclave. See :ref:`governance/common_member_operations:Rekeying Ledger` for details on how members can rotate the ledger encryption key.
 
-Note that even if a transaction only affects a private ``Store::Map``, unencrypted information such as the sequence number is always present in the serialised entry. More information about the ledger entry format is available in the :doc:`/developers/kv/kv_serialisation` section.
+Note that even if a transaction only affects a private ``Store::Map``, unencrypted information such as the sequence number is always present in the serialised entry. More information about the ledger entry format is available in the :doc:`/build_apps/kv/kv_serialisation` section.

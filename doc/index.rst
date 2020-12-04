@@ -15,12 +15,12 @@ CCF Documentation
 
     ---
 
-    :fa:`tools` :doc:`developers/index`
+    :fa:`tools` :doc:`build_apps/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     .. image:: img/ts.svg
       :width: 32
-      :target: developers/js_app.html
+      :target: build_apps/js_app.html
       :alt: TypeScript
       :align: left
 
@@ -30,7 +30,7 @@ CCF Documentation
 
     .. image:: img/cpp.svg
       :width: 32
-      :target: developers/example.html
+      :target: build_apps/example.html
       :alt: C++
       :align: left
 
@@ -69,7 +69,7 @@ CCF Documentation
     :hidden:
 
     overview/index.rst
-    developers/index.rst
+    build_apps/index.rst
     users/index.rst
     operators/index.rst
     governance/index.rst

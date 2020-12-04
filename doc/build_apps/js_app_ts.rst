@@ -39,11 +39,11 @@ The sample app has the following folder layout:
 
 It contains these files:
 
-- ``src/endpoints/*.ts``: :ref:`developers/js_app_ts:Endpoint handlers`.
-- ``src/types/ccf.ts``: :ref:`developers/js_app_ts:Type definitions` for CCF objects.
-- ``app.json``: :ref:`App metadata <developers/js_app_ts:Metadata>`.
+- ``src/endpoints/*.ts``: :ref:`build_apps/js_app_ts:Endpoint handlers`.
+- ``src/types/ccf.ts``: :ref:`build_apps/js_app_ts:Type definitions` for CCF objects.
+- ``app.json``: :ref:`App metadata <build_apps/js_app_ts:Metadata>`.
 - ``package.json``: Dependencies and build command.
-- ``rollup.config.js``: Rollup configuration, see :ref:`developers/js_app_ts:Conversion to an app bundle` for more details.
+- ``rollup.config.js``: Rollup configuration, see :ref:`build_apps/js_app_ts:Conversion to an app bundle` for more details.
 - ``tsconfig.json``: TypeScript compiler configuration.
 
 .. note::
@@ -97,10 +97,10 @@ Here, the request body is a JSON array with elements of arbitrary type,
 and the response body is an even/odd partitioning of those elements as nested JSON array.
 The example also shows how an external library, here ``lodash``, is imported and used.
 
-See the :ref:`JavaScript API reference <developers/js_app_bundle:JavaScript API>` for more details on the request and response object fields.
+See the :ref:`JavaScript API reference <build_apps/js_app_bundle:JavaScript API>` for more details on the request and response object fields.
 
 .. note::
-    Even though request body schemas can be defined as part of the OpenAPI :ref:`metadata <developers/js_app_ts:Metadata>`,
+    Even though request body schemas can be defined as part of the OpenAPI :ref:`metadata <build_apps/js_app_ts:Metadata>`,
     CCF does not validate incoming request data against those schemas.
     It is up to the application to perform any necessary validation. 
 
@@ -108,7 +108,7 @@ Type definitions
 ----------------
 
 CCF currently does not provide an npm package with TypeScript definitions
-for :ref:`CCF's JavaScript API <developers/js_app_bundle:JavaScript API>`.
+for :ref:`CCF's JavaScript API <build_apps/js_app_bundle:JavaScript API>`.
 
 Instead, the definitions are part of the sample app in
 `src/types/ccf.ts <https://github.com/microsoft/CCF/tree/master/tests/npm-app/src/types/ccf.ts>`_.
@@ -119,15 +119,15 @@ Metadata
 --------
 
 App metadata is stored in an ``app.json`` file in the root of the app project.
-It is copied as-is to the ``dist/`` folder during the :ref:`build step <developers/js_app_ts:Conversion to an app bundle>`.
-The file follows the :ref:`metadata format <developers/js_app_bundle:Metadata>` used by app bundles.
+It is copied as-is to the ``dist/`` folder during the :ref:`build step <build_apps/js_app_ts:Conversion to an app bundle>`.
+The file follows the :ref:`metadata format <build_apps/js_app_bundle:Metadata>` used by app bundles.
 
 Note that module paths must be relative to the ``dist/src/`` folder and end with ``.js`` instead of ``.ts``.
 
 Conversion to an app bundle
 ---------------------------
 
-Preparing the app for deployment means converting it to CCF's native JavaScript application format, an :ref:`app bundle <developers/js_app_bundle:JavaScript Application Bundle>`.
+Preparing the app for deployment means converting it to CCF's native JavaScript application format, an :ref:`app bundle <build_apps/js_app_bundle:JavaScript Application Bundle>`.
 This involves the following steps:
 
 - transform TypeScript into JavaScript,
@@ -151,7 +151,7 @@ Deployment
 ----------
 
 After the app was converted to an app bundle, it can be wrapped into a proposal and deployed.
-See the :ref:`Deployment section of the app bundle page <developers/js_app_bundle:Deployment>` for further details.
+See the :ref:`Deployment section of the app bundle page <build_apps/js_app_bundle:Deployment>` for further details.
 
 A note on CommonJS modules
 --------------------------
