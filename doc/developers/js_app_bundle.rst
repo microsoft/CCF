@@ -163,5 +163,5 @@ An app bundle can be wrapped into a governance proposal with the Python client f
     SUCCESS | Writing proposal to ./deploy_js_app_proposal.json
     SUCCESS | Wrote vote to ./deploy_js_app_vote_for.json
 
-Once :ref:`submitted and accepted <members/proposals:Submitting a New Proposal>`, a ``deploy_js_app`` proposal atomically (re-)deploys the complete JavaScript application.
+Once :ref:`submitted and accepted <governance/proposals:Submitting a New Proposal>`, a ``deploy_js_app`` proposal atomically (re-)deploys the complete JavaScript application.
 Any existing application endpoints and JavaScript modules are removed.

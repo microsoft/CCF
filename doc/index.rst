@@ -52,7 +52,7 @@ CCF Documentation
 
     ---
 
-    :fa:`users` :doc:`members/index`
+    :fa:`users` :doc:`governance/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Propose and vote changes to a CCF network, the rules that define it and the application it runs.
@@ -72,6 +72,6 @@ CCF Documentation
     developers/index.rst
     users/index.rst
     operators/index.rst
-    members/index.rst
+    governance/index.rst
     audit/index.rst
     glossary

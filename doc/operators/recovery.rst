@@ -7,7 +7,7 @@ The recovery procedure consists of two phases:
 
 1. Operators should retrieve one of the ledgers of the previous service and re-start one or several nodes in ``recover`` mode. The public transactions of the previous network are restored and the new network established.
 
-2. After agreeing that the configuration of the new network is suitable, members should vote to accept to recover the network and once this is done, submit their recovery shares to initiate the end of the recovery procedure. See :ref:`here <members/accept_recovery:Accepting Recovery and Submitting Shares>` for more details.
+2. After agreeing that the configuration of the new network is suitable, members should vote to accept to recover the network and once this is done, submit their recovery shares to initiate the end of the recovery procedure. See :ref:`here <governance/accept_recovery:Accepting Recovery and Submitting Shares>` for more details.
 
 .. note:: It is possible that the length of the ledgers of each node may differ slightly since some transactions may not have yet been fully replicated. It is preferable to use the ledger of the primary node before the service crashed.
 
@@ -62,7 +62,7 @@ Similarly to the normal join protocol (see :ref:`operators/start_network:Adding 
 
         Note over Node 3: Part of Public Network
 
-Once operators have established a recovered public network, the existing members of the consortium :ref:`must vote to accept the recovery of the network and submit their recovery shares <members/accept_recovery:Accepting Recovery and Submitting Shares>`.
+Once operators have established a recovered public network, the existing members of the consortium :ref:`must vote to accept the recovery of the network and submit their recovery shares <governance/accept_recovery:Accepting Recovery and Submitting Shares>`.
 
 .. warning:: After recovery, the identity of the network has changed. The new network certificate ``networkcert.pem`` must be distributed to all existing and new users.
 

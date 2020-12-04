@@ -157,7 +157,7 @@ In this case, a new proposal with id ``4`` has successfully been created and the
 
 As soon as ``member3`` accepts the proposal, a majority (2 out of 3) of members has been reached and the proposal completes, successfully adding ``member4``.
 
-.. note:: Once a new member has been accepted to the consortium, the new member must acknowledge that it is active by sending a ``/gov/ack`` request. See :ref:`members/adding_member:Activating a New Member`.
+.. note:: Once a new member has been accepted to the consortium, the new member must acknowledge that it is active by sending a ``/gov/ack`` request. See :ref:`governance/adding_member:Activating a New Member`.
 
 Displaying Proposals
 --------------------

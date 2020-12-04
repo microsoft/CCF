@@ -3,7 +3,7 @@ Running a CCF Service
 
 .. note:: Before creating a new network:
 
-    - The :ref:`identity of the initial members of the consortium must be created <members/adding_member:Generating Member Keys and Certificates>`.
+    - The :ref:`identity of the initial members of the consortium must be created <governance/adding_member:Generating Member Keys and Certificates>`.
     - The :ref:`constitution should have been agreed by the initial members <design/constitution:Constitution>`.
 
 Starting the First Node
@@ -44,7 +44,7 @@ The certificates, encryption public keys and member data of initial members of t
 
 The :term:`Constitution`, as defined by the initial members, should be passed via the ``--gov-script`` option.
 
-The network is now in its opening state and new nodes can join the network. :ref:`members can add other members and users via governance <members/open_network:Opening a Network>`.
+The network is now in its opening state and new nodes can join the network. :ref:`members can add other members and users via governance <governance/open_network:Opening a Network>`.
 
 Virtual Mode
 ~~~~~~~~~~~~
@@ -91,11 +91,11 @@ To add a new node to an existing opening network, other nodes should be started 
 
 The joining node takes the certificate of the existing network to join via ``--network-cert-file`` and initiates an enclave-to-enclave TLS connection to an existing node of the network as specified by ``--target-rpc-address``.
 
-If the network has not yet been opened by members (see :ref:`members/open_network:Opening the Network`), the joining node becomes part of the network immediately.
+If the network has not yet been opened by members (see :ref:`governance/open_network:Opening the Network`), the joining node becomes part of the network immediately.
 
-A new node can only join an existing CCF network if its SGX quote is valid  [#remote_attestation]_. and runs an enclave application that is :ref:`trusted by the consortium <members/common_member_operations:Updating Code Version>`.
+A new node can only join an existing CCF network if its SGX quote is valid  [#remote_attestation]_. and runs an enclave application that is :ref:`trusted by the consortium <governance/common_member_operations:Updating Code Version>`.
 
-If the network has already been opened to users, members need to trust the joining node before it can become part of the network (see :ref:`members/common_member_operations:Trusting a New Node`).
+If the network has already been opened to users, members need to trust the joining node before it can become part of the network (see :ref:`governance/common_member_operations:Trusting a New Node`).
 
 .. note:: To accelerate the joining procedure, it is possible for new nodes to join from a snapshot. More information on snapshots :ref:`here <operators/ledger_snapshot:Join/Recover From Snapshot>`.
 
@@ -139,14 +139,14 @@ To pass configuration files, use the ``--config`` option: ``./cchost --config=co
 Opening a Network to Users
 --------------------------
 
-Once a CCF network is successfully started and an acceptable number of nodes have joined, :ref:`members should vote to open the network <members/open_network:Opening a Network>` to :term:`Users` via governance.
+Once a CCF network is successfully started and an acceptable number of nodes have joined, :ref:`members should vote to open the network <governance/open_network:Opening a Network>` to :term:`Users` via governance.
 
 Summary diagram
 ---------------
 
-Once a node is part of the network (started with either the ``start`` or ``join`` option), members are authorised to issue governance transactions and eventually open the network (see :doc:`/members/open_network`). Only then are users authorised to issue commands to CCF.
+Once a node is part of the network (started with either the ``start`` or ``join`` option), members are authorised to issue governance transactions and eventually open the network (see :doc:`/governance/open_network`). Only then are users authorised to issue commands to CCF.
 
-.. note:: After the network is open to users, members can still issue governance transactions to CCF (for example, adding new users or additional members to the consortium). See :doc:`/members/index` for more information about member governance.
+.. note:: After the network is open to users, members can still issue governance transactions to CCF (for example, adding new users or additional members to the consortium). See :doc:`/governance/index` for more information about member governance.
 
 The following diagram summarises the steps required to bootstrap a CCF network:
 

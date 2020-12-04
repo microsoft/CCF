@@ -1,7 +1,7 @@
 Certificate Authentication
 ==========================
 
-User identities in CCF are X.509 certificates. They can be added or removed via governance proposals, which are subject to the consortium constitution rules (see :ref:`members/open_network:Adding Users`).
+User identities in CCF are X.509 certificates. They can be added or removed via governance proposals, which are subject to the consortium constitution rules (see :ref:`governance/open_network:Adding Users`).
 
 Requests sent by users can be authenticated one of two ways:
 

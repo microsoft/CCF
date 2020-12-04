@@ -61,4 +61,4 @@ Members can submit proposals to modify the state of the Key-Value Store. For exa
 
 Proposals are executed only when the conditions defined in the constitution are met (e.g. a majority of members have voted favourably for that proposal).
 
-.. note:: Find out more about member governance in the :doc:`../members/index` section.
+.. note:: Find out more about member governance in the :doc:`../governance/index` section.

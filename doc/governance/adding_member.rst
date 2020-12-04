@@ -8,7 +8,7 @@ It is possible for existing members to add new members to the consortium after a
 Generating Member Keys and Certificates
 ---------------------------------------
 
-.. note:: See :doc:`/members/hsm_keys` for a guide on how to used member keys and certificate store in Azure Key Vault.
+.. note:: See :doc:`/governance/hsm_keys` for a guide on how to used member keys and certificate store in Azure Key Vault.
 
 First, the identity and encryption public and private key pairs of the new member should be created.
 
@@ -26,7 +26,7 @@ The ``keygenerator.sh`` script can be used to generate the member’s certificat
     Encryption private key generated at:  member_name_enc_privk.pem
     Encryption public key generated at:   member_name_enc_pubk.pem (to be registered in CCF)
 
-Members that are registered in CCF `with` a public encryption key are recovery members. Each recovery member is given a recovery share (see :ref:`members/accept_recovery:Submitting Recovery Shares`) that can be used to recover a defunct service. Members registered `without` a public encryption key are not given recovery shares and cannot recover the defunct service.
+Members that are registered in CCF `with` a public encryption key are recovery members. Each recovery member is given a recovery share (see :ref:`governance/accept_recovery:Submitting Recovery Shares`) that can be used to recover a defunct service. Members registered `without` a public encryption key are not given recovery shares and cannot recover the defunct service.
 
 The member’s identity and encryption private keys (e.g. ``member_name_privk.pem`` and ``member_name_enc_privk.pem``) should be stored on a trusted device (e.g. HSM) while the certificate (e.g. ``member_name_cert.pem``) and public encryption key (e.g. ``member_name_enc_pubk.pem``) should be registered in CCF by members.
 
@@ -37,7 +37,7 @@ Registering a New Member
 
 Once the new member's keys and certificate have been generated, the existing consortium should register the new member public information in CCF, following the usual propose and vote procedure.
 
-The :ref:`members/proposals:Submitting a New Proposal` section describes the steps that members should follow to register a new member.
+The :ref:`governance/proposals:Submitting a New Proposal` section describes the steps that members should follow to register a new member.
 
 Activating a New Member
 -----------------------
@@ -63,4 +63,4 @@ Then, the new member should sign the state digest returned by the ``/gov/ack/upd
 
 Once the command completes, the new member becomes active and can take part in governance operations (e.g. creating a new proposal or voting for an existing one).
 
-.. note:: The newly-activated member is also given a recovery share that can be used :ref:`to recover a defunct service <members/accept_recovery:Submitting Recovery Shares>`.
+.. note:: The newly-activated member is also given a recovery share that can be used :ref:`to recover a defunct service <governance/accept_recovery:Submitting Recovery Shares>`.

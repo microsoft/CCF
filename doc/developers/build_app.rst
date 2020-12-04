@@ -54,6 +54,6 @@ It is then possible to inspect the signed enclave library:
     mrenclave=3175971c02d00c1a8f9dd23ca89e64955c5caa94e24f4a3a0579dcfb2e6aebf9
     signature=...
 
-For a given application, the ``signature`` field depends on the key used to sign the enclave. See :ref:`members/common_member_operations:Updating Code Version` for instructions on how members can register new application versions (``mrenclave`` field).
+For a given application, the ``signature`` field depends on the key used to sign the enclave. See :ref:`governance/common_member_operations:Updating Code Version` for instructions on how members can register new application versions (``mrenclave`` field).
 
 .. note:: The `Open Enclave documentation <https://github.com/openenclave/openenclave/blob/master/docs/GettingStartedDocs/buildandsign.md#signing-an-SGX-enclave>`_. provides further details about how to sign enclave applications using ``oesign``.

@@ -26,12 +26,12 @@ Non-member operators
 It is possible for a set of operators to host a CCF network without being members. These operators could:
 
 - Start the network
-- Hand it over to the members for them to Open (see :doc:`/members/open_network`)
+- Hand it over to the members for them to Open (see :doc:`/governance/open_network`)
 
 In case of catastrophic failure, operators could also:
 
 - Start a network in recovery mode from the ledger
-- Hand it over to the members for them to Open (see :doc:`/members/accept_recovery`)
+- Hand it over to the members for them to Open (see :doc:`/governance/accept_recovery`)
 
 Finally, operators could:
 
