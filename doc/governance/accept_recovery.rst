@@ -1,7 +1,7 @@
 Accepting Recovery and Submitting Shares
 ========================================
 
-.. note:: Before members can initiate the end of the recovery procedure, operators should have started a new network and recovered all public transactions. See :ref:`details for public recovery operator procedure <operators/recovery:Establishing a Recovered Public Network>`.
+.. note:: Before members can initiate the end of the recovery procedure, operators should have started a new network and recovered all public transactions. See :ref:`details for public recovery operator procedure <operations/recovery:Establishing a Recovered Public Network>`.
 
 .. note:: See :ref:`build_apps/run_app:Recovering a Service` for an automated way to recover a defunct CCF service.
 
@@ -9,7 +9,7 @@ Accepting Recovery
 ------------------
 
 Once the public recovered network has been established by operators, members are allowed to vote to confirm that the configuration of the new network is suitable to complete the recovery procedure.
-
+ 
 A member proposes to recover the network and other members can vote on the proposal:
 
 .. code-block:: bash

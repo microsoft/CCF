@@ -35,7 +35,7 @@ Each node will then immediately restore the public entries of its ledger (``--le
 
 .. note:: If more than one node were started in ``recover`` mode, the node with the highest signed sequence number (as per the response to the ``/node/state`` RPC) should be preferred to start the new network. Other nodes should be shutdown and new nodes restarted with the ``join`` option.
 
-Similarly to the normal join protocol (see :ref:`operators/start_network:Adding a New Node to the Network`), other nodes are then able to join the network.
+Similarly to the normal join protocol (see :ref:`operations/start_network:Adding a New Node to the Network`), other nodes are then able to join the network.
 
 .. mermaid::
 

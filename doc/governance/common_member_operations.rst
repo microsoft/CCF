@@ -6,7 +6,7 @@ Trusting a New Node
 
 As opposed to an opening network in which nodes are trusted automatically, new nodes added to an open network must become trusted through a governance proposal and vote before becoming part of the network.
 
-When an operator starts a new node with the ``join`` option (see :ref:`operators/start_network:Adding a New Node to the Network`), the joining node is assigned a unique node id and is recorded in state `PENDING`. Then, members can vote to accept the new node, using the unique assigned node id (see :ref:`governance/proposals:Proposing and Voting for a Proposal` for more detail).
+When an operator starts a new node with the ``join`` option (see :ref:`operations/start_network:Adding a New Node to the Network`), the joining node is assigned a unique node id and is recorded in state `PENDING`. Then, members can vote to accept the new node, using the unique assigned node id (see :ref:`governance/proposals:Proposing and Voting for a Proposal` for more detail).
 
 Once the proposal successfully completes, the new node automatically becomes part of the network.
 

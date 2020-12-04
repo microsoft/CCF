@@ -38,14 +38,14 @@ CCF Documentation
 
     ---
 
-    :fa:`user` :doc:`users/index`
+    :fa:`user` :doc:`use_apps/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Interact with a CCF application, using HTTP or WebSockets over TLS.
 
     ---
 
-    :fa:`tachometer-alt` :doc:`operators/index`
+    :fa:`tachometer-alt` :doc:`operations/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Provision and operate a network of CCF nodes hosting an application.
@@ -70,8 +70,8 @@ CCF Documentation
 
     overview/index.rst
     build_apps/index.rst
-    users/index.rst
-    operators/index.rst
+    use_apps/index.rst
+    operations/index.rst
     governance/index.rst
     audit/index.rst
     glossary

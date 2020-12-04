@@ -12,7 +12,7 @@ The ledger is the persistent replicated append-only record of the transactions t
 
 On each node, the ledger is written to disk in a directory specified by the ``--ledger-dir`` command line argument to ``cchost``.
 
-It is also possible to specify an optional `read-only` ledger directory ``--read-only-ledger-dir`` to ``cchost``. This enables CCF to have access to historical transactions, for example after joining from a snapshot (see :ref:`operators/ledger_snapshot:Historical Transactions`). Note that only committed ledger files (those whose name ends with ``.committed``) can be read from this directory.
+It is also possible to specify an optional `read-only` ledger directory ``--read-only-ledger-dir`` to ``cchost``. This enables CCF to have access to historical transactions, for example after joining from a snapshot (see :ref:`operations/ledger_snapshot:Historical Transactions`). Note that only committed ledger files (those whose name ends with ``.committed``) can be read from this directory.
 
 File Layout
 ~~~~~~~~~~~
@@ -54,9 +54,9 @@ Snapshots are generated at regular intervals by the current primary node and sto
 
 .. TODO: Change defaults once https://github.com/microsoft/CCF/issues/1956 is complete
 
-.. note:: Because the generation of a snapshot requires a new ledger chunk to be created (see :ref:`operators/ledger_snapshot:File Layout`), all nodes in the network must be started with the same ``--snapshot-tx-interval`` value.
+.. note:: Because the generation of a snapshot requires a new ledger chunk to be created (see :ref:`operations/ledger_snapshot:File Layout`), all nodes in the network must be started with the same ``--snapshot-tx-interval`` value.
 
-To guarantee that the identity of the primary node that generated the snapshot can be verified offline, the SHA-256 digest of the snapshot (i.e. evidence) is recorded in the ``public:ccf.gov.snapshot_evidence`` table. The snapshot evidence will be signed by the primary node on the next signature transaction (see :ref:`operators/start_network:Signature Interval`).
+To guarantee that the identity of the primary node that generated the snapshot can be verified offline, the SHA-256 digest of the snapshot (i.e. evidence) is recorded in the ``public:ccf.gov.snapshot_evidence`` table. The snapshot evidence will be signed by the primary node on the next signature transaction (see :ref:`operations/start_network:Signature Interval`).
 
 Committed snapshot files are named ``snapshot_<seqno>_<evidence_seqno>.commited_<evidence_commit_seqno>``, with ``<seqno>`` the sequence number of the state of the key-value store at which they were generated, ``<evidence_seqno>`` the sequence number at which the snapshot evidence was recorded and ``<evidence_commit_seqno>`` the sequence number at which the snapsot evidence was committed.
 

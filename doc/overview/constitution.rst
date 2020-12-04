@@ -11,7 +11,7 @@ Examples of constitution include (see `Models`_ for further details):
 - Strict majority with member veto (`simple constitution with veto`_) similar to the Strict majority constitution, but where each member is allowed to veto any proposal.
 - Operating member + strict majority (`operating member constitution`_) that extends the "strict majority" constitution by defining an operating member allowed to add new nodes to the network, retire existing ones, and allow new versions of the code.
 
-Once the initial set of members have agreed on a constitution, the corresponding Lua file can be given to operators to create a new network (see :doc:`/operators/start_network`).
+Once the initial set of members have agreed on a constitution, the corresponding Lua file can be given to operators to create a new network (see :doc:`/operations/start_network`).
 
 .. note:: The constitution can always be updated after the CCF network has been opened, subject to the existing constitution rules.
 

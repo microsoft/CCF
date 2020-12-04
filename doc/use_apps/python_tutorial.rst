@@ -3,7 +3,7 @@ Python Client Tutorial
 
 This tutorial describes how a Python client can securely issue requests to a running CCF network. It is assumed that the CCF network has already been started (e.g. after having :doc:`deployed a sandbox service </build_apps/run_app>`).
 
-.. note:: See :ref:`Python Client API <users/python_api:Python Client API>` for the complete API specification.
+.. note:: See :ref:`Python Client API <use_apps/python_api:Python Client API>` for the complete API specification.
 
 First, install the CCF Python package:
 

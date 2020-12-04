@@ -28,7 +28,7 @@ A CCF network consists of several nodes, each running on top of a Trusted Execut
 
 Nodes are run and maintained by :term:`Operators`. However, nodes must be trusted by the consortium of members before participating in a CCF network.
 
-.. note:: Find out more about Operators in the :doc:`../operators/index` section.
+.. note:: Find out more about Operators in the :doc:`../operations/index` section.
 
 Application
 ~~~~~~~~~~~

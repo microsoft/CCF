@@ -39,7 +39,7 @@ Members' encryption keys should be RSA 2048 keys, generated with the `az keyvaul
     $ az keyvault key create --vault-name $VAULT_NAME --name $ENCRYPTION_KEY_NAME --kty RSA --ops decrypt
     # Outputs key details, including kid url
 
-The identity certificate and public encryption key can be downloaded to a PEM file and be passed on to members to be registered in a CCF service as a trusted member identity (see :ref:`governance/adding_member:Registering a New Member`). Alternatively, if the service has not yet been started, the public member identity can be passed on to operators and registered via the ``cchost --member-info`` option (see :ref:`operators/start_network:Starting the First Node`):
+The identity certificate and public encryption key can be downloaded to a PEM file and be passed on to members to be registered in a CCF service as a trusted member identity (see :ref:`governance/adding_member:Registering a New Member`). Alternatively, if the service has not yet been started, the public member identity can be passed on to operators and registered via the ``cchost --member-info`` option (see :ref:`operations/start_network:Starting the First Node`):
 
 .. code-block:: bash
 
