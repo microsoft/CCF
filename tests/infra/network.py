@@ -177,9 +177,10 @@ class Network:
         target_node=None,
         recovery=False,
         ledger_dir=None,
+        copy_ledger_read_only=False,
+        read_only_ledger_dir=None,
         from_snapshot=False,
         snapshot_dir=None,
-        copy_ledger_read_only=False,
     ):
         forwarded_args = {
             arg: getattr(args, arg)
@@ -201,23 +202,19 @@ class Network:
                 snapshot_dir
             ), f"There are no snapshots to resume from in directory {snapshot_dir}"
 
-        committed_ledger_dirs = []
+        committed_ledger_dir = None
         current_ledger_dir = None
         if snapshot_dir is not None:
             LOG.info(f"Joining from snapshot directory: {snapshot_dir}")
-            # Only when joining from snapshot, retrieve ledger dir from target node
-            # if the ledger directory is not specified. When joining without snapshot,
+            # Only when joining from snapshot, retrieve ledger dirs from target node
+            # if the ledger directories are not specified. When joining without snapshot,
             # the entire ledger will be retransmitted by primary node
-            if copy_ledger_read_only and ledger_dir is None:
-                current_ledger_dir, committed_ledger_dirs = target_node.get_ledger(
+            current_ledger_dir = ledger_dir or None
+            committed_ledger_dir = read_only_ledger_dir or None
+            if copy_ledger_read_only and read_only_ledger_dir is None:
+                current_ledger_dir, committed_ledger_dir = target_node.get_ledger(
                     include_read_only_dirs=True
                 )
-                LOG.info(
-                    f"Copying target node ledger to read-only ledger directory {committed_ledger_dirs}"
-                )
-                committed_ledger_dirs = [committed_ledger_dirs]
-            elif ledger_dir is not None:
-                current_ledger_dir = ledger_dir
 
         node.join(
             lib_name=lib_name,
@@ -227,7 +224,7 @@ class Network:
             target_rpc_address=f"{target_node.host}:{target_node.rpc_port}",
             snapshot_dir=snapshot_dir,
             ledger_dir=current_ledger_dir,
-            read_only_ledger_dirs=committed_ledger_dirs,
+            read_only_ledger_dir=committed_ledger_dir,
             **forwarded_args,
         )
 
@@ -245,7 +242,7 @@ class Network:
         args,
         recovery=False,
         ledger_dir=None,
-        read_only_ledger_dirs=None,
+        read_only_ledger_dir=None,
         snapshot_dir=None,
     ):
         hosts = self.hosts
@@ -280,7 +277,7 @@ class Network:
                             label=args.label,
                             common_dir=self.common_dir,
                             ledger_dir=ledger_dir,
-                            read_only_ledger_dirs=read_only_ledger_dirs,
+                            read_only_ledger_dir=read_only_ledger_dir,
                             snapshot_dir=snapshot_dir,
                             **forwarded_args,
                         )
@@ -302,6 +299,7 @@ class Network:
                         args,
                         recovery=recovery,
                         ledger_dir=ledger_dir,
+                        read_only_ledger_dir=read_only_ledger_dir,
                         snapshot_dir=snapshot_dir,
                     )
             except Exception:
@@ -435,7 +433,7 @@ class Network:
             args,
             recovery=True,
             ledger_dir=ledger_dir,
-            read_only_ledger_dirs=committed_ledger_dir,
+            read_only_ledger_dir=committed_ledger_dir,
             snapshot_dir=snapshot_dir,
         )
 
@@ -550,9 +548,7 @@ class Network:
         args,
         target_node=None,
         from_snapshot=False,
-        copy_ledger=False,
         copy_ledger_read_only=False,
-        timeout=JOIN_TIMEOUT,
     ):
         """
         Create a new node, add it to the network and let members vote to trust
@@ -565,7 +561,6 @@ class Network:
             target_node,
             from_snapshot,
             copy_ledger_read_only,
-            timeout,
         )
 
         primary, _ = self.find_primary()

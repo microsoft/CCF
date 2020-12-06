@@ -24,11 +24,10 @@ def test(network, args, from_snapshot=False):
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
-
     recovered_network.start_in_recovery(
         args,
         ledger_dir=current_ledger_dir,
-        committed_ledger_dir=[committed_ledger_dir],
+        committed_ledger_dir=committed_ledger_dir,
         snapshot_dir=snapshot_dir,
     )
     recovered_network.recover(args)
@@ -53,7 +52,7 @@ def test_share_resilience(network, args, from_snapshot=False):
     recovered_network.start_in_recovery(
         args,
         ledger_dir=current_ledger_dir,
-        committed_ledger_dir=[committed_ledger_dir],
+        committed_ledger_dir=committed_ledger_dir,
         snapshot_dir=snapshot_dir,
     )
     primary, _ = recovered_network.find_primary()

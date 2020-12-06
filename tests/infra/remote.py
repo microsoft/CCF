@@ -584,7 +584,7 @@ class CCFRemote(object):
         memory_reserve_startup=0,
         gov_script=None,
         ledger_dir=None,
-        read_only_ledger_dirs=None,
+        read_only_ledger_dir=None,
         log_format_json=None,
         binary_dir=".",
         ledger_chunk_bytes=(5 * 1000 * 1000),
@@ -611,7 +611,7 @@ class CCFRemote(object):
             if self.ledger_dir
             else f"{local_node_id}.ledger"
         )
-        self.read_only_ledger_dirs = read_only_ledger_dirs or []
+        self.read_only_ledger_dir = read_only_ledger_dir
 
         self.snapshot_dir = os.path.normpath(snapshot_dir) if snapshot_dir else None
         self.snapshot_dir_name = (
@@ -678,9 +678,11 @@ class CCFRemote(object):
         if jwt_key_refresh_interval_s:
             cmd += [f"--jwt-key-refresh-interval-s={jwt_key_refresh_interval_s}"]
 
-        for read_only_ledger_dir in self.read_only_ledger_dirs:
-            cmd += [f"--read-only-ledger-dir={os.path.basename(read_only_ledger_dir)}"]
-            data_files += [os.path.join(self.common_dir, read_only_ledger_dir)]
+        if self.read_only_ledger_dir is not None:
+            cmd += [
+                f"--read-only-ledger-dir={os.path.basename(self.read_only_ledger_dir)}"
+            ]
+            data_files += [os.path.join(self.common_dir, self.read_only_ledger_dir)]
 
         if start_type == StartType.new:
             cmd += [
@@ -795,12 +797,13 @@ class CCFRemote(object):
     def get_ledger(self, include_read_only_dirs=False):
         self.remote.get(self.ledger_dir_name, self.common_dir)
         read_only_ledger_dirs = []
-        if include_read_only_dirs:
-            for read_only_ledger_dir in self.read_only_ledger_dirs:
-                self.remote.get(os.path.basename(read_only_ledger_dir), self.common_dir)
-                read_only_ledger_dirs.append(
-                    os.path.join(self.common_dir, read_only_ledger_dir)
-                )
+        if include_read_only_dirs and self.read_only_ledger_dir is not None:
+            self.remote.get(
+                os.path.basename(self.read_only_ledger_dir), self.common_dir
+            )
+            read_only_ledger_dirs.append(
+                os.path.join(self.common_dir, self.read_only_ledger_dir)
+            )
         return (
             os.path.join(self.common_dir, self.ledger_dir_name),
             read_only_ledger_dirs,

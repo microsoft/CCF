@@ -68,16 +68,12 @@ def test_add_node_from_backup(network, args):
 @reqs.at_least_n_nodes(2)
 @reqs.add_from_snapshot()
 def test_add_node_from_snapshot(network, args, copy_ledger_read_only=True):
-    kwargs = {"from_snapshot": True, "copy_ledger_read_only": copy_ledger_read_only}
-    # Shorter timeout if the ledger isn't copied as the new node
-    # will fail to verify ledger evidence
-    if not copy_ledger_read_only:
-        kwargs["timeout"] = 3
     new_node = network.create_and_trust_node(
         args.package,
         "local://localhost",
         args,
-        **kwargs,
+        from_snapshot=True,
+        copy_ledger_read_only=copy_ledger_read_only,
     )
     assert new_node
     return network
