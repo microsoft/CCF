@@ -1627,7 +1627,7 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT("Error recvo authenticated request vote: {}", err.what());
+        LOG_FAIL_FMT("Error recv authenticated request vote: {}", err.what());
         return;
       }
 
