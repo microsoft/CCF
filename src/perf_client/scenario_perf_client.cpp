@@ -106,8 +106,10 @@ private:
       {
         const auto& transaction = transactions[i];
 
+        auto body = transaction["params"].dump();
+
         add_prepared_tx(
-          transaction["method"], transaction["params"], true, std::nullopt);
+          transaction["method"], CBuffer{body}, true, std::nullopt);
       }
     }
   }

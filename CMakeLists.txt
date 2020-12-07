@@ -859,6 +859,22 @@ if(BUILD_TESTS)
       10000
       --use-websockets
   )
+
+  add_perf_test(
+    NAME logging_scenario_js_perf_test
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+    CONSENSUS cft
+    CLIENT_BIN ./scenario_perf_client
+    LABEL log_scenario_js
+    ADDITIONAL_ARGS
+      --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+      --scenario-file
+      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+      --max-writes-ahead
+      1000
+      --repetitions
+      5000
+  )
 endif()
 
 # Generate and install CMake export file for consumers using CMake
