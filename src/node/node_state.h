@@ -119,7 +119,8 @@ namespace ccf
     template <typename T>
     static Result<T> Fail(const char* s)
     {
-      LOG_DEBUG_FMT(s);
+      (void)s;
+      // LOG_DEBUG_FMT(s);
       return {{}, false};
     }
 

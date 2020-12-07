@@ -889,7 +889,7 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT(err.what());
+        LOG_FAIL_FMT("Error recv authenticated append entries: {}", err.what());
         return;
       }
 
@@ -1505,7 +1505,8 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT(err.what());
+        LOG_FAIL_FMT(
+          "Error recv authenticated append entries response: {}", err.what());
         return;
       }
 
@@ -1626,7 +1627,7 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT(err.what());
+        LOG_FAIL_FMT("Error recvo authenticated request vote: {}", err.what());
         return;
       }
 
@@ -1737,7 +1738,8 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT(err.what());
+        LOG_FAIL_FMT(
+          "Error recv authenticated request vote response: {}", err.what());
         return;
       }
 

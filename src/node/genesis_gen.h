@@ -403,7 +403,7 @@ namespace ccf
       }
       else
       {
-        LOG_FAIL_FMT("Unknown node {} could not be trusted");
+        LOG_FAIL_FMT("Unknown node {} could not be trusted", node_id);
       }
     }
 
