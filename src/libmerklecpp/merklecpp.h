@@ -427,7 +427,7 @@ namespace Merkle
         bool cl = !left || left->invariant();
         bool cr = !right || right->invariant();
         bool ch = height <= 64;
-        bool r = c1 && c2 && c3 && cl && cr;
+        bool r = c1 && c2 && c3 && cl && cr && ch;
         return r;
       }
 
@@ -1016,6 +1016,10 @@ namespace Merkle
 
     void hash(Node* n, size_t indent = 2) const
     {
+      #ifndef WITH_TRACE
+      (void)indent;
+      #endif
+
       assert(hashing_stack.empty());
       hashing_stack.reserve(n->height);
       hashing_stack.push_back(n);
