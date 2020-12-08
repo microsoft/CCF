@@ -128,39 +128,43 @@ namespace enclave
       start_type = start_type_;
       ccf_config = ccf_config_;
 
-      auto r = node->create({start_type, ccf_config});
-      if (!r.second)
+      ccf::NodeCreateInfo r;
+      try
+      {
+        r = node->create(start_type, ccf_config);
+      }
+      catch (const std::runtime_error& e)
+      {
+        LOG_FAIL_FMT("Error starting node: {}", e.what());
         return false;
+      }
 
       // Copy node and network certs out
-      if (r.first.node_cert.size() > node_cert_size)
+      if (r.node_cert.size() > node_cert_size)
       {
         LOG_FAIL_FMT(
           "Insufficient space ({}) to copy node_cert out ({})",
           node_cert_size,
-          r.first.node_cert.size());
+          r.node_cert.size());
         return false;
       }
-      ::memcpy(node_cert, r.first.node_cert.data(), r.first.node_cert.size());
-      *node_cert_len = r.first.node_cert.size();
+      ::memcpy(node_cert, r.node_cert.data(), r.node_cert.size());
+      *node_cert_len = r.node_cert.size();
 
       if (start_type == StartType::New || start_type == StartType::Recover)
       {
         // When starting a node in start or recover modes, fresh network secrets
         // are created and the associated certificate can be passed to the host
-        if (r.first.network_cert.size() > network_cert_size)
+        if (r.network_cert.size() > network_cert_size)
         {
           LOG_FAIL_FMT(
             "Insufficient space ({}) to copy network_cert out ({})",
             network_cert_size,
-            r.first.network_cert.size());
+            r.network_cert.size());
           return false;
         }
-        ::memcpy(
-          network_cert,
-          r.first.network_cert.data(),
-          r.first.network_cert.size());
-        *network_cert_len = r.first.network_cert.size();
+        ::memcpy(network_cert, r.network_cert.data(), r.network_cert.size());
+        *network_cert_len = r.network_cert.size();
       }
 
       return true;
@@ -247,7 +251,9 @@ namespace enclave
             {
               case consensus::LedgerRequestPurpose::Recovery:
               {
-                if (node->is_reading_public_ledger())
+                if (
+                  node->is_reading_public_ledger() ||
+                  node->is_verifying_snapshot())
                   node->recover_public_ledger_entry(body);
                 else if (node->is_reading_private_ledger())
                   node->recover_private_ledger_entry(body);
@@ -277,7 +283,14 @@ namespace enclave
             {
               case consensus::LedgerRequestPurpose::Recovery:
               {
-                node->recover_ledger_end();
+                if (node->is_verifying_snapshot())
+                {
+                  node->verify_snapshot_end(ccf_config);
+                }
+                else
+                {
+                  node->recover_ledger_end();
+                }
                 break;
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
@@ -296,7 +309,16 @@ namespace enclave
 
         if (start_type == StartType::Join)
         {
-          node->join(ccf_config);
+          // When joining from a snapshot, deserialise ledger suffix to verify
+          // snapshot evidence. Otherwise, attempt to join straight away
+          if (!ccf_config.startup_snapshot.empty())
+          {
+            node->start_ledger_recovery();
+          }
+          else
+          {
+            node->join(ccf_config);
+          }
         }
         else if (start_type == StartType::Recover)
         {

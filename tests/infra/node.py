@@ -264,7 +264,33 @@ class Node:
             raise TimeoutError(f"Node {self.node_id} failed to join the network") from e
 
     def get_ledger(self, **kwargs):
-        return self.remote.get_ledger(**kwargs)
+        """
+        Triage committed and un-committed (i.e. current) ledger files
+        """
+        main_ledger_dir, read_only_ledger_dirs = self.remote.get_ledger(**kwargs)
+
+        current_ledger_dir = os.path.join(
+            self.common_dir, f"{self.node_id}.ledger.current"
+        )
+        committed_ledger_dir = os.path.join(
+            self.common_dir, f"{self.node_id}.ledger.committed"
+        )
+        infra.path.create_dir(current_ledger_dir)
+        infra.path.create_dir(committed_ledger_dir)
+
+        for f in os.listdir(main_ledger_dir):
+            infra.path.copy_dir(
+                os.path.join(main_ledger_dir, f),
+                committed_ledger_dir if is_file_committed(f) else current_ledger_dir,
+            )
+
+        for ro_dir in read_only_ledger_dirs:
+            for f in os.listdir(ro_dir):
+                # Uncommitted ledger files from r/o ledger directory are ignored by CCF
+                if is_file_committed(f):
+                    infra.path.copy_dir(os.path.join(ro_dir, f), committed_ledger_dir)
+
+        return current_ledger_dir, committed_ledger_dir
 
     def get_snapshots(self):
         return self.remote.get_snapshots()

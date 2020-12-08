@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import os
 from contextlib import contextmanager
+from shutil import copy2, rmtree
 
 from loguru import logger as LOG
 
@@ -72,6 +73,17 @@ def quote_bytes(quote_file_name):
         for c in quote.read():
             chars.append(c)
         return chars
+
+
+def create_dir(dir_path):
+    # Remove directory if it already exists
+    if os.path.isdir(dir_path):
+        rmtree(dir_path)
+    os.mkdir(dir_path)
+
+
+def copy_dir(src_path, dst_path):
+    copy2(src_path, dst_path)
 
 
 @contextmanager
