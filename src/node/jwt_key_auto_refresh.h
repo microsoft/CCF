@@ -41,15 +41,15 @@ namespace ccf
       node_cert(node_cert)
     {}
 
+    struct RefreshTimeMsg
+    {
+      RefreshTimeMsg(JwtKeyAutoRefresh& self_) : self(self_) {}
+
+      JwtKeyAutoRefresh& self;
+    };
+
     void start()
     {
-      struct RefreshTimeMsg
-      {
-        RefreshTimeMsg(JwtKeyAutoRefresh& self_) : self(self_) {}
-
-        JwtKeyAutoRefresh& self;
-      };
-
       auto refresh_msg = std::make_unique<threading::Tmsg<RefreshTimeMsg>>(
         [](std::unique_ptr<threading::Tmsg<RefreshTimeMsg>> msg) {
           if (!msg->data.self.consensus->is_primary())
@@ -73,6 +73,28 @@ namespace ccf
       LOG_DEBUG_FMT(
         "JWT key auto-refresh: Scheduling in {}s", refresh_interval_s);
       auto delay = std::chrono::seconds(refresh_interval_s);
+      threading::ThreadMessaging::thread_messaging.add_task_after(
+        std::move(refresh_msg), delay);
+    }
+
+    void schedule_once()
+    {
+      auto refresh_msg = std::make_unique<threading::Tmsg<RefreshTimeMsg>>(
+        [](std::unique_ptr<threading::Tmsg<RefreshTimeMsg>> msg) {
+          if (!msg->data.self.consensus->is_primary())
+          {
+            LOG_DEBUG_FMT(
+              "JWT key one-off refresh: Node is not primary, skipping");
+          }
+          else
+          {
+            msg->data.self.refresh_jwt_keys();
+          }
+        },
+        *this);
+
+      LOG_DEBUG_FMT("JWT key one-off refresh: Scheduling without delay");
+      auto delay = std::chrono::seconds(0);
       threading::ThreadMessaging::thread_messaging.add_task_after(
         std::move(refresh_msg), delay);
     }
