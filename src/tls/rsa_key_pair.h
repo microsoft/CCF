@@ -19,9 +19,7 @@ namespace tls
   public:
     RSAPublicKey() = default;
 
-    RSAPublicKey(std::unique_ptr<mbedtls_pk_context>&& c) :
-      PublicKey(std::move(c))
-    {}
+    RSAPublicKey(mbedtls::PKContext&& c) : PublicKey(std::move(c)) {}
 
     /**
      * Wrap data using RSA-OAEP-256
@@ -107,7 +105,6 @@ namespace tls
       size_t public_exponent = default_public_exponent)
     {
       EntropyPtr entropy = create_entropy();
-      mbedtls_pk_init(ctx.get());
 
       int rc =
         mbedtls_pk_setup(ctx.get(), mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
@@ -130,9 +127,7 @@ namespace tls
       }
     }
 
-    RSAKeyPair(std::unique_ptr<mbedtls_pk_context>&& k) :
-      RSAPublicKey(std::move(k))
-    {}
+    RSAKeyPair(mbedtls::PKContext&& k) : RSAPublicKey(std::move(k)) {}
 
     RSAKeyPair(const RSAKeyPair&) = delete;
 
@@ -210,21 +205,18 @@ namespace tls
   inline RSAPublicKeyPtr make_rsa_public_key(
     const uint8_t* public_pem_data, size_t public_pem_size)
   {
-    auto ctx = std::make_unique<mbedtls_pk_context>();
-    mbedtls_pk_init(ctx.get());
+    auto ctx = mbedtls::make_unique<mbedtls::PKContext>();
 
     int rc =
       mbedtls_pk_parse_public_key(ctx.get(), public_pem_data, public_pem_size);
     if (rc != 0)
     {
-      mbedtls_pk_free(ctx.get());
       throw std::logic_error(
         fmt::format("Could not parse public key PEM: {}", error_string(rc)));
     }
 
     if (ctx->pk_info != mbedtls_pk_info_from_type(MBEDTLS_PK_RSA))
     {
-      mbedtls_pk_free(ctx.get());
       throw std::logic_error(
         "Could not make RSA public key as PEM does not appear to be valid RSA");
     }

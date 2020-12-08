@@ -174,11 +174,8 @@ def add_from_snapshot():
         for _ in range(1, snapshot_tx_interval):
             network.txs.issue(network, number_txs=1, repeat=True)
             last_tx = network.txs.get_last_tx(priv=True)
-            try:
-                network.wait_for_snapshot_committed_for(seqno=last_tx[1]["seqno"])
+            if network.wait_for_snapshot_committed_for(seqno=last_tx[1]["seqno"]):
                 break
-            except TimeoutError:
-                continue
 
     def decorator(func):
         @functools.wraps(func)
