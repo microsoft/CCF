@@ -1190,7 +1190,8 @@ namespace Merkle
       {
         TRACE(std::cout << "* insert_leaves " << leaf_nodes.size() << " +"
                         << uninserted_leaf_nodes.size() << std::endl;);
-        // Potential future improvement: make this go fast when there are many leaves to insert.
+        // Potential future improvement: make this go fast when there are many
+        // leaves to insert.
         for (auto& n : uninserted_leaf_nodes)
           insert_leaf(_root, n);
         uninserted_leaf_nodes.clear();

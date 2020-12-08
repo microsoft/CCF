@@ -9,6 +9,7 @@
 #include "entities.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
+#include "libmerklecpp/merklecpp.h"
 #include "nodes.h"
 #include "signatures.h"
 #include "tls/tls.h"
@@ -17,8 +18,6 @@
 #include <array>
 #include <deque>
 #include <string.h>
-
-#include "libmerklecpp/merklecpp.h"
 
 namespace fmt
 {
@@ -211,9 +210,7 @@ namespace ccf
     std::shared_ptr<Merkle::Path> path = nullptr;
 
   public:
-    Receipt()
-    {
-    }
+    Receipt() {}
 
     Receipt(const std::vector<uint8_t>& v)
     {
@@ -232,9 +229,8 @@ namespace ccf
 
     bool verify(Merkle::Tree* tree) const
     {
-      return tree->max_index() == path->max_index() &&
-             tree->root() == root &&
-             path->verify(root);
+      return tree->max_index() == path->max_index() && tree->root() == root &&
+        path->verify(root);
     }
 
     std::vector<uint8_t> to_v() const
@@ -265,13 +261,13 @@ namespace ccf
 
     ~MerkleTreeHistory()
     {
-      delete(tree);
+      delete (tree);
       tree = nullptr;
     }
 
     void deserialise(const std::vector<uint8_t>& serialised)
     {
-      delete(tree);
+      delete (tree);
       tree = new Merkle::Tree(serialised);
     }
 
@@ -282,15 +278,15 @@ namespace ccf
 
     crypto::Sha256Hash get_root() const
     {
-      const Merkle::Hash &root = tree->root();
+      const Merkle::Hash& root = tree->root();
       crypto::Sha256Hash result;
-      std::copy(root.bytes, root.bytes+root.size(), result.h.begin());
+      std::copy(root.bytes, root.bytes + root.size(), result.h.begin());
       return result;
     }
 
     void operator=(const MerkleTreeHistory& rhs)
     {
-      delete(tree);
+      delete (tree);
       crypto::Sha256Hash root(rhs.get_root());
       tree = new Merkle::Tree(Merkle::Hash(root.h));
     }
@@ -354,9 +350,9 @@ namespace ccf
 
     crypto::Sha256Hash get_leaf(uint64_t index)
     {
-      const Merkle::Hash &leaf = tree->leaf(index);
+      const Merkle::Hash& leaf = tree->leaf(index);
       crypto::Sha256Hash result;
-      std::copy(leaf.bytes, leaf.bytes+leaf.size(), result.h.begin());
+      std::copy(leaf.bytes, leaf.bytes + leaf.size(), result.h.begin());
       return result;
     }
   };
