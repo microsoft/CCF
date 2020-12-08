@@ -35,9 +35,8 @@ namespace ccf
   {
 #define ERROR(code) constexpr const char* code = #code;
 
-    // See
+    // For inspiration, see:
     // https://docs.microsoft.com/en-us/rest/api/storageservices/common-rest-api-error-codes
-    // for inspiration.
 
     // Generic errors
     ERROR(AuthorizationFailed)

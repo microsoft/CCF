@@ -215,11 +215,6 @@ namespace enclave
       set_response_header(name, fmt::format("{}", n));
     }
 
-    virtual void set_error(http_status status, std::string&& msg)
-    {
-      set_error({status, http_status_str(status), std::move(msg)});
-    }
-
     virtual void set_error(
       http_status status, const std::string& code, std::string&& msg)
     {

@@ -216,7 +216,6 @@ def test_dynamic_endpoints(network, args):
     with primary.client("user0") as c:
         r = c.post("/app/dispatch_test/foo")
         assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
-        print(r.body.text())
         body = r.body.json()
         msg = body["error"]["message"]
         assert "/foo" in msg, body

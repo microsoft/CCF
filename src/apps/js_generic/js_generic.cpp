@@ -841,6 +841,7 @@ namespace ccfapp
         {
           args.rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
             fmt::format(
               "No handler script found for method '{}'", verb_prefixed));
           return;
