@@ -3,7 +3,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
-#include <merkle++.h>
+#include <merklecpp.h>
 
 #define PRINT_HASH_SIZE 3
 
@@ -12,19 +12,19 @@ int main()
   try
   {
 #ifndef NDEBUG
-    const size_t num_trees = 32;
+    const size_t num_trees = 128;
     const size_t max_num_leaves = 64 * 1024;
-    const size_t max_flushes = 16;
+    const size_t max_retractions = 16;
 #else
     const size_t num_trees = 256;
     const size_t max_num_leaves = 256 * 1024;
-    const size_t max_flushes = 64;
+    const size_t max_retractions = 64;
 #endif
 
     // std::srand(0);
     std::srand(std::time(0));
 
-    size_t total_leaves = 0, total_flushes = 0;
+    size_t total_leaves = 0, total_retractions = 0;
 
     for (size_t k = 0; k < num_trees; k++)
     {
@@ -37,17 +37,27 @@ int main()
       for (size_t i = 0; i < hashes.size(); i++)
       {
         mt.insert(hashes[i]);
+        if (i > 0 && std::rand() / (double)RAND_MAX > 0.5)
+        {
+          mt.retract_to(mt.max_index() - 1);
+          total_retractions++;
+          mt.insert(hashes[i]);
+          mt.retract_to(mt.max_index());
+          if (mt.max_index() != i)
+            std::runtime_error("invalid max index");
+        }
+
         if ((std::rand() / (double)RAND_MAX) > 0.95)
         {
-          mt.flush_to(random_index(mt));
-          total_flushes++;
+          mt.retract_to(random_index(mt));
+          total_retractions++;
         }
       }
 
-      for (size_t i = 0; i < max_flushes; i++)
+      for (size_t i = 0; i < max_retractions; i++)
       {
-        mt.flush_to(random_index(mt));
-        total_flushes++;
+        mt.retract_to(random_index(mt));
+        total_retractions++;
         if (mt.min_index() == mt.max_index())
           break;
       }
@@ -58,7 +68,7 @@ int main()
         std::time_t t = std::time(nullptr);
         std::strftime(time_str, sizeof(time_str), "%R", std::localtime(&t));
         std::cout << time_str << ": " << k << " trees, " << total_leaves
-                  << " leaves, " << total_flushes << " flushes"
+                  << " leaves, " << total_retractions << " retractions"
                   << ": OK." << std::endl;
       }
     }

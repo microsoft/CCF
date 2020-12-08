@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <map>
-#include <merkle++.h>
+#include <merklecpp.h>
 #include <stdexcept>
 
 #define PRINT_HASH_SIZE 3

@@ -1,7 +1,7 @@
 #include "util.h"
 
 #include <iostream>
-#include <merkle++.h>
+#include <merklecpp.h>
 
 void H(const Merkle::Hash& l, const Merkle::Hash& r, Merkle::Hash& o)
 {

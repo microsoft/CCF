@@ -1,6 +1,6 @@
 #pragma once
 
-#include <merkle++.h>
+#include <merklecpp.h>
 #include <vector>
 
 inline std::vector<Merkle::Hash> make_hashes(size_t n, size_t print_size = 3)

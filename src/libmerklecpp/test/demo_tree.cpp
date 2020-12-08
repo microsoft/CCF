@@ -8,7 +8,7 @@
 
 #include "util.h"
 
-#include <merkle++.h>
+#include <merklecpp.h>
 
 #define PRINT_HASH_SIZE 3
 

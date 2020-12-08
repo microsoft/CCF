@@ -3,7 +3,7 @@
 #include <MerkleTree.h>
 #include <chrono>
 #include <iostream>
-#include <merkle++.h>
+#include <merklecpp.h>
 
 #define HSZ 32
 #define PRNTSZ 3

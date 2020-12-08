@@ -7,7 +7,7 @@
 
 #include "util.h"
 
-#include <merkle++.h>
+#include <merklecpp.h>
 
 #define HSZ 32
 
