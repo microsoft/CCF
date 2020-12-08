@@ -888,9 +888,10 @@ TEST_CASE("MinimalEndpointFunction")
       CHECK(response.status == err);
       CHECK(
         response.headers[http::headers::CONTENT_TYPE] ==
-        http::headervalues::contenttype::TEXT);
+        http::headervalues::contenttype::JSON);
       const std::string body_s(response.body.begin(), response.body.end());
-      CHECK(body_s == msg);
+      auto body_j = nlohmann::json::parse(body_s);
+      CHECK(body_j["error"]["message"] == msg);
     }
   }
 }
