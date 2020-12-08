@@ -18,7 +18,7 @@
 #include <deque>
 #include <string.h>
 
-#include "libmerkle++/merklecpp.h"
+#include "libmerklecpp/merklecpp.h"
 
 namespace fmt
 {
