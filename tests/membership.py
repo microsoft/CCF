@@ -159,7 +159,7 @@ def recovery_shares_scenario(args):
             r = mc.get("/gov/recovery_share")
             assert r.status_code == http.HTTPStatus.NOT_FOUND.value
             assert (
-                r.body.text()
+                r.body.json()["error"]["message"]
                 == f"Recovery share not found for member {non_recovery_member_id}"
             )
 
