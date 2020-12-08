@@ -1,7 +1,10 @@
 #include <iostream>
 #include <chrono>
 
+#ifdef HAVE_EVERCRYPT
 #include <MerkleTree.h>
+#endif
+
 #include <merkle++.h>
 
 #include "util.h"
@@ -35,6 +38,7 @@ int main() {
       << mt.statistics.to_string()
       << " in " << seconds << " sec" << std::endl;
 
+#ifdef HAVE_EVERCRYPT
     std::vector<uint8_t*> ec_hashes;
     for (auto h : hashes) {
       ec_hashes.push_back(mt_init_hash(HSZ));
@@ -57,9 +61,6 @@ int main() {
     seconds = std::chrono::duration_cast<std::chrono::nanoseconds>(stop-start).count()/1e9;
     std::cout << "EC :"
       << " num_insert=" << ec_hashes.size()
-#ifdef HAVE_INSTRUMENTED_EVERCRYPT
-      << " num_hash=" << mt_sha256_compress_calls
-#endif
       << " num_root=" << num_ec_roots
       << " in " << seconds << " sec" << std::endl;
 
@@ -67,6 +68,7 @@ int main() {
       mt_free_hash(h);
     mt_free_hash(ec_root);
     mt_free(ec_mt);
+#endif
   }
   catch (std::exception &ex) {
     std::cout << "Error: " << ex.what() << std::endl;
