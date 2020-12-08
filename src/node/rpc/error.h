@@ -51,12 +51,9 @@ namespace ccf
     ERROR(UnsupportedHttpVerb)
 
     // CCF-specific errors
-    ERROR(ConsensusTypeMismatch)
+    // client-facing:
     ERROR(FrontendNotOpen)
-    ERROR(InvalidQuote)
-    ERROR(InvalidNodeState)
     ERROR(KeyNotFound)
-    ERROR(NodeAlreadyExists)
     ERROR(ProposalNotOpen)
     ERROR(ProposalNotFound)
     ERROR(StateDigestMismatch)
@@ -66,6 +63,12 @@ namespace ccf
     ERROR(UnknownCertificate)
     ERROR(VoteNotFound)
     ERROR(VoteAlreadyExists)
+
+    // node-to-node (/join and /create):
+    ERROR(ConsensusTypeMismatch)
+    ERROR(InvalidQuote)
+    ERROR(InvalidNodeState)
+    ERROR(NodeAlreadyExists)
 
 #undef ERROR
   }
