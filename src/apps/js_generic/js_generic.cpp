@@ -840,7 +840,7 @@ namespace ccfapp
         if (!handler_script)
         {
           args.rpc_ctx->set_error(
-            HTTP_STATUS_NOT_FOUND, 
+            HTTP_STATUS_NOT_FOUND,
             fmt::format(
               "No handler script found for method '{}'", verb_prefixed));
           return;
@@ -928,7 +928,9 @@ namespace ccfapp
       {
         js_dump_error(ctx);
 
-        args.rpc_ctx->set_error(HTTP_STATUS_INTERNAL_SERVER_ERROR, ccf::errors::InternalError,
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
           "Exception thrown while compiling");
         return;
       }
@@ -938,7 +940,9 @@ namespace ccfapp
       if (JS_IsException(eval_val))
       {
         js_dump_error(ctx);
-        args.rpc_ctx->set_error(HTTP_STATUS_INTERNAL_SERVER_ERROR, ccf::errors::InternalError,
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
           "Exception thrown while executing");
         return;
       }
@@ -971,7 +975,9 @@ namespace ccfapp
       if (JS_IsException(val))
       {
         js_dump_error(ctx);
-        args.rpc_ctx->set_error(HTTP_STATUS_INTERNAL_SERVER_ERROR, ccf::errors::InternalError,
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
           "Exception thrown while executing");
         return;
       }
@@ -979,7 +985,9 @@ namespace ccfapp
       // Handle return value: {body, headers, statusCode}
       if (!JS_IsObject(val))
       {
-        args.rpc_ctx->set_error(HTTP_STATUS_INTERNAL_SERVER_ERROR, ccf::errors::InternalError,
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
           "Invalid endpoint function return value (not an object)");
         return;
       }
@@ -1033,7 +1041,9 @@ namespace ccfapp
             if (JS_IsException(rval))
             {
               js_dump_error(ctx);
-              args.rpc_ctx->set_error(HTTP_STATUS_INTERNAL_SERVER_ERROR, ccf::errors::InternalError,
+              args.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
                 "Invalid endpoint function return value (error during JSON "
                 "conversion of body)");
               return;
@@ -1044,7 +1054,9 @@ namespace ccfapp
           if (!cstr)
           {
             js_dump_error(ctx);
-            args.rpc_ctx->set_error(HTTP_STATUS_INTERNAL_SERVER_ERROR, ccf::errors::InternalError,
+            args.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
               "Invalid endpoint function return value (error during string "
               "conversion of body)");
             return;
@@ -1080,7 +1092,9 @@ namespace ccfapp
             auto prop_val_cstr = JS_ToCString(ctx, prop_val);
             if (!prop_val_cstr)
             {
-              args.rpc_ctx->set_error(HTTP_STATUS_INTERNAL_SERVER_ERROR, ccf::errors::InternalError,
+              args.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
                 "Invalid endpoint function return value (header value type)");
               return;
             }
@@ -1100,7 +1114,9 @@ namespace ccfapp
         {
           if (JS_VALUE_GET_TAG(status_code_js.val) != JS_TAG_INT)
           {
-            args.rpc_ctx->set_error(HTTP_STATUS_INTERNAL_SERVER_ERROR, ccf::errors::InternalError,
+            args.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
               "Invalid endpoint function return value (status code type)");
             return;
           }

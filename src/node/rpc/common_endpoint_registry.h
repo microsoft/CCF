@@ -72,7 +72,9 @@ namespace ccf
         }
 
         return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR, ccf::errors::InternalError, "Consensus is not yet configured");
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Consensus is not yet configured");
       };
       make_command_endpoint("tx", HTTP_GET, json_command_adapter(get_tx_status))
         .set_auto_schema<GetTxStatus>()
@@ -119,7 +121,9 @@ namespace ccf
             if (!caller_id_opt.has_value())
             {
               return make_error(
-                HTTP_STATUS_BAD_REQUEST, ccf::errors::UnknownCertificate, "Certificate not recognised");
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::UnknownCertificate,
+                "Certificate not recognised");
             }
 
             caller_id = caller_id_opt.value();
@@ -155,7 +159,9 @@ namespace ccf
         }
 
         return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR, ccf::errors::InternalError, "Primary unknown.");
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Primary unknown.");
       };
       make_read_only_endpoint(
         "primary_info", HTTP_GET, json_read_only_adapter(get_primary_info))
@@ -277,7 +283,9 @@ namespace ccf
         }
 
         return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR, ccf::errors::InternalError, "Unable to produce receipt");
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Unable to produce receipt");
       };
       make_command_endpoint(
         "receipt", HTTP_GET, json_command_adapter(get_receipt))
@@ -306,7 +314,9 @@ namespace ccf
         }
 
         return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR, ccf::errors::InternalError, "Unable to verify receipt");
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Unable to verify receipt");
       };
       make_command_endpoint(
         "receipt/verify", HTTP_POST, json_command_adapter(verify_receipt))

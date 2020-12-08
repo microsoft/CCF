@@ -33,29 +33,40 @@ namespace ccf
 
   namespace errors
   {
-    #define ERROR(code) constexpr const char* code = #code;
+#define ERROR(code) constexpr const char* code = #code;
 
-    // See https://docs.microsoft.com/en-us/rest/api/storageservices/common-rest-api-error-codes
+    // See
+    // https://docs.microsoft.com/en-us/rest/api/storageservices/common-rest-api-error-codes
     // for inspiration.
 
-    ERROR(InternalError)
+    // Generic errors
     ERROR(AuthorizationFailed)
-    ERROR(ConsensusTypeMismatch)
+    ERROR(InternalError)
+    ERROR(InvalidAuthenticationInfo)
+    ERROR(InvalidHeaderValue)
     ERROR(InvalidInput)
+    ERROR(InvalidResourceName)
+    ERROR(MissingRequiredHeader)
+    ERROR(ResourceNotFound)
+    ERROR(RequestNotSigned)
+    ERROR(UnsupportedHttpVerb)
+
+    // CCF-specific errors
+    ERROR(ConsensusTypeMismatch)
+    ERROR(FrontendNotOpen)
     ERROR(InvalidQuote)
     ERROR(InvalidNodeState)
-    ERROR(InvalidResourceName)
+    ERROR(KeyNotFound)
     ERROR(NodeAlreadyExists)
-    ERROR(ResourceNotFound)
     ERROR(ProposalNotOpen)
     ERROR(ProposalNotFound)
-    ERROR(VoteNotFound)
-    ERROR(KeyNotFound)
     ERROR(StateDigestMismatch)
-    ERROR(RequestNotSigned)
-    ERROR(VoteAlreadyExists)
+    ERROR(TransactionNotFound)
+    ERROR(TransactionCommitAttemptsExceedLimit)
     ERROR(UnknownCertificate)
+    ERROR(VoteNotFound)
+    ERROR(VoteAlreadyExists)
 
-    #undef ERROR
+#undef ERROR
   }
 }

@@ -58,10 +58,12 @@ namespace ccf::historical
           args.rpc_ctx->get_request_header(http::headers::CCF_TX_VIEW);
         if (!target_view_opt.has_value())
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          args.rpc_ctx->set_response_body(fmt::format(
-            "Historical query is missing '{}' header",
-            http::headers::CCF_TX_VIEW));
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::MissingRequiredHeader,
+            fmt::format(
+              "Historical query is missing '{}' header",
+              http::headers::CCF_TX_VIEW));
           return;
         }
 
@@ -69,12 +71,14 @@ namespace ccf::historical
           std::strtoul(target_view_opt.value().c_str(), nullptr, 10);
         if (target_view == 0)
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          args.rpc_ctx->set_response_body(fmt::format(
-            "The value '{}' in header '{}' could not be converted to a valid "
-            "view",
-            target_view_opt.value(),
-            http::headers::CCF_TX_VIEW));
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidHeaderValue,
+            fmt::format(
+              "The value '{}' in header '{}' could not be converted to a valid "
+              "view",
+              target_view_opt.value(),
+              http::headers::CCF_TX_VIEW));
           return;
         }
 
@@ -82,10 +86,12 @@ namespace ccf::historical
           args.rpc_ctx->get_request_header(http::headers::CCF_TX_SEQNO);
         if (!target_seqno_opt.has_value())
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          args.rpc_ctx->set_response_body(fmt::format(
-            "Historical query is missing '{}' header",
-            http::headers::CCF_TX_SEQNO));
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::MissingRequiredHeader,
+            fmt::format(
+              "Historical query is missing '{}' header",
+              http::headers::CCF_TX_SEQNO));
           return;
         }
 
@@ -93,12 +99,14 @@ namespace ccf::historical
           std::strtoul(target_seqno_opt.value().c_str(), nullptr, 10);
         if (target_view == 0)
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          args.rpc_ctx->set_response_body(fmt::format(
-            "The value '{}' in header '{}' could not be converted to a valid "
-            "seqno",
-            target_seqno_opt.value(),
-            http::headers::CCF_TX_SEQNO));
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidHeaderValue,
+            fmt::format(
+              "The value '{}' in header '{}' could not be converted to a valid "
+              "seqno",
+              target_seqno_opt.value(),
+              http::headers::CCF_TX_SEQNO));
           return;
         }
       }
@@ -109,8 +117,10 @@ namespace ccf::historical
           "Transaction {}.{} is not available", target_view, target_seqno);
         if (!available(target_view, target_seqno, error_reason))
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          args.rpc_ctx->set_response_body(std::move(error_reason));
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::TransactionNotFound,
+            std::move(error_reason));
           return;
         }
       }

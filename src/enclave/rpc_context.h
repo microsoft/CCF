@@ -220,7 +220,8 @@ namespace enclave
       set_error({status, http_status_str(status), std::move(msg)});
     }
 
-    virtual void set_error(http_status status, const std::string& code, std::string&& msg)
+    virtual void set_error(
+      http_status status, const std::string& code, std::string&& msg)
     {
       set_error({status, code, std::move(msg)});
     }
@@ -228,13 +229,12 @@ namespace enclave
     virtual void set_error(ccf::ErrorDetails&& error)
     {
       nlohmann::json body = ccf::ODataErrorResponse{
-        ccf::ODataError{std::move(error.code), std::move(error.msg)}
-      };
+        ccf::ODataError{std::move(error.code), std::move(error.msg)}};
       const auto s = fmt::format("{}\n", body.dump());
       set_response_status(error.status);
       set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
       set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
     }
 
     virtual void set_apply_writes(bool apply) = 0;

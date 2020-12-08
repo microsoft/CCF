@@ -5,8 +5,8 @@
 #include "enclave/rpc_context.h"
 #include "endpoint_registry.h"
 #include "http/http_consts.h"
-#include "node/rpc/serdes.h"
 #include "node/rpc/error.h"
+#include "node/rpc/serdes.h"
 
 #include <llhttp/llhttp.h>
 

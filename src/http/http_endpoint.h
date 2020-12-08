@@ -210,11 +210,17 @@ namespace http
         {
           if (is_websocket)
           {
-            send_raw(ws::error(HTTP_STATUS_INTERNAL_SERVER_ERROR, ccf::errors::InternalError, e.what()));
+            send_raw(ws::error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              e.what()));
           }
           else
           {
-            send_raw(http::error(HTTP_STATUS_INTERNAL_SERVER_ERROR, ccf::errors::InternalError, e.what()));
+            send_raw(http::error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              e.what()));
           }
         }
 

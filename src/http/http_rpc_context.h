@@ -5,9 +5,9 @@
 #include "enclave/rpc_context.h"
 #include "http_parser.h"
 #include "http_sig.h"
+#include "node/rpc/error.h"
 #include "ws_parser.h"
 #include "ws_rpc_context.h"
-#include "node/rpc/error.h"
 
 namespace http
 {
@@ -39,8 +39,7 @@ namespace http
   inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
   {
     nlohmann::json body = ccf::ODataErrorResponse{
-      ccf::ODataError{std::move(error.code), std::move(error.msg)}
-    };
+      ccf::ODataError{std::move(error.code), std::move(error.msg)}};
     const auto s = fmt::format("{}\n", body.dump());
 
     std::vector<uint8_t> data(s.begin(), s.end());
@@ -53,7 +52,8 @@ namespace http
     return response.build_response();
   }
 
-  inline std::vector<uint8_t> error(http_status status, const std::string& code, std::string&& msg)
+  inline std::vector<uint8_t> error(
+    http_status status, const std::string& code, std::string&& msg)
   {
     return error({status, code, std::move(msg)});
   }
