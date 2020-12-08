@@ -211,6 +211,11 @@ namespace ccf::historical
         }
         case kv::DeserialiseSuccess::PASS:
         case kv::DeserialiseSuccess::PASS_SIGNATURE:
+        case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE:
+        case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
+        case kv::DeserialiseSuccess::PASS_NONCES:
+        case kv::DeserialiseSuccess::PASS_NEW_VIEW:
+        case kv::DeserialiseSuccess::PASS_SNAPSHOT_EVIDENCE:
         {
           LOG_DEBUG_FMT("Processed transaction at {}", idx);
 
@@ -245,14 +250,6 @@ namespace ccf::historical
             // This is not a signature - try the next transaction
             fetch_entry_at(idx + 1);
           }
-          break;
-        }
-        case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE:
-        case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
-        case kv::DeserialiseSuccess::PASS_NONCES:
-        case kv::DeserialiseSuccess::PASS_NEW_VIEW:
-        case kv::DeserialiseSuccess::PASS_SNAPSHOT_EVIDENCE:
-        {
           break;
         }
         default:
