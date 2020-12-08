@@ -7,6 +7,7 @@ set(MERKLE++_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 option(PROFILE "enable profiling" OFF)
 option(EVERCRYPT "enable comparison with EverCrypt Merkle trees" OFF)
+option(TRACE "enable debug traces" OFF)
 
 enable_testing()
 add_subdirectory(test)
