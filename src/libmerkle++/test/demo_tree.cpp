@@ -42,7 +42,7 @@ int main()
       std::cout << std::endl;
 
       std::cout << "Paths: " << std::endl;
-      for (size_t i = 0; i < num_leaves; i++) {
+      for (size_t i = mt.min_index(); i <= mt.max_index(); i++) {
         mt.flush_to(i);
         auto path = mt.path(i);
         std::cout << "P" << std::setw(2) << std::setfill('0') << i << ": " << path->to_string(PRINT_HASH_SIZE) << " " << std::endl;

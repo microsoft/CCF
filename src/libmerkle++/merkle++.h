@@ -311,12 +311,30 @@ namespace Merkle
         return r;
       }
 
+      static Node *copy_node(const Node *from, std::vector<Node*> *leaf_nodes = nullptr)
+      {
+        if (from == nullptr)
+          return nullptr;
+
+        Node *r = make(from->hash);
+        r->size = from->size;
+        r->height = from->height;
+        r->dirty = from->dirty;
+        r->parent = nullptr;
+        r->left = copy_node(from->left, leaf_nodes);
+        r->right = copy_node(from->right, leaf_nodes);
+        if (leaf_nodes && r->size == 1 && !r->left && !r->right)
+          leaf_nodes->push_back(r);
+        return r;
+      }
+
       bool invariant() {
         bool c1 = !parent || parent->left == this || parent->right == this;
         bool c2 = (left && right) || (!left && !right);
         bool c3 = !left || !right || (size == left->size + right->size + 1);
         bool cl = !left || left->invariant();
         bool cr = !right || right->invariant();
+        bool ch = height <= 64;
         bool r =  c1 && c2 && c3 && cl && cr;
         return r;
       }
@@ -346,7 +364,8 @@ namespace Merkle
       HashT<HASH_SIZE> hash;
       Node *parent;
       Node *left, *right;
-      size_t size, height;
+      size_t size;
+      uint8_t height;
       bool dirty;
     };
 
@@ -356,13 +375,15 @@ namespace Merkle
     typedef TreeT<HASH_SIZE, HASH_FUNCTION> Tree;
 
     TreeT() {}
-    TreeT(const TreeT &other)
-      : leaf_nodes(other.leaf_nodes),
-        _root(other._root)
-    {}
+    TreeT(const TreeT &other) { *this = other; }
     TreeT(TreeT &&other)
       : leaf_nodes(std::move(other.leaf_nodes)),
-        _root(std::move(other._root))
+        uninserted_leaf_nodes(std::move(other.uninserted_leaf_nodes)),
+        _root(std::move(other._root)),
+        num_flushed(other.num_flushed),
+        insertion_stack(std::move(other.insertion_stack)),
+        hashing_stack(std::move(other.hashing_stack)),
+        walk_stack(std::move(other.walk_stack))
     {}
     TreeT(const std::vector<uint8_t> &bytes) {
       deserialise(bytes);
@@ -497,9 +518,27 @@ namespace Merkle
       assert(num_leaves() == index + 1);
     }
 
+    Tree& operator=(const Tree &other) {
+      leaf_nodes.clear();
+      uninserted_leaf_nodes.clear();
+      insertion_stack.clear();
+      hashing_stack.clear();
+      walk_stack.clear();
+
+      _root = Node::copy_node(other._root, &leaf_nodes);
+      for (auto n : other.uninserted_leaf_nodes)
+        uninserted_leaf_nodes.push_back(Node::copy_node(n));
+      num_flushed = other.num_flushed;
+      return *this;
+    }
+
     const Tree split(size_t index) {
-      (void)(index);
-      throw std::runtime_error("not implemented yet");
+      TRACE(std::cout << "> split (slow) at " << index << std::endl;);
+      Tree other = *this;
+      if (index > num_flushed)
+        other.retract_to(index-1);
+      this->flush_to(index);
+      return other;
     }
 
     const Hash& root() {
@@ -540,11 +579,10 @@ namespace Merkle
       assert(index < _root->size);
 
       Node *cur = _root;
-      size_t it = index << (sizeof(_root->height)*8 - _root->height + 1);
-
+      size_t it = index << (sizeof(index)*8 - _root->height + 1);
       assert(walk_stack.empty());
 
-      for (size_t height = _root->height; height > 1; ) {
+      for (uint8_t height = _root->height; height > 1; ) {
         assert(cur->invariant());
         bool go_right = (it >> (8*sizeof(it)-1)) & 0x01;
         if (update)
@@ -636,7 +674,7 @@ namespace Merkle
       std::vector<Node*> level = leaf_nodes, next_level;
       size_t it = num_flushed;
       TRACE(std::cout << "num_flushed=" << num_flushed << " it=" << it << std::endl;);
-      size_t level_no = 0;
+      uint8_t level_no = 0;
       while (it != 0 || level.size() > 1) {
         // Restore extra hashes on the left edge of the tree
         if (it & 0x01) {
@@ -741,6 +779,7 @@ namespace Merkle
       size_t num_insert = 0, num_hash = 0;
       size_t num_root = 0, num_past_root = 0;
       size_t num_flush = 0, num_retract = 0;
+      size_t num_split = 0;
 
       std::string to_string() const {
         std::stringstream stream;
@@ -748,7 +787,8 @@ namespace Merkle
                << " num_hash=" << num_hash
                << " num_root=" << num_root
                << " num_retract=" << num_retract
-               << " num_flush=" << num_flush;
+               << " num_flush=" << num_flush
+               << " num_split=" << num_split;
         return stream.str();
       }
     } statistics;
@@ -774,7 +814,7 @@ namespace Merkle
           for (auto n : level) {
             assert(n->invariant());
             stream << (n->dirty ? dirty_hash : n->hash.to_string(num_bytes));
-            stream << "(" << n->size << "," << n->height << ")";
+            stream << "(" << n->size << "," << (unsigned)n->height << ")";
             if (n->left) next_level.push_back(n->left);
             if (n->right) next_level.push_back(n->right);
             stream << " ";
@@ -829,7 +869,7 @@ namespace Merkle
                           << n->left->hash.to_string(TRACE_HASH_SIZE) << ", "
                           << n->right->hash.to_string(TRACE_HASH_SIZE) << ") == "
                           << n->hash.to_string(TRACE_HASH_SIZE)
-                          << " (" << n->size << "/" << n->height << ")"
+                          << " (" << n->size << "/" << (unsigned)n->height << ")"
                           << std::endl);
           n->dirty = false;
           hashing_stack.pop_back();
