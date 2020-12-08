@@ -521,8 +521,8 @@ namespace ccf
             case kv::CommitSuccess::NO_REPLICATE:
             {
               ctx->set_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
+                HTTP_STATUS_SERVICE_UNAVAILABLE,
+                ccf::errors::TransactionReplicationFailed,
                 "Transaction failed to replicate.");
               update_metrics(ctx, metrics);
               return ctx->serialise_response();
@@ -575,11 +575,13 @@ namespace ccf
       }
 
       ctx->set_error(
-        HTTP_STATUS_CONFLICT,
+        HTTP_STATUS_SERVICE_UNAVAILABLE,
         ccf::errors::TransactionCommitAttemptsExceedLimit,
         fmt::format(
-          "Transaction continued to conflict after {} attempts.",
+          "Transaction continued to conflict after {} attempts. Retry later.",
           max_attempts));
+      static constexpr size_t retry_after_seconds = 3;
+      ctx->set_response_header(http::headers::RETRY_AFTER, retry_after_seconds);
       return ctx->serialise_response();
     }
 

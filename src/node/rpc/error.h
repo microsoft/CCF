@@ -62,6 +62,7 @@ namespace ccf
     ERROR(StateDigestMismatch)
     ERROR(TransactionNotFound)
     ERROR(TransactionCommitAttemptsExceedLimit)
+    ERROR(TransactionReplicationFailed)
     ERROR(UnknownCertificate)
     ERROR(VoteNotFound)
     ERROR(VoteAlreadyExists)
