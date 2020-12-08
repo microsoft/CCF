@@ -40,7 +40,7 @@ namespace Merkle
 {
   void serialise_size_t(size_t size, std::vector<uint8_t>& bytes)
   {
-    // TODO: endianness?
+    // fix endianness?
     uint8_t* size_bytes = (uint8_t*)&size;
     for (size_t i = 0; i < sizeof(size_t); i++)
       bytes.push_back(size_bytes[i]);
@@ -48,7 +48,7 @@ namespace Merkle
 
   size_t deserialise_size_t(const std::vector<uint8_t>& bytes, size_t& index)
   {
-    // TODO: endianness?
+    // fix endianness?
     size_t result = 0;
     uint8_t* result_bytes = (uint8_t*)&result;
     for (size_t i = 0; i < sizeof(size_t); i++)
@@ -435,7 +435,8 @@ namespace Merkle
       {
         assert(invariant());
         parent = nullptr;
-        delete (left); // TODO: remove recursion?
+        // Potential future improvement: remove recursion
+        delete (left);
         delete (right);
       }
 
@@ -1189,7 +1190,7 @@ namespace Merkle
       {
         TRACE(std::cout << "* insert_leaves " << leaf_nodes.size() << " +"
                         << uninserted_leaf_nodes.size() << std::endl;);
-        // TODO: Make this go fast when there are many leaves to insert.
+        // Potential future improvement: make this go fast when there are many leaves to insert.
         for (auto& n : uninserted_leaf_nodes)
           insert_leaf(_root, n);
         uninserted_leaf_nodes.clear();
@@ -1260,7 +1261,7 @@ namespace Merkle
 
 #ifdef HAVE_OPENSSL
 #  include <openssl/sha.h>
-  // TODO: Some versions of OpenSSL don't provide SHA256_Transform?
+  // Note: Some versions of OpenSSL don't provide SHA256_Transform.
   void sha256_compress_openssl(
     const uint8_t* h1, const uint8_t* h2, uint8_t* out)
   {
