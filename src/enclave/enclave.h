@@ -310,26 +310,20 @@ namespace enclave
         size_t consecutive_idles = 0u;
         while (!bp.get_finished())
         {
-          // First, read some messages from the ring buffer
+          // First, read some messages from the ringbuffer
           auto read = bp.read_n(max_messages, circuit.read_from_outside());
 
           // Then, execute some thread messages
-          bool no_thread_msgs = true;
-          for (size_t i = 0; i < max_messages; i++)
+          size_t thread_msg = 0;
+          while (thread_msg < max_messages &&
+                 threading::ThreadMessaging::thread_messaging.run_one())
           {
-            if (!threading::ThreadMessaging::thread_messaging.run_one())
-            {
-              break;
-            }
-            else
-            {
-              no_thread_msgs = false;
-            }
+            thread_msg++;
           }
 
-          // If no messages were read from the ring buffer and no thread
+          // If no messages were read from the ringbuffer and no thread
           // messages were executed, idle
-          if (read == 0 && no_thread_msgs)
+          if (read == 0 && thread_msg == 0)
           {
             const auto time_now = enclave::get_enclave_time();
             static std::chrono::microseconds idling_start_time;
@@ -341,7 +335,6 @@ namespace enclave
 
             // Handle initial idles by pausing, eventually sleep (in host)
             constexpr std::chrono::milliseconds timeout(5);
-
             if ((time_now - idling_start_time) > timeout)
             {
               std::this_thread::sleep_for(timeout * 10);
