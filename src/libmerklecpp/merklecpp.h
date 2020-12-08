@@ -1016,9 +1016,9 @@ namespace Merkle
 
     void hash(Node* n, size_t indent = 2) const
     {
-      #ifndef WITH_TRACE
+#ifndef WITH_TRACE
       (void)indent;
-      #endif
+#endif
 
       assert(hashing_stack.empty());
       hashing_stack.reserve(n->height);
