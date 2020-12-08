@@ -303,38 +303,62 @@ namespace enclave
           node->start_ledger_recovery();
         }
 
-        bp.run(circuit.read_from_outside(), [](size_t num_consecutive_idles) {
-          static std::chrono::microseconds idling_start_time;
-          const auto time_now = enclave::get_enclave_time();
+        // Maximum number of outbound ringbuffer messages which will be
+        // processed in a single iteration
+        static constexpr size_t max_messages = 256;
 
-          if (num_consecutive_idles == 0)
-          {
-            idling_start_time = time_now;
-          }
+        size_t consecutive_idles = 0u;
+        while (!bp.get_finished())
+        {
+          // First, read some messages from the ring buffer
+          auto read = bp.read_n(max_messages, circuit.read_from_outside());
 
-          // If we have pending thread messages, handle them now (and don't
-          // sleep)
+          // Then, execute some thread messages
+          bool no_thread_msgs = true;
+          for (size_t i = 0; i < max_messages; i++)
           {
-            bool task_run =
-              threading::ThreadMessaging::thread_messaging.run_one();
-            if (task_run)
+            if (!threading::ThreadMessaging::thread_messaging.run_one())
             {
-              return;
+              break;
+            }
+            else
+            {
+              no_thread_msgs = false;
             }
           }
 
-          // Handle initial idles by pausing, eventually sleep (in host)
-          constexpr std::chrono::milliseconds timeout(5);
-
-          if ((time_now - idling_start_time) > timeout)
+          // If no messages were read from the ring buffer and no thread
+          // messages were executed, idle
+          if (read == 0 && no_thread_msgs)
           {
-            std::this_thread::sleep_for(timeout * 10);
+            const auto time_now = enclave::get_enclave_time();
+            static std::chrono::microseconds idling_start_time;
+
+            if (consecutive_idles == 0)
+            {
+              idling_start_time = time_now;
+            }
+
+            // Handle initial idles by pausing, eventually sleep (in host)
+            constexpr std::chrono::milliseconds timeout(5);
+
+            if ((time_now - idling_start_time) > timeout)
+            {
+              std::this_thread::sleep_for(timeout * 10);
+            }
+            else
+            {
+              CCF_PAUSE();
+            }
+
+            consecutive_idles++;
           }
           else
           {
-            CCF_PAUSE();
+            // If some messages were read, reset consecutive idles count
+            consecutive_idles = 0;
           }
-        });
+        }
 
         LOG_INFO_FMT("Enclave stopped successfully. Stopping host...");
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::stopped, to_host);
