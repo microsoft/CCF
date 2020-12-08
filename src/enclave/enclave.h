@@ -303,7 +303,7 @@ namespace enclave
           node->start_ledger_recovery();
         }
 
-        // Maximum number of outbound ringbuffer messages which will be
+        // Maximum number of inbound ringbuffer messages which will be
         // processed in a single iteration
         static constexpr size_t max_messages = 256;
 
