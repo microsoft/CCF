@@ -73,7 +73,9 @@ namespace asynchost
       }
 
       size_t evidence_idx;
-      auto str_evidence_idx = file_name.substr(evidence_pos + 1, commit_pos);
+      const auto evidence_start = evidence_pos + 1;
+      const auto str_evidence_idx =
+        file_name.substr(evidence_start, commit_pos - evidence_start);
       if (
         std::from_chars(
           str_evidence_idx.data(),
@@ -85,7 +87,7 @@ namespace asynchost
       }
 
       size_t evidence_commit_idx;
-      std::string_view str_evidence_commit_idx =
+      const auto str_evidence_commit_idx =
         file_name.substr(evidence_proof_pos + 1);
       if (
         std::from_chars(
@@ -96,6 +98,7 @@ namespace asynchost
       {
         return std::nullopt;
       }
+
       return std::make_pair(evidence_idx, evidence_commit_idx);
     }
 
