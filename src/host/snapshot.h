@@ -15,6 +15,74 @@ namespace fs = std::filesystem;
 
 namespace asynchost
 {
+  static constexpr auto snapshot_file_prefix = "snapshot";
+  static constexpr auto snapshot_idx_delimiter = "_";
+  static constexpr auto snapshot_committed_suffix = "committed";
+
+  std::optional<std::pair<size_t, size_t>>
+  get_snapshot_evidence_idx_from_file_name(const std::string& file_name)
+  {
+    // Returns snapshot evidence and evidence commit proof indices
+    auto commit_pos =
+      file_name.find(fmt::format(".{}", snapshot_committed_suffix));
+    if (commit_pos == std::string::npos)
+    {
+      // Snapshot is not yet committed
+      return std::nullopt;
+    }
+
+    auto idx_pos = file_name.find_first_of(snapshot_idx_delimiter);
+    if (idx_pos == std::string::npos)
+    {
+      // Snapshot has no idx
+      return std::nullopt;
+    }
+
+    auto evidence_pos =
+      file_name.find_first_of(snapshot_idx_delimiter, idx_pos + 1);
+    if (evidence_pos == std::string::npos)
+    {
+      // Snapshot has no evidence idx
+      return std::nullopt;
+    }
+
+    auto evidence_proof_pos = file_name.find_last_of(snapshot_idx_delimiter);
+    if (evidence_proof_pos == std::string::npos)
+    {
+      // Snapshot has no evidence proof idx
+      return std::nullopt;
+    }
+
+    size_t evidence_idx;
+    const auto evidence_start = evidence_pos + 1;
+    const auto str_evidence_idx =
+      file_name.substr(evidence_start, commit_pos - evidence_start);
+    if (
+      std::from_chars(
+        str_evidence_idx.data(),
+        str_evidence_idx.data() + str_evidence_idx.size(),
+        evidence_idx)
+        .ec != std::errc())
+    {
+      return std::nullopt;
+    }
+
+    size_t evidence_commit_idx;
+    const auto str_evidence_commit_idx =
+      file_name.substr(evidence_proof_pos + 1);
+    if (
+      std::from_chars(
+        str_evidence_commit_idx.data(),
+        str_evidence_commit_idx.data() + str_evidence_commit_idx.size(),
+        evidence_commit_idx)
+        .ec != std::errc())
+    {
+      return std::nullopt;
+    }
+
+    return std::make_pair(evidence_idx, evidence_commit_idx);
+  }
+
   class SnapshotManager
   {
   private:
@@ -36,67 +104,6 @@ namespace asynchost
       }
 
       return std::stol(file_name.substr(pos + 1));
-    }
-
-    std::optional<std::pair<size_t, size_t>>
-    get_snapshot_evidence_idx_from_file_name(const std::string& file_name)
-    {
-      // Returns snapshot evidence and evidence commit proof indices
-      auto commit_pos =
-        file_name.find(fmt::format(".{}", snapshot_committed_suffix));
-      if (commit_pos == std::string::npos)
-      {
-        // Snapshot is not yet committed
-        return std::nullopt;
-      }
-
-      auto idx_pos = file_name.find_first_of(snapshot_idx_delimiter);
-      if (idx_pos == std::string::npos)
-      {
-        // Snapshot has no idx
-        return std::nullopt;
-      }
-
-      auto evidence_pos =
-        file_name.find_first_of(snapshot_idx_delimiter, idx_pos + 1);
-      if (evidence_pos == std::string::npos)
-      {
-        // Snapshot has no evidence idx
-        return std::nullopt;
-      }
-
-      auto evidence_proof_pos = file_name.find_last_of(snapshot_idx_delimiter);
-      if (evidence_proof_pos == std::string::npos)
-      {
-        // Snapshot has no evidence proof idx
-        return std::nullopt;
-      }
-
-      size_t evidence_idx;
-      auto str_evidence_idx = file_name.substr(evidence_pos + 1, commit_pos);
-      if (
-        std::from_chars(
-          str_evidence_idx.data(),
-          str_evidence_idx.data() + str_evidence_idx.size(),
-          evidence_idx)
-          .ec != std::errc())
-      {
-        return std::nullopt;
-      }
-
-      size_t evidence_commit_idx;
-      std::string_view str_evidence_commit_idx =
-        file_name.substr(evidence_proof_pos + 1);
-      if (
-        std::from_chars(
-          str_evidence_commit_idx.data(),
-          str_evidence_commit_idx.data() + str_evidence_commit_idx.size(),
-          evidence_commit_idx)
-          .ec != std::errc())
-      {
-        return std::nullopt;
-      }
-      return std::make_pair(evidence_idx, evidence_commit_idx);
     }
 
   public:

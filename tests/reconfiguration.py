@@ -169,6 +169,16 @@ def run(args):
 
         if args.snapshot_tx_interval is not None:
             test_add_node_from_snapshot(network, args, copy_ledger_read_only=True)
+            test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+            errors, _ = network.get_joined_nodes()[-1].stop()
+            if not any(
+                "No snapshot found. Node will request transactions all historical transactions"
+                in s
+                for s in errors
+            ):
+                raise ValueError(
+                    "New node shouldn't join from snapshot if snapshot cannot be verified"
+                )
 
 
 if __name__ == "__main__":
@@ -176,4 +186,5 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    args.initial_user_count = 1
     run(args)
