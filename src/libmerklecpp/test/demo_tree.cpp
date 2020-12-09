@@ -19,8 +19,7 @@ int main()
 {
   try
   {
-    const size_t num_leaves = 6;
-    // for (size_t num_leaves = 1; num_leaves < 121; num_leaves++)
+    const size_t num_leaves = 11;
     {
       auto hashes = make_hashes(num_leaves);
 
