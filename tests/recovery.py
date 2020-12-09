@@ -7,7 +7,6 @@ import infra.checker
 import suite.test_requirements as reqs
 
 from loguru import logger as LOG
-import os
 
 
 @reqs.description("Recovering a network")
@@ -15,20 +14,21 @@ import os
 def test(network, args, from_snapshot=False):
     old_primary, _ = network.find_primary()
 
-    # Retrieve ledger and snapshots
     snapshot_dir = None
     if from_snapshot:
-        snapshot_dir = old_primary.get_committed_snapshots()
-        if not os.listdir(snapshot_dir):
-            raise RuntimeError(f"No snapshot found in {snapshot_dir}")
-    ledger_dir = old_primary.get_ledger()[0]
+        snapshot_dir = network.get_committed_snapshots(old_primary)
+    current_ledger_dir, committed_ledger_dir = old_primary.get_ledger(
+        include_read_only_dirs=True
+    )
 
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
-
     recovered_network.start_in_recovery(
-        args, ledger_dir=ledger_dir, snapshot_dir=snapshot_dir
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dir=committed_ledger_dir,
+        snapshot_dir=snapshot_dir,
     )
     recovered_network.recover(args)
     return recovered_network
@@ -41,15 +41,20 @@ def test_share_resilience(network, args, from_snapshot=False):
 
     snapshot_dir = None
     if from_snapshot:
-        snapshot_dir = old_primary.get_committed_snapshots()
-        if not os.listdir(snapshot_dir):
-            raise RuntimeError(f"No snapshot found in {snapshot_dir}")
-    ledger_dir = old_primary.get_ledger()[0]
+        snapshot_dir = network.get_committed_snapshots(old_primary)
+    current_ledger_dir, committed_ledger_dir = old_primary.get_ledger(
+        include_read_only_dirs=True
+    )
 
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
-    recovered_network.start_in_recovery(args, ledger_dir, snapshot_dir)
+    recovered_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dir=committed_ledger_dir,
+        snapshot_dir=snapshot_dir,
+    )
     primary, _ = recovered_network.find_primary()
     recovered_network.consortium.accept_recovery(primary)
 
@@ -69,9 +74,6 @@ def test_share_resilience(network, args, from_snapshot=False):
             check_commit(m.get_and_submit_recovery_share(primary))
             submitted_shares_count += 1
 
-    # Here, we kill the current primary instead of just suspending it.
-    # However, because of https://github.com/microsoft/CCF/issues/99#issuecomment-630875387,
-    # the new primary will most likely be the previous primary, which defies the point of this test.
     LOG.info(
         f"Shutting down node {primary.node_id} before submitting last recovery share"
     )

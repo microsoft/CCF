@@ -10,6 +10,9 @@ struct ScenarioPerfClientOptions : public client::PerfOptions
 {
   size_t repetitions = 1;
   std::string scenario_file;
+  std::vector<std::pair<std::string, serdes::Pack>> serdes_map{
+    {"text", serdes::Pack::Text}, {"msgpack", serdes::Pack::MsgPack}};
+  serdes::Pack serdes;
 
   ScenarioPerfClientOptions(
     CLI::App& app, const std::string& default_pid_file) :
@@ -19,6 +22,9 @@ struct ScenarioPerfClientOptions : public client::PerfOptions
     app.add_option("--scenario-file", scenario_file)
       ->required(true)
       ->check(CLI::ExistingFile);
+    app.add_option("--msg-ser-fmt", serdes, "Message serialisation format")
+      ->required()
+      ->transform(CLI::CheckedTransformer(serdes_map, CLI::ignore_case));
   }
 };
 
@@ -107,7 +113,11 @@ private:
         const auto& transaction = transactions[i];
 
         add_prepared_tx(
-          transaction["method"], transaction["params"], true, std::nullopt);
+          transaction["method"],
+          transaction["params"],
+          true,
+          std::nullopt,
+          options.serdes);
       }
     }
   }
