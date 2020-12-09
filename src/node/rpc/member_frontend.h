@@ -1318,7 +1318,7 @@ namespace ccf
         .install();
 
       auto get_proposal =
-        [this](ReadOnlyEndpointContext& ctx, nlohmann::json&& params) {
+        [this](ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
           const auto& caller_identity =
             ctx.get_caller<ccf::MemberCertAuthnIdentity>();
           if (!check_member_active(ctx.tx, caller_identity.member_id))
@@ -1354,7 +1354,7 @@ namespace ccf
         .add_authentication_policy(member_cert_auth_policy)
         .install();
 
-      auto withdraw = [this](EndpointContext& ctx, nlohmann::json&& params) {
+      auto withdraw = [this](EndpointContext& ctx, nlohmann::json&&) {
         const auto& caller_identity =
           ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
         if (!check_member_active(ctx.tx, caller_identity.member_id))
@@ -1477,7 +1477,7 @@ namespace ccf
         .install();
 
       auto get_vote =
-        [this](ReadOnlyEndpointContext& ctx, nlohmann::json&& params) {
+        [this](ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
           const auto& caller_identity =
             ctx.get_caller<ccf::MemberCertAuthnIdentity>();
           if (!check_member_active(ctx.tx, caller_identity.member_id))
@@ -1651,7 +1651,7 @@ namespace ccf
       //! A member asks for a fresher state digest
       auto update_state_digest = [this](
                                    EndpointContext& ctx,
-                                   nlohmann::json&& params) {
+                                   nlohmann::json&&) {
         const auto& caller_identity =
           ctx.get_caller<ccf::MemberCertAuthnIdentity>();
         auto [ma_view, sig_view] =
