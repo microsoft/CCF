@@ -21,9 +21,14 @@ if(TESTS)
       set(EVERCRYPT_DIR ../../3rdparty/hacl-star/evercrypt)
     endif()
 
-    file(GLOB EVERCRYPT_SRC "${EVERCRYPT_DIR}/*.c" "${EVERCRYPT_DIR}/*-x86_64-linux.S")
+    file(GLOB EVERCRYPT_SRC "${EVERCRYPT_DIR}/*.c"
+         "${EVERCRYPT_DIR}/*-x86_64-linux.S"
+    )
     add_library(evercrypt.host STATIC ${EVERCRYPT_SRC})
-    target_include_directories(evercrypt.host PUBLIC ${EVERCRYPT_DIR} ${EVERCRYPT_DIR}/kremlin ${EVERCRYPT_DIR}/kremlin/kremlib)
+    target_include_directories(
+      evercrypt.host PUBLIC ${EVERCRYPT_DIR} ${EVERCRYPT_DIR}/kremlin
+                            ${EVERCRYPT_DIR}/kremlin/kremlib
+    )
     set_target_properties(evercrypt.host PROPERTIES LINKER_LANGUAGE C)
   endif()
 
