@@ -124,9 +124,6 @@ def test_update_all_nodes(network, args):
         )
         assert new_node
 
-    LOG.info("Wait for nodes to catch up")
-    network.wait_for_node_commit_sync()
-
     LOG.info("Retire original nodes running old code")
     for node in old_nodes:
         primary, _ = network.find_nodes()
