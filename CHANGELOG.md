@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.16.0]
+
+### Changed
+
+- JWT signing keys are auto-refreshed immediately when adding a new issuer instead of waiting until the next auto-refresh event is due (#1978).
+
+### Security
+
+- Hostname of TLS certificate is checked when auto-refreshing JWT signing keys (#1934).
+
 ## [0.15.2]
 
 ### Added
@@ -559,6 +569,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.16.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.16.0
 [0.15.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.15.2
 [0.15.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.15.1
 [0.15.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.15.0
