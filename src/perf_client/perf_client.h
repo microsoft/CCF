@@ -354,6 +354,27 @@ namespace client
       const std::string& method,
       const nlohmann::json& params,
       bool expects_commit,
+      const std::optional<size_t>& index,
+      const serdes::Pack& serdes)
+    {
+      auto body = serdes::pack(params, serdes);
+
+      const PreparedTx tx{rpc_connection->gen_request(
+                            method,
+                            body,
+                            serdes == serdes::Pack::Text ?
+                              http::headervalues::contenttype::OCTET_STREAM :
+                              http::headervalues::contenttype::MSGPACK),
+                          method,
+                          expects_commit};
+
+      append_prepared_tx(tx, index);
+    }
+
+    void add_prepared_tx(
+      const std::string& method,
+      const nlohmann::json& params,
+      bool expects_commit,
       const std::optional<size_t>& index)
     {
       const PreparedTx tx{
