@@ -100,7 +100,7 @@ public:
     make_endpoint("echo", HTTP_POST, json_adapter(echo_function)).install();
 
     auto get_caller_function = [this](EndpointContext& ctx, nlohmann::json&&) {
-      const auto ident = ctx.get_caller<UserCertAuthnIdentity>();
+      const auto& ident = ctx.get_caller<UserCertAuthnIdentity>();
       return make_success(ident.user_id);
     };
     make_endpoint("get_caller", HTTP_POST, json_adapter(get_caller_function))
@@ -273,11 +273,11 @@ public:
   void record_ctx(EndpointContext& ctx)
   {
     last_caller_cert = tls::cert_der_to_pem(ctx.rpc_ctx->session->caller_cert);
-    if (const auto uci = ctx.get_caller<UserCertAuthnIdentity>())
+    if (const auto uci = ctx.try_get_caller<UserCertAuthnIdentity>())
     {
       last_caller_id = uci->user_id;
     }
-    else if (const auto mci = ctx.get_caller<MemberCertAuthnIdentity>())
+    else if (const auto mci = ctx.try_get_caller<MemberCertAuthnIdentity>())
     {
       last_caller_id = mci->member_id;
     }
