@@ -241,8 +241,9 @@ namespace ccf
 
       const bool is_primary = (consensus == nullptr) ||
         consensus->is_primary() || ctx->is_create_request;
-      const bool forwardable = consensus->type() == ConsensusType::CFT ||
-        (consensus->type() != ConsensusType::CFT && !ctx->execute_on_node);
+      const bool forwardable = (consensus != nullptr) &&
+        (consensus->type() == ConsensusType::CFT ||
+         (consensus->type() != ConsensusType::CFT && !ctx->execute_on_node));
 
       if (!is_primary && forwardable)
       {
