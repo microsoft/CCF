@@ -280,19 +280,6 @@ namespace ccf
     };
   }
 
-  using HandlerJsonParamsAndCallerId =
-    std::function<jsonhandler::JsonAdapterResponse(
-      kv::Tx& tx, CallerId caller_id, nlohmann::json&& params)>;
-
-  static EndpointFunction json_adapter(const HandlerJsonParamsAndCallerId& f)
-  {
-    return [f](EndpointContext& args) {
-      auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
-      jsonhandler::set_response(
-        f(args.tx, args.caller_id, std::move(params)), args.rpc_ctx, packing);
-    };
-  }
-
   using HandlerJsonParamsAndForward =
     std::function<jsonhandler::JsonAdapterResponse(
       EndpointContext& args, nlohmann::json&& params)>;

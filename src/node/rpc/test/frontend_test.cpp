@@ -97,26 +97,18 @@ public:
     };
     make_endpoint("echo", HTTP_POST, json_adapter(echo_function)).install();
 
-    auto get_caller_function =
-      [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
-        return make_success(caller_id);
-      };
-    make_endpoint("get_caller", HTTP_POST, json_adapter(get_caller_function))
-      .install();
+    auto failable_function = [this](kv::Tx& tx, nlohmann::json&& params) {
+      const auto it = params.find("error");
+      if (it != params.end())
+      {
+        const http_status error_code = (*it)["code"];
+        const std::string error_msg = (*it)["message"];
 
-    auto failable_function =
-      [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
-        const auto it = params.find("error");
-        if (it != params.end())
-        {
-          const http_status error_code = (*it)["code"];
-          const std::string error_msg = (*it)["message"];
+        return make_error((http_status)error_code, error_msg);
+      }
 
-          return make_error((http_status)error_code, error_msg);
-        }
-
-        return make_success(true);
-      };
+      return make_success(true);
+    };
     make_endpoint("failable", HTTP_POST, json_adapter(failable_function))
       .install();
   }
@@ -270,7 +262,7 @@ public:
   void record_ctx(EndpointContext& args)
   {
     last_caller_cert = tls::cert_der_to_pem(args.rpc_ctx->session->caller_cert);
-    last_caller_id = args.caller_id;
+    // last_caller_id = args.caller_id;
   }
 };
 
@@ -491,14 +483,14 @@ TEST_CASE("process_bft")
   const auto serialized_body = serdes::pack(call_body, default_pack);
   simple_call.set_body(&serialized_body);
 
-  kv::TxHistory::RequestID rid = {1, 1, 1};
+  kv::TxHistory::RequestID rid = {1, 1};
 
   const auto serialized_call = simple_call.build_request();
   aft::Request request = {
-    user_id, rid, user_caller_der, serialized_call, enclave::FrameFormat::http};
+    rid, user_caller_der, serialized_call, enclave::FrameFormat::http};
 
   auto session = std::make_shared<enclave::SessionContext>(
-    enclave::InvalidSessionId, user_id, user_caller_der);
+    enclave::InvalidSessionId, user_caller_der);
   auto ctx = enclave::make_rpc_context(session, request.raw);
   ctx->execute_on_node = true;
   frontend.process_bft(ctx);
@@ -511,7 +503,6 @@ TEST_CASE("process_bft")
 
   aft::Request deserialised_req = request_value.value();
 
-  REQUIRE(deserialised_req.caller_id == user_id);
   REQUIRE(deserialised_req.caller_cert == user_caller.raw());
   REQUIRE(deserialised_req.raw == serialized_call);
   REQUIRE(deserialised_req.frame_format == enclave::FrameFormat::http);

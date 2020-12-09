@@ -36,7 +36,7 @@ namespace ccf
 
   private:
     SpinLock verifiers_lock;
-    std::map<CallerId, tls::VerifierPtr> verifiers;
+    std::map<std::vector<uint8_t>, tls::VerifierPtr> verifiers;
 
     SpinLock open_lock;
     bool is_open_ = false;
@@ -88,31 +88,13 @@ namespace ccf
       }
     }
 
-    std::vector<uint8_t> get_cert_to_forward(
-      std::shared_ptr<enclave::RpcContext> ctx,
-      const EndpointDefinitionPtr& endpoint = nullptr)
-    {
-      // Only forward the certificate if the certificate cannot be looked up
-      // from the caller ID on the receiving frontend or if the endpoint does
-      // not require a known client identity
-      if (
-        !endpoints.has_certs() ||
-        (endpoint != nullptr && !endpoint->properties.require_client_identity))
-      {
-        return ctx->session->caller_cert;
-      }
-
-      return {};
-    }
-
     std::optional<std::vector<uint8_t>> forward_or_redirect_json(
       std::shared_ptr<enclave::RpcContext> ctx,
-      const EndpointDefinitionPtr& endpoint,
-      CallerId caller_id)
+      const EndpointDefinitionPtr& endpoint)
     {
       auto& metrics = endpoints.get_metrics(endpoint);
 
-      if (cmd_forwarder && !ctx->session->original_caller.has_value())
+      if (cmd_forwarder && !ctx->session->is_forwarded)
       {
         if (consensus != nullptr)
         {
@@ -124,8 +106,7 @@ namespace ccf
               ctx,
               primary_id,
               consensus->active_nodes(),
-              caller_id,
-              get_cert_to_forward(ctx, endpoint)))
+              ctx->session->caller_cert))
           {
             // Indicate that the RPC has been forwarded to primary
             LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id);
@@ -163,32 +144,31 @@ namespace ccf
       }
     }
 
-    void record_client_signature(
-      kv::Tx& tx, CallerId caller_id, const SignedReq& signed_request)
+    void record_client_signature(kv::Tx& tx, const SignedReq& signed_request)
     {
-      if (client_signatures_name.empty())
-      {
-        return;
-      }
+      // TODO: I think we should be always storing the full request, at key 0?
+      // Why do we care about keeping per-caller_id?
+      // if (client_signatures_name.empty())
+      // {
+      //   return;
+      // }
 
-      auto client_sig_view =
-        tx.get_view<ClientSignatures>(client_signatures_name);
-      if (request_storing_disabled)
-      {
-        SignedReq no_req;
-        no_req.sig = signed_request.sig;
-        client_sig_view->put(caller_id, no_req);
-      }
-      else
-      {
-        client_sig_view->put(caller_id, signed_request);
-      }
+      // auto client_sig_view =
+      //   tx.get_view<ClientSignatures>(client_signatures_name);
+      // if (request_storing_disabled)
+      // {
+      //   SignedReq no_req;
+      //   no_req.sig = signed_request.sig;
+      //   client_sig_view->put(caller_id, no_req);
+      // }
+      // else
+      // {
+      //   client_sig_view->put(caller_id, signed_request);
+      // }
     }
 
     bool verify_client_signature(
-      const std::vector<uint8_t>& caller,
-      const CallerId caller_id,
-      const SignedReq& signed_request)
+      const std::vector<uint8_t>& caller_cert, const SignedReq& signed_request)
     {
       if (client_signatures_name.empty())
       {
@@ -198,13 +178,13 @@ namespace ccf
       tls::VerifierPtr verifier;
       {
         std::lock_guard<SpinLock> mguard(verifiers_lock);
-        auto v = verifiers.find(caller_id);
+        auto v = verifiers.find(caller_cert);
         if (v == verifiers.end())
         {
           verifiers.emplace(
-            std::make_pair(caller_id, tls::make_verifier(caller)));
+            std::make_pair(caller_cert, tls::make_verifier(caller_cert)));
         }
-        verifier = verifiers[caller_id];
+        verifier = verifiers[caller_cert];
       }
 
       return verifier->verify(
@@ -238,7 +218,6 @@ namespace ccf
     std::optional<std::vector<uint8_t>> process_command(
       std::shared_ptr<enclave::RpcContext> ctx,
       kv::Tx& tx,
-      CallerId caller_id,
       const PreExec& pre_exec = {})
     {
       const auto endpoint = endpoints.find_endpoint(tx, *ctx);
@@ -333,10 +312,10 @@ namespace ccf
           (!ctx->is_create_request &&
            (!(consensus != nullptr &&
               consensus->type() == ConsensusType::CFT) ||
-            !ctx->session->original_caller.has_value())) &&
+            !ctx->session->is_forwarded)) &&
           !ctx->session->caller_cert.empty() &&
           !verify_client_signature(
-            ctx->session->caller_cert, caller_id, signed_request.value()))
+            ctx->session->caller_cert, signed_request.value()))
         {
           set_response_unauthorized(ctx);
           update_metrics(ctx, metrics);
@@ -419,7 +398,7 @@ namespace ccf
                  !endpoint->properties.execute_locally))))
             {
               ctx->session->is_forwarding = true;
-              return forward_or_redirect_json(ctx, endpoint, caller_id);
+              return forward_or_redirect_json(ctx, endpoint);
             }
             break;
           }
@@ -427,12 +406,12 @@ namespace ccf
           case ForwardingRequired::Always:
           {
             ctx->session->is_forwarding = true;
-            return forward_or_redirect_json(ctx, endpoint, caller_id);
+            return forward_or_redirect_json(ctx, endpoint);
           }
         }
       }
 
-      auto args = EndpointContext{ctx, tx, caller_id, std::move(identity)};
+      auto args = EndpointContext(ctx, std::move(identity), tx);
 
       tx_count++;
 
@@ -452,7 +431,7 @@ namespace ccf
 
           if (should_record_client_signature)
           {
-            record_client_signature(tx, caller_id, signed_request.value());
+            record_client_signature(tx, signed_request.value());
           }
 
           endpoints.execute_endpoint(endpoint, args);
@@ -641,8 +620,6 @@ namespace ccf
         return ctx->serialise_response();
       }
 
-      auto caller_id = endpoints.get_caller_id(tx, ctx->session->caller_cert);
-
       auto endpoint = endpoints.find_endpoint(tx, *ctx);
 
       const bool is_bft =
@@ -653,33 +630,29 @@ namespace ccf
         (ctx->execute_on_node || consensus->is_primary());
 
       // This decision is based on several things read from the KV
-      // (cert->caller_id, request->is_local) which are true _now_ but may not
+      // (request->is_local) which are true _now_ but may not
       // be true when this is actually received/executed. We should revisit this
       // once we have general KV-defined dispatch, to ensure this is safe. For
       // forwarding we will need to pass a digest of the endpoint definition,
       // and that should also work here
       if (should_bft_distribute)
       {
-        kv::TxHistory::RequestID reqid;
-
         update_history();
-        reqid = {
-          caller_id, ctx->session->client_session_id, ctx->get_request_index()};
         if (history)
         {
+          const kv::TxHistory::RequestID reqid = {
+            ctx->session->client_session_id, ctx->get_request_index()};
           if (!history->add_request(
                 reqid,
-                caller_id,
-                get_cert_to_forward(ctx),
+                ctx->session->caller_cert,
                 ctx->get_serialised_request(),
                 ctx->frame_format()))
           {
             LOG_FAIL_FMT("Adding request failed");
             LOG_DEBUG_FMT(
-              "Adding request failed: {}, {}, {}",
+              "Adding request failed: {}, {}",
               std::get<0>(reqid),
-              std::get<1>(reqid),
-              std::get<2>(reqid));
+              std::get<1>(reqid));
             ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
             ctx->set_response_body("Could not process request.");
             return ctx->serialise_response();
@@ -695,7 +668,7 @@ namespace ccf
         }
       }
 
-      return process_command(ctx, tx, caller_id);
+      return process_command(ctx, tx);
     }
 
     /** Process a serialised command with the associated RPC context via BFT
@@ -723,14 +696,13 @@ namespace ccf
           tx.get_view<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
         req_view->put(
           0,
-          {ctx.session->original_caller.value().caller_id,
-           tx.get_req_id(),
+          {tx.get_req_id(),
            ctx.session->caller_cert,
-           ctx.get_serialised_request()});
+           ctx.get_serialised_request(),
+           ctx.frame_format()});
       };
 
-      auto rep =
-        process_command(ctx, tx, ctx->session->original_caller->caller_id, fn);
+      auto rep = process_command(ctx, tx, fn);
 
       version = tx.get_version();
       return {std::move(rep.value()), version};
@@ -756,7 +728,7 @@ namespace ccf
     std::vector<uint8_t> process_forwarded(
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
-      if (!ctx->session->original_caller.has_value())
+      if (!ctx->session->is_forwarded)
       {
         throw std::logic_error(
           "Processing forwarded command with unitialised forwarded context");
@@ -767,8 +739,7 @@ namespace ccf
       if (consensus->type() == ConsensusType::CFT)
       {
         auto tx = tables.create_tx();
-        auto rep =
-          process_command(ctx, tx, ctx->session->original_caller->caller_id);
+        auto rep = process_command(ctx, tx);
         if (!rep.has_value())
         {
           // This should never be called when process_command is called with a

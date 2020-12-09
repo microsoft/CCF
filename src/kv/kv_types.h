@@ -166,7 +166,6 @@ namespace kv
   {
   public:
     using RequestID = std::tuple<
-      size_t /* Caller ID */,
       size_t /* Client Session ID */,
       size_t /* Request sequence number */>;
 
@@ -174,7 +173,6 @@ namespace kv
     {
       RequestID rid;
       std::vector<uint8_t> request;
-      uint64_t caller_id;
       std::vector<uint8_t> caller_cert;
       uint8_t frame_format;
     };
@@ -221,7 +219,6 @@ namespace kv
 
     virtual bool add_request(
       kv::TxHistory::RequestID id,
-      uint64_t caller_id,
       const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request,
       uint8_t frame_format) = 0;

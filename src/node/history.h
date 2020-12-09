@@ -39,10 +39,9 @@ namespace fmt
     {
       return format_to(
         ctx.out(),
-        "<RID {0}, {1}, {2}>",
+        "<RID {0}, {1}>",
         std::get<0>(p),
-        std::get<1>(p),
-        std::get<2>(p));
+        std::get<1>(p));
     }
   };
 }
@@ -151,7 +150,6 @@ namespace ccf
 
     bool add_request(
       kv::TxHistory::RequestID,
-      CallerId,
       const std::vector<uint8_t>&,
       const std::vector<uint8_t>&,
       uint8_t) override
@@ -872,7 +870,6 @@ namespace ccf
 
     bool add_request(
       kv::TxHistory::RequestID id,
-      CallerId caller_id,
       const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request,
       uint8_t frame_format) override
@@ -887,7 +884,7 @@ namespace ccf
       }
 
       return consensus->on_request(
-        {id, request, caller_id, caller_cert, frame_format});
+        {id, request, caller_cert, frame_format});
     }
 
     struct PendingInsert

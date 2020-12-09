@@ -163,7 +163,7 @@ auto frontend_process(
   const tls::Pem& caller)
 {
   auto session = std::make_shared<enclave::SessionContext>(
-    0, tls::make_verifier(caller)->der_cert_data());
+    enclave::InvalidSessionId, tls::make_verifier(caller)->der_cert_data());
   auto rpc_ctx = enclave::make_rpc_context(session, serialized_request);
   auto serialized_response = frontend.process(rpc_ctx);
 

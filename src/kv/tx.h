@@ -589,7 +589,7 @@ namespace kv
         throw std::logic_error("Failed to commit reserved transaction");
 
       committed = true;
-      return {CommitSuccess::OK, {0, 0, 0}, serialise()};
+      return {CommitSuccess::OK, {0, 0}, serialise()};
     }
   };
 }

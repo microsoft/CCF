@@ -121,34 +121,12 @@ namespace enclave
     //
     // Only set in the case of a forwarded RPC
     //
-    struct Forwarded
-    {
-      // Initialised when forwarded context is created
-      const size_t client_session_id;
-      const ccf::CallerId caller_id;
+    bool is_forwarded = false;
 
-      Forwarded(size_t client_session_id_, ccf::CallerId caller_id_) :
-        client_session_id(client_session_id_),
-        caller_id(caller_id_)
-      {}
-    };
-    std::optional<Forwarded> original_caller = std::nullopt;
-
-    // Constructor used for non-forwarded RPC
     SessionContext(
       size_t client_session_id_, const std::vector<uint8_t>& caller_cert_) :
       client_session_id(client_session_id_),
       caller_cert(caller_cert_)
-    {}
-
-    // Constructor used for forwarded and BFT RPC
-    SessionContext(
-      size_t fwd_session_id_,
-      ccf::CallerId caller_id_,
-      const std::vector<uint8_t>& caller_cert_ = {}) :
-      caller_cert(caller_cert_),
-      original_caller(
-        std::make_optional<Forwarded>(fwd_session_id_, caller_id_))
     {}
   };
 

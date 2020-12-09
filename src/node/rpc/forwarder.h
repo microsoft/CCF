@@ -60,14 +60,12 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext> rpc_ctx,
       NodeId to,
       std::set<NodeId> nodes,
-      CallerId caller_id,
       const std::vector<uint8_t>& caller_cert)
     {
       IsCallerCertForwarded include_caller = false;
       const auto method = rpc_ctx->get_method();
       const auto& raw_request = rpc_ctx->get_serialised_request();
-      size_t size = sizeof(caller_id) +
-        sizeof(rpc_ctx->session->client_session_id) +
+      size_t size = sizeof(rpc_ctx->session->client_session_id) +
         sizeof(IsCallerCertForwarded) + raw_request.size();
       if (!caller_cert.empty())
       {
@@ -78,7 +76,6 @@ namespace ccf
       std::vector<uint8_t> plain(size);
       auto data_ = plain.data();
       auto size_ = plain.size();
-      serialized::write(data_, size_, caller_id);
       serialized::write(data_, size_, rpc_ctx->session->client_session_id);
       serialized::write(data_, size_, include_caller);
       if (include_caller)
@@ -144,7 +141,6 @@ namespace ccf
       const auto& plain_ = r.second;
       auto data_ = plain_.data();
       auto size_ = plain_.size();
-      auto caller_id = serialized::read<CallerId>(data_, size_);
       auto client_session_id = serialized::read<size_t>(data_, size_);
       auto includes_caller =
         serialized::read<IsCallerCertForwarded>(data_, size_);
@@ -156,7 +152,8 @@ namespace ccf
       std::vector<uint8_t> raw_request = serialized::read(data_, size_, size_);
 
       auto session = std::make_shared<enclave::SessionContext>(
-        client_session_id, caller_id, caller_cert);
+        client_session_id, caller_cert);
+      session->is_forwarded = true;
 
       try
       {
@@ -288,7 +285,7 @@ namespace ccf
             }
 
             if (!send_forwarded_response(
-                  ctx->session->original_caller->client_session_id,
+                  ctx->session->client_session_id,
                   from_node,
                   fwd_handler->process_forwarded(ctx)))
             {

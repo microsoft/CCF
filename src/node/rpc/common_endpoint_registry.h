@@ -93,43 +93,61 @@ namespace ccf
         .set_execute_locally(true)
         .install();
 
-      if (has_certs())
-      {
-        auto user_id = [this](auto& args, nlohmann::json&& params) {
-          if (!has_certs())
+      auto user_id = [this](auto& args, nlohmann::json&& params) {
+        GetUserId::Out out;
+
+        if (!params.is_null())
+        {
+          const GetUserId::In in = params;
+          auto certs_view =
+            args.tx.template get_read_only_view<CertDERs>(certs_table_name);
+          std::vector<uint8_t> pem(in.cert.begin(), in.cert.end());
+          std::vector<uint8_t> der = tls::make_verifier(pem)->der_cert_data();
+          auto caller_id_opt = certs_view->get(der);
+
+          if (!caller_id_opt.has_value())
           {
             return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              "This frontend does not support 'user_id'");
+              HTTP_STATUS_BAD_REQUEST, "Certificate not recognised");
           }
 
-          auto caller_id = args.caller_id;
+          out.caller_id = caller_id_opt.value();
+        }
+        else if (
+          auto user_cert_ident =
+            args.template get_caller<ccf::UserCertAuthnIdentity>())
+        {
+          out.caller_id = user_cert_ident->user_id;
+        }
+        else if (
+          auto member_cert_ident =
+            args.template get_caller<ccf::MemberCertAuthnIdentity>())
+        {
+          out.caller_id = member_cert_ident->member_id;
+        }
+        else if (
+          auto user_sig_ident =
+            args.template get_caller<ccf::UserSignatureAuthnIdentity>())
+        {
+          out.caller_id = user_cert_ident->user_id;
+        }
+        else if (
+          auto member_sig_ident =
+            args.template get_caller<ccf::MemberSignatureAuthnIdentity>())
+        {
+          out.caller_id = member_cert_ident->member_id;
+        }
 
-          if (!params.is_null())
-          {
-            const GetUserId::In in = params;
-            auto certs_view =
-              args.tx.template get_read_only_view<CertDERs>(certs_table_name);
-            std::vector<uint8_t> pem(in.cert.begin(), in.cert.end());
-            std::vector<uint8_t> der = tls::make_verifier(pem)->der_cert_data();
-            auto caller_id_opt = certs_view->get(der);
-
-            if (!caller_id_opt.has_value())
-            {
-              return make_error(
-                HTTP_STATUS_BAD_REQUEST, "Certificate not recognised");
-            }
-
-            caller_id = caller_id_opt.value();
-          }
-
-          return make_success(GetUserId::Out{caller_id});
-        };
-        make_read_only_endpoint(
-          "user_id", HTTP_GET, json_read_only_adapter(user_id))
-          .set_auto_schema<GetUserId::In, GetUserId::Out>()
-          .install();
-      }
+        return make_success(out);
+      };
+      make_read_only_endpoint(
+        "user_id", HTTP_GET, json_read_only_adapter(user_id))
+        .set_auto_schema<GetUserId::In, GetUserId::Out>()
+        .add_authentication_policy(user_cert_auth_policy)
+        .add_authentication_policy(user_signature_auth_policy)
+        .add_authentication_policy(member_cert_auth_policy)
+        .add_authentication_policy(member_signature_auth_policy)
+        .install();
 
       auto get_primary_info = [this](auto& args, nlohmann::json&&) {
         if (consensus != nullptr)

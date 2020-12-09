@@ -35,12 +35,18 @@ namespace ccf
     nlohmann::json payload;
   };
 
-  struct EndpointContext
+  // Commands are endpoints which do not interact with the kv, even to read
+  struct CommandEndpointContext
   {
+    CommandEndpointContext(
+      const std::shared_ptr<enclave::RpcContext>& r,
+      std::unique_ptr<AuthnIdentity>&& c) :
+      rpc_ctx(r),
+      caller(std::move(c))
+    {}
+
     std::shared_ptr<enclave::RpcContext> rpc_ctx;
-    kv::Tx& tx;
-    CallerId caller_id; // TODO: Remove this
-    const std::unique_ptr<AuthnIdentity> caller;
+    std::unique_ptr<AuthnIdentity> caller;
 
     template <typename T>
     const T* get_caller()
@@ -48,27 +54,38 @@ namespace ccf
       return dynamic_cast<const T*>(caller.get());
     }
   };
+  using CommandEndpointFunction =
+    std::function<void(CommandEndpointContext& args)>;
+
+  struct EndpointContext : public CommandEndpointContext
+  {
+    EndpointContext(
+      const std::shared_ptr<enclave::RpcContext>& r,
+      std::unique_ptr<AuthnIdentity>&& c,
+      kv::Tx& t) :
+      CommandEndpointContext(r, std::move(c)),
+      tx(t)
+    {}
+
+    kv::Tx& tx;
+  };
   using EndpointFunction = std::function<void(EndpointContext& args)>;
 
   // Read-only endpoints can only get values from the kv, they cannot write
-  struct ReadOnlyEndpointContext
+  struct ReadOnlyEndpointContext : public CommandEndpointContext
   {
-    std::shared_ptr<enclave::RpcContext> rpc_ctx;
+    ReadOnlyEndpointContext(
+      const std::shared_ptr<enclave::RpcContext>& r,
+      std::unique_ptr<AuthnIdentity>&& c,
+      kv::ReadOnlyTx& t) :
+      CommandEndpointContext(r, std::move(c)),
+      tx(t)
+    {}
+
     kv::ReadOnlyTx& tx;
-    CallerId caller_id;
-    // TODO: Add AuthnIdentity here?
   };
   using ReadOnlyEndpointFunction =
     std::function<void(ReadOnlyEndpointContext& args)>;
-
-  // Commands are endpoints which do not interact with the kv, even to read
-  struct CommandEndpointContext
-  {
-    std::shared_ptr<enclave::RpcContext> rpc_ctx;
-    CallerId caller_id;
-  };
-  using CommandEndpointFunction =
-    std::function<void(CommandEndpointContext& args)>;
 
   /** The EndpointRegistry records the user-defined endpoints for a given
    * CCF application.
@@ -559,8 +576,8 @@ namespace ccf
                method,
                verb,
                [f](EndpointContext& args) {
-                 ReadOnlyEndpointContext ro_args{
-                   args.rpc_ctx, args.tx, args.caller_id};
+                 ReadOnlyEndpointContext ro_args(
+                   args.rpc_ctx, std::move(args.caller), args.tx);
                  f(ro_args);
                })
         .set_forwarding_required(ForwardingRequired::Sometimes);
@@ -580,9 +597,7 @@ namespace ccf
                method,
                verb,
                [f](EndpointContext& args) {
-                 CommandEndpointContext command_args{args.rpc_ctx,
-                                                     args.caller_id};
-                 f(command_args);
+                 f(args); // TODO: More like this
                })
         .set_forwarding_required(ForwardingRequired::Sometimes);
     }
@@ -899,33 +914,9 @@ namespace ccf
 
     virtual void tick(std::chrono::milliseconds, kv::Consensus::Statistics) {}
 
-    bool has_certs()
-    {
-      return !certs_table_name.empty();
-    }
-
     bool has_digests()
     {
       return !digests_table_name.empty();
-    }
-
-    virtual CallerId get_caller_id(
-      kv::Tx& tx, const std::vector<uint8_t>& caller_cert)
-    {
-      if (!has_certs() || caller_cert.empty())
-      {
-        return INVALID_ID;
-      }
-
-      auto certs_view = tx.get_view<CertDERs>(certs_table_name);
-      auto caller_id = certs_view->get(caller_cert);
-
-      if (!caller_id.has_value())
-      {
-        return INVALID_ID;
-      }
-
-      return caller_id.value();
     }
 
     // TODO: This is only needed to support the deprecated
