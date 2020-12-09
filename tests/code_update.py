@@ -151,6 +151,7 @@ def run(args):
         test_verify_quotes(network, args)
         test_add_node_with_bad_code(network, args)
         test_update_all_nodes(network, args)
+        test_verify_quotes(network, args)
 
 
 if __name__ == "__main__":
