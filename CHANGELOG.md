@@ -31,7 +31,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Hostname of TLS certificate is checked when auto-refreshing JWT signing keys (#1934).
 - Evercrypt update to 0.3.0 (#1967).
 
-
 ## [0.15.2]
 
 ### Added
