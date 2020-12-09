@@ -7,13 +7,29 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [0.16.0]
 
+### Added
+
+- CLI options are printed on every node launch (#1923).
+- JS logging sample app is included in CCF package (#1932).
+- C++ apps can be built using cmake's `find_package(ccf REQUIRED)` (see [cmake sample](https://github.com/microsoft/CCF/blob/master/samples/apps/logging/CMakeLists.txt)) (#1947).
+
 ### Changed
 
 - JWT signing keys are auto-refreshed immediately when adding a new issuer instead of waiting until the next auto-refresh event is due (#1978).
+- Snapshots are only committed when proof of snapshot evidence is committed (#1972).
+- Snapshot evidence must be validated before joining/recovering from snapshot (see [doc](https://microsoft.github.io/CCF/master/operations/ledger_snapshot.html#join-recover-from-snapshot)) (#1925).
+
+### Fixed
+
+- Ledger index is recovered correctly even if `--ledger-dir` directory is empty (#1953).
+- Memory leak fixes (#1957, #1959, #1974, #1982).
+- Consensus fixes (#1977, #1981).
+- Enclave schedules messages in a fairer way (#1991).
 
 ### Security
 
 - Hostname of TLS certificate is checked when auto-refreshing JWT signing keys (#1934).
+- Evercrypt update to 0.3.0 (#1967).
 
 ## [0.15.2]
 
