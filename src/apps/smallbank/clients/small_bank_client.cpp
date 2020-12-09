@@ -43,7 +43,7 @@ private:
   {
     if (!header.empty())
     {
-      LOG_INFO_FMT(header);
+      LOG_INFO_FMT("Header: {}", header);
     }
 
     auto conn = create_connection(true, false);
