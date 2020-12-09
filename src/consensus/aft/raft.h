@@ -642,8 +642,7 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT("Error in recv_view_change message");
-        LOG_DEBUG_FMT("Error in recv_view_change message: {}", err.what());
+        LOG_FAIL_EXC(err.what());
         return;
       }
 
@@ -691,9 +690,7 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT("Error in recv_view_change_evidence message");
-        LOG_DEBUG_FMT(
-          "Error in recv_view_change_evidence message: {}", err.what());
+        LOG_FAIL_EXC(err.what());
         return;
       }
 
@@ -889,7 +886,7 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT(err.what());
+        LOG_FAIL_EXC(err.what());
         return;
       }
 
@@ -1305,8 +1302,7 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT("Error in recv_authenticated message");
-        LOG_DEBUG_FMT("Error in recv_authenticated message: {}", err.what());
+        LOG_FAIL_EXC(err.what());
         return;
       }
 
@@ -1385,9 +1381,7 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT("Error in recv_signature_received_ack message");
-        LOG_DEBUG_FMT(
-          "Error in recv_signature_received_ack message: {}", err.what());
+        LOG_FAIL_EXC(err.what());
         return;
       }
 
@@ -1465,8 +1459,7 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT("Error in recv_nonce_reveal message");
-        LOG_DEBUG_FMT("Error in recv_nonce_reveal message: {}", err.what());
+        LOG_FAIL_EXC(err.what());
         return;
       }
 
@@ -1510,7 +1503,7 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT(err.what());
+        LOG_FAIL_EXC(err.what());
         return;
       }
 
@@ -1631,7 +1624,7 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT(err.what());
+        LOG_FAIL_EXC(err.what());
         return;
       }
 
@@ -1742,7 +1735,7 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT(err.what());
+        LOG_FAIL_EXC(err.what());
         return;
       }
 
