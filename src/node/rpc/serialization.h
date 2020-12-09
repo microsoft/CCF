@@ -16,7 +16,8 @@ namespace ccf
      {ccf::State::partOfPublicNetwork, "partOfPublicNetwork"},
      {ccf::State::partOfNetwork, "partOfNetwork"},
      {ccf::State::readingPublicLedger, "readingPublicLedger"},
-     {ccf::State::readingPrivateLedger, "readingPrivateLedger"}})
+     {ccf::State::readingPrivateLedger, "readingPrivateLedger"},
+     {ccf::State::verifyingSnapshot, "verifyingSnapshot"}})
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetState::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetState::Out, id, state, last_signed_seqno)
   DECLARE_JSON_OPTIONAL_FIELDS(

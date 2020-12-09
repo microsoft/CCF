@@ -373,7 +373,8 @@
           "partOfPublicNetwork",
           "partOfNetwork",
           "readingPublicLedger",
-          "readingPrivateLedger"
+          "readingPrivateLedger",
+          "verifyingSnapshot"
         ]
       },
       "int32": {
