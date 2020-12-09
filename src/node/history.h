@@ -9,7 +9,6 @@
 #include "entities.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
-#include "libmerklecpp/merklecpp.h"
 #include "nodes.h"
 #include "signatures.h"
 #include "tls/tls.h"
@@ -17,6 +16,7 @@
 
 #include <array>
 #include <deque>
+#include <merklecpp.h>
 #include <string.h>
 
 namespace fmt
