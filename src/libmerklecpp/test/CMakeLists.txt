@@ -1,29 +1,31 @@
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-if (EVERCRYPT)
+if(EVERCRYPT)
   add_subdirectory(evercrypt)
 endif()
 
 function(add_merkle_test NAME SRC)
   add_executable(${NAME} ${SRC})
   target_include_directories(${NAME} PRIVATE ${MERKLE++_DIR})
-  if (TRACE)
+  if(TRACE)
     target_compile_definitions(${NAME} PRIVATE WITH_TRACE)
   endif()
-  if (EVERCRYPT)
+  if(EVERCRYPT)
     get_target_property(EINC evercrypt INCLUDE_DIRECTORIES)
     target_link_libraries(${NAME} evercrypt)
     target_compile_definitions(${NAME} PRIVATE HAVE_EVERCRYPT)
   endif()
   target_include_directories(${NAME} PRIVATE ${EINC})
 
-  if (PROFILE)
+  if(PROFILE)
     target_compile_options(${NAME} PRIVATE -g -pg)
     target_link_options(${NAME} PRIVATE -g -pg)
   endif()
 
-  if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_compile_options(${NAME} PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_options(
+      ${NAME} PRIVATE -fsanitize=address -fno-omit-frame-pointer
+    )
     target_link_options(${NAME} PRIVATE -fsanitize=address)
   endif()
 
@@ -39,6 +41,6 @@ add_merkle_test(hashes hashes.cpp)
 add_merkle_test(past_root past_root.cpp)
 add_merkle_test(serialisation serialisation.cpp)
 
-if (EVERCRYPT)
+if(EVERCRYPT)
   add_merkle_test(compare_evercrypt compare_evercrypt.cpp)
 endif()
