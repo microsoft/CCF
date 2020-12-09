@@ -69,7 +69,7 @@ T parse_response_body(const TResponse& r)
   }
   catch (const nlohmann::json::parse_error& e)
   {
-    LOG_FAIL_FMT(e.what());
+    LOG_FAIL_FMT("RPC error: {}", e.what());
     LOG_FAIL_FMT("RPC error: {}", std::string(r.body.begin(), r.body.end()));
   }
 
