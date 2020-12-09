@@ -31,13 +31,13 @@ int main()
 
     for (size_t k = 0; k < num_trees; k++)
     {
-      std::map<size_t, Merkle::Hash> past_roots;
+      std::map<size_t, merkle::Hash> past_roots;
       size_t num_leaves = 1 + (std::rand() / (double)RAND_MAX) * max_num_leaves;
       total_leaves += num_leaves;
       auto hashes = make_hashes(num_leaves);
 
       // Build
-      Merkle::Tree mt;
+      merkle::Tree mt;
       for (auto& h : hashes)
       {
         assert(mt.invariant());
@@ -65,7 +65,7 @@ int main()
 
       // Deserialise
       size_t index = 0;
-      Merkle::Tree mt2(buffer, index);
+      merkle::Tree mt2(buffer, index);
 
       // Check roots and other properties
       if (

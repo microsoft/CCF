@@ -206,8 +206,8 @@ namespace ccf
   class Receipt
   {
   private:
-    Merkle::Hash root;
-    std::shared_ptr<Merkle::Path> path = nullptr;
+    merkle::Hash root;
+    std::shared_ptr<merkle::Path> path = nullptr;
 
   public:
     Receipt() {}
@@ -216,10 +216,10 @@ namespace ccf
     {
       size_t position = 0;
       root.deserialise(v, position);
-      path = std::make_shared<Merkle::Path>(v, position);
+      path = std::make_shared<merkle::Path>(v, position);
     }
 
-    Receipt(Merkle::Tree* tree, uint64_t index)
+    Receipt(merkle::Tree* tree, uint64_t index)
     {
       root = tree->root();
       path = tree->path(index);
@@ -227,7 +227,7 @@ namespace ccf
 
     Receipt(const Receipt&) = delete;
 
-    bool verify(Merkle::Tree* tree) const
+    bool verify(merkle::Tree* tree) const
     {
       return tree->max_index() == path->max_index() && tree->root() == root &&
         path->verify(root);
@@ -244,19 +244,19 @@ namespace ccf
 
   class MerkleTreeHistory
   {
-    Merkle::Tree* tree;
+    merkle::Tree* tree;
 
   public:
     MerkleTreeHistory(MerkleTreeHistory const&) = delete;
 
     MerkleTreeHistory(const std::vector<uint8_t>& serialised)
     {
-      tree = new Merkle::Tree(serialised);
+      tree = new merkle::Tree(serialised);
     }
 
     MerkleTreeHistory(crypto::Sha256Hash first_hash = {})
     {
-      tree = new Merkle::Tree(Merkle::Hash(first_hash.h));
+      tree = new merkle::Tree(merkle::Hash(first_hash.h));
     }
 
     ~MerkleTreeHistory()
@@ -268,17 +268,17 @@ namespace ccf
     void deserialise(const std::vector<uint8_t>& serialised)
     {
       delete (tree);
-      tree = new Merkle::Tree(serialised);
+      tree = new merkle::Tree(serialised);
     }
 
     void append(crypto::Sha256Hash& hash)
     {
-      tree->insert(Merkle::Hash(hash.h));
+      tree->insert(merkle::Hash(hash.h));
     }
 
     crypto::Sha256Hash get_root() const
     {
-      const Merkle::Hash& root = tree->root();
+      const merkle::Hash& root = tree->root();
       crypto::Sha256Hash result;
       std::copy(root.bytes, root.bytes + root.size(), result.h.begin());
       return result;
@@ -288,7 +288,7 @@ namespace ccf
     {
       delete (tree);
       crypto::Sha256Hash root(rhs.get_root());
-      tree = new Merkle::Tree(Merkle::Hash(root.h));
+      tree = new merkle::Tree(merkle::Hash(root.h));
     }
 
     void flush(uint64_t index)
@@ -350,7 +350,7 @@ namespace ccf
 
     crypto::Sha256Hash get_leaf(uint64_t index)
     {
-      const Merkle::Hash& leaf = tree->leaf(index);
+      const merkle::Hash& leaf = tree->leaf(index);
       crypto::Sha256Hash result;
       std::copy(leaf.bytes, leaf.bytes + leaf.size(), result.h.begin());
       return result;

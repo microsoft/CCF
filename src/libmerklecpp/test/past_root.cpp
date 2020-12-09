@@ -31,14 +31,14 @@ int main()
 
     for (size_t k = 0; k < num_trees; k++)
     {
-      std::map<size_t, Merkle::Hash> past_roots;
+      std::map<size_t, merkle::Hash> past_roots;
       size_t num_leaves = 1 + (std::rand() / (double)RAND_MAX) * max_num_leaves;
       total_leaves += num_leaves;
       auto hashes = make_hashes(num_leaves);
 
       {
         // Extract some normal roots along the way
-        Merkle::Tree mt;
+        merkle::Tree mt;
         for (size_t i = 0; i < hashes.size(); i++)
         {
           mt.insert(hashes[i]);
@@ -48,7 +48,7 @@ int main()
       }
 
       // Build new tree without taking roots
-      Merkle::Tree mt;
+      merkle::Tree mt;
       for (auto& h : hashes)
         mt.insert(h);
 

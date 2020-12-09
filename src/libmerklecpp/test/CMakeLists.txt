@@ -6,7 +6,7 @@ endif()
 
 function(add_merkle_test NAME SRC)
   add_executable(${NAME} ${SRC})
-  target_include_directories(${NAME} PRIVATE ${MERKLE++_DIR})
+  target_include_directories(${NAME} PRIVATE ${MERKLECPP_DIR})
   if(TRACE)
     target_compile_definitions(${NAME} PRIVATE WITH_TRACE)
   endif()

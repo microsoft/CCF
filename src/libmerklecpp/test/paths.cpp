@@ -39,10 +39,10 @@ int main()
 
       auto hashes = make_hashes(num_leaves);
 
-      Merkle::Tree mt;
+      merkle::Tree mt;
       for (auto h : hashes)
         mt.insert(h);
-      Merkle::Tree::Hash root = mt.root();
+      merkle::Tree::Hash root = mt.root();
 
       for (size_t p = 0; p < num_paths; p++)
       {

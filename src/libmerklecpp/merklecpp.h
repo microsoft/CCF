@@ -39,7 +39,7 @@
 #else
 #  define TRACE(X)
 #endif
-namespace Merkle
+namespace merkle
 {
   void serialise_size_t(size_t size, std::vector<uint8_t>& bytes)
   {

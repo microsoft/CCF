@@ -36,7 +36,7 @@ int main()
 
       auto hashes = make_hashes(num_leaves);
 
-      Merkle::Tree mt;
+      merkle::Tree mt;
       for (size_t i = 0; i < hashes.size(); i++)
       {
         mt.insert(hashes[i]);

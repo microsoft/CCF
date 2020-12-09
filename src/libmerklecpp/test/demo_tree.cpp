@@ -24,10 +24,10 @@ int main()
     {
       auto hashes = make_hashes(num_leaves);
 
-      Merkle::Tree mt;
+      merkle::Tree mt;
       for (auto h : hashes)
         mt.insert(h);
-      Merkle::Tree::Hash root = mt.root();
+      merkle::Tree::Hash root = mt.root();
       std::cout << mt.to_string(PRINT_HASH_SIZE) << std::endl;
 
 #ifdef HAVE_EVERCRYPT
@@ -43,14 +43,14 @@ int main()
       mt_get_root(ec_mt, ec_hash);
 
       std::cout << "EverCrypt: " << std::endl;
-      std::cout << "R: " << Merkle::Hash(ec_hash).to_string() << std::endl;
+      std::cout << "R: " << merkle::Hash(ec_hash).to_string() << std::endl;
 
       mt_free_hash(ec_hash);
       mt_free(ec_mt);
       std::cout << std::endl;
 #endif
 
-      Merkle::Tree mtl = mt.split(3);
+      merkle::Tree mtl = mt.split(3);
       std::cout << "Left: " << std::endl;
       std::cout << mtl.to_string(PRINT_HASH_SIZE) << std::endl;
       std::cout << "Right: " << std::endl;
@@ -71,7 +71,7 @@ int main()
 
       std::vector<uint8_t> buffer;
       mt.serialise(buffer);
-      Merkle::Tree dmt(buffer);
+      merkle::Tree dmt(buffer);
       if (mt.root() != dmt.root())
         throw std::runtime_error("root hash mismatch");
 

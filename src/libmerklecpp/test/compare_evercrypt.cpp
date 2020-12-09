@@ -22,28 +22,28 @@ void dump_ec_tree(merkle_tree* mt)
       std::cout << i << ":";
       for (size_t j = 0; j < hv.sz; j++)
       {
-        std::cout << " " << Merkle::Hash(hv.vs[j]).to_string(PRNTSZ);
+        std::cout << " " << merkle::Hash(hv.vs[j]).to_string(PRNTSZ);
       }
       std::cout << std::endl;
     }
   }
-  std::cout << "root=" << Merkle::Hash(mt->mroot).to_string(PRNTSZ)
+  std::cout << "root=" << merkle::Hash(mt->mroot).to_string(PRNTSZ)
             << std::endl;
   std::cout << "rhs=";
   for (size_t i = 0; i < mt->rhs.sz; i++)
-    std::cout << " " << Merkle::Hash(mt->rhs.vs[i]).to_string(PRNTSZ);
+    std::cout << " " << merkle::Hash(mt->rhs.vs[i]).to_string(PRNTSZ);
   std::cout << std::endl;
   std::cout << "rhs_ok=" << mt->rhs_ok << std::endl;
   std::cout << "i=" << mt->i << ", j=" << mt->j << std::endl;
 }
 
-void compare_roots(Merkle::Tree& mt, merkle_tree* ec_mt)
+void compare_roots(merkle::Tree& mt, merkle_tree* ec_mt)
 {
   auto root = mt.root();
 
   uint8_t* ec_root_bytes = mt_init_hash(HSZ);
   mt_get_root(ec_mt, ec_root_bytes);
-  auto ec_root = Merkle::Hash(ec_root_bytes);
+  auto ec_root = merkle::Hash(ec_root_bytes);
   mt_free_hash(ec_root_bytes);
 
   if (root != ec_root)
@@ -79,11 +79,11 @@ int main()
 
     for (size_t k = 0; k < num_trees; k++)
     {
-      Merkle::Tree mt;
+      merkle::Tree mt;
 
       // Build trees with k+1 leaves
       int j = 0;
-      std::vector<Merkle::Hash> hashes = make_hashes(k + 1);
+      std::vector<merkle::Hash> hashes = make_hashes(k + 1);
       for (const auto h : hashes)
       {
         mt.insert(h);

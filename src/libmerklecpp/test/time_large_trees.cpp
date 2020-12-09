@@ -28,7 +28,7 @@ int main()
 
     auto hashes = make_hashes(num_leaves);
 
-    Merkle::Tree mt;
+    merkle::Tree mt;
     size_t j = 0;
     auto start = std::chrono::high_resolution_clock::now();
     for (auto h : hashes)
