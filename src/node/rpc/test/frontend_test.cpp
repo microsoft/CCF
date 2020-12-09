@@ -58,7 +58,7 @@ public:
     };
     make_endpoint("empty_function_signed", HTTP_POST, empty_function_signed)
       .set_forwarding_required(ForwardingRequired::Sometimes)
-      .add_authentication_policy(std::make_shared<MemberSignatureAuthnPolicy>())
+      .add_authentication_policy(std::make_shared<UserSignatureAuthnPolicy>())
       .install();
 
     auto empty_function_no_auth = [this](auto& args) {
@@ -271,10 +271,21 @@ public:
   tls::Pem last_caller_cert;
   CallerId last_caller_id = INVALID_ID;
 
-  void record_ctx(EndpointContext& args)
+  void record_ctx(EndpointContext& ctx)
   {
-    last_caller_cert = tls::cert_der_to_pem(args.rpc_ctx->session->caller_cert);
-    // last_caller_id = args.caller_id;
+    last_caller_cert = tls::cert_der_to_pem(ctx.rpc_ctx->session->caller_cert);
+    if (const auto uci = ctx.get_caller<UserCertAuthnIdentity>())
+    {
+      last_caller_id = uci->user_id;
+    }
+    else if (const auto mci = ctx.get_caller<MemberCertAuthnIdentity>())
+    {
+      last_caller_id = mci->member_id;
+    }
+    else
+    {
+      last_caller_id = INVALID_ID;
+    }
   }
 };
 
@@ -346,6 +357,7 @@ public:
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
     endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
+      .add_authentication_policy(std::make_shared<MemberCertAuthnPolicy>())
       .install();
   }
 };
@@ -590,12 +602,13 @@ TEST_CASE("process with signatures")
 
       CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
-      CHECK(error_msg.find("RPC must be signed") != std::string::npos);
+      CHECK(error_msg.find("Missing signature") != std::string::npos);
     }
 
     INFO("Signed RPC");
     {
       const auto serialized_response = frontend.process(signed_rpc_ctx).value();
+      std::cout << std::string((char*)serialized_response.data()) << std::endl;
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
     }
@@ -1226,60 +1239,6 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
       auto response =
         parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
       CHECK(response.status == HTTP_STATUS_OK);
-    }
-  }
-
-  {
-    INFO("Unauthenticated endpoint");
-    auto simple_call_no_auth = create_simple_request("empty_function_no_auth");
-    auto serialized_call_no_auth = simple_call_no_auth.build_request();
-
-    REQUIRE(channel_stub->is_empty());
-
-    {
-      INFO("Known caller");
-      auto ctx =
-        enclave::make_rpc_context(user_session, serialized_call_no_auth);
-
-      const auto r = user_frontend_backup.process(ctx);
-      REQUIRE(!r.has_value());
-      REQUIRE(channel_stub->size() == 1);
-      auto forwarded_msg = channel_stub->get_pop_back();
-
-      auto [fwd_ctx, node_id] =
-        backup_forwarder
-          ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-          .value();
-
-      auto response =
-        parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
-      CHECK(response.status == HTTP_STATUS_OK);
-
-      CHECK(user_frontend_primary.last_caller_cert == user_caller);
-      CHECK(user_frontend_primary.last_caller_id == 0);
-    }
-
-    {
-      INFO("Unknown caller");
-      auto ctx =
-        enclave::make_rpc_context(invalid_session, serialized_call_no_auth);
-
-      const auto r = user_frontend_backup.process(ctx);
-      REQUIRE(!r.has_value());
-      REQUIRE(channel_stub->size() == 1);
-      auto forwarded_msg = channel_stub->get_pop_back();
-
-      auto [fwd_ctx, node_id] =
-        backup_forwarder
-          ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-          .value();
-
-      auto response =
-        parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
-      CHECK(response.status == HTTP_STATUS_OK);
-
-      CHECK(user_frontend_primary.last_caller_cert == invalid_caller);
-      CHECK(user_frontend_primary.last_caller_id == INVALID_ID);
     }
   }
 
