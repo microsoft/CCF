@@ -58,7 +58,7 @@ public:
     };
     make_endpoint("empty_function_signed", HTTP_POST, empty_function_signed)
       .set_forwarding_required(ForwardingRequired::Sometimes)
-      .add_authentication_policy(std::make_shared<UserSignatureAuthnPolicy>())
+      .add_authentication_policy(std::make_shared<MemberSignatureAuthnPolicy>())
       .install();
 
     auto empty_function_no_auth = [this](auto& args) {
@@ -404,14 +404,6 @@ nlohmann::json parse_response_body(
   return serdes::unpack(body, pack);
 }
 
-std::optional<SignedReq> get_signed_req(
-  NetworkState& network, CallerId caller_id)
-{
-  auto tx = network.tables->create_tx();
-  auto client_sig_view = tx.get_view(network.user_client_signatures);
-  return client_sig_view->get(caller_id);
-}
-
 // callers used throughout
 auto user_caller = kp -> self_sign("CN=name");
 auto user_caller_der = tls::make_verifier(user_caller) -> der_cert_data();
@@ -569,9 +561,6 @@ TEST_CASE("process with signatures")
       const auto serialized_response = frontend.process(simple_rpc_ctx).value();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
-
-      auto signed_resp = get_signed_req(network, user_id);
-      CHECK(!signed_resp.has_value());
     }
 
     INFO("Signed RPC");
@@ -579,11 +568,6 @@ TEST_CASE("process with signatures")
       const auto serialized_response = frontend.process(signed_rpc_ctx).value();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
-
-      auto signed_resp = get_signed_req(network, user_id);
-      REQUIRE(signed_resp.has_value());
-      auto value = signed_resp.value();
-      CHECK(value == signed_req);
     }
   }
 
@@ -607,9 +591,6 @@ TEST_CASE("process with signatures")
       CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
       CHECK(error_msg.find("RPC must be signed") != std::string::npos);
-
-      auto signed_resp = get_signed_req(network, user_id);
-      CHECK(!signed_resp.has_value());
     }
 
     INFO("Signed RPC");
@@ -617,11 +598,6 @@ TEST_CASE("process with signatures")
       const auto serialized_response = frontend.process(signed_rpc_ctx).value();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
-
-      auto signed_resp = get_signed_req(network, user_id);
-      REQUIRE(signed_resp.has_value());
-      auto value = signed_resp.value();
-      CHECK(value == signed_req);
     }
   }
 
@@ -638,12 +614,6 @@ TEST_CASE("process with signatures")
       frontend_nostore.process(signed_rpc_ctx).value();
     const auto response = parse_response(serialized_response);
     REQUIRE(response.status == HTTP_STATUS_OK);
-
-    auto signed_resp = get_signed_req(network, user_id);
-    REQUIRE(signed_resp.has_value());
-    auto value = signed_resp.value();
-    CHECK(value.req.empty());
-    CHECK(value.sig == signed_req.sig);
   }
 }
 
@@ -1368,13 +1338,9 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
         ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
         .value();
 
-    user_frontend_primary.process_forwarded(fwd_ctx);
-
-    auto tx = network_primary.tables->create_tx();
-    auto client_sig_view = tx.get_view(network_primary.user_client_signatures);
-    auto client_sig = client_sig_view->get(user_id);
-    REQUIRE(client_sig.has_value());
-    REQUIRE(client_sig.value() == signed_req);
+    auto response =
+      parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
+    CHECK(response.status == HTTP_STATUS_OK);
   }
 
   // On a session that was previously forwarded, and is now primary,
@@ -1563,39 +1529,6 @@ public:
     make_endpoint("conflict_once", HTTP_POST, conflict_once).install();
   }
 };
-
-TEST_CASE("Signature is stored even after conflicts")
-{
-  NetworkState network;
-  prepare_callers(network);
-
-  TestConflictFrontend frontend(*network.tables);
-
-  INFO("Check that no client signatures have been recorded");
-  {
-    auto tx = network.tables->create_tx();
-    auto client_signatures_view = tx.get_view(network.user_client_signatures);
-    REQUIRE_FALSE(client_signatures_view->get(0).has_value());
-  }
-
-  const auto unsigned_call = create_simple_request("conflict_once");
-  const auto [signed_call, signed_req] = create_signed_request(unsigned_call);
-  const auto serialized_signed_call = signed_call.build_request();
-
-  auto rpc_ctx =
-    enclave::make_rpc_context(user_session, serialized_signed_call);
-
-  const auto serialized_response = frontend.process(rpc_ctx).value();
-  auto response = parse_response(serialized_response);
-  REQUIRE(response.status == HTTP_STATUS_OK);
-
-  INFO("Check that a client signatures have been recorded");
-  {
-    auto tx = network.tables->create_tx();
-    auto client_signatures_view = tx.get_view(network.user_client_signatures);
-    REQUIRE(client_signatures_view->get(0).has_value());
-  }
-}
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)

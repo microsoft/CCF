@@ -14,7 +14,7 @@ namespace ccf
   {
   public:
     UserRpcFrontend(kv::Store& tables, EndpointRegistry& h) :
-      RpcFrontend(tables, h, Tables::USER_CLIENT_SIGNATURES)
+      RpcFrontend(tables, h)
     {}
 
     void open(std::optional<tls::Pem*> identity = std::nullopt) override

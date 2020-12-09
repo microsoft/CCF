@@ -1301,7 +1301,7 @@ namespace ccf
         proposals->put(proposal_id, proposal);
 
         record_voting_history(
-          ctx.tx, caller_identity->member_id, ctx.rpc_ctx->get_signed_request().value());
+          ctx.tx, caller_identity->member_id, caller_identity->signed_request);
 
         return make_success(
           Propose::Out{complete_proposal(ctx.tx, proposal_id, proposal)});
@@ -1349,7 +1349,7 @@ namespace ccf
 
       auto withdraw =
         [this](EndpointContext& ctx, nlohmann::json&& params) {
-        const auto caller_identity = ctx.get_caller<ccf::MemberCertAuthnIdentity>();
+        const auto caller_identity = ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
         if (!check_member_active(ctx.tx, caller_identity->member_id))
         {
           return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
@@ -1399,28 +1399,27 @@ namespace ccf
         proposal->state = ProposalState::WITHDRAWN;
         proposals->put(proposal_id, proposal.value());
         record_voting_history(
-          ctx.tx,  caller_identity->member_id, ctx.rpc_ctx->get_signed_request().value());
+          ctx.tx,  caller_identity->member_id, caller_identity->signed_request);
 
         return make_success(get_proposal_info(proposal_id, proposal.value()));
       };
       make_endpoint(
         "proposals/{proposal_id}/withdraw", HTTP_POST, json_adapter(withdraw))
         .set_auto_schema<void, ProposalInfo>()
-        .add_authentication_policy(member_cert_auth_policy)
+        .add_authentication_policy(member_signature_auth_policy)
         .install();
 
       auto vote = 
         [this](EndpointContext& ctx, nlohmann::json&& params) {
         const auto caller_identity = ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
+        if (caller_identity == nullptr)
+        {
+          return make_error(HTTP_STATUS_BAD_REQUEST, "Votes must be signed");
+        }
+
         if (!check_member_active(ctx.tx, caller_identity->member_id))
         {
           return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
-        }
-
-        const auto signed_request = ctx.rpc_ctx->get_signed_request();
-        if (!signed_request.has_value())
-        {
-          return make_error(HTTP_STATUS_BAD_REQUEST, "Votes must be signed");
         }
 
         ObjectId proposal_id;
@@ -1461,7 +1460,7 @@ namespace ccf
         proposals->put(proposal_id, proposal.value());
 
         record_voting_history(
-          ctx.tx, caller_identity->member_id, ctx.rpc_ctx->get_signed_request().value());
+          ctx.tx, caller_identity->member_id, caller_identity->signed_request);
 
         return make_success(
           complete_proposal(ctx.tx, proposal_id, proposal.value()));
@@ -1561,7 +1560,7 @@ namespace ccf
       //! A member acknowledges state
       auto ack = [this](EndpointContext& ctx, nlohmann::json&& params) {
         const auto caller_identity = ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
-        const auto signed_request = ctx.rpc_ctx->get_signed_request();
+        const auto& signed_request = caller_identity->signed_request;
 
         auto [ma_view, sig_view, members_view] = ctx.tx.get_view(
           this->network.member_acks,
@@ -1585,12 +1584,12 @@ namespace ccf
         const auto s = sig_view->get(0);
         if (!s)
         {
-          ma_view->put(caller_identity->member_id, MemberAck({}, signed_request.value()));
+          ma_view->put(caller_identity->member_id, MemberAck({}, signed_request));
         }
         else
         {
           ma_view->put(
-            caller_identity->member_id, MemberAck(s->root, signed_request.value()));
+            caller_identity->member_id, MemberAck(s->root, signed_request));
         }
 
         // update member status to ACTIVE
@@ -1984,7 +1983,7 @@ namespace ccf
       AbstractNodeState& node,
       ShareManager& share_manager) :
       RpcFrontend(
-        *network.tables, member_endpoints, Tables::MEMBER_CLIENT_SIGNATURES),
+        *network.tables, member_endpoints),
       member_endpoints(network, node, share_manager),
       members(&network.members)
     {}

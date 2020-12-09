@@ -3,14 +3,30 @@
 #pragma once
 
 #include "authentication_types.h"
+#include "http/http_sig.h"
 
 namespace ccf
 {
+  namespace
+  {
+    static std::optional<SignedReq> parse_signed_request(
+      const std::shared_ptr<enclave::RpcContext>& ctx)
+    {
+      return http::HttpSignatureVerifier::parse(
+        ctx->get_request_verb().c_str(),
+        ctx->get_request_path(),
+        ctx->get_request_query(),
+        ctx->get_request_headers(),
+        ctx->get_request_body());
+    }
+  }
+
   struct UserSignatureAuthnIdentity : public AuthnIdentity
   {
     UserId user_id;
     tls::Pem user_cert;
     nlohmann::json user_data;
+    SignedReq signed_request;
   };
 
   class UserSignatureAuthnPolicy : public AuthnPolicy
@@ -24,7 +40,7 @@ namespace ccf
       const std::shared_ptr<enclave::RpcContext>& ctx,
       std::string& error_reason) override
     {
-      const auto signed_request = ctx->get_signed_request();
+      const auto signed_request = parse_signed_request(ctx);
       if (signed_request.has_value())
       {
         auto digests_view =
@@ -44,6 +60,7 @@ namespace ccf
           identity->user_id = user_id.value();
           identity->user_cert = user->cert;
           identity->user_data = user->user_data;
+          identity->signed_request = signed_request.value();
           return identity;
         }
         else
@@ -89,6 +106,7 @@ namespace ccf
     MemberId member_id;
     tls::Pem member_cert;
     nlohmann::json member_data;
+    SignedReq signed_request;
   };
 
   class MemberSignatureAuthnPolicy : public AuthnPolicy
@@ -102,7 +120,7 @@ namespace ccf
       const std::shared_ptr<enclave::RpcContext>& ctx,
       std::string& error_reason) override
     {
-      const auto signed_request = ctx->get_signed_request();
+      const auto signed_request = parse_signed_request(ctx);
       if (signed_request.has_value())
       {
         auto digests_view =
@@ -123,6 +141,7 @@ namespace ccf
           identity->member_id = member_id.value();
           identity->member_cert = member->cert;
           identity->member_data = member->member_data;
+          identity->signed_request = signed_request.value();
           return identity;
         }
         else

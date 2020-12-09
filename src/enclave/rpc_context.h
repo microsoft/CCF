@@ -162,7 +162,9 @@ namespace enclave
     virtual const std::string& get_request_query() const = 0;
     virtual PathParams& get_request_path_params() = 0;
     virtual const ccf::RESTVerb& get_request_verb() const = 0;
+    virtual std::string get_request_path() const = 0;
 
+    // TODO: Get rid of these old bits of nonsense
     virtual std::string get_method() const = 0;
     virtual void set_method(const std::string_view& method) = 0;
 
@@ -171,7 +173,6 @@ namespace enclave
       const std::string_view& name) = 0;
 
     virtual const std::vector<uint8_t>& get_serialised_request() = 0;
-    virtual std::optional<ccf::SignedReq> get_signed_request() = 0;
 
     /// Response details
     virtual void set_response_body(const std::vector<uint8_t>& body) = 0;

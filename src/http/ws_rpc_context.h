@@ -42,7 +42,6 @@ namespace ws
     enclave::PathParams path_params = {};
 
     std::vector<uint8_t> serialised_request = {};
-    std::optional<ccf::SignedReq> signed_request = std::nullopt;
 
     std::string query = {};
 
@@ -100,6 +99,11 @@ namespace ws
       return verb;
     }
 
+    virtual std::string get_request_path() const override
+    {
+      return method;
+    }
+
     virtual const std::vector<uint8_t>& get_serialised_request() override
     {
       if (serialised_request.empty())
@@ -108,16 +112,6 @@ namespace ws
         serialised_request.swap(sr);
       }
       return serialised_request;
-    }
-
-    virtual std::optional<ccf::SignedReq> get_signed_request() override
-    {
-      if (!signed_request.has_value())
-      {
-        return std::nullopt;
-      }
-
-      return signed_request;
     }
 
     virtual std::string get_method() const override

@@ -41,7 +41,6 @@ namespace ccf
     SpinLock open_lock;
     bool is_open_ = false;
 
-    std::string client_signatures_name;
     kv::Consensus* consensus;
     std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder;
     kv::TxHistory* history;
@@ -144,53 +143,6 @@ namespace ccf
       }
     }
 
-    void record_client_signature(kv::Tx& tx, const SignedReq& signed_request)
-    {
-      // TODO: I think we should be always storing the full request, at key 0?
-      // Why do we care about keeping per-caller_id?
-      // if (client_signatures_name.empty())
-      // {
-      //   return;
-      // }
-
-      // auto client_sig_view =
-      //   tx.get_view<ClientSignatures>(client_signatures_name);
-      // if (request_storing_disabled)
-      // {
-      //   SignedReq no_req;
-      //   no_req.sig = signed_request.sig;
-      //   client_sig_view->put(caller_id, no_req);
-      // }
-      // else
-      // {
-      //   client_sig_view->put(caller_id, signed_request);
-      // }
-    }
-
-    bool verify_client_signature(
-      const std::vector<uint8_t>& caller_cert, const SignedReq& signed_request)
-    {
-      if (client_signatures_name.empty())
-      {
-        return false;
-      }
-
-      tls::VerifierPtr verifier;
-      {
-        std::lock_guard<SpinLock> mguard(verifiers_lock);
-        auto v = verifiers.find(caller_cert);
-        if (v == verifiers.end())
-        {
-          verifiers.emplace(
-            std::make_pair(caller_cert, tls::make_verifier(caller_cert)));
-        }
-        verifier = verifiers[caller_cert];
-      }
-
-      return verifier->verify(
-        signed_request.req, signed_request.sig, signed_request.md);
-    }
-
     void set_response_unauthorized(
       std::shared_ptr<enclave::RpcContext>& ctx,
       std::string&& msg = "Failed to verify client signature") const
@@ -275,109 +227,24 @@ namespace ccf
           }
         }
 
-        if (identity != nullptr)
+        if (identity == nullptr)
         {
-          // TODO: Don't need to set this via ctx, just pass as EndpointArgs?
-          // ctx->set_caller_identity(std::move(identity));
-        }
-        else
-        {
+          // If none were accepted, let the first set an error
           endpoint->authn_policies[0]->set_unauthenticated_error(
             ctx, std::move(auth_error_reason));
-          return ctx->serialise_response();
-        }
-      }
-
-      const auto signed_request = ctx->get_signed_request();
-
-      bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
-        ctx->is_create_request;
-
-      if (
-        endpoint->properties.require_client_signature &&
-        !signed_request.has_value())
-      {
-        set_response_unauthorized(
-          ctx, fmt::format("'{}' RPC must be signed", ctx->get_method()));
-        update_metrics(ctx, metrics);
-        return ctx->serialise_response();
-      }
-
-      bool should_record_client_signature = false;
-      if (signed_request.has_value())
-      {
-        // For forwarded requests (raft only), skip verification as it is
-        // assumed that the verification was done by the forwarder node.
-        if (
-          (!ctx->is_create_request &&
-           (!(consensus != nullptr &&
-              consensus->type() == ConsensusType::CFT) ||
-            !ctx->session->is_forwarded)) &&
-          !ctx->session->caller_cert.empty() &&
-          !verify_client_signature(
-            ctx->session->caller_cert, signed_request.value()))
-        {
-          set_response_unauthorized(ctx);
           update_metrics(ctx, metrics);
           return ctx->serialise_response();
-        }
-
-        // By default, signed requests are verified and recorded, even on
-        // endpoints that do not require client signatures
-        if (is_primary)
-        {
-          should_record_client_signature = true;
-        }
-      }
-
-      std::optional<Jwt> jwt;
-      if (endpoint->properties.require_jwt_authentication)
-      {
-        auto headers = ctx->get_request_headers();
-        std::string error_reason;
-        auto token = http::JwtVerifier::extract_token(headers, error_reason);
-        auto keys_view = tx.get_view<JwtPublicSigningKeys>(
-          ccf::Tables::JWT_PUBLIC_SIGNING_KEYS);
-        auto key_issuer_view = tx.get_view<JwtPublicSigningKeyIssuer>(
-          ccf::Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER);
-        std::string key_issuer;
-        if (token.has_value())
-        {
-          auto key_id = token.value().header_typed.kid;
-          auto token_key = keys_view->get(key_id);
-          if (!token_key.has_value())
-          {
-            error_reason = "JWT signing key not found";
-          }
-          else if (!http::JwtVerifier::validate_token_signature(
-                     token.value(), token_key.value()))
-          {
-            error_reason = "JWT signature is invalid";
-          }
-          else
-          {
-            key_issuer = key_issuer_view->get(key_id).value();
-          }
-        }
-        if (!error_reason.empty())
-        {
-          set_response_unauthorized_jwt(
-            ctx, fmt::format("'{}' {}", ctx->get_method(), error_reason));
-          update_metrics(ctx, metrics);
-          return ctx->serialise_response();
-        }
-        else
-        {
-          jwt = Jwt{key_issuer, token.value().header, token.value().payload};
         }
       }
 
       update_history();
 
-      if ((!is_primary &&
-           (consensus->type() == ConsensusType::CFT ||
-            (consensus->type() != ConsensusType::CFT &&
-             !ctx->execute_on_node))))
+      const bool is_primary = (consensus == nullptr) ||
+        consensus->is_primary() || ctx->is_create_request;
+      const bool forwardable = consensus->type() == ConsensusType::CFT ||
+        (consensus->type() != ConsensusType::CFT && !ctx->execute_on_node);
+
+      if (!is_primary && forwardable)
       {
         switch (endpoint->properties.forwarding_required)
         {
@@ -427,11 +294,6 @@ namespace ccf
           if (pre_exec)
           {
             pre_exec(tx, *ctx.get());
-          }
-
-          if (should_record_client_signature)
-          {
-            record_client_signature(tx, signed_request.value());
           }
 
           endpoints.execute_endpoint(endpoint, args);
@@ -532,13 +394,9 @@ namespace ccf
     }
 
   public:
-    RpcFrontend(
-      kv::Store& tables_,
-      EndpointRegistry& handlers_,
-      const std::string& client_sigs_name_ = "") :
+    RpcFrontend(kv::Store& tables_, EndpointRegistry& handlers_) :
       tables(tables_),
       endpoints(handlers_),
-      client_signatures_name(client_sigs_name_),
       consensus(nullptr),
       history(nullptr)
     {}
