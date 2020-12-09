@@ -50,6 +50,7 @@ public:
     };
     make_endpoint("empty_function", HTTP_POST, empty_function)
       .set_forwarding_required(ForwardingRequired::Sometimes)
+      .add_authentication_policy(std::make_shared<UserCertAuthnPolicy>())
       .install();
 
     auto empty_function_signed = [this](auto& args) {
@@ -57,7 +58,7 @@ public:
     };
     make_endpoint("empty_function_signed", HTTP_POST, empty_function_signed)
       .set_forwarding_required(ForwardingRequired::Sometimes)
-      .set_require_client_signature(true)
+      .add_authentication_policy(std::make_shared<UserSignatureAuthnPolicy>())
       .install();
 
     auto empty_function_no_auth = [this](auto& args) {
@@ -65,7 +66,6 @@ public:
     };
     make_endpoint("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
       .set_forwarding_required(ForwardingRequired::Sometimes)
-      .set_require_client_identity(false)
       .install();
   }
 };
@@ -80,7 +80,9 @@ public:
     auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint("empty_function", HTTP_POST, empty_function).install();
+    make_endpoint("empty_function", HTTP_POST, empty_function)
+      .add_authentication_policy(std::make_shared<UserCertAuthnPolicy>())
+      .install();
     disable_request_storing();
   }
 };
@@ -96,6 +98,15 @@ public:
       return make_success(std::move(params));
     };
     make_endpoint("echo", HTTP_POST, json_adapter(echo_function)).install();
+
+    auto get_caller_function = [this](EndpointContext& ctx, nlohmann::json&&) {
+      const auto ident = ctx.get_caller<UserCertAuthnIdentity>();
+      REQUIRE(ident != nullptr);
+      return make_success(ident->user_id);
+    };
+    make_endpoint("get_caller", HTTP_POST, json_adapter(get_caller_function))
+      .add_authentication_policy(std::make_shared<UserCertAuthnPolicy>())
+      .install();
 
     auto failable_function = [this](kv::Tx& tx, nlohmann::json&& params) {
       const auto it = params.find("error");
@@ -224,6 +235,7 @@ public:
     };
     member_endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
       .set_forwarding_required(ForwardingRequired::Sometimes)
+      .add_authentication_policy(std::make_shared<MemberCertAuthnPolicy>())
       .install();
   }
 };
@@ -280,14 +292,15 @@ public:
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    make_endpoint("empty_function", HTTP_POST, empty_function).install();
+    make_endpoint("empty_function", HTTP_POST, empty_function)
+      .add_authentication_policy(std::make_shared<UserCertAuthnPolicy>())
+      .install();
 
     auto empty_function_no_auth = [this](auto& args) {
       record_ctx(args);
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
-      .set_require_client_identity(false)
       .install();
   }
 };
@@ -503,7 +516,7 @@ TEST_CASE("process_bft")
 
   aft::Request deserialised_req = request_value.value();
 
-  REQUIRE(deserialised_req.caller_cert == user_caller.raw());
+  REQUIRE(deserialised_req.caller_cert == user_caller_der);
   REQUIRE(deserialised_req.raw == serialized_call);
   REQUIRE(deserialised_req.frame_format == enclave::FrameFormat::http);
 }

@@ -369,6 +369,7 @@ namespace ccf
        * @param v Boolean indicating whether the user identity must be known
        * @return This Endpoint for further modification
        */
+      // TODO: This is hard-deprecated, it is currently BROKEN
       CCF_DEPRECATED("Replace with add_authentication_policy")
       Endpoint& set_require_client_identity(bool v)
       {
@@ -610,45 +611,6 @@ namespace ccf
      */
     void install(Endpoint& endpoint)
     {
-      if (endpoint.authn_policies.empty())
-      {
-        // To handle old way of specifying auth, check for deprecated properties
-        // here
-        if (endpoint.properties.require_client_signature)
-        {
-          auto policy = get_sig_authn_policy();
-          if (policy != nullptr)
-          {
-            endpoint.authn_policies.push_back(std::move(policy));
-          }
-          else
-          {
-            LOG_FAIL_FMT(
-              "Client signatures requested for {}, but {} frontend has no sig "
-              "auth policy",
-              endpoint.dispatch.uri_path,
-              method_prefix);
-          }
-        }
-
-        if (endpoint.properties.require_client_identity)
-        {
-          auto policy = get_cert_authn_policy();
-          if (policy != nullptr)
-          {
-            endpoint.authn_policies.push_back(std::move(policy));
-          }
-          else
-          {
-            LOG_FAIL_FMT(
-              "Client identity requested for {}, but {} frontend has no cert "
-              "auth policy",
-              endpoint.dispatch.uri_path,
-              method_prefix);
-          }
-        }
-      }
-
       const auto template_spec =
         parse_path_template(endpoint.dispatch.uri_path);
       if (template_spec.has_value())
