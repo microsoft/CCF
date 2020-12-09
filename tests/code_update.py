@@ -53,8 +53,6 @@ def test_verify_quotes(network, args):
 
 @reqs.description("Node with bad code fails to join")
 def test_add_node_with_bad_code(network, args):
-    primary, _ = network.find_nodes()
-
     new_code_id = get_code_id(
         args.oe_binary,
         infra.path.build_lib_path(args.replacement_package, args.enclave_type),
@@ -145,7 +143,6 @@ def test_update_all_nodes(network, args):
     LOG.info("Check the network is still functional")
     reconfiguration.check_can_progress(new_node)
     return network
-
 
 
 def run(args):
