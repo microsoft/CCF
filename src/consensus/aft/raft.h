@@ -1148,7 +1148,7 @@ namespace aft
           {
             break;
           }
-          case kv::DeserialiseSuccess::NEW_VIEW:
+          case kv::DeserialiseSuccess::PASS_NEW_VIEW:
           {
             view_change_tracker->clear(get_primary(sig_term) == id(), sig_term);
             request_tracker->clear();
@@ -1179,6 +1179,11 @@ namespace aft
               state->last_idx =
                 executor->commit_replayed_request(tx, request_tracker);
             }
+            break;
+          }
+
+          case kv::DeserialiseSuccess::PASS_SNAPSHOT_EVIDENCE:
+          {
             break;
           }
 

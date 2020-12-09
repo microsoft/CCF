@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "backup_signatures.h"
-#include "call_types.h"
 #include "certs.h"
 #include "client_signatures.h"
 #include "code_id.h"
