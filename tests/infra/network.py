@@ -176,9 +176,11 @@ class Network:
         args,
         target_node=None,
         recovery=False,
+        ledger_dir=None,
+        copy_ledger_read_only=False,
+        read_only_ledger_dir=None,
         from_snapshot=False,
         snapshot_dir=None,
-        copy_ledger_read_only=False,
     ):
         forwarded_args = {
             arg: getattr(args, arg)
@@ -195,20 +197,23 @@ class Network:
         # Only retrieve snapshot from target node if the snapshot directory is not
         # specified
         if from_snapshot and snapshot_dir is None:
-            snapshot_dir = target_node.get_committed_snapshots()
-            assert (
-                len(os.listdir(snapshot_dir)) > 0
+            snapshot_dir = self.get_committed_snapshots(target_node)
+            assert os.listdir(
+                snapshot_dir
             ), f"There are no snapshots to resume from in directory {snapshot_dir}"
 
-        read_only_ledger_dirs = []
+        committed_ledger_dir = None
+        current_ledger_dir = None
         if snapshot_dir is not None:
-            LOG.info(f"Joining from snapshot: {snapshot_dir}")
-            if copy_ledger_read_only:
-                read_only_ledger_dirs = target_node.get_ledger(
+            LOG.info(f"Joining from snapshot directory: {snapshot_dir}")
+            # Only when joining from snapshot, retrieve ledger dirs from target node
+            # if the ledger directories are not specified. When joining without snapshot,
+            # the entire ledger will be retransmitted by primary node
+            current_ledger_dir = ledger_dir or None
+            committed_ledger_dir = read_only_ledger_dir or None
+            if copy_ledger_read_only and read_only_ledger_dir is None:
+                current_ledger_dir, committed_ledger_dir = target_node.get_ledger(
                     include_read_only_dirs=True
-                )
-                LOG.info(
-                    f"Copying target node ledger to read-only ledger directory {read_only_ledger_dirs}"
                 )
 
         node.join(
@@ -218,7 +223,8 @@ class Network:
             common_dir=self.common_dir,
             target_rpc_address=f"{target_node.host}:{target_node.rpc_port}",
             snapshot_dir=snapshot_dir,
-            read_only_ledger_dirs=read_only_ledger_dirs,
+            ledger_dir=current_ledger_dir,
+            read_only_ledger_dir=committed_ledger_dir,
             **forwarded_args,
         )
 
@@ -232,7 +238,12 @@ class Network:
             node.network_state = infra.node.NodeNetworkState.joined
 
     def _start_all_nodes(
-        self, args, recovery=False, ledger_dir=None, snapshot_dir=None
+        self,
+        args,
+        recovery=False,
+        ledger_dir=None,
+        read_only_ledger_dir=None,
+        snapshot_dir=None,
     ):
         hosts = self.hosts
 
@@ -266,6 +277,7 @@ class Network:
                             label=args.label,
                             common_dir=self.common_dir,
                             ledger_dir=ledger_dir,
+                            read_only_ledger_dir=read_only_ledger_dir,
                             snapshot_dir=snapshot_dir,
                             **forwarded_args,
                         )
@@ -286,6 +298,8 @@ class Network:
                         args.package,
                         args,
                         recovery=recovery,
+                        ledger_dir=ledger_dir,
+                        read_only_ledger_dir=read_only_ledger_dir,
                         snapshot_dir=snapshot_dir,
                     )
             except Exception:
@@ -400,6 +414,7 @@ class Network:
         self,
         args,
         ledger_dir,
+        committed_ledger_dir=None,
         snapshot_dir=None,
         common_dir=None,
     ):
@@ -415,7 +430,11 @@ class Network:
         )
 
         primary = self._start_all_nodes(
-            args, recovery=True, ledger_dir=ledger_dir, snapshot_dir=snapshot_dir
+            args,
+            recovery=True,
+            ledger_dir=ledger_dir,
+            read_only_ledger_dir=committed_ledger_dir,
+            snapshot_dir=snapshot_dir,
         )
 
         # If a common directory was passed in, initialise the consortium from it
@@ -536,7 +555,12 @@ class Network:
         it so that it becomes part of the consensus protocol.
         """
         new_node = self.create_and_add_pending_node(
-            lib_name, host, args, target_node, from_snapshot, copy_ledger_read_only
+            lib_name,
+            host,
+            args,
+            target_node,
+            from_snapshot,
+            copy_ledger_read_only,
         )
 
         primary, _ = self.find_primary()
@@ -762,17 +786,71 @@ class Network:
         flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")
 
-    def wait_for_snapshot_committed_for(self, seqno, timeout=3):
-        primary, _ = self.find_primary()
+    def wait_for_commit_proof(self, node, seqno, timeout=3):
+        # Wait that the target seqno has a commit proof on a specific node.
+        # This is achieved by first waiting for a commit over seqno, issuing
+        # a write request and then waiting for a commit over that
         end_time = time.time() + timeout
         while time.time() < end_time:
-            snapshots = primary.get_committed_snapshots()
-            for s in os.listdir(snapshots):
-                if infra.node.get_snapshot_seqno(s) > seqno:
-                    LOG.info(f"Snapshot committed after seqno {seqno}: {s}")
-                    return
+            with node.client() as c:
+                r = c.get("/node/commit")
+                current_commit_seqno = r.body.json()["seqno"]
+                if current_commit_seqno >= seqno:
+                    with node.client(
+                        f"member{self.consortium.get_any_active_member().member_id}"
+                    ) as c:
+                        # Using update_state_digest here as a convenient write tx
+                        # that is app agnostic
+                        r = c.post("/gov/ack/update_state_digest")
+                        assert (
+                            r.status_code == 200
+                        ), f"Error ack/update_state_digest: {r}"
+                        c.wait_for_commit(r)
+                        return True
             time.sleep(0.1)
-        raise TimeoutError(f"Snapshot after {seqno} was not committed after {timeout}s")
+        raise TimeoutError(f"seqno {seqno} did not have commit proof after {timeout}s")
+
+    def wait_for_snapshot_committed_for(self, seqno, timeout=3):
+        # Check that snapshot exists for target seqno and if so, wait until
+        # snapshot evidence has commit proof (= commit rule for snapshots)
+        snapshot_evidence_seqno = None
+        primary, _ = self.find_primary()
+        for s in os.listdir(primary.get_snapshots()):
+            if infra.node.get_snapshot_seqnos(s)[0] > seqno:
+                snapshot_evidence_seqno = infra.node.get_snapshot_seqnos(s)[1]
+        if snapshot_evidence_seqno is None:
+            return False
+
+        return self.wait_for_commit_proof(primary, snapshot_evidence_seqno, timeout)
+
+    def get_committed_snapshots(self, node):
+        # Wait for all available snapshot files to be committed before
+        # copying snapshot directory, so that we always use the latest snapshot
+        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=6):
+            end_time = time.time() + timeout
+            committed = True
+            uncommitted_snapshots = []
+            while time.time() < end_time:
+                committed = True
+                uncommitted_snapshots = []
+                for f in list_src_dir_func(src_dir):
+                    is_committed = infra.node.is_file_committed(f)
+                    if not is_committed:
+                        self.wait_for_commit_proof(
+                            node, infra.node.get_snapshot_seqnos(f)[1]
+                        )
+                        uncommitted_snapshots.append(f)
+                    committed &= is_committed
+                if committed:
+                    break
+                time.sleep(0.1)
+            if not committed:
+                LOG.error(
+                    f"Error: Not all snapshots were committed after {timeout}s in {src_dir}: {uncommitted_snapshots}"
+                )
+            return committed
+
+        return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
 
 @contextmanager

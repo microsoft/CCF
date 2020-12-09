@@ -46,6 +46,11 @@ namespace ccf
       return false;
     }
 
+    bool is_verifying_snapshot() const override
+    {
+      return false;
+    }
+
     bool is_part_of_network() const override
     {
       return true;
@@ -81,5 +86,7 @@ namespace ccf
     {
       return {State::partOfNetwork, {}, {}};
     }
+
+    void open_user_frontend() override{};
   };
 }

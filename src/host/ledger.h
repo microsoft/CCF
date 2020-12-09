@@ -641,7 +641,7 @@ namespace asynchost
           if (!last_idx_.has_value())
           {
             LOG_DEBUG_FMT(
-              "Read-only ledger file \"{}\" is ignored as not committed",
+              "Read-only ledger file {} is ignored as not committed",
               f.path().filename());
             continue;
           }
@@ -734,9 +734,43 @@ namespace asynchost
 
     Ledger(const Ledger& that) = delete;
 
-    void init_idx(size_t idx)
+    void init(size_t idx)
     {
+      // Used to initialise the ledger when starting from a non-empty state,
+      // i.e. snapshot. It is assumed that idx is included in a committed ledger
+      // file
+
+      // As it is possible that some ledger files containing indices later than
+      // snapshot index already exist (e.g. to verify the snapshot evidence),
+      // delete those so that ledger can restart neatly.
+      bool has_deleted = false;
+      for (auto const& f : fs::directory_iterator(ledger_dir))
+      {
+        auto file_name = f.path().filename();
+        if (get_start_idx_from_file_name(file_name) > idx)
+        {
+          LOG_INFO_FMT(
+            "Deleting {} file as it is later than init index {}",
+            file_name,
+            idx);
+          fs::remove(f);
+          has_deleted = true;
+        }
+      }
+
+      if (has_deleted)
+      {
+        files.clear();
+        require_new_file = true;
+      }
+
+      LOG_DEBUG_FMT("Setting last known index to {}", idx);
       last_idx = idx;
+    }
+
+    size_t get_last_idx() const
+    {
+      return last_idx;
     }
 
     std::optional<std::vector<uint8_t>> read_entry(size_t idx)
@@ -805,7 +839,7 @@ namespace asynchost
       {
         f->complete();
         require_new_file = true;
-        LOG_TRACE_FMT("New ledger chunk will start at {}", last_idx + 1);
+        LOG_INFO_FMT("Ledger chunk completed at {}", last_idx);
       }
 
       return last_idx;
@@ -891,7 +925,7 @@ namespace asynchost
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, consensus::ledger_init, [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
-          init_idx(idx);
+          init(idx);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(

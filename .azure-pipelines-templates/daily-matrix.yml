@@ -15,7 +15,7 @@ parameters:
     SGX:
       cmake_args: "-DCOMPILE_TARGETS=sgx"
     debug:
-      cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DCOVERAGE=ON -DBUILD_SMALLBANK=OFF -DLVI_MITIGATIONS=OFF"
+      cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DBUILD_SMALLBANK=OFF -DLVI_MITIGATIONS=OFF"
 
 jobs:
   - job: "Make"
@@ -34,7 +34,7 @@ jobs:
 
   - template: common.yml
     parameters:
-      target: Perf
+      target: NoSGX
       env: "${{ parameters.env.NoSGX }}"
       cmake_args: "${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
       suffix: "Instrumented"

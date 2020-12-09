@@ -9,7 +9,6 @@ import infra.path
 import ccf.clients
 import os
 import socket
-import time
 import re
 
 from loguru import logger as LOG
@@ -36,12 +35,13 @@ def is_addr_local(host, port):
             return False
 
 
-def is_snapshot_committed(file_name):
+def is_file_committed(file_name):
     return ".committed" in file_name
 
 
-def get_snapshot_seqno(file_name):
-    return int(re.findall(r"\d+", file_name)[0])
+def get_snapshot_seqnos(file_name):
+    # Returns the tuple (snapshot_seqno, evidence_seqno)
+    return int(re.findall(r"\d+", file_name)[0]), int(re.findall(r"\d+", file_name)[1])
 
 
 class Node:
@@ -264,33 +264,39 @@ class Node:
             raise TimeoutError(f"Node {self.node_id} failed to join the network") from e
 
     def get_ledger(self, **kwargs):
-        return self.remote.get_ledger(**kwargs)
+        """
+        Triage committed and un-committed (i.e. current) ledger files
+        """
+        main_ledger_dir, read_only_ledger_dirs = self.remote.get_ledger(**kwargs)
 
-    def get_committed_snapshots(self):
-        # Wait for all available snapshot files to be committed before
-        # copying snapshot directory
-        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=3):
-            end_time = time.time() + timeout
-            committed = True
-            uncommitted_snapshots = []
-            while time.time() < end_time:
-                committed = True
-                uncommitted_snapshots = []
-                for f in list_src_dir_func(src_dir):
-                    is_committed = is_snapshot_committed(f)
-                    if not is_committed:
-                        uncommitted_snapshots.append(f)
-                    committed &= is_committed
-                if committed:
-                    break
-                time.sleep(0.1)
-            if not committed:
-                LOG.error(
-                    f"Error: Not all snapshots were committed after {timeout}s in {src_dir}: {uncommitted_snapshots}"
-                )
-            return committed
+        current_ledger_dir = os.path.join(
+            self.common_dir, f"{self.node_id}.ledger.current"
+        )
+        committed_ledger_dir = os.path.join(
+            self.common_dir, f"{self.node_id}.ledger.committed"
+        )
+        infra.path.create_dir(current_ledger_dir)
+        infra.path.create_dir(committed_ledger_dir)
 
-        return self.remote.get_committed_snapshots(wait_for_snapshots_to_be_committed)
+        for f in os.listdir(main_ledger_dir):
+            infra.path.copy_dir(
+                os.path.join(main_ledger_dir, f),
+                committed_ledger_dir if is_file_committed(f) else current_ledger_dir,
+            )
+
+        for ro_dir in read_only_ledger_dirs:
+            for f in os.listdir(ro_dir):
+                # Uncommitted ledger files from r/o ledger directory are ignored by CCF
+                if is_file_committed(f):
+                    infra.path.copy_dir(os.path.join(ro_dir, f), committed_ledger_dir)
+
+        return current_ledger_dir, committed_ledger_dir
+
+    def get_snapshots(self):
+        return self.remote.get_snapshots()
+
+    def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
+        return self.remote.get_committed_snapshots(pre_condition_func)
 
     def client_certs(self, identity=None):
         return {

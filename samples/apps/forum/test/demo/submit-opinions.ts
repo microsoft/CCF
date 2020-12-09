@@ -5,7 +5,7 @@ import * as fs from "fs";
 import * as path from "path";
 import glob from "glob";
 import bent from "bent";
-import csvparse from "csv-parse/lib/sync";
+import { parse } from "papaparse";
 import { NODE_ADDR } from "../util";
 import { SubmitOpinionsRequest } from "../../src/controllers/poll";
 
@@ -35,11 +35,8 @@ async function main() {
     const user = path.basename(csvPath).replace("_opinions.csv", "");
     const jwtPath = path.join(folder, user + ".jwt");
     const jwt = fs.readFileSync(jwtPath, "utf8");
-    const csv = fs.readFileSync(csvPath);
-    const rows: CSVRow[] = csvparse(csv, {
-      columns: true,
-      skipEmptyLines: true,
-    });
+    const csv = fs.readFileSync(csvPath, "utf8");
+    const rows = parse(csv, { header: true }).data as CSVRow[];
 
     const req: SubmitOpinionsRequest = { opinions: {} };
     for (const row of rows) {

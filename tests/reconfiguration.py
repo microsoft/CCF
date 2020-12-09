@@ -120,11 +120,13 @@ def test_add_node_untrusted_code(network, args):
 
 @reqs.description("Retiring a backup")
 @reqs.at_least_n_nodes(2)
+@reqs.can_kill_n_nodes(1)
 def test_retire_backup(network, args):
     primary, _ = network.find_primary()
     backup_to_retire = network.find_any_backup()
     network.consortium.retire_node(primary, backup_to_retire)
     backup_to_retire.stop()
+    check_can_progress(primary)
     return network
 
 
@@ -167,14 +169,16 @@ def run(args):
 
         if args.snapshot_tx_interval is not None:
             test_add_node_from_snapshot(network, args, copy_ledger_read_only=True)
-
-            try:
-                test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
-                assert (
-                    False
-                ), "Node added from snapshot without ledger should not be able to verify historical entries"
-            except app.LoggingTxsVerifyException:
-                pass
+            test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+            errors, _ = network.get_joined_nodes()[-1].stop()
+            if not any(
+                "No snapshot found. Node will request transactions all historical transactions"
+                in s
+                for s in errors
+            ):
+                raise ValueError(
+                    "New node shouldn't join from snapshot if snapshot cannot be verified"
+                )
 
 
 if __name__ == "__main__":
@@ -182,4 +186,5 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    args.initial_user_count = 1
     run(args)

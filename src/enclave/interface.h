@@ -49,6 +49,7 @@ struct CCFConfig
 
   // Only if joining or recovering
   std::vector<uint8_t> startup_snapshot;
+  size_t startup_snapshot_evidence_seqno;
 
   struct SignatureIntervals
   {
@@ -88,6 +89,7 @@ struct CCFConfig
     domain,
     snapshot_tx_interval,
     startup_snapshot,
+    startup_snapshot_evidence_seqno,
     signature_intervals,
     genesis,
     joining,
