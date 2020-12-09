@@ -78,14 +78,10 @@ def test_add_node_with_bad_code(network, args):
 def test_update_all_nodes(network, args):
     primary, _ = network.find_nodes()
 
-    first_code_id = get_code_id(
-        args.oe_binary, infra.path.build_lib_path(args.package, args.enclave_type)
-    )
-
-    new_code_id = get_code_id(
-        args.oe_binary,
-        infra.path.build_lib_path(args.replacement_package, args.enclave_type),
-    )
+    first_code_id, new_code_id = [
+        get_code_id(args.oe_binary, infra.path.build_lib_path(pkg, args.enclave_type))
+        for pkg in [args.package, args.replacement_package]
+    ]
 
     LOG.info("Add new code id")
     network.consortium.add_new_code(primary, new_code_id)
