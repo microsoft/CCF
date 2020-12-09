@@ -382,7 +382,7 @@ auto create_simple_request(
   return request;
 }
 
-std::pair<http::Request, ccf::SignedReq> create_signed_request(
+http::Request create_signed_request(
   const http::Request& r = create_simple_request(),
   const std::vector<uint8_t>* body = nullptr)
 {
@@ -393,10 +393,7 @@ std::pair<http::Request, ccf::SignedReq> create_signed_request(
   http::SigningDetails details;
   http::sign_request(s, kp, &details);
 
-  ccf::SignedReq signed_req{details.signature,
-                            details.to_sign,
-                            body == nullptr ? std::vector<uint8_t>() : *body};
-  return {s, signed_req};
+  return s;
 }
 
 http::SimpleResponseProcessor::Response parse_response(const vector<uint8_t>& v)
@@ -426,9 +423,6 @@ auto member_caller_der = tls::make_verifier(member_caller) -> der_cert_data();
 auto node_caller = kp -> self_sign("CN=node");
 auto node_caller_der = tls::make_verifier(node_caller) -> der_cert_data();
 
-auto nos_caller = kp -> self_sign("CN=nostore_user");
-auto nos_caller_der = tls::make_verifier(nos_caller) -> der_cert_data();
-
 auto kp_other = tls::make_key_pair();
 auto invalid_caller = kp_other -> self_sign("CN=name");
 auto invalid_caller_der = tls::make_verifier(invalid_caller) -> der_cert_data();
@@ -448,7 +442,6 @@ auto anonymous_session = make_shared<enclave::SessionContext>(
 
 UserId user_id = INVALID_ID;
 UserId invalid_user_id = INVALID_ID;
-UserId nos_id = INVALID_ID;
 
 MemberId member_id = INVALID_ID;
 MemberId invalid_member_id = INVALID_ID;
@@ -468,7 +461,6 @@ void prepare_callers(NetworkState& network)
   g.init_values();
   g.create_service({});
   user_id = g.add_user({user_caller});
-  nos_id = g.add_user({nos_caller});
   member_id = g.add_member(member_caller);
   invalid_member_id = g.add_member(invalid_caller);
   CHECK(g.finalize() == kv::CommitSuccess::OK);
@@ -559,7 +551,7 @@ TEST_CASE("process with signatures")
   SUBCASE("endpoint does not require signature")
   {
     const auto simple_call = create_simple_request();
-    const auto [signed_call, signed_req] = create_signed_request(simple_call);
+    const auto signed_call = create_signed_request(simple_call);
     const auto serialized_simple_call = simple_call.build_request();
     const auto serialized_signed_call = signed_call.build_request();
 
@@ -586,7 +578,7 @@ TEST_CASE("process with signatures")
   SUBCASE("endpoint requires signature")
   {
     const auto simple_call = create_simple_request("empty_function_signed");
-    const auto [signed_call, signed_req] = create_signed_request(simple_call);
+    const auto signed_call = create_signed_request(simple_call);
     const auto serialized_simple_call = simple_call.build_request();
     const auto serialized_signed_call = signed_call.build_request();
 
@@ -608,7 +600,6 @@ TEST_CASE("process with signatures")
     INFO("Signed RPC");
     {
       const auto serialized_response = frontend.process(signed_rpc_ctx).value();
-      std::cout << std::string((char*)serialized_response.data()) << std::endl;
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
     }
@@ -618,7 +609,7 @@ TEST_CASE("process with signatures")
   {
     TestReqNotStoredFrontend frontend_nostore(*network.tables);
     const auto simple_call = create_simple_request("empty_function");
-    const auto [signed_call, signed_req] = create_signed_request(simple_call);
+    const auto signed_call = create_signed_request(simple_call);
     const auto serialized_signed_call = signed_call.build_request();
     auto signed_rpc_ctx =
       enclave::make_rpc_context(user_session, serialized_signed_call);
@@ -794,8 +785,7 @@ TEST_CASE("MinimalEndpointFunction")
                                      {"other", "Another string"}};
       const auto serialized_body = serdes::pack(j_body, pack_type);
 
-      auto [signed_call, signed_req] =
-        create_signed_request(echo_call, &serialized_body);
+      auto signed_call = create_signed_request(echo_call, &serialized_body);
       const auto serialized_call = signed_call.build_request();
 
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
@@ -828,7 +818,7 @@ TEST_CASE("MinimalEndpointFunction")
       INFO("Calling get_caller");
       auto get_caller = create_simple_request("get_caller", pack_type);
 
-      const auto [signed_call, signed_req] = create_signed_request(get_caller);
+      const auto signed_call = create_signed_request(get_caller);
       const auto serialized_call = signed_call.build_request();
 
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
@@ -844,7 +834,7 @@ TEST_CASE("MinimalEndpointFunction")
     INFO("Calling failable, without failing");
     auto dont_fail = create_simple_request("failable");
 
-    const auto [signed_call, signed_req] = create_signed_request(dont_fail);
+    const auto signed_call = create_signed_request(dont_fail);
     const auto serialized_call = signed_call.build_request();
 
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
@@ -866,8 +856,7 @@ TEST_CASE("MinimalEndpointFunction")
         {"error", {{"code", err}, {"message", msg}}}};
       const auto serialized_body = serdes::pack(j_body, default_pack);
 
-      const auto [signed_call, signed_req] =
-        create_signed_request(fail, &serialized_body);
+      const auto signed_call = create_signed_request(fail, &serialized_body);
       const auto serialized_call = signed_call.build_request();
 
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
@@ -1141,19 +1130,11 @@ TEST_CASE("Signed read requests can be executed on backup")
   auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
   network.tables->set_consensus(backup_consensus);
 
-  auto [signed_call, signed_req] = create_signed_request();
+  auto signed_call = create_signed_request();
   auto serialized_signed_call = signed_call.build_request();
   auto rpc_ctx =
     enclave::make_rpc_context(user_session, serialized_signed_call);
   auto response = parse_response(frontend.process(rpc_ctx).value());
-  if (response.status != HTTP_STATUS_OK)
-  {
-    std::cout << std::string(
-                   serialized_signed_call.begin(), serialized_signed_call.end())
-              << std::endl;
-    std::cout << std::string(response.body.begin(), response.body.end())
-              << std::endl;
-  }
   CHECK(response.status == HTTP_STATUS_OK);
 }
 
@@ -1283,7 +1264,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     INFO("Client signature on forwarded RPC is recorded by primary");
 
     REQUIRE(channel_stub->is_empty());
-    auto [signed_call, signed_req] = create_signed_request();
+    auto signed_call = create_signed_request();
     auto serialized_signed_call = signed_call.build_request();
     auto signed_ctx =
       enclave::make_rpc_context(user_session, serialized_signed_call);

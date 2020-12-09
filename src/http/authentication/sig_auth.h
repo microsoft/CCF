@@ -46,6 +46,15 @@ namespace ccf
         auto digests_view =
           tx.get_read_only_view<CertDigests>(Tables::USER_DIGESTS);
         auto user_id = digests_view->get(signed_request->key_id);
+
+        // TODO: This is a temporary cludge because some of our signing code
+        // still doesn't set a valid keyId. This should be removed
+        if (!user_id.has_value())
+        {
+          auto user_certs_view = tx.get_read_only_view<CertDERs>(Tables::USER_CERT_DERS);
+          user_id = user_certs_view->get(ctx->session->caller_cert);
+        }
+
         if (user_id.has_value())
         {
           Users users_table(Tables::USERS);
@@ -126,6 +135,15 @@ namespace ccf
         auto digests_view =
           tx.get_read_only_view<CertDigests>(Tables::MEMBER_DIGESTS);
         auto member_id = digests_view->get(signed_request->key_id);
+        
+        // TODO: This is a temporary cludge because some of our signing code
+        // still doesn't set a valid keyId. This should be removed
+        if (!member_id.has_value())
+        {
+          auto member_certs_view = tx.get_read_only_view<CertDERs>(Tables::MEMBER_CERT_DERS);
+          member_id = member_certs_view->get(ctx->session->caller_cert);
+        }
+
         if (member_id.has_value())
         {
           Members members_table(Tables::MEMBERS);

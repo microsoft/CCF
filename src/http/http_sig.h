@@ -112,6 +112,7 @@ namespace http
 
     const auto signature = kp->sign(to_sign.value());
 
+    // TODO: Should insert correct keyId, but we don't have a cert here!
     auto auth_value = fmt::format(
       "Signature "
       "keyId=\"ignored\",algorithm=\"{}\",headers=\"{}\",signature="
