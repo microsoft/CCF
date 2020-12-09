@@ -611,7 +611,7 @@ namespace tls
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT(err.what());
+        LOG_FAIL_FMT("Error writing SAN: {}", err.what());
         return {};
       }
 
