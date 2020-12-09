@@ -101,8 +101,7 @@ public:
 
     auto get_caller_function = [this](EndpointContext& ctx, nlohmann::json&&) {
       const auto ident = ctx.get_caller<UserCertAuthnIdentity>();
-      REQUIRE(ident != nullptr);
-      return make_success(ident->user_id);
+      return make_success(ident.user_id);
     };
     make_endpoint("get_caller", HTTP_POST, json_adapter(get_caller_function))
       .add_authentication_policy(std::make_shared<UserCertAuthnPolicy>())

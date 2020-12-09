@@ -224,13 +224,14 @@ namespace loggingapp
       auto multi_auth = [](auto& ctx) {
         if (
           auto user_cert_ident =
-            ctx.template get_caller<ccf::UserCertAuthnIdentity>())
+            ctx.template try_get_caller<ccf::UserCertAuthnIdentity>())
         {
           auto response = std::string("User TLS cert");
           response += fmt::format(
             "\nThe caller is a user with ID: {}", user_cert_ident->user_id);
           response += fmt::format(
-            "\nThe caller's user data is: {}", user_cert_ident->user_data.dump());
+            "\nThe caller's user data is: {}",
+            user_cert_ident->user_data.dump());
           response += fmt::format(
             "\nThe caller's cert is:\n{}", user_cert_ident->user_cert.str());
 
@@ -240,15 +241,18 @@ namespace loggingapp
         }
         else if (
           auto member_cert_ident =
-            ctx.template get_caller<ccf::MemberCertAuthnIdentity>())
+            ctx.template try_get_caller<ccf::MemberCertAuthnIdentity>())
         {
           auto response = std::string("Member TLS cert");
           response += fmt::format(
-            "\nThe caller is a member with ID: {}", member_cert_ident->member_id);
+            "\nThe caller is a member with ID: {}",
+            member_cert_ident->member_id);
           response += fmt::format(
-            "\nThe caller's member data is: {}", member_cert_ident->member_data.dump());
+            "\nThe caller's member data is: {}",
+            member_cert_ident->member_data.dump());
           response += fmt::format(
-            "\nThe caller's cert is:\n{}", member_cert_ident->member_cert.str());
+            "\nThe caller's cert is:\n{}",
+            member_cert_ident->member_cert.str());
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -256,14 +260,14 @@ namespace loggingapp
         }
         else if (
           auto user_sig_ident =
-            ctx.template get_caller<ccf::UserSignatureAuthnIdentity>())
+            ctx.template try_get_caller<ccf::UserSignatureAuthnIdentity>())
         {
-          auto response =
-            std::string("User HTTP signature");
+          auto response = std::string("User HTTP signature");
           response += fmt::format(
             "\nThe caller is a user with ID: {}", user_sig_ident->user_id);
           response += fmt::format(
-            "\nThe caller's user data is: {}", user_sig_ident->user_data.dump());
+            "\nThe caller's user data is: {}",
+            user_sig_ident->user_data.dump());
           response += fmt::format(
             "\nThe caller's cert is:\n{}", user_sig_ident->user_cert.str());
 
@@ -273,14 +277,15 @@ namespace loggingapp
         }
         else if (
           auto member_sig_ident =
-            ctx.template get_caller<ccf::MemberSignatureAuthnIdentity>())
+            ctx.template try_get_caller<ccf::MemberSignatureAuthnIdentity>())
         {
-          auto response =
-            std::string("Member HTTP signature");
+          auto response = std::string("Member HTTP signature");
           response += fmt::format(
-            "\nThe caller is a member with ID: {}", member_sig_ident->member_id);
+            "\nThe caller is a member with ID: {}",
+            member_sig_ident->member_id);
           response += fmt::format(
-            "\nThe caller's member data is: {}", member_sig_ident->member_data.dump());
+            "\nThe caller's member data is: {}",
+            member_sig_ident->member_data.dump());
           response += fmt::format(
             "\nThe caller's cert is:\n{}", member_sig_ident->member_cert.str());
 
@@ -289,14 +294,14 @@ namespace loggingapp
           return;
         }
         else if (
-          auto jwt_ident = ctx.template get_caller<ccf::JwtAuthnIdentity>())
+          auto jwt_ident = ctx.template try_get_caller<ccf::JwtAuthnIdentity>())
         {
-          auto response =
-            std::string("JWT");
+          auto response = std::string("JWT");
           response += fmt::format(
-            "\nThe caller is identified by a JWT issued by: {}", jwt_ident->key_issuer);
-          response += fmt::format(
-            "\nThe JWT header is:\n{}", jwt_ident->header.dump(2));
+            "\nThe caller is identified by a JWT issued by: {}",
+            jwt_ident->key_issuer);
+          response +=
+            fmt::format("\nThe JWT header is:\n{}", jwt_ident->header.dump(2));
           response += fmt::format(
             "\nThe JWT payload is:\n{}", jwt_ident->payload.dump(2));
 
@@ -305,7 +310,8 @@ namespace loggingapp
           return;
         }
         else if (
-          auto no_ident = ctx.template get_caller<ccf::EmptyAuthnIdentity>())
+          auto no_ident =
+            ctx.template try_get_caller<ccf::EmptyAuthnIdentity>())
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body("Unauthenticated");

@@ -115,25 +115,25 @@ namespace ccf
         }
         else if (
           auto user_cert_ident =
-            args.template get_caller<ccf::UserCertAuthnIdentity>())
+            args.template try_get_caller<ccf::UserCertAuthnIdentity>())
         {
           out.caller_id = user_cert_ident->user_id;
         }
         else if (
           auto member_cert_ident =
-            args.template get_caller<ccf::MemberCertAuthnIdentity>())
+            args.template try_get_caller<ccf::MemberCertAuthnIdentity>())
         {
           out.caller_id = member_cert_ident->member_id;
         }
         else if (
           auto user_sig_ident =
-            args.template get_caller<ccf::UserSignatureAuthnIdentity>())
+            args.template try_get_caller<ccf::UserSignatureAuthnIdentity>())
         {
           out.caller_id = user_cert_ident->user_id;
         }
         else if (
           auto member_sig_ident =
-            args.template get_caller<ccf::MemberSignatureAuthnIdentity>())
+            args.template try_get_caller<ccf::MemberSignatureAuthnIdentity>())
         {
           out.caller_id = member_cert_ident->member_id;
         }

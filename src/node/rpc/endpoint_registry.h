@@ -49,9 +49,20 @@ namespace ccf
     std::unique_ptr<AuthnIdentity> caller;
 
     template <typename T>
-    const T* get_caller()
+    const T* try_get_caller()
     {
       return dynamic_cast<const T*>(caller.get());
+    }
+
+    template <typename T>
+    const T& get_caller()
+    {
+      const T* ident = try_get_caller<T>();
+      if (ident == nullptr)
+      {
+        throw std::logic_error("Asked for unprovided identity type");
+      }
+      return *ident;
     }
   };
   using CommandEndpointFunction =
