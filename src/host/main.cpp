@@ -743,7 +743,7 @@ int main(int argc, char** argv)
       else
       {
         LOG_FAIL_FMT(
-          "No snapshot found. Node will request all historical transactions.");
+          "No snapshot found: Node will request all historical transactions");
       }
     }
 
