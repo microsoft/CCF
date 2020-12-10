@@ -543,6 +543,20 @@ namespace ccf
           update_metrics(ctx, metrics);
           return ctx->serialise_response();
         }
+        catch (const nlohmann::json::exception& e)
+        {
+          ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+          ctx->set_response_body(e.what());
+          update_metrics(ctx, metrics);
+          return ctx->serialise_response();
+        }
+        catch (const UrlQueryParseError& e)
+        {
+          ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+          ctx->set_response_body(e.what());
+          update_metrics(ctx, metrics);
+          return ctx->serialise_response();
+        }
         catch (const kv::KvSerialiserException& e)
         {
           // If serialising the committed transaction fails, there is no way

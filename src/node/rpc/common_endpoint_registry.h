@@ -296,7 +296,7 @@ namespace ccf
           catch (const std::exception& e)
           {
             return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              HTTP_STATUS_BAD_REQUEST,
               fmt::format("Unable to verify receipt: {}", e.what()));
           }
         }
