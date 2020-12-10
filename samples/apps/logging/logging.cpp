@@ -225,7 +225,6 @@ namespace loggingapp
         HTTP_POST,
         ccf::json_adapter(log_record_anonymous))
         .set_auto_schema<LoggingRecord::In, bool>()
-        .add_authentication_policy(user_cert_auth_policy)
         .install();
 
       auto multi_auth = [](auto& ctx) {
