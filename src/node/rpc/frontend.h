@@ -577,9 +577,6 @@ namespace ccf
 
     /** Process a serialised input forwarded from another node
      *
-     * This function assumes that ctx contains the caller_id as read by the
-     * forwarding backup.
-     *
      * @param ctx Context for this forwarded RPC
      *
      * @return Serialised reply to send back to forwarder node

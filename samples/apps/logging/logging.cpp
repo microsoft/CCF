@@ -444,10 +444,13 @@ namespace loggingapp
       auto record_admin_only =
         [this, &nwt](ccf::EndpointContext& ctx, nlohmann::json&& params) {
           {
+            const auto& caller_ident =
+              ctx.get_caller<ccf::UserCertAuthnIdentity>();
+
             // SNIPPET_START: user_data_check
             // Check caller's user-data for required permissions
             auto users_view = ctx.tx.get_view(nwt.users);
-            const auto user_opt = users_view->get(ctx.caller_id);
+            const auto user_opt = users_view->get(caller_ident.user_id);
             const nlohmann::json user_data = user_opt.has_value() ?
               user_opt->user_data :
               nlohmann::json(nullptr);
@@ -482,6 +485,7 @@ namespace loggingapp
         HTTP_POST,
         ccf::json_adapter(record_admin_only))
         .set_auto_schema<LoggingRecord::In, bool>()
+        .add_authentication_policy(user_cert_auth_policy)
         .install();
     }
   };
