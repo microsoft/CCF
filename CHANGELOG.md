@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- C++ endpoints can be omitted from OpenAPI with `set_openapi_hidden(true)` (#2008).
+
+### Changed
+
+- JS endpoints are now omitted from OpenAPI if the `"openapi"` field in `app.json` is empty (#2008).
+
 ## [0.16.0]
 
 ### Added
@@ -12,14 +22,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - CLI options are printed on every node launch (#1923).
 - JS logging sample app is included in CCF package (#1932).
 - C++ apps can be built using cmake's `find_package(ccf REQUIRED)` (see [cmake sample](https://github.com/microsoft/CCF/blob/master/samples/apps/logging/CMakeLists.txt)) (#1947).
-- C++ endpoints can be omitted from OpenAPI with `set_openapi_hidden(true)` (#2008).
 
 ### Changed
 
 - JWT signing keys are auto-refreshed immediately when adding a new issuer instead of waiting until the next auto-refresh event is due (#1978).
 - Snapshots are only committed when proof of snapshot evidence is committed (#1972).
 - Snapshot evidence must be validated before joining/recovering from snapshot (see [doc](https://microsoft.github.io/CCF/master/operations/ledger_snapshot.html#join-recover-from-snapshot)) (#1925).
-- JS endpoints are now omitted from OpenAPI if the `"openapi"` field in `app.json` is empty (#2008).
 
 ### Fixed
 
