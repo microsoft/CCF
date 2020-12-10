@@ -433,7 +433,7 @@ namespace ccf
     void trust_node_code_id(CodeDigest& node_code_id)
     {
       auto codeid_view = tx.get_view(tables.node_code_ids);
-      codeid_view->put(node_code_id, CodeStatus::ACCEPTED);
+      codeid_view->put(node_code_id, CodeStatus::ALLOWED_TO_JOIN);
     }
 
     void add_key_share_info(const RecoverySharesInfo& key_share_info)

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- Code ids are now deleted rather than marked as `RETIRED`. `ACTIVE` is replaced with the more precise `ALLOWED_TO_JOIN`. (#1996)
+
 ## [0.16.0]
 
 ### Added
