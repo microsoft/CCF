@@ -557,9 +557,7 @@ namespace ccf
         catch (const nlohmann::json::exception& e)
         {
           ctx->set_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidInput,
-            e.what());
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.what());
           update_metrics(ctx, metrics);
           return ctx->serialise_response();
         }
