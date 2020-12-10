@@ -76,9 +76,10 @@ namespace ccf
       {
         return make_error(
           HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::NodeAlreadyExists,
           fmt::format(
             "A node with the same node host {} and port {} already exists "
-            "(node id: {})",
+            "(node id: {}).",
             in.node_info_network.nodehost,
             in.node_info_network.nodeport,
             conflicting_node_id.value()));
@@ -97,7 +98,7 @@ namespace ccf
         {
           const auto [code, message] =
             QuoteVerifier::quote_verification_error(verify_result);
-          return make_error(code, message);
+          return make_error(code, ccf::errors::InvalidQuote, message);
         }
       }
 #else
@@ -160,16 +161,18 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "Target node should be part of network to accept new nodes");
+            ccf::errors::InternalError,
+            "Target node should be part of network to accept new nodes.");
         }
 
         if (this->network.consensus_type != in.consensus_type)
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::ConsensusTypeMismatch,
             fmt::format(
               "Node requested to join with consensus type {} but "
-              "current consensus type is {}",
+              "current consensus type is {}.",
               in.consensus_type,
               this->network.consensus_type));
         }
@@ -182,7 +185,8 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "No service is available to accept new node");
+            ccf::errors::InternalError,
+            "No service is available to accept new node.");
         }
 
         // Convert caller cert from DER to PEM as PEM certificates
@@ -246,7 +250,9 @@ namespace ccf
           else
           {
             return make_error(
-              HTTP_STATUS_BAD_REQUEST, "Joining node is not in expected state");
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidNodeState,
+              "Joining node is not in expected state.");
           }
         }
         else
@@ -297,7 +303,10 @@ namespace ccf
         }
         else
         {
-          return make_error(HTTP_STATUS_NOT_FOUND, "Could not find node quote");
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "Could not find node quote.");
         }
       };
       make_read_only_endpoint(
@@ -324,7 +333,10 @@ namespace ccf
         {
           return make_success(service_state.value().status);
         }
-        return make_error(HTTP_STATUS_NOT_FOUND, "Network status is unknown");
+        return make_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::ResourceNotFound,
+          "Network status is unknown.");
       };
       make_read_only_endpoint(
         "network", HTTP_GET, json_read_only_adapter(network_status))
