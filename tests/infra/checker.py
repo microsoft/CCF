@@ -30,7 +30,8 @@ class Checker:
                     result, rpc_result.body
                 )
 
-            assert rpc_result.seqno >= 0 and rpc_result.view >= 0, rpc_result
+            if rpc_result.seqno is not None or rpc_result.view is not None:
+                assert rpc_result.seqno >= 0 and rpc_result.view >= 0, rpc_result
 
         if self.client:
             wait_for_commit(self.client, rpc_result.seqno, rpc_result.view)
