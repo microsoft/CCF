@@ -64,6 +64,7 @@ namespace loggingapp
       // SNIPPET_START: install_record
       make_endpoint("log/private", HTTP_POST, ccf::json_adapter(record))
         .set_auto_schema<LoggingRecord::In, bool>()
+        .add_authentication_policy(user_cert_auth_policy)
         .install();
       // SNIPPET_END: install_record
 
@@ -91,6 +92,7 @@ namespace loggingapp
       make_read_only_endpoint(
         "log/private", HTTP_GET, ccf::json_read_only_adapter(get))
         .set_auto_schema<LoggingGet>()
+        .add_authentication_policy(user_cert_auth_policy)
         .install();
       // SNIPPET_END: install_get
 
@@ -103,6 +105,7 @@ namespace loggingapp
       };
       make_endpoint("log/private", HTTP_DELETE, ccf::json_adapter(remove))
         .set_auto_schema<LoggingRemove>()
+        .add_authentication_policy(user_cert_auth_policy)
         .install();
 
       // SNIPPET_START: record_public
@@ -122,6 +125,7 @@ namespace loggingapp
       // SNIPPET_END: record_public
       make_endpoint("log/public", HTTP_POST, ccf::json_adapter(record_public))
         .set_auto_schema<LoggingRecord::In, bool>()
+        .add_authentication_policy(user_cert_auth_policy)
         .install();
 
       // SNIPPET_START: get_public
@@ -141,6 +145,7 @@ namespace loggingapp
       make_read_only_endpoint(
         "log/public", HTTP_GET, ccf::json_read_only_adapter(get_public))
         .set_auto_schema<LoggingGet>()
+        .add_authentication_policy(user_cert_auth_policy)
         .install();
 
       auto remove_public = [this](kv::Tx& tx, nlohmann::json&& params) {
@@ -152,6 +157,7 @@ namespace loggingapp
       };
       make_endpoint("log/public", HTTP_DELETE, ccf::json_adapter(remove_public))
         .set_auto_schema<LoggingRemove>()
+        .add_authentication_policy(user_cert_auth_policy)
         .install();
 
       // SNIPPET_START: log_record_prefix_cert
@@ -196,6 +202,7 @@ namespace loggingapp
       make_endpoint(
         "log/private/prefix_cert", HTTP_POST, log_record_prefix_cert)
         .set_auto_schema<LoggingRecord::In, bool>()
+        .add_authentication_policy(user_cert_auth_policy)
         .install();
       // SNIPPET_END: log_record_prefix_cert
 
@@ -219,6 +226,7 @@ namespace loggingapp
         ccf::json_adapter(log_record_anonymous))
         .set_auto_schema<LoggingRecord::In, bool>()
         .set_require_client_identity(false)
+        .add_authentication_policy(user_cert_auth_policy)
         .install();
 
       auto multi_auth = [](auto& ctx) {
@@ -373,6 +381,7 @@ namespace loggingapp
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
       make_endpoint("log/private/raw_text/{id}", HTTP_POST, log_record_text)
+        .add_authentication_policy(user_cert_auth_policy)
         .install();
       // SNIPPET_END: log_record_text
 
@@ -439,6 +448,7 @@ namespace loggingapp
           get_historical, context.get_historical_state(), is_tx_committed))
         .set_auto_schema<LoggingGetHistorical>()
         .set_forwarding_required(ccf::ForwardingRequired::Never)
+        .add_authentication_policy(user_cert_auth_policy)
         .install();
 
       auto record_admin_only =

@@ -190,6 +190,7 @@ def test_proposal_over_unauthenticated_connection(network, args):
         backups[0], proposal_body, disable_client_auth=True
     )
     assert proposal.state == infra.proposal.ProposalState.Open
+    return network
 
 
 @reqs.description("Check node/ids endpoint")
