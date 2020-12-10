@@ -7,7 +7,7 @@ add_picobench(
   SRCS ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_serdes_bench.cpp
        src/crypto/symmetric_key.cpp src/enclave/thread_local.cpp
   INCLUDE_DIRS ${CMAKE_CURRENT_LIST_DIR}
-  LINK_LIBS ccfcrypto.host secp256k1.host
+  LINK_LIBS ccfcrypto.host secp256k1.host crypto
 )
 
 add_client_exe(

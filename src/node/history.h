@@ -16,8 +16,13 @@
 
 #include <array>
 #include <deque>
-#include <merklecpp.h>
 #include <string.h>
+
+#define HAVE_OPENSSL
+#define HAVE_MBEDTLS
+// merklecpp traces are off by default, even when CCF tracing is enabled
+// #include "merklecpp_trace.h"
+#include <merklecpp.h>
 
 namespace fmt
 {
@@ -203,11 +208,13 @@ namespace ccf
     }
   };
 
+  typedef merkle::TreeT<32, merkle::sha256_openssl> HistoryTree;
+
   class Receipt
   {
   private:
-    merkle::Hash root;
-    std::shared_ptr<merkle::Path> path = nullptr;
+    HistoryTree::Hash root;
+    std::shared_ptr<HistoryTree::Path> path = nullptr;
 
   public:
     Receipt() {}
@@ -216,10 +223,10 @@ namespace ccf
     {
       size_t position = 0;
       root.deserialise(v, position);
-      path = std::make_shared<merkle::Path>(v, position);
+      path = std::make_shared<HistoryTree::Path>(v, position);
     }
 
-    Receipt(merkle::Tree* tree, uint64_t index)
+    Receipt(HistoryTree* tree, uint64_t index)
     {
       root = tree->root();
       path = tree->path(index);
@@ -227,7 +234,7 @@ namespace ccf
 
     Receipt(const Receipt&) = delete;
 
-    bool verify(merkle::Tree* tree) const
+    bool verify(HistoryTree* tree) const
     {
       return tree->max_index() == path->max_index() && tree->root() == root &&
         path->verify(root);
@@ -244,19 +251,19 @@ namespace ccf
 
   class MerkleTreeHistory
   {
-    merkle::Tree* tree;
+    HistoryTree* tree;
 
   public:
     MerkleTreeHistory(MerkleTreeHistory const&) = delete;
 
     MerkleTreeHistory(const std::vector<uint8_t>& serialised)
     {
-      tree = new merkle::Tree(serialised);
+      tree = new HistoryTree(serialised);
     }
 
     MerkleTreeHistory(crypto::Sha256Hash first_hash = {})
     {
-      tree = new merkle::Tree(merkle::Hash(first_hash.h));
+      tree = new HistoryTree(merkle::Hash(first_hash.h));
     }
 
     ~MerkleTreeHistory()
@@ -268,7 +275,7 @@ namespace ccf
     void deserialise(const std::vector<uint8_t>& serialised)
     {
       delete (tree);
-      tree = new merkle::Tree(serialised);
+      tree = new HistoryTree(serialised);
     }
 
     void append(crypto::Sha256Hash& hash)
@@ -288,7 +295,7 @@ namespace ccf
     {
       delete (tree);
       crypto::Sha256Hash root(rhs.get_root());
-      tree = new merkle::Tree(merkle::Hash(root.h));
+      tree = new HistoryTree(merkle::Hash(root.h));
     }
 
     void flush(uint64_t index)

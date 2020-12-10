@@ -31,13 +31,13 @@ int main()
     merkle::Tree mt;
     size_t j = 0;
     auto start = std::chrono::high_resolution_clock::now();
-    for (auto h : hashes)
+    for (auto& h : hashes)
     {
       mt.insert(h);
       if ((j++ % root_interval) == 0)
         mt.root();
     }
-    // auto root = mt.root();
+    auto root = mt.root();
     auto stop = std::chrono::high_resolution_clock::now();
     double seconds =
       std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start)
@@ -48,7 +48,7 @@ int main()
 
 #ifdef HAVE_EVERCRYPT
     std::vector<uint8_t*> ec_hashes;
-    for (auto h : hashes)
+    for (auto& h : hashes)
     {
       ec_hashes.push_back(mt_init_hash(HSZ));
       memcpy(ec_hashes.back(), h.bytes, HSZ);
@@ -58,7 +58,6 @@ int main()
     size_t num_ec_roots = 1;
     start = std::chrono::high_resolution_clock::now();
     merkle_tree* ec_mt = mt_create(ec_hashes[0]);
-    mt_get_root(ec_mt, ec_root);
     for (size_t i = 1; i < ec_hashes.size(); i++)
     {
       mt_insert(ec_mt, ec_hashes[i]);
@@ -68,6 +67,7 @@ int main()
         num_ec_roots++;
       }
     }
+    mt_get_root(ec_mt, ec_root);
     stop = std::chrono::high_resolution_clock::now();
     seconds = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start)
                 .count() /
