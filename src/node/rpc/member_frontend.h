@@ -1389,7 +1389,8 @@ namespace ccf
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
             fmt::format(
-              "Proposal {} can only be withdrawn by proposer {}, not caller {}.",
+              "Proposal {} can only be withdrawn by proposer {}, not caller "
+              "{}.",
               proposal_id,
               proposal->proposer,
               args.caller_id));
@@ -1858,7 +1859,8 @@ namespace ccf
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             fmt::format(
-              "Could not set recovery threshold to {}.", in.recovery_threshold));
+              "Could not set recovery threshold to {}.",
+              in.recovery_threshold));
         }
 
         g.add_consensus(in.consensus_type);
@@ -1994,7 +1996,8 @@ namespace ccf
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             fmt::format(
-              "Error while storing signing keys for issuer {}.", parsed.issuer));
+              "Error while storing signing keys for issuer {}.",
+              parsed.issuer));
         }
 
         return make_success(true);
