@@ -5,6 +5,7 @@
 #include "authentication_types.h"
 #include "node/certs.h"
 #include "node/members.h"
+#include "node/nodes.h"
 #include "node/users.h"
 #include "tls/pem.h"
 
@@ -131,5 +132,59 @@ namespace ccf
     }
   };
 
-  // TODO: Node cert auth?
+  struct NodeCertAuthnIdentity : public AuthnIdentity
+  {
+    ccf::NodeId node_id;
+    ccf::NodeInfo node_info;
+  };
+
+  class NodeCertAuthnPolicy : public AuthnPolicy
+  {
+  public:
+    std::unique_ptr<AuthnIdentity> authenticate(
+      kv::ReadOnlyTx& tx,
+      const std::shared_ptr<enclave::RpcContext>& ctx,
+      std::string& error_reason) override
+    {
+      const auto caller_cert_pem =
+        tls::cert_der_to_pem(ctx->session->caller_cert);
+
+      std::unique_ptr<NodeCertAuthnIdentity> identity = nullptr;
+
+      auto nodes_view = tx.get_read_only_view<ccf::Nodes>(Tables::NODES);
+      nodes_view->foreach([&caller_cert_pem, &identity](
+                            const auto& id, const auto& info) {
+        if (info.cert == caller_cert_pem)
+        {
+          identity = std::make_unique<NodeCertAuthnIdentity>();
+          identity->node_id = id;
+          identity->node_info = info;
+          return false;
+        }
+
+        return true;
+      });
+
+      if (identity == nullptr)
+      {
+        error_reason = "Caller cert does not match any known node cert";
+      }
+
+      return identity;
+    }
+
+    void set_unauthenticated_error(
+      std::shared_ptr<enclave::RpcContext>& ctx,
+      std::string&& error_reason) override
+    {
+      ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
+      ctx->set_response_body(std::move(error_reason));
+    }
+
+    const OpenAPISecuritySchema& get_openapi_security_schema() const override
+    {
+      // TODO: There's no OpenAPI-compliant way to describe this cert auth?
+      return unauthenticated_schema;
+    }
+  };
 }

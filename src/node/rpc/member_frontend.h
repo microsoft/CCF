@@ -1810,7 +1810,6 @@ namespace ccf
         .add_authentication_policy(member_cert_auth_policy)
         .install();
 
-      // TODO: These last 2 should be node-authed?
       auto create = [this](kv::Tx& tx, nlohmann::json&& params) {
         LOG_DEBUG_FMT("Processing create RPC");
         const auto in = params.get<CreateNetworkNodeToNode::In>();
@@ -1883,7 +1882,6 @@ namespace ccf
         return make_success(true);
       };
       make_endpoint("create", HTTP_POST, json_adapter(create))
-        .set_require_client_identity(false)
         .install();
 
       // Only called from node. See node_state.h.
@@ -1973,7 +1971,7 @@ namespace ccf
       };
       make_endpoint(
         "jwt_keys/refresh", HTTP_POST, json_adapter(refresh_jwt_keys))
-        .set_require_client_identity(false)
+        .add_authentication_policy(std::make_shared<NodeCertAuthnPolicy>())
         .install();
     }
   };
