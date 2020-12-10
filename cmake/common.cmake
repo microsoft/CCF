@@ -554,7 +554,7 @@ function(add_perf_test)
     APPEND
     PROPERTY
       ENVIRONMENT
-      "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
+      "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
   if(DEFINED DEFAULT_ENCLAVE_TYPE)
     set_property(
