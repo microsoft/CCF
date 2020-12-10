@@ -62,7 +62,6 @@ namespace ccf
    * });
    */
 
-  
   class UrlQueryParseError : public std::invalid_argument
   {
   public:
