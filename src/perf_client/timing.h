@@ -163,25 +163,26 @@ namespace timing
     vector<PerRound> per_round;
   };
 
-  static CommitIDs parse_commit_ids(const RpcTlsClient::Response& response)
+  static std::optional<CommitIDs> parse_commit_ids(
+    const RpcTlsClient::Response& response)
   {
     const auto& h = response.headers;
     const auto local_commit_it = h.find(http::headers::CCF_TX_SEQNO);
     if (local_commit_it == h.end())
     {
-      throw std::logic_error("Missing commit response header");
+      return std::nullopt;
     }
 
     const auto global_commit_it = h.find(http::headers::CCF_GLOBAL_COMMIT);
     if (global_commit_it == h.end())
     {
-      throw std::logic_error("Missing global commit response header");
+      return std::nullopt;
     }
 
     const auto view_it = h.find(http::headers::CCF_TX_VIEW);
     if (view_it == h.end())
     {
-      throw std::logic_error("Missing view response header");
+      return std::nullopt;
     }
 
     const auto seqno =
@@ -190,7 +191,7 @@ namespace timing
       std::strtoul(global_commit_it->second.c_str(), nullptr, 0);
     const auto view = std::strtoul(view_it->second.c_str(), nullptr, 0);
 
-    return {seqno, global, view};
+    return {{seqno, global, view}};
   }
 
   class ResponseTimes
@@ -248,8 +249,7 @@ namespace timing
     // committed (or will never be committed), returns first confirming
     // response. Calls record_[send/response], if record is true.
     // Throws on errors, or if target is rolled back
-    CommitPoint wait_for_global_commit(
-      const CommitPoint& target, bool record = true)
+    void wait_for_global_commit(const CommitPoint& target, bool record = true)
     {
       auto params = nlohmann::json::object();
       params["view"] = target.view;
@@ -280,9 +280,9 @@ namespace timing
         }
 
         const auto commit_ids = parse_commit_ids(response);
-        if (record)
+        if (record && commit_ids.has_value())
         {
-          record_receive(response.id, commit_ids);
+          record_receive(response.id, commit_ids.value());
         }
 
         // NB: Eventual header re-org should be exposing API types so
@@ -297,12 +297,15 @@ namespace timing
         else if (tx_status == "COMMITTED")
         {
           LOG_INFO_FMT("Found global commit {}.{}", target.view, target.seqno);
-          LOG_INFO_FMT(
-            " (headers view: {}, seqno: {}, global: {})",
-            commit_ids.view,
-            commit_ids.seqno,
-            commit_ids.global);
-          return {commit_ids.view, commit_ids.seqno};
+          if (commit_ids.has_value())
+          {
+            LOG_INFO_FMT(
+              " (headers view: {}, seqno: {}, global: {})",
+              commit_ids->view,
+              commit_ids->seqno,
+              commit_ids->global);
+          }
+          return;
         }
         else if (tx_status == "INVALID")
         {

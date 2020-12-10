@@ -243,31 +243,36 @@ namespace client
       if (response_times.is_timing_active() && reply.status == HTTP_STATUS_OK)
       {
         const auto commits = timing::parse_commit_ids(reply);
+        if (!commits.has_value())
+        {
+          throw std::logic_error(
+            "Response does not contain expected commit headers");
+        }
 
         // Record time of received responses
-        response_times.record_receive(reply.id, commits);
+        response_times.record_receive(reply.id, commits.value());
 
-        if (commits.view < last_response_commit.view)
+        if (commits->view < last_response_commit.view)
         {
           throw std::logic_error(fmt::format(
             "View went backwards (expected {}, saw {})!",
             last_response_commit.view,
-            commits.view));
+            commits->view));
         }
         else if (
-          commits.view > last_response_commit.view &&
-          commits.seqno <= last_response_commit.seqno)
+          commits->view > last_response_commit.view &&
+          commits->seqno <= last_response_commit.seqno)
         {
           throw std::logic_error(fmt::format(
             "There has been an election and transactions have "
             "been lost! (saw {}.{}, currently at {}.{})",
             last_response_commit.view,
             last_response_commit.seqno,
-            commits.view,
-            commits.seqno));
+            commits->view,
+            commits->seqno));
         }
 
-        last_response_commit = {commits.view, commits.seqno};
+        last_response_commit = {commits->view, commits->seqno};
       }
     }
 
@@ -698,22 +703,25 @@ namespace client
       }
     }
 
-    timing::CommitPoint wait_for_global_commit(
-      const timing::CommitPoint& target)
+    void wait_for_global_commit(const timing::CommitPoint& target)
     {
-      return response_times.wait_for_global_commit(target);
+      response_times.wait_for_global_commit(target);
     }
 
-    timing::CommitPoint wait_for_global_commit(
-      const RpcTlsClient::Response& response)
+    void wait_for_global_commit(const RpcTlsClient::Response& response)
     {
       check_response(response);
 
       const auto response_commit_ids = timing::parse_commit_ids(response);
+      if (!response_commit_ids.has_value())
+      {
+        throw std::logic_error(
+          "Cannot wait for response to commit - it does not have a TxID");
+      }
 
-      const timing::CommitPoint cp{response_commit_ids.view,
-                                   response_commit_ids.seqno};
-      return wait_for_global_commit(cp);
+      const timing::CommitPoint cp{response_commit_ids->view,
+                                   response_commit_ids->seqno};
+      wait_for_global_commit(cp);
     }
 
     void begin_timing()
