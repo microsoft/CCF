@@ -52,6 +52,9 @@ set(CONSENSUSES cft bft)
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(TLS_TEST "TLS Test using https://github.com/drwetter/testssl.sh" OFF)
+option(ZAP_TEST
+       "ZAP fuzz test using https://www.zaproxy.org/docs/docker/api-scan/" OFF
+)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
 # Build common library for CCF enclaves
@@ -703,7 +706,9 @@ if(BUILD_TESTS)
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
       CONSENSUS cft
-      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --raft-election-timeout 4000
+      ADDITIONAL_ARGS
+        --oe-binary ${OE_BINDIR} --raft-election-timeout 4000 --js-app-bundle
+        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
     )
   endif()
 
@@ -774,6 +779,19 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tlstest.py
       CONSENSUS cft
       LABEL tlstest
+    )
+  endif()
+
+  if(ZAP_TEST)
+    configure_file(
+      ${CMAKE_SOURCE_DIR}/tests/zap.config ${CMAKE_BINARY_DIR}/zap.config
+      COPYONLY
+    )
+    add_e2e_test(
+      NAME zaptest_cft
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/zap.py
+      CONSENSUS cft
+      LABEL zaptest
     )
   endif()
 

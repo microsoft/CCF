@@ -584,7 +584,7 @@ class CCFRemote(object):
         memory_reserve_startup=0,
         gov_script=None,
         ledger_dir=None,
-        read_only_ledger_dirs=None,
+        read_only_ledger_dir=None,
         log_format_json=None,
         binary_dir=".",
         ledger_chunk_bytes=(5 * 1000 * 1000),
@@ -611,11 +611,14 @@ class CCFRemote(object):
             if self.ledger_dir
             else f"{local_node_id}.ledger"
         )
+        self.read_only_ledger_dir = read_only_ledger_dir
+
         self.snapshot_dir = os.path.normpath(snapshot_dir) if snapshot_dir else None
         self.snapshot_dir_name = (
-            os.path.basename(self.snapshot_dir) if self.snapshot_dir else "snapshots"
+            os.path.basename(self.snapshot_dir)
+            if self.snapshot_dir
+            else f"{local_node_id}.snapshots"
         )
-        self.read_only_ledger_dirs = read_only_ledger_dirs or []
 
         exe_files = [self.BIN, lib_path] + self.DEPS
         data_files = [self.ledger_dir] if self.ledger_dir else []
@@ -643,6 +646,7 @@ class CCFRemote(object):
             f"--rpc-address-file={self.rpc_address_path}",
             f"--public-rpc-address={make_address(pubhost, rpc_port)}",
             f"--ledger-dir={self.ledger_dir_name}",
+            f"--snapshot-dir={self.snapshot_dir_name}",
             f"--node-cert-file={self.pem}",
             f"--host-log-level={host_log_level}",
             election_timeout_arg,
@@ -674,9 +678,11 @@ class CCFRemote(object):
         if jwt_key_refresh_interval_s:
             cmd += [f"--jwt-key-refresh-interval-s={jwt_key_refresh_interval_s}"]
 
-        for read_only_ledger_dir in self.read_only_ledger_dirs:
-            cmd += [f"--read-only-ledger-dir={os.path.basename(read_only_ledger_dir)}"]
-            data_files += [os.path.join(self.common_dir, read_only_ledger_dir)]
+        if self.read_only_ledger_dir is not None:
+            cmd += [
+                f"--read-only-ledger-dir={os.path.basename(self.read_only_ledger_dir)}"
+            ]
+            data_files += [os.path.join(self.common_dir, self.read_only_ledger_dir)]
 
         if start_type == StartType.new:
             cmd += [
@@ -789,16 +795,19 @@ class CCFRemote(object):
     # but when nodes started from snapshots are fully supported in the test
     # suite, this argument will probably default to True (or be deleted entirely)
     def get_ledger(self, include_read_only_dirs=False):
-        # The first file returned is always the main ledger directory
-        # for that remote. Other ledger directories are read-only.
-        ledger_dirs = []
         self.remote.get(self.ledger_dir_name, self.common_dir)
-        ledger_dirs.append(os.path.join(self.common_dir, self.ledger_dir_name))
-        if include_read_only_dirs:
-            for read_only_ledger_dir in self.read_only_ledger_dirs:
-                self.remote.get(os.path.basename(read_only_ledger_dir), self.common_dir)
-                ledger_dirs.append(os.path.join(self.common_dir, read_only_ledger_dir))
-        return ledger_dirs
+        read_only_ledger_dirs = []
+        if include_read_only_dirs and self.read_only_ledger_dir is not None:
+            self.remote.get(
+                os.path.basename(self.read_only_ledger_dir), self.common_dir
+            )
+            read_only_ledger_dirs.append(
+                os.path.join(self.common_dir, self.read_only_ledger_dir)
+            )
+        return (
+            os.path.join(self.common_dir, self.ledger_dir_name),
+            read_only_ledger_dirs,
+        )
 
     def get_snapshots(self):
         self.remote.get(self.snapshot_dir_name, self.common_dir)

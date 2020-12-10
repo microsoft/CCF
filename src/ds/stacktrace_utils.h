@@ -35,12 +35,12 @@ namespace stacktrace
     char** symbols = backtrace_symbols(frames, num_frames);
     if (symbols != NULL)
     {
-      auto s = fmt::format("Printing {} stack frames:\n", num_frames);
+      std::string s;
       for (int i = 0; i < num_frames; ++i)
       {
         s += fmt::format(" [{:>2}]: {}\n", i, symbols[i]);
       }
-      LOG_INFO_FMT(s);
+      LOG_INFO_FMT("Printing {} stack frames:\n {}", num_frames, s);
     }
     free(symbols);
 #endif

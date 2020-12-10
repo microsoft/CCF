@@ -1752,7 +1752,7 @@ namespace ccf
         }
         catch (const std::exception& e)
         {
-          auto error_msg = "Error submitting recovery shares";
+          constexpr auto error_msg = "Error submitting recovery shares";
           LOG_FAIL_FMT(error_msg);
           LOG_DEBUG_FMT("Error: {}", e.what());
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
@@ -1783,7 +1783,7 @@ namespace ccf
         {
           // Clear the submitted shares if combination fails so that members can
           // start over.
-          auto error_msg = "Failed to initiate private recovery";
+          constexpr auto error_msg = "Failed to initiate private recovery";
           LOG_FAIL_FMT(error_msg);
           LOG_DEBUG_FMT("Error: {}", e.what());
           // TODO: Do we test this? I don't think this is committed, since the
@@ -1932,8 +1932,8 @@ namespace ccf
         auto issuer_metadata_ = issuers->get(parsed.issuer);
         if (!issuer_metadata_.has_value())
         {
-          LOG_FAIL_FMT(fmt::format(
-            "JWT key auto-refresh: {} is not a valid issuer", parsed.issuer));
+          LOG_FAIL_FMT(
+            "JWT key auto-refresh: {} is not a valid issuer", parsed.issuer);
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             fmt::format("{} is not a valid issuer", parsed.issuer));
@@ -1942,9 +1942,9 @@ namespace ccf
 
         if (!issuer_metadata.auto_refresh)
         {
-          LOG_FAIL_FMT(fmt::format(
+          LOG_FAIL_FMT(
             "JWT key auto-refresh: {} does not have auto_refresh enabled",
-            parsed.issuer));
+            parsed.issuer);
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             fmt::format(
@@ -1954,10 +1954,10 @@ namespace ccf
         if (!set_jwt_public_signing_keys(
               ctx.tx, INVALID_ID, parsed.issuer, issuer_metadata, parsed.jwks))
         {
-          LOG_FAIL_FMT(fmt::format(
+          LOG_FAIL_FMT(
             "JWT key auto-refresh: error while storing signing keys for issuer "
             "{}",
-            parsed.issuer));
+            parsed.issuer);
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             fmt::format(
