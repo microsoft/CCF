@@ -38,7 +38,14 @@ if [ -f "${VERSION_FILE}" ]; then
     BINARY_DIR=${PATH_HERE}
     START_NETWORK_SCRIPT="${PATH_HERE}"/start_network.py
     VERSION=$(<"${VERSION_FILE}")
-    pip install --disable-pip-version-check -q -U ccf=="$VERSION"
+    if [ ! -z "${PYTHON_PACKAGE_PATH}" ]; then
+        # With an install tree, the python package can be specified, e.g. when testing
+        # an install just before it is released
+        echo "Using python package: ${PYTHON_PACKAGE_PATH}"
+        pip install --disable-pip-version-check -q -U -e "${PYTHON_PACKAGE_PATH}"
+    else
+        pip install --disable-pip-version-check -q -U ccf=="$VERSION"
+    fi
     pip install --disable-pip-version-check -q -U -r "${PATH_HERE}"/requirements.txt
 else
     # source tree
