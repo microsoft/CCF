@@ -172,8 +172,7 @@ def run(args):
             test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
             errors, _ = network.get_joined_nodes()[-1].stop()
             if not any(
-                "No snapshot found. Node will request transactions all historical transactions"
-                in s
+                "No snapshot found: Node will request all historical transactions" in s
                 for s in errors
             ):
                 raise ValueError(
