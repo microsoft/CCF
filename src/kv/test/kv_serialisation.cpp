@@ -46,8 +46,9 @@ TEST_CASE(
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
     REQUIRE(!latest_data.value().empty());
+    auto hooks = std::make_shared<std::vector<std::shared_ptr<kv::ConsensusHook>>>();
     REQUIRE(
-      kv_store_target.deserialise(latest_data.value()) ==
+      kv_store_target.deserialise(latest_data.value(), hooks) ==
       kv::DeserialiseSuccess::PASS);
 
     auto tx_target = kv_store_target.create_tx();
