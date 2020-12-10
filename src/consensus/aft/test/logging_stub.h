@@ -198,6 +198,7 @@ namespace aft
 
     virtual kv::DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
+      std::vector<std::shared_ptr<kv::ConsensusHook>>& hooks,
       bool public_only = false,
       Term* term = nullptr)
     {

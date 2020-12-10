@@ -35,8 +35,8 @@ public:
     if (store)
     {
       REQUIRE(entries.size() == 1);
-      auto hooks = std::make_shared<std::vector<std::shared_ptr<kv::ConsensusHook>>>();
-      return store->deserialise(*std::get<1>(entries[0]), hook);
+      auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
+      return store->deserialise(*std::get<1>(entries[0]), hooks);
     }
     return true;
   }

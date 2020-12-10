@@ -46,7 +46,7 @@ TEST_CASE(
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
     REQUIRE(!latest_data.value().empty());
-    auto hooks = std::make_shared<std::vector<std::shared_ptr<kv::ConsensusHook>>>();
+    auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
     REQUIRE(
       kv_store_target.deserialise(latest_data.value(), hooks) ==
       kv::DeserialiseSuccess::PASS);
@@ -93,9 +93,10 @@ TEST_CASE(
     INFO("Deserialise transaction in target store");
     {
       const auto latest_data = consensus->get_latest_data();
+      auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
       REQUIRE(latest_data.has_value());
       REQUIRE(
-        kv_store_target.deserialise(latest_data.value()) ==
+        kv_store_target.deserialise(latest_data.value(), hooks) ==
         kv::DeserialiseSuccess::PASS);
 
       auto tx_target = kv_store_target.create_tx();
@@ -138,8 +139,9 @@ TEST_CASE(
   {
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
+    auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
     REQUIRE(
-      kv_store_target.deserialise(latest_data.value()) !=
+      kv_store_target.deserialise(latest_data.value(), hooks) !=
       kv::DeserialiseSuccess::FAILED);
 
     auto tx_target = kv_store_target.create_tx();
@@ -173,8 +175,9 @@ TEST_CASE(
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
+    auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
     REQUIRE(
-      kv_store_target.deserialise(latest_data.value()) !=
+      kv_store_target.deserialise(latest_data.value(), hooks) !=
       kv::DeserialiseSuccess::FAILED);
 
     auto tx_target = kv_store_target.create_tx();
@@ -197,8 +200,9 @@ TEST_CASE(
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
+    auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
     REQUIRE(
-      kv_store_target.deserialise(latest_data.value()) !=
+      kv_store_target.deserialise(latest_data.value(), hooks) !=
       kv::DeserialiseSuccess::FAILED);
 
     auto tx_target = kv_store_target.create_tx();
@@ -528,9 +532,9 @@ TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
     REQUIRE(latest_data.has_value());
     std::vector<uint8_t> value_to_corrupt(pub_value.begin(), pub_value.end());
     REQUIRE(corrupt_serialised_tx(latest_data.value(), value_to_corrupt));
-
+    auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
     REQUIRE(
-      kv_store_target.deserialise(latest_data.value()) ==
+      kv_store_target.deserialise(latest_data.value(), hooks) ==
       kv::DeserialiseSuccess::FAILED);
   }
 }
@@ -553,11 +557,12 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     auto tx = s0.create_tx();
     tx.get_view(t)->put(k1, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-
+    
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
+    auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
     REQUIRE(
-      s1.deserialise(latest_data.value()) != kv::DeserialiseSuccess::FAILED);
+      s1.deserialise(latest_data.value(), hooks) != kv::DeserialiseSuccess::FAILED);
   }
 
   SUBCASE("nlohmann")
@@ -615,12 +620,14 @@ TEST_CASE(
 
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
-    REQUIRE(store.deserialise(data) == kv::DeserialiseSuccess::PASS);
+    auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
+    REQUIRE(store.deserialise(data, hooks) == kv::DeserialiseSuccess::PASS);
 
     INFO("check that second store derived data is not populated");
     {
+      auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
       REQUIRE(
-        kv_store_target.deserialise(data) == kv::DeserialiseSuccess::PASS);
+        kv_store_target.deserialise(data, hooks) == kv::DeserialiseSuccess::PASS);
       auto tx = kv_store_target.create_tx();
       auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] =
         tx.get_view<T, T, T, T>(

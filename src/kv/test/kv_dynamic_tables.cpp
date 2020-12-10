@@ -378,9 +378,9 @@ TEST_CASE("Dynamic map serialisation" * doctest::test_suite("dynamic"))
     INFO("Deserialise transaction in target store");
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
-
+    auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
     REQUIRE(
-      kv_store_target.deserialise(latest_data.value()) ==
+      kv_store_target.deserialise(latest_data.value(), hooks) ==
       kv::DeserialiseSuccess::PASS);
 
     auto tx_target = kv_store_target.create_tx();
