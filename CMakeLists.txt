@@ -706,7 +706,9 @@ if(BUILD_TESTS)
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
       CONSENSUS cft
-      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --raft-election-timeout 4000
+      ADDITIONAL_ARGS
+        --oe-binary ${OE_BINDIR} --raft-election-timeout 4000 --js-app-bundle
+        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
     )
   endif()
 
