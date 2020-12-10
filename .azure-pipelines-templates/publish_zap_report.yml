@@ -1,0 +1,6 @@
+steps:
+  - task: PublishPipelineArtifact@1
+    condition: succeededOrFailed()
+    inputs:
+      artifactName: "ZAP report"
+      targetPath: build/zap_report.html
