@@ -501,7 +501,7 @@ namespace ccf
     std::string digests_table_name;
 
     // Auth policies
-    std::shared_ptr<EmptyAuthnPolicy> empty_auth_plicy =
+    std::shared_ptr<EmptyAuthnPolicy> empty_auth_policy =
       std::make_shared<EmptyAuthnPolicy>();
     std::shared_ptr<UserCertAuthnPolicy> user_cert_auth_policy =
       std::make_shared<UserCertAuthnPolicy>();

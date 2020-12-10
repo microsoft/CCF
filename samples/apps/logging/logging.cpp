@@ -338,7 +338,7 @@ namespace loggingapp
         .add_authentication_policy(member_cert_auth_policy)
         .add_authentication_policy(member_signature_auth_policy)
         .add_authentication_policy(jwt_auth_policy)
-        .add_authentication_policy(empty_auth_plicy)
+        .add_authentication_policy(empty_auth_policy)
         .install();
 
       // SNIPPET_START: log_record_text
