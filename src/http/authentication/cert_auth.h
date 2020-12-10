@@ -152,18 +152,18 @@ namespace ccf
       std::unique_ptr<NodeCertAuthnIdentity> identity = nullptr;
 
       auto nodes_view = tx.get_read_only_view<ccf::Nodes>(Tables::NODES);
-      nodes_view->foreach([&caller_cert_pem, &identity](
-                            const auto& id, const auto& info) {
-        if (info.cert == caller_cert_pem)
-        {
-          identity = std::make_unique<NodeCertAuthnIdentity>();
-          identity->node_id = id;
-          identity->node_info = info;
-          return false;
-        }
+      nodes_view->foreach(
+        [&caller_cert_pem, &identity](const auto& id, const auto& info) {
+          if (info.cert == caller_cert_pem)
+          {
+            identity = std::make_unique<NodeCertAuthnIdentity>();
+            identity->node_id = id;
+            identity->node_info = info;
+            return false;
+          }
 
-        return true;
-      });
+          return true;
+        });
 
       if (identity == nullptr)
       {

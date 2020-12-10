@@ -35,8 +35,8 @@ namespace ccf
       const = 0;
   };
 
-  inline const AuthnPolicy::OpenAPISecuritySchema AuthnPolicy::unauthenticated_schema =
-    std::make_pair("", nlohmann::json());
+  inline const AuthnPolicy::OpenAPISecuritySchema
+    AuthnPolicy::unauthenticated_schema = std::make_pair("", nlohmann::json());
 
   // To make authentication _optional_, we list no-auth as one of several
   // specified policies

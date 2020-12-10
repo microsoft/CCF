@@ -1476,52 +1476,51 @@ namespace ccf
         .add_authentication_policy(member_signature_auth_policy)
         .install();
 
-      auto get_vote =
-        [this](ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
-          const auto& caller_identity =
-            ctx.get_caller<ccf::MemberCertAuthnIdentity>();
-          if (!check_member_active(ctx.tx, caller_identity.member_id))
-          {
-            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
-          }
+      auto get_vote = [this](ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
+        const auto& caller_identity =
+          ctx.get_caller<ccf::MemberCertAuthnIdentity>();
+        if (!check_member_active(ctx.tx, caller_identity.member_id))
+        {
+          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+        }
 
-          std::string error;
-          ObjectId proposal_id;
-          if (!get_proposal_id_from_path(
-                ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
-          {
-            return make_error(HTTP_STATUS_BAD_REQUEST, error);
-          }
+        std::string error;
+        ObjectId proposal_id;
+        if (!get_proposal_id_from_path(
+              ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
+        {
+          return make_error(HTTP_STATUS_BAD_REQUEST, error);
+        }
 
-          MemberId member_id;
-          if (!get_member_id_from_path(
-                ctx.rpc_ctx->get_request_path_params(), member_id, error))
-          {
-            return make_error(HTTP_STATUS_BAD_REQUEST, error);
-          }
+        MemberId member_id;
+        if (!get_member_id_from_path(
+              ctx.rpc_ctx->get_request_path_params(), member_id, error))
+        {
+          return make_error(HTTP_STATUS_BAD_REQUEST, error);
+        }
 
-          auto proposals = ctx.tx.get_read_only_view(this->network.proposals);
-          auto proposal = proposals->get(proposal_id);
-          if (!proposal)
-          {
-            return make_error(
-              HTTP_STATUS_NOT_FOUND,
-              fmt::format("Proposal {} does not exist", proposal_id));
-          }
+        auto proposals = ctx.tx.get_read_only_view(this->network.proposals);
+        auto proposal = proposals->get(proposal_id);
+        if (!proposal)
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            fmt::format("Proposal {} does not exist", proposal_id));
+        }
 
-          const auto vote_it = proposal->votes.find(member_id);
-          if (vote_it == proposal->votes.end())
-          {
-            return make_error(
-              HTTP_STATUS_NOT_FOUND,
-              fmt::format(
-                "Member {} has not voted for proposal {}",
-                member_id,
-                proposal_id));
-          }
+        const auto vote_it = proposal->votes.find(member_id);
+        if (vote_it == proposal->votes.end())
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            fmt::format(
+              "Member {} has not voted for proposal {}",
+              member_id,
+              proposal_id));
+        }
 
-          return make_success(vote_it->second);
-        };
+        return make_success(vote_it->second);
+      };
       make_read_only_endpoint(
         "proposals/{proposal_id}/votes/{member_id}",
         HTTP_GET,
@@ -1650,8 +1649,7 @@ namespace ccf
 
       //! A member asks for a fresher state digest
       auto update_state_digest = [this](
-                                   EndpointContext& ctx,
-                                   nlohmann::json&&) {
+                                   EndpointContext& ctx, nlohmann::json&&) {
         const auto& caller_identity =
           ctx.get_caller<ccf::MemberCertAuthnIdentity>();
         auto [ma_view, sig_view] =
@@ -1881,8 +1879,7 @@ namespace ccf
         LOG_INFO_FMT("Created service");
         return make_success(true);
       };
-      make_endpoint("create", HTTP_POST, json_adapter(create))
-        .install();
+      make_endpoint("create", HTTP_POST, json_adapter(create)).install();
 
       // Only called from node. See node_state.h.
       auto refresh_jwt_keys = [this](

@@ -605,11 +605,7 @@ namespace ccf
       const CommandEndpointFunction& f)
     {
       return make_endpoint(
-               method,
-               verb,
-               [f](EndpointContext& args) {
-                 f(args);
-               })
+               method, verb, [f](EndpointContext& args) { f(args); })
         .set_forwarding_required(ForwardingRequired::Sometimes);
     }
 
