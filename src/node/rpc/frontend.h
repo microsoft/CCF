@@ -556,15 +556,19 @@ namespace ccf
         }
         catch (const nlohmann::json::exception& e)
         {
-          ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          ctx->set_response_body(e.what());
+          ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidInput,
+            e.what());
           update_metrics(ctx, metrics);
           return ctx->serialise_response();
         }
         catch (const UrlQueryParseError& e)
         {
-          ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          ctx->set_response_body(e.what());
+          ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            e.what());
           update_metrics(ctx, metrics);
           return ctx->serialise_response();
         }
