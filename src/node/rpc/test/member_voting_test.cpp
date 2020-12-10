@@ -2100,7 +2100,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
       {
         check_error(rep, HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
-        // On error, all submitted shares should have been clearer
+        // On error, all submitted shares should have been cleared
         size_t submitted_shares_count = 0;
         submitted_shares->foreach(
           [&submitted_shares_count](const auto& member_id, const auto& share) {
