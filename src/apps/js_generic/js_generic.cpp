@@ -1277,11 +1277,10 @@ namespace ccfapp
             return true;
           }
 
-          auto& path_op = ds::openapi::path_operation(
-            ds::openapi::path(document, key.uri_path), http_verb.value());
-
           if (!properties.openapi.empty())
           {
+            auto& path_op = ds::openapi::path_operation(
+              ds::openapi::path(document, key.uri_path), http_verb.value());
             path_op.insert(
               properties.openapi.cbegin(), properties.openapi.cend());
           }
