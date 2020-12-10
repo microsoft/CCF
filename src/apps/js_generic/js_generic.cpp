@@ -1165,6 +1165,19 @@ namespace ccfapp
         endpoint_def->dispatch = key;
         endpoint_def->properties = it.value();
 
+        if (endpoint_def->properties.require_client_identity)
+        {
+          endpoint_def->authn_policies.push_back(user_cert_auth_policy);
+        }
+        if (endpoint_def->properties.require_client_signature)
+        {
+          endpoint_def->authn_policies.push_back(user_signature_auth_policy);
+        }
+        if (endpoint_def->properties.require_jwt_authentication)
+        {
+          endpoint_def->authn_policies.push_back(jwt_auth_policy);
+        }
+
         return endpoint_def;
       }
 
