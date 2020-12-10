@@ -388,18 +388,18 @@ namespace ccf
         return *this;
       }
 
+      CCF_DEPRECATED("Replace with add_authentication_policy")
+      Endpoint& set_require_jwt_authentication(bool v)
+      {
+        properties.require_jwt_authentication = v;
+        return *this;
+      }
+
       // TODO: Document
       Endpoint& add_authentication_policy(
         const std::shared_ptr<AuthnPolicy>& policy)
       {
         authn_policies.push_back(policy);
-        return *this;
-      }
-
-      CCF_DEPRECATED("Replace with add_authentication_policy")
-      Endpoint& set_require_jwt_authentication(bool v)
-      {
-        properties.require_jwt_authentication = v;
         return *this;
       }
 
