@@ -20,7 +20,8 @@ namespace ccf
     partOfPublicNetwork,
     partOfNetwork,
     readingPublicLedger,
-    readingPrivateLedger
+    readingPrivateLedger,
+    verifyingSnapshot
   };
 
   struct GetState

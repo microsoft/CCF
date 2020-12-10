@@ -438,7 +438,9 @@ namespace enclave
           if (r > 0)
           {
             buf.resize(r);
-            LOG_TRACE_FMT(std::string(buf.data(), buf.size()));
+            LOG_TRACE_FMT(
+              "Certificate verify failed: {}",
+              std::string(buf.data(), buf.size()));
           }
 
           LOG_TRACE_FMT(
