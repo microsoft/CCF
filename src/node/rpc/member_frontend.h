@@ -1753,6 +1753,7 @@ namespace ccf
           LOG_FAIL_FMT(error_msg);
           LOG_DEBUG_FMT("Error: {}", e.what());
           share_manager.clear_submitted_recovery_shares(args.tx);
+          args.rpc_ctx->set_apply_writes(true);
           args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
           args.rpc_ctx->set_response_body(std::move(error_msg));
           return;

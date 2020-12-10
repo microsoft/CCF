@@ -2092,12 +2092,27 @@ DOCTEST_TEST_CASE("Submit recovery shares")
 
       submitted_shares_count++;
 
+      auto tx = network.tables->create_tx();
+      auto submitted_shares = tx.get_view(network.submitted_shares);
       // Share submission should only complete when the recovery threshold
       // has been reached
       if (submitted_shares_count >= recovery_threshold)
       {
         check_error(rep, HTTP_STATUS_INTERNAL_SERVER_ERROR);
+
+        // On error, all submitted shares should have been clearer
+        size_t submitted_shares_count = 0;
+        submitted_shares->foreach(
+          [&submitted_shares_count](const auto& member_id, const auto& share) {
+            submitted_shares_count++;
+            return true;
+          });
+        DOCTEST_REQUIRE(submitted_shares_count == 0);
         break;
+      }
+      else
+      {
+        DOCTEST_REQUIRE(submitted_shares->has(m.first));
       }
     }
   }
