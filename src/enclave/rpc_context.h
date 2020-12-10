@@ -225,7 +225,7 @@ namespace enclave
     {
       nlohmann::json body = ccf::ODataErrorResponse{
         ccf::ODataError{std::move(error.code), std::move(error.msg)}};
-      const auto s = fmt::format("{}\n", body.dump());
+      const auto s = fmt::format("{}", body.dump());
       set_response_status(error.status);
       set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
       set_response_header(

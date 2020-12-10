@@ -62,7 +62,7 @@ namespace ccf::historical
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::MissingRequiredHeader,
             fmt::format(
-              "Historical query is missing '{}' header",
+              "Historical query is missing '{}' header.",
               http::headers::CCF_TX_VIEW));
           return;
         }
@@ -76,7 +76,7 @@ namespace ccf::historical
             ccf::errors::InvalidHeaderValue,
             fmt::format(
               "The value '{}' in header '{}' could not be converted to a valid "
-              "view",
+              "view.",
               target_view_opt.value(),
               http::headers::CCF_TX_VIEW));
           return;
@@ -90,7 +90,7 @@ namespace ccf::historical
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::MissingRequiredHeader,
             fmt::format(
-              "Historical query is missing '{}' header",
+              "Historical query is missing '{}' header.",
               http::headers::CCF_TX_SEQNO));
           return;
         }
@@ -104,7 +104,7 @@ namespace ccf::historical
             ccf::errors::InvalidHeaderValue,
             fmt::format(
               "The value '{}' in header '{}' could not be converted to a valid "
-              "seqno",
+              "seqno.",
               target_seqno_opt.value(),
               http::headers::CCF_TX_SEQNO));
           return;
@@ -114,7 +114,7 @@ namespace ccf::historical
       // Check that the requested transaction ID is available
       {
         auto error_reason = fmt::format(
-          "Transaction {}.{} is not available", target_view, target_seqno);
+          "Transaction {}.{} is not available.", target_view, target_seqno);
         if (!available(target_view, target_seqno, error_reason))
         {
           args.rpc_ctx->set_error(
@@ -135,7 +135,7 @@ namespace ccf::historical
           http::headers::RETRY_AFTER, retry_after_seconds);
         args.rpc_ctx->set_response_body(fmt::format(
           "Historical transaction at seqno {} in view {} is not currently "
-          "available",
+          "available.",
           target_seqno,
           target_view));
         return;

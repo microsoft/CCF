@@ -54,7 +54,7 @@ namespace loggingapp
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
-            "Cannot record an empty log message");
+            "Cannot record an empty log message.");
         }
 
         auto view = tx.get_view(records);
@@ -87,7 +87,7 @@ namespace loggingapp
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::ResourceNotFound,
-            fmt::format("No such record: {}", in.id));
+            fmt::format("No such record: {}.", in.id));
         };
       // SNIPPET_END: get
 
@@ -118,7 +118,7 @@ namespace loggingapp
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
-            "Cannot record an empty log message");
+            "Cannot record an empty log message.");
         }
 
         auto view = tx.get_view(public_records);
@@ -143,7 +143,7 @@ namespace loggingapp
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::ResourceNotFound,
-            fmt::format("No such record: {}", in.id));
+            fmt::format("No such record: {}.", in.id));
         };
       // SNIPPET_END: get_public
       make_read_only_endpoint(
@@ -215,7 +215,7 @@ namespace loggingapp
             return ccf::make_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidInput,
-              "Cannot record an empty log message");
+              "Cannot record an empty log message.");
           }
 
           const auto log_line = fmt::format("Anonymous: {}", in.msg);
@@ -359,7 +359,7 @@ namespace loggingapp
               return ccf::make_error(
                 HTTP_STATUS_FORBIDDEN,
                 ccf::errors::AuthorizationFailed,
-                "Only admins may access this endpoint");
+                "Only admins may access this endpoint.");
             }
             // SNIPPET_END: user_data_check
           }
@@ -371,7 +371,7 @@ namespace loggingapp
             return ccf::make_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidInput,
-              "Cannot record an empty log message");
+              "Cannot record an empty log message.");
           }
 
           auto view = ctx.tx.get_view(records);

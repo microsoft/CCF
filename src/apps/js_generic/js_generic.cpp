@@ -843,7 +843,7 @@ namespace ccfapp
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ResourceNotFound,
             fmt::format(
-              "No handler script found for method '{}'", verb_prefixed));
+              "No handler script found for method '{}'.", verb_prefixed));
           return;
         }
       }
@@ -932,7 +932,7 @@ namespace ccfapp
         args.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          "Exception thrown while compiling");
+          "Exception thrown while compiling.");
         return;
       }
 
@@ -944,7 +944,7 @@ namespace ccfapp
         args.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          "Exception thrown while executing");
+          "Exception thrown while executing.");
         return;
       }
       JS_FreeValue(ctx, eval_val);
@@ -979,7 +979,7 @@ namespace ccfapp
         args.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          "Exception thrown while executing");
+          "Exception thrown while executing.");
         return;
       }
 
@@ -989,7 +989,7 @@ namespace ccfapp
         args.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          "Invalid endpoint function return value (not an object)");
+          "Invalid endpoint function return value (not an object).");
         return;
       }
 
@@ -1046,7 +1046,7 @@ namespace ccfapp
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
                 "Invalid endpoint function return value (error during JSON "
-                "conversion of body)");
+                "conversion of body).");
               return;
             }
             cstr = JS_ToCString(ctx, rval);
@@ -1059,7 +1059,7 @@ namespace ccfapp
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
               "Invalid endpoint function return value (error during string "
-              "conversion of body)");
+              "conversion of body).");
             return;
           }
           std::string str(cstr);
@@ -1096,7 +1096,7 @@ namespace ccfapp
               args.rpc_ctx->set_error(
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
-                "Invalid endpoint function return value (header value type)");
+                "Invalid endpoint function return value (header value type).");
               return;
             }
             args.rpc_ctx->set_response_header(prop_name_cstr, prop_val_cstr);
@@ -1118,7 +1118,7 @@ namespace ccfapp
             args.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              "Invalid endpoint function return value (status code type)");
+              "Invalid endpoint function return value (status code type).");
             return;
           }
           response_status_code = JS_VALUE_GET_INT(status_code_js.val);

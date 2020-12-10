@@ -48,7 +48,7 @@ namespace ccf
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          "Failed to get commit info from Consensus");
+          "Failed to get commit info from Consensus.");
       };
       make_command_endpoint(
         "commit", HTTP_GET, json_command_adapter(get_commit))
@@ -74,7 +74,7 @@ namespace ccf
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          "Consensus is not yet configured");
+          "Consensus is not yet configured.");
       };
       make_command_endpoint("tx", HTTP_GET, json_command_adapter(get_tx_status))
         .set_auto_schema<GetTxStatus>()
@@ -104,7 +104,7 @@ namespace ccf
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              "This frontend does not support 'user_id'");
+              "This frontend does not support 'user_id'.");
           }
 
           auto caller_id = args.caller_id;
@@ -123,7 +123,7 @@ namespace ccf
               return make_error(
                 HTTP_STATUS_BAD_REQUEST,
                 ccf::errors::UnknownCertificate,
-                "Certificate not recognised");
+                "Certificate not recognised.");
             }
 
             caller_id = caller_id_opt.value();
@@ -276,7 +276,7 @@ namespace ccf
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
               fmt::format(
-                "Unable to produce receipt for commit {} : {}",
+                "Unable to produce receipt for commit {} : {}.",
                 in.commit,
                 e.what()));
           }
@@ -285,7 +285,7 @@ namespace ccf
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          "Unable to produce receipt");
+          "Unable to produce receipt.");
       };
       make_command_endpoint(
         "receipt", HTTP_GET, json_command_adapter(get_receipt))
@@ -309,14 +309,14 @@ namespace ccf
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              fmt::format("Unable to verify receipt: {}", e.what()));
+              fmt::format("Unable to verify receipt: {}.", e.what()));
           }
         }
 
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          "Unable to verify receipt");
+          "Unable to verify receipt.");
       };
       make_command_endpoint(
         "receipt/verify", HTTP_POST, json_command_adapter(verify_receipt))

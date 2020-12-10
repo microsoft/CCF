@@ -79,7 +79,7 @@ namespace ccf
           ccf::errors::NodeAlreadyExists,
           fmt::format(
             "A node with the same node host {} and port {} already exists "
-            "(node id: {})",
+            "(node id: {}).",
             in.node_info_network.nodehost,
             in.node_info_network.nodeport,
             conflicting_node_id.value()));
@@ -162,7 +162,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Target node should be part of network to accept new nodes");
+            "Target node should be part of network to accept new nodes.");
         }
 
         if (this->network.consensus_type != in.consensus_type)
@@ -172,7 +172,7 @@ namespace ccf
             ccf::errors::ConsensusTypeMismatch,
             fmt::format(
               "Node requested to join with consensus type {} but "
-              "current consensus type is {}",
+              "current consensus type is {}.",
               in.consensus_type,
               this->network.consensus_type));
         }
@@ -186,7 +186,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "No service is available to accept new node");
+            "No service is available to accept new node.");
         }
 
         // Convert caller cert from DER to PEM as PEM certificates
@@ -252,7 +252,7 @@ namespace ccf
             return make_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidNodeState,
-              "Joining node is not in expected state");
+              "Joining node is not in expected state.");
           }
         }
         else
@@ -306,7 +306,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ResourceNotFound,
-            "Could not find node quote");
+            "Could not find node quote.");
         }
       };
       make_read_only_endpoint(
@@ -336,7 +336,7 @@ namespace ccf
         return make_error(
           HTTP_STATUS_NOT_FOUND,
           ccf::errors::ResourceNotFound,
-          "Network status is unknown");
+          "Network status is unknown.");
       };
       make_read_only_endpoint(
         "network", HTTP_GET, json_read_only_adapter(network_status))

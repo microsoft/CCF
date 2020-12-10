@@ -219,7 +219,7 @@ namespace ccf
 
     void set_response_unauthorized(
       std::shared_ptr<enclave::RpcContext>& ctx,
-      std::string&& msg = "Failed to verify client signature") const
+      std::string&& msg = "Failed to verify client signature.") const
     {
       ctx->set_error(
         HTTP_STATUS_UNAUTHORIZED,
@@ -260,7 +260,7 @@ namespace ccf
           ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ResourceNotFound,
-            fmt::format("Unknown path: {}", ctx->get_method()));
+            fmt::format("Unknown path: {}.", ctx->get_method()));
           return ctx->serialise_response();
         }
         else
@@ -280,7 +280,7 @@ namespace ccf
             HTTP_STATUS_METHOD_NOT_ALLOWED,
             ccf::errors::UnsupportedHttpVerb,
             fmt::format(
-              "Allowed methods for '{}' are: {}",
+              "Allowed methods for '{}' are: {}.",
               ctx->get_method(),
               allow_header_value));
           return ctx->serialise_response();
@@ -391,12 +391,12 @@ namespace ccf
           auto token_key = keys_view->get(key_id);
           if (!token_key.has_value())
           {
-            error_reason = "JWT signing key not found";
+            error_reason = "JWT signing key not found.";
           }
           else if (!http::JwtVerifier::validate_token_signature(
                      token.value(), token_key.value()))
           {
-            error_reason = "JWT signature is invalid";
+            error_reason = "JWT signature is invalid.";
           }
           else
           {
@@ -550,7 +550,7 @@ namespace ccf
           ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
-            fmt::format("At {}:\n\t{}", e.pointer(), e.what()));
+            fmt::format("At {}: {}", e.pointer(), e.what()));
           update_metrics(ctx, metrics);
           return ctx->serialise_response();
         }

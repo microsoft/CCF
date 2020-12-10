@@ -232,7 +232,7 @@ namespace http
             ccf::errors::ResourceNotFound,
             fmt::format(
               "Request path must contain '/[actor]/[method]'. Unable to parse "
-              "'{}'.\n",
+              "'{}'.",
               rpc_ctx->get_method()));
           send_raw(rpc_ctx->serialise_response());
           return;
@@ -246,7 +246,7 @@ namespace http
           rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ResourceNotFound,
-            fmt::format("Unknown actor '{}'.\n", actor_s));
+            fmt::format("Unknown actor '{}'.", actor_s));
           send_raw(rpc_ctx->serialise_response());
           return;
         }
@@ -272,14 +272,14 @@ namespace http
           send_raw(ws::error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            fmt::format("Exception:\n{}\n", e.what())));
+            fmt::format("Exception: {}", e.what())));
         }
         else
         {
           send_raw(http::error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            fmt::format("Exception:\n{}\n", e.what())));
+            fmt::format("Exception: {}", e.what())));
         }
 
         // On any exception, close the connection.
