@@ -280,9 +280,9 @@ namespace timing
         }
 
         const auto commit_ids = parse_commit_ids(response);
-        if (record && commit_ids.has_value())
+        if (record)
         {
-          record_receive(response.id, commit_ids.value());
+          record_receive(response.id, commit_ids);
         }
 
         // NB: Eventual header re-org should be exposing API types so

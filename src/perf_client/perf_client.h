@@ -243,14 +243,9 @@ namespace client
       if (response_times.is_timing_active() && reply.status == HTTP_STATUS_OK)
       {
         const auto commits = timing::parse_commit_ids(reply);
-        if (!commits.has_value())
-        {
-          throw std::logic_error(
-            "Response does not contain expected commit headers");
-        }
 
         // Record time of received responses
-        response_times.record_receive(reply.id, commits.value());
+        response_times.record_receive(reply.id, commits);
 
         if (commits->view < last_response_commit.view)
         {
