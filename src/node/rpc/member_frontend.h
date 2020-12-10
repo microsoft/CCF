@@ -1976,16 +1976,6 @@ namespace ccf
         .set_require_client_identity(false)
         .install();
     }
-
-    std::shared_ptr<AuthnPolicy> get_cert_authn_policy() override
-    {
-      return member_cert_auth_policy;
-    }
-
-    std::shared_ptr<AuthnPolicy> get_sig_authn_policy() override
-    {
-      return member_signature_auth_policy;
-    }
   };
 
   class MemberRpcFrontend : public RpcFrontend

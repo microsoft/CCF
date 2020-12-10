@@ -396,8 +396,7 @@ namespace ccf
         return *this;
       }
 
-      // TODO: Deprecate this and those like it, reimplement via
-      // `add_authentication_policy`
+      CCF_DEPRECATED("Replace with add_authentication_policy")
       Endpoint& set_require_jwt_authentication(bool v)
       {
         properties.require_jwt_authentication = v;
@@ -609,7 +608,7 @@ namespace ccf
                method,
                verb,
                [f](EndpointContext& args) {
-                 f(args); // TODO: More like this
+                 f(args);
                })
         .set_forwarding_required(ForwardingRequired::Sometimes);
     }
@@ -891,20 +890,6 @@ namespace ccf
     {
       return !digests_table_name.empty();
     }
-
-    // TODO: This is only needed to support the deprecated
-    // set_require_client_identity
-    virtual std::shared_ptr<AuthnPolicy> get_cert_authn_policy()
-    {
-      return nullptr;
-    };
-
-    // TODO: This is only needed to support the deprecated
-    // set_require_client_signature
-    virtual std::shared_ptr<AuthnPolicy> get_sig_authn_policy()
-    {
-      return nullptr;
-    };
 
     void set_consensus(kv::Consensus* c)
     {

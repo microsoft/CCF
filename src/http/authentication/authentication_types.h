@@ -40,8 +40,6 @@ namespace ccf
 
   // To make authentication _optional_, we list no-auth as one of several
   // specified policies
-  // TODO: Is this worth doing? Or should we just keep "require_client_identity
-  // = false", and use that for all the special casing?
   struct EmptyAuthnIdentity : public AuthnIdentity
   {};
 

@@ -58,7 +58,6 @@ namespace ccf
         }
       }
 
-      // TODO: maintain error_reason
       return nullptr;
     }
 

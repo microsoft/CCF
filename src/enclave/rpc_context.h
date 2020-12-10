@@ -164,7 +164,6 @@ namespace enclave
     virtual const ccf::RESTVerb& get_request_verb() const = 0;
     virtual std::string get_request_path() const = 0;
 
-    // TODO: Get rid of these old bits of nonsense
     virtual std::string get_method() const = 0;
     virtual void set_method(const std::string_view& method) = 0;
 

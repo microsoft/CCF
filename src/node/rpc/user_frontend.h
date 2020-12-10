@@ -68,16 +68,6 @@ namespace ccf
         Tables::USER_CERT_DERS,
         Tables::USER_DIGESTS)
     {}
-
-    std::shared_ptr<AuthnPolicy> get_cert_authn_policy() override
-    {
-      return user_cert_auth_policy;
-    }
-
-    std::shared_ptr<AuthnPolicy> get_sig_authn_policy() override
-    {
-      return user_signature_auth_policy;
-    }
   };
 
   class SimpleUserRpcFrontend : public UserRpcFrontend
