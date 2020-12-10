@@ -137,8 +137,9 @@ namespace ccf
             return std::nullopt;
           }
         }
-        ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        ctx->set_response_body(
+        ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
           "RPC could not be forwarded to unknown primary.");
         update_metrics(ctx, metrics);
         return ctx->serialise_response();
@@ -218,26 +219,30 @@ namespace ccf
 
     void set_response_unauthorized(
       std::shared_ptr<enclave::RpcContext>& ctx,
-      std::string&& msg = "Failed to verify client signature") const
+      std::string&& msg = "Failed to verify client signature.") const
     {
-      ctx->set_response_status(HTTP_STATUS_UNAUTHORIZED);
+      ctx->set_error(
+        HTTP_STATUS_UNAUTHORIZED,
+        ccf::errors::InvalidAuthenticationInfo,
+        std::move(msg));
       ctx->set_response_header(
         http::headers::WWW_AUTHENTICATE,
         fmt::format(
           "Signature realm=\"Signed request access\", "
           "headers=\"{}\"",
           fmt::join(http::required_signature_headers, " ")));
-      ctx->set_response_body(std::move(msg));
     }
 
     void set_response_unauthorized_jwt(
       std::shared_ptr<enclave::RpcContext>& ctx, std::string&& msg) const
     {
-      ctx->set_response_status(HTTP_STATUS_UNAUTHORIZED);
+      ctx->set_error(
+        HTTP_STATUS_UNAUTHORIZED,
+        ccf::errors::InvalidAuthenticationInfo,
+        std::move(msg));
       ctx->set_response_header(
         http::headers::WWW_AUTHENTICATE,
         "Bearer realm=\"JWT bearer token access\", error=\"invalid_token\"");
-      ctx->set_response_body(std::move(msg));
     }
 
     std::optional<std::vector<uint8_t>> process_command(
@@ -252,16 +257,14 @@ namespace ccf
         const auto allowed_verbs = endpoints.get_allowed_verbs(*ctx);
         if (allowed_verbs.empty())
         {
-          ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-          ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          ctx->set_response_body(
-            fmt::format("Unknown path: {}", ctx->get_method()));
+          ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            fmt::format("Unknown path: {}.", ctx->get_method()));
           return ctx->serialise_response();
         }
         else
         {
-          ctx->set_response_status(HTTP_STATUS_METHOD_NOT_ALLOWED);
           std::vector<char const*> allowed_verb_strs;
           for (auto verb : allowed_verbs)
           {
@@ -273,10 +276,13 @@ namespace ccf
           // - ALLOW header for standards compliance + machine parsing
           // - Body for visiblity + human readability
           ctx->set_response_header(http::headers::ALLOW, allow_header_value);
-          ctx->set_response_body(fmt::format(
-            "Allowed methods for '{}' are: {}",
-            ctx->get_method(),
-            allow_header_value));
+          ctx->set_error(
+            HTTP_STATUS_METHOD_NOT_ALLOWED,
+            ccf::errors::UnsupportedHttpVerb,
+            fmt::format(
+              "Allowed methods for '{}' are: {}.",
+              ctx->get_method(),
+              allow_header_value));
           return ctx->serialise_response();
         }
       }
@@ -320,8 +326,10 @@ namespace ccf
            !lookup_forwarded_caller_cert(ctx, tx)) ||
           caller_id == INVALID_ID)
         {
-          ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
-          ctx->set_response_body(invalid_caller_error_message());
+          ctx->set_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            invalid_caller_error_message());
           update_metrics(ctx, metrics);
           return ctx->serialise_response();
         }
@@ -383,12 +391,12 @@ namespace ccf
           auto token_key = keys_view->get(key_id);
           if (!token_key.has_value())
           {
-            error_reason = "JWT signing key not found";
+            error_reason = "JWT signing key not found.";
           }
           else if (!http::JwtVerifier::validate_token_signature(
                      token.value(), token_key.value()))
           {
-            error_reason = "JWT signature is invalid";
+            error_reason = "JWT signature is invalid.";
           }
           else
           {
@@ -512,8 +520,10 @@ namespace ccf
 
             case kv::CommitSuccess::NO_REPLICATE:
             {
-              ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-              ctx->set_response_body("Transaction failed to replicate.");
+              ctx->set_error(
+                HTTP_STATUS_SERVICE_UNAVAILABLE,
+                ccf::errors::TransactionReplicationFailed,
+                "Transaction failed to replicate.");
               update_metrics(ctx, metrics);
               return ctx->serialise_response();
             }
@@ -537,9 +547,10 @@ namespace ccf
         }
         catch (JsonParseError& e)
         {
-          auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
-          ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          ctx->set_response_body(std::move(err));
+          ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidInput,
+            fmt::format("At {}: {}", e.pointer(), e.what()));
           update_metrics(ctx, metrics);
           return ctx->serialise_response();
         }
@@ -568,16 +579,23 @@ namespace ccf
         }
         catch (const std::exception& e)
         {
-          ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          ctx->set_response_body(e.what());
+          ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            e.what());
           update_metrics(ctx, metrics);
           return ctx->serialise_response();
         }
       }
 
-      ctx->set_response_status(HTTP_STATUS_CONFLICT);
-      ctx->set_response_body(fmt::format(
-        "Transaction continued to conflict after {} attempts.", max_attempts));
+      ctx->set_error(
+        HTTP_STATUS_SERVICE_UNAVAILABLE,
+        ccf::errors::TransactionCommitAttemptsExceedLimit,
+        fmt::format(
+          "Transaction continued to conflict after {} attempts. Retry later.",
+          max_attempts));
+      static constexpr size_t retry_after_seconds = 3;
+      ctx->set_response_header(http::headers::RETRY_AFTER, retry_after_seconds);
       return ctx->serialise_response();
     }
 
@@ -665,8 +683,10 @@ namespace ccf
       auto tx = tables.create_tx();
       if (!is_open(tx))
       {
-        ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-        ctx->set_response_body("Frontend is not open.");
+        ctx->set_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::FrontendNotOpen,
+          "Frontend is not open.");
         return ctx->serialise_response();
       }
 
@@ -709,8 +729,10 @@ namespace ccf
               std::get<0>(reqid),
               std::get<1>(reqid),
               std::get<2>(reqid));
-            ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-            ctx->set_response_body("Could not process request.");
+            ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Could not process request.");
             return ctx->serialise_response();
           }
           tx.set_req_id(reqid);
@@ -718,8 +740,10 @@ namespace ccf
         }
         else
         {
-          ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          ctx->set_response_body("Consensus is not yet ready.");
+          ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Consensus is not yet ready.");
           return ctx->serialise_response();
         }
       }

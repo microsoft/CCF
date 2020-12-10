@@ -112,7 +112,7 @@ public:
           const http_status error_code = (*it)["code"];
           const std::string error_msg = (*it)["message"];
 
-          return make_error((http_status)error_code, error_msg);
+          return make_error((http_status)error_code, "Error", error_msg);
         }
 
         return make_success(true);
@@ -888,9 +888,10 @@ TEST_CASE("MinimalEndpointFunction")
       CHECK(response.status == err);
       CHECK(
         response.headers[http::headers::CONTENT_TYPE] ==
-        http::headervalues::contenttype::TEXT);
+        http::headervalues::contenttype::JSON);
       const std::string body_s(response.body.begin(), response.body.end());
-      CHECK(body_s == msg);
+      auto body_j = nlohmann::json::parse(body_s);
+      CHECK(body_j["error"]["message"] == msg);
     }
   }
 }
