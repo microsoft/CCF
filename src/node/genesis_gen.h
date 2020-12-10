@@ -154,7 +154,7 @@ namespace ccf
           "Member {} cannot be activated as they do not exist", member_id));
       }
 
-      // Only accepted members can transition to accepted state
+      // Only accepted members can transition to active state
       if (member->status != MemberStatus::ACCEPTED)
       {
         return;
