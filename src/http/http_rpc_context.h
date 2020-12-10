@@ -40,7 +40,7 @@ namespace http
   {
     nlohmann::json body = ccf::ODataErrorResponse{
       ccf::ODataError{std::move(error.code), std::move(error.msg)}};
-    const auto s = fmt::format("{}", body.dump());
+    const auto s = body.dump();
 
     std::vector<uint8_t> data(s.begin(), s.end());
     auto response = http::Response(error.status);
