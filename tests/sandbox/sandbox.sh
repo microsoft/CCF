@@ -31,7 +31,7 @@ while [ "$1" != "" ]; do
             is_js_bundle_specified=true
             ;;
         *)
-            break
+            ;;
     esac
     shift
 done
