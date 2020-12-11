@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- Error responses of built-in endpoints are now JSON and follow the OData schema (#1919).
 - Code ids are now deleted rather than marked as `RETIRED`. `ACTIVE` is replaced with the more precise `ALLOWED_TO_JOIN`. (#1996)
 
 ## [0.16.0]
