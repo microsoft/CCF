@@ -527,7 +527,7 @@ namespace ccf
           fmt::join(new_code_id, ""));
         return false;
       }
-      code_ids->put(new_code_id, CodeStatus::ACCEPTED);
+      code_ids->put(new_code_id, CodeStatus::ALLOWED_TO_JOIN);
       return true;
     }
 
@@ -547,7 +547,7 @@ namespace ccf
           fmt::join(code_id, ""));
         return false;
       }
-      code_ids->put(code_id, CodeStatus::RETIRED);
+      code_ids->remove(code_id);
       return true;
     }
 
