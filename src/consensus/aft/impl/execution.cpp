@@ -108,7 +108,7 @@ namespace aft
       LOG_DEBUG_FMT("AFT reply callback status {}", status);
 
       return rpc_sessions->reply_async(
-        std::get<1>(caller_rid), std::move(data));
+        std::get<0>(caller_rid), std::move(data));
     };
 
     auto ctx = create_request_ctx(serialized_req.data(), serialized_req.size());
