@@ -144,6 +144,10 @@ namespace ccf
         {
           packing = serdes::Pack::MsgPack;
         }
+        else if (accept == "*/*")
+        {
+          packing = request_pack;
+        }
         else
         {
           throw RpcException(
