@@ -35,26 +35,29 @@ find_package(OpenEnclave 0.10 CONFIG REQUIRED)
 # used for our edge cases (eg - for virtual libraries). These do not follow the
 # standard naming patterns, for example use OE_INCLUDEDIR rather than
 # OpenEnclave_INCLUDE_DIRS
+set(OE_CRYPTO_LIB
+    mbedtls
+    CACHE STRING "Crypto library used by enclaves.")
 
 option(LVI_MITIGATIONS "Enable LVI mitigations" ON)
 if(LVI_MITIGATIONS)
   set(OE_TARGET_LIBC openenclave::oelibc-lvi-cfg)
   set(OE_TARGET_ENCLAVE_AND_STD
-      openenclave::oeenclave-lvi-cfg openenclave::oelibcxx-lvi-cfg
+      openenclave::oeenclave-lvi-cfg openenclave::oecryptombedtls-lvi-cfg openenclave::oelibcxx-lvi-cfg
       openenclave::oelibc-lvi-cfg
   )
   set(OE_TARGET_ENCLAVE_CORE_LIBS
-      openenclave::oeenclave-lvi-cfg openenclave::oesnmalloc-lvi-cfg
+      openenclave::oeenclave-lvi-cfg openenclave::oecryptombedtls-lvi-cfg openenclave::oesnmalloc-lvi-cfg
       openenclave::oecore-lvi-cfg openenclave::oesyscall-lvi-cfg
   )
 else()
   set(OE_TARGET_LIBC openenclave::oelibc)
-  set(OE_TARGET_ENCLAVE_AND_STD openenclave::oeenclave openenclave::oelibcxx
+  set(OE_TARGET_ENCLAVE_AND_STD openenclave::oeenclave openenclave::oecryptombedtls openenclave::oelibcxx
                                 openenclave::oelibc
   )
   # These oe libraries must be linked in specific order
   set(OE_TARGET_ENCLAVE_CORE_LIBS
-      openenclave::oeenclave openenclave::oesnmalloc openenclave::oecore
+      openenclave::oeenclave openenclave::oecryptombedtls openenclave::oesnmalloc openenclave::oecore
       openenclave::oesyscall
   )
 endif()
