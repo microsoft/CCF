@@ -21,42 +21,60 @@
 #  if BYTE_ORDER == LITTLE_ENDIAN
 #    define htobe32(X) _byteswap_ulong(X)
 #    define be32toh(X) _byteswap_ulong(X)
+#    define htobe64(X) _byteswap_uint64(X)
+#    define be64toh(X) _byteswap_uint64(X)
 #  else
 #    define htobe32(X) (X)
 #    define be32toh(X) (X)
+#    define htobe64(X) (X)
+#    define be64toh(X) (X)
 #  endif
 #  undef max
 #endif
 
+// Hashes in the trace output are truncated to TRACE_HASH_SIZE bytes.
+#define TRACE_HASH_SIZE 3
+
 #ifdef WITH_TRACE
-#  include <iostream>
-#  define TRACE_HASH_SIZE 3
-#  define TRACE(X) \
-    { \
-      X; \
-      std::cout.flush(); \
-    };
+#  ifdef USE_CCF_LOG
+// Use the CCF logging infrastructure to enable tracing in enclaves.
+#    include "ds/logger.h"
+#    define TRACE(X) \
+      { \
+        X; \
+      };
+#    define TOUT LOG_TRACE
+#  else
+// Send trace output to std::cout.
+#    include <iostream>
+#    define TOUT std::cout
+#    define TRACE(X) \
+      { \
+        X; \
+        TOUT.flush(); \
+      };
+#  endif
 #else
 #  define TRACE(X)
 #endif
+
 namespace merkle
 {
   void serialise_size_t(size_t size, std::vector<uint8_t>& bytes)
   {
-    // fix endianness?
-    uint8_t* size_bytes = (uint8_t*)&size;
+    size_t size_be = htobe64(size);
+    uint8_t* size_bytes = (uint8_t*)&size_be;
     for (size_t i = 0; i < sizeof(size_t); i++)
       bytes.push_back(size_bytes[i]);
   }
 
   size_t deserialise_size_t(const std::vector<uint8_t>& bytes, size_t& index)
   {
-    // fix endianness?
     size_t result = 0;
     uint8_t* result_bytes = (uint8_t*)&result;
     for (size_t i = 0; i < sizeof(size_t); i++)
       result_bytes[i] = bytes[index++];
-    return result;
+    return be64toh(result);
   }
 
   template <size_t SIZE>
@@ -110,7 +128,7 @@ namespace merkle
       return SIZE;
     }
 
-    size_t byte_size() const
+    size_t serialised_size() const
     {
       return SIZE;
     }
@@ -142,12 +160,14 @@ namespace merkle
 
     void serialise(std::vector<uint8_t>& buffer) const
     {
+      TRACE(TOUT << "> HashT::serialise " << std::endl);
       for (auto& b : bytes)
         buffer.push_back(b);
     }
 
     void deserialise(const std::vector<uint8_t>& buffer, size_t& position)
     {
+      TRACE(TOUT << "> HashT::deserialise " << std::endl);
       if (buffer.size() - position < SIZE)
         throw std::runtime_error("not enough bytes");
       for (size_t i = 0; i < sizeof(bytes); i++)
@@ -222,33 +242,33 @@ namespace merkle
     {
       HashT<HASH_SIZE> result = _leaf, tmp;
       TRACE(
-        std::cout << "> verify " << _leaf.to_string(TRACE_HASH_SIZE)
-                  << std::endl);
+        TOUT << "> PathT::verify " << _leaf.to_string(TRACE_HASH_SIZE)
+             << std::endl);
       for (const Element& e : elements)
       {
         if (e.direction == PATH_LEFT)
         {
           TRACE(
-            std::cout << " - " << e.hash.to_string(TRACE_HASH_SIZE) << " x "
-                      << result.to_string(TRACE_HASH_SIZE) << std::endl);
+            TOUT << " - " << e.hash.to_string(TRACE_HASH_SIZE) << " x "
+                 << result.to_string(TRACE_HASH_SIZE) << std::endl);
           HASH_FUNCTION(e.hash, result, tmp);
         }
         else
         {
           TRACE(
-            std::cout << " - " << result.to_string(TRACE_HASH_SIZE) << " x "
-                      << e.hash.to_string(TRACE_HASH_SIZE) << std::endl);
+            TOUT << " - " << result.to_string(TRACE_HASH_SIZE) << " x "
+                 << e.hash.to_string(TRACE_HASH_SIZE) << std::endl);
           HASH_FUNCTION(result, e.hash, tmp);
         }
         std::swap(result, tmp);
       }
-      TRACE(
-        std::cout << " = " << result.to_string(TRACE_HASH_SIZE) << std::endl);
+      TRACE(TOUT << " = " << result.to_string(TRACE_HASH_SIZE) << std::endl);
       return result == root;
     }
 
     void serialise(std::vector<uint8_t>& bytes) const
     {
+      TRACE(TOUT << "> PathT::serialise " << std::endl);
       _leaf.serialise(bytes);
       serialise_size_t(_leaf_index, bytes);
       serialise_size_t(_max_index, bytes);
@@ -262,6 +282,7 @@ namespace merkle
 
     void deserialise(const std::vector<uint8_t>& bytes, size_t& position)
     {
+      TRACE(TOUT << "> PathT::deserialise " << std::endl);
       elements.clear();
       _leaf.deserialise(bytes, position);
       _leaf_index = deserialise_size_t(bytes, position);
@@ -297,7 +318,7 @@ namespace merkle
       return elements.size();
     }
 
-    size_t byte_size() const
+    size_t serialised_size() const
     {
       return sizeof(_leaf) + elements.size() * sizeof(Element);
     }
@@ -519,8 +540,8 @@ namespace merkle
 
     void insert(const Hash& hash)
     {
-      TRACE(std::cout << "> insert " << hash.to_string(TRACE_HASH_SIZE)
-                      << std::endl;);
+      TRACE(TOUT << "> insert " << hash.to_string(TRACE_HASH_SIZE)
+                 << std::endl;);
       uninserted_leaf_nodes.push_back(Node::make(hash));
       statistics.num_insert++;
     }
@@ -539,15 +560,14 @@ namespace merkle
 
     void flush_to(size_t index)
     {
-      TRACE(std::cout << "> flush_to " << index << std::endl;);
+      TRACE(TOUT << "> flush_to " << index << std::endl;);
       statistics.num_flush++;
 
       walk_to(index, false, [this](Node*& n, bool go_right) {
         if (go_right && n->left)
         {
-          TRACE(std::cout << " - conflate "
-                          << n->left->hash.to_string(TRACE_HASH_SIZE)
-                          << std::endl;);
+          TRACE(TOUT << " - conflate "
+                     << n->left->hash.to_string(TRACE_HASH_SIZE) << std::endl;);
           if (n->left && n->left->dirty)
             hash(n->left);
           delete (n->left->left);
@@ -566,7 +586,7 @@ namespace merkle
 
     void retract_to(size_t index)
     {
-      TRACE(std::cout << "> retract_to " << index << std::endl;);
+      TRACE(TOUT << "> retract_to " << index << std::endl;);
       statistics.num_retract++;
 
       if (max_index() < index)
@@ -591,9 +611,9 @@ namespace merkle
         n->dirty = true;
         if (go_left && n->right)
         {
-          TRACE(std::cout << " - eliminate "
-                          << n->right->hash.to_string(TRACE_HASH_SIZE)
-                          << std::endl;);
+          TRACE(TOUT << " - eliminate "
+                     << n->right->hash.to_string(TRACE_HASH_SIZE)
+                     << std::endl;);
           bool is_root = n == _root;
 
           Node* old_parent = n->parent;
@@ -618,17 +638,16 @@ namespace merkle
 
           if (is_root)
           {
-            TRACE(std::cout
-                    << " - new root: " << n->hash.to_string(TRACE_HASH_SIZE)
-                    << std::endl;);
+            TRACE(TOUT << " - new root: " << n->hash.to_string(TRACE_HASH_SIZE)
+                       << std::endl;);
             assert(n->parent == nullptr);
             assert(_root == n);
           }
 
           assert(n->invariant());
 
-          TRACE(std::cout << " - after elimination: " << std::endl
-                          << to_string(TRACE_HASH_SIZE) << std::endl;);
+          TRACE(TOUT << " - after elimination: " << std::endl
+                     << to_string(TRACE_HASH_SIZE) << std::endl;);
           return false;
         }
         else
@@ -664,7 +683,7 @@ namespace merkle
 
     const Tree split(size_t index)
     {
-      TRACE(std::cout << "> split (slow) at " << index << std::endl;);
+      TRACE(TOUT << "> split (slow) at " << index << std::endl;);
       Tree other = *this;
       if (index > num_flushed)
         other.retract_to(index - 1);
@@ -674,25 +693,24 @@ namespace merkle
 
     const Hash& root()
     {
-      TRACE(std::cout << "> root" << std::endl;);
+      TRACE(TOUT << "> root" << std::endl;);
       statistics.num_root++;
       compute_root();
       assert(_root && !_root->dirty);
-      TRACE(std::cout << " - root: " << _root->hash.to_string(TRACE_HASH_SIZE)
-                      << std::endl;);
+      TRACE(TOUT << " - root: " << _root->hash.to_string(TRACE_HASH_SIZE)
+                 << std::endl;);
       return _root->hash;
     }
 
     std::shared_ptr<Hash> past_root(size_t index)
     {
-      TRACE(std::cout << "> past_root " << index << std::endl;);
+      TRACE(TOUT << "> past_root " << index << std::endl;);
       statistics.num_past_root++;
 
       auto p = path(index);
       auto result = std::make_shared<Hash>(p->leaf());
-      TRACE(std::cout << " - " << p->to_string(TRACE_HASH_SIZE) << std::endl;
-            std::cout << " - " << result->to_string(TRACE_HASH_SIZE)
-                      << std::endl;);
+      TRACE(TOUT << " - " << p->to_string(TRACE_HASH_SIZE) << std::endl;
+            TOUT << " - " << result->to_string(TRACE_HASH_SIZE) << std::endl;);
       for (auto e : *p)
       {
         if (e.direction == Path::Direction::PATH_LEFT)
@@ -726,9 +744,9 @@ namespace merkle
         bool go_right = (it >> (8 * sizeof(it) - 1)) & 0x01;
         if (update)
           walk_stack.push_back(cur);
-        TRACE(std::cout << " - at " << cur->hash.to_string(TRACE_HASH_SIZE)
-                        << " (" << cur->size << "/" << cur->height << ")"
-                        << " (" << (go_right ? "R" : "L") << ")" << std::endl;);
+        TRACE(TOUT << " - at " << cur->hash.to_string(TRACE_HASH_SIZE) << " ("
+                   << cur->size << "/" << (unsigned)cur->height << ")"
+                   << " (" << (go_right ? "R" : "L") << ")" << std::endl;);
         if (cur->height == height)
         {
           if (!f(cur, go_right))
@@ -750,7 +768,7 @@ namespace merkle
 
     std::unique_ptr<Path> path(size_t index)
     {
-      TRACE(std::cout << "> path from " << index << std::endl;);
+      TRACE(TOUT << "> path from " << index << std::endl;);
       std::list<typename Path::Element> elements;
 
       walk_to(index, false, [&elements](Node* n, bool go_right) {
@@ -767,9 +785,11 @@ namespace merkle
 
     void serialise(std::vector<uint8_t>& bytes)
     {
+      TRACE(TOUT << "> serialise " << std::endl;);
+
       compute_root();
-      TRACE(std::cout << "> serialise " << std::endl;
-            std::cout << to_string(TRACE_HASH_SIZE) << std::endl;);
+
+      TRACE(TOUT << to_string(TRACE_HASH_SIZE) << std::endl;);
 
       serialise_size_t(leaf_nodes.size() + uninserted_leaf_nodes.size(), bytes);
       serialise_size_t(num_flushed, bytes);
@@ -797,6 +817,8 @@ namespace merkle
 
     void deserialise(const std::vector<uint8_t>& bytes, size_t& position)
     {
+      TRACE(TOUT << "> deserialise " << std::endl;);
+
       delete (_root);
       leaf_nodes.clear();
       for (auto n : uninserted_leaf_nodes)
@@ -820,8 +842,8 @@ namespace merkle
 
       std::vector<Node*> level = leaf_nodes, next_level;
       size_t it = num_flushed;
-      TRACE(std::cout << "num_flushed=" << num_flushed << " it=" << it
-                      << std::endl;);
+      TRACE(TOUT << "num_flushed=" << num_flushed << " it=" << it
+                 << std::endl;);
       uint8_t level_no = 0;
       while (it != 0 || level.size() > 1)
       {
@@ -829,7 +851,7 @@ namespace merkle
         if (it & 0x01)
         {
           Hash h(bytes, position);
-          TRACE(std::cout << "+";);
+          TRACE(TOUT << "+";);
           auto n = Node::make(h);
           n->height = level_no + 1;
           n->size = (1 << n->height) - 1;
@@ -838,9 +860,9 @@ namespace merkle
         }
 
         TRACE(for (auto& n
-                   : level) std::cout
+                   : level) TOUT
                 << " " << n->hash.to_string(TRACE_HASH_SIZE);
-              std::cout << std::endl;);
+              TOUT << std::endl;);
 
         // Rebuild the level
         for (size_t i = 0; i < level.size(); i += 2)
@@ -881,6 +903,7 @@ namespace merkle
 
     const Hash& leaf(size_t index) const
     {
+      TRACE(TOUT << "> leaf " << index << std::endl;);
       if (index >= num_leaves())
         throw std::runtime_error("leaf index out of bounds");
       if (index - num_flushed >= leaf_nodes.size())
@@ -923,7 +946,7 @@ namespace merkle
       return _root ? _root->size : 0;
     }
 
-    size_t byte_size()
+    size_t serialised_size()
     {
       size_t num_extras = 0;
       walk_to(min_index(), false, [&num_extras](Node*&, bool go_right) {
@@ -978,7 +1001,6 @@ namespace merkle
           stream << level_no++ << ": ";
           for (auto n : level)
           {
-            assert(n->invariant());
             stream << (n->dirty ? dirty_hash : n->hash.to_string(num_bytes));
             stream << "(" << n->size << "," << (unsigned)n->height << ")";
             if (n->left)
@@ -1042,11 +1064,11 @@ namespace merkle
           HASH_FUNCTION(n->left->hash, n->right->hash, n->hash);
           statistics.num_hash++;
           TRACE(
-            std::cout << std::string(indent, ' ') << "+ h("
-                      << n->left->hash.to_string(TRACE_HASH_SIZE) << ", "
-                      << n->right->hash.to_string(TRACE_HASH_SIZE) << ") == "
-                      << n->hash.to_string(TRACE_HASH_SIZE) << " (" << n->size
-                      << "/" << (unsigned)n->height << ")" << std::endl);
+            TOUT << std::string(indent, ' ') << "+ h("
+                 << n->left->hash.to_string(TRACE_HASH_SIZE) << ", "
+                 << n->right->hash.to_string(TRACE_HASH_SIZE)
+                 << ") == " << n->hash.to_string(TRACE_HASH_SIZE) << " ("
+                 << n->size << "/" << (unsigned)n->height << ")" << std::endl);
           n->dirty = false;
           hashing_stack.pop_back();
         }
@@ -1082,8 +1104,8 @@ namespace merkle
         }
         else
         {
-          TRACE(std::cout << " @ " << n->hash.to_string(TRACE_HASH_SIZE)
-                          << std::endl;);
+          TRACE(TOUT << " @ " << n->hash.to_string(TRACE_HASH_SIZE)
+                     << std::endl;);
           assert(n->left && n->right);
           if (!n->left->is_full())
             insert_leaf_recursive(n->left, new_leaf);
@@ -1099,8 +1121,8 @@ namespace merkle
     {
       while (true)
       {
-        TRACE(std::cout << "  @ " << n->hash.to_string(TRACE_HASH_SIZE)
-                        << std::endl;);
+        TRACE(TOUT << "  @ " << n->hash.to_string(TRACE_HASH_SIZE)
+                   << std::endl;);
         assert(n->invariant());
 
         if (n->is_full())
@@ -1136,10 +1158,10 @@ namespace merkle
 
     Node* process_insertion_stack(bool complete = true)
     {
-      TRACE(std::cout << "  X " << (complete ? "complete" : "continue") << ":";
-            for (size_t i = 0; i < insertion_stack.size(); i++) std::cout
+      TRACE(TOUT << "  X " << (complete ? "complete" : "continue") << ":";
+            for (size_t i = 0; i < insertion_stack.size(); i++) TOUT
             << " " << insertion_stack[i].n->hash.to_string(TRACE_HASH_SIZE);
-            std::cout << std::endl;);
+            TOUT << std::endl;);
 
       Node* result = insertion_stack.back().n;
       insertion_stack.pop_back();
@@ -1165,9 +1187,8 @@ namespace merkle
 
         if (!complete && !result->is_full())
         {
-          TRACE(std::cout << "  X save "
-                          << result->hash.to_string(TRACE_HASH_SIZE)
-                          << std::endl;);
+          TRACE(TOUT << "  X save " << result->hash.to_string(TRACE_HASH_SIZE)
+                     << std::endl;);
           return result;
         }
       }
@@ -1179,8 +1200,8 @@ namespace merkle
 
     void insert_leaf(Node*& root, Node* n)
     {
-      TRACE(std::cout << " - insert_leaf " << n->hash.to_string(TRACE_HASH_SIZE)
-                      << std::endl;);
+      TRACE(TOUT << " - insert_leaf " << n->hash.to_string(TRACE_HASH_SIZE)
+                 << std::endl;);
       leaf_nodes.push_back(n);
       if (insertion_stack.empty() && !root)
         root = n;
@@ -1195,8 +1216,8 @@ namespace merkle
     {
       if (!uninserted_leaf_nodes.empty())
       {
-        TRACE(std::cout << "* insert_leaves " << leaf_nodes.size() << " +"
-                        << uninserted_leaf_nodes.size() << std::endl;);
+        TRACE(TOUT << "* insert_leaves " << leaf_nodes.size() << " +"
+                   << uninserted_leaf_nodes.size() << std::endl;);
         // Potential future improvement: make this go fast when there are many
         // leaves to insert.
         for (auto& n : uninserted_leaf_nodes)

@@ -72,7 +72,8 @@ int main()
         mt.root() != mt2.root() || mt.min_index() != mt2.min_index() ||
         mt.max_index() != mt2.max_index() ||
         mt.num_leaves() != mt2.num_leaves() ||
-        mt.byte_size() != mt2.byte_size() || mt.size() != mt2.size())
+        mt.serialised_size() != mt2.serialised_size() ||
+        mt.size() != mt2.size())
       {
         std::cout << "before:" << std::endl
                   << mt.to_string(PRINT_HASH_SIZE) << std::endl;

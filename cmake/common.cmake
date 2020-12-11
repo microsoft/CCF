@@ -7,6 +7,15 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
+# merklecpp traces are disabled by default to avoid unnecessary clutter.
+set(TRACE
+    OFF
+    CACHE BOOL "Enable merklecpp traces"
+)
+set(USE_CCF_LOG
+    ON
+    CACHE BOOL "Use the CCF logging infrastructure for traces"
+)
 add_subdirectory(${CCF_DIR}/src/libmerklecpp)
 
 set(PYTHON unbuffer python3)

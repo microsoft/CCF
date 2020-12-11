@@ -327,7 +327,7 @@ namespace ccf
 
     std::vector<uint8_t> serialise()
     {
-      LOG_TRACE_FMT("mt_serialize_size {}", tree->byte_size());
+      LOG_TRACE_FMT("mt_serialize_size {}", tree->serialised_size());
       std::vector<uint8_t> output;
       tree->serialise(output);
       return output;
