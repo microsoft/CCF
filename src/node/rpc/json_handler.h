@@ -63,6 +63,12 @@ namespace ccf
    * });
    */
 
+  class UrlQueryParseError : public std::invalid_argument
+  {
+  public:
+    using std::invalid_argument::invalid_argument;
+  };
+
   namespace jsonhandler
   {
     using JsonAdapterResponse = std::variant<ErrorDetails, nlohmann::json>;
@@ -142,7 +148,7 @@ namespace ccf
         const auto field_split = this_entry.find('=');
         if (field_split == std::string::npos)
         {
-          throw std::runtime_error(
+          throw UrlQueryParseError(
             fmt::format("No k=v in URL query fragment: {}", query));
         }
 
@@ -154,7 +160,7 @@ namespace ccf
         }
         catch (const std::exception& e)
         {
-          throw std::runtime_error(fmt::format(
+          throw UrlQueryParseError(fmt::format(
             "Unable to parse URL query value: {} ({})", query, e.what()));
         }
 

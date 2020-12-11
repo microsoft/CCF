@@ -12,12 +12,10 @@ namespace ccf
 {
   enum class CodeStatus
   {
-    ACCEPTED = 0,
-    RETIRED = 1,
+    ALLOWED_TO_JOIN = 0
   };
   DECLARE_JSON_ENUM(
-    CodeStatus,
-    {{CodeStatus::ACCEPTED, "ACCEPTED"}, {CodeStatus::RETIRED, "RETIRED"}});
+    CodeStatus, {{CodeStatus::ALLOWED_TO_JOIN, "ALLOWED_TO_JOIN"}});
 }
 
 MSGPACK_ADD_ENUM(ccf::CodeStatus);
