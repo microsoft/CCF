@@ -380,7 +380,6 @@ namespace ccf
        * @param v Boolean indicating whether the user identity must be known
        * @return This Endpoint for further modification
        */
-      // TODO: This is hard-deprecated, it is currently BROKEN
       CCF_DEPRECATED("Replace with add_authentication_policy")
       Endpoint& set_require_client_identity(bool v)
       {
@@ -395,7 +394,23 @@ namespace ccf
         return *this;
       }
 
-      // TODO: Document
+      /** Add an authentication policy which will be checked before executing
+       * this endpoint.
+       *
+       * When multiple policies are specified, any single successful check is
+       * sufficient to grant access, even if others fail. If all policies fail,
+       * the first can set an error status on the response, and the endpoint
+       * will not be invoked. If no policies are specified, then by default the
+       * endpoint accepts any request without an authentication check.
+       *
+       * If an auth policy passes, it may construct an object describing the
+       * Identity of the caller to be used by the endpoint. This can be
+       * retrieved inside the endpoint with ctx.get_caller<IdentType>()
+       *
+       * @param policy An instance of the policy to apply. May be shared between
+       * multiple endpoints to reduce memory use.
+       * @return This Endpoint for further modification
+       */
       Endpoint& add_authentication_policy(
         const std::shared_ptr<AuthnPolicy>& policy)
       {
