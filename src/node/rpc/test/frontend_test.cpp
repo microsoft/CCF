@@ -689,7 +689,7 @@ TEST_CASE("process with caller")
       const auto serialized_response =
         frontend.process(invalid_rpc_ctx).value();
       auto response = parse_response(serialized_response);
-      REQUIRE(response.status == HTTP_STATUS_FORBIDDEN);
+      REQUIRE(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
       CHECK(
         error_msg.find("Could not find matching user certificate") !=
@@ -701,7 +701,7 @@ TEST_CASE("process with caller")
       const auto serialized_response =
         frontend.process(anonymous_rpc_ctx).value();
       auto response = parse_response(serialized_response);
-      REQUIRE(response.status == HTTP_STATUS_FORBIDDEN);
+      REQUIRE(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
       CHECK(
         error_msg.find("Could not find matching user certificate") !=
@@ -766,7 +766,7 @@ TEST_CASE("Member caller")
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
-    CHECK(response.status == HTTP_STATUS_FORBIDDEN);
+    CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
   }
 }
 
@@ -1210,7 +1210,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
       INFO("Invalid caller");
       auto response =
         parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
-      CHECK(response.status == HTTP_STATUS_FORBIDDEN);
+      CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
     };
 
     prepare_callers(network_primary);

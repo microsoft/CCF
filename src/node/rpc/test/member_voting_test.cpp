@@ -581,7 +581,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
     const auto read_next_req = create_request(
       read_params<int>(ValueIds::NEXT_MEMBER_ID, Tables::VALUES), "read");
     const auto r = frontend_process(frontend, read_next_req, new_member.cert);
-    check_error(r, HTTP_STATUS_FORBIDDEN);
+    check_error(r, HTTP_STATUS_UNAUTHORIZED);
 
     // propose new member, as proposer
     Propose::In proposal;
@@ -660,7 +660,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
         // check that member with the new new_member cert can make RPCs now
         check_error(
           frontend_process(frontend, read_next_req, new_member.cert),
-          HTTP_STATUS_FORBIDDEN);
+          HTTP_STATUS_UNAUTHORIZED);
 
         // re-read proposal, as second member
         const Proposal final_read =
