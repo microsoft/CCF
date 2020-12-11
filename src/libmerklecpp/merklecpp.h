@@ -735,7 +735,9 @@ namespace merkle
       assert(index < _root->size);
 
       Node* cur = _root;
-      size_t it = index << (sizeof(index) * 8 - _root->height + 1);
+      size_t it = 0;
+      if (_root->height > 1)
+        it = index << (sizeof(index) * 8 - _root->height + 1);
       assert(walk_stack.empty());
 
       for (uint8_t height = _root->height; height > 1;)
