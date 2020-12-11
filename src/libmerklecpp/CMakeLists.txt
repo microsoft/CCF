@@ -5,14 +5,12 @@ set(CMAKE_CXX_STANDARD 17)
 
 set(MERKLECPP_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
-
 option(PROFILE "enable profiling" OFF)
 option(EVERCRYPT "enable comparison with EverCrypt Merkle trees" OFF)
 option(TESTS "enable testing" OFF)
 
 option(TRACE "enable debug traces" OFF)
 option(USE_CCF_LOG "Use the CCF logging infrastructure for traces" OFF)
-
 
 add_library(merklecpp INTERFACE)
 target_include_directories(merklecpp INTERFACE .)
@@ -52,7 +50,7 @@ if(TESTS)
 
     if(TRACE)
       target_compile_definitions(${NAME} PRIVATE WITH_TRACE)
-      if (USE_CCF_LOG)
+      if(USE_CCF_LOG)
         target_compile_definitions(${NAME} PRIVATE USE_CCF_LOG)
       endif()
     endif()
