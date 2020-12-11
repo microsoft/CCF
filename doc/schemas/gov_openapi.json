@@ -14,8 +14,7 @@
       },
       "CodeStatus": {
         "enum": [
-          "ACCEPTED",
-          "RETIRED"
+          "ALLOWED_TO_JOIN"
         ]
       },
       "EndpointMetrics__Metric": {

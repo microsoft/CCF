@@ -527,7 +527,7 @@ namespace ccf
           fmt::join(new_code_id, ""));
         return false;
       }
-      code_ids->put(new_code_id, CodeStatus::ACCEPTED);
+      code_ids->put(new_code_id, CodeStatus::ALLOWED_TO_JOIN);
       return true;
     }
 
@@ -547,7 +547,7 @@ namespace ccf
           fmt::join(code_id, ""));
         return false;
       }
-      code_ids->put(code_id, CodeStatus::RETIRED);
+      code_ids->remove(code_id);
       return true;
     }
 
@@ -1771,6 +1771,7 @@ namespace ccf
           LOG_FAIL_FMT(error_msg);
           LOG_DEBUG_FMT("Error: {}", e.what());
           share_manager.clear_submitted_recovery_shares(args.tx);
+          args.rpc_ctx->set_apply_writes(true);
           args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
           args.rpc_ctx->set_response_body(std::move(error_msg));
           return;
