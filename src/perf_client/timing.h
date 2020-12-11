@@ -280,16 +280,17 @@ namespace timing
         }
 
         const auto commit_ids = parse_commit_ids(response);
-        if (record)
-        {
-          record_receive(response.id, commit_ids);
-        }
 
         // NB: Eventual header re-org should be exposing API types so
         // they can be consumed cleanly from C++ clients
         const auto tx_status = body["status"];
         if (tx_status == "PENDING" || tx_status == "UNKNOWN")
         {
+          if (record)
+          {
+            record_receive(response.id, commit_ids);
+          }
+
           // Commit is pending, poll again
           this_thread::sleep_for(10us);
           continue;
@@ -304,6 +305,21 @@ namespace timing
               commit_ids->view,
               commit_ids->seqno,
               commit_ids->global);
+          }
+
+          if (record)
+          {
+            if (commit_ids.has_value())
+            {
+              record_receive(response.id, commit_ids);
+            }
+            else
+            {
+              // If this response didn't contain commit IDs in headers, we can
+              // still construct them from the body
+              record_receive(
+                response.id, {{target.seqno, target.seqno, target.view}});
+            }
           }
           return;
         }
