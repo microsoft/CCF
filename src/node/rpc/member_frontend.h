@@ -1278,10 +1278,10 @@ namespace ccf
           ctx.get_caller<ccf::MemberCertAuthnIdentity>();
         if (!check_member_accepted(ctx.tx, caller_identity.member_id))
         {
-            return make_error(
-              HTTP_STATUS_FORBIDDEN,
-              ccf::errors::AuthorizationFailed,
-              "Member is not accepted.");
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is not accepted.");
         }
 
         const auto script = params.get<ccf::Script>();
@@ -1622,7 +1622,9 @@ namespace ccf
           return make_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
-            fmt::format("No ACK record exists for caller {}.", caller_identity.member_id));
+            fmt::format(
+              "No ACK record exists for caller {}.",
+              caller_identity.member_id));
         }
 
         const auto digest = params.get<StateDigest>();
@@ -1705,10 +1707,12 @@ namespace ccf
         auto ma = ma_view->get(caller_identity.member_id);
         if (!ma)
         {
-            return make_error(
-              HTTP_STATUS_FORBIDDEN,
-              ccf::errors::AuthorizationFailed,
-              fmt::format("No ACK record exists for caller {}.", caller_identity.member_id));
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            fmt::format(
+              "No ACK record exists for caller {}.",
+              caller_identity.member_id));
         }
 
         auto s = sig_view->get(0);
@@ -1839,7 +1843,8 @@ namespace ccf
           share_manager.clear_submitted_recovery_shares(ctx.tx);
           args.rpc_ctx->set_apply_writes(true);
           // TODO: Find better error codes for this than Internal
-          args.rpc_ctx->set_error(HTTP_STATUS_INTERNAL_SERVER_ERROR, InternalError, error_msg);
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, InternalError, error_msg);
           return;
         }
 

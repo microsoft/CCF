@@ -90,9 +90,10 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext>& ctx,
       std::string&& error_reason) override
     {
-      ctx->set_error(HTTP_STATUS_UNAUTHORIZED,
-            ccf::errors::AuthorizationFailed,
-            std::move(error_reason));
+      ctx->set_error(
+        HTTP_STATUS_UNAUTHORIZED,
+        ccf::errors::AuthorizationFailed,
+        std::move(error_reason));
       ctx->set_response_header(
         http::headers::WWW_AUTHENTICATE,
         fmt::format(
@@ -182,9 +183,10 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext>& ctx,
       std::string&& error_reason) override
     {
-      ctx->set_error(HTTP_STATUS_UNAUTHORIZED,
-            ccf::errors::AuthorizationFailed,
-            std::move(error_reason));
+      ctx->set_error(
+        HTTP_STATUS_UNAUTHORIZED,
+        ccf::errors::AuthorizationFailed,
+        std::move(error_reason));
       ctx->set_response_header(
         http::headers::WWW_AUTHENTICATE,
         fmt::format(
