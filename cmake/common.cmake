@@ -552,9 +552,7 @@ function(add_perf_test)
   set_property(
     TEST ${PARSED_ARGS_NAME}
     APPEND
-    PROPERTY
-      ENVIRONMENT
-      "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+    PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
   if(DEFINED DEFAULT_ENCLAVE_TYPE)
     set_property(

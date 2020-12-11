@@ -309,7 +309,7 @@ class CurlClient:
             if self.cert:
                 cmd.extend(["--cert", self.cert])
 
-            cmd_s = ' '.join(cmd)
+            cmd_s = " ".join(cmd)
             env = {k: v for k, v in os.environ.items()}
             if self.disable_client_auth:
                 env["DISABLE_CLIENT_AUTH"] = "1"

@@ -1844,7 +1844,9 @@ namespace ccf
           ctx.rpc_ctx->set_apply_writes(true);
           // TODO: Find better error codes for this than Internal
           ctx.rpc_ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR, errors::InternalError, error_msg);
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            errors::InternalError,
+            error_msg);
           return;
         }
 
