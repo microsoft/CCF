@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Error responses of built-in endpoints are now JSON and follow the OData schema (#1919).
+- CCF now depends on [Open Enclave 0.13](https://github.com/openenclave/openenclave/releases/tag/v0.13.0-rc2).
 
 ## [0.16.0]
 
