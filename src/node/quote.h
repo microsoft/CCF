@@ -116,7 +116,7 @@ namespace ccf
         return QuoteVerificationResult::FAIL_VERIFY_CODE_ID_NOT_FOUND;
       }
 
-      if (code_id_status.value() != CodeStatus::ACCEPTED)
+      if (code_id_status.value() != CodeStatus::ALLOWED_TO_JOIN)
       {
         return QuoteVerificationResult::FAIL_VERIFY_CODE_ID_RETIRED;
       }
