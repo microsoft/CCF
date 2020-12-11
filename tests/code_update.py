@@ -90,8 +90,8 @@ def test_update_all_nodes(network, args):
         versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
         expected = sorted(
             [
-                {"digest": first_code_id, "status": "ACCEPTED"},
-                {"digest": new_code_id, "status": "ACCEPTED"},
+                {"digest": first_code_id, "status": "ALLOWED_TO_JOIN"},
+                {"digest": new_code_id, "status": "ALLOWED_TO_JOIN"},
             ],
             key=lambda x: x["digest"],
         )
@@ -104,8 +104,7 @@ def test_update_all_nodes(network, args):
         versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
         expected = sorted(
             [
-                {"digest": first_code_id, "status": "RETIRED"},
-                {"digest": new_code_id, "status": "ACCEPTED"},
+                {"digest": new_code_id, "status": "ALLOWED_TO_JOIN"},
             ],
             key=lambda x: x["digest"],
         )
