@@ -278,7 +278,7 @@ int main()
     const size_t root_interval = 128;
 #else
     const size_t num_leaves = 16 * 1024 * 1024;
-    const size_t root_interval = 512;
+    const size_t root_interval = 1024;
 #endif
 
     auto hashes = make_hashes(num_leaves);
@@ -295,7 +295,7 @@ int main()
       if ((j++ % root_interval) == 0)
         mt.root();
     }
-    mt.root();
+    auto root = mt.root();
     auto stop = std::chrono::high_resolution_clock::now();
     double seconds =
       std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start)
@@ -410,19 +410,21 @@ int main()
 
     #ifdef HAVE_EVERCRYPT
     std::vector<uint8_t*> ec_hashes;
-    for (auto h : hashes) {
+    for (auto& h : hashes)
+    {
       ec_hashes.push_back(mt_init_hash(32));
       memcpy(ec_hashes.back(), h.bytes, 32);
     }
 
     {
       std::cout << "--- EverCrypt trees with SHA256 compression function: " << std::endl;
+      j = 0;
       uint8_t *ec_root = mt_init_hash(32);
       start = std::chrono::high_resolution_clock::now();
       merkle_tree *ec_mt = mt_create(ec_hashes[0]);
       for (size_t i=1; i < ec_hashes.size(); i++) {
         mt_insert(ec_mt, ec_hashes[i]);
-        if (i % root_interval == 0)
+        if ((j++ % root_interval) == 0)
           mt_get_root(ec_mt, ec_root);
       }
       mt_get_root(ec_mt, ec_root);
@@ -435,12 +437,13 @@ int main()
 
     {
       std::cout << "--- EverCrypt trees with full SHA256: " << std::endl;
+      j = 0;
       start = std::chrono::high_resolution_clock::now();
       uint8_t *ec_root = mt_init_hash(32);
       merkle_tree *ec_mt = mt_create_custom(32, ec_hashes[0], mt_sha256_evercrypt);
       for (size_t i=1; i < ec_hashes.size(); i++) {
         mt_insert(ec_mt, ec_hashes[i]);
-        if (i % root_interval == 0)
+        if ((j++ % root_interval) == 0)
           mt_get_root(ec_mt, ec_root);
       }
       mt_get_root(ec_mt, ec_root);

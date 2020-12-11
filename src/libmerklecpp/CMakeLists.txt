@@ -50,6 +50,7 @@ if(TESTS)
                             ${EVERCRYPT_DIR}/kremlin/kremlib
     )
     set_target_properties(evercrypt.host PROPERTIES LINKER_LANGUAGE C)
+    target_compile_options(evercrypt.host PRIVATE -O3 -march=native -mtune=native)
   endif()
 
   enable_testing()
@@ -75,6 +76,8 @@ if(TESTS)
         ${NAME} PRIVATE -fsanitize=address -fno-omit-frame-pointer
       )
       target_link_options(${NAME} PRIVATE -fsanitize=address)
+    else()
+      target_compile_options(${NAME} PRIVATE -O3 -march=native -mtune=native)
     endif()
 
     if(EVERCRYPT)
