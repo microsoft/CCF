@@ -44,6 +44,7 @@ namespace ccf
     ERROR(InvalidAuthenticationInfo)
     ERROR(InvalidHeaderValue)
     ERROR(InvalidInput)
+    ERROR(InvalidQueryParameterValue)
     ERROR(InvalidResourceName)
     ERROR(MissingRequiredHeader)
     ERROR(ResourceNotFound)
