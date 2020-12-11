@@ -117,7 +117,7 @@ def test_user(network, args, verify=True):
     network.consortium.remove_user(primary, new_user_id)
     with primary.client(f"user{new_user_id}") as c:
         r = c.get("/app/log/private")
-        assert r.status_code == http.HTTPStatus.FORBIDDEN.value
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value
     return network
 
 

@@ -186,7 +186,7 @@ def test_anonymous_caller(network, args):
             r = c.post("/app/log/private/anonymous", {"id": log_id, "msg": msg})
             assert r.body.json() == True
             r = c.get(f"/app/log/private?id={log_id}")
-            assert r.status_code == http.HTTPStatus.FORBIDDEN.value, r
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r
 
         with primary.client("user0") as c:
             r = c.get(f"/app/log/private?id={log_id}")
