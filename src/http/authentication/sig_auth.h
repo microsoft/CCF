@@ -47,8 +47,8 @@ namespace ccf
           tx.get_read_only_view<CertDigests>(Tables::USER_DIGESTS);
         auto user_id = digests_view->get(signed_request->key_id);
 
-        // TODO: This is a temporary cludge because some of our signing code
-        // still doesn't set a valid keyId. This should be removed
+        // This should be removed once
+        // https://github.com/microsoft/CCF/issues/2018 is completed
         if (!user_id.has_value())
         {
           auto user_certs_view =
@@ -102,7 +102,7 @@ namespace ccf
           fmt::join(http::required_signature_headers, " ")));
     }
 
-    const OpenAPISecuritySchema& get_openapi_security_schema() const override
+    std::optional<OpenAPISecuritySchema> get_openapi_security_schema() const override
     {
       return security_schema;
     }
@@ -139,8 +139,8 @@ namespace ccf
           tx.get_read_only_view<CertDigests>(Tables::MEMBER_DIGESTS);
         auto member_id = digests_view->get(signed_request->key_id);
 
-        // TODO: This is a temporary cludge because some of our signing code
-        // still doesn't set a valid keyId. This should be removed
+        // This should be removed once
+        // https://github.com/microsoft/CCF/issues/2018 is completed
         if (!member_id.has_value())
         {
           auto member_certs_view =
@@ -195,7 +195,7 @@ namespace ccf
           fmt::join(http::required_signature_headers, " ")));
     }
 
-    const OpenAPISecuritySchema& get_openapi_security_schema() const override
+    std::optional<OpenAPISecuritySchema> get_openapi_security_schema() const override
     {
       return security_schema;
     }

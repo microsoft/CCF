@@ -1809,8 +1809,10 @@ namespace ccf
           constexpr auto error_msg = "Error submitting recovery shares";
           LOG_FAIL_FMT(error_msg);
           LOG_DEBUG_FMT("Error: {}", e.what());
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          ctx.rpc_ctx->set_response_body(std::move(error_msg));
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            errors::InternalError,
+            error_msg);
           return;
         }
 
@@ -1842,7 +1844,6 @@ namespace ccf
           LOG_DEBUG_FMT("Error: {}", e.what());
           share_manager.clear_submitted_recovery_shares(ctx.tx);
           ctx.rpc_ctx->set_apply_writes(true);
-          // TODO: Find better error codes for this than Internal
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             errors::InternalError,

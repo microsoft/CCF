@@ -56,10 +56,9 @@ namespace ccf
       return nullptr;
     }
 
-    const OpenAPISecuritySchema& get_openapi_security_schema() const override
+    std::optional<OpenAPISecuritySchema> get_openapi_security_schema() const override
     {
-      // TODO: There's no OpenAPI-compliant way to describe this cert auth?
-      return unauthenticated_schema;
+      return std::nullopt;
     }
   };
 
@@ -109,10 +108,9 @@ namespace ccf
       return nullptr;
     }
 
-    const OpenAPISecuritySchema& get_openapi_security_schema() const override
+    std::optional<OpenAPISecuritySchema> get_openapi_security_schema() const override
     {
-      // TODO: There's no OpenAPI-compliant way to describe this cert auth?
-      return unauthenticated_schema;
+      return std::nullopt;
     }
   };
 
@@ -157,10 +155,9 @@ namespace ccf
       return identity;
     }
 
-    const OpenAPISecuritySchema& get_openapi_security_schema() const override
+    std::optional<OpenAPISecuritySchema> get_openapi_security_schema() const override
     {
-      // TODO: There's no OpenAPI-compliant way to describe this cert auth?
-      return unauthenticated_schema;
+      return std::nullopt;
     }
   };
 }

@@ -74,7 +74,7 @@ namespace ccf
         "Bearer realm=\"JWT bearer token access\", error=\"invalid_token\"");
     }
 
-    const OpenAPISecuritySchema& get_openapi_security_schema() const override
+    std::optional<OpenAPISecuritySchema> get_openapi_security_schema() const override
     {
       return security_schema;
     }
