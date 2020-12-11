@@ -569,15 +569,6 @@
         }
       }
     },
-    "/create": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Default response description"
-          }
-        }
-      }
-    },
     "/endpoint_metrics": {
       "get": {
         "responses": {
