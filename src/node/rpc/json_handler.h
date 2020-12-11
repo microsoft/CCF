@@ -155,8 +155,7 @@ namespace ccf
             ccf::errors::UnsupportedContentType,
             fmt::format(
               "Unsupported content type {} in accept header. Only {} and {} "
-              "are currently "
-              "supported",
+              "are currently supported",
               accept,
               http::headervalues::contenttype::JSON,
               http::headervalues::contenttype::MSGPACK));
