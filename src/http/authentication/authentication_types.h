@@ -28,8 +28,13 @@ namespace ccf
       std::string& error_reason) = 0;
 
     virtual void set_unauthenticated_error(
-      std::shared_ptr<enclave::RpcContext>& ctx,
-      std::string&& error_reason) = 0;
+      std::shared_ptr<enclave::RpcContext>& ctx, std::string&& error_reason)
+    {
+      ctx->set_error(
+        HTTP_STATUS_UNAUTHORIZED,
+        ccf::errors::AuthorizationFailed,
+        std::move(error_reason));
+    }
 
     virtual const OpenAPISecuritySchema& get_openapi_security_schema()
       const = 0;

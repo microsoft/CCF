@@ -90,14 +90,15 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext>& ctx,
       std::string&& error_reason) override
     {
-      ctx->set_response_status(HTTP_STATUS_UNAUTHORIZED);
+      ctx->set_error(HTTP_STATUS_UNAUTHORIZED,
+            ccf::errors::AuthorizationFailed,
+            std::move(error_reason));
       ctx->set_response_header(
         http::headers::WWW_AUTHENTICATE,
         fmt::format(
           "Signature realm=\"Signed request access\", "
           "headers=\"{}\"",
           fmt::join(http::required_signature_headers, " ")));
-      ctx->set_response_body(std::move(error_reason));
     }
 
     const OpenAPISecuritySchema& get_openapi_security_schema() const override
@@ -181,14 +182,15 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext>& ctx,
       std::string&& error_reason) override
     {
-      ctx->set_response_status(HTTP_STATUS_UNAUTHORIZED);
+      ctx->set_error(HTTP_STATUS_UNAUTHORIZED,
+            ccf::errors::AuthorizationFailed,
+            std::move(error_reason));
       ctx->set_response_header(
         http::headers::WWW_AUTHENTICATE,
         fmt::format(
           "Signature realm=\"Signed request access\", "
           "headers=\"{}\"",
           fmt::join(http::required_signature_headers, " ")));
-      ctx->set_response_body(std::move(error_reason));
     }
 
     const OpenAPISecuritySchema& get_openapi_security_schema() const override

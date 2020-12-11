@@ -56,14 +56,6 @@ namespace ccf
       return nullptr;
     }
 
-    void set_unauthenticated_error(
-      std::shared_ptr<enclave::RpcContext>& ctx,
-      std::string&& error_reason) override
-    {
-      ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
-      ctx->set_response_body(std::move(error_reason));
-    }
-
     const OpenAPISecuritySchema& get_openapi_security_schema() const override
     {
       // TODO: There's no OpenAPI-compliant way to describe this cert auth?
@@ -117,14 +109,6 @@ namespace ccf
       return nullptr;
     }
 
-    void set_unauthenticated_error(
-      std::shared_ptr<enclave::RpcContext>& ctx,
-      std::string&& error_reason) override
-    {
-      ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
-      ctx->set_response_body(std::move(error_reason));
-    }
-
     const OpenAPISecuritySchema& get_openapi_security_schema() const override
     {
       // TODO: There's no OpenAPI-compliant way to describe this cert auth?
@@ -171,14 +155,6 @@ namespace ccf
       }
 
       return identity;
-    }
-
-    void set_unauthenticated_error(
-      std::shared_ptr<enclave::RpcContext>& ctx,
-      std::string&& error_reason) override
-    {
-      ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
-      ctx->set_response_body(std::move(error_reason));
     }
 
     const OpenAPISecuritySchema& get_openapi_security_schema() const override

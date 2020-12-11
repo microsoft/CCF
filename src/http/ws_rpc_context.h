@@ -6,6 +6,7 @@
 #include "enclave/rpc_context.h"
 #include "http_parser.h"
 #include "http_sig.h"
+#include "node/rpc/error.h"
 #include "ws_builder.h"
 
 namespace ws
@@ -20,11 +21,21 @@ namespace ws
     return make_out_frame(code, seqno, view, global_commit, body);
   };
 
-  static std::vector<uint8_t> error(size_t code, const std::string& msg)
+  inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
   {
-    std::vector<uint8_t> ev(msg.begin(), msg.end());
-    return serialise(code, ev);
-  };
+    nlohmann::json body = ccf::ODataErrorResponse{
+      ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+    const auto s = body.dump();
+
+    std::vector<uint8_t> data(s.begin(), s.end());
+    return serialise(error.status, data);
+  }
+
+  inline std::vector<uint8_t> error(
+    http_status status, const std::string& code, std::string&& msg)
+  {
+    return error({status, code, std::move(msg)});
+  }
 
   class WsRpcContext : public enclave::RpcContext
   {
@@ -199,12 +210,6 @@ namespace ws
     {
       return serialise(
         response_status, response_body, seqno, view, global_commit);
-    }
-
-    virtual std::vector<uint8_t> serialise_error(
-      size_t code, const std::string& msg) const override
-    {
-      return error(code, msg);
     }
   };
 }

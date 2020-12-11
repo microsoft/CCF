@@ -1237,7 +1237,9 @@ namespace ccf
               {MemberStatus::ACTIVE, MemberStatus::ACCEPTED}))
         {
           return make_error(
-            HTTP_STATUS_FORBIDDEN, "Member is not active or accepted");
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is not active or accepted.");
         }
 
         const auto in = params.get<KVRead::In>();
@@ -1256,8 +1258,9 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::KeyNotFound,
             fmt::format(
-              "Key {} does not exist in table {}", in.key.dump(), in.table));
+              "Key {} does not exist in table {}.", in.key.dump(), in.table));
         }
 
         return make_success(value);
@@ -1275,7 +1278,10 @@ namespace ccf
           ctx.get_caller<ccf::MemberCertAuthnIdentity>();
         if (!check_member_accepted(ctx.tx, caller_identity.member_id))
         {
-          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not accepted");
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is not accepted.");
         }
 
         const auto script = params.get<ccf::Script>();
@@ -1295,7 +1301,10 @@ namespace ccf
           ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
         if (!check_member_active(ctx.tx, caller_identity.member_id))
         {
-          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is not active.");
         }
 
         const auto in = params.get<Propose::In>();
@@ -1323,7 +1332,10 @@ namespace ccf
             ctx.get_caller<ccf::MemberCertAuthnIdentity>();
           if (!check_member_active(ctx.tx, caller_identity.member_id))
           {
-            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is not active.");
           }
 
           ObjectId proposal_id;
@@ -1331,7 +1343,8 @@ namespace ccf
           if (!get_proposal_id_from_path(
                 ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
           {
-            return make_error(HTTP_STATUS_BAD_REQUEST, error);
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
           }
 
           auto proposals = ctx.tx.get_read_only_view(this->network.proposals);
@@ -1341,7 +1354,8 @@ namespace ccf
           {
             return make_error(
               HTTP_STATUS_BAD_REQUEST,
-              fmt::format("Proposal {} does not exist", proposal_id));
+              ccf::errors::ProposalNotFound,
+              fmt::format("Proposal {} does not exist.", proposal_id));
           }
 
           return make_success(proposal.value());
@@ -1359,7 +1373,10 @@ namespace ccf
           ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
         if (!check_member_active(ctx.tx, caller_identity.member_id))
         {
-          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is not active.");
         }
 
         ObjectId proposal_id;
@@ -1367,7 +1384,8 @@ namespace ccf
         if (!get_proposal_id_from_path(
               ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
         {
-          return make_error(HTTP_STATUS_BAD_REQUEST, error);
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
         auto proposals = ctx.tx.get_view(this->network.proposals);
@@ -1377,15 +1395,18 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
-            fmt::format("Proposal {} does not exist", proposal_id));
+            ccf::errors::ProposalNotFound,
+            fmt::format("Proposal {} does not exist.", proposal_id));
         }
 
         if (proposal->proposer != caller_identity.member_id)
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
             fmt::format(
-              "Proposal {} can only be withdrawn by proposer {}, not caller {}",
+              "Proposal {} can only be withdrawn by proposer {}, not caller "
+              "{}.",
               proposal_id,
               proposal->proposer,
               caller_identity.member_id));
@@ -1395,9 +1416,10 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::ProposalNotOpen,
             fmt::format(
               "Proposal {} is currently in state {} - only {} proposals can be "
-              "withdrawn",
+              "withdrawn.",
               proposal_id,
               proposal->state,
               ProposalState::OPEN));
@@ -1422,7 +1444,10 @@ namespace ccf
 
         if (!check_member_active(ctx.tx, caller_identity.member_id))
         {
-          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is not active.");
         }
 
         ObjectId proposal_id;
@@ -1430,7 +1455,8 @@ namespace ccf
         if (!get_proposal_id_from_path(
               ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
         {
-          return make_error(HTTP_STATUS_BAD_REQUEST, error);
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
         auto proposals = ctx.tx.get_view(this->network.proposals);
@@ -1439,16 +1465,18 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_NOT_FOUND,
-            fmt::format("Proposal {} does not exist", proposal_id));
+            ccf::errors::ProposalNotFound,
+            fmt::format("Proposal {} does not exist.", proposal_id));
         }
 
         if (proposal->state != ProposalState::OPEN)
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::ProposalNotOpen,
             fmt::format(
               "Proposal {} is currently in state {} - only {} proposals can "
-              "receive votes",
+              "receive votes.",
               proposal_id,
               proposal->state,
               ProposalState::OPEN));
@@ -1459,7 +1487,10 @@ namespace ccf
           proposal->votes.find(caller_identity.member_id) !=
           proposal->votes.end())
         {
-          return make_error(HTTP_STATUS_BAD_REQUEST, "Vote already submitted");
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::VoteAlreadyExists,
+            "Vote already submitted.");
         }
         proposal->votes[caller_identity.member_id] = vote.ballot;
         proposals->put(proposal_id, proposal.value());
@@ -1481,7 +1512,10 @@ namespace ccf
           ctx.get_caller<ccf::MemberCertAuthnIdentity>();
         if (!check_member_active(ctx.tx, caller_identity.member_id))
         {
-          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is not active.");
         }
 
         std::string error;
@@ -1489,14 +1523,16 @@ namespace ccf
         if (!get_proposal_id_from_path(
               ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
         {
-          return make_error(HTTP_STATUS_BAD_REQUEST, error);
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
         MemberId member_id;
         if (!get_member_id_from_path(
               ctx.rpc_ctx->get_request_path_params(), member_id, error))
         {
-          return make_error(HTTP_STATUS_BAD_REQUEST, error);
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
         auto proposals = ctx.tx.get_read_only_view(this->network.proposals);
@@ -1505,7 +1541,8 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_NOT_FOUND,
-            fmt::format("Proposal {} does not exist", proposal_id));
+            ccf::errors::ProposalNotFound,
+            fmt::format("Proposal {} does not exist.", proposal_id));
         }
 
         const auto vote_it = proposal->votes.find(member_id);
@@ -1513,8 +1550,9 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_NOT_FOUND,
+            ccf::errors::VoteNotFound,
             fmt::format(
-              "Member {} has not voted for proposal {}",
+              "Member {} has not voted for proposal {}.",
               member_id,
               proposal_id));
         }
@@ -1534,7 +1572,10 @@ namespace ccf
           ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
         if (!check_member_active(ctx.tx, caller_identity.member_id))
         {
-          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is not active.");
         }
 
         ObjectId proposal_id;
@@ -1542,7 +1583,8 @@ namespace ccf
         if (!get_proposal_id_from_path(
               ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
         {
-          return make_error(HTTP_STATUS_BAD_REQUEST, error);
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
         auto proposals = ctx.tx.get_view(this->network.proposals);
@@ -1550,8 +1592,9 @@ namespace ccf
         if (!proposal.has_value())
         {
           return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            fmt::format("No such proposal: {}", proposal_id));
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ProposalNotFound,
+            fmt::format("No such proposal: {}.", proposal_id));
         }
 
         return make_success(
@@ -1578,15 +1621,17 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
-            fmt::format(
-              "No ACK record exists for caller {}", caller_identity.member_id));
+            ccf::errors::AuthorizationFailed,
+            fmt::format("No ACK record exists for caller {}.", caller_identity.member_id));
         }
 
         const auto digest = params.get<StateDigest>();
         if (ma->state_digest != digest.state_digest)
         {
           return make_error(
-            HTTP_STATUS_BAD_REQUEST, "Submitted state digest is not valid");
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::StateDigestMismatch,
+            "Submitted state digest is not valid.");
         }
 
         const auto s = sig_view->get(0);
@@ -1611,6 +1656,7 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
             fmt::format("Error activating new member: {}", e.what()));
         }
 
@@ -1619,7 +1665,8 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "No service currently available");
+            ccf::errors::InternalError,
+            "No service currently available.");
         }
 
         auto member_info = members_view->get(caller_identity.member_id);
@@ -1637,6 +1684,7 @@ namespace ccf
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
               fmt::format("Error issuing new recovery shares: {}", e.what()));
           }
         }
@@ -1657,10 +1705,10 @@ namespace ccf
         auto ma = ma_view->get(caller_identity.member_id);
         if (!ma)
         {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            fmt::format(
-              "No ACK record exists for caller {}", caller_identity.member_id));
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              fmt::format("No ACK record exists for caller {}.", caller_identity.member_id));
         }
 
         auto s = sig_view->get(0);
@@ -1688,7 +1736,8 @@ namespace ccf
           {
             return make_error(
               HTTP_STATUS_FORBIDDEN,
-              "Only active members are given recovery shares");
+              ccf::errors::AuthorizationFailed,
+              "Only active members are given recovery shares.");
           }
 
           auto encrypted_share = share_manager.get_encrypted_share(
@@ -1698,8 +1747,9 @@ namespace ccf
           {
             return make_error(
               HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ResourceNotFound,
               fmt::format(
-                "Recovery share not found for member {}",
+                "Recovery share not found for member {}.",
                 caller_identity.member_id));
           }
 
@@ -1786,11 +1836,10 @@ namespace ccf
           constexpr auto error_msg = "Failed to initiate private recovery";
           LOG_FAIL_FMT(error_msg);
           LOG_DEBUG_FMT("Error: {}", e.what());
-          // TODO: Do we test this? I don't think this is committed, since the
-          // response is an error
           share_manager.clear_submitted_recovery_shares(ctx.tx);
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          ctx.rpc_ctx->set_response_body(std::move(error_msg));
+          args.rpc_ctx->set_apply_writes(true);
+          // TODO: Find better error codes for this than Internal
+          args.rpc_ctx->set_error(HTTP_STATUS_INTERNAL_SERVER_ERROR, InternalError, error_msg);
           return;
         }
 
@@ -1819,7 +1868,9 @@ namespace ccf
         if (g.is_service_created())
         {
           return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Service is already created");
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Service is already created.");
         }
 
         g.init_values();
@@ -1837,8 +1888,10 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
             fmt::format(
-              "Could not set recovery threshold to {}", in.recovery_threshold));
+              "Could not set recovery threshold to {}.",
+              in.recovery_threshold));
         }
 
         g.add_consensus(in.consensus_type);
@@ -1853,7 +1906,9 @@ namespace ccf
         if (self != 0)
         {
           return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Starting node ID is not 0");
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Starting node ID is not 0.");
         }
 
 #ifdef GET_QUOTE
@@ -1890,7 +1945,9 @@ namespace ccf
         {
           LOG_FAIL_FMT("JWT key auto-refresh: no consensus available");
           return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR, "no consensus available");
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "No consensus available.");
         }
 
         auto primary_id = consensus->primary();
@@ -1902,7 +1959,8 @@ namespace ccf
             "JWT key auto-refresh: could not find node info of primary");
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "could not find node info of primary");
+            ccf::errors::InternalError,
+            "Could not find node info of primary.");
         }
 
         auto primary_cert_pem = info.value().cert;
@@ -1914,7 +1972,8 @@ namespace ccf
             "JWT key auto-refresh: request does not originate from primary");
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "request does not originate from primary");
+            ccf::errors::InternalError,
+            "Request does not originate from primary.");
         }
 
         SetJwtPublicSigningKeys parsed;
@@ -1925,7 +1984,9 @@ namespace ccf
         catch (const JsonParseError& e)
         {
           return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR, "unable to parse body");
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Unable to parse body.");
         }
 
         auto issuers = ctx.tx.get_view(this->network.jwt_issuers);
@@ -1936,7 +1997,8 @@ namespace ccf
             "JWT key auto-refresh: {} is not a valid issuer", parsed.issuer);
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            fmt::format("{} is not a valid issuer", parsed.issuer));
+            ccf::errors::InternalError,
+            fmt::format("{} is not a valid issuer.", parsed.issuer));
         }
         auto& issuer_metadata = issuer_metadata_.value();
 
@@ -1947,8 +2009,9 @@ namespace ccf
             parsed.issuer);
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
             fmt::format(
-              "{} does not have auto_refresh enabled", parsed.issuer));
+              "{} does not have auto_refresh enabled.", parsed.issuer));
         }
 
         if (!set_jwt_public_signing_keys(
@@ -1960,8 +2023,10 @@ namespace ccf
             parsed.issuer);
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
             fmt::format(
-              "error while storing signing keys for issuer {}", parsed.issuer));
+              "Error while storing signing keys for issuer {}.",
+              parsed.issuer));
         }
 
         return make_success(true);
