@@ -102,7 +102,8 @@ namespace ccf
           fmt::join(http::required_signature_headers, " ")));
     }
 
-    std::optional<OpenAPISecuritySchema> get_openapi_security_schema() const override
+    std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
+      const override
     {
       return security_schema;
     }
@@ -195,7 +196,8 @@ namespace ccf
           fmt::join(http::required_signature_headers, " ")));
     }
 
-    std::optional<OpenAPISecuritySchema> get_openapi_security_schema() const override
+    std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
+      const override
     {
       return security_schema;
     }

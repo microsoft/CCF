@@ -65,7 +65,8 @@ namespace ccf
       throw std::logic_error("Should not happen");
     }
 
-    std::optional<OpenAPISecuritySchema> get_openapi_security_schema() const override
+    std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
+      const override
     {
       return unauthenticated_schema;
     }

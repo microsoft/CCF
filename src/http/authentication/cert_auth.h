@@ -56,7 +56,8 @@ namespace ccf
       return nullptr;
     }
 
-    std::optional<OpenAPISecuritySchema> get_openapi_security_schema() const override
+    std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
+      const override
     {
       return std::nullopt;
     }
@@ -108,7 +109,8 @@ namespace ccf
       return nullptr;
     }
 
-    std::optional<OpenAPISecuritySchema> get_openapi_security_schema() const override
+    std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
+      const override
     {
       return std::nullopt;
     }
@@ -155,7 +157,8 @@ namespace ccf
       return identity;
     }
 
-    std::optional<OpenAPISecuritySchema> get_openapi_security_schema() const override
+    std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
+      const override
     {
       return std::nullopt;
     }
