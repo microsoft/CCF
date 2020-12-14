@@ -80,3 +80,12 @@ Additionally, the ``cchost`` binary must be told that the enclave type is debug:
 .. code-block:: bash
 
     $ cchost --enclave-file liblogging.enclave.so.debuggable --enclave-type debug [args]
+
+Integration Tests
+-----------------
+
+The ``sandbox.sh`` script can be a helpful element of infrastructure to execute Integration Tests against a CCF test network running a particular application.
+`test_install.sh <https://github.com/microsoft/CCF/blob/master/tests/test_install.sh>`_ is a good example of that, using the sandbox to run `tutorial.py <https://github.com/microsoft/CCF/blob/master/python/tutorial.py>`_ on a release package.
+
+``test_install.sh`` illustrates how to wait for the sandbox to be `ready <https://github.com/microsoft/CCF/blob/master/tests/test_install.sh#L33>`_ before issuing application transactions, how to shut it down cleanly,
+and how to trigger a recovery. Recovering a test network can be a useful way to inspect post-test application test.
