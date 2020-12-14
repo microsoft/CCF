@@ -84,15 +84,17 @@ def run(args):
             )
 
         LOG.info(
-            f"You can now issue business transactions to the {args.package} application."
+            f"You can now issue business transactions to the {args.package} application"
         )
+        if args.js_app_bundle is not None:
+            LOG.info(f"Loaded JS application: {args.js_app_bundle}")
         LOG.info(
             f"Keys and certificates have been copied to the common folder: {network.common_dir}"
         )
         LOG.info(
-            "See https://microsoft.github.io/CCF/master/users/issue_commands.html for more information."
+            "See https://microsoft.github.io/CCF/master/users/issue_commands.html for more information"
         )
-        LOG.warning("Press Ctrl+C to shutdown the network.")
+        LOG.warning("Press Ctrl+C to shutdown the network")
 
         try:
             while True:
