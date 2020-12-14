@@ -1552,43 +1552,6 @@ namespace ccf
         .set_auto_schema<void, Vote>()
         .install();
 
-      auto complete = [this](EndpointContext& ctx, nlohmann::json&&) {
-        if (!check_member_active(ctx.tx, ctx.caller_id))
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is not active.");
-        }
-
-        ObjectId proposal_id;
-        std::string error;
-        if (!get_proposal_id_from_path(
-              ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
-        }
-
-        auto proposals = ctx.tx.get_view(this->network.proposals);
-        auto proposal = proposals->get(proposal_id);
-        if (!proposal.has_value())
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ProposalNotFound,
-            fmt::format("No such proposal: {}.", proposal_id));
-        }
-
-        return make_success(
-          complete_proposal(ctx.tx, proposal_id, proposal.value()));
-      };
-      make_endpoint(
-        "proposals/{proposal_id}/complete", HTTP_POST, json_adapter(complete))
-        .set_auto_schema<void, ProposalInfo>()
-        .set_require_client_signature(true)
-        .install();
-
       //! A member acknowledges state
       auto ack = [this](EndpointContext& args, nlohmann::json&& params) {
         const auto signed_request = args.rpc_ctx->get_signed_request();
