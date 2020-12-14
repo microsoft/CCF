@@ -6,11 +6,11 @@
 #include <mbedtls/entropy.h>
 #include <mbedtls/gcm.h>
 #include <mbedtls/net_sockets.h>
+#include <mbedtls/sha256.h>
 #include <mbedtls/ssl.h>
 #include <mbedtls/x509.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/x509_csr.h>
-#include <mbedtls/sha256.h>
 #include <memory>
 
 namespace mbedtls
