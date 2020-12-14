@@ -62,7 +62,7 @@ namespace crypto
     return !(lhs == rhs);
   }
 
-  class CSha256HashImpl;
+  class MBSha256HashImpl;
   class CSha256Hash
   {
   public:
@@ -86,7 +86,7 @@ namespace crypto
     Sha256Hash finalize();
 
   private:
-    std::unique_ptr<CSha256HashImpl> p;
+    std::unique_ptr<MBSha256HashImpl> p;
   };
 }
 
