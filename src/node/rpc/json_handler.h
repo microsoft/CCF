@@ -6,6 +6,7 @@
 #include "endpoint_registry.h"
 #include "http/http_consts.h"
 #include "node/rpc/error.h"
+#include "node/rpc/rpc_exception.h"
 #include "node/rpc/serdes.h"
 
 #include <llhttp/llhttp.h>
@@ -112,12 +113,15 @@ namespace ccf
         }
         else
         {
-          throw std::logic_error(fmt::format(
-            "Unsupported content type {}. Only {} and {} are currently "
-            "supported",
-            content_type,
-            http::headervalues::contenttype::JSON,
-            http::headervalues::contenttype::MSGPACK));
+          throw RpcException(
+            HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE,
+            ccf::errors::UnsupportedContentType,
+            fmt::format(
+              "Unsupported content type {}. Only {} and {} are currently "
+              "supported",
+              content_type,
+              http::headervalues::contenttype::JSON,
+              http::headervalues::contenttype::MSGPACK));
         }
       }
       else
@@ -126,6 +130,45 @@ namespace ccf
       }
 
       return packing.value_or(serdes::Pack::Text);
+    }
+
+    static serdes::Pack get_response_pack(
+      const std::shared_ptr<enclave::RpcContext>& ctx,
+      serdes::Pack request_pack)
+    {
+      serdes::Pack packing = request_pack;
+
+      const auto accept_it = ctx->get_request_header(http::headers::ACCEPT);
+      if (accept_it.has_value())
+      {
+        const auto& accept = accept_it.value();
+        if (accept == http::headervalues::contenttype::JSON)
+        {
+          packing = serdes::Pack::Text;
+        }
+        else if (accept == http::headervalues::contenttype::MSGPACK)
+        {
+          packing = serdes::Pack::MsgPack;
+        }
+        else if (accept == "*/*")
+        {
+          packing = request_pack;
+        }
+        else
+        {
+          throw RpcException(
+            HTTP_STATUS_NOT_ACCEPTABLE,
+            ccf::errors::UnsupportedContentType,
+            fmt::format(
+              "Unsupported content type {} in accept header. Only {} and {} "
+              "are currently supported",
+              accept,
+              http::headervalues::contenttype::JSON,
+              http::headervalues::contenttype::MSGPACK));
+        }
+      }
+
+      return packing;
     }
 
     static nlohmann::json get_params_from_body(
@@ -201,7 +244,7 @@ namespace ccf
     static void set_response(
       JsonAdapterResponse&& res,
       std::shared_ptr<enclave::RpcContext>& ctx,
-      serdes::Pack packing)
+      serdes::Pack request_packing)
     {
       auto error = std::get_if<ErrorDetails>(&res);
       if (error != nullptr)
@@ -210,13 +253,14 @@ namespace ccf
       }
       else
       {
+        const auto packing = get_response_pack(ctx, request_packing);
         const auto body = std::get_if<nlohmann::json>(&res);
         ctx->set_response_status(HTTP_STATUS_OK);
         switch (packing)
         {
           case serdes::Pack::Text:
           {
-            const auto s = fmt::format("{}\n", body->dump());
+            const auto s = body->dump();
             ctx->set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
             break;
           }
