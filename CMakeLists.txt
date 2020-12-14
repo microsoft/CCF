@@ -99,6 +99,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            secp256k1.enclave
            aft.enclave
            sss.enclave
+           $<BUILD_INTERFACE:merklecpp>
   )
 
   set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -157,6 +158,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            sss.host
            openenclave::oehostverify
            ${CMAKE_THREAD_LIBS_INIT}
+           $<BUILD_INTERFACE:merklecpp>
   )
 
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -442,10 +444,14 @@ if(BUILD_TESTS)
     add_executable(merkle_mem src/node/test/merkle_mem.cpp)
     target_link_libraries(
       merkle_mem PRIVATE ccfcrypto.host evercrypt.host secp256k1.host
-                         ${CMAKE_THREAD_LIBS_INIT}
+                         ${CMAKE_THREAD_LIBS_INIT} $<BUILD_INTERFACE:merklecpp>
     )
     use_client_mbedtls(merkle_mem)
     target_include_directories(merkle_mem PRIVATE ${EVERCRYPT_INC} src)
+
+    # merklecpp tests
+    set(MERKLECPP_TEST_PREFIX "merklecpp-")
+    add_subdirectory(src/libmerklecpp/test)
 
     # Raft driver and scenario test
     add_executable(

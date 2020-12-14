@@ -9,11 +9,6 @@
 #include <picobench/picobench.hpp>
 #include <random>
 
-extern "C"
-{
-#include <evercrypt/EverCrypt_AutoConfig2.h>
-}
-
 using namespace std;
 
 template <class A>
@@ -221,10 +216,8 @@ PICOBENCH(serialised_size)
   .samples(1)
   .baseline();
 
-// We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char* argv[])
 {
-  ::EverCrypt_AutoConfig2_init();
   picobench::runner runner;
   runner.parse_cmd_line(argc, argv);
   return runner.run();
