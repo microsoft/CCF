@@ -44,16 +44,10 @@ typedef merkle::TreeT<32, sha256_evercrypt> EverCryptFullTree;
 
 void sha256_openssl(const merkle::HashT<32> &l, const merkle::HashT<32> &r, merkle::HashT<32> &out)
 {
-  unsigned char block[32 * 2];
+  uint8_t block[32 * 2];
   memcpy(&block[0], l.bytes, 32);
   memcpy(&block[32], r.bytes, 32);
-
-  SHA256_CTX ctx;
-  if (SHA256_Init(&ctx) != 1)
-    printf("SHA256_Init error");
-  if (SHA256_Update(&ctx, block, sizeof(block)) != 1)
-    printf("SHA256_Update error");
-  SHA256_Final(out.bytes, &ctx);
+  SHA256(block, sizeof(block), out.bytes);
 }
 
 typedef merkle::TreeT<32, merkle::sha256_compress_openssl> OpenSSLTree;
@@ -65,16 +59,10 @@ typedef merkle::TreeT<32, sha256_openssl> OpenSSLFullTree;
 
 void sha256_mbedtls(const merkle::HashT<32> &l, const merkle::HashT<32> &r, merkle::HashT<32> &out)
 {
-  unsigned char block[32 * 2];
+  uint8_t block[32 * 2];
   memcpy(&block[0], l.bytes, 32);
   memcpy(&block[32], r.bytes, 32);
-
-  mbedtls_sha256_context ctx;
-  mbedtls_sha256_init(&ctx);
-  mbedtls_sha256_starts_ret(&ctx, false);
-  mbedtls_sha256_update_ret(&ctx, block, sizeof(block));
-  mbedtls_sha256_finish_ret(&ctx, out.bytes);
-  mbedtls_sha256_free(&ctx);
+  mbedtls_sha256_ret(block, sizeof(block), out.bytes, false);
 }
 
 typedef merkle::TreeT<32, merkle::sha256_compress_mbedtls> MbedTLSTree;
