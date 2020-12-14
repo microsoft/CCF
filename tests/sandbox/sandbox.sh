@@ -11,19 +11,30 @@ VERSION_FILE="${PATH_HERE}"/../share/VERSION
 GOV_SCRIPT="${PATH_HERE}"/sandbox_gov.lua
 
 is_package_specified=false
-for item in "$@" ; do
-    if [ "$item" == "-p" ] || [ "$item" == "--package" ]; then
-        is_package_specified=true
-    fi
-done
+is_js_bundle_specified=false
 
 extra_args=("$@")
-if [ ${is_package_specified} == false ] && [ -f "${VERSION_FILE}" ]; then
-    # Only on install tree, default to installed js logging app
-    echo "No package/app specified. Defaulting to installed JS logging app"
-    extra_args+=(--package "${PATH_HERE}/../lib/libjs_generic")
-    extra_args+=(--js-app-bundle "${PATH_HERE}/../samples/logging/js")
-fi
+while [ "$1" != "" ]; do
+    case $1 in
+        -p|--package)
+            is_package_specified=true
+            shift
+            ;;
+        -p=*|--package=*)
+            is_package_specified=true
+            ;;
+        --js-app-bundle)
+            is_js_bundle_specified=true
+            shift
+            ;;
+        --js-app-bundle=*)
+            is_js_bundle_specified=true
+            ;;
+        *)
+            ;;
+    esac
+    shift
+done
 
 echo "Setting up Python environment..."
 
@@ -38,6 +49,12 @@ if [ -f "${VERSION_FILE}" ]; then
     BINARY_DIR=${PATH_HERE}
     START_NETWORK_SCRIPT="${PATH_HERE}"/start_network.py
     VERSION=$(<"${VERSION_FILE}")
+    if [ ${is_package_specified} == false ] && [ ${is_js_bundle_specified} == false ]; then
+        # Only on install tree, default to installed js logging app
+        echo "No package/app specified. Defaulting to installed JS logging app"
+        extra_args+=(--package "${PATH_HERE}/../lib/libjs_generic")
+        extra_args+=(--js-app-bundle "${PATH_HERE}/../samples/logging/js")
+    fi
     if [ ! -z "${PYTHON_PACKAGE_PATH}" ]; then
         # With an install tree, the python package can be specified, e.g. when testing
         # an install just before it is released
