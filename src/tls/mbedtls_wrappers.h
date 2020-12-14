@@ -10,6 +10,7 @@
 #include <mbedtls/x509.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/x509_csr.h>
+#include <mbedtls/sha256.h>
 #include <memory>
 
 namespace mbedtls
@@ -78,6 +79,11 @@ namespace mbedtls
     mbedtls_x509write_csr,
     mbedtls_x509write_csr_init,
     mbedtls_x509write_csr_free);
+  DEFINE_MBEDTLS_WRAPPER(
+    SHA256Ctx,
+    mbedtls_sha256_context,
+    mbedtls_sha256_init,
+    mbedtls_sha256_free);
 
 #undef DEFINE_MBEDTLS_WRAPPER
 }

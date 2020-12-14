@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "hash.h"
 
+#include "../tls/mbedtls_wrappers.h"
 #include <mbedtls/sha256.h>
 #include <stdexcept>
 
@@ -27,6 +28,29 @@ namespace crypto
     mbedtls_sha256_finish_ret(&ctx, h);
     mbedtls_sha256_free(&ctx);
   }
+
+  class MBSha256HashImpl
+  {
+  public:
+    MBSha256HashImpl()
+    {
+      ctx = std::move(mbedtls::make_unique<mbedtls::SHA256Ctx>());
+      mbedtls_sha256_starts_ret(ctx.get(), 0);
+    }
+
+    void finalize(std::array<uint8_t, Sha256Hash::SIZE>& h)
+    {
+      mbedtls_sha256_finish_ret(ctx.get(), h.data());
+    }
+
+    void update(const CBuffer& data)
+    {
+      mbedtls_sha256_update_ret(ctx.get(), data.p, data.rawSize());
+    }
+
+  private:
+    mbedtls::SHA256Ctx ctx;
+  };
 
   Sha256Hash::Sha256Hash() : h{0} {}
 
@@ -82,7 +106,7 @@ namespace crypto
     csha.finalize(reinterpret_cast<std::array<uint8_t, Sha256Hash::SIZE>&>(*h));
   }
 
-  CSha256Hash::CSha256Hash() : p(std::make_unique<CSha256HashImpl>()) {}
+  CSha256Hash::CSha256Hash() : p(std::make_unique<MBSha256HashImpl>()) {}
   CSha256Hash::~CSha256Hash() {}
 
   void CSha256Hash::update_hash(CBuffer data)
