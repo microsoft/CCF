@@ -50,6 +50,7 @@ namespace ccf
     ERROR(ResourceNotFound)
     ERROR(RequestNotSigned)
     ERROR(UnsupportedHttpVerb)
+    ERROR(UnsupportedContentType)
 
     // CCF-specific errors
     // client-facing:
