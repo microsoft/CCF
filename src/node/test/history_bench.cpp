@@ -71,66 +71,6 @@ static void hash_only(picobench::state& s)
 }
 
 template <size_t S>
-static void hash_mbedtls_sha256(picobench::state& s)
-{
-  ::srand(42);
-
-  std::vector<std::vector<uint8_t>> txs;
-  for (size_t i = 0; i < s.iterations(); i++)
-  {
-    std::vector<uint8_t> tx;
-    for (size_t j = 0; j < S; j++)
-    {
-      tx.push_back(::rand() % 256);
-    }
-    txs.push_back(tx);
-  }
-
-  size_t idx = 0;
-  s.start_timer();
-  for (auto _ : s)
-  {
-    (void)_;
-    auto data = txs[idx++];
-    crypto::Sha256Hash h;
-    crypto::Sha256Hash::mbedtls_sha256({data}, h.h.data());
-    do_not_optimize(h);
-    clobber_memory();
-  }
-  s.stop_timer();
-}
-
-template <size_t S>
-static void hash_mbedtls_sha512(picobench::state& s)
-{
-  ::srand(42);
-
-  std::vector<std::vector<uint8_t>> txs;
-  for (size_t i = 0; i < s.iterations(); i++)
-  {
-    std::vector<uint8_t> tx;
-    for (size_t j = 0; j < S; j++)
-    {
-      tx.push_back(::rand() % 256);
-    }
-    txs.push_back(tx);
-  }
-
-  size_t idx = 0;
-  s.start_timer();
-  for (auto _ : s)
-  {
-    (void)_;
-    auto data = txs[idx++];
-    std::array<uint8_t, 512 / 8> hash;
-    mbedtls_sha512_ret(data.data(), data.size(), hash.begin(), 0);
-    do_not_optimize(hash);
-    clobber_memory();
-  }
-  s.stop_timer();
-}
-
-template <size_t S>
 static void append(picobench::state& s)
 {
   ::srand(42);
@@ -212,16 +152,6 @@ PICOBENCH_SUITE("hash_only");
 PICOBENCH(hash_only<10>).iterations(sizes).samples(10).baseline();
 PICOBENCH(hash_only<100>).iterations(sizes).samples(10);
 PICOBENCH(hash_only<1000>).iterations(sizes).samples(10);
-
-PICOBENCH_SUITE("hash_mbedtls_sha256");
-PICOBENCH(hash_mbedtls_sha256<10>).iterations(sizes).samples(10).baseline();
-PICOBENCH(hash_mbedtls_sha256<100>).iterations(sizes).samples(10);
-PICOBENCH(hash_mbedtls_sha256<1000>).iterations(sizes).samples(10);
-
-PICOBENCH_SUITE("hash_mbedtls_sha512");
-PICOBENCH(hash_mbedtls_sha512<10>).iterations(sizes).samples(10).baseline();
-PICOBENCH(hash_mbedtls_sha512<100>).iterations(sizes).samples(10);
-PICOBENCH(hash_mbedtls_sha512<1000>).iterations(sizes).samples(10);
 
 PICOBENCH_SUITE("append");
 PICOBENCH(append<10>).iterations(sizes).samples(10).baseline();
