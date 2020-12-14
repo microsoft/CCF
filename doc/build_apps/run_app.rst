@@ -89,3 +89,35 @@ The ``sandbox.sh`` script can be a helpful element of infrastructure to execute 
 
 ``test_install.sh`` illustrates how to wait for the sandbox to be `ready <https://github.com/microsoft/CCF/blob/master/tests/test_install.sh#L33>`_ before issuing application transactions, how to shut it down cleanly,
 and how to trigger a recovery. Recovering a test network can be a useful way to inspect post-test application test.
+
+Performance Tests
+-----------------
+
+``sandbox.sh`` can be equally useful for performance testing, for example with a load testing tool such as `vegeta <https://github.com/tsenart/vegeta>`_:
+
+.. code-block:: bash
+
+    $ /opt/ccf/bin/sandbox.sh --package ./liblogging.virtual.so
+    ...
+    [16:14:10.011]   Node [0] = https://127.0.0.1:8000
+    ...
+    [16:14:10.011] Keys and certificates have been copied to the common folder: /data/src/CCF/build/workspace/sandbox_common
+    ...
+
+.. code-block:: bash
+
+    # Extracted from the output of sandbox.sh, above.
+    $ export SCDIR=/data/src/CCF/build/workspace/sandbox_common
+    $ export VEGETA=/opt/vegeta/vegeta
+    $ $VEGETA attack --targets sample_targets.json
+                     --format json --duration 10s \
+                     --cert $SCDIR/user0_cert.pem \
+                     --key $SCDIR/user0_privk.pem \
+                     --root-certs $SCDIR/networkcert.pem | /opt/vegeta/vegeta report
+
+Where ``sample_targets.json`` is a file containing some sample requests to be sent as load testing, for example:
+
+.. code-block:: json
+
+    {"method": "POST", "url": "https://127.0.0.1:8000/app/log/private", "header": {"Content-Type": ["application/json"]}, "body": "eyJpZCI6IDAsICJtc2ciOiAiUHJpdmF0ZSBtZXNzYWdlOiAwIn0="}
+    {"method": "GET", "url": "https://127.0.0.1:8000/app/log/private?id=0", "header": {"Content-Type": ["application/json"]}}
