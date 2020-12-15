@@ -16,11 +16,6 @@ namespace threading
   std::map<std::thread::id, uint16_t> thread_ids;
 }
 
-extern "C"
-{
-#include <evercrypt/EverCrypt_AutoConfig2.h>
-}
-
 using namespace ccf;
 
 class DummyConsensus : public kv::StubConsensus
@@ -63,7 +58,7 @@ static void hash_only(picobench::state& s)
     (void)_;
     auto data = txs[idx++];
     crypto::Sha256Hash h;
-    crypto::Sha256Hash::evercrypt_sha256({data}, h.h.data());
+    crypto::Sha256Hash::mbedtls_sha256({data}, h.h.data());
     do_not_optimize(h);
     clobber_memory();
   }
@@ -163,10 +158,8 @@ PICOBENCH(append_compact<10>).iterations(sizes).samples(10).baseline();
 PICOBENCH(append_compact<100>).iterations(sizes).samples(10);
 PICOBENCH(append_compact<1000>).iterations(sizes).samples(10);
 
-// We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char* argv[])
 {
-  ::EverCrypt_AutoConfig2_init();
   logger::config::level() = logger::FATAL;
 
   picobench::runner runner;
