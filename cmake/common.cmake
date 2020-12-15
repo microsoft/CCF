@@ -77,7 +77,7 @@ enable_language(ASM)
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 include_directories(${CCF_DIR}/src)
 
-include_directories(SYSTEM ${CCF_DIR}/3rdparty ${CCF_DIR}/3rdparty/hacl-star)
+include_directories(SYSTEM ${CCF_DIR}/3rdparty)
 
 find_package(MbedTLS REQUIRED)
 
