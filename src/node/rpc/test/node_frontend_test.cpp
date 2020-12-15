@@ -17,11 +17,6 @@ using namespace ccf;
 using namespace nlohmann;
 using namespace serdes;
 
-extern "C"
-{
-#include <evercrypt/EverCrypt_AutoConfig2.h>
-}
-
 using TResponse = http::SimpleResponseProcessor::Response;
 
 auto kp = tls::make_key_pair();
@@ -292,12 +287,10 @@ TEST_CASE("Add a node to an open service")
   }
 }
 
-// We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
 {
   doctest::Context context;
   context.applyCommandLine(argc, argv);
-  ::EverCrypt_AutoConfig2_init();
   int res = context.run();
   if (context.shouldExit())
     return res;
