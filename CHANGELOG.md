@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- C++ endpoints can be omitted from OpenAPI with `set_openapi_hidden(true)` (#2008).
+- JS endpoints can be omitted from OpenAPI if the `"openapi_hidden"` field in `app.json` is `true` (#2008).
+
 ### Changed
 
 - Error responses of built-in endpoints are now JSON and follow the OData schema (#1919).
