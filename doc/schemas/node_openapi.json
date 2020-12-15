@@ -500,15 +500,6 @@
         }
       }
     },
-    "/join": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Default response description"
-          }
-        }
-      }
-    },
     "/local_tx": {
       "get": {
         "parameters": [
