@@ -73,15 +73,6 @@
       }
     },
     {
-      "component": {
-        "type": "git",
-        "git": {
-          "repositoryUrl": "https://github.com/project-everest/hacl-star",
-          "commitHash": "b5343363688fbe0e3cdc0c488188708f09eb8a14"
-        }
-      }
-    },
-    {
       "Component": {
         "Type": "other",
         "Other": {

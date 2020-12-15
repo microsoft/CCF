@@ -6,6 +6,7 @@
 #include <mbedtls/entropy.h>
 #include <mbedtls/gcm.h>
 #include <mbedtls/net_sockets.h>
+#include <mbedtls/sha256.h>
 #include <mbedtls/ssl.h>
 #include <mbedtls/x509.h>
 #include <mbedtls/x509_crt.h>
@@ -78,6 +79,11 @@ namespace mbedtls
     mbedtls_x509write_csr,
     mbedtls_x509write_csr_init,
     mbedtls_x509write_csr_free);
+  DEFINE_MBEDTLS_WRAPPER(
+    SHA256Ctx,
+    mbedtls_sha256_context,
+    mbedtls_sha256_init,
+    mbedtls_sha256_free);
 
 #undef DEFINE_MBEDTLS_WRAPPER
 }
