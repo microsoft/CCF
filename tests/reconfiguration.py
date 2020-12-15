@@ -49,7 +49,6 @@ def test_add_node(network, args):
         args.package,
         "local://localhost",
         args,
-        from_snapshot=False,
     )
     with new_node.client() as c:
         s = c.get("/node/state")
@@ -61,18 +60,25 @@ def test_add_node(network, args):
 @reqs.description("Adding a valid node from a backup")
 @reqs.at_least_n_nodes(2)
 def test_add_node_from_backup(network, args):
-    backup = network.find_any_backup()
+    primary, backup = network.find_primary_and_any_backup()
+
+    # Retrieve snapshot from primary as only primary node
+    # generates snapshots
+    snapshot_dir = network.get_committed_snapshots(primary)
+
     new_node = network.create_and_trust_node(
         args.package,
         "local://localhost",
         args,
         target_node=backup,
-        from_snapshot=False,
+        snapshot_dir=snapshot_dir,
     )
     assert new_node
     return network
 
 
+# Note: this test cannot be included in the test suite yet as
+# add_from_snapshot() decorator makes use of historical queries
 @reqs.description("Adding a valid node from snapshot")
 @reqs.at_least_n_nodes(2)
 @reqs.add_from_snapshot()
@@ -101,7 +107,6 @@ def test_add_as_many_pending_nodes(network, args):
             args.package,
             "local://localhost",
             args,
-            from_snapshot=False,
         )
     check_can_progress(network.find_primary()[0])
     return network
