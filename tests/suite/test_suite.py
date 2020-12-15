@@ -44,7 +44,7 @@ suites["membership_recovery"] = suite_membership_recovery
 # This suite tests that nodes addition, deletion and primary changes
 # can be interleaved
 # Note: snapshot tests are not yet integrated in the main test suite
-# as they test historical queries which do not yet across rekeys/recoveries
+# as they test historical queries which do not yet work across rekey/recovery
 suite_reconfiguration = [
     reconfiguration.test_add_node,
     reconfiguration.test_retire_primary,
