@@ -1869,6 +1869,7 @@ namespace ccf
       };
       make_endpoint("create", HTTP_POST, json_adapter(create))
         .set_require_client_identity(false)
+        .set_openapi_hidden(true)
         .install();
 
       // Only called from node. See node_state.h.
@@ -1969,6 +1970,7 @@ namespace ccf
       make_endpoint(
         "jwt_keys/refresh", HTTP_POST, json_adapter(refresh_jwt_keys))
         .set_require_client_identity(false)
+        .set_openapi_hidden(true)
         .install();
     }
   };

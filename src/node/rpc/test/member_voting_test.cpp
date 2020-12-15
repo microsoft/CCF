@@ -20,11 +20,6 @@
 #include <iostream>
 #include <string>
 
-extern "C"
-{
-#include <evercrypt/EverCrypt_AutoConfig2.h>
-}
-
 using namespace ccfapp;
 using namespace ccf;
 using namespace std;
@@ -2196,12 +2191,10 @@ DOCTEST_TEST_CASE("Open network sequence")
   }
 }
 
-// We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
 {
   doctest::Context context;
   context.applyCommandLine(argc, argv);
-  ::EverCrypt_AutoConfig2_init();
   int res = context.run();
   if (context.shouldExit())
     return res;

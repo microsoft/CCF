@@ -117,6 +117,18 @@ namespace ccf
 
       std::vector<SchemaBuilderFn> schema_builders = {};
 
+      bool openapi_hidden = false;
+
+      /** Whether the endpoint should be omitted from the OpenAPI document.
+       *
+       * @return This Endpoint for further modification
+       */
+      Endpoint& set_openapi_hidden(bool hidden)
+      {
+        openapi_hidden = hidden;
+        return *this;
+      }
+
       nlohmann::json params_schema = nullptr;
 
       /** Sets the JSON schema that the request parameters must comply with.
@@ -640,11 +652,10 @@ namespace ccf
 
       for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
       {
-        // Special endpoint, can only be called from the node.
-        if (path == "jwt_keys/refresh")
-          continue;
         for (const auto& [verb, endpoint] : verb_endpoints)
         {
+          if (endpoint->openapi_hidden)
+            continue;
           add_endpoint_to_api_document(document, endpoint);
         }
       }
@@ -653,6 +664,8 @@ namespace ccf
       {
         for (const auto& [verb, endpoint] : verb_endpoints)
         {
+          if (endpoint->openapi_hidden)
+            continue;
           add_endpoint_to_api_document(document, endpoint);
 
           for (const auto& name : endpoint->spec.template_component_names)

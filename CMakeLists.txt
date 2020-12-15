@@ -77,14 +77,9 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 
   target_include_directories(
     ccf.enclave SYSTEM
-    PUBLIC
-      "$<BUILD_INTERFACE:${EVERCRYPT_INC}>"
-      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-      $<INSTALL_INTERFACE:include/ccf/>
-      $<INSTALL_INTERFACE:include/3rdparty/>
-      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt>
-      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin>
-      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
+    PUBLIC $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+           $<INSTALL_INTERFACE:include/ccf/>
+           $<INSTALL_INTERFACE:include/3rdparty/>
   )
 
   target_link_libraries(
@@ -93,7 +88,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            -static-libgcc
            -lgcc
            ccfcrypto.enclave
-           evercrypt.enclave
            http_parser.enclave
            lua.enclave
            secp256k1.enclave
@@ -134,14 +128,9 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
   target_include_directories(
     ccf.virtual SYSTEM
-    PUBLIC
-      "$<BUILD_INTERFACE:${EVERCRYPT_INC}>"
-      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-      $<INSTALL_INTERFACE:include/ccf/>
-      $<INSTALL_INTERFACE:include/3rdparty/>
-      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt>
-      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin>
-      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
+    PUBLIC $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+           $<INSTALL_INTERFACE:include/ccf/>
+           $<INSTALL_INTERFACE:include/3rdparty/>
   )
 
   target_link_libraries(
@@ -150,7 +139,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            -static-libgcc
            -lgcc
            ccfcrypto.host
-           evercrypt.host
            http_parser.host
            lua.host
            secp256k1.host
@@ -304,20 +292,16 @@ if(BUILD_TESTS)
     add_unit_test(
       history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
     )
-    target_include_directories(history_test PRIVATE ${EVERCRYPT_INC})
     target_link_libraries(
-      history_test PRIVATE ${CRYPTO_LIBRARY} evercrypt.host secp256k1.host
-                           http_parser.host
+      history_test PRIVATE ${CRYPTO_LIBRARY} secp256k1.host http_parser.host
     )
 
     add_unit_test(
       progress_tracker_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/progress_tracker.cpp
     )
-    target_include_directories(progress_tracker_test PRIVATE ${EVERCRYPT_INC})
     target_link_libraries(
-      progress_tracker_test PRIVATE ${CRYPTO_LIBRARY} evercrypt.host
-                                    secp256k1.host
+      progress_tracker_test PRIVATE ${CRYPTO_LIBRARY} secp256k1.host
     )
 
     add_unit_test(
@@ -390,8 +374,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
     )
     target_link_libraries(
-      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host
-                            secp256k1.host http_parser.host sss.host
+      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host secp256k1.host
+                            http_parser.host sss.host
     )
 
     add_unit_test(
@@ -404,9 +388,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp
     )
     target_link_libraries(
-      member_voting_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host secp256k1.host
-              http_parser.host sss.host
+      member_voting_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
+                                 secp256k1.host http_parser.host sss.host
     )
 
     add_unit_test(
@@ -414,9 +397,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
     )
     target_link_libraries(
-      node_frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host secp256k1.host
-              http_parser.host sss.host
+      node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
+                                 secp256k1.host http_parser.host sss.host
     )
 
     if(NOT ENV{RUNTIME_CONFIG_DIR})
@@ -443,11 +425,10 @@ if(BUILD_TESTS)
     # Merkle Tree memory test
     add_executable(merkle_mem src/node/test/merkle_mem.cpp)
     target_link_libraries(
-      merkle_mem PRIVATE ccfcrypto.host evercrypt.host secp256k1.host
+      merkle_mem PRIVATE ccfcrypto.host secp256k1.host
                          ${CMAKE_THREAD_LIBS_INIT} $<BUILD_INTERFACE:merklecpp>
     )
     use_client_mbedtls(merkle_mem)
-    target_include_directories(merkle_mem PRIVATE ${EVERCRYPT_INC} src)
 
     # merklecpp tests
     set(MERKLECPP_TEST_PREFIX "merklecpp-")
@@ -493,14 +474,12 @@ if(BUILD_TESTS)
   add_picobench(
     merkle_bench
     SRCS src/node/test/merkle_bench.cpp
-    LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
-    INCLUDE_DIRS ${EVERCRYPT_INC}
+    LINK_LIBS ccfcrypto.host secp256k1.host
   )
   add_picobench(
     history_bench
     SRCS src/node/test/history_bench.cpp
-    LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
-    INCLUDE_DIRS ${EVERCRYPT_INC}
+    LINK_LIBS ccfcrypto.host secp256k1.host
   )
   add_picobench(
     kv_bench
@@ -512,8 +491,7 @@ if(BUILD_TESTS)
   add_picobench(
     digest_bench
     SRCS src/crypto/test/digest_bench.cpp
-    LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
-    INCLUDE_DIRS ${EVERCRYPT_INC}
+    LINK_LIBS ccfcrypto.host secp256k1.host
   )
 
   # Storing signed governance operations

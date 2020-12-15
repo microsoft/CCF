@@ -77,7 +77,7 @@ enable_language(ASM)
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 include_directories(${CCF_DIR}/src)
 
-include_directories(SYSTEM ${CCF_DIR}/3rdparty ${CCF_DIR}/3rdparty/hacl-star)
+include_directories(SYSTEM ${CCF_DIR}/3rdparty)
 
 find_package(MbedTLS REQUIRED)
 
@@ -251,7 +251,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
             ${LINK_LIBCXX}
             openenclave::oehost
             ccfcrypto.host
-            evercrypt.host
   )
   enable_quote_code(cchost)
 
@@ -291,7 +290,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
             ${CMAKE_THREAD_LIBS_INIT}
             ${LINK_LIBCXX}
             ccfcrypto.host
-            evercrypt.host
   )
 
   install(TARGETS cchost.virtual DESTINATION bin)
