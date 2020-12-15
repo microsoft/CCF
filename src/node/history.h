@@ -206,7 +206,7 @@ namespace ccf
     }
   };
 
-  typedef merkle::TreeT<32, merkle::sha256_openssl> HistoryTree; // Comment.
+  typedef merkle::TreeT<32, merkle::sha256_compress_openssl> HistoryTree;
 
   class Receipt
   {
