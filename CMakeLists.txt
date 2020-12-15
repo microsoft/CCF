@@ -77,10 +77,9 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 
   target_include_directories(
     ccf.enclave SYSTEM
-    PUBLIC
-      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-      $<INSTALL_INTERFACE:include/ccf/>
-      $<INSTALL_INTERFACE:include/3rdparty/>
+    PUBLIC $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+           $<INSTALL_INTERFACE:include/ccf/>
+           $<INSTALL_INTERFACE:include/3rdparty/>
   )
 
   target_link_libraries(
@@ -129,10 +128,9 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
   target_include_directories(
     ccf.virtual SYSTEM
-    PUBLIC
-      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-      $<INSTALL_INTERFACE:include/ccf/>
-      $<INSTALL_INTERFACE:include/3rdparty/>
+    PUBLIC $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+           $<INSTALL_INTERFACE:include/ccf/>
+           $<INSTALL_INTERFACE:include/3rdparty/>
   )
 
   target_link_libraries(
@@ -376,8 +374,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
     )
     target_link_libraries(
-      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-                            secp256k1.host http_parser.host sss.host
+      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host secp256k1.host
+                            http_parser.host sss.host
     )
 
     add_unit_test(
@@ -390,9 +388,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp
     )
     target_link_libraries(
-      member_voting_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host secp256k1.host
-              http_parser.host sss.host
+      member_voting_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
+                                 secp256k1.host http_parser.host sss.host
     )
 
     add_unit_test(
@@ -400,9 +397,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
     )
     target_link_libraries(
-      node_frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host secp256k1.host
-              http_parser.host sss.host
+      node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
+                                 secp256k1.host http_parser.host sss.host
     )
 
     if(NOT ENV{RUNTIME_CONFIG_DIR})
