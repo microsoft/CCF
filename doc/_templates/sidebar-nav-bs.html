@@ -3,7 +3,7 @@
       window.location.href = document.getElementById("versions").value;
     }
 
-    window.addEventListener("load",function(){
+    window.addEventListener("DOMContentLoaded",function(){
         let selectedVersion = "master"
         const thisURL = window.location.toString()
         let indexOfVersion = thisURL.indexOf("ccf-")
@@ -56,7 +56,7 @@
 
         {% if versions %}
         <h6> Versions </h6>
-        <select name="versions" id="versions" style="background:#F8F9FA;width:50%; border-radius:6px;border:1px solid #e5e5e5;font-family: inherit;font-size: inherit;padding: 0.4em 0.4em 0.4em 0.4em" onchange="onVersionChange()">
+        <select name="versions" id="versions" class="custom-select custom-select-sm" style="width:50%" onchange="onVersionChange()">
             {%- for item in versions.branches|sort(attribute='name', reverse=True) %}
             <option value="{{ item.url }}">{{ item.name }} </option>
             {%- endfor %}
