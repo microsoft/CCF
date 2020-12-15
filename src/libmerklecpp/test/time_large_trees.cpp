@@ -31,7 +31,7 @@ int main()
     merkle::Tree mt;
     size_t j = 0;
     auto start = std::chrono::high_resolution_clock::now();
-    for (auto &h : hashes)
+    for (auto& h : hashes)
     {
       mt.insert(h);
       if ((j++ % root_interval) == 0)
@@ -48,7 +48,7 @@ int main()
 
 #ifdef HAVE_EVERCRYPT
     std::vector<uint8_t*> ec_hashes;
-    for (auto &h : hashes)
+    for (auto& h : hashes)
     {
       ec_hashes.push_back(mt_init_hash(HSZ));
       memcpy(ec_hashes.back(), h.bytes, HSZ);
