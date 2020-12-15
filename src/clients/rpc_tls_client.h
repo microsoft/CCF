@@ -191,8 +191,8 @@ public:
     const CBuffer& params,
     llhttp_method verb = HTTP_POST)
   {
-    return call_raw(gen_request(
-      method, params, http::headervalues::contenttype::OCTET_STREAM, verb));
+    return call_raw(
+      gen_request(method, params, http::headervalues::contenttype::JSON, verb));
   }
 
   Response post(const std::string& method, const nlohmann::json& params)
