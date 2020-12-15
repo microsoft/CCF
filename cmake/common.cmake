@@ -251,7 +251,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
             ${LINK_LIBCXX}
             openenclave::oehost
             ccfcrypto.host
-            evercrypt.host
   )
   enable_quote_code(cchost)
 
@@ -291,7 +290,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
             ${CMAKE_THREAD_LIBS_INIT}
             ${LINK_LIBCXX}
             ccfcrypto.host
-            evercrypt.host
   )
 
   install(TARGETS cchost.virtual DESTINATION bin)
