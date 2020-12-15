@@ -10,12 +10,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - C++ endpoints can be omitted from OpenAPI with `set_openapi_hidden(true)` (#2008).
+- JS endpoints can be omitted from OpenAPI if the `"openapi_hidden"` field in `app.json` is `true` (#2008).
 
 ### Changed
 
 - Error responses of built-in endpoints are now JSON and follow the OData schema (#1919).
 - Code ids are now deleted rather than marked as `RETIRED`. `ACTIVE` is replaced with the more precise `ALLOWED_TO_JOIN`. (#1996)
-- JS endpoints are now omitted from OpenAPI if the `"openapi"` field in `app.json` is empty (#2008).
 - CCF now depends on [Open Enclave 0.13](https://github.com/openenclave/openenclave/releases/tag/v0.13.0-rc2).
 
 ## [0.16.0]
