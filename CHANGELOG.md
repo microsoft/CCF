@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Code ids are now deleted rather than marked as `RETIRED`. `ACTIVE` is replaced with the more precise `ALLOWED_TO_JOIN`. (#1996)
 - CCF now depends on [Open Enclave 0.13](https://github.com/openenclave/openenclave/releases/tag/v0.13.0-rc2).
 
+## Fixed
+
+- Scenario perf client `--msg-ser-fmt text` option works with C++ apps.
+
 ## [0.16.0]
 
 ### Added
