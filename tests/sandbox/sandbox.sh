@@ -82,5 +82,6 @@ exec python "${START_NETWORK_SCRIPT}" \
     --initial-user-count 1 \
     --gov-script "${GOV_SCRIPT}" \
     --ledger-chunk-bytes 5MB \
+    --snapshot-tx-interval 10000 \
     --label sandbox \
     "${extra_args[@]}"
