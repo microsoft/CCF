@@ -1,3 +1,28 @@
+<script>
+    function onVersionChange() {
+      window.location.href = document.getElementById("versions").value;
+    }
+
+    window.addEventListener("DOMContentLoaded",function(){
+        let selectedVersion = "master"
+        const thisURL = window.location.toString()
+        let indexOfVersion = thisURL.indexOf("ccf-")
+        if (indexOfVersion != -1) {
+            selectedVersion = thisURL.substring(indexOfVersion, thisURL.indexOf("/", indexOfVersion));
+        }
+        let sel = document.getElementById("versions");
+        if (sel != null) {
+            let opts = sel.options;
+            for (var opt, j = 0; opt = opts[j]; j++) {
+                if (opt.text == selectedVersion) {
+                    sel.selectedIndex = j;
+                    break;
+                }
+            }
+        }
+    }, false);
+</script>
+
 <nav class="bd-links" id="bd-docs-nav" aria-label="Main navigation">
 
     <div class="bd-toc-item active">
@@ -30,19 +55,14 @@
         </ul>
 
         {% if versions %}
-        <h5> Versions </h5>
-        <ul>
+        <h6> Versions </h6>
+        <select name="versions" id="versions" class="custom-select custom-select-sm" style="width:50%" onchange="onVersionChange()">
             {%- for item in versions.branches|sort(attribute='name', reverse=True) %}
-            <li>
-                <a href="{{ item.url }}" class="badge">{{ item.name }}</a>
-            </li>
+            <option value="{{ item.url }}">{{ item.name }} </option>
             {%- endfor %}
             {%- for item in versions.tags|sort(attribute='name', reverse=True) %}
-            <li>
-                <a href="{{ item.url }}" class="badge">{{ item.name }}</a>
-            </li>
+            <option value="{{ item.url }}">{{ item.name }} </option>
             {%- endfor %}
-        </ul>
+        </select>
         {% endif %}
-
 </nav>
