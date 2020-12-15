@@ -23,10 +23,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Scenario perf client `--msg-ser-fmt text` option works with C++ apps (#2026).
 
-## Fixed
-
-- Scenario perf client `--msg-ser-fmt text` option works with C++ apps.
-
 ## [0.16.0]
 
 ### Added
