@@ -1331,7 +1331,7 @@ namespace merkle
 #ifdef HAVE_MBEDTLS
   // Note: Technically, mbedtls_internal_sha256_process is for internal use
   // only.
-  static void sha256_compress_mbedtls(
+  void sha256_compress_mbedtls(
     const HashT<32>& l, const HashT<32>& r, HashT<32>& out)
   {
     unsigned char block[32 * 2];

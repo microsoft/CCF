@@ -19,6 +19,7 @@
 #include <string.h>
 
 #define HAVE_OPENSSL
+#define HAVE_MBEDTLS
 #include <merklecpp.h>
 
 namespace fmt
@@ -205,7 +206,7 @@ namespace ccf
     }
   };
 
-  typedef merkle::TreeT<32, merkle::sha256_openssl> HistoryTree;
+  typedef merkle::TreeT<32, merkle::sha256_mbedtls> HistoryTree;
 
   class Receipt
   {
