@@ -33,11 +33,11 @@
 #endif
 
 #ifdef HAVE_OPENSSL
-#include <openssl/sha.h>
+#  include <openssl/sha.h>
 #endif
 
 #ifdef HAVE_MBEDTLS
-#include <mbedtls/sha256.h>
+#  include <mbedtls/sha256.h>
 #endif
 
 // Hashes in the trace output are truncated to TRACE_HASH_SIZE bytes.
@@ -1300,7 +1300,8 @@ namespace merkle
 
 #ifdef HAVE_OPENSSL
   // Note: Some versions of OpenSSL don't provide SHA256_Transform.
-  void sha256_compress_openssl(const HashT<32> &l, const HashT<32> &r, HashT<32> &out)
+  void sha256_compress_openssl(
+    const HashT<32>& l, const HashT<32>& r, HashT<32>& out)
   {
     unsigned char block[32 * 2];
     memcpy(&block[0], l.bytes, 32);
@@ -1314,11 +1315,24 @@ namespace merkle
     for (int i = 0; i < 8; i++)
       ((uint32_t*)out.bytes)[i] = htobe32(((uint32_t*)ctx.h)[i]);
   }
+
+  void sha256_openssl(
+    const merkle::HashT<32>& l,
+    const merkle::HashT<32>& r,
+    merkle::HashT<32>& out)
+  {
+    uint8_t block[32 * 2];
+    memcpy(&block[0], l.bytes, 32);
+    memcpy(&block[32], r.bytes, 32);
+    SHA256(block, sizeof(block), out.bytes);
+  }
 #endif
 
 #ifdef HAVE_MBEDTLS
-  // Note: Technically, mbedtls_internal_sha256_process is for internal use only.
-  static void sha256_compress_mbedtls(const HashT<32> &l, const HashT<32> &r, HashT<32> &out)
+  // Note: Technically, mbedtls_internal_sha256_process is for internal use
+  // only.
+  static void sha256_compress_mbedtls(
+    const HashT<32>& l, const HashT<32>& r, HashT<32>& out)
   {
     unsigned char block[32 * 2];
     memcpy(&block[0], l.bytes, 32);
@@ -1331,6 +1345,17 @@ namespace merkle
 
     for (int i = 0; i < 8; i++)
       ((uint32_t*)out.bytes)[i] = htobe32(ctx.state[i]);
+  }
+
+  void sha256_mbedtls(
+    const merkle::HashT<32>& l,
+    const merkle::HashT<32>& r,
+    merkle::HashT<32>& out)
+  {
+    uint8_t block[32 * 2];
+    memcpy(&block[0], l.bytes, 32);
+    memcpy(&block[32], r.bytes, 32);
+    mbedtls_sha256_ret(block, sizeof(block), out.bytes, false);
   }
 #endif
 

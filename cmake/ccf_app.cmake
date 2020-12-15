@@ -46,6 +46,7 @@ if(LVI_MITIGATIONS)
   set(OE_TARGET_ENCLAVE_AND_STD
       openenclave::oeenclave-lvi-cfg openenclave::oecryptombedtls-lvi-cfg
       openenclave::oelibcxx-lvi-cfg openenclave::oelibc-lvi-cfg
+      openenclave::oecryptoopenssl-lvi-cfg
   )
   set(OE_TARGET_ENCLAVE_CORE_LIBS
       openenclave::oeenclave-lvi-cfg openenclave::oecryptombedtls-lvi-cfg

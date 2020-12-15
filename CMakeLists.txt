@@ -425,8 +425,9 @@ if(BUILD_TESTS)
     # Merkle Tree memory test
     add_executable(merkle_mem src/node/test/merkle_mem.cpp)
     target_link_libraries(
-      merkle_mem PRIVATE ccfcrypto.host secp256k1.host
-                         ${CMAKE_THREAD_LIBS_INIT} $<BUILD_INTERFACE:merklecpp>
+      merkle_mem
+      PRIVATE ccfcrypto.host secp256k1.host ${CMAKE_THREAD_LIBS_INIT}
+              $<BUILD_INTERFACE:merklecpp> crypto
     )
     use_client_mbedtls(merkle_mem)
 
@@ -474,12 +475,12 @@ if(BUILD_TESTS)
   add_picobench(
     merkle_bench
     SRCS src/node/test/merkle_bench.cpp
-    LINK_LIBS ccfcrypto.host secp256k1.host
+    LINK_LIBS ccfcrypto.host secp256k1.host crypto
   )
   add_picobench(
     history_bench
     SRCS src/node/test/history_bench.cpp
-    LINK_LIBS ccfcrypto.host secp256k1.host
+    LINK_LIBS ccfcrypto.host secp256k1.host crypto
   )
   add_picobench(
     kv_bench

@@ -27,30 +27,32 @@ endif()
 
 install(TARGETS merklecpp)
 
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".so")
+
 if(OPENSSL)
   find_package(OpenSSL)
 endif()
 
 if(MBEDTLS)
-  find_library(MBEDCRYPTO_LIBRARY mbedcrypto)
+  find_library(MBEDCRYPTO_LIBRARY NMAMES libmbedcrypto.a)
 endif()
 
 if(TESTS)
   if(EVERCRYPT)
-    if(NOT (DEFINED $ENV{EVERCRYPT_DIR}))
-      set(EVERCRYPT_DIR ../../3rdparty/hacl-star/evercrypt)
+    if(NOT EVERCRYPT_DIR)
+      message(FATAL_ERROR "EverCrypt not found, add -DEVERCRYPT_DIR=...")
     endif()
 
     file(GLOB EVERCRYPT_SRC "${EVERCRYPT_DIR}/*.c"
          "${EVERCRYPT_DIR}/*-x86_64-linux.S"
     )
-    add_library(evercrypt.host STATIC ${EVERCRYPT_SRC})
+    add_library(evercrypt STATIC ${EVERCRYPT_SRC})
     target_include_directories(
-      evercrypt.host PUBLIC ${EVERCRYPT_DIR} ${EVERCRYPT_DIR}/kremlin
-                            ${EVERCRYPT_DIR}/kremlin/kremlib
+      evercrypt PUBLIC ${EVERCRYPT_DIR} ${EVERCRYPT_DIR}/kremlin
+                       ${EVERCRYPT_DIR}/kremlin/kremlib
     )
-    set_target_properties(evercrypt.host PROPERTIES LINKER_LANGUAGE C)
-    target_compile_options(evercrypt.host PRIVATE -O3 -march=native -mtune=native)
+    set_target_properties(evercrypt PROPERTIES LINKER_LANGUAGE C)
+    # target_compile_options(evercrypt PRIVATE -O3 -march=native -mtune=native)
   endif()
 
   enable_testing()
@@ -77,11 +79,11 @@ if(TESTS)
       )
       target_link_options(${NAME} PRIVATE -fsanitize=address)
     else()
-      target_compile_options(${NAME} PRIVATE -O3 -march=native -mtune=native)
+      # target_compile_options(${NAME} PRIVATE -O3 -march=native -mtune=native)
     endif()
 
     if(EVERCRYPT)
-      target_link_libraries(${NAME} PRIVATE evercrypt.host)
+      target_link_libraries(${NAME} PRIVATE evercrypt)
       target_compile_definitions(${NAME} PRIVATE HAVE_EVERCRYPT)
     endif()
 

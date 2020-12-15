@@ -205,7 +205,7 @@ function(add_unit_test name)
   enable_coverage(${name})
   target_link_libraries(
     ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehostverify
-                    $<BUILD_INTERFACE:merklecpp>
+                    $<BUILD_INTERFACE:merklecpp> crypto
   )
   use_client_mbedtls(${name})
   add_san(${name})
