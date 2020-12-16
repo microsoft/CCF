@@ -32,7 +32,7 @@ namespace ccf
     {
       ctx->set_error(
         HTTP_STATUS_UNAUTHORIZED,
-        ccf::errors::AuthorizationFailed,
+        ccf::errors::InvalidAuthenticationInfo,
         std::move(error_reason));
     }
 

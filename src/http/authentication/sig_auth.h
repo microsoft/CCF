@@ -92,7 +92,7 @@ namespace ccf
     {
       ctx->set_error(
         HTTP_STATUS_UNAUTHORIZED,
-        ccf::errors::AuthorizationFailed,
+        ccf::errors::InvalidAuthenticationInfo,
         std::move(error_reason));
       ctx->set_response_header(
         http::headers::WWW_AUTHENTICATE,
@@ -186,7 +186,7 @@ namespace ccf
     {
       ctx->set_error(
         HTTP_STATUS_UNAUTHORIZED,
-        ccf::errors::AuthorizationFailed,
+        ccf::errors::InvalidAuthenticationInfo,
         std::move(error_reason));
       ctx->set_response_header(
         http::headers::WWW_AUTHENTICATE,

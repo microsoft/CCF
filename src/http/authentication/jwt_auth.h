@@ -52,8 +52,8 @@ namespace ccf
         {
           auto identity = std::make_unique<JwtAuthnIdentity>();
           identity->key_issuer = key_issuer_view->get(key_id).value();
-          identity->header = token->header;
-          identity->payload = token->payload;
+          identity->header = std::move(token->header);
+          identity->payload = std::move(token->payload);
           return identity;
         }
       }
@@ -67,7 +67,7 @@ namespace ccf
     {
       ctx->set_error(
         HTTP_STATUS_UNAUTHORIZED,
-        ccf::errors::AuthorizationFailed,
+        ccf::errors::InvalidAuthenticationInfo,
         std::move(error_reason));
       ctx->set_response_header(
         http::headers::WWW_AUTHENTICATE,

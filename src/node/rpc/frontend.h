@@ -144,34 +144,6 @@ namespace ccf
       }
     }
 
-    void set_response_unauthorized(
-      std::shared_ptr<enclave::RpcContext>& ctx,
-      std::string&& msg = "Failed to verify client signature.") const
-    {
-      ctx->set_error(
-        HTTP_STATUS_UNAUTHORIZED,
-        ccf::errors::InvalidAuthenticationInfo,
-        std::move(msg));
-      ctx->set_response_header(
-        http::headers::WWW_AUTHENTICATE,
-        fmt::format(
-          "Signature realm=\"Signed request access\", "
-          "headers=\"{}\"",
-          fmt::join(http::required_signature_headers, " ")));
-    }
-
-    void set_response_unauthorized_jwt(
-      std::shared_ptr<enclave::RpcContext>& ctx, std::string&& msg) const
-    {
-      ctx->set_error(
-        HTTP_STATUS_UNAUTHORIZED,
-        ccf::errors::InvalidAuthenticationInfo,
-        std::move(msg));
-      ctx->set_response_header(
-        http::headers::WWW_AUTHENTICATE,
-        "Bearer realm=\"JWT bearer token access\", error=\"invalid_token\"");
-    }
-
     std::optional<std::vector<uint8_t>> process_command(
       std::shared_ptr<enclave::RpcContext> ctx,
       kv::Tx& tx,
@@ -235,8 +207,8 @@ namespace ccf
 
         if (identity == nullptr)
         {
-          // If none were accepted, let the first set an error
-          endpoint->authn_policies[0]->set_unauthenticated_error(
+          // If none were accepted, let the last set an error
+          endpoint->authn_policies.back()->set_unauthenticated_error(
             ctx, std::move(auth_error_reason));
           update_metrics(ctx, metrics);
           return ctx->serialise_response();
