@@ -320,10 +320,10 @@ def test_metrics(network, args):
         assert r.body.json()["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 2
 
     with primary.client() as c:
-        r = c.get("/app/endpoint_metrics")
-        assert r.status_code == http.HTTPStatus.FORBIDDEN.value
+        r = c.get("/app/endpoint_metrics", headers={"accept": "nonsense"})
+        assert r.status_code == http.HTTPStatus.NOT_ACCEPTABLE.value
 
-    with primary.client("user0") as c:
+    with primary.client() as c:
         r = c.get("/app/endpoint_metrics")
         assert (
             r.body.json()["metrics"]["endpoint_metrics"]["GET"]["errors"] == errors + 1
