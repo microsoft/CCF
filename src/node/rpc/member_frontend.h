@@ -1567,45 +1567,6 @@ namespace ccf
         .add_authentication_policy(member_cert_auth_policy)
         .install();
 
-      auto complete = [this](EndpointContext& ctx, nlohmann::json&&) {
-        const auto& caller_identity =
-          ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
-        if (!check_member_active(ctx.tx, caller_identity.member_id))
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is not active.");
-        }
-
-        ObjectId proposal_id;
-        std::string error;
-        if (!get_proposal_id_from_path(
-              ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
-        }
-
-        auto proposals = ctx.tx.get_view(this->network.proposals);
-        auto proposal = proposals->get(proposal_id);
-        if (!proposal.has_value())
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ProposalNotFound,
-            fmt::format("No such proposal: {}.", proposal_id));
-        }
-
-        return make_success(
-          complete_proposal(ctx.tx, proposal_id, proposal.value()));
-      };
-      make_endpoint(
-        "proposals/{proposal_id}/complete", HTTP_POST, json_adapter(complete))
-        .set_auto_schema<void, ProposalInfo>()
-        .add_authentication_policy(member_signature_auth_policy)
-        .install();
-
       //! A member acknowledges state
       auto ack = [this](EndpointContext& ctx, nlohmann::json&& params) {
         const auto& caller_identity =
@@ -1942,7 +1903,7 @@ namespace ccf
         LOG_INFO_FMT("Created service");
         return make_success(true);
       };
-      make_endpoint("create", HTTP_POST, json_adapter(create)).install();
+      make_endpoint("create", HTTP_POST, json_adapter(create)).set_openapi_hidden(true).install();
 
       // Only called from node. See node_state.h.
       auto refresh_jwt_keys = [this](
@@ -2041,7 +2002,7 @@ namespace ccf
       };
       make_endpoint(
         "jwt_keys/refresh", HTTP_POST, json_adapter(refresh_jwt_keys))
-        .add_authentication_policy(std::make_shared<NodeCertAuthnPolicy>())
+        .set_openapi_hidden(true).add_authentication_policy(std::make_shared<NodeCertAuthnPolicy>())
         .install();
     }
   };

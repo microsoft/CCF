@@ -569,15 +569,6 @@
         }
       }
     },
-    "/create": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Default response description"
-          }
-        }
-      }
-    },
     "/endpoint_metrics": {
       "get": {
         "responses": {
@@ -765,32 +756,6 @@
           }
         }
       ]
-    },
-    "/proposals/{proposal_id}/complete": {
-      "parameters": [
-        {
-          "in": "path",
-          "name": "proposal_id",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        }
-      ],
-      "post": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProposalInfo"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
     },
     "/proposals/{proposal_id}/votes": {
       "parameters": [

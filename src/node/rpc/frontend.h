@@ -363,10 +363,9 @@ namespace ccf
           tx.reset();
           continue;
         }
-        catch (const RpcException& e)
+        catch (RpcException& e)
         {
-          ctx->set_response_status(e.status);
-          ctx->set_response_body(e.what());
+          ctx->set_error(std::move(e.error));
           update_metrics(ctx, metrics);
           return ctx->serialise_response();
         }

@@ -261,7 +261,9 @@ namespace ccf
           return add_node(args.tx, caller_pem, in, NodeStatus::PENDING);
         }
       };
-      make_endpoint("join", HTTP_POST, json_adapter(accept)).install();
+      make_endpoint("join", HTTP_POST, json_adapter(accept))
+        .set_openapi_hidden(true)
+        .install();
 
       auto get_state = [this](auto& args, nlohmann::json&&) {
         GetState::Out result;

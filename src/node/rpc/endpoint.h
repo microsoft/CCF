@@ -56,6 +56,7 @@ namespace ccf
       bool require_jwt_authentication = false;
 
       nlohmann::json openapi;
+      bool openapi_hidden = false;
 
       MSGPACK_DEFINE(
         forwarding_required,
@@ -63,7 +64,8 @@ namespace ccf
         require_client_signature,
         require_client_identity,
         require_jwt_authentication,
-        openapi);
+        openapi,
+        openapi_hidden);
     };
 
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
@@ -74,7 +76,7 @@ namespace ccf
       require_client_signature,
       require_client_identity);
     DECLARE_JSON_OPTIONAL_FIELDS(
-      EndpointProperties, require_jwt_authentication, openapi);
+      EndpointProperties, require_jwt_authentication, openapi, openapi_hidden);
 
     struct EndpointDefinition
     {

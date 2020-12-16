@@ -20,11 +20,6 @@
 #include <iostream>
 #include <string>
 
-extern "C"
-{
-#include <evercrypt/EverCrypt_AutoConfig2.h>
-}
-
 using namespace ccfapp;
 using namespace ccf;
 using namespace std;
@@ -1202,91 +1197,6 @@ DOCTEST_TEST_CASE("Remove proposal")
   }
 }
 
-DOCTEST_TEST_CASE("Complete proposal after initial rejection")
-{
-  NetworkState network;
-  network.tables->set_encryptor(encryptor);
-  auto gen_tx = network.tables->create_tx();
-  GenesisGenerator gen(network, gen_tx);
-  gen.init_values();
-  gen.create_service({});
-  ShareManager share_manager(network);
-  StubNodeState node(share_manager);
-  std::vector<tls::Pem> member_certs;
-  auto frontend =
-    init_frontend(network, gen, node, share_manager, 3, member_certs);
-  frontend.open();
-
-  ObjectId raw_puts_proposal_id;
-  {
-    DOCTEST_INFO("Propose");
-    const auto proposal =
-      "return Calls:call('raw_puts', Puts:put('public:ccf.gov.values', 999, "
-      "999))"s;
-    const auto propose =
-      create_signed_request(Propose::In{proposal}, "proposals", kp);
-
-    auto tx = network.tables->create_tx();
-    const auto r = parse_response_body<Propose::Out>(
-      frontend_process(frontend, propose, member_certs[0]));
-    DOCTEST_CHECK(r.state == ProposalState::OPEN);
-    raw_puts_proposal_id = r.proposal_id;
-  }
-
-  {
-    // vote for own proposal
-    Script vote_yes("return true");
-    const auto vote = create_signed_request(
-      Vote{vote_yes},
-      fmt::format("proposals/{}/votes", raw_puts_proposal_id),
-      kp);
-    const auto r = frontend_process(frontend, vote, member_certs[0]);
-    const auto result = parse_response_body<ProposalInfo>(r);
-    DOCTEST_CHECK(result.state == ProposalState::OPEN);
-  }
-
-  {
-    DOCTEST_INFO("Vote that rejects initially");
-    const Script vote(R"xxx(
-    local tables = ...
-    return tables["public:ccf.gov.values"]:get(123) == 123
-    )xxx");
-    const auto vote_serialized = create_signed_request(
-      Vote{vote}, fmt::format("proposals/{}/votes", raw_puts_proposal_id), kp);
-
-    check_result_state(
-      frontend_process(frontend, vote_serialized, member_certs[1]),
-      ProposalState::OPEN);
-  }
-
-  {
-    DOCTEST_INFO("Try to complete");
-    const auto complete = create_signed_request(
-      nullptr, fmt::format("proposals/{}/complete", raw_puts_proposal_id), kp);
-
-    check_result_state(
-      frontend_process(frontend, complete, member_certs[1]),
-      ProposalState::OPEN);
-  }
-
-  {
-    DOCTEST_INFO("Put value that makes vote agree");
-    auto tx = network.tables->create_tx();
-    tx.get_view(network.values)->put(123, 123);
-    DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
-  }
-
-  {
-    DOCTEST_INFO("Try again to complete");
-    const auto complete = create_signed_request(
-      nullptr, fmt::format("proposals/{}/complete", raw_puts_proposal_id), kp);
-
-    check_result_state(
-      frontend_process(frontend, complete, member_certs[1]),
-      ProposalState::ACCEPTED);
-  }
-}
-
 DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
 {
   NetworkState network;
@@ -2281,12 +2191,10 @@ DOCTEST_TEST_CASE("Open network sequence")
   }
 }
 
-// We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
 {
   doctest::Context context;
   context.applyCommandLine(argc, argv);
-  ::EverCrypt_AutoConfig2_init();
   int res = context.run();
   if (context.shouldExit())
     return res;

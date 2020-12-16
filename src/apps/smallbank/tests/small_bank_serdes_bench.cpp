@@ -10,11 +10,6 @@
 #include <nlohmann/json.hpp>
 #include <picobench/picobench.hpp>
 
-extern "C"
-{
-#include <evercrypt/EverCrypt_AutoConfig2.h>
-}
-
 const std::string account_name = "10";
 const int transaction_value = 50;
 
@@ -209,10 +204,8 @@ PICOBENCH(jm_large_payload<1000>).iterations(iter).samples(10);
 PICOBENCH(raw_large_payload<10000>).iterations(iter).samples(10);
 PICOBENCH(jm_large_payload<10000>).iterations(iter).samples(10);
 
-// We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char* argv[])
 {
-  ::EverCrypt_AutoConfig2_init();
   picobench::runner runner;
   runner.parse_cmd_line(argc, argv);
   return runner.run();

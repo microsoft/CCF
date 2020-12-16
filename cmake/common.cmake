@@ -7,6 +7,17 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
+# merklecpp traces are disabled by default to avoid unnecessary clutter.
+set(TRACE
+    OFF
+    CACHE BOOL "Enable merklecpp traces"
+)
+set(USE_CCF_LOG
+    ON
+    CACHE BOOL "Use the CCF logging infrastructure for traces"
+)
+add_subdirectory(${CCF_DIR}/src/libmerklecpp)
+
 set(PYTHON unbuffer python3)
 
 set(DISTRIBUTE_PERF_TESTS
@@ -66,7 +77,7 @@ enable_language(ASM)
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 include_directories(${CCF_DIR}/src)
 
-include_directories(SYSTEM ${CCF_DIR}/3rdparty ${CCF_DIR}/3rdparty/hacl-star)
+include_directories(SYSTEM ${CCF_DIR}/3rdparty)
 
 find_package(MbedTLS REQUIRED)
 
@@ -194,6 +205,7 @@ function(add_unit_test name)
   enable_coverage(${name})
   target_link_libraries(
     ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehostverify
+                    $<BUILD_INTERFACE:merklecpp>
   )
   use_client_mbedtls(${name})
   add_san(${name})
@@ -239,7 +251,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
             ${LINK_LIBCXX}
             openenclave::oehost
             ccfcrypto.host
-            evercrypt.host
   )
   enable_quote_code(cchost)
 
@@ -279,7 +290,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
             ${CMAKE_THREAD_LIBS_INIT}
             ${LINK_LIBCXX}
             ccfcrypto.host
-            evercrypt.host
   )
 
   install(TARGETS cchost.virtual DESTINATION bin)
@@ -587,6 +597,7 @@ function(add_picobench name)
 
   target_link_libraries(
     ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${PARSED_ARGS_LINK_LIBS}
+                    $<BUILD_INTERFACE:merklecpp>
   )
 
   # -Wall -Werror catches a number of warnings in picobench
