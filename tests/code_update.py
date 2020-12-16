@@ -53,6 +53,10 @@ def test_verify_quotes(network, args):
 
 @reqs.description("Node with bad code fails to join")
 def test_add_node_with_bad_code(network, args):
+    if args.enclave_type == "virtual":
+        LOG.warning("Skipping test_add_node_with_bad_code with virtual enclave")
+        return network
+
     replacement_package = (
         "liblogging" if args.package == "libjs_generic" else "libjs_generic"
     )
