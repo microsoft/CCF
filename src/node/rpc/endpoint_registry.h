@@ -371,7 +371,7 @@ namespace ccf
        * @param v Boolean indicating whether the request must be signed
        * @return This Endpoint for further modification
        */
-      CCF_DEPRECATED("Replace with add_authentication_policy")
+      CCF_DEPRECATED("Replace with add_authentication")
       Endpoint& set_require_client_signature(bool v)
       {
         properties.require_client_signature = v;
@@ -392,14 +392,14 @@ namespace ccf
        * @param v Boolean indicating whether the user identity must be known
        * @return This Endpoint for further modification
        */
-      CCF_DEPRECATED("Replace with add_authentication_policy")
+      CCF_DEPRECATED("Replace with add_authentication")
       Endpoint& set_require_client_identity(bool v)
       {
         properties.require_client_identity = v;
         return *this;
       }
 
-      CCF_DEPRECATED("Replace with add_authentication_policy")
+      CCF_DEPRECATED("Replace with add_authentication")
       Endpoint& set_require_jwt_authentication(bool v)
       {
         properties.require_jwt_authentication = v;
@@ -423,8 +423,7 @@ namespace ccf
        * multiple endpoints to reduce memory use.
        * @return This Endpoint for further modification
        */
-      Endpoint& add_authentication_policy(
-        const std::shared_ptr<AuthnPolicy>& policy)
+      Endpoint& add_authentication(const std::shared_ptr<AuthnPolicy>& policy)
       {
         authn_policies.push_back(policy);
         return *this;

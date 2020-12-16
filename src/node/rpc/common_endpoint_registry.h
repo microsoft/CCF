@@ -148,10 +148,10 @@ namespace ccf
       make_read_only_endpoint(
         "user_id", HTTP_GET, json_read_only_adapter(user_id))
         .set_auto_schema<GetUserId::In, GetUserId::Out>()
-        .add_authentication_policy(user_cert_auth_policy)
-        .add_authentication_policy(user_signature_auth_policy)
-        .add_authentication_policy(member_cert_auth_policy)
-        .add_authentication_policy(member_signature_auth_policy)
+        .add_authentication(user_cert_auth_policy)
+        .add_authentication(user_signature_auth_policy)
+        .add_authentication(member_cert_auth_policy)
+        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto get_primary_info = [this](auto& args, nlohmann::json&&) {

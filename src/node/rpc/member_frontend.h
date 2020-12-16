@@ -1270,7 +1270,7 @@ namespace ccf
         // to restrictions in our lua wrappers
         .set_forwarding_required(ForwardingRequired::Sometimes)
         .set_auto_schema<KVRead>()
-        .add_authentication_policy(member_cert_auth_policy)
+        .add_authentication(member_cert_auth_policy)
         .install();
 
       auto query = [this](EndpointContext& ctx, nlohmann::json&& params) {
@@ -1293,7 +1293,7 @@ namespace ccf
         // to restrictions in our lua wrappers
         .set_forwarding_required(ForwardingRequired::Sometimes)
         .set_auto_schema<Script, nlohmann::json>()
-        .add_authentication_policy(member_cert_auth_policy)
+        .add_authentication(member_cert_auth_policy)
         .install();
 
       auto propose = [this](EndpointContext& ctx, nlohmann::json&& params) {
@@ -1323,7 +1323,7 @@ namespace ccf
       };
       make_endpoint("proposals", HTTP_POST, json_adapter(propose))
         .set_auto_schema<Propose>()
-        .add_authentication_policy(member_signature_auth_policy)
+        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto get_proposal =
@@ -1365,7 +1365,7 @@ namespace ccf
         HTTP_GET,
         json_read_only_adapter(get_proposal))
         .set_auto_schema<void, Proposal>()
-        .add_authentication_policy(member_cert_auth_policy)
+        .add_authentication(member_cert_auth_policy)
         .install();
 
       auto withdraw = [this](EndpointContext& ctx, nlohmann::json&&) {
@@ -1435,7 +1435,7 @@ namespace ccf
       make_endpoint(
         "proposals/{proposal_id}/withdraw", HTTP_POST, json_adapter(withdraw))
         .set_auto_schema<void, ProposalInfo>()
-        .add_authentication_policy(member_signature_auth_policy)
+        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto vote = [this](EndpointContext& ctx, nlohmann::json&& params) {
@@ -1504,7 +1504,7 @@ namespace ccf
       make_endpoint(
         "proposals/{proposal_id}/votes", HTTP_POST, json_adapter(vote))
         .set_auto_schema<Vote, ProposalInfo>()
-        .add_authentication_policy(member_signature_auth_policy)
+        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto get_vote = [this](ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
@@ -1564,7 +1564,7 @@ namespace ccf
         HTTP_GET,
         json_read_only_adapter(get_vote))
         .set_auto_schema<void, Vote>()
-        .add_authentication_policy(member_cert_auth_policy)
+        .add_authentication(member_cert_auth_policy)
         .install();
 
       //! A member acknowledges state
@@ -1655,7 +1655,7 @@ namespace ccf
       };
       make_endpoint("ack", HTTP_POST, json_adapter(ack))
         .set_auto_schema<StateDigest, bool>()
-        .add_authentication_policy(member_signature_auth_policy)
+        .add_authentication(member_signature_auth_policy)
         .install();
 
       //! A member asks for a fresher state digest
@@ -1690,7 +1690,7 @@ namespace ccf
       make_endpoint(
         "ack/update_state_digest", HTTP_POST, json_adapter(update_state_digest))
         .set_auto_schema<void, StateDigest>()
-        .add_authentication_policy(member_cert_auth_policy)
+        .add_authentication(member_cert_auth_policy)
         .install();
 
       auto get_encrypted_recovery_share =
@@ -1723,7 +1723,7 @@ namespace ccf
       make_endpoint(
         "recovery_share", HTTP_GET, json_adapter(get_encrypted_recovery_share))
         .set_auto_schema<void, std::string>()
-        .add_authentication_policy(member_cert_auth_policy)
+        .add_authentication(member_cert_auth_policy)
         .install();
 
       auto submit_recovery_share = [this](EndpointContext& ctx) {
@@ -1823,7 +1823,7 @@ namespace ccf
       };
       make_endpoint("recovery_share", HTTP_POST, submit_recovery_share)
         .set_auto_schema<std::string, std::string>()
-        .add_authentication_policy(member_cert_auth_policy)
+        .add_authentication(member_cert_auth_policy)
         .install();
 
       auto create = [this](kv::Tx& tx, nlohmann::json&& params) {
@@ -2005,7 +2005,7 @@ namespace ccf
       make_endpoint(
         "jwt_keys/refresh", HTTP_POST, json_adapter(refresh_jwt_keys))
         .set_openapi_hidden(true)
-        .add_authentication_policy(std::make_shared<NodeCertAuthnPolicy>())
+        .add_authentication(std::make_shared<NodeCertAuthnPolicy>())
         .install();
     }
   };
