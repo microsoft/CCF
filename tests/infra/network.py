@@ -669,7 +669,7 @@ class Network:
                             assert "Primary unknown" in res.body.text(), res
                     except CCFConnectionException:
                         LOG.warning(
-                            f"Could not successful connect to node {node.node_id}. Retrying..."
+                            f"Could not successfully connect to node {node.node_id}. Retrying..."
                         )
             if primary_id is not None:
                 break
