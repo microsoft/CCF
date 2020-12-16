@@ -271,6 +271,8 @@ def test_multi_auth(network, args):
             r = c.get("/app/multi_auth", headers={"authorization": "Bearer " + jwt})
             require_new_response(r)
 
+    return network
+
 
 @reqs.description("Write non-JSON body")
 @reqs.supports_methods("log/private/raw_text/{id}", "log/private")
