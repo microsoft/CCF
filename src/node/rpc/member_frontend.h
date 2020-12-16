@@ -1903,7 +1903,9 @@ namespace ccf
         LOG_INFO_FMT("Created service");
         return make_success(true);
       };
-      make_endpoint("create", HTTP_POST, json_adapter(create)).set_openapi_hidden(true).install();
+      make_endpoint("create", HTTP_POST, json_adapter(create))
+        .set_openapi_hidden(true)
+        .install();
 
       // Only called from node. See node_state.h.
       auto refresh_jwt_keys = [this](
@@ -2002,7 +2004,8 @@ namespace ccf
       };
       make_endpoint(
         "jwt_keys/refresh", HTTP_POST, json_adapter(refresh_jwt_keys))
-        .set_openapi_hidden(true).add_authentication_policy(std::make_shared<NodeCertAuthnPolicy>())
+        .set_openapi_hidden(true)
+        .add_authentication_policy(std::make_shared<NodeCertAuthnPolicy>())
         .install();
     }
   };
