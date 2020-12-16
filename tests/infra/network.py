@@ -198,22 +198,24 @@ class Network:
         # specified
         if from_snapshot and snapshot_dir is None:
             snapshot_dir = self.get_committed_snapshots(target_node)
-            assert os.listdir(
-                snapshot_dir
-            ), f"No snapshot to resume from in directory {snapshot_dir}"
 
         committed_ledger_dir = None
         current_ledger_dir = None
-        if from_snapshot and os.listdir(snapshot_dir):
-            LOG.info(f"Joining from snapshot directory: {snapshot_dir}")
-            # Only when joining from snapshot, retrieve ledger dirs from target node
-            # if the ledger directories are not specified. When joining without snapshot,
-            # the entire ledger will be retransmitted by primary node
-            current_ledger_dir = ledger_dir or None
-            committed_ledger_dir = read_only_ledger_dir or None
-            if copy_ledger_read_only and read_only_ledger_dir is None:
-                current_ledger_dir, committed_ledger_dir = target_node.get_ledger(
-                    include_read_only_dirs=True
+        if from_snapshot:
+            if os.listdir(snapshot_dir):
+                LOG.info(f"Joining from snapshot directory: {snapshot_dir}")
+                # Only when joining from snapshot, retrieve ledger dirs from target node
+                # if the ledger directories are not specified. When joining without snapshot,
+                # the entire ledger will be retransmitted by primary node
+                current_ledger_dir = ledger_dir or None
+                committed_ledger_dir = read_only_ledger_dir or None
+                if copy_ledger_read_only and read_only_ledger_dir is None:
+                    current_ledger_dir, committed_ledger_dir = target_node.get_ledger(
+                        include_read_only_dirs=True
+                    )
+            else:
+                LOG.warning(
+                    f"Attempting to join from snapshot but {snapshot_dir} is empty: will default to complete transaction history replay"
                 )
         else:
             LOG.warning(

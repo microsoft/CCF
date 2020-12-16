@@ -45,6 +45,7 @@ suites["membership_recovery"] = suite_membership_recovery
 # can be interleaved
 # Note: snapshot tests are not yet integrated in the main test suite
 # as they test historical queries which do not yet work across rekey/recovery
+# https://github.com/microsoft/CCF/issues/1648
 suite_reconfiguration = [
     reconfiguration.test_add_node,
     reconfiguration.test_retire_primary,
@@ -55,6 +56,7 @@ suite_reconfiguration = [
     reconfiguration.test_retire_backup,
     reconfiguration.test_add_node,
     election.test_kill_primary,
+    reconfiguration.test_add_node_from_snapshot,
     reconfiguration.test_add_node_from_snapshot,
     election.test_kill_primary,
     reconfiguration.test_add_node_from_snapshot,
