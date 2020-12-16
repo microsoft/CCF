@@ -1,9 +1,19 @@
 - name: Include vars
   include_vars: common.yml
 
+- name: Get package url
+  shell:
+    cmd: |
+      if [ "{{ ccf_ver }}" = "latest" ]; then
+        curl -s https://api.github.com/repos/microsoft/ccf/releases/latest | egrep 'https://.*\.deb' | cut -d\" -f4
+      else
+        echo "https://github.com/microsoft/CCF/releases/{{ ccf_suffix }}/ccf_{{ ccf_ver }}_amd64.deb"
+      fi
+  register: ccf_deb_url
+
 - name: Install CCF
   apt:
-    deb: "{{ ccf_deb_url }}"
+    deb: "{{ ccf_deb_url.stdout }}"
   become: yes
 
 - name: Copy cchost
