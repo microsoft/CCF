@@ -215,10 +215,10 @@ class Network:
                     )
             else:
                 LOG.warning(
-                    f"Attempting to join from snapshot but {snapshot_dir} is empty: will default to complete transaction history replay"
+                    f"Attempting to join from snapshot but {snapshot_dir} is empty: defaulting to complete replay of transaction history"
                 )
         else:
-            LOG.warning(
+            LOG.info(
                 "Joining without snapshot: complete transaction history will be replayed"
             )
 
