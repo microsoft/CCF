@@ -1,6 +1,17 @@
 {
   "components": {
     "schemas": {
+      "CallerInfo": {
+        "properties": {
+          "caller_id": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "caller_id"
+        ],
+        "type": "object"
+      },
       "CodeStatus": {
         "enum": [
           "ALLOWED_TO_JOIN"
@@ -786,6 +797,32 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetTxStatus__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/user_id": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cert",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallerInfo"
                 }
               }
             },

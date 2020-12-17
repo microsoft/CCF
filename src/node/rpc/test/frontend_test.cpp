@@ -45,6 +45,7 @@ public:
     };
     make_endpoint("empty_function", HTTP_POST, empty_function)
       .set_forwarding_required(ForwardingRequired::Sometimes)
+      .add_authentication(std::make_shared<UserCertAuthnPolicy>())
       .install();
 
     auto empty_function_signed = [this](auto& args) {
@@ -52,7 +53,7 @@ public:
     };
     make_endpoint("empty_function_signed", HTTP_POST, empty_function_signed)
       .set_forwarding_required(ForwardingRequired::Sometimes)
-      .set_require_client_signature(true)
+      .add_authentication(std::make_shared<UserSignatureAuthnPolicy>())
       .install();
 
     auto empty_function_no_auth = [this](auto& args) {
@@ -60,7 +61,6 @@ public:
     };
     make_endpoint("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
       .set_forwarding_required(ForwardingRequired::Sometimes)
-      .set_require_client_identity(false)
       .install();
   }
 };
@@ -75,7 +75,9 @@ public:
     auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint("empty_function", HTTP_POST, empty_function).install();
+    make_endpoint("empty_function", HTTP_POST, empty_function)
+      .add_authentication(std::make_shared<UserCertAuthnPolicy>())
+      .install();
     disable_request_storing();
   }
 };
@@ -92,26 +94,26 @@ public:
     };
     make_endpoint("echo", HTTP_POST, json_adapter(echo_function)).install();
 
-    auto get_caller_function =
-      [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
-        return make_success(caller_id);
-      };
+    auto get_caller_function = [this](EndpointContext& ctx, nlohmann::json&&) {
+      const auto& ident = ctx.get_caller<UserCertAuthnIdentity>();
+      return make_success(ident.user_id);
+    };
     make_endpoint("get_caller", HTTP_POST, json_adapter(get_caller_function))
+      .add_authentication(std::make_shared<UserCertAuthnPolicy>())
       .install();
 
-    auto failable_function =
-      [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
-        const auto it = params.find("error");
-        if (it != params.end())
-        {
-          const http_status error_code = (*it)["code"];
-          const std::string error_msg = (*it)["message"];
+    auto failable_function = [this](kv::Tx& tx, nlohmann::json&& params) {
+      const auto it = params.find("error");
+      if (it != params.end())
+      {
+        const http_status error_code = (*it)["code"];
+        const std::string error_msg = (*it)["message"];
 
-          return make_error((http_status)error_code, "Error", error_msg);
-        }
+        return make_error((http_status)error_code, "Error", error_msg);
+      }
 
-        return make_success(true);
-      };
+      return make_success(true);
+    };
     make_endpoint("failable", HTTP_POST, json_adapter(failable_function))
       .install();
   }
@@ -227,6 +229,7 @@ public:
     };
     member_endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
       .set_forwarding_required(ForwardingRequired::Sometimes)
+      .add_authentication(std::make_shared<MemberCertAuthnPolicy>())
       .install();
   }
 };
@@ -262,10 +265,21 @@ public:
   tls::Pem last_caller_cert;
   CallerId last_caller_id = INVALID_ID;
 
-  void record_ctx(EndpointContext& args)
+  void record_ctx(EndpointContext& ctx)
   {
-    last_caller_cert = tls::cert_der_to_pem(args.rpc_ctx->session->caller_cert);
-    last_caller_id = args.caller_id;
+    last_caller_cert = tls::cert_der_to_pem(ctx.rpc_ctx->session->caller_cert);
+    if (const auto uci = ctx.try_get_caller<UserCertAuthnIdentity>())
+    {
+      last_caller_id = uci->user_id;
+    }
+    else if (const auto mci = ctx.try_get_caller<MemberCertAuthnIdentity>())
+    {
+      last_caller_id = mci->member_id;
+    }
+    else
+    {
+      last_caller_id = INVALID_ID;
+    }
   }
 };
 
@@ -283,14 +297,15 @@ public:
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    make_endpoint("empty_function", HTTP_POST, empty_function).install();
+    make_endpoint("empty_function", HTTP_POST, empty_function)
+      .add_authentication(std::make_shared<UserCertAuthnPolicy>())
+      .install();
 
     auto empty_function_no_auth = [this](auto& args) {
       record_ctx(args);
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
-      .set_require_client_identity(false)
       .install();
   }
 };
@@ -336,6 +351,7 @@ public:
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
     endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
+      .add_authentication(std::make_shared<MemberCertAuthnPolicy>())
       .install();
   }
 };
@@ -360,7 +376,7 @@ auto create_simple_request(
   return request;
 }
 
-std::pair<http::Request, ccf::SignedReq> create_signed_request(
+http::Request create_signed_request(
   const http::Request& r = create_simple_request(),
   const std::vector<uint8_t>* body = nullptr)
 {
@@ -371,10 +387,7 @@ std::pair<http::Request, ccf::SignedReq> create_signed_request(
   http::SigningDetails details;
   http::sign_request(s, kp, &details);
 
-  ccf::SignedReq signed_req{details.signature,
-                            details.to_sign,
-                            body == nullptr ? std::vector<uint8_t>() : *body};
-  return {s, signed_req};
+  return s;
 }
 
 http::SimpleResponseProcessor::Response parse_response(const vector<uint8_t>& v)
@@ -394,14 +407,6 @@ nlohmann::json parse_response_body(
   return serdes::unpack(body, pack);
 }
 
-std::optional<SignedReq> get_signed_req(
-  NetworkState& network, CallerId caller_id)
-{
-  auto tx = network.tables->create_tx();
-  auto client_sig_view = tx.get_view(network.user_client_signatures);
-  return client_sig_view->get(caller_id);
-}
-
 // callers used throughout
 auto user_caller = kp -> self_sign("CN=name");
 auto user_caller_der = tls::make_verifier(user_caller) -> der_cert_data();
@@ -411,9 +416,6 @@ auto member_caller_der = tls::make_verifier(member_caller) -> der_cert_data();
 
 auto node_caller = kp -> self_sign("CN=node");
 auto node_caller_der = tls::make_verifier(node_caller) -> der_cert_data();
-
-auto nos_caller = kp -> self_sign("CN=nostore_user");
-auto nos_caller_der = tls::make_verifier(nos_caller) -> der_cert_data();
 
 auto kp_other = tls::make_key_pair();
 auto invalid_caller = kp_other -> self_sign("CN=name");
@@ -434,7 +436,6 @@ auto anonymous_session = make_shared<enclave::SessionContext>(
 
 UserId user_id = INVALID_ID;
 UserId invalid_user_id = INVALID_ID;
-UserId nos_id = INVALID_ID;
 
 MemberId member_id = INVALID_ID;
 MemberId invalid_member_id = INVALID_ID;
@@ -454,7 +455,6 @@ void prepare_callers(NetworkState& network)
   g.init_values();
   g.create_service({});
   user_id = g.add_user({user_caller});
-  nos_id = g.add_user({nos_caller});
   member_id = g.add_member(member_caller);
   invalid_member_id = g.add_member(invalid_caller);
   CHECK(g.finalize() == kv::CommitSuccess::OK);
@@ -486,14 +486,14 @@ TEST_CASE("process_bft")
   const auto serialized_body = serdes::pack(call_body, default_pack);
   simple_call.set_body(&serialized_body);
 
-  kv::TxHistory::RequestID rid = {1, 1, 1};
+  kv::TxHistory::RequestID rid = {1, 1};
 
   const auto serialized_call = simple_call.build_request();
   aft::Request request = {
-    user_id, rid, user_caller_der, serialized_call, enclave::FrameFormat::http};
+    rid, user_caller_der, serialized_call, enclave::FrameFormat::http};
 
   auto session = std::make_shared<enclave::SessionContext>(
-    enclave::InvalidSessionId, user_id, user_caller_der);
+    enclave::InvalidSessionId, user_caller_der);
   auto ctx = enclave::make_rpc_context(session, request.raw);
   ctx->execute_on_node = true;
   frontend.process_bft(ctx);
@@ -506,8 +506,7 @@ TEST_CASE("process_bft")
 
   aft::Request deserialised_req = request_value.value();
 
-  REQUIRE(deserialised_req.caller_id == user_id);
-  REQUIRE(deserialised_req.caller_cert == user_caller.raw());
+  REQUIRE(deserialised_req.caller_cert == user_caller_der);
   REQUIRE(deserialised_req.raw == serialized_call);
   REQUIRE(deserialised_req.frame_format == enclave::FrameFormat::http);
 }
@@ -546,7 +545,7 @@ TEST_CASE("process with signatures")
   SUBCASE("endpoint does not require signature")
   {
     const auto simple_call = create_simple_request();
-    const auto [signed_call, signed_req] = create_signed_request(simple_call);
+    const auto signed_call = create_signed_request(simple_call);
     const auto serialized_simple_call = simple_call.build_request();
     const auto serialized_signed_call = signed_call.build_request();
 
@@ -560,9 +559,6 @@ TEST_CASE("process with signatures")
       const auto serialized_response = frontend.process(simple_rpc_ctx).value();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
-
-      auto signed_resp = get_signed_req(network, user_id);
-      CHECK(!signed_resp.has_value());
     }
 
     INFO("Signed RPC");
@@ -570,18 +566,13 @@ TEST_CASE("process with signatures")
       const auto serialized_response = frontend.process(signed_rpc_ctx).value();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
-
-      auto signed_resp = get_signed_req(network, user_id);
-      REQUIRE(signed_resp.has_value());
-      auto value = signed_resp.value();
-      CHECK(value == signed_req);
     }
   }
 
   SUBCASE("endpoint requires signature")
   {
     const auto simple_call = create_simple_request("empty_function_signed");
-    const auto [signed_call, signed_req] = create_signed_request(simple_call);
+    const auto signed_call = create_signed_request(simple_call);
     const auto serialized_simple_call = simple_call.build_request();
     const auto serialized_signed_call = signed_call.build_request();
 
@@ -597,10 +588,7 @@ TEST_CASE("process with signatures")
 
       CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
-      CHECK(error_msg.find("RPC must be signed") != std::string::npos);
-
-      auto signed_resp = get_signed_req(network, user_id);
-      CHECK(!signed_resp.has_value());
+      CHECK(error_msg.find("Missing signature") != std::string::npos);
     }
 
     INFO("Signed RPC");
@@ -608,11 +596,6 @@ TEST_CASE("process with signatures")
       const auto serialized_response = frontend.process(signed_rpc_ctx).value();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
-
-      auto signed_resp = get_signed_req(network, user_id);
-      REQUIRE(signed_resp.has_value());
-      auto value = signed_resp.value();
-      CHECK(value == signed_req);
     }
   }
 
@@ -620,7 +603,7 @@ TEST_CASE("process with signatures")
   {
     TestReqNotStoredFrontend frontend_nostore(*network.tables);
     const auto simple_call = create_simple_request("empty_function");
-    const auto [signed_call, signed_req] = create_signed_request(simple_call);
+    const auto signed_call = create_signed_request(simple_call);
     const auto serialized_signed_call = signed_call.build_request();
     auto signed_rpc_ctx =
       enclave::make_rpc_context(user_session, serialized_signed_call);
@@ -629,12 +612,6 @@ TEST_CASE("process with signatures")
       frontend_nostore.process(signed_rpc_ctx).value();
     const auto response = parse_response(serialized_response);
     REQUIRE(response.status == HTTP_STATUS_OK);
-
-    auto signed_resp = get_signed_req(network, user_id);
-    REQUIRE(signed_resp.has_value());
-    auto value = signed_resp.value();
-    CHECK(value.req.empty());
-    CHECK(value.sig == signed_req.sig);
   }
 }
 
@@ -707,7 +684,7 @@ TEST_CASE("process with caller")
       const auto serialized_response =
         frontend.process(invalid_rpc_ctx).value();
       auto response = parse_response(serialized_response);
-      REQUIRE(response.status == HTTP_STATUS_FORBIDDEN);
+      REQUIRE(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
       CHECK(
         error_msg.find("Could not find matching user certificate") !=
@@ -719,7 +696,7 @@ TEST_CASE("process with caller")
       const auto serialized_response =
         frontend.process(anonymous_rpc_ctx).value();
       auto response = parse_response(serialized_response);
-      REQUIRE(response.status == HTTP_STATUS_FORBIDDEN);
+      REQUIRE(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
       CHECK(
         error_msg.find("Could not find matching user certificate") !=
@@ -784,7 +761,7 @@ TEST_CASE("Member caller")
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
-    CHECK(response.status == HTTP_STATUS_FORBIDDEN);
+    CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
   }
 }
 
@@ -802,8 +779,7 @@ TEST_CASE("MinimalEndpointFunction")
                                      {"other", "Another string"}};
       const auto serialized_body = serdes::pack(j_body, pack_type);
 
-      auto [signed_call, signed_req] =
-        create_signed_request(echo_call, &serialized_body);
+      auto signed_call = create_signed_request(echo_call, &serialized_body);
       const auto serialized_call = signed_call.build_request();
 
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
@@ -836,7 +812,7 @@ TEST_CASE("MinimalEndpointFunction")
       INFO("Calling get_caller");
       auto get_caller = create_simple_request("get_caller", pack_type);
 
-      const auto [signed_call, signed_req] = create_signed_request(get_caller);
+      const auto signed_call = create_signed_request(get_caller);
       const auto serialized_call = signed_call.build_request();
 
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
@@ -852,7 +828,7 @@ TEST_CASE("MinimalEndpointFunction")
     INFO("Calling failable, without failing");
     auto dont_fail = create_simple_request("failable");
 
-    const auto [signed_call, signed_req] = create_signed_request(dont_fail);
+    const auto signed_call = create_signed_request(dont_fail);
     const auto serialized_call = signed_call.build_request();
 
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
@@ -874,8 +850,7 @@ TEST_CASE("MinimalEndpointFunction")
         {"error", {{"code", err}, {"message", msg}}}};
       const auto serialized_body = serdes::pack(j_body, default_pack);
 
-      const auto [signed_call, signed_req] =
-        create_signed_request(fail, &serialized_body);
+      const auto signed_call = create_signed_request(fail, &serialized_body);
       const auto serialized_call = signed_call.build_request();
 
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
@@ -1150,19 +1125,11 @@ TEST_CASE("Signed read requests can be executed on backup")
   auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
   network.tables->set_consensus(backup_consensus);
 
-  auto [signed_call, signed_req] = create_signed_request();
+  auto signed_call = create_signed_request();
   auto serialized_signed_call = signed_call.build_request();
   auto rpc_ctx =
     enclave::make_rpc_context(user_session, serialized_signed_call);
   auto response = parse_response(frontend.process(rpc_ctx).value());
-  if (response.status != HTTP_STATUS_OK)
-  {
-    std::cout << std::string(
-                   serialized_signed_call.begin(), serialized_signed_call.end())
-              << std::endl;
-    std::cout << std::string(response.body.begin(), response.body.end())
-              << std::endl;
-  }
   CHECK(response.status == HTTP_STATUS_OK);
 }
 
@@ -1238,7 +1205,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
       INFO("Invalid caller");
       auto response =
         parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
-      CHECK(response.status == HTTP_STATUS_FORBIDDEN);
+      CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
     };
 
     prepare_callers(network_primary);
@@ -1248,60 +1215,6 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
       auto response =
         parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
       CHECK(response.status == HTTP_STATUS_OK);
-    }
-  }
-
-  {
-    INFO("Unauthenticated endpoint");
-    auto simple_call_no_auth = create_simple_request("empty_function_no_auth");
-    auto serialized_call_no_auth = simple_call_no_auth.build_request();
-
-    REQUIRE(channel_stub->is_empty());
-
-    {
-      INFO("Known caller");
-      auto ctx =
-        enclave::make_rpc_context(user_session, serialized_call_no_auth);
-
-      const auto r = user_frontend_backup.process(ctx);
-      REQUIRE(!r.has_value());
-      REQUIRE(channel_stub->size() == 1);
-      auto forwarded_msg = channel_stub->get_pop_back();
-
-      auto [fwd_ctx, node_id] =
-        backup_forwarder
-          ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-          .value();
-
-      auto response =
-        parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
-      CHECK(response.status == HTTP_STATUS_OK);
-
-      CHECK(user_frontend_primary.last_caller_cert == user_caller);
-      CHECK(user_frontend_primary.last_caller_id == 0);
-    }
-
-    {
-      INFO("Unknown caller");
-      auto ctx =
-        enclave::make_rpc_context(invalid_session, serialized_call_no_auth);
-
-      const auto r = user_frontend_backup.process(ctx);
-      REQUIRE(!r.has_value());
-      REQUIRE(channel_stub->size() == 1);
-      auto forwarded_msg = channel_stub->get_pop_back();
-
-      auto [fwd_ctx, node_id] =
-        backup_forwarder
-          ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-          .value();
-
-      auto response =
-        parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
-      CHECK(response.status == HTTP_STATUS_OK);
-
-      CHECK(user_frontend_primary.last_caller_cert == invalid_caller);
-      CHECK(user_frontend_primary.last_caller_id == INVALID_ID);
     }
   }
 
@@ -1346,7 +1259,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     INFO("Client signature on forwarded RPC is recorded by primary");
 
     REQUIRE(channel_stub->is_empty());
-    auto [signed_call, signed_req] = create_signed_request();
+    auto signed_call = create_signed_request();
     auto serialized_signed_call = signed_call.build_request();
     auto signed_ctx =
       enclave::make_rpc_context(user_session, serialized_signed_call);
@@ -1360,13 +1273,9 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
         ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
         .value();
 
-    user_frontend_primary.process_forwarded(fwd_ctx);
-
-    auto tx = network_primary.tables->create_tx();
-    auto client_sig_view = tx.get_view(network_primary.user_client_signatures);
-    auto client_sig = client_sig_view->get(user_id);
-    REQUIRE(client_sig.has_value());
-    REQUIRE(client_sig.value() == signed_req);
+    auto response =
+      parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
+    CHECK(response.status == HTTP_STATUS_OK);
   }
 
   // On a session that was previously forwarded, and is now primary,
@@ -1555,39 +1464,6 @@ public:
     make_endpoint("conflict_once", HTTP_POST, conflict_once).install();
   }
 };
-
-TEST_CASE("Signature is stored even after conflicts")
-{
-  NetworkState network;
-  prepare_callers(network);
-
-  TestConflictFrontend frontend(*network.tables);
-
-  INFO("Check that no client signatures have been recorded");
-  {
-    auto tx = network.tables->create_tx();
-    auto client_signatures_view = tx.get_view(network.user_client_signatures);
-    REQUIRE_FALSE(client_signatures_view->get(0).has_value());
-  }
-
-  const auto unsigned_call = create_simple_request("conflict_once");
-  const auto [signed_call, signed_req] = create_signed_request(unsigned_call);
-  const auto serialized_signed_call = signed_call.build_request();
-
-  auto rpc_ctx =
-    enclave::make_rpc_context(user_session, serialized_signed_call);
-
-  const auto serialized_response = frontend.process(rpc_ctx).value();
-  auto response = parse_response(serialized_response);
-  REQUIRE(response.status == HTTP_STATUS_OK);
-
-  INFO("Check that a client signatures have been recorded");
-  {
-    auto tx = network.tables->create_tx();
-    auto client_signatures_view = tx.get_view(network.user_client_signatures);
-    REQUIRE(client_signatures_view->get(0).has_value());
-  }
-}
 
 int main(int argc, char** argv)
 {

@@ -13,19 +13,18 @@ namespace aft
 {
   struct Request
   {
-    uint64_t caller_id;
     kv::TxHistory::RequestID rid;
     std::vector<uint8_t> caller_cert;
     std::vector<uint8_t> raw;
     uint8_t frame_format = enclave::FrameFormat::http;
 
-    MSGPACK_DEFINE(caller_id, rid, caller_cert, raw, frame_format);
+    MSGPACK_DEFINE(rid, caller_cert, raw, frame_format);
 
     std::vector<uint8_t> serialise()
     {
       bool include_caller = false;
-      size_t size = sizeof(caller_id) + sizeof(rid) + sizeof(include_caller) +
-        sizeof(size_t) + raw.size() + sizeof(enclave::FrameFormat);
+      size_t size = sizeof(rid) + sizeof(include_caller) + sizeof(size_t) +
+        raw.size() + sizeof(enclave::FrameFormat);
       if (!caller_cert.empty())
       {
         size += sizeof(size_t) + caller_cert.size();
@@ -35,7 +34,6 @@ namespace aft
       std::vector<uint8_t> serialized_req(size);
       auto data_ = serialized_req.data();
       auto size_ = serialized_req.size();
-      serialized::write(data_, size_, caller_id);
       serialized::write(data_, size_, rid);
       serialized::write(data_, size_, include_caller);
       if (include_caller)
@@ -52,7 +50,6 @@ namespace aft
 
     void deserialise(const uint8_t* data_, size_t size_)
     {
-      caller_id = serialized::read<uint64_t>(data_, size_);
       rid = serialized::read<kv::TxHistory::RequestID>(data_, size_);
       auto includes_caller = serialized::read<bool>(data_, size_);
       if (includes_caller)
@@ -68,8 +65,7 @@ namespace aft
   };
 
   DECLARE_JSON_TYPE(Request);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    Request, caller_id, rid, caller_cert, raw, frame_format);
+  DECLARE_JSON_REQUIRED_FIELDS(Request, rid, caller_cert, raw, frame_format);
 
   // size_t is used as the key of the table. This key will always be 0 since we
   // don't want to store the requests in the kv over time, we just want to get

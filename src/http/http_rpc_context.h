@@ -74,7 +74,6 @@ namespace http
     enclave::PathParams path_params = {};
 
     std::vector<uint8_t> serialised_request = {};
-    std::optional<ccf::SignedReq> signed_request = std::nullopt;
 
     http::HeaderMap response_headers;
     std::vector<uint8_t> response_body = {};
@@ -230,26 +229,15 @@ namespace http
       return verb;
     }
 
+    virtual std::string get_request_path() const override
+    {
+      return whole_path;
+    }
+
     virtual const std::vector<uint8_t>& get_serialised_request() override
     {
       canonicalise();
       return serialised_request;
-    }
-
-    virtual std::optional<ccf::SignedReq> get_signed_request() override
-    {
-      canonicalise();
-      if (!signed_request.has_value())
-      {
-        signed_request = http::HttpSignatureVerifier::parse(
-          std::string(verb.c_str()),
-          whole_path,
-          query,
-          request_headers,
-          request_body);
-      }
-
-      return signed_request;
     }
 
     virtual std::string get_method() const override
