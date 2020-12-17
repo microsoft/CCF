@@ -429,7 +429,11 @@ namespace merkle
       }
 
       static Node* copy_node(
-        const Node* from, std::vector<Node*>* leaf_nodes = nullptr)
+        const Node* from,
+        std::vector<Node*>* leaf_nodes = nullptr,
+        size_t min_index = 0,
+        size_t max_index = SIZE_MAX,
+        size_t cur_index = 0)
       {
         if (from == nullptr)
           return nullptr;
@@ -439,9 +443,13 @@ namespace merkle
         r->height = from->height;
         r->dirty = from->dirty;
         r->parent = nullptr;
-        r->left = copy_node(from->left, leaf_nodes);
-        r->right = copy_node(from->right, leaf_nodes);
-        if (leaf_nodes && r->size == 1 && !r->left && !r->right)
+        r->left = copy_node(
+          from->left, leaf_nodes, min_index, max_index, cur_index << 1);
+        r->right = copy_node(
+          from->right, leaf_nodes, min_index, max_index, (cur_index << 1) + 1);
+        if (
+          leaf_nodes && r->size == 1 && !r->left && !r->right &&
+          cur_index >= min_index && cur_index <= max_index)
           leaf_nodes->push_back(r);
         return r;
       }
@@ -683,7 +691,8 @@ namespace merkle
       hashing_stack.clear();
       walk_stack.clear();
 
-      _root = Node::copy_node(other._root, &leaf_nodes);
+      _root = Node::copy_node(
+        other._root, &leaf_nodes, other.min_index(), other.max_index());
       for (auto n : other.uninserted_leaf_nodes)
         uninserted_leaf_nodes.push_back(Node::copy_node(n));
       num_flushed = other.num_flushed;
