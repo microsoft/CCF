@@ -73,6 +73,7 @@ namespace loggingapp
       make_endpoint(
         "log/private", ws::Verb::WEBSOCKET, ccf::json_adapter(record))
         .set_auto_schema<LoggingRecord::In, bool>()
+        .add_authentication(user_cert_auth_policy)
         .install();
 
       // SNIPPET_START: get
