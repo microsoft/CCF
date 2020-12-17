@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 
 - The methods `Endpoint::set_require_client_signature`, `Endpoint::set_require_client_identity` and `Endpoint::set_require_jwt_authentication` are removed, and should be replaced by calls to `add_authentication`. For unauthenticated endpoints, either add no policies, or add the built-in `empty_auth` policy which accepts all requests.
+  - `.set_require_client_signature(true)` must be replaced with `.add_authentication(user_signature_auth_policy)`
+  - `.set_require_client_identity(true)` must be replaced with `.add_authentication(user_cert_auth_policy)`
+  - `.set_require_jwt_authentication(true)` must be replaced with `.add_authentication(jwt_auth_policy)`
 
 ## [0.16.0]
 
