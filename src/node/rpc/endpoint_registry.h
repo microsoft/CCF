@@ -620,7 +620,7 @@ namespace ccf
     {
       if (endpoint.authn_policies.empty())
       {
-        LOG_WARN_FMT(
+        LOG_FAIL_FMT(
           "Endpoint {} /{} does not have any authentication policy",
           endpoint.dispatch.verb.c_str(),
           endpoint.dispatch.uri_path);
