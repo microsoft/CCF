@@ -15,12 +15,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Error responses of built-in endpoints are now JSON and follow the OData schema (#1919).
-- Code ids are now deleted rather than marked as `RETIRED`. `ACTIVE` is replaced with the more precise `ALLOWED_TO_JOIN`. (#1996)
+- Code ids are now deleted rather than marked as `RETIRED`. `ACTIVE` is replaced with the more precise `ALLOWED_TO_JOIN` (#1996).
+- Authentication policies can be specified per-endpoint with `add_authentication`. Sample policies are implemented which check for a user TLS handshake, a member TLS handshake, a user HTTP signature, a member HTTP signature, and a valid JWT. This allows multiple policies per-endpoints, and decouples auth from frontends - apps can define member-only endpoints (#2010).
+- By default, if no authentication policy is specified, endpoints are now unauthenticated and accessible to anyone (previously the default was user TLS handshakes, where the new default is equivalent to `set_require_client_identity(false)`).
 - CCF now depends on [Open Enclave 0.13](https://github.com/openenclave/openenclave/releases/tag/v0.13.0).
 
-## Fixed
+### Removed
 
-- Scenario perf client `--msg-ser-fmt text` option works with C++ apps.
+- The methods `Endpoint::set_require_client_signature`, `Endpoint::set_require_client_identity` and `Endpoint::set_require_jwt_authentication` are removed, and should be replaced by calls to `add_authentication`. For unauthenticated endpoints, either add no policies, or add the built-in `empty_auth` policy which accepts all requests.
+  - `.set_require_client_signature(true)` must be replaced with `.add_authentication(user_signature_auth_policy)`
+  - `.set_require_client_identity(true)` must be replaced with `.add_authentication(user_cert_auth_policy)`
+  - `.set_require_jwt_authentication(true)` must be replaced with `.add_authentication(jwt_auth_policy)`
 
 ## [0.16.0]
 

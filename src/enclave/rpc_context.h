@@ -122,34 +122,12 @@ namespace enclave
     //
     // Only set in the case of a forwarded RPC
     //
-    struct Forwarded
-    {
-      // Initialised when forwarded context is created
-      const size_t client_session_id;
-      const ccf::CallerId caller_id;
+    bool is_forwarded = false;
 
-      Forwarded(size_t client_session_id_, ccf::CallerId caller_id_) :
-        client_session_id(client_session_id_),
-        caller_id(caller_id_)
-      {}
-    };
-    std::optional<Forwarded> original_caller = std::nullopt;
-
-    // Constructor used for non-forwarded RPC
     SessionContext(
       size_t client_session_id_, const std::vector<uint8_t>& caller_cert_) :
       client_session_id(client_session_id_),
       caller_cert(caller_cert_)
-    {}
-
-    // Constructor used for forwarded and BFT RPC
-    SessionContext(
-      size_t fwd_session_id_,
-      ccf::CallerId caller_id_,
-      const std::vector<uint8_t>& caller_cert_ = {}) :
-      caller_cert(caller_cert_),
-      original_caller(
-        std::make_optional<Forwarded>(fwd_session_id_, caller_id_))
     {}
   };
 
@@ -185,6 +163,7 @@ namespace enclave
     virtual const std::string& get_request_query() const = 0;
     virtual PathParams& get_request_path_params() = 0;
     virtual const ccf::RESTVerb& get_request_verb() const = 0;
+    virtual std::string get_request_path() const = 0;
 
     virtual std::string get_method() const = 0;
     virtual void set_method(const std::string_view& method) = 0;
@@ -194,7 +173,6 @@ namespace enclave
       const std::string_view& name) = 0;
 
     virtual const std::vector<uint8_t>& get_serialised_request() = 0;
-    virtual std::optional<ccf::SignedReq> get_signed_request() = 0;
 
     /// Response details
     virtual void set_response_body(const std::vector<uint8_t>& body) = 0;

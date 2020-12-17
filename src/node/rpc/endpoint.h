@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ds/json.h"
+#include "http/authentication/authentication_types.h"
 #include "kv/map.h"
 
 #include <string>
@@ -83,6 +84,7 @@ namespace ccf
 
       EndpointKey dispatch;
       EndpointProperties properties;
+      std::vector<std::shared_ptr<AuthnPolicy>> authn_policies;
     };
 
     using EndpointDefinitionPtr = std::shared_ptr<EndpointDefinition>;
