@@ -23,9 +23,13 @@ namespace ccf
 
   struct UserSignatureAuthnIdentity : public AuthnIdentity
   {
+    /** CCF user ID, as defined in @c public:ccf.gov.users table */
     UserId user_id;
+    /** User certificate, as established by TLS */
     tls::Pem user_cert;
+    /** Additional user data, as defined @c in public:ccf.gov.users */
     nlohmann::json user_data;
+    /** Canonicalised request and associated signature */
     SignedReq signed_request;
   };
 

@@ -10,8 +10,12 @@ namespace ccf
 {
   struct JwtAuthnIdentity : public AuthnIdentity
   {
+    /** JWT key issuer, as defined in @c
+     * public:ccf.gov.jwt_public_signing_key_issuer */
     std::string key_issuer;
+    /** JWT header */
     nlohmann::json header;
+    /** JWT payload */
     nlohmann::json payload;
   };
 

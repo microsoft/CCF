@@ -363,64 +363,27 @@ namespace ccf
         return *this;
       }
 
-      /** Requires that the HTTP request is cryptographically signed by
-       * the calling user.
-       *
-       * By default, client signatures are not required.
-       *
-       * @param v Boolean indicating whether the request must be signed
-       * @return This Endpoint for further modification
-       */
-      CCF_DEPRECATED("Replace with add_authentication")
-      Endpoint& set_require_client_signature(bool v)
-      {
-        properties.require_client_signature = v;
-        return *this;
-      }
-
-      /** Requires that the HTTPS request is emitted by a user whose public
-       * identity has been registered in advance by consortium members.
-       *
-       * By default, a known client identity is required.
-       *
-       * \verbatim embed:rst:leading-asterisk
-       * .. warning::
-       *  If set to false, it is left to the application developer to implement
-       *  the authentication and authorisation mechanisms for the Endpoint.
-       * \endverbatim
-       *
-       * @param v Boolean indicating whether the user identity must be known
-       * @return This Endpoint for further modification
-       */
-      CCF_DEPRECATED("Replace with add_authentication")
-      Endpoint& set_require_client_identity(bool v)
-      {
-        properties.require_client_identity = v;
-        return *this;
-      }
-
-      CCF_DEPRECATED("Replace with add_authentication")
-      Endpoint& set_require_jwt_authentication(bool v)
-      {
-        properties.require_jwt_authentication = v;
-        return *this;
-      }
-
       /** Add an authentication policy which will be checked before executing
        * this endpoint.
        *
        * When multiple policies are specified, any single successful check is
        * sufficient to grant access, even if others fail. If all policies fail,
-       * the first can set an error status on the response, and the endpoint
+       * the last will set an error status on the response, and the endpoint
        * will not be invoked. If no policies are specified, then by default the
        * endpoint accepts any request without an authentication check.
        *
        * If an auth policy passes, it may construct an object describing the
        * Identity of the caller to be used by the endpoint. This can be
-       * retrieved inside the endpoint with ctx.get_caller<IdentType>()
+       * retrieved inside the endpoint with ctx.get_caller<IdentType>(),
+       * @see ccf::UserCertAuthnIdentity
+       * @see ccf::JwtAuthnIdentity
+       * @see ccf::UserSignatureAuthnIdentity
        *
        * @param policy An instance of the policy to apply. May be shared between
        * multiple endpoints to reduce memory use.
+       * @see ccf::EndpointRegistry::empty_auth_policy
+       * @see ccf::EndpointRegistry::user_cert_auth_policy
+       * @see ccf::EndpointRegistry::user_signature_auth_policy
        * @return This Endpoint for further modification
        */
       Endpoint& add_authentication(const std::shared_ptr<AuthnPolicy>& policy)
@@ -527,16 +490,28 @@ namespace ccf
     std::string digests_table_name;
 
     // Auth policies
+    /** Perform no authentication */
     std::shared_ptr<EmptyAuthnPolicy> empty_auth_policy =
       std::make_shared<EmptyAuthnPolicy>();
+    /** Authenticate using TLS session identity, and @c public:ccf.gov.users
+     * table */
     std::shared_ptr<UserCertAuthnPolicy> user_cert_auth_policy =
       std::make_shared<UserCertAuthnPolicy>();
+    /** Authenticate using HTTP request signature, and @c public:ccf.gov.users
+     * table */
     std::shared_ptr<UserSignatureAuthnPolicy> user_signature_auth_policy =
       std::make_shared<UserSignatureAuthnPolicy>();
+    /** Authenticate using TLS session identity, and @c public:ccf.gov.members
+     * table */
     std::shared_ptr<MemberCertAuthnPolicy> member_cert_auth_policy =
       std::make_shared<MemberCertAuthnPolicy>();
+    /** Authenticate using HTTP request signature, and @c public:ccf.gov.members
+     * table */
     std::shared_ptr<MemberSignatureAuthnPolicy> member_signature_auth_policy =
       std::make_shared<MemberSignatureAuthnPolicy>();
+    /** Authenticate using JWT, validating the token using the
+     * @c public:ccf.gov.jwt_public_signing_key_issue and
+     * @c public:ccf.gov.jwt_public_signing_keys tables */
     std::shared_ptr<JwtAuthnPolicy> jwt_auth_policy =
       std::make_shared<JwtAuthnPolicy>();
 
