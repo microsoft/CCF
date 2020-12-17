@@ -43,12 +43,13 @@ def check_can_progress(node, timeout=3):
         assert False, f"Stuck at {r}"
 
 
-@reqs.description("Adding a valid node from primary")
+@reqs.description("Adding a valid node without snapshot")
 def test_add_node(network, args):
     new_node = network.create_and_trust_node(
         args.package,
         "local://localhost",
         args,
+        from_snapshot=False,
     )
     with new_node.client() as c:
         s = c.get("/node/state")
@@ -77,7 +78,7 @@ def test_add_node_from_backup(network, args):
     return network
 
 
-# Note: this test cannot be included in the test suite yet as
+# Note: this test cannot be included in the full test suite yet as
 # add_from_snapshot() decorator makes use of historical queries
 @reqs.description("Adding a valid node from snapshot")
 @reqs.at_least_n_nodes(2)
