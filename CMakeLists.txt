@@ -542,7 +542,7 @@ if(BUILD_TESTS)
     LABEL suite
     ADDITIONAL_ARGS
       --test-duration
-      150
+      200
       --enforce-reqs
       --test-suite
       reconfiguration
