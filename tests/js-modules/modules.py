@@ -177,7 +177,7 @@ def test_dynamic_endpoints(network, args):
     LOG.info("Checking initial endpoint is inaccessible without auth")
     with primary.client() as c:
         r = c.post("/app/compute", valid_body)
-        assert r.status_code == http.HTTPStatus.FORBIDDEN, r.status_code
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
 
     LOG.info("Checking templated endpoint is accessible")
     with primary.client("user0") as c:

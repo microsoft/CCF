@@ -37,16 +37,15 @@ def test(network, args):
                 result=True,
             )
             r = c.get(f"/app/receipt?commit={r.seqno}")
-            check(
-                c.post("/app/receipt/verify", {"receipt": r.body.json()["receipt"]}),
-                result={"valid": True},
-            )
+
+            rv = c.post("/app/receipt/verify", {"receipt": r.body.json()["receipt"]})
+            assert rv.body.json() == {"valid": True}
+
             invalid = r.body.json()["receipt"]
             invalid[-3] += 1
-            check(
-                c.post("/app/receipt/verify", {"receipt": invalid}),
-                result={"valid": False},
-            )
+
+            rv = c.post("/app/receipt/verify", {"receipt": invalid})
+            assert rv.body.json() == {"valid": False}
 
     return network
 

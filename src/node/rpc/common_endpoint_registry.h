@@ -54,6 +54,7 @@ namespace ccf
         "commit", HTTP_GET, json_command_adapter(get_commit))
         .set_execute_locally(true)
         .set_auto_schema<void, GetCommit::Out>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_tx_status = [this](auto&, nlohmann::json&& params) {
@@ -78,12 +79,14 @@ namespace ccf
       };
       make_command_endpoint("tx", HTTP_GET, json_command_adapter(get_tx_status))
         .set_auto_schema<GetTxStatus>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       make_command_endpoint(
         "local_tx", HTTP_GET, json_command_adapter(get_tx_status))
         .set_auto_schema<GetTxStatus>()
         .set_execute_locally(true)
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_metrics = [this](auto&, nlohmann::json&&) {
@@ -94,48 +97,66 @@ namespace ccf
         "metrics", HTTP_GET, json_command_adapter(get_metrics))
         .set_auto_schema<void, GetMetrics::Out>()
         .set_execute_locally(true)
+        .add_authentication(empty_auth_policy)
         .install();
 
-      if (has_certs())
-      {
-        auto user_id = [this](auto& args, nlohmann::json&& params) {
-          if (!has_certs())
+      auto user_id = [this](auto& args, nlohmann::json&& params) {
+        GetUserId::Out out;
+
+        if (!params.is_null())
+        {
+          const GetUserId::In in = params;
+          auto certs_view =
+            args.tx.template get_read_only_view<CertDERs>(certs_table_name);
+          std::vector<uint8_t> pem(in.cert.begin(), in.cert.end());
+          std::vector<uint8_t> der = tls::make_verifier(pem)->der_cert_data();
+          auto caller_id_opt = certs_view->get(der);
+
+          if (!caller_id_opt.has_value())
           {
             return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "This frontend does not support 'user_id'.");
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::UnknownCertificate,
+              "Certificate not recognised.");
           }
 
-          auto caller_id = args.caller_id;
+          out.caller_id = caller_id_opt.value();
+        }
+        else if (
+          auto user_cert_ident =
+            args.template try_get_caller<ccf::UserCertAuthnIdentity>())
+        {
+          out.caller_id = user_cert_ident->user_id;
+        }
+        else if (
+          auto member_cert_ident =
+            args.template try_get_caller<ccf::MemberCertAuthnIdentity>())
+        {
+          out.caller_id = member_cert_ident->member_id;
+        }
+        else if (
+          auto user_sig_ident =
+            args.template try_get_caller<ccf::UserSignatureAuthnIdentity>())
+        {
+          out.caller_id = user_cert_ident->user_id;
+        }
+        else if (
+          auto member_sig_ident =
+            args.template try_get_caller<ccf::MemberSignatureAuthnIdentity>())
+        {
+          out.caller_id = member_cert_ident->member_id;
+        }
 
-          if (!params.is_null())
-          {
-            const GetUserId::In in = params;
-            auto certs_view =
-              args.tx.template get_read_only_view<CertDERs>(certs_table_name);
-            std::vector<uint8_t> pem(in.cert.begin(), in.cert.end());
-            std::vector<uint8_t> der = tls::make_verifier(pem)->der_cert_data();
-            auto caller_id_opt = certs_view->get(der);
-
-            if (!caller_id_opt.has_value())
-            {
-              return make_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::UnknownCertificate,
-                "Certificate not recognised.");
-            }
-
-            caller_id = caller_id_opt.value();
-          }
-
-          return make_success(GetUserId::Out{caller_id});
-        };
-        make_read_only_endpoint(
-          "user_id", HTTP_GET, json_read_only_adapter(user_id))
-          .set_auto_schema<GetUserId::In, GetUserId::Out>()
-          .install();
-      }
+        return make_success(out);
+      };
+      make_read_only_endpoint(
+        "user_id", HTTP_GET, json_read_only_adapter(user_id))
+        .set_auto_schema<GetUserId::In, GetUserId::Out>()
+        .add_authentication(user_cert_auth_policy)
+        .add_authentication(user_signature_auth_policy)
+        .add_authentication(member_cert_auth_policy)
+        .add_authentication(member_signature_auth_policy)
+        .install();
 
       auto get_primary_info = [this](auto& args, nlohmann::json&&) {
         if (consensus != nullptr)
@@ -166,6 +187,7 @@ namespace ccf
       make_read_only_endpoint(
         "primary_info", HTTP_GET, json_read_only_adapter(get_primary_info))
         .set_auto_schema<void, GetPrimaryInfo::Out>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_network_info = [this](auto& args, nlohmann::json&&) {
@@ -190,6 +212,7 @@ namespace ccf
       make_read_only_endpoint(
         "network_info", HTTP_GET, json_read_only_adapter(get_network_info))
         .set_auto_schema<void, GetNetworkInfo::Out>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_code = [](auto& args, nlohmann::json&&) {
@@ -209,6 +232,7 @@ namespace ccf
       make_read_only_endpoint(
         "code", HTTP_GET, json_read_only_adapter(get_code))
         .set_auto_schema<void, GetCode::Out>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_nodes_by_rpc_address = [](auto& args, nlohmann::json&& params) {
@@ -233,6 +257,7 @@ namespace ccf
       make_read_only_endpoint(
         "node/ids", HTTP_GET, json_read_only_adapter(get_nodes_by_rpc_address))
         .set_auto_schema<GetNodesByRPCAddress::In, GetNodesByRPCAddress::Out>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto openapi = [this](kv::Tx& tx, nlohmann::json&&) {
@@ -245,6 +270,7 @@ namespace ccf
       };
       make_endpoint("api", HTTP_GET, json_adapter(openapi))
         .set_auto_schema<void, GetAPI::Out>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto endpoint_metrics_fn = [this](kv::Tx& tx, nlohmann::json&&) {
@@ -256,6 +282,7 @@ namespace ccf
       make_endpoint(
         "endpoint_metrics", HTTP_GET, json_adapter(endpoint_metrics_fn))
         .set_auto_schema<void, EndpointMetrics::Out>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_receipt = [this](auto&, nlohmann::json&& params) {
@@ -290,6 +317,7 @@ namespace ccf
       make_command_endpoint(
         "receipt", HTTP_GET, json_command_adapter(get_receipt))
         .set_auto_schema<GetReceipt>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto verify_receipt = [this](auto&, nlohmann::json&& params) {
@@ -321,6 +349,7 @@ namespace ccf
       make_command_endpoint(
         "receipt/verify", HTTP_POST, json_command_adapter(verify_receipt))
         .set_auto_schema<VerifyReceipt>()
+        .add_authentication(empty_auth_policy)
         .install();
     }
 

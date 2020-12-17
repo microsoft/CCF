@@ -769,6 +769,22 @@
         }
       }
     },
+    "/multi_auth": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
     "/network_info": {
       "get": {
         "responses": {

@@ -263,6 +263,7 @@ namespace ccf
       };
       make_endpoint("join", HTTP_POST, json_adapter(accept))
         .set_openapi_hidden(true)
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_state = [this](auto& args, nlohmann::json&&) {
@@ -291,6 +292,7 @@ namespace ccf
         "state", HTTP_GET, json_read_only_adapter(get_state))
         .set_auto_schema<GetState>()
         .set_forwarding_required(ForwardingRequired::Never)
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_quote = [this](auto& args, nlohmann::json&&) {
@@ -315,6 +317,7 @@ namespace ccf
         "quote", HTTP_GET, json_read_only_adapter(get_quote))
         .set_auto_schema<void, GetQuotes::Quote>()
         .set_forwarding_required(ForwardingRequired::Never)
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_quotes = [this](auto& args, nlohmann::json&&) {
@@ -326,6 +329,7 @@ namespace ccf
       make_read_only_endpoint(
         "quotes", HTTP_GET, json_read_only_adapter(get_quotes))
         .set_auto_schema<GetQuotes>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto network_status = [this](auto& args, nlohmann::json&&) {
@@ -342,6 +346,7 @@ namespace ccf
       };
       make_read_only_endpoint(
         "network", HTTP_GET, json_read_only_adapter(network_status))
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto is_primary = [this](ReadOnlyEndpointContext& args) {
@@ -369,6 +374,7 @@ namespace ccf
       };
       make_read_only_endpoint("primary", HTTP_HEAD, is_primary)
         .set_forwarding_required(ForwardingRequired::Never)
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto consensus_config = [this](CommandEndpointContext& args) {
@@ -394,6 +400,7 @@ namespace ccf
 
       make_command_endpoint("config", HTTP_GET, consensus_config)
         .set_forwarding_required(ForwardingRequired::Never)
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto memory_usage = [](CommandEndpointContext& args) {
@@ -421,6 +428,7 @@ namespace ccf
       make_command_endpoint("memory", HTTP_GET, memory_usage)
         .set_forwarding_required(ForwardingRequired::Never)
         .set_auto_schema<MemoryUsage>()
+        .add_authentication(empty_auth_policy)
         .install();
     }
   };

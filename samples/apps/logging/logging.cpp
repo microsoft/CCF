@@ -66,12 +66,14 @@ namespace loggingapp
       // SNIPPET_START: install_record
       make_endpoint("log/private", HTTP_POST, ccf::json_adapter(record))
         .set_auto_schema<LoggingRecord::In, bool>()
+        .add_authentication(user_cert_auth_policy)
         .install();
       // SNIPPET_END: install_record
 
       make_endpoint(
         "log/private", ws::Verb::WEBSOCKET, ccf::json_adapter(record))
         .set_auto_schema<LoggingRecord::In, bool>()
+        .add_authentication(user_cert_auth_policy)
         .install();
 
       // SNIPPET_START: get
@@ -95,6 +97,7 @@ namespace loggingapp
       make_read_only_endpoint(
         "log/private", HTTP_GET, ccf::json_read_only_adapter(get))
         .set_auto_schema<LoggingGet>()
+        .add_authentication(user_cert_auth_policy)
         .install();
       // SNIPPET_END: install_get
 
@@ -107,6 +110,7 @@ namespace loggingapp
       };
       make_endpoint("log/private", HTTP_DELETE, ccf::json_adapter(remove))
         .set_auto_schema<LoggingRemove>()
+        .add_authentication(user_cert_auth_policy)
         .install();
 
       // SNIPPET_START: record_public
@@ -128,6 +132,7 @@ namespace loggingapp
       // SNIPPET_END: record_public
       make_endpoint("log/public", HTTP_POST, ccf::json_adapter(record_public))
         .set_auto_schema<LoggingRecord::In, bool>()
+        .add_authentication(user_cert_auth_policy)
         .install();
 
       // SNIPPET_START: get_public
@@ -149,6 +154,7 @@ namespace loggingapp
       make_read_only_endpoint(
         "log/public", HTTP_GET, ccf::json_read_only_adapter(get_public))
         .set_auto_schema<LoggingGet>()
+        .add_authentication(user_cert_auth_policy)
         .install();
 
       auto remove_public = [this](kv::Tx& tx, nlohmann::json&& params) {
@@ -160,6 +166,7 @@ namespace loggingapp
       };
       make_endpoint("log/public", HTTP_DELETE, ccf::json_adapter(remove_public))
         .set_auto_schema<LoggingRemove>()
+        .add_authentication(user_cert_auth_policy)
         .install();
 
       // SNIPPET_START: log_record_prefix_cert
@@ -204,6 +211,7 @@ namespace loggingapp
       make_endpoint(
         "log/private/prefix_cert", HTTP_POST, log_record_prefix_cert)
         .set_auto_schema<LoggingRecord::In, bool>()
+        .add_authentication(user_cert_auth_policy)
         .install();
       // SNIPPET_END: log_record_prefix_cert
 
@@ -228,7 +236,120 @@ namespace loggingapp
         HTTP_POST,
         ccf::json_adapter(log_record_anonymous))
         .set_auto_schema<LoggingRecord::In, bool>()
-        .set_require_client_identity(false)
+        .add_authentication(empty_auth_policy)
+        .install();
+
+      auto multi_auth = [](auto& ctx) {
+        if (
+          auto user_cert_ident =
+            ctx.template try_get_caller<ccf::UserCertAuthnIdentity>())
+        {
+          auto response = std::string("User TLS cert");
+          response += fmt::format(
+            "\nThe caller is a user with ID: {}", user_cert_ident->user_id);
+          response += fmt::format(
+            "\nThe caller's user data is: {}",
+            user_cert_ident->user_data.dump());
+          response += fmt::format(
+            "\nThe caller's cert is:\n{}", user_cert_ident->user_cert.str());
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_body(std::move(response));
+          return;
+        }
+        else if (
+          auto member_cert_ident =
+            ctx.template try_get_caller<ccf::MemberCertAuthnIdentity>())
+        {
+          auto response = std::string("Member TLS cert");
+          response += fmt::format(
+            "\nThe caller is a member with ID: {}",
+            member_cert_ident->member_id);
+          response += fmt::format(
+            "\nThe caller's member data is: {}",
+            member_cert_ident->member_data.dump());
+          response += fmt::format(
+            "\nThe caller's cert is:\n{}",
+            member_cert_ident->member_cert.str());
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_body(std::move(response));
+          return;
+        }
+        else if (
+          auto user_sig_ident =
+            ctx.template try_get_caller<ccf::UserSignatureAuthnIdentity>())
+        {
+          auto response = std::string("User HTTP signature");
+          response += fmt::format(
+            "\nThe caller is a user with ID: {}", user_sig_ident->user_id);
+          response += fmt::format(
+            "\nThe caller's user data is: {}",
+            user_sig_ident->user_data.dump());
+          response += fmt::format(
+            "\nThe caller's cert is:\n{}", user_sig_ident->user_cert.str());
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_body(std::move(response));
+          return;
+        }
+        else if (
+          auto member_sig_ident =
+            ctx.template try_get_caller<ccf::MemberSignatureAuthnIdentity>())
+        {
+          auto response = std::string("Member HTTP signature");
+          response += fmt::format(
+            "\nThe caller is a member with ID: {}",
+            member_sig_ident->member_id);
+          response += fmt::format(
+            "\nThe caller's member data is: {}",
+            member_sig_ident->member_data.dump());
+          response += fmt::format(
+            "\nThe caller's cert is:\n{}", member_sig_ident->member_cert.str());
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_body(std::move(response));
+          return;
+        }
+        else if (
+          auto jwt_ident = ctx.template try_get_caller<ccf::JwtAuthnIdentity>())
+        {
+          auto response = std::string("JWT");
+          response += fmt::format(
+            "\nThe caller is identified by a JWT issued by: {}",
+            jwt_ident->key_issuer);
+          response +=
+            fmt::format("\nThe JWT header is:\n{}", jwt_ident->header.dump(2));
+          response += fmt::format(
+            "\nThe JWT payload is:\n{}", jwt_ident->payload.dump(2));
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_body(std::move(response));
+          return;
+        }
+        else if (
+          auto no_ident =
+            ctx.template try_get_caller<ccf::EmptyAuthnIdentity>())
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_body("Unauthenticated");
+          return;
+        }
+        else
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          ctx.rpc_ctx->set_response_body("Unhandled auth type");
+          return;
+        }
+      };
+      make_endpoint("multi_auth", HTTP_GET, multi_auth)
+        .set_auto_schema<void, std::string>()
+        .add_authentication(user_cert_auth_policy)
+        .add_authentication(user_signature_auth_policy)
+        .add_authentication(member_cert_auth_policy)
+        .add_authentication(member_signature_auth_policy)
+        .add_authentication(jwt_auth_policy)
+        .add_authentication(empty_auth_policy)
         .install();
 
       // SNIPPET_START: log_record_text
@@ -270,6 +391,7 @@ namespace loggingapp
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
       make_endpoint("log/private/raw_text/{id}", HTTP_POST, log_record_text)
+        .add_authentication(user_cert_auth_policy)
         .install();
       // SNIPPET_END: log_record_text
 
@@ -336,15 +458,19 @@ namespace loggingapp
           get_historical, context.get_historical_state(), is_tx_committed))
         .set_auto_schema<LoggingGetHistorical>()
         .set_forwarding_required(ccf::ForwardingRequired::Never)
+        .add_authentication(user_cert_auth_policy)
         .install();
 
       auto record_admin_only =
         [this, &nwt](ccf::EndpointContext& ctx, nlohmann::json&& params) {
           {
+            const auto& caller_ident =
+              ctx.get_caller<ccf::UserCertAuthnIdentity>();
+
             // SNIPPET_START: user_data_check
             // Check caller's user-data for required permissions
             auto users_view = ctx.tx.get_view(nwt.users);
-            const auto user_opt = users_view->get(ctx.caller_id);
+            const auto user_opt = users_view->get(caller_ident.user_id);
             const nlohmann::json user_data = user_opt.has_value() ?
               user_opt->user_data :
               nlohmann::json(nullptr);
@@ -383,6 +509,7 @@ namespace loggingapp
         HTTP_POST,
         ccf::json_adapter(record_admin_only))
         .set_auto_schema<LoggingRecord::In, bool>()
+        .add_authentication(user_cert_auth_policy)
         .install();
     }
   };

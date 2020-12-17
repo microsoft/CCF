@@ -1153,7 +1153,7 @@ namespace ccfapp
           args.rpc_ctx->get_method(), args.rpc_ctx->get_request_verb(), args);
       };
 
-      set_default(default_handler).set_require_client_identity(false);
+      set_default(default_handler);
     }
 
     EndpointDefinitionPtr find_endpoint(
@@ -1174,6 +1174,19 @@ namespace ccfapp
         auto endpoint_def = std::make_shared<JSDynamicEndpoint>();
         endpoint_def->dispatch = key;
         endpoint_def->properties = it.value();
+
+        if (endpoint_def->properties.require_client_identity)
+        {
+          endpoint_def->authn_policies.push_back(user_cert_auth_policy);
+        }
+        if (endpoint_def->properties.require_client_signature)
+        {
+          endpoint_def->authn_policies.push_back(user_signature_auth_policy);
+        }
+        if (endpoint_def->properties.require_jwt_authentication)
+        {
+          endpoint_def->authn_policies.push_back(jwt_auth_policy);
+        }
 
         return endpoint_def;
       }
