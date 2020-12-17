@@ -803,7 +803,7 @@ if(BUILD_TESTS)
       --max-writes-ahead
       1000
       --repetitions
-      1000
+      10000
       --msg-ser-fmt
       msgpack
   )
@@ -842,7 +842,7 @@ if(BUILD_TESTS)
       --max-writes-ahead
       1000
       --repetitions
-      800
+      5000
       --msg-ser-fmt
       text
   )
