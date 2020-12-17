@@ -1905,6 +1905,7 @@ namespace ccf
       };
       make_endpoint("create", HTTP_POST, json_adapter(create))
         .set_openapi_hidden(true)
+        .add_authentication(empty_auth_policy)
         .install();
 
       // Only called from node. See node_state.h.

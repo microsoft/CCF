@@ -54,6 +54,7 @@ namespace ccf
         "commit", HTTP_GET, json_command_adapter(get_commit))
         .set_execute_locally(true)
         .set_auto_schema<void, GetCommit::Out>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_tx_status = [this](auto&, nlohmann::json&& params) {
@@ -78,12 +79,14 @@ namespace ccf
       };
       make_command_endpoint("tx", HTTP_GET, json_command_adapter(get_tx_status))
         .set_auto_schema<GetTxStatus>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       make_command_endpoint(
         "local_tx", HTTP_GET, json_command_adapter(get_tx_status))
         .set_auto_schema<GetTxStatus>()
         .set_execute_locally(true)
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_metrics = [this](auto&, nlohmann::json&&) {
@@ -94,6 +97,7 @@ namespace ccf
         "metrics", HTTP_GET, json_command_adapter(get_metrics))
         .set_auto_schema<void, GetMetrics::Out>()
         .set_execute_locally(true)
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto user_id = [this](auto& args, nlohmann::json&& params) {
@@ -183,6 +187,7 @@ namespace ccf
       make_read_only_endpoint(
         "primary_info", HTTP_GET, json_read_only_adapter(get_primary_info))
         .set_auto_schema<void, GetPrimaryInfo::Out>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_network_info = [this](auto& args, nlohmann::json&&) {
@@ -207,6 +212,7 @@ namespace ccf
       make_read_only_endpoint(
         "network_info", HTTP_GET, json_read_only_adapter(get_network_info))
         .set_auto_schema<void, GetNetworkInfo::Out>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_code = [](auto& args, nlohmann::json&&) {
@@ -226,6 +232,7 @@ namespace ccf
       make_read_only_endpoint(
         "code", HTTP_GET, json_read_only_adapter(get_code))
         .set_auto_schema<void, GetCode::Out>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_nodes_by_rpc_address = [](auto& args, nlohmann::json&& params) {
@@ -250,6 +257,7 @@ namespace ccf
       make_read_only_endpoint(
         "node/ids", HTTP_GET, json_read_only_adapter(get_nodes_by_rpc_address))
         .set_auto_schema<GetNodesByRPCAddress::In, GetNodesByRPCAddress::Out>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto openapi = [this](kv::Tx& tx, nlohmann::json&&) {
@@ -262,6 +270,7 @@ namespace ccf
       };
       make_endpoint("api", HTTP_GET, json_adapter(openapi))
         .set_auto_schema<void, GetAPI::Out>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto endpoint_metrics_fn = [this](kv::Tx& tx, nlohmann::json&&) {
@@ -273,6 +282,7 @@ namespace ccf
       make_endpoint(
         "endpoint_metrics", HTTP_GET, json_adapter(endpoint_metrics_fn))
         .set_auto_schema<void, EndpointMetrics::Out>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_receipt = [this](auto&, nlohmann::json&& params) {
@@ -307,6 +317,7 @@ namespace ccf
       make_command_endpoint(
         "receipt", HTTP_GET, json_command_adapter(get_receipt))
         .set_auto_schema<GetReceipt>()
+        .add_authentication(empty_auth_policy)
         .install();
 
       auto verify_receipt = [this](auto&, nlohmann::json&& params) {
@@ -338,6 +349,7 @@ namespace ccf
       make_command_endpoint(
         "receipt/verify", HTTP_POST, json_command_adapter(verify_receipt))
         .set_auto_schema<VerifyReceipt>()
+        .add_authentication(empty_auth_policy)
         .install();
     }
 
