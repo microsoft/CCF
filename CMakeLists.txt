@@ -842,7 +842,7 @@ if(BUILD_TESTS)
       --max-writes-ahead
       1000
       --repetitions
-      5000
+      1000
       --msg-ser-fmt
       text
   )
