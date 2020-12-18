@@ -49,13 +49,6 @@ int main()
       std::cout << std::endl;
 #endif
 
-      merkle::Tree mtl = mt.split(3);
-      std::cout << "Left: " << std::endl;
-      std::cout << mtl.to_string(PRINT_HASH_SIZE) << std::endl;
-      std::cout << "Right: " << std::endl;
-      std::cout << mt.to_string(PRINT_HASH_SIZE) << std::endl;
-      std::cout << std::endl;
-
       std::cout << "Paths: " << std::endl;
       for (size_t i = mt.min_index(); i <= mt.max_index(); i++)
       {
