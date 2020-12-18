@@ -198,7 +198,7 @@ def test_node_ids(network, args):
     nodes = network.find_nodes()
     for node in nodes:
         with node.client() as c:
-            r = c.get(f'/node/node/ids?host="{node.pubhost}"&port="{node.rpc_port}"')
+            r = c.get(f'/node/node/ids?host="{node.pubhost}"&port="{node.pubport}"')
             assert r.status_code == 200
             assert r.body.json()["nodes"] == [
                 {"node_id": node.node_id, "status": "TRUSTED"}

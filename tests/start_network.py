@@ -112,7 +112,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "-n",
             "--node",
-            help=f"List of (local://|ssh://)hostnames[,pub_hostnames:ports]. Default is {DEFAULT_NODES}",
+            help=f"List of (local://|ssh://)hostname:port[,pub_hostnames:pub_port]. Default is {DEFAULT_NODES}",
             action="append",
         )
         parser.add_argument(
