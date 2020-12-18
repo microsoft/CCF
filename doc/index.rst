@@ -11,7 +11,7 @@ CCF Documentation
       :align: left
       :target: concepts.html
 
-    Learn about CCF and its core concepts through a sample app.
+    Get started with CCF and its core concepts through a sample app.
 
     ---
 
