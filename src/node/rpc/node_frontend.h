@@ -367,7 +367,7 @@ namespace ccf
               args.rpc_ctx->set_response_header(
                 "Location",
                 fmt::format(
-                  "https://{}:{}/node/primary", info->pubhost, info->rpcport));
+                  "https://{}:{}/node/primary", info->pubhost, info->pubport));
             }
           }
         }
