@@ -1271,6 +1271,7 @@ namespace ccf
         .set_forwarding_required(ForwardingRequired::Sometimes)
         .set_auto_schema<KVRead>()
         .add_authentication(member_cert_auth_policy)
+        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto query = [this](EndpointContext& ctx, nlohmann::json&& params) {
@@ -1294,6 +1295,7 @@ namespace ccf
         .set_forwarding_required(ForwardingRequired::Sometimes)
         .set_auto_schema<Script, nlohmann::json>()
         .add_authentication(member_cert_auth_policy)
+        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto propose = [this](EndpointContext& ctx, nlohmann::json&& params) {
@@ -1366,6 +1368,7 @@ namespace ccf
         json_read_only_adapter(get_proposal))
         .set_auto_schema<void, Proposal>()
         .add_authentication(member_cert_auth_policy)
+        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto withdraw = [this](EndpointContext& ctx, nlohmann::json&&) {
@@ -1565,6 +1568,7 @@ namespace ccf
         json_read_only_adapter(get_vote))
         .set_auto_schema<void, Vote>()
         .add_authentication(member_cert_auth_policy)
+        .add_authentication(member_signature_auth_policy)
         .install();
 
       //! A member acknowledges state
@@ -1691,6 +1695,7 @@ namespace ccf
         "ack/update_state_digest", HTTP_POST, json_adapter(update_state_digest))
         .set_auto_schema<void, StateDigest>()
         .add_authentication(member_cert_auth_policy)
+        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto get_encrypted_recovery_share =
@@ -1724,6 +1729,7 @@ namespace ccf
         "recovery_share", HTTP_GET, json_adapter(get_encrypted_recovery_share))
         .set_auto_schema<void, std::string>()
         .add_authentication(member_cert_auth_policy)
+        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto submit_recovery_share = [this](EndpointContext& ctx) {
@@ -1824,6 +1830,7 @@ namespace ccf
       make_endpoint("recovery_share", HTTP_POST, submit_recovery_share)
         .set_auto_schema<std::string, std::string>()
         .add_authentication(member_cert_auth_policy)
+        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto create = [this](kv::Tx& tx, nlohmann::json&& params) {
