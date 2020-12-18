@@ -169,7 +169,8 @@ namespace asynchost
           get_snapshot_idx_from_file_name(file_name) == snapshot_idx)
         {
           LOG_INFO_FMT(
-            "Committing snapshot file \"{}\" with evidence proof committed at "
+            "Committing snapshot file \"{}\" with evidence proof committed "
+            "at "
             "{}",
             file_name,
             evidence_commit_idx);

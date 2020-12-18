@@ -1115,6 +1115,7 @@ namespace aft
           {
             LOG_FAIL_FMT("Follower failed to apply log entry: {}", i);
             state->last_idx--;
+            ledger->truncate(state->last_idx);
             send_append_entries_response(
               r.from_node, AppendEntriesResponseType::FAIL);
             break;
@@ -2025,8 +2026,9 @@ namespace aft
 
       LOG_DEBUG_FMT("Compacting...");
       snapshotter->commit(idx);
-      if (replica_state == Leader)
+      if (replica_state == Leader && consensus_type == ConsensusType::CFT)
       {
+        // Snapshots are not yet supported with BFT
         snapshotter->snapshot(idx);
       }
       store->compact(idx);

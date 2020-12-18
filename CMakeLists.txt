@@ -516,22 +516,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME recovery_snapshot_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS
-      --recovery
-      2
-      # Shorten Raft election timeout to speed up test when it kills a node on
-      # purpose to check that a recovery network is robust to a view change.
-      --raft-election-timeout
-      4000
-      --snapshot-tx-interval
-      5
-      --use-snapshot
-  )
-
-  add_e2e_test(
     NAME rekey_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rekey.py
     CONSENSUS cft
@@ -559,29 +543,12 @@ if(BUILD_TESTS)
     LABEL suite
     ADDITIONAL_ARGS
       --test-duration
-      150
+      200
       --enforce-reqs
       --test-suite
       reconfiguration
       --raft-election-timeout
       4000
-  )
-
-  add_e2e_test(
-    NAME snapshots_test_suite
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-    CONSENSUS cft
-    LABEL suite
-    ADDITIONAL_ARGS
-      --test-duration
-      150
-      --enforce-reqs
-      --test-suite
-      snapshots
-      --raft-election-timeout
-      4000
-      --snapshot-tx-interval
-      5
   )
 
   add_e2e_test(
@@ -681,13 +648,6 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME reconfiguration_snapshot_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-      CONSENSUS cft
-      ADDITIONAL_ARGS --snapshot-tx-interval 10 --raft-election-timeout 4000
-    )
-
-    add_e2e_test(
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
       CONSENSUS cft
@@ -744,11 +704,13 @@ if(BUILD_TESTS)
   )
 
   if(NOT SAN)
+    # Writing new ledger files and generating new snapshots uses more file
+    # descriptors so disable those for this test
     add_e2e_test(
       NAME connections_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
       CONSENSUS cft
-      ADDITIONAL_ARGS --ledger-chunk-bytes 100Mib
+      ADDITIONAL_ARGS --ledger-chunk-bytes 100Mib --snapshot-tx-interval 10000
     )
   endif()
 
@@ -842,7 +804,7 @@ if(BUILD_TESTS)
       --max-writes-ahead
       1000
       --repetitions
-      1000
+      10000
       --msg-ser-fmt
       msgpack
   )
@@ -881,7 +843,7 @@ if(BUILD_TESTS)
       --max-writes-ahead
       1000
       --repetitions
-      800
+      1000
       --msg-ser-fmt
       text
   )
