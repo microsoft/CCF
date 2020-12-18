@@ -28,6 +28,10 @@ def to_uint_64(buffer):
     return struct.unpack("@Q", buffer)[0]
 
 
+def is_ledger_chunk_committed(file_name):
+    return file_name.endswith(".committed")
+
+
 class GcmHeader:
 
     _gcm_tag = ["\0"] * GCM_SIZE_TAG
@@ -162,9 +166,17 @@ class Transaction:
         if self._file is None:
             raise RuntimeError(f"Ledger file {filename} could not be opened")
 
-        self._file_size = int.from_bytes(
-            _byte_read_safe(self._file, LEDGER_HEADER_SIZE), byteorder="little"
-        )
+        try:
+            self._file_size = int.from_bytes(
+                _byte_read_safe(self._file, LEDGER_HEADER_SIZE), byteorder="little"
+            )
+        except ValueError:
+            if is_ledger_chunk_committed(filename):
+                raise
+            else:
+                LOG.warning(
+                    f"Could not read ledger header size in uncommitted ledger file '{filename}'"
+                )
 
     def __del__(self):
         self._file.close()
@@ -243,7 +255,6 @@ class LedgerChunk:
     _filename: str
 
     def __init__(self, name: str):
-
         self._current_tx = Transaction(name)
         self._filename = name
 
@@ -286,7 +297,7 @@ class Ledger:
 
         for chunk in sorted_ledgers:
             if os.path.isfile(os.path.join(directory, chunk)):
-                if not chunk.endswith(".committed"):
+                if not is_ledger_chunk_committed(chunk):
                     LOG.warning(f"The file {chunk} has not been committed")
                 self._filenames.append(os.path.join(directory, chunk))
 

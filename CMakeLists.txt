@@ -500,6 +500,10 @@ if(BUILD_TESTS)
     NAME governance_history_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_history.py
     CONSENSUS cft
+    ADDITIONAL_ARGS
+      # Higher snapshot interval as snapshots trigger new ledger chunks, which
+      # may result in latest chunk being partially written
+      --snapshot-tx-interval 10000
   )
 
   add_e2e_test(
