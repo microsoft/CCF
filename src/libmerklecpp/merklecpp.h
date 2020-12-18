@@ -468,10 +468,12 @@ namespace merkle
         if (r->right)
           r->right->parent = r;
         if (leaf_nodes && r->size == 1 && !r->left && !r->right)
+        {
           if (*num_flushed == 0)
             leaf_nodes->push_back(r);
           else
             *num_flushed = *num_flushed - 1;
+        }
         return r;
       }
 
