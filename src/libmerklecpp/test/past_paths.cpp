@@ -28,20 +28,21 @@ std::shared_ptr<merkle::Path> past_root_spec(
 
 int main()
 {
+  // std::srand(0);
+  auto seed = std::time(0);
+  std::srand(seed);
+
   try
   {
 #ifndef NDEBUG
-    const size_t num_trees = 64;
+    const size_t num_trees = 32;
     const size_t max_num_paths = 256;
     const size_t max_num_leaves = 32 * 1024;
 #else
-    const size_t num_trees = 256;
+    const size_t num_trees = 128;
     const size_t max_num_paths = 1024;
     const size_t max_num_leaves = 64 * 1024;
 #endif
-
-    // std::srand(0);
-    std::srand(std::time(0));
 
     size_t total_paths = 0, total_leaves = 0, total_flushed_nodes = 0;
 
@@ -128,11 +129,13 @@ int main()
   }
   catch (std::exception& ex)
   {
+    std::cout << "Seed: " << seed << std::endl;
     std::cout << "Error: " << ex.what() << std::endl;
     return 1;
   }
   catch (...)
   {
+    std::cout << "Seed: " << seed << std::endl;
     std::cout << "Error" << std::endl;
     return 1;
   }
