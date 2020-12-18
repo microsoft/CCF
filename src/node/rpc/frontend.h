@@ -135,7 +135,7 @@ namespace ccf
           {
             ctx->set_response_header(
               http::headers::LOCATION,
-              fmt::format("{}:{}", info->pubhost, info->rpcport));
+              fmt::format("{}:{}", info->pubhost, info->pubport));
           }
         }
 

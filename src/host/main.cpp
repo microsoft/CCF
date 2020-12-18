@@ -655,7 +655,8 @@ int main(int argc, char** argv)
                                     public_rpc_address.hostname,
                                     node_address.hostname,
                                     node_address.port,
-                                    rpc_address.port};
+                                    rpc_address.port,
+                                    public_rpc_address.port};
     ccf_config.domain = domain;
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
 
