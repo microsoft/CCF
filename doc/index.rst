@@ -3,7 +3,7 @@ CCF Documentation
 
 .. panels::
 
-    :fa:`compass` :doc:`overview/index`
+    :fa:`info-circle` :doc:`overview/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     .. image:: img/ccf.svg
@@ -11,7 +11,14 @@ CCF Documentation
       :align: left
       :target: concepts.html
 
-    Get started with CCF and its core concepts through a sample app.
+    Learn about CCF and its core concepts through a sample app.
+
+    ---
+
+    :fa:`compass` :doc:`quickstart/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Install CCF and setup the development environment to build confidential apps.
 
     ---
 
@@ -69,6 +76,7 @@ CCF Documentation
     :hidden:
 
     overview/index.rst
+    quickstart/index.rst
     build_apps/index.rst
     use_apps/index.rst
     operations/index.rst

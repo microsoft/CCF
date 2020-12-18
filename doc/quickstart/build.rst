@@ -60,7 +60,7 @@ Tests can be started through the ``tests.sh`` wrapper for ``ctest``.
 .. code-block:: bash
 
     $ cd build
-    $ ./tests.sh -
+    $ ./tests.sh [-VV]
 
 Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end tests that start a network require some Python infrastructure. `tests.sh <https://github.com/microsoft/CCF/blob/master/tests/tests.sh>`_ will set up a virtual environment with these dependencies and activate it before running ``ctest``. Further runs will re-use that virtual environment.
 
@@ -69,7 +69,7 @@ Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end 
 
     .. code-block:: bash
 
-        $ TEST_ENCLAVE=virtual ./tests.sh -VV
+        $ TEST_ENCLAVE=virtual ./tests.sh [-VV]
 
     Tests that require enclave attestation will be skipped.
 

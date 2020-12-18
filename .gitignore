@@ -1,5 +1,6 @@
 build*/
 _build/
+!build_apps/
 Debug*/
 Release*/
 CMakeFiles/

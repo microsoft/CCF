@@ -65,7 +65,7 @@ The CCF install notably contains:
 - Azure and ``ansible`` scripts required to :doc:`create_vm` and :doc:`build_setup` (under ``getting_started/``)
 - Header files and libraries to build CCF applications (under ``include/`` and ``lib/``)
 - A limited set of Python utilities to start a basic CCF service for local testing
-- Various utility scripts
+- Various utility scripts (see :doc:`/build_apps/demo`)
 
 Python Package
 ~~~~~~~~~~~~~~
