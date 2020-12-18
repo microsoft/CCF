@@ -58,7 +58,7 @@ def test_illegal(network, args, verify=True):
     )
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     conn = context.wrap_socket(sock, server_side=False, server_hostname=primary.host)
-    conn.connect((primary.host, primary.rpc_port))
+    conn.connect((primary.host, primary.pubport))
     conn.sendall(b"NOTAVERB ")
     rv = conn.recv(1024)
     assert rv == b"", rv
@@ -593,7 +593,7 @@ def test_primary(network, args):
         assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
         assert (
             r.headers["location"]
-            == f"https://{primary.pubhost}:{primary.rpc_port}/node/primary"
+            == f"https://{primary.pubhost}:{primary.pubport}/node/primary"
         )
     return network
 

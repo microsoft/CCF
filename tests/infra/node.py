@@ -324,7 +324,7 @@ class Node:
             }
         )
         akwargs.update(kwargs)
-        return ccf.clients.client(self.pubhost, self.rpc_port, **akwargs)
+        return ccf.clients.client(self.pubhost, self.pubport, **akwargs)
 
     def suspend(self):
         self.remote.suspend()

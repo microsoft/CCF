@@ -33,7 +33,7 @@ def run(args, additional_attack_args):
         network.start_and_join(args)
 
         primary, _ = network.find_primary()
-        primary_hostname = f"{primary.pubhost}:{primary.rpc_port}"
+        primary_hostname = f"{primary.pubhost}:{primary.pubport}"
 
         vegeta_targets = "vegeta_targets"
         with open(vegeta_targets, "w") as f:
