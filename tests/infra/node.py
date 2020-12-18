@@ -64,15 +64,20 @@ class Node:
         else:
             assert False, f"{host} does not start with 'local://' or 'ssh://'"
 
-        hosts, *port = host[host.find("/") + 2 :].split(":")
-        self.host, *self.pubhost = hosts.split(",")
-        self.rpc_port = int(port[0]) if port else None
-        self.node_port = None
+        host_, *pubhost_ = host.split(",")
 
+        self.host, *port = host_[host_.find("/") + 2 :].split(":")
+        self.rpc_port = int(port[0]) if port else None
         if self.host == "localhost":
             self.host = infra.net.expand_localhost()
 
-        self.pubhost = self.pubhost[0] if self.pubhost else self.host
+        if pubhost_:
+            self.pubhost, *pubport = pubhost_[0].split(":")
+            self.pubport = int(pubport[0]) if pubport else self.rpc_port
+        else:
+            self.pubhost = self.host
+            self.pubport = self.rpc_port
+        self.node_port = None
 
     def __hash__(self):
         return self.node_id
@@ -233,6 +238,8 @@ class Node:
                     rpc_port == self.rpc_port
                 ), f"Unexpected change in RPC port from {self.rpc_port} to {rpc_port}"
             self.rpc_port = rpc_port
+            if self.pubport is None:
+                self.pubport = self.rpc_port
 
     def stop(self):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
@@ -317,7 +324,7 @@ class Node:
             }
         )
         akwargs.update(kwargs)
-        return ccf.clients.client(self.pubhost, self.rpc_port, **akwargs)
+        return ccf.clients.client(self.pubhost, self.pubport, **akwargs)
 
     def suspend(self):
         self.remote.suspend()

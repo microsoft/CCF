@@ -624,6 +624,10 @@ int main(int argc, char** argv)
         fmt::format("{}\n{}", rpc_address.hostname, rpc_address.port),
         rpc_address_file);
     }
+    if (public_rpc_address.port == "0")
+    {
+      public_rpc_address.port = rpc_address.port;
+    }
 
     // Initialise the enclave and create a CCF node in it
     const size_t certificate_size = 4096;
@@ -655,7 +659,8 @@ int main(int argc, char** argv)
                                     public_rpc_address.hostname,
                                     node_address.hostname,
                                     node_address.port,
-                                    rpc_address.port};
+                                    rpc_address.port,
+                                    public_rpc_address.port};
     ccf_config.domain = domain;
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
 

@@ -173,7 +173,7 @@ namespace ccf
             GetPrimaryInfo::Out out;
             out.primary_id = primary_id;
             out.primary_host = info->pubhost;
-            out.primary_port = info->rpcport;
+            out.primary_port = info->pubport;
             out.current_view = current_view;
             return make_success(out);
           }
@@ -202,7 +202,7 @@ namespace ccf
         nodes_view->foreach([&out](const NodeId& nid, const NodeInfo& ni) {
           if (ni.status == ccf::NodeStatus::TRUSTED)
           {
-            out.nodes.push_back({nid, ni.pubhost, ni.rpcport});
+            out.nodes.push_back({nid, ni.pubhost, ni.pubport});
           }
           return true;
         });
@@ -242,7 +242,7 @@ namespace ccf
         auto nodes_view =
           args.tx.template get_read_only_view<Nodes>(Tables::NODES);
         nodes_view->foreach([&in, &out](const NodeId& nid, const NodeInfo& ni) {
-          if (ni.rpchost == in.host && ni.rpcport == in.port)
+          if (ni.pubhost == in.host && ni.pubport == in.port)
           {
             if (ni.status != ccf::NodeStatus::RETIRED || in.retired)
             {
