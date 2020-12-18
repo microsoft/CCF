@@ -7,15 +7,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
-# merklecpp traces are disabled by default to avoid unnecessary clutter.
-set(TRACE
-    OFF
-    CACHE BOOL "Enable merklecpp traces"
-)
-set(USE_CCF_LOG
-    ON
-    CACHE BOOL "Use the CCF logging infrastructure for traces"
-)
 add_subdirectory(${CCF_DIR}/src/libmerklecpp)
 
 set(PYTHON unbuffer python3)
@@ -205,7 +196,7 @@ function(add_unit_test name)
   enable_coverage(${name})
   target_link_libraries(
     ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehostverify
-                    $<BUILD_INTERFACE:merklecpp>
+                    $<BUILD_INTERFACE:merklecpp> crypto
   )
   use_client_mbedtls(${name})
   add_san(${name})
