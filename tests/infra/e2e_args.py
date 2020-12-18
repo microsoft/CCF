@@ -246,7 +246,8 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--snapshot-tx-interval",
         help="Number of transactions between two snapshots",
-        default=None,
+        type=int,
+        default=10,
     )
     parser.add_argument(
         "--jwt-key-refresh-interval-s",

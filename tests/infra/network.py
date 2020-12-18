@@ -179,7 +179,7 @@ class Network:
         ledger_dir=None,
         copy_ledger_read_only=False,
         read_only_ledger_dir=None,
-        from_snapshot=False,
+        from_snapshot=True,
         snapshot_dir=None,
     ):
         forwarded_args = {
@@ -198,23 +198,29 @@ class Network:
         # specified
         if from_snapshot and snapshot_dir is None:
             snapshot_dir = self.get_committed_snapshots(target_node)
-            assert os.listdir(
-                snapshot_dir
-            ), f"There are no snapshots to resume from in directory {snapshot_dir}"
 
         committed_ledger_dir = None
         current_ledger_dir = None
-        if snapshot_dir is not None:
-            LOG.info(f"Joining from snapshot directory: {snapshot_dir}")
-            # Only when joining from snapshot, retrieve ledger dirs from target node
-            # if the ledger directories are not specified. When joining without snapshot,
-            # the entire ledger will be retransmitted by primary node
-            current_ledger_dir = ledger_dir or None
-            committed_ledger_dir = read_only_ledger_dir or None
-            if copy_ledger_read_only and read_only_ledger_dir is None:
-                current_ledger_dir, committed_ledger_dir = target_node.get_ledger(
-                    include_read_only_dirs=True
+        if from_snapshot:
+            if os.listdir(snapshot_dir):
+                LOG.info(f"Joining from snapshot directory: {snapshot_dir}")
+                # Only when joining from snapshot, retrieve ledger dirs from target node
+                # if the ledger directories are not specified. When joining without snapshot,
+                # the entire ledger will be retransmitted by primary node
+                current_ledger_dir = ledger_dir or None
+                committed_ledger_dir = read_only_ledger_dir or None
+                if copy_ledger_read_only and read_only_ledger_dir is None:
+                    current_ledger_dir, committed_ledger_dir = target_node.get_ledger(
+                        include_read_only_dirs=True
+                    )
+            else:
+                LOG.warning(
+                    f"Attempting to join from snapshot but {snapshot_dir} is empty: defaulting to complete replay of transaction history"
                 )
+        else:
+            LOG.info(
+                "Joining without snapshot: complete transaction history will be replayed"
+            )
 
         node.join(
             lib_name=lib_name,
@@ -293,12 +299,14 @@ class Network:
                             )
                             self._adjust_local_node_ids(node)
                 else:
+                    # When a new service is started, initial nodes join without a snapshot
                     self._add_node(
                         node,
                         args.package,
                         args,
                         recovery=recovery,
                         ledger_dir=ledger_dir,
+                        from_snapshot=snapshot_dir is not None,
                         read_only_ledger_dir=read_only_ledger_dir,
                         snapshot_dir=snapshot_dir,
                     )
@@ -494,9 +502,8 @@ class Network:
         host,
         args,
         target_node=None,
-        from_snapshot=False,
-        copy_ledger_read_only=False,
         timeout=JOIN_TIMEOUT,
+        **kwargs,
     ):
         """
         Create a new node and add it to the network. Note that the new node
@@ -509,8 +516,7 @@ class Network:
             lib_name,
             args,
             target_node,
-            from_snapshot=from_snapshot,
-            copy_ledger_read_only=copy_ledger_read_only,
+            **kwargs,
         )
         primary, _ = self.find_primary()
         try:
@@ -547,8 +553,7 @@ class Network:
         host,
         args,
         target_node=None,
-        from_snapshot=False,
-        copy_ledger_read_only=False,
+        **kwargs,
     ):
         """
         Create a new node, add it to the network and let members vote to trust
@@ -559,8 +564,7 @@ class Network:
             host,
             args,
             target_node,
-            from_snapshot,
-            copy_ledger_read_only,
+            **kwargs,
         )
 
         primary, _ = self.find_primary()
@@ -665,7 +669,7 @@ class Network:
                             assert "Primary unknown" in res.body.text(), res
                     except CCFConnectionException:
                         LOG.warning(
-                            f"Could not successful connect to node {node.node_id}. Retrying..."
+                            f"Could not successfully connect to node {node.node_id}. Retrying..."
                         )
             if primary_id is not None:
                 break
