@@ -32,7 +32,7 @@ Audit
 .. toctree::
     :hidden:
 
-    builtin_tables
+    builtin_maps
     merkle_tree
     ledger
     python_library
