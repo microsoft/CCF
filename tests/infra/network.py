@@ -802,10 +802,10 @@ class Network:
                 if current_commit_seqno >= seqno:
                     with node.client(
                         f"member{self.consortium.get_any_active_member().member_id}"
-                    ) as c:
+                    ) as nc:
                         # Using update_state_digest here as a convenient write tx
                         # that is app agnostic
-                        r = c.post("/gov/ack/update_state_digest")
+                        r = nc.post("/gov/ack/update_state_digest")
                         assert (
                             r.status_code == 200
                         ), f"Error ack/update_state_digest: {r}"
