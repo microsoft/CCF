@@ -584,6 +584,11 @@ class CCFClient:
         self.name = f"[{host}:{port}]"
         self.is_connected = False
 
+        self._force_signed = False
+        if cert and "member" in cert:
+            disable_client_auth = True
+            self._force_signed = True
+
         if os.getenv("CURL_CLIENT"):
             self.client_impl = CurlClient(
                 host, port, ca, cert, key, disable_client_auth
@@ -609,6 +614,7 @@ class CCFClient:
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
         log_capture: Optional[list] = None,
     ) -> Response:
+        signed = signed or self._force_signed
         description = ""
         if self.description:
             description = f"{self.description}{signed * 's'}"

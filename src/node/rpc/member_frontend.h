@@ -1229,11 +1229,31 @@ namespace ccf
       CommonEndpointRegistry::init_handlers(tables_);
 
       auto read = [this](EndpointContext& ctx, nlohmann::json&& params) {
-        const auto& caller_identity =
-          ctx.get_caller<ccf::MemberCertAuthnIdentity>();
+        MemberId member_id;
+
+        if (
+          auto user_cert_ident =
+            ctx.template try_get_caller<ccf::MemberCertAuthnIdentity>())
+        {
+          member_id = user_cert_ident->member_id;
+        }
+        else if (
+          auto member_cert_ident =
+            ctx.template try_get_caller<ccf::MemberSignatureAuthnIdentity>())
+        {
+          member_id = member_cert_ident->member_id;
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_UNAUTHORIZED,
+            ccf::errors::AuthorizationFailed,
+            "Invalid authentication");
+        }
+
         if (!check_member_status(
               ctx.tx,
-              caller_identity.member_id,
+              member_id,
               {MemberStatus::ACTIVE, MemberStatus::ACCEPTED}))
         {
           return make_error(
@@ -1275,9 +1295,29 @@ namespace ccf
         .install();
 
       auto query = [this](EndpointContext& ctx, nlohmann::json&& params) {
-        const auto& caller_identity =
-          ctx.get_caller<ccf::MemberCertAuthnIdentity>();
-        if (!check_member_accepted(ctx.tx, caller_identity.member_id))
+        MemberId member_id;
+
+        if (
+          auto user_cert_ident =
+            ctx.template try_get_caller<ccf::MemberCertAuthnIdentity>())
+        {
+          member_id = user_cert_ident->member_id;
+        }
+        else if (
+          auto member_cert_ident =
+            ctx.template try_get_caller<ccf::MemberSignatureAuthnIdentity>())
+        {
+          member_id = member_cert_ident->member_id;
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_UNAUTHORIZED,
+            ccf::errors::AuthorizationFailed,
+            "Invalid authentication");
+        }
+
+        if (!check_member_accepted(ctx.tx, member_id))
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1330,9 +1370,29 @@ namespace ccf
 
       auto get_proposal =
         [this](ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
-          const auto& caller_identity =
-            ctx.get_caller<ccf::MemberCertAuthnIdentity>();
-          if (!check_member_active(ctx.tx, caller_identity.member_id))
+          MemberId member_id;
+
+          if (
+            auto user_cert_ident =
+              ctx.template try_get_caller<ccf::MemberCertAuthnIdentity>())
+          {
+            member_id = user_cert_ident->member_id;
+          }
+          else if (
+            auto member_cert_ident =
+              ctx.template try_get_caller<ccf::MemberSignatureAuthnIdentity>())
+          {
+            member_id = member_cert_ident->member_id;
+          }
+          else
+          {
+            return make_error(
+              HTTP_STATUS_UNAUTHORIZED,
+              ccf::errors::AuthorizationFailed,
+              "Invalid authentication");
+          }
+
+          if (!check_member_active(ctx.tx, member_id))
           {
             return make_error(
               HTTP_STATUS_FORBIDDEN,
@@ -1511,9 +1571,29 @@ namespace ccf
         .install();
 
       auto get_vote = [this](ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
-        const auto& caller_identity =
-          ctx.get_caller<ccf::MemberCertAuthnIdentity>();
-        if (!check_member_active(ctx.tx, caller_identity.member_id))
+        MemberId member_id;
+
+        if (
+          auto user_cert_ident =
+            ctx.template try_get_caller<ccf::MemberCertAuthnIdentity>())
+        {
+          member_id = user_cert_ident->member_id;
+        }
+        else if (
+          auto member_cert_ident =
+            ctx.template try_get_caller<ccf::MemberSignatureAuthnIdentity>())
+        {
+          member_id = member_cert_ident->member_id;
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_UNAUTHORIZED,
+            ccf::errors::AuthorizationFailed,
+            "Invalid authentication");
+        }
+
+        if (!check_member_active(ctx.tx, member_id))
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1530,9 +1610,9 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
-        MemberId member_id;
+        MemberId vote_member_id;
         if (!get_member_id_from_path(
-              ctx.rpc_ctx->get_request_path_params(), member_id, error))
+              ctx.rpc_ctx->get_request_path_params(), vote_member_id, error))
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
@@ -1548,7 +1628,7 @@ namespace ccf
             fmt::format("Proposal {} does not exist.", proposal_id));
         }
 
-        const auto vote_it = proposal->votes.find(member_id);
+        const auto vote_it = proposal->votes.find(vote_member_id);
         if (vote_it == proposal->votes.end())
         {
           return make_error(
@@ -1556,7 +1636,7 @@ namespace ccf
             ccf::errors::VoteNotFound,
             fmt::format(
               "Member {} has not voted for proposal {}.",
-              member_id,
+              vote_member_id,
               proposal_id));
         }
 
@@ -1665,26 +1745,43 @@ namespace ccf
       //! A member asks for a fresher state digest
       auto update_state_digest = [this](
                                    EndpointContext& ctx, nlohmann::json&&) {
-        const auto& caller_identity =
-          ctx.get_caller<ccf::MemberCertAuthnIdentity>();
+        MemberId member_id;
+        if (
+          auto user_cert_ident =
+            ctx.template try_get_caller<ccf::MemberCertAuthnIdentity>())
+        {
+          member_id = user_cert_ident->member_id;
+        }
+        else if (
+          auto member_cert_ident =
+            ctx.template try_get_caller<ccf::MemberSignatureAuthnIdentity>())
+        {
+          member_id = member_cert_ident->member_id;
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_UNAUTHORIZED,
+            ccf::errors::AuthorizationFailed,
+            "Invalid authentication");
+        }
+
         auto [ma_view, sig_view] =
           ctx.tx.get_view(this->network.member_acks, this->network.signatures);
-        auto ma = ma_view->get(caller_identity.member_id);
+        auto ma = ma_view->get(member_id);
         if (!ma)
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
-            fmt::format(
-              "No ACK record exists for caller {}.",
-              caller_identity.member_id));
+            fmt::format("No ACK record exists for caller {}.", member_id));
         }
 
         auto s = sig_view->get(0);
         if (s)
         {
           ma->state_digest = s->root.hex_str();
-          ma_view->put(caller_identity.member_id, ma.value());
+          ma_view->put(member_id, ma.value());
         }
         nlohmann::json j;
         j["state_digest"] = ma->state_digest;
@@ -1698,33 +1795,51 @@ namespace ccf
         .add_authentication(member_signature_auth_policy)
         .install();
 
-      auto get_encrypted_recovery_share =
-        [this](EndpointContext& ctx, nlohmann::json&&) {
-          const auto& caller_identity =
-            ctx.get_caller<ccf::MemberCertAuthnIdentity>();
-          if (!check_member_active(ctx.tx, caller_identity.member_id))
-          {
-            return make_error(
-              HTTP_STATUS_FORBIDDEN,
-              ccf::errors::AuthorizationFailed,
-              "Only active members are given recovery shares.");
-          }
+      auto get_encrypted_recovery_share = [this](
+                                            EndpointContext& ctx,
+                                            nlohmann::json&&) {
+        MemberId member_id;
+        if (
+          auto user_cert_ident =
+            ctx.template try_get_caller<ccf::MemberCertAuthnIdentity>())
+        {
+          member_id = user_cert_ident->member_id;
+        }
+        else if (
+          auto member_cert_ident =
+            ctx.template try_get_caller<ccf::MemberSignatureAuthnIdentity>())
+        {
+          member_id = member_cert_ident->member_id;
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_UNAUTHORIZED,
+            ccf::errors::AuthorizationFailed,
+            "Invalid authentication");
+        }
 
-          auto encrypted_share = share_manager.get_encrypted_share(
-            ctx.tx, caller_identity.member_id);
+        if (!check_member_active(ctx.tx, member_id))
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Only active members are given recovery shares.");
+        }
 
-          if (!encrypted_share.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_NOT_FOUND,
-              ccf::errors::ResourceNotFound,
-              fmt::format(
-                "Recovery share not found for member {}.",
-                caller_identity.member_id));
-          }
+        auto encrypted_share =
+          share_manager.get_encrypted_share(ctx.tx, member_id);
 
-          return make_success(tls::b64_from_raw(encrypted_share.value()));
-        };
+        if (!encrypted_share.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            fmt::format("Recovery share not found for member {}.", member_id));
+        }
+
+        return make_success(tls::b64_from_raw(encrypted_share.value()));
+      };
       make_endpoint(
         "recovery_share", HTTP_GET, json_adapter(get_encrypted_recovery_share))
         .set_auto_schema<void, std::string>()
@@ -1734,9 +1849,28 @@ namespace ccf
 
       auto submit_recovery_share = [this](EndpointContext& ctx) {
         // Only active members can submit their shares for recovery
-        const auto& caller_identity =
-          ctx.get_caller<ccf::MemberCertAuthnIdentity>();
-        if (!check_member_active(ctx.tx, caller_identity.member_id))
+        MemberId member_id;
+
+        if (
+          auto user_cert_ident =
+            ctx.template try_get_caller<ccf::MemberCertAuthnIdentity>())
+        {
+          member_id = user_cert_ident->member_id;
+        }
+        else if (
+          auto member_cert_ident =
+            ctx.template try_get_caller<ccf::MemberSignatureAuthnIdentity>())
+        {
+          member_id = member_cert_ident->member_id;
+        }
+        else
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_UNAUTHORIZED);
+          ctx.rpc_ctx->set_response_body("Invalid authentication");
+          return;
+        }
+
+        if (!check_member_active(ctx.tx, member_id))
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
           ctx.rpc_ctx->set_response_body("Member is not active");
@@ -1769,7 +1903,7 @@ namespace ccf
         try
         {
           submitted_shares_count = share_manager.submit_recovery_share(
-            ctx.tx, caller_identity.member_id, raw_recovery_share);
+            ctx.tx, member_id, raw_recovery_share);
         }
         catch (const std::exception& e)
         {
