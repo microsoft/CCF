@@ -194,7 +194,7 @@ def pub_key_pem_to_der(pem: str) -> bytes:
 def create_jwt(body_claims: dict, key_priv_pem: str, key_id: str) -> str:
     return jwt.encode(
         body_claims, key_priv_pem, algorithm="RS256", headers={"kid": key_id}
-    ).decode("ascii")
+    )
 
 
 def cert_pem_to_der(pem: str) -> bytes:
