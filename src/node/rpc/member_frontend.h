@@ -1228,6 +1228,9 @@ namespace ccf
     {
       CommonEndpointRegistry::init_handlers(tables_);
 
+      const AuthnPolicies member_sig_only = {member_signature_auth_policy};
+      const AuthnPolicies member_cert_or_sig = {member_cert_auth_policy, member_signature_auth_policy};
+
       auto read = [this](EndpointContext& ctx, nlohmann::json&& params) {
         const auto& caller_identity =
           ctx.get_caller<ccf::MemberCertAuthnIdentity>();
@@ -1265,16 +1268,15 @@ namespace ccf
 
         return make_success(value);
       };
-      make_endpoint("read", HTTP_POST, json_adapter(read))
+      make_endpoint("read", HTTP_POST, json_adapter(read), member_cert_or_sig)
         // This can be executed locally, but can't currently take ReadOnlyTx due
         // to restrictions in our lua wrappers
         .set_forwarding_required(ForwardingRequired::Sometimes)
         .set_auto_schema<KVRead>()
-        .add_authentication(member_cert_auth_policy)
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto query = [this](EndpointContext& ctx, nlohmann::json&& params) {
+        // TODO: Get correct identity, from multiple schemes, here and everywhere like it
         const auto& caller_identity =
           ctx.get_caller<ccf::MemberCertAuthnIdentity>();
         if (!check_member_accepted(ctx.tx, caller_identity.member_id))
@@ -1289,13 +1291,11 @@ namespace ccf
         return make_success(tsr.run<nlohmann::json>(
           ctx.tx, {script, {}, WlIds::MEMBER_CAN_READ, {}}));
       };
-      make_endpoint("query", HTTP_POST, json_adapter(query))
+      make_endpoint("query", HTTP_POST, json_adapter(query), member_cert_or_sig)
         // This can be executed locally, but can't currently take ReadOnlyTx due
         // to restrictions in our lua wrappers
         .set_forwarding_required(ForwardingRequired::Sometimes)
         .set_auto_schema<Script, nlohmann::json>()
-        .add_authentication(member_cert_auth_policy)
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto propose = [this](EndpointContext& ctx, nlohmann::json&& params) {
@@ -1323,9 +1323,8 @@ namespace ccf
         return make_success(
           Propose::Out{complete_proposal(ctx.tx, proposal_id, proposal)});
       };
-      make_endpoint("proposals", HTTP_POST, json_adapter(propose))
+      make_endpoint("proposals", HTTP_POST, json_adapter(propose), member_sig_only)
         .set_auto_schema<Propose>()
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto get_proposal =
@@ -1365,10 +1364,8 @@ namespace ccf
       make_read_only_endpoint(
         "proposals/{proposal_id}",
         HTTP_GET,
-        json_read_only_adapter(get_proposal))
+        json_read_only_adapter(get_proposal), member_cert_or_sig)
         .set_auto_schema<void, Proposal>()
-        .add_authentication(member_cert_auth_policy)
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto withdraw = [this](EndpointContext& ctx, nlohmann::json&&) {
@@ -1436,9 +1433,8 @@ namespace ccf
         return make_success(get_proposal_info(proposal_id, proposal.value()));
       };
       make_endpoint(
-        "proposals/{proposal_id}/withdraw", HTTP_POST, json_adapter(withdraw))
+        "proposals/{proposal_id}/withdraw", HTTP_POST, json_adapter(withdraw), member_sig_only)
         .set_auto_schema<void, ProposalInfo>()
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto vote = [this](EndpointContext& ctx, nlohmann::json&& params) {
@@ -1505,9 +1501,8 @@ namespace ccf
           complete_proposal(ctx.tx, proposal_id, proposal.value()));
       };
       make_endpoint(
-        "proposals/{proposal_id}/votes", HTTP_POST, json_adapter(vote))
+        "proposals/{proposal_id}/votes", HTTP_POST, json_adapter(vote), member_sig_only)
         .set_auto_schema<Vote, ProposalInfo>()
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto get_vote = [this](ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
@@ -1565,10 +1560,8 @@ namespace ccf
       make_read_only_endpoint(
         "proposals/{proposal_id}/votes/{member_id}",
         HTTP_GET,
-        json_read_only_adapter(get_vote))
+        json_read_only_adapter(get_vote), member_cert_or_sig)
         .set_auto_schema<void, Vote>()
-        .add_authentication(member_cert_auth_policy)
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       //! A member acknowledges state
@@ -1657,9 +1650,8 @@ namespace ccf
         }
         return make_success(true);
       };
-      make_endpoint("ack", HTTP_POST, json_adapter(ack))
+      make_endpoint("ack", HTTP_POST, json_adapter(ack), member_sig_only)
         .set_auto_schema<StateDigest, bool>()
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       //! A member asks for a fresher state digest
@@ -1692,10 +1684,8 @@ namespace ccf
         return make_success(j);
       };
       make_endpoint(
-        "ack/update_state_digest", HTTP_POST, json_adapter(update_state_digest))
+        "ack/update_state_digest", HTTP_POST, json_adapter(update_state_digest), member_cert_or_sig)
         .set_auto_schema<void, StateDigest>()
-        .add_authentication(member_cert_auth_policy)
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto get_encrypted_recovery_share =
@@ -1726,10 +1716,8 @@ namespace ccf
           return make_success(tls::b64_from_raw(encrypted_share.value()));
         };
       make_endpoint(
-        "recovery_share", HTTP_GET, json_adapter(get_encrypted_recovery_share))
+        "recovery_share", HTTP_GET, json_adapter(get_encrypted_recovery_share), member_cert_or_sig)
         .set_auto_schema<void, std::string>()
-        .add_authentication(member_cert_auth_policy)
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto submit_recovery_share = [this](EndpointContext& ctx) {
@@ -1827,10 +1815,8 @@ namespace ccf
           submitted_shares_count,
           g.get_recovery_threshold()));
       };
-      make_endpoint("recovery_share", HTTP_POST, submit_recovery_share)
+      make_endpoint("recovery_share", HTTP_POST, submit_recovery_share, member_cert_or_sig)
         .set_auto_schema<std::string, std::string>()
-        .add_authentication(member_cert_auth_policy)
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto create = [this](kv::Tx& tx, nlohmann::json&& params) {
@@ -1910,9 +1896,8 @@ namespace ccf
         LOG_INFO_FMT("Created service");
         return make_success(true);
       };
-      make_endpoint("create", HTTP_POST, json_adapter(create))
+      make_endpoint("create", HTTP_POST, json_adapter(create), no_auth_required)
         .set_openapi_hidden(true)
-        .add_authentication(empty_auth_policy)
         .install();
 
       // Only called from node. See node_state.h.
@@ -2011,9 +1996,8 @@ namespace ccf
         return make_success(true);
       };
       make_endpoint(
-        "jwt_keys/refresh", HTTP_POST, json_adapter(refresh_jwt_keys))
+        "jwt_keys/refresh", HTTP_POST, json_adapter(refresh_jwt_keys), {std::make_shared<NodeCertAuthnPolicy>()})
         .set_openapi_hidden(true)
-        .add_authentication(std::make_shared<NodeCertAuthnPolicy>())
         .install();
     }
   };
