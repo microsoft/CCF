@@ -15,6 +15,16 @@ from inspect import signature, Parameter
 
 suites = dict()
 
+suite_encryptor_bug = [
+    reconfiguration.test_add_node,
+    reconfiguration.test_retire_primary,
+    rekey.test,
+    reconfiguration.test_add_node,
+    election.test_kill_primary,
+    reconfiguration.test_add_node,
+]
+suites["encryptor_bug"] = suite_encryptor_bug
+
 # This suite tests that rekeying, network configuration changes
 # and recoveries can be interleaved
 suite_rekey_recovery = [

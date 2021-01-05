@@ -168,6 +168,8 @@ namespace kv
     {
       std::lock_guard<SpinLock> guard(lock);
 
+      LOG_DEBUG_FMT("Refreshing ledger encryption key at seqno {}", version);
+
       encryption_keys.emplace_back(EncryptionKey{
         {version, raw_ledger_key}, crypto::KeyAesGcm(raw_ledger_key)});
     }
