@@ -240,13 +240,13 @@ def test_multi_auth(network, args):
             require_new_response(r)
 
         LOG.info("Authenticate as a user, via HTTP signature")
-        with primary.client("user0", disable_client_auth=True) as c:
-            r = c.get("/app/multi_auth", signed=True)
+        with primary.client(None, "user0") as c:
+            r = c.get("/app/multi_auth")
             require_new_response(r)
 
         LOG.info("Authenticate as a member, via HTTP signature")
-        with primary.client("member0", disable_client_auth=True) as c:
-            r = c.get("/app/multi_auth", signed=True)
+        with primary.client(None, "member0") as c:
+            r = c.get("/app/multi_auth")
             require_new_response(r)
 
         LOG.info("Authenticate via JWT token")

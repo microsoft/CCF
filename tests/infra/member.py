@@ -102,12 +102,11 @@ class Member:
 
     def propose(self, remote_node, proposal, disable_client_auth=False):
         with remote_node.client(
-            f"member{self.member_id}", disable_client_auth=disable_client_auth
+            None, f"member{self.member_id}"
         ) as mc:
             r = mc.post(
                 "/gov/proposals",
-                proposal,
-                signed=True,
+                proposal
             )
             if r.status_code != http.HTTPStatus.OK.value:
                 raise infra.proposal.ProposalNotCreated(r)
@@ -121,18 +120,17 @@ class Member:
             )
 
     def vote(self, remote_node, proposal, ballot):
-        with remote_node.client(f"member{self.member_id}") as mc:
+        with remote_node.client(None, f"member{self.member_id}") as mc:
             r = mc.post(
                 f"/gov/proposals/{proposal.proposal_id}/votes",
-                body=ballot,
-                signed=True,
+                body=ballot
             )
 
         return r
 
     def withdraw(self, remote_node, proposal):
-        with remote_node.client(f"member{self.member_id}") as c:
-            r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw", signed=True)
+        with remote_node.client(f"member{self.member_id}", f"member{self.member_id}") as c:
+            r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw")
             if r.status_code == http.HTTPStatus.OK.value:
                 proposal.state = infra.proposal.ProposalState.Withdrawn
             return r
@@ -145,11 +143,10 @@ class Member:
 
     def ack(self, remote_node):
         state_digest = self.update_ack_state_digest(remote_node)
-        with remote_node.client(f"member{self.member_id}") as mc:
+        with remote_node.client(f"member{self.member_id}", f"member{self.member_id}") as mc:
             r = mc.post(
                 "/gov/ack",
-                body=state_digest,
-                signed=True,
+                body=state_digest
             )
             assert r.status_code == 200, f"Error ACK: {r}"
             self.status_code = MemberStatus.ACTIVE
