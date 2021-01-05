@@ -87,7 +87,7 @@ namespace ccf
       std::vector<std::shared_ptr<AuthnPolicy>> authn_policies;
     };
 
-    using EndpointDefinitionPtr = std::shared_ptr<EndpointDefinition>;
+    using EndpointDefinitionPtr = std::shared_ptr<const EndpointDefinition>;
 
     using EndpointsMap = kv::Map<EndpointKey, EndpointProperties>;
   }

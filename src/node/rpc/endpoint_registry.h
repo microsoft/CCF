@@ -127,7 +127,7 @@ namespace ccf
     };
 
     struct Endpoint;
-    using EndpointPtr = std::shared_ptr<Endpoint>;
+    using EndpointPtr = std::shared_ptr<const Endpoint>;
 
     using SchemaBuilderFn =
       std::function<void(nlohmann::json&, const EndpointPtr&)>;
@@ -657,12 +657,10 @@ namespace ccf
      * EndpointFunction was found.
      *
      * @param f Method implementation
-     * @return This Endpoint for further modification
      */
-    Endpoint& set_default(EndpointFunction f)
+    void set_default(EndpointFunction f)
     {
       default_endpoint = std::make_shared<Endpoint>("", f, this);
-      return *default_endpoint;
     }
 
     static void add_endpoint_to_api_document(
@@ -832,7 +830,7 @@ namespace ccf
     virtual void execute_endpoint(
       EndpointDefinitionPtr e, EndpointContext& args)
     {
-      auto endpoint = dynamic_cast<Endpoint*>(e.get());
+      auto endpoint = dynamic_cast<const Endpoint*>(e.get());
       if (endpoint == nullptr)
       {
         throw std::logic_error(
