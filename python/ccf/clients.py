@@ -309,9 +309,8 @@ class CurlClient:
 
             if self.ca:
                 cmd.extend(["--cacert", self.ca])
-            if self.session_auth.key:
+            if self.session_auth:
                 cmd.extend(["--key", self.session_auth.key])
-            if self.session_auth.cert:
                 cmd.extend(["--cert", self.session_auth.cert])
 
             cmd_s = " ".join(cmd)
