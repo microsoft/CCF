@@ -28,14 +28,17 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
+        iterations = 10 if args.long_tests else 3
+        LOG.info(f"Running {iterations} iterations")
+
         # Replace primary repeatedly and check the network still operates
-        for _ in range(10):
+        for _ in range(iterations):
             reconfiguration.test_add_node(network, args)
             reconfiguration.test_retire_primary(network, args)
 
         reconfiguration.test_add_node(network, args)
         # Suspend primary repeatedly and check the network still operates
-        for _ in range(10):
+        for _ in range(iterations):
             test_suspend_primary(network, args)
 
 
@@ -43,4 +46,5 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    args.initial_member_count = 1
     run(args)

@@ -10,6 +10,8 @@ parameters:
       pool: CCF-Perf
 
   build:
+    common:
+      cmake_args: "-DLONG_TESTS=ON"
     NoSGX:
       cmake_args: "-DCOMPILE_TARGETS=virtual"
     SGX:
@@ -36,7 +38,7 @@ jobs:
     parameters:
       target: NoSGX
       env: "${{ parameters.env.NoSGX }}"
-      cmake_args: "${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
       suffix: "Instrumented"
       artifact_name: "NoSGX_Instrumented"
       ctest_filter: '-LE "benchmark|perf"'
@@ -46,7 +48,7 @@ jobs:
     parameters:
       target: SGX
       env: "${{ parameters.env.SGX }}"
-      cmake_args: "-DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
+      cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
       suffix: "Release"
       artifact_name: "SGX_Release"
       ctest_filter: '-LE "benchmark|perf"'
