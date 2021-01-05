@@ -312,6 +312,9 @@ class CurlClient:
             if self.session_auth:
                 cmd.extend(["--key", self.session_auth.key])
                 cmd.extend(["--cert", self.session_auth.cert])
+            if self.signing_auth:
+                cmd.extend(["--signing-key", self.signing_auth.key])
+                cmd.extend(["--signing-cert", self.signing_auth.cert])
 
             cmd_s = " ".join(cmd)
             env = {k: v for k, v in os.environ.items()}
