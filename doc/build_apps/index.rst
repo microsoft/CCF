@@ -9,6 +9,27 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
 .. panels::
 
+    :fa:`cloud` :doc:`create_vm`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Create a SGX-enabled Azure Virtual Machine.
+
+    ---
+
+    :fa:`download` :doc:`install_bin`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Install CCF on Linux.
+
+    ---
+
+    :fa:`laptop-code` :doc:`build_setup`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Setup CCF environment to build CCF apps.
+
+    ---
+
     .. image:: ../img/cpp.svg
       :width: 22
       :alt: C++
@@ -83,6 +104,9 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 .. toctree::
     :hidden:
 
+    create_vm
+    install_bin
+    build_setup
     example
     js_app
     build_app

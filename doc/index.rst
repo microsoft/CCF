@@ -15,13 +15,6 @@ CCF Documentation
 
     ---
 
-    :fa:`compass` :doc:`quickstart/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Install CCF and setup the development environment to build confidential apps.
-
-    ---
-
     :fa:`tools` :doc:`build_apps/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -71,15 +64,22 @@ CCF Documentation
 
     Audit a running CCF network and its complete history.
 
+    ---
+
+    :fa:`code-branch` :doc:`contribute/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Contribute to the CCF GitHub repository.
+
 .. toctree::
     :maxdepth: 1
     :hidden:
 
     overview/index.rst
-    quickstart/index.rst
     build_apps/index.rst
     use_apps/index.rst
     operations/index.rst
     governance/index.rst
     audit/index.rst
+    contribute/index.rst
     glossary
