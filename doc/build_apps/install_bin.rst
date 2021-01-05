@@ -30,9 +30,6 @@ Install
 
 CCF releases are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases/latest>`_.
 
-Confidential Consortium Framework
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 The CCF Debian package (``ccf_<version>_amd64.deb``) contains the libraries and utilities to start a CCF service and build CCF applications. CCF can be installed as follows:
 
 .. code-block:: bash
@@ -65,26 +62,7 @@ The CCF install notably contains:
 - Azure and ``ansible`` scripts required to :doc:`create_vm` and :doc:`build_setup` (under ``getting_started/``)
 - Header files and libraries to build CCF applications (under ``include/`` and ``lib/``)
 - A limited set of Python utilities to start a basic CCF service for local testing
-- Various utility scripts
-
-Python Package
-~~~~~~~~~~~~~~
-
-The CCF Python tools package can be used to interact with an existing running service and provides utilities to:
-
-- Issue HTTP requests over TLS to CCF applications
-- Build custom governance proposals and votes
-- Parse and verify the integrity of a CCF ledger
-
-The latest version of the CCF Python tools package is `available on PyPi <https://pypi.org/project/ccf/>`_ and can be installed as follows:
-
-.. code-block:: bash
-
-    $ pip install ccf
-
-.. note:: The CCF Python tools package does `not` provide utilities to build and deploy CCF applications.
-
-A step-by-step tutorial on how to use the CCF Python package is available :ref:`here <use_apps/python_tutorial:Python Client Tutorial>`.
+- Various utility scripts (see :doc:`/build_apps/demo`)
 
 Uninstall
 ---------
@@ -94,9 +72,3 @@ To remove an installation of CCF, run:
 .. code-block:: bash
 
     $ sudo apt remove ccf
-
-To uninstall the CCF Python package, run:
-
-.. code-block:: bash
-
-    $ pip uninstall ccf
