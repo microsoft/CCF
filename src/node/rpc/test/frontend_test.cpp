@@ -214,13 +214,16 @@ public:
     auto command = [this](CommandEndpointContext& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_command_endpoint("command", HTTP_POST, command, no_auth_required).install();
+    make_command_endpoint("command", HTTP_POST, command, no_auth_required)
+      .install();
 
     auto read_only = [this](ReadOnlyEndpointContext& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_read_only_endpoint("read_only", HTTP_POST, read_only, no_auth_required).install();
-    make_read_only_endpoint("read_only", HTTP_GET, read_only, no_auth_required).install();
+    make_read_only_endpoint("read_only", HTTP_POST, read_only, no_auth_required)
+      .install();
+    make_read_only_endpoint("read_only", HTTP_GET, read_only, no_auth_required)
+      .install();
   }
 };
 
@@ -276,7 +279,9 @@ public:
     auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    endpoints.make_endpoint("empty_function", HTTP_POST, empty_function, no_auth_required)
+    endpoints
+      .make_endpoint(
+        "empty_function", HTTP_POST, empty_function, no_auth_required)
       .set_forwarding_required(ForwardingRequired::Sometimes)
       .install();
   }
@@ -354,7 +359,9 @@ public:
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    endpoints.make_endpoint("empty_function", HTTP_POST, empty_function, no_auth_required)
+    endpoints
+      .make_endpoint(
+        "empty_function", HTTP_POST, empty_function, no_auth_required)
       .install();
   }
 };

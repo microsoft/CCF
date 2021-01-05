@@ -97,7 +97,7 @@ namespace ccf
   };
   using ReadOnlyEndpointFunction =
     std::function<void(ReadOnlyEndpointContext& args)>;
-    
+
   // Auth policies
   /** Perform no authentication */
   static std::shared_ptr<EmptyAuthnPolicy> empty_auth_policy =
@@ -116,8 +116,9 @@ namespace ccf
     std::make_shared<MemberCertAuthnPolicy>();
   /** Authenticate using HTTP request signature, and @c public:ccf.gov.members
    * table */
-  static std::shared_ptr<MemberSignatureAuthnPolicy> member_signature_auth_policy =
-    std::make_shared<MemberSignatureAuthnPolicy>();
+  static std::shared_ptr<MemberSignatureAuthnPolicy>
+    member_signature_auth_policy =
+      std::make_shared<MemberSignatureAuthnPolicy>();
   /** Authenticate using JWT, validating the token using the
    * @c public:ccf.gov.jwt_public_signing_key_issue and
    * @c public:ccf.gov.jwt_public_signing_keys tables */
@@ -410,7 +411,10 @@ namespace ccf
       {
         if (registry == nullptr)
         {
-          LOG_FATAL_FMT("Can't install this endpoint ({}) - it is not associated with a registry", dispatch.uri_path);
+          LOG_FATAL_FMT(
+            "Can't install this endpoint ({}) - it is not associated with a "
+            "registry",
+            dispatch.uri_path);
         }
         else
         {
@@ -534,11 +538,16 @@ namespace ccf
      * @param method The URI at which this endpoint will be installed
      * @param verb The HTTP verb which this endpoint will respond to
      * @param f Functor which will be invoked for requests to VERB /method
-     * @param ap Policies which will be checked against each request before the endpoint is executed. @see ccf::endpoints::EndpointDefinition::authn_policies
+     * @param ap Policies which will be checked against each request before the
+     * endpoint is executed. @see
+     * ccf::endpoints::EndpointDefinition::authn_policies
      * @return The new Endpoint for further modification
      */
     Endpoint make_endpoint(
-      const std::string& method, RESTVerb verb, const EndpointFunction& f, const AuthnPolicies& ap)
+      const std::string& method,
+      RESTVerb verb,
+      const EndpointFunction& f,
+      const AuthnPolicies& ap)
     {
       Endpoint endpoint;
       endpoint.dispatch.uri_path = method;
@@ -567,8 +576,7 @@ namespace ccf
                    args.rpc_ctx, std::move(args.caller), args.tx);
                  f(ro_args);
                },
-               ap
-               )
+               ap)
         .set_forwarding_required(ForwardingRequired::Sometimes);
     }
 
@@ -584,8 +592,7 @@ namespace ccf
       const AuthnPolicies& ap)
     {
       return make_endpoint(
-               method, verb, [f](EndpointContext& args) { f(args); },
-               ap)
+               method, verb, [f](EndpointContext& args) { f(args); }, ap)
         .set_forwarding_required(ForwardingRequired::Sometimes);
     }
 

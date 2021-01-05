@@ -423,17 +423,28 @@ namespace ccfapp
       {
         make_endpoint("SmallBank_create", verb, create, user_sig_or_cert)
           .install();
-        make_endpoint("SmallBank_create_batch", verb, create_batch, user_sig_or_cert)
+        make_endpoint(
+          "SmallBank_create_batch", verb, create_batch, user_sig_or_cert)
           .install();
         make_endpoint("SmallBank_balance", verb, balance, user_sig_or_cert)
           .install();
-        make_endpoint("SmallBank_transact_savings", verb, transact_savings, user_sig_or_cert)
+        make_endpoint(
+          "SmallBank_transact_savings",
+          verb,
+          transact_savings,
+          user_sig_or_cert)
           .install();
-        make_endpoint("SmallBank_deposit_checking", verb, deposit_checking, user_sig_or_cert)
+        make_endpoint(
+          "SmallBank_deposit_checking",
+          verb,
+          deposit_checking,
+          user_sig_or_cert)
           .install();
-        make_endpoint("SmallBank_amalgamate", verb, amalgamate, user_sig_or_cert)
+        make_endpoint(
+          "SmallBank_amalgamate", verb, amalgamate, user_sig_or_cert)
           .install();
-        make_endpoint("SmallBank_write_check", verb, writeCheck, user_sig_or_cert)
+        make_endpoint(
+          "SmallBank_write_check", verb, writeCheck, user_sig_or_cert)
           .install();
       }
     }

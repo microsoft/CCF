@@ -324,7 +324,10 @@ namespace ccf
         return make_success(result);
       };
       make_read_only_endpoint(
-        "quotes", HTTP_GET, json_read_only_adapter(get_quotes), no_auth_required)
+        "quotes",
+        HTTP_GET,
+        json_read_only_adapter(get_quotes),
+        no_auth_required)
         .set_auto_schema<GetQuotes>()
         .install();
 
@@ -341,7 +344,10 @@ namespace ccf
           "Network status is unknown.");
       };
       make_read_only_endpoint(
-        "network", HTTP_GET, json_read_only_adapter(network_status), no_auth_required)
+        "network",
+        HTTP_GET,
+        json_read_only_adapter(network_status),
+        no_auth_required)
         .install();
 
       auto is_primary = [this](ReadOnlyEndpointContext& args) {
@@ -367,7 +373,8 @@ namespace ccf
           }
         }
       };
-      make_read_only_endpoint("primary", HTTP_HEAD, is_primary, no_auth_required)
+      make_read_only_endpoint(
+        "primary", HTTP_HEAD, is_primary, no_auth_required)
         .set_forwarding_required(ForwardingRequired::Never)
         .install();
 
@@ -392,7 +399,8 @@ namespace ccf
         }
       };
 
-      make_command_endpoint("config", HTTP_GET, consensus_config, no_auth_required)
+      make_command_endpoint(
+        "config", HTTP_GET, consensus_config, no_auth_required)
         .set_forwarding_required(ForwardingRequired::Never)
         .install();
 

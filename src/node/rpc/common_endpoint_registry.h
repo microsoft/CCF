@@ -190,7 +190,10 @@ namespace ccf
           "Primary unknown.");
       };
       make_read_only_endpoint(
-        "primary_info", HTTP_GET, json_read_only_adapter(get_primary_info), no_auth_required)
+        "primary_info",
+        HTTP_GET,
+        json_read_only_adapter(get_primary_info),
+        no_auth_required)
         .set_auto_schema<void, GetPrimaryInfo::Out>()
         .install();
 
@@ -214,7 +217,10 @@ namespace ccf
         return make_success(out);
       };
       make_read_only_endpoint(
-        "network_info", HTTP_GET, json_read_only_adapter(get_network_info), no_auth_required)
+        "network_info",
+        HTTP_GET,
+        json_read_only_adapter(get_network_info),
+        no_auth_required)
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .install();
 
@@ -257,7 +263,10 @@ namespace ccf
         return make_success(out);
       };
       make_read_only_endpoint(
-        "node/ids", HTTP_GET, json_read_only_adapter(get_nodes_by_rpc_address), no_auth_required)
+        "node/ids",
+        HTTP_GET,
+        json_read_only_adapter(get_nodes_by_rpc_address),
+        no_auth_required)
         .set_auto_schema<GetNodesByRPCAddress::In, GetNodesByRPCAddress::Out>()
         .install();
 
@@ -280,7 +289,10 @@ namespace ccf
         return make_success(out);
       };
       make_endpoint(
-        "endpoint_metrics", HTTP_GET, json_adapter(endpoint_metrics_fn), no_auth_required)
+        "endpoint_metrics",
+        HTTP_GET,
+        json_adapter(endpoint_metrics_fn),
+        no_auth_required)
         .set_auto_schema<void, EndpointMetrics::Out>()
         .install();
 
@@ -314,7 +326,10 @@ namespace ccf
           "Unable to produce receipt.");
       };
       make_command_endpoint(
-        "receipt", HTTP_GET, json_command_adapter(get_receipt), no_auth_required)
+        "receipt",
+        HTTP_GET,
+        json_command_adapter(get_receipt),
+        no_auth_required)
         .set_auto_schema<GetReceipt>()
         .install();
 
@@ -345,7 +360,10 @@ namespace ccf
           "Unable to verify receipt.");
       };
       make_command_endpoint(
-        "receipt/verify", HTTP_POST, json_command_adapter(verify_receipt), no_auth_required)
+        "receipt/verify",
+        HTTP_POST,
+        json_command_adapter(verify_receipt),
+        no_auth_required)
         .set_auto_schema<VerifyReceipt>()
         .install();
     }
