@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- To avoid accidentally unauthenticated endpoints, a vector authentication policies must now be specified at construction (as a new argument to `make_endpoint`) rather than by calling `add_authentication`. The value `ccf::no_auth_required` may be used to explicitly indicate an unauthenticated endpoint.
+- To avoid accidentally unauthenticated endpoints, a vector of authentication policies must now be specified at construction (as a new argument to `make_endpoint`) rather than by calling `add_authentication`. The value `ccf::no_auth_required` must be used to explicitly indicate an unauthenticated endpoint.
 
 ## [0.16.2]
 
