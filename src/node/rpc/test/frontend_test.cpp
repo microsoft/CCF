@@ -33,59 +33,83 @@ using namespace std;
 
 static constexpr auto default_pack = serdes::Pack::MsgPack;
 
-class TestUserFrontend : public SimpleUserRpcFrontend
+class BaseTestFrontend : public SimpleUserRpcFrontend
 {
 public:
-  TestUserFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  using SimpleUserRpcFrontend::SimpleUserRpcFrontend;
+
+  // For testing only, we don't need to specify auth policies everywhere and
+  // default to no auth
+  ccf::EndpointRegistry::Endpoint make_endpoint(
+    const std::string& method,
+    RESTVerb verb,
+    const EndpointFunction& f,
+    const ccf::endpoints::AuthnPolicies& ap = no_auth_required)
+  {
+    return endpoints.make_endpoint(method, verb, f, ap);
+  }
+};
+
+class TestUserFrontend : public BaseTestFrontend
+{
+public:
+  TestUserFrontend(kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
     auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint("empty_function", HTTP_POST, empty_function)
+    make_endpoint(
+      "empty_function", HTTP_POST, empty_function, {user_cert_auth_policy})
       .set_forwarding_required(ForwardingRequired::Sometimes)
-      .add_authentication(std::make_shared<UserCertAuthnPolicy>())
       .install();
 
     auto empty_function_signed = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint("empty_function_signed", HTTP_POST, empty_function_signed)
+    make_endpoint(
+      "empty_function_signed",
+      HTTP_POST,
+      empty_function_signed,
+      {user_signature_auth_policy})
       .set_forwarding_required(ForwardingRequired::Sometimes)
-      .add_authentication(std::make_shared<UserSignatureAuthnPolicy>())
       .install();
 
     auto empty_function_no_auth = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
+    make_endpoint(
+      "empty_function_no_auth",
+      HTTP_POST,
+      empty_function_no_auth,
+      no_auth_required)
       .set_forwarding_required(ForwardingRequired::Sometimes)
       .install();
   }
 };
 
-class TestReqNotStoredFrontend : public SimpleUserRpcFrontend
+class TestReqNotStoredFrontend : public BaseTestFrontend
 {
 public:
-  TestReqNotStoredFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  TestReqNotStoredFrontend(kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
     auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint("empty_function", HTTP_POST, empty_function)
-      .add_authentication(std::make_shared<UserCertAuthnPolicy>())
+    make_endpoint(
+      "empty_function", HTTP_POST, empty_function, {user_cert_auth_policy})
       .install();
     disable_request_storing();
   }
 };
 
-class TestMinimalEndpointFunction : public SimpleUserRpcFrontend
+class TestMinimalEndpointFunction : public BaseTestFrontend
 {
 public:
-  TestMinimalEndpointFunction(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  TestMinimalEndpointFunction(kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -98,8 +122,11 @@ public:
       const auto& ident = ctx.get_caller<UserCertAuthnIdentity>();
       return make_success(ident.user_id);
     };
-    make_endpoint("get_caller", HTTP_POST, json_adapter(get_caller_function))
-      .add_authentication(std::make_shared<UserCertAuthnPolicy>())
+    make_endpoint(
+      "get_caller",
+      HTTP_POST,
+      json_adapter(get_caller_function),
+      {user_cert_auth_policy})
       .install();
 
     auto failable_function = [this](kv::Tx& tx, nlohmann::json&& params) {
@@ -119,10 +146,10 @@ public:
   }
 };
 
-class TestRestrictedVerbsFrontend : public SimpleUserRpcFrontend
+class TestRestrictedVerbsFrontend : public BaseTestFrontend
 {
 public:
-  TestRestrictedVerbsFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  TestRestrictedVerbsFrontend(kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -144,13 +171,13 @@ public:
   }
 };
 
-class TestExplicitCommitability : public SimpleUserRpcFrontend
+class TestExplicitCommitability : public BaseTestFrontend
 {
 public:
   kv::Map<size_t, size_t> values;
 
   TestExplicitCommitability(kv::Store& tables) :
-    SimpleUserRpcFrontend(tables),
+    BaseTestFrontend(tables),
     values("test_values")
   {
     open();
@@ -177,30 +204,33 @@ public:
   }
 };
 
-class TestAlternativeHandlerTypes : public SimpleUserRpcFrontend
+class TestAlternativeHandlerTypes : public BaseTestFrontend
 {
 public:
-  TestAlternativeHandlerTypes(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  TestAlternativeHandlerTypes(kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
     auto command = [this](CommandEndpointContext& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_command_endpoint("command", HTTP_POST, command).install();
+    make_command_endpoint("command", HTTP_POST, command, no_auth_required)
+      .install();
 
     auto read_only = [this](ReadOnlyEndpointContext& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_read_only_endpoint("read_only", HTTP_POST, read_only).install();
-    make_read_only_endpoint("read_only", HTTP_GET, read_only).install();
+    make_read_only_endpoint("read_only", HTTP_POST, read_only, no_auth_required)
+      .install();
+    make_read_only_endpoint("read_only", HTTP_GET, read_only, no_auth_required)
+      .install();
   }
 };
 
-class TestTemplatedPaths : public SimpleUserRpcFrontend
+class TestTemplatedPaths : public BaseTestFrontend
 {
 public:
-  TestTemplatedPaths(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  TestTemplatedPaths(kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -227,9 +257,10 @@ public:
     auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    member_endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
+    member_endpoints
+      .make_endpoint(
+        "empty_function", HTTP_POST, empty_function, {member_cert_auth_policy})
       .set_forwarding_required(ForwardingRequired::Sometimes)
-      .add_authentication(std::make_shared<MemberCertAuthnPolicy>())
       .install();
   }
 };
@@ -248,7 +279,9 @@ public:
     auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
+    endpoints
+      .make_endpoint(
+        "empty_function", HTTP_POST, empty_function, no_auth_required)
       .set_forwarding_required(ForwardingRequired::Sometimes)
       .install();
   }
@@ -283,11 +316,11 @@ public:
   }
 };
 
-class TestForwardingUserFrontEnd : public SimpleUserRpcFrontend,
+class TestForwardingUserFrontEnd : public BaseTestFrontend,
                                    public RpcContextRecorder
 {
 public:
-  TestForwardingUserFrontEnd(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  TestForwardingUserFrontEnd(kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -297,8 +330,8 @@ public:
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    make_endpoint("empty_function", HTTP_POST, empty_function)
-      .add_authentication(std::make_shared<UserCertAuthnPolicy>())
+    make_endpoint(
+      "empty_function", HTTP_POST, empty_function, {user_cert_auth_policy})
       .install();
 
     auto empty_function_no_auth = [this](auto& args) {
@@ -326,7 +359,9 @@ public:
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
+    endpoints
+      .make_endpoint(
+        "empty_function", HTTP_POST, empty_function, no_auth_required)
       .install();
   }
 };
@@ -350,8 +385,9 @@ public:
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
-      .add_authentication(std::make_shared<MemberCertAuthnPolicy>())
+    endpoints
+      .make_endpoint(
+        "empty_function", HTTP_POST, empty_function, {member_cert_auth_policy})
       .install();
   }
 };
@@ -1433,12 +1469,12 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   CHECK(member_frontend_primary.last_caller_id == 0);
 }
 
-class TestConflictFrontend : public SimpleUserRpcFrontend
+class TestConflictFrontend : public BaseTestFrontend
 {
 public:
   using Values = kv::Map<size_t, size_t>;
 
-  TestConflictFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  TestConflictFrontend(kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 

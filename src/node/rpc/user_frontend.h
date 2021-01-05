@@ -26,12 +26,6 @@ namespace ccf
     // Forward these methods so that apps can write foo(...); rather than
     // endpoints.foo(...);
     template <typename... Ts>
-    ccf::EndpointRegistry::Endpoint& install(Ts&&... ts)
-    {
-      return endpoints.install(std::forward<Ts>(ts)...);
-    }
-
-    template <typename... Ts>
     ccf::EndpointRegistry::Endpoint make_endpoint(Ts&&... ts)
     {
       return endpoints.make_endpoint(std::forward<Ts>(ts)...);

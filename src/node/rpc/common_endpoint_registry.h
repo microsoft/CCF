@@ -51,10 +51,9 @@ namespace ccf
           "Failed to get commit info from Consensus.");
       };
       make_command_endpoint(
-        "commit", HTTP_GET, json_command_adapter(get_commit))
+        "commit", HTTP_GET, json_command_adapter(get_commit), no_auth_required)
         .set_execute_locally(true)
         .set_auto_schema<void, GetCommit::Out>()
-        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_tx_status = [this](auto&, nlohmann::json&& params) {
@@ -77,16 +76,18 @@ namespace ccf
           ccf::errors::InternalError,
           "Consensus is not yet configured.");
       };
-      make_command_endpoint("tx", HTTP_GET, json_command_adapter(get_tx_status))
+      make_command_endpoint(
+        "tx", HTTP_GET, json_command_adapter(get_tx_status), no_auth_required)
         .set_auto_schema<GetTxStatus>()
-        .add_authentication(empty_auth_policy)
         .install();
 
       make_command_endpoint(
-        "local_tx", HTTP_GET, json_command_adapter(get_tx_status))
+        "local_tx",
+        HTTP_GET,
+        json_command_adapter(get_tx_status),
+        no_auth_required)
         .set_auto_schema<GetTxStatus>()
         .set_execute_locally(true)
-        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_metrics = [this](auto&, nlohmann::json&&) {
@@ -94,10 +95,12 @@ namespace ccf
         return make_success(result);
       };
       make_command_endpoint(
-        "metrics", HTTP_GET, json_command_adapter(get_metrics))
+        "metrics",
+        HTTP_GET,
+        json_command_adapter(get_metrics),
+        no_auth_required)
         .set_auto_schema<void, GetMetrics::Out>()
         .set_execute_locally(true)
-        .add_authentication(empty_auth_policy)
         .install();
 
       auto user_id = [this](auto& args, nlohmann::json&& params) {
@@ -150,12 +153,14 @@ namespace ccf
         return make_success(out);
       };
       make_read_only_endpoint(
-        "user_id", HTTP_GET, json_read_only_adapter(user_id))
+        "user_id",
+        HTTP_GET,
+        json_read_only_adapter(user_id),
+        {user_cert_auth_policy,
+         user_signature_auth_policy,
+         member_cert_auth_policy,
+         member_signature_auth_policy})
         .set_auto_schema<GetUserId::In, GetUserId::Out>()
-        .add_authentication(user_cert_auth_policy)
-        .add_authentication(user_signature_auth_policy)
-        .add_authentication(member_cert_auth_policy)
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto get_primary_info = [this](auto& args, nlohmann::json&&) {
@@ -185,9 +190,11 @@ namespace ccf
           "Primary unknown.");
       };
       make_read_only_endpoint(
-        "primary_info", HTTP_GET, json_read_only_adapter(get_primary_info))
+        "primary_info",
+        HTTP_GET,
+        json_read_only_adapter(get_primary_info),
+        no_auth_required)
         .set_auto_schema<void, GetPrimaryInfo::Out>()
-        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_network_info = [this](auto& args, nlohmann::json&&) {
@@ -210,9 +217,11 @@ namespace ccf
         return make_success(out);
       };
       make_read_only_endpoint(
-        "network_info", HTTP_GET, json_read_only_adapter(get_network_info))
+        "network_info",
+        HTTP_GET,
+        json_read_only_adapter(get_network_info),
+        no_auth_required)
         .set_auto_schema<void, GetNetworkInfo::Out>()
-        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_code = [](auto& args, nlohmann::json&&) {
@@ -230,9 +239,8 @@ namespace ccf
         return make_success(out);
       };
       make_read_only_endpoint(
-        "code", HTTP_GET, json_read_only_adapter(get_code))
+        "code", HTTP_GET, json_read_only_adapter(get_code), no_auth_required)
         .set_auto_schema<void, GetCode::Out>()
-        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_nodes_by_rpc_address = [](auto& args, nlohmann::json&& params) {
@@ -255,9 +263,11 @@ namespace ccf
         return make_success(out);
       };
       make_read_only_endpoint(
-        "node/ids", HTTP_GET, json_read_only_adapter(get_nodes_by_rpc_address))
+        "node/ids",
+        HTTP_GET,
+        json_read_only_adapter(get_nodes_by_rpc_address),
+        no_auth_required)
         .set_auto_schema<GetNodesByRPCAddress::In, GetNodesByRPCAddress::Out>()
-        .add_authentication(empty_auth_policy)
         .install();
 
       auto openapi = [this](kv::Tx& tx, nlohmann::json&&) {
@@ -268,9 +278,8 @@ namespace ccf
         build_api(document, tx);
         return make_success(document);
       };
-      make_endpoint("api", HTTP_GET, json_adapter(openapi))
+      make_endpoint("api", HTTP_GET, json_adapter(openapi), no_auth_required)
         .set_auto_schema<void, GetAPI::Out>()
-        .add_authentication(empty_auth_policy)
         .install();
 
       auto endpoint_metrics_fn = [this](kv::Tx& tx, nlohmann::json&&) {
@@ -280,9 +289,11 @@ namespace ccf
         return make_success(out);
       };
       make_endpoint(
-        "endpoint_metrics", HTTP_GET, json_adapter(endpoint_metrics_fn))
+        "endpoint_metrics",
+        HTTP_GET,
+        json_adapter(endpoint_metrics_fn),
+        no_auth_required)
         .set_auto_schema<void, EndpointMetrics::Out>()
-        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_receipt = [this](auto&, nlohmann::json&& params) {
@@ -315,9 +326,11 @@ namespace ccf
           "Unable to produce receipt.");
       };
       make_command_endpoint(
-        "receipt", HTTP_GET, json_command_adapter(get_receipt))
+        "receipt",
+        HTTP_GET,
+        json_command_adapter(get_receipt),
+        no_auth_required)
         .set_auto_schema<GetReceipt>()
-        .add_authentication(empty_auth_policy)
         .install();
 
       auto verify_receipt = [this](auto&, nlohmann::json&& params) {
@@ -347,9 +360,11 @@ namespace ccf
           "Unable to verify receipt.");
       };
       make_command_endpoint(
-        "receipt/verify", HTTP_POST, json_command_adapter(verify_receipt))
+        "receipt/verify",
+        HTTP_POST,
+        json_command_adapter(verify_receipt),
+        no_auth_required)
         .set_auto_schema<VerifyReceipt>()
-        .add_authentication(empty_auth_policy)
         .install();
     }
 

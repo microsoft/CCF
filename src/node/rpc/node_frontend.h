@@ -261,9 +261,8 @@ namespace ccf
           return add_node(args.tx, caller_pem, in, NodeStatus::PENDING);
         }
       };
-      make_endpoint("join", HTTP_POST, json_adapter(accept))
+      make_endpoint("join", HTTP_POST, json_adapter(accept), no_auth_required)
         .set_openapi_hidden(true)
-        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_state = [this](auto& args, nlohmann::json&&) {
@@ -289,10 +288,9 @@ namespace ccf
         return result;
       };
       make_read_only_endpoint(
-        "state", HTTP_GET, json_read_only_adapter(get_state))
+        "state", HTTP_GET, json_read_only_adapter(get_state), no_auth_required)
         .set_auto_schema<GetState>()
         .set_forwarding_required(ForwardingRequired::Never)
-        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_quote = [this](auto& args, nlohmann::json&&) {
@@ -314,10 +312,9 @@ namespace ccf
         }
       };
       make_read_only_endpoint(
-        "quote", HTTP_GET, json_read_only_adapter(get_quote))
+        "quote", HTTP_GET, json_read_only_adapter(get_quote), no_auth_required)
         .set_auto_schema<void, GetQuotes::Quote>()
         .set_forwarding_required(ForwardingRequired::Never)
-        .add_authentication(empty_auth_policy)
         .install();
 
       auto get_quotes = [this](auto& args, nlohmann::json&&) {
@@ -327,9 +324,11 @@ namespace ccf
         return make_success(result);
       };
       make_read_only_endpoint(
-        "quotes", HTTP_GET, json_read_only_adapter(get_quotes))
+        "quotes",
+        HTTP_GET,
+        json_read_only_adapter(get_quotes),
+        no_auth_required)
         .set_auto_schema<GetQuotes>()
-        .add_authentication(empty_auth_policy)
         .install();
 
       auto network_status = [this](auto& args, nlohmann::json&&) {
@@ -345,8 +344,10 @@ namespace ccf
           "Network status is unknown.");
       };
       make_read_only_endpoint(
-        "network", HTTP_GET, json_read_only_adapter(network_status))
-        .add_authentication(empty_auth_policy)
+        "network",
+        HTTP_GET,
+        json_read_only_adapter(network_status),
+        no_auth_required)
         .install();
 
       auto is_primary = [this](ReadOnlyEndpointContext& args) {
@@ -372,9 +373,9 @@ namespace ccf
           }
         }
       };
-      make_read_only_endpoint("primary", HTTP_HEAD, is_primary)
+      make_read_only_endpoint(
+        "primary", HTTP_HEAD, is_primary, no_auth_required)
         .set_forwarding_required(ForwardingRequired::Never)
-        .add_authentication(empty_auth_policy)
         .install();
 
       auto consensus_config = [this](CommandEndpointContext& args) {
@@ -398,9 +399,9 @@ namespace ccf
         }
       };
 
-      make_command_endpoint("config", HTTP_GET, consensus_config)
+      make_command_endpoint(
+        "config", HTTP_GET, consensus_config, no_auth_required)
         .set_forwarding_required(ForwardingRequired::Never)
-        .add_authentication(empty_auth_policy)
         .install();
 
       auto memory_usage = [](CommandEndpointContext& args) {
@@ -425,10 +426,9 @@ namespace ccf
         args.rpc_ctx->set_response_body("Failed to read memory usage");
       };
 
-      make_command_endpoint("memory", HTTP_GET, memory_usage)
+      make_command_endpoint("memory", HTTP_GET, memory_usage, no_auth_required)
         .set_forwarding_required(ForwardingRequired::Never)
         .set_auto_schema<MemoryUsage>()
-        .add_authentication(empty_auth_policy)
         .install();
     }
   };
