@@ -125,7 +125,7 @@ namespace ccf
   static std::shared_ptr<JwtAuthnPolicy> jwt_auth_policy =
     std::make_shared<JwtAuthnPolicy>();
 
-  static AuthnPolicies no_auth_required = {empty_auth_policy};
+  static AuthnPolicies no_auth_required = {};
 
   /** The EndpointRegistry records the user-defined endpoints for a given
    * CCF application.
@@ -612,6 +612,8 @@ namespace ccf
           endpoint.dispatch.uri_path);
       }
 
+      // A single empty auth policy is semantically equivalent to no policy, but
+      // no policy is faster
       if (
         endpoint.authn_policies.size() == 1 &&
         endpoint.authn_policies.back() == empty_auth_policy)
