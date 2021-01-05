@@ -50,6 +50,7 @@ option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
+option(LONG_TESTS "Enable long end-to-end tests" OFF)
 
 option(DEBUG_CONFIG "Enable non-production options options to aid debugging"
        OFF
@@ -393,6 +394,10 @@ function(add_e2e_test)
     set(PARSED_ARGS_GOV_SCRIPT ${CCF_NETWORK_TEST_DEFAULT_GOV})
   endif()
 
+  if(LONG_TESTS)
+    set(LONG_TEST_ARGS "--long-tests")
+  endif()
+
   if(BUILD_END_TO_END_TESTS)
     add_test(
       NAME ${PARSED_ARGS_NAME}
@@ -400,6 +405,7 @@ function(add_e2e_test)
         ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
         ${CCF_NETWORK_TEST_ARGS} -g ${PARSED_ARGS_GOV_SCRIPT} --consensus
         ${PARSED_ARGS_CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
+        ${LONG_TEST_ARGS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 
