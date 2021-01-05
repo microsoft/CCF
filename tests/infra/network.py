@@ -149,8 +149,8 @@ class Network:
         with primary.client() as nc:
             r = nc.get("/node/primary_info")
             first_node_id = r.body.json()["primary_id"]
-            assert (r.body.json()["primary_host"] == primary.host) and (
-                int(r.body.json()["primary_port"]) == primary.rpc_port
+            assert (r.body.json()["primary_host"] == primary.pubhost) and (
+                int(r.body.json()["primary_port"]) == primary.pubport
             ), "Primary is not the node that just started"
             for n in self.nodes:
                 n.node_id = n.node_id + first_node_id

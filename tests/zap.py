@@ -12,7 +12,7 @@ import subprocess
 @reqs.at_least_n_nodes(1)
 def test(network, args):
     node = network.nodes[0]
-    openapi_endpoint = f"https://{node.host}:{node.rpc_port}/node/api"
+    openapi_endpoint = f"https://{node.pubhost}:{node.pubport}/node/api"
 
     args = [
         "docker",

@@ -179,7 +179,7 @@ class Member:
 
         res = infra.proc.ccall(
             self.share_script,
-            f"https://{remote_node.host}:{remote_node.rpc_port}",
+            f"https://{remote_node.pubhost}:{remote_node.pubport}",
             "--member-enc-privk",
             os.path.join(self.common_dir, f"member{self.member_id}_enc_privk.pem"),
             "--cert",
