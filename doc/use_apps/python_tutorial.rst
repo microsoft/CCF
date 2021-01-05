@@ -1,17 +1,43 @@
 Python Client Tutorial
 ======================
 
-This tutorial describes how a Python client can securely issue requests to a running CCF network. It is assumed that the CCF network has already been started (e.g. after having :doc:`deployed a sandbox service </build_apps/run_app>`).
+Install
+-------
 
-.. note:: See :ref:`Python Client API <use_apps/python_api:Python Client API>` for the complete API specification.
+The CCF Python tools package can be used to interact with an existing running service and provides utilities to:
 
-First, install the CCF Python package:
+- Issue HTTP requests over TLS to CCF applications
+- Build custom governance proposals and votes
+- Parse and verify the integrity of a CCF ledger
+
+The latest version of the CCF Python tools package is `available on PyPi <https://pypi.org/project/ccf/>`_ and can be installed as follows:
 
 .. code-block:: bash
 
     $ pip install ccf
 
-Then, in the Python interpreter or new file:
+.. note:: The CCF Python tools package does `not` provide utilities to build and deploy CCF applications.
+
+A step-by-step tutorial on how to use the CCF Python package is available :ref:`here <use_apps/python_tutorial:Python Client Tutorial>`.
+
+Uninstall
+---------
+
+To uninstall the CCF Python package, run:
+
+.. code-block:: bash
+
+    $ pip uninstall ccf
+
+
+Tutorial
+--------
+
+This tutorial describes how a Python client can securely issue requests to a running CCF network. It is assumed that the CCF network has already been started (e.g. after having :doc:`deployed a sandbox service </build_apps/run_app>`).
+
+.. note:: See :ref:`Python Client API <use_apps/python_api:Python Client API>` for the complete API specification.
+
+In the Python interpreter or new file:
 
 .. literalinclude:: ../../python/tutorial.py
     :language: py

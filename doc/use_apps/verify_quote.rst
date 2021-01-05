@@ -1,7 +1,7 @@
 Verifying Quote
 ===============
 
-A client can verify the validity of the SGX quote of the CCF node that it connects to. This can be done using the ``verify_quote.sh`` script installed as part of the CCF install or ccf Python package (see :doc:`/quickstart/install`).
+A client can verify the validity of the SGX quote of the CCF node that it connects to. This can be done using the ``verify_quote.sh`` script installed as part of the CCF install or ccf Python package (see :doc:`/use_apps/python_tutorial`).
 
 .. code-block:: bash
 
