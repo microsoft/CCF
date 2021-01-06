@@ -49,15 +49,19 @@ namespace ds
       }
     }
 
-    static inline std::string sanitise_components_key(const std::string_view& s_)
+    static inline std::string sanitise_components_key(
+      const std::string_view& s_)
     {
       // From the OpenAPI spec:
-      // All the fixed fields declared above are objects that MUST use keys that match the regular expression: ^[a-zA-Z0-9\.\-_]+$."
+      // All the fixed fields declared above are objects that MUST use keys that
+      // match the regular expression: ^[a-zA-Z0-9\.\-_]+$."
       std::string s(s_);
 
       for (auto& c : s)
       {
-        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || (c == '.') || (c == '-') || (c == '_'))
+        if (
+          (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+          (c >= '0' && c <= '9') || (c == '.') || (c == '-') || (c == '_'))
         {
           continue;
         }
@@ -206,7 +210,7 @@ namespace ds
 
       return components_ref_object(name);
     }
-    
+
     static inline void add_security_scheme_to_components(
       nlohmann::json& document,
       const std::string& scheme_name,
@@ -226,7 +230,8 @@ namespace ds
         if (security_scheme != existing_scheme)
         {
           throw std::logic_error(fmt::format(
-            "Adding security scheme with name '{}'. Does not match previous scheme "
+            "Adding security scheme with name '{}'. Does not match previous "
+            "scheme "
             "registered with this name: {} vs {}",
             name,
             security_scheme.dump(),

@@ -85,8 +85,8 @@ namespace ccf
     }
   };
 
-  inline const OpenAPISecuritySchema
-    JwtAuthnPolicy::security_schema = std::make_pair(
+  inline const OpenAPISecuritySchema JwtAuthnPolicy::security_schema =
+    std::make_pair(
       "bearer_jwt",
       nlohmann::json{
         {"type", "http"}, {"scheme", "bearer"}, {"bearerFormat", "JWT"}});

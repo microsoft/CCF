@@ -15,7 +15,8 @@ namespace ccf
   };
 
   using OpenAPISecuritySchema = std::pair<std::string, nlohmann::json>;
-  static const OpenAPISecuritySchema unauthenticated_schema = std::make_pair("", nlohmann::json());
+  static const OpenAPISecuritySchema unauthenticated_schema =
+    std::make_pair("", nlohmann::json());
 
   class AuthnPolicy
   {

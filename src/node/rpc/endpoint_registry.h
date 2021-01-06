@@ -692,7 +692,8 @@ namespace ccf
           const auto opt_scheme = auth_policy->get_openapi_security_schema();
           if (opt_scheme.has_value())
           {
-            auto& op_security = ds::openapi::access::get_array(path_op, "security");
+            auto& op_security =
+              ds::openapi::access::get_array(path_op, "security");
             if (opt_scheme.value() == ccf::unauthenticated_schema)
             {
               // This auth policy is empty, allowing (optionally)
