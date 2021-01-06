@@ -79,6 +79,16 @@ class Request:
         return string
 
 
+@dataclass
+class Identity:
+    #: Path to file containing private key
+    key: str
+    #: Path to file containing certificate
+    cert: str
+    #: Identity description
+    description: str
+
+
 def int_or_none(v):
     return int(v) if v is not None else None
 
@@ -238,15 +248,12 @@ class CurlClient:
     These commands could also be run manually, or used by another client tool.
     """
 
-    def __init__(
-        self, host, port, ca=None, cert=None, key=None, disable_client_auth=False
-    ):
+    def __init__(self, host, port, ca=None, session_auth=None, signing_auth=None):
         self.host = host
         self.port = port
         self.ca = ca
-        self.cert = cert
-        self.key = key
-        self.disable_client_auth = disable_client_auth
+        self.session_auth = session_auth
+        self.signing_auth = signing_auth
 
         ca_curve = get_curve(self.ca)
         if ca_curve.name == "secp256k1":
@@ -255,9 +262,9 @@ class CurlClient:
                 "Use RequestClient class instead."
             )
 
-    def request(self, request, signed=False, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
+    def request(self, request, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
         with tempfile.NamedTemporaryFile() as nf:
-            if signed:
+            if self.signing_auth:
                 cmd = ["scurl.sh"]
             else:
                 cmd = ["curl"]
@@ -304,16 +311,15 @@ class CurlClient:
 
             if self.ca:
                 cmd.extend(["--cacert", self.ca])
-            if self.key:
-                cmd.extend(["--key", self.key])
-            if self.cert:
-                cmd.extend(["--cert", self.cert])
+            if self.session_auth:
+                cmd.extend(["--key", self.session_auth.key])
+                cmd.extend(["--cert", self.session_auth.cert])
+            if self.signing_auth:
+                cmd.extend(["--signing-key", self.signing_auth.key])
+                cmd.extend(["--signing-cert", self.signing_auth.cert])
 
             cmd_s = " ".join(cmd)
             env = {k: v for k, v in os.environ.items()}
-            if self.disable_client_auth:
-                env["DISABLE_CLIENT_AUTH"] = "1"
-                cmd_s = f"DISABLE_CLIENT_AUTH=1 {cmd_s}"
 
             LOG.debug(f"Running: {cmd_s}")
             rc = subprocess.run(cmd, capture_output=True, check=False, env=env)
@@ -375,43 +381,37 @@ class RequestClient:
         host: str,
         port: int,
         ca: str,
-        cert: Optional[str] = None,
-        key: Optional[str] = None,
-        disable_client_auth: bool = False,
-        key_id: Optional[int] = False,
+        session_auth: Optional[Identity] = None,
+        signing_auth: Optional[Identity] = None,
     ):
         self.host = host
         self.port = port
         self.ca = ca
-        self.cert = cert
-        self.key = key
+        self.session_auth = session_auth
+        self.signing_auth = signing_auth
         self.key_id = None
         self.session = requests.Session()
         self.session.verify = self.ca
-        if (self.cert is not None and self.key is not None) and not disable_client_auth:
-            self.session.cert = (self.cert, self.key)
-        if self.cert:
-            with open(self.cert) as cert_file:
+        if self.session_auth:
+            self.session.cert = (self.session_auth.cert, self.session_auth.key)
+        if self.signing_auth:
+            with open(self.signing_auth.cert) as cert_file:
                 self.key_id = hashlib.sha256(cert_file.read().encode()).hexdigest()
         self.session.mount("https://", TlsAdapter(self.ca))
 
     def request(
         self,
         request: Request,
-        signed: bool = False,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
     ):
         extra_headers = {}
         extra_headers.update(request.headers)
 
         auth_value = None
-        if signed:
-            if self.key is None:
-                raise ValueError("Cannot sign request if client has no key")
-
+        if self.signing_auth is not None:
             auth_value = HTTPSignatureAuth_AlwaysDigest(
                 algorithm="ecdsa-sha256",
-                key=open(self.key, "rb").read(),
+                key=open(self.signing_auth.key, "rb").read(),
                 key_id=self.key_id,
                 headers=["(request-target)", "Digest", "Content-Length"],
             )
@@ -471,17 +471,16 @@ class WSClient:
         host: str,
         port: int,
         ca: str,
-        cert: Optional[str] = None,
-        key: Optional[str] = None,
-        disable_client_auth: bool = False,
+        session_auth: Optional[Identity] = None,
+        signing_auth: Optional[Identity] = None,
     ):
+        assert signing_auth is None, "WSClient does not support signing requests"
+
         self.host = host
         self.port = port
         self.ca = ca
-        self.cert = cert
-        self.key = key
+        self.session_auth = session_auth
         self.ws = None
-        self.disable_client_auth = disable_client_auth
 
         ca_curve = get_curve(self.ca)
         if ca_curve.name == "secp256k1":
@@ -493,24 +492,19 @@ class WSClient:
     def request(
         self,
         request: Request,
-        signed: bool = False,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
     ):
-        if signed:
-            raise ValueError(
-                "Client signatures over WebSocket are not supported by CCF"
-            )
 
         if self.ws is None:
             LOG.info("Creating WSS connection")
             try:
+                sslopt = {"ca_certs": self.ca}
+                if self.session_auth:
+                    sslopt["certfile"] = self.session_auth.cert
+                    sslopt["keyfile"] = self.session_auth.key
                 self.ws = websocket.create_connection(
                     f"wss://{self.host}:{self.port}",
-                    sslopt={
-                        "certfile": self.cert if not self.disable_client_auth else None,
-                        "keyfile": self.key if not self.disable_client_auth else None,
-                        "ca_certs": self.ca,
-                    },
+                    sslopt=sslopt,
                     timeout=timeout,
                 )
             except Exception as exc:
@@ -555,12 +549,11 @@ class CCFClient:
     :param str host: RPC IP address or domain name of node to connect to.
     :param int port: RPC port number of node to connect to.
     :param str ca: Path to CCF network certificate.
-    :param str cert: Path to client certificate (optional).
-    :param str key: Path to client private key (optional).
+    :param Identity session_auth: Path to private key and certificate to be used as client authentication for the session (optional).
+    :param Identity signing_auth: Path to private key and certificate to be used to sign requests for the session (optional).
     :param int connection_timeout: Maximum time to wait for successful connection establishment before giving up.
     :param str description: Message to print on each request emitted with this client.
     :param bool ws: Use WebSocket client (experimental).
-    :param bool disable_client_auth: Do not use the provided client identity to authenticate. The client identity will still be used to sign if ``signed`` is set to True when making requests.
 
     A :py:exc:`CCFConnectionException` exception is raised if the connection is not established successfully within ``connection_timeout`` seconds.
     """
@@ -572,28 +565,25 @@ class CCFClient:
         host: str,
         port: int,
         ca: str,
-        cert: Optional[str] = None,
-        key: Optional[str] = None,
+        session_auth: Optional[Identity] = None,
+        signing_auth: Optional[Identity] = None,
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
         description: Optional[str] = None,
         ws: bool = False,
-        disable_client_auth: bool = False,
     ):
         self.connection_timeout = connection_timeout
-        self.description = description
         self.name = f"[{host}:{port}]"
+        self.description = description or self.name
         self.is_connected = False
+        self.auth = bool(session_auth)
+        self.sign = bool(signing_auth)
 
         if os.getenv("CURL_CLIENT"):
-            self.client_impl = CurlClient(
-                host, port, ca, cert, key, disable_client_auth
-            )
+            self.client_impl = CurlClient(host, port, ca, session_auth, signing_auth)
         elif os.getenv("WEBSOCKETS_CLIENT") or ws:
-            self.client_impl = WSClient(host, port, ca, cert, key, disable_client_auth)
+            self.client_impl = WSClient(host, port, ca, session_auth, signing_auth)
         else:
-            self.client_impl = RequestClient(
-                host, port, ca, cert, key, disable_client_auth
-            )
+            self.client_impl = RequestClient(host, port, ca, session_auth, signing_auth)
 
     def _response(self, response: Response) -> Response:
         LOG.info(response)
@@ -605,22 +595,15 @@ class CCFClient:
         body: Optional[Union[str, dict, bytes]] = None,
         http_verb: str = "POST",
         headers: Optional[dict] = None,
-        signed: bool = False,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
         log_capture: Optional[list] = None,
     ) -> Response:
-        description = ""
-        if self.description:
-            description = f"{self.description}{signed * 's'}"
-        else:
-            description = self.name
-
         if headers is None:
             headers = {}
         r = Request(path, body, http_verb, headers)
 
-        flush_info([f"{description} {r}"], log_capture, 3)
-        response = self.client_impl.request(r, signed, timeout)
+        flush_info([f"{self.description} {r}"], log_capture, 3)
+        response = self.client_impl.request(r, timeout)
         flush_info([str(response)], log_capture, 3)
         return response
 
@@ -630,7 +613,6 @@ class CCFClient:
         body: Optional[Union[str, dict, bytes]] = None,
         http_verb: str = "POST",
         headers: Optional[dict] = None,
-        signed: bool = False,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
         log_capture: Optional[list] = None,
     ) -> Response:
@@ -642,7 +624,6 @@ class CCFClient:
         :type body: str or dict or bytes
         :param str http_verb: HTTP verb (e.g. "POST" or "GET").
         :param dict headers: HTTP request headers (optional).
-        :param bool signed: Sign request with client private key.
         :param int timeout: Maximum time to wait for a response before giving up.
         :param list log_capture: Rather than emit to default handler, capture log lines to list (optional).
 
@@ -654,7 +635,7 @@ class CCFClient:
         logs: List[str] = []
 
         if self.is_connected:
-            r = self._call(path, body, http_verb, headers, signed, timeout, logs)
+            r = self._call(path, body, http_verb, headers, timeout, logs)
             flush_info(logs, log_capture, 2)
             return r
 
@@ -662,9 +643,7 @@ class CCFClient:
         while True:
             try:
                 logs = []
-                response = self._call(
-                    path, body, http_verb, headers, signed, timeout, logs
-                )
+                response = self._call(path, body, http_verb, headers, timeout, logs)
                 # Only the first request gets this timeout logic - future calls
                 # call _call
                 self.is_connected = True

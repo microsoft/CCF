@@ -5,11 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.16.3]
 
 ### Changed
 
 - To avoid accidentally unauthenticated endpoints, a vector of authentication policies must now be specified at construction (as a new argument to `make_endpoint`) rather than by calling `add_authentication`. The value `ccf::no_auth_required` must be used to explicitly indicate an unauthenticated endpoint.
+- All `/gov` endpoints accept signature authentication alone correctly, regardless of session authentication.
+- `ccf.CCFClient` now allows separate `session_auth` and `signing_auth` to be passed as construction time. `ccf.CCFClient.call()` no longer takes a `signed` argument, clients with a `signing_auth` always sign. Similarly, the `disable_session_auth` constructor argument is removed, the same effect can be achieved by setting `session_auth` to `None`.
 
 ## [0.16.2]
 
@@ -621,6 +623,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.16.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.16.3
 [0.16.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.16.2
 [0.16.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.16.1
 [0.16.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.16.0

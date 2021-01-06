@@ -178,11 +178,11 @@ def test_anonymous_caller(network, args):
         primary, _ = network.find_primary()
 
         # Create a new user but do not record its identity
-        network.create_user(4, args.participants_curve, record=False)
+        network.create_user(5, args.participants_curve, record=False)
 
         log_id = 101
         msg = "This message is anonymous"
-        with primary.client("user4") as c:
+        with primary.client("user5") as c:
             r = c.post("/app/log/private/anonymous", {"id": log_id, "msg": msg})
             assert r.body.json() == True
             r = c.get(f"/app/log/private?id={log_id}")
@@ -240,13 +240,25 @@ def test_multi_auth(network, args):
             require_new_response(r)
 
         LOG.info("Authenticate as a user, via HTTP signature")
-        with primary.client("user0", disable_client_auth=True) as c:
-            r = c.get("/app/multi_auth", signed=True)
+        with primary.client(None, "user0") as c:
+            r = c.get("/app/multi_auth")
             require_new_response(r)
 
         LOG.info("Authenticate as a member, via HTTP signature")
-        with primary.client("member0", disable_client_auth=True) as c:
-            r = c.get("/app/multi_auth", signed=True)
+        with primary.client(None, "member0") as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
+
+        LOG.info("Authenticate as user2 but sign as user1")
+        with primary.client("user2", "user1") as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
+
+        network.create_user(5, args.participants_curve, record=False)
+
+        LOG.info("Authenticate as invalid user5 but sign as valid user3")
+        with primary.client("user5", "user3") as c:
+            r = c.get("/app/multi_auth")
             require_new_response(r)
 
         LOG.info("Authenticate via JWT token")
@@ -656,6 +668,6 @@ if __name__ == "__main__":
     else:
         args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
-    args.initial_user_count = 2
+    args.initial_user_count = 4
     args.initial_member_count = 2
     run(args)
