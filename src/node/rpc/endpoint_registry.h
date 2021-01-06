@@ -604,6 +604,15 @@ namespace ccf
      */
     void install(Endpoint& endpoint)
     {
+      // A single empty auth policy is semantically equivalent to no policy, but
+      // no policy is faster
+      if (
+        endpoint.authn_policies.size() == 1 &&
+        endpoint.authn_policies.back() == empty_auth_policy)
+      {
+        endpoint.authn_policies.pop_back();
+      }
+
       const auto template_spec =
         parse_path_template(endpoint.dispatch.uri_path);
       if (template_spec.has_value())
