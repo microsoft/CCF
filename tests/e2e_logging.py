@@ -286,6 +286,44 @@ def test_multi_auth(network, args):
     return network
 
 
+@reqs.description("Call an endpoint with a custom auth policy")
+@reqs.supports_methods("custom_auth")
+def test_multi_auth(network, args):
+    if args.package == "liblogging":
+        primary, _ = network.find_primary()
+
+        with primary.client("user0") as c:
+            LOG.info("Request without custom headers is refused")
+            r = c.get("/app/custom_auth")
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
+
+            name_header = "x-custom-auth-name"
+            age_header = "x-custom-auth-age"
+
+            LOG.info("Requests with partial headers are refused")
+            r = c.get("/app/custom_auth", headers={name_header: "Bob"})
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
+            r = c.get("/app/custom_auth", headers={age_header: 42})
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
+
+            LOG.info("Requests with unacceptable header contents are refused")
+            r = c.get("/app/custom_auth", headers={name_header: "", age_header: 42})
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
+            r = c.get("/app/custom_auth", headers={name_header: "Bob", age_header: 12})
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
+
+            LOG.info("Request which meets all requirements is accepted")
+            r = c.get(
+                "/app/custom_auth", headers={name_header: "Alice", age_header: 42}
+            )
+            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+            response = r.body.json()
+            assert response["name"] == "Alice", response
+            assert response["age"] == 42, response
+
+    return network
+
+
 @reqs.description("Write non-JSON body")
 @reqs.supports_methods("log/private/raw_text/{id}", "log/private")
 def test_raw_text(network, args):
