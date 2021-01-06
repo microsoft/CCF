@@ -260,7 +260,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--disable-member-session-auth",
         help="Disable session auth for members",
-        action="store_true"
+        action="store_true",
     )
 
     add(parser)

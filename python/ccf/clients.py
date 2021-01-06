@@ -573,6 +573,7 @@ class CCFClient:
         self.description = description
         self.name = f"[{host}:{port}]"
         self.is_connected = False
+        self.auth = bool(session_auth)
         self.sign = bool(signing_auth)
 
         if os.getenv("CURL_CLIENT"):
@@ -597,7 +598,9 @@ class CCFClient:
     ) -> Response:
         description = ""
         if self.description:
-            description = f"{self.description}{bool(self.sign) * 's'}"
+            description = (
+                f"{self.description}{bool(self.auth) * 'a'}{bool(self.sign) * 's'}"
+            )
         else:
             description = self.name
 

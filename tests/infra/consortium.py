@@ -49,6 +49,7 @@ class Consortium:
                     has_share,
                     key_generator,
                     m_data,
+                    authenticate_session=authenticate_session,
                 )
                 if has_share:
                     self.recovery_threshold += 1
@@ -76,6 +77,7 @@ class Consortium:
                         self.common_dir,
                         share_script,
                         is_recovery_member="encryption_pub_key" in info,
+                        authenticate_session=authenticate_session,
                     )
                     status = info["status"]
                     if (
@@ -143,6 +145,7 @@ class Consortium:
             self.share_script,
             is_recovery_member=recovery_member,
             key_generator=self.key_generator,
+            authenticate_session=self.authenticate_session,
         )
 
         proposal_body, careful_vote = self.make_proposal(

@@ -41,6 +41,7 @@ class Member:
         is_recovery_member=True,
         key_generator=None,
         member_data=None,
+        authenticate_session=True,
     ):
         self.common_dir = common_dir
         self.member_id = member_id
@@ -48,6 +49,7 @@ class Member:
         self.share_script = share_script
         self.member_data = member_data
         self.is_recovery_member = is_recovery_member
+        self.authenticate_session = authenticate_session
 
         self.member_info = MemberInfo(
             f"member{self.member_id}_cert.pem",
@@ -92,8 +94,6 @@ class Member:
                 os.path.join(self.common_dir, self.member_info.member_data_file), "w"
             ) as md:
                 json.dump(member_data, md)
-
-        self.authenticate_session = True
 
     def auth(self, write=False):
         if self.authenticate_session:
