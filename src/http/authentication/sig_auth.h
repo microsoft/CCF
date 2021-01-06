@@ -116,7 +116,10 @@ namespace ccf
   inline const OpenAPISecuritySchema UserSignatureAuthnPolicy::security_schema =
     std::make_pair(
       "user_signature",
-      nlohmann::json{{"type", "http"}, {"scheme", "signature"}});
+      nlohmann::json{{"type", "http"}, {"scheme", "signature"},
+        {"description",
+         "Request must be signed according to the HTTP Signature scheme. The "
+         "signer must be a user identity registered with this service."}});
 
   struct MemberSignatureAuthnIdentity : public AuthnIdentity
   {
@@ -210,5 +213,10 @@ namespace ccf
   inline const OpenAPISecuritySchema
     MemberSignatureAuthnPolicy::security_schema = std::make_pair(
       "member_signature",
-      nlohmann::json{{"type", "http"}, {"scheme", "signature"}});
+      nlohmann::json{
+        {"type", "http"},
+        {"scheme", "signature"},
+        {"description",
+         "Request must be signed according to the HTTP Signature scheme. The "
+         "signer must be a member identity registered with this service."}});
 }
