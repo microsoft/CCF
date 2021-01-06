@@ -98,6 +98,35 @@ namespace ccf
   using ReadOnlyEndpointFunction =
     std::function<void(ReadOnlyEndpointContext& args)>;
 
+  // Auth policies
+  /** Perform no authentication */
+  static std::shared_ptr<EmptyAuthnPolicy> empty_auth_policy =
+    std::make_shared<EmptyAuthnPolicy>();
+  /** Authenticate using TLS session identity, and @c public:ccf.gov.users
+   * table */
+  static std::shared_ptr<UserCertAuthnPolicy> user_cert_auth_policy =
+    std::make_shared<UserCertAuthnPolicy>();
+  /** Authenticate using HTTP request signature, and @c public:ccf.gov.users
+   * table */
+  static std::shared_ptr<UserSignatureAuthnPolicy> user_signature_auth_policy =
+    std::make_shared<UserSignatureAuthnPolicy>();
+  /** Authenticate using TLS session identity, and @c public:ccf.gov.members
+   * table */
+  static std::shared_ptr<MemberCertAuthnPolicy> member_cert_auth_policy =
+    std::make_shared<MemberCertAuthnPolicy>();
+  /** Authenticate using HTTP request signature, and @c public:ccf.gov.members
+   * table */
+  static std::shared_ptr<MemberSignatureAuthnPolicy>
+    member_signature_auth_policy =
+      std::make_shared<MemberSignatureAuthnPolicy>();
+  /** Authenticate using JWT, validating the token using the
+   * @c public:ccf.gov.jwt_public_signing_key_issue and
+   * @c public:ccf.gov.jwt_public_signing_keys tables */
+  static std::shared_ptr<JwtAuthnPolicy> jwt_auth_policy =
+    std::make_shared<JwtAuthnPolicy>();
+
+  static AuthnPolicies no_auth_required = {};
+
   /** The EndpointRegistry records the user-defined endpoints for a given
    * CCF application.
    */
@@ -127,7 +156,7 @@ namespace ccf
     };
 
     struct Endpoint;
-    using EndpointPtr = std::shared_ptr<Endpoint>;
+    using EndpointPtr = std::shared_ptr<const Endpoint>;
 
     using SchemaBuilderFn =
       std::function<void(nlohmann::json&, const EndpointPtr&)>;
@@ -144,15 +173,7 @@ namespace ccf
      */
     struct Endpoint : public EndpointDefinition
     {
-      Endpoint(
-        const std::string& m, const EndpointFunction& f, EndpointRegistry* r) :
-        func(f),
-        registry(r)
-      {
-        dispatch.uri_path = m;
-      }
-
-      EndpointFunction func;
+      EndpointFunction func = {};
       EndpointRegistry* registry = nullptr;
 
       std::vector<SchemaBuilderFn> schema_builders = {};
@@ -363,35 +384,6 @@ namespace ccf
         return *this;
       }
 
-      /** Add an authentication policy which will be checked before executing
-       * this endpoint.
-       *
-       * When multiple policies are specified, any single successful check is
-       * sufficient to grant access, even if others fail. If all policies fail,
-       * the last will set an error status on the response, and the endpoint
-       * will not be invoked. If no policies are specified, then by default the
-       * endpoint accepts any request without an authentication check.
-       *
-       * If an auth policy passes, it may construct an object describing the
-       * Identity of the caller to be used by the endpoint. This can be
-       * retrieved inside the endpoint with ctx.get_caller<IdentType>(),
-       * @see ccf::UserCertAuthnIdentity
-       * @see ccf::JwtAuthnIdentity
-       * @see ccf::UserSignatureAuthnIdentity
-       *
-       * @param policy An instance of the policy to apply. May be shared between
-       * multiple endpoints to reduce memory use.
-       * @see ccf::EndpointRegistry::empty_auth_policy
-       * @see ccf::EndpointRegistry::user_cert_auth_policy
-       * @see ccf::EndpointRegistry::user_signature_auth_policy
-       * @return This Endpoint for further modification
-       */
-      Endpoint& add_authentication(const std::shared_ptr<AuthnPolicy>& policy)
-      {
-        authn_policies.push_back(policy);
-        return *this;
-      }
-
       /** Indicates that the execution of the Endpoint does not require
        * consensus from other nodes in the network.
        *
@@ -417,7 +409,17 @@ namespace ccf
        */
       void install()
       {
-        registry->install(*this);
+        if (registry == nullptr)
+        {
+          LOG_FATAL_FMT(
+            "Can't install this endpoint ({}) - it is not associated with a "
+            "registry",
+            dispatch.uri_path);
+        }
+        else
+        {
+          registry->install(*this);
+        }
       }
     };
 
@@ -489,32 +491,6 @@ namespace ccf
     std::string certs_table_name;
     std::string digests_table_name;
 
-    // Auth policies
-    /** Perform no authentication */
-    std::shared_ptr<EmptyAuthnPolicy> empty_auth_policy =
-      std::make_shared<EmptyAuthnPolicy>();
-    /** Authenticate using TLS session identity, and @c public:ccf.gov.users
-     * table */
-    std::shared_ptr<UserCertAuthnPolicy> user_cert_auth_policy =
-      std::make_shared<UserCertAuthnPolicy>();
-    /** Authenticate using HTTP request signature, and @c public:ccf.gov.users
-     * table */
-    std::shared_ptr<UserSignatureAuthnPolicy> user_signature_auth_policy =
-      std::make_shared<UserSignatureAuthnPolicy>();
-    /** Authenticate using TLS session identity, and @c public:ccf.gov.members
-     * table */
-    std::shared_ptr<MemberCertAuthnPolicy> member_cert_auth_policy =
-      std::make_shared<MemberCertAuthnPolicy>();
-    /** Authenticate using HTTP request signature, and @c public:ccf.gov.members
-     * table */
-    std::shared_ptr<MemberSignatureAuthnPolicy> member_signature_auth_policy =
-      std::make_shared<MemberSignatureAuthnPolicy>();
-    /** Authenticate using JWT, validating the token using the
-     * @c public:ccf.gov.jwt_public_signing_key_issue and
-     * @c public:ccf.gov.jwt_public_signing_keys tables */
-    std::shared_ptr<JwtAuthnPolicy> jwt_auth_policy =
-      std::make_shared<JwtAuthnPolicy>();
-
     static void add_query_parameters(
       nlohmann::json& document,
       const std::string& uri,
@@ -562,15 +538,22 @@ namespace ccf
      * @param method The URI at which this endpoint will be installed
      * @param verb The HTTP verb which this endpoint will respond to
      * @param f Functor which will be invoked for requests to VERB /method
+     * @param ap Policies which will be checked against each request before the
+     * endpoint is executed. @see
+     * ccf::endpoints::EndpointDefinition::authn_policies
      * @return The new Endpoint for further modification
      */
     Endpoint make_endpoint(
-      const std::string& method, RESTVerb verb, const EndpointFunction& f)
+      const std::string& method,
+      RESTVerb verb,
+      const EndpointFunction& f,
+      const AuthnPolicies& ap)
     {
-      Endpoint endpoint(method, f, this);
+      Endpoint endpoint;
       endpoint.dispatch.uri_path = method;
       endpoint.dispatch.verb = verb;
       endpoint.func = f;
+      endpoint.authn_policies = ap;
       // By default, all write transactions are forwarded
       endpoint.properties.forwarding_required = ForwardingRequired::Always;
       endpoint.registry = this;
@@ -582,7 +565,8 @@ namespace ccf
     Endpoint make_read_only_endpoint(
       const std::string& method,
       RESTVerb verb,
-      const ReadOnlyEndpointFunction& f)
+      const ReadOnlyEndpointFunction& f,
+      const AuthnPolicies& ap)
     {
       return make_endpoint(
                method,
@@ -591,7 +575,8 @@ namespace ccf
                  ReadOnlyEndpointContext ro_args(
                    args.rpc_ctx, std::move(args.caller), args.tx);
                  f(ro_args);
-               })
+               },
+               ap)
         .set_forwarding_required(ForwardingRequired::Sometimes);
     }
 
@@ -603,10 +588,11 @@ namespace ccf
     Endpoint make_command_endpoint(
       const std::string& method,
       RESTVerb verb,
-      const CommandEndpointFunction& f)
+      const CommandEndpointFunction& f,
+      const AuthnPolicies& ap)
     {
       return make_endpoint(
-               method, verb, [f](EndpointContext& args) { f(args); })
+               method, verb, [f](EndpointContext& args) { f(args); }, ap)
         .set_forwarding_required(ForwardingRequired::Sometimes);
     }
 
@@ -626,6 +612,8 @@ namespace ccf
           endpoint.dispatch.uri_path);
       }
 
+      // A single empty auth policy is semantically equivalent to no policy, but
+      // no policy is faster
       if (
         endpoint.authn_policies.size() == 1 &&
         endpoint.authn_policies.back() == empty_auth_policy)
@@ -657,12 +645,14 @@ namespace ccf
      * EndpointFunction was found.
      *
      * @param f Method implementation
-     * @return This Endpoint for further modification
      */
-    Endpoint& set_default(EndpointFunction f)
+    void set_default(EndpointFunction f, const AuthnPolicies& ap)
     {
-      default_endpoint = std::make_shared<Endpoint>("", f, this);
-      return *default_endpoint;
+      auto tmp = std::make_shared<Endpoint>();
+      tmp->func = f;
+      tmp->authn_policies = ap;
+
+      default_endpoint = std::move(tmp);
     }
 
     static void add_endpoint_to_api_document(
@@ -832,7 +822,7 @@ namespace ccf
     virtual void execute_endpoint(
       EndpointDefinitionPtr e, EndpointContext& args)
     {
-      auto endpoint = dynamic_cast<Endpoint*>(e.get());
+      auto endpoint = dynamic_cast<const Endpoint*>(e.get());
       if (endpoint == nullptr)
       {
         throw std::logic_error(

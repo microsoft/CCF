@@ -79,7 +79,6 @@ exec python "${START_NETWORK_SCRIPT}" \
     --binary-dir "${BINARY_DIR}" \
     --enclave-type virtual \
     --initial-member-count 1 \
-    --initial-user-count 1 \
     --gov-script "${GOV_SCRIPT}" \
     --ledger-chunk-bytes 5MB \
     --snapshot-tx-interval 10000 \
