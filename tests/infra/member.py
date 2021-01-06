@@ -93,6 +93,17 @@ class Member:
             ) as md:
                 json.dump(member_data, md)
 
+        self.authenticate_session = True
+
+    def auth(self, write=False):
+        if self.authenticate_session:
+            if write:
+                return (f"member{self.member_id}", f"member{self.member_id}")
+            else:
+                return (f"member{self.member_id}", None)
+        else:
+            return (None, f"member{self.member_id}")
+
     def is_active(self):
         return self.status_code == MemberStatus.ACTIVE
 
@@ -100,8 +111,8 @@ class Member:
         # Use this with caution (i.e. only when the network is opening)
         self.status_code = MemberStatus.ACTIVE
 
-    def propose(self, remote_node, proposal, disable_client_auth=False):
-        with remote_node.client(None, f"member{self.member_id}") as mc:
+    def propose(self, remote_node, proposal):
+        with remote_node.client(*self.auth(write=True)) as mc:
             r = mc.post("/gov/proposals", proposal)
             if r.status_code != http.HTTPStatus.OK.value:
                 raise infra.proposal.ProposalNotCreated(r)
@@ -115,31 +126,27 @@ class Member:
             )
 
     def vote(self, remote_node, proposal, ballot):
-        with remote_node.client(None, f"member{self.member_id}") as mc:
+        with remote_node.client(*self.auth(write=True)) as mc:
             r = mc.post(f"/gov/proposals/{proposal.proposal_id}/votes", body=ballot)
 
         return r
 
     def withdraw(self, remote_node, proposal):
-        with remote_node.client(
-            f"member{self.member_id}", f"member{self.member_id}"
-        ) as c:
+        with remote_node.client(*self.auth(write=True)) as c:
             r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw")
             if r.status_code == http.HTTPStatus.OK.value:
                 proposal.state = infra.proposal.ProposalState.Withdrawn
             return r
 
     def update_ack_state_digest(self, remote_node):
-        with remote_node.client(f"member{self.member_id}") as mc:
+        with remote_node.client(*self.auth()) as mc:
             r = mc.post("/gov/ack/update_state_digest")
             assert r.status_code == 200, f"Error ack/update_state_digest: {r}"
             return r.body.json()
 
     def ack(self, remote_node):
         state_digest = self.update_ack_state_digest(remote_node)
-        with remote_node.client(
-            f"member{self.member_id}", f"member{self.member_id}"
-        ) as mc:
+        with remote_node.client(*self.auth(write=True)) as mc:
             r = mc.post("/gov/ack", body=state_digest)
             assert r.status_code == 200, f"Error ACK: {r}"
             self.status_code = MemberStatus.ACTIVE
@@ -149,7 +156,7 @@ class Member:
         if not self.is_recovery_member:
             raise ValueError(f"Member {self.member_id} does not have a recovery share")
 
-        with remote_node.client(f"member{self.member_id}") as mc:
+        with remote_node.client(*self.auth()) as mc:
             r = mc.get("/gov/recovery_share")
             if r.status_code != http.HTTPStatus.OK.value:
                 raise NoRecoveryShareFound(r)

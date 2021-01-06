@@ -171,28 +171,6 @@ def test_user_id(network, args):
     return network
 
 
-@reqs.description("Test signed proposal over unauthenticated connection")
-def test_proposal_over_unauthenticated_connection(network, args):
-    primary, backups = network.find_nodes()
-    proposing_member = network.consortium.get_any_active_member()
-    user_id = 0
-
-    proposal_body, _ = ccf.proposal_generator.set_user_data(
-        user_id,
-        {"property": "value"},
-    )
-    proposal = proposing_member.propose(
-        primary, proposal_body, disable_client_auth=True
-    )
-    assert proposal.state == infra.proposal.ProposalState.Open
-
-    proposal = proposing_member.propose(
-        backups[0], proposal_body, disable_client_auth=True
-    )
-    assert proposal.state == infra.proposal.ProposalState.Open
-    return network
-
-
 @reqs.description("Check node/ids endpoint")
 def test_node_ids(network, args):
     nodes = network.find_nodes()
@@ -211,14 +189,22 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
+        # Using session authentication
         network = test_node_ids(network, args)
         network = test_member_data(network, args)
         network = test_quote(network, args)
         network = test_user(network, args)
         network = test_no_quote(network, args)
         network = test_user_id(network, args)
-        network = test_proposal_over_unauthenticated_connection(network, args)
 
+        # Not using session authentication, signatures only
+        network.consortium.set_authenticate_session(False)
+        network = test_node_ids(network, args)
+        network = test_member_data(network, args)
+        network = test_quote(network, args)
+        network = test_user(network, args)
+        network = test_no_quote(network, args)
+        network = test_user_id(network, args)
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
