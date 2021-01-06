@@ -3,7 +3,7 @@ CCF Documentation
 
 .. panels::
 
-    :fa:`compass` :doc:`overview/index`
+    :fa:`info-circle` :doc:`overview/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     .. image:: img/ccf.svg
@@ -64,6 +64,13 @@ CCF Documentation
 
     Audit a running CCF network and its complete history.
 
+    ---
+
+    :fa:`code-branch` :doc:`contribute/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Contribute to the CCF GitHub repository.
+
 .. toctree::
     :maxdepth: 1
     :hidden:
@@ -74,4 +81,5 @@ CCF Documentation
     operations/index.rst
     governance/index.rst
     audit/index.rst
+    contribute/index.rst
     glossary

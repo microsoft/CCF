@@ -4,7 +4,7 @@ Setup CCF Development Environment
 Environment Setup
 -----------------
 
-First, on your development VM, checkout the CCF repository or :ref:`install the latest CCF release <quickstart/install:Install CCF>`.
+First, on your development VM, checkout the CCF repository or :doc:`install the latest CCF release </build_apps/install_bin>`.
 
 Then, to quickly set up the dependencies necessary to build CCF itself and CCF applications, simply run:
 
@@ -14,7 +14,7 @@ Then, to quickly set up the dependencies necessary to build CCF itself and CCF a
     $ ./run.sh driver.yml # Only on SGX-enabled hardware
     $ ./run.sh ccf-dev.yml
 
-Once this is complete, you can proceed to :ref:`quickstart/build:Build CCF from Source`.
+Once this is complete, you can proceed to :doc:`/build_apps/build_app`.
 
 Build Container
 ---------------
