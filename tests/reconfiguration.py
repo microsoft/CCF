@@ -61,18 +61,11 @@ def test_add_node(network, args):
 @reqs.description("Adding a valid node from a backup")
 @reqs.at_least_n_nodes(2)
 def test_add_node_from_backup(network, args):
-    primary, backup = network.find_primary_and_any_backup()
-
-    # Retrieve snapshot from primary as only primary node
-    # generates snapshots
-    snapshot_dir = network.get_committed_snapshots(primary)
-
     new_node = network.create_and_trust_node(
         args.package,
         "local://localhost",
         args,
-        target_node=backup,
-        snapshot_dir=snapshot_dir,
+        target_node=network.find_any_backup(),
     )
     assert new_node
     return network
@@ -83,12 +76,24 @@ def test_add_node_from_backup(network, args):
 @reqs.description("Adding a valid node from snapshot")
 @reqs.at_least_n_nodes(2)
 @reqs.add_from_snapshot()
-def test_add_node_from_snapshot(network, args, copy_ledger_read_only=True):
+def test_add_node_from_snapshot(
+    network, args, copy_ledger_read_only=True, from_backup=False
+):
+    target_node = None
+    snapshot_dir = None
+    if from_backup:
+        primary, target_node = network.find_primary_and_any_backup()
+        # Retrieve snapshot from primary as only primary node
+        # generates snapshots
+        snapshot_dir = network.get_committed_snapshots(primary)
+
     new_node = network.create_and_trust_node(
         args.package,
         "local://localhost",
         args,
         copy_ledger_read_only=copy_ledger_read_only,
+        target_node=target_node,
+        snapshot_dir=snapshot_dir,
     )
     assert new_node
     return network
@@ -162,6 +167,7 @@ def run(args):
         test_retire_primary(network, args)
 
         test_add_node_from_snapshot(network, args)
+        test_add_node_from_snapshot(network, args, from_backup=True)
         test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
         errors, _ = network.get_joined_nodes()[-1].stop()
         if not any(

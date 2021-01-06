@@ -1,7 +1,7 @@
 Merkle Tree
 ===========
 
-.. note:: The :ref:`CCF Python package <quickstart/install:Python Package>` provides the ``ledger`` module to easily parse the ledger. More details :doc:`here <python_library>`.
+.. note:: The :doc:`CCF Python package </use_apps/python_tutorial>` provides the ``ledger`` module to easily parse the ledger. More details :doc:`here <python_library>`.
 
 The high-integrity guarantees of CCF are enforced by a single :term:`Merkle Tree` which records the cryptographic hash (leaves) of all transactions that mutate the key-value store. The root of the Merkle Tree is regularly signed by the primary node and the signature is recorded in the ``public:ccf.internal.signatures`` key-value map. Like any other transaction, the signature transaction is also recorded in the ledger, which allows for offline auditability of the service (for both governance and application history).
 

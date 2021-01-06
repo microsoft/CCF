@@ -1153,7 +1153,7 @@ namespace ccfapp
           args.rpc_ctx->get_method(), args.rpc_ctx->get_request_verb(), args);
       };
 
-      set_default(default_handler);
+      set_default(default_handler, no_auth_required);
     }
 
     EndpointDefinitionPtr find_endpoint(
@@ -1256,7 +1256,7 @@ namespace ccfapp
     void execute_endpoint(
       EndpointDefinitionPtr e, EndpointContext& args) override
     {
-      auto endpoint = dynamic_cast<JSDynamicEndpoint*>(e.get());
+      auto endpoint = dynamic_cast<const JSDynamicEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
         execute_request(
