@@ -382,7 +382,7 @@ class Network:
             self.share_script,
             initial_members_info,
             args.participants_curve,
-            not args.disable_member_session_auth,
+            authenticate_session=not args.disable_member_session_auth,
         )
         initial_users = list(range(max(0, args.initial_user_count)))
         self.create_users(initial_users, args.participants_curve)
