@@ -14,9 +14,7 @@ def test_custom_auth(network, args):
     primary, _ = network.find_nodes()
 
     with primary.client("user0") as c:
-        r = c.get(
-            "/app/custom_auth", headers={"Authorization": "Bearer 42"}, signed=False
-        )
+        r = c.get("/app/custom_auth", headers={"Authorization": "Bearer 42"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json()
 

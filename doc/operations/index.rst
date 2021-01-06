@@ -5,7 +5,7 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
 .. panels::
 
-    :fa:`laptop-code` :doc:`/quickstart/run_setup`
+    :fa:`laptop-code` :doc:`run_setup`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Set up a VM or a container to run a CCF application node.
@@ -55,7 +55,7 @@ This section describes how :term:`Operators` manage the different nodes constitu
 .. toctree::
     :hidden:
 
-    /quickstart/run_setup
+    run_setup
     start_network
     ledger_snapshot
     recovery

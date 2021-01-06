@@ -305,24 +305,31 @@ class Node:
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
         return self.remote.get_committed_snapshots(pre_condition_func)
 
-    def client_certs(self, identity=None):
+    def identity(self, name=None):
+        if name is not None:
+            return ccf.clients.Identity(
+                os.path.join(self.common_dir, f"{name}_privk.pem"),
+                os.path.join(self.common_dir, f"{name}_cert.pem"),
+                name,
+            )
+
+    def session_auth(self, name=None):
         return {
-            "cert": os.path.join(self.common_dir, f"{identity}_cert.pem")
-            if identity
-            else None,
-            "key": os.path.join(self.common_dir, f"{identity}_privk.pem")
-            if identity
-            else None,
+            "session_auth": self.identity(name),
             "ca": os.path.join(self.common_dir, "networkcert.pem"),
         }
 
-    def client(self, identity=None, **kwargs):
-        akwargs = self.client_certs(identity)
-        akwargs.update(
-            {
-                "description": f"[{self.node_id}{'|' + identity if identity is not None else ''}]",
-            }
-        )
+    def signing_auth(self, name=None):
+        return {
+            "signing_auth": self.identity(name),
+        }
+
+    def client(self, identity=None, signing_identity=None, **kwargs):
+        akwargs = self.session_auth(identity)
+        akwargs.update(self.signing_auth(signing_identity))
+        akwargs[
+            "description"
+        ] = f"[{self.node_id}|{identity or ''}|{signing_identity or ''}]"
         akwargs.update(kwargs)
         return ccf.clients.client(self.pubhost, self.pubport, **akwargs)
 

@@ -18,7 +18,7 @@ def test_missing_signature(network, args):
     primary, _ = network.find_primary()
     member = network.consortium.get_any_active_member()
     with primary.client(f"member{member.member_id}") as mc:
-        r = mc.post("/gov/proposals", signed=False)
+        r = mc.post("/gov/proposals")
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
         www_auth = "www-authenticate"
         assert www_auth in r.headers, r.headers

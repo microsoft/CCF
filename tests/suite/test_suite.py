@@ -48,18 +48,15 @@ suites["membership_recovery"] = suite_membership_recovery
 # https://github.com/microsoft/CCF/issues/1648
 suite_reconfiguration = [
     reconfiguration.test_add_node_from_snapshot,
-    reconfiguration.test_add_node_from_snapshot,
-    election.test_kill_primary,
-    reconfiguration.test_add_node_from_snapshot,
-    reconfiguration.test_retire_primary,
-    e2e_logging.test_view_history,
-    reconfiguration.test_add_node,
     reconfiguration.test_retire_primary,
     reconfiguration.test_add_node,
     election.test_kill_primary,
     reconfiguration.test_add_node,
-    reconfiguration.test_add_node,
+    reconfiguration.test_add_node_from_snapshot,
     reconfiguration.test_retire_backup,
+    reconfiguration.test_add_node,
+    election.test_kill_primary,
+    e2e_logging.test_view_history,
 ]
 suites["reconfiguration"] = suite_reconfiguration
 

@@ -80,6 +80,8 @@ def run(get_command, args):
     if not hosts:
         hosts = ["local://localhost"] * minimum_number_of_local_nodes(args)
 
+    args.initial_user_count = 3
+
     LOG.info("Starting nodes on {}".format(hosts))
 
     with infra.network.network(

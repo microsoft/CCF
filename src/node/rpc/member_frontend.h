@@ -1224,16 +1224,39 @@ namespace ccf
         "public governance tables.";
     }
 
+    static MemberId get_caller_member_id(CommandEndpointContext& ctx)
+    {
+      if (
+        const auto* sig_ident =
+          ctx.try_get_caller<ccf::MemberSignatureAuthnIdentity>())
+      {
+        return sig_ident->member_id;
+      }
+      else if (
+        const auto* cert_ident =
+          ctx.try_get_caller<ccf::MemberCertAuthnIdentity>())
+      {
+        return cert_ident->member_id;
+      }
+
+      LOG_FATAL_FMT("Request was not authenticated with a member auth policy");
+      return INVALID_ID;
+    }
+
     void init_handlers(kv::Store& tables_) override
     {
       CommonEndpointRegistry::init_handlers(tables_);
 
+      const AuthnPolicies member_sig_only = {member_signature_auth_policy};
+
+      const AuthnPolicies member_cert_or_sig = {member_cert_auth_policy,
+                                                member_signature_auth_policy};
+
       auto read = [this](EndpointContext& ctx, nlohmann::json&& params) {
-        const auto& caller_identity =
-          ctx.get_caller<ccf::MemberCertAuthnIdentity>();
+        const auto member_id = get_caller_member_id(ctx);
         if (!check_member_status(
               ctx.tx,
-              caller_identity.member_id,
+              member_id,
               {MemberStatus::ACTIVE, MemberStatus::ACCEPTED}))
         {
           return make_error(
@@ -1265,19 +1288,16 @@ namespace ccf
 
         return make_success(value);
       };
-      make_endpoint("read", HTTP_POST, json_adapter(read))
+      make_endpoint("read", HTTP_POST, json_adapter(read), member_cert_or_sig)
         // This can be executed locally, but can't currently take ReadOnlyTx due
         // to restrictions in our lua wrappers
         .set_forwarding_required(ForwardingRequired::Sometimes)
         .set_auto_schema<KVRead>()
-        .add_authentication(member_cert_auth_policy)
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto query = [this](EndpointContext& ctx, nlohmann::json&& params) {
-        const auto& caller_identity =
-          ctx.get_caller<ccf::MemberCertAuthnIdentity>();
-        if (!check_member_accepted(ctx.tx, caller_identity.member_id))
+        const auto member_id = get_caller_member_id(ctx);
+        if (!check_member_accepted(ctx.tx, member_id))
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1289,13 +1309,11 @@ namespace ccf
         return make_success(tsr.run<nlohmann::json>(
           ctx.tx, {script, {}, WlIds::MEMBER_CAN_READ, {}}));
       };
-      make_endpoint("query", HTTP_POST, json_adapter(query))
+      make_endpoint("query", HTTP_POST, json_adapter(query), member_cert_or_sig)
         // This can be executed locally, but can't currently take ReadOnlyTx due
         // to restrictions in our lua wrappers
         .set_forwarding_required(ForwardingRequired::Sometimes)
         .set_auto_schema<Script, nlohmann::json>()
-        .add_authentication(member_cert_auth_policy)
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto propose = [this](EndpointContext& ctx, nlohmann::json&& params) {
@@ -1323,16 +1341,15 @@ namespace ccf
         return make_success(
           Propose::Out{complete_proposal(ctx.tx, proposal_id, proposal)});
       };
-      make_endpoint("proposals", HTTP_POST, json_adapter(propose))
+      make_endpoint(
+        "proposals", HTTP_POST, json_adapter(propose), member_sig_only)
         .set_auto_schema<Propose>()
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto get_proposal =
         [this](ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
-          const auto& caller_identity =
-            ctx.get_caller<ccf::MemberCertAuthnIdentity>();
-          if (!check_member_active(ctx.tx, caller_identity.member_id))
+          const auto member_id = get_caller_member_id(ctx);
+          if (!check_member_active(ctx.tx, member_id))
           {
             return make_error(
               HTTP_STATUS_FORBIDDEN,
@@ -1365,10 +1382,9 @@ namespace ccf
       make_read_only_endpoint(
         "proposals/{proposal_id}",
         HTTP_GET,
-        json_read_only_adapter(get_proposal))
+        json_read_only_adapter(get_proposal),
+        member_cert_or_sig)
         .set_auto_schema<void, Proposal>()
-        .add_authentication(member_cert_auth_policy)
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto withdraw = [this](EndpointContext& ctx, nlohmann::json&&) {
@@ -1436,9 +1452,11 @@ namespace ccf
         return make_success(get_proposal_info(proposal_id, proposal.value()));
       };
       make_endpoint(
-        "proposals/{proposal_id}/withdraw", HTTP_POST, json_adapter(withdraw))
+        "proposals/{proposal_id}/withdraw",
+        HTTP_POST,
+        json_adapter(withdraw),
+        member_sig_only)
         .set_auto_schema<void, ProposalInfo>()
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto vote = [this](EndpointContext& ctx, nlohmann::json&& params) {
@@ -1505,15 +1523,16 @@ namespace ccf
           complete_proposal(ctx.tx, proposal_id, proposal.value()));
       };
       make_endpoint(
-        "proposals/{proposal_id}/votes", HTTP_POST, json_adapter(vote))
+        "proposals/{proposal_id}/votes",
+        HTTP_POST,
+        json_adapter(vote),
+        member_sig_only)
         .set_auto_schema<Vote, ProposalInfo>()
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto get_vote = [this](ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
-        const auto& caller_identity =
-          ctx.get_caller<ccf::MemberCertAuthnIdentity>();
-        if (!check_member_active(ctx.tx, caller_identity.member_id))
+        const auto caller_member_id = get_caller_member_id(ctx);
+        if (!check_member_active(ctx.tx, caller_member_id))
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1530,9 +1549,9 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
-        MemberId member_id;
+        MemberId vote_member_id;
         if (!get_member_id_from_path(
-              ctx.rpc_ctx->get_request_path_params(), member_id, error))
+              ctx.rpc_ctx->get_request_path_params(), vote_member_id, error))
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
@@ -1548,7 +1567,7 @@ namespace ccf
             fmt::format("Proposal {} does not exist.", proposal_id));
         }
 
-        const auto vote_it = proposal->votes.find(member_id);
+        const auto vote_it = proposal->votes.find(vote_member_id);
         if (vote_it == proposal->votes.end())
         {
           return make_error(
@@ -1556,7 +1575,7 @@ namespace ccf
             ccf::errors::VoteNotFound,
             fmt::format(
               "Member {} has not voted for proposal {}.",
-              member_id,
+              vote_member_id,
               proposal_id));
         }
 
@@ -1565,10 +1584,9 @@ namespace ccf
       make_read_only_endpoint(
         "proposals/{proposal_id}/votes/{member_id}",
         HTTP_GET,
-        json_read_only_adapter(get_vote))
+        json_read_only_adapter(get_vote),
+        member_cert_or_sig)
         .set_auto_schema<void, Vote>()
-        .add_authentication(member_cert_auth_policy)
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       //! A member acknowledges state
@@ -1657,34 +1675,30 @@ namespace ccf
         }
         return make_success(true);
       };
-      make_endpoint("ack", HTTP_POST, json_adapter(ack))
+      make_endpoint("ack", HTTP_POST, json_adapter(ack), member_sig_only)
         .set_auto_schema<StateDigest, bool>()
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       //! A member asks for a fresher state digest
       auto update_state_digest = [this](
                                    EndpointContext& ctx, nlohmann::json&&) {
-        const auto& caller_identity =
-          ctx.get_caller<ccf::MemberCertAuthnIdentity>();
+        const auto member_id = get_caller_member_id(ctx);
         auto [ma_view, sig_view] =
           ctx.tx.get_view(this->network.member_acks, this->network.signatures);
-        auto ma = ma_view->get(caller_identity.member_id);
+        auto ma = ma_view->get(member_id);
         if (!ma)
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
-            fmt::format(
-              "No ACK record exists for caller {}.",
-              caller_identity.member_id));
+            fmt::format("No ACK record exists for caller {}.", member_id));
         }
 
         auto s = sig_view->get(0);
         if (s)
         {
           ma->state_digest = s->root.hex_str();
-          ma_view->put(caller_identity.member_id, ma.value());
+          ma_view->put(member_id, ma.value());
         }
         nlohmann::json j;
         j["state_digest"] = ma->state_digest;
@@ -1692,51 +1706,50 @@ namespace ccf
         return make_success(j);
       };
       make_endpoint(
-        "ack/update_state_digest", HTTP_POST, json_adapter(update_state_digest))
+        "ack/update_state_digest",
+        HTTP_POST,
+        json_adapter(update_state_digest),
+        member_cert_or_sig)
         .set_auto_schema<void, StateDigest>()
-        .add_authentication(member_cert_auth_policy)
-        .add_authentication(member_signature_auth_policy)
         .install();
 
-      auto get_encrypted_recovery_share =
-        [this](EndpointContext& ctx, nlohmann::json&&) {
-          const auto& caller_identity =
-            ctx.get_caller<ccf::MemberCertAuthnIdentity>();
-          if (!check_member_active(ctx.tx, caller_identity.member_id))
-          {
-            return make_error(
-              HTTP_STATUS_FORBIDDEN,
-              ccf::errors::AuthorizationFailed,
-              "Only active members are given recovery shares.");
-          }
+      auto get_encrypted_recovery_share = [this](
+                                            EndpointContext& ctx,
+                                            nlohmann::json&&) {
+        const auto member_id = get_caller_member_id(ctx);
+        if (!check_member_active(ctx.tx, member_id))
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Only active members are given recovery shares.");
+        }
 
-          auto encrypted_share = share_manager.get_encrypted_share(
-            ctx.tx, caller_identity.member_id);
+        auto encrypted_share =
+          share_manager.get_encrypted_share(ctx.tx, member_id);
 
-          if (!encrypted_share.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_NOT_FOUND,
-              ccf::errors::ResourceNotFound,
-              fmt::format(
-                "Recovery share not found for member {}.",
-                caller_identity.member_id));
-          }
+        if (!encrypted_share.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            fmt::format("Recovery share not found for member {}.", member_id));
+        }
 
-          return make_success(tls::b64_from_raw(encrypted_share.value()));
-        };
+        return make_success(tls::b64_from_raw(encrypted_share.value()));
+      };
       make_endpoint(
-        "recovery_share", HTTP_GET, json_adapter(get_encrypted_recovery_share))
+        "recovery_share",
+        HTTP_GET,
+        json_adapter(get_encrypted_recovery_share),
+        member_cert_or_sig)
         .set_auto_schema<void, std::string>()
-        .add_authentication(member_cert_auth_policy)
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto submit_recovery_share = [this](EndpointContext& ctx) {
         // Only active members can submit their shares for recovery
-        const auto& caller_identity =
-          ctx.get_caller<ccf::MemberCertAuthnIdentity>();
-        if (!check_member_active(ctx.tx, caller_identity.member_id))
+        const auto member_id = get_caller_member_id(ctx);
+        if (!check_member_active(ctx.tx, member_id))
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
           ctx.rpc_ctx->set_response_body("Member is not active");
@@ -1769,7 +1782,7 @@ namespace ccf
         try
         {
           submitted_shares_count = share_manager.submit_recovery_share(
-            ctx.tx, caller_identity.member_id, raw_recovery_share);
+            ctx.tx, member_id, raw_recovery_share);
         }
         catch (const std::exception& e)
         {
@@ -1827,10 +1840,9 @@ namespace ccf
           submitted_shares_count,
           g.get_recovery_threshold()));
       };
-      make_endpoint("recovery_share", HTTP_POST, submit_recovery_share)
+      make_endpoint(
+        "recovery_share", HTTP_POST, submit_recovery_share, member_cert_or_sig)
         .set_auto_schema<std::string, std::string>()
-        .add_authentication(member_cert_auth_policy)
-        .add_authentication(member_signature_auth_policy)
         .install();
 
       auto create = [this](kv::Tx& tx, nlohmann::json&& params) {
@@ -1910,9 +1922,8 @@ namespace ccf
         LOG_INFO_FMT("Created service");
         return make_success(true);
       };
-      make_endpoint("create", HTTP_POST, json_adapter(create))
+      make_endpoint("create", HTTP_POST, json_adapter(create), no_auth_required)
         .set_openapi_hidden(true)
-        .add_authentication(empty_auth_policy)
         .install();
 
       // Only called from node. See node_state.h.
@@ -2011,9 +2022,11 @@ namespace ccf
         return make_success(true);
       };
       make_endpoint(
-        "jwt_keys/refresh", HTTP_POST, json_adapter(refresh_jwt_keys))
+        "jwt_keys/refresh",
+        HTTP_POST,
+        json_adapter(refresh_jwt_keys),
+        {std::make_shared<NodeCertAuthnPolicy>()})
         .set_openapi_hidden(true)
-        .add_authentication(std::make_shared<NodeCertAuthnPolicy>())
         .install();
     }
   };

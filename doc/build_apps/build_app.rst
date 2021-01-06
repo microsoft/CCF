@@ -3,8 +3,8 @@ Build and Sign CCF Applications
 
 .. note:: Before building a CCF application, make sure that:
 
-    - The CCF development environment has successfully been setup (see :ref:`environment setup instructions <quickstart/build_setup:Setup CCF Development Environment>`).
-    - CCF is installed (see :ref:`installation steps <quickstart/install:Install>`).
+    - The CCF development environment has successfully been setup (see :doc:`/build_apps/build_setup`).
+    - CCF is installed (see :doc:`/build_apps/install_bin`).
 
 Once an application is complete, it needs to be built into a shared object, and signed.
 
