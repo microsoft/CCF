@@ -168,6 +168,8 @@ namespace kv
       serialise_internal_pre_serialised(k);
     }
 
+    // TODO: We could avoid an extra copy here by having get_raw_data() return
+    // the pointer + size in msgpack_serialiser.h
     std::vector<uint8_t> get_raw_data()
     {
       // make sure the private buffer is empty when we return

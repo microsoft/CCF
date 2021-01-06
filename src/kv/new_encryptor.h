@@ -71,15 +71,19 @@ namespace kv
   public:
     NewTxEncryptor()
     {
-      // TODO: Move entropy out of here!
-      encryption_keys.emplace(
-        first_version, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+      // encryption_keys.emplace(
+      //   first_version, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
     }
 
     void update_encryption_key(
       kv::Version version, const std::vector<uint8_t>& key) override
     {
       std::lock_guard<SpinLock> guard(lock);
+
+      CCF_ASSERT_FMT(
+        encryption_keys.find(version) == encryption_keys.end(),
+        "Encryption key at {} already exists",
+        version);
       encryption_keys.emplace(version, key);
     }
 
