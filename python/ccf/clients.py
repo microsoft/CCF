@@ -85,6 +85,8 @@ class Identity:
     key: str
     #: Path to file containing certificate
     cert: str
+    #: Identity description
+    description: str
 
 
 def int_or_none(v):
@@ -571,14 +573,7 @@ class CCFClient:
     ):
         self.connection_timeout = connection_timeout
         self.name = f"[{host}:{port}]"
-        self.description = description
-        if self.description is not None:
-            if session_auth is not None:
-                self.description += "a"
-            if signing_auth is not None:
-                self.description += "s"
-        else:
-            self.description = self.name
+        self.description = description or self.name
         self.is_connected = False
         self.auth = bool(session_auth)
         self.sign = bool(signing_auth)

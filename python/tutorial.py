@@ -44,7 +44,9 @@ assert r.status_code == http.HTTPStatus.OK
 # SNIPPET_END: anonymous_requests
 
 # SNIPPET: authenticated_client
-user_client = ccf.clients.CCFClient(host, port, ca, ccf.clients.Identity(key, cert))
+user_client = ccf.clients.CCFClient(
+    host, port, ca, ccf.clients.Identity(key, cert, "client")
+)
 
 # SNIPPET_START: authenticated_post_requests
 r = user_client.post("/app/log/private", body={"id": 0, "msg": "Private message"})
@@ -103,8 +105,8 @@ member_client = ccf.clients.CCFClient(
     host,
     port,
     ca,
-    session_auth=ccf.clients.Identity(member_key, member_cert),
-    signing_auth=ccf.clients.Identity(member_key, member_cert),
+    session_auth=ccf.clients.Identity(member_key, member_cert, "member"),
+    signing_auth=ccf.clients.Identity(member_key, member_cert, "member"),
 )
 response = member_client.post(
     "/gov/proposals",
