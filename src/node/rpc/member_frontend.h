@@ -1549,9 +1549,9 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
-        MemberId member_id;
+        MemberId vote_member_id;
         if (!get_member_id_from_path(
-              ctx.rpc_ctx->get_request_path_params(), member_id, error))
+              ctx.rpc_ctx->get_request_path_params(), vote_member_id, error))
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
@@ -1567,7 +1567,7 @@ namespace ccf
             fmt::format("Proposal {} does not exist.", proposal_id));
         }
 
-        const auto vote_it = proposal->votes.find(member_id);
+        const auto vote_it = proposal->votes.find(vote_member_id);
         if (vote_it == proposal->votes.end())
         {
           return make_error(
@@ -1575,7 +1575,7 @@ namespace ccf
             ccf::errors::VoteNotFound,
             fmt::format(
               "Member {} has not voted for proposal {}.",
-              member_id,
+              vote_member_id,
               proposal_id));
         }
 
