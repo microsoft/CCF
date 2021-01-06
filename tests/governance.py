@@ -9,7 +9,6 @@ import infra.path
 import infra.proc
 import infra.net
 import infra.e2e_args
-import infra.proposal
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import ssl
@@ -19,8 +18,6 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from loguru import logger as LOG
-
-import ccf
 
 
 @reqs.description("Test quotes")
@@ -189,7 +186,6 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        # Using session authentication
         network = test_node_ids(network, args)
         network = test_member_data(network, args)
         network = test_quote(network, args)
@@ -197,14 +193,6 @@ def run(args):
         network = test_no_quote(network, args)
         network = test_user_id(network, args)
 
-        # Not using session authentication, signatures only
-        network.consortium.set_authenticate_session(False)
-        network = test_node_ids(network, args)
-        network = test_member_data(network, args)
-        network = test_quote(network, args)
-        network = test_user(network, args)
-        network = test_no_quote(network, args)
-        network = test_user_id(network, args)
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()

@@ -27,6 +27,7 @@ class Consortium:
         member_ids=None,
         curve=None,
         remote_node=None,
+        authenticate_session=True,
     ):
         self.common_dir = common_dir
         self.members = []
@@ -34,7 +35,7 @@ class Consortium:
         self.share_script = share_script
         self.members = []
         self.recovery_threshold = None
-        self.authenticate_session = True
+        self.authenticate_session = authenticate_session
         # If a list of member IDs is passed in, generate fresh member identities.
         # Otherwise, recover the state of the consortium from the state of CCF.
         if member_ids is not None:
