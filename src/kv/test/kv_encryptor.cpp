@@ -39,13 +39,18 @@ bool encrypt_round_trip(
   return plain == decrypted;
 }
 
+void commit_one(kv::Store& store, MapTypes::StringString& map)
+{
+  auto tx = store.create_tx();
+  auto view = tx.get_view(map);
+  view->put("key", "value");
+  REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+}
+
 TEST_CASE("Simple encryption/decryption")
 {
-  kv::NewTxEncryptor encryptor;
-
-  // TODO: This API sucks!
-  encryptor.update_encryption_key(
-    1, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+  kv::NewTxEncryptor encryptor(
+    tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
 
   std::vector<uint8_t> plain(10, 0x42);
   std::vector<uint8_t> aad;
@@ -83,40 +88,30 @@ TEST_CASE("KV encryption/decryption")
   kv::Store primary_store;
   kv::Store backup_store;
 
-  auto primary_encryptor = std::make_shared<kv::NewTxEncryptor>();
-  auto backup_encryptor = std::make_shared<kv::NewTxEncryptor>();
-
-  auto ledger_secret_at_one =
+  auto encryption_key_at_one =
     tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
+  auto primary_encryptor =
+    std::make_shared<kv::NewTxEncryptor>(encryption_key_at_one);
+  auto backup_encryptor =
+    std::make_shared<kv::NewTxEncryptor>(encryption_key_at_one);
 
   INFO("Setup stores");
   {
-    primary_encryptor->update_encryption_key(1, ledger_secret_at_one);
     primary_store.set_encryptor(primary_encryptor);
     primary_store.set_consensus(consensus);
     backup_store.set_encryptor(backup_encryptor);
   }
 
-  INFO("Commit one transaction on primary store");
-  {
-    auto tx = primary_store.create_tx();
-    auto view = tx.get_view(map);
-    view->put("key", "value");
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-  }
+  commit_one(primary_store, map);
 
   INFO("Apply transaction to backup store");
   {
-    auto serialised_tx = consensus->get_latest_data();
-    REQUIRE_THROWS_AS(
-      backup_store.deserialise(*serialised_tx), std::logic_error);
-
-    backup_encryptor->update_encryption_key(1, ledger_secret_at_one);
     REQUIRE(
-      backup_store.deserialise(*serialised_tx) == kv::DeserialiseSuccess::PASS);
+      backup_store.deserialise(*consensus->get_latest_data()) ==
+      kv::DeserialiseSuccess::PASS);
   }
 
-  INFO("Rekey on primary");
+  INFO("Simple rekey");
   {
     // In practice, rekey is done via local commit hooks
     auto ledger_secret_at_two =
@@ -141,5 +136,26 @@ TEST_CASE("KV encryption/decryption")
   }
 }
 
-// TODO: How to unit test a rekey? how to get the local hook out of
-// node_state.h?
+// TODO: Finish writing this test case
+TEST_CASE("Encryptor compaction and rollback")
+{
+  MapTypes::StringString map("map");
+
+  kv::Store store;
+
+  auto encryptor = std::make_shared<kv::NewTxEncryptor>(
+    tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+  store.set_encryptor(encryptor);
+  encryptor->update_encryption_key(
+    2, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+
+  // commit_one(store, map);
+  // commit_one(store, map);
+
+  encryptor->rollback(1);
+
+  encryptor->update_encryption_key(
+    3, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+
+  encryptor->compact(400);
+}
