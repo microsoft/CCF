@@ -570,8 +570,15 @@ class CCFClient:
         ws: bool = False,
     ):
         self.connection_timeout = connection_timeout
-        self.description = description
         self.name = f"[{host}:{port}]"
+        self.description = description
+        if self.description is not None:
+            if session_auth is not None:
+                self.description += "a"
+            if signing_auth is not None:
+                self.description += "s"
+        else:
+            self.description = self.name
         self.is_connected = False
         self.auth = bool(session_auth)
         self.sign = bool(signing_auth)
@@ -596,19 +603,11 @@ class CCFClient:
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
         log_capture: Optional[list] = None,
     ) -> Response:
-        description = ""
-        if self.description:
-            description = (
-                f"{self.description}{bool(self.auth) * 'a'}{bool(self.sign) * 's'}"
-            )
-        else:
-            description = self.name
-
         if headers is None:
             headers = {}
         r = Request(path, body, http_verb, headers)
 
-        flush_info([f"{description} {r}"], log_capture, 3)
+        flush_info([f"{self.description} {r}"], log_capture, 3)
         response = self.client_impl.request(r, timeout)
         flush_info([str(response)], log_capture, 3)
         return response
