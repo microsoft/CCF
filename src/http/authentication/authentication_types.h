@@ -14,12 +14,12 @@ namespace ccf
     virtual ~AuthnIdentity() = default;
   };
 
+  using OpenAPISecuritySchema = std::pair<std::string, nlohmann::json>;
+  static const OpenAPISecuritySchema unauthenticated_schema = std::make_pair("", nlohmann::json());
+
   class AuthnPolicy
   {
   public:
-    using OpenAPISecuritySchema = std::pair<std::string, nlohmann::json>;
-    static const OpenAPISecuritySchema unauthenticated_schema;
-
     virtual ~AuthnPolicy() = default;
 
     virtual std::unique_ptr<AuthnIdentity> authenticate(
@@ -39,9 +39,6 @@ namespace ccf
     virtual std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
       const = 0;
   };
-
-  inline const AuthnPolicy::OpenAPISecuritySchema
-    AuthnPolicy::unauthenticated_schema = std::make_pair("", nlohmann::json());
 
   // To make authentication _optional_, we list no-auth as one of several
   // specified policies

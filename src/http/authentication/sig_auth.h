@@ -113,8 +113,8 @@ namespace ccf
     }
   };
 
-  inline const AuthnPolicy::OpenAPISecuritySchema
-    UserSignatureAuthnPolicy::security_schema = std::make_pair(
+  inline const OpenAPISecuritySchema UserSignatureAuthnPolicy::security_schema =
+    std::make_pair(
       "user_signature",
       nlohmann::json{{"type", "http"}, {"scheme", "signature"}});
 
@@ -207,7 +207,7 @@ namespace ccf
     }
   };
 
-  inline const AuthnPolicy::OpenAPISecuritySchema
+  inline const OpenAPISecuritySchema
     MemberSignatureAuthnPolicy::security_schema = std::make_pair(
       "member_signature",
       nlohmann::json{{"type", "http"}, {"scheme", "signature"}});

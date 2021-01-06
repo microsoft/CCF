@@ -655,31 +655,62 @@ namespace ccf
       default_endpoint = std::move(tmp);
     }
 
+    static void add_auth_policy_to_api_document() {}
+
     static void add_endpoint_to_api_document(
       nlohmann::json& document, const EndpointPtr& endpoint)
     {
-      if (endpoint->schema_builders.empty())
+      const auto http_verb = endpoint->dispatch.verb.get_http_method();
+      if (!http_verb.has_value())
       {
-        // If we have no more specific schema information, make sure the
-        // endpoint is still minimally documented (NB: this claims the endpoint
-        // will sometimes return a 200 status code, which may not be true!)
-        const auto http_verb = endpoint->dispatch.verb.get_http_method();
-        if (!http_verb.has_value())
-        {
-          return;
-        }
-
-        ds::openapi::response(
-          ds::openapi::path_operation(
-            ds::openapi::path(document, endpoint->dispatch.uri_path),
-            http_verb.value()),
-          HTTP_STATUS_OK);
+        return;
       }
-      else
+
+      for (const auto& builder_fn : endpoint->schema_builders)
       {
-        for (const auto& builder_fn : endpoint->schema_builders)
+        builder_fn(document, endpoint);
+      }
+
+      // Make sure the
+      // endpoint exists with minimal documentation, even if there are no more
+      // informed schema builders
+      auto& path_op = ds::openapi::path_operation(
+        ds::openapi::path(document, endpoint->dispatch.uri_path),
+        http_verb.value());
+
+      // Path Operation must contain at least one response - if none has been
+      // defined, assume this can return 200
+      if (ds::openapi::responses(path_op).empty())
+      {
+        ds::openapi::response(path_op, HTTP_STATUS_OK);
+      }
+
+      if (!endpoint->authn_policies.empty())
+      {
+        for (const auto& auth_policy : endpoint->authn_policies)
         {
-          builder_fn(document, endpoint);
+          const auto opt_scheme = auth_policy->get_openapi_security_schema();
+          if (opt_scheme.has_value())
+          {
+            auto& op_security = ds::openapi::access::get_array(path_op, "security");
+            if (opt_scheme.value() == ccf::unauthenticated_schema)
+            {
+              // This auth policy is empty, allowing (optionally)
+              // unauthenticated access. This is represented in OpenAPI with an
+              // empty object
+              op_security.push_back(nlohmann::json::object());
+            }
+            else
+            {
+              const auto& [name, scheme] = opt_scheme.value();
+              ds::openapi::add_security_scheme_to_components(
+                document, name, scheme);
+
+              auto security_obj = nlohmann::json::object();
+              security_obj[name] = nlohmann::json::array();
+              op_security.push_back(security_obj);
+            }
+          }
         }
       }
     }
