@@ -8,9 +8,6 @@
 #include "kv/test/stub_consensus.h"
 #include "kv/tx.h"
 
-// TODO: TO Remove
-#include "tls/base64.h"
-
 #include <doctest/doctest.h>
 
 // TODO: Move the whole lot to kv_serialisation.cpp
