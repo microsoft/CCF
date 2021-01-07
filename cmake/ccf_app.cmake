@@ -47,8 +47,8 @@ set(OE_TARGET_ENCLAVE_AND_STD
 )
 # These oe libraries must be linked in specific order
 set(OE_TARGET_ENCLAVE_CORE_LIBS
-    openenclave::oeenclave openenclave::oecryptombedtls
-    openenclave::oesnmalloc openenclave::oecore openenclave::oesyscall
+    openenclave::oeenclave openenclave::oecryptombedtls openenclave::oesnmalloc
+    openenclave::oecore openenclave::oesyscall
 )
 
 option(LVI_MITIGATIONS "Enable LVI mitigations" ON)
