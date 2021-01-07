@@ -57,7 +57,7 @@ else()
   set(OE_TARGET_LIBC openenclave::oelibc)
   set(OE_TARGET_ENCLAVE_AND_STD
       openenclave::oeenclave openenclave::oecryptombedtls openenclave::oelibcxx
-      openenclave::oelibc
+      openenclave::oelibc openenclave::oecryptoopenssl
   )
   # These oe libraries must be linked in specific order
   set(OE_TARGET_ENCLAVE_CORE_LIBS
