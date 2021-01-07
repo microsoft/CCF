@@ -19,13 +19,13 @@ int main()
 
   try
   {
-  #ifndef NDEBUG
+#ifndef NDEBUG
     const size_t num_trees = 32;
     const size_t max_num_leaves = 32 * 1024;
-  #else
+#else
     const size_t num_trees = 256;
     const size_t max_num_leaves = 128 * 1024;
-  #endif
+#endif
 
     size_t total_leaves = 0, total_flushes = 0, total_retractions = 0;
 
