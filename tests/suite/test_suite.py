@@ -80,7 +80,8 @@ all_tests_suite = [
     membership.test_retire_member,
     membership.test_update_recovery_shares,
     # memberclient:
-    memberclient.test_missing_signature,
+    memberclient.test_missing_signature_header,
+    memberclient.test_corrupted_signature,
     # receipts:
     receipts.test,
     # reconfiguration:

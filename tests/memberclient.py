@@ -8,7 +8,6 @@ import infra.network
 import infra.consortium
 import ccf.proposal_generator
 from infra.proposal import ProposalState
-from requests_http_signature import HTTPSignatureAuth  # type: ignore
 
 import suite.test_requirements as reqs
 
@@ -60,7 +59,9 @@ def missing_signature(request):
 
 def empty_signature(request):
     original = request.headers["Authorization"]
-    request.headers["Authorization"] = re.sub(signature_regex, 'signature="",', original)
+    request.headers["Authorization"] = re.sub(
+        signature_regex, 'signature="",', original
+    )
     return request
 
 
@@ -82,6 +83,8 @@ def test_corrupted_signature(network, args):
     primary, _ = network.find_primary()
     member = network.consortium.get_any_active_member()
     with primary.client(*member.auth(write=True)) as mc:
+        # pylint: disable=protected-access
+
         # Cache the original auth provider
         original_auth = ccf.clients.RequestClient._auth_provider
 
@@ -104,10 +107,8 @@ def run(args):
         network.start_and_join(args)
         primary, _ = network.find_primary()
 
-        # network = test_missing_signature_header(network, args)
+        network = test_missing_signature_header(network, args)
         network = test_corrupted_signature(network, args)
-
-        sys.exit(5)
 
         LOG.info("Original members can ACK")
         network.consortium.get_any_active_member().ack(primary)
