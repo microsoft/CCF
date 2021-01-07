@@ -429,6 +429,18 @@
         },
         "type": "array"
       }
+    },
+    "securitySchemes": {
+      "member_signature": {
+        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a member identity registered with this service.",
+        "scheme": "signature",
+        "type": "http"
+      },
+      "user_signature": {
+        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a user identity registered with this service.",
+        "scheme": "signature",
+        "type": "http"
+      }
     }
   },
   "info": {
@@ -828,7 +840,15 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "user_signature": []
+          },
+          {
+            "member_signature": []
+          }
+        ]
       }
     }
   },
