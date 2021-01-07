@@ -44,7 +44,7 @@ void commit_one(kv::Store& store, MapTypes::StringString& map)
   REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 }
 
-TEST_CASE("Simple encryption/decryption")
+TEST_CASE("Simple encryption/decryption" * doctest::test_suite("encryption"))
 {
   kv::NewTxEncryptor encryptor(
     tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
@@ -77,7 +77,7 @@ TEST_CASE("Simple encryption/decryption")
   REQUIRE(encrypt_round_trip(encryptor, plain, 6));
 }
 
-TEST_CASE("KV encryption/decryption")
+TEST_CASE("KV encryption/decryption" * doctest::test_suite("encryption"))
 {
   auto consensus = std::make_shared<kv::StubConsensus>();
   MapTypes::StringString map("map");
@@ -115,10 +115,7 @@ TEST_CASE("KV encryption/decryption")
       tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
     primary_encryptor->update_encryption_key(2, ledger_secret_at_two);
 
-    auto tx = primary_store.create_tx();
-    auto view = tx.get_view(map);
-    view->put("key", "value");
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    commit_one(primary_store, map);
 
     auto serialised_tx = consensus->get_latest_data();
 
@@ -133,26 +130,60 @@ TEST_CASE("KV encryption/decryption")
   }
 }
 
-// TODO: Finish writing this test case
-TEST_CASE("Encryptor compaction and rollback")
+// TODO: Test case would benefit from further assertions on which keys are
+// present in the encryptor, once this is implemented
+TEST_CASE(
+  "Encryptor compaction and rollback" * doctest::test_suite("encryption"))
 {
   MapTypes::StringString map("map");
-
   kv::Store store;
 
   auto encryptor = std::make_shared<kv::NewTxEncryptor>(
     tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
   store.set_encryptor(encryptor);
-  encryptor->update_encryption_key(
-    2, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
 
-  // commit_one(store, map);
-  // commit_one(store, map);
+  commit_one(store, map);
 
-  encryptor->rollback(1);
-
+  // Assumes tx at seqno 2 rekeys. Txs from seqno 3 will be encrypted with new
+  // secret
+  commit_one(store, map);
   encryptor->update_encryption_key(
     3, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
 
-  encryptor->compact(400);
+  commit_one(store, map);
+
+  // Rollback store at seqno 1, discarding encryption key at 3
+  store.rollback(1);
+
+  commit_one(store, map);
+
+  // Assumes tx at seqno 3 rekeys. Txs from seqno 4 will be encrypted with new
+  // secret
+  commit_one(store, map);
+  encryptor->update_encryption_key(
+    4, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+
+  commit_one(store, map);
+  commit_one(store, map);
+
+  // Assumes tx at seqno 6 rekeys. Txs from seqno 7 will be encrypted with new
+  // secret
+  commit_one(store, map);
+  encryptor->update_encryption_key(
+    7, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+
+  store.compact(4);
+  encryptor->rollback(1); // No effect as rollback before commit point
+
+  commit_one(store, map);
+
+  encryptor->compact(7);
+
+  commit_one(store, map);
+  commit_one(store, map);
+
+  store.rollback(7); // No effect as rollback unique encryption key
+
+  commit_one(store, map);
+  commit_one(store, map);
 }

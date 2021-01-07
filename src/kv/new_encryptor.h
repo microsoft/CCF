@@ -41,47 +41,53 @@ namespace kv
       gcm_hdr.set_iv_snapshot(is_snapshot);
     }
 
-    using EncryptionKeys = std::map<kv::Version, crypto::KeyAesGcm>;
+    using EncryptionKeys =
+      std::map<kv::Version, std::shared_ptr<crypto::KeyAesGcm>>;
     EncryptionKeys encryption_keys;
-    EncryptionKeys::iterator it_compacted_key = encryption_keys.end();
+    EncryptionKeys::iterator commit_key_it = encryption_keys.end();
 
-    // TODO: Is returning a reference OK here? What about if the encryptor gets
-    // compacted??
-    const crypto::KeyAesGcm& get_encryption_key(kv::Version version)
+    EncryptionKeys::iterator get_encryption_key_it(kv::Version version)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      // Encryption keys lock should be taken before calling this function
 
       // Encryption key for a given version is the one with the highest version
       // that is lower than the given version (e.g. if encryption_keys contains
       // two keys for version 0 and 10 then the key associated with version 0
       // is used for version [0..9] and version 10 for versions 10+)
 
-      // TODO: Optimisation here, we can use the latest key directly, as long as
-      // the last key is valid for the target version
-
       auto search = std::upper_bound(
-        it_compacted_key,
+        commit_key_it,
         encryption_keys.end(),
         version,
-        [](auto a, auto const& b) { return b.first > a; });
-      if (search == it_compacted_key)
+        [](auto a, const auto& b) {
+          LOG_FAIL_FMT("Considering key at seqno {}", b.first);
+          return b.first > a;
+        });
+      if (search == commit_key_it)
       {
         throw std::logic_error(fmt::format(
           "TxEncryptor: could not find ledger encryption key for seqno {}",
           version));
       }
-      --search;
+      return --search;
+    }
 
-      LOG_FAIL_FMT("Found: {}", search->first);
+    std::shared_ptr<crypto::KeyAesGcm> get_encryption_key(kv::Version version)
+    {
+      std::lock_guard<SpinLock> guard(lock);
 
-      return search->second;
+      // TODO: Optimisation here, we can use the latest key directly, as long as
+      // the last key is valid for the target version
+
+      return get_encryption_key_it(version)->second;
     }
 
   public:
     NewTxEncryptor(const std::vector<uint8_t>& key)
     {
-      encryption_keys.emplace(first_version, key);
-      it_compacted_key = encryption_keys.begin();
+      encryption_keys.emplace(
+        first_version, std::make_shared<crypto::KeyAesGcm>(key));
+      commit_key_it = encryption_keys.begin();
     }
 
     void update_encryption_key(
@@ -93,7 +99,8 @@ namespace kv
         encryption_keys.find(version) == encryption_keys.end(),
         "Encryption key at {} already exists",
         version);
-      encryption_keys.emplace(version, key);
+      encryption_keys.emplace(
+        version, std::make_shared<crypto::KeyAesGcm>(key));
 
       LOG_TRACE_FMT("Added new encryption key at seqno {}", version);
     }
@@ -114,7 +121,16 @@ namespace kv
       // will fail.
       std::lock_guard<SpinLock> guard(lock);
 
-      while (encryption_keys.size() > 1)
+      if (version < commit_key_it->first)
+      {
+        LOG_FAIL_FMT(
+          "Cannot rollback encryptor at {}: committed key is at {}",
+          version,
+          commit_key_it->first);
+        return;
+      }
+
+      while (std::distance(commit_key_it, encryption_keys.end()) > 1)
       {
         auto k = encryption_keys.rbegin();
         if (k->first <= version)
@@ -129,29 +145,16 @@ namespace kv
 
     void compact(kv::Version version) override
     {
-      // Advances the compacted point to version, so that encryption keys that
+      // Advances the commit point to version, so that encryption keys that
       // will no longer be used are not considered when selecting an encryption
       // key.
       // Note: Encryption keys are still kept in memory to be passed on to new
       // nodes joining the service.
       std::lock_guard<SpinLock> guard(lock);
 
-      auto search = std::upper_bound(
-        it_compacted_key,
-        encryption_keys.end(),
-        version,
-        [](auto a, auto const& b) { return b.first > a; });
-      if (search == it_compacted_key)
-      {
-        throw std::logic_error(fmt::format(
-          "TxEncryptor: could not find ledger encryption key for seqno {}",
-          version));
-      }
-
-      it_compacted_key = --search;
+      commit_key_it = get_encryption_key_it(version);
       LOG_TRACE_FMT(
-        "First usable encryption key is now at seqno {}",
-        it_compacted_key->first);
+        "First usable encryption key is now at seqno {}", commit_key_it->first);
     }
 
     void set_iv_id(size_t id) override
@@ -172,7 +175,7 @@ namespace kv
 
       set_iv(gcm_hdr, version, is_snapshot);
 
-      get_encryption_key(version).encrypt(
+      get_encryption_key(version)->encrypt(
         gcm_hdr.get_iv(), plain, additional_data, cipher.data(), gcm_hdr.tag);
 
       serialised_header = gcm_hdr.serialise();
@@ -189,7 +192,7 @@ namespace kv
       gcm_hdr.deserialise(serialised_header);
       plain.resize(cipher.size());
 
-      auto ret = get_encryption_key(version).decrypt(
+      auto ret = get_encryption_key(version)->decrypt(
         gcm_hdr.get_iv(), gcm_hdr.tag, cipher, additional_data, plain.data());
 
       if (!ret)
