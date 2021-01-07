@@ -86,7 +86,7 @@ namespace loggingapp
       return ident;
     }
 
-    std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
+    std::optional<ccf::OpenAPISecuritySchema> get_openapi_security_schema()
       const override
     {
       // There is no OpenAPI-compliant way to describe this auth scheme, so we
