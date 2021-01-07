@@ -415,7 +415,7 @@ class RequestClient:
         if self.signing_auth is not None:
             # Add content length of 0 when signing a GET request
             if request.http_verb == "GET":
-                if "Content-Length" in extra_headers and extra_headers[
+                if extra_headers.get("Content-Length") != "0"
                     "Content-Length"
                 ] != str(0):
                     raise ValueError(
