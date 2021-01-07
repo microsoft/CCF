@@ -8,6 +8,7 @@
 
 #include <llhttp/llhttp.h>
 #include <nlohmann/json.hpp>
+#include <regex>
 #include <string>
 
 #pragma clang diagnostic push
@@ -49,19 +50,17 @@ namespace ds
       }
     }
 
-    static inline std::string remove_invalid_chars(const std::string_view& s_)
+    static inline std::string sanitise_components_key(const std::string_view& s)
     {
-      std::string s(s_);
-
-      for (auto& c : s)
-      {
-        if (c == ':')
-        {
-          c = '_';
-        }
-      }
-
-      return s;
+      // From the OpenAPI spec:
+      // All the fixed fields declared above are objects that MUST use keys that
+      // match the regular expression: ^[a-zA-Z0-9\.\-_]+$
+      // So here we replace any non-matching characters with _
+      std::string result;
+      std::regex re("[^a-zA-Z0-9\\.\\-_]");
+      std::regex_replace(
+        std::back_inserter(result), s.begin(), s.end(), re, "_");
+      return result;
     }
 
     static inline nlohmann::json create_document(
@@ -89,7 +88,7 @@ namespace ds
     static inline nlohmann::json& path(
       nlohmann::json& document, const std::string& path)
     {
-      auto p = remove_invalid_chars(path);
+      auto p = path;
       if (p.find("/") != 0)
       {
         p = fmt::format("/{}", p);
@@ -116,16 +115,22 @@ namespace ds
       return access::get_array(path_operation, "parameters");
     }
 
+    static inline nlohmann::json& responses(nlohmann::json& path_operation)
+    {
+      return access::get_object(path_operation, "responses");
+    }
+
     static inline nlohmann::json& response(
       nlohmann::json& path_operation,
       http_status status,
       const std::string& description = "Default response description")
     {
-      auto& responses = access::get_object(path_operation, "responses");
+      auto& all_responses = responses(path_operation);
+
       // HTTP_STATUS_OK (aka an int-enum with value 200) becomes the string
       // "200"
       const auto s = std::to_string(status);
-      auto& response = access::get_object(responses, s);
+      auto& response = access::get_object(all_responses, s);
       response["description"] = description;
       return response;
     }
@@ -168,7 +173,7 @@ namespace ds
       const std::string& element_name,
       const nlohmann::json& schema_)
     {
-      const auto name = remove_invalid_chars(element_name);
+      const auto name = sanitise_components_key(element_name);
 
       auto& components = access::get_object(document, "components");
       auto& schemas = access::get_object(components, "schemas");
@@ -195,6 +200,39 @@ namespace ds
       }
 
       return components_ref_object(name);
+    }
+
+    static inline void add_security_scheme_to_components(
+      nlohmann::json& document,
+      const std::string& scheme_name,
+      const nlohmann::json& security_scheme)
+    {
+      const auto name = sanitise_components_key(scheme_name);
+
+      auto& components = access::get_object(document, "components");
+      auto& schemes = access::get_object(components, "securitySchemes");
+
+      const auto schema_it = schemes.find(name);
+      if (schema_it != schemes.end())
+      {
+        // Check that the existing schema matches the new one being added with
+        // the same name
+        const auto& existing_scheme = schema_it.value();
+        if (security_scheme != existing_scheme)
+        {
+          throw std::logic_error(fmt::format(
+            "Adding security scheme with name '{}'. Does not match previous "
+            "scheme "
+            "registered with this name: {} vs {}",
+            name,
+            security_scheme.dump(),
+            existing_scheme.dump()));
+        }
+      }
+      else
+      {
+        schemes.emplace(name, security_scheme);
+      }
     }
 
     struct SchemaHelper
@@ -271,7 +309,7 @@ namespace ds
         }
         else
         {
-          const auto name = remove_invalid_chars(ds::json::schema_name<T>());
+          const auto name = sanitise_components_key(ds::json::schema_name<T>());
 
           auto& components = access::get_object(document, "components");
           auto& schemas = access::get_object(components, "schemas");

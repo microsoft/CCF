@@ -292,3 +292,23 @@ TEST_CASE("Manual function definitions")
       components_schemas.end());
   }
 }
+
+TEST_CASE("sanitise_components_key")
+{
+  using namespace ds::openapi;
+
+  CHECK(sanitise_components_key("User") == "User");
+  CHECK(sanitise_components_key("User_1") == "User_1");
+  CHECK(sanitise_components_key("User_Name") == "User_Name");
+  CHECK(sanitise_components_key("user-name") == "user-name");
+  CHECK(sanitise_components_key("my.org.User") == "my.org.User");
+
+  CHECK(
+    sanitise_components_key(
+      "abdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789") ==
+    "abdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789");
+  CHECK(sanitise_components_key("!\"$%^&*()") == "_________");
+  CHECK(
+    sanitise_components_key(";:'@#~[{]}-_=+/?.>,<\\|") ==
+    "__________-_____._____");
+}
