@@ -1211,8 +1211,7 @@ namespace ccf
       CommonEndpointRegistry(
         get_actor_prefix(ActorsType::members),
         *network.tables,
-        Tables::MEMBER_CERT_DERS,
-        Tables::MEMBER_DIGESTS),
+        Tables::MEMBER_CERT_DERS),
       network(network),
       node(node),
       share_manager(share_manager),

@@ -51,16 +51,14 @@ namespace ccf
       CommonEndpointRegistry(
         get_actor_prefix(ActorsType::users),
         store,
-        Tables::USER_CERT_DERS,
-        Tables::USER_DIGESTS)
+        Tables::USER_CERT_DERS)
     {}
 
     UserEndpointRegistry(NetworkTables& network) :
       CommonEndpointRegistry(
         get_actor_prefix(ActorsType::users),
         *network.tables,
-        Tables::USER_CERT_DERS,
-        Tables::USER_DIGESTS)
+        Tables::USER_CERT_DERS)
     {}
   };
 

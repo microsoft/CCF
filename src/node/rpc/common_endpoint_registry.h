@@ -20,18 +20,13 @@ namespace ccf
   private:
     metrics::Metrics metrics;
 
-  protected:
-    kv::Store* tables = nullptr;
-
   public:
     CommonEndpointRegistry(
       const std::string& method_prefix_,
       kv::Store& store,
-      const std::string& certs_table_name = "",
-      const std::string& digests_table_name = "") :
+      const std::string& certs_table_name = "") :
       EndpointRegistry(
-        method_prefix_, store, certs_table_name, digests_table_name),
-      tables(&store)
+        method_prefix_, store, certs_table_name)
     {}
 
     void init_handlers(kv::Store& t) override
