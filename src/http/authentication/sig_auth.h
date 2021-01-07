@@ -35,7 +35,6 @@ namespace ccf
 
   struct VerifierCache
   {
-    // TODO: Make LRU
     SpinLock verifiers_lock;
     std::unordered_map<tls::Pem, tls::VerifierPtr> verifiers;
 
