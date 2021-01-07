@@ -455,7 +455,6 @@ namespace loggingapp
         .install();
 
       // SNIPPET_START: custom_auth_endpoint
-      auto custom_policy = std::make_shared<CustomAuthPolicy>();
       auto custom_auth = [](auto& ctx) {
         const auto& caller_identity = ctx.template get_caller<CustomIdentity>();
         nlohmann::json response;
@@ -468,6 +467,7 @@ namespace loggingapp
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_body(response.dump(2));
       };
+      auto custom_policy = std::make_shared<CustomAuthPolicy>();
       make_endpoint("custom_auth", HTTP_GET, custom_auth, {custom_policy})
         .set_auto_schema<void, nlohmann::json>()
         .install();
