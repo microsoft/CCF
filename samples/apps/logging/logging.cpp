@@ -6,6 +6,7 @@
 #include "node/quote.h"
 #include "node/rpc/user_frontend.h"
 
+#include <charconv>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
@@ -16,6 +17,84 @@ namespace loggingapp
 {
   // SNIPPET: table_definition
   using Table = kv::Map<size_t, string>;
+
+  // SNIPPET_START: custom_identity
+  struct CustomIdentity : public ccf::AuthnIdentity
+  {
+    std::string name;
+    size_t age;
+  };
+  // SNIPPET_END: custom_identity
+
+  // SNIPPET_START: custom_auth_policy
+  class CustomAuthPolicy : public ccf::AuthnPolicy
+  {
+  public:
+    std::unique_ptr<ccf::AuthnIdentity> authenticate(
+      kv::ReadOnlyTx&,
+      const std::shared_ptr<enclave::RpcContext>& ctx,
+      std::string& error_reason) override
+    {
+      const auto& headers = ctx->get_request_headers();
+
+      constexpr auto name_header_key = "x-custom-auth-name";
+      const auto name_header_it = headers.find(name_header_key);
+      if (name_header_it == headers.end())
+      {
+        error_reason =
+          fmt::format("Missing required header {}", name_header_key);
+        return nullptr;
+      }
+
+      const auto& name = name_header_it->second;
+      if (name.empty())
+      {
+        error_reason = "Name must not be empty";
+        return nullptr;
+      }
+
+      constexpr auto age_header_key = "x-custom-auth-age";
+      const auto age_header_it = headers.find(age_header_key);
+      if (name_header_it == headers.end())
+      {
+        error_reason =
+          fmt::format("Missing required header {}", age_header_key);
+        return nullptr;
+      }
+
+      const auto& age_s = age_header_it->second;
+      size_t age;
+      const auto [p, ec] =
+        std::from_chars(age_s.data(), age_s.data() + age_s.size(), age);
+      if (ec != std::errc())
+      {
+        error_reason =
+          fmt::format("Unable to parse age header as a number: {}", age_s);
+        return nullptr;
+      }
+
+      constexpr auto min_age = 16;
+      if (age < min_age)
+      {
+        error_reason = fmt::format("Caller age must be at least {}", min_age);
+        return nullptr;
+      }
+
+      auto ident = std::make_unique<CustomIdentity>();
+      ident->name = name;
+      ident->age = age;
+      return ident;
+    }
+
+    std::optional<ccf::OpenAPISecuritySchema> get_openapi_security_schema()
+      const override
+    {
+      // There is no OpenAPI-compliant way to describe this auth scheme, so we
+      // return nullopt
+      return std::nullopt;
+    }
+  };
+  // SNIPPET_END: custom_auth_policy
 
   // SNIPPET: inherit_frontend
   class LoggerHandlers : public ccf::UserEndpointRegistry
@@ -374,6 +453,25 @@ namespace loggingapp
          ccf::empty_auth_policy})
         .set_auto_schema<void, std::string>()
         .install();
+
+      // SNIPPET_START: custom_auth_endpoint
+      auto custom_auth = [](auto& ctx) {
+        const auto& caller_identity = ctx.template get_caller<CustomIdentity>();
+        nlohmann::json response;
+        response["name"] = caller_identity.name;
+        response["age"] = caller_identity.age;
+        response["description"] = fmt::format(
+          "Your name is {} and you are {}",
+          caller_identity.name,
+          caller_identity.age);
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_body(response.dump(2));
+      };
+      auto custom_policy = std::make_shared<CustomAuthPolicy>();
+      make_endpoint("custom_auth", HTTP_GET, custom_auth, {custom_policy})
+        .set_auto_schema<void, nlohmann::json>()
+        .install();
+      // SNIPPET_END: custom_auth_endpoint
 
       // SNIPPET_START: log_record_text
       auto log_record_text = [this](auto& args) {
