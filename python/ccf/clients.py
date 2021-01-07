@@ -422,7 +422,7 @@ class RequestClient:
                         "Content-Length should be set to 0 for GET requests"
                     )
                 else:
-                    extra_headers["Content-Length"] = str(0)
+                    extra_headers["Content-Length"] = "0"
             auth_value = HTTPSignatureAuth_AlwaysDigest(
                 algorithm="ecdsa-sha256",
                 key=open(self.signing_auth.key, "rb").read(),
