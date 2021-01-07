@@ -288,7 +288,7 @@ def test_multi_auth(network, args):
 
 @reqs.description("Call an endpoint with a custom auth policy")
 @reqs.supports_methods("custom_auth")
-def test_multi_auth(network, args):
+def test_custom_auth(network, args):
     if args.package == "liblogging":
         primary, _ = network.find_primary()
 
@@ -690,6 +690,7 @@ def run(args):
         network = test_cert_prefix(network, args)
         network = test_anonymous_caller(network, args)
         network = test_multi_auth(network, args)
+        network = test_custom_auth(network, args)
         network = test_raw_text(network, args)
         network = test_historical_query(network, args)
         network = test_view_history(network, args)
