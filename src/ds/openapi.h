@@ -8,8 +8,8 @@
 
 #include <llhttp/llhttp.h>
 #include <nlohmann/json.hpp>
-#include <string>
 #include <regex>
+#include <string>
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
@@ -50,8 +50,7 @@ namespace ds
       }
     }
 
-    static inline std::string sanitise_components_key(
-      const std::string_view& s)
+    static inline std::string sanitise_components_key(const std::string_view& s)
     {
       // From the OpenAPI spec:
       // All the fixed fields declared above are objects that MUST use keys that
@@ -59,7 +58,8 @@ namespace ds
       // So here we replace any non-matching characters with _
       std::string result;
       std::regex re("[^a-zA-Z0-9\\.\\-_]");
-      std::regex_replace (std::back_inserter(result), s.begin(), s.end(), re, "_");
+      std::regex_replace(
+        std::back_inserter(result), s.begin(), s.end(), re, "_");
       return result;
     }
 
