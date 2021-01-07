@@ -1024,6 +1024,38 @@ namespace merkle
         extras[i]->hash.serialise(bytes);
     }
 
+    void serialise(size_t from, size_t to, std::vector<uint8_t>& bytes)
+    {
+      MERKLECPP_TRACE(MERKLECPP_TOUT << "> serialise from " << from << " to "
+                                     << to << std::endl;);
+
+      if (
+        (from < min_index() || max_index() < from) ||
+        (to < min_index() || max_index() < to) || from > to)
+        throw std::runtime_error("invalid leaf indices");
+
+      compute_root();
+
+      MERKLECPP_TRACE(MERKLECPP_TOUT << to_string(TRACE_HASH_SIZE)
+                                     << std::endl;);
+
+      serialise_size_t(to - from + 1, bytes);
+      serialise_size_t(from, bytes);
+      for (size_t i = from; i <= to; i++)
+        leaf(i).serialise(bytes);
+
+      // Find nodes to conflate/flush along the left edge of the tree.
+      std::vector<Node*> extras;
+      walk_to(from, false, [&extras](Node*& n, bool go_right) {
+        if (go_right)
+          extras.push_back(n->left);
+        return true;
+      });
+
+      for (size_t i = extras.size() - 1; i != SIZE_MAX; i--)
+        extras[i]->hash.serialise(bytes);
+    }
+
     void deserialise(const std::vector<uint8_t>& bytes)
     {
       size_t position = 0;
@@ -1057,8 +1089,6 @@ namespace merkle
 
       std::vector<Node*> level = leaf_nodes, next_level;
       size_t it = num_flushed;
-      MERKLECPP_TRACE(MERKLECPP_TOUT << "num_flushed=" << num_flushed
-                                     << " it=" << it << std::endl;);
       uint8_t level_no = 0;
       while (it != 0 || level.size() > 1)
       {
@@ -1128,17 +1158,6 @@ namespace merkle
         return leaf_nodes[index - num_flushed]->hash;
     }
 
-    const Node* leaf_node(size_t index) const
-    {
-      MERKLECPP_TRACE(MERKLECPP_TOUT << "> leaf_node " << index << std::endl;);
-      if (index >= num_leaves())
-        throw std::runtime_error("leaf index out of bounds");
-      if (index - num_flushed >= leaf_nodes.size())
-        return uninserted_leaf_nodes[index - num_flushed - leaf_nodes.size()];
-      else
-        return leaf_nodes[index - num_flushed];
-    }
-
     size_t num_leaves() const
     {
       return num_flushed + leaf_nodes.size() + uninserted_leaf_nodes.size();
@@ -1172,6 +1191,19 @@ namespace merkle
 
       return sizeof(leaf_nodes.size()) + sizeof(num_flushed) +
         leaf_nodes.size() * sizeof(Hash) + num_extras * sizeof(Hash);
+    }
+
+    size_t serialised_size(size_t from, size_t to)
+    {
+      size_t num_extras = 0;
+      walk_to(from, false, [&num_extras](Node*&, bool go_right) {
+        if (go_right)
+          num_extras++;
+        return true;
+      });
+
+      return sizeof(leaf_nodes.size()) + sizeof(num_flushed) +
+        (to - from + 1) * sizeof(Hash) + num_extras * sizeof(Hash);
     }
 
     mutable struct Statistics
@@ -1256,6 +1288,17 @@ namespace merkle
     mutable std::vector<InsertionStackElement> insertion_stack;
     mutable std::vector<Node*> hashing_stack;
     mutable std::vector<Node*> walk_stack;
+
+    const Node* leaf_node(size_t index) const
+    {
+      MERKLECPP_TRACE(MERKLECPP_TOUT << "> leaf_node " << index << std::endl;);
+      if (index >= num_leaves())
+        throw std::runtime_error("leaf index out of bounds");
+      if (index - num_flushed >= leaf_nodes.size())
+        return uninserted_leaf_nodes[index - num_flushed - leaf_nodes.size()];
+      else
+        return leaf_nodes[index - num_flushed];
+    }
 
     void hash(Node* n, size_t indent = 2) const
     {

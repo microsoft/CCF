@@ -14,18 +14,18 @@
 
 int main()
 {
+  int seed = std::time(0);
+  std::srand(seed);
+
   try
   {
-#ifndef NDEBUG
+  #ifndef NDEBUG
     const size_t num_trees = 32;
     const size_t max_num_leaves = 32 * 1024;
-#else
+  #else
     const size_t num_trees = 256;
     const size_t max_num_leaves = 128 * 1024;
-#endif
-
-    // std::srand(0);
-    std::srand(std::time(0));
+  #endif
 
     size_t total_leaves = 0, total_flushes = 0, total_retractions = 0;
 
@@ -64,8 +64,7 @@ int main()
       mt.serialise(buffer);
 
       // Deserialise
-      size_t index = 0;
-      merkle::Tree mt2(buffer, index);
+      merkle::Tree mt2(buffer);
 
       // Check roots and other properties
       if (
@@ -97,11 +96,13 @@ int main()
   catch (std::exception& ex)
   {
     std::cout << "Error: " << ex.what() << std::endl;
+    std::cout << "(seed=" << seed << ")" << std::endl;
     return 1;
   }
   catch (...)
   {
     std::cout << "Error" << std::endl;
+    std::cout << "(seed=" << seed << ")" << std::endl;
     return 1;
   }
 

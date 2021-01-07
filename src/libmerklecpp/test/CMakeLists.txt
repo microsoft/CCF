@@ -8,6 +8,7 @@ add_unit_test(${MERKLECPP_TEST_PREFIX}retract retract.cpp)
 add_unit_test(${MERKLECPP_TEST_PREFIX}past_root past_root.cpp)
 add_unit_test(${MERKLECPP_TEST_PREFIX}past_paths past_paths.cpp)
 add_unit_test(${MERKLECPP_TEST_PREFIX}serialisation serialisation.cpp)
+add_unit_test(${MERKLECPP_TEST_PREFIX}partial_serialisation partial_serialisation.cpp)
 
 if(TARGET evercrypt.host)
   add_unit_test(${MERKLECPP_TEST_PREFIX}compare_evercrypt compare_evercrypt.cpp)
