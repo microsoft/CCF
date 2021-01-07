@@ -119,3 +119,34 @@ Instead of taking and returning `nlohmann::json` objects directly, the endpoint 
     :dedent: 6
 
 This produces validation error messages with a low performance overhead, and ensures the schema and parsing logic stay in sync, but is only suitable for simple schema - an object with some required and some optional fields, each of a supported type.
+
+Authentication
+~~~~~~~~~~~~~~
+
+Each endpoint must provide a list of associated authentication policies in the call to ``make_endpoint``. Each request to this endpoint will first be checked by these policies, and the endpoint functor will only be invoked if one of these policies accepts the request. For example in the ``/log/private`` endpoint above there is a single policy stating that requests must come from a known user cert, over mutually authenticated TLS. This is one of several built-in policies provided by CCF. These built-in policies will check that the caller's TLS cert is a known user or member identity, or that the request is HTTP signed by a known user or member identity, or that the request contains a JWT signed by a known issuer. Additionally, there is an empty policy which accepts all requests, allowing endpoints to define optional auth (either an earlier-listed policy passes providing a real caller identity, or the empty policy passes and the endpoint is invoked with no caller identity). Inside the endpoint functor, the caller identity that was constructed by the policy check can be retrieved with ``get_caller`` or ``try_get_caller`` - the latter should be used when multiple policies are present, to detect which policy accepted the request. This caller identity can then be used to make authorization decisions during execution of the endpoint.
+
+Applications can extend this system by writing their own authentication policies. There is an example of this in the C++ logging app. First it declares a type describing the identity details it aims to extract from each request:
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: custom_identity
+    :end-before: SNIPPET_END: custom_identity
+    :dedent: 2
+
+Next is the declaration of the policy itself. The core functionality is the implementation of the ``authenticate()`` method, which looks at each request and returns either a valid new identity if it accepts the request, or ``nullptr`` if it doesn't. In this demo case it is simply examining some headers with simple validity checks:
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: custom_auth_policy
+    :end-before: SNIPPET_END: custom_auth_policy
+    :dedent: 2
+
+Note that ``authenticate()`` is also passed a ``ReadOnlyTx`` object, so more complex authentication decisions can depend on the current state of the KV. For instance the built-in TLS cert auth policies are looking up the known user/member certs stored in the KV.
+
+The final piece is the definition of the endpoint itself, which uses an instance of this new policy when it is constructed and then retrieves the custom identity inside the handler:
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: custom_auth_endpoint
+    :end-before: SNIPPET_END: custom_auth_endpoint
+    :dedent: 6
