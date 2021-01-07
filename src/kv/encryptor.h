@@ -164,14 +164,14 @@ namespace kv
     }
 
     void update_encryption_key(
-      kv::Version version, const std::vector<uint8_t>& raw_ledger_key) override
+      kv::Version version, std::vector<uint8_t>&& raw_ledger_key) override
     {
       std::lock_guard<SpinLock> guard(lock);
 
       LOG_DEBUG_FMT("Refreshing ledger encryption key at seqno {}", version);
 
-      encryption_keys.emplace_back(EncryptionKey{
-        {version, raw_ledger_key}, crypto::KeyAesGcm(raw_ledger_key)});
+      // encryption_keys.emplace_back(EncryptionKey{
+      //   {version, raw_ledger_key}, crypto::KeyAesGcm(raw_ledger_key)});
     }
 
     void rollback(kv::Version version) override

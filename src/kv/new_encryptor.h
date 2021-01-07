@@ -23,12 +23,19 @@ namespace kv
 
     SpinLock lock;
 
-    // TODO: Probably has to be replaced with the existing LedgerSecrets class!
-    // struct EncryptionKey
-    // {
-    //   // TODO: Template Encryptor so that KV doesn't depend on crypto!
-    //   crypto::KeyAesGcm key;
-    // };
+    // TODO: Template Encryptor so that KV doesn't depend on crypto!
+    struct NewLedgerSecret
+    {
+      crypto::KeyAesGcm key;
+
+      // Keep track of raw key to passed on to new nodes on join
+      std::vector<uint8_t> raw_key;
+
+      NewLedgerSecret(std::vector<uint8_t>&& raw_key_) :
+        key(raw_key_),
+        raw_key(std::move(raw_key_))
+      {}
+    };
 
     virtual void set_iv(
       crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr,
@@ -42,7 +49,7 @@ namespace kv
     }
 
     using EncryptionKeys =
-      std::map<kv::Version, std::shared_ptr<crypto::KeyAesGcm>>;
+      std::map<kv::Version, std::shared_ptr<NewLedgerSecret>>;
     EncryptionKeys encryption_keys;
     EncryptionKeys::iterator commit_key_it = encryption_keys.end();
 
@@ -72,7 +79,7 @@ namespace kv
       return --search;
     }
 
-    std::shared_ptr<crypto::KeyAesGcm> get_encryption_key(kv::Version version)
+    std::shared_ptr<NewLedgerSecret> get_encryption_key(kv::Version version)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -83,15 +90,15 @@ namespace kv
     }
 
   public:
-    NewTxEncryptor(const std::vector<uint8_t>& key)
+    NewTxEncryptor(std::vector<uint8_t>&& key)
     {
       encryption_keys.emplace(
-        first_version, std::make_shared<crypto::KeyAesGcm>(key));
+        first_version, std::make_shared<NewLedgerSecret>(std::move(key)));
       commit_key_it = encryption_keys.begin();
     }
 
     void update_encryption_key(
-      kv::Version version, const std::vector<uint8_t>& key) override
+      kv::Version version, std::vector<uint8_t>&& key) override
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -100,7 +107,7 @@ namespace kv
         "Encryption key at {} already exists",
         version);
       encryption_keys.emplace(
-        version, std::make_shared<crypto::KeyAesGcm>(key));
+        version, std::make_shared<NewLedgerSecret>(std::move(key)));
 
       LOG_TRACE_FMT("Added new encryption key at seqno {}", version);
     }
@@ -175,7 +182,7 @@ namespace kv
 
       set_iv(gcm_hdr, version, is_snapshot);
 
-      get_encryption_key(version)->encrypt(
+      get_encryption_key(version)->key.encrypt(
         gcm_hdr.get_iv(), plain, additional_data, cipher.data(), gcm_hdr.tag);
 
       serialised_header = gcm_hdr.serialise();
@@ -192,7 +199,7 @@ namespace kv
       gcm_hdr.deserialise(serialised_header);
       plain.resize(cipher.size());
 
-      auto ret = get_encryption_key(version)->decrypt(
+      auto ret = get_encryption_key(version)->key.decrypt(
         gcm_hdr.get_iv(), gcm_hdr.tag, cipher, additional_data, plain.data());
 
       if (!ret)
@@ -203,5 +210,4 @@ namespace kv
       return ret;
     }
   };
-
 }

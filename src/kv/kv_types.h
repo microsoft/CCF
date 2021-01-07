@@ -431,7 +431,7 @@ namespace kv
 
     virtual size_t get_header_length() = 0;
     virtual void update_encryption_key(
-      Version version, const std::vector<uint8_t>& key) = 0;
+      Version version, std::vector<uint8_t>&& key) = 0;
   };
 
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;

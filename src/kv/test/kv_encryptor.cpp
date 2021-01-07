@@ -14,9 +14,6 @@
 struct MapTypes
 {
   using StringString = kv::Map<std::string, std::string>;
-  using NumNum = kv::Map<size_t, size_t>;
-  using NumString = kv::Map<size_t, std::string>;
-  using StringNum = kv::Map<std::string, size_t>;
 };
 
 bool encrypt_round_trip(
@@ -87,10 +84,11 @@ TEST_CASE("KV encryption/decryption" * doctest::test_suite("encryption"))
 
   auto encryption_key_at_one =
     tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
+  auto encryption_key_at_one_copy = encryption_key_at_one;
   auto primary_encryptor =
-    std::make_shared<kv::NewTxEncryptor>(encryption_key_at_one);
+    std::make_shared<kv::NewTxEncryptor>(std::move(encryption_key_at_one));
   auto backup_encryptor =
-    std::make_shared<kv::NewTxEncryptor>(encryption_key_at_one);
+    std::make_shared<kv::NewTxEncryptor>(std::move(encryption_key_at_one_copy));
 
   INFO("Setup stores");
   {
@@ -113,7 +111,9 @@ TEST_CASE("KV encryption/decryption" * doctest::test_suite("encryption"))
     // In practice, rekey is done via local commit hooks
     auto ledger_secret_at_two =
       tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
-    primary_encryptor->update_encryption_key(2, ledger_secret_at_two);
+    auto ledger_secret_at_two_copy = ledger_secret_at_two;
+    primary_encryptor->update_encryption_key(
+      2, std::move(ledger_secret_at_two));
 
     commit_one(primary_store, map);
 
@@ -123,7 +123,8 @@ TEST_CASE("KV encryption/decryption" * doctest::test_suite("encryption"))
       backup_store.deserialise(*serialised_tx) ==
       kv::DeserialiseSuccess::FAILED);
 
-    backup_encryptor->update_encryption_key(2, ledger_secret_at_two);
+    backup_encryptor->update_encryption_key(
+      2, std::move(ledger_secret_at_two_copy));
 
     REQUIRE(
       backup_store.deserialise(*serialised_tx) == kv::DeserialiseSuccess::PASS);

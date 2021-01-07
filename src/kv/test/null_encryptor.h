@@ -40,7 +40,7 @@ namespace kv
     }
 
     void update_encryption_key(
-      kv::Version version, const std::vector<uint8_t>& raw_ledger_key) override
+      kv::Version version, std::vector<uint8_t>&& raw_ledger_key) override
     {}
 
     void rollback(kv::Version version) override {}
