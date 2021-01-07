@@ -81,9 +81,13 @@ class Request:
 
 @dataclass
 class Identity:
+    """
+    Identity (as private key and corresponding certificate) for a :py:class:`ccf.clients.CCFClient` client.
+    """
+
     #: Path to file containing private key
     key: str
-    #: Path to file containing certificate
+    #: Path to file containing PEM certificate
     cert: str
     #: Identity description
     description: str
@@ -409,6 +413,16 @@ class RequestClient:
 
         auth_value = None
         if self.signing_auth is not None:
+            # Add content length of 0 when signing a GET request
+            if request.http_verb == "GET":
+                if "Content-Length" in extra_headers and extra_headers[
+                    "Content-Length"
+                ] != str(0):
+                    raise ValueError(
+                        "Content-Length should be set to 0 for GET requests"
+                    )
+                else:
+                    extra_headers["Content-Length"] = str(0)
             auth_value = HTTPSignatureAuth_AlwaysDigest(
                 algorithm="ecdsa-sha256",
                 key=open(self.signing_auth.key, "rb").read(),
