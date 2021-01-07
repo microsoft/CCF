@@ -1,12 +1,14 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import http
+import re
 
 import infra.e2e_args
 import infra.network
 import infra.consortium
 import ccf.proposal_generator
 from infra.proposal import ProposalState
+from requests_http_signature import HTTPSignatureAuth  # type: ignore
 
 import suite.test_requirements as reqs
 
@@ -14,7 +16,7 @@ from loguru import logger as LOG
 
 
 @reqs.description("Send an unsigned request where signature is required")
-def test_missing_signature(network, args):
+def test_missing_signature_header(network, args):
     primary, _ = network.find_primary()
     member = network.consortium.get_any_active_member()
     with primary.client(f"member{member.member_id}") as mc:
@@ -38,6 +40,63 @@ def test_missing_signature(network, args):
     return network
 
 
+def make_signature_corrupter(fn):
+    class SignatureCorrupter(ccf.clients.HTTPSignatureAuth_AlwaysDigest):
+        def __call__(self, request):
+            r = super(SignatureCorrupter, self).__call__(request)
+            return fn(r)
+
+    return SignatureCorrupter
+
+
+signature_regex = 'signature="([^"]*)",'
+
+
+def missing_signature(request):
+    original = request.headers["Authorization"]
+    request.headers["Authorization"] = re.sub(signature_regex, "", original)
+    return request
+
+
+def empty_signature(request):
+    original = request.headers["Authorization"]
+    request.headers["Authorization"] = re.sub(signature_regex, 'signature="",', original)
+    return request
+
+
+def modified_signature(request):
+    original = request.headers["Authorization"]
+    s = re.search(signature_regex, original).group(1)
+    index = len(s) // 3
+    char = s[index]
+    new_char = "B" if char == "A" else "A"
+    new_s = s[:index] + new_char + s[index + 1 :]
+    request.headers["Authorization"] = re.sub(
+        signature_regex, f'signature="{new_s}",', original
+    )
+    return request
+
+
+@reqs.description("Send a corrupted signature where signed request is required")
+def test_corrupted_signature(network, args):
+    primary, _ = network.find_primary()
+    member = network.consortium.get_any_active_member()
+    with primary.client(*member.auth(write=True)) as mc:
+        # Cache the original auth provider
+        original_auth = ccf.clients.RequestClient._auth_provider
+
+        # Override the auth provider with invalid ones
+        for fn in (missing_signature, empty_signature, modified_signature):
+            ccf.clients.RequestClient._auth_provider = make_signature_corrupter(fn)
+            r = mc.post("/gov/proposals")
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+
+        # Restore original auth provider for future calls!
+        ccf.clients.RequestClient._auth_provider = original_auth
+
+    return network
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -45,7 +104,10 @@ def run(args):
         network.start_and_join(args)
         primary, _ = network.find_primary()
 
-        network = test_missing_signature(network, args)
+        # network = test_missing_signature_header(network, args)
+        network = test_corrupted_signature(network, args)
+
+        sys.exit(5)
 
         LOG.info("Original members can ACK")
         network.consortium.get_any_active_member().ack(primary)

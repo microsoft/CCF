@@ -376,6 +376,8 @@ class RequestClient:
     CCF default client and wrapper around Python Requests, handling HTTP signatures.
     """
 
+    _auth_provider = HTTPSignatureAuth_AlwaysDigest
+
     def __init__(
         self,
         host: str,
@@ -409,7 +411,7 @@ class RequestClient:
 
         auth_value = None
         if self.signing_auth is not None:
-            auth_value = HTTPSignatureAuth_AlwaysDigest(
+            auth_value = RequestClient._auth_provider(
                 algorithm="ecdsa-sha256",
                 key=open(self.signing_auth.key, "rb").read(),
                 key_id=self.key_id,
