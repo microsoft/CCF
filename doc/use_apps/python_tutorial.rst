@@ -6,7 +6,7 @@ Install
 
 The CCF Python tools package can be used to interact with an existing running service and provides utilities to:
 
-- Issue HTTP requests over TLS to CCF applications
+- Issue HTTP requests over TLS to CCF
 - Build custom governance proposals and votes
 - Parse and verify the integrity of a CCF ledger
 
@@ -133,3 +133,5 @@ Signed requests can then be submitted the usual way, e.g.:
     :language: py
     :start-after: SNIPPET_START: signed_request
     :end-before: SNIPPET_END: signed_request
+
+.. note:: It is possible to set different session and signing identities for a :py:class:`ccf.clients.CCFClient` instance. If the triggered CCF application endpoint has registered both authentication policies, it is up to the application logic to check for the identity type.

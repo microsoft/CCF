@@ -92,7 +92,7 @@ user_client = ccf.clients.CCFClient(
 # SNIPPET_START: signed_request
 r = user_client.get("/app/multi_auth")
 assert r.status_code == http.HTTPStatus.OK
-# SNIPPED_END: signed_request
+# SNIPPET_END: signed_request
 
 # SNIPPET: import_ledger
 import ccf.ledger
