@@ -418,6 +418,22 @@
         }
       }
     },
+    "/custom_auth": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/json"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
     "/endpoint_metrics": {
       "get": {
         "responses": {
