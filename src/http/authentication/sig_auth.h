@@ -33,10 +33,33 @@ namespace ccf
     SignedReq signed_request;
   };
 
+  struct VerifierCache
+  {
+    // TODO: Make LRU
+    SpinLock verifiers_lock;
+    std::unordered_map<tls::Pem, tls::VerifierPtr> verifiers;
+
+    tls::VerifierPtr get_verifier(const tls::Pem& pem)
+    {
+      std::lock_guard<SpinLock> guard(verifiers_lock);
+
+      tls::VerifierPtr verifier = nullptr;
+
+      auto it = verifiers.find(pem);
+      if (it == verifiers.end())
+      {
+        it = verifiers.emplace_hint(it, pem, tls::make_verifier(pem));
+      }
+
+      return it->second;
+    }
+  };
+
   class UserSignatureAuthnPolicy : public AuthnPolicy
   {
   protected:
     static const OpenAPISecuritySchema security_schema;
+    VerifierCache verifiers;
 
   public:
     std::unique_ptr<AuthnIdentity> authenticate(
@@ -70,12 +93,21 @@ namespace ccf
             throw std::logic_error("Users and user certs tables do not match");
           }
 
-          auto identity = std::make_unique<UserSignatureAuthnIdentity>();
-          identity->user_id = user_id.value();
-          identity->user_cert = user->cert;
-          identity->user_data = user->user_data;
-          identity->signed_request = signed_request.value();
-          return identity;
+          auto verifier = verifiers.get_verifier(user->cert);
+          if (verifier->verify(
+                signed_request->req, signed_request->sig, signed_request->md))
+          {
+            auto identity = std::make_unique<UserSignatureAuthnIdentity>();
+            identity->user_id = user_id.value();
+            identity->user_cert = user->cert;
+            identity->user_data = user->user_data;
+            identity->signed_request = signed_request.value();
+            return identity;
+          }
+          else
+          {
+            error_reason = "Signature is invalid";
+          }
         }
         else
         {
@@ -135,6 +167,7 @@ namespace ccf
   {
   protected:
     static const OpenAPISecuritySchema security_schema;
+    VerifierCache verifiers;
 
   public:
     std::unique_ptr<AuthnIdentity> authenticate(
@@ -169,12 +202,21 @@ namespace ccf
               "Members and member certs tables do not match");
           }
 
-          auto identity = std::make_unique<MemberSignatureAuthnIdentity>();
-          identity->member_id = member_id.value();
-          identity->member_cert = member->cert;
-          identity->member_data = member->member_data;
-          identity->signed_request = signed_request.value();
-          return identity;
+          auto verifier = verifiers.get_verifier(member->cert);
+          if (verifier->verify(
+                signed_request->req, signed_request->sig, signed_request->md))
+          {
+            auto identity = std::make_unique<MemberSignatureAuthnIdentity>();
+            identity->member_id = member_id.value();
+            identity->member_cert = member->cert;
+            identity->member_data = member->member_data;
+            identity->signed_request = signed_request.value();
+            return identity;
+          }
+          else
+          {
+            error_reason = "Signature is invalid";
+          }
         }
         else
         {
