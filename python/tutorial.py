@@ -5,6 +5,14 @@ import sys
 import http
 import json
 import os
+from loguru import logger as LOG
+
+# Change default log format
+LOG.remove()
+LOG.add(
+    sys.stdout,
+    format="<green>[{time:HH:mm:ss.SSS}]</green> {message}",
+)
 
 # SNIPPET: import_clients
 import ccf.clients
