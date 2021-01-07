@@ -141,7 +141,7 @@ namespace kv::untyped
         return committed_writes || change_set.has_writes();
       }
 
-      bool prepare() override
+      bool prepare(kv::Version& max_update_version) override
       {
         if (change_set.writes.empty())
           return true;
@@ -170,6 +170,10 @@ namespace kv::untyped
         {
           // Get the value from the current state.
           auto search = current->state.get(it->first);
+          if (max_update_version < search.value().version)
+          {
+            max_update_version = search.value().version;
+          }
 
           if (it->second == NoVersion)
           {
@@ -409,7 +413,7 @@ namespace kv::untyped
         return true;
       }
 
-      bool prepare() override
+      bool prepare(kv::Version&) override
       {
         // Snapshots never conflict
         return true;

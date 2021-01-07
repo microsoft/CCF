@@ -41,7 +41,7 @@ namespace kv
     std::vector<uint8_t> serialise(
       std::shared_ptr<AbstractTxEncryptor> encryptor)
     {
-      KvStoreSerialiser serialiser(encryptor, version, true);
+      KvStoreSerialiser serialiser(encryptor, version, version - 1, true);
 
       if (hash_at_snapshot.has_value())
       {

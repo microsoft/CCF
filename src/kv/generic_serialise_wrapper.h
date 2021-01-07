@@ -50,6 +50,7 @@ namespace kv
     W private_writer;
     W* current_writer;
     Version version;
+    Version max_conflict_version;
     bool is_snapshot;
 
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
@@ -90,14 +91,17 @@ namespace kv
     GenericSerialiseWrapper(
       std::shared_ptr<AbstractTxEncryptor> e,
       const Version& version_,
+      const Version& max_conflict_version_,
       bool is_snapshot_ = false) :
       version(version_),
+      max_conflict_version(max_conflict_version_),
       is_snapshot(is_snapshot_),
       crypto_util(e)
     {
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(is_snapshot);
       serialise_internal(version);
+      serialise_internal(max_conflict_version);
     }
 
     void start_map(const std::string& name, SecurityDomain domain)
@@ -248,6 +252,7 @@ namespace kv
     KvOperationType unhandled_op;
     bool is_snapshot;
     Version version;
+    Version max_conflict_version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
     std::optional<SecurityDomain> domain_restriction;
 
@@ -295,6 +300,7 @@ namespace kv
     {
       is_snapshot = public_reader.template read_next<bool>();
       version = public_reader.template read_next<Version>();
+      max_conflict_version = public_reader.template read_next<Version>();
     }
 
   public:

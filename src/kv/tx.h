@@ -47,6 +47,7 @@ namespace kv
     bool success = false;
     Version read_version = NoVersion;
     Version version = NoVersion;
+    Version max_conflict_version = NoVersion;
     Term term = 0;
 
     kv::TxHistory::RequestID req_id;
@@ -295,7 +296,7 @@ namespace kv
       else
       {
         committed = true;
-        version = c.value();
+        std::tie(version, max_conflict_version) = c.value();
 
         // From here, we have received a unique commit version and made
         // modifications to our local kv. If we fail in any way, we cannot
@@ -388,7 +389,7 @@ namespace kv
       auto map = all_changes.begin()->second.map;
       auto e = map->get_store()->get_encryptor();
 
-      KvStoreSerialiser replicated_serialiser(e, version);
+      KvStoreSerialiser replicated_serialiser(e, version, max_conflict_version);
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
