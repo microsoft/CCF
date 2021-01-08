@@ -27,15 +27,6 @@ namespace ccf
 {
   using namespace endpoints;
 
-  // TODO: Remove?
-  // to be exposed in EndpointContext or similar
-  struct Jwt
-  {
-    std::string key_issuer;
-    nlohmann::json header;
-    nlohmann::json payload;
-  };
-
   // Commands are endpoints which do not interact with the kv, even to read
   struct CommandEndpointContext
   {
