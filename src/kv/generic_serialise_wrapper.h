@@ -312,7 +312,8 @@ namespace kv
       domain_restriction(domain_restriction)
     {}
 
-    std::optional<Version> init(const uint8_t* data, size_t size)
+    std::optional<std::tuple<Version, Version>> init(
+      const uint8_t* data, size_t size)
     {
       current_reader = &public_reader;
       auto data_ = data;
@@ -324,7 +325,7 @@ namespace kv
       {
         public_reader.init(data, size);
         read_public_header();
-        return version;
+        return std::make_tuple(version, max_conflict_version);
       }
 
       // Skip gcm hdr and read length of public domain
@@ -343,7 +344,7 @@ namespace kv
         domain_restriction.has_value() &&
         domain_restriction.value() == SecurityDomain::PUBLIC)
       {
-        return version;
+        return std::make_tuple(version, max_conflict_version);
       }
 
       // Go to start of private domain
@@ -362,7 +363,7 @@ namespace kv
 
       // Set private reader
       private_reader.init(decrypted_buffer.data(), decrypted_buffer.size());
-      return version;
+      return std::make_tuple(version, max_conflict_version);
     }
 
     std::optional<std::string> start_map()
