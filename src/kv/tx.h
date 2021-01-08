@@ -389,13 +389,12 @@ namespace kv
       auto map = all_changes.begin()->second.map;
       auto e = map->get_store()->get_encryptor();
 
-      kv::Version mcv = max_conflict_version;
-      if (mcv == NoVersion)
+      if (max_conflict_version == NoVersion)
       {
-        mcv = version - 1;
+        max_conflict_version = version - 1;
       }
 
-      KvStoreSerialiser replicated_serialiser(e, version, mcv);
+      KvStoreSerialiser replicated_serialiser(e, version, max_conflict_version);
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})

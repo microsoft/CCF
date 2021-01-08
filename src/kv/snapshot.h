@@ -42,7 +42,7 @@ namespace kv
       std::shared_ptr<AbstractTxEncryptor> encryptor)
     {
       // Set the execution dependency for the snapshot to be the version
-      // previous to said snaphot to ensure that the correct snaphot is
+      // previous to said snapshot to ensure that the correct snapshot is
       // serialized.
       KvStoreSerialiser serialiser(encryptor, version, version - 1, true);
 
