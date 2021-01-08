@@ -94,6 +94,7 @@ namespace kv
       const Term& term_,
       bool is_snapshot_ = false) :
       version(version_),
+      term(term_),
       is_snapshot(is_snapshot_),
       crypto_util(e)
     {

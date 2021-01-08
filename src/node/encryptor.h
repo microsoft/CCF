@@ -2,9 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/encryptor.h"
-
 #include "entities.h"
+#include "kv/encryptor.h"
 #include "node/ledger_secrets.h"
 
 #include <atomic>
@@ -24,7 +23,7 @@ namespace ccf
       bool) override
     {
       gcm_hdr.set_iv_seq(seq_no.fetch_add(1));
-      gcm_hdr.set_iv_id(BaseEncryptor::iv_id);
+      // gcm_hdr.set_iv_id(BaseEncryptor::iv_id);
     }
 
     using BaseEncryptor::BaseEncryptor;

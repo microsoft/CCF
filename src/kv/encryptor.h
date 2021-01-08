@@ -101,7 +101,7 @@ namespace kv
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
       kv::Version version,
-      kv::Term term,
+      kv::Term,
       bool is_snapshot = false) override
     {
       crypto::GcmHeader<crypto::GCM_SIZE_IV> gcm_hdr;
@@ -165,7 +165,7 @@ namespace kv
     }
 
     void update_encryption_key(
-      kv::Version version, std::vector<uint8_t>&& raw_ledger_key) override
+      kv::Version version, std::vector<uint8_t>&&) override
     {
       std::lock_guard<SpinLock> guard(lock);
 

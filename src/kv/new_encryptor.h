@@ -39,6 +39,11 @@ namespace kv
       Term term,
       bool is_snapshot = false)
     {
+      // IV is function of seqno, term and snapshot so that:
+      // - Seqno reuse across rollbacks does not reuse IV
+      // - Snapshots do not reuse IV
+      // - If all nodes execute the _same_ tx (or generate the same snapshot),
+      // the same IV will be used
       gcm_hdr.set_iv_seq(version);
       gcm_hdr.set_iv_term(term);
       gcm_hdr.set_iv_snapshot(is_snapshot);

@@ -10,6 +10,7 @@
 #include "entities.h"
 #include "genesis_gen.h"
 #include "history.h"
+#include "kv/new_encryptor.h"
 #include "network_state.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/progress_tracker.h"
@@ -1057,9 +1058,8 @@ namespace ccf
       }
       else if (network.consensus_type == ConsensusType::CFT)
       {
-        recovery_encryptor =
-          std::make_shared<CftTxEncryptor>(network.ledger_secrets, true);
-        recovery_encryptor->set_iv_id(self); // RaftEncryptor uses node ID in iv
+        recovery_encryptor = std::make_shared<kv::NewTxEncryptor>(
+          tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
       }
       else
       {
@@ -1649,7 +1649,7 @@ namespace ccf
                     // transaction with the old key). The encryptor is in charge
                     // of updating the ledger secrets on global commit.
                     encryptor->update_encryption_key(
-                      secret_version + 1, plain_secret);
+                      secret_version + 1, std::move(plain_secret));
                   }
                 }
               }
@@ -1871,8 +1871,8 @@ namespace ccf
       }
       else if (network.consensus_type == ConsensusType::CFT)
       {
-        encryptor = std::make_shared<CftTxEncryptor>(network.ledger_secrets);
-        encryptor->set_iv_id(self); // RaftEncryptor uses node ID in iv
+        encryptor = std::make_shared<kv::NewTxEncryptor>(
+          tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
       }
       else
       {
