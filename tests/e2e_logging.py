@@ -303,18 +303,20 @@ def test_custom_auth(network, args):
             LOG.info("Requests with partial headers are refused")
             r = c.get("/app/custom_auth", headers={name_header: "Bob"})
             assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
-            r = c.get("/app/custom_auth", headers={age_header: 42})
+            r = c.get("/app/custom_auth", headers={age_header: "42"})
             assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
 
             LOG.info("Requests with unacceptable header contents are refused")
-            r = c.get("/app/custom_auth", headers={name_header: "", age_header: 42})
+            r = c.get("/app/custom_auth", headers={name_header: "", age_header: "42"})
             assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
-            r = c.get("/app/custom_auth", headers={name_header: "Bob", age_header: 12})
+            r = c.get(
+                "/app/custom_auth", headers={name_header: "Bob", age_header: "12"}
+            )
             assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
 
             LOG.info("Request which meets all requirements is accepted")
             r = c.get(
-                "/app/custom_auth", headers={name_header: "Alice", age_header: 42}
+                "/app/custom_auth", headers={name_header: "Alice", age_header: "42"}
             )
             assert r.status_code == http.HTTPStatus.OK.value, r.status_code
             response = r.body.json()
