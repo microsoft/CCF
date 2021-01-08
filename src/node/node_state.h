@@ -1797,7 +1797,7 @@ namespace ccf
         network.nodes.get_name(),
         network.nodes.wrap_map_hook(
           [](kv::Version version, const Nodes::Write& w)
-            -> std::unique_ptr<kv::ConsensusHook> {
+            -> kv::ConsensusHookPtr {
             (void)version;
             (void)w;
             return std::make_unique<ConfigurationChangeHook>(w);

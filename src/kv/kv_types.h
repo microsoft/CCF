@@ -59,6 +59,8 @@ namespace kv
     virtual ~ConsensusHook(){};
   };
 
+  using ConsensusHookPtr = std::unique_ptr<ConsensusHook>;
+
   using BatchVector = std::vector<std::tuple<
     kv::Version,
     std::shared_ptr<std::vector<uint8_t>>,
