@@ -1,5 +1,5 @@
-Setup CCF Development Environment
-=================================
+CCF Development Setup
+=====================
 
 Environment Setup
 -----------------
