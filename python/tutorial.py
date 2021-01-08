@@ -5,6 +5,14 @@ import sys
 import http
 import json
 import os
+from loguru import logger as LOG
+
+# Change default log format
+LOG.remove()
+LOG.add(
+    sys.stdout,
+    format="<green>[{time:HH:mm:ss.SSS}]</green> {message}",
+)
 
 # SNIPPET: import_clients
 import ccf.clients
@@ -43,10 +51,11 @@ r = anonymous_client.get("/node/network")
 assert r.status_code == http.HTTPStatus.OK
 # SNIPPET_END: anonymous_requests
 
-# SNIPPET: authenticated_client
+# SNIPPET_START: session_authenticated_client
 user_client = ccf.clients.CCFClient(
-    host, port, ca, ccf.clients.Identity(key, cert, "client")
+    host, port, ca, session_auth=ccf.clients.Identity(key, cert, "session client")
 )
+# SNIPPET_END: session_authenticated_client
 
 # SNIPPET_START: authenticated_post_requests
 r = user_client.post("/app/log/private", body={"id": 0, "msg": "Private message"})
@@ -69,6 +78,21 @@ r = user_client.get("/app/log/public?id=0")
 assert r.status_code == http.HTTPStatus.OK
 assert r.body.json() == {"msg": "Public message"}
 # SNIPPET_END: authenticated_get_requests
+
+# SNIPPET_START: signature_authenticated_client
+user_client = ccf.clients.CCFClient(
+    host,
+    port,
+    ca,
+    session_auth=None,
+    signing_auth=ccf.clients.Identity(key, cert, "sign client"),
+)
+# SNIPPET_END: signature_authenticated_client
+
+# SNIPPET_START: signed_request
+r = user_client.get("/app/multi_auth")
+assert r.status_code == http.HTTPStatus.OK
+# SNIPPET_END: signed_request
 
 # SNIPPET: import_ledger
 import ccf.ledger

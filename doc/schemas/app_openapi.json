@@ -94,48 +94,6 @@
         ],
         "type": "object"
       },
-      "GetMetrics__HistogramResults": {
-        "properties": {
-          "buckets": {
-            "$ref": "#/components/schemas/json"
-          },
-          "high": {
-            "$ref": "#/components/schemas/int32"
-          },
-          "low": {
-            "$ref": "#/components/schemas/int32"
-          },
-          "overflow": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "underflow": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "low",
-          "high",
-          "overflow",
-          "underflow",
-          "buckets"
-        ],
-        "type": "object"
-      },
-      "GetMetrics__Out": {
-        "properties": {
-          "histogram": {
-            "$ref": "#/components/schemas/GetMetrics__HistogramResults"
-          },
-          "tx_rates": {
-            "$ref": "#/components/schemas/json"
-          }
-        },
-        "required": [
-          "histogram",
-          "tx_rates"
-        ],
-        "type": "object"
-      },
       "GetNetworkInfo__NodeInfo": {
         "properties": {
           "host": {
@@ -253,6 +211,33 @@
         ],
         "type": "object"
       },
+      "HistogramResults": {
+        "properties": {
+          "buckets": {
+            "$ref": "#/components/schemas/json"
+          },
+          "high": {
+            "$ref": "#/components/schemas/int32"
+          },
+          "low": {
+            "$ref": "#/components/schemas/int32"
+          },
+          "overflow": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "underflow": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "low",
+          "high",
+          "overflow",
+          "underflow",
+          "buckets"
+        ],
+        "type": "object"
+      },
       "LoggingGet__Out": {
         "properties": {
           "msg": {
@@ -285,6 +270,21 @@
           "TRUSTED",
           "RETIRED"
         ]
+      },
+      "Report": {
+        "properties": {
+          "histogram": {
+            "$ref": "#/components/schemas/HistogramResults"
+          },
+          "tx_rates": {
+            "$ref": "#/components/schemas/json"
+          }
+        },
+        "required": [
+          "histogram",
+          "tx_rates"
+        ],
+        "type": "object"
       },
       "TxStatus": {
         "enum": [
@@ -793,7 +793,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetMetrics__Out"
+                  "$ref": "#/components/schemas/Report"
                 }
               }
             },

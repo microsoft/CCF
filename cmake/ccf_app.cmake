@@ -40,30 +40,22 @@ set(OE_CRYPTO_LIB
     CACHE STRING "Crypto library used by enclaves."
 )
 
+set(OE_TARGET_LIBC openenclave::oelibc)
+set(OE_TARGET_ENCLAVE_AND_STD
+    openenclave::oeenclave openenclave::oecryptombedtls openenclave::oelibcxx
+    openenclave::oelibc openenclave::oecryptoopenssl
+)
+# These oe libraries must be linked in specific order
+set(OE_TARGET_ENCLAVE_CORE_LIBS
+    openenclave::oeenclave openenclave::oecryptombedtls openenclave::oesnmalloc
+    openenclave::oecore openenclave::oesyscall
+)
+
 option(LVI_MITIGATIONS "Enable LVI mitigations" ON)
 if(LVI_MITIGATIONS)
-  set(OE_TARGET_LIBC openenclave::oelibc-lvi-cfg)
-  set(OE_TARGET_ENCLAVE_AND_STD
-      openenclave::oeenclave-lvi-cfg openenclave::oecryptombedtls-lvi-cfg
-      openenclave::oelibcxx-lvi-cfg openenclave::oelibc-lvi-cfg
-      openenclave::oecryptoopenssl-lvi-cfg
-  )
-  set(OE_TARGET_ENCLAVE_CORE_LIBS
-      openenclave::oeenclave-lvi-cfg openenclave::oecryptombedtls-lvi-cfg
-      openenclave::oesnmalloc-lvi-cfg openenclave::oecore-lvi-cfg
-      openenclave::oesyscall-lvi-cfg
-  )
-else()
-  set(OE_TARGET_LIBC openenclave::oelibc)
-  set(OE_TARGET_ENCLAVE_AND_STD
-      openenclave::oeenclave openenclave::oecryptombedtls openenclave::oelibcxx
-      openenclave::oelibc
-  )
-  # These oe libraries must be linked in specific order
-  set(OE_TARGET_ENCLAVE_CORE_LIBS
-      openenclave::oeenclave openenclave::oecryptombedtls
-      openenclave::oesnmalloc openenclave::oecore openenclave::oesyscall
-  )
+  string(APPEND OE_TARGET_LIBC -lvi-cfg)
+  list(TRANSFORM OE_TARGET_ENCLAVE_AND_STD APPEND -lvi-cfg)
+  list(TRANSFORM OE_TARGET_ENCLAVE_CORE_LIBS APPEND -lvi-cfg)
 endif()
 
 function(add_lvi_mitigations name)

@@ -25,6 +25,9 @@ The following table describes the structure of a serialised KV Store transaction
 +          +------------------------------------------+-------------------------------------------------------------------------+
 |          | :cpp:type:`kv::Version`                  | Transaction version                                                     |
 +          +------------------------------------------+-------------------------------------------------------------------------+
+|          | :cpp:type:`kv::Version`                  | Indicates after which version can this ledger entry be executed while   |
+|          |                                          | maintaining linearizability                                             |
++          +------------------------------------------+-------------------------------------------------------------------------+
 |          | **Repeating [0..n]**                     | With ``n`` the number of maps in the transaction                        |
 +          +-----+------------------------------------+-------------------------------------------------------------------------+
 |          |     | | ``KOT_MAP_START_INDICATOR``      | | Indicates the start of a new serialised :cpp:type:`kv::Map`           |

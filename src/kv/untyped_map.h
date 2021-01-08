@@ -142,7 +142,7 @@ namespace kv::untyped
         return committed_writes || change_set.has_writes();
       }
 
-      bool prepare() override
+      bool prepare(kv::Version& max_conflict_version) override
       {
         if (change_set.writes.empty())
           return true;
@@ -189,6 +189,11 @@ namespace kv::untyped
             {
               LOG_DEBUG_FMT("Read depends on invalid version of entry");
               return false;
+            }
+
+            if (max_conflict_version < search->version)
+            {
+              max_conflict_version = search->version;
             }
           }
         }
@@ -410,7 +415,7 @@ namespace kv::untyped
         return true;
       }
 
-      bool prepare() override
+      bool prepare(kv::Version&) override
       {
         // Snapshots never conflict
         return true;
