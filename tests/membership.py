@@ -159,8 +159,8 @@ def recovery_shares_scenario(args):
             r = mc.get("/gov/recovery_share")
             assert r.status_code == http.HTTPStatus.NOT_FOUND.value
             assert (
-                r.body.text()
-                == f"Recovery share not found for member {non_recovery_member_id}"
+                f"Recovery share not found for member {non_recovery_member_id}"
+                in r.body.json()["error"]["message"]
             )
 
         # Retiring a recovery number is not possible as the number of recovery

@@ -43,9 +43,14 @@ def check_can_progress(node, timeout=3):
         assert False, f"Stuck at {r}"
 
 
-@reqs.description("Adding a valid node from primary")
+@reqs.description("Adding a valid node without snapshot")
 def test_add_node(network, args):
-    new_node = network.create_and_trust_node(args.package, "local://localhost", args)
+    new_node = network.create_and_trust_node(
+        args.package,
+        "local://localhost",
+        args,
+        from_snapshot=False,
+    )
     with new_node.client() as c:
         s = c.get("/node/state")
         assert s.body.json()["id"] == new_node.node_id
@@ -56,24 +61,39 @@ def test_add_node(network, args):
 @reqs.description("Adding a valid node from a backup")
 @reqs.at_least_n_nodes(2)
 def test_add_node_from_backup(network, args):
-    backup = network.find_any_backup()
     new_node = network.create_and_trust_node(
-        args.package, "local://localhost", args, target_node=backup
+        args.package,
+        "local://localhost",
+        args,
+        target_node=network.find_any_backup(),
     )
     assert new_node
     return network
 
 
+# Note: this test cannot be included in the full test suite yet as
+# add_from_snapshot() decorator makes use of historical queries (#1648)
 @reqs.description("Adding a valid node from snapshot")
 @reqs.at_least_n_nodes(2)
 @reqs.add_from_snapshot()
-def test_add_node_from_snapshot(network, args, copy_ledger_read_only=True):
+def test_add_node_from_snapshot(
+    network, args, copy_ledger_read_only=True, from_backup=False
+):
+    target_node = None
+    snapshot_dir = None
+    if from_backup:
+        primary, target_node = network.find_primary_and_any_backup()
+        # Retrieve snapshot from primary as only primary node
+        # generates snapshots
+        snapshot_dir = network.get_committed_snapshots(primary)
+
     new_node = network.create_and_trust_node(
         args.package,
         "local://localhost",
         args,
-        from_snapshot=True,
         copy_ledger_read_only=copy_ledger_read_only,
+        target_node=target_node,
+        snapshot_dir=snapshot_dir,
     )
     assert new_node
     return network
@@ -89,32 +109,12 @@ def test_add_as_many_pending_nodes(network, args):
     )
 
     for _ in range(number_new_nodes):
-        network.create_and_add_pending_node(args.package, "local://localhost", args)
+        network.create_and_add_pending_node(
+            args.package,
+            "local://localhost",
+            args,
+        )
     check_can_progress(network.find_primary()[0])
-    return network
-
-
-@reqs.description("Add node with untrusted code version")
-def test_add_node_untrusted_code(network, args):
-    if args.enclave_type != "virtual":
-        LOG.info("Adding an invalid node (unknown code id)")
-        code_not_found_exception = None
-        try:
-            lib_name = (
-                "liblogging" if args.package == "libjs_generic" else "libjs_generic"
-            )
-            network.create_and_add_pending_node(
-                lib_name, "local://localhost", args, timeout=3
-            )
-        except infra.network.CodeIdNotFound as err:
-            code_not_found_exception = err
-
-        assert (
-            code_not_found_exception is not None
-        ), "Adding node with unknown code id should fail"
-
-    else:
-        LOG.warning("Skipping unknown code id test with virtual enclave")
     return network
 
 
@@ -161,24 +161,22 @@ def run(args):
 
         test_add_node_from_backup(network, args)
         test_add_node(network, args)
-        test_add_node_untrusted_code(network, args)
         test_retire_backup(network, args)
         test_add_as_many_pending_nodes(network, args)
         test_add_node(network, args)
         test_retire_primary(network, args)
 
-        if args.snapshot_tx_interval is not None:
-            test_add_node_from_snapshot(network, args, copy_ledger_read_only=True)
-            test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
-            errors, _ = network.get_joined_nodes()[-1].stop()
-            if not any(
-                "No snapshot found. Node will request transactions all historical transactions"
-                in s
-                for s in errors
-            ):
-                raise ValueError(
-                    "New node shouldn't join from snapshot if snapshot cannot be verified"
-                )
+        test_add_node_from_snapshot(network, args)
+        test_add_node_from_snapshot(network, args, from_backup=True)
+        test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+        errors, _ = network.get_joined_nodes()[-1].stop()
+        if not any(
+            "No snapshot found: Node will request all historical transactions" in s
+            for s in errors
+        ):
+            raise ValueError(
+                "New node shouldn't join from snapshot if snapshot cannot be verified"
+            )
 
 
 if __name__ == "__main__":

@@ -14,8 +14,7 @@
       },
       "CodeStatus": {
         "enum": [
-          "ACCEPTED",
-          "RETIRED"
+          "ALLOWED_TO_JOIN"
         ]
       },
       "EndpointMetrics__Metric": {
@@ -362,6 +361,23 @@
         },
         "type": "array"
       }
+    },
+    "securitySchemes": {
+      "bearer_jwt": {
+        "bearerFormat": "JWT",
+        "scheme": "bearer",
+        "type": "http"
+      },
+      "member_signature": {
+        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a member identity registered with this service.",
+        "scheme": "signature",
+        "type": "http"
+      },
+      "user_signature": {
+        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a user identity registered with this service.",
+        "scheme": "signature",
+        "type": "http"
+      }
     }
   },
   "info": {
@@ -411,6 +427,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetCommit__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/custom_auth": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/json"
                 }
               }
             },
@@ -770,6 +802,34 @@
         }
       }
     },
+    "/multi_auth": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "user_signature": []
+          },
+          {
+            "member_signature": []
+          },
+          {
+            "bearer_jwt": []
+          },
+          {}
+        ]
+      }
+    },
     "/network_info": {
       "get": {
         "responses": {
@@ -951,7 +1011,15 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "user_signature": []
+          },
+          {
+            "member_signature": []
+          }
+        ]
       }
     }
   },

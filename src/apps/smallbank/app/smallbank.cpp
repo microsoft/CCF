@@ -415,18 +415,37 @@ namespace ccfapp
         set_no_content_status(args);
       };
 
+      const ccf::endpoints::AuthnPolicies user_sig_or_cert = {
+        user_signature_auth_policy, user_cert_auth_policy};
+
       std::vector<ccf::RESTVerb> verbs = {HTTP_POST, ws::Verb::WEBSOCKET};
       for (auto verb : verbs)
       {
-        make_endpoint("SmallBank_create", verb, create).install();
-        make_endpoint("SmallBank_create_batch", verb, create_batch).install();
-        make_endpoint("SmallBank_balance", verb, balance).install();
-        make_endpoint("SmallBank_transact_savings", verb, transact_savings)
+        make_endpoint("SmallBank_create", verb, create, user_sig_or_cert)
           .install();
-        make_endpoint("SmallBank_deposit_checking", verb, deposit_checking)
+        make_endpoint(
+          "SmallBank_create_batch", verb, create_batch, user_sig_or_cert)
           .install();
-        make_endpoint("SmallBank_amalgamate", verb, amalgamate).install();
-        make_endpoint("SmallBank_write_check", verb, writeCheck).install();
+        make_endpoint("SmallBank_balance", verb, balance, user_sig_or_cert)
+          .install();
+        make_endpoint(
+          "SmallBank_transact_savings",
+          verb,
+          transact_savings,
+          user_sig_or_cert)
+          .install();
+        make_endpoint(
+          "SmallBank_deposit_checking",
+          verb,
+          deposit_checking,
+          user_sig_or_cert)
+          .install();
+        make_endpoint(
+          "SmallBank_amalgamate", verb, amalgamate, user_sig_or_cert)
+          .install();
+        make_endpoint(
+          "SmallBank_write_check", verb, writeCheck, user_sig_or_cert)
+          .install();
       }
     }
   };

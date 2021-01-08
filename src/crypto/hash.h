@@ -21,7 +21,6 @@ namespace crypto
     std::array<uint8_t, SIZE> h;
 
     static void mbedtls_sha256(const CBuffer& data, uint8_t* h);
-    static void evercrypt_sha256(const CBuffer& data, uint8_t* h);
 
     friend std::ostream& operator<<(
       std::ostream& os, const crypto::Sha256Hash& h)
@@ -62,7 +61,7 @@ namespace crypto
     return !(lhs == rhs);
   }
 
-  class CSha256HashImpl;
+  class MBSha256HashImpl;
   class CSha256Hash
   {
   public:
@@ -86,7 +85,7 @@ namespace crypto
     Sha256Hash finalize();
 
   private:
-    std::unique_ptr<CSha256HashImpl> p;
+    std::unique_ptr<MBSha256HashImpl> p;
   };
 }
 

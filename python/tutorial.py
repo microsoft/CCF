@@ -44,7 +44,9 @@ assert r.status_code == http.HTTPStatus.OK
 # SNIPPET_END: anonymous_requests
 
 # SNIPPET: authenticated_client
-user_client = ccf.clients.CCFClient(host, port, ca, cert, key)
+user_client = ccf.clients.CCFClient(
+    host, port, ca, ccf.clients.Identity(key, cert, "client")
+)
 
 # SNIPPET_START: authenticated_post_requests
 r = user_client.post("/app/log/private", body={"id": 0, "msg": "Private message"})
@@ -99,11 +101,16 @@ proposal, vote = ccf.proposal_generator.open_network()
 # >>> proposal
 # {'script': {'text': 'return Calls:call("open_network")'}}
 
-member_client = ccf.clients.CCFClient(host, port, ca, member_cert, member_key)
+member_client = ccf.clients.CCFClient(
+    host,
+    port,
+    ca,
+    session_auth=ccf.clients.Identity(member_key, member_cert, "member"),
+    signing_auth=ccf.clients.Identity(member_key, member_cert, "member"),
+)
 response = member_client.post(
     "/gov/proposals",
     body=proposal,
-    signed=True,
 )
 # SNIPPET_END: dict_proposal
 
@@ -115,6 +122,5 @@ with open("my_open_network_proposal.json", "w") as f:
 response = member_client.post(
     "/gov/proposals",
     body="@my_open_network_proposal.json",
-    signed=True,
 )
 # SNIPPET_END: json_proposal_with_file

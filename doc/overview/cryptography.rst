@@ -42,7 +42,7 @@ write transactions from the backups to the primary.
 Algorithms and Curves
 ---------------------
 
-Authenticated encryption in CCF relies on AES256-GCM. Ledger authentication relies on Merkle trees using SHA2-256. These algorithms are provided by `project Everest <https://project-everest.github.io/>`_.
+Authenticated encryption in CCF relies on AES256-GCM. Ledger authentication relies on Merkle trees using SHA2-256.
 
 Public-key certificates, signatures, and ephemeral Diffie-Hellman key exchanges all rely on elliptic curves. The supported curves are listed in `tls/curve.h`:
 

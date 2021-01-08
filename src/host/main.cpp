@@ -160,13 +160,12 @@ int main(int argc, char** argv)
     ->capture_default_str()
     ->transform(CLI::AsSizeValue(true)); // 1000 is kb
 
-  size_t snapshot_tx_interval = std::numeric_limits<std::size_t>::max();
+  size_t snapshot_tx_interval = 10'000;
   app
     .add_option(
       "--snapshot-tx-interval",
       snapshot_tx_interval,
-      "Number of transactions between snapshots (experimental). "
-      "Defaults to no snapshot.")
+      "Number of transactions between snapshots")
     ->capture_default_str();
 
   logger::Level host_log_level{logger::Level::INFO};
@@ -625,6 +624,10 @@ int main(int argc, char** argv)
         fmt::format("{}\n{}", rpc_address.hostname, rpc_address.port),
         rpc_address_file);
     }
+    if (public_rpc_address.port == "0")
+    {
+      public_rpc_address.port = rpc_address.port;
+    }
 
     // Initialise the enclave and create a CCF node in it
     const size_t certificate_size = 4096;
@@ -656,7 +659,8 @@ int main(int argc, char** argv)
                                     public_rpc_address.hostname,
                                     node_address.hostname,
                                     node_address.port,
-                                    rpc_address.port};
+                                    rpc_address.port,
+                                    public_rpc_address.port};
     ccf_config.domain = domain;
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
 
@@ -743,8 +747,7 @@ int main(int argc, char** argv)
       else
       {
         LOG_FAIL_FMT(
-          "No snapshot found. Node will request transactions all historical "
-          "transactions");
+          "No snapshot found: Node will request all historical transactions");
       }
     }
 

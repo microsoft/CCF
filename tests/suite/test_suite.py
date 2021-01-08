@@ -43,28 +43,22 @@ suites["membership_recovery"] = suite_membership_recovery
 
 # This suite tests that nodes addition, deletion and primary changes
 # can be interleaved
+# Note: snapshot tests are not yet integrated in the main test suite
+# as they test historical queries which do not yet work across rekey/recovery
+# https://github.com/microsoft/CCF/issues/1648
 suite_reconfiguration = [
-    reconfiguration.test_add_node,
+    reconfiguration.test_add_node_from_snapshot,
     reconfiguration.test_retire_primary,
     reconfiguration.test_add_node,
     election.test_kill_primary,
     reconfiguration.test_add_node,
-    reconfiguration.test_add_node,
+    reconfiguration.test_add_node_from_snapshot,
     reconfiguration.test_retire_backup,
     reconfiguration.test_add_node,
     election.test_kill_primary,
-]
-suites["reconfiguration"] = suite_reconfiguration
-
-# Temporary suite while snapshotting feature is being implemented
-# https://github.com/microsoft/CCF/milestone/12
-suite_snapshots = [
-    reconfiguration.test_add_node_from_snapshot,
-    election.test_kill_primary,
-    reconfiguration.test_add_node_from_snapshot,
     e2e_logging.test_view_history,
 ]
-suites["snapshots"] = suite_snapshots
+suites["reconfiguration"] = suite_reconfiguration
 
 all_tests_suite = [
     # e2e_logging:
@@ -86,14 +80,14 @@ all_tests_suite = [
     membership.test_retire_member,
     membership.test_update_recovery_shares,
     # memberclient:
-    memberclient.test_missing_signature,
+    memberclient.test_missing_signature_header,
+    memberclient.test_corrupted_signature,
     # receipts:
     receipts.test,
     # reconfiguration:
     reconfiguration.test_add_node,
     reconfiguration.test_add_node_from_backup,
     reconfiguration.test_add_as_many_pending_nodes,
-    reconfiguration.test_add_node_untrusted_code,
     reconfiguration.test_retire_backup,
     # recovery:
     recovery.test,
@@ -104,6 +98,7 @@ all_tests_suite = [
     election.test_kill_primary,
     # code update:
     code_update.test_verify_quotes,
+    code_update.test_add_node_with_bad_code,
 ]
 suites["all"] = all_tests_suite
 

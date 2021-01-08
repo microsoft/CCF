@@ -72,27 +72,29 @@ def run(args):
         LOG.info("Started CCF network with the following nodes:")
         LOG.info(
             "  Node [{}] = https://{}:{}".format(
-                pad_node_id(primary.node_id), primary.pubhost, primary.rpc_port
+                pad_node_id(primary.node_id), primary.pubhost, primary.pubport
             )
         )
 
         for b in backups:
             LOG.info(
                 "  Node [{}] = https://{}:{}".format(
-                    pad_node_id(b.node_id), b.pubhost, b.rpc_port
+                    pad_node_id(b.node_id), b.pubhost, b.pubport
                 )
             )
 
         LOG.info(
-            f"You can now issue business transactions to the {args.package} application."
+            f"You can now issue business transactions to the {args.package} application"
         )
+        if args.js_app_bundle is not None:
+            LOG.info(f"Loaded JS application: {args.js_app_bundle}")
         LOG.info(
             f"Keys and certificates have been copied to the common folder: {network.common_dir}"
         )
         LOG.info(
-            "See https://microsoft.github.io/CCF/master/users/issue_commands.html for more information."
+            "See https://microsoft.github.io/CCF/master/users/issue_commands.html for more information"
         )
-        LOG.warning("Press Ctrl+C to shutdown the network.")
+        LOG.warning("Press Ctrl+C to shutdown the network")
 
         try:
             while True:
@@ -110,7 +112,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "-n",
             "--node",
-            help=f"List of (local://|ssh://)hostnames[,pub_hostnames:ports]. Default is {DEFAULT_NODES}",
+            help=f"List of (local://|ssh://)hostname:port[,pub_hostnames:pub_port]. Default is {DEFAULT_NODES}",
             action="append",
         )
         parser.add_argument(

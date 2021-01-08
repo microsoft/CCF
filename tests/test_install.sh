@@ -17,6 +17,9 @@ echo "Install prefix is ${1}"
 
 # Setup env
 INSTALL_PREFIX="$1"
+if [ ! -z "$PYTHON_PACKAGE_PATH" ]; then
+    PYTHON_PACKAGE_PATH=$(realpath -s "${PYTHON_PACKAGE_PATH}")
+fi
 working_dir="nested/run"
 rm -rf "$working_dir"
 mkdir -p "$working_dir"
@@ -28,10 +31,18 @@ timeout --signal=SIGINT --kill-after=${network_live_time}s --preserve-status ${n
 "$INSTALL_PREFIX"/bin/sandbox.sh -e release --verbose &
 
 # Poll until service is open
-while [ ! "$(service_http_status)" == "200" ]; do
+polls=0
+while [ ! "$(service_http_status)" == "200" ] && [ ${polls} -lt ${network_live_time} ]; do
     echo "Waiting for service to open..."
+    polls=$((polls+1))
     sleep 1
 done
+
+if [ ! "$(service_http_status)" == "200" ]; then
+    echo "Error: Timeout waiting for service to open"
+    kill "$(jobs -p)"
+    exit 1
+fi
 
 # Issue tutorial transactions to ephemeral network
 python3.8 -m venv env
@@ -41,7 +52,7 @@ python -m pip install ../../../python
 python ../../../python/tutorial.py ./workspace/sandbox_0/0.ledger/ ./workspace/sandbox_common/
 
 # Test Python package CLI
-../../../tests//test_python_cli.sh > test_python_cli.out
+../../../tests/test_python_cli.sh > test_python_cli.out
 
 # Poll until service has died
 while [ "$(service_http_status)" == "200" ]; do

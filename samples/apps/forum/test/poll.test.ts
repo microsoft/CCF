@@ -18,9 +18,10 @@ import {
   SubmitOpinionsRequest,
   NumericPollResponse,
   StringPollResponse,
-  MINIMUM_OPINION_THRESHOLD,
   GetPollResponse,
 } from "../src/controllers/poll";
+
+const MINIMUM_OPINION_THRESHOLD = 10;
 
 tmp.setGracefulCleanup();
 

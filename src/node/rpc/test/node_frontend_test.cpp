@@ -17,11 +17,6 @@ using namespace ccf;
 using namespace nlohmann;
 using namespace serdes;
 
-extern "C"
-{
-#include <evercrypt/EverCrypt_AutoConfig2.h>
-}
-
 using TResponse = http::SimpleResponseProcessor::Response;
 
 auto kp = tls::make_key_pair();
@@ -51,7 +46,8 @@ TResponse frontend_process(
   r.set_body(&body);
   auto serialise_request = r.build_request();
 
-  auto session = std::make_shared<enclave::SessionContext>(0, caller.raw());
+  auto session = std::make_shared<enclave::SessionContext>(
+    enclave::InvalidSessionId, caller.raw());
   auto rpc_ctx = enclave::make_rpc_context(session, serialise_request);
   auto serialised_response = frontend.process(rpc_ctx);
 
@@ -292,12 +288,10 @@ TEST_CASE("Add a node to an open service")
   }
 }
 
-// We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
 {
   doctest::Context context;
   context.applyCommandLine(argc, argv);
-  ::EverCrypt_AutoConfig2_init();
   int res = context.run();
   if (context.shouldExit())
     return res;

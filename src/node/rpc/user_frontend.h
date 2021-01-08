@@ -12,15 +12,9 @@ namespace ccf
    */
   class UserRpcFrontend : public RpcFrontend
   {
-  protected:
-    std::string invalid_caller_error_message() const override
-    {
-      return "Could not find matching user certificate";
-    }
-
   public:
     UserRpcFrontend(kv::Store& tables, EndpointRegistry& h) :
-      RpcFrontend(tables, h, Tables::USER_CLIENT_SIGNATURES)
+      RpcFrontend(tables, h)
     {}
 
     void open(std::optional<tls::Pem*> identity = std::nullopt) override
@@ -29,42 +23,8 @@ namespace ccf
       endpoints.openapi_info.title = "CCF Application API";
     }
 
-    std::optional<tls::Pem> resolve_caller_id(
-      ObjectId caller_id, kv::Tx& tx) override
-    {
-      auto users_view = tx.get_view<Users>(Tables::USERS);
-      auto caller = users_view->get(caller_id);
-      if (!caller.has_value())
-      {
-        return std::nullopt;
-      }
-
-      return caller.value().cert;
-    }
-
-    bool lookup_forwarded_caller_cert(
-      std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx) override
-    {
-      // Lookup the caller users's certificate from the forwarded caller id
-      auto caller_cert =
-        resolve_caller_id(ctx->session->original_caller->caller_id, tx);
-      if (!caller_cert.has_value())
-      {
-        return false;
-      }
-
-      ctx->session->caller_cert = caller_cert.value().raw();
-      return true;
-    }
-
     // Forward these methods so that apps can write foo(...); rather than
     // endpoints.foo(...);
-    template <typename... Ts>
-    ccf::EndpointRegistry::Endpoint& install(Ts&&... ts)
-    {
-      return endpoints.install(std::forward<Ts>(ts)...);
-    }
-
     template <typename... Ts>
     ccf::EndpointRegistry::Endpoint make_endpoint(Ts&&... ts)
     {

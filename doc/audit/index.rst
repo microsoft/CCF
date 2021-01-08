@@ -3,10 +3,10 @@ Audit
 
 .. panels::
 
-    :fa:`table` :doc:`builtin_tables`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    :fa:`table` :doc:`builtin_maps`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Schema reference for built-in tables containing service state.
+    Schema reference for built-in maps containing service state.
 
     ---
 
@@ -32,7 +32,7 @@ Audit
 .. toctree::
     :hidden:
 
-    builtin_tables
+    builtin_maps
     merkle_tree
     ledger
     python_library

@@ -111,13 +111,14 @@ def run(args):
         network.start_and_join(args)
 
         for i in range(args.recovery):
-            # Alternate between recovery with primary change and stable primary-ship
+            # Alternate between recovery with primary change and stable primary-ship,
+            # with and without snapshots
             if i % 2 == 0:
                 recovered_network = test_share_resilience(
-                    network, args, args.use_snapshot
+                    network, args, from_snapshot=True
                 )
             else:
-                recovered_network = test(network, args, args.use_snapshot)
+                recovered_network = test(network, args, from_snapshot=False)
             network.stop_all_nodes()
             network = recovered_network
             LOG.success("Recovery complete on all nodes")
@@ -141,12 +142,6 @@ checked. Note that the key for each logging message is unique (per table).
             help="Number of public and private messages between two recoveries",
             type=int,
             default=5,
-        )
-        parser.add_argument(
-            "--use-snapshot",
-            help="Use latest snapshot for faster recovery procedure",
-            action="store_true",
-            default=False,
         )
 
     args = infra.e2e_args.cli_args(add)

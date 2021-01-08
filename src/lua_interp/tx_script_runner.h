@@ -150,7 +150,10 @@ namespace ccf
       {
         std::stringstream ss;
         ss << "Script failed: " << e.what();
-        throw RpcException(ss.str(), HTTP_STATUS_INTERNAL_SERVER_ERROR);
+        throw RpcException(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          ss.str());
       }
 
       static std::string get_var_string_from_args(lua_State* l)

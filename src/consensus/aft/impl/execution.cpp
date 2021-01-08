@@ -25,7 +25,7 @@ namespace aft
     auto r_ctx = std::make_unique<RequestCtx>();
 
     auto session = std::make_shared<enclave::SessionContext>(
-      enclave::InvalidSessionId, request.caller_id, request.caller_cert);
+      enclave::InvalidSessionId, request.caller_cert);
 
     r_ctx->ctx = enclave::make_fwd_rpc_context(
       session, request.raw, (enclave::FrameFormat)request.frame_format);
@@ -96,11 +96,8 @@ namespace aft
   std::unique_ptr<aft::RequestMessage> ExecutorImpl::create_request_message(
     const kv::TxHistory::RequestCallbackArgs& args)
   {
-    Request request = {args.caller_id,
-                       args.rid,
-                       args.caller_cert,
-                       args.request,
-                       args.frame_format};
+    Request request = {
+      args.rid, args.caller_cert, args.request, args.frame_format};
     auto serialized_req = request.serialise();
 
     auto rep_cb = [=](
@@ -111,7 +108,7 @@ namespace aft
       LOG_DEBUG_FMT("AFT reply callback status {}", status);
 
       return rpc_sessions->reply_async(
-        std::get<1>(caller_rid), std::move(data));
+        std::get<0>(caller_rid), std::move(data));
     };
 
     auto ctx = create_request_ctx(serialized_req.data(), serialized_req.size());

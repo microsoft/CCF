@@ -17,10 +17,11 @@ namespace ccf
     std::string nodehost;
     std::string nodeport;
     std::string rpcport;
+    std::string pubport;
 
-    MSGPACK_DEFINE(rpchost, pubhost, nodehost, nodeport, rpcport);
+    MSGPACK_DEFINE(rpchost, pubhost, nodehost, nodeport, rpcport, pubport);
   };
   DECLARE_JSON_TYPE(NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
-    NodeInfoNetwork, rpchost, pubhost, nodehost, nodeport, rpcport);
+    NodeInfoNetwork, rpchost, pubhost, nodehost, nodeport, rpcport, pubport);
 }

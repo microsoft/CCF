@@ -14,8 +14,7 @@
       },
       "CodeStatus": {
         "enum": [
-          "ACCEPTED",
-          "RETIRED"
+          "ALLOWED_TO_JOIN"
         ]
       },
       "EndpointMetrics__Metric": {
@@ -471,6 +470,18 @@
         },
         "type": "array"
       }
+    },
+    "securitySchemes": {
+      "member_signature": {
+        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a member identity registered with this service.",
+        "scheme": "signature",
+        "type": "http"
+      },
+      "user_signature": {
+        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a user identity registered with this service.",
+        "scheme": "signature",
+        "type": "http"
+      }
     }
   },
   "info": {
@@ -503,7 +514,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/ack/update_state_digest": {
@@ -519,7 +535,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/api": {
@@ -565,15 +586,6 @@
                 }
               }
             },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/create": {
-      "post": {
-        "responses": {
-          "200": {
             "description": "Default response description"
           }
         }
@@ -738,7 +750,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/proposals/{proposal_id}": {
@@ -754,7 +771,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       },
       "parameters": [
         {
@@ -766,32 +788,6 @@
           }
         }
       ]
-    },
-    "/proposals/{proposal_id}/complete": {
-      "parameters": [
-        {
-          "in": "path",
-          "name": "proposal_id",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        }
-      ],
-      "post": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProposalInfo"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
     },
     "/proposals/{proposal_id}/votes": {
       "parameters": [
@@ -826,7 +822,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/proposals/{proposal_id}/votes/{member_id}": {
@@ -842,7 +843,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       },
       "parameters": [
         {
@@ -886,7 +892,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/query": {
@@ -912,7 +923,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/read": {
@@ -938,7 +954,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/receipt": {
@@ -1008,7 +1029,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       },
       "post": {
         "requestBody": {
@@ -1032,7 +1058,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/tx": {
@@ -1096,7 +1127,15 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "user_signature": []
+          },
+          {
+            "member_signature": []
+          }
+        ]
       }
     }
   },

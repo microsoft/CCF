@@ -7,6 +7,7 @@
 #include "http/ws_consts.h"
 #include "node/client_signatures.h"
 #include "node/entities.h"
+#include "node/rpc/error.h"
 
 #include <llhttp/llhttp.h>
 #include <variant>
@@ -121,34 +122,12 @@ namespace enclave
     //
     // Only set in the case of a forwarded RPC
     //
-    struct Forwarded
-    {
-      // Initialised when forwarded context is created
-      const size_t client_session_id;
-      const ccf::CallerId caller_id;
+    bool is_forwarded = false;
 
-      Forwarded(size_t client_session_id_, ccf::CallerId caller_id_) :
-        client_session_id(client_session_id_),
-        caller_id(caller_id_)
-      {}
-    };
-    std::optional<Forwarded> original_caller = std::nullopt;
-
-    // Constructor used for non-forwarded RPC
     SessionContext(
       size_t client_session_id_, const std::vector<uint8_t>& caller_cert_) :
       client_session_id(client_session_id_),
       caller_cert(caller_cert_)
-    {}
-
-    // Constructor used for forwarded and BFT RPC
-    SessionContext(
-      size_t fwd_session_id_,
-      ccf::CallerId caller_id_,
-      const std::vector<uint8_t>& caller_cert_ = {}) :
-      caller_cert(caller_cert_),
-      original_caller(
-        std::make_optional<Forwarded>(fwd_session_id_, caller_id_))
     {}
   };
 
@@ -184,6 +163,7 @@ namespace enclave
     virtual const std::string& get_request_query() const = 0;
     virtual PathParams& get_request_path_params() = 0;
     virtual const ccf::RESTVerb& get_request_verb() const = 0;
+    virtual std::string get_request_path() const = 0;
 
     virtual std::string get_method() const = 0;
     virtual void set_method(const std::string_view& method) = 0;
@@ -193,7 +173,6 @@ namespace enclave
       const std::string_view& name) = 0;
 
     virtual const std::vector<uint8_t>& get_serialised_request() = 0;
-    virtual std::optional<ccf::SignedReq> get_signed_request() = 0;
 
     /// Response details
     virtual void set_response_body(const std::vector<uint8_t>& body) = 0;
@@ -214,12 +193,26 @@ namespace enclave
       set_response_header(name, fmt::format("{}", n));
     }
 
+    virtual void set_error(
+      http_status status, const std::string& code, std::string&& msg)
+    {
+      set_error({status, code, std::move(msg)});
+    }
+
+    virtual void set_error(ccf::ErrorDetails&& error)
+    {
+      nlohmann::json body = ccf::ODataErrorResponse{
+        ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+      const auto s = body.dump();
+      set_response_status(error.status);
+      set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
+      set_response_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+    }
+
     virtual void set_apply_writes(bool apply) = 0;
     virtual bool should_apply_writes() const = 0;
 
     virtual std::vector<uint8_t> serialise_response() const = 0;
-
-    virtual std::vector<uint8_t> serialise_error(
-      size_t code, const std::string& msg) const = 0;
   };
 }

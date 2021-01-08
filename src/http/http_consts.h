@@ -7,6 +7,7 @@ namespace http
   namespace headers
   {
     // All HTTP headers are expected to be lowercase
+    static constexpr auto ACCEPT = "accept";
     static constexpr auto ALLOW = "allow";
     static constexpr auto AUTHORIZATION = "authorization";
     static constexpr auto CONTENT_LENGTH = "content-length";

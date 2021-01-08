@@ -2,10 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/ccf_deprecated.h"
 #include "ds/json_schema.h"
 #include "ds/openapi.h"
 #include "enclave/rpc_context.h"
 #include "endpoint.h"
+#include "http/authentication/cert_auth.h"
+#include "http/authentication/jwt_auth.h"
+#include "http/authentication/sig_auth.h"
 #include "http/http_consts.h"
 #include "http/ws_consts.h"
 #include "kv/store.h"
@@ -31,32 +35,97 @@ namespace ccf
     nlohmann::json payload;
   };
 
-  struct EndpointContext
+  // Commands are endpoints which do not interact with the kv, even to read
+  struct CommandEndpointContext
   {
+    CommandEndpointContext(
+      const std::shared_ptr<enclave::RpcContext>& r,
+      std::unique_ptr<AuthnIdentity>&& c) :
+      rpc_ctx(r),
+      caller(std::move(c))
+    {}
+
     std::shared_ptr<enclave::RpcContext> rpc_ctx;
+    std::unique_ptr<AuthnIdentity> caller;
+
+    template <typename T>
+    const T* try_get_caller()
+    {
+      return dynamic_cast<const T*>(caller.get());
+    }
+
+    template <typename T>
+    const T& get_caller()
+    {
+      const T* ident = try_get_caller<T>();
+      if (ident == nullptr)
+      {
+        throw std::logic_error("Asked for unprovided identity type");
+      }
+      return *ident;
+    }
+  };
+  using CommandEndpointFunction =
+    std::function<void(CommandEndpointContext& args)>;
+
+  struct EndpointContext : public CommandEndpointContext
+  {
+    EndpointContext(
+      const std::shared_ptr<enclave::RpcContext>& r,
+      std::unique_ptr<AuthnIdentity>&& c,
+      kv::Tx& t) :
+      CommandEndpointContext(r, std::move(c)),
+      tx(t)
+    {}
+
     kv::Tx& tx;
-    CallerId caller_id;
   };
   using EndpointFunction = std::function<void(EndpointContext& args)>;
 
   // Read-only endpoints can only get values from the kv, they cannot write
-  struct ReadOnlyEndpointContext
+  struct ReadOnlyEndpointContext : public CommandEndpointContext
   {
-    std::shared_ptr<enclave::RpcContext> rpc_ctx;
+    ReadOnlyEndpointContext(
+      const std::shared_ptr<enclave::RpcContext>& r,
+      std::unique_ptr<AuthnIdentity>&& c,
+      kv::ReadOnlyTx& t) :
+      CommandEndpointContext(r, std::move(c)),
+      tx(t)
+    {}
+
     kv::ReadOnlyTx& tx;
-    CallerId caller_id;
   };
   using ReadOnlyEndpointFunction =
     std::function<void(ReadOnlyEndpointContext& args)>;
 
-  // Commands are endpoints which do not interact with the kv, even to read
-  struct CommandEndpointContext
-  {
-    std::shared_ptr<enclave::RpcContext> rpc_ctx;
-    CallerId caller_id;
-  };
-  using CommandEndpointFunction =
-    std::function<void(CommandEndpointContext& args)>;
+  // Auth policies
+  /** Perform no authentication */
+  static std::shared_ptr<EmptyAuthnPolicy> empty_auth_policy =
+    std::make_shared<EmptyAuthnPolicy>();
+  /** Authenticate using TLS session identity, and @c public:ccf.gov.users
+   * table */
+  static std::shared_ptr<UserCertAuthnPolicy> user_cert_auth_policy =
+    std::make_shared<UserCertAuthnPolicy>();
+  /** Authenticate using HTTP request signature, and @c public:ccf.gov.users
+   * table */
+  static std::shared_ptr<UserSignatureAuthnPolicy> user_signature_auth_policy =
+    std::make_shared<UserSignatureAuthnPolicy>();
+  /** Authenticate using TLS session identity, and @c public:ccf.gov.members
+   * table */
+  static std::shared_ptr<MemberCertAuthnPolicy> member_cert_auth_policy =
+    std::make_shared<MemberCertAuthnPolicy>();
+  /** Authenticate using HTTP request signature, and @c public:ccf.gov.members
+   * table */
+  static std::shared_ptr<MemberSignatureAuthnPolicy>
+    member_signature_auth_policy =
+      std::make_shared<MemberSignatureAuthnPolicy>();
+  /** Authenticate using JWT, validating the token using the
+   * @c public:ccf.gov.jwt_public_signing_key_issue and
+   * @c public:ccf.gov.jwt_public_signing_keys tables */
+  static std::shared_ptr<JwtAuthnPolicy> jwt_auth_policy =
+    std::make_shared<JwtAuthnPolicy>();
+
+  static AuthnPolicies no_auth_required = {};
 
   /** The EndpointRegistry records the user-defined endpoints for a given
    * CCF application.
@@ -87,7 +156,7 @@ namespace ccf
     };
 
     struct Endpoint;
-    using EndpointPtr = std::shared_ptr<Endpoint>;
+    using EndpointPtr = std::shared_ptr<const Endpoint>;
 
     using SchemaBuilderFn =
       std::function<void(nlohmann::json&, const EndpointPtr&)>;
@@ -104,18 +173,22 @@ namespace ccf
      */
     struct Endpoint : public EndpointDefinition
     {
-      Endpoint(
-        const std::string& m, const EndpointFunction& f, EndpointRegistry* r) :
-        func(f),
-        registry(r)
-      {
-        dispatch.uri_path = m;
-      }
-
-      EndpointFunction func;
+      EndpointFunction func = {};
       EndpointRegistry* registry = nullptr;
 
       std::vector<SchemaBuilderFn> schema_builders = {};
+
+      bool openapi_hidden = false;
+
+      /** Whether the endpoint should be omitted from the OpenAPI document.
+       *
+       * @return This Endpoint for further modification
+       */
+      Endpoint& set_openapi_hidden(bool hidden)
+      {
+        openapi_hidden = hidden;
+        return *this;
+      }
 
       nlohmann::json params_schema = nullptr;
 
@@ -311,56 +384,6 @@ namespace ccf
         return *this;
       }
 
-      /** Requires that the HTTP request is cryptographically signed by
-       * the calling user.
-       *
-       * By default, client signatures are not required.
-       *
-       * @param v Boolean indicating whether the request must be signed
-       * @return This Endpoint for further modification
-       */
-      Endpoint& set_require_client_signature(bool v)
-      {
-        properties.require_client_signature = v;
-        return *this;
-      }
-
-      /** Requires that the HTTPS request is emitted by a user whose public
-       * identity has been registered in advance by consortium members.
-       *
-       * By default, a known client identity is required.
-       *
-       * \verbatim embed:rst:leading-asterisk
-       * .. warning::
-       *  If set to false, it is left to the application developer to implement
-       *  the authentication and authorisation mechanisms for the Endpoint.
-       * \endverbatim
-       *
-       * @param v Boolean indicating whether the user identity must be known
-       * @return This Endpoint for further modification
-       */
-      Endpoint& set_require_client_identity(bool v)
-      {
-        if (!v && registry != nullptr && !registry->has_certs())
-        {
-          LOG_INFO_FMT(
-            "Disabling client identity requirement on {} Endpoint has no "
-            "effect "
-            "since its registry does not have certificates table",
-            dispatch.uri_path);
-          return *this;
-        }
-
-        properties.require_client_identity = v;
-        return *this;
-      }
-
-      Endpoint& set_require_jwt_authentication(bool v)
-      {
-        properties.require_jwt_authentication = v;
-        return *this;
-      }
-
       /** Indicates that the execution of the Endpoint does not require
        * consensus from other nodes in the network.
        *
@@ -386,7 +409,17 @@ namespace ccf
        */
       void install()
       {
-        registry->install(*this);
+        if (registry == nullptr)
+        {
+          LOG_FATAL_FMT(
+            "Can't install this endpoint ({}) - it is not associated with a "
+            "registry",
+            dispatch.uri_path);
+        }
+        else
+        {
+          registry->install(*this);
+        }
       }
     };
 
@@ -505,15 +538,22 @@ namespace ccf
      * @param method The URI at which this endpoint will be installed
      * @param verb The HTTP verb which this endpoint will respond to
      * @param f Functor which will be invoked for requests to VERB /method
+     * @param ap Policies which will be checked against each request before the
+     * endpoint is executed. @see
+     * ccf::endpoints::EndpointDefinition::authn_policies
      * @return The new Endpoint for further modification
      */
     Endpoint make_endpoint(
-      const std::string& method, RESTVerb verb, const EndpointFunction& f)
+      const std::string& method,
+      RESTVerb verb,
+      const EndpointFunction& f,
+      const AuthnPolicies& ap)
     {
-      Endpoint endpoint(method, f, this);
+      Endpoint endpoint;
       endpoint.dispatch.uri_path = method;
       endpoint.dispatch.verb = verb;
       endpoint.func = f;
+      endpoint.authn_policies = ap;
       // By default, all write transactions are forwarded
       endpoint.properties.forwarding_required = ForwardingRequired::Always;
       endpoint.registry = this;
@@ -525,16 +565,18 @@ namespace ccf
     Endpoint make_read_only_endpoint(
       const std::string& method,
       RESTVerb verb,
-      const ReadOnlyEndpointFunction& f)
+      const ReadOnlyEndpointFunction& f,
+      const AuthnPolicies& ap)
     {
       return make_endpoint(
                method,
                verb,
                [f](EndpointContext& args) {
-                 ReadOnlyEndpointContext ro_args{
-                   args.rpc_ctx, args.tx, args.caller_id};
+                 ReadOnlyEndpointContext ro_args(
+                   args.rpc_ctx, std::move(args.caller), args.tx);
                  f(ro_args);
-               })
+               },
+               ap)
         .set_forwarding_required(ForwardingRequired::Sometimes);
     }
 
@@ -546,16 +588,11 @@ namespace ccf
     Endpoint make_command_endpoint(
       const std::string& method,
       RESTVerb verb,
-      const CommandEndpointFunction& f)
+      const CommandEndpointFunction& f,
+      const AuthnPolicies& ap)
     {
       return make_endpoint(
-               method,
-               verb,
-               [f](EndpointContext& args) {
-                 CommandEndpointContext command_args{args.rpc_ctx,
-                                                     args.caller_id};
-                 f(command_args);
-               })
+               method, verb, [f](EndpointContext& args) { f(args); }, ap)
         .set_forwarding_required(ForwardingRequired::Sometimes);
     }
 
@@ -567,6 +604,15 @@ namespace ccf
      */
     void install(Endpoint& endpoint)
     {
+      // A single empty auth policy is semantically equivalent to no policy, but
+      // no policy is faster
+      if (
+        endpoint.authn_policies.size() == 1 &&
+        endpoint.authn_policies.back() == empty_auth_policy)
+      {
+        endpoint.authn_policies.pop_back();
+      }
+
       const auto template_spec =
         parse_path_template(endpoint.dispatch.uri_path);
       if (template_spec.has_value())
@@ -591,39 +637,73 @@ namespace ccf
      * EndpointFunction was found.
      *
      * @param f Method implementation
-     * @return This Endpoint for further modification
      */
-    Endpoint& set_default(EndpointFunction f)
+    void set_default(EndpointFunction f, const AuthnPolicies& ap)
     {
-      default_endpoint = std::make_shared<Endpoint>("", f, this);
-      return *default_endpoint;
+      auto tmp = std::make_shared<Endpoint>();
+      tmp->func = f;
+      tmp->authn_policies = ap;
+
+      default_endpoint = std::move(tmp);
     }
+
+    static void add_auth_policy_to_api_document() {}
 
     static void add_endpoint_to_api_document(
       nlohmann::json& document, const EndpointPtr& endpoint)
     {
-      if (endpoint->schema_builders.empty())
+      const auto http_verb = endpoint->dispatch.verb.get_http_method();
+      if (!http_verb.has_value())
       {
-        // If we have no more specific schema information, make sure the
-        // endpoint is still minimally documented (NB: this claims the endpoint
-        // will sometimes return a 200 status code, which may not be true!)
-        const auto http_verb = endpoint->dispatch.verb.get_http_method();
-        if (!http_verb.has_value())
-        {
-          return;
-        }
-
-        ds::openapi::response(
-          ds::openapi::path_operation(
-            ds::openapi::path(document, endpoint->dispatch.uri_path),
-            http_verb.value()),
-          HTTP_STATUS_OK);
+        return;
       }
-      else
+
+      for (const auto& builder_fn : endpoint->schema_builders)
       {
-        for (const auto& builder_fn : endpoint->schema_builders)
+        builder_fn(document, endpoint);
+      }
+
+      // Make sure the
+      // endpoint exists with minimal documentation, even if there are no more
+      // informed schema builders
+      auto& path_op = ds::openapi::path_operation(
+        ds::openapi::path(document, endpoint->dispatch.uri_path),
+        http_verb.value());
+
+      // Path Operation must contain at least one response - if none has been
+      // defined, assume this can return 200
+      if (ds::openapi::responses(path_op).empty())
+      {
+        ds::openapi::response(path_op, HTTP_STATUS_OK);
+      }
+
+      if (!endpoint->authn_policies.empty())
+      {
+        for (const auto& auth_policy : endpoint->authn_policies)
         {
-          builder_fn(document, endpoint);
+          const auto opt_scheme = auth_policy->get_openapi_security_schema();
+          if (opt_scheme.has_value())
+          {
+            auto& op_security =
+              ds::openapi::access::get_array(path_op, "security");
+            if (opt_scheme.value() == ccf::unauthenticated_schema)
+            {
+              // This auth policy is empty, allowing (optionally)
+              // unauthenticated access. This is represented in OpenAPI with an
+              // empty object
+              op_security.push_back(nlohmann::json::object());
+            }
+            else
+            {
+              const auto& [name, scheme] = opt_scheme.value();
+              ds::openapi::add_security_scheme_to_components(
+                document, name, scheme);
+
+              auto security_obj = nlohmann::json::object();
+              security_obj[name] = nlohmann::json::array();
+              op_security.push_back(security_obj);
+            }
+          }
         }
       }
     }
@@ -640,11 +720,10 @@ namespace ccf
 
       for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
       {
-        // Special endpoint, can only be called from the node.
-        if (path == "jwt_keys/refresh")
-          continue;
         for (const auto& [verb, endpoint] : verb_endpoints)
         {
+          if (endpoint->openapi_hidden)
+            continue;
           add_endpoint_to_api_document(document, endpoint);
         }
       }
@@ -653,6 +732,8 @@ namespace ccf
       {
         for (const auto& [verb, endpoint] : verb_endpoints)
         {
+          if (endpoint->openapi_hidden)
+            continue;
           add_endpoint_to_api_document(document, endpoint);
 
           for (const auto& name : endpoint->spec.template_component_names)
@@ -765,7 +846,7 @@ namespace ccf
     virtual void execute_endpoint(
       EndpointDefinitionPtr e, EndpointContext& args)
     {
-      auto endpoint = dynamic_cast<Endpoint*>(e.get());
+      auto endpoint = dynamic_cast<const Endpoint*>(e.get());
       if (endpoint == nullptr)
       {
         throw std::logic_error(
@@ -832,52 +913,9 @@ namespace ccf
 
     virtual void tick(std::chrono::milliseconds, kv::Consensus::Statistics) {}
 
-    bool has_certs()
-    {
-      return !certs_table_name.empty();
-    }
-
     bool has_digests()
     {
       return !digests_table_name.empty();
-    }
-
-    virtual CallerId get_caller_id(
-      kv::Tx& tx, const std::vector<uint8_t>& caller_cert)
-    {
-      if (!has_certs() || caller_cert.empty())
-      {
-        return INVALID_ID;
-      }
-
-      auto certs_view = tx.get_view<CertDERs>(certs_table_name);
-      auto caller_id = certs_view->get(caller_cert);
-
-      if (!caller_id.has_value())
-      {
-        return INVALID_ID;
-      }
-
-      return caller_id.value();
-    }
-
-    virtual CallerId get_caller_id_by_digest(
-      kv::Tx& tx, const std::string& caller_cert_digest)
-    {
-      if (!has_digests() || caller_cert_digest.empty())
-      {
-        return INVALID_ID;
-      }
-
-      auto digests_view = tx.get_view<CertDigests>(digests_table_name);
-      auto caller_id = digests_view->get(caller_cert_digest);
-
-      if (!caller_id.has_value())
-      {
-        return INVALID_ID;
-      }
-
-      return caller_id.value();
     }
 
     void set_consensus(kv::Consensus* c)

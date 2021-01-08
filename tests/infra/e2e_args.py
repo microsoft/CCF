@@ -224,7 +224,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--initial-user-count",
         help="Number of users when initializing the network",
         type=int,
-        default=3,
+        default=1,
     )
     parser.add_argument(
         "--initial-recovery-member-count",
@@ -246,12 +246,21 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--snapshot-tx-interval",
         help="Number of transactions between two snapshots",
-        default=None,
+        type=int,
+        default=10,
     )
     parser.add_argument(
         "--jwt-key-refresh-interval-s",
         help="JWT key refresh interval in seconds",
         default=None,
+    )
+    parser.add_argument(
+        "--long-tests", help="Enable extended tests", action="store_true"
+    )
+    parser.add_argument(
+        "--disable-member-session-auth",
+        help="Disable session auth for members",
+        action="store_true",
     )
 
     add(parser)

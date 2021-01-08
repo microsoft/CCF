@@ -71,10 +71,6 @@ namespace ccf
     static constexpr auto NODES = "public:ccf.gov.nodes";
     static constexpr auto VALUES = "public:ccf.gov.values";
     static constexpr auto CONSENSUS = "public:ccf.gov.consensus";
-    static constexpr auto USER_CLIENT_SIGNATURES =
-      "public:ccf.gov.user_client_signatures";
-    static constexpr auto MEMBER_CLIENT_SIGNATURES =
-      "public:ccf.gov.member_client_signatures";
     static constexpr auto WHITELISTS = "public:ccf.gov.whitelists";
     static constexpr auto PROPOSALS = "public:ccf.gov.proposals";
     static constexpr auto GOV_SCRIPTS = "public:ccf.gov.governance.scripts";

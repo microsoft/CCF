@@ -7,6 +7,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
+add_subdirectory(${CCF_DIR}/src/libmerklecpp)
+
 set(PYTHON unbuffer python3)
 
 set(DISTRIBUTE_PERF_TESTS
@@ -48,6 +50,7 @@ option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
+option(LONG_TESTS "Enable long end-to-end tests" OFF)
 
 option(DEBUG_CONFIG "Enable non-production options options to aid debugging"
        OFF
@@ -66,7 +69,7 @@ enable_language(ASM)
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 include_directories(${CCF_DIR}/src)
 
-include_directories(SYSTEM ${CCF_DIR}/3rdparty ${CCF_DIR}/3rdparty/hacl-star)
+include_directories(SYSTEM ${CCF_DIR}/3rdparty)
 
 find_package(MbedTLS REQUIRED)
 
@@ -194,6 +197,7 @@ function(add_unit_test name)
   enable_coverage(${name})
   target_link_libraries(
     ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehostverify
+                    $<BUILD_INTERFACE:merklecpp> crypto
   )
   use_client_mbedtls(${name})
   add_san(${name})
@@ -239,7 +243,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
             ${LINK_LIBCXX}
             openenclave::oehost
             ccfcrypto.host
-            evercrypt.host
   )
   enable_quote_code(cchost)
 
@@ -279,7 +282,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
             ${CMAKE_THREAD_LIBS_INIT}
             ${LINK_LIBCXX}
             ccfcrypto.host
-            evercrypt.host
   )
 
   install(TARGETS cchost.virtual DESTINATION bin)
@@ -392,6 +394,10 @@ function(add_e2e_test)
     set(PARSED_ARGS_GOV_SCRIPT ${CCF_NETWORK_TEST_DEFAULT_GOV})
   endif()
 
+  if(LONG_TESTS)
+    set(LONG_TEST_ARGS "--long-tests")
+  endif()
+
   if(BUILD_END_TO_END_TESTS)
     add_test(
       NAME ${PARSED_ARGS_NAME}
@@ -399,6 +405,7 @@ function(add_e2e_test)
         ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
         ${CCF_NETWORK_TEST_ARGS} -g ${PARSED_ARGS_GOV_SCRIPT} --consensus
         ${PARSED_ARGS_CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
+        ${LONG_TEST_ARGS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 
@@ -545,16 +552,15 @@ function(add_perf_test)
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
       ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS} -g
       ${PARSED_ARGS_GOV_SCRIPT} --write-tx-times ${VERIFICATION_ARG} --label
-      ${LABEL_ARG} ${PARSED_ARGS_ADDITIONAL_ARGS} ${NODES}
+      ${LABEL_ARG} --snapshot-tx-interval 10000 ${PARSED_ARGS_ADDITIONAL_ARGS}
+      ${NODES}
   )
 
   # Make python test client framework importable
   set_property(
     TEST ${PARSED_ARGS_NAME}
     APPEND
-    PROPERTY
-      ENVIRONMENT
-      "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
+    PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
   if(DEFINED DEFAULT_ENCLAVE_TYPE)
     set_property(
@@ -589,6 +595,7 @@ function(add_picobench name)
 
   target_link_libraries(
     ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${PARSED_ARGS_LINK_LIBS}
+                    $<BUILD_INTERFACE:merklecpp>
   )
 
   # -Wall -Werror catches a number of warnings in picobench

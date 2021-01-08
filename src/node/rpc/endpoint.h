@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ds/json.h"
+#include "http/authentication/authentication_types.h"
 #include "kv/map.h"
 
 #include <string>
@@ -46,6 +47,8 @@ namespace ccf
        {ForwardingRequired::Always, "always"},
        {ForwardingRequired::Never, "never"}});
 
+    using AuthnPolicies = std::vector<std::shared_ptr<AuthnPolicy>>;
+
     struct EndpointProperties
     {
       ForwardingRequired forwarding_required = ForwardingRequired::Always;
@@ -55,6 +58,7 @@ namespace ccf
       bool require_jwt_authentication = false;
 
       nlohmann::json openapi;
+      bool openapi_hidden = false;
 
       MSGPACK_DEFINE(
         forwarding_required,
@@ -62,7 +66,8 @@ namespace ccf
         require_client_signature,
         require_client_identity,
         require_jwt_authentication,
-        openapi);
+        openapi,
+        openapi_hidden);
     };
 
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
@@ -73,7 +78,7 @@ namespace ccf
       require_client_signature,
       require_client_identity);
     DECLARE_JSON_OPTIONAL_FIELDS(
-      EndpointProperties, require_jwt_authentication, openapi);
+      EndpointProperties, require_jwt_authentication, openapi, openapi_hidden);
 
     struct EndpointDefinition
     {
@@ -81,9 +86,32 @@ namespace ccf
 
       EndpointKey dispatch;
       EndpointProperties properties;
+
+      /** List of authentication policies which will be checked before executing
+       * this endpoint.
+       *
+       * When multiple policies are specified, any single successful check is
+       * sufficient to grant access, even if others fail. If all policies fail,
+       * the last will set an error status on the response, and the endpoint
+       * will not be invoked. If no policies are specified then the default
+       * behaviour is that the endpoint accepts all requests, without any
+       * authentication checks.
+       *
+       * If an auth policy passes, it may construct an object describing the
+       * Identity of the caller to be used by the endpoint. This can be
+       * retrieved inside the endpoint with ctx.get_caller<IdentType>(),
+       * @see ccf::UserCertAuthnIdentity
+       * @see ccf::JwtAuthnIdentity
+       * @see ccf::UserSignatureAuthnIdentity
+       *
+       * @see ccf::empty_auth_policy
+       * @see ccf::user_cert_auth_policy
+       * @see ccf::user_signature_auth_policy
+       */
+      AuthnPolicies authn_policies;
     };
 
-    using EndpointDefinitionPtr = std::shared_ptr<EndpointDefinition>;
+    using EndpointDefinitionPtr = std::shared_ptr<const EndpointDefinition>;
 
     using EndpointsMap = kv::Map<EndpointKey, EndpointProperties>;
   }

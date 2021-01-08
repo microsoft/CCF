@@ -50,9 +50,7 @@ To avoid this, it is possible for a new node to be added (or a service to be rec
 Snapshot Generation
 ~~~~~~~~~~~~~~~~~~~
 
-Snapshots are generated at regular intervals by the current primary node and stored under the directory specified via the ``--snapshot-dir`` CLI option (defaults to ``snapshots/``). The transaction interval at which snapshots are generated is specified via the ``--snapshot-tx-interval`` CLI option (defaults to no snapshot).
-
-.. TODO: Change defaults once https://github.com/microsoft/CCF/issues/1956 is complete
+Snapshots are generated at regular intervals by the current primary node and stored under the directory specified via the ``--snapshot-dir`` CLI option (defaults to ``snapshots/``). The transaction interval at which snapshots are generated is specified via the ``--snapshot-tx-interval`` CLI option (defaults to a new snapshot generated every ``10,000`` committed transactions).
 
 .. note:: Because the generation of a snapshot requires a new ledger chunk to be created (see :ref:`operations/ledger_snapshot:File Layout`), all nodes in the network must be started with the same ``--snapshot-tx-interval`` value.
 

@@ -154,7 +154,7 @@ namespace ccf
           "Member {} cannot be activated as they do not exist", member_id));
       }
 
-      // Only accepted members can transition to accepted state
+      // Only accepted members can transition to active state
       if (member->status != MemberStatus::ACCEPTED)
       {
         return;
@@ -433,7 +433,7 @@ namespace ccf
     void trust_node_code_id(CodeDigest& node_code_id)
     {
       auto codeid_view = tx.get_view(tables.node_code_ids);
-      codeid_view->put(node_code_id, CodeStatus::ACCEPTED);
+      codeid_view->put(node_code_id, CodeStatus::ALLOWED_TO_JOIN);
     }
 
     void add_key_share_info(const RecoverySharesInfo& key_share_info)

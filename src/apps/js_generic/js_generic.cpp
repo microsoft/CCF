@@ -839,9 +839,11 @@ namespace ccfapp
         handler_script = scripts->get(verb_prefixed);
         if (!handler_script)
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-          args.rpc_ctx->set_response_body(fmt::format(
-            "No handler script found for method '{}'", verb_prefixed));
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            fmt::format(
+              "No handler script found for method '{}'.", verb_prefixed));
           return;
         }
       }
@@ -926,8 +928,11 @@ namespace ccfapp
       if (JS_IsException(module))
       {
         js_dump_error(ctx);
-        args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        args.rpc_ctx->set_response_body("Exception thrown while compiling");
+
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Exception thrown while compiling.");
         return;
       }
 
@@ -936,8 +941,10 @@ namespace ccfapp
       if (JS_IsException(eval_val))
       {
         js_dump_error(ctx);
-        args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        args.rpc_ctx->set_response_body("Exception thrown while executing");
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Exception thrown while executing.");
         return;
       }
       JS_FreeValue(ctx, eval_val);
@@ -969,17 +976,20 @@ namespace ccfapp
       if (JS_IsException(val))
       {
         js_dump_error(ctx);
-        args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        args.rpc_ctx->set_response_body("Exception thrown while executing");
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Exception thrown while executing.");
         return;
       }
 
       // Handle return value: {body, headers, statusCode}
       if (!JS_IsObject(val))
       {
-        args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        args.rpc_ctx->set_response_body(
-          "Invalid endpoint function return value (not an object)");
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Invalid endpoint function return value (not an object).");
         return;
       }
 
@@ -1032,11 +1042,11 @@ namespace ccfapp
             if (JS_IsException(rval))
             {
               js_dump_error(ctx);
-              args.rpc_ctx->set_response_status(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR);
-              args.rpc_ctx->set_response_body(
+              args.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
                 "Invalid endpoint function return value (error during JSON "
-                "conversion of body)");
+                "conversion of body).");
               return;
             }
             cstr = JS_ToCString(ctx, rval);
@@ -1045,11 +1055,11 @@ namespace ccfapp
           if (!cstr)
           {
             js_dump_error(ctx);
-            args.rpc_ctx->set_response_status(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR);
-            args.rpc_ctx->set_response_body(
+            args.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
               "Invalid endpoint function return value (error during string "
-              "conversion of body)");
+              "conversion of body).");
             return;
           }
           std::string str(cstr);
@@ -1083,10 +1093,10 @@ namespace ccfapp
             auto prop_val_cstr = JS_ToCString(ctx, prop_val);
             if (!prop_val_cstr)
             {
-              args.rpc_ctx->set_response_status(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR);
-              args.rpc_ctx->set_response_body(
-                "Invalid endpoint function return value (header value type)");
+              args.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "Invalid endpoint function return value (header value type).");
               return;
             }
             args.rpc_ctx->set_response_header(prop_name_cstr, prop_val_cstr);
@@ -1105,10 +1115,10 @@ namespace ccfapp
         {
           if (JS_VALUE_GET_TAG(status_code_js.val) != JS_TAG_INT)
           {
-            args.rpc_ctx->set_response_status(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR);
-            args.rpc_ctx->set_response_body(
-              "Invalid endpoint function return value (status code type)");
+            args.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Invalid endpoint function return value (status code type).");
             return;
           }
           response_status_code = JS_VALUE_GET_INT(status_code_js.val);
@@ -1143,7 +1153,7 @@ namespace ccfapp
           args.rpc_ctx->get_method(), args.rpc_ctx->get_request_verb(), args);
       };
 
-      set_default(default_handler).set_require_client_identity(false);
+      set_default(default_handler, no_auth_required);
     }
 
     EndpointDefinitionPtr find_endpoint(
@@ -1164,6 +1174,19 @@ namespace ccfapp
         auto endpoint_def = std::make_shared<JSDynamicEndpoint>();
         endpoint_def->dispatch = key;
         endpoint_def->properties = it.value();
+
+        if (endpoint_def->properties.require_client_identity)
+        {
+          endpoint_def->authn_policies.push_back(user_cert_auth_policy);
+        }
+        if (endpoint_def->properties.require_client_signature)
+        {
+          endpoint_def->authn_policies.push_back(user_signature_auth_policy);
+        }
+        if (endpoint_def->properties.require_jwt_authentication)
+        {
+          endpoint_def->authn_policies.push_back(jwt_auth_policy);
+        }
 
         return endpoint_def;
       }
@@ -1233,7 +1256,7 @@ namespace ccfapp
     void execute_endpoint(
       EndpointDefinitionPtr e, EndpointContext& args) override
     {
-      auto endpoint = dynamic_cast<JSDynamicEndpoint*>(e.get());
+      auto endpoint = dynamic_cast<const JSDynamicEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
         execute_request(
@@ -1277,13 +1300,15 @@ namespace ccfapp
             return true;
           }
 
-          auto& path_op = ds::openapi::path_operation(
-            ds::openapi::path(document, key.uri_path), http_verb.value());
-
-          if (!properties.openapi.empty())
+          if (!properties.openapi_hidden)
           {
-            path_op.insert(
-              properties.openapi.cbegin(), properties.openapi.cend());
+            auto& path_op = ds::openapi::path_operation(
+              ds::openapi::path(document, key.uri_path), http_verb.value());
+            if (!properties.openapi.empty())
+            {
+              path_op.insert(
+                properties.openapi.cbegin(), properties.openapi.cend());
+            }
           }
 
           return true;

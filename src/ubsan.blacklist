@@ -5,10 +5,8 @@
 #############################################################################
 
 src:*/3rdparty/msgpack/v2/create_object_visitor.hpp
-src:*/3rdparty/hacl-star/evercrypt/EverCrypt_Hash.c
 src:*/3rdparty/sss/hazmat.c
 src:*/3rdparty/quickjs/quickjs.c
 src:*/3rdparty/quickjs/quickjs.h
-src:*/3rdparty/hacl-star/evercrypt/MerkleTree.c
 
 #############################################################################

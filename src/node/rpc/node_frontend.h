@@ -76,9 +76,10 @@ namespace ccf
       {
         return make_error(
           HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::NodeAlreadyExists,
           fmt::format(
             "A node with the same node host {} and port {} already exists "
-            "(node id: {})",
+            "(node id: {}).",
             in.node_info_network.nodehost,
             in.node_info_network.nodeport,
             conflicting_node_id.value()));
@@ -97,7 +98,7 @@ namespace ccf
         {
           const auto [code, message] =
             QuoteVerifier::quote_verification_error(verify_result);
-          return make_error(code, message);
+          return make_error(code, ccf::errors::InvalidQuote, message);
         }
       }
 #else
@@ -160,16 +161,18 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "Target node should be part of network to accept new nodes");
+            ccf::errors::InternalError,
+            "Target node should be part of network to accept new nodes.");
         }
 
         if (this->network.consensus_type != in.consensus_type)
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::ConsensusTypeMismatch,
             fmt::format(
               "Node requested to join with consensus type {} but "
-              "current consensus type is {}",
+              "current consensus type is {}.",
               in.consensus_type,
               this->network.consensus_type));
         }
@@ -182,7 +185,8 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "No service is available to accept new node");
+            ccf::errors::InternalError,
+            "No service is available to accept new node.");
         }
 
         // Convert caller cert from DER to PEM as PEM certificates
@@ -246,7 +250,9 @@ namespace ccf
           else
           {
             return make_error(
-              HTTP_STATUS_BAD_REQUEST, "Joining node is not in expected state");
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidNodeState,
+              "Joining node is not in expected state.");
           }
         }
         else
@@ -255,7 +261,9 @@ namespace ccf
           return add_node(args.tx, caller_pem, in, NodeStatus::PENDING);
         }
       };
-      make_endpoint("join", HTTP_POST, json_adapter(accept)).install();
+      make_endpoint("join", HTTP_POST, json_adapter(accept), no_auth_required)
+        .set_openapi_hidden(true)
+        .install();
 
       auto get_state = [this](auto& args, nlohmann::json&&) {
         GetState::Out result;
@@ -280,7 +288,7 @@ namespace ccf
         return result;
       };
       make_read_only_endpoint(
-        "state", HTTP_GET, json_read_only_adapter(get_state))
+        "state", HTTP_GET, json_read_only_adapter(get_state), no_auth_required)
         .set_auto_schema<GetState>()
         .set_forwarding_required(ForwardingRequired::Never)
         .install();
@@ -297,11 +305,14 @@ namespace ccf
         }
         else
         {
-          return make_error(HTTP_STATUS_NOT_FOUND, "Could not find node quote");
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "Could not find node quote.");
         }
       };
       make_read_only_endpoint(
-        "quote", HTTP_GET, json_read_only_adapter(get_quote))
+        "quote", HTTP_GET, json_read_only_adapter(get_quote), no_auth_required)
         .set_auto_schema<void, GetQuotes::Quote>()
         .set_forwarding_required(ForwardingRequired::Never)
         .install();
@@ -313,7 +324,10 @@ namespace ccf
         return make_success(result);
       };
       make_read_only_endpoint(
-        "quotes", HTTP_GET, json_read_only_adapter(get_quotes))
+        "quotes",
+        HTTP_GET,
+        json_read_only_adapter(get_quotes),
+        no_auth_required)
         .set_auto_schema<GetQuotes>()
         .install();
 
@@ -324,10 +338,16 @@ namespace ccf
         {
           return make_success(service_state.value().status);
         }
-        return make_error(HTTP_STATUS_NOT_FOUND, "Network status is unknown");
+        return make_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::ResourceNotFound,
+          "Network status is unknown.");
       };
       make_read_only_endpoint(
-        "network", HTTP_GET, json_read_only_adapter(network_status))
+        "network",
+        HTTP_GET,
+        json_read_only_adapter(network_status),
+        no_auth_required)
         .install();
 
       auto is_primary = [this](ReadOnlyEndpointContext& args) {
@@ -348,12 +368,13 @@ namespace ccf
               args.rpc_ctx->set_response_header(
                 "Location",
                 fmt::format(
-                  "https://{}:{}/node/primary", info->pubhost, info->rpcport));
+                  "https://{}:{}/node/primary", info->pubhost, info->pubport));
             }
           }
         }
       };
-      make_read_only_endpoint("primary", HTTP_HEAD, is_primary)
+      make_read_only_endpoint(
+        "primary", HTTP_HEAD, is_primary, no_auth_required)
         .set_forwarding_required(ForwardingRequired::Never)
         .install();
 
@@ -378,7 +399,8 @@ namespace ccf
         }
       };
 
-      make_command_endpoint("config", HTTP_GET, consensus_config)
+      make_command_endpoint(
+        "config", HTTP_GET, consensus_config, no_auth_required)
         .set_forwarding_required(ForwardingRequired::Never)
         .install();
 
@@ -404,7 +426,7 @@ namespace ccf
         args.rpc_ctx->set_response_body("Failed to read memory usage");
       };
 
-      make_command_endpoint("memory", HTTP_GET, memory_usage)
+      make_command_endpoint("memory", HTTP_GET, memory_usage, no_auth_required)
         .set_forwarding_required(ForwardingRequired::Never)
         .set_auto_schema<MemoryUsage>()
         .install();

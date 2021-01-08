@@ -25,11 +25,26 @@ Endpoint Registry
 
 .. doxygenclass:: ccf::EndpointRegistry
    :project: CCF
-   :members: install, set_default
+   :members: install, set_default, empty_auth_policy, user_cert_auth_policy, user_signature_auth_policy, jwt_auth_policy
 
 Endpoint
 ~~~~~~~~
 
 .. doxygenstruct:: ccf::EndpointRegistry::Endpoint
+   :project: CCF
+   :members:
+
+Authentication Identities
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. doxygenstruct:: ccf::UserCertAuthnIdentity
+   :project: CCF
+   :members:
+
+.. doxygenstruct:: ccf::JwtAuthnIdentity
+   :project: CCF
+   :members:
+
+.. doxygenstruct:: ccf::UserSignatureAuthnIdentity
    :project: CCF
    :members:

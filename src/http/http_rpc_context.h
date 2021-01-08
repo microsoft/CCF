@@ -5,6 +5,7 @@
 #include "enclave/rpc_context.h"
 #include "http_parser.h"
 #include "http_sig.h"
+#include "node/rpc/error.h"
 #include "ws_parser.h"
 #include "ws_rpc_context.h"
 
@@ -35,18 +36,27 @@ namespace http
     return actor;
   }
 
-  static std::vector<uint8_t> error(size_t code, const std::string& msg)
+  inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
   {
-    http_status status = (http_status)code;
-    std::vector<uint8_t> data(msg.begin(), msg.end());
-    auto response = http::Response(status);
+    nlohmann::json body = ccf::ODataErrorResponse{
+      ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+    const auto s = body.dump();
+
+    std::vector<uint8_t> data(s.begin(), s.end());
+    auto response = http::Response(error.status);
 
     response.set_header(
-      http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+      http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
     response.set_body(&data);
 
     return response.build_response();
-  };
+  }
+
+  inline std::vector<uint8_t> error(
+    http_status status, const std::string& code, std::string&& msg)
+  {
+    return error({status, code, std::move(msg)});
+  }
 
   class HttpRpcContext : public enclave::RpcContext
   {
@@ -64,7 +74,6 @@ namespace http
     enclave::PathParams path_params = {};
 
     std::vector<uint8_t> serialised_request = {};
-    std::optional<ccf::SignedReq> signed_request = std::nullopt;
 
     http::HeaderMap response_headers;
     std::vector<uint8_t> response_body = {};
@@ -220,26 +229,15 @@ namespace http
       return verb;
     }
 
+    virtual std::string get_request_path() const override
+    {
+      return whole_path;
+    }
+
     virtual const std::vector<uint8_t>& get_serialised_request() override
     {
       canonicalise();
       return serialised_request;
-    }
-
-    virtual std::optional<ccf::SignedReq> get_signed_request() override
-    {
-      canonicalise();
-      if (!signed_request.has_value())
-      {
-        signed_request = http::HttpSignatureVerifier::parse(
-          std::string(verb.c_str()),
-          whole_path,
-          query,
-          request_headers,
-          request_body);
-      }
-
-      return signed_request;
     }
 
     virtual std::string get_method() const override
@@ -329,12 +327,6 @@ namespace http
 
       http_response.set_body(&response_body);
       return http_response.build_response();
-    }
-
-    virtual std::vector<uint8_t> serialise_error(
-      size_t code, const std::string& msg) const override
-    {
-      return error(code, msg);
     }
   };
 }

@@ -9,7 +9,7 @@ if [ "$#" -eq 0 ]; then
   exit 1
 fi
 
-TODOS=$(grep -rn TODO "$@")
+TODOS=$(git ls-files "$@" | xargs grep -n TODO)
 
 if [ "$TODOS" == "" ]; then
   echo "No TODOs found"

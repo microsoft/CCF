@@ -5,6 +5,8 @@
 #include "enclave/rpc_context.h"
 #include "endpoint_registry.h"
 #include "http/http_consts.h"
+#include "node/rpc/error.h"
+#include "node/rpc/rpc_exception.h"
 #include "node/rpc/serdes.h"
 
 #include <llhttp/llhttp.h>
@@ -62,14 +64,14 @@ namespace ccf
    * });
    */
 
+  class UrlQueryParseError : public std::invalid_argument
+  {
+  public:
+    using std::invalid_argument::invalid_argument;
+  };
+
   namespace jsonhandler
   {
-    struct ErrorDetails
-    {
-      http_status status;
-      std::string msg;
-    };
-
     using JsonAdapterResponse = std::variant<ErrorDetails, nlohmann::json>;
 
     static constexpr char const* pack_to_content_type(serdes::Pack p)
@@ -111,12 +113,15 @@ namespace ccf
         }
         else
         {
-          throw std::logic_error(fmt::format(
-            "Unsupported content type {}. Only {} and {} are currently "
-            "supported",
-            content_type,
-            http::headervalues::contenttype::JSON,
-            http::headervalues::contenttype::MSGPACK));
+          throw RpcException(
+            HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE,
+            ccf::errors::UnsupportedContentType,
+            fmt::format(
+              "Unsupported content type {}. Only {} and {} are currently "
+              "supported",
+              content_type,
+              http::headervalues::contenttype::JSON,
+              http::headervalues::contenttype::MSGPACK));
         }
       }
       else
@@ -125,6 +130,45 @@ namespace ccf
       }
 
       return packing.value_or(serdes::Pack::Text);
+    }
+
+    static serdes::Pack get_response_pack(
+      const std::shared_ptr<enclave::RpcContext>& ctx,
+      serdes::Pack request_pack)
+    {
+      serdes::Pack packing = request_pack;
+
+      const auto accept_it = ctx->get_request_header(http::headers::ACCEPT);
+      if (accept_it.has_value())
+      {
+        const auto& accept = accept_it.value();
+        if (accept == http::headervalues::contenttype::JSON)
+        {
+          packing = serdes::Pack::Text;
+        }
+        else if (accept == http::headervalues::contenttype::MSGPACK)
+        {
+          packing = serdes::Pack::MsgPack;
+        }
+        else if (accept == "*/*")
+        {
+          packing = request_pack;
+        }
+        else
+        {
+          throw RpcException(
+            HTTP_STATUS_NOT_ACCEPTABLE,
+            ccf::errors::UnsupportedContentType,
+            fmt::format(
+              "Unsupported content type {} in accept header. Only {} and {} "
+              "are currently supported",
+              accept,
+              http::headervalues::contenttype::JSON,
+              http::headervalues::contenttype::MSGPACK));
+        }
+      }
+
+      return packing;
     }
 
     static nlohmann::json get_params_from_body(
@@ -147,7 +191,7 @@ namespace ccf
         const auto field_split = this_entry.find('=');
         if (field_split == std::string::npos)
         {
-          throw std::runtime_error(
+          throw UrlQueryParseError(
             fmt::format("No k=v in URL query fragment: {}", query));
         }
 
@@ -159,7 +203,7 @@ namespace ccf
         }
         catch (const std::exception& e)
         {
-          throw std::runtime_error(fmt::format(
+          throw UrlQueryParseError(fmt::format(
             "Unable to parse URL query value: {} ({})", query, e.what()));
         }
 
@@ -200,23 +244,23 @@ namespace ccf
     static void set_response(
       JsonAdapterResponse&& res,
       std::shared_ptr<enclave::RpcContext>& ctx,
-      serdes::Pack packing)
+      serdes::Pack request_packing)
     {
       auto error = std::get_if<ErrorDetails>(&res);
       if (error != nullptr)
       {
-        ctx->set_response_status(error->status);
-        ctx->set_response_body(std::move(error->msg));
+        ctx->set_error(std::move(*error));
       }
       else
       {
+        const auto packing = get_response_pack(ctx, request_packing);
         const auto body = std::get_if<nlohmann::json>(&res);
         ctx->set_response_status(HTTP_STATUS_OK);
         switch (packing)
         {
           case serdes::Pack::Text:
           {
-            const auto s = fmt::format("{}\n", body->dump());
+            const auto s = body->dump();
             ctx->set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
             break;
           }
@@ -248,10 +292,10 @@ namespace ccf
     return result_payload;
   }
 
-  static jsonhandler::JsonAdapterResponse make_error(
-    http_status status, const std::string& msg = "")
+  static inline jsonhandler::JsonAdapterResponse make_error(
+    http_status status, const std::string& code, const std::string& msg)
   {
-    return jsonhandler::ErrorDetails{status, msg};
+    return ErrorDetails{status, code, msg};
   }
 
 // -Wunused-function seems to _wrongly_ flag the following functions as unused
@@ -277,19 +321,6 @@ namespace ccf
       auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
       jsonhandler::set_response(
         f(args.tx, std::move(params)), args.rpc_ctx, packing);
-    };
-  }
-
-  using HandlerJsonParamsAndCallerId =
-    std::function<jsonhandler::JsonAdapterResponse(
-      kv::Tx& tx, CallerId caller_id, nlohmann::json&& params)>;
-
-  static EndpointFunction json_adapter(const HandlerJsonParamsAndCallerId& f)
-  {
-    return [f](EndpointContext& args) {
-      auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
-      jsonhandler::set_response(
-        f(args.tx, args.caller_id, std::move(params)), args.rpc_ctx, packing);
     };
   }
 

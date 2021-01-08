@@ -62,7 +62,7 @@ class TxRates:
 
     def get_metrics(self):
         with self.primary.client() as client:
-            rv = client.get("/node/metrics")
+            rv = client.get("/app/metrics")
             self.all_metrics = rv.body.json()
 
             all_rates = []

@@ -24,7 +24,6 @@ namespace enclave
       std::shared_ptr<enclave::RpcContext> rpc_ctx,
       ccf::NodeId to,
       std::set<ccf::NodeId> nodes,
-      ccf::CallerId caller_id,
       const std::vector<uint8_t>& caller_cert) = 0;
 
     virtual void send_request_hash_to_nodes(

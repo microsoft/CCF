@@ -20,11 +20,6 @@
 #include <iostream>
 #include <string>
 
-extern "C"
-{
-#include <evercrypt/EverCrypt_AutoConfig2.h>
-}
-
 using namespace ccfapp;
 using namespace ccf;
 using namespace std;
@@ -163,7 +158,7 @@ auto frontend_process(
   const tls::Pem& caller)
 {
   auto session = std::make_shared<enclave::SessionContext>(
-    0, tls::make_verifier(caller)->der_cert_data());
+    enclave::InvalidSessionId, tls::make_verifier(caller)->der_cert_data());
   auto rpc_ctx = enclave::make_rpc_context(session, serialized_request);
   auto serialized_response = frontend.process(rpc_ctx);
 
@@ -581,7 +576,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
     const auto read_next_req = create_request(
       read_params<int>(ValueIds::NEXT_MEMBER_ID, Tables::VALUES), "read");
     const auto r = frontend_process(frontend, read_next_req, new_member.cert);
-    check_error(r, HTTP_STATUS_FORBIDDEN);
+    check_error(r, HTTP_STATUS_UNAUTHORIZED);
 
     // propose new member, as proposer
     Propose::In proposal;
@@ -660,7 +655,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
         // check that member with the new new_member cert can make RPCs now
         check_error(
           frontend_process(frontend, read_next_req, new_member.cert),
-          HTTP_STATUS_FORBIDDEN);
+          HTTP_STATUS_UNAUTHORIZED);
 
         // re-read proposal, as second member
         const Proposal final_read =
@@ -1199,91 +1194,6 @@ DOCTEST_TEST_CASE("Remove proposal")
       DOCTEST_CHECK(proposal.has_value());
       DOCTEST_CHECK(proposal->state == ProposalState::WITHDRAWN);
     }
-  }
-}
-
-DOCTEST_TEST_CASE("Complete proposal after initial rejection")
-{
-  NetworkState network;
-  network.tables->set_encryptor(encryptor);
-  auto gen_tx = network.tables->create_tx();
-  GenesisGenerator gen(network, gen_tx);
-  gen.init_values();
-  gen.create_service({});
-  ShareManager share_manager(network);
-  StubNodeState node(share_manager);
-  std::vector<tls::Pem> member_certs;
-  auto frontend =
-    init_frontend(network, gen, node, share_manager, 3, member_certs);
-  frontend.open();
-
-  ObjectId raw_puts_proposal_id;
-  {
-    DOCTEST_INFO("Propose");
-    const auto proposal =
-      "return Calls:call('raw_puts', Puts:put('public:ccf.gov.values', 999, "
-      "999))"s;
-    const auto propose =
-      create_signed_request(Propose::In{proposal}, "proposals", kp);
-
-    auto tx = network.tables->create_tx();
-    const auto r = parse_response_body<Propose::Out>(
-      frontend_process(frontend, propose, member_certs[0]));
-    DOCTEST_CHECK(r.state == ProposalState::OPEN);
-    raw_puts_proposal_id = r.proposal_id;
-  }
-
-  {
-    // vote for own proposal
-    Script vote_yes("return true");
-    const auto vote = create_signed_request(
-      Vote{vote_yes},
-      fmt::format("proposals/{}/votes", raw_puts_proposal_id),
-      kp);
-    const auto r = frontend_process(frontend, vote, member_certs[0]);
-    const auto result = parse_response_body<ProposalInfo>(r);
-    DOCTEST_CHECK(result.state == ProposalState::OPEN);
-  }
-
-  {
-    DOCTEST_INFO("Vote that rejects initially");
-    const Script vote(R"xxx(
-    local tables = ...
-    return tables["public:ccf.gov.values"]:get(123) == 123
-    )xxx");
-    const auto vote_serialized = create_signed_request(
-      Vote{vote}, fmt::format("proposals/{}/votes", raw_puts_proposal_id), kp);
-
-    check_result_state(
-      frontend_process(frontend, vote_serialized, member_certs[1]),
-      ProposalState::OPEN);
-  }
-
-  {
-    DOCTEST_INFO("Try to complete");
-    const auto complete = create_signed_request(
-      nullptr, fmt::format("proposals/{}/complete", raw_puts_proposal_id), kp);
-
-    check_result_state(
-      frontend_process(frontend, complete, member_certs[1]),
-      ProposalState::OPEN);
-  }
-
-  {
-    DOCTEST_INFO("Put value that makes vote agree");
-    auto tx = network.tables->create_tx();
-    tx.get_view(network.values)->put(123, 123);
-    DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
-  }
-
-  {
-    DOCTEST_INFO("Try again to complete");
-    const auto complete = create_signed_request(
-      nullptr, fmt::format("proposals/{}/complete", raw_puts_proposal_id), kp);
-
-    check_result_state(
-      frontend_process(frontend, complete, member_certs[1]),
-      ProposalState::ACCEPTED);
   }
 }
 
@@ -2092,12 +2002,27 @@ DOCTEST_TEST_CASE("Submit recovery shares")
 
       submitted_shares_count++;
 
+      auto tx = network.tables->create_tx();
+      auto submitted_shares = tx.get_view(network.submitted_shares);
       // Share submission should only complete when the recovery threshold
       // has been reached
       if (submitted_shares_count >= recovery_threshold)
       {
         check_error(rep, HTTP_STATUS_INTERNAL_SERVER_ERROR);
+
+        // On error, all submitted shares should have been cleared
+        size_t submitted_shares_count = 0;
+        submitted_shares->foreach(
+          [&submitted_shares_count](const auto& member_id, const auto& share) {
+            submitted_shares_count++;
+            return true;
+          });
+        DOCTEST_REQUIRE(submitted_shares_count == 0);
         break;
+      }
+      else
+      {
+        DOCTEST_REQUIRE(submitted_shares->has(m.first));
       }
     }
   }
@@ -2266,12 +2191,10 @@ DOCTEST_TEST_CASE("Open network sequence")
   }
 }
 
-// We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
 {
   doctest::Context context;
   context.applyCommandLine(argc, argv);
-  ::EverCrypt_AutoConfig2_init();
   int res = context.run();
   if (context.shouldExit())
     return res;

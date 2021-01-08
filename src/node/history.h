@@ -18,10 +18,11 @@
 #include <deque>
 #include <string.h>
 
-extern "C"
-{
-#include <evercrypt/MerkleTree.h>
-}
+#define HAVE_OPENSSL
+#define HAVE_MBEDTLS
+// merklecpp traces are off by default, even when CCF tracing is enabled
+// #include "merklecpp_trace.h"
+#include <merklecpp.h>
 
 namespace fmt
 {
@@ -38,11 +39,7 @@ namespace fmt
     auto format(const kv::TxHistory::RequestID& p, FormatContext& ctx)
     {
       return format_to(
-        ctx.out(),
-        "<RID {0}, {1}, {2}>",
-        std::get<0>(p),
-        std::get<1>(p),
-        std::get<2>(p));
+        ctx.out(), "<RID {0}, {1}>", std::get<0>(p), std::get<1>(p));
     }
   };
 }
@@ -151,7 +148,6 @@ namespace ccf
 
     bool add_request(
       kv::TxHistory::RequestID,
-      CallerId,
       const std::vector<uint8_t>&,
       const std::vector<uint8_t>&,
       uint8_t) override
@@ -207,175 +203,106 @@ namespace ccf
     }
   };
 
+  typedef merkle::TreeT<32, merkle::sha256_openssl> HistoryTree;
+
   class Receipt
   {
   private:
-    uint64_t index;
-    uint32_t max_index;
-    crypto::Sha256Hash root;
-
-    struct Path
-    {
-      path* raw;
-
-      Path()
-      {
-        raw = mt_init_path(crypto::Sha256Hash::SIZE);
-      }
-
-      ~Path()
-      {
-        mt_free_path(raw);
-      }
-    };
-
-    std::shared_ptr<Path> path;
+    HistoryTree::Hash root;
+    std::shared_ptr<HistoryTree::Path> path = nullptr;
 
   public:
-    Receipt()
-    {
-      path = std::make_shared<Path>();
-    }
+    Receipt() {}
 
     Receipt(const std::vector<uint8_t>& v)
     {
-      path = std::make_shared<Path>();
-      const uint8_t* buf = v.data();
-      size_t s = v.size();
-      index = serialized::read<decltype(index)>(buf, s);
-      max_index = serialized::read<decltype(max_index)>(buf, s);
-      std::copy(buf, buf + root.h.size(), root.h.data());
-      buf += root.h.size();
-      s -= root.h.size();
-      for (size_t i = 0; i < s; i += root.SIZE)
-      {
-        mt_path_insert(path->raw, const_cast<uint8_t*>(buf + i));
-      }
+      size_t position = 0;
+      root.deserialise(v, position);
+      path = std::make_shared<HistoryTree::Path>(v, position);
     }
 
-    Receipt(merkle_tree* tree, uint64_t index_)
+    Receipt(HistoryTree* tree, uint64_t index)
     {
-      index = index_;
-      path = std::make_shared<Path>();
-
-      if (!mt_get_path_pre(tree, index, path->raw, root.h.data()))
-      {
-        throw std::logic_error("Precondition to mt_get_path violated");
-      }
-
-      max_index = mt_get_path(tree, index, path->raw, root.h.data());
+      root = tree->root();
+      path = tree->path(index);
     }
 
     Receipt(const Receipt&) = delete;
 
-    bool verify(merkle_tree* tree) const
+    bool verify(HistoryTree* tree) const
     {
-      if (!mt_verify_pre(
-            tree, index, max_index, path->raw, (uint8_t*)root.h.data()))
-      {
-        throw std::logic_error("Precondition to mt_verify violated");
-      }
-
-      return mt_verify(
-        tree, index, max_index, path->raw, (uint8_t*)root.h.data());
+      return tree->max_index() == path->max_index() && tree->root() == root &&
+        path->verify(root);
     }
 
     std::vector<uint8_t> to_v() const
     {
-      size_t path_length = mt_get_path_length(path->raw);
-      size_t vs = sizeof(index) + sizeof(max_index) + root.h.size() +
-        (root.h.size() * path_length);
-      std::vector<uint8_t> v(vs);
-      uint8_t* buf = v.data();
-      serialized::write(buf, vs, index);
-      serialized::write(buf, vs, max_index);
-      serialized::write(buf, vs, root.h.data(), root.h.size());
-      for (size_t i = 0; i < path_length; ++i)
-      {
-        if (!mt_get_path_step_pre(path->raw, i))
-          throw std::logic_error("Precondition to mt_get_path_step violated");
-        uint8_t* step = mt_get_path_step(path->raw, i);
-        serialized::write(buf, vs, step, root.h.size());
-      }
+      std::vector<uint8_t> v;
+      root.serialise(v);
+      path->serialise(v);
       return v;
     }
   };
 
   class MerkleTreeHistory
   {
-    merkle_tree* tree;
+    HistoryTree* tree;
 
   public:
     MerkleTreeHistory(MerkleTreeHistory const&) = delete;
 
     MerkleTreeHistory(const std::vector<uint8_t>& serialised)
     {
-      tree = mt_deserialize(
-        serialised.data(), serialised.size(), mt_sha256_compress);
+      tree = new HistoryTree(serialised);
     }
 
     MerkleTreeHistory(crypto::Sha256Hash first_hash = {})
     {
-      tree = mt_create(first_hash.h.data());
+      tree = new HistoryTree(merkle::Hash(first_hash.h));
     }
 
     ~MerkleTreeHistory()
     {
-      mt_free(tree);
+      delete (tree);
+      tree = nullptr;
     }
 
     void deserialise(const std::vector<uint8_t>& serialised)
     {
-      mt_free(tree);
-      tree = mt_deserialize(
-        serialised.data(), serialised.size(), mt_sha256_compress);
+      delete (tree);
+      tree = new HistoryTree(serialised);
     }
 
     void append(crypto::Sha256Hash& hash)
     {
-      uint8_t* h = hash.h.data();
-      if (!mt_insert_pre(tree, h))
-      {
-        throw std::logic_error("Precondition to mt_insert violated");
-      }
-      mt_insert(tree, h);
+      tree->insert(merkle::Hash(hash.h));
     }
 
     crypto::Sha256Hash get_root() const
     {
-      crypto::Sha256Hash res;
-      if (!mt_get_root_pre(tree, res.h.data()))
-      {
-        throw std::logic_error("Precondition to mt_get_root violated");
-      }
-      mt_get_root(tree, res.h.data());
-      return res;
+      const merkle::Hash& root = tree->root();
+      crypto::Sha256Hash result;
+      std::copy(root.bytes, root.bytes + root.size(), result.h.begin());
+      return result;
     }
 
     void operator=(const MerkleTreeHistory& rhs)
     {
-      mt_free(tree);
+      delete (tree);
       crypto::Sha256Hash root(rhs.get_root());
-      tree = mt_create(root.h.data());
+      tree = new HistoryTree(merkle::Hash(root.h));
     }
 
     void flush(uint64_t index)
     {
-      if (!mt_flush_to_pre(tree, index))
-      {
-        throw std::logic_error("Precondition to mt_flush_to violated");
-      }
       LOG_TRACE_FMT("mt_flush_to index={}", index);
-      mt_flush_to(tree, index);
+      tree->flush_to(index);
     }
 
     void retract(uint64_t index)
     {
-      if (!mt_retract_to_pre(tree, index))
-      {
-        throw std::logic_error("Precondition to mt_retract_to violated");
-      }
-      mt_retract_to(tree, index);
+      LOG_TRACE_FMT("mt_retract_to index={}", index);
+      tree->retract_to(index);
     }
 
     Receipt get_receipt(uint64_t index)
@@ -402,20 +329,20 @@ namespace ccf
 
     std::vector<uint8_t> serialise()
     {
-      LOG_TRACE_FMT("mt_serialize_size {}", mt_serialize_size(tree));
-      std::vector<uint8_t> output(mt_serialize_size(tree));
-      mt_serialize(tree, output.data(), output.capacity());
+      LOG_TRACE_FMT("mt_serialize_size {}", tree->serialised_size());
+      std::vector<uint8_t> output;
+      tree->serialise(output);
       return output;
     }
 
     uint64_t begin_index()
     {
-      return tree->offset + tree->i;
+      return tree->min_index();
     }
 
     uint64_t end_index()
     {
-      return tree->offset + tree->j - 1;
+      return tree->max_index();
     }
 
     bool in_range(uint64_t index)
@@ -425,29 +352,10 @@ namespace ccf
 
     crypto::Sha256Hash get_leaf(uint64_t index)
     {
-      if (!in_range(index))
-      {
-        throw std::logic_error("Cannot get leaf for out-of-range index");
-      }
-
-      const auto leaves = tree->hs.vs[0];
-
-      // We flush pairs of hashes, the offset to this leaf depends on the first
-      // index's parity
-      const auto first_index = begin_index();
-      const auto leaf_index =
-        index - first_index + (first_index % 2 == 0 ? 0 : 1);
-
-      if (leaf_index >= leaves.sz)
-      {
-        throw std::logic_error("Error in leaf offset calculation");
-      }
-
-      const auto leaf_data = leaves.vs[leaf_index];
-
-      crypto::Sha256Hash leaf;
-      std::memcpy(leaf.h.data(), leaf_data, leaf.h.size());
-      return leaf;
+      const merkle::Hash& leaf = tree->leaf(index);
+      crypto::Sha256Hash result;
+      std::copy(leaf.bytes, leaf.bytes + leaf.size(), result.h.begin());
+      return result;
     }
   };
 
@@ -872,7 +780,6 @@ namespace ccf
 
     bool add_request(
       kv::TxHistory::RequestID id,
-      CallerId caller_id,
       const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request,
       uint8_t frame_format) override
@@ -886,8 +793,7 @@ namespace ccf
         return false;
       }
 
-      return consensus->on_request(
-        {id, request, caller_id, caller_cert, frame_format});
+      return consensus->on_request({id, request, caller_cert, frame_format});
     }
 
     struct PendingInsert

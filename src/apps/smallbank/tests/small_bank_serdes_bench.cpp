@@ -10,11 +10,6 @@
 #include <nlohmann/json.hpp>
 #include <picobench/picobench.hpp>
 
-extern "C"
-{
-#include <evercrypt/EverCrypt_AutoConfig2.h>
-}
-
 const std::string account_name = "10";
 const int transaction_value = 50;
 
@@ -76,7 +71,7 @@ static std::vector<uint8_t> kv_serialized_data(std::vector<uint8_t>& data)
   auto tx = kv_store.create_reserved_tx(kv_store.next_version());
   auto tx0 = tx.get_view(map0);
 
-  tx0->put(0, {0, {}, data, {}});
+  tx0->put(0, {{}, data, {}});
 
   auto pending_tx = tx.commit_reserved();
   return pending_tx.data;
@@ -209,10 +204,8 @@ PICOBENCH(jm_large_payload<1000>).iterations(iter).samples(10);
 PICOBENCH(raw_large_payload<10000>).iterations(iter).samples(10);
 PICOBENCH(jm_large_payload<10000>).iterations(iter).samples(10);
 
-// We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char* argv[])
 {
-  ::EverCrypt_AutoConfig2_init();
   picobench::runner runner;
   runner.parse_cmd_line(argc, argv);
   return runner.run();

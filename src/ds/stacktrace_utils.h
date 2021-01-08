@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "logger.h"
 #ifndef INSIDE_ENCLAVE
 // #  pragma clang diagnostic push
 // #  pragma clang diagnostic ignored "-Wundef"

@@ -54,7 +54,6 @@ namespace ccf
     CodeIDs node_code_ids;
     MemberAcks member_acks;
     GovernanceHistory governance_history;
-    ClientSignatures member_client_signatures;
     Shares shares;
     SubmittedShares submitted_shares;
     Configuration config;
@@ -72,8 +71,6 @@ namespace ccf
     Users users;
     CertDERs user_certs;
     CertDigests user_digests;
-
-    ClientSignatures user_client_signatures;
 
     //
     // Node table
@@ -120,7 +117,6 @@ namespace ccf
       node_code_ids(Tables::NODE_CODE_IDS),
       member_acks(Tables::MEMBER_ACKS),
       governance_history(Tables::GOV_HISTORY),
-      member_client_signatures(Tables::MEMBER_CLIENT_SIGNATURES),
       shares(Tables::SHARES),
       submitted_shares(Tables::SUBMITTED_SHARES),
       config(Tables::CONFIGURATION),
@@ -131,7 +127,6 @@ namespace ccf
       users(Tables::USERS),
       user_certs(Tables::USER_CERT_DERS),
       user_digests(Tables::USER_DIGESTS),
-      user_client_signatures(Tables::USER_CLIENT_SIGNATURES),
       nodes(Tables::NODES),
       app_scripts(Tables::APP_SCRIPTS),
       service(Tables::SERVICE),
@@ -162,7 +157,6 @@ namespace ccf
         std::ref(node_code_ids),
         std::ref(member_acks),
         std::ref(governance_history),
-        std::ref(member_client_signatures),
         std::ref(config),
         std::ref(ca_certs),
         std::ref(jwt_issuers),
@@ -170,7 +164,6 @@ namespace ccf
         std::ref(jwt_public_signing_key_issuer),
         std::ref(users),
         std::ref(user_certs),
-        std::ref(user_client_signatures),
         std::ref(nodes),
         std::ref(service),
         std::ref(app_scripts),

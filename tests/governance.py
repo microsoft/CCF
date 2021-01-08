@@ -9,7 +9,6 @@ import infra.path
 import infra.proc
 import infra.net
 import infra.e2e_args
-import infra.proposal
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import ssl
@@ -19,8 +18,6 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from loguru import logger as LOG
-
-import ccf
 
 
 @reqs.description("Test quotes")
@@ -83,7 +80,7 @@ def test_quote(network, args, verify=True):
                 assert "Evidence verification succeeded (0)." in out
 
             node = network.nodes[quote["node_id"]]
-            node_cert = ssl.get_server_certificate((node.pubhost, node.rpc_port))
+            node_cert = ssl.get_server_certificate((node.pubhost, node.pubport))
             public_key = x509.load_pem_x509_certificate(
                 node_cert.encode(), default_backend()
             ).public_key()
@@ -117,7 +114,7 @@ def test_user(network, args, verify=True):
     network.consortium.remove_user(primary, new_user_id)
     with primary.client(f"user{new_user_id}") as c:
         r = c.get("/app/log/private")
-        assert r.status_code == http.HTTPStatus.FORBIDDEN.value
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value
     return network
 
 
@@ -171,33 +168,12 @@ def test_user_id(network, args):
     return network
 
 
-@reqs.description("Test signed proposal over unauthenticated connection")
-def test_proposal_over_unauthenticated_connection(network, args):
-    primary, backups = network.find_nodes()
-    proposing_member = network.consortium.get_any_active_member()
-    user_id = 0
-
-    proposal_body, _ = ccf.proposal_generator.set_user_data(
-        user_id,
-        {"property": "value"},
-    )
-    proposal = proposing_member.propose(
-        primary, proposal_body, disable_client_auth=True
-    )
-    assert proposal.state == infra.proposal.ProposalState.Open
-
-    proposal = proposing_member.propose(
-        backups[0], proposal_body, disable_client_auth=True
-    )
-    assert proposal.state == infra.proposal.ProposalState.Open
-
-
 @reqs.description("Check node/ids endpoint")
 def test_node_ids(network, args):
     nodes = network.find_nodes()
     for node in nodes:
         with node.client() as c:
-            r = c.get(f'/node/node/ids?host="{node.pubhost}"&port="{node.rpc_port}"')
+            r = c.get(f'/node/node/ids?host="{node.pubhost}"&port="{node.pubport}"')
             assert r.status_code == 200
             assert r.body.json()["nodes"] == [
                 {"node_id": node.node_id, "status": "TRUSTED"}
@@ -216,7 +192,6 @@ def run(args):
         network = test_user(network, args)
         network = test_no_quote(network, args)
         network = test_user_id(network, args)
-        network = test_proposal_over_unauthenticated_connection(network, args)
 
 
 if __name__ == "__main__":
@@ -227,4 +202,5 @@ if __name__ == "__main__":
 
     args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    args.initial_user_count = 3
     run(args)

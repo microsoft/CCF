@@ -210,23 +210,31 @@ namespace http
         {
           if (is_websocket)
           {
-            send_raw(ws::error(HTTP_STATUS_BAD_REQUEST, e.what()));
+            send_raw(ws::error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              e.what()));
           }
           else
           {
-            send_raw(http::error(HTTP_STATUS_BAD_REQUEST, e.what()));
+            send_raw(http::error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              e.what()));
           }
         }
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
         if (!actor_opt.has_value())
         {
-          send_raw(rpc_ctx->serialise_error(
+          rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
             fmt::format(
               "Request path must contain '/[actor]/[method]'. Unable to parse "
-              "'{}'.\n",
-              rpc_ctx->get_method())));
+              "'{}'.",
+              rpc_ctx->get_method()));
+          send_raw(rpc_ctx->serialise_response());
           return;
         }
 
@@ -235,9 +243,11 @@ namespace http
         auto search = rpc_map->find(actor);
         if (actor == ccf::ActorsType::unknown || !search.has_value())
         {
-          send_raw(rpc_ctx->serialise_error(
+          rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
-            fmt::format("Unknown session '{}'.\n", actor_s)));
+            ccf::errors::ResourceNotFound,
+            fmt::format("Unknown actor '{}'.", actor_s));
+          send_raw(rpc_ctx->serialise_response());
           return;
         }
 
@@ -261,13 +271,15 @@ namespace http
         {
           send_raw(ws::error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            fmt::format("Exception:\n{}\n", e.what())));
+            ccf::errors::InternalError,
+            fmt::format("Exception: {}", e.what())));
         }
         else
         {
           send_raw(http::error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            fmt::format("Exception:\n{}\n", e.what())));
+            ccf::errors::InternalError,
+            fmt::format("Exception: {}", e.what())));
         }
 
         // On any exception, close the connection.

@@ -8,11 +8,6 @@
 #include <sys/resource.h>
 #include <sys/time.h>
 
-extern "C"
-{
-#include <evercrypt/EverCrypt_AutoConfig2.h>
-}
-
 using namespace std;
 
 static constexpr size_t appends = 1'000'000;
@@ -76,9 +71,7 @@ static int append_flush_and_retract()
   return get_maxrss() < max_expected_rss ? 0 : 1;
 }
 
-// We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char* argv[])
 {
-  ::EverCrypt_AutoConfig2_init();
   return append_flush_and_retract();
 }

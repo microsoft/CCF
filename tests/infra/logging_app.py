@@ -61,7 +61,6 @@ class LoggingTxs:
                         "msg": priv_msg,
                     },
                 )
-                check_commit(rep_priv, result=True)
                 self.priv[self.idx].append(
                     {"msg": priv_msg, "seqno": rep_priv.seqno, "view": rep_priv.view}
                 )
@@ -76,10 +75,11 @@ class LoggingTxs:
                         "msg": pub_msg,
                     },
                 )
-                check_commit(rep_pub, result=True)
                 self.pub[self.idx].append(
                     {"msg": pub_msg, "seqno": rep_pub.seqno, "view": rep_pub.view}
                 )
+            if number_txs:
+                check_commit(rep_pub, result=True)
 
         network.wait_for_node_commit_sync()
 

@@ -40,7 +40,7 @@ def test_verify_quotes(network, args):
         assert (
             infra.proc.ccall(
                 "verify_quote.sh",
-                f"https://{node.pubhost}:{node.rpc_port}",
+                f"https://{node.pubhost}:{node.pubport}",
                 "--cacert",
                 f"{cafile}",
                 log_output=True,
@@ -53,16 +53,24 @@ def test_verify_quotes(network, args):
 
 @reqs.description("Node with bad code fails to join")
 def test_add_node_with_bad_code(network, args):
+    if args.enclave_type == "virtual":
+        LOG.warning("Skipping test_add_node_with_bad_code with virtual enclave")
+        return network
+
+    replacement_package = (
+        "liblogging" if args.package == "libjs_generic" else "libjs_generic"
+    )
+
     new_code_id = get_code_id(
         args.oe_binary,
-        infra.path.build_lib_path(args.replacement_package, args.enclave_type),
+        infra.path.build_lib_path(replacement_package, args.enclave_type),
     )
 
     LOG.info(f"Adding a node with unsupported code id {new_code_id}")
     code_not_found_exception = None
     try:
         network.create_and_add_pending_node(
-            args.replacement_package, "local://localhost", args, timeout=3
+            replacement_package, "local://localhost", args, timeout=3
         )
     except infra.network.CodeIdNotFound as err:
         code_not_found_exception = err
@@ -76,11 +84,15 @@ def test_add_node_with_bad_code(network, args):
 
 @reqs.description("Update all nodes code")
 def test_update_all_nodes(network, args):
+    replacement_package = (
+        "liblogging" if args.package == "libjs_generic" else "libjs_generic"
+    )
+
     primary, _ = network.find_nodes()
 
     first_code_id, new_code_id = [
         get_code_id(args.oe_binary, infra.path.build_lib_path(pkg, args.enclave_type))
-        for pkg in [args.package, args.replacement_package]
+        for pkg in [args.package, replacement_package]
     ]
 
     LOG.info("Add new code id")
@@ -90,8 +102,8 @@ def test_update_all_nodes(network, args):
         versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
         expected = sorted(
             [
-                {"digest": first_code_id, "status": "ACCEPTED"},
-                {"digest": new_code_id, "status": "ACCEPTED"},
+                {"digest": first_code_id, "status": "ALLOWED_TO_JOIN"},
+                {"digest": new_code_id, "status": "ALLOWED_TO_JOIN"},
             ],
             key=lambda x: x["digest"],
         )
@@ -104,8 +116,7 @@ def test_update_all_nodes(network, args):
         versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
         expected = sorted(
             [
-                {"digest": first_code_id, "status": "RETIRED"},
-                {"digest": new_code_id, "status": "ACCEPTED"},
+                {"digest": new_code_id, "status": "ALLOWED_TO_JOIN"},
             ],
             key=lambda x: x["digest"],
         )
@@ -116,7 +127,7 @@ def test_update_all_nodes(network, args):
     LOG.info("Start fresh nodes running new code")
     for _ in range(0, len(network.nodes)):
         new_node = network.create_and_trust_node(
-            args.replacement_package, "local://localhost", args
+            replacement_package, "local://localhost", args
         )
         assert new_node
 
@@ -157,6 +168,5 @@ if __name__ == "__main__":
         sys.exit()
 
     args.package = "liblogging"
-    args.replacement_package = "libjs_generic"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     run(args)

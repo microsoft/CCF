@@ -112,6 +112,7 @@ namespace http
 
     const auto signature = kp->sign(to_sign.value());
 
+    // https://github.com/microsoft/CCF/issues/2018
     auto auth_value = fmt::format(
       "Signature "
       "keyId=\"ignored\",algorithm=\"{}\",headers=\"{}\",signature="

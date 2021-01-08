@@ -42,11 +42,6 @@
 #include <unordered_set>
 #include <vector>
 
-extern "C"
-{
-#include <evercrypt/EverCrypt_AutoConfig2.h>
-}
-
 // Used by fmtlib to render ccf::State
 namespace std
 {
@@ -247,9 +242,7 @@ namespace ccf
       rpcsessions(rpcsessions),
       share_manager(share_manager),
       snapshotter(std::make_shared<Snapshotter>(writer_factory, network))
-    {
-      ::EverCrypt_AutoConfig2_init();
-    }
+    {}
 
     //
     // funcs in state "uninitialized"

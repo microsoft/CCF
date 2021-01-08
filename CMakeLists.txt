@@ -52,6 +52,9 @@ set(CONSENSUSES cft bft)
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(TLS_TEST "TLS Test using https://github.com/drwetter/testssl.sh" OFF)
+option(ZAP_TEST
+       "ZAP fuzz test using https://www.zaproxy.org/docs/docker/api-scan/" OFF
+)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
 # Build common library for CCF enclaves
@@ -74,14 +77,9 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 
   target_include_directories(
     ccf.enclave SYSTEM
-    PUBLIC
-      "$<BUILD_INTERFACE:${EVERCRYPT_INC}>"
-      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-      $<INSTALL_INTERFACE:include/ccf/>
-      $<INSTALL_INTERFACE:include/3rdparty/>
-      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt>
-      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin>
-      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
+    PUBLIC $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+           $<INSTALL_INTERFACE:include/ccf/>
+           $<INSTALL_INTERFACE:include/3rdparty/>
   )
 
   target_link_libraries(
@@ -90,12 +88,12 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            -static-libgcc
            -lgcc
            ccfcrypto.enclave
-           evercrypt.enclave
            http_parser.enclave
            lua.enclave
            secp256k1.enclave
            aft.enclave
            sss.enclave
+           $<BUILD_INTERFACE:merklecpp>
   )
 
   set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -130,14 +128,9 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
   target_include_directories(
     ccf.virtual SYSTEM
-    PUBLIC
-      "$<BUILD_INTERFACE:${EVERCRYPT_INC}>"
-      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-      $<INSTALL_INTERFACE:include/ccf/>
-      $<INSTALL_INTERFACE:include/3rdparty/>
-      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt>
-      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin>
-      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
+    PUBLIC $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+           $<INSTALL_INTERFACE:include/ccf/>
+           $<INSTALL_INTERFACE:include/3rdparty/>
   )
 
   target_link_libraries(
@@ -146,7 +139,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            -static-libgcc
            -lgcc
            ccfcrypto.host
-           evercrypt.host
            http_parser.host
            lua.host
            secp256k1.host
@@ -154,6 +146,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            sss.host
            openenclave::oehostverify
            ${CMAKE_THREAD_LIBS_INIT}
+           $<BUILD_INTERFACE:merklecpp>
   )
 
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -299,20 +292,16 @@ if(BUILD_TESTS)
     add_unit_test(
       history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
     )
-    target_include_directories(history_test PRIVATE ${EVERCRYPT_INC})
     target_link_libraries(
-      history_test PRIVATE ${CRYPTO_LIBRARY} evercrypt.host secp256k1.host
-                           http_parser.host
+      history_test PRIVATE ${CRYPTO_LIBRARY} secp256k1.host http_parser.host
     )
 
     add_unit_test(
       progress_tracker_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/progress_tracker.cpp
     )
-    target_include_directories(progress_tracker_test PRIVATE ${EVERCRYPT_INC})
     target_link_libraries(
-      progress_tracker_test PRIVATE ${CRYPTO_LIBRARY} evercrypt.host
-                                    secp256k1.host
+      progress_tracker_test PRIVATE ${CRYPTO_LIBRARY} secp256k1.host
     )
 
     add_unit_test(
@@ -385,8 +374,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
     )
     target_link_libraries(
-      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host
-                            secp256k1.host http_parser.host sss.host
+      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host secp256k1.host
+                            http_parser.host sss.host
     )
 
     add_unit_test(
@@ -399,9 +388,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp
     )
     target_link_libraries(
-      member_voting_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host secp256k1.host
-              http_parser.host sss.host
+      member_voting_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
+                                 secp256k1.host http_parser.host sss.host
     )
 
     add_unit_test(
@@ -409,9 +397,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
     )
     target_link_libraries(
-      node_frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host secp256k1.host
-              http_parser.host sss.host
+      node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
+                                 secp256k1.host http_parser.host sss.host
     )
 
     if(NOT ENV{RUNTIME_CONFIG_DIR})
@@ -438,11 +425,15 @@ if(BUILD_TESTS)
     # Merkle Tree memory test
     add_executable(merkle_mem src/node/test/merkle_mem.cpp)
     target_link_libraries(
-      merkle_mem PRIVATE ccfcrypto.host evercrypt.host secp256k1.host
-                         ${CMAKE_THREAD_LIBS_INIT}
+      merkle_mem
+      PRIVATE ccfcrypto.host secp256k1.host ${CMAKE_THREAD_LIBS_INIT}
+              $<BUILD_INTERFACE:merklecpp> crypto
     )
     use_client_mbedtls(merkle_mem)
-    target_include_directories(merkle_mem PRIVATE ${EVERCRYPT_INC} src)
+
+    # merklecpp tests
+    set(MERKLECPP_TEST_PREFIX "merklecpp-")
+    add_subdirectory(src/libmerklecpp/test)
 
     # Raft driver and scenario test
     add_executable(
@@ -484,14 +475,12 @@ if(BUILD_TESTS)
   add_picobench(
     merkle_bench
     SRCS src/node/test/merkle_bench.cpp
-    LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
-    INCLUDE_DIRS ${EVERCRYPT_INC}
+    LINK_LIBS ccfcrypto.host secp256k1.host crypto
   )
   add_picobench(
     history_bench
     SRCS src/node/test/history_bench.cpp
-    LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
-    INCLUDE_DIRS ${EVERCRYPT_INC}
+    LINK_LIBS ccfcrypto.host secp256k1.host crypto
   )
   add_picobench(
     kv_bench
@@ -503,8 +492,7 @@ if(BUILD_TESTS)
   add_picobench(
     digest_bench
     SRCS src/crypto/test/digest_bench.cpp
-    LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
-    INCLUDE_DIRS ${EVERCRYPT_INC}
+    LINK_LIBS ccfcrypto.host secp256k1.host
   )
 
   # Storing signed governance operations
@@ -512,6 +500,10 @@ if(BUILD_TESTS)
     NAME governance_history_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_history.py
     CONSENSUS cft
+    ADDITIONAL_ARGS
+      # Higher snapshot interval as snapshots trigger new ledger chunks, which
+      # may result in latest chunk being partially written
+      --snapshot-tx-interval 10000
   )
 
   add_e2e_test(
@@ -525,22 +517,6 @@ if(BUILD_TESTS)
       # purpose to check that a recovery network is robust to a view change.
       --raft-election-timeout
       4000
-  )
-
-  add_e2e_test(
-    NAME recovery_snapshot_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS
-      --recovery
-      2
-      # Shorten Raft election timeout to speed up test when it kills a node on
-      # purpose to check that a recovery network is robust to a view change.
-      --raft-election-timeout
-      4000
-      --snapshot-tx-interval
-      5
-      --use-snapshot
   )
 
   add_e2e_test(
@@ -571,29 +547,12 @@ if(BUILD_TESTS)
     LABEL suite
     ADDITIONAL_ARGS
       --test-duration
-      150
+      200
       --enforce-reqs
       --test-suite
       reconfiguration
       --raft-election-timeout
       4000
-  )
-
-  add_e2e_test(
-    NAME snapshots_test_suite
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-    CONSENSUS cft
-    LABEL suite
-    ADDITIONAL_ARGS
-      --test-duration
-      150
-      --enforce-reqs
-      --test-suite
-      snapshots
-      --raft-election-timeout
-      4000
-      --snapshot-tx-interval
-      5
   )
 
   add_e2e_test(
@@ -673,6 +632,14 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME governance_no_session_auth_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
+                    --disable-member-session-auth
+  )
+
+  add_e2e_test(
     NAME ca_certs_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/ca_certs.py
     CONSENSUS cft
@@ -690,13 +657,6 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
       CONSENSUS cft
       ADDITIONAL_ARGS --raft-election-timeout 4000
-    )
-
-    add_e2e_test(
-      NAME reconfiguration_snapshot_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-      CONSENSUS cft
-      ADDITIONAL_ARGS --snapshot-tx-interval 10 --raft-election-timeout 4000
     )
 
     add_e2e_test(
@@ -756,11 +716,13 @@ if(BUILD_TESTS)
   )
 
   if(NOT SAN)
+    # Writing new ledger files and generating new snapshots uses more file
+    # descriptors so disable those for this test
     add_e2e_test(
       NAME connections_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
       CONSENSUS cft
-      ADDITIONAL_ARGS --ledger-chunk-bytes 100Mib
+      ADDITIONAL_ARGS --ledger-chunk-bytes 100Mib --snapshot-tx-interval 10000
     )
   endif()
 
@@ -776,6 +738,19 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tlstest.py
       CONSENSUS cft
       LABEL tlstest
+    )
+  endif()
+
+  if(ZAP_TEST)
+    configure_file(
+      ${CMAKE_SOURCE_DIR}/tests/zap.config ${CMAKE_BINARY_DIR}/zap.config
+      COPYONLY
+    )
+    add_e2e_test(
+      NAME zaptest_cft
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/zap.py
+      CONSENSUS cft
+      LABEL zaptest
     )
   endif()
 
@@ -841,7 +816,7 @@ if(BUILD_TESTS)
       --max-writes-ahead
       1000
       --repetitions
-      1000
+      10000
       --msg-ser-fmt
       msgpack
   )
@@ -880,7 +855,7 @@ if(BUILD_TESTS)
       --max-writes-ahead
       1000
       --repetitions
-      800
+      1000
       --msg-ser-fmt
       text
   )
