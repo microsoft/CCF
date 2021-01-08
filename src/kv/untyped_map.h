@@ -190,9 +190,9 @@ namespace kv::untyped
               return false;
             }
 
-            if (max_conflict_version < search.value().version)
+            if (max_conflict_version < search->version)
             {
-              max_conflict_version = search.value().version;
+              max_conflict_version = search->version;
             }
           }
         }
