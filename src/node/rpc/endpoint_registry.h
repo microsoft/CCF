@@ -27,6 +27,7 @@ namespace ccf
 {
   using namespace endpoints;
 
+  // TODO: Remove?
   // to be exposed in EndpointContext or similar
   struct Jwt
   {

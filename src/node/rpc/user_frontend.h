@@ -49,9 +49,7 @@ namespace ccf
   public:
     UserEndpointRegistry(kv::Store& store) :
       CommonEndpointRegistry(
-        get_actor_prefix(ActorsType::users),
-        store,
-        Tables::USER_CERT_DERS)
+        get_actor_prefix(ActorsType::users), store, Tables::USER_CERT_DERS)
     {}
 
     UserEndpointRegistry(NetworkTables& network) :

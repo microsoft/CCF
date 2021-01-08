@@ -6,7 +6,6 @@
 #include "http/http_consts.h"
 #include "http/ws_consts.h"
 #include "json_handler.h"
-#include "metrics.h"
 #include "node/code_id.h"
 
 namespace ccf
@@ -17,16 +16,12 @@ namespace ccf
    */
   class CommonEndpointRegistry : public EndpointRegistry
   {
-  private:
-    metrics::Metrics metrics;
-
   public:
     CommonEndpointRegistry(
       const std::string& method_prefix_,
       kv::Store& store,
       const std::string& certs_table_name = "") :
-      EndpointRegistry(
-        method_prefix_, store, certs_table_name)
+      EndpointRegistry(method_prefix_, store, certs_table_name)
     {}
 
     void init_handlers(kv::Store& t) override
@@ -82,19 +77,6 @@ namespace ccf
         json_command_adapter(get_tx_status),
         no_auth_required)
         .set_auto_schema<GetTxStatus>()
-        .set_execute_locally(true)
-        .install();
-
-      auto get_metrics = [this](auto&, nlohmann::json&&) {
-        auto result = metrics.get_metrics();
-        return make_success(result);
-      };
-      make_command_endpoint(
-        "metrics",
-        HTTP_GET,
-        json_command_adapter(get_metrics),
-        no_auth_required)
-        .set_auto_schema<void, GetMetrics::Out>()
         .set_execute_locally(true)
         .install();
 
@@ -361,15 +343,6 @@ namespace ccf
         no_auth_required)
         .set_auto_schema<VerifyReceipt>()
         .install();
-    }
-
-    void tick(
-      std::chrono::milliseconds elapsed,
-      kv::Consensus::Statistics stats) override
-    {
-      metrics.track_tx_rates(elapsed, stats);
-
-      EndpointRegistry::tick(elapsed, stats);
     }
   };
 }

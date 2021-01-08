@@ -4,6 +4,7 @@
 #include "formatters.h"
 #include "logging_schema.h"
 #include "node/quote.h"
+#include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"
 
 #include <charconv>
@@ -108,6 +109,8 @@ namespace loggingapp
 
     const nlohmann::json get_public_params_schema;
     const nlohmann::json get_public_result_schema;
+
+    metrics::Tracker metrics_tracker;
 
   public:
     // SNIPPET_START: constructor
@@ -635,6 +638,17 @@ namespace loggingapp
         user_cert_required)
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
+
+      metrics_tracker.install_endpoint(*this);
+    }
+
+    void tick(
+      std::chrono::milliseconds elapsed,
+      kv::Consensus::Statistics stats) override
+    {
+      metrics_tracker.tick(elapsed, stats);
+
+      ccf::UserEndpointRegistry::tick(elapsed, stats);
     }
   };
 
