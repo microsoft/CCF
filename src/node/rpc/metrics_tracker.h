@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
 #pragma once
 
 #include "endpoint_registry.h"
@@ -24,11 +26,9 @@ namespace metrics
 
     void install_endpoint(ccf::EndpointRegistry& reg)
     {
-      reg.make_command_endpoint(
-        "metrics",
-        HTTP_GET,
-        get_endpoint_handler(),
-        ccf::no_auth_required)
+      reg
+        .make_command_endpoint(
+          "metrics", HTTP_GET, get_endpoint_handler(), ccf::no_auth_required)
         .set_auto_schema<void, metrics::Report>()
         .set_execute_locally(true)
         .install();

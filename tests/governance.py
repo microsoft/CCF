@@ -165,7 +165,7 @@ def test_user_id(network, args):
         with open(network.consortium.user_cert_path(1), "r") as ucert:
             pem = ucert.read()
         json_pem = json.dumps(pem)
-        r = uc.get(f'/app/user_id?cert={urllib.parse.quote_plus(json_pem)}')
+        r = uc.get(f"/app/user_id?cert={urllib.parse.quote_plus(json_pem)}")
         assert r.status_code == 200
         assert r.body.json()["caller_id"] == 1
     return network
