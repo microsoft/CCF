@@ -333,11 +333,24 @@ namespace http
       }
 
       // If any sig params were not found, this is invalid
-      if (
-        sig_params.signature.empty() ||
-        sig_params.signature_algorithm.empty() ||
-        sig_params.signed_headers.empty() || sig_params.key_id.empty())
+      if (sig_params.key_id.empty())
       {
+        LOG_TRACE_FMT("Signature params: Missing {}", auth::SIGN_PARAMS_KEYID);
+        return std::nullopt;
+      }
+      if (sig_params.signature_algorithm.empty())
+      {
+        LOG_TRACE_FMT("Signature params: Missing {}", auth::SIGN_PARAMS_ALGORITHM);
+        return std::nullopt;
+      }
+      if (sig_params.signature.empty())
+      {
+        LOG_TRACE_FMT("Signature params: Missing {}", auth::SIGN_PARAMS_SIGNATURE);
+        return std::nullopt;
+      }
+      if (sig_params.signed_headers.empty())
+      {
+        LOG_TRACE_FMT("Signature params: Missing {}", auth::SIGN_PARAMS_HEADERS);
         return std::nullopt;
       }
 
