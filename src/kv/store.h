@@ -352,7 +352,7 @@ namespace kv
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
         return DeserialiseSuccess::FAILED;
       }
-      auto v = v_.value();
+      auto [v, _] = v_.value();
 
       std::lock_guard<SpinLock> mguard(maps_lock);
 
@@ -628,7 +628,7 @@ namespace kv
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
         return DeserialiseSuccess::FAILED;
       }
-      auto v = v_.value();
+      auto [v, _] = v_.value();
 
       // Throw away any local commits that have not propagated via the
       // consensus.
