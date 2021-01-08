@@ -141,7 +141,7 @@ namespace kv::untyped
         return committed_writes || change_set.has_writes();
       }
 
-      bool prepare(kv::Version& max_update_version) override
+      bool prepare(kv::Version& max_conflict_version) override
       {
         if (change_set.writes.empty())
           return true;
@@ -190,9 +190,9 @@ namespace kv::untyped
               return false;
             }
 
-            if (max_update_version < search.value().version)
+            if (max_conflict_version < search.value().version)
             {
-              max_update_version = search.value().version;
+              max_conflict_version = search.value().version;
             }
           }
         }
