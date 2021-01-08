@@ -341,7 +341,14 @@ namespace ccf
           if (consensus != nullptr)
           {
             out.current_view = consensus->get_view();
-            out.primary_id = consensus->primary();
+
+            auto primary_id = consensus->primary();
+            auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
+            auto info = nodes_view->get(primary_id);
+            if (info)
+            {
+              out.primary_id = primary_id;
+            }
           }
           return make_success(out);
         }
@@ -449,23 +456,23 @@ namespace ccf
         auto nodes_view =
           args.tx.template get_read_only_view<Nodes>(Tables::NODES);
         auto info = nodes_view->get(node_id);
-        if (!info)
+        if (info)
         {
-          args.rpc_ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Node info not available");
+          args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
+          args.rpc_ctx->set_response_header(
+            "Location",
+            fmt::format(
+              "https://{}:{}/node/network/nodes/{}",
+              info->pubhost,
+              info->pubport,
+              node_id));
           return;
         }
 
-        args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
-        args.rpc_ctx->set_response_header(
-          "Location",
-          fmt::format(
-            "https://{}:{}/node/network/nodes/{}",
-            info->pubhost,
-            info->pubport,
-            node_id));
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Node info not available");
       };
       make_read_only_endpoint(
         "network/nodes/self", HTTP_GET, get_self_node, no_auth_required)
@@ -473,35 +480,32 @@ namespace ccf
         .install();
 
       auto get_primary_node = [this](ReadOnlyEndpointContext& args) {
-        if (consensus == nullptr)
+        if (consensus != nullptr)
         {
-          args.rpc_ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Primary unknown");
-          return;
-        }
-        auto node_id = consensus->primary();
-        auto nodes_view =
-          args.tx.template get_read_only_view<Nodes>(Tables::NODES);
-        auto info = nodes_view->get(node_id);
-        if (!info)
-        {
-          args.rpc_ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Node info not available");
-          return;
+          auto node_id = this->node.get_node_id();
+          auto primary_id = consensus->primary();
+          auto nodes_view =
+            args.tx.template get_read_only_view<Nodes>(Tables::NODES);
+          auto info = nodes_view->get(node_id);
+          auto info_primary = nodes_view->get(primary_id);
+          if (info && info_primary)
+          {
+            args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
+            args.rpc_ctx->set_response_header(
+              "Location",
+              fmt::format(
+                "https://{}:{}/node/network/nodes/{}",
+                info->pubhost,
+                info->pubport,
+                node_id));
+            return;
+          }
         }
 
-        args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
-        args.rpc_ctx->set_response_header(
-          "Location",
-          fmt::format(
-            "https://{}:{}/node/network/nodes/{}",
-            info->pubhost,
-            info->pubport,
-            node_id));
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Primary unknown");
       };
       make_read_only_endpoint(
         "network/nodes/primary", HTTP_GET, get_primary_node, no_auth_required)
