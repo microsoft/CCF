@@ -6,7 +6,7 @@ Install
 
 The CCF Python tools package can be used to interact with an existing running service and provides utilities to:
 
-- Issue HTTP requests over TLS to CCF applications
+- Issue HTTP requests over TLS to a CCF service
 - Build custom governance proposals and votes
 - Parse and verify the integrity of a CCF ledger
 
@@ -32,6 +32,8 @@ To uninstall the CCF Python package, run:
 
 Tutorial
 --------
+
+.. note:: The CCF Python client module uses `Python Requests <https://requests.readthedocs.io/en/master/>`_ by default, but can be switched to a ``curl``-based client (printing each command to stdout) by running with the environment variable ``CURL_CLIENT`` set.
 
 This tutorial describes how a Python client can securely issue requests to a running CCF network. It is assumed that the CCF network has already been started (e.g. after having :doc:`deployed a sandbox service </build_apps/run_app>`).
 
@@ -68,19 +70,22 @@ You can then use the ``anonymous_client`` to issue requests that do not require 
     :start-after: SNIPPET_START: anonymous_requests
     :end-before: SNIPPET_END: anonymous_requests
 
-To create an authenticated client and issue application or governance requests, the client identity (certificate and private key) should be specified:
+TLS Session Authentication
+--------------------------
+
+To create a client authenticated via TLS and issue application or governance requests, the session identity (certificate and private key) should be specified:
 
 .. code-block:: python
 
     cert = "</path/to/client/cert>"         # Client certificate path
     key = "</path/to/client/private/key>"   # Private key certificate path
 
-Create a new instance of :py:class:`ccf.clients.CCFClient`, this time specifying the client's certificate and private key:
+Create a new instance of :py:class:`ccf.clients.CCFClient`, this time specifying the client's certificate and private key as :py:class:`ccf.clients.Identity`:
 
 .. literalinclude:: ../../python/tutorial.py
     :language: py
-    :start-after: SNIPPET: authenticated_client
-    :lines: 1
+    :start-after: SNIPPET_START: session_authenticated_client
+    :end-before: SNIPPET_END: session_authenticated_client
 
 The authenticated client can then be used to issue ``POST`` requests, e.g. registering new public and private messages to the default logging application:
 
@@ -112,4 +117,21 @@ Finally, the authenticated client can be used to issue ``GET`` requests and veri
     :start-after: SNIPPET_START: authenticated_get_requests
     :end-before: SNIPPET_END: authenticated_get_requests
 
-.. note:: The CCF Python client module uses `Python Requests <https://requests.readthedocs.io/en/master/>`_ by default, but can be switched to a ``curl``-based client (printing each command to stdout) by running with the environment variable ``CURL_CLIENT`` set.
+Request Signature Authentication
+--------------------------------
+
+Alternatively, the client's identity can be derived from the client signature on the request:
+
+.. literalinclude:: ../../python/tutorial.py
+    :language: py
+    :start-after: SNIPPET_START: signature_authenticated_client
+    :end-before: SNIPPET_END: signature_authenticated_client
+
+Signed requests can then be submitted the usual way, e.g.:
+
+.. literalinclude:: ../../python/tutorial.py
+    :language: py
+    :start-after: SNIPPET_START: signed_request
+    :end-before: SNIPPET_END: signed_request
+
+.. note:: It is possible to set different session and signing identities for a :py:class:`ccf.clients.CCFClient` instance. If the triggered CCF application endpoint has registered both authentication policies, it is up to the application logic to check for the identity type.
