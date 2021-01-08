@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "common_endpoints/get_last_committed_txid.h"
 #include "common_endpoints/get_tx_status.h"
 #include "endpoint_registry.h"
 #include "http/http_consts.h"
@@ -30,10 +31,11 @@ namespace ccf
       EndpointRegistry::init_handlers();
 
       auto get_commit = [this](auto&, nlohmann::json&&) {
-        if (consensus != nullptr)
+        const auto last_committed = ccf::get_last_committed_txid_v1(consensus);
+        if (last_committed.has_value())
         {
-          auto [view, seqno] = consensus->get_committed_txid();
-          return make_success(GetCommit::Out{view, seqno});
+          return make_success(
+            GetCommit::Out{last_committed->term, last_committed->version});
         }
 
         return make_error(

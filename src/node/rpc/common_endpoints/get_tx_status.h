@@ -8,16 +8,16 @@
 namespace ccf
 {
   static ccf::TxStatus get_tx_status_v1(
-    kv::Consensus* consensus, int64_t view, int64_t seqno)
+    kv::Consensus* consensus, const TxID& tx_id)
   {
     if (consensus != nullptr)
     {
-      const auto tx_view = consensus->get_view(seqno);
+      const auto tx_view = consensus->get_view(tx_id.version);
       const auto committed_seqno = consensus->get_committed_seqno();
       const auto committed_view = consensus->get_view(committed_seqno);
 
       return ccf::evaluate_tx_status(
-        view, seqno, tx_view, committed_view, committed_seqno);
+        tx_id.term, tx_id.version, tx_view, committed_view, committed_seqno);
     }
 
     return ccf::TxStatus::Unknown;
