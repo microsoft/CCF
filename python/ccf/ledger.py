@@ -58,6 +58,7 @@ class PublicDomain:
     _unpacker: msgpack.Unpacker
     _is_snapshot: bool
     _version: int
+    _max_conflict_version: int
     _tables: dict
     _msgpacked_tables: Set[str]
 
@@ -67,6 +68,7 @@ class PublicDomain:
         self._unpacker = msgpack.Unpacker(self._buffer, **UNPACK_ARGS)
         self._is_snapshot = self._read_next()
         self._version = self._read_next()
+        self._max_conflict_version = self._read_next()
         self._tables = {}
         # Keys and Values may have custom serialisers.
         # Store most as raw bytes, only decode a few which we know are msgpack.
