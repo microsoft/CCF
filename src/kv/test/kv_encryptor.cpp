@@ -125,8 +125,6 @@ TEST_CASE("KV encryption/decryption" * doctest::test_suite("encryption"))
   }
 }
 
-/*
-
 // TODO: Test case would benefit from further assertions on which keys are
 // present in the encryptor, once this is implemented
 TEST_CASE(
@@ -135,8 +133,8 @@ TEST_CASE(
   MapTypes::StringString map("map");
   kv::Store store;
 
-  auto encryptor = std::make_shared<kv::NewTxEncryptor>(
-    tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+  auto ledger_secrets = std::make_shared<ccf::NewLedgerSecrets>();
+  auto encryptor = std::make_shared<NodeEncryptor>(ledger_secrets);
   store.set_encryptor(encryptor);
 
   commit_one(store, map);
@@ -184,4 +182,3 @@ TEST_CASE(
   commit_one(store, map);
   commit_one(store, map);
 }
-*/

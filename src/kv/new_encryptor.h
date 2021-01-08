@@ -17,24 +17,6 @@ namespace kv
   private:
     std::shared_ptr<T> ledger_secrets;
 
-    // TODO: Template Encryptor so that KV doesn't depend on crypto!
-    // struct NewLedgerSecret
-    // {
-    //   crypto::KeyAesGcm key;
-
-    //   // Keep track of raw key to passed on to new nodes on join
-    //   std::vector<uint8_t> raw_key;
-
-    //   NewLedgerSecret(std::vector<uint8_t>&& raw_key_) :
-    //     key(raw_key_),
-    //     raw_key(std::move(raw_key_))
-    //   {}
-    // };
-
-    // using EncryptionKeys = std::map<Version,
-    // std::shared_ptr<NewLedgerSecret>>; EncryptionKeys encryption_keys;
-    // EncryptionKeys::iterator commit_key_it = encryption_keys.end();
-
     void set_iv(
       crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr,
       Version version,
@@ -46,45 +28,16 @@ namespace kv
       // - Snapshots do not reuse IV
       // - If all nodes execute the _same_ tx (or generate the same snapshot),
       // the same IV will be used
+
       gcm_hdr.set_iv_seq(version);
       gcm_hdr.set_iv_term(term);
       gcm_hdr.set_iv_snapshot(is_snapshot);
     }
 
-    // EncryptionKeys::iterator get_encryption_key_it(Version version)
-    // {
-    //   // Encryption keys lock should be taken before calling this function
-
-    //   // Encryption key for a given version is the one with the highest
-    //   version
-    //   // that is lower than the given version (e.g. if encryption_keys
-    //   contains
-    //   // two keys for version 0 and 10 then the key associated with version 0
-    //   // is used for version [0..9] and version 10 for versions 10+)
-
-    //   auto search = std::upper_bound(
-    //     commit_key_it,
-    //     encryption_keys.end(),
-    //     version,
-    //     [](auto a, const auto& b) {
-    //       LOG_FAIL_FMT("Considering key at seqno {}", b.first);
-    //       return b.first > a;
-    //     });
-    //   if (search == commit_key_it)
-    //   {
-    //     throw std::logic_error(fmt::format(
-    //       "TxEncryptor: could not find ledger encryption key for seqno {}",
-    //       version));
-    //   }
-    //   return --search;
-    // }
-
     // TODO: How to avoid mentioning NewLedgerSecret here??
     std::shared_ptr<typename T::NewLedgerSecret> get_encryption_key(
       Version version)
     {
-      // std::lock_guard<SpinLock> guard(lock);
-
       // TODO: Optimisation here, we can use the latest key directly, as long as
       // the last key is valid for the target version
 
@@ -92,27 +45,13 @@ namespace kv
     }
 
   public:
-    NewTxEncryptor(std::shared_ptr<T> secrets) : ledger_secrets(secrets)
-    {
-      // encryption_keys.emplace(
-      //   1, std::make_shared<NewLedgerSecret>(std::move(key)));
-      // commit_key_it = encryption_keys.begin();
-    }
+    NewTxEncryptor(std::shared_ptr<T> secrets) : ledger_secrets(secrets) {}
 
+    // TODO: Call this on Ledger Secrets class directly??
     void update_encryption_key(
       Version version, std::vector<uint8_t>&& key) override
     {
-      // std::lock_guard<SpinLock> guard(lock);
-
-      // CCF_ASSERT_FMT(
-      //   encryption_keys.find(version) == encryption_keys.end(),
-      //   "Encryption key at {} already exists",
-      //   version);
-
-      ledger_secrets->update(version, std::move(key));
-
-      // encryption_keys.emplace(
-      //   version, std::make_shared<NewLedgerSecret>(std::move(key)));
+      ledger_secrets->update_encryption_key(version, std::move(key));
     }
 
     size_t get_header_length() override
@@ -134,7 +73,7 @@ namespace kv
 
       set_iv(gcm_hdr, version, term, is_snapshot);
 
-      get_encryption_key(version)->key.encrypt(
+      ledger_secrets->get_encryption_key_for(version)->encrypt(
         gcm_hdr.get_iv(), plain, additional_data, cipher.data(), gcm_hdr.tag);
 
       serialised_header = gcm_hdr.serialise();
@@ -151,7 +90,7 @@ namespace kv
       gcm_hdr.deserialise(serialised_header);
       plain.resize(cipher.size());
 
-      auto ret = get_encryption_key(version)->key.decrypt(
+      auto ret = ledger_secrets->get_encryption_key_for(version)->decrypt(
         gcm_hdr.get_iv(), gcm_hdr.tag, cipher, additional_data, plain.data());
 
       if (!ret)

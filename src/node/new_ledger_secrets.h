@@ -17,33 +17,24 @@ namespace ccf
   public:
     struct NewLedgerSecret
     {
-      crypto::KeyAesGcm key;
+      std::shared_ptr<crypto::KeyAesGcm> key;
 
-      // Keep track of raw key to passed on to new nodes on join
+      // Keep track of raw key to be passed on to new nodes on join
       std::vector<uint8_t> raw_key;
 
       NewLedgerSecret(std::vector<uint8_t>&& raw_key_) :
-        key(raw_key_),
+        key(std::make_shared<crypto::KeyAesGcm>(raw_key_)),
         raw_key(std::move(raw_key_))
       {}
     };
 
   private:
     SpinLock lock;
+
     using EncryptionKeys =
       std::map<kv::Version, std::shared_ptr<NewLedgerSecret>>;
     EncryptionKeys encryption_keys;
     EncryptionKeys::iterator commit_key_it = encryption_keys.end();
-
-  public:
-    NewLedgerSecrets()
-    {
-      encryption_keys.emplace(
-        1,
-        std::make_shared<NewLedgerSecret>(
-          tls::create_entropy()->random(crypto::GCM_SIZE_KEY)));
-      commit_key_it = encryption_keys.begin();
-    }
 
     EncryptionKeys::iterator get_encryption_key_it(kv::Version version)
     {
@@ -71,7 +62,25 @@ namespace ccf
       return --search;
     }
 
-    void update(kv::Version version, std::vector<uint8_t>&& key)
+  public:
+    NewLedgerSecrets()
+    {
+      encryption_keys.emplace(
+        1,
+        std::make_shared<NewLedgerSecret>(
+          tls::create_entropy()->random(crypto::GCM_SIZE_KEY)));
+      commit_key_it = encryption_keys.begin();
+    }
+
+    std::shared_ptr<crypto::KeyAesGcm> get_encryption_key_for(
+      kv::Version version)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+
+      return get_encryption_key_it(version)->second->key;
+    }
+
+    void update_encryption_key(kv::Version version, std::vector<uint8_t>&& key)
     {
       std::lock_guard<SpinLock> guard(lock);
 
