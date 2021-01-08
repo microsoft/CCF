@@ -19,7 +19,7 @@ The CCF team welcome contributions to any part of the framework, including this 
     :fa:`laptop-code` :doc:`/build_apps/build_setup`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Setup CCF environment to build CCF apps.
+    Setup CCF environment to CCF from source.
 
     ---
 
