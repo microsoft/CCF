@@ -88,21 +88,18 @@ namespace ccf
   DECLARE_JSON_TYPE(GetMetrics::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetMetrics::Out, histogram, tx_rates)
 
-  DECLARE_JSON_TYPE(GetPrimaryInfo::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    GetPrimaryInfo::Out, primary_id, primary_host, primary_port, current_view)
-
-  DECLARE_JSON_TYPE(GetNetworkInfo::NodeInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(GetNetworkInfo::NodeInfo, node_id, host, port)
   DECLARE_JSON_TYPE(GetNetworkInfo::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetNetworkInfo::Out, nodes, primary_id)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    GetNetworkInfo::Out, service_status, current_view)
 
-  DECLARE_JSON_TYPE(GetNodesByRPCAddress::In)
-  DECLARE_JSON_REQUIRED_FIELDS(GetNodesByRPCAddress::In, host, port)
-  DECLARE_JSON_TYPE(GetNodesByRPCAddress::NodeInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(GetNodesByRPCAddress::NodeInfo, node_id, status)
-  DECLARE_JSON_TYPE(GetNodesByRPCAddress::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetNodesByRPCAddress::Out, nodes)
+  DECLARE_JSON_TYPE(GetNode::NodeInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    GetNode::NodeInfo, node_id, status, host, port, rpc_host, rpc_port, primary)
+
+  DECLARE_JSON_TYPE(GetNodes::In)
+  DECLARE_JSON_REQUIRED_FIELDS(GetNodes::In, host, port, status)
+  DECLARE_JSON_TYPE(GetNodes::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(GetNodes::Out, nodes)
 
   DECLARE_JSON_TYPE(CallerInfo)
   DECLARE_JSON_REQUIRED_FIELDS(CallerInfo, caller_id)

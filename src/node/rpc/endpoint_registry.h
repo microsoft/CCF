@@ -17,6 +17,7 @@
 #include "node/certs.h"
 #include "serialization.h"
 
+#include <charconv>
 #include <functional>
 #include <llhttp/llhttp.h>
 #include <nlohmann/json.hpp>
@@ -472,6 +473,33 @@ namespace ccf
       spec.template_regex = std::regex(regex_s);
 
       return spec;
+    }
+
+    template <typename T>
+    bool get_path_param(
+      const enclave::PathParams& params,
+      const std::string& param_name,
+      T& value,
+      std::string& error)
+    {
+      const auto it = params.find(param_name);
+      if (it == params.end())
+      {
+        error = fmt::format("No parameter named '{}' in path", param_name);
+        return false;
+      }
+
+      const auto param_s = it->second;
+      const auto [p, ec] =
+        std::from_chars(param_s.data(), param_s.data() + param_s.size(), value);
+      if (ec != std::errc())
+      {
+        error = fmt::format(
+          "Unable to parse path parameter '{}' as a {}", param_s, param_name);
+        return false;
+      }
+
+      return true;
     }
 
   protected:
