@@ -27,14 +27,6 @@ namespace ccf
 {
   using namespace endpoints;
 
-  // to be exposed in EndpointContext or similar
-  struct Jwt
-  {
-    std::string key_issuer;
-    nlohmann::json header;
-    nlohmann::json payload;
-  };
-
   // Commands are endpoints which do not interact with the kv, even to read
   struct CommandEndpointContext
   {
@@ -521,11 +513,9 @@ namespace ccf
     EndpointRegistry(
       const std::string& method_prefix_,
       kv::Store&,
-      const std::string& certs_table_name_ = "",
-      const std::string& digests_table_name_ = "") :
+      const std::string& certs_table_name_ = "") :
       method_prefix(method_prefix_),
-      certs_table_name(certs_table_name_),
-      digests_table_name(digests_table_name_)
+      certs_table_name(certs_table_name_)
     {}
 
     virtual ~EndpointRegistry() {}
@@ -912,11 +902,6 @@ namespace ccf
     }
 
     virtual void tick(std::chrono::milliseconds, kv::Consensus::Statistics) {}
-
-    bool has_digests()
-    {
-      return !digests_table_name.empty();
-    }
 
     void set_consensus(kv::Consensus* c)
     {
