@@ -388,7 +388,7 @@ namespace kv
       auto map = all_changes.begin()->second.map;
       auto e = map->get_store()->get_encryptor();
 
-      KvStoreSerialiser replicated_serialiser(e, version);
+      KvStoreSerialiser replicated_serialiser(e, version, term);
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})

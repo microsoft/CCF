@@ -30,7 +30,7 @@ namespace kv
     {
       // Warning: The same IV will get re-used on rollback!
       gcm_hdr.set_iv_seq(version);
-      gcm_hdr.set_iv_id(iv_id);
+      gcm_hdr.set_iv_term(iv_id);
       gcm_hdr.set_iv_snapshot(is_snapshot);
     }
 
@@ -101,6 +101,7 @@ namespace kv
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
       kv::Version version,
+      kv::Term term,
       bool is_snapshot = false) override
     {
       crypto::GcmHeader<crypto::GCM_SIZE_IV> gcm_hdr;
@@ -148,7 +149,7 @@ namespace kv
       return ret;
     }
 
-    void set_iv_id(size_t id) override
+    void set_iv_id(size_t id)
     {
       iv_id = id;
     }

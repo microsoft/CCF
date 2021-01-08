@@ -15,11 +15,7 @@ namespace kv
   class NewTxEncryptor : public AbstractTxEncryptor
   {
   private:
-    static constexpr kv::Version first_version = 1;
-    // TODO: This is the node ID.
-    // TODO: The IV issue should be fixed so that the IV isn't used across
-    // rollbacks!
-    size_t iv_id = 0;
+    static constexpr Version first_version = 1;
 
     SpinLock lock;
 
@@ -37,23 +33,22 @@ namespace kv
       {}
     };
 
-    virtual void set_iv(
+    void set_iv(
       crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr,
-      kv::Version version,
+      Version version,
+      Term term,
       bool is_snapshot = false)
     {
-      // Warning: The same IV will get re-used on rollback!
       gcm_hdr.set_iv_seq(version);
-      gcm_hdr.set_iv_id(iv_id);
+      gcm_hdr.set_iv_term(term);
       gcm_hdr.set_iv_snapshot(is_snapshot);
     }
 
-    using EncryptionKeys =
-      std::map<kv::Version, std::shared_ptr<NewLedgerSecret>>;
+    using EncryptionKeys = std::map<Version, std::shared_ptr<NewLedgerSecret>>;
     EncryptionKeys encryption_keys;
     EncryptionKeys::iterator commit_key_it = encryption_keys.end();
 
-    EncryptionKeys::iterator get_encryption_key_it(kv::Version version)
+    EncryptionKeys::iterator get_encryption_key_it(Version version)
     {
       // Encryption keys lock should be taken before calling this function
 
@@ -79,7 +74,7 @@ namespace kv
       return --search;
     }
 
-    std::shared_ptr<NewLedgerSecret> get_encryption_key(kv::Version version)
+    std::shared_ptr<NewLedgerSecret> get_encryption_key(Version version)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -98,7 +93,7 @@ namespace kv
     }
 
     void update_encryption_key(
-      kv::Version version, std::vector<uint8_t>&& key) override
+      Version version, std::vector<uint8_t>&& key) override
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -106,6 +101,7 @@ namespace kv
         encryption_keys.find(version) == encryption_keys.end(),
         "Encryption key at {} already exists",
         version);
+
       encryption_keys.emplace(
         version, std::make_shared<NewLedgerSecret>(std::move(key)));
 
@@ -117,7 +113,7 @@ namespace kv
       return crypto::GcmHeader<crypto::GCM_SIZE_IV>::RAW_DATA_SIZE;
     }
 
-    void rollback(kv::Version version) override
+    void rollback(Version version) override
     {
       // Rolls back all encryption keys more recent than version.
       // Note: Because the store is not locked while the serialisation (and
@@ -150,7 +146,7 @@ namespace kv
       }
     }
 
-    void compact(kv::Version version) override
+    void compact(Version version) override
     {
       // Advances the commit point to version, so that encryption keys that
       // will no longer be used are not considered when selecting an encryption
@@ -164,23 +160,19 @@ namespace kv
         "First usable encryption key is now at seqno {}", commit_key_it->first);
     }
 
-    void set_iv_id(size_t id) override
-    {
-      iv_id = id;
-    }
-
     void encrypt(
       const std::vector<uint8_t>& plain,
       const std::vector<uint8_t>& additional_data,
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
-      kv::Version version,
+      Version version,
+      Term term,
       bool is_snapshot = false) override
     {
       crypto::GcmHeader<crypto::GCM_SIZE_IV> gcm_hdr;
       cipher.resize(plain.size());
 
-      set_iv(gcm_hdr, version, is_snapshot);
+      set_iv(gcm_hdr, version, term, is_snapshot);
 
       get_encryption_key(version)->key.encrypt(
         gcm_hdr.get_iv(), plain, additional_data, cipher.data(), gcm_hdr.tag);
@@ -193,7 +185,7 @@ namespace kv
       const std::vector<uint8_t>& additional_data,
       const std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& plain,
-      kv::Version version) override
+      Version version) override
     {
       crypto::GcmHeader<crypto::GCM_SIZE_IV> gcm_hdr;
       gcm_hdr.deserialise(serialised_header);

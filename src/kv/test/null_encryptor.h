@@ -16,6 +16,7 @@ namespace kv
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
       kv::Version version,
+      kv::Term term,
       bool is_snapshot = false) override
     {
       cipher = plain;
@@ -31,8 +32,6 @@ namespace kv
       plain = cipher;
       return true;
     }
-
-    void set_iv_id(size_t id) override {}
 
     size_t get_header_length() override
     {

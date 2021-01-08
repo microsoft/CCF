@@ -26,8 +26,8 @@ bool encrypt_round_trip(
   std::vector<uint8_t> cipher(plain.size());
   std::vector<uint8_t> decrypted(plain.size());
 
-  encryptor.encrypt(plain, aad, header, cipher, version);
-
+  kv::Term term = 1;
+  encryptor.encrypt(plain, aad, header, cipher, version, term);
   encryptor.decrypt(cipher, aad, header, decrypted, version);
 
   return plain == decrypted;

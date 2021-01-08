@@ -51,7 +51,7 @@ namespace kv
   DECLARE_JSON_REQUIRED_FIELDS(TxID, term, version)
 
   using BatchVector = std::vector<
-    std::tuple<kv::Version, std::shared_ptr<std::vector<uint8_t>>, bool>>;
+    std::tuple<Version, std::shared_ptr<std::vector<uint8_t>>, bool>>;
 
   enum CommitSuccess
   {
@@ -219,25 +219,25 @@ namespace kv
     virtual std::vector<uint8_t> get_raw_leaf(uint64_t index) = 0;
 
     virtual bool add_request(
-      kv::TxHistory::RequestID id,
+      TxHistory::RequestID id,
       const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request,
       uint8_t frame_format) = 0;
     virtual void add_result(
       RequestID id,
-      kv::Version version,
+      Version version,
       const std::vector<uint8_t>& replicated) = 0;
     virtual void add_pending(
       RequestID id,
-      kv::Version version,
+      Version version,
       std::shared_ptr<std::vector<uint8_t>> replicated) = 0;
     virtual void flush_pending() = 0;
     virtual void add_result(
       RequestID id,
-      kv::Version version,
+      Version version,
       const uint8_t* replicated,
       size_t replicated_size) = 0;
-    virtual void add_result(RequestID id, kv::Version version) = 0;
+    virtual void add_result(RequestID id, Version version) = 0;
     virtual void add_response(
       RequestID id, const std::vector<uint8_t>& response) = 0;
     virtual void register_on_result(ResultCallbackHandler func) = 0;
@@ -344,7 +344,7 @@ namespace kv
       SeqNo seqno, const Configuration::Nodes& conf) = 0;
     virtual Configuration::Nodes get_latest_configuration() const = 0;
 
-    virtual bool on_request(const kv::TxHistory::RequestCallbackArgs&)
+    virtual bool on_request(const TxHistory::RequestCallbackArgs&)
     {
       return true;
     }
@@ -391,11 +391,11 @@ namespace kv
   {
   private:
     std::vector<uint8_t> data;
-    kv::TxHistory::RequestID req_id;
+    TxHistory::RequestID req_id;
 
   public:
     MovePendingTx(
-      std::vector<uint8_t>&& data_, kv::TxHistory::RequestID&& req_id_) :
+      std::vector<uint8_t>&& data_, TxHistory::RequestID&& req_id_) :
       data(std::move(data_)),
       req_id(std::move(req_id_))
     {}
@@ -416,18 +416,18 @@ namespace kv
       const std::vector<uint8_t>& additional_data,
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
-      kv::Version version,
+      Version version,
+      Term term,
       bool is_snapshot = false) = 0;
     virtual bool decrypt(
       const std::vector<uint8_t>& cipher,
       const std::vector<uint8_t>& additional_data,
       const std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& plain,
-      kv::Version version) = 0;
-    virtual void set_iv_id(size_t id) = 0;
+      Version version) = 0;
 
-    virtual void compact(kv::Version version) = 0;
-    virtual void rollback(kv::Version version) = 0;
+    virtual void compact(Version version) = 0;
+    virtual void rollback(Version version) = 0;
 
     virtual size_t get_header_length() = 0;
     virtual void update_encryption_key(
@@ -542,9 +542,9 @@ namespace kv
     virtual Version commit_version() = 0;
 
     virtual std::shared_ptr<AbstractMap> get_map(
-      kv::Version v, const std::string& map_name) = 0;
+      Version v, const std::string& map_name) = 0;
     virtual void add_dynamic_map(
-      kv::Version v, const std::shared_ptr<AbstractMap>& map) = 0;
+      Version v, const std::shared_ptr<AbstractMap>& map) = 0;
     virtual bool is_map_replicated(const std::string& map_name) = 0;
 
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
@@ -553,7 +553,7 @@ namespace kv
     virtual DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
       bool public_only = false,
-      kv::Term* term = nullptr) = 0;
+      Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;
     virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;

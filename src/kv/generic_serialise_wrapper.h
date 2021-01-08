@@ -50,6 +50,7 @@ namespace kv
     W private_writer;
     W* current_writer;
     Version version;
+    Term term; // Used for encryption IV only
     bool is_snapshot;
 
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
@@ -90,6 +91,7 @@ namespace kv
     GenericSerialiseWrapper(
       std::shared_ptr<AbstractTxEncryptor> e,
       const Version& version_,
+      const Term& term_,
       bool is_snapshot_ = false) :
       version(version_),
       is_snapshot(is_snapshot_),
@@ -208,6 +210,7 @@ namespace kv
         serialised_hdr,
         encrypted_private_domain,
         version,
+        term,
         is_snapshot);
 
       // Serialise entire tx
