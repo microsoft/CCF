@@ -439,9 +439,11 @@ struct SignedRequestProcessor : public http::SimpleRequestProcessor
   {
     const auto signed_req = http::HttpSignatureVerifier::parse(
       llhttp_method_name(method), path, query, headers, body);
-    DOCTEST_REQUIRE(signed_req.has_value());
 
-    signed_reqs.push(signed_req.value());
+    if (signed_req.has_value())
+    {
+      signed_reqs.push(signed_req.value());
+    }
 
     http::SimpleRequestProcessor::handle_request(
       method, path, query, fragment, std::move(headers), std::move(body));
@@ -492,7 +494,9 @@ DOCTEST_TEST_CASE("Signatures")
     http::RequestParser p(sp);
 
     p.execute(serial_request.data(), serial_request.size());
-    DOCTEST_REQUIRE(!sp.signed_reqs.empty());
+    DOCTEST_REQUIRE(sp.signed_reqs.size() == 1);
+    const auto& sr = sp.signed_reqs.back();
+    sp.signed_reqs.pop();
   }
 
   DOCTEST_SUBCASE("All headers")
@@ -517,7 +521,7 @@ DOCTEST_TEST_CASE("Signatures")
 
       p.execute(serial_request.data(), serial_request.size());
       DOCTEST_REQUIRE(sp.signed_reqs.size() == 1);
-
+      const auto& sr = sp.signed_reqs.back();
       sp.signed_reqs.pop();
 
       const bool was_last_permutation =
@@ -558,8 +562,10 @@ DOCTEST_TEST_CASE("Signatures")
 
         SignedRequestProcessor sp;
         http::RequestParser p(sp);
-        DOCTEST_REQUIRE_THROWS(
-          p.execute(serial_request.data(), serial_request.size()));
+        p.execute(serial_request.data(), serial_request.size());
+        DOCTEST_REQUIRE(
+          sp.signed_reqs
+            .empty()); // Invalid headers mean no signed request is parsed
       }
 
       std::string missing_second_quote = original;
@@ -573,8 +579,8 @@ DOCTEST_TEST_CASE("Signatures")
 
         SignedRequestProcessor sp;
         http::RequestParser p(sp);
-        DOCTEST_REQUIRE_THROWS(
-          p.execute(serial_request.data(), serial_request.size()));
+        p.execute(serial_request.data(), serial_request.size());
+        DOCTEST_REQUIRE(sp.signed_reqs.empty());
       }
     }
 

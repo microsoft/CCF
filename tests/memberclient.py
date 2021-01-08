@@ -81,21 +81,33 @@ def modified_signature(request):
 @reqs.description("Send a corrupted signature where signed request is required")
 def test_corrupted_signature(network, args):
     primary, _ = network.find_primary()
-    member = network.consortium.get_any_active_member()
-    with primary.client(*member.auth(write=True)) as mc:
-        # pylint: disable=protected-access
 
-        # Cache the original auth provider
-        original_auth = ccf.clients.RequestClient._auth_provider
+    # Test each supported curve
+    for curve in infra.network.ParticipantsCurve:
+        LOG.info(f"Testing curve: {curve.name}")
+        # Add a member so we have at least one on this curve
+        member = network.consortium.generate_and_add_new_member(
+            primary,
+            curve=curve,
+        )
 
-        # Override the auth provider with invalid ones
-        for fn in (missing_signature, empty_signature, modified_signature):
-            ccf.clients.RequestClient._auth_provider = make_signature_corrupter(fn)
-            r = mc.post("/gov/proposals")
-            assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+        with primary.client(*member.auth(write=True)) as mc:
+            # pylint: disable=protected-access
 
-        # Restore original auth provider for future calls!
-        ccf.clients.RequestClient._auth_provider = original_auth
+            # Cache the original auth provider
+            original_auth = ccf.clients.RequestClient._auth_provider
+
+            # Override the auth provider with invalid ones
+            for fn in (missing_signature, empty_signature, modified_signature):
+                ccf.clients.RequestClient._auth_provider = make_signature_corrupter(fn)
+                r = mc.post("/gov/proposals")
+                assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+
+            # Restore original auth provider for future calls!
+            ccf.clients.RequestClient._auth_provider = original_auth
+
+        # Remove the new member once we're done with them
+        network.consortium.retire_member(primary, member)
 
     return network
 
