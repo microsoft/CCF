@@ -235,8 +235,9 @@ static void des_snap(picobench::state& s)
   auto snap = kv_store.snapshot(tx.commit_version());
   auto serialised_snap = kv_store.serialise_snapshot(std::move(snap));
 
+  std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
   s.start_timer();
-  kv_store2.deserialise_snapshot(serialised_snap);
+  kv_store2.deserialise_snapshot(serialised_snap, hooks);
   s.stop_timer();
 }
 

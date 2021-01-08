@@ -591,6 +591,7 @@ namespace kv
       std::unique_ptr<AbstractSnapshot> snapshot) = 0;
     virtual DeserialiseSuccess deserialise_snapshot(
       const std::vector<uint8_t>& data,
+      std::vector<std::shared_ptr<ConsensusHook>>& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) = 0;
 

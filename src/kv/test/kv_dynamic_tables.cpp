@@ -421,9 +421,10 @@ TEST_CASE("Dynamic map snapshot serialisation" * doctest::test_suite("dynamic"))
 
   INFO("Apply snapshot to create maps in new store");
   {
+    std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
     kv::Store new_store;
     new_store.set_encryptor(encryptor);
-    new_store.deserialise_snapshot(serialised_snapshot);
+    new_store.deserialise_snapshot(serialised_snapshot, hooks);
 
     auto tx = new_store.create_tx();
     auto view = tx.get_view<MapTypes::StringString>(map_name);

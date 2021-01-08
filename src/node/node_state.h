@@ -200,13 +200,16 @@ namespace ccf
     {
       LOG_INFO_FMT(
         "Deserialising public snapshot ({})", config.startup_snapshot.size());
+      std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
       auto rc = network.tables->deserialise_snapshot(
-        config.startup_snapshot, &view_history, true);
+        config.startup_snapshot, hooks, &view_history, true);
       if (rc != kv::DeserialiseSuccess::PASS)
       {
         throw std::logic_error(
           fmt::format("Failed to apply public snapshot: {}", rc));
       }
+
+      // TODO: is consensus ready for hooks?
 
       LOG_INFO_FMT(
         "Public snapshot deserialised at seqno {}",
@@ -493,8 +496,10 @@ namespace ccf
                 "Deserialising snapshot ({})",
                 startup_snapshot_info->raw.size());
               std::vector<kv::Version> view_history;
+              std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
               auto rc = network.tables->deserialise_snapshot(
                 startup_snapshot_info->raw,
+                hooks,
                 &view_history,
                 resp.network_info.public_only);
               if (rc != kv::DeserialiseSuccess::PASS)
@@ -502,6 +507,8 @@ namespace ccf
                 throw std::logic_error(
                   fmt::format("Failed to apply snapshot on join: {}", rc));
               }
+
+              // TODO: consensus ready for hooks?
 
               auto tx = network.tables->create_read_only_tx();
               auto sig_view = tx.get_read_only_view(network.signatures);
@@ -714,6 +721,11 @@ namespace ccf
         }
         recover_public_ledger_end_unsafe();
         return;
+      }
+
+      for (auto& hook: hooks)
+      {
+        hook->call(consensus.get());
       }
 
       // If the ledger entry is a signature, it is safe to compact the store
@@ -1086,13 +1098,16 @@ namespace ccf
           "Deserialising private snapshot for recovery ({})",
           startup_snapshot_info->raw.size());
         std::vector<kv::Version> view_history;
+        std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
         auto rc = recovery_store->deserialise_snapshot(
-          startup_snapshot_info->raw, &view_history);
+          startup_snapshot_info->raw, hooks, &view_history);
         if (rc != kv::DeserialiseSuccess::PASS)
         {
           throw std::logic_error(fmt::format(
             "Could not deserialise snapshot in recovery store: {}", rc));
         }
+
+        //TODO: is consensus ready for hooks?
 
         startup_snapshot_info.reset();
       }

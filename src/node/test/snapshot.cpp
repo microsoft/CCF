@@ -96,8 +96,9 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
       // There is no signature to read to seed the target history
       std::vector<kv::Version> view_history;
+      std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
       REQUIRE(
-        target_store.deserialise_snapshot(serialised_snapshot, &view_history) ==
+        target_store.deserialise_snapshot(serialised_snapshot, hooks, &view_history) ==
         kv::DeserialiseSuccess::FAILED);
     }
 
@@ -108,8 +109,9 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
         source_store.serialise_snapshot(std::move(snapshot));
 
       std::vector<kv::Version> view_history;
+      std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
       REQUIRE(
-        target_store.deserialise_snapshot(serialised_snapshot, &view_history) ==
+        target_store.deserialise_snapshot(serialised_snapshot, hooks, &view_history) ==
         kv::DeserialiseSuccess::PASS);
 
       // Merkle history and view history thus far are restored when applying

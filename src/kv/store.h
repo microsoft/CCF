@@ -341,6 +341,7 @@ namespace kv
 
     DeserialiseSuccess deserialise_snapshot(
       const std::vector<uint8_t>& data,
+      std::vector<std::shared_ptr<ConsensusHook>>& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) override
     {
@@ -434,8 +435,6 @@ namespace kv
         LOG_FAIL_FMT("Unexpected content in snapshot at version {}", v);
         return DeserialiseSuccess::FAILED;
       }
-
-      std::vector<std::shared_ptr<ConsensusHook>> hooks;
 
       // Each map is committed at a different version, independently of the
       // overall snapshot version. The commit versions for each map are
