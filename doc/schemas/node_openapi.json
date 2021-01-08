@@ -136,7 +136,26 @@
         ],
         "type": "object"
       },
-      "GetNetworkInfo__NodeInfo": {
+      "GetNetworkInfo__Out": {
+        "properties": {
+          "current_view": {
+            "$ref": "#/components/schemas/int64"
+          },
+          "primary_id": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "service_status": {
+            "$ref": "#/components/schemas/ServiceStatus"
+          }
+        },
+        "required": [
+          "service_status",
+          "current_view",
+          "primary_id"
+        ],
+        "type": "object"
+      },
+      "GetNode__NodeInfo": {
         "properties": {
           "host": {
             "$ref": "#/components/schemas/string"
@@ -146,40 +165,15 @@
           },
           "port": {
             "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "node_id",
-          "host",
-          "port"
-        ],
-        "type": "object"
-      },
-      "GetNetworkInfo__NodeInfo_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo"
-        },
-        "type": "array"
-      },
-      "GetNetworkInfo__Out": {
-        "properties": {
-          "nodes": {
-            "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo_array"
           },
-          "primary_id": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "nodes",
-          "primary_id"
-        ],
-        "type": "object"
-      },
-      "GetNodesByRPCAddress__NodeInfo": {
-        "properties": {
-          "node_id": {
-            "$ref": "#/components/schemas/uint64"
+          "primary": {
+            "$ref": "#/components/schemas/boolean"
+          },
+          "rpc_host": {
+            "$ref": "#/components/schemas/string"
+          },
+          "rpc_port": {
+            "$ref": "#/components/schemas/string"
           },
           "status": {
             "$ref": "#/components/schemas/NodeStatus"
@@ -187,47 +181,29 @@
         },
         "required": [
           "node_id",
-          "status"
+          "status",
+          "host",
+          "port",
+          "rpc_host",
+          "rpc_port",
+          "primary"
         ],
         "type": "object"
       },
-      "GetNodesByRPCAddress__NodeInfo_array": {
+      "GetNode__NodeInfo_array": {
         "items": {
-          "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo"
+          "$ref": "#/components/schemas/GetNode__NodeInfo"
         },
         "type": "array"
       },
-      "GetNodesByRPCAddress__Out": {
+      "GetNodes__Out": {
         "properties": {
           "nodes": {
-            "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo_array"
+            "$ref": "#/components/schemas/GetNode__NodeInfo_array"
           }
         },
         "required": [
           "nodes"
-        ],
-        "type": "object"
-      },
-      "GetPrimaryInfo__Out": {
-        "properties": {
-          "current_view": {
-            "$ref": "#/components/schemas/int64"
-          },
-          "primary_host": {
-            "$ref": "#/components/schemas/string"
-          },
-          "primary_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "primary_port": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "primary_id",
-          "primary_host",
-          "primary_port",
-          "current_view"
         ],
         "type": "object"
       },
@@ -340,6 +316,14 @@
           "PENDING",
           "TRUSTED",
           "RETIRED"
+        ]
+      },
+      "ServiceStatus": {
+        "enum": [
+          "OPENING",
+          "OPEN",
+          "WAITING_FOR_RECOVERY_SHARES",
+          "CLOSED"
         ]
       },
       "TxStatus": {
@@ -597,15 +581,6 @@
       "get": {
         "responses": {
           "200": {
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/network_info": {
-      "get": {
-        "responses": {
-          "200": {
             "content": {
               "application/json": {
                 "schema": {
@@ -618,7 +593,7 @@
         }
       }
     },
-    "/node/ids": {
+    "/network/nodes": {
       "get": {
         "parameters": [
           {
@@ -636,6 +611,18 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "PENDING",
+                "TRUSTED",
+                "RETIRED"
+              ]
+            }
           }
         ],
         "responses": {
@@ -643,7 +630,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetNodesByRPCAddress__Out"
+                  "$ref": "#/components/schemas/GetNodes__Out"
                 }
               }
             },
@@ -652,8 +639,8 @@
         }
       }
     },
-    "/primary": {
-      "head": {
+    "/network/nodes/primary": {
+      "get": {
         "responses": {
           "200": {
             "description": "Default response description"
@@ -661,17 +648,45 @@
         }
       }
     },
-    "/primary_info": {
+    "/network/nodes/self": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/network/nodes/{node_id}": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetPrimaryInfo__Out"
+                  "$ref": "#/components/schemas/GetNode__NodeInfo"
                 }
               }
             },
+            "description": "Default response description"
+          }
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "node_id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/primary": {
+      "head": {
+        "responses": {
+          "200": {
             "description": "Default response description"
           }
         }
