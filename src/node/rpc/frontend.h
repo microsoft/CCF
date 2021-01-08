@@ -35,9 +35,6 @@ namespace ccf
     }
 
   private:
-    SpinLock verifiers_lock;
-    std::map<std::vector<uint8_t>, tls::VerifierPtr> verifiers;
-
     SpinLock open_lock;
     bool is_open_ = false;
 

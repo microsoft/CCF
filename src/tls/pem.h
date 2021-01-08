@@ -116,3 +116,15 @@ namespace tls
     }
   }
 }
+
+namespace std
+{
+  template <>
+  struct hash<tls::Pem>
+  {
+    size_t operator()(const tls::Pem& pem) const
+    {
+      return std::hash<std::string>()(pem.str());
+    }
+  };
+}

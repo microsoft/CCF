@@ -380,6 +380,8 @@ class RequestClient:
     CCF default client and wrapper around Python Requests, handling HTTP signatures.
     """
 
+    _auth_provider = HTTPSignatureAuth_AlwaysDigest
+
     def __init__(
         self,
         host: str,
@@ -415,13 +417,17 @@ class RequestClient:
         if self.signing_auth is not None:
             # Add content length of 0 when signing a GET request
             if request.http_verb == "GET":
-                if extra_headers.get("Content-Length") != "0":
+                LOG.error(extra_headers.get("Content-Length"))
+                if (
+                    "Content-Length" in extra_headers
+                    and extra_headers.get("Content-Length") != "0"
+                ):
                     raise ValueError(
                         "Content-Length should be set to 0 for GET requests"
                     )
                 else:
                     extra_headers["Content-Length"] = "0"
-            auth_value = HTTPSignatureAuth_AlwaysDigest(
+            auth_value = RequestClient._auth_provider(
                 algorithm="ecdsa-sha256",
                 key=open(self.signing_auth.key, "rb").read(),
                 key_id=self.key_id,
