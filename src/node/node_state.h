@@ -656,10 +656,11 @@ namespace ccf
         node_cert);
       jwt_key_auto_refresh->start();
 
-      network.tables->set_local_hook(
+      network.tables->set_map_hook(
         network.jwt_issuers.get_name(),
-        [this](kv::Version, const kv::untyped::Write&) {
+        [this](kv::Version, const kv::untyped::Write&) -> kv::ConsensusHookPtr {
           jwt_key_auto_refresh->schedule_once();
+          return kv::ConsensusHookPtr(nullptr);
         });
     }
 
@@ -1588,10 +1589,10 @@ namespace ccf
 
     void setup_basic_hooks()
     {
-      network.tables->set_local_hook(
+      network.tables->set_map_hook(
         network.secrets.get_name(),
-        network.secrets.wrap_commit_hook(
-          [this](kv::Version version, const Secrets::Write& w) {
+        network.secrets.wrap_map_hook(
+          [this](kv::Version version, const Secrets::Write& w) -> kv::ConsensusHookPtr {
             bool has_secrets = false;
             std::list<LedgerSecrets::VersionedLedgerSecret> restored_secrets;
 
@@ -1671,6 +1672,8 @@ namespace ccf
               network.ledger_secrets->restore(std::move(restored_secrets));
               backup_finish_recovery();
             }
+
+            return kv::ConsensusHookPtr(nullptr);
           }));
     }
 
@@ -1691,10 +1694,10 @@ namespace ccf
       // version at which it was recorded
       static bool is_first_secret = !from_snapshot;
 
-      network.tables->set_local_hook(
+      network.tables->set_map_hook(
         network.shares.get_name(),
-        network.shares.wrap_commit_hook(
-          [this](kv::Version version, const Shares::Write& w) {
+        network.shares.wrap_map_hook(
+          [this](kv::Version version, const Shares::Write& w) -> kv::ConsensusHookPtr {
             for (const auto& [k, opt_v] : w)
             {
               if (!opt_v.has_value())
@@ -1738,12 +1741,14 @@ namespace ccf
                   {ledger_secret_version, v.encrypted_previous_ledger_secret});
               }
             }
+
+            return kv::ConsensusHookPtr(nullptr);
           }));
     }
 
     void reset_recovery_hook()
     {
-      network.tables->unset_local_hook(network.shares.get_name());
+      network.tables->unset_map_hook(network.shares.get_name());
     }
 
     void setup_n2n_channels()
