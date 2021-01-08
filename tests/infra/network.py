@@ -667,7 +667,7 @@ class Network:
                         view = body["current_view"]
                         if primary_id is not None:
                             break
-                        
+
                     except CCFConnectionException:
                         LOG.warning(
                             f"Could not successfully connect to node {node.node_id}. Retrying..."
