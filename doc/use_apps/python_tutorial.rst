@@ -6,7 +6,7 @@ Install
 
 The CCF Python tools package can be used to interact with an existing running service and provides utilities to:
 
-- Issue HTTP requests over TLS to CCF
+- Issue HTTP requests over TLS to a CCF service
 - Build custom governance proposals and votes
 - Parse and verify the integrity of a CCF ledger
 
