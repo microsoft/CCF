@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#define DOCTEST_CONFIG_IMPLEMENT
 #include "ds/logger.h"
 #include "nlohmann/json.hpp"
 #include "node/genesis_gen.h"
@@ -11,6 +10,7 @@
 #include "tls/pem.h"
 #include "tls/verifier.h"
 
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
 using namespace ccf;
@@ -82,8 +82,8 @@ TEST_CASE("Add a node to an opening service")
   frontend.open();
 
   network.identity = std::make_unique<NetworkIdentity>();
-  network.ledger_secrets = std::make_shared<LedgerSecrets>();
-  network.ledger_secrets->init();
+  network.ledger_secrets = std::make_shared<NewLedgerSecrets>();
+  // network.ledger_secrets->init();
 
   // Node certificate
   tls::KeyPairPtr kp = tls::make_key_pair();
@@ -199,9 +199,12 @@ TEST_CASE("Add a node to an open service")
   frontend.open();
 
   network.identity = std::make_unique<NetworkIdentity>();
-  network.ledger_secrets = std::make_shared<LedgerSecrets>();
-  network.ledger_secrets->init();
-  network.ledger_secrets->add_new_secret(4, LedgerSecret());
+  network.ledger_secrets = std::make_shared<NewLedgerSecrets>();
+  // network.ledger_secrets->init();
+
+  // TODO: Rekey API is weird
+  network.ledger_secrets->update_encryption_key(
+    4, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
 
   gen.create_service({});
   gen.set_recovery_threshold(1);
@@ -286,14 +289,4 @@ TEST_CASE("Add a node to an open service")
     CHECK(response.node_status == NodeStatus::TRUSTED);
     CHECK(response.network_info.public_only == true);
   }
-}
-
-int main(int argc, char** argv)
-{
-  doctest::Context context;
-  context.applyCommandLine(argc, argv);
-  int res = context.run();
-  if (context.shouldExit())
-    return res;
-  return res;
 }

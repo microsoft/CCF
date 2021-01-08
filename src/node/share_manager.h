@@ -202,13 +202,14 @@ namespace ccf
       auto iv = tls::create_entropy()->random(crypto::GCM_SIZE_IV);
       encrypted_submitted_share.hdr.set_iv(iv.data(), iv.size());
 
-      crypto::KeyAesGcm(network.ledger_secrets->get_latest().master)
-        .encrypt(
-          encrypted_submitted_share.hdr.get_iv(),
-          submitted_share,
-          nullb,
-          encrypted_submitted_share.cipher.data(),
-          encrypted_submitted_share.hdr.tag);
+      // TODO: Recovery
+      // crypto::KeyAesGcm(network.ledger_secrets->get_latest().master)
+      //   .encrypt(
+      //     encrypted_submitted_share.hdr.get_iv(),
+      //     submitted_share,
+      //     nullb,
+      //     encrypted_submitted_share.cipher.data(),
+      //     encrypted_submitted_share.hdr.tag);
 
       return encrypted_submitted_share.serialise();
     }
@@ -220,13 +221,14 @@ namespace ccf
       encrypted_share.deserialise(encrypted_submitted_share);
       std::vector<uint8_t> decrypted_share(encrypted_share.cipher.size());
 
-      crypto::KeyAesGcm(network.ledger_secrets->get_latest().master)
-        .decrypt(
-          encrypted_share.hdr.get_iv(),
-          encrypted_share.hdr.tag,
-          encrypted_share.cipher,
-          nullb,
-          decrypted_share.data());
+      // TODO: Recovery
+      // crypto::KeyAesGcm(network.ledger_secrets->get_latest().master)
+      //   .decrypt(
+      //     encrypted_share.hdr.get_iv(),
+      //     encrypted_share.hdr.tag,
+      //     encrypted_share.cipher,
+      //     nullb,
+      //     decrypted_share.data());
 
       return decrypted_share;
     }
@@ -269,25 +271,33 @@ namespace ccf
 
     void issue_shares(kv::Tx& tx)
     {
+      (void)tx;
       // Assumes that the ledger secrets have not been updated since the
       // last time shares have been issued (i.e. genesis or re-sharing only)
-      set_recovery_shares_info(tx, network.ledger_secrets->get_latest());
+      // TODO: Recovery
+      // set_recovery_shares_info(tx, network.ledger_secrets->get_latest());
     }
 
     void issue_shares_on_recovery(kv::Tx& tx, kv::Version latest_ls_version)
     {
-      set_recovery_shares_info(
-        tx,
-        network.ledger_secrets->get_latest(),
-        network.ledger_secrets->get_penultimate(),
-        latest_ls_version);
+      (void)tx;
+      (void)latest_ls_version;
+      // TODO: Recovery
+      // set_recovery_shares_info(
+      //   tx,
+      //   network.ledger_secrets->get_latest(),
+      //   network.ledger_secrets->get_penultimate(),
+      //   latest_ls_version);
     }
 
     void issue_shares_on_rekey(
       kv::Tx& tx, const LedgerSecret& new_ledger_secret)
     {
-      set_recovery_shares_info(
-        tx, new_ledger_secret, network.ledger_secrets->get_latest());
+      (void)tx;
+      (void)new_ledger_secret;
+      // TODO: Recovery
+      // set_recovery_shares_info(
+      //   tx, new_ledger_secret, network.ledger_secrets->get_latest());
     }
 
     std::optional<EncryptedShare> get_encrypted_share(
@@ -378,7 +388,8 @@ namespace ccf
       }
 
       restored_ledger_secrets.reverse();
-      network.ledger_secrets->restore(std::move(restored_ledger_secrets));
+      // TODO: Recovery
+      // network.ledger_secrets->restore(std::move(restored_ledger_secrets));
 
       return restored_versions;
     }

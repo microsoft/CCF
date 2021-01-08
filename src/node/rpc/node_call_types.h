@@ -3,8 +3,8 @@
 #pragma once
 #include "ds/json_schema.h"
 #include "node/identity.h"
-#include "node/ledger_secrets.h"
 #include "node/members.h"
+#include "node/new_ledger_secrets.h"
 #include "node/node_info_network.h"
 
 #include <nlohmann/json.hpp>
@@ -98,7 +98,7 @@ namespace ccf
         kv::Version last_recovered_signed_idx = kv::NoVersion;
         ConsensusType consensus_type = ConsensusType::CFT;
 
-        LedgerSecrets ledger_secrets;
+        NewLedgerSecrets ledger_secrets;
         NetworkIdentity identity;
 
         bool operator==(const NetworkInfo& other) const

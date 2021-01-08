@@ -3,15 +3,15 @@
 #pragma once
 
 #include "identity.h"
-#include "ledger_secrets.h"
 #include "network_tables.h"
+#include "new_ledger_secrets.h"
 
 namespace ccf
 {
   struct NetworkState : public NetworkTables
   {
     std::unique_ptr<NetworkIdentity> identity;
-    std::shared_ptr<LedgerSecrets> ledger_secrets;
+    std::shared_ptr<NewLedgerSecrets> ledger_secrets;
     // default set to Raft
     ConsensusType consensus_type = ConsensusType::CFT;
 

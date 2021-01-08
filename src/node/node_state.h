@@ -58,6 +58,7 @@ namespace ccf
   using RaftConsensusType =
     aft::Consensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
   using RaftType = aft::Aft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
+  using NodeEncryptor = kv::NewTxEncryptor<ccf::NewLedgerSecrets>;
 
   struct NodeCreateInfo
   {
@@ -304,12 +305,12 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
 
-          network.ledger_secrets = std::make_shared<LedgerSecrets>();
-          network.ledger_secrets->init();
+          network.ledger_secrets = std::make_shared<NewLedgerSecrets>();
+          // network.ledger_secrets->init();
 
           set_node_id(0); // The first node id is always 0
 
-          setup_encryptor(network.consensus_type);
+          setup_encryptor();
           setup_consensus();
           setup_progress_tracker();
           setup_history();
@@ -348,10 +349,11 @@ namespace ccf
           {
             setup_history();
 
+            // TODO: This sucks??
             // It is necessary to give an encryptor to the store for it to
             // deserialise the public domain when recovering the public ledger
-            network.ledger_secrets = std::make_shared<LedgerSecrets>();
-            setup_encryptor(network.consensus_type);
+            network.ledger_secrets = std::make_shared<NewLedgerSecrets>();
+            setup_encryptor();
 
             initialise_startup_snapshot(config);
 
@@ -370,7 +372,7 @@ namespace ccf
 
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
-          network.ledger_secrets = std::make_shared<LedgerSecrets>();
+          network.ledger_secrets = std::make_shared<NewLedgerSecrets>();
 
           setup_history();
 
@@ -379,7 +381,7 @@ namespace ccf
           // Once the public recovery is complete, the existing encryptor is
           // replaced with a new one initialised with recovered ledger
           // secrets.
-          setup_encryptor(network.consensus_type);
+          setup_encryptor();
 
           // Snapshot generation is disabled until private recovery is
           // complete
@@ -466,8 +468,10 @@ namespace ccf
           {
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
-            network.ledger_secrets =
-              std::make_shared<LedgerSecrets>(resp.network_info.ledger_secrets);
+
+            // TODO: JSON serialisation for new ledger secrets!!
+            // network.ledger_secrets =
+            //   std::make_shared<LedgerSecrets>(resp.network_info.ledger_secrets);
 
             set_node_id(resp.node_id);
 
@@ -480,7 +484,7 @@ namespace ccf
                 resp.network_info.consensus_type));
             }
 
-            setup_encryptor(resp.network_info.consensus_type);
+            setup_encryptor();
             setup_consensus(resp.network_info.public_only);
             setup_progress_tracker();
             setup_history();
@@ -836,7 +840,8 @@ namespace ccf
         "index: {}",
         last_recovered_signed_idx);
 
-      network.ledger_secrets->init(last_recovered_signed_idx + 1);
+      // TODO: Recovery
+      // network.ledger_secrets->init(last_recovered_signed_idx + 1);
       // KV term must be set before the first Tx is committed
       auto new_term = view_history.size() + 2;
       LOG_INFO_FMT("Setting term on public recovery KV to {}", new_term);
@@ -853,7 +858,7 @@ namespace ccf
                               node_encrypt_kp->public_key_pem().raw(),
                               NodeStatus::PENDING}));
 
-      setup_encryptor(network.consensus_type);
+      setup_encryptor();
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
@@ -1051,21 +1056,9 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       recovery_encryptor = std::make_shared<kv::NullTxEncryptor>();
 #else
-      if (network.consensus_type == ConsensusType::BFT)
-      {
-        recovery_encryptor =
-          std::make_shared<BftTxEncryptor>(network.ledger_secrets, true);
-      }
-      else if (network.consensus_type == ConsensusType::CFT)
-      {
-        recovery_encryptor = std::make_shared<kv::NewTxEncryptor>(
-          tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
-      }
-      else
-      {
-        throw std::logic_error(
-          fmt::format("Unknown consensus type: {}", network.consensus_type));
-      }
+      // TODO: Not sure about this!?
+      // recovery_encryptor =
+      //   std::make_shared<kv::NewTxEncryptor>(network.ledger_secrets);
 #endif
 
       recovery_store->set_history(recovery_history);
@@ -1125,8 +1118,10 @@ namespace ccf
 
       for (auto const& v : restored_versions)
       {
-        broadcast_ledger_secret(
-          tx, network.ledger_secrets->get_secret(v).value(), v, true);
+        (void)v;
+        // TODO: Recovery/rekey
+        // broadcast_ledger_secret(
+        //   tx, network.ledger_secrets->get_secret(v).value(), v, true);
       }
 
       setup_private_recovery_store();
@@ -1665,7 +1660,8 @@ namespace ccf
                   return a.version < b.version;
                 });
 
-              network.ledger_secrets->restore(std::move(restored_secrets));
+              // TODO: Recovery
+              // network.ledger_secrets->restore(std::move(restored_secrets));
               backup_finish_recovery();
             }
           }));
@@ -1857,7 +1853,7 @@ namespace ccf
       network.tables->set_history(history);
     }
 
-    void setup_encryptor(ConsensusType consensus_type)
+    void setup_encryptor()
     {
       // This function makes use of network secrets and should be called once
       // the node has joined the service (either via start_network() or
@@ -1865,20 +1861,7 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       encryptor = std::make_shared<kv::NullTxEncryptor>();
 #else
-      if (network.consensus_type == ConsensusType::BFT)
-      {
-        encryptor = std::make_shared<BftTxEncryptor>(network.ledger_secrets);
-      }
-      else if (network.consensus_type == ConsensusType::CFT)
-      {
-        encryptor = std::make_shared<kv::NewTxEncryptor>(
-          tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
-      }
-      else
-      {
-        throw std::logic_error(
-          "Unknown consensus type " + std::to_string(consensus_type));
-      }
+      encryptor = std::make_shared<NodeEncryptor>(network.ledger_secrets);
 #endif
 
       network.tables->set_encryptor(encryptor);

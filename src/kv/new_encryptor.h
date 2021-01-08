@@ -3,6 +3,7 @@
 #pragma once
 
 #include "crypto/symmetric_key.h"
+#include "ds/spin_lock.h"
 #include "kv/kv_types.h"
 #include "tls/entropy.h"
 
@@ -15,6 +16,7 @@ namespace kv
   class NewTxEncryptor : public AbstractTxEncryptor
   {
   private:
+    SpinLock lock;
     std::shared_ptr<T> ledger_secrets;
 
     void set_iv(
@@ -38,6 +40,7 @@ namespace kv
     std::shared_ptr<typename T::NewLedgerSecret> get_encryption_key(
       Version version)
     {
+      std::lock_guard<SpinLock> guard(lock);
       // TODO: Optimisation here, we can use the latest key directly, as long as
       // the last key is valid for the target version
 
@@ -51,6 +54,7 @@ namespace kv
     void update_encryption_key(
       Version version, std::vector<uint8_t>&& key) override
     {
+      std::lock_guard<SpinLock> guard(lock);
       ledger_secrets->update_encryption_key(version, std::move(key));
     }
 
@@ -73,8 +77,11 @@ namespace kv
 
       set_iv(gcm_hdr, version, term, is_snapshot);
 
-      ledger_secrets->get_encryption_key_for(version)->encrypt(
-        gcm_hdr.get_iv(), plain, additional_data, cipher.data(), gcm_hdr.tag);
+      {
+        std::lock_guard<SpinLock> guard(lock);
+        ledger_secrets->get_encryption_key_for(version)->encrypt(
+          gcm_hdr.get_iv(), plain, additional_data, cipher.data(), gcm_hdr.tag);
+      }
 
       serialised_header = gcm_hdr.serialise();
     }
@@ -90,9 +97,9 @@ namespace kv
       gcm_hdr.deserialise(serialised_header);
       plain.resize(cipher.size());
 
+      std::lock_guard<SpinLock> guard(lock);
       auto ret = ledger_secrets->get_encryption_key_for(version)->decrypt(
         gcm_hdr.get_iv(), gcm_hdr.tag, cipher, additional_data, plain.data());
-
       if (!ret)
       {
         plain.resize(0);
@@ -110,6 +117,7 @@ namespace kv
       // the transaction is serialised with the wrong encryption key (i.e. the
       // latest one after rollback). This is OK as the transaction replication
       // will fail.
+      std::lock_guard<SpinLock> guard(lock);
       ledger_secrets->rollback(version);
     }
 
@@ -120,6 +128,7 @@ namespace kv
       // key.
       // Note: Encryption keys are still kept in memory to be passed on to new
       // nodes joining the service.
+      std::lock_guard<SpinLock> guard(lock);
       ledger_secrets->compact(version);
     }
   };

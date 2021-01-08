@@ -3,7 +3,6 @@
 #pragma once
 
 #include "crypto/symmetric_key.h"
-#include "ds/spin_lock.h"
 #include "kv/kv_types.h"
 #include "tls/entropy.h"
 
@@ -22,24 +21,40 @@ namespace ccf
       // Keep track of raw key to be passed on to new nodes on join
       std::vector<uint8_t> raw_key;
 
+      bool operator==(const NewLedgerSecret& other) const
+      {
+        return raw_key == other.raw_key;
+      }
+
+      NewLedgerSecret() = default;
+
       NewLedgerSecret(std::vector<uint8_t>&& raw_key_) :
         key(std::make_shared<crypto::KeyAesGcm>(raw_key_)),
         raw_key(std::move(raw_key_))
       {}
     };
 
-  private:
-    SpinLock lock;
-
-    using EncryptionKeys =
-      std::map<kv::Version, std::shared_ptr<NewLedgerSecret>>;
+    using EncryptionKeys = std::map<kv::Version, NewLedgerSecret>;
     EncryptionKeys encryption_keys;
+
+    // TODO: This may need a different constructor for recovery and join??
+    NewLedgerSecrets()
+    {
+      encryption_keys.emplace(
+        1, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+      commit_key_it = encryption_keys.begin();
+    }
+
+    bool operator==(const NewLedgerSecrets& other) const
+    {
+      return encryption_keys == other.encryption_keys;
+    }
+
+  private:
     EncryptionKeys::iterator commit_key_it = encryption_keys.end();
 
     EncryptionKeys::iterator get_encryption_key_it(kv::Version version)
     {
-      // Encryption keys lock should be taken before calling this function
-
       // Encryption key for a given version is the one with the highest version
       // that is lower than the given version (e.g. if encryption_keys contains
       // two keys for version 0 and 10 then the key associated with version 0
@@ -49,10 +64,7 @@ namespace ccf
         commit_key_it,
         encryption_keys.end(),
         version,
-        [](auto a, const auto& b) {
-          LOG_FAIL_FMT("Considering key at seqno {}", b.first);
-          return b.first > a;
-        });
+        [](auto a, const auto& b) { return b.first > a; });
       if (search == commit_key_it)
       {
         throw std::logic_error(fmt::format(
@@ -63,42 +75,26 @@ namespace ccf
     }
 
   public:
-    NewLedgerSecrets()
-    {
-      encryption_keys.emplace(
-        1,
-        std::make_shared<NewLedgerSecret>(
-          tls::create_entropy()->random(crypto::GCM_SIZE_KEY)));
-      commit_key_it = encryption_keys.begin();
-    }
-
     std::shared_ptr<crypto::KeyAesGcm> get_encryption_key_for(
       kv::Version version)
     {
-      std::lock_guard<SpinLock> guard(lock);
-
-      return get_encryption_key_it(version)->second->key;
+      return get_encryption_key_it(version)->second.key;
     }
 
     void update_encryption_key(kv::Version version, std::vector<uint8_t>&& key)
     {
-      std::lock_guard<SpinLock> guard(lock);
-
       CCF_ASSERT_FMT(
         encryption_keys.find(version) == encryption_keys.end(),
         "Encryption key at {} already exists",
         version);
 
-      encryption_keys.emplace(
-        version, std::make_shared<NewLedgerSecret>(std::move(key)));
+      encryption_keys.emplace(version, std::move(key));
 
       LOG_TRACE_FMT("Added new encryption key at seqno {}", version);
     }
 
     void rollback(kv::Version version)
     {
-      std::lock_guard<SpinLock> guard(lock);
-
       if (version < commit_key_it->first)
       {
         LOG_FAIL_FMT(
@@ -123,8 +119,6 @@ namespace ccf
 
     void compact(kv::Version version)
     {
-      std::lock_guard<SpinLock> guard(lock);
-
       commit_key_it = get_encryption_key_it(version);
       LOG_TRACE_FMT(
         "First usable encryption key is now at seqno {}", commit_key_it->first);
