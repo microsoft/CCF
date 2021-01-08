@@ -335,6 +335,18 @@ namespace ccf
       return output;
     }
 
+    std::vector<uint8_t> serialise(size_t from, size_t to)
+    {
+      LOG_TRACE_FMT(
+        "mt_serialize_size ({},{}) {}",
+        from,
+        to,
+        tree->serialised_size(from, to));
+      std::vector<uint8_t> output;
+      tree->serialise(from, to, output);
+      return output;
+    }
+
     uint64_t begin_index()
     {
       return tree->min_index();
@@ -745,7 +757,8 @@ namespace ccf
             root,
             hashed_nonce,
             primary_sig,
-            replicated_state_tree.serialise());
+            replicated_state_tree.serialise(
+              commit_txid.second, txid.version - 1));
 
           if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
           {
