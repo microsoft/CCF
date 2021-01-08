@@ -512,7 +512,7 @@ namespace ccf
   public:
     EndpointRegistry(
       const std::string& method_prefix_,
-      kv::Store&,
+      kv::Store&, // TODO: Would like to remove this too
       const std::string& certs_table_name_ = "") :
       method_prefix(method_prefix_),
       certs_table_name(certs_table_name_)
