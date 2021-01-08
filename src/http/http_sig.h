@@ -340,17 +340,20 @@ namespace http
       }
       if (sig_params.signature_algorithm.empty())
       {
-        LOG_TRACE_FMT("Signature params: Missing {}", auth::SIGN_PARAMS_ALGORITHM);
+        LOG_TRACE_FMT(
+          "Signature params: Missing {}", auth::SIGN_PARAMS_ALGORITHM);
         return std::nullopt;
       }
       if (sig_params.signature.empty())
       {
-        LOG_TRACE_FMT("Signature params: Missing {}", auth::SIGN_PARAMS_SIGNATURE);
+        LOG_TRACE_FMT(
+          "Signature params: Missing {}", auth::SIGN_PARAMS_SIGNATURE);
         return std::nullopt;
       }
       if (sig_params.signed_headers.empty())
       {
-        LOG_TRACE_FMT("Signature params: Missing {}", auth::SIGN_PARAMS_HEADERS);
+        LOG_TRACE_FMT(
+          "Signature params: Missing {}", auth::SIGN_PARAMS_HEADERS);
         return std::nullopt;
       }
 
