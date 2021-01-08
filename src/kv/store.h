@@ -81,7 +81,6 @@ namespace kv
     // Tables, but its versioning invariants are ignored.
     const bool strict_versions = true;
 
-
     DeserialiseSuccess commit_deserialised(
       OrderedChanges& changes,
       Version& v,
@@ -1023,7 +1022,8 @@ namespace kv
           auto data_shared =
             std::make_shared<std::vector<uint8_t>>(std::move(data_));
           auto hooks_shared =
-            std::make_shared<std::vector<std::shared_ptr<ConsensusHook>>>(std::move(hooks_));
+            std::make_shared<std::vector<std::shared_ptr<ConsensusHook>>>(
+              std::move(hooks_));
 
           // NB: this cannot happen currently. Regular Tx only make it here if
           // they did succeed, and signatures cannot conflict because they
@@ -1207,7 +1207,8 @@ namespace kv
       }
     }
 
-    void set_map_hook(const std::string& map_name, const kv::untyped::Map::MapHook& hook)
+    void set_map_hook(
+      const std::string& map_name, const kv::untyped::Map::MapHook& hook)
     {
       map_hooks[map_name] = hook;
 

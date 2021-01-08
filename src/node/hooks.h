@@ -45,16 +45,17 @@ namespace ccf
           {
           }
         }
-      }  
+      }
     }
 
-    void call(void *) override
+    void call(void*) override
     {
       LOG_INFO_FMT("CONSENSUS HOOK");
       for (const auto& [node_id, opt_ni] : cfg_delta)
       {
         if (opt_ni.has_value())
-          LOG_INFO_FMT("Add {} -> {}:{}", node_id, opt_ni->hostname, opt_ni->port);
+          LOG_INFO_FMT(
+            "Add {} -> {}:{}", node_id, opt_ni->hostname, opt_ni->port);
         else
           LOG_INFO_FMT("Remove {}", node_id);
       }

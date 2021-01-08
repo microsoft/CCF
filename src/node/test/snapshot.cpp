@@ -130,7 +130,8 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
       auto serialised_tx = source_consensus->get_latest_data().value();
 
-      target_store.deserialise(serialised_tx);
+      auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
+      target_store.deserialise(serialised_tx, hooks);
 
       REQUIRE(
         target_history->get_replicated_state_root() ==

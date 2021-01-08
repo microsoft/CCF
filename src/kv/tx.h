@@ -277,7 +277,10 @@ namespace kv
       std::vector<std::shared_ptr<ConsensusHook>> hooks;
 
       auto c = apply_changes(
-        all_changes, [store]() { return store->next_version(); }, hooks, created_maps);
+        all_changes,
+        [store]() { return store->next_version(); },
+        hooks,
+        created_maps);
 
       if (!created_maps.empty())
         this->store->unlock();
@@ -585,7 +588,11 @@ namespace kv
 
       std::vector<std::shared_ptr<ConsensusHook>> hooks;
       auto c = apply_changes(
-        all_changes, [this]() { return version; }, hooks, created_maps, version);
+        all_changes,
+        [this]() { return version; },
+        hooks,
+        created_maps,
+        version);
       success = c.has_value();
 
       if (!success)

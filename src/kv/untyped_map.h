@@ -830,7 +830,8 @@ namespace kv::untyped
       }
     }
 
-    std::shared_ptr<ConsensusHook> trigger_map_hook(Version version, const Write& writes)
+    std::shared_ptr<ConsensusHook> trigger_map_hook(
+      Version version, const Write& writes)
     {
       if (hook)
       {

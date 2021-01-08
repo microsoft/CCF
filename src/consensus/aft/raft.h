@@ -440,7 +440,7 @@ namespace aft
           (globally_committable ? " committable" : ""),
           hooks->size());
 
-        for (auto & hook: *hooks)
+        for (auto& hook : *hooks)
         {
           hook->call(this);
         }

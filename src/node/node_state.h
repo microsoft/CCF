@@ -10,6 +10,7 @@
 #include "entities.h"
 #include "genesis_gen.h"
 #include "history.h"
+#include "hooks.h"
 #include "network_state.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/progress_tracker.h"
@@ -23,7 +24,6 @@
 #include "snapshotter.h"
 #include "tls/client.h"
 #include "tls/entropy.h"
-#include "hooks.h"
 
 #ifdef USE_NULL_ENCRYPTOR
 #  include "kv/test/null_encryptor.h"
@@ -699,8 +699,9 @@ namespace ccf
       LOG_INFO_FMT(
         "Deserialising public ledger entry ({})", ledger_entry.size());
 
+      std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
       // When reading the public ledger, deserialise in the real store
-      auto result = network.tables->deserialise(ledger_entry, true);
+      auto result = network.tables->deserialise(ledger_entry, hooks, true);
       if (result == kv::DeserialiseSuccess::FAILED)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
@@ -924,8 +925,9 @@ namespace ccf
       LOG_INFO_FMT(
         "Deserialising private ledger entry ({})", ledger_entry.size());
 
+      std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
       // When reading the private ledger, deserialise in the recovery store
-      auto result = recovery_store->deserialise(ledger_entry);
+      auto result = recovery_store->deserialise(ledger_entry, hooks);
       if (result == kv::DeserialiseSuccess::FAILED)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in private ledger");
@@ -1794,12 +1796,12 @@ namespace ccf
       network.tables->set_map_hook(
         network.nodes.get_name(),
         network.nodes.wrap_map_hook(
-          [](kv::Version version, const Nodes::Write& w) -> std::unique_ptr<kv::ConsensusHook> {
-            (void) version;
-            (void) w;
+          [](kv::Version version, const Nodes::Write& w)
+            -> std::unique_ptr<kv::ConsensusHook> {
+            (void)version;
+            (void)w;
             return std::make_unique<ConfigurationChangeHook>(w);
-          }
-        ));
+          }));
 
       // When a node is added, even locally, inform raft so that it
       // can add a new active configuration.

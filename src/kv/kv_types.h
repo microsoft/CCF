@@ -55,12 +55,15 @@ namespace kv
   class ConsensusHook
   {
   public:
-    virtual void call(void *) = 0;
-    virtual ~ConsensusHook() {};
+    virtual void call(void*) = 0;
+    virtual ~ConsensusHook(){};
   };
 
-  using BatchVector = std::vector<
-    std::tuple<kv::Version, std::shared_ptr<std::vector<uint8_t>>, bool, std::shared_ptr<std::vector<std::shared_ptr<ConsensusHook>>>>>;
+  using BatchVector = std::vector<std::tuple<
+    kv::Version,
+    std::shared_ptr<std::vector<uint8_t>>,
+    bool,
+    std::shared_ptr<std::vector<std::shared_ptr<ConsensusHook>>>>>;
 
   enum CommitSuccess
   {
@@ -408,7 +411,9 @@ namespace kv
 
   public:
     MovePendingTx(
-      std::vector<uint8_t>&& data_, kv::TxHistory::RequestID&& req_id_, std::vector<std::shared_ptr<ConsensusHook>>&& hooks_) :
+      std::vector<uint8_t>&& data_,
+      kv::TxHistory::RequestID&& req_id_,
+      std::vector<std::shared_ptr<ConsensusHook>>&& hooks_) :
       data(std::move(data_)),
       req_id(std::move(req_id_)),
       hooks(std::move(hooks_))
@@ -417,7 +422,10 @@ namespace kv
     PendingTxInfo operator()()
     {
       return PendingTxInfo(
-        CommitSuccess::OK, std::move(req_id), std::move(data), std::move(hooks));
+        CommitSuccess::OK,
+        std::move(req_id),
+        std::move(data),
+        std::move(hooks));
     }
   };
 

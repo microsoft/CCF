@@ -86,5 +86,6 @@ namespace kv
   using CommitHook = std::function<void(Version, const W&)>;
 
   template <typename W>
-  using MapHook = std::function<std::shared_ptr<ConsensusHook>(Version, const W&)>;
+  using MapHook =
+    std::function<std::shared_ptr<ConsensusHook>(Version, const W&)>;
 }

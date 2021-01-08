@@ -450,7 +450,9 @@ TEST_CASE_TEMPLATE(
     REQUIRE(success == kv::CommitSuccess::OK);
     kv_store.compact(kv_store.current_version());
 
-    REQUIRE(kv_store2.deserialise(data) == kv::DeserialiseSuccess::PASS);
+    auto hooks_ = std::vector<std::shared_ptr<kv::ConsensusHook>>();
+    REQUIRE(
+      kv_store2.deserialise(data, hooks_) == kv::DeserialiseSuccess::PASS);
     auto tx2 = kv_store2.create_tx();
     auto view2 = tx2.get_view(map2);
 
@@ -557,12 +559,13 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     auto tx = s0.create_tx();
     tx.get_view(t)->put(k1, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    
+
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
     auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
     REQUIRE(
-      s1.deserialise(latest_data.value(), hooks) != kv::DeserialiseSuccess::FAILED);
+      s1.deserialise(latest_data.value(), hooks) !=
+      kv::DeserialiseSuccess::FAILED);
   }
 
   SUBCASE("nlohmann")
@@ -579,8 +582,10 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
+    auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
     REQUIRE(
-      s1.deserialise(latest_data.value()) != kv::DeserialiseSuccess::FAILED);
+      s1.deserialise(latest_data.value(), hooks) !=
+      kv::DeserialiseSuccess::FAILED);
   }
 }
 
@@ -620,14 +625,15 @@ TEST_CASE(
 
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
-    auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
-    REQUIRE(store.deserialise(data, hooks) == kv::DeserialiseSuccess::PASS);
+    auto hooks_ = std::vector<std::shared_ptr<kv::ConsensusHook>>();
+    REQUIRE(store.deserialise(data, hooks_) == kv::DeserialiseSuccess::PASS);
 
     INFO("check that second store derived data is not populated");
     {
       auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
       REQUIRE(
-        kv_store_target.deserialise(data, hooks) == kv::DeserialiseSuccess::PASS);
+        kv_store_target.deserialise(data, hooks) ==
+        kv::DeserialiseSuccess::PASS);
       auto tx = kv_store_target.create_tx();
       auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] =
         tx.get_view<T, T, T, T>(

@@ -121,8 +121,9 @@ static void deserialise(picobench::state& s)
   }
   tx.commit();
 
+  auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
   s.start_timer();
-  auto rc = kv_store2.deserialise(consensus->get_latest_data().value());
+  auto rc = kv_store2.deserialise(consensus->get_latest_data().value(), hooks);
   if (rc != kv::DeserialiseSuccess::PASS)
     throw std::logic_error(
       "Transaction deserialisation failed: " + std::to_string(rc));
