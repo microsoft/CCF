@@ -16,10 +16,9 @@ namespace ccf
   public:
     struct NewLedgerSecret
     {
-      std::shared_ptr<crypto::KeyAesGcm> key;
-
-      // Keep track of raw key to be passed on to new nodes on join
       std::vector<uint8_t> raw_key;
+
+      std::shared_ptr<crypto::KeyAesGcm> key;
 
       bool operator==(const NewLedgerSecret& other) const
       {
@@ -28,21 +27,26 @@ namespace ccf
 
       NewLedgerSecret() = default;
 
+      NewLedgerSecret(const NewLedgerSecret& other) :
+        raw_key(other.raw_key),
+        key(std::make_shared<crypto::KeyAesGcm>(other.raw_key))
+      {}
+
       NewLedgerSecret(std::vector<uint8_t>&& raw_key_) :
-        key(std::make_shared<crypto::KeyAesGcm>(raw_key_)),
-        raw_key(std::move(raw_key_))
+        raw_key(raw_key_),
+        key(std::make_shared<crypto::KeyAesGcm>(std::move(raw_key_)))
       {}
     };
 
     using EncryptionKeys = std::map<kv::Version, NewLedgerSecret>;
     EncryptionKeys encryption_keys;
 
-    // TODO: This may need a different constructor for recovery and join??
-    NewLedgerSecrets()
+    NewLedgerSecrets() = default;
+
+    NewLedgerSecrets(const NewLedgerSecrets& other) :
+      encryption_keys(other.encryption_keys)
     {
-      encryption_keys.emplace(
-        1, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
-      commit_key_it = encryption_keys.begin();
+      // commit_key_it = encryption_keys.begin();
     }
 
     bool operator==(const NewLedgerSecrets& other) const
@@ -50,8 +54,16 @@ namespace ccf
       return encryption_keys == other.encryption_keys;
     }
 
+    void init()
+    {
+      encryption_keys.emplace(
+        1, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+      // commit_key_it = encryption_keys.begin();
+    }
+
   private:
-    EncryptionKeys::iterator commit_key_it = encryption_keys.end();
+    // TODO: Encryption keys compaction doesn't work. Ignored for now.
+    // EncryptionKeys::iterator commit_key_it = encryption_keys.end();
 
     EncryptionKeys::iterator get_encryption_key_it(kv::Version version)
     {
@@ -61,11 +73,11 @@ namespace ccf
       // is used for version [0..9] and version 10 for versions 10+)
 
       auto search = std::upper_bound(
-        commit_key_it,
+        encryption_keys.begin(),
         encryption_keys.end(),
         version,
         [](auto a, const auto& b) { return b.first > a; });
-      if (search == commit_key_it)
+      if (search == encryption_keys.begin())
       {
         throw std::logic_error(fmt::format(
           "TxEncryptor: could not find ledger encryption key for seqno {}",
@@ -95,16 +107,16 @@ namespace ccf
 
     void rollback(kv::Version version)
     {
-      if (version < commit_key_it->first)
+      if (version < encryption_keys.begin()->first)
       {
         LOG_FAIL_FMT(
           "Cannot rollback encryptor at {}: committed key is at {}",
           version,
-          commit_key_it->first);
+          encryption_keys.begin()->first);
         return;
       }
 
-      while (std::distance(commit_key_it, encryption_keys.end()) > 1)
+      while (std::distance(encryption_keys.begin(), encryption_keys.end()) > 1)
       {
         auto k = encryption_keys.rbegin();
         if (k->first <= version)
@@ -119,9 +131,11 @@ namespace ccf
 
     void compact(kv::Version version)
     {
-      commit_key_it = get_encryption_key_it(version);
-      LOG_TRACE_FMT(
-        "First usable encryption key is now at seqno {}", commit_key_it->first);
+      (void)version;
+      // commit_key_it = get_encryption_key_it(version);
+      // LOG_TRACE_FMT(
+      // "First usable encryption key is now at seqno {}",
+      // commit_key_it->first);
     }
   };
 }

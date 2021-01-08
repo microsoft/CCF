@@ -306,7 +306,7 @@ namespace ccf
             std::make_unique<NetworkIdentity>("CN=CCF Network");
 
           network.ledger_secrets = std::make_shared<NewLedgerSecrets>();
-          // network.ledger_secrets->init();
+          network.ledger_secrets->init();
 
           set_node_id(0); // The first node id is always 0
 
@@ -469,9 +469,12 @@ namespace ccf
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
 
-            // TODO: JSON serialisation for new ledger secrets!!
-            // network.ledger_secrets =
-            //   std::make_shared<LedgerSecrets>(resp.network_info.ledger_secrets);
+            LOG_FAIL_FMT(
+              "Init-ing ledger secrets with {} secret(s)",
+              resp.network_info.ledger_secrets.encryption_keys.size());
+
+            network.ledger_secrets = std::make_shared<NewLedgerSecrets>(
+              resp.network_info.ledger_secrets);
 
             set_node_id(resp.node_id);
 
@@ -1855,7 +1858,7 @@ namespace ccf
 
     void setup_encryptor()
     {
-      // This function makes use of network secrets and should be called once
+      // This function makes use of ledger secrets and should be called once
       // the node has joined the service (either via start_network() or
       // join_network())
 #ifdef USE_NULL_ENCRYPTOR

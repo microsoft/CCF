@@ -18,7 +18,6 @@ struct MapTypes
   using StringString = kv::Map<std::string, std::string>;
 };
 
-// TODO: Move to node_state.h
 using NodeEncryptor = kv::NewTxEncryptor<ccf::NewLedgerSecrets>;
 
 bool encrypt_round_trip(
@@ -47,6 +46,7 @@ void commit_one(kv::Store& store, MapTypes::StringString& map)
 TEST_CASE("Simple encryption/decryption" * doctest::test_suite("encryption"))
 {
   auto ledger_secrets = std::make_shared<ccf::NewLedgerSecrets>();
+  ledger_secrets->init();
   NodeEncryptor encryptor(ledger_secrets);
 
   std::vector<uint8_t> plain(10, 0x42);
@@ -83,6 +83,7 @@ TEST_CASE("KV encryption/decryption" * doctest::test_suite("encryption"))
   kv::Store backup_store;
 
   auto ledger_secrets = std::make_shared<ccf::NewLedgerSecrets>();
+  ledger_secrets->init();
 
   // Primary and backup stores have access to same ledger secrets
   auto primary_encryptor = std::make_shared<NodeEncryptor>(ledger_secrets);
@@ -134,6 +135,7 @@ TEST_CASE(
   kv::Store store;
 
   auto ledger_secrets = std::make_shared<ccf::NewLedgerSecrets>();
+  ledger_secrets->init();
   auto encryptor = std::make_shared<NodeEncryptor>(ledger_secrets);
   store.set_encryptor(encryptor);
 
