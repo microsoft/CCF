@@ -16,6 +16,45 @@ namespace ccf
   private:
     NetworkState& network;
     AbstractNodeState& node;
+    
+    void node_quotes(
+      kv::ReadOnlyTx& tx,
+      GetQuotes::Out& result,
+      const std::optional<std::set<NodeId>>& filter = std::nullopt) const
+    {
+      auto nodes_view = tx.get_read_only_view(network.nodes);
+
+      nodes_view->foreach([&result, &filter, this](
+                            const NodeId& nid, const NodeInfo& ni) {
+        if (!filter.has_value() || (filter->find(nid) != filter->end()))
+        {
+          if (ni.status == ccf::NodeStatus::TRUSTED)
+          {
+            GetQuotes::Quote q;
+            q.node_id = nid;
+            q.raw = fmt::format("{:02x}", fmt::join(ni.quote, ""));
+
+            if (this->network.consensus_type != ConsensusType::BFT)
+            {
+#ifdef GET_QUOTE
+              auto code_id_opt = QuoteGenerator::get_code_id(ni.quote);
+              if (!code_id_opt.has_value())
+              {
+                q.error = fmt::format("Failed to retrieve code ID from quote");
+              }
+              else
+              {
+                q.mrenclave =
+                  fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
+              }
+#endif
+            }
+            result.quotes.push_back(q);
+          }
+        }
+        return true;
+      });
+    };
 
     std::optional<NodeId> check_node_exists(
       kv::Tx& tx,
@@ -297,7 +336,7 @@ namespace ccf
         GetQuotes::Out result;
         std::set<NodeId> filter;
         filter.insert(this->node.get_node_id());
-        this->node.node_quotes(args.tx, result, filter);
+        node_quotes(args.tx, result, filter);
 
         if (result.quotes.size() == 1)
         {
@@ -319,7 +358,7 @@ namespace ccf
 
       auto get_quotes = [this](auto& args, nlohmann::json&&) {
         GetQuotes::Out result;
-        this->node.node_quotes(args.tx, result);
+        node_quotes(args.tx, result);
 
         return make_success(result);
       };

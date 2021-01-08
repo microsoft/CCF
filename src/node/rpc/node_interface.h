@@ -25,10 +25,6 @@ namespace ccf
     virtual bool is_reading_private_ledger() const = 0;
     virtual bool is_verifying_snapshot() const = 0;
     virtual bool is_part_of_network() const = 0;
-    virtual void node_quotes(
-      kv::ReadOnlyTx& tx,
-      GetQuotes::Out& result,
-      const std::optional<std::set<NodeId>>& filter = std::nullopt) = 0;
     virtual NodeId get_node_id() const = 0;
     virtual kv::Version get_last_recovered_signed_idx() = 0;
     virtual void initiate_private_recovery(kv::Tx& tx) = 0;

@@ -56,12 +56,6 @@ namespace ccf
       return true;
     }
 
-    void node_quotes(
-      kv::ReadOnlyTx& tx,
-      GetQuotes::Out& result,
-      const std::optional<std::set<NodeId>>& filter) override
-    {}
-
     void initiate_private_recovery(kv::Tx& tx) override
     {
       share_manager.restore_recovery_shares_info(tx, {});
