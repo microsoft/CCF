@@ -98,7 +98,8 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       std::vector<kv::Version> view_history;
       std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
       REQUIRE(
-        target_store.deserialise_snapshot(serialised_snapshot, hooks, &view_history) ==
+        target_store.deserialise_snapshot(
+          serialised_snapshot, hooks, &view_history) ==
         kv::DeserialiseSuccess::FAILED);
     }
 
@@ -111,7 +112,8 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       std::vector<kv::Version> view_history;
       std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
       REQUIRE(
-        target_store.deserialise_snapshot(serialised_snapshot, hooks, &view_history) ==
+        target_store.deserialise_snapshot(
+          serialised_snapshot, hooks, &view_history) ==
         kv::DeserialiseSuccess::PASS);
 
       // Merkle history and view history thus far are restored when applying

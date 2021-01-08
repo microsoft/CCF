@@ -209,8 +209,6 @@ namespace ccf
           fmt::format("Failed to apply public snapshot: {}", rc));
       }
 
-      // TODO: is consensus ready for hooks?
-
       LOG_INFO_FMT(
         "Public snapshot deserialised at seqno {}",
         network.tables->current_version());
@@ -508,7 +506,10 @@ namespace ccf
                   fmt::format("Failed to apply snapshot on join: {}", rc));
               }
 
-              // TODO: consensus ready for hooks?
+              for (auto& hook : hooks)
+              {
+                hook->call(consensus.get());
+              }
 
               auto tx = network.tables->create_read_only_tx();
               auto sig_view = tx.get_read_only_view(network.signatures);
@@ -723,7 +724,8 @@ namespace ccf
         return;
       }
 
-      for (auto& hook: hooks)
+      // Not synchronised because consensus isn't effectively running then
+      for (auto& hook : hooks)
       {
         hook->call(consensus.get());
       }
@@ -1106,8 +1108,6 @@ namespace ccf
           throw std::logic_error(fmt::format(
             "Could not deserialise snapshot in recovery store: {}", rc));
         }
-
-        //TODO: is consensus ready for hooks?
 
         startup_snapshot_info.reset();
       }
