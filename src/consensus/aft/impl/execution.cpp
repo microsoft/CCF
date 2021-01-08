@@ -84,6 +84,8 @@ namespace aft
     ctx->execute_on_node = true;
     ctx->set_apply_writes(true);
 
+    LOG_INFO_FMT("Executing - path:{}", ctx->get_request_path());
+
     enclave::RpcHandler::ProcessBftResp rep = frontend->process_bft(ctx);
 
     frontend->update_merkle_tree();

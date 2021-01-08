@@ -42,7 +42,7 @@ namespace ccf
       };
       make_command_endpoint(
         "commit", HTTP_GET, json_command_adapter(get_commit), no_auth_required)
-        .set_execute_locally(true)
+        .set_execute_locally(ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<void, GetCommit::Out>()
         .install();
 
@@ -77,7 +77,7 @@ namespace ccf
         json_command_adapter(get_tx_status),
         no_auth_required)
         .set_auto_schema<GetTxStatus>()
-        .set_execute_locally(true)
+        .set_execute_locally(ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto user_id = [this](auto& args, nlohmann::json&& params) {
