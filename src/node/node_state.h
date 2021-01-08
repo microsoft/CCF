@@ -1592,7 +1592,8 @@ namespace ccf
       network.tables->set_map_hook(
         network.secrets.get_name(),
         network.secrets.wrap_map_hook(
-          [this](kv::Version version, const Secrets::Write& w) -> kv::ConsensusHookPtr {
+          [this](kv::Version version, const Secrets::Write& w)
+            -> kv::ConsensusHookPtr {
             bool has_secrets = false;
             std::list<LedgerSecrets::VersionedLedgerSecret> restored_secrets;
 
@@ -1697,7 +1698,8 @@ namespace ccf
       network.tables->set_map_hook(
         network.shares.get_name(),
         network.shares.wrap_map_hook(
-          [this](kv::Version version, const Shares::Write& w) -> kv::ConsensusHookPtr {
+          [this](kv::Version version, const Shares::Write& w)
+            -> kv::ConsensusHookPtr {
             for (const auto& [k, opt_v] : w)
             {
               if (!opt_v.has_value())
@@ -1798,64 +1800,14 @@ namespace ccf
       network.tables->set_consensus(consensus);
       cmd_forwarder->set_request_tracker(request_tracker);
 
+      // When a node is added, even locally, inform consensus so that it
+      // can add a new active configuration.
       network.tables->set_map_hook(
         network.nodes.get_name(),
         network.nodes.wrap_map_hook(
           [](kv::Version version, const Nodes::Write& w)
             -> kv::ConsensusHookPtr {
-            (void)version;
-            (void)w;
-            return std::make_unique<ConfigurationChangeHook>(w);
-          }));
-
-      // When a node is added, even locally, inform raft so that it
-      // can add a new active configuration.
-      network.tables->set_local_hook(
-        network.nodes.get_name(),
-        network.nodes.wrap_commit_hook(
-          [this](kv::Version version, const Nodes::Write& w) {
-            bool configure = false;
-            auto configuration = consensus->get_latest_configuration();
-
-            for (const auto& [node_id, opt_ni] : w)
-            {
-              if (!opt_ni.has_value())
-              {
-                throw std::logic_error(fmt::format(
-                  "Unexpected: removal from nodes table ({})", node_id));
-              }
-
-              const auto& ni = opt_ni.value();
-              switch (ni.status)
-              {
-                case NodeStatus::PENDING:
-                {
-                  // Pending nodes are not added to consensus until they are
-                  // trusted
-                  break;
-                }
-                case NodeStatus::TRUSTED:
-                {
-                  configuration.try_emplace(node_id, ni.nodehost, ni.nodeport);
-                  configure = true;
-                  break;
-                }
-                case NodeStatus::RETIRED:
-                {
-                  configuration.erase(node_id);
-                  configure = true;
-                  break;
-                }
-                default:
-                {
-                }
-              }
-            }
-
-            if (configure)
-            {
-              consensus->add_configuration(version, configuration);
-            }
+            return std::make_unique<ConfigurationChangeHook>(version, w);
           }));
 
       setup_basic_hooks();

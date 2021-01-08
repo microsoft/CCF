@@ -48,7 +48,7 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     election_timeout,
     ms(1000));
 
-  kv::Consensus::Configuration::Nodes config;
+  kv::Configuration::Nodes config;
   config.try_emplace(node_id);
   r0.add_configuration(0, config);
 

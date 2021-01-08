@@ -15,10 +15,12 @@ namespace ccf
 
   class ConfigurationChangeHook : public kv::ConsensusHook
   {
+    kv::Version version;
     std::map<NodeId, std::optional<NodeAddr>> cfg_delta;
 
   public:
-    ConfigurationChangeHook(const Nodes::Write& w)
+    ConfigurationChangeHook(kv::Version version_, const Nodes::Write& w) :
+      version(version_)
     {
       for (const auto& [node_id, opt_ni] : w)
       {
@@ -48,17 +50,26 @@ namespace ccf
       }
     }
 
-    void call(void*) override
+    void call(kv::ConfigurableConsensus* consensus) override
     {
-      LOG_INFO_FMT("CONSENSUS HOOK");
+      auto configuration = consensus->get_latest_configuration();
+      LOG_INFO_FMT("CONSENSUS HOOK at {}", version);
       for (const auto& [node_id, opt_ni] : cfg_delta)
       {
         if (opt_ni.has_value())
+        {
+          configuration.try_emplace(node_id, opt_ni->hostname, opt_ni->port);
           LOG_INFO_FMT(
             "Add {} -> {}:{}", node_id, opt_ni->hostname, opt_ni->port);
+        }
         else
+        {
+          configuration.erase(node_id);
           LOG_INFO_FMT("Remove {}", node_id);
+        }
       }
+      if (!cfg_delta.empty())
+        consensus->add_configuration(version, configuration);
     }
   };
 }

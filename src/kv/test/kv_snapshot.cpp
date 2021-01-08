@@ -181,7 +181,8 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
 
     INFO("Set hooks on target store");
     {
-      auto local_hook = [&](kv::Version v, const Write& w) -> kv::ConsensusHookPtr {
+      auto map_hook =
+        [&](kv::Version v, const Write& w) -> kv::ConsensusHookPtr {
         local_writes.push_back(w);
         return kv::ConsensusHookPtr(nullptr);
       };
@@ -190,7 +191,7 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
       };
 
       new_store.set_map_hook(
-        string_map, new_string_map.wrap_map_hook(local_hook));
+        string_map, new_string_map.wrap_map_hook(map_hook));
       new_store.set_global_hook(
         string_map, new_string_map.wrap_commit_hook(global_hook));
     }

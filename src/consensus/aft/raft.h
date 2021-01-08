@@ -28,10 +28,10 @@
 
 namespace aft
 {
-  using Configuration = kv::Consensus::Configuration;
+  using Configuration = kv::Configuration;
 
   template <class LedgerProxy, class ChannelProxy, class SnapshotterProxy>
-  class Aft
+  class Aft : public kv::ConfigurableConsensus
   {
   private:
     enum ReplicaState
@@ -186,6 +186,8 @@ namespace aft
         state->view_history.update(1, starting_view_change);
       }
     }
+
+    virtual ~Aft() {}
 
     NodeId leader()
     {
@@ -1105,7 +1107,11 @@ namespace aft
           deserialise_success =
             store->deserialise(entry, hooks, public_only, &sig_term);
         }
-        // TODO: apply hooks here
+
+        for (auto& hook : hooks)
+        {
+          hook->call(this);
+        }
 
         bool globally_committable =
           (deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);

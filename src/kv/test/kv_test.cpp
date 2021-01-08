@@ -704,7 +704,7 @@ TEST_CASE("Local commit hooks")
   std::vector<Write> local_writes;
   std::vector<Write> global_writes;
 
-  auto local_hook = [&](kv::Version v, const Write& w) -> kv::ConsensusHookPtr {
+  auto map_hook = [&](kv::Version v, const Write& w) -> kv::ConsensusHookPtr {
     local_writes.push_back(w);
     return kv::ConsensusHookPtr(nullptr);
   };
@@ -715,7 +715,7 @@ TEST_CASE("Local commit hooks")
   kv::Store kv_store;
   constexpr auto map_name = "public:map";
   MapTypes::StringString map(map_name);
-  kv_store.set_map_hook(map_name, map.wrap_map_hook(local_hook));
+  kv_store.set_map_hook(map_name, map.wrap_map_hook(map_hook));
   kv_store.set_global_hook(map_name, map.wrap_commit_hook(global_hook));
 
   INFO("Write with hooks");
@@ -755,7 +755,7 @@ TEST_CASE("Local commit hooks")
 
   INFO("Write with hook again");
   {
-    kv_store.set_map_hook(map_name, map.wrap_map_hook(local_hook));
+    kv_store.set_map_hook(map_name, map.wrap_map_hook(map_hook));
     kv_store.set_global_hook(map_name, map.wrap_commit_hook(global_hook));
 
     auto tx = kv_store.create_tx();

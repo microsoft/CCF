@@ -62,7 +62,6 @@ namespace kv
   private:
     using Hooks = std::map<std::string, kv::untyped::Map::CommitHook>;
     using MapHooks = std::map<std::string, kv::untyped::Map::MapHook>;
-    Hooks local_hooks;
     Hooks global_hooks;
     MapHooks map_hooks;
 
@@ -234,12 +233,6 @@ namespace kv
 
       {
         // If we have any hooks for the given map name, set them on this new map
-        const auto local_it = local_hooks.find(map_name);
-        if (local_it != local_hooks.end())
-        {
-          map->set_local_hook(local_it->second);
-        }
-
         const auto global_it = global_hooks.find(map_name);
         if (global_it != global_hooks.end())
         {
@@ -1219,32 +1212,9 @@ namespace kv
       }
     }
 
-    void set_local_hook(
-      const std::string& map_name, const kv::untyped::Map::CommitHook& hook)
-    {
-      local_hooks[map_name] = hook;
-
-      const auto it = maps.find(map_name);
-      if (it != maps.end())
-      {
-        it->second.second->set_local_hook(hook);
-      }
-    }
-
-    void unset_local_hook(const std::string& map_name)
-    {
-      local_hooks.erase(map_name);
-
-      const auto it = maps.find(map_name);
-      if (it != maps.end())
-      {
-        it->second.second->unset_local_hook();
-      }
-    }
-
     void unset_map_hook(const std::string& map_name)
     {
-      local_hooks.erase(map_name);
+      map_hooks.erase(map_name);
 
       const auto it = maps.find(map_name);
       if (it != maps.end())

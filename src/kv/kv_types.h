@@ -50,12 +50,48 @@ namespace kv
   DECLARE_JSON_TYPE(TxID);
   DECLARE_JSON_REQUIRED_FIELDS(TxID, term, version)
 
-  class Consensus;
+  // SeqNo indexes transactions processed by the consensus protocol providing
+  // ordering
+  using SeqNo = int64_t;
+
+  struct Configuration
+  {
+    struct NodeInfo
+    {
+      std::string hostname;
+      std::string port;
+      tls::Pem cert = {};
+
+      NodeInfo() = default;
+
+      NodeInfo(
+        const std::string& hostname_,
+        const std::string& port_,
+        const tls::Pem& cert_ = {}) :
+        hostname(hostname_),
+        port(port_),
+        cert(cert_)
+      {}
+    };
+
+    using Nodes = std::unordered_map<NodeId, NodeInfo>;
+
+    SeqNo idx;
+    Nodes nodes;
+  };
+
+  class ConfigurableConsensus
+  {
+  public:
+    virtual void add_configuration(
+      SeqNo seqno, const Configuration::Nodes& conf) = 0;
+    virtual Configuration::Nodes get_latest_configuration() const = 0;
+  };
 
   class ConsensusHook
   {
   public:
-    virtual void call(void*) = 0;
+    virtual void call(ConfigurableConsensus*) = 0;
     virtual ~ConsensusHook(){};
   };
 
@@ -260,7 +296,7 @@ namespace kv
     virtual void clear_on_response() = 0;
   };
 
-  class Consensus
+  class Consensus : public ConfigurableConsensus
   {
   protected:
     enum State
@@ -274,38 +310,10 @@ namespace kv
     NodeId local_id;
 
   public:
-    // SeqNo indexes transactions processed by the consensus protocol providing
-    // ordering
-    using SeqNo = int64_t;
+    using SeqNo = SeqNo;
     // View describes an epoch of SeqNos. View is incremented when Consensus's
     // primary changes
     using View = int64_t;
-
-    struct Configuration
-    {
-      struct NodeInfo
-      {
-        std::string hostname;
-        std::string port;
-        tls::Pem cert = {};
-
-        NodeInfo() = default;
-
-        NodeInfo(
-          const std::string& hostname_,
-          const std::string& port_,
-          const tls::Pem& cert_ = {}) :
-          hostname(hostname_),
-          port(port_),
-          cert(cert_)
-        {}
-      };
-
-      using Nodes = std::unordered_map<NodeId, NodeInfo>;
-
-      SeqNo idx;
-      Nodes nodes;
-    };
 
     Consensus(NodeId id) : state(Backup), local_id(id) {}
     virtual ~Consensus() {}
@@ -354,9 +362,6 @@ namespace kv
     virtual std::set<NodeId> active_nodes() = 0;
 
     virtual void recv_message(OArray&& oa) = 0;
-    virtual void add_configuration(
-      SeqNo seqno, const Configuration::Nodes& conf) = 0;
-    virtual Configuration::Nodes get_latest_configuration() const = 0;
 
     virtual bool on_request(const kv::TxHistory::RequestCallbackArgs&)
     {

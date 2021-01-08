@@ -38,7 +38,7 @@ private:
 public:
   RaftDriver(size_t number_of_nodes)
   {
-    kv::Consensus::Configuration::Nodes configuration;
+    kv::Configuration::Nodes configuration;
 
     for (size_t i = 0; i < number_of_nodes; ++i)
     {
