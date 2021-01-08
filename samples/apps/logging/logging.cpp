@@ -563,7 +563,7 @@ namespace loggingapp
         const auto committed_seqno = consensus->get_committed_seqno();
         const auto committed_view = consensus->get_view(committed_seqno);
 
-        const auto tx_status = ccf::get_tx_status(
+        const auto tx_status = ccf::evaluate_tx_status(
           view, seqno, tx_view, committed_view, committed_seqno);
         if (tx_status != ccf::TxStatus::Committed)
         {

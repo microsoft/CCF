@@ -186,9 +186,9 @@ namespace ccf
         "state.";
     }
 
-    void init_handlers(kv::Store& tables_) override
+    void init_handlers() override
     {
-      CommonEndpointRegistry::init_handlers(tables_);
+      CommonEndpointRegistry::init_handlers();
 
       auto accept = [this](
                       EndpointContext& args, const nlohmann::json& params) {

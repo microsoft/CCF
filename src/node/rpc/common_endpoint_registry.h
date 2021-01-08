@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "common_endpoints/get_tx_status.h"
 #include "endpoint_registry.h"
 #include "http/http_consts.h"
 #include "http/ws_consts.h"
@@ -24,9 +25,9 @@ namespace ccf
       EndpointRegistry(method_prefix_, store, certs_table_name)
     {}
 
-    void init_handlers(kv::Store& t) override
+    void init_handlers() override
     {
-      EndpointRegistry::init_handlers(t);
+      EndpointRegistry::init_handlers();
 
       auto get_commit = [this](auto&, nlohmann::json&&) {
         if (consensus != nullptr)
@@ -49,22 +50,9 @@ namespace ccf
       auto get_tx_status = [this](auto&, nlohmann::json&& params) {
         const auto in = params.get<GetTxStatus::In>();
 
-        if (consensus != nullptr)
-        {
-          const auto tx_view = consensus->get_view(in.seqno);
-          const auto committed_seqno = consensus->get_committed_seqno();
-          const auto committed_view = consensus->get_view(committed_seqno);
-
-          GetTxStatus::Out out;
-          out.status = ccf::get_tx_status(
-            in.view, in.seqno, tx_view, committed_view, committed_seqno);
-          return make_success(out);
-        }
-
-        return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "Consensus is not yet configured.");
+        GetTxStatus::Out out;
+        out.status = ccf::get_tx_status_v1(consensus, in.view, in.seqno);
+        return make_success(out);
       };
       make_command_endpoint(
         "tx", HTTP_GET, json_command_adapter(get_tx_status), no_auth_required)

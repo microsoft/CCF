@@ -757,7 +757,7 @@ namespace ccf
       return metrics[e->dispatch.uri_path][e->dispatch.verb.c_str()];
     }
 
-    virtual void init_handlers(kv::Store&) {}
+    virtual void init_handlers() {}
 
     virtual EndpointDefinitionPtr find_endpoint(
       kv::Tx&, enclave::RpcContext& rpc_ctx)

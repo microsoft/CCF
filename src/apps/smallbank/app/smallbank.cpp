@@ -56,9 +56,9 @@ namespace ccfapp
       tables(store)
     {}
 
-    void init_handlers(kv::Store& store) override
+    void init_handlers() override
     {
-      UserEndpointRegistry::init_handlers(store);
+      UserEndpointRegistry::init_handlers();
 
       auto create = [this](auto& args) {
         // Create an account with a balance from thin air.

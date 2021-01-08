@@ -432,7 +432,7 @@ namespace ccf
         if (!is_open_)
         {
           is_open_ = true;
-          endpoints.init_handlers(tables);
+          endpoints.init_handlers();
         }
       }
     }
@@ -451,7 +451,7 @@ namespace ccf
           LOG_INFO_FMT(
             "Service state is OPEN, now accepting user transactions");
           is_open_ = true;
-          endpoints.init_handlers(tables);
+          endpoints.init_handlers();
         }
       }
       return is_open_;

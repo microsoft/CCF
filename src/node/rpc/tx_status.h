@@ -50,7 +50,7 @@ namespace ccf
 
   constexpr int64_t VIEW_UNKNOWN = std::numeric_limits<int64_t>::min();
 
-  static TxStatus get_tx_status(
+  static TxStatus evaluate_tx_status(
     int64_t target_view,
     int64_t target_seqno,
     int64_t local_view,

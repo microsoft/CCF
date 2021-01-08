@@ -1242,9 +1242,9 @@ namespace ccf
       return INVALID_ID;
     }
 
-    void init_handlers(kv::Store& tables_) override
+    void init_handlers() override
     {
-      CommonEndpointRegistry::init_handlers(tables_);
+      CommonEndpointRegistry::init_handlers();
 
       const AuthnPolicies member_sig_only = {member_signature_auth_policy};
 
