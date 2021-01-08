@@ -341,6 +341,7 @@ namespace ccf
           if (consensus != nullptr)
           {
             out.current_view = consensus->get_view();
+            out.primary_id = consensus->primary();
           }
           return make_success(out);
         }
@@ -477,7 +478,7 @@ namespace ccf
           args.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Consensus not available");
+            "Primary unknown");
           return;
         }
         auto node_id = consensus->primary();
