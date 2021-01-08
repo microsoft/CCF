@@ -103,7 +103,10 @@ namespace ccf
             cmd_forwarder->forward_command(
               ctx,
               primary_id,
-              consensus->active_nodes(),
+              endpoint->properties.execute_locally ==
+                  ExecuteOutsideConsensus::Never ?
+                consensus->active_nodes() :
+                std::set<NodeId>(),
               ctx->session->caller_cert))
           {
             // Indicate that the RPC has been forwarded to primary
