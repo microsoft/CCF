@@ -96,8 +96,6 @@ namespace ccf
         {
           auto primary_id = consensus->primary();
 
-          LOG_INFO_FMT("AAAAA forwarding - path:{}", ctx->get_request_path());
-
           if (
             primary_id != NoNode &&
             cmd_forwarder->forward_command(
@@ -243,7 +241,8 @@ namespace ccf
                !ctx->execute_on_node &&
                (endpoint == nullptr ||
                 (endpoint != nullptr &&
-                 endpoint->properties.execute_locally != ExecuteOutsideConsensus::Locally))))
+                 endpoint->properties.execute_locally !=
+                   ExecuteOutsideConsensus::Locally))))
             {
               ctx->session->is_forwarding = true;
               return forward_or_redirect_json(ctx, endpoint);
@@ -493,16 +492,6 @@ namespace ccf
       const bool is_local = endpoint != nullptr &&
         endpoint->properties.execute_locally !=
           ccf::endpoints::ExecuteOutsideConsensus::Never;
-      LOG_INFO_FMT("CCCCC Should execute outside consensus - path:{}", ctx->get_request_path());
-      /*
-    const bool is_local = (endpoint != nullptr &&
-        ((endpoint->properties.execute_locally ==
-           ccf::endpoints::ExecuteOutsideConsensus::Primary &&
-         consensus != nullptr && consensus->is_primary()) ||
-      (endpoint->properties.execute_locally ==
-         ccf::endpoints::ExecuteOutsideConsensus::Locally &&
-       (consensus == nullptr || consensus->is_backup()))));
-       */
       const bool should_bft_distribute = is_bft && !is_local &&
         (ctx->execute_on_node || consensus->is_primary());
 
@@ -559,7 +548,6 @@ namespace ccf
     ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
-      // TODO: we should be able to go into this path if we want to skip the consensus
       auto tx = tables.create_tx();
       // Note: this can only happen if the primary is malicious,
       // and has executed a user transaction when the service wasn't
@@ -616,8 +604,6 @@ namespace ccf
       update_consensus();
       auto tx = tables.create_tx();
 
-      // TODO: we should be able to go into this path if we want to skip the consensus
-      LOG_INFO_FMT("CCCCC Dealing with forwarded - path:{}", ctx->get_request_path());
       const auto endpoint = endpoints.find_endpoint(tx, *ctx);
       if (
         consensus->type() == ConsensusType::CFT ||
