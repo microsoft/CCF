@@ -541,14 +541,20 @@ namespace ccf
       return process_command(ctx, tx);
     }
 
+    ProcessBftResp process_bft(
+      std::shared_ptr<enclave::RpcContext> ctx) override
+    {
+      auto tx = tables.create_tx();
+      return process_bft(ctx, tx);
+    }
+
     /** Process a serialised command with the associated RPC context via BFT
      *
      * @param ctx Context for this RPC
      */
     ProcessBftResp process_bft(
-      std::shared_ptr<enclave::RpcContext> ctx) override
+      std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx) override
     {
-      auto tx = tables.create_tx();
       // Note: this can only happen if the primary is malicious,
       // and has executed a user transaction when the service wasn't
       // open. The backup should ideally trigger a view change here.
@@ -624,7 +630,7 @@ namespace ccf
       }
       else
       {
-        auto rep = process_bft(ctx);
+        auto rep = process_bft(ctx, tx);
         return rep.result;
       }
     }
