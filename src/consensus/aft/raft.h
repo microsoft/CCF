@@ -403,6 +403,7 @@ namespace aft
     {
       if (consensus_type == ConsensusType::BFT && is_follower())
       {
+        // TODO: map hooks need to happen here, under lock
         return true;
       }
 
