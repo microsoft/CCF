@@ -5,6 +5,7 @@
 #include "crypto/symmetric_key.h"
 #include "ds/spin_lock.h"
 #include "kv/kv_types.h"
+#include "node/new_ledger_secrets.h" // TODO: Bad!
 #include "tls/entropy.h"
 
 #include <algorithm>
@@ -18,6 +19,7 @@ namespace kv
   private:
     SpinLock lock;
     std::shared_ptr<T> ledger_secrets;
+    bool is_recovery = false;
 
     void set_iv(
       crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr,
@@ -37,8 +39,8 @@ namespace kv
     }
 
     // TODO: How to avoid mentioning NewLedgerSecret here??
-    std::shared_ptr<typename T::NewLedgerSecret> get_encryption_key(
-      Version version)
+    // This should return the crypto::AESGCM context directly!
+    std::shared_ptr<ccf::NewLedgerSecret> get_encryption_key(Version version)
     {
       std::lock_guard<SpinLock> guard(lock);
       // TODO: Optimisation here, we can use the latest key directly, as long as
@@ -48,14 +50,21 @@ namespace kv
     }
 
   public:
-    NewTxEncryptor(std::shared_ptr<T> secrets) : ledger_secrets(secrets) {}
+    NewTxEncryptor(std::shared_ptr<T> secrets, bool is_recovery_ = false) :
+      ledger_secrets(secrets),
+      is_recovery(is_recovery_)
+    {}
 
-    // TODO: Call this on Ledger Secrets class directly??
     void update_encryption_key(
       Version version, std::vector<uint8_t>&& key) override
     {
       std::lock_guard<SpinLock> guard(lock);
       ledger_secrets->update_encryption_key(version, std::move(key));
+    }
+
+    void disable_recovery() override
+    {
+      is_recovery = false;
     }
 
     size_t get_header_length() override
@@ -129,7 +138,13 @@ namespace kv
       // Note: Encryption keys are still kept in memory to be passed on to new
       // nodes joining the service.
       std::lock_guard<SpinLock> guard(lock);
-      ledger_secrets->compact(version);
+
+      if (!is_recovery)
+      {
+        // Do not compact ledger secrets on recovery, as all historical secrets
+        // are used to decrypt the historical ledger
+        ledger_secrets->compact(version);
+      }
     }
   };
 }

@@ -113,12 +113,12 @@ def run(args):
         for i in range(args.recovery):
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
-            if i % 2 == 0:
-                recovered_network = test_share_resilience(
-                    network, args, from_snapshot=True
-                )
-            else:
-                recovered_network = test(network, args, from_snapshot=False)
+            # if i % 2 == 0:
+            #     recovered_network = test_share_resilience(
+            #         network, args, from_snapshot=True
+            #     )
+            # else:
+            recovered_network = test(network, args, from_snapshot=False)
             network.stop_all_nodes()
             network = recovered_network
             LOG.success("Recovery complete on all nodes")
@@ -135,7 +135,7 @@ and before applying new transactions, all transactions previously applied are
 checked. Note that the key for each logging message is unique (per table).
 """
         parser.add_argument(
-            "--recovery", help="Number of recoveries to perform", type=int, default=2
+            "--recovery", help="Number of recoveries to perform", type=int, default=20
         )
         parser.add_argument(
             "--msgs-per-recovery",
@@ -146,6 +146,6 @@ checked. Note that the key for each logging message is unique (per table).
 
     args = infra.e2e_args.cli_args(add)
     args.package = "liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.nodes = infra.e2e_args.min_nodes(args, f=0)
 
     run(args)

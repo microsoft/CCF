@@ -49,9 +49,9 @@ namespace ccf
   // DECLARE_JSON_TYPE(LedgerSecrets)
   // DECLARE_JSON_REQUIRED_FIELDS(LedgerSecrets, secrets_list)
 
-  DECLARE_JSON_TYPE(NewLedgerSecrets::NewLedgerSecret)
+  DECLARE_JSON_TYPE(NewLedgerSecret)
   // Only raw key is serialised
-  DECLARE_JSON_REQUIRED_FIELDS(NewLedgerSecrets::NewLedgerSecret, raw_key)
+  DECLARE_JSON_REQUIRED_FIELDS(NewLedgerSecret, raw_key)
 
   DECLARE_JSON_TYPE(NewLedgerSecrets)
   DECLARE_JSON_REQUIRED_FIELDS(NewLedgerSecrets, encryption_keys)

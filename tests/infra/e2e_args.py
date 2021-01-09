@@ -241,13 +241,13 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--ledger-chunk-bytes",
         help="Size (bytes) at which a new ledger chunk is created",
-        default="20KB",
+        default="20MB",
     )
     parser.add_argument(
         "--snapshot-tx-interval",
         help="Number of transactions between two snapshots",
         type=int,
-        default=10,
+        default=10000,
     )
     parser.add_argument(
         "--jwt-key-refresh-interval-s",

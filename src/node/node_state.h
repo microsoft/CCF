@@ -349,7 +349,7 @@ namespace ccf
           {
             setup_history();
 
-            // TODO: This sucks??
+            // TODO: This isn't ideal...
             // It is necessary to give an encryptor to the store for it to
             // deserialise the public domain when recovering the public ledger
             network.ledger_secrets = std::make_shared<NewLedgerSecrets>();
@@ -487,7 +487,7 @@ namespace ccf
                 resp.network_info.consensus_type));
             }
 
-            setup_encryptor();
+            setup_encryptor(resp.network_info.public_only);
             setup_consensus(resp.network_info.public_only);
             setup_progress_tracker();
             setup_history();
@@ -843,8 +843,10 @@ namespace ccf
         "index: {}",
         last_recovered_signed_idx);
 
-      // TODO: Recovery
-      // network.ledger_secrets->init(last_recovered_signed_idx + 1);
+      // TODO: This can be simplified if the encryptor isn't needed to
+      // deserialise public entries, and the new ledger secrets can only be
+      // created now
+      network.ledger_secrets->init(last_recovered_signed_idx + 1);
       // KV term must be set before the first Tx is committed
       auto new_term = view_history.size() + 2;
       LOG_INFO_FMT("Setting term on public recovery KV to {}", new_term);
@@ -861,7 +863,7 @@ namespace ccf
                               node_encrypt_kp->public_key_pem().raw(),
                               NodeStatus::PENDING}));
 
-      setup_encryptor();
+      setup_encryptor(true);
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
@@ -989,6 +991,9 @@ namespace ccf
       // Raft should deserialise all security domains when network is opened
       consensus->enable_all_domains();
 
+      // Disable recovery so that only non-compacted keys are used
+      encryptor->disable_recovery();
+
       // Snapshots are only generated after recovery is complete
       snapshotter->set_tx_interval(recovery_snapshot_tx_interval);
 
@@ -1046,9 +1051,7 @@ namespace ccf
     //
     void setup_private_recovery_store()
     {
-      // Setup recovery store by cloning tables of store
       recovery_store = std::make_shared<kv::Store>();
-
       recovery_history = std::make_shared<MerkleTxHistory>(
         *recovery_store.get(),
         self,
@@ -1059,9 +1062,9 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       recovery_encryptor = std::make_shared<kv::NullTxEncryptor>();
 #else
-      // TODO: Not sure about this!?
-      // recovery_encryptor =
-      //   std::make_shared<kv::NewTxEncryptor>(network.ledger_secrets);
+      // TODO: Any specific behaviour for recovery encryptor???
+      recovery_encryptor =
+        std::make_shared<NodeEncryptor>(network.ledger_secrets);
 #endif
 
       recovery_store->set_history(recovery_history);
@@ -1273,7 +1276,7 @@ namespace ccf
       // Effects of ledger rekey are only observed from the next transaction,
       // once the local hook on the secrets table has been triggered.
 
-      auto new_ledger_secret = LedgerSecret();
+      auto new_ledger_secret = NewLedgerSecret();
       share_manager.issue_shares_on_rekey(tx, new_ledger_secret);
       broadcast_ledger_secret(tx, new_ledger_secret);
 
@@ -1405,7 +1408,7 @@ namespace ccf
 
     void broadcast_ledger_secret(
       kv::Tx& tx,
-      const LedgerSecret& secret,
+      const NewLedgerSecret& secret,
       kv::Version version = kv::NoVersion,
       bool exclude_self = false)
     {
@@ -1431,12 +1434,16 @@ namespace ccf
           tls::KeyExchangeContext(node_encrypt_kp, backup_pubk)
             .compute_shared_secret());
 
-        crypto::GcmCipher gcmcipher(secret.master.size());
+        crypto::GcmCipher gcmcipher(secret.raw_key.size());
         auto iv = tls::create_entropy()->random(gcmcipher.hdr.get_iv().n);
         std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
 
         backup_shared_secret.encrypt(
-          iv, secret.master, nullb, gcmcipher.cipher.data(), gcmcipher.hdr.tag);
+          iv,
+          secret.raw_key,
+          nullb,
+          gcmcipher.cipher.data(),
+          gcmcipher.hdr.tag);
 
         secret_for_node.encrypted_secret = gcmcipher.serialise();
         secret_set.secrets.emplace_back(std::move(secret_for_node));
@@ -1588,6 +1595,8 @@ namespace ccf
         network.secrets.wrap_commit_hook(
           [this](kv::Version version, const Secrets::Write& w) {
             bool has_secrets = false;
+
+            // TODO: This should be a map!!
             std::list<LedgerSecrets::VersionedLedgerSecret> restored_secrets;
 
             for (const auto& [v, opt_secret_set] : w)
@@ -1856,7 +1865,7 @@ namespace ccf
       network.tables->set_history(history);
     }
 
-    void setup_encryptor()
+    void setup_encryptor(bool recovery = false)
     {
       // This function makes use of ledger secrets and should be called once
       // the node has joined the service (either via start_network() or
@@ -1864,7 +1873,8 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       encryptor = std::make_shared<kv::NullTxEncryptor>();
 #else
-      encryptor = std::make_shared<NodeEncryptor>(network.ledger_secrets);
+      encryptor =
+        std::make_shared<NodeEncryptor>(network.ledger_secrets, recovery);
 #endif
 
       network.tables->set_encryptor(encryptor);
