@@ -46,7 +46,7 @@ namespace ccf
     NewLedgerSecrets(const NewLedgerSecrets& other) :
       encryption_keys(other.encryption_keys)
     {
-      // commit_key_it = encryption_keys.begin();
+      commit_key_it = encryption_keys.begin();
     }
 
     bool operator==(const NewLedgerSecrets& other) const
@@ -58,12 +58,12 @@ namespace ccf
     {
       encryption_keys.emplace(
         1, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
-      // commit_key_it = encryption_keys.begin();
+      commit_key_it = encryption_keys.begin();
     }
 
   private:
-    // TODO: Encryption keys compaction doesn't work. Ignored for now.
-    // EncryptionKeys::iterator commit_key_it = encryption_keys.end();
+    // TODO: Is this the best default value??
+    EncryptionKeys::iterator commit_key_it = encryption_keys.end();
 
     EncryptionKeys::iterator get_encryption_key_it(kv::Version version)
     {
@@ -73,11 +73,11 @@ namespace ccf
       // is used for version [0..9] and version 10 for versions 10+)
 
       auto search = std::upper_bound(
-        encryption_keys.begin(),
+        commit_key_it,
         encryption_keys.end(),
         version,
         [](auto a, const auto& b) { return b.first > a; });
-      if (search == encryption_keys.begin())
+      if (search == commit_key_it)
       {
         throw std::logic_error(fmt::format(
           "TxEncryptor: could not find ledger encryption key for seqno {}",
@@ -107,16 +107,16 @@ namespace ccf
 
     void rollback(kv::Version version)
     {
-      if (version < encryption_keys.begin()->first)
+      if (version < commit_key_it->first)
       {
         LOG_FAIL_FMT(
           "Cannot rollback encryptor at {}: committed key is at {}",
           version,
-          encryption_keys.begin()->first);
+          commit_key_it->first);
         return;
       }
 
-      while (std::distance(encryption_keys.begin(), encryption_keys.end()) > 1)
+      while (std::distance(commit_key_it, encryption_keys.end()) > 1)
       {
         auto k = encryption_keys.rbegin();
         if (k->first <= version)
@@ -131,11 +131,9 @@ namespace ccf
 
     void compact(kv::Version version)
     {
-      (void)version;
-      // commit_key_it = get_encryption_key_it(version);
-      // LOG_TRACE_FMT(
-      // "First usable encryption key is now at seqno {}",
-      // commit_key_it->first);
+      commit_key_it = get_encryption_key_it(version);
+      LOG_TRACE_FMT(
+        "First usable encryption key is now at seqno {}", commit_key_it->first);
     }
   };
 }
