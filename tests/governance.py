@@ -13,6 +13,8 @@ import suite.test_requirements as reqs
 import infra.logging_app as app
 import ssl
 import hashlib
+import json
+import urllib.parse
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -160,11 +162,12 @@ def test_member_data(network, args):
 def test_user_id(network, args):
     primary, _ = network.find_nodes()
     with primary.client("user0") as uc:
-        with open(network.consortium.user_cert_path(0), "r") as ucert:
+        with open(network.consortium.user_cert_path(1), "r") as ucert:
             pem = ucert.read()
-        r = uc.get("/app/user_id", {"cert": pem})
+        json_pem = json.dumps(pem)
+        r = uc.get(f"/app/user_id?cert={urllib.parse.quote_plus(json_pem)}")
         assert r.status_code == 200
-        assert r.body.json()["caller_id"] == 0
+        assert r.body.json()["caller_id"] == 1
     return network
 
 

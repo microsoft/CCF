@@ -94,47 +94,30 @@
         ],
         "type": "object"
       },
-      "GetMetrics__HistogramResults": {
+      "GetNetworkInfo__NodeInfo": {
         "properties": {
-          "buckets": {
-            "$ref": "#/components/schemas/json"
+          "host": {
+            "$ref": "#/components/schemas/string"
           },
-          "high": {
-            "$ref": "#/components/schemas/int32"
-          },
-          "low": {
-            "$ref": "#/components/schemas/int32"
-          },
-          "overflow": {
+          "node_id": {
             "$ref": "#/components/schemas/uint64"
           },
-          "underflow": {
-            "$ref": "#/components/schemas/uint64"
+          "port": {
+            "$ref": "#/components/schemas/string"
           }
         },
         "required": [
-          "low",
-          "high",
-          "overflow",
-          "underflow",
-          "buckets"
+          "node_id",
+          "host",
+          "port"
         ],
         "type": "object"
       },
-      "GetMetrics__Out": {
-        "properties": {
-          "histogram": {
-            "$ref": "#/components/schemas/GetMetrics__HistogramResults"
-          },
-          "tx_rates": {
-            "$ref": "#/components/schemas/json"
-          }
+      "GetNetworkInfo__NodeInfo_array": {
+        "items": {
+          "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo"
         },
-        "required": [
-          "histogram",
-          "tx_rates"
-        ],
-        "type": "object"
+        "type": "array"
       },
       "GetNetworkInfo__Out": {
         "properties": {
@@ -371,11 +354,6 @@
           "verifyingSnapshot"
         ]
       },
-      "int32": {
-        "maximum": 2147483647,
-        "minimum": -2147483648,
-        "type": "integer"
-      },
       "int64": {
         "maximum": 9223372036854775807,
         "minimum": -9223372036854775808,
@@ -553,22 +531,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MemoryUsage__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/metrics": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetMetrics__Out"
                 }
               }
             },

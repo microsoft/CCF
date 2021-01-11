@@ -3,6 +3,7 @@
 #pragma once
 #include "ds/json_schema.h"
 #include "kv/kv_types.h"
+#include "metrics.h"
 #include "node/code_id.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
@@ -35,24 +36,6 @@ namespace ccf
     struct Out
     {
       TxStatus status;
-    };
-  };
-
-  struct GetMetrics
-  {
-    struct HistogramResults
-    {
-      int low = {};
-      int high = {};
-      size_t overflow = {};
-      size_t underflow = {};
-      nlohmann::json buckets = {};
-    };
-
-    struct Out
-    {
-      HistogramResults histogram;
-      nlohmann::json tx_rates;
     };
   };
 

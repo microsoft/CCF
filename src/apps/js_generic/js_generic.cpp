@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "enclave/app_interface.h"
 #include "kv/untyped_map.h"
+#include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"
 #include "tls/entropy.h"
 #include "tls/rsa_key_pair.h"
@@ -714,6 +715,8 @@ namespace ccfapp
 
     JSClassDef body_class_def = {};
 
+    metrics::Tracker metrics_tracker;
+
     static JSValue create_ccf_obj(EndpointContext& args, JSContext* ctx)
     {
       auto ccf = JS_NewObject(ctx);
@@ -1154,6 +1157,8 @@ namespace ccfapp
       };
 
       set_default(default_handler, no_auth_required);
+
+      metrics_tracker.install_endpoint(*this);
     }
 
     EndpointDefinitionPtr find_endpoint(
@@ -1313,6 +1318,15 @@ namespace ccfapp
 
           return true;
         });
+    }
+
+    void tick(
+      std::chrono::milliseconds elapsed,
+      kv::Consensus::Statistics stats) override
+    {
+      metrics_tracker.tick(elapsed, stats);
+
+      ccf::UserEndpointRegistry::tick(elapsed, stats);
     }
   };
 

@@ -94,7 +94,124 @@
         ],
         "type": "object"
       },
-      "GetMetrics__HistogramResults": {
+      "GetNetworkInfo__NodeInfo": {
+        "properties": {
+          "host": {
+            "$ref": "#/components/schemas/string"
+          },
+          "node_id": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "port": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "node_id",
+          "host",
+          "port"
+        ],
+        "type": "object"
+      },
+      "GetNetworkInfo__NodeInfo_array": {
+        "items": {
+          "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo"
+        },
+        "type": "array"
+      },
+      "GetNetworkInfo__Out": {
+        "properties": {
+          "nodes": {
+            "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo_array"
+          },
+          "primary_id": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "nodes",
+          "primary_id"
+        ],
+        "type": "object"
+      },
+      "GetNodesByRPCAddress__NodeInfo": {
+        "properties": {
+          "node_id": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "status": {
+            "$ref": "#/components/schemas/NodeStatus"
+          }
+        },
+        "required": [
+          "node_id",
+          "status"
+        ],
+        "type": "object"
+      },
+      "GetNodesByRPCAddress__NodeInfo_array": {
+        "items": {
+          "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo"
+        },
+        "type": "array"
+      },
+      "GetNodesByRPCAddress__Out": {
+        "properties": {
+          "nodes": {
+            "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo_array"
+          }
+        },
+        "required": [
+          "nodes"
+        ],
+        "type": "object"
+      },
+      "GetPrimaryInfo__Out": {
+        "properties": {
+          "current_view": {
+            "$ref": "#/components/schemas/int64"
+          },
+          "primary_host": {
+            "$ref": "#/components/schemas/string"
+          },
+          "primary_id": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "primary_port": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "primary_id",
+          "primary_host",
+          "primary_port",
+          "current_view"
+        ],
+        "type": "object"
+      },
+      "GetReceipt__Out": {
+        "properties": {
+          "receipt": {
+            "$ref": "#/components/schemas/uint8_array"
+          }
+        },
+        "required": [
+          "receipt"
+        ],
+        "type": "object"
+      },
+      "GetTxStatus__Out": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/TxStatus"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "HistogramResults": {
         "properties": {
           "buckets": {
             "$ref": "#/components/schemas/json"
@@ -121,43 +238,6 @@
         ],
         "type": "object"
       },
-      "GetMetrics__Out": {
-        "properties": {
-          "histogram": {
-            "$ref": "#/components/schemas/GetMetrics__HistogramResults"
-          },
-          "tx_rates": {
-            "$ref": "#/components/schemas/json"
-          }
-        },
-        "required": [
-          "histogram",
-          "tx_rates"
-        ],
-        "type": "object"
-      },
-      "GetReceipt__Out": {
-        "properties": {
-          "receipt": {
-            "$ref": "#/components/schemas/uint8_array"
-          }
-        },
-        "required": [
-          "receipt"
-        ],
-        "type": "object"
-      },
-      "GetTxStatus__Out": {
-        "properties": {
-          "status": {
-            "$ref": "#/components/schemas/TxStatus"
-          }
-        },
-        "required": [
-          "status"
-        ],
-        "type": "object"
-      },
       "LoggingGet__Out": {
         "properties": {
           "msg": {
@@ -181,6 +261,28 @@
         "required": [
           "id",
           "msg"
+        ],
+        "type": "object"
+      },
+      "NodeStatus": {
+        "enum": [
+          "PENDING",
+          "TRUSTED",
+          "RETIRED"
+        ]
+      },
+      "Report": {
+        "properties": {
+          "histogram": {
+            "$ref": "#/components/schemas/HistogramResults"
+          },
+          "tx_rates": {
+            "$ref": "#/components/schemas/json"
+          }
+        },
+        "required": [
+          "histogram",
+          "tx_rates"
         ],
         "type": "object"
       },
@@ -691,7 +793,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetMetrics__Out"
+                  "$ref": "#/components/schemas/Report"
                 }
               }
             },
