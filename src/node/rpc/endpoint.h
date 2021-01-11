@@ -66,7 +66,7 @@ namespace ccf
     struct EndpointProperties
     {
       ForwardingRequired forwarding_required = ForwardingRequired::Always;
-      ExecuteOutsideConsensus execute_locally = ExecuteOutsideConsensus::Never;
+      ExecuteOutsideConsensus execute_outside_consensus = ExecuteOutsideConsensus::Never;
       bool require_client_signature = false;
       bool require_client_identity = true;
       bool require_jwt_authentication = false;
@@ -76,7 +76,7 @@ namespace ccf
 
       MSGPACK_DEFINE(
         forwarding_required,
-        execute_locally,
+        execute_outside_consensus,
         require_client_signature,
         require_client_identity,
         require_jwt_authentication,
@@ -88,7 +88,7 @@ namespace ccf
     DECLARE_JSON_REQUIRED_FIELDS(
       EndpointProperties,
       forwarding_required,
-      execute_locally,
+      execute_outside_consensus,
       require_client_signature,
       require_client_identity);
     DECLARE_JSON_OPTIONAL_FIELDS(

@@ -101,7 +101,7 @@ namespace ccf
             cmd_forwarder->forward_command(
               ctx,
               primary_id,
-              endpoint->properties.execute_locally ==
+              endpoint->properties.execute_outside_consensus ==
                   ExecuteOutsideConsensus::Never ?
                 consensus->active_nodes() :
                 std::set<NodeId>(),
@@ -241,7 +241,7 @@ namespace ccf
                !ctx->execute_on_node &&
                (endpoint == nullptr ||
                 (endpoint != nullptr &&
-                 endpoint->properties.execute_locally !=
+                 endpoint->properties.execute_outside_consensus !=
                    ExecuteOutsideConsensus::Locally))))
             {
               ctx->session->is_forwarding = true;
@@ -490,7 +490,7 @@ namespace ccf
       const bool is_bft =
         consensus != nullptr && consensus->type() == ConsensusType::BFT;
       const bool is_local = endpoint != nullptr &&
-        endpoint->properties.execute_locally !=
+        endpoint->properties.execute_outside_consensus !=
           ccf::endpoints::ExecuteOutsideConsensus::Never;
       const bool should_bft_distribute = is_bft && !is_local &&
         (ctx->execute_on_node || consensus->is_primary());
@@ -614,7 +614,7 @@ namespace ccf
       if (
         consensus->type() == ConsensusType::CFT ||
         (endpoint != nullptr &&
-         endpoint->properties.execute_locally ==
+         endpoint->properties.execute_outside_consensus ==
            ExecuteOutsideConsensus::Primary &&
          (consensus != nullptr && consensus->is_primary())))
       {

@@ -5,7 +5,7 @@
         "js_module": "endpoints.js",
         "js_function": "jwt",
         "forwarding_required": "always",
-        "execute_locally": "never",
+        "execute_outside_consensus": "never",
         "require_client_signature": false,
         "require_client_identity": false,
         "require_jwt_authentication": true,
