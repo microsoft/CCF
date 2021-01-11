@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ds/logger.h"
-#include "kv/change_set.h"
 
 namespace ccf
 {

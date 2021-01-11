@@ -60,17 +60,12 @@ namespace kv
     {
       std::string hostname;
       std::string port;
-      tls::Pem cert = {};
 
       NodeInfo() = default;
 
-      NodeInfo(
-        const std::string& hostname_,
-        const std::string& port_,
-        const tls::Pem& cert_ = {}) :
+      NodeInfo(const std::string& hostname_, const std::string& port_) :
         hostname(hostname_),
-        port(port_),
-        cert(cert_)
+        port(port_)
       {}
     };
 
