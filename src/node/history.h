@@ -699,6 +699,7 @@ namespace ccf
       auto commit_txid = signable_txid.value();
       auto txid = store.next_txid();
 
+      auto last_signature_index = last_signed_tx;
       last_signed_tx = commit_txid.second;
       time_of_last_signature =
         threading::ThreadMessaging::thread_messaging.get_current_time_offset();
@@ -712,7 +713,7 @@ namespace ccf
 
       store.commit(
         txid,
-        [txid, commit_txid, this]() {
+        [last_signature_index, txid, commit_txid, this]() {
           auto sig = store.create_reserved_tx(txid.version);
           auto sig_view =
             sig.template get_view<ccf::Signatures>(ccf::Tables::SIGNATURES);
@@ -758,7 +759,7 @@ namespace ccf
             hashed_nonce,
             primary_sig,
             replicated_state_tree.serialise(
-              commit_txid.second, txid.version - 1));
+              last_signature_index, txid.version - 1));
 
           if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
           {
