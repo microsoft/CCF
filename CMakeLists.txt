@@ -513,7 +513,7 @@ if(BUILD_TESTS)
     CONSENSUS cft
     ADDITIONAL_ARGS
       --recovery
-      2
+      10
       # Shorten Raft election timeout to speed up test when it kills a node on
       # purpose to check that a recovery network is robust to a view change.
       --raft-election-timeout
@@ -782,7 +782,6 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME cpp_e2e_logging_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-      CURL_CLIENT TRUE
       CONSENSUS ${CONSENSUS}
     )
 

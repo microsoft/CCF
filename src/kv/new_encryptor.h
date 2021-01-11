@@ -141,6 +141,7 @@ namespace kv
 
       if (!is_recovery)
       {
+        LOG_FAIL_FMT("Compacting encryptor at {}...", version); // TODO: Delete
         // Do not compact ledger secrets on recovery, as all historical secrets
         // are used to decrypt the historical ledger
         ledger_secrets->compact(version);

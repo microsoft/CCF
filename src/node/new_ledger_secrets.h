@@ -149,6 +149,8 @@ namespace ccf
         throw std::logic_error(
           "Could not retrieve latest ledger secret: no secret set");
       }
+      LOG_FAIL_FMT(
+        "Getting latest secret at {}", encryption_keys.rbegin()->first);
       return encryption_keys.rbegin()->second;
     }
 

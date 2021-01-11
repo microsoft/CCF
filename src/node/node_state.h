@@ -19,6 +19,7 @@
 #include "rpc/frontend.h"
 #include "rpc/member_frontend.h"
 #include "rpc/serialization.h"
+#include "secret_broadcast.h"
 #include "secret_share.h"
 #include "share_manager.h"
 #include "snapshotter.h"
@@ -372,7 +373,8 @@ namespace ccf
 
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
-          network.ledger_secrets = std::make_shared<NewLedgerSecrets>();
+          network.ledger_secrets =
+            std::make_shared<NewLedgerSecrets>(); // TODO: Make unique???
 
           setup_history();
 
@@ -469,6 +471,7 @@ namespace ccf
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
 
+            // TODO: Delete
             LOG_FAIL_FMT(
               "Init-ing ledger secrets with {} secret(s)",
               resp.network_info.ledger_secrets.encryption_keys.size());
@@ -1062,7 +1065,6 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       recovery_encryptor = std::make_shared<kv::NullTxEncryptor>();
 #else
-      // TODO: Any specific behaviour for recovery encryptor???
       recovery_encryptor =
         std::make_shared<NodeEncryptor>(network.ledger_secrets);
 #endif
@@ -1122,11 +1124,11 @@ namespace ccf
       // network
       history->emit_signature();
 
-      for (auto const& v : restored_versions)
-      {
-        broadcast_ledger_secret(
-          tx, network.ledger_secrets->get_secret_at(v), v, true);
-      }
+      // Broadcast decrypted ledger secrets to other nodes for them to initiate
+      // private recovery too
+      // broadcast_ledger_secrets(tx, restored_versions, true);
+      LedgerSecretsBroadcast::broadcast_versions(
+        network, node_encrypt_kp, self, tx, restored_versions);
 
       setup_private_recovery_store();
 
@@ -1274,9 +1276,11 @@ namespace ccf
       // Effects of ledger rekey are only observed from the next transaction,
       // once the local hook on the secrets table has been triggered.
 
-      auto new_ledger_secret = NewLedgerSecret();
+      auto new_ledger_secret =
+        NewLedgerSecret(tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
       share_manager.issue_shares_on_rekey(tx, new_ledger_secret);
-      broadcast_ledger_secret(tx, new_ledger_secret);
+      LedgerSecretsBroadcast::broadcast_new(
+        network, node_encrypt_kp, tx, std::move(new_ledger_secret));
 
       return true;
     }
@@ -1402,52 +1406,6 @@ namespace ccf
     void open_user_frontend() override
     {
       open_frontend(ccf::ActorsType::users, &network.identity->cert);
-    }
-
-    void broadcast_ledger_secret(
-      kv::Tx& tx,
-      const NewLedgerSecret& secret,
-      kv::Version version = kv::NoVersion,
-      bool exclude_self = false)
-    {
-      GenesisGenerator g(network, tx);
-      auto secrets_view = tx.get_view(network.secrets);
-
-      auto trusted_nodes = g.get_trusted_nodes(
-        exclude_self ? std::make_optional(self) : std::nullopt);
-
-      ccf::EncryptedLedgerSecrets secret_set;
-      secret_set.primary_public_encryption_key =
-        node_encrypt_kp->public_key_pem().raw();
-
-      for (auto [nid, ni] : trusted_nodes)
-      {
-        ccf::EncryptedLedgerSecret secret_for_node;
-        secret_for_node.node_id = nid;
-
-        // Encrypt secrets with a shared secret derived from backup public
-        // key
-        auto backup_pubk = tls::make_public_key(ni.encryption_pub_key);
-        crypto::KeyAesGcm backup_shared_secret(
-          tls::KeyExchangeContext(node_encrypt_kp, backup_pubk)
-            .compute_shared_secret());
-
-        crypto::GcmCipher gcmcipher(secret.raw_key.size());
-        auto iv = tls::create_entropy()->random(gcmcipher.hdr.get_iv().n);
-        std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
-
-        backup_shared_secret.encrypt(
-          iv,
-          secret.raw_key,
-          nullb,
-          gcmcipher.cipher.data(),
-          gcmcipher.hdr.tag);
-
-        secret_for_node.encrypted_secret = gcmcipher.serialise();
-        secret_set.secrets.emplace_back(std::move(secret_for_node));
-      }
-
-      secrets_view->put(version, secret_set);
     }
 
     std::vector<uint8_t> serialize_create_request(
@@ -1591,77 +1549,61 @@ namespace ccf
       network.tables->set_local_hook(
         network.secrets.get_name(),
         network.secrets.wrap_commit_hook(
-          [this](kv::Version version, const Secrets::Write& w) {
-            bool has_secrets = false;
-
+          [this](kv::Version hook_version, const Secrets::Write& w) {
             NewLedgerSecrets::EncryptionKeys restored_ledger_secrets;
 
-            for (const auto& [v, opt_secret_set] : w)
+            for (const auto& [node_id, opt_ledger_secret_set] : w)
             {
-              if (!opt_secret_set.has_value())
+              if (!opt_ledger_secret_set.has_value())
               {
                 throw std::logic_error(fmt::format(
-                  "Unexpected: removal from secrets table ({})", v));
+                  "Unexpected: removal from secrets table for node ({})",
+                  node_id));
               }
 
-              const auto& secret_set = opt_secret_set.value();
-
-              for (auto& encrypted_secret_for_node : secret_set.secrets)
+              if (node_id != self)
               {
-                if (encrypted_secret_for_node.node_id == self)
+                // Only consider ledger secrets for this node
+                continue;
+              }
+
+              const auto& ledger_secret_set = opt_ledger_secret_set.value();
+
+              for (const auto& encrypted_ledger_secret :
+                   ledger_secret_set.encrypted_secrets)
+              {
+                auto plain_ledger_secret = LedgerSecretsBroadcast::decrypt(
+                  node_encrypt_kp,
+                  tls::make_public_key(
+                    ledger_secret_set.primary_public_encryption_key),
+                  encrypted_ledger_secret.encrypted_secret);
+
+                // On rekey, the version is infered from the version at which
+                // the hook is executed. Otherwise, on recovery, use the version
+                // read from the write set.
+                kv::Version ledger_secret_version =
+                  encrypted_ledger_secret.version.value_or(hook_version);
+
+                if (is_part_of_public_network())
                 {
-                  crypto::GcmCipher gcmcipher;
-                  gcmcipher.deserialise(
-                    encrypted_secret_for_node.encrypted_secret);
-                  std::vector<uint8_t> plain_secret(gcmcipher.cipher.size());
-
-                  auto primary_pubk = tls::make_public_key(
-                    secret_set.primary_public_encryption_key);
-
-                  crypto::KeyAesGcm primary_shared_key(
-                    tls::KeyExchangeContext(node_encrypt_kp, primary_pubk)
-                      .compute_shared_secret());
-
-                  if (!primary_shared_key.decrypt(
-                        gcmcipher.hdr.get_iv(),
-                        gcmcipher.hdr.tag,
-                        gcmcipher.cipher,
-                        nullb,
-                        plain_secret.data()))
-                  {
-                    throw std::logic_error(
-                      "Decryption of past network secrets failed");
-                  }
-
-                  has_secrets = true;
-
-                  // If the version key is NoVersion, we are rekeying. Use the
-                  // version passed to the hook instead. For recovery, the
-                  // version of the past secrets is passed as the key.
-                  kv::Version secret_version =
-                    (v == kv::NoVersion) ? version : v;
-
-                  if (is_part_of_public_network())
-                  {
-                    restored_ledger_secrets.emplace(
-                      secret_version, std::move(plain_secret));
-                  }
-                  else
-                  {
-                    // When rekeying, set the encryption key for the next
-                    // version onward (for the backups to deserialise this
-                    // transaction with the old key). The encryptor is in charge
-                    // of updating the ledger secrets on global commit.
-                    encryptor->update_encryption_key(
-                      secret_version + 1, std::move(plain_secret));
-                  }
+                  // On recovery, accumulate restored ledger secrets
+                  restored_ledger_secrets.emplace(
+                    ledger_secret_version, std::move(plain_ledger_secret));
+                }
+                else
+                {
+                  // When rekeying, set the encryption key for the next version
+                  // onward (backups deserialise this transaction with the
+                  // previous ledger secret)
+                  encryptor->update_encryption_key(
+                    ledger_secret_version + 1, std::move(plain_ledger_secret));
                 }
               }
             }
 
-            // When recovering, trigger end of recovery protocol
-            if (has_secrets && is_part_of_public_network())
+            if (!restored_ledger_secrets.empty() && is_part_of_public_network())
             {
+              // When recovering, trigger end of recovery protocol (backup only)
               network.ledger_secrets->restore_historical(
                 std::move(restored_ledger_secrets));
               backup_finish_recovery();
