@@ -403,7 +403,14 @@ namespace aft
     {
       if (consensus_type == ConsensusType::BFT && is_follower())
       {
-        // TODO: map hooks need to happen here, under lock
+        // Already under lock in the current BFT path
+        for (auto& [_, __, ___, hooks] : entries)
+        {
+          for (auto& hook : *hooks)
+          {
+            hook->call(this);
+          }
+        }
         return true;
       }
 
