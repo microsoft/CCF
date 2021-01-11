@@ -369,8 +369,7 @@ namespace ccf
         const auto in = params.get<GetNodes::In>();
         GetNodes::Out out;
 
-        auto nodes_view =
-          args.tx.get_read_only_view(this->network.nodes);
+        auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
         nodes_view->foreach(
           [this, &in, &out](const NodeId& nid, const NodeInfo& ni) {
             if (in.host.has_value() && in.host.value() != ni.pubhost)
@@ -417,8 +416,7 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
-        auto nodes_view =
-          args.tx.get_read_only_view(this->network.nodes);
+        auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
         auto info = nodes_view->get(node_id);
 
         if (!info)
@@ -453,8 +451,7 @@ namespace ccf
 
       auto get_self_node = [this](ReadOnlyEndpointContext& args) {
         auto node_id = this->node.get_node_id();
-        auto nodes_view =
-          args.tx.get_read_only_view(this->network.nodes);
+        auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
         auto info = nodes_view->get(node_id);
         if (info)
         {
@@ -484,8 +481,7 @@ namespace ccf
         {
           auto node_id = this->node.get_node_id();
           auto primary_id = consensus->primary();
-          auto nodes_view =
-            args.tx.get_read_only_view(this->network.nodes);
+          auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
           auto info = nodes_view->get(node_id);
           auto info_primary = nodes_view->get(primary_id);
           if (info && info_primary)
