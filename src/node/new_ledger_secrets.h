@@ -161,6 +161,17 @@ namespace ccf
       return std::next(encryption_keys.rbegin())->second;
     }
 
+    NewLedgerSecret get_secret_at(kv::Version version)
+    {
+      auto search = encryption_keys.find(version);
+      if (search == encryption_keys.end())
+      {
+        throw std::logic_error(
+          fmt::format("Ledger secret at {} does not exist", version));
+      }
+      return search->second;
+    }
+
     void rollback(kv::Version version)
     {
       auto start = commit_key_it.value_or(encryption_keys.begin());

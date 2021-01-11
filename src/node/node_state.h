@@ -1124,10 +1124,8 @@ namespace ccf
 
       for (auto const& v : restored_versions)
       {
-        (void)v;
-        // TODO: Recovery/rekey
-        // broadcast_ledger_secret(
-        //   tx, network.ledger_secrets->get_secret(v).value(), v, true);
+        broadcast_ledger_secret(
+          tx, network.ledger_secrets->get_secret_at(v), v, true);
       }
 
       setup_private_recovery_store();
@@ -1596,8 +1594,7 @@ namespace ccf
           [this](kv::Version version, const Secrets::Write& w) {
             bool has_secrets = false;
 
-            // TODO: This should be a map!!
-            std::list<LedgerSecrets::VersionedLedgerSecret> restored_secrets;
+            NewLedgerSecrets::EncryptionKeys restored_ledger_secrets;
 
             for (const auto& [v, opt_secret_set] : w)
             {
@@ -1646,8 +1643,8 @@ namespace ccf
 
                   if (is_part_of_public_network())
                   {
-                    restored_secrets.push_back(
-                      {secret_version, LedgerSecret(plain_secret)});
+                    restored_ledger_secrets.emplace(
+                      secret_version, std::move(plain_secret));
                   }
                   else
                   {
@@ -1665,15 +1662,8 @@ namespace ccf
             // When recovering, trigger end of recovery protocol
             if (has_secrets && is_part_of_public_network())
             {
-              restored_secrets.sort(
-                [](
-                  const LedgerSecrets::VersionedLedgerSecret& a,
-                  const LedgerSecrets::VersionedLedgerSecret& b) {
-                  return a.version < b.version;
-                });
-
-              // TODO: Recovery
-              // network.ledger_secrets->restore(std::move(restored_secrets));
+              network.ledger_secrets->restore_historical(
+                std::move(restored_ledger_secrets));
               backup_finish_recovery();
             }
           }));

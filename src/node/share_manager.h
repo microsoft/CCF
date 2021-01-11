@@ -311,18 +311,6 @@ namespace ccf
       return encrypted_share;
     }
 
-    struct VersionedLedgerSecret
-    {
-      kv::Version version;
-      NewLedgerSecret secret;
-
-      // TODO: Needed??
-      bool operator==(const VersionedLedgerSecret& other) const
-      {
-        return version == other.version && secret == other.secret;
-      }
-    };
-
     std::vector<kv::Version> restore_recovery_shares_info(
       kv::Tx& tx,
       const std::list<RecoveredLedgerSecret>& encrypted_recovery_secrets)
@@ -340,9 +328,6 @@ namespace ccf
           "Failed to retrieve current recovery shares info");
       }
 
-      // std::list<LedgerSecrets::VersionedLedgerSecret>
-      // restored_ledger_secrets;
-
       NewLedgerSecrets::EncryptionKeys restored_ledger_secrets;
 
       // We keep track of the restored versions so that the recovered ledger
@@ -357,9 +342,6 @@ namespace ccf
 
       restored_ledger_secrets.emplace(
         encrypted_recovery_secrets.back().next_version, std::move(restored_ls));
-
-      // restored_ledger_secrets.push_back(
-      //   {encrypted_recovery_secrets.back().next_version, restored_ls});
 
       for (auto i = encrypted_recovery_secrets.rbegin();
            i != encrypted_recovery_secrets.rend();
@@ -391,9 +373,6 @@ namespace ccf
         decryption_key = decrypted_ls;
         restored_ledger_secrets.emplace(
           std::next(i)->next_version, std::move(decrypted_ls));
-        // restored_ledger_secrets.push_back(
-        //   {std::next(i)->next_version, decrypted_ls});
-
         restored_versions.push_back(std::next(i)->next_version);
       }
 
