@@ -7,17 +7,20 @@
 
 namespace ccf
 {
+  // TODO: Should really be passing enough state here so we can reliably support this for a long time...
   static ccf::TxStatus get_tx_status_v1(
-    kv::Consensus* consensus, const TxID& tx_id)
+    kv::Consensus* consensus,
+    kv::Consensus::View view,
+    kv::Consensus::SeqNo seqno)
   {
     if (consensus != nullptr)
     {
-      const auto tx_view = consensus->get_view(tx_id.version);
+      const auto tx_view = consensus->get_view(seqno);
       const auto committed_seqno = consensus->get_committed_seqno();
       const auto committed_view = consensus->get_view(committed_seqno);
 
       return ccf::evaluate_tx_status(
-        tx_id.term, tx_id.version, tx_view, committed_view, committed_seqno);
+        view, seqno, tx_view, committed_view, committed_seqno);
     }
 
     return ccf::TxStatus::Unknown;

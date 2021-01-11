@@ -34,8 +34,8 @@ namespace ccf
         const auto last_committed = ccf::get_last_committed_txid_v1(consensus);
         if (last_committed.has_value())
         {
-          return make_success(
-            GetCommit::Out{last_committed->term, last_committed->version});
+          const auto [view, seqno] = last_committed.value();
+          return make_success(GetCommit::Out{view, seqno});
         }
 
         return make_error(

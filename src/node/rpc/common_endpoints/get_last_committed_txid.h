@@ -9,10 +9,8 @@
 
 namespace ccf
 {
-  // TODO: TxID says (term, version), but this is the public API we want to
-  // expose!
-  static std::optional<kv::TxID> get_last_committed_txid_v1(
-    kv::Consensus* consensus)
+  static std::optional<std::pair<kv::Consensus::View, kv::Consensus::SeqNo>>
+  get_last_committed_txid_v1(kv::Consensus* consensus)
   {
     if (consensus != nullptr)
     {
