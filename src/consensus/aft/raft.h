@@ -187,7 +187,7 @@ namespace aft
       }
     }
 
-    virtual ~Aft() {}
+    virtual ~Aft() = default;
 
     NodeId leader()
     {
@@ -397,9 +397,15 @@ namespace aft
       return get_latest_configuration().size();
     }
 
-    template <typename T, typename H>
+    template <typename T>
     bool replicate(
-      const std::vector<std::tuple<Index, T, bool, H>>& entries, Term term)
+      const std::vector<std::tuple<
+        Index,
+        T,
+        bool,
+        std::shared_ptr<std::vector<std::shared_ptr<kv::ConsensusHook>>>>>&
+        entries,
+      Term term)
     {
       if (consensus_type == ConsensusType::BFT && is_follower())
       {
