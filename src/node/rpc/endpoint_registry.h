@@ -523,7 +523,8 @@ namespace ccf
           fmt::format("Unexpected params schema type: {}", schema.dump()));
       }
 
-      const auto& required_parameters = schema["required"];
+      const auto& required_parameters =
+        schema.value("required", nlohmann::json::array());
       for (const auto& [name, schema] : schema["properties"].items())
       {
         auto parameter = nlohmann::json::object();
