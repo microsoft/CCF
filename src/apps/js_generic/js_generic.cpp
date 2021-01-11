@@ -1290,12 +1290,12 @@ namespace ccfapp
 
     // Since we do our own dispatch within the default handler, report the
     // supported methods here
-    void build_api(nlohmann::json& document, kv::Tx& tx) override
+    void build_api(nlohmann::json& document, kv::ReadOnlyTx& tx) override
     {
       UserEndpointRegistry::build_api(document, tx);
 
-      auto endpoints_view =
-        tx.get_view<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+      auto endpoints_view = tx.get_read_only_view<ccf::endpoints::EndpointsMap>(
+        ccf::Tables::ENDPOINTS);
 
       endpoints_view->foreach(
         [&document](const auto& key, const auto& properties) {

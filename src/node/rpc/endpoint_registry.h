@@ -704,7 +704,7 @@ namespace ccf
      * internally, so must be able to populate the document
      * with the supported endpoints however it defines them.
      */
-    virtual void build_api(nlohmann::json& document, kv::Tx&)
+    virtual void build_api(nlohmann::json& document, kv::ReadOnlyTx&)
     {
       ds::openapi::server(document, fmt::format("/{}", method_prefix));
 

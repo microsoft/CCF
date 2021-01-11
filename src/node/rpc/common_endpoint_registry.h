@@ -44,6 +44,18 @@ namespace ccf
       return std::nullopt;
     }
 
+    nlohmann::json generate_openapi_document_v1(
+      kv::ReadOnlyTx& tx,
+      const std::string& title,
+      const std::string& description,
+      const std::string& document_version)
+    {
+      auto document =
+        ds::openapi::create_document(title, description, document_version);
+      build_api(document, tx);
+      return document;
+    }
+
   public:
     CommonEndpointRegistry(
       const std::string& method_prefix_,
@@ -264,11 +276,11 @@ namespace ccf
         .install();
 
       auto openapi = [this](kv::Tx& tx, nlohmann::json&&) {
-        auto document = ds::openapi::create_document(
+        auto document = generate_openapi_document_v1(
+          tx,
           openapi_info.title,
           openapi_info.description,
           openapi_info.document_version);
-        build_api(document, tx);
         return make_success(document);
       };
       make_endpoint("api", HTTP_GET, json_adapter(openapi), no_auth_required)
