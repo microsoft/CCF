@@ -392,7 +392,8 @@ namespace ccf
        * consensus.
        * @return This Endpoint for further modification
        */
-      Endpoint& set_execute_outside_consensus(ccf::endpoints::ExecuteOutsideConsensus v)
+      Endpoint& set_execute_outside_consensus(
+        ccf::endpoints::ExecuteOutsideConsensus v)
       {
         properties.execute_outside_consensus = v;
         return *this;
@@ -585,7 +586,8 @@ namespace ccf
       return make_endpoint(
                method, verb, [f](EndpointContext& args) { f(args); }, ap)
         .set_forwarding_required(ForwardingRequired::Sometimes)
-        .set_execute_outside_consensus(ccf::endpoints::ExecuteOutsideConsensus::Primary);
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Primary);
     }
 
     /** Install the given endpoint, using its method and verb

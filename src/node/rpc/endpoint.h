@@ -66,7 +66,8 @@ namespace ccf
     struct EndpointProperties
     {
       ForwardingRequired forwarding_required = ForwardingRequired::Always;
-      ExecuteOutsideConsensus execute_outside_consensus = ExecuteOutsideConsensus::Never;
+      ExecuteOutsideConsensus execute_outside_consensus =
+        ExecuteOutsideConsensus::Never;
       bool require_client_signature = false;
       bool require_client_identity = true;
       bool require_jwt_authentication = false;
