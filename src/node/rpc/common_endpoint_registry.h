@@ -2,8 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "common_endpoints/get_last_committed_txid.h"
-#include "common_endpoints/get_tx_status.h"
 #include "endpoint_registry.h"
 #include "http/http_consts.h"
 #include "http/ws_consts.h"
@@ -18,6 +16,34 @@ namespace ccf
    */
   class CommonEndpointRegistry : public EndpointRegistry
   {
+  protected:
+    ccf::TxStatus get_tx_status_v1(
+      kv::Consensus::View view, kv::Consensus::SeqNo seqno)
+    {
+      if (consensus != nullptr)
+      {
+        const auto tx_view = consensus->get_view(seqno);
+        const auto committed_seqno = consensus->get_committed_seqno();
+        const auto committed_view = consensus->get_view(committed_seqno);
+
+        return ccf::evaluate_tx_status(
+          view, seqno, tx_view, committed_view, committed_seqno);
+      }
+
+      return ccf::TxStatus::Unknown;
+    }
+
+    std::optional<std::pair<kv::Consensus::View, kv::Consensus::SeqNo>>
+    get_last_committed_txid_v1()
+    {
+      if (consensus != nullptr)
+      {
+        return consensus->get_committed_txid();
+      }
+
+      return std::nullopt;
+    }
+
   public:
     CommonEndpointRegistry(
       const std::string& method_prefix_,
@@ -31,7 +57,7 @@ namespace ccf
       EndpointRegistry::init_handlers();
 
       auto get_commit = [this](auto&, nlohmann::json&&) {
-        const auto last_committed = ccf::get_last_committed_txid_v1(consensus);
+        const auto last_committed = get_last_committed_txid_v1();
         if (last_committed.has_value())
         {
           const auto [view, seqno] = last_committed.value();
@@ -53,7 +79,7 @@ namespace ccf
         const auto in = params.get<GetTxStatus::In>();
 
         GetTxStatus::Out out;
-        out.status = ccf::get_tx_status_v1(consensus, in.view, in.seqno);
+        out.status = get_tx_status_v1(in.view, in.seqno);
         return make_success(out);
       };
       make_command_endpoint(
