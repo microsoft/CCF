@@ -5,7 +5,7 @@
         "js_module": "custom_authorization.js",
         "js_function": "compare_bearer",
         "forwarding_required": "always",
-        "execute_locally": false,
+        "execute_outside_consensus": "never",
         "require_client_signature": false,
         "require_client_identity": true,
         "readonly": true,
