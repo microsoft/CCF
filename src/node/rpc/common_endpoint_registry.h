@@ -31,6 +31,54 @@ namespace ccf
    */
   class CommonEndpointRegistry : public EndpointRegistry
   {
+  protected:
+    Quote get_quote_for_node(kv::ReadOnlyTx& tx, NodeId node_id)
+    {
+      auto nodes_view = tx.get_read_only_view<ccf::Nodes>(Tables::NODES);
+      const auto node_info = nodes_view->get(node_id);
+      if (node_info.has_value())
+      {
+        Quote q;
+        q.node_id = node_id;
+
+        if (node_info->status == ccf::NodeStatus::TRUSTED)
+        {
+          q.raw = fmt::format("{:02x}", fmt::join(node_info->quote, ""));
+
+#ifdef GET_QUOTE
+          // TODO: Why don't we include this in BFT?
+          if (consensus != nullptr && consensus->type() != ConsensusType::BFT)
+          {
+            auto code_id_opt = QuoteGenerator::get_code_id(node_info->quote);
+            if (!code_id_opt.has_value())
+            {
+              q.error = fmt::format("Failed to retrieve code ID from quote");
+            }
+            else
+            {
+              q.mrenclave =
+                fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
+            }
+          }
+#endif
+        }
+        else
+        {
+          q.error = fmt::format(
+            "Node {} status is not TRUSTED, currently {}",
+            node_id,
+            node_info->status);
+        }
+
+        return q;
+      }
+      else
+      {
+        throw std::runtime_error(
+          fmt::format("{} is not a known node ID", node_id));
+      }
+    }
+
   public:
     AbstractNodeState& node;
 
@@ -101,56 +149,11 @@ namespace ccf
       }
     }
 
-    Quote get_quote_for_node_v1(kv::ReadOnlyTx& tx, NodeId node_id)
+    Quote get_quote_for_this_node_v1(kv::ReadOnlyTx& tx)
     {
-      auto nodes_view = tx.get_read_only_view<ccf::Nodes>(Tables::NODES);
-      const auto node_info = nodes_view->get(node_id);
-      if (node_info.has_value())
-      {
-        Quote q;
-        q.node_id = node_id;
-
-        if (node_info->status == ccf::NodeStatus::TRUSTED)
-        {
-          q.raw = fmt::format("{:02x}", fmt::join(node_info->quote, ""));
-
-#ifdef GET_QUOTE
-          // TODO: Why don't we include this in BFT?
-          if (consensus != nullptr && consensus->type() != ConsensusType::BFT)
-          {
-            auto code_id_opt = QuoteGenerator::get_code_id(node_info->quote);
-            if (!code_id_opt.has_value())
-            {
-              q.error = fmt::format("Failed to retrieve code ID from quote");
-            }
-            else
-            {
-              q.mrenclave =
-                fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
-            }
-          }
-#endif
-        }
-        else
-        {
-          q.error = fmt::format(
-            "Node {} status is not TRUSTED, currently {}",
-            node_id,
-            node_info->status);
-        }
-
-        return q;
-      }
-      else
-      {
-        throw std::runtime_error(
-          fmt::format("{} is not a known node ID", node_id));
-      }
-    }
-
-    NodeId get_id_for_this_node_v1()
-    {
-      return node.get_node_id();
+      const auto node_id = node.get_node_id();
+      
+      return get_quote_for_node(tx, node_id);
     }
 
   public:

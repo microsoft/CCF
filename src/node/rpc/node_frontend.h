@@ -305,10 +305,7 @@ namespace ccf
         .install();
 
       auto get_quote = [this](auto& args, nlohmann::json&&) {
-        const auto node_id = get_id_for_this_node_v1();
-        const auto quote = get_quote_for_node_v1(args.tx, node_id);
-
-        return make_success(quote);
+        return make_success(get_quote_for_this_node_v1(args.tx));
       };
       make_read_only_endpoint(
         "quote", HTTP_GET, json_read_only_adapter(get_quote), no_auth_required)
@@ -322,7 +319,7 @@ namespace ccf
         auto nodes_view = args.tx.get_read_only_view(network.nodes);
         nodes_view->foreach([this, &tx = args.tx, &quotes = result.quotes](
                               const auto& node_id, const auto&) {
-          quotes.emplace_back(get_quote_for_node_v1(tx, node_id));
+          quotes.emplace_back(get_quote_for_node(tx, node_id));
           return true;
         });
 
