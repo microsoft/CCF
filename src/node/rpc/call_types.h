@@ -71,8 +71,8 @@ namespace ccf
       NodeStatus status;
       std::string host;
       std::string port;
-      std::string rpc_host;
-      std::string rpc_port;
+      std::string local_host;
+      std::string local_port;
       bool primary;
     };
 

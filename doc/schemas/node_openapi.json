@@ -118,6 +118,12 @@
           "host": {
             "$ref": "#/components/schemas/string"
           },
+          "local_host": {
+            "$ref": "#/components/schemas/string"
+          },
+          "local_port": {
+            "$ref": "#/components/schemas/string"
+          },
           "node_id": {
             "$ref": "#/components/schemas/uint64"
           },
@@ -126,12 +132,6 @@
           },
           "primary": {
             "$ref": "#/components/schemas/boolean"
-          },
-          "rpc_host": {
-            "$ref": "#/components/schemas/string"
-          },
-          "rpc_port": {
-            "$ref": "#/components/schemas/string"
           },
           "status": {
             "$ref": "#/components/schemas/NodeStatus"
@@ -142,8 +142,8 @@
           "status",
           "host",
           "port",
-          "rpc_host",
-          "rpc_port",
+          "local_host",
+          "local_port",
           "primary"
         ],
         "type": "object"

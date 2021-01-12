@@ -88,7 +88,14 @@ namespace ccf
 
   DECLARE_JSON_TYPE(GetNode::NodeInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
-    GetNode::NodeInfo, node_id, status, host, port, rpc_host, rpc_port, primary)
+    GetNode::NodeInfo,
+    node_id,
+    status,
+    host,
+    port,
+    local_host,
+    local_port,
+    primary)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetNodes::In)
   // Current limitation of the JSON macros: It is necessary to defined
