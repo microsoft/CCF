@@ -88,7 +88,7 @@ namespace ccf
       ForwardedHeader msg = {
         ForwardedMsg::forwarded_cmd, self, rpc_ctx->frame_format()};
 
-      if (consensus_type == ConsensusType::BFT)
+      if (consensus_type == ConsensusType::BFT && !nodes.empty())
       {
         send_request_hash_to_nodes(rpc_ctx, nodes, to);
       }
