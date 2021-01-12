@@ -122,7 +122,9 @@ namespace aft
   }
 
   kv::Version ExecutorImpl::commit_replayed_request(
-    kv::Tx& tx, std::shared_ptr<aft::RequestTracker> request_tracker, kv::Consensus::SeqNo committed_seqno)
+    kv::Tx& tx,
+    std::shared_ptr<aft::RequestTracker> request_tracker,
+    kv::Consensus::SeqNo committed_seqno)
   {
     auto tx_view = tx.get_view<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
     auto req_v = tx_view->get(0);

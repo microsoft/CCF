@@ -56,7 +56,9 @@ namespace aft
       std::shared_ptr<State> state_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       std::shared_ptr<enclave::RPCSessions> rpc_sessions_) :
-      state(state_), rpc_map(rpc_map_), rpc_sessions(rpc_sessions_)
+      state(state_),
+      rpc_map(rpc_map_),
+      rpc_sessions(rpc_sessions_)
     {}
 
     std::unique_ptr<RequestCtx> create_request_ctx(
