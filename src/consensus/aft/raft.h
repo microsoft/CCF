@@ -310,10 +310,6 @@ namespace aft
 
     Index get_commit_idx()
     {
-      if (consensus_type == ConsensusType::BFT && is_follower())
-      {
-        return state->commit_idx;
-      }
       std::lock_guard<SpinLock> guard(state->lock);
       return state->commit_idx;
     }
@@ -732,7 +728,7 @@ namespace aft
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
     {
-      auto request = executor->create_request_message(args);
+      auto request = executor->create_request_message(args, get_commit_idx());
       executor->execute_request(std::move(request), is_first_request);
       is_first_request = false;
 
@@ -1194,8 +1190,8 @@ namespace aft
           {
             if (consensus_type == ConsensusType::BFT)
             {
-              state->last_idx =
-                executor->commit_replayed_request(tx, request_tracker);
+              state->last_idx = executor->commit_replayed_request(
+                tx, request_tracker, state->commit_idx);
             }
             break;
           }

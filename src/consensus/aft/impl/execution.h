@@ -40,10 +40,13 @@ namespace aft
       std::shared_ptr<aft::RequestTracker> request_tracker = nullptr) = 0;
 
     virtual std::unique_ptr<aft::RequestMessage> create_request_message(
-      const kv::TxHistory::RequestCallbackArgs& args) = 0;
+      const kv::TxHistory::RequestCallbackArgs& args,
+      kv::Consensus::SeqNo committed_seqno) = 0;
 
     virtual kv::Version commit_replayed_request(
-      kv::Tx& tx, std::shared_ptr<aft::RequestTracker> request_tracker) = 0;
+      kv::Tx& tx,
+      std::shared_ptr<aft::RequestTracker> request_tracker,
+      kv::Consensus::SeqNo committed_seqno) = 0;
   };
 
   class ExecutorImpl : public Executor
@@ -53,9 +56,7 @@ namespace aft
       std::shared_ptr<State> state_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       std::shared_ptr<enclave::RPCSessions> rpc_sessions_) :
-      state(state_),
-      rpc_map(rpc_map_),
-      rpc_sessions(rpc_sessions_)
+      state(state_), rpc_map(rpc_map_), rpc_sessions(rpc_sessions_)
     {}
 
     std::unique_ptr<RequestCtx> create_request_ctx(
@@ -69,11 +70,13 @@ namespace aft
       std::shared_ptr<aft::RequestTracker> request_tracker = nullptr) override;
 
     std::unique_ptr<aft::RequestMessage> create_request_message(
-      const kv::TxHistory::RequestCallbackArgs& args) override;
+      const kv::TxHistory::RequestCallbackArgs& args,
+      kv::Consensus::SeqNo committed_seqno) override;
 
     kv::Version commit_replayed_request(
       kv::Tx& tx,
-      std::shared_ptr<aft::RequestTracker> request_tracker) override;
+      std::shared_ptr<aft::RequestTracker> request_tracker,
+      kv::Consensus::SeqNo committed_seqno) override;
 
   private:
     std::shared_ptr<State> state;

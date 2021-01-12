@@ -298,9 +298,6 @@ namespace ccf
                   ctx->set_seqno(cv);
                   ctx->set_view(tx.commit_term());
                 }
-                // Deprecated, this will be removed in future releases
-                ctx->set_global_commit(consensus->get_committed_seqno());
-
                 if (history != nullptr && consensus->is_primary())
                 {
                   history->try_emit_signature();
@@ -538,6 +535,8 @@ namespace ccf
         }
       }
 
+      // Deprecated, this will be removed in future releases
+      ctx->set_global_commit(consensus->get_committed_seqno());
       return process_command(ctx, tx);
     }
 
@@ -618,6 +617,8 @@ namespace ccf
            ExecuteOutsideConsensus::Primary &&
          (consensus != nullptr && consensus->is_primary())))
       {
+        // Deprecated, this will be removed in future releases
+        ctx->set_global_commit(consensus->get_committed_seqno());
         auto rep = process_command(ctx, tx);
         if (!rep.has_value())
         {
