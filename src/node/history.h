@@ -335,6 +335,18 @@ namespace ccf
       return output;
     }
 
+    std::vector<uint8_t> serialise(size_t from, size_t to)
+    {
+      LOG_TRACE_FMT(
+        "mt_serialize_size ({},{}) {}",
+        from,
+        to,
+        tree->serialised_size(from, to));
+      std::vector<uint8_t> output;
+      tree->serialise(from, to, output);
+      return output;
+    }
+
     uint64_t begin_index()
     {
       return tree->min_index();
@@ -687,16 +699,17 @@ namespace ccf
       auto commit_txid = signable_txid.value();
       auto txid = store.next_txid();
 
-      last_signed_tx = commit_txid.second;
+      last_signed_tx = commit_txid.version;
       time_of_last_signature =
         threading::ThreadMessaging::thread_messaging.get_current_time_offset();
 
       LOG_DEBUG_FMT(
-        "Signed at {} in view: {} commit was: {}.{}",
+        "Signed at {} in view: {} commit was: {}.{} (previous .{})",
         txid.version,
         txid.term,
-        commit_txid.first,
-        commit_txid.second);
+        commit_txid.term,
+        commit_txid.version,
+        commit_txid.previous_version);
 
       store.commit(
         txid,
@@ -740,12 +753,13 @@ namespace ccf
             id,
             txid.version,
             txid.term,
-            commit_txid.second,
-            commit_txid.first,
+            commit_txid.version,
+            commit_txid.term,
             root,
             hashed_nonce,
             primary_sig,
-            replicated_state_tree.serialise());
+            replicated_state_tree.serialise(
+              commit_txid.previous_version, txid.version - 1));
 
           if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
           {

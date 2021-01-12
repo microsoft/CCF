@@ -329,7 +329,14 @@ namespace kv
 
     virtual bool replicate(const BatchVector& entries, View view) = 0;
     virtual std::pair<View, SeqNo> get_committed_txid() = 0;
-    virtual std::optional<std::pair<View, SeqNo>> get_signable_txid() = 0;
+
+    typedef struct
+    {
+      Term term;
+      SeqNo version, previous_version;
+    } SignableTxIndices;
+
+    virtual std::optional<SignableTxIndices> get_signable_txid() = 0;
 
     virtual View get_view(SeqNo seqno) = 0;
     virtual View get_view() = 0;
