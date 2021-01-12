@@ -95,7 +95,10 @@ namespace ccf
             cmd_forwarder->forward_command(
               ctx,
               primary_id,
-              consensus->active_nodes(),
+              endpoint->properties.execute_outside_consensus ==
+                  ExecuteOutsideConsensus::Never ?
+                consensus->active_nodes() :
+                std::set<NodeId>(),
               ctx->session->caller_cert))
           {
             // Indicate that the RPC has been forwarded to primary
@@ -232,7 +235,8 @@ namespace ccf
                !ctx->execute_on_node &&
                (endpoint == nullptr ||
                 (endpoint != nullptr &&
-                 !endpoint->properties.execute_locally))))
+                 endpoint->properties.execute_outside_consensus !=
+                   ExecuteOutsideConsensus::Locally))))
             {
               ctx->session->is_forwarding = true;
               return forward_or_redirect_json(ctx, endpoint);
@@ -479,8 +483,9 @@ namespace ccf
 
       const bool is_bft =
         consensus != nullptr && consensus->type() == ConsensusType::BFT;
-      const bool is_local =
-        endpoint != nullptr && endpoint->properties.execute_locally;
+      const bool is_local = endpoint != nullptr &&
+        endpoint->properties.execute_outside_consensus !=
+          ccf::endpoints::ExecuteOutsideConsensus::Never;
       const bool should_bft_distribute = is_bft && !is_local &&
         (ctx->execute_on_node || consensus->is_primary());
 
@@ -530,14 +535,20 @@ namespace ccf
       return process_command(ctx, tx);
     }
 
+    ProcessBftResp process_bft(
+      std::shared_ptr<enclave::RpcContext> ctx) override
+    {
+      auto tx = tables.create_tx();
+      return process_bft(ctx, tx);
+    }
+
     /** Process a serialised command with the associated RPC context via BFT
      *
      * @param ctx Context for this RPC
      */
     ProcessBftResp process_bft(
-      std::shared_ptr<enclave::RpcContext> ctx) override
+      std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx) override
     {
-      auto tx = tables.create_tx();
       // Note: this can only happen if the primary is malicious,
       // and has executed a user transaction when the service wasn't
       // open. The backup should ideally trigger a view change here.
@@ -591,10 +602,16 @@ namespace ccf
       }
 
       update_consensus();
+      auto tx = tables.create_tx();
 
-      if (consensus->type() == ConsensusType::CFT)
+      const auto endpoint = endpoints.find_endpoint(tx, *ctx);
+      if (
+        consensus->type() == ConsensusType::CFT ||
+        (endpoint != nullptr &&
+         endpoint->properties.execute_outside_consensus ==
+           ExecuteOutsideConsensus::Primary &&
+         (consensus != nullptr && consensus->is_primary())))
       {
-        auto tx = tables.create_tx();
         auto rep = process_command(ctx, tx);
         if (!rep.has_value())
         {
@@ -607,7 +624,7 @@ namespace ccf
       }
       else
       {
-        auto rep = process_bft(ctx);
+        auto rep = process_bft(ctx, tx);
         return rep.result;
       }
     }
