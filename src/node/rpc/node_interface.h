@@ -3,7 +3,6 @@
 #pragma once
 
 #include "node/entities.h"
-#include "node/share_manager.h"
 #include "node_call_types.h"
 
 namespace ccf

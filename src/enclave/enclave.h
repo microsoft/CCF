@@ -89,7 +89,7 @@ namespace enclave
 
       node = std::make_unique<ccf::NodeState>(
         writer_factory, network, rpcsessions, share_manager);
-      context.node_state = *node;
+      context.node_state = node.get();
 
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(
