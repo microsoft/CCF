@@ -36,7 +36,7 @@ namespace kv
     Version last_committable = 0;
     Version rollback_count = 0;
 
-    std::unordered_map<Version, std::pair<PendingTx, bool>> pending_txs;
+    std::unordered_map<Version, std::pair<std::unique_ptr<PendingTx>, bool>> pending_txs;
 
   public:
     void clear()
@@ -84,7 +84,7 @@ namespace kv
       OrderedChanges& changes,
       Version& v,
       const MapCollection& new_maps,
-      std::vector<std::shared_ptr<ConsensusHook>>& hooks)
+      std::vector<kv::ConsensusHookPtr>& hooks)
     {
       auto c = apply_changes(
         changes, [v]() { return v; }, hooks, new_maps);
@@ -341,7 +341,7 @@ namespace kv
 
     DeserialiseSuccess deserialise_snapshot(
       const std::vector<uint8_t>& data,
-      std::vector<std::shared_ptr<ConsensusHook>>& hooks,
+      std::vector<kv::ConsensusHookPtr>& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) override
     {
@@ -603,7 +603,7 @@ namespace kv
 
     DeserialiseSuccess deserialise_views(
       const std::vector<uint8_t>& data,
-      std::vector<std::shared_ptr<ConsensusHook>>& hooks,
+      std::vector<kv::ConsensusHookPtr>& hooks,
       bool public_only = false,
       Term* term_ = nullptr,
       Version* index_ = nullptr,
@@ -896,7 +896,7 @@ namespace kv
 
     DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
-      std::vector<std::shared_ptr<kv::ConsensusHook>>& hooks,
+      std::vector<kv::ConsensusHookPtr>& hooks,
       bool public_only = false,
       Term* term = nullptr) override
     {
@@ -961,7 +961,7 @@ namespace kv
 
     CommitSuccess commit(
       const TxID& txid,
-      PendingTx&& pending_tx,
+      std::unique_ptr<PendingTx> pending_tx,
       bool globally_committable) override
     {
       auto c = get_consensus();
@@ -1010,11 +1010,11 @@ namespace kv
             break;
 
           auto& [pending_tx_, committable_] = search->second;
-          auto [success_, reqid, data_, hooks_] = pending_tx_();
+          auto [success_, reqid, data_, hooks_] = (*(pending_tx_.get()))();
           auto data_shared =
             std::make_shared<std::vector<uint8_t>>(std::move(data_));
           auto hooks_shared =
-            std::make_shared<std::vector<std::shared_ptr<ConsensusHook>>>(
+            std::make_shared<std::vector<kv::ConsensusHookPtr>>(
               std::move(hooks_));
 
           // NB: this cannot happen currently. Regular Tx only make it here if

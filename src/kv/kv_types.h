@@ -96,7 +96,7 @@ namespace kv
     kv::Version,
     std::shared_ptr<std::vector<uint8_t>>,
     bool,
-    std::shared_ptr<std::vector<std::shared_ptr<ConsensusHook>>>>>;
+    std::shared_ptr<std::vector<ConsensusHookPtr>>>>;
 
   enum CommitSuccess
   {
@@ -388,13 +388,13 @@ namespace kv
     CommitSuccess success;
     TxHistory::RequestID reqid;
     std::vector<uint8_t> data;
-    std::vector<std::shared_ptr<ConsensusHook>> hooks;
+    std::vector<ConsensusHookPtr> hooks;
 
     PendingTxInfo(
       CommitSuccess success_,
       TxHistory::RequestID reqid_,
       std::vector<uint8_t>&& data_,
-      std::vector<std::shared_ptr<ConsensusHook>>&& hooks_) :
+      std::vector<ConsensusHookPtr>&& hooks_) :
       success(success_),
       reqid(std::move(reqid_)),
       data(std::move(data_)),
@@ -402,26 +402,32 @@ namespace kv
     {}
   };
 
-  using PendingTx = std::function<PendingTxInfo()>;
+  //using PendingTx = std::function<PendingTxInfo()>;
+  class PendingTx
+  {
+    public:
+    virtual PendingTxInfo operator()() = 0;
+    virtual ~PendingTx() = default;
+  };
 
-  class MovePendingTx
+  class MovePendingTx: public PendingTx
   {
   private:
     std::vector<uint8_t> data;
     kv::TxHistory::RequestID req_id;
-    std::vector<std::shared_ptr<ConsensusHook>> hooks;
+    std::vector<kv::ConsensusHookPtr> hooks;
 
   public:
     MovePendingTx(
       std::vector<uint8_t>&& data_,
       kv::TxHistory::RequestID&& req_id_,
-      std::vector<std::shared_ptr<ConsensusHook>>&& hooks_) :
+      std::vector<ConsensusHookPtr>&& hooks_) :
       data(std::move(data_)),
       req_id(std::move(req_id_)),
       hooks(std::move(hooks_))
     {}
 
-    PendingTxInfo operator()()
+    PendingTxInfo operator()() override
     {
       return PendingTxInfo(
         CommitSuccess::OK,
@@ -472,7 +478,7 @@ namespace kv
     virtual bool has_writes() = 0;
     virtual bool prepare(kv::Version& max_conflict_version) = 0;
     virtual void commit(Version v) = 0;
-    virtual std::shared_ptr<ConsensusHook> post_commit() = 0;
+    virtual ConsensusHookPtr post_commit() = 0;
   };
 
   class AbstractTxView
@@ -572,21 +578,21 @@ namespace kv
     virtual EncryptorPtr get_encryptor() = 0;
     virtual DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
-      std::vector<std::shared_ptr<ConsensusHook>>& hooks,
+      std::vector<ConsensusHookPtr>& hooks,
       bool public_only = false,
       kv::Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;
     virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
     virtual CommitSuccess commit(
-      const TxID& txid, PendingTx&& pending_tx, bool globally_committable) = 0;
+      const TxID& txid, std::unique_ptr<PendingTx> pending_tx, bool globally_committable) = 0;
 
     virtual std::unique_ptr<AbstractSnapshot> snapshot(Version v) = 0;
     virtual std::vector<uint8_t> serialise_snapshot(
       std::unique_ptr<AbstractSnapshot> snapshot) = 0;
     virtual DeserialiseSuccess deserialise_snapshot(
       const std::vector<uint8_t>& data,
-      std::vector<std::shared_ptr<ConsensusHook>>& hooks,
+      std::vector<ConsensusHookPtr>& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) = 0;
 

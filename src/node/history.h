@@ -85,6 +85,29 @@ namespace ccf
     LOG_DEBUG_FMT("History [{}] {}", flag, h);
   }
 
+  class NullTxHistoryPendingTx: public kv::PendingTx
+  {
+      kv::TxID txid;
+      kv::Store& store;
+      NodeId id;
+
+    public:
+    NullTxHistoryPendingTx(
+      kv::TxID txid_,
+      kv::Store& store_,
+      NodeId id_
+    ): txid(txid_), store(store_), id(id_) {}
+
+    kv::PendingTxInfo operator()() override {
+      auto sig = store.create_reserved_tx(txid.version);
+      auto sig_view =
+        sig.template get_view<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      PrimarySignature sig_value(id, txid.version);
+      sig_view->put(0, sig_value);
+      return sig.commit_reserved();
+    }
+  };
+
   class NullTxHistory : public kv::TxHistory
   {
     kv::Store& store;
@@ -130,14 +153,7 @@ namespace ccf
       LOG_INFO_FMT("Issuing signature at {}.{}", txid.term, txid.version);
       store.commit(
         txid,
-        [txid, this]() {
-          auto sig = store.create_reserved_tx(txid.version);
-          auto sig_view =
-            sig.template get_view<ccf::Signatures>(ccf::Tables::SIGNATURES);
-          PrimarySignature sig_value(id, txid.version);
-          sig_view->put(0, sig_value);
-          return sig.commit_reserved();
-        },
+        std::make_unique<NullTxHistoryPendingTx>(txid, store, id),
         true);
     }
 

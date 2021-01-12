@@ -245,7 +245,7 @@ namespace kv::untyped
         }
       }
 
-      std::shared_ptr<ConsensusHook> post_commit() override
+      ConsensusHookPtr post_commit() override
       {
         // This is run separately from commit so that all commits in the Tx
         // have been applied before map hooks are run. The maps in the Tx
@@ -448,7 +448,7 @@ namespace kv::untyped
         }
       }
 
-      std::shared_ptr<ConsensusHook> post_commit() override
+      ConsensusHookPtr post_commit() override
       {
         auto r = map.roll.commits->get_head();
         return map.trigger_map_hook(change_set.version, r->writes);
@@ -808,7 +808,7 @@ namespace kv::untyped
       return roll;
     }
 
-    std::shared_ptr<ConsensusHook> trigger_map_hook(
+    ConsensusHookPtr trigger_map_hook(
       Version version, const Write& writes)
     {
       if (hook)

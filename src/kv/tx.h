@@ -275,7 +275,7 @@ namespace kv
       if (!created_maps.empty())
         this->store->lock();
 
-      std::vector<std::shared_ptr<ConsensusHook>> hooks;
+      std::vector<kv::ConsensusHookPtr> hooks;
 
       auto c = apply_changes(
         all_changes,
@@ -324,7 +324,7 @@ namespace kv
 
           return store->commit(
             {term, version},
-            MovePendingTx(std::move(data), std::move(req_id), std::move(hooks)),
+            std::make_unique<MovePendingTx>(std::move(data), std::move(req_id), std::move(hooks)),
             false);
         }
         catch (const std::exception& e)
@@ -592,7 +592,7 @@ namespace kv
       if (all_changes.empty())
         throw std::logic_error("Reserved transaction cannot be empty");
 
-      std::vector<std::shared_ptr<ConsensusHook>> hooks;
+      std::vector<ConsensusHookPtr> hooks;
       auto c = apply_changes(
         all_changes,
         [this]() { return version; },

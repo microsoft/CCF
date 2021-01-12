@@ -30,7 +30,7 @@ public:
     if (store)
     {
       REQUIRE(entries.size() == 1);
-      auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
+      auto hooks = std::vector<kv::ConsensusHookPtr>();
       return store->deserialise(*std::get<1>(entries[0]), hooks);
     }
     return true;

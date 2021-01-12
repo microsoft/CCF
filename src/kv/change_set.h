@@ -87,5 +87,5 @@ namespace kv
 
   template <typename W>
   using MapHook =
-    std::function<std::shared_ptr<ConsensusHook>(Version, const W&)>;
+    std::function<std::unique_ptr<ConsensusHook>(Version, const W&)>;
 }
