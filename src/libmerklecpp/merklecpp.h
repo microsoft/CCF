@@ -1422,11 +1422,13 @@ namespace merkle
 
     Node* process_insertion_stack(bool complete = true)
     {
-      MERKLECPP_TRACE(
-        MERKLECPP_TOUT << "  X " << (complete ? "complete" : "continue") << ":";
-        for (size_t i = 0; i < insertion_stack.size(); i++) MERKLECPP_TOUT
-        << " " << insertion_stack[i].n->hash.to_string(TRACE_HASH_SIZE);
-        MERKLECPP_TOUT << std::endl;);
+      MERKLECPP_TRACE({
+        std::string nodes;
+        for (size_t i = 0; i < insertion_stack.size(); i++)
+          nodes += " " + insertion_stack[i].n->hash.to_string(TRACE_HASH_SIZE);
+        MERKLECPP_TOUT << "  X " << (complete ? "complete" : "continue") << ":"
+                       << nodes << std::endl;
+      });
 
       Node* result = insertion_stack.back().n;
       insertion_stack.pop_back();

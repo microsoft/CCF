@@ -699,21 +699,21 @@ namespace ccf
       auto commit_txid = signable_txid.value();
       auto txid = store.next_txid();
 
-      auto last_signature_index = last_signed_tx;
-      last_signed_tx = commit_txid.second;
+      last_signed_tx = commit_txid.version;
       time_of_last_signature =
         threading::ThreadMessaging::thread_messaging.get_current_time_offset();
 
       LOG_DEBUG_FMT(
-        "Signed at {} in view: {} commit was: {}.{}",
+        "Signed at {} in view: {} commit was: {}.{} (previous .{})",
         txid.version,
         txid.term,
-        commit_txid.first,
-        commit_txid.second);
+        commit_txid.term,
+        commit_txid.version,
+        commit_txid.previous_version);
 
       store.commit(
         txid,
-        [last_signature_index, txid, commit_txid, this]() {
+        [txid, commit_txid, this]() {
           auto sig = store.create_reserved_tx(txid.version);
           auto sig_view =
             sig.template get_view<ccf::Signatures>(ccf::Tables::SIGNATURES);
@@ -753,13 +753,13 @@ namespace ccf
             id,
             txid.version,
             txid.term,
-            commit_txid.second,
-            commit_txid.first,
+            commit_txid.version,
+            commit_txid.term,
             root,
             hashed_nonce,
             primary_sig,
             replicated_state_tree.serialise(
-              last_signature_index, txid.version - 1));
+              commit_txid.previous_version, txid.version - 1));
 
           if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
           {
