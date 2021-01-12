@@ -97,7 +97,7 @@ namespace kv
     kv::Version,
     std::shared_ptr<std::vector<uint8_t>>,
     bool,
-    std::shared_ptr<std::vector<ConsensusHookPtr>>>>;
+    std::shared_ptr<ConsensusHookPtrs>>>;
 
   enum CommitSuccess
   {
@@ -347,7 +347,14 @@ namespace kv
 
     virtual bool replicate(const BatchVector& entries, View view) = 0;
     virtual std::pair<View, SeqNo> get_committed_txid() = 0;
-    virtual std::optional<std::pair<View, SeqNo>> get_signable_txid() = 0;
+
+    struct SignableTxIndices
+    {
+      Term term;
+      SeqNo version, previous_version;
+    };
+
+    virtual std::optional<SignableTxIndices> get_signable_txid() = 0;
 
     virtual View get_view(SeqNo seqno) = 0;
     virtual View get_view() = 0;
@@ -415,13 +422,13 @@ namespace kv
   private:
     std::vector<uint8_t> data;
     kv::TxHistory::RequestID req_id;
-    std::vector<kv::ConsensusHookPtr> hooks;
+    kv::ConsensusHookPtrs hooks;
 
   public:
     MovePendingTx(
       std::vector<uint8_t>&& data_,
       kv::TxHistory::RequestID&& req_id_,
-      std::vector<ConsensusHookPtr>&& hooks_) :
+      kv::ConsensusHookPtrs&& hooks_) :
       data(std::move(data_)),
       req_id(std::move(req_id_)),
       hooks(std::move(hooks_))
@@ -578,7 +585,7 @@ namespace kv
     virtual EncryptorPtr get_encryptor() = 0;
     virtual DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
-      std::vector<ConsensusHookPtr>& hooks,
+      kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
       kv::Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;
@@ -594,7 +601,7 @@ namespace kv
       std::unique_ptr<AbstractSnapshot> snapshot) = 0;
     virtual DeserialiseSuccess deserialise_snapshot(
       const std::vector<uint8_t>& data,
-      std::vector<ConsensusHookPtr>& hooks,
+      kv::ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) = 0;
 

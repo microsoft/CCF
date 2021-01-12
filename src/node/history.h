@@ -263,7 +263,7 @@ namespace ccf
   class MerkleTreeHistoryPendingTx : public kv::PendingTx
   {
     kv::TxID txid;
-    std::pair<kv::Consensus::View, kv::SeqNo> commit_txid;
+    kv::Consensus::SignableTxIndices commit_txid;
     kv::Store& store;
     T& replicated_state_tree;
     NodeId id;
@@ -272,7 +272,7 @@ namespace ccf
   public:
     MerkleTreeHistoryPendingTx(
       kv::TxID txid_,
-      std::pair<kv::Consensus::View, kv::SeqNo> commit_txid_,
+      kv::Consensus::SignableTxIndices commit_txid_,
       kv::Store& store_,
       T& replicated_state_tree_,
       NodeId id_,
@@ -325,12 +325,13 @@ namespace ccf
         id,
         txid.version,
         txid.term,
-        commit_txid.second,
-        commit_txid.first,
+        commit_txid.version,
+        commit_txid.term,
         root,
         hashed_nonce,
         primary_sig,
-        replicated_state_tree.serialise());
+        replicated_state_tree.serialise(
+          commit_txid.previous_version, txid.version - 1));
 
       if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
       {
@@ -432,6 +433,18 @@ namespace ccf
       LOG_TRACE_FMT("mt_serialize_size {}", tree->serialised_size());
       std::vector<uint8_t> output;
       tree->serialise(output);
+      return output;
+    }
+
+    std::vector<uint8_t> serialise(size_t from, size_t to)
+    {
+      LOG_TRACE_FMT(
+        "mt_serialize_size ({},{}) {}",
+        from,
+        to,
+        tree->serialised_size(from, to));
+      std::vector<uint8_t> output;
+      tree->serialise(from, to, output);
       return output;
     }
 
@@ -787,16 +800,17 @@ namespace ccf
       auto commit_txid = signable_txid.value();
       auto txid = store.next_txid();
 
-      last_signed_tx = commit_txid.second;
+      last_signed_tx = commit_txid.version;
       time_of_last_signature =
         threading::ThreadMessaging::thread_messaging.get_current_time_offset();
 
       LOG_DEBUG_FMT(
-        "Signed at {} in view: {} commit was: {}.{}",
+        "Signed at {} in view: {} commit was: {}.{} (previous .{})",
         txid.version,
         txid.term,
-        commit_txid.first,
-        commit_txid.second);
+        commit_txid.term,
+        commit_txid.version,
+        commit_txid.previous_version);
 
       store.commit(
         txid,
