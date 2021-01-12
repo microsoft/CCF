@@ -5,6 +5,7 @@
 #include "crypto/symmetric_key.h"
 #include "ds/logger.h"
 #include "genesis_gen.h"
+#include "kv/new_encryptor.h"
 #include "ledger_secrets.h"
 #include "network_state.h"
 #include "secret_share.h"
@@ -194,7 +195,8 @@ namespace ccf
     }
 
     std::vector<uint8_t> encrypt_submitted_share(
-      const std::vector<uint8_t>& submitted_share)
+      const std::vector<uint8_t>& submitted_share,
+      NewLedgerSecret&& current_ledger_secret)
     {
       // Submitted recovery shares are encrypted with the latest ledger secret.
       crypto::GcmCipher encrypted_submitted_share(submitted_share.size());
@@ -202,9 +204,7 @@ namespace ccf
       auto iv = tls::create_entropy()->random(crypto::GCM_SIZE_IV);
       encrypted_submitted_share.hdr.set_iv(iv.data(), iv.size());
 
-      // TODO: This should be retrieving secrets from the encryptor instead, so
-      // it has a lock on it!!
-      network.ledger_secrets->get_latest().key->encrypt(
+      current_ledger_secret.key->encrypt(
         encrypted_submitted_share.hdr.get_iv(),
         submitted_share,
         nullb,
@@ -215,13 +215,14 @@ namespace ccf
     }
 
     std::vector<uint8_t> decrypt_submitted_share(
-      const std::vector<uint8_t>& encrypted_submitted_share)
+      const std::vector<uint8_t>& encrypted_submitted_share,
+      NewLedgerSecret&& current_ledger_secret)
     {
       crypto::GcmCipher encrypted_share;
       encrypted_share.deserialise(encrypted_submitted_share);
       std::vector<uint8_t> decrypted_share(encrypted_share.cipher.size());
 
-      network.ledger_secrets->get_latest().key->decrypt(
+      current_ledger_secret.key->decrypt(
         encrypted_share.hdr.get_iv(),
         encrypted_share.hdr.tag,
         encrypted_share.cipher,
@@ -238,10 +239,11 @@ namespace ccf
 
       std::vector<SecretSharing::Share> shares;
       submitted_shares_view->foreach(
-        [&shares,
-         this](const MemberId, const std::vector<uint8_t>& encrypted_share) {
+        [&shares, &tx, this](
+          const MemberId, const std::vector<uint8_t>& encrypted_share) {
           SecretSharing::Share share;
-          auto decrypted_share = decrypt_submitted_share(encrypted_share);
+          auto decrypted_share = decrypt_submitted_share(
+            encrypted_share, network.ledger_secrets->get_latest(tx));
           std::copy_n(
             decrypted_share.begin(),
             SecretSharing::SHARE_LENGTH,
@@ -271,15 +273,15 @@ namespace ccf
     {
       // Assumes that the ledger secrets have not been updated since the
       // last time shares have been issued (i.e. genesis or re-sharing only)
-      set_recovery_shares_info(tx, network.ledger_secrets->get_latest());
+      set_recovery_shares_info(tx, network.ledger_secrets->get_latest(tx));
     }
 
     void issue_shares_on_recovery(kv::Tx& tx, kv::Version latest_ls_version)
     {
       set_recovery_shares_info(
         tx,
-        network.ledger_secrets->get_latest(),
-        network.ledger_secrets->get_penultimate(),
+        network.ledger_secrets->get_latest(tx),
+        network.ledger_secrets->get_penultimate(tx),
         latest_ls_version);
     }
 
@@ -287,7 +289,7 @@ namespace ccf
       kv::Tx& tx, const NewLedgerSecret& new_ledger_secret)
     {
       set_recovery_shares_info(
-        tx, new_ledger_secret, network.ledger_secrets->get_latest());
+        tx, new_ledger_secret, network.ledger_secrets->get_latest(tx));
     }
 
     std::optional<EncryptedShare> get_encrypted_share(
@@ -311,7 +313,7 @@ namespace ccf
       return encrypted_share;
     }
 
-    NewLedgerSecrets::EncryptionKeys restore_recovery_shares_info(
+    EncryptionKeys restore_recovery_shares_info(
       kv::Tx& tx,
       const std::list<RecoveredLedgerSecret>& encrypted_recovery_secrets)
     {
@@ -328,7 +330,7 @@ namespace ccf
           "Failed to retrieve current recovery shares info");
       }
 
-      NewLedgerSecrets::EncryptionKeys restored_ledger_secrets;
+      EncryptionKeys restored_ledger_secrets;
 
       auto restored_ls = ls_wrapping_key.unwrap(
         recovery_shares_info->wrapped_latest_ledger_secret.encrypted_data);
@@ -386,7 +388,9 @@ namespace ccf
       }
 
       submitted_shares_view->put(
-        member_id, encrypt_submitted_share(submitted_recovery_share));
+        member_id,
+        encrypt_submitted_share(
+          submitted_recovery_share, network.ledger_secrets->get_latest(tx)));
 
       size_t submitted_shares_count = 0;
       submitted_shares_view->foreach(

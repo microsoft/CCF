@@ -128,9 +128,7 @@ namespace ccf
           node.is_part_of_public_network(),
           node.get_last_recovered_signed_idx(),
           this->network.consensus_type,
-          // TODO: This should be retrieving secrets from the encryptor instead
-          // to have a lock!!
-          *this->network.ledger_secrets.get(),
+          this->network.ledger_secrets->get(tx),
           *this->network.identity.get()};
       }
       return make_success(rep);
@@ -212,7 +210,7 @@ namespace ccf
             rep.network_info = {node.is_part_of_public_network(),
                                 node.get_last_recovered_signed_idx(),
                                 this->network.consensus_type,
-                                *this->network.ledger_secrets.get(),
+                                this->network.ledger_secrets->get(args.tx),
                                 *this->network.identity.get()};
             return make_success(rep);
           }
@@ -240,7 +238,7 @@ namespace ccf
             rep.network_info = {node.is_part_of_public_network(),
                                 node.get_last_recovered_signed_idx(),
                                 this->network.consensus_type,
-                                *this->network.ledger_secrets.get(),
+                                this->network.ledger_secrets->get(args.tx),
                                 *this->network.identity.get()};
             return make_success(rep);
           }

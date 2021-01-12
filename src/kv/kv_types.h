@@ -411,6 +411,7 @@ namespace kv
   {
   public:
     virtual ~AbstractTxEncryptor() {}
+
     virtual void encrypt(
       const std::vector<uint8_t>& plain,
       const std::vector<uint8_t>& additional_data,

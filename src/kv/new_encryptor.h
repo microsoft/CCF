@@ -17,7 +17,6 @@ namespace kv
   class NewTxEncryptor : public AbstractTxEncryptor
   {
   private:
-    SpinLock lock;
     std::shared_ptr<T> ledger_secrets;
     bool is_recovery = false;
 
@@ -28,7 +27,7 @@ namespace kv
       bool is_snapshot = false)
     {
       // IV is function of seqno, term and snapshot so that:
-      // - Seqno reuse across rollbacks does not reuse IV
+      // - Same seqno across rollbacks does not reuse IV
       // - Snapshots do not reuse IV
       // - If all nodes execute the _same_ tx (or generate the same snapshot),
       // the same IV will be used
@@ -36,17 +35,6 @@ namespace kv
       gcm_hdr.set_iv_seq(version);
       gcm_hdr.set_iv_term(term);
       gcm_hdr.set_iv_snapshot(is_snapshot);
-    }
-
-    // TODO: How to avoid mentioning NewLedgerSecret here??
-    // This should return the crypto::AESGCM context directly!
-    std::shared_ptr<ccf::NewLedgerSecret> get_encryption_key(Version version)
-    {
-      std::lock_guard<SpinLock> guard(lock);
-      // TODO: Optimisation here, we can use the latest key directly, as long as
-      // the last key is valid for the target version
-
-      return ledger_secrets->get_encryption_key_it(version)->second;
     }
 
   public:
@@ -58,8 +46,7 @@ namespace kv
     void update_encryption_key(
       Version version, std::vector<uint8_t>&& key) override
     {
-      std::lock_guard<SpinLock> guard(lock);
-      ledger_secrets->update_encryption_key(version, std::move(key));
+      ledger_secrets->set_encryption_key_for(version, std::move(key));
     }
 
     void disable_recovery() override
@@ -86,11 +73,8 @@ namespace kv
 
       set_iv(gcm_hdr, version, term, is_snapshot);
 
-      {
-        std::lock_guard<SpinLock> guard(lock);
-        ledger_secrets->get_encryption_key_for(version)->encrypt(
-          gcm_hdr.get_iv(), plain, additional_data, cipher.data(), gcm_hdr.tag);
-      }
+      ledger_secrets->get_encryption_key_for(version)->encrypt(
+        gcm_hdr.get_iv(), plain, additional_data, cipher.data(), gcm_hdr.tag);
 
       serialised_header = gcm_hdr.serialise();
     }
@@ -106,7 +90,6 @@ namespace kv
       gcm_hdr.deserialise(serialised_header);
       plain.resize(cipher.size());
 
-      std::lock_guard<SpinLock> guard(lock);
       auto ret = ledger_secrets->get_encryption_key_for(version)->decrypt(
         gcm_hdr.get_iv(), gcm_hdr.tag, cipher, additional_data, plain.data());
       if (!ret)
@@ -126,7 +109,6 @@ namespace kv
       // the transaction is serialised with the wrong encryption key (i.e. the
       // latest one after rollback). This is OK as the transaction replication
       // will fail.
-      std::lock_guard<SpinLock> guard(lock);
       ledger_secrets->rollback(version);
     }
 
@@ -137,13 +119,11 @@ namespace kv
       // key.
       // Note: Encryption keys are still kept in memory to be passed on to new
       // nodes joining the service.
-      std::lock_guard<SpinLock> guard(lock);
 
+      // Do not compact ledger secrets on recovery, as all historical secrets
+      // are used to decrypt the historical ledger
       if (!is_recovery)
       {
-        LOG_FAIL_FMT("Compacting encryptor at {}...", version); // TODO: Delete
-        // Do not compact ledger secrets on recovery, as all historical secrets
-        // are used to decrypt the historical ledger
         ledger_secrets->compact(version);
       }
     }

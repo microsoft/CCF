@@ -66,24 +66,24 @@ namespace ccf
       secrets_list.push_back({version, LedgerSecret()});
     }
 
-    LedgerSecret get_latest()
-    {
-      if (secrets_list.size() == 0)
-      {
-        throw std::logic_error(
-          "Could not retrieve latest ledger secret: no secret set");
-      }
-      return secrets_list.back().secret;
-    }
+    // LedgerSecret get_latest()
+    // {
+    //   if (secrets_list.size() == 0)
+    //   {
+    //     throw std::logic_error(
+    //       "Could not retrieve latest ledger secret: no secret set");
+    //   }
+    //   return secrets_list.back().secret;
+    // }
 
-    std::optional<LedgerSecret> get_penultimate()
-    {
-      if (secrets_list.size() <= 1)
-      {
-        return std::nullopt;
-      }
-      return std::next(secrets_list.rbegin())->secret;
-    }
+    // std::optional<LedgerSecret> get_penultimate()
+    // {
+    //   if (secrets_list.size() <= 1)
+    //   {
+    //     return std::nullopt;
+    //   }
+    //   return std::next(secrets_list.rbegin())->secret;
+    // }
 
     void add_new_secret(kv::Version v, const LedgerSecret& ledger_secret)
     {

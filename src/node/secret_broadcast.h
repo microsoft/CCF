@@ -43,7 +43,7 @@ namespace ccf
       tls::KeyPairPtr encryption_key,
       NodeId self,
       kv::Tx& tx,
-      const NewLedgerSecrets::EncryptionKeys& some_ledger_secrets)
+      const EncryptionKeys& some_ledger_secrets)
     {
       GenesisGenerator g(network, tx);
       auto secrets_view = tx.get_view(network.secrets);

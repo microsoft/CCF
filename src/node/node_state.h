@@ -59,7 +59,7 @@ namespace ccf
   using RaftConsensusType =
     aft::Consensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
   using RaftType = aft::Aft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
-  using NodeEncryptor = kv::NewTxEncryptor<ccf::NewLedgerSecrets>;
+  using NodeEncryptor = kv::NewTxEncryptor<ccf::LedgerSecretsAccessor>;
 
   struct NodeCreateInfo
   {
@@ -303,13 +303,13 @@ namespace ccf
       {
         case StartType::New:
         {
+          set_node_id(0); // The first node id is always 0
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
 
-          network.ledger_secrets = std::make_shared<NewLedgerSecrets>();
+          network.ledger_secrets = std::make_shared<LedgerSecretsAccessor>(
+            network.secrets, std::make_unique<NewLedgerSecrets>(), self);
           network.ledger_secrets->init();
-
-          set_node_id(0); // The first node id is always 0
 
           setup_encryptor();
           setup_consensus();
@@ -350,10 +350,12 @@ namespace ccf
           {
             setup_history();
 
-            // TODO: This isn't ideal...
             // It is necessary to give an encryptor to the store for it to
             // deserialise the public domain when recovering the public ledger
-            network.ledger_secrets = std::make_shared<NewLedgerSecrets>();
+            network.ledger_secrets = std::make_shared<LedgerSecretsAccessor>(
+              network.secrets,
+              std::make_unique<NewLedgerSecrets>(),
+              42); // TODO: No self just yet!
             setup_encryptor();
 
             initialise_startup_snapshot(config);
@@ -373,8 +375,10 @@ namespace ccf
 
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
-          network.ledger_secrets =
-            std::make_shared<NewLedgerSecrets>(); // TODO: Make unique???
+          network.ledger_secrets = std::make_shared<LedgerSecretsAccessor>(
+            network.secrets,
+            std::make_unique<NewLedgerSecrets>(),
+            42); // TODO: No self just yet!
 
           setup_history();
 
@@ -468,6 +472,7 @@ namespace ccf
           // Set network secrets, node id and become part of network.
           if (resp.node_status == NodeStatus::TRUSTED)
           {
+            set_node_id(resp.node_id);
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
 
@@ -476,10 +481,11 @@ namespace ccf
               "Init-ing ledger secrets with {} secret(s)",
               resp.network_info.ledger_secrets.encryption_keys.size());
 
-            network.ledger_secrets = std::make_shared<NewLedgerSecrets>(
-              resp.network_info.ledger_secrets);
-
-            set_node_id(resp.node_id);
+            network.ledger_secrets = std::make_shared<LedgerSecretsAccessor>(
+              network.secrets,
+              std::make_unique<NewLedgerSecrets>(
+                resp.network_info.ledger_secrets),
+              self);
 
             if (resp.network_info.consensus_type != network.consensus_type)
             {
@@ -846,10 +852,8 @@ namespace ccf
         "index: {}",
         last_recovered_signed_idx);
 
-      // TODO: This can be simplified if the encryptor isn't needed to
-      // deserialise public entries, and the new ledger secrets can only be
-      // created now
       network.ledger_secrets->init(last_recovered_signed_idx + 1);
+
       // KV term must be set before the first Tx is committed
       auto new_term = view_history.size() + 2;
       LOG_INFO_FMT("Setting term on public recovery KV to {}", new_term);
@@ -1123,6 +1127,7 @@ namespace ccf
       LedgerSecretsBroadcast::broadcast_some(
         network, node_encrypt_kp, self, tx, restored_ledger_secrets);
 
+      // TODO: Use accessor
       network.ledger_secrets->restore_historical(
         std::move(restored_ledger_secrets));
 
@@ -1552,7 +1557,7 @@ namespace ccf
         network.secrets.get_name(),
         network.secrets.wrap_commit_hook(
           [this](kv::Version hook_version, const Secrets::Write& w) {
-            NewLedgerSecrets::EncryptionKeys restored_ledger_secrets;
+            EncryptionKeys restored_ledger_secrets;
 
             for (const auto& [node_id, opt_ledger_secret_set] : w)
             {
@@ -1606,6 +1611,8 @@ namespace ccf
             if (!restored_ledger_secrets.empty() && is_part_of_public_network())
             {
               // When recovering, trigger end of recovery protocol (backup only)
+
+              // TODO: Use accessor here
               network.ledger_secrets->restore_historical(
                 std::move(restored_ledger_secrets));
               backup_finish_recovery();
