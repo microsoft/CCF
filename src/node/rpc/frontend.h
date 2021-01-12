@@ -29,11 +29,6 @@ namespace ccf
     kv::Store& tables;
     EndpointRegistry& endpoints;
 
-    void disable_request_storing()
-    {
-      request_storing_disabled = true;
-    }
-
   private:
     SpinLock open_lock;
     bool is_open_ = false;
@@ -46,7 +41,6 @@ namespace ccf
     std::atomic<size_t> tx_count = 0;
     std::chrono::milliseconds sig_ms_interval = std::chrono::milliseconds(1000);
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
-    bool request_storing_disabled = false;
     tls::Pem* service_identity = nullptr;
 
     using PreExec = std::function<void(kv::Tx& tx, enclave::RpcContext& ctx)>;

@@ -7,17 +7,34 @@
 #include "http/ws_consts.h"
 #include "json_handler.h"
 #include "node/code_id.h"
+#include "node/quote.h"
+#include "node/rpc/node_interface.h"
 
 namespace ccf
 {
+  struct Quote
+  {
+    NodeId node_id = {};
+    std::string raw = {}; // < Hex-encoded
+
+    std::string error = {};
+    std::string mrenclave = {}; // < Hex-encoded
+  };
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Quote)
+  DECLARE_JSON_REQUIRED_FIELDS(Quote, node_id, raw)
+  DECLARE_JSON_OPTIONAL_FIELDS(Quote, error, mrenclave)
+
   /*
    * Extends the basic EndpointRegistry with methods which should be present
    * on all frontends
    */
   class CommonEndpointRegistry : public EndpointRegistry
   {
-  protected:
-    ccf::TxStatus get_tx_status_v1(
+  public:
+    AbstractNodeState& node;
+
+    ccf::TxStatus get_status_for_txid_v1(
       kv::Consensus::View view, kv::Consensus::SeqNo seqno)
     {
       if (consensus != nullptr)
@@ -56,12 +73,94 @@ namespace ccf
       return document;
     }
 
+    std::optional<std::vector<uint8_t>> get_receipt_for_index_v1(
+      kv::Consensus::SeqNo seqno, std::string& error_reason)
+    {
+      try
+      {
+        if (history != nullptr)
+        {
+          try
+          {
+            return history->get_receipt(seqno);
+          }
+          catch (const std::exception& e)
+          {
+            error_reason = e.what();
+            return std::nullopt;
+          }
+        }
+
+        error_reason = "Node is not yet initialised";
+        return std::nullopt;
+      }
+      catch (const std::exception& e)
+      {
+        error_reason = "Exception thrown during execution";
+        return std::nullopt;
+      }
+    }
+
+    Quote get_quote_for_node_v1(kv::ReadOnlyTx& tx, NodeId node_id)
+    {
+      auto nodes_view = tx.get_read_only_view<ccf::Nodes>(Tables::NODES);
+      const auto node_info = nodes_view->get(node_id);
+      if (node_info.has_value())
+      {
+        Quote q;
+        q.node_id = node_id;
+
+        if (node_info->status == ccf::NodeStatus::TRUSTED)
+        {
+          q.raw = fmt::format("{:02x}", fmt::join(node_info->quote, ""));
+
+#ifdef GET_QUOTE
+          // TODO: Why don't we include this in BFT?
+          if (consensus != nullptr && consensus->type() != ConsensusType::BFT)
+          {
+            auto code_id_opt = QuoteGenerator::get_code_id(node_info->quote);
+            if (!code_id_opt.has_value())
+            {
+              q.error = fmt::format("Failed to retrieve code ID from quote");
+            }
+            else
+            {
+              q.mrenclave =
+                fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
+            }
+          }
+#endif
+        }
+        else
+        {
+          q.error = fmt::format(
+            "Node {} status is not TRUSTED, currently {}",
+            node_id,
+            node_info->status);
+        }
+
+        return q;
+      }
+      else
+      {
+        throw std::runtime_error(
+          fmt::format("{} is not a known node ID", node_id));
+      }
+    }
+
+    NodeId get_id_for_this_node_v1()
+    {
+      return node.get_node_id();
+    }
+
   public:
     CommonEndpointRegistry(
       const std::string& method_prefix_,
       kv::Store& store,
+      AbstractNodeState& node_state,
       const std::string& certs_table_name = "") :
-      EndpointRegistry(method_prefix_, store, certs_table_name)
+      EndpointRegistry(method_prefix_, store, certs_table_name),
+      node(node_state)
     {}
 
     void init_handlers() override
@@ -91,7 +190,7 @@ namespace ccf
         const auto in = params.get<GetTxStatus::In>();
 
         GetTxStatus::Out out;
-        out.status = get_tx_status_v1(in.view, in.seqno);
+        out.status = get_status_for_txid_v1(in.view, in.seqno);
         return make_success(out);
       };
       make_command_endpoint(
@@ -304,31 +403,21 @@ namespace ccf
       auto get_receipt = [this](auto&, nlohmann::json&& params) {
         const auto in = params.get<GetReceipt::In>();
 
-        if (history != nullptr)
+        std::string error_reason;
+        const auto opt_r = get_receipt_for_index_v1(in.commit, error_reason);
+        if (opt_r.has_value())
         {
-          try
-          {
-            auto p = history->get_receipt(in.commit);
-            const GetReceipt::Out out{p};
-
-            return make_success(out);
-          }
-          catch (const std::exception& e)
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              fmt::format(
-                "Unable to produce receipt for commit {} : {}.",
-                in.commit,
-                e.what()));
-          }
+          GetReceipt::Out out;
+          out.receipt = opt_r.value();
+          return make_success(out);
         }
-
-        return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "Unable to produce receipt.");
+        else
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            std::move(error_reason));
+        }
       };
       make_command_endpoint(
         "receipt",

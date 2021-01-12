@@ -1136,8 +1136,8 @@ namespace ccfapp
     {};
 
   public:
-    JSHandlers(NetworkTables& network) :
-      UserEndpointRegistry(network),
+    JSHandlers(NetworkTables& network, ccf::AbstractNodeState& node_state) :
+      UserEndpointRegistry(network, node_state),
       network(network)
     {
       JS_NewClassID(&kv_class_id);
@@ -1338,15 +1338,15 @@ namespace ccfapp
     JSHandlers js_handlers;
 
   public:
-    JS(NetworkTables& network) :
+    JS(NetworkTables& network, ccfapp::AbstractNodeContext& node_context) :
       ccf::UserRpcFrontend(*network.tables, js_handlers),
-      js_handlers(network)
+      js_handlers(network, node_context.get_node_state())
     {}
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& network, ccfapp::AbstractNodeContext&)
+    NetworkTables& network, ccfapp::AbstractNodeContext& node_context)
   {
-    return make_shared<JS>(network);
+    return make_shared<JS>(network, node_context);
   }
 } // namespace ccfapp

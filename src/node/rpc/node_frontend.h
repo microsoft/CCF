@@ -11,50 +11,23 @@
 
 namespace ccf
 {
+  struct GetQuotes
+  {
+    using In = void;
+
+    struct Out
+    {
+      std::vector<Quote> quotes;
+    };
+  };
+
+  DECLARE_JSON_TYPE(GetQuotes::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(GetQuotes::Out, quotes)
+
   class NodeEndpoints : public CommonEndpointRegistry
   {
   private:
     NetworkState& network;
-    AbstractNodeState& node;
-    
-    void node_quotes(
-      kv::ReadOnlyTx& tx,
-      GetQuotes::Out& result,
-      const std::optional<std::set<NodeId>>& filter = std::nullopt) const
-    {
-      auto nodes_view = tx.get_read_only_view(network.nodes);
-
-      nodes_view->foreach([&result, &filter, this](
-                            const NodeId& nid, const NodeInfo& ni) {
-        if (!filter.has_value() || (filter->find(nid) != filter->end()))
-        {
-          if (ni.status == ccf::NodeStatus::TRUSTED)
-          {
-            GetQuotes::Quote q;
-            q.node_id = nid;
-            q.raw = fmt::format("{:02x}", fmt::join(ni.quote, ""));
-
-            if (this->network.consensus_type != ConsensusType::BFT)
-            {
-#ifdef GET_QUOTE
-              auto code_id_opt = QuoteGenerator::get_code_id(ni.quote);
-              if (!code_id_opt.has_value())
-              {
-                q.error = fmt::format("Failed to retrieve code ID from quote");
-              }
-              else
-              {
-                q.mrenclave =
-                  fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
-              }
-#endif
-            }
-            result.quotes.push_back(q);
-          }
-        }
-        return true;
-      });
-    };
 
     std::optional<NodeId> check_node_exists(
       kv::Tx& tx,
@@ -174,11 +147,10 @@ namespace ccf
     }
 
   public:
-    NodeEndpoints(NetworkState& network, AbstractNodeState& node) :
+    NodeEndpoints(NetworkState& network, AbstractNodeState& node_state) :
       CommonEndpointRegistry(
-        get_actor_prefix(ActorsType::nodes), *network.tables),
-      network(network),
-      node(node)
+        get_actor_prefix(ActorsType::nodes), *network.tables, node_state),
+      network(network)
     {
       openapi_info.title = "CCF Public Node API";
       openapi_info.description =
@@ -333,32 +305,26 @@ namespace ccf
         .install();
 
       auto get_quote = [this](auto& args, nlohmann::json&&) {
-        GetQuotes::Out result;
-        std::set<NodeId> filter;
-        filter.insert(this->node.get_node_id());
-        node_quotes(args.tx, result, filter);
+        const auto node_id = get_id_for_this_node_v1();
+        const auto quote = get_quote_for_node_v1(args.tx, node_id);
 
-        if (result.quotes.size() == 1)
-        {
-          return make_success(result.quotes[0]);
-        }
-        else
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            "Could not find node quote.");
-        }
+        return make_success(quote);
       };
       make_read_only_endpoint(
         "quote", HTTP_GET, json_read_only_adapter(get_quote), no_auth_required)
-        .set_auto_schema<void, GetQuotes::Quote>()
+        .set_auto_schema<void, Quote>()
         .set_forwarding_required(ForwardingRequired::Never)
         .install();
 
       auto get_quotes = [this](auto& args, nlohmann::json&&) {
         GetQuotes::Out result;
-        node_quotes(args.tx, result);
+
+        auto nodes_view = args.tx.get_read_only_view(network.nodes);
+        nodes_view->foreach([this, &tx = args.tx, &quotes = result.quotes](
+                              const auto& node_id, const auto&) {
+          quotes.emplace_back(get_quote_for_node_v1(tx, node_id));
+          return true;
+        });
 
         return make_success(result);
       };
