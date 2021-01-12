@@ -387,13 +387,15 @@ namespace ccf
        *  that do not read or mutate the state of the key-value store.
        * \endverbatim
        *
-       * @param v Boolean indicating whether the Endpoint is executed locally,
-       * on the node receiving the request
+       * @param v Enum indicating whether the Endpoint is executed locally,
+       * on the node receiving the request, locally on the primary or via the
+       * consensus.
        * @return This Endpoint for further modification
        */
-      Endpoint& set_execute_locally(bool v)
+      Endpoint& set_execute_outside_consensus(
+        ccf::endpoints::ExecuteOutsideConsensus v)
       {
-        properties.execute_locally = v;
+        properties.execute_outside_consensus = v;
         return *this;
       }
 
@@ -583,7 +585,9 @@ namespace ccf
     {
       return make_endpoint(
                method, verb, [f](EndpointContext& args) { f(args); }, ap)
-        .set_forwarding_required(ForwardingRequired::Sometimes);
+        .set_forwarding_required(ForwardingRequired::Sometimes)
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Primary);
     }
 
     /** Install the given endpoint, using its method and verb
