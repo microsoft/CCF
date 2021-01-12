@@ -275,7 +275,7 @@ namespace kv
       if (!created_maps.empty())
         this->store->lock();
 
-      std::vector<kv::ConsensusHookPtr> hooks;
+      kv::ConsensusHookPtrs hooks;
 
       auto c = apply_changes(
         all_changes,

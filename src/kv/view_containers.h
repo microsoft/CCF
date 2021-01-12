@@ -40,7 +40,7 @@ namespace kv
   static inline std::optional<std::tuple<Version, Version>> apply_changes(
     OrderedChanges& changes,
     std::function<Version()> f,
-    std::vector<kv::ConsensusHookPtr>& hooks,
+    kv::ConsensusHookPtrs& hooks,
     const MapCollection& new_maps = {},
     const std::optional<Version>& new_maps_conflict_version = std::nullopt)
   {

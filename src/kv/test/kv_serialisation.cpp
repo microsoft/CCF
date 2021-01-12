@@ -46,7 +46,7 @@ TEST_CASE(
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
     REQUIRE(!latest_data.value().empty());
-    auto hooks = std::vector<kv::ConsensusHookPtr>();
+    kv::ConsensusHookPtrs hooks;
     REQUIRE(
       kv_store_target.deserialise(latest_data.value(), hooks) ==
       kv::DeserialiseSuccess::PASS);
@@ -93,7 +93,7 @@ TEST_CASE(
     INFO("Deserialise transaction in target store");
     {
       const auto latest_data = consensus->get_latest_data();
-      auto hooks = std::vector<kv::ConsensusHookPtr>();
+      kv::ConsensusHookPtrs hooks;
       REQUIRE(latest_data.has_value());
       REQUIRE(
         kv_store_target.deserialise(latest_data.value(), hooks) ==
@@ -139,7 +139,7 @@ TEST_CASE(
   {
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
-    auto hooks = std::vector<kv::ConsensusHookPtr>();
+    kv::ConsensusHookPtrs hooks;
     REQUIRE(
       kv_store_target.deserialise(latest_data.value(), hooks) !=
       kv::DeserialiseSuccess::FAILED);
@@ -175,7 +175,7 @@ TEST_CASE(
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
-    auto hooks = std::vector<kv::ConsensusHookPtr>();
+    kv::ConsensusHookPtrs hooks;
     REQUIRE(
       kv_store_target.deserialise(latest_data.value(), hooks) !=
       kv::DeserialiseSuccess::FAILED);
@@ -200,7 +200,7 @@ TEST_CASE(
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
-    auto hooks = std::vector<kv::ConsensusHookPtr>();
+    kv::ConsensusHookPtrs hooks;
     REQUIRE(
       kv_store_target.deserialise(latest_data.value(), hooks) !=
       kv::DeserialiseSuccess::FAILED);
@@ -450,7 +450,7 @@ TEST_CASE_TEMPLATE(
     REQUIRE(success == kv::CommitSuccess::OK);
     kv_store.compact(kv_store.current_version());
 
-    auto hooks_ = std::vector<kv::ConsensusHookPtr>();
+    kv::ConsensusHookPtrs hooks_;
     REQUIRE(
       kv_store2.deserialise(data, hooks_) == kv::DeserialiseSuccess::PASS);
     auto tx2 = kv_store2.create_tx();
@@ -534,7 +534,7 @@ TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
     REQUIRE(latest_data.has_value());
     std::vector<uint8_t> value_to_corrupt(pub_value.begin(), pub_value.end());
     REQUIRE(corrupt_serialised_tx(latest_data.value(), value_to_corrupt));
-    auto hooks = std::vector<kv::ConsensusHookPtr>();
+    kv::ConsensusHookPtrs hooks;
     REQUIRE(
       kv_store_target.deserialise(latest_data.value(), hooks) ==
       kv::DeserialiseSuccess::FAILED);
@@ -562,7 +562,7 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
-    auto hooks = std::vector<kv::ConsensusHookPtr>();
+    kv::ConsensusHookPtrs hooks;
     REQUIRE(
       s1.deserialise(latest_data.value(), hooks) !=
       kv::DeserialiseSuccess::FAILED);
@@ -582,7 +582,7 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
-    auto hooks = std::vector<kv::ConsensusHookPtr>();
+    kv::ConsensusHookPtrs hooks;
     REQUIRE(
       s1.deserialise(latest_data.value(), hooks) !=
       kv::DeserialiseSuccess::FAILED);
@@ -625,12 +625,12 @@ TEST_CASE(
 
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
-    auto hooks_ = std::vector<kv::ConsensusHookPtr>();
+    kv::ConsensusHookPtrs hooks_;
     REQUIRE(store.deserialise(data, hooks_) == kv::DeserialiseSuccess::PASS);
 
     INFO("check that second store derived data is not populated");
     {
-      auto hooks = std::vector<kv::ConsensusHookPtr>();
+      kv::ConsensusHookPtrs hooks;
       REQUIRE(
         kv_store_target.deserialise(data, hooks) ==
         kv::DeserialiseSuccess::PASS);

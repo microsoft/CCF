@@ -399,11 +399,9 @@ namespace aft
 
     template <typename T>
     bool replicate(
-      const std::vector<std::tuple<
-        Index,
-        T,
-        bool,
-        std::shared_ptr<std::vector<kv::ConsensusHookPtr>>>>& entries,
+      const std::vector<
+        std::tuple<Index, T, bool, std::shared_ptr<kv::ConsensusHookPtrs>>>&
+        entries,
       Term term)
     {
       if (consensus_type == ConsensusType::BFT && is_follower())
@@ -1109,7 +1107,7 @@ namespace aft
         auto tx = store->create_tx();
         kv::DeserialiseSuccess deserialise_success;
         ccf::PrimarySignature sig;
-        std::vector<kv::ConsensusHookPtr> hooks;
+        kv::ConsensusHookPtrs hooks;
         if (consensus_type == ConsensusType::BFT)
         {
           deserialise_success = store->deserialise_views(

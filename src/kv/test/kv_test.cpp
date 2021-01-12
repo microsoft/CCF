@@ -947,7 +947,7 @@ TEST_CASE("Deserialising from other Store")
   kv::Store clone;
   clone.set_encryptor(encryptor);
 
-  std::vector<kv::ConsensusHookPtr> hooks_;
+  kv::ConsensusHookPtrs hooks_;
   REQUIRE(clone.deserialise(data, hooks_) == kv::DeserialiseSuccess::PASS);
 }
 
@@ -971,7 +971,7 @@ TEST_CASE("Deserialise return status")
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    std::vector<kv::ConsensusHookPtr> hooks_;
+    kv::ConsensusHookPtrs hooks_;
     REQUIRE(store.deserialise(data, hooks_) == kv::DeserialiseSuccess::PASS);
   }
 
@@ -983,7 +983,7 @@ TEST_CASE("Deserialise return status")
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    std::vector<kv::ConsensusHookPtr> hooks_;
+    kv::ConsensusHookPtrs hooks_;
     REQUIRE(
       store.deserialise(data, hooks_) ==
       kv::DeserialiseSuccess::PASS_SIGNATURE);
@@ -999,7 +999,7 @@ TEST_CASE("Deserialise return status")
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    std::vector<kv::ConsensusHookPtr> hooks_;
+    kv::ConsensusHookPtrs hooks_;
     REQUIRE(store.deserialise(data, hooks_) == kv::DeserialiseSuccess::FAILED);
   }
 }

@@ -85,7 +85,7 @@ namespace kv
       OrderedChanges& changes,
       Version& v,
       const MapCollection& new_maps,
-      std::vector<kv::ConsensusHookPtr>& hooks)
+      kv::ConsensusHookPtrs& hooks)
     {
       auto c = apply_changes(
         changes, [v]() { return v; }, hooks, new_maps);
@@ -342,7 +342,7 @@ namespace kv
 
     DeserialiseSuccess deserialise_snapshot(
       const std::vector<uint8_t>& data,
-      std::vector<kv::ConsensusHookPtr>& hooks,
+      kv::ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) override
     {
@@ -604,7 +604,7 @@ namespace kv
 
     DeserialiseSuccess deserialise_views(
       const std::vector<uint8_t>& data,
-      std::vector<kv::ConsensusHookPtr>& hooks,
+      kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
       Term* term_ = nullptr,
       Version* index_ = nullptr,
@@ -897,7 +897,7 @@ namespace kv
 
     DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
-      std::vector<kv::ConsensusHookPtr>& hooks,
+      kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
       Term* term = nullptr) override
     {
@@ -1015,8 +1015,7 @@ namespace kv
           auto data_shared =
             std::make_shared<std::vector<uint8_t>>(std::move(data_));
           auto hooks_shared =
-            std::make_shared<std::vector<kv::ConsensusHookPtr>>(
-              std::move(hooks_));
+            std::make_shared<kv::ConsensusHookPtrs>(std::move(hooks_));
 
           // NB: this cannot happen currently. Regular Tx only make it here if
           // they did succeed, and signatures cannot conflict because they

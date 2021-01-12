@@ -51,7 +51,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
   {
     kv::Store new_store;
 
-    std::vector<kv::ConsensusHookPtr> hooks;
+    kv::ConsensusHookPtrs hooks;
     REQUIRE_EQ(
       new_store.deserialise_snapshot(first_serialised_snapshot, hooks),
       kv::DeserialiseSuccess::PASS);
@@ -77,7 +77,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
   {
     kv::Store new_store;
 
-    std::vector<kv::ConsensusHookPtr> hooks;
+    kv::ConsensusHookPtrs hooks;
     new_store.deserialise_snapshot(second_serialised_snapshot, hooks);
     REQUIRE_EQ(new_store.current_version(), 2);
 
@@ -131,7 +131,7 @@ TEST_CASE(
     view->put("in", "flight");
     // tx is not committed until the snapshot is deserialised
 
-    std::vector<kv::ConsensusHookPtr> hooks;
+    kv::ConsensusHookPtrs hooks;
     new_store.deserialise_snapshot(serialised_snapshot, hooks);
 
     // Transaction conflicts as snapshot was applied while transaction was in
@@ -199,7 +199,7 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
         string_map, new_string_map.wrap_commit_hook(global_hook));
     }
 
-    std::vector<kv::ConsensusHookPtr> hooks;
+    kv::ConsensusHookPtrs hooks;
     new_store.deserialise_snapshot(serialised_snapshot, hooks);
 
     INFO("Verify content of snapshot");

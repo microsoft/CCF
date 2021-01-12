@@ -91,6 +91,7 @@ namespace kv
   };
 
   using ConsensusHookPtr = std::unique_ptr<ConsensusHook>;
+  using ConsensusHookPtrs = std::vector<ConsensusHookPtr>;
 
   using BatchVector = std::vector<std::tuple<
     kv::Version,
