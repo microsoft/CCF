@@ -6,6 +6,7 @@
 #include "genesis_gen.h"
 #include "ledger_secrets.h"
 #include "network_state.h"
+#include "new_ledger_secrets.h"
 #include "tls/key_exchange.h"
 
 #include <optional>
@@ -37,12 +38,12 @@ namespace ccf
     }
 
   public:
-    static void broadcast_versions(
+    static void broadcast_some(
       NetworkState& network,
       tls::KeyPairPtr encryption_key,
       NodeId self,
       kv::Tx& tx,
-      std::vector<kv::Version> versions)
+      const NewLedgerSecrets::EncryptionKeys& some_ledger_secrets)
     {
       GenesisGenerator g(network, tx);
       auto secrets_view = tx.get_view(network.secrets);
@@ -53,14 +54,14 @@ namespace ccf
       {
         std::vector<EncryptedLedgerSecret> ledger_secrets_for_node;
 
-        for (auto const& v : versions)
+        for (auto s : some_ledger_secrets)
         {
           ledger_secrets_for_node.push_back(
-            {v,
+            {s.first,
              encrypt_ledger_secret(
                encryption_key,
                tls::make_public_key(ni.encryption_pub_key),
-               network.ledger_secrets->get_secret_at(v).raw_key)});
+               std::move(s.second.raw_key))});
         }
 
         secrets_view->put(

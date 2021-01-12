@@ -311,7 +311,7 @@ namespace ccf
       return encrypted_share;
     }
 
-    std::vector<kv::Version> restore_recovery_shares_info(
+    NewLedgerSecrets::EncryptionKeys restore_recovery_shares_info(
       kv::Tx& tx,
       const std::list<RecoveredLedgerSecret>& encrypted_recovery_secrets)
     {
@@ -329,12 +329,6 @@ namespace ccf
       }
 
       NewLedgerSecrets::EncryptionKeys restored_ledger_secrets;
-
-      // We keep track of the restored versions so that the recovered ledger
-      // secrets can be broadcast to backups
-      std::vector<kv::Version> restored_versions;
-      restored_versions.push_back(
-        encrypted_recovery_secrets.back().next_version);
 
       auto restored_ls = ls_wrapping_key.unwrap(
         recovery_shares_info->wrapped_latest_ledger_secret.encrypted_data);
@@ -373,13 +367,9 @@ namespace ccf
         decryption_key = decrypted_ls;
         restored_ledger_secrets.emplace(
           std::next(i)->next_version, std::move(decrypted_ls));
-        restored_versions.push_back(std::next(i)->next_version);
       }
 
-      network.ledger_secrets->restore_historical(
-        std::move(restored_ledger_secrets));
-
-      return restored_versions;
+      return restored_ledger_secrets;
     }
 
     size_t submit_recovery_share(

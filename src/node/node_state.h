@@ -1115,20 +1115,22 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
 
-      auto restored_versions =
+      auto restored_ledger_secrets =
         share_manager.restore_recovery_shares_info(tx, recovery_ledger_secrets);
+
+      // Broadcast decrypted ledger secrets to other nodes for them to initiate
+      // private recovery too
+      LedgerSecretsBroadcast::broadcast_some(
+        network, node_encrypt_kp, self, tx, restored_ledger_secrets);
+
+      network.ledger_secrets->restore_historical(
+        std::move(restored_ledger_secrets));
 
       LOG_INFO_FMT("Initiating end of recovery (primary)");
 
       // Emit signature to certify transactions that happened on public
       // network
       history->emit_signature();
-
-      // Broadcast decrypted ledger secrets to other nodes for them to initiate
-      // private recovery too
-      // broadcast_ledger_secrets(tx, restored_versions, true);
-      LedgerSecretsBroadcast::broadcast_versions(
-        network, node_encrypt_kp, self, tx, restored_versions);
 
       setup_private_recovery_store();
 
