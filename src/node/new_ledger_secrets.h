@@ -4,6 +4,7 @@
 
 #include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
+#include "kv/tx.h"
 #include "secrets.h"
 #include "tls/entropy.h"
 
@@ -52,15 +53,7 @@ namespace ccf
       // two keys for version 0 and 10 then the key associated with version 0
       // is used for version [0..9] and version 10 for versions 10+)
 
-      LOG_FAIL_FMT("Search for key at {}", version);
-      for (auto const& k : encryption_keys)
-      {
-        LOG_FAIL_FMT("Key at {}", k.first);
-      }
-
       auto search_begin = commit_key_it.value_or(encryption_keys.begin());
-
-      LOG_FAIL_FMT("Search begin at {}", search_begin->first);
 
       auto search = std::upper_bound(
         search_begin,
@@ -69,16 +62,11 @@ namespace ccf
         [](auto a, const auto& b) { return b.first > a; });
       if (search == search_begin)
       {
-        LOG_FAIL_FMT("No key for target seqno {}", version);
         throw std::logic_error(fmt::format(
           "kv::TxEncryptor: could not find ledger encryption key for seqno {}",
           version));
       }
-
-      // TODO: Return --search directly
-      auto ret = --search;
-      LOG_FAIL_FMT("Using key for seqno: {}", ret->first);
-      return ret;
+      return --search;
     }
 
   public:
@@ -111,38 +99,6 @@ namespace ccf
       encryption_keys.emplace(version, std::move(key));
 
       LOG_TRACE_FMT("Added new encryption key at seqno {}", version);
-    }
-
-    NewLedgerSecret get_latest()
-    {
-      if (encryption_keys.empty())
-      {
-        throw std::logic_error(
-          "Could not retrieve latest ledger secret: no secret set");
-      }
-      LOG_FAIL_FMT(
-        "Getting latest secret at {}", encryption_keys.rbegin()->first);
-      return encryption_keys.rbegin()->second;
-    }
-
-    std::optional<NewLedgerSecret> get_penultimate()
-    {
-      if (encryption_keys.size() < 2)
-      {
-        return std::nullopt;
-      }
-      return std::next(encryption_keys.rbegin())->second;
-    }
-
-    NewLedgerSecret get_secret_at(kv::Version version)
-    {
-      auto search = encryption_keys.find(version);
-      if (search == encryption_keys.end())
-      {
-        throw std::logic_error(
-          fmt::format("Ledger secret at {} does not exist", version));
-      }
-      return search->second;
     }
 
     void rollback(kv::Version version)
@@ -190,20 +146,34 @@ namespace ccf
     SpinLock lock;
     Secrets& secrets_table;
     std::unique_ptr<NewLedgerSecrets> ledger_secrets;
-    NodeId self;
+
+    std::optional<NodeId> self = std::nullopt;
 
     void take_dependency_on_secrets(kv::Tx& tx)
     {
+      // Ledger secrets are not stored in the KV. Instead, they are
+      // cached in a unique LedgerSecrets instance that can be accessed without
+      // reading the KV. However, it is possible that the ledger secrets are
+      // updated (e.g. rekey tx) concurrently to their access by another tx. To
+      // prevent conflicts, accessing the ledger secrets require access to a tx
+      // object, which must take a dependency on the secrets table.
       LOG_FAIL_FMT("Taking read dependency on secrets table!");
       auto v = tx.get_view(secrets_table);
-      v->get(self);
+
+      // Taking a depency on the key at self, which would get updated on rekey
+      if (!self.has_value())
+      {
+        throw std::logic_error(
+          "Node id should be set before taking dependency on secrets table");
+      }
+      v->get(self.value());
     }
 
   public:
     LedgerSecretsAccessor(
       Secrets& secrets_table_,
       std::unique_ptr<NewLedgerSecrets> ledger_secrets_,
-      NodeId self_) :
+      std::optional<NodeId> self_ = std::nullopt) :
       secrets_table(secrets_table_),
       ledger_secrets(std::move(ledger_secrets_)),
       self(self_)
@@ -213,9 +183,19 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      LOG_FAIL_FMT("Initialising ledger secrets at {}", initial_version);
       ledger_secrets->encryption_keys.emplace(
         initial_version, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+    }
+
+    void set_node_id(NodeId id)
+    {
+      if (self.has_value())
+      {
+        throw std::logic_error(
+          "Node id has already been set on ledger secrets");
+      }
+
+      self = id;
     }
 
     NewLedgerSecret get_latest(kv::Tx& tx)
@@ -260,9 +240,6 @@ namespace ccf
     void restore_historical(EncryptionKeys&& encryption_keys_)
     {
       std::lock_guard<SpinLock> guard(lock);
-
-      // TODO: Assert than encryption_keys.begin() version is greater than
-      // encryption_keys_.rbegin() version
 
       if (
         encryption_keys_.rbegin()->first >=

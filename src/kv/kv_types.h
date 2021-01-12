@@ -431,8 +431,6 @@ namespace kv
     virtual void rollback(Version version) = 0;
 
     virtual size_t get_header_length() = 0;
-    virtual void update_encryption_key(
-      Version version, std::vector<uint8_t>&& key) = 0;
     virtual void disable_recovery() = 0;
   };
 

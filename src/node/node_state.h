@@ -353,9 +353,7 @@ namespace ccf
             // It is necessary to give an encryptor to the store for it to
             // deserialise the public domain when recovering the public ledger
             network.ledger_secrets = std::make_shared<LedgerSecretsAccessor>(
-              network.secrets,
-              std::make_unique<NewLedgerSecrets>(),
-              42); // TODO: No self just yet!
+              network.secrets, std::make_unique<NewLedgerSecrets>());
             setup_encryptor();
 
             initialise_startup_snapshot(config);
@@ -376,16 +374,14 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           network.ledger_secrets = std::make_shared<LedgerSecretsAccessor>(
-            network.secrets,
-            std::make_unique<NewLedgerSecrets>(),
-            42); // TODO: No self just yet!
+            network.secrets, std::make_unique<NewLedgerSecrets>());
 
           setup_history();
 
           // It is necessary to give an encryptor to the store for it to
           // deserialise the public domain when recovering the public ledger.
           // Once the public recovery is complete, the existing encryptor is
-          // replaced with a new one initialised with recovered ledger
+          // replaced with a new one initialised with the recovered ledger
           // secrets.
           setup_encryptor();
 
@@ -475,11 +471,6 @@ namespace ccf
             set_node_id(resp.node_id);
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
-
-            // TODO: Delete
-            LOG_FAIL_FMT(
-              "Init-ing ledger secrets with {} secret(s)",
-              resp.network_info.ledger_secrets.encryption_keys.size());
 
             network.ledger_secrets = std::make_shared<LedgerSecretsAccessor>(
               network.secrets,
@@ -852,8 +843,6 @@ namespace ccf
         "index: {}",
         last_recovered_signed_idx);
 
-      network.ledger_secrets->init(last_recovered_signed_idx + 1);
-
       // KV term must be set before the first Tx is committed
       auto new_term = view_history.size() + 2;
       LOG_INFO_FMT("Setting term on public recovery KV to {}", new_term);
@@ -870,6 +859,8 @@ namespace ccf
                               node_encrypt_kp->public_key_pem().raw(),
                               NodeStatus::PENDING}));
 
+      network.ledger_secrets->init(last_recovered_signed_idx + 1);
+      network.ledger_secrets->set_node_id(self);
       setup_encryptor(true);
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
@@ -1127,7 +1118,6 @@ namespace ccf
       LedgerSecretsBroadcast::broadcast_some(
         network, node_encrypt_kp, self, tx, restored_ledger_secrets);
 
-      // TODO: Use accessor
       network.ledger_secrets->restore_historical(
         std::move(restored_ledger_secrets));
 
@@ -1602,7 +1592,7 @@ namespace ccf
                   // When rekeying, set the encryption key for the next version
                   // onward (backups deserialise this transaction with the
                   // previous ledger secret)
-                  encryptor->update_encryption_key(
+                  network.ledger_secrets->update_encryption_key(
                     ledger_secret_version + 1, std::move(plain_ledger_secret));
                 }
               }
@@ -1610,9 +1600,8 @@ namespace ccf
 
             if (!restored_ledger_secrets.empty() && is_part_of_public_network())
             {
-              // When recovering, trigger end of recovery protocol (backup only)
-
-              // TODO: Use accessor here
+              // When recovering, restore ledger secrets and trigger end of
+              // recovery protocol (backup only)
               network.ledger_secrets->restore_historical(
                 std::move(restored_ledger_secrets));
               backup_finish_recovery();

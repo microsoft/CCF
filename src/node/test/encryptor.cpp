@@ -3,245 +3,390 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
 #include "kv/kv_types.h"
-#include "node/encryptor.h"
+#include "kv/new_encryptor.h"
+#include "kv/test/stub_consensus.h"
 #include "node/entities.h"
-#include "node/ledger_secrets.h"
+#include "node/network_state.h"
+#include "node/new_ledger_secrets.h"
 
 #include <doctest/doctest.h>
 #include <random>
 #include <string>
 
-using namespace ccf;
+using StringString = kv::Map<std::string, std::string>;
+using NodeEncryptor = kv::NewTxEncryptor<ccf::LedgerSecretsAccessor>;
 
-TEST_CASE("Simple encryption/decryption")
+void commit_one(kv::Store& store, StringString& map)
 {
-  // Setting 1 ledger secret, valid for version 1+
+  auto tx = store.create_tx();
+  auto view = tx.get_view(map);
+  view->put("key", "value");
+  REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+}
+
+bool encrypt_round_trip(
+  NodeEncryptor& encryptor, std::vector<uint8_t>& plain, kv::Version version)
+{
+  std::vector<uint8_t> aad;
+  std::vector<uint8_t> header;
+  std::vector<uint8_t> cipher(plain.size());
+  std::vector<uint8_t> decrypted(plain.size());
+
+  kv::Term term = 1;
+  encryptor.encrypt(plain, aad, header, cipher, version, term);
+  encryptor.decrypt(cipher, aad, header, decrypted, version);
+
+  return plain == decrypted;
+}
+
+bool corrupt_serialised_tx(
+  std::vector<uint8_t>& serialised_tx, std::vector<uint8_t>& value_to_corrupt)
+{
+  // This utility function corrupts a serialised transaction by changing one
+  // byte of the public domain as specified by value_to_corrupt.
+  std::vector<uint8_t> match_buffer;
+  for (auto& i : serialised_tx)
+  {
+    if (i == value_to_corrupt[match_buffer.size()])
+    {
+      match_buffer.push_back(i);
+      if (match_buffer.size() == value_to_corrupt.size())
+      {
+        i = 'X';
+        LOG_DEBUG_FMT("Corrupting serialised public data");
+        return true;
+      }
+    }
+    else
+    {
+      match_buffer.clear();
+    }
+  }
+  return false;
+}
+
+TEST_CASE("Simple encryption/decryption" * doctest::test_suite("encryption"))
+{
+  ccf::NetworkState network;
   uint64_t node_id = 0;
-  auto secrets = std::make_shared<ccf::LedgerSecrets>();
-  secrets->init();
-  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
-  encryptor->set_iv_id(node_id);
+  auto ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
+    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  ledger_secrets->init();
+  NodeEncryptor encryptor(ledger_secrets);
+
+  std::vector<uint8_t> plain(10, 0x42);
+
+  // Cannot encrypt before the very first KV version (i.e. 1)
+  REQUIRE_THROWS_AS(encrypt_round_trip(encryptor, plain, 0), std::logic_error);
+
+  REQUIRE(encrypt_round_trip(encryptor, plain, 1));
+  REQUIRE(encrypt_round_trip(encryptor, plain, 2));
+
+  ledger_secrets->set_encryption_key_for(
+    3, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+  REQUIRE(encrypt_round_trip(encryptor, plain, 1));
+  REQUIRE(encrypt_round_trip(encryptor, plain, 2));
+  REQUIRE(encrypt_round_trip(encryptor, plain, 3));
+  REQUIRE(encrypt_round_trip(encryptor, plain, 4));
+
+  ledger_secrets->set_encryption_key_for(
+    5, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+  REQUIRE(encrypt_round_trip(encryptor, plain, 1));
+  REQUIRE(encrypt_round_trip(encryptor, plain, 2));
+  REQUIRE(encrypt_round_trip(encryptor, plain, 3));
+  REQUIRE(encrypt_round_trip(encryptor, plain, 4));
+  REQUIRE(encrypt_round_trip(encryptor, plain, 5));
+  REQUIRE(encrypt_round_trip(encryptor, plain, 6));
+}
+
+TEST_CASE("Subsequent ciphers from same plaintext are different")
+{
+  ccf::NetworkState network;
+  uint64_t node_id = 0;
+  auto ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
+    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  ledger_secrets->init();
+  NodeEncryptor encryptor(ledger_secrets);
+
+  std::vector<uint8_t> plain(128, 0x42);
+  std::vector<uint8_t> cipher;
+  std::vector<uint8_t> cipher2;
+  std::vector<uint8_t> serialised_header;
+  std::vector<uint8_t> serialised_header2;
+  std::vector<uint8_t> additional_data; // No additional data
+  kv::Version version = 10;
+  kv::Term term = 1;
+
+  encryptor.encrypt(
+    plain, additional_data, serialised_header, cipher, version, term);
+
+  version++;
+  encryptor.encrypt(
+    plain, additional_data, serialised_header2, cipher2, version, term);
+
+  // Ciphers are different because IV is different
+  REQUIRE(cipher != cipher2);
+  REQUIRE(serialised_header != serialised_header2);
+}
+
+TEST_CASE("Ciphers at same seqno with different terms are different")
+{
+  ccf::NetworkState network;
+  uint64_t node_id = 0;
+  auto ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
+    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  ledger_secrets->init();
+  NodeEncryptor encryptor(ledger_secrets);
+
+  std::vector<uint8_t> plain(128, 0x42);
+  std::vector<uint8_t> cipher;
+  std::vector<uint8_t> cipher2;
+  std::vector<uint8_t> serialised_header;
+  std::vector<uint8_t> serialised_header2;
+  std::vector<uint8_t> additional_data; // No additional data
+  kv::Version version = 10;
+  kv::Term term = 1;
+
+  encryptor.encrypt(
+    plain, additional_data, serialised_header, cipher, version, term);
+  term++;
+  encryptor.encrypt(
+    plain, additional_data, serialised_header2, cipher2, version, term);
+
+  // Ciphers are different because IV is different
+  REQUIRE(cipher != cipher2);
+  REQUIRE(serialised_header != serialised_header2);
+}
+
+TEST_CASE("Ciphers at same seqno/term with and without snapshot are different")
+{
+  ccf::NetworkState network;
+  uint64_t node_id = 0;
+  auto ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
+    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  ledger_secrets->init();
+  NodeEncryptor encryptor(ledger_secrets);
+
+  std::vector<uint8_t> plain(128, 0x42);
+  std::vector<uint8_t> cipher;
+  std::vector<uint8_t> cipher2;
+  std::vector<uint8_t> serialised_header;
+  std::vector<uint8_t> serialised_header2;
+  std::vector<uint8_t> additional_data; // No additional data
+  kv::Version version = 10;
+  kv::Term term = 1;
+
+  bool is_snapshot = true;
+  encryptor.encrypt(
+    plain,
+    additional_data,
+    serialised_header,
+    cipher,
+    version,
+    term,
+    is_snapshot);
+
+  is_snapshot = !is_snapshot;
+  encryptor.encrypt(
+    plain,
+    additional_data,
+    serialised_header2,
+    cipher2,
+    version,
+    term,
+    is_snapshot);
+
+  // Ciphers are different because IV is different
+  REQUIRE(cipher != cipher2);
+  REQUIRE(serialised_header != serialised_header2);
+}
+
+TEST_CASE("Additional data")
+{
+  ccf::NetworkState network;
+  uint64_t node_id = 0;
+  auto ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
+    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  ledger_secrets->init();
+  NodeEncryptor encryptor(ledger_secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
   std::vector<uint8_t> cipher;
   std::vector<uint8_t> serialised_header;
-  std::vector<uint8_t> additional_data; // No additional data
+  std::vector<uint8_t> additional_data(256, 0x10);
   kv::Version version = 10;
+  kv::Term term = 1;
 
   // Encrypting plain at version 10
-  encryptor->encrypt(
-    plain, additional_data, serialised_header, cipher, version);
+  encryptor.encrypt(
+    plain, additional_data, serialised_header, cipher, version, term);
 
   // Decrypting cipher at version 10
   std::vector<uint8_t> decrypted_cipher;
-  REQUIRE(encryptor->decrypt(
+  REQUIRE(encryptor.decrypt(
     cipher, additional_data, serialised_header, decrypted_cipher, version));
   REQUIRE(plain == decrypted_cipher);
+
+  // Tampering with additional data: decryption fails
+  additional_data[100] = 0xAA;
+  std::vector<uint8_t> decrypted_cipher2;
+  REQUIRE_FALSE(encryptor.decrypt(
+    cipher, additional_data, serialised_header, decrypted_cipher2, version));
+
+  // mbedtls 2.16+ does not produce plain text if decryption fails
+  REQUIRE(decrypted_cipher2.empty());
 }
 
-// TEST_CASE(
-//   "Subsequent ciphers from same plaintext are different - CftTxEncryptor")
-// {
-//   uint64_t node_id = 0;
-//   auto secrets = std::make_shared<ccf::LedgerSecrets>();
-//   secrets->init();
-//   auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
-//   encryptor->set_iv_id(node_id);
+TEST_CASE("KV encryption/decryption" * doctest::test_suite("encryption"))
+{
+  auto consensus = std::make_shared<kv::StubConsensus>();
+  StringString map("map");
+  kv::Store primary_store;
+  kv::Store backup_store;
 
-//   std::vector<uint8_t> plain(128, 0x42);
-//   std::vector<uint8_t> cipher;
-//   std::vector<uint8_t> cipher2;
-//   std::vector<uint8_t> serialised_header;
-//   std::vector<uint8_t> serialised_header2;
-//   std::vector<uint8_t> additional_data; // No additional data
-//   kv::Version version = 10;
+  ccf::NetworkState network;
+  uint64_t node_id = 0;
+  auto ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
+    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  ledger_secrets->init();
+  NodeEncryptor encryptor(ledger_secrets);
 
-//   encryptor->encrypt(
-//     plain, additional_data, serialised_header, cipher, version);
-//   encryptor->encrypt(
-//     plain, additional_data, serialised_header2, cipher2, version);
+  // Primary and backup stores have access to same ledger secrets
+  auto primary_encryptor = std::make_shared<NodeEncryptor>(ledger_secrets);
+  auto backup_encryptor = std::make_shared<NodeEncryptor>(ledger_secrets);
 
-//   // Ciphers are different because IV is different
-//   REQUIRE(cipher != cipher2);
-//   REQUIRE(serialised_header != serialised_header2);
-// }
+  INFO("Setup stores");
+  {
+    primary_store.set_encryptor(primary_encryptor);
+    primary_store.set_consensus(consensus);
+    backup_store.set_encryptor(backup_encryptor);
+  }
 
-// TEST_CASE(
-//   "Different node ciphers from same plaintext are different -
-//   CftTxEncryptor")
-// {
-//   auto secrets = std::make_shared<ccf::LedgerSecrets>();
-//   secrets->init();
-//   auto encryptor_0 = std::make_shared<ccf::CftTxEncryptor>(secrets);
-//   auto encryptor_1 = std::make_shared<ccf::CftTxEncryptor>(secrets);
-//   encryptor_0->set_iv_id(0);
-//   encryptor_1->set_iv_id(1);
+  commit_one(primary_store, map);
 
-//   std::vector<uint8_t> plain(128, 0x42);
-//   std::vector<uint8_t> cipher;
-//   std::vector<uint8_t> cipher2;
-//   std::vector<uint8_t> serialised_header;
-//   std::vector<uint8_t> serialised_header2;
-//   std::vector<uint8_t> additional_data; // No additional data
-//   kv::Version version = 10;
+  INFO("Apply transaction to backup store");
+  {
+    REQUIRE(
+      backup_store.deserialise(*consensus->get_latest_data()) ==
+      kv::DeserialiseSuccess::PASS);
+  }
 
-//   encryptor_0->encrypt(
-//     plain, additional_data, serialised_header, cipher, version);
-//   encryptor_1->encrypt(
-//     plain, additional_data, serialised_header2, cipher2, version);
+  INFO("Simple rekey");
+  {
+    // In practice, rekey is done via local commit hooks
+    ledger_secrets->set_encryption_key_for(
+      2, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+    ledger_secrets->set_encryption_key_for(
+      3, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+    ledger_secrets->set_encryption_key_for(
+      4, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+    ledger_secrets->set_encryption_key_for(
+      5, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
 
-//   // Ciphers are different because IV is different
-//   REQUIRE(cipher != cipher2);
-//   REQUIRE(serialised_header != serialised_header2);
-// }
+    commit_one(primary_store, map);
 
-// TEST_CASE("Two ciphers from same plaintext are different - BftTxEncryptor")
-// {
-//   auto secrets = std::make_shared<ccf::LedgerSecrets>();
-//   secrets->init();
-//   auto encryptor = std::make_shared<ccf::BftTxEncryptor>(secrets);
+    auto serialised_tx = consensus->get_latest_data();
 
-//   std::vector<uint8_t> plain(128, 0x42);
-//   std::vector<uint8_t> cipher;
-//   std::vector<uint8_t> cipher2;
-//   std::vector<uint8_t> serialised_header;
-//   std::vector<uint8_t> serialised_header2;
-//   std::vector<uint8_t> additional_data; // No additional data
-//   kv::Version version = 10;
+    REQUIRE(
+      backup_store.deserialise(*serialised_tx) == kv::DeserialiseSuccess::PASS);
+  }
+}
 
-//   encryptor->encrypt(
-//     plain, additional_data, serialised_header, cipher, version);
-//   encryptor->set_iv_id(1);
-//   encryptor->encrypt(
-//     plain, additional_data, serialised_header2, cipher2, version);
+TEST_CASE("KV integrity verification")
+{
+  auto consensus = std::make_shared<kv::StubConsensus>();
+  StringString map("map");
+  kv::Store primary_store;
+  kv::Store backup_store;
 
-//   // Ciphers are different because IV is different
-//   REQUIRE(cipher != cipher2);
-//   REQUIRE(serialised_header != serialised_header2);
-// }
+  ccf::NetworkState network;
+  uint64_t node_id = 0;
+  auto ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
+    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  ledger_secrets->init();
+  auto encryptor = std::make_shared<NodeEncryptor>(ledger_secrets);
 
-// TEST_CASE(
-//   "Different node ciphers from same plaintext with and without snapshots - "
-//   "BftTxEncryptor")
-// {
-//   auto secrets = std::make_shared<ccf::LedgerSecrets>();
-//   secrets->init();
-//   auto encryptor = std::make_shared<ccf::BftTxEncryptor>(secrets);
-//   encryptor->set_iv_id(0x7FFFFFFF);
+  primary_store.set_encryptor(encryptor);
+  primary_store.set_consensus(consensus);
+  backup_store.set_encryptor(encryptor);
 
-//   std::vector<uint8_t> plain(128, 0x42);
-//   std::vector<uint8_t> cipher;
-//   std::vector<uint8_t> cipher2;
-//   std::vector<uint8_t> serialised_header;
-//   std::vector<uint8_t> serialised_header2;
-//   std::vector<uint8_t> additional_data; // No additional data
-//   kv::Version version = 10;
+  StringString public_map("public:public_map");
+  StringString private_map("private_map");
 
-//   bool is_snapshot = false;
-//   encryptor->encrypt(
-//     plain, additional_data, serialised_header, cipher, version, is_snapshot);
+  auto tx = primary_store.create_tx();
+  auto [public_view, private_view] = tx.get_view(public_map, private_map);
+  std::string pub_value = "pubv1";
+  public_view->put("pubk1", pub_value);
+  private_view->put("privk1", "privv1");
+  auto rc = tx.commit();
 
-//   is_snapshot = true;
-//   encryptor->encrypt(
-//     plain, additional_data, serialised_header2, cipher2, version,
-//     is_snapshot);
+  // Tamper with serialised public data
+  auto latest_data = consensus->get_latest_data();
+  REQUIRE(latest_data.has_value());
+  std::vector<uint8_t> value_to_corrupt(pub_value.begin(), pub_value.end());
+  REQUIRE(corrupt_serialised_tx(latest_data.value(), value_to_corrupt));
 
-//   // Ciphers are different because IV is different
-//   REQUIRE(cipher != cipher2);
-//   REQUIRE(serialised_header != serialised_header2);
-// }
+  REQUIRE(
+    backup_store.deserialise(latest_data.value()) ==
+    kv::DeserialiseSuccess::FAILED);
+}
 
-// TEST_CASE("Additional data")
-// {
-//   // Setting 1 ledger secret, valid for version 1+
-//   auto secrets = std::make_shared<ccf::LedgerSecrets>();
-//   secrets->init();
-//   auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
+TEST_CASE(
+  "Encryptor compaction and rollback" * doctest::test_suite("encryption"))
+{
+  StringString map("map");
+  kv::Store store;
 
-//   std::vector<uint8_t> plain(128, 0x42);
-//   std::vector<uint8_t> cipher;
-//   std::vector<uint8_t> serialised_header;
-//   std::vector<uint8_t> additional_data(256, 0x10);
-//   kv::Version version = 10;
+  ccf::NetworkState network;
+  uint64_t node_id = 0;
+  auto ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
+    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  ledger_secrets->init();
+  auto encryptor = std::make_shared<NodeEncryptor>(ledger_secrets);
+  store.set_encryptor(encryptor);
 
-//   // Encrypting plain at version 10
-//   encryptor->encrypt(
-//     plain, additional_data, serialised_header, cipher, version);
+  commit_one(store, map);
 
-//   // Decrypting cipher at version 10
-//   std::vector<uint8_t> decrypted_cipher;
-//   REQUIRE(encryptor->decrypt(
-//     cipher, additional_data, serialised_header, decrypted_cipher, version));
-//   REQUIRE(plain == decrypted_cipher);
+  // Assumes tx at seqno 2 rekeys. Txs from seqno 3 will be encrypted with new
+  // secret
+  commit_one(store, map);
+  ledger_secrets->set_encryption_key_for(
+    3, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
 
-//   // Tampering with additional data: decryption fails
-//   additional_data[100] = 0xAA;
-//   std::vector<uint8_t> decrypted_cipher2;
-//   REQUIRE_FALSE(encryptor->decrypt(
-//     cipher, additional_data, serialised_header, decrypted_cipher2, version));
+  commit_one(store, map);
 
-//   // mbedtls 2.16+ does not produce plain text if decryption fails
-//   REQUIRE(decrypted_cipher2.empty());
-// }
+  // Rollback store at seqno 1, discarding encryption key at 3
+  store.rollback(1);
 
-// TEST_CASE("Encryption/decryption with multiple ledger secrets")
-// {
-//   // Setting 2 ledger secrets, valid from version 1 and 4
-//   uint64_t node_id = 0;
-//   auto secrets = std::make_shared<ccf::LedgerSecrets>();
-//   secrets->init();
-//   secrets->add_new_secret(4, LedgerSecret());
-//   auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
-//   encryptor->set_iv_id(node_id);
+  commit_one(store, map);
 
-//   INFO("Encryption with key at version 1");
-//   {
-//     std::vector<uint8_t> plain(128, 0x42);
-//     std::vector<uint8_t> cipher;
-//     std::vector<uint8_t> decrypted_cipher;
-//     std::vector<uint8_t> serialised_header;
-//     kv::Version version = 1;
-//     encryptor->encrypt(plain, {}, serialised_header, cipher, version);
+  // Assumes tx at seqno 3 rekeys. Txs from seqno 4 will be encrypted with new
+  // secret
+  commit_one(store, map);
+  ledger_secrets->set_encryption_key_for(
+    4, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
 
-//     // Decrypting from the version which was used for encryption should
-//     succeed REQUIRE(encryptor->decrypt(
-//       cipher, {}, serialised_header, decrypted_cipher, version));
-//     REQUIRE(plain == decrypted_cipher);
+  commit_one(store, map);
+  commit_one(store, map);
 
-//     // Decrypting from a version in the same version interval should also
-//     // succeed
-//     REQUIRE(encryptor->decrypt(
-//       cipher, {}, serialised_header, decrypted_cipher, version + 1));
-//     REQUIRE(plain == decrypted_cipher);
+  // Assumes tx at seqno 6 rekeys. Txs from seqno 7 will be encrypted with new
+  // secret
+  commit_one(store, map);
+  ledger_secrets->set_encryption_key_for(
+    7, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
 
-//     // Decrypting from a version encrypted with a different key should fail
-//     REQUIRE_FALSE(encryptor->decrypt(
-//       cipher, {}, serialised_header, decrypted_cipher, version + 4));
-//   }
+  store.compact(4);
+  encryptor->rollback(1); // No effect as rollback before commit point
 
-//   INFO("Encryption with key at version 4");
-//   {
-//     std::vector<uint8_t> plain(128, 0x42);
-//     std::vector<uint8_t> cipher;
-//     std::vector<uint8_t> decrypted_cipher;
-//     std::vector<uint8_t> serialised_header;
-//     kv::Version version = 4;
-//     encryptor->encrypt(plain, {}, serialised_header, cipher, version);
+  commit_one(store, map);
 
-//     // Decrypting from the version which was used for encryption should
-//     succeed REQUIRE(encryptor->decrypt(
-//       cipher, {}, serialised_header, decrypted_cipher, version));
-//     REQUIRE(plain == decrypted_cipher);
+  encryptor->compact(7);
 
-//     // Decrypting from a version in the same version interval should also
-//     // succeed
-//     REQUIRE(encryptor->decrypt(
-//       cipher, {}, serialised_header, decrypted_cipher, version + 1));
-//     REQUIRE(plain == decrypted_cipher);
+  commit_one(store, map);
+  commit_one(store, map);
 
-//     // Decrypting from a version encrypted with a different key should fail
-//     REQUIRE_FALSE(
-//       encryptor->decrypt(cipher, {}, serialised_header, decrypted_cipher,
-//       1));
-//   }
-// }
+  store.rollback(7); // No effect as rollback unique encryption key
+
+  commit_one(store, map);
+  commit_one(store, map);
+}

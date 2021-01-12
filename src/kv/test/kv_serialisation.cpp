@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ds/logger.h"
-#include "kv/encryptor.h"
 #include "kv/kv_serialiser.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
@@ -460,77 +459,6 @@ TEST_CASE_TEMPLATE(
     REQUIRE(vb.has_value());
     REQUIRE(vb->s == v2.s);
     REQUIRE(vb->n == v2.n);
-  }
-}
-
-bool corrupt_serialised_tx(
-  std::vector<uint8_t>& serialised_tx, std::vector<uint8_t>& value_to_corrupt)
-{
-  // This utility function corrupts a serialised transaction by changing one
-  // byte of the public domain as specified by value_to_corrupt.
-  std::vector<uint8_t> match_buffer;
-  for (auto& i : serialised_tx)
-  {
-    if (i == value_to_corrupt[match_buffer.size()])
-    {
-      match_buffer.push_back(i);
-      if (match_buffer.size() == value_to_corrupt.size())
-      {
-        i = 'X';
-        LOG_DEBUG_FMT("Corrupting serialised public data");
-        return true;
-      }
-    }
-    else
-    {
-      match_buffer.clear();
-    }
-  }
-  return false;
-}
-
-TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
-{
-  SUBCASE("Public and Private")
-  {
-    auto consensus = std::make_shared<kv::StubConsensus>();
-
-    // Here, a real encryptor is needed to protect the integrity of the
-    // transactions
-    std::list<kv::TxEncryptor::KeyInfo> keys;
-    std::vector<uint8_t> raw_key(crypto::GCM_SIZE_KEY);
-    for (size_t i = 0; i < raw_key.size(); ++i)
-    {
-      raw_key[i] = i;
-    }
-    keys.push_back({kv::Version(0), raw_key});
-    auto encryptor = std::make_shared<kv::TxEncryptor>(keys);
-    encryptor->set_iv_id(1);
-
-    kv::Store kv_store(consensus);
-    kv::Store kv_store_target;
-    kv_store.set_encryptor(encryptor);
-    kv_store_target.set_encryptor(encryptor);
-
-    MapTypes::StringString public_map("public:public_map");
-    MapTypes::StringString private_map("private_map");
-
-    auto tx = kv_store.create_tx();
-    auto [public_view, private_view] = tx.get_view(public_map, private_map);
-    std::string pub_value = "pubv1";
-    public_view->put("pubk1", pub_value);
-    private_view->put("privk1", "privv1");
-    auto rc = tx.commit();
-
-    // Tamper with serialised public data
-    auto latest_data = consensus->get_latest_data();
-    REQUIRE(latest_data.has_value());
-    std::vector<uint8_t> value_to_corrupt(pub_value.begin(), pub_value.end());
-    REQUIRE(corrupt_serialised_tx(latest_data.value(), value_to_corrupt));
-
-    REQUIRE(
-      kv_store_target.deserialise(latest_data.value()) ==
-      kv::DeserialiseSuccess::FAILED);
   }
 }
 

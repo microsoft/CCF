@@ -43,12 +43,6 @@ namespace kv
       is_recovery(is_recovery_)
     {}
 
-    void update_encryption_key(
-      Version version, std::vector<uint8_t>&& key) override
-    {
-      ledger_secrets->set_encryption_key_for(version, std::move(key));
-    }
-
     void disable_recovery() override
     {
       is_recovery = false;
