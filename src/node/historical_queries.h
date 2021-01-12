@@ -199,7 +199,7 @@ namespace ccf::historical
       StorePtr store = std::make_shared<kv::Store>(false);
 
       store->set_encryptor(source_store.get_encryptor());
-      auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
+      auto hooks = std::vector<kv::ConsensusHookPtr>();
       const auto deserialise_result = store->deserialise_views(entry, hooks);
 
       switch (deserialise_result)

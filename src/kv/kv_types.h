@@ -402,15 +402,14 @@ namespace kv
     {}
   };
 
-  //using PendingTx = std::function<PendingTxInfo()>;
   class PendingTx
   {
-    public:
-    virtual PendingTxInfo operator()() = 0;
+  public:
+    virtual PendingTxInfo call() = 0;
     virtual ~PendingTx() = default;
   };
 
-  class MovePendingTx: public PendingTx
+  class MovePendingTx : public PendingTx
   {
   private:
     std::vector<uint8_t> data;
@@ -427,7 +426,7 @@ namespace kv
       hooks(std::move(hooks_))
     {}
 
-    PendingTxInfo operator()() override
+    PendingTxInfo call() override
     {
       return PendingTxInfo(
         CommitSuccess::OK,
@@ -585,7 +584,9 @@ namespace kv
     virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
     virtual CommitSuccess commit(
-      const TxID& txid, std::unique_ptr<PendingTx> pending_tx, bool globally_committable) = 0;
+      const TxID& txid,
+      std::unique_ptr<PendingTx> pending_tx,
+      bool globally_committable) = 0;
 
     virtual std::unique_ptr<AbstractSnapshot> snapshot(Version v) = 0;
     virtual std::vector<uint8_t> serialise_snapshot(

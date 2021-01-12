@@ -198,7 +198,7 @@ namespace aft
 
     virtual kv::DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
-      std::vector<std::shared_ptr<kv::ConsensusHook>>& hooks,
+      std::vector<kv::ConsensusHookPtr>& hooks,
       bool public_only = false,
       Term* term = nullptr)
     {
@@ -212,7 +212,7 @@ namespace aft
 
     virtual kv::DeserialiseSuccess deserialise_views(
       const std::vector<uint8_t>& data,
-      std::vector<std::shared_ptr<kv::ConsensusHook>>& hooks,
+      std::vector<kv::ConsensusHookPtr>& hooks,
       bool public_only = false,
       kv::Term* term = nullptr,
       kv::Version* index = nullptr,
@@ -240,7 +240,7 @@ namespace aft
 
     kv::DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
-      std::vector<std::shared_ptr<kv::ConsensusHook>>& hooks,
+      std::vector<kv::ConsensusHookPtr>& hooks,
       bool public_only = false,
       Term* term = nullptr) override
     {

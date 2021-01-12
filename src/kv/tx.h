@@ -324,7 +324,8 @@ namespace kv
 
           return store->commit(
             {term, version},
-            std::make_unique<MovePendingTx>(std::move(data), std::move(req_id), std::move(hooks)),
+            std::make_unique<MovePendingTx>(
+              std::move(data), std::move(req_id), std::move(hooks)),
             false);
         }
         catch (const std::exception& e)

@@ -96,7 +96,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
       // There is no signature to read to seed the target history
       std::vector<kv::Version> view_history;
-      std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
+      std::vector<kv::ConsensusHookPtr> hooks;
       REQUIRE(
         target_store.deserialise_snapshot(
           serialised_snapshot, hooks, &view_history) ==
@@ -110,7 +110,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
         source_store.serialise_snapshot(std::move(snapshot));
 
       std::vector<kv::Version> view_history;
-      std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
+      std::vector<kv::ConsensusHookPtr> hooks;
       REQUIRE(
         target_store.deserialise_snapshot(
           serialised_snapshot, hooks, &view_history) ==
@@ -134,7 +134,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
       auto serialised_tx = source_consensus->get_latest_data().value();
 
-      auto hooks = std::vector<std::shared_ptr<kv::ConsensusHook>>();
+      auto hooks = std::vector<kv::ConsensusHookPtr>();
       target_store.deserialise(serialised_tx, hooks);
 
       REQUIRE(

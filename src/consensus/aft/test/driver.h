@@ -246,8 +246,7 @@ public:
   {
     std::cout << "  KV" << node_id << "->>Node" << node_id
               << ": replicate idx: " << idx << std::endl;
-    auto hooks =
-      std::make_shared<std::vector<std::shared_ptr<kv::ConsensusHook>>>();
+    auto hooks = std::make_shared<std::vector<kv::ConsensusHookPtr>>();
     _nodes.at(node_id).raft->replicate(
       kv::BatchVector{{idx, data, true, hooks}}, 1);
   }

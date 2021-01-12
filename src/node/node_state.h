@@ -200,7 +200,7 @@ namespace ccf
     {
       LOG_INFO_FMT(
         "Deserialising public snapshot ({})", config.startup_snapshot.size());
-      std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
+      std::vector<kv::ConsensusHookPtr> hooks;
       auto rc = network.tables->deserialise_snapshot(
         config.startup_snapshot, hooks, &view_history, true);
       if (rc != kv::DeserialiseSuccess::PASS)
@@ -494,7 +494,7 @@ namespace ccf
                 "Deserialising snapshot ({})",
                 startup_snapshot_info->raw.size());
               std::vector<kv::Version> view_history;
-              std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
+              std::vector<kv::ConsensusHookPtr> hooks;
               auto rc = network.tables->deserialise_snapshot(
                 startup_snapshot_info->raw,
                 hooks,
@@ -708,7 +708,7 @@ namespace ccf
       LOG_INFO_FMT(
         "Deserialising public ledger entry ({})", ledger_entry.size());
 
-      std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
+      std::vector<kv::ConsensusHookPtr> hooks;
       // When reading the public ledger, deserialise in the real store
       auto result = network.tables->deserialise(ledger_entry, hooks, true);
       if (result == kv::DeserialiseSuccess::FAILED)
@@ -940,7 +940,7 @@ namespace ccf
       LOG_INFO_FMT(
         "Deserialising private ledger entry ({})", ledger_entry.size());
 
-      std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
+      std::vector<kv::ConsensusHookPtr> hooks;
       // When reading the private ledger, deserialise in the recovery store
       auto result = recovery_store->deserialise(ledger_entry, hooks);
       if (result == kv::DeserialiseSuccess::FAILED)
@@ -1100,7 +1100,7 @@ namespace ccf
           "Deserialising private snapshot for recovery ({})",
           startup_snapshot_info->raw.size());
         std::vector<kv::Version> view_history;
-        std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
+        std::vector<kv::ConsensusHookPtr> hooks;
         auto rc = recovery_store->deserialise_snapshot(
           startup_snapshot_info->raw, hooks, &view_history);
         if (rc != kv::DeserialiseSuccess::PASS)

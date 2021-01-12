@@ -111,8 +111,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     entry->push_back(2);
     entry->push_back(3);
 
-    auto hooks =
-      std::make_shared<std::vector<std::shared_ptr<kv::ConsensusHook>>>();
+    auto hooks = std::make_shared<std::vector<kv::ConsensusHookPtr>>();
 
     r0.replicate(kv::BatchVector{{i, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(r0.get_last_idx() == i);
@@ -462,8 +461,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO("Try to replicate on a follower, and fail");
   std::vector<uint8_t> entry = {1, 2, 3};
   auto data = std::make_shared<std::vector<uint8_t>>(entry);
-  auto hooks =
-    std::make_shared<std::vector<std::shared_ptr<kv::ConsensusHook>>>();
+  auto hooks = std::make_shared<std::vector<kv::ConsensusHookPtr>>();
   DOCTEST_REQUIRE_FALSE(
     r1.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
 
@@ -619,8 +617,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
 
   std::vector<uint8_t> first_entry = {1, 2, 3};
   auto data = std::make_shared<std::vector<uint8_t>>(first_entry);
-  auto hooks =
-    std::make_shared<std::vector<std::shared_ptr<kv::ConsensusHook>>>();
+  auto hooks = std::make_shared<std::vector<kv::ConsensusHookPtr>>();
   DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
   r0.periodic(ms(10));
 
@@ -771,8 +768,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     auto data_1 = std::make_shared<std::vector<uint8_t>>(first_entry);
     std::vector<uint8_t> second_entry = {2, 2, 2};
     auto data_2 = std::make_shared<std::vector<uint8_t>>(second_entry);
-    auto hooks =
-      std::make_shared<std::vector<std::shared_ptr<kv::ConsensusHook>>>();
+    auto hooks = std::make_shared<std::vector<kv::ConsensusHookPtr>>();
 
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data_1, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, data_2, true, hooks}}, 1));
@@ -804,8 +800,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> third_entry = {3, 3, 3};
     auto data = std::make_shared<std::vector<uint8_t>>(third_entry);
-    auto hooks =
-      std::make_shared<std::vector<std::shared_ptr<kv::ConsensusHook>>>();
+    auto hooks = std::make_shared<std::vector<kv::ConsensusHookPtr>>();
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{3, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 3);
 
@@ -844,8 +839,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> fourth_entry = {4, 4, 4};
     auto data = std::make_shared<std::vector<uint8_t>>(fourth_entry);
-    auto hooks =
-      std::make_shared<std::vector<std::shared_ptr<kv::ConsensusHook>>>();
+    auto hooks = std::make_shared<std::vector<kv::ConsensusHookPtr>>();
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{4, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 4);
     r0.periodic(ms(10));
@@ -865,8 +859,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> fifth_entry = {5, 5, 5};
     auto data = std::make_shared<std::vector<uint8_t>>(fifth_entry);
-    auto hooks =
-      std::make_shared<std::vector<std::shared_ptr<kv::ConsensusHook>>>();
+    auto hooks = std::make_shared<std::vector<kv::ConsensusHookPtr>>();
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{5, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 5);
     r0.periodic(ms(10));
@@ -1023,8 +1016,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
 
   for (size_t i = 1; i <= num_big_entries; ++i)
   {
-    auto hooks =
-      std::make_shared<std::vector<std::shared_ptr<kv::ConsensusHook>>>();
+    auto hooks = std::make_shared<std::vector<kv::ConsensusHookPtr>>();
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{i, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(
       msg_response ==
@@ -1045,8 +1037,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
 
   for (size_t i = num_big_entries + 1; i <= individual_entries; ++i)
   {
-    auto hooks =
-      std::make_shared<std::vector<std::shared_ptr<kv::ConsensusHook>>>();
+    auto hooks = std::make_shared<std::vector<kv::ConsensusHookPtr>>();
     DOCTEST_REQUIRE(
       r0.replicate(kv::BatchVector{{i, smaller_data, true, hooks}}, 1));
     dispatch_all(

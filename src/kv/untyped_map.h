@@ -808,8 +808,7 @@ namespace kv::untyped
       return roll;
     }
 
-    ConsensusHookPtr trigger_map_hook(
-      Version version, const Write& writes)
+    ConsensusHookPtr trigger_map_hook(Version version, const Write& writes)
     {
       if (hook)
       {

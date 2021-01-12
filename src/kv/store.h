@@ -36,7 +36,8 @@ namespace kv
     Version last_committable = 0;
     Version rollback_count = 0;
 
-    std::unordered_map<Version, std::pair<std::unique_ptr<PendingTx>, bool>> pending_txs;
+    std::unordered_map<Version, std::pair<std::unique_ptr<PendingTx>, bool>>
+      pending_txs;
 
   public:
     void clear()
@@ -1010,7 +1011,7 @@ namespace kv
             break;
 
           auto& [pending_tx_, committable_] = search->second;
-          auto [success_, reqid, data_, hooks_] = (*(pending_tx_.get()))();
+          auto [success_, reqid, data_, hooks_] = pending_tx_->call();
           auto data_shared =
             std::make_shared<std::vector<uint8_t>>(std::move(data_));
           auto hooks_shared =

@@ -403,8 +403,7 @@ namespace aft
         Index,
         T,
         bool,
-        std::shared_ptr<std::vector<std::shared_ptr<kv::ConsensusHook>>>>>&
-        entries,
+        std::shared_ptr<std::vector<kv::ConsensusHookPtr>>>>& entries,
       Term term)
     {
       if (consensus_type == ConsensusType::BFT && is_follower())
@@ -1110,7 +1109,7 @@ namespace aft
         auto tx = store->create_tx();
         kv::DeserialiseSuccess deserialise_success;
         ccf::PrimarySignature sig;
-        std::vector<std::shared_ptr<kv::ConsensusHook>> hooks;
+        std::vector<kv::ConsensusHookPtr> hooks;
         if (consensus_type == ConsensusType::BFT)
         {
           deserialise_success = store->deserialise_views(

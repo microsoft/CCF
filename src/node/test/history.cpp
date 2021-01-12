@@ -236,6 +236,28 @@ public:
   }
 };
 
+class TestPendingTx : public kv::PendingTx
+{
+  kv::TxID txid;
+  kv::Store& store;
+  MapT& other_table;
+
+public:
+  TestPendingTx(kv::TxID txid_, kv::Store& store_, MapT& other_table_) :
+    txid(txid_),
+    store(store_),
+    other_table(other_table_)
+  {}
+
+  kv::PendingTxInfo call() override
+  {
+    auto txr = store.create_reserved_tx(txid.version);
+    auto txrv = txr.get_view(other_table);
+    txrv->put(0, 1);
+    return txr.commit_reserved();
+  }
+};
+
 TEST_CASE(
   "Batches containing but not ending on a committable transaction should not "
   "halt replication")
@@ -268,14 +290,7 @@ TEST_CASE(
     REQUIRE(consensus->count == 1);
 
     store.commit(
-      rv,
-      [&store, rv, &other_table]() {
-        auto txr = store.create_reserved_tx(rv.version);
-        auto txrv = txr.get_view(other_table);
-        txrv->put(0, 1);
-        return txr.commit_reserved();
-      },
-      true);
+      rv, std::make_unique<TestPendingTx>(rv, store, other_table), true);
     REQUIRE(consensus->count == 3);
   }
 
