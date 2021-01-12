@@ -320,10 +320,6 @@ namespace aft
 
     Term get_term()
     {
-      if (consensus_type == ConsensusType::BFT && is_follower())
-      {
-        return state->current_view;
-      }
       std::lock_guard<SpinLock> guard(state->lock);
       return state->current_view;
     }
