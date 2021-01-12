@@ -330,10 +330,6 @@ namespace aft
 
     std::pair<Term, Index> get_commit_term_and_idx()
     {
-      if (consensus_type == ConsensusType::BFT && is_follower())
-      {
-        return {get_term_internal(state->commit_idx), state->commit_idx};
-      }
       std::lock_guard<SpinLock> guard(state->lock);
       return {get_term_internal(state->commit_idx), state->commit_idx};
     }
@@ -354,10 +350,6 @@ namespace aft
 
     Term get_term(Index idx)
     {
-      if (consensus_type == ConsensusType::BFT && is_follower())
-      {
-        return get_term_internal(idx);
-      }
       std::lock_guard<SpinLock> guard(state->lock);
       return get_term_internal(idx);
     }
