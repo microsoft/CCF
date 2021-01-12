@@ -70,7 +70,7 @@ namespace aft
       return aft->get_commit_term_and_idx();
     }
 
-    std::optional<std::pair<View, SeqNo>> get_signable_txid() override
+    std::optional<SignableTxIndices> get_signable_txid() override
     {
       return aft->get_signable_commit_term_and_idx();
     }
