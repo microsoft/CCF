@@ -280,22 +280,19 @@ namespace ccf
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::BFT)
+      auto quote_opt =
+        QuoteGenerator::get_quote(node_sign_kp->public_key_pem());
+      if (!quote_opt.has_value())
       {
-        auto quote_opt =
-          QuoteGenerator::get_quote(node_sign_kp->public_key_pem());
-        if (!quote_opt.has_value())
-        {
-          throw std::runtime_error("Quote could not be retrieved");
-        }
-        quote = quote_opt.value();
-        auto node_code_id_opt = QuoteGenerator::get_code_id(quote);
-        if (!node_code_id_opt.has_value())
-        {
-          throw std::runtime_error("Code ID could not be retrieved from quote");
-        }
-        node_code_id = node_code_id_opt.value();
+        throw std::runtime_error("Quote could not be retrieved");
       }
+      quote = quote_opt.value();
+      auto node_code_id_opt = QuoteGenerator::get_code_id(quote);
+      if (!node_code_id_opt.has_value())
+      {
+        throw std::runtime_error("Code ID could not be retrieved from quote");
+      }
+      node_code_id = node_code_id_opt.value();
 #endif
 
       switch (start_type)
@@ -911,10 +908,7 @@ namespace ccf
       g.trust_node(self);
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::BFT)
-      {
-        g.trust_node_code_id(node_code_id);
-      }
+      g.trust_node_code_id(node_code_id);
 #endif
 
       if (g.finalize() != kv::CommitSuccess::OK)
@@ -1308,18 +1302,15 @@ namespace ccf
     {
       auto nodes_view = tx.get_read_only_view(network.nodes);
 
-      nodes_view->foreach([&result, &filter, this](
-                            const NodeId& nid, const NodeInfo& ni) {
-        if (!filter.has_value() || (filter->find(nid) != filter->end()))
-        {
-          if (ni.status == ccf::NodeStatus::TRUSTED)
+      nodes_view->foreach(
+        [&result, &filter](const NodeId& nid, const NodeInfo& ni) {
+          if (!filter.has_value() || (filter->find(nid) != filter->end()))
           {
-            GetQuotes::Quote q;
-            q.node_id = nid;
-            q.raw = fmt::format("{:02x}", fmt::join(ni.quote, ""));
-
-            if (this->network.consensus_type != ConsensusType::BFT)
+            if (ni.status == ccf::NodeStatus::TRUSTED)
             {
+              GetQuotes::Quote q;
+              q.node_id = nid;
+              q.raw = fmt::format("{:02x}", fmt::join(ni.quote, ""));
 #ifdef GET_QUOTE
               auto code_id_opt = QuoteGenerator::get_code_id(ni.quote);
               if (!code_id_opt.has_value())
@@ -1332,12 +1323,11 @@ namespace ccf
                   fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
               }
 #endif
+              result.quotes.push_back(q);
             }
-            result.quotes.push_back(q);
           }
-        }
-        return true;
-      });
+          return true;
+        });
     };
 
     NodeId get_node_id() const override

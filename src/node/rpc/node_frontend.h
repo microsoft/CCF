@@ -86,20 +86,17 @@ namespace ccf
       }
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::BFT)
+      auto pk_pem = public_key_pem_from_cert(caller_pem);
+
+      QuoteVerificationResult verify_result =
+        QuoteVerifier::verify_quote_against_store(
+          tx, this->network.node_code_ids, in.quote, pk_pem);
+
+      if (verify_result != QuoteVerificationResult::VERIFIED)
       {
-        auto pk_pem = public_key_pem_from_cert(caller_pem);
-
-        QuoteVerificationResult verify_result =
-          QuoteVerifier::verify_quote_against_store(
-            tx, this->network.node_code_ids, in.quote, pk_pem);
-
-        if (verify_result != QuoteVerificationResult::VERIFIED)
-        {
-          const auto [code, message] =
-            QuoteVerifier::quote_verification_error(verify_result);
-          return make_error(code, ccf::errors::InvalidQuote, message);
-        }
+        const auto [code, message] =
+          QuoteVerifier::quote_verification_error(verify_result);
+        return make_error(code, ccf::errors::InvalidQuote, message);
       }
 #else
       LOG_INFO_FMT("Skipped joining node quote verification");
