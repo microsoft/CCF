@@ -704,8 +704,9 @@ TEST_CASE("Local commit hooks")
   std::vector<Write> local_writes;
   std::vector<Write> global_writes;
 
-  auto local_hook = [&](kv::Version v, const Write& w) {
+  auto map_hook = [&](kv::Version v, const Write& w) -> kv::ConsensusHookPtr {
     local_writes.push_back(w);
+    return kv::ConsensusHookPtr(nullptr);
   };
   auto global_hook = [&](kv::Version v, const Write& w) {
     global_writes.push_back(w);
@@ -714,7 +715,7 @@ TEST_CASE("Local commit hooks")
   kv::Store kv_store;
   constexpr auto map_name = "public:map";
   MapTypes::StringString map(map_name);
-  kv_store.set_local_hook(map_name, map.wrap_commit_hook(local_hook));
+  kv_store.set_map_hook(map_name, map.wrap_map_hook(map_hook));
   kv_store.set_global_hook(map_name, map.wrap_commit_hook(global_hook));
 
   INFO("Write with hooks");
@@ -740,7 +741,7 @@ TEST_CASE("Local commit hooks")
 
   INFO("Write without hooks");
   {
-    kv_store.unset_local_hook(map_name);
+    kv_store.unset_map_hook(map_name);
     kv_store.unset_global_hook(map_name);
 
     auto tx = kv_store.create_tx();
@@ -754,7 +755,7 @@ TEST_CASE("Local commit hooks")
 
   INFO("Write with hook again");
   {
-    kv_store.set_local_hook(map_name, map.wrap_commit_hook(local_hook));
+    kv_store.set_map_hook(map_name, map.wrap_map_hook(map_hook));
     kv_store.set_global_hook(map_name, map.wrap_commit_hook(global_hook));
 
     auto tx = kv_store.create_tx();
@@ -940,13 +941,14 @@ TEST_CASE("Deserialising from other Store")
   auto [view1, view2] = tx1.get_view(public_map, private_map);
   view1->put(42, "aardvark");
   view2->put(14, "alligator");
-  auto [success, reqid, data] = tx1.commit_reserved();
+  auto [success, reqid, data, hooks] = tx1.commit_reserved();
   REQUIRE(success == kv::CommitSuccess::OK);
 
   kv::Store clone;
   clone.set_encryptor(encryptor);
 
-  REQUIRE(clone.deserialise(data) == kv::DeserialiseSuccess::PASS);
+  kv::ConsensusHookPtrs hooks_;
+  REQUIRE(clone.deserialise(data, hooks_) == kv::DeserialiseSuccess::PASS);
 }
 
 TEST_CASE("Deserialise return status")
@@ -966,10 +968,11 @@ TEST_CASE("Deserialise return status")
     auto tx = store.create_reserved_tx(store.next_version());
     auto data_view = tx.get_view(data);
     data_view->put(42, 42);
-    auto [success, reqid, data] = tx.commit_reserved();
+    auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    REQUIRE(store.deserialise(data) == kv::DeserialiseSuccess::PASS);
+    kv::ConsensusHookPtrs hooks_;
+    REQUIRE(store.deserialise(data, hooks_) == kv::DeserialiseSuccess::PASS);
   }
 
   {
@@ -977,10 +980,13 @@ TEST_CASE("Deserialise return status")
     auto sig_view = tx.get_view(signatures);
     ccf::PrimarySignature sigv(0, 2);
     sig_view->put(0, sigv);
-    auto [success, reqid, data] = tx.commit_reserved();
+    auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    REQUIRE(store.deserialise(data) == kv::DeserialiseSuccess::PASS_SIGNATURE);
+    kv::ConsensusHookPtrs hooks_;
+    REQUIRE(
+      store.deserialise(data, hooks_) ==
+      kv::DeserialiseSuccess::PASS_SIGNATURE);
   }
 
   INFO("Signature transactions with additional contents should fail");
@@ -990,10 +996,11 @@ TEST_CASE("Deserialise return status")
     ccf::PrimarySignature sigv(0, 2);
     sig_view->put(0, sigv);
     data_view->put(43, 43);
-    auto [success, reqid, data] = tx.commit_reserved();
+    auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    REQUIRE(store.deserialise(data) == kv::DeserialiseSuccess::FAILED);
+    kv::ConsensusHookPtrs hooks_;
+    REQUIRE(store.deserialise(data, hooks_) == kv::DeserialiseSuccess::FAILED);
   }
 }
 

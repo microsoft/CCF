@@ -50,8 +50,54 @@ namespace kv
   DECLARE_JSON_TYPE(TxID);
   DECLARE_JSON_REQUIRED_FIELDS(TxID, term, version)
 
-  using BatchVector = std::vector<
-    std::tuple<kv::Version, std::shared_ptr<std::vector<uint8_t>>, bool>>;
+  // SeqNo indexes transactions processed by the consensus protocol providing
+  // ordering
+  using SeqNo = int64_t;
+
+  struct Configuration
+  {
+    struct NodeInfo
+    {
+      std::string hostname;
+      std::string port;
+
+      NodeInfo() = default;
+
+      NodeInfo(const std::string& hostname_, const std::string& port_) :
+        hostname(hostname_),
+        port(port_)
+      {}
+    };
+
+    using Nodes = std::unordered_map<NodeId, NodeInfo>;
+
+    SeqNo idx;
+    Nodes nodes;
+  };
+
+  class ConfigurableConsensus
+  {
+  public:
+    virtual void add_configuration(
+      SeqNo seqno, const Configuration::Nodes& conf) = 0;
+    virtual Configuration::Nodes get_latest_configuration() const = 0;
+  };
+
+  class ConsensusHook
+  {
+  public:
+    virtual void call(ConfigurableConsensus*) = 0;
+    virtual ~ConsensusHook(){};
+  };
+
+  using ConsensusHookPtr = std::unique_ptr<ConsensusHook>;
+  using ConsensusHookPtrs = std::vector<ConsensusHookPtr>;
+
+  using BatchVector = std::vector<std::tuple<
+    kv::Version,
+    std::shared_ptr<std::vector<uint8_t>>,
+    bool,
+    std::shared_ptr<ConsensusHookPtrs>>>;
 
   enum CommitSuccess
   {
@@ -246,7 +292,7 @@ namespace kv
     virtual void clear_on_response() = 0;
   };
 
-  class Consensus
+  class Consensus : public ConfigurableConsensus
   {
   protected:
     enum State
@@ -260,38 +306,10 @@ namespace kv
     NodeId local_id;
 
   public:
-    // SeqNo indexes transactions processed by the consensus protocol providing
-    // ordering
-    using SeqNo = int64_t;
+    using SeqNo = SeqNo;
     // View describes an epoch of SeqNos. View is incremented when Consensus's
     // primary changes
     using View = int64_t;
-
-    struct Configuration
-    {
-      struct NodeInfo
-      {
-        std::string hostname;
-        std::string port;
-        tls::Pem cert = {};
-
-        NodeInfo() = default;
-
-        NodeInfo(
-          const std::string& hostname_,
-          const std::string& port_,
-          const tls::Pem& cert_ = {}) :
-          hostname(hostname_),
-          port(port_),
-          cert(cert_)
-        {}
-      };
-
-      using Nodes = std::unordered_map<NodeId, NodeInfo>;
-
-      SeqNo idx;
-      Nodes nodes;
-    };
 
     Consensus(NodeId id) : state(Backup), local_id(id) {}
     virtual ~Consensus() {}
@@ -330,11 +348,11 @@ namespace kv
     virtual bool replicate(const BatchVector& entries, View view) = 0;
     virtual std::pair<View, SeqNo> get_committed_txid() = 0;
 
-    typedef struct
+    struct SignableTxIndices
     {
       Term term;
       SeqNo version, previous_version;
-    } SignableTxIndices;
+    };
 
     virtual std::optional<SignableTxIndices> get_signable_txid() = 0;
 
@@ -347,9 +365,6 @@ namespace kv
     virtual std::set<NodeId> active_nodes() = 0;
 
     virtual void recv_message(OArray&& oa) = 0;
-    virtual void add_configuration(
-      SeqNo seqno, const Configuration::Nodes& conf) = 0;
-    virtual Configuration::Nodes get_latest_configuration() const = 0;
 
     virtual bool on_request(const kv::TxHistory::RequestCallbackArgs&)
     {
@@ -381,36 +396,51 @@ namespace kv
     CommitSuccess success;
     TxHistory::RequestID reqid;
     std::vector<uint8_t> data;
+    std::vector<ConsensusHookPtr> hooks;
 
     PendingTxInfo(
       CommitSuccess success_,
       TxHistory::RequestID reqid_,
-      std::vector<uint8_t>&& data_) :
+      std::vector<uint8_t>&& data_,
+      std::vector<ConsensusHookPtr>&& hooks_) :
       success(success_),
       reqid(std::move(reqid_)),
-      data(std::move(data_))
+      data(std::move(data_)),
+      hooks(std::move(hooks_))
     {}
   };
 
-  using PendingTx = std::function<PendingTxInfo()>;
+  class PendingTx
+  {
+  public:
+    virtual PendingTxInfo call() = 0;
+    virtual ~PendingTx() = default;
+  };
 
-  class MovePendingTx
+  class MovePendingTx : public PendingTx
   {
   private:
     std::vector<uint8_t> data;
     kv::TxHistory::RequestID req_id;
+    kv::ConsensusHookPtrs hooks;
 
   public:
     MovePendingTx(
-      std::vector<uint8_t>&& data_, kv::TxHistory::RequestID&& req_id_) :
+      std::vector<uint8_t>&& data_,
+      kv::TxHistory::RequestID&& req_id_,
+      kv::ConsensusHookPtrs&& hooks_) :
       data(std::move(data_)),
-      req_id(std::move(req_id_))
+      req_id(std::move(req_id_)),
+      hooks(std::move(hooks_))
     {}
 
-    PendingTxInfo operator()()
+    PendingTxInfo call() override
     {
       return PendingTxInfo(
-        CommitSuccess::OK, std::move(req_id), std::move(data));
+        CommitSuccess::OK,
+        std::move(req_id),
+        std::move(data),
+        std::move(hooks));
     }
   };
 
@@ -455,7 +485,7 @@ namespace kv
     virtual bool has_writes() = 0;
     virtual bool prepare(kv::Version& max_conflict_version) = 0;
     virtual void commit(Version v) = 0;
-    virtual void post_commit() = 0;
+    virtual ConsensusHookPtr post_commit() = 0;
   };
 
   class AbstractTxView
@@ -555,19 +585,23 @@ namespace kv
     virtual EncryptorPtr get_encryptor() = 0;
     virtual DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
+      kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
       kv::Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;
     virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
     virtual CommitSuccess commit(
-      const TxID& txid, PendingTx&& pending_tx, bool globally_committable) = 0;
+      const TxID& txid,
+      std::unique_ptr<PendingTx> pending_tx,
+      bool globally_committable) = 0;
 
     virtual std::unique_ptr<AbstractSnapshot> snapshot(Version v) = 0;
     virtual std::vector<uint8_t> serialise_snapshot(
       std::unique_ptr<AbstractSnapshot> snapshot) = 0;
     virtual DeserialiseSuccess deserialise_snapshot(
       const std::vector<uint8_t>& data,
+      kv::ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) = 0;
 
