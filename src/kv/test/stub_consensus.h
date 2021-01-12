@@ -93,10 +93,10 @@ namespace kv
       return {2, 0};
     }
 
-    std::optional<SignableTXIndices> get_signable_txid() override
+    std::optional<SignableTxIndices> get_signable_txid() override
     {
       auto txid = get_committed_txid();
-      SignableTXIndices r;
+      SignableTxIndices r;
       r.term = txid.first;
       r.version = txid.second;
       r.previous_version = 0;

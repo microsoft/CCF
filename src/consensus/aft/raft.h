@@ -336,13 +336,13 @@ namespace aft
       return {get_term_internal(state->commit_idx), state->commit_idx};
     }
 
-    std::optional<kv::Consensus::SignableTXIndices>
+    std::optional<kv::Consensus::SignableTxIndices>
     get_signable_commit_term_and_idx()
     {
       std::lock_guard<SpinLock> guard(state->lock);
       if (state->commit_idx >= election_index)
       {
-        kv::Consensus::SignableTXIndices r;
+        kv::Consensus::SignableTxIndices r;
         r.term = get_term_internal(state->commit_idx);
         r.version = state->commit_idx;
         r.previous_version = last_committable_index();

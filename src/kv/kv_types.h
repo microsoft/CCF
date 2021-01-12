@@ -334,9 +334,9 @@ namespace kv
     {
       Term term;
       SeqNo version, previous_version;
-    } SignableTXIndices;
+    } SignableTxIndices;
 
-    virtual std::optional<SignableTXIndices> get_signable_txid() = 0;
+    virtual std::optional<SignableTxIndices> get_signable_txid() = 0;
 
     virtual View get_view(SeqNo seqno) = 0;
     virtual View get_view() = 0;
