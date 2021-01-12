@@ -55,7 +55,7 @@ The ``app.json`` file of an app bundle has the following structure:
             "js_module": "app.js",
             "js_function": "foo_post",
             "forwarding_required": "never",    
-            "execute_locally": true,           
+            "execute_outside_consensus": "never",           
             "require_client_signature": false, 
             "require_client_identity": true,
             "readonly": true,
@@ -74,7 +74,7 @@ Each endpoint object contains the following information:
 
 - ``"js_module"``: The path to the module containing the endpoint handler, relative to the ``src/`` folder.
 - ``"js_function"``: The name of the endpoint handler function.
-- ``"forwarding_required"``, ``"execute_locally"``,
+- ``"forwarding_required"``, ``"execute_outside_consensus"``,
   ``"require_client_signature"``, ``"require_client_identity"```,
   ``"readonly"``: Request execution policies, see **TODO**.
 - ``"openapi"``:  An `OpenAPI Operation Object <https://swagger.io/specification/#operation-object>`_ 
