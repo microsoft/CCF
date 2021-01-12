@@ -21,6 +21,7 @@ using TResponse = http::SimpleResponseProcessor::Response;
 
 auto kp = tls::make_key_pair();
 auto member_cert = kp -> self_sign("CN=name_member");
+auto node_id = 0;
 
 void check_error(const TResponse& r, http_status expected)
 {
@@ -82,8 +83,11 @@ TEST_CASE("Add a node to an opening service")
   frontend.open();
 
   network.identity = std::make_unique<NetworkIdentity>();
-  network.ledger_secrets = std::make_shared<NewLedgerSecrets>();
-  // network.ledger_secrets->init();
+  network.ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
+    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  network.ledger_secrets->init();
+  network.ledger_secrets->set_encryption_key_for(
+    4, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
 
   // Node certificate
   tls::KeyPairPtr kp = tls::make_key_pair();
@@ -122,6 +126,7 @@ TEST_CASE("Add a node to an opening service")
 
   gen.create_service({});
   gen.finalize();
+  auto tx = network.tables->create_tx();
 
   INFO("Add first node which should be trusted straight away");
   {
@@ -135,12 +140,11 @@ TEST_CASE("Add a node to an opening service")
       parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
     CHECK(
-      response.network_info.ledger_secrets == *network.ledger_secrets.get());
+      response.network_info.ledger_secrets == network.ledger_secrets->get(tx));
     CHECK(response.network_info.identity == *network.identity.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
     CHECK(response.network_info.public_only == false);
 
-    auto tx = network.tables->create_tx();
     const NodeId node_id = response.node_id;
     auto nodes_view = tx.get_view(network.nodes);
     auto node_info = nodes_view->get(node_id);
@@ -162,7 +166,7 @@ TEST_CASE("Add a node to an opening service")
       parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
     CHECK(
-      response.network_info.ledger_secrets == *network.ledger_secrets.get());
+      response.network_info.ledger_secrets == network.ledger_secrets->get(tx));
     CHECK(response.network_info.identity == *network.identity.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
   }
@@ -199,11 +203,11 @@ TEST_CASE("Add a node to an open service")
   frontend.open();
 
   network.identity = std::make_unique<NetworkIdentity>();
-  network.ledger_secrets = std::make_shared<NewLedgerSecrets>();
-  // network.ledger_secrets->init();
 
-  // TODO: Rekey API is weird
-  network.ledger_secrets->update_encryption_key(
+  network.ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
+    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  network.ledger_secrets->init();
+  network.ledger_secrets->set_encryption_key_for(
     4, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
 
   gen.create_service({});
@@ -283,8 +287,9 @@ TEST_CASE("Add a node to an open service")
     const auto response =
       parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
+    auto tx = network.tables->create_tx();
     CHECK(
-      response.network_info.ledger_secrets == *network.ledger_secrets.get());
+      response.network_info.ledger_secrets == network.ledger_secrets->get(tx));
     CHECK(response.network_info.identity == *network.identity.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
     CHECK(response.network_info.public_only == true);
