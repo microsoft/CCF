@@ -137,6 +137,6 @@ signed_raw=$(echo -n "$string_to_sign" | openssl dgst -sha384 -sign "$signing_pr
 
 curl \
 -H "Digest: SHA-256=$req_digest" \
--H "Authorization: Signature keyId=\"$key_id\",signature_algorithm=\"$signature_algorithm\",headers=\"(request-target) digest content-length\",signature=\"$signed_raw\"" \
+-H "Authorization: Signature keyId=\"$key_id\",algorithm=\"$signature_algorithm\",headers=\"(request-target) digest content-length\",signature=\"$signed_raw\"" \
 "${additional_curl_args[@]}" \
 "${fwd_args[@]}"

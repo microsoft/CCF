@@ -1,6 +1,9 @@
 Python Client API
 =================
 
+.. autoclass:: ccf.clients.Identity
+    :members:
+
 .. autoclass:: ccf.clients.CCFClient
     :members:
 

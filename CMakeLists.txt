@@ -778,6 +778,16 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS -p liblogging --duration 45m
   )
 
+  add_e2e_test(
+    NAME tutorial_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_tutorial.py
+    CONSENSUS cft
+    LABEL tutorial
+    CURL_CLIENT TRUE
+    ADDITIONAL_ARGS -p liblogging --tutorial
+                    ${CMAKE_SOURCE_DIR}/python/tutorial.py
+  )
+
   add_e2e_sandbox_test(
     NAME forum_app
     SCRIPT ${CMAKE_SOURCE_DIR}/samples/apps/forum/ci.sh
@@ -789,7 +799,6 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME cpp_e2e_logging_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-      CURL_CLIENT TRUE
       CONSENSUS ${CONSENSUS}
     )
 
