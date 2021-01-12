@@ -38,7 +38,7 @@ private:
 public:
   RaftDriver(size_t number_of_nodes)
   {
-    kv::Consensus::Configuration::Nodes configuration;
+    kv::Configuration::Nodes configuration;
 
     for (size_t i = 0; i < number_of_nodes; ++i)
     {
@@ -246,7 +246,9 @@ public:
   {
     std::cout << "  KV" << node_id << "->>Node" << node_id
               << ": replicate idx: " << idx << std::endl;
-    _nodes.at(node_id).raft->replicate(kv::BatchVector{{idx, data, true}}, 1);
+    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+    _nodes.at(node_id).raft->replicate(
+      kv::BatchVector{{idx, data, true, hooks}}, 1);
   }
 
   void disconnect(aft::NodeId left, aft::NodeId right)

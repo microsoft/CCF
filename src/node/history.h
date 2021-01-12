@@ -85,6 +85,30 @@ namespace ccf
     LOG_DEBUG_FMT("History [{}] {}", flag, h);
   }
 
+  class NullTxHistoryPendingTx : public kv::PendingTx
+  {
+    kv::TxID txid;
+    kv::Store& store;
+    NodeId id;
+
+  public:
+    NullTxHistoryPendingTx(kv::TxID txid_, kv::Store& store_, NodeId id_) :
+      txid(txid_),
+      store(store_),
+      id(id_)
+    {}
+
+    kv::PendingTxInfo call() override
+    {
+      auto sig = store.create_reserved_tx(txid.version);
+      auto sig_view =
+        sig.template get_view<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      PrimarySignature sig_value(id, txid.version);
+      sig_view->put(0, sig_value);
+      return sig.commit_reserved();
+    }
+  };
+
   class NullTxHistory : public kv::TxHistory
   {
     kv::Store& store;
@@ -129,16 +153,7 @@ namespace ccf
       auto txid = store.next_txid();
       LOG_INFO_FMT("Issuing signature at {}.{}", txid.term, txid.version);
       store.commit(
-        txid,
-        [txid, this]() {
-          auto sig = store.create_reserved_tx(txid.version);
-          auto sig_view =
-            sig.template get_view<ccf::Signatures>(ccf::Tables::SIGNATURES);
-          PrimarySignature sig_value(id, txid.version);
-          sig_view->put(0, sig_value);
-          return sig.commit_reserved();
-        },
-        true);
+        txid, std::make_unique<NullTxHistoryPendingTx>(txid, store, id), true);
     }
 
     void try_emit_signature() override
@@ -241,6 +256,92 @@ namespace ccf
       root.serialise(v);
       path->serialise(v);
       return v;
+    }
+  };
+
+  template <class T>
+  class MerkleTreeHistoryPendingTx : public kv::PendingTx
+  {
+    kv::TxID txid;
+    kv::Consensus::SignableTxIndices commit_txid;
+    kv::Store& store;
+    T& replicated_state_tree;
+    NodeId id;
+    tls::KeyPair& kp;
+
+  public:
+    MerkleTreeHistoryPendingTx(
+      kv::TxID txid_,
+      kv::Consensus::SignableTxIndices commit_txid_,
+      kv::Store& store_,
+      T& replicated_state_tree_,
+      NodeId id_,
+      tls::KeyPair& kp_) :
+      txid(txid_),
+      commit_txid(commit_txid_),
+      store(store_),
+      replicated_state_tree(replicated_state_tree_),
+      id(id_),
+      kp(kp_)
+    {}
+
+    kv::PendingTxInfo call() override
+    {
+      auto sig = store.create_reserved_tx(txid.version);
+      auto sig_view =
+        sig.template get_view<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      crypto::Sha256Hash root = replicated_state_tree.get_root();
+
+      Nonce hashed_nonce;
+      std::vector<uint8_t> primary_sig;
+      auto consensus = store.get_consensus();
+      if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
+      {
+        auto progress_tracker = store.get_progress_tracker();
+        CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
+        auto r = progress_tracker->record_primary(
+          txid, id, root, primary_sig, hashed_nonce);
+        if (r != kv::TxHistory::Result::OK)
+        {
+          throw ccf::ccf_logic_error(fmt::format(
+            "Expected success when primary added signature to the "
+            "progress "
+            "tracker. r:{}, view:{}, seqno:{}",
+            r,
+            txid.term,
+            txid.version));
+        }
+
+        progress_tracker->get_my_hashed_nonce(txid, hashed_nonce);
+      }
+      else
+      {
+        hashed_nonce.h.fill(0);
+      }
+
+      primary_sig = kp.sign_hash(root.h.data(), root.h.size());
+
+      PrimarySignature sig_value(
+        id,
+        txid.version,
+        txid.term,
+        commit_txid.version,
+        commit_txid.term,
+        root,
+        hashed_nonce,
+        primary_sig,
+        replicated_state_tree.serialise(
+          commit_txid.previous_version, txid.version - 1));
+
+      if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
+      {
+        auto progress_tracker = store.get_progress_tracker();
+        CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
+        progress_tracker->record_primary_signature(txid, primary_sig);
+      }
+
+      sig_view->put(0, sig_value);
+      return sig.commit_reserved();
     }
   };
 
@@ -713,65 +814,8 @@ namespace ccf
 
       store.commit(
         txid,
-        [txid, commit_txid, this]() {
-          auto sig = store.create_reserved_tx(txid.version);
-          auto sig_view =
-            sig.template get_view<ccf::Signatures>(ccf::Tables::SIGNATURES);
-          crypto::Sha256Hash root = replicated_state_tree.get_root();
-
-          Nonce hashed_nonce;
-          std::vector<uint8_t> primary_sig;
-          auto consensus = store.get_consensus();
-          if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
-          {
-            auto progress_tracker = store.get_progress_tracker();
-            CCF_ASSERT(
-              progress_tracker != nullptr, "progress_tracker is not set");
-            auto r = progress_tracker->record_primary(
-              txid, id, root, primary_sig, hashed_nonce);
-            if (r != kv::TxHistory::Result::OK)
-            {
-              throw ccf::ccf_logic_error(fmt::format(
-                "Expected success when primary added signature to the "
-                "progress "
-                "tracker. r:{}, view:{}, seqno:{}",
-                r,
-                txid.term,
-                txid.version));
-            }
-
-            progress_tracker->get_my_hashed_nonce(txid, hashed_nonce);
-          }
-          else
-          {
-            hashed_nonce.h.fill(0);
-          }
-
-          primary_sig = kp.sign_hash(root.h.data(), root.h.size());
-
-          PrimarySignature sig_value(
-            id,
-            txid.version,
-            txid.term,
-            commit_txid.version,
-            commit_txid.term,
-            root,
-            hashed_nonce,
-            primary_sig,
-            replicated_state_tree.serialise(
-              commit_txid.previous_version, txid.version - 1));
-
-          if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
-          {
-            auto progress_tracker = store.get_progress_tracker();
-            CCF_ASSERT(
-              progress_tracker != nullptr, "progress_tracker is not set");
-            progress_tracker->record_primary_signature(txid, primary_sig);
-          }
-
-          sig_view->put(0, sig_value);
-          return sig.commit_reserved();
-        },
+        std::make_unique<MerkleTreeHistoryPendingTx<T>>(
+          txid, commit_txid, store, replicated_state_tree, id, kp),
         true);
     }
 

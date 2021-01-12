@@ -51,8 +51,9 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
   {
     kv::Store new_store;
 
+    kv::ConsensusHookPtrs hooks;
     REQUIRE_EQ(
-      new_store.deserialise_snapshot(first_serialised_snapshot),
+      new_store.deserialise_snapshot(first_serialised_snapshot, hooks),
       kv::DeserialiseSuccess::PASS);
     REQUIRE_EQ(new_store.current_version(), 1);
 
@@ -76,7 +77,8 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
   {
     kv::Store new_store;
 
-    new_store.deserialise_snapshot(second_serialised_snapshot);
+    kv::ConsensusHookPtrs hooks;
+    new_store.deserialise_snapshot(second_serialised_snapshot, hooks);
     REQUIRE_EQ(new_store.current_version(), 2);
 
     auto tx1 = new_store.create_tx();
@@ -129,7 +131,8 @@ TEST_CASE(
     view->put("in", "flight");
     // tx is not committed until the snapshot is deserialised
 
-    new_store.deserialise_snapshot(serialised_snapshot);
+    kv::ConsensusHookPtrs hooks;
+    new_store.deserialise_snapshot(serialised_snapshot, hooks);
 
     // Transaction conflicts as snapshot was applied while transaction was in
     // flight
@@ -181,20 +184,23 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
 
     INFO("Set hooks on target store");
     {
-      auto local_hook = [&](kv::Version v, const Write& w) {
+      auto map_hook =
+        [&](kv::Version v, const Write& w) -> kv::ConsensusHookPtr {
         local_writes.push_back(w);
+        return kv::ConsensusHookPtr(nullptr);
       };
       auto global_hook = [&](kv::Version v, const Write& w) {
         global_writes.push_back(w);
       };
 
-      new_store.set_local_hook(
-        string_map, new_string_map.wrap_commit_hook(local_hook));
+      new_store.set_map_hook(
+        string_map, new_string_map.wrap_map_hook(map_hook));
       new_store.set_global_hook(
         string_map, new_string_map.wrap_commit_hook(global_hook));
     }
 
-    new_store.deserialise_snapshot(serialised_snapshot);
+    kv::ConsensusHookPtrs hooks;
+    new_store.deserialise_snapshot(serialised_snapshot, hooks);
 
     INFO("Verify content of snapshot");
     {
