@@ -30,7 +30,8 @@ public:
     if (store)
     {
       REQUIRE(entries.size() == 1);
-      return store->deserialise(*std::get<1>(entries[0]));
+      kv::ConsensusHookPtrs hooks;
+      return store->deserialise(*std::get<1>(entries[0]), hooks);
     }
     return true;
   }
@@ -200,7 +201,7 @@ public:
 
   bool replicate(const kv::BatchVector& entries, View view) override
   {
-    for (auto& [version, data, committable] : entries)
+    for (auto& [version, data, committable, hooks] : entries)
     {
       count++;
       if (committable)
@@ -232,6 +233,28 @@ public:
   View get_view(kv::Version version) override
   {
     return 2;
+  }
+};
+
+class TestPendingTx : public kv::PendingTx
+{
+  kv::TxID txid;
+  kv::Store& store;
+  MapT& other_table;
+
+public:
+  TestPendingTx(kv::TxID txid_, kv::Store& store_, MapT& other_table_) :
+    txid(txid_),
+    store(store_),
+    other_table(other_table_)
+  {}
+
+  kv::PendingTxInfo call() override
+  {
+    auto txr = store.create_reserved_tx(txid.version);
+    auto txrv = txr.get_view(other_table);
+    txrv->put(0, 1);
+    return txr.commit_reserved();
   }
 };
 
@@ -267,14 +290,7 @@ TEST_CASE(
     REQUIRE(consensus->count == 1);
 
     store.commit(
-      rv,
-      [&store, rv, &other_table]() {
-        auto txr = store.create_reserved_tx(rv.version);
-        auto txrv = txr.get_view(other_table);
-        txrv->put(0, 1);
-        return txr.commit_reserved();
-      },
-      true);
+      rv, std::make_unique<TestPendingTx>(rv, store, other_table), true);
     REQUIRE(consensus->count == 3);
   }
 
@@ -305,7 +321,7 @@ public:
 
   bool replicate(const kv::BatchVector& entries, View view) override
   {
-    for (auto& [version, data, committable] : entries)
+    for (auto& [version, data, committable, hook] : entries)
     {
       count++;
       if (version == rollback_at)
