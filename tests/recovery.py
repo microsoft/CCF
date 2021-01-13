@@ -135,7 +135,7 @@ and before applying new transactions, all transactions previously applied are
 checked. Note that the key for each logging message is unique (per table).
 """
         parser.add_argument(
-            "--recovery", help="Number of recoveries to perform", type=int, default=20
+            "--recovery", help="Number of recoveries to perform", type=int, default=2
         )
         parser.add_argument(
             "--msgs-per-recovery",

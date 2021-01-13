@@ -395,7 +395,6 @@ namespace ccf
 
     void trust_node(NodeId node_id, VersionedLedgerSecret latest_ledger_secret)
     {
-      LOG_INFO_FMT("Latest ledger seqno: {}", latest_ledger_secret.first);
       auto nodes_view = tx.get_view(tables.nodes);
       auto node_info = nodes_view->get(node_id);
 
