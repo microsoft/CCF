@@ -14,6 +14,7 @@
 #include <random>
 #include <string>
 
+kv::ConsensusHookPtrs hooks;
 using StringString = kv::Map<std::string, std::string>;
 
 void commit_one(kv::Store& store, StringString& map)
@@ -269,7 +270,7 @@ TEST_CASE("KV encryption/decryption" * doctest::test_suite("encryption"))
   INFO("Apply transaction to backup store");
   {
     REQUIRE(
-      backup_store.deserialise(*consensus->get_latest_data()) ==
+      backup_store.deserialise(*consensus->get_latest_data(), hooks) ==
       kv::DeserialiseSuccess::PASS);
   }
 
@@ -290,7 +291,8 @@ TEST_CASE("KV encryption/decryption" * doctest::test_suite("encryption"))
     auto serialised_tx = consensus->get_latest_data();
 
     REQUIRE(
-      backup_store.deserialise(*serialised_tx) == kv::DeserialiseSuccess::PASS);
+      backup_store.deserialise(*serialised_tx, hooks) ==
+      kv::DeserialiseSuccess::PASS);
   }
 }
 
@@ -329,7 +331,7 @@ TEST_CASE("KV integrity verification")
   REQUIRE(corrupt_serialised_tx(latest_data.value(), value_to_corrupt));
 
   REQUIRE(
-    backup_store.deserialise(latest_data.value()) ==
+    backup_store.deserialise(latest_data.value(), hooks) ==
     kv::DeserialiseSuccess::FAILED);
 }
 
