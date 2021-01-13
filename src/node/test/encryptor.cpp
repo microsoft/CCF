@@ -5,6 +5,7 @@
 #include "kv/encryptor.h"
 #include "kv/kv_types.h"
 #include "kv/test/stub_consensus.h"
+#include "node/encryptor.h"
 #include "node/entities.h"
 #include "node/ledger_secrets.h"
 #include "node/network_state.h"
@@ -14,7 +15,6 @@
 #include <string>
 
 using StringString = kv::Map<std::string, std::string>;
-using NodeEncryptor = kv::TxEncryptor<ccf::LedgerSecrets>;
 
 void commit_one(kv::Store& store, StringString& map)
 {
@@ -25,7 +25,9 @@ void commit_one(kv::Store& store, StringString& map)
 }
 
 bool encrypt_round_trip(
-  NodeEncryptor& encryptor, std::vector<uint8_t>& plain, kv::Version version)
+  ccf::NodeEncryptor& encryptor,
+  std::vector<uint8_t>& plain,
+  kv::Version version)
 {
   std::vector<uint8_t> aad;
   std::vector<uint8_t> header;
@@ -72,7 +74,7 @@ TEST_CASE("Simple encryption/decryption" * doctest::test_suite("encryption"))
   auto ledger_secrets =
     std::make_shared<ccf::LedgerSecrets>(network.secrets, node_id);
   ledger_secrets->init();
-  NodeEncryptor encryptor(ledger_secrets);
+  ccf::NodeEncryptor encryptor(ledger_secrets);
 
   std::vector<uint8_t> plain(10, 0x42);
 
@@ -106,7 +108,7 @@ TEST_CASE("Subsequent ciphers from same plaintext are different")
   auto ledger_secrets =
     std::make_shared<ccf::LedgerSecrets>(network.secrets, node_id);
   ledger_secrets->init();
-  NodeEncryptor encryptor(ledger_secrets);
+  ccf::NodeEncryptor encryptor(ledger_secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
   std::vector<uint8_t> cipher;
@@ -136,7 +138,7 @@ TEST_CASE("Ciphers at same seqno with different terms are different")
   auto ledger_secrets =
     std::make_shared<ccf::LedgerSecrets>(network.secrets, node_id);
   ledger_secrets->init();
-  NodeEncryptor encryptor(ledger_secrets);
+  ccf::NodeEncryptor encryptor(ledger_secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
   std::vector<uint8_t> cipher;
@@ -165,7 +167,7 @@ TEST_CASE("Ciphers at same seqno/term with and without snapshot are different")
   auto ledger_secrets =
     std::make_shared<ccf::LedgerSecrets>(network.secrets, node_id);
   ledger_secrets->init();
-  NodeEncryptor encryptor(ledger_secrets);
+  ccf::NodeEncryptor encryptor(ledger_secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
   std::vector<uint8_t> cipher;
@@ -208,7 +210,7 @@ TEST_CASE("Additional data")
   auto ledger_secrets =
     std::make_shared<ccf::LedgerSecrets>(network.secrets, node_id);
   ledger_secrets->init();
-  NodeEncryptor encryptor(ledger_secrets);
+  ccf::NodeEncryptor encryptor(ledger_secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
   std::vector<uint8_t> cipher;
@@ -249,11 +251,11 @@ TEST_CASE("KV encryption/decryption" * doctest::test_suite("encryption"))
   auto ledger_secrets =
     std::make_shared<ccf::LedgerSecrets>(network.secrets, node_id);
   ledger_secrets->init();
-  NodeEncryptor encryptor(ledger_secrets);
+  ccf::NodeEncryptor encryptor(ledger_secrets);
 
   // Primary and backup stores have access to same ledger secrets
-  auto primary_encryptor = std::make_shared<NodeEncryptor>(ledger_secrets);
-  auto backup_encryptor = std::make_shared<NodeEncryptor>(ledger_secrets);
+  auto primary_encryptor = std::make_shared<ccf::NodeEncryptor>(ledger_secrets);
+  auto backup_encryptor = std::make_shared<ccf::NodeEncryptor>(ledger_secrets);
 
   INFO("Setup stores");
   {
@@ -304,7 +306,7 @@ TEST_CASE("KV integrity verification")
   auto ledger_secrets =
     std::make_shared<ccf::LedgerSecrets>(network.secrets, node_id);
   ledger_secrets->init();
-  auto encryptor = std::make_shared<NodeEncryptor>(ledger_secrets);
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(ledger_secrets);
 
   primary_store.set_encryptor(encryptor);
   primary_store.set_consensus(consensus);
@@ -343,7 +345,7 @@ TEST_CASE(
   auto ledger_secrets =
     std::make_shared<ccf::LedgerSecrets>(network.secrets, node_id);
   ledger_secrets->init();
-  auto encryptor = std::make_shared<NodeEncryptor>(ledger_secrets);
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(ledger_secrets);
   store.set_encryptor(encryptor);
 
   commit_one(store, map);

@@ -220,7 +220,7 @@ auto get_cert(uint64_t member_id, tls::KeyPairPtr& kp_mem)
 }
 
 auto init_frontend(
-  NetworkTables& network,
+  NetworkState& network,
   GenesisGenerator& gen,
   StubNodeState& node,
   ShareManager& share_manager,
@@ -528,7 +528,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   constexpr auto n_new_members = 7;
   constexpr auto max_members = 8;
   NetworkState network;
-  network.ledger_secrets = std::make_shared<LedgerSecrets>();
+  network.ledger_secrets = std::make_shared<LedgerSecrets>(network.secrets);
   network.ledger_secrets->init();
   network.tables->set_encryptor(encryptor);
   auto gen_tx = network.tables->create_tx();
@@ -932,7 +932,7 @@ DOCTEST_TEST_CASE("Accept node")
 }
 
 ProposalInfo test_raw_writes(
-  NetworkTables& network,
+  NetworkState& network,
   GenesisGenerator& gen,
   StubNodeState& node,
   ShareManager& share_manager,
@@ -1909,7 +1909,7 @@ DOCTEST_TEST_CASE("User data")
 DOCTEST_TEST_CASE("Submit recovery shares")
 {
   NetworkState network(ConsensusType::CFT);
-  network.ledger_secrets = std::make_shared<LedgerSecrets>();
+  network.ledger_secrets = std::make_shared<LedgerSecrets>(network.secrets);
   network.ledger_secrets->init();
 
   ShareManager share_manager(network);
@@ -2062,7 +2062,7 @@ DOCTEST_TEST_CASE("Number of active members with recovery shares limits")
   logger::config::level() = logger::INFO;
 
   NetworkState network;
-  network.ledger_secrets = std::make_shared<LedgerSecrets>();
+  network.ledger_secrets = std::make_shared<LedgerSecrets>(network.secrets);
   network.ledger_secrets->init();
   network.tables->set_encryptor(encryptor);
   ShareManager share_manager(network);
@@ -2130,7 +2130,7 @@ DOCTEST_TEST_CASE("Open network sequence")
 {
   // Setup original state
   NetworkState network(ConsensusType::CFT);
-  network.ledger_secrets = std::make_shared<LedgerSecrets>();
+  network.ledger_secrets = std::make_shared<LedgerSecrets>(network.secrets);
   network.ledger_secrets->init();
 
   ShareManager share_manager(network);

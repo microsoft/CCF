@@ -6,6 +6,7 @@
 #include "node/encryptor.h"
 #include "node/history.h"
 #include "node/rpc/serdes.h"
+#include "node/secrets.h"
 
 #include <nlohmann/json.hpp>
 #include <picobench/picobench.hpp>
@@ -18,10 +19,12 @@ inline void clobber_memory()
   asm volatile("" : : : "memory");
 }
 
+ccf::Secrets secrets_map("secrets");
+
 // Helper functions
 std::shared_ptr<ccf::LedgerSecrets> create_ledger_secrets()
 {
-  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  auto secrets = std::make_shared<ccf::LedgerSecrets>(secrets_map);
   secrets->init();
 
   return secrets;
@@ -63,7 +66,7 @@ static std::vector<uint8_t> kv_serialized_data(std::vector<uint8_t>& data)
 {
   kv::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
 
   aft::RequestsMap map0("map0");
