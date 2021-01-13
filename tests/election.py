@@ -23,7 +23,7 @@ from loguru import logger as LOG
 
 @reqs.description("Stopping current primary and waiting for a new one to be elected")
 @reqs.can_kill_n_nodes(1)
-def test_kill_primary(network, args, current_view):
+def test_kill_primary(network, args):
     primary, backup = network.find_primary_and_any_backup()
     primary.stop()
 
@@ -36,8 +36,8 @@ def test_kill_primary(network, args, current_view):
                 _ = c.post(
                     "/app/log/private",
                     {
-                        "id": current_view,
-                        "msg": "This log is committed in view {}".format(current_view),
+                        "id": -1,
+                        "msg": "This is submitted to force a view change",
                     },
                 )
         except CCFConnectionException:
@@ -130,7 +130,7 @@ def run(args):
             wait_for_seqno_to_commit(seqno, current_view, network.get_joined_nodes())
 
             try:
-                test_kill_primary(network, args, current_view)
+                test_kill_primary(network, args)
             except (PrimaryNotFound, TimeoutError) as e:
                 if node_to_stop < nodes_to_stop - 1:
                     raise
