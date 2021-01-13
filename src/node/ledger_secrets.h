@@ -10,7 +10,7 @@
 #include <algorithm>
 #include <nlohmann/json.hpp>
 
-namespace ccf
+namespace deprecated
 {
   struct LedgerSecret
   {

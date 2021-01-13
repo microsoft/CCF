@@ -314,7 +314,7 @@ namespace ccf
       return encrypted_share;
     }
 
-    EncryptionKeys restore_recovery_shares_info(
+    LedgerSecretsMap restore_recovery_shares_info(
       kv::Tx& tx,
       const std::list<RecoveredLedgerSecret>& encrypted_recovery_secrets)
     {
@@ -331,7 +331,7 @@ namespace ccf
           "Failed to retrieve current recovery shares info");
       }
 
-      EncryptionKeys restored_ledger_secrets;
+      LedgerSecretsMap restored_ledger_secrets;
 
       auto restored_ls = ls_wrapping_key.unwrap(
         recovery_shares_info->wrapped_latest_ledger_secret.encrypted_data);

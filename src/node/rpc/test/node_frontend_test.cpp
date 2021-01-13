@@ -83,8 +83,8 @@ TEST_CASE("Add a node to an opening service")
   frontend.open();
 
   network.identity = std::make_unique<NetworkIdentity>();
-  network.ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
-    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  network.ledger_secrets =
+    std::make_shared<ccf::LedgerSecrets>(network.secrets, node_id);
   network.ledger_secrets->init();
 
   // New node should not be given ledger secret past this one via join request
@@ -215,8 +215,8 @@ TEST_CASE("Add a node to an open service")
 
   network.identity = std::make_unique<NetworkIdentity>();
 
-  network.ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
-    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  network.ledger_secrets =
+    std::make_shared<ccf::LedgerSecrets>(network.secrets, node_id);
   network.ledger_secrets->init();
 
   // New node should not be given ledger secret past this one via join request

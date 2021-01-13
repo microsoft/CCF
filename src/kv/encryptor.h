@@ -6,7 +6,7 @@
 #include "ds/spin_lock.h"
 #include "kv/kv_types.h"
 
-namespace kv
+namespace deprecated
 {
   class TxEncryptor : public kv::AbstractTxEncryptor
   {

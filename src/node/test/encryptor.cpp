@@ -14,7 +14,7 @@
 #include <string>
 
 using StringString = kv::Map<std::string, std::string>;
-using NodeEncryptor = kv::NewTxEncryptor<ccf::LedgerSecretsAccessor>;
+using NodeEncryptor = kv::NewTxEncryptor<ccf::LedgerSecrets>;
 
 void commit_one(kv::Store& store, StringString& map)
 {
@@ -69,8 +69,8 @@ TEST_CASE("Simple encryption/decryption" * doctest::test_suite("encryption"))
 {
   ccf::NetworkState network;
   uint64_t node_id = 0;
-  auto ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
-    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  auto ledger_secrets =
+    std::make_shared<ccf::LedgerSecrets>(network.secrets, node_id);
   ledger_secrets->init();
   NodeEncryptor encryptor(ledger_secrets);
 
@@ -103,8 +103,8 @@ TEST_CASE("Subsequent ciphers from same plaintext are different")
 {
   ccf::NetworkState network;
   uint64_t node_id = 0;
-  auto ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
-    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  auto ledger_secrets =
+    std::make_shared<ccf::LedgerSecrets>(network.secrets, node_id);
   ledger_secrets->init();
   NodeEncryptor encryptor(ledger_secrets);
 
@@ -133,8 +133,8 @@ TEST_CASE("Ciphers at same seqno with different terms are different")
 {
   ccf::NetworkState network;
   uint64_t node_id = 0;
-  auto ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
-    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  auto ledger_secrets =
+    std::make_shared<ccf::LedgerSecrets>(network.secrets, node_id);
   ledger_secrets->init();
   NodeEncryptor encryptor(ledger_secrets);
 
@@ -162,8 +162,8 @@ TEST_CASE("Ciphers at same seqno/term with and without snapshot are different")
 {
   ccf::NetworkState network;
   uint64_t node_id = 0;
-  auto ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
-    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  auto ledger_secrets =
+    std::make_shared<ccf::LedgerSecrets>(network.secrets, node_id);
   ledger_secrets->init();
   NodeEncryptor encryptor(ledger_secrets);
 
@@ -205,8 +205,8 @@ TEST_CASE("Additional data")
 {
   ccf::NetworkState network;
   uint64_t node_id = 0;
-  auto ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
-    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  auto ledger_secrets =
+    std::make_shared<ccf::LedgerSecrets>(network.secrets, node_id);
   ledger_secrets->init();
   NodeEncryptor encryptor(ledger_secrets);
 
@@ -246,8 +246,8 @@ TEST_CASE("KV encryption/decryption" * doctest::test_suite("encryption"))
 
   ccf::NetworkState network;
   uint64_t node_id = 0;
-  auto ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
-    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  auto ledger_secrets =
+    std::make_shared<ccf::LedgerSecrets>(network.secrets, node_id);
   ledger_secrets->init();
   NodeEncryptor encryptor(ledger_secrets);
 
@@ -301,8 +301,8 @@ TEST_CASE("KV integrity verification")
 
   ccf::NetworkState network;
   uint64_t node_id = 0;
-  auto ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
-    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  auto ledger_secrets =
+    std::make_shared<ccf::LedgerSecrets>(network.secrets, node_id);
   ledger_secrets->init();
   auto encryptor = std::make_shared<NodeEncryptor>(ledger_secrets);
 
@@ -331,6 +331,7 @@ TEST_CASE("KV integrity verification")
     kv::DeserialiseSuccess::FAILED);
 }
 
+// TODO: Better assertions?
 TEST_CASE(
   "Encryptor compaction and rollback" * doctest::test_suite("encryption"))
 {
@@ -339,8 +340,8 @@ TEST_CASE(
 
   ccf::NetworkState network;
   uint64_t node_id = 0;
-  auto ledger_secrets = std::make_shared<ccf::LedgerSecretsAccessor>(
-    network.secrets, std::make_unique<ccf::NewLedgerSecrets>(), node_id);
+  auto ledger_secrets =
+    std::make_shared<ccf::LedgerSecrets>(network.secrets, node_id);
   ledger_secrets->init();
   auto encryptor = std::make_shared<NodeEncryptor>(ledger_secrets);
   store.set_encryptor(encryptor);

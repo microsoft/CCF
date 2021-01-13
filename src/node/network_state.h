@@ -11,7 +11,7 @@ namespace ccf
   struct NetworkState : public NetworkTables
   {
     std::unique_ptr<NetworkIdentity> identity;
-    std::shared_ptr<LedgerSecretsAccessor> ledger_secrets;
+    std::shared_ptr<LedgerSecrets> ledger_secrets;
 
     // default set to Raft
     ConsensusType consensus_type = ConsensusType::CFT;

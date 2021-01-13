@@ -58,7 +58,7 @@ namespace ccf
   using RaftConsensusType =
     aft::Consensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
   using RaftType = aft::Aft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
-  using NodeEncryptor = kv::NewTxEncryptor<ccf::LedgerSecretsAccessor>;
+  using NodeEncryptor = kv::NewTxEncryptor<ccf::LedgerSecrets>;
 
   struct NodeCreateInfo
   {
@@ -306,8 +306,8 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
 
-          network.ledger_secrets = std::make_shared<LedgerSecretsAccessor>(
-            network.secrets, std::make_unique<NewLedgerSecrets>(), self);
+          network.ledger_secrets =
+            std::make_shared<LedgerSecrets>(network.secrets, self);
           network.ledger_secrets->init();
 
           setup_encryptor();
@@ -351,8 +351,8 @@ namespace ccf
 
             // It is necessary to give an encryptor to the store for it to
             // deserialise the public domain when recovering the public ledger
-            network.ledger_secrets = std::make_shared<LedgerSecretsAccessor>(
-              network.secrets, std::make_unique<NewLedgerSecrets>());
+            network.ledger_secrets =
+              std::make_shared<LedgerSecrets>(network.secrets);
             setup_encryptor();
 
             initialise_startup_snapshot(config);
@@ -372,8 +372,8 @@ namespace ccf
 
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
-          network.ledger_secrets = std::make_shared<LedgerSecretsAccessor>(
-            network.secrets, std::make_unique<NewLedgerSecrets>());
+          network.ledger_secrets =
+            std::make_shared<LedgerSecrets>(network.secrets);
 
           setup_history();
 
@@ -471,11 +471,10 @@ namespace ccf
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
 
-            network.ledger_secrets = std::make_shared<LedgerSecretsAccessor>(
+            network.ledger_secrets = std::make_shared<LedgerSecrets>(
               network.secrets,
-              std::make_unique<NewLedgerSecrets>(
-                resp.network_info.ledger_secrets),
-              self);
+              self,
+              std::move(resp.network_info.ledger_secrets));
 
             if (resp.network_info.consensus_type != network.consensus_type)
             {
@@ -1546,7 +1545,7 @@ namespace ccf
         network.secrets.get_name(),
         network.secrets.wrap_commit_hook(
           [this](kv::Version hook_version, const Secrets::Write& w) {
-            EncryptionKeys restored_ledger_secrets;
+            LedgerSecretsMap restored_ledger_secrets;
 
             for (const auto& [node_id, opt_ledger_secret_set] : w)
             {
