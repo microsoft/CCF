@@ -47,9 +47,10 @@ namespace ccf
       status,
       ledger_secret_seqno);
   };
-  DECLARE_JSON_TYPE_WITH_BASE(NodeInfo, NodeInfoNetwork);
+  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
-    NodeInfo, cert, quote, encryption_pub_key, status, ledger_secret_seqno);
+    NodeInfo, cert, quote, encryption_pub_key, status);
+  DECLARE_JSON_OPTIONAL_FIELDS(NodeInfo, ledger_secret_seqno);
 
   using Nodes = kv::Map<NodeId, NodeInfo>;
 }
