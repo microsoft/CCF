@@ -9,6 +9,7 @@
 #include "lua_interp/lua_util.h"
 #include "members.h"
 #include "network_tables.h"
+#include "new_ledger_secrets.h"
 #include "node_info_network.h"
 #include "nodes.h"
 #include "runtime_config/default_whitelists.h"
@@ -392,19 +393,27 @@ namespace ccf
       return true;
     }
 
-    void trust_node(NodeId node_id)
+    void trust_node(NodeId node_id, VersionedLedgerSecret latest_ledger_secret)
     {
+      LOG_INFO_FMT("Latest ledger seqno: {}", latest_ledger_secret.first);
       auto nodes_view = tx.get_view(tables.nodes);
       auto node_info = nodes_view->get(node_id);
-      if (node_info.has_value())
+
+      if (!node_info.has_value())
       {
-        node_info->status = NodeStatus::TRUSTED;
-        nodes_view->put(node_id, node_info.value());
+        throw std::logic_error(fmt::format("Node {} does not exist", node_id));
       }
-      else
+
+      if (node_info->status == NodeStatus::RETIRED)
       {
-        LOG_FAIL_FMT("Unknown node {} could not be trusted", node_id);
+        throw std::logic_error(fmt::format("Node {} is retired", node_id));
       }
+
+      node_info->status = NodeStatus::TRUSTED;
+      node_info->ledger_secret_seqno = latest_ledger_secret.first;
+      nodes_view->put(node_id, node_info.value());
+
+      LOG_INFO_FMT("Node {} is now {}", node_id, node_info->status);
     }
 
     auto get_last_signature()

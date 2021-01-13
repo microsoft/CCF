@@ -6,7 +6,6 @@
 #include "consensus/ledger_enclave.h"
 #include "ds/logger.h"
 #include "enclave/rpc_sessions.h"
-#include "encryptor.h"
 #include "entities.h"
 #include "genesis_gen.h"
 #include "history.h"
@@ -900,7 +899,7 @@ namespace ccf
       consensus->force_become_primary(index, view, view_history, index);
 
       // Sets itself as trusted
-      g.trust_node(self);
+      g.trust_node(self, network.ledger_secrets->get_latest(tx));
 
 #ifdef GET_QUOTE
       if (network.consensus_type != ConsensusType::BFT)
@@ -1592,7 +1591,7 @@ namespace ccf
                   // When rekeying, set the encryption key for the next version
                   // onward (backups deserialise this transaction with the
                   // previous ledger secret)
-                  network.ledger_secrets->update_encryption_key(
+                  network.ledger_secrets->set_encryption_key_for(
                     ledger_secret_version + 1, std::move(plain_ledger_secret));
                 }
               }

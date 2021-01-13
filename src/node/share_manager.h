@@ -243,7 +243,7 @@ namespace ccf
           const MemberId, const std::vector<uint8_t>& encrypted_share) {
           SecretSharing::Share share;
           auto decrypted_share = decrypt_submitted_share(
-            encrypted_share, network.ledger_secrets->get_latest(tx));
+            encrypted_share, network.ledger_secrets->get_latest(tx).second);
           std::copy_n(
             decrypted_share.begin(),
             SecretSharing::SHARE_LENGTH,
@@ -273,14 +273,15 @@ namespace ccf
     {
       // Assumes that the ledger secrets have not been updated since the
       // last time shares have been issued (i.e. genesis or re-sharing only)
-      set_recovery_shares_info(tx, network.ledger_secrets->get_latest(tx));
+      set_recovery_shares_info(
+        tx, network.ledger_secrets->get_latest(tx).second);
     }
 
     void issue_shares_on_recovery(kv::Tx& tx, kv::Version latest_ls_version)
     {
       set_recovery_shares_info(
         tx,
-        network.ledger_secrets->get_latest(tx),
+        network.ledger_secrets->get_latest(tx).second,
         network.ledger_secrets->get_penultimate(tx),
         latest_ls_version);
     }
@@ -289,7 +290,7 @@ namespace ccf
       kv::Tx& tx, const NewLedgerSecret& new_ledger_secret)
     {
       set_recovery_shares_info(
-        tx, new_ledger_secret, network.ledger_secrets->get_latest(tx));
+        tx, new_ledger_secret, network.ledger_secrets->get_latest(tx).second);
     }
 
     std::optional<EncryptedShare> get_encrypted_share(
@@ -390,7 +391,8 @@ namespace ccf
       submitted_shares_view->put(
         member_id,
         encrypt_submitted_share(
-          submitted_recovery_share, network.ledger_secrets->get_latest(tx)));
+          submitted_recovery_share,
+          network.ledger_secrets->get_latest(tx).second));
 
       size_t submitted_shares_count = 0;
       submitted_shares_view->foreach(

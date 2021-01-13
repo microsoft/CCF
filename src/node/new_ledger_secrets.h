@@ -6,6 +6,7 @@
 #include "kv/kv_types.h"
 #include "kv/tx.h"
 #include "secrets.h"
+#include "tls/base64.h" // TODO: Remove
 #include "tls/entropy.h"
 
 #include <algorithm>
@@ -17,7 +18,6 @@ namespace ccf
   struct NewLedgerSecret
   {
     std::vector<uint8_t> raw_key;
-
     std::shared_ptr<crypto::KeyAesGcm> key;
 
     bool operator==(const NewLedgerSecret& other) const
@@ -37,6 +37,8 @@ namespace ccf
       key(std::make_shared<crypto::KeyAesGcm>(std::move(raw_key_)))
     {}
   };
+
+  using VersionedLedgerSecret = std::pair<kv::Version, NewLedgerSecret>;
   using EncryptionKeys = std::map<kv::Version, NewLedgerSecret>;
 
   class NewLedgerSecrets
@@ -76,6 +78,9 @@ namespace ccf
 
     NewLedgerSecrets(const NewLedgerSecrets& other) :
       encryption_keys(other.encryption_keys)
+    {}
+
+    NewLedgerSecrets(EncryptionKeys&& keys) : encryption_keys(std::move(keys))
     {}
 
     bool operator==(const NewLedgerSecrets& other) const
@@ -138,6 +143,15 @@ namespace ccf
         "First usable encryption key is now at seqno {}",
         commit_key_it.value()->first);
     }
+
+    void print() const
+    {
+      LOG_FAIL_FMT("Encryption keys: {}", encryption_keys.size());
+      for (auto const& e : encryption_keys)
+      {
+        LOG_FAIL_FMT("{}", tls::b64_from_raw(e.second.raw_key));
+      }
+    }
   };
 
   class LedgerSecretsAccessor
@@ -198,7 +212,7 @@ namespace ccf
       self = id;
     }
 
-    NewLedgerSecret get_latest(kv::Tx& tx)
+    VersionedLedgerSecret get_latest(kv::Tx& tx)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -210,7 +224,9 @@ namespace ccf
           "Could not retrieve latest ledger secret: no secret set");
       }
 
-      return ledger_secrets->encryption_keys.rbegin()->second;
+      auto latest_ledger_secret = ledger_secrets->encryption_keys.rbegin();
+      return std::make_pair(
+        latest_ledger_secret->first, latest_ledger_secret->second);
     }
 
     std::optional<NewLedgerSecret> get_penultimate(kv::Tx& tx)
@@ -226,15 +242,31 @@ namespace ccf
       return std::next(ledger_secrets->encryption_keys.rbegin())->second;
     }
 
-    NewLedgerSecrets get(kv::Tx& tx, kv::Version up_to = kv::NoVersion)
+    NewLedgerSecrets get(
+      kv::Tx& tx, std::optional<kv::Version> up_to = std::nullopt)
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      (void)up_to; // TODO: Fix: should be up to specific version
-
       take_dependency_on_secrets(tx);
 
-      return *ledger_secrets;
+      if (!up_to.has_value())
+      {
+        return *ledger_secrets;
+      }
+
+      auto search = ledger_secrets->encryption_keys.find(up_to.value());
+      if (search == ledger_secrets->encryption_keys.end())
+      {
+        throw std::logic_error(
+          fmt::format("No ledger secrets at {}", up_to.has_value()));
+      }
+
+      EncryptionKeys retrieved_keys(
+        ledger_secrets->encryption_keys.begin(), ++search);
+
+      LOG_FAIL_FMT("Retrieved keys count: {}", retrieved_keys.size());
+
+      return NewLedgerSecrets(std::move(retrieved_keys));
     }
 
     void restore_historical(EncryptionKeys&& encryption_keys_)
@@ -251,14 +283,8 @@ namespace ccf
           ledger_secrets->encryption_keys.begin()->first));
       }
 
-      LOG_FAIL_FMT(
-        "Restoring {} keys", encryption_keys_.size()); // TODO: Remove
       ledger_secrets->encryption_keys.merge(encryption_keys_);
-
       ledger_secrets->commit_key_it = ledger_secrets->encryption_keys.begin();
-
-      LOG_FAIL_FMT(
-        "First search now at {}", ledger_secrets->commit_key_it.value()->first);
     }
 
     auto get_encryption_key_for(kv::Version version)
@@ -283,6 +309,11 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
       ledger_secrets->compact(version);
+    }
+
+    void print() const
+    {
+      ledger_secrets->print();
     }
   };
 }
