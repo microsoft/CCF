@@ -53,22 +53,6 @@ namespace ccf
     // Indices at which a snapshot will be next generated
     std::deque<consensus::Index> next_snapshot_indices;
 
-    size_t get_execution_thread()
-    {
-      // Generate on main thread if there are no worker threads. Otherwise,
-      // round robin on worker threads.
-      if (threading::ThreadMessaging::thread_count > 1)
-      {
-        static size_t generation_count = 0;
-        return (generation_count++ % threading::ThreadMessaging::thread_count) +
-          1;
-      }
-      else
-      {
-        return threading::MAIN_THREAD_ID;
-      }
-    }
-
     void record_snapshot(
       consensus::Index idx,
       consensus::Index evidence_idx,
@@ -194,8 +178,11 @@ namespace ccf
         msg->data.snapshot = network.tables->snapshot(idx);
 
         last_snapshot_idx = idx;
+
+        static uint32_t generation_count = 0;
         threading::ThreadMessaging::thread_messaging.add_task(
-          get_execution_thread(), std::move(msg));
+          threading::ThreadMessaging::get_execution_thread(generation_count++),
+          std::move(msg));
       }
     }
 

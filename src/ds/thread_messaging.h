@@ -250,7 +250,8 @@ namespace threading
     {
       CCF_ASSERT_FMT(
         tid < thread_count || tid == 0,
-        "Attempting to add task to tid > thread_count, tid:{}, thread_count:{}",
+        "Attempting to add task to tid >= thread_count, tid:{}, "
+        "thread_count:{}",
         tid,
         thread_count);
       return tasks[tid];
