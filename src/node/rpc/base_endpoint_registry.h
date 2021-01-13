@@ -84,71 +84,93 @@ namespace ccf
       node(node_state)
     {}
 
-    ccf::TxStatus get_status_for_txid_v1(
-      kv::Consensus::View view, kv::Consensus::SeqNo seqno)
-    {
-      if (consensus != nullptr)
-      {
-        const auto tx_view = consensus->get_view(seqno);
-        const auto committed_seqno = consensus->get_committed_seqno();
-        const auto committed_view = consensus->get_view(committed_seqno);
-
-        return ccf::evaluate_tx_status(
-          view, seqno, tx_view, committed_view, committed_seqno);
-      }
-
-      return ccf::TxStatus::Unknown;
-    }
-
-    std::optional<std::pair<kv::Consensus::View, kv::Consensus::SeqNo>>
-    get_last_committed_txid_v1()
-    {
-      if (consensus != nullptr)
-      {
-        return consensus->get_committed_txid();
-      }
-
-      return std::nullopt;
-    }
-
-    nlohmann::json generate_openapi_document_v1(
-      kv::ReadOnlyTx& tx,
-      const std::string& title,
-      const std::string& description,
-      const std::string& document_version)
-    {
-      auto document =
-        ds::openapi::create_document(title, description, document_version);
-      build_api(document, tx);
-      return document;
-    }
-
-    std::optional<std::vector<uint8_t>> get_receipt_for_index_v1(
-      kv::Consensus::SeqNo seqno, std::string& error_reason)
+    std::string get_status_for_txid_v1(
+      kv::Consensus::View view,
+      kv::Consensus::SeqNo seqno,
+      ccf::TxStatus& tx_status)
     {
       try
       {
-        if (history != nullptr)
+        if (consensus != nullptr)
         {
-          try
-          {
-            return history->get_receipt(seqno);
-          }
-          catch (const std::exception& e)
-          {
-            error_reason = e.what();
-            return std::nullopt;
-          }
+          const auto tx_view = consensus->get_view(seqno);
+          const auto committed_seqno = consensus->get_committed_seqno();
+          const auto committed_view = consensus->get_view(committed_seqno);
+
+          tx_status = ccf::evaluate_tx_status(
+            view, seqno, tx_view, committed_view, committed_seqno);
         }
 
-        error_reason = "Node is not yet initialised";
-        return std::nullopt;
+        tx_status = ccf::TxStatus::Unknown;
+        return "";
       }
       catch (const std::exception& e)
       {
-        error_reason = "Exception thrown during execution";
-        return std::nullopt;
+        return fmt::format("Error finding tx status: {}", e.what());
       }
+    }
+
+    std::string get_last_committed_txid_v1(
+      kv::Consensus::View& view, kv::Consensus::SeqNo& seqno)
+    {
+      if (consensus != nullptr)
+      {
+        try
+        {
+          const auto [v, s] = consensus->get_committed_txid();
+          view = v;
+          seqno = s;
+          return "";
+        }
+        catch (const std::exception& e)
+        {
+          return fmt::format("Error retrieving commit: {}", e.what());
+        }
+      }
+
+      return "Node is not initialised";
+    }
+
+    std::string generate_openapi_document_v1(
+      kv::ReadOnlyTx& tx,
+      const std::string& title,
+      const std::string& description,
+      const std::string& document_version,
+      nlohmann::json& document)
+    {
+      try
+      {
+        document =
+          ds::openapi::create_document(title, description, document_version);
+        build_api(document, tx);
+      }
+      catch (const std::exception& e)
+      {
+        return fmt::format("Error generating OpenAPI document: {}", e.what());
+      }
+
+      return "";
+    }
+
+    std::string get_receipt_for_index_v1(
+      kv::Consensus::SeqNo seqno,
+      std::vector<uint8_t>& receipt)
+    {
+      if (history != nullptr)
+      {
+        try
+        {
+          receipt = history->get_receipt(seqno);
+          return "";
+        }
+        catch (const std::exception& e)
+        {
+          return fmt::format(
+            "Exception thrown while retrieving receipt: {}", e.what());
+        }
+      }
+
+      return "Node is not yet initialised";
     }
 
     Quote get_quote_for_this_node_v1(kv::ReadOnlyTx& tx)

@@ -32,17 +32,21 @@ namespace ccf
       BaseEndpointRegistry::init_handlers();
 
       auto get_commit = [this](auto&, nlohmann::json&&) {
-        const auto last_committed = get_last_committed_txid_v1();
-        if (last_committed.has_value())
-        {
-          const auto [view, seqno] = last_committed.value();
-          return make_success(GetCommit::Out{view, seqno});
-        }
+        GetCommit::Out out;
+        const auto error_reason =
+          get_last_committed_txid_v1(out.view, out.seqno);
 
-        return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "Failed to get commit info from Consensus.");
+        if (error_reason.empty())
+        {
+          return make_success(out);
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            std::move(error_reason));
+        }
       };
       make_command_endpoint(
         "commit", HTTP_GET, json_command_adapter(get_commit), no_auth_required)
@@ -55,8 +59,19 @@ namespace ccf
         const auto in = params.get<GetTxStatus::In>();
 
         GetTxStatus::Out out;
-        out.status = get_status_for_txid_v1(in.view, in.seqno);
-        return make_success(out);
+        const auto error_reason =
+          get_status_for_txid_v1(in.view, in.seqno, out.status);
+        if (error_reason.empty())
+        {
+          return make_success(out);
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            std::move(error_reason));
+        }
       };
       make_command_endpoint(
         "tx", HTTP_GET, json_command_adapter(get_tx_status), no_auth_required)
@@ -241,12 +256,25 @@ namespace ccf
         .install();
 
       auto openapi = [this](kv::Tx& tx, nlohmann::json&&) {
-        auto document = generate_openapi_document_v1(
+        nlohmann::json document;
+        const auto error_reason = generate_openapi_document_v1(
           tx,
           openapi_info.title,
           openapi_info.description,
-          openapi_info.document_version);
-        return make_success(document);
+          openapi_info.document_version,
+          document);
+
+        if (error_reason.empty())
+        {
+          return make_success(document);
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            std::move(error_reason));
+        }
       };
       make_endpoint("api", HTTP_GET, json_adapter(openapi), no_auth_required)
         .set_auto_schema<void, GetAPI::Out>()
@@ -269,12 +297,11 @@ namespace ccf
       auto get_receipt = [this](auto&, nlohmann::json&& params) {
         const auto in = params.get<GetReceipt::In>();
 
-        std::string error_reason;
-        const auto opt_r = get_receipt_for_index_v1(in.commit, error_reason);
-        if (opt_r.has_value())
+        GetReceipt::Out out;
+        const auto error_reason =
+          get_receipt_for_index_v1(in.commit, out.receipt);
+        if (error_reason.empty())
         {
-          GetReceipt::Out out;
-          out.receipt = opt_r.value();
           return make_success(out);
         }
         else
