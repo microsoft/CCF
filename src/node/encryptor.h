@@ -2,8 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/symmetric_key.h"
 #include "kv/encryptor.h"
+
+#include "crypto/symmetric_key.h"
 #include "ledger_secrets.h"
 
 namespace ccf
