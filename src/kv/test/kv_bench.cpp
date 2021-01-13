@@ -120,8 +120,9 @@ static void deserialise(picobench::state& s)
   }
   tx.commit();
 
+  kv::ConsensusHookPtrs hooks;
   s.start_timer();
-  auto rc = kv_store2.deserialise(consensus->get_latest_data().value());
+  auto rc = kv_store2.deserialise(consensus->get_latest_data().value(), hooks);
   if (rc != kv::DeserialiseSuccess::PASS)
     throw std::logic_error(
       "Transaction deserialisation failed: " + std::to_string(rc));
@@ -230,8 +231,9 @@ static void des_snap(picobench::state& s)
   auto snap = kv_store.snapshot(tx.commit_version());
   auto serialised_snap = kv_store.serialise_snapshot(std::move(snap));
 
+  kv::ConsensusHookPtrs hooks;
   s.start_timer();
-  kv_store2.deserialise_snapshot(serialised_snap);
+  kv_store2.deserialise_snapshot(serialised_snap, hooks);
   s.stop_timer();
 }
 

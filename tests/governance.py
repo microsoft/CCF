@@ -9,18 +9,17 @@ import infra.path
 import infra.proc
 import infra.net
 import infra.e2e_args
-import infra.proposal
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import ssl
 import hashlib
+import json
+import urllib.parse
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from loguru import logger as LOG
-
-import ccf
 
 
 @reqs.description("Test quotes")
@@ -163,33 +162,12 @@ def test_member_data(network, args):
 def test_user_id(network, args):
     primary, _ = network.find_nodes()
     with primary.client("user0") as uc:
-        with open(network.consortium.user_cert_path(0), "r") as ucert:
+        with open(network.consortium.user_cert_path(1), "r") as ucert:
             pem = ucert.read()
-        r = uc.get("/app/user_id", {"cert": pem})
+        json_pem = json.dumps(pem)
+        r = uc.get(f"/app/user_id?cert={urllib.parse.quote_plus(json_pem)}")
         assert r.status_code == 200
-        assert r.body.json()["caller_id"] == 0
-    return network
-
-
-@reqs.description("Test signed proposal over unauthenticated connection")
-def test_proposal_over_unauthenticated_connection(network, args):
-    primary, backups = network.find_nodes()
-    proposing_member = network.consortium.get_any_active_member()
-    user_id = 0
-
-    proposal_body, _ = ccf.proposal_generator.set_user_data(
-        user_id,
-        {"property": "value"},
-    )
-    proposal = proposing_member.propose(
-        primary, proposal_body, disable_client_auth=True
-    )
-    assert proposal.state == infra.proposal.ProposalState.Open
-
-    proposal = proposing_member.propose(
-        backups[0], proposal_body, disable_client_auth=True
-    )
-    assert proposal.state == infra.proposal.ProposalState.Open
+        assert r.body.json()["caller_id"] == 1
     return network
 
 
@@ -217,7 +195,6 @@ def run(args):
         network = test_user(network, args)
         network = test_no_quote(network, args)
         network = test_user_id(network, args)
-        network = test_proposal_over_unauthenticated_connection(network, args)
 
 
 if __name__ == "__main__":

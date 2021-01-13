@@ -51,6 +51,7 @@ namespace kv
     W* current_writer;
     Version version;
     Term term; // Used for encryption IV only
+    Version max_conflict_version;
     bool is_snapshot;
 
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
@@ -92,15 +93,18 @@ namespace kv
       std::shared_ptr<AbstractTxEncryptor> e,
       const Version& version_,
       const Term& term_,
+      const Version& max_conflict_version_,
       bool is_snapshot_ = false) :
       version(version_),
       term(term_),
+      max_conflict_version(max_conflict_version_),
       is_snapshot(is_snapshot_),
       crypto_util(e)
     {
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(is_snapshot);
       serialise_internal(version);
+      serialise_internal(max_conflict_version);
     }
 
     void start_map(const std::string& name, SecurityDomain domain)
@@ -252,6 +256,7 @@ namespace kv
     KvOperationType unhandled_op;
     bool is_snapshot;
     Version version;
+    Version max_conflict_version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
     std::optional<SecurityDomain> domain_restriction;
 
@@ -299,6 +304,7 @@ namespace kv
     {
       is_snapshot = public_reader.template read_next<bool>();
       version = public_reader.template read_next<Version>();
+      max_conflict_version = public_reader.template read_next<Version>();
     }
 
   public:
@@ -310,7 +316,8 @@ namespace kv
       domain_restriction(domain_restriction)
     {}
 
-    std::optional<Version> init(const uint8_t* data, size_t size)
+    std::optional<std::tuple<Version, Version>> init(
+      const uint8_t* data, size_t size)
     {
       current_reader = &public_reader;
       auto data_ = data;
@@ -322,7 +329,7 @@ namespace kv
       {
         public_reader.init(data, size);
         read_public_header();
-        return version;
+        return std::make_tuple(version, max_conflict_version);
       }
 
       // Skip gcm hdr and read length of public domain
@@ -341,7 +348,7 @@ namespace kv
         domain_restriction.has_value() &&
         domain_restriction.value() == SecurityDomain::PUBLIC)
       {
-        return version;
+        return std::make_tuple(version, max_conflict_version);
       }
 
       // Go to start of private domain
@@ -360,7 +367,7 @@ namespace kv
 
       // Set private reader
       private_reader.init(decrypted_buffer.data(), decrypted_buffer.size());
-      return version;
+      return std::make_tuple(version, max_conflict_version);
     }
 
     std::optional<std::string> start_map()

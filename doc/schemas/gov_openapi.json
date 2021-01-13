@@ -94,48 +94,6 @@
         ],
         "type": "object"
       },
-      "GetMetrics__HistogramResults": {
-        "properties": {
-          "buckets": {
-            "$ref": "#/components/schemas/json"
-          },
-          "high": {
-            "$ref": "#/components/schemas/int32"
-          },
-          "low": {
-            "$ref": "#/components/schemas/int32"
-          },
-          "overflow": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "underflow": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "low",
-          "high",
-          "overflow",
-          "underflow",
-          "buckets"
-        ],
-        "type": "object"
-      },
-      "GetMetrics__Out": {
-        "properties": {
-          "histogram": {
-            "$ref": "#/components/schemas/GetMetrics__HistogramResults"
-          },
-          "tx_rates": {
-            "$ref": "#/components/schemas/json"
-          }
-        },
-        "required": [
-          "histogram",
-          "tx_rates"
-        ],
-        "type": "object"
-      },
       "GetNetworkInfo__NodeInfo": {
         "properties": {
           "host": {
@@ -410,11 +368,6 @@
       "boolean": {
         "type": "boolean"
       },
-      "int32": {
-        "maximum": 2147483647,
-        "minimum": -2147483648,
-        "type": "integer"
-      },
       "int64": {
         "maximum": 9223372036854775807,
         "minimum": -9223372036854775808,
@@ -470,6 +423,18 @@
         },
         "type": "array"
       }
+    },
+    "securitySchemes": {
+      "member_signature": {
+        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a member identity registered with this service.",
+        "scheme": "signature",
+        "type": "http"
+      },
+      "user_signature": {
+        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a user identity registered with this service.",
+        "scheme": "signature",
+        "type": "http"
+      }
     }
   },
   "info": {
@@ -502,7 +467,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/ack/update_state_digest": {
@@ -518,7 +488,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/api": {
@@ -623,22 +598,6 @@
         }
       }
     },
-    "/metrics": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetMetrics__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
     "/network_info": {
       "get": {
         "responses": {
@@ -728,7 +687,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/proposals/{proposal_id}": {
@@ -744,7 +708,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       },
       "parameters": [
         {
@@ -790,7 +759,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/proposals/{proposal_id}/votes/{member_id}": {
@@ -806,7 +780,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       },
       "parameters": [
         {
@@ -850,7 +829,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/query": {
@@ -876,7 +860,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/read": {
@@ -902,7 +891,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/receipt": {
@@ -972,7 +966,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       },
       "post": {
         "requestBody": {
@@ -996,7 +995,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/tx": {
@@ -1060,7 +1064,15 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "user_signature": []
+          },
+          {
+            "member_signature": []
+          }
+        ]
       }
     }
   },

@@ -11,6 +11,7 @@
 #include "entities.h"
 #include "genesis_gen.h"
 #include "history.h"
+#include "hooks.h"
 #include "network_state.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/progress_tracker.h"
@@ -201,8 +202,9 @@ namespace ccf
     {
       LOG_INFO_FMT(
         "Deserialising public snapshot ({})", config.startup_snapshot.size());
+      kv::ConsensusHookPtrs hooks;
       auto rc = network.tables->deserialise_snapshot(
-        config.startup_snapshot, &view_history, true);
+        config.startup_snapshot, hooks, &view_history, true);
       if (rc != kv::DeserialiseSuccess::PASS)
       {
         throw std::logic_error(
@@ -280,22 +282,19 @@ namespace ccf
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::BFT)
+      auto quote_opt =
+        QuoteGenerator::get_quote(node_sign_kp->public_key_pem());
+      if (!quote_opt.has_value())
       {
-        auto quote_opt =
-          QuoteGenerator::get_quote(node_sign_kp->public_key_pem());
-        if (!quote_opt.has_value())
-        {
-          throw std::runtime_error("Quote could not be retrieved");
-        }
-        quote = quote_opt.value();
-        auto node_code_id_opt = QuoteGenerator::get_code_id(quote);
-        if (!node_code_id_opt.has_value())
-        {
-          throw std::runtime_error("Code ID could not be retrieved from quote");
-        }
-        node_code_id = node_code_id_opt.value();
+        throw std::runtime_error("Quote could not be retrieved");
       }
+      quote = quote_opt.value();
+      auto node_code_id_opt = QuoteGenerator::get_code_id(quote);
+      if (!node_code_id_opt.has_value())
+      {
+        throw std::runtime_error("Code ID could not be retrieved from quote");
+      }
+      node_code_id = node_code_id_opt.value();
 #endif
 
       switch (start_type)
@@ -498,14 +497,21 @@ namespace ccf
                 "Deserialising snapshot ({})",
                 startup_snapshot_info->raw.size());
               std::vector<kv::Version> view_history;
+              kv::ConsensusHookPtrs hooks;
               auto rc = network.tables->deserialise_snapshot(
                 startup_snapshot_info->raw,
+                hooks,
                 &view_history,
                 resp.network_info.public_only);
               if (rc != kv::DeserialiseSuccess::PASS)
               {
                 throw std::logic_error(
                   fmt::format("Failed to apply snapshot on join: {}", rc));
+              }
+
+              for (auto& hook : hooks)
+              {
+                hook->call(consensus.get());
               }
 
               auto tx = network.tables->create_read_only_tx();
@@ -661,10 +667,11 @@ namespace ccf
         node_cert);
       jwt_key_auto_refresh->start();
 
-      network.tables->set_local_hook(
+      network.tables->set_map_hook(
         network.jwt_issuers.get_name(),
-        [this](kv::Version, const kv::untyped::Write&) {
+        [this](kv::Version, const kv::untyped::Write&) -> kv::ConsensusHookPtr {
           jwt_key_auto_refresh->schedule_once();
+          return kv::ConsensusHookPtr(nullptr);
         });
     }
 
@@ -704,8 +711,9 @@ namespace ccf
       LOG_INFO_FMT(
         "Deserialising public ledger entry ({})", ledger_entry.size());
 
+      kv::ConsensusHookPtrs hooks;
       // When reading the public ledger, deserialise in the real store
-      auto result = network.tables->deserialise(ledger_entry, true);
+      auto result = network.tables->deserialise(ledger_entry, hooks, true);
       if (result == kv::DeserialiseSuccess::FAILED)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
@@ -717,6 +725,12 @@ namespace ccf
         }
         recover_public_ledger_end_unsafe();
         return;
+      }
+
+      // Not synchronised because consensus isn't effectively running then
+      for (auto& hook : hooks)
+      {
+        hook->call(consensus.get());
       }
 
       // If the ledger entry is a signature, it is safe to compact the store
@@ -901,10 +915,7 @@ namespace ccf
       g.trust_node(self, network.ledger_secrets->get_latest(tx));
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::BFT)
-      {
-        g.trust_node_code_id(node_code_id);
-      }
+      g.trust_node_code_id(node_code_id);
 #endif
 
       if (g.finalize() != kv::CommitSuccess::OK)
@@ -930,8 +941,9 @@ namespace ccf
       LOG_INFO_FMT(
         "Deserialising private ledger entry ({})", ledger_entry.size());
 
+      kv::ConsensusHookPtrs hooks;
       // When reading the private ledger, deserialise in the recovery store
-      auto result = recovery_store->deserialise(ledger_entry);
+      auto result = recovery_store->deserialise(ledger_entry, hooks);
       if (result == kv::DeserialiseSuccess::FAILED)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in private ledger");
@@ -1076,8 +1088,9 @@ namespace ccf
           "Deserialising private snapshot for recovery ({})",
           startup_snapshot_info->raw.size());
         std::vector<kv::Version> view_history;
+        kv::ConsensusHookPtrs hooks;
         auto rc = recovery_store->deserialise_snapshot(
-          startup_snapshot_info->raw, &view_history);
+          startup_snapshot_info->raw, hooks, &view_history);
         if (rc != kv::DeserialiseSuccess::PASS)
         {
           throw std::logic_error(fmt::format(
@@ -1287,18 +1300,15 @@ namespace ccf
     {
       auto nodes_view = tx.get_read_only_view(network.nodes);
 
-      nodes_view->foreach([&result, &filter, this](
-                            const NodeId& nid, const NodeInfo& ni) {
-        if (!filter.has_value() || (filter->find(nid) != filter->end()))
-        {
-          if (ni.status == ccf::NodeStatus::TRUSTED)
+      nodes_view->foreach(
+        [&result, &filter](const NodeId& nid, const NodeInfo& ni) {
+          if (!filter.has_value() || (filter->find(nid) != filter->end()))
           {
-            GetQuotes::Quote q;
-            q.node_id = nid;
-            q.raw = fmt::format("{:02x}", fmt::join(ni.quote, ""));
-
-            if (this->network.consensus_type != ConsensusType::BFT)
+            if (ni.status == ccf::NodeStatus::TRUSTED)
             {
+              GetQuotes::Quote q;
+              q.node_id = nid;
+              q.raw = fmt::format("{:02x}", fmt::join(ni.quote, ""));
 #ifdef GET_QUOTE
               auto code_id_opt = QuoteGenerator::get_code_id(ni.quote);
               if (!code_id_opt.has_value())
@@ -1311,12 +1321,11 @@ namespace ccf
                   fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
               }
 #endif
+              result.quotes.push_back(q);
             }
-            result.quotes.push_back(q);
           }
-        }
-        return true;
-      });
+          return true;
+        });
     };
 
     NodeId get_node_id() const override
@@ -1541,10 +1550,11 @@ namespace ccf
 
     void setup_basic_hooks()
     {
-      network.tables->set_local_hook(
+      network.tables->set_map_hook(
         network.secrets.get_name(),
-        network.secrets.wrap_commit_hook(
-          [this](kv::Version hook_version, const Secrets::Write& w) {
+        network.secrets.wrap_map_hook(
+          [this](kv::Version hook_version, const Secrets::Write& w)
+            -> kv::ConsensusHookPtr {
             LedgerSecretsMap restored_ledger_secrets;
 
             for (const auto& [node_id, opt_ledger_secret_set] : w)
@@ -1604,6 +1614,8 @@ namespace ccf
                 std::move(restored_ledger_secrets));
               backup_finish_recovery();
             }
+
+            return kv::ConsensusHookPtr(nullptr);
           }));
     }
 
@@ -1624,10 +1636,11 @@ namespace ccf
       // version at which it was recorded
       static bool is_first_secret = !from_snapshot;
 
-      network.tables->set_local_hook(
+      network.tables->set_map_hook(
         network.shares.get_name(),
-        network.shares.wrap_commit_hook(
-          [this](kv::Version version, const Shares::Write& w) {
+        network.shares.wrap_map_hook(
+          [this](kv::Version version, const Shares::Write& w)
+            -> kv::ConsensusHookPtr {
             for (const auto& [k, opt_v] : w)
             {
               if (!opt_v.has_value())
@@ -1671,12 +1684,14 @@ namespace ccf
                   {ledger_secret_version, v.encrypted_previous_ledger_secret});
               }
             }
+
+            return kv::ConsensusHookPtr(nullptr);
           }));
     }
 
     void reset_recovery_hook()
     {
-      network.tables->unset_local_hook(network.shares.get_name());
+      network.tables->unset_map_hook(network.shares.get_name());
     }
 
     void setup_n2n_channels()
@@ -1726,54 +1741,14 @@ namespace ccf
       network.tables->set_consensus(consensus);
       cmd_forwarder->set_request_tracker(request_tracker);
 
-      // When a node is added, even locally, inform raft so that it
+      // When a node is added, even locally, inform consensus so that it
       // can add a new active configuration.
-      network.tables->set_local_hook(
+      network.tables->set_map_hook(
         network.nodes.get_name(),
-        network.nodes.wrap_commit_hook(
-          [this](kv::Version version, const Nodes::Write& w) {
-            bool configure = false;
-            auto configuration = consensus->get_latest_configuration();
-
-            for (const auto& [node_id, opt_ni] : w)
-            {
-              if (!opt_ni.has_value())
-              {
-                throw std::logic_error(fmt::format(
-                  "Unexpected: removal from nodes table ({})", node_id));
-              }
-
-              const auto& ni = opt_ni.value();
-              switch (ni.status)
-              {
-                case NodeStatus::PENDING:
-                {
-                  // Pending nodes are not added to consensus until they are
-                  // trusted
-                  break;
-                }
-                case NodeStatus::TRUSTED:
-                {
-                  configuration.try_emplace(node_id, ni.nodehost, ni.nodeport);
-                  configure = true;
-                  break;
-                }
-                case NodeStatus::RETIRED:
-                {
-                  configuration.erase(node_id);
-                  configure = true;
-                  break;
-                }
-                default:
-                {
-                }
-              }
-            }
-
-            if (configure)
-            {
-              consensus->add_configuration(version, configuration);
-            }
+        network.nodes.wrap_map_hook(
+          [](kv::Version version, const Nodes::Write& w)
+            -> kv::ConsensusHookPtr {
+            return std::make_unique<ConfigurationChangeHook>(version, w);
           }));
 
       setup_basic_hooks();

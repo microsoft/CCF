@@ -47,6 +47,7 @@ namespace kv
     bool success = false;
     Version read_version = NoVersion;
     Version version = NoVersion;
+    Version max_conflict_version = NoVersion;
     Term term = 0;
 
     kv::TxHistory::RequestID req_id;
@@ -274,8 +275,13 @@ namespace kv
       if (!created_maps.empty())
         this->store->lock();
 
+      kv::ConsensusHookPtrs hooks;
+
       auto c = apply_changes(
-        all_changes, [store]() { return store->next_version(); }, created_maps);
+        all_changes,
+        [store]() { return store->next_version(); },
+        hooks,
+        created_maps);
 
       if (!created_maps.empty())
         this->store->unlock();
@@ -295,7 +301,7 @@ namespace kv
       else
       {
         committed = true;
-        version = c.value();
+        std::tie(version, max_conflict_version) = c.value();
 
         // From here, we have received a unique commit version and made
         // modifications to our local kv. If we fail in any way, we cannot
@@ -318,7 +324,8 @@ namespace kv
 
           return store->commit(
             {term, version},
-            MovePendingTx(std::move(data), std::move(req_id)),
+            std::make_unique<MovePendingTx>(
+              std::move(data), std::move(req_id), std::move(hooks)),
             false);
         }
         catch (const std::exception& e)
@@ -388,7 +395,13 @@ namespace kv
       auto map = all_changes.begin()->second.map;
       auto e = map->get_store()->get_encryptor();
 
-      KvStoreSerialiser replicated_serialiser(e, version, term);
+      if (max_conflict_version == NoVersion)
+      {
+        max_conflict_version = version - 1;
+      }
+
+      KvStoreSerialiser replicated_serialiser(
+        e, version, term, max_conflict_version);
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
@@ -581,15 +594,20 @@ namespace kv
       if (all_changes.empty())
         throw std::logic_error("Reserved transaction cannot be empty");
 
+      std::vector<ConsensusHookPtr> hooks;
       auto c = apply_changes(
-        all_changes, [this]() { return version; }, created_maps, version);
+        all_changes,
+        [this]() { return version; },
+        hooks,
+        created_maps,
+        version);
       success = c.has_value();
 
       if (!success)
         throw std::logic_error("Failed to commit reserved transaction");
 
       committed = true;
-      return {CommitSuccess::OK, {0, 0}, serialise()};
+      return {CommitSuccess::OK, {0, 0}, serialise(), std::move(hooks)};
     }
   };
 }

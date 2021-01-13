@@ -34,10 +34,13 @@ namespace kv
 
   // Atomically checks for conflicts then applies the writes in the given change
   // sets to their underlying Maps. Calls f() at most once, iff the writes are
-  // applied, to retrieve a unique Version for the write set.
-  static inline std::optional<Version> apply_changes(
+  // applied, to retrieve a unique Version for the write set and return the max
+  // version which can have a conflict with the transaction.
+
+  static inline std::optional<std::tuple<Version, Version>> apply_changes(
     OrderedChanges& changes,
     std::function<Version()> f,
+    kv::ConsensusHookPtrs& hooks,
     const MapCollection& new_maps = {},
     const std::optional<Version>& new_maps_conflict_version = std::nullopt)
   {
@@ -64,10 +67,11 @@ namespace kv
     }
 
     bool ok = true;
+    kv::Version max_conflict_version = kv::NoVersion;
 
     for (auto it = views.begin(); it != views.end(); ++it)
     {
-      if (!it->second->prepare())
+      if (!it->second->prepare(max_conflict_version))
       {
         ok = false;
         break;
@@ -124,9 +128,14 @@ namespace kv
         it->second->commit(version);
       }
 
+      // Collect ConsensusHooks
       for (auto it = views.begin(); it != views.end(); ++it)
       {
-        it->second->post_commit();
+        auto hook_ptr = it->second->post_commit();
+        if (hook_ptr != nullptr)
+        {
+          hooks.push_back(std::move(hook_ptr));
+        }
       }
     }
 
@@ -143,6 +152,6 @@ namespace kv
       return std::nullopt;
     }
 
-    return version;
+    return std::make_tuple(version, max_conflict_version);
   }
 }

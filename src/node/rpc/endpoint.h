@@ -32,10 +32,18 @@ namespace ccf
       Always,
       Never
     };
+
+    enum class ExecuteOutsideConsensus
+    {
+      Never,
+      Locally,
+      Primary
+    };
   }
 }
 
 MSGPACK_ADD_ENUM(ccf::endpoints::ForwardingRequired);
+MSGPACK_ADD_ENUM(ccf::endpoints::ExecuteOutsideConsensus);
 
 namespace ccf
 {
@@ -47,12 +55,19 @@ namespace ccf
        {ForwardingRequired::Always, "always"},
        {ForwardingRequired::Never, "never"}});
 
+    DECLARE_JSON_ENUM(
+      ExecuteOutsideConsensus,
+      {{ExecuteOutsideConsensus::Never, "never"},
+       {ExecuteOutsideConsensus::Locally, "locally"},
+       {ExecuteOutsideConsensus::Primary, "primary"}});
+
     using AuthnPolicies = std::vector<std::shared_ptr<AuthnPolicy>>;
 
     struct EndpointProperties
     {
       ForwardingRequired forwarding_required = ForwardingRequired::Always;
-      bool execute_locally = false;
+      ExecuteOutsideConsensus execute_outside_consensus =
+        ExecuteOutsideConsensus::Never;
       bool require_client_signature = false;
       bool require_client_identity = true;
       bool require_jwt_authentication = false;
@@ -62,7 +77,7 @@ namespace ccf
 
       MSGPACK_DEFINE(
         forwarding_required,
-        execute_locally,
+        execute_outside_consensus,
         require_client_signature,
         require_client_identity,
         require_jwt_authentication,
@@ -74,7 +89,7 @@ namespace ccf
     DECLARE_JSON_REQUIRED_FIELDS(
       EndpointProperties,
       forwarding_required,
-      execute_locally,
+      execute_outside_consensus,
       require_client_signature,
       require_client_identity);
     DECLARE_JSON_OPTIONAL_FIELDS(

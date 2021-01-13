@@ -45,8 +45,9 @@ TEST_CASE(
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
     REQUIRE(!latest_data.value().empty());
+    kv::ConsensusHookPtrs hooks;
     REQUIRE(
-      kv_store_target.deserialise(latest_data.value()) ==
+      kv_store_target.deserialise(latest_data.value(), hooks) ==
       kv::DeserialiseSuccess::PASS);
 
     auto tx_target = kv_store_target.create_tx();
@@ -91,9 +92,10 @@ TEST_CASE(
     INFO("Deserialise transaction in target store");
     {
       const auto latest_data = consensus->get_latest_data();
+      kv::ConsensusHookPtrs hooks;
       REQUIRE(latest_data.has_value());
       REQUIRE(
-        kv_store_target.deserialise(latest_data.value()) ==
+        kv_store_target.deserialise(latest_data.value(), hooks) ==
         kv::DeserialiseSuccess::PASS);
 
       auto tx_target = kv_store_target.create_tx();
@@ -136,8 +138,9 @@ TEST_CASE(
   {
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
+    kv::ConsensusHookPtrs hooks;
     REQUIRE(
-      kv_store_target.deserialise(latest_data.value()) !=
+      kv_store_target.deserialise(latest_data.value(), hooks) !=
       kv::DeserialiseSuccess::FAILED);
 
     auto tx_target = kv_store_target.create_tx();
@@ -171,8 +174,9 @@ TEST_CASE(
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
+    kv::ConsensusHookPtrs hooks;
     REQUIRE(
-      kv_store_target.deserialise(latest_data.value()) !=
+      kv_store_target.deserialise(latest_data.value(), hooks) !=
       kv::DeserialiseSuccess::FAILED);
 
     auto tx_target = kv_store_target.create_tx();
@@ -195,8 +199,9 @@ TEST_CASE(
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
+    kv::ConsensusHookPtrs hooks;
     REQUIRE(
-      kv_store_target.deserialise(latest_data.value()) !=
+      kv_store_target.deserialise(latest_data.value(), hooks) !=
       kv::DeserialiseSuccess::FAILED);
 
     auto tx_target = kv_store_target.create_tx();
@@ -440,11 +445,13 @@ TEST_CASE_TEMPLATE(
     view->put(k1, v1);
     view->put(k2, v2);
 
-    auto [success, reqid, data] = tx.commit_reserved();
+    auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
     kv_store.compact(kv_store.current_version());
 
-    REQUIRE(kv_store2.deserialise(data) == kv::DeserialiseSuccess::PASS);
+    kv::ConsensusHookPtrs hooks_;
+    REQUIRE(
+      kv_store2.deserialise(data, hooks_) == kv::DeserialiseSuccess::PASS);
     auto tx2 = kv_store2.create_tx();
     auto view2 = tx2.get_view(map2);
 
@@ -483,8 +490,10 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
+    kv::ConsensusHookPtrs hooks;
     REQUIRE(
-      s1.deserialise(latest_data.value()) != kv::DeserialiseSuccess::FAILED);
+      s1.deserialise(latest_data.value(), hooks) !=
+      kv::DeserialiseSuccess::FAILED);
   }
 
   SUBCASE("nlohmann")
@@ -501,8 +510,10 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
+    kv::ConsensusHookPtrs hooks;
     REQUIRE(
-      s1.deserialise(latest_data.value()) != kv::DeserialiseSuccess::FAILED);
+      s1.deserialise(latest_data.value(), hooks) !=
+      kv::DeserialiseSuccess::FAILED);
   }
 }
 
@@ -540,14 +551,17 @@ TEST_CASE(
     data_view_d->put(46, 46);
     data_view_d_p->put(47, 47);
 
-    auto [success, reqid, data] = tx.commit_reserved();
+    auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
-    REQUIRE(store.deserialise(data) == kv::DeserialiseSuccess::PASS);
+    kv::ConsensusHookPtrs hooks_;
+    REQUIRE(store.deserialise(data, hooks_) == kv::DeserialiseSuccess::PASS);
 
     INFO("check that second store derived data is not populated");
     {
+      kv::ConsensusHookPtrs hooks;
       REQUIRE(
-        kv_store_target.deserialise(data) == kv::DeserialiseSuccess::PASS);
+        kv_store_target.deserialise(data, hooks) ==
+        kv::DeserialiseSuccess::PASS);
       auto tx = kv_store_target.create_tx();
       auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] =
         tx.get_view<T, T, T, T>(

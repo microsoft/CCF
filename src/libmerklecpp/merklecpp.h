@@ -237,11 +237,12 @@ namespace merkle
       deserialise(bytes, position);
     }
 
-    bool verify(const HashT<HASH_SIZE>& root) const
+    std::shared_ptr<HashT<HASH_SIZE>> root() const
     {
-      HashT<HASH_SIZE> result = _leaf, tmp;
+      std::shared_ptr<HashT<HASH_SIZE>> result =
+        std::make_shared<HashT<HASH_SIZE>>(_leaf);
       MERKLECPP_TRACE(
-        MERKLECPP_TOUT << "> PathT::verify " << _leaf.to_string(TRACE_HASH_SIZE)
+        MERKLECPP_TOUT << "> PathT::root " << _leaf.to_string(TRACE_HASH_SIZE)
                        << std::endl);
       for (const Element& e : elements)
       {
@@ -249,24 +250,28 @@ namespace merkle
         {
           MERKLECPP_TRACE(
             MERKLECPP_TOUT << " - " << e.hash.to_string(TRACE_HASH_SIZE)
-                           << " x " << result.to_string(TRACE_HASH_SIZE)
+                           << " x " << result->to_string(TRACE_HASH_SIZE)
                            << std::endl);
-          HASH_FUNCTION(e.hash, result, tmp);
+          HASH_FUNCTION(e.hash, *result, *result);
         }
         else
         {
           MERKLECPP_TRACE(
-            MERKLECPP_TOUT << " - " << result.to_string(TRACE_HASH_SIZE)
+            MERKLECPP_TOUT << " - " << result->to_string(TRACE_HASH_SIZE)
                            << " x " << e.hash.to_string(TRACE_HASH_SIZE)
                            << std::endl);
-          HASH_FUNCTION(result, e.hash, tmp);
+          HASH_FUNCTION(*result, e.hash, *result);
         }
-        std::swap(result, tmp);
       }
       MERKLECPP_TRACE(
-        MERKLECPP_TOUT << " = " << result.to_string(TRACE_HASH_SIZE)
+        MERKLECPP_TOUT << " = " << result->to_string(TRACE_HASH_SIZE)
                        << std::endl);
-      return result == root;
+      return result;
+    }
+
+    bool verify(const HashT<HASH_SIZE>& expected_root) const
+    {
+      return *root() == expected_root;
     }
 
     void serialise(std::vector<uint8_t>& bytes) const
@@ -429,7 +434,12 @@ namespace merkle
       }
 
       static Node* copy_node(
-        const Node* from, std::vector<Node*>* leaf_nodes = nullptr)
+        const Node* from,
+        std::vector<Node*>* leaf_nodes = nullptr,
+        size_t* num_flushed = nullptr,
+        size_t min_index = 0,
+        size_t max_index = SIZE_MAX,
+        size_t indent = 0)
       {
         if (from == nullptr)
           return nullptr;
@@ -439,10 +449,31 @@ namespace merkle
         r->height = from->height;
         r->dirty = from->dirty;
         r->parent = nullptr;
-        r->left = copy_node(from->left, leaf_nodes);
-        r->right = copy_node(from->right, leaf_nodes);
+        r->left = copy_node(
+          from->left,
+          leaf_nodes,
+          num_flushed,
+          min_index,
+          max_index,
+          indent + 1);
+        if (r->left)
+          r->left->parent = r;
+        r->right = copy_node(
+          from->right,
+          leaf_nodes,
+          num_flushed,
+          min_index,
+          max_index,
+          indent + 1);
+        if (r->right)
+          r->right->parent = r;
         if (leaf_nodes && r->size == 1 && !r->left && !r->right)
-          leaf_nodes->push_back(r);
+        {
+          if (*num_flushed == 0)
+            leaf_nodes->push_back(r);
+          else
+            *num_flushed = *num_flushed - 1;
+        }
         return r;
       }
 
@@ -453,7 +484,7 @@ namespace merkle
         bool c3 = !left || !right || (size == left->size + right->size + 1);
         bool cl = !left || left->invariant();
         bool cr = !right || right->invariant();
-        bool ch = height <= 64;
+        bool ch = height <= sizeof(size) * 8;
         bool r = c1 && c2 && c3 && cl && cr && ch;
         return r;
       }
@@ -462,7 +493,8 @@ namespace merkle
       {
         assert(invariant());
         parent = nullptr;
-        // Potential future improvement: remove recursion
+        // Potential future improvement: remove recursion and keep nodes for
+        // future insertions
         delete (left);
         delete (right);
       }
@@ -612,59 +644,61 @@ namespace merkle
         return;
       }
 
-      Node* final = walk_to(index, true, [this](Node*& n, bool go_right) {
-        bool go_left = !go_right;
-        n->dirty = true;
-        if (go_left && n->right)
-        {
-          MERKLECPP_TRACE(MERKLECPP_TOUT
-                            << " - eliminate "
-                            << n->right->hash.to_string(TRACE_HASH_SIZE)
-                            << std::endl;);
-          bool is_root = n == _root;
-
-          Node* old_parent = n->parent;
-          Node* old_left = n->left;
-          delete (n->right);
-          n->right = nullptr;
-
-          *n = *old_left;
-          n->parent = old_parent;
-
-          old_left->left = old_left->right = nullptr;
-          old_left->parent = nullptr;
-          delete (old_left);
-          old_left = nullptr;
-
-          if (n->left && n->right)
+      Node* new_leaf_node =
+        walk_to(index, true, [this](Node*& n, bool go_right) {
+          bool go_left = !go_right;
+          n->dirty = true;
+          if (go_left && n->right)
           {
-            n->left->parent = n;
-            n->right->parent = n;
-            n->dirty = true;
+            MERKLECPP_TRACE(MERKLECPP_TOUT
+                              << " - eliminate "
+                              << n->right->hash.to_string(TRACE_HASH_SIZE)
+                              << std::endl;);
+            bool is_root = n == _root;
+
+            Node* old_parent = n->parent;
+            Node* old_left = n->left;
+            delete (n->right);
+            n->right = nullptr;
+
+            *n = *old_left;
+            n->parent = old_parent;
+
+            old_left->left = old_left->right = nullptr;
+            old_left->parent = nullptr;
+            delete (old_left);
+            old_left = nullptr;
+
+            if (n->left && n->right)
+            {
+              n->left->parent = n;
+              n->right->parent = n;
+              n->dirty = true;
+            }
+
+            if (is_root)
+            {
+              MERKLECPP_TRACE(MERKLECPP_TOUT
+                                << " - new root: "
+                                << n->hash.to_string(TRACE_HASH_SIZE)
+                                << std::endl;);
+              assert(n->parent == nullptr);
+              assert(_root == n);
+            }
+
+            assert(n->invariant());
+
+            MERKLECPP_TRACE(MERKLECPP_TOUT
+                              << " - after elimination: " << std::endl
+                              << to_string(TRACE_HASH_SIZE) << std::endl;);
+            return false;
           }
-
-          if (is_root)
-          {
-            MERKLECPP_TRACE(MERKLECPP_TOUT << " - new root: "
-                                           << n->hash.to_string(TRACE_HASH_SIZE)
-                                           << std::endl;);
-            assert(n->parent == nullptr);
-            assert(_root == n);
-          }
-
-          assert(n->invariant());
-
-          MERKLECPP_TRACE(MERKLECPP_TOUT
-                            << " - after elimination: " << std::endl
-                            << to_string(TRACE_HASH_SIZE) << std::endl;);
-          return false;
-        }
-        else
-          return true;
-      });
+          else
+            return true;
+        });
 
       // The leaf is now elsewhere, save the pointer.
-      leaf_nodes[index - num_flushed] = final;
+      leaf_nodes[index - num_flushed] = new_leaf_node;
 
       size_t num_retracted = num_leaves() - index - 1;
       if (num_retracted < leaf_nodes.size())
@@ -678,27 +712,26 @@ namespace merkle
     Tree& operator=(const Tree& other)
     {
       leaf_nodes.clear();
+      for (auto n : uninserted_leaf_nodes)
+        delete (n);
       uninserted_leaf_nodes.clear();
       insertion_stack.clear();
       hashing_stack.clear();
       walk_stack.clear();
 
-      _root = Node::copy_node(other._root, &leaf_nodes);
+      size_t to_skip = (other.num_flushed % 2 == 0) ? 0 : 1;
+      _root = Node::copy_node(
+        other._root,
+        &leaf_nodes,
+        &to_skip,
+        other.min_index(),
+        other.max_index());
       for (auto n : other.uninserted_leaf_nodes)
         uninserted_leaf_nodes.push_back(Node::copy_node(n));
       num_flushed = other.num_flushed;
+      assert(min_index() == other.min_index());
+      assert(max_index() == other.max_index());
       return *this;
-    }
-
-    const Tree split(size_t index)
-    {
-      MERKLECPP_TRACE(MERKLECPP_TOUT << "> split (slow) at " << index
-                                     << std::endl;);
-      Tree other = *this;
-      if (index > num_flushed)
-        other.retract_to(index - 1);
-      this->flush_to(index);
-      return other;
     }
 
     const Hash& root()
@@ -720,19 +753,15 @@ namespace merkle
 
       auto p = path(index);
       auto result = std::make_shared<Hash>(p->leaf());
+
       MERKLECPP_TRACE(
         MERKLECPP_TOUT << " - " << p->to_string(TRACE_HASH_SIZE) << std::endl;
         MERKLECPP_TOUT << " - " << result->to_string(TRACE_HASH_SIZE)
                        << std::endl;);
+
       for (auto e : *p)
-      {
         if (e.direction == Path::Direction::PATH_LEFT)
-        {
-          Hash tmp;
-          HASH_FUNCTION(e.hash, *result, tmp);
-          *result = tmp;
-        }
-      }
+          HASH_FUNCTION(e.hash, *result, *result);
 
       return result;
     }
@@ -775,18 +804,20 @@ namespace merkle
         height--;
       }
 
-      while (!walk_stack.empty())
-      {
-        walk_stack.back()->update_sizes();
-        walk_stack.pop_back();
-      }
+      if (update)
+        while (!walk_stack.empty())
+        {
+          walk_stack.back()->update_sizes();
+          walk_stack.pop_back();
+        }
 
       return cur;
     }
 
-    std::unique_ptr<Path> path(size_t index)
+    std::shared_ptr<Path> path(size_t index)
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> path from " << index << std::endl;);
+      statistics.num_paths++;
       std::list<typename Path::Element> elements;
 
       walk_to(index, false, [&elements](Node* n, bool go_right) {
@@ -797,8 +828,172 @@ namespace merkle
         return true;
       });
 
-      return std::make_unique<Path>(
+      return std::make_shared<Path>(
         leaf_node(index)->hash, index, std::move(elements), max_index());
+    }
+
+    std::shared_ptr<Path> past_path(size_t index, size_t as_of)
+    {
+      MERKLECPP_TRACE(MERKLECPP_TOUT << "> past_path from " << index
+                                     << " as of " << as_of << std::endl;);
+      statistics.num_past_paths++;
+
+      if (
+        (index < min_index() || max_index() < index) ||
+        (as_of < min_index() || max_index() < as_of) || index > as_of)
+        throw std::runtime_error("invalid leaf indices");
+
+      compute_root();
+
+      assert(index < _root->size && as_of < _root->size);
+
+      // Walk down the tree toward `index` and `as_of` from the root. First to
+      // the node at which they fork (recorded in `root_to_fork`), then
+      // separately to `index` and `as_of`, recording their paths
+      // in `fork_to_index` and `fork_to_as_of`.
+      std::list<typename Path::Element> root_to_fork, fork_to_index,
+        fork_to_as_of;
+      Node* fork_node = nullptr;
+
+      Node *cur_i = _root, *cur_a = _root;
+      size_t it_i = 0, it_a = 0;
+      if (_root->height > 1)
+      {
+        it_i = index << (sizeof(index) * 8 - _root->height + 1);
+        it_a = as_of << (sizeof(index) * 8 - _root->height + 1);
+      }
+
+      for (uint8_t height = _root->height; height > 1;)
+      {
+        assert(cur_i->invariant() && cur_a->invariant());
+        bool go_right_i = (it_i >> (8 * sizeof(it_i) - 1)) & 0x01;
+        bool go_right_a = (it_a >> (8 * sizeof(it_a) - 1)) & 0x01;
+
+        MERKLECPP_TRACE(MERKLECPP_TOUT
+                          << " - at " << (unsigned)height << ": "
+                          << cur_i->hash.to_string(TRACE_HASH_SIZE) << " ("
+                          << cur_i->size << "/" << (unsigned)cur_i->height
+                          << "/" << (go_right_i ? "R" : "L") << ")"
+                          << " / " << cur_a->hash.to_string(TRACE_HASH_SIZE)
+                          << " (" << cur_a->size << "/"
+                          << (unsigned)cur_a->height << "/"
+                          << (go_right_a ? "R" : "L") << ")" << std::endl;);
+
+        if (!fork_node && go_right_i != go_right_a)
+        {
+          assert(cur_i == cur_a);
+          assert(!go_right_i && go_right_a);
+          MERKLECPP_TRACE(MERKLECPP_TOUT
+                            << " - split at "
+                            << cur_i->hash.to_string(TRACE_HASH_SIZE)
+                            << std::endl;);
+          fork_node = cur_i;
+        }
+
+        if (!fork_node)
+        {
+          // Still on the path to the fork
+          assert(cur_i == cur_a);
+          if (cur_i->height == height)
+          {
+            if (go_right_i)
+            {
+              typename Path::Element e;
+              e.hash = go_right_i ? cur_i->left->hash : cur_i->right->hash;
+              e.direction = go_right_i ? Path::PATH_LEFT : Path::PATH_RIGHT;
+              root_to_fork.push_back(std::move(e));
+            }
+            cur_i = cur_a = (go_right_i ? cur_i->right : cur_i->left);
+          }
+        }
+        else
+        {
+          // After the fork, record paths to `index` and `as_of`.
+          if (cur_i->height == height)
+          {
+            typename Path::Element e;
+            e.hash = go_right_i ? cur_i->left->hash : cur_i->right->hash;
+            e.direction = go_right_i ? Path::PATH_LEFT : Path::PATH_RIGHT;
+            fork_to_index.push_back(std::move(e));
+            cur_i = (go_right_i ? cur_i->right : cur_i->left);
+          }
+          if (cur_a->height == height)
+          {
+            // The right path does not take into account anything to the right
+            // of `as_of`, as those nodes were inserted into the tree after
+            // `as_of`.
+            if (go_right_a)
+            {
+              typename Path::Element e;
+              e.hash = go_right_a ? cur_a->left->hash : cur_a->right->hash;
+              e.direction = go_right_a ? Path::PATH_LEFT : Path::PATH_RIGHT;
+              fork_to_as_of.push_back(std::move(e));
+            }
+            cur_a = (go_right_a ? cur_a->right : cur_a->left);
+          }
+        }
+
+        it_i <<= 1;
+        it_a <<= 1;
+        height--;
+      }
+
+      MERKLECPP_TRACE({
+        MERKLECPP_TOUT << " - root to split:";
+        for (auto e : root_to_fork)
+          MERKLECPP_TOUT << " " << e.hash.to_string(TRACE_HASH_SIZE) << "("
+                         << e.direction << ")";
+        MERKLECPP_TOUT << std::endl;
+        MERKLECPP_TOUT << " - split to index:";
+        for (auto e : fork_to_index)
+          MERKLECPP_TOUT << " " << e.hash.to_string(TRACE_HASH_SIZE) << "("
+                         << e.direction << ")";
+        MERKLECPP_TOUT << std::endl;
+        MERKLECPP_TOUT << " - split to as_of:";
+        for (auto e : fork_to_as_of)
+          MERKLECPP_TOUT << " " << e.hash.to_string(TRACE_HASH_SIZE) << "("
+                         << e.direction << ")";
+        MERKLECPP_TOUT << std::endl;
+      });
+
+      // Reconstruct the past path from the three path segments recorded.
+      std::list<typename Path::Element> path;
+
+      // The hashes along the path from the fork to `index` remain unchanged.
+      if (!fork_to_index.empty())
+        fork_to_index.pop_front();
+      for (auto it = fork_to_index.rbegin(); it != fork_to_index.rend(); it++)
+        path.push_back(std::move(*it));
+
+      if (fork_node)
+      {
+        // The final hash of the path from the fork to `as_of` needs to be
+        // computed because that path skipped past tree nodes younger than
+        // `as_of`.
+        Hash as_of_hash = cur_a->hash;
+        if (!fork_to_as_of.empty())
+          fork_to_as_of.pop_front();
+        for (auto it = fork_to_as_of.rbegin(); it != fork_to_as_of.rend(); it++)
+          HASH_FUNCTION(it->hash, as_of_hash, as_of_hash);
+
+        MERKLECPP_TRACE({
+          MERKLECPP_TOUT << " - as_of hash: "
+                         << as_of_hash.to_string(TRACE_HASH_SIZE) << std::endl;
+        });
+
+        typename Path::Element e;
+        e.hash = as_of_hash;
+        e.direction = Path::PATH_RIGHT;
+        path.push_back(std::move(e));
+      }
+
+      // The hashes along the path from the fork (now with new fork hash) to the
+      // (past) root remains unchanged.
+      for (auto it = root_to_fork.rbegin(); it != root_to_fork.rend(); it++)
+        path.push_back(std::move(*it));
+
+      return std::make_shared<Path>(
+        leaf_node(index)->hash, index, std::move(path), as_of);
     }
 
     void serialise(std::vector<uint8_t>& bytes)
@@ -824,6 +1019,39 @@ namespace merkle
           extras.push_back(n->left);
         return true;
       });
+
+      for (size_t i = extras.size() - 1; i != SIZE_MAX; i--)
+        extras[i]->hash.serialise(bytes);
+    }
+
+    void serialise(size_t from, size_t to, std::vector<uint8_t>& bytes)
+    {
+      MERKLECPP_TRACE(MERKLECPP_TOUT << "> serialise from " << from << " to "
+                                     << to << std::endl;);
+
+      if (
+        (from < min_index() || max_index() < from) ||
+        (to < min_index() || max_index() < to) || from > to)
+        throw std::runtime_error("invalid leaf indices");
+
+      compute_root();
+
+      MERKLECPP_TRACE(MERKLECPP_TOUT << to_string(TRACE_HASH_SIZE)
+                                     << std::endl;);
+
+      serialise_size_t(to - from + 1, bytes);
+      serialise_size_t(from, bytes);
+      for (size_t i = from; i <= to; i++)
+        leaf(i).serialise(bytes);
+
+      // Find nodes to conflate/flush along the left edge of the tree.
+      std::vector<Node*> extras;
+      walk_to(from, false, [&extras](Node*& n, bool go_right) {
+        if (go_right)
+          extras.push_back(n->left);
+        return true;
+      });
+
       for (size_t i = extras.size() - 1; i != SIZE_MAX; i--)
         extras[i]->hash.serialise(bytes);
     }
@@ -861,8 +1089,6 @@ namespace merkle
 
       std::vector<Node*> level = leaf_nodes, next_level;
       size_t it = num_flushed;
-      MERKLECPP_TRACE(MERKLECPP_TOUT << "num_flushed=" << num_flushed
-                                     << " it=" << it << std::endl;);
       uint8_t level_no = 0;
       while (it != 0 || level.size() > 1)
       {
@@ -932,17 +1158,6 @@ namespace merkle
         return leaf_nodes[index - num_flushed]->hash;
     }
 
-    const Node* leaf_node(size_t index) const
-    {
-      if (index < min_index() || max_index() < index)
-        throw std::runtime_error("leaf index out of bounds");
-      size_t real_index = index - num_flushed;
-      if (real_index < leaf_nodes.size())
-        return leaf_nodes[real_index];
-      else
-        return uninserted_leaf_nodes[real_index - leaf_nodes.size()];
-    }
-
     size_t num_leaves() const
     {
       return num_flushed + leaf_nodes.size() + uninserted_leaf_nodes.size();
@@ -978,19 +1193,35 @@ namespace merkle
         leaf_nodes.size() * sizeof(Hash) + num_extras * sizeof(Hash);
     }
 
+    size_t serialised_size(size_t from, size_t to)
+    {
+      size_t num_extras = 0;
+      walk_to(from, false, [&num_extras](Node*&, bool go_right) {
+        if (go_right)
+          num_extras++;
+        return true;
+      });
+
+      return sizeof(leaf_nodes.size()) + sizeof(num_flushed) +
+        (to - from + 1) * sizeof(Hash) + num_extras * sizeof(Hash);
+    }
+
     mutable struct Statistics
     {
       size_t num_insert = 0, num_hash = 0;
       size_t num_root = 0, num_past_root = 0;
       size_t num_flush = 0, num_retract = 0;
-      size_t num_split = 0;
+      size_t num_split = 0, num_paths = 0;
+      size_t num_past_paths = 0;
 
       std::string to_string() const
       {
         std::stringstream stream;
         stream << "num_insert=" << num_insert << " num_hash=" << num_hash
                << " num_root=" << num_root << " num_retract=" << num_retract
-               << " num_flush=" << num_flush << " num_split=" << num_split;
+               << " num_flush=" << num_flush << " num_split=" << num_split
+               << " num_paths=" << num_paths
+               << " num_past_paths=" << num_past_paths;
         return stream.str();
       }
     } statistics;
@@ -1057,6 +1288,17 @@ namespace merkle
     mutable std::vector<InsertionStackElement> insertion_stack;
     mutable std::vector<Node*> hashing_stack;
     mutable std::vector<Node*> walk_stack;
+
+    const Node* leaf_node(size_t index) const
+    {
+      MERKLECPP_TRACE(MERKLECPP_TOUT << "> leaf_node " << index << std::endl;);
+      if (index >= num_leaves())
+        throw std::runtime_error("leaf index out of bounds");
+      if (index - num_flushed >= leaf_nodes.size())
+        return uninserted_leaf_nodes[index - num_flushed - leaf_nodes.size()];
+      else
+        return leaf_nodes[index - num_flushed];
+    }
 
     void hash(Node* n, size_t indent = 2) const
     {
@@ -1180,11 +1422,13 @@ namespace merkle
 
     Node* process_insertion_stack(bool complete = true)
     {
-      MERKLECPP_TRACE(
-        MERKLECPP_TOUT << "  X " << (complete ? "complete" : "continue") << ":";
-        for (size_t i = 0; i < insertion_stack.size(); i++) MERKLECPP_TOUT
-        << " " << insertion_stack[i].n->hash.to_string(TRACE_HASH_SIZE);
-        MERKLECPP_TOUT << std::endl;);
+      MERKLECPP_TRACE({
+        std::string nodes;
+        for (size_t i = 0; i < insertion_stack.size(); i++)
+          nodes += " " + insertion_stack[i].n->hash.to_string(TRACE_HASH_SIZE);
+        MERKLECPP_TOUT << "  X " << (complete ? "complete" : "continue") << ":"
+                       << nodes << std::endl;
+      });
 
       Node* result = insertion_stack.back().n;
       insertion_stack.pop_back();

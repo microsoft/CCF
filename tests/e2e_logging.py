@@ -178,11 +178,11 @@ def test_anonymous_caller(network, args):
         primary, _ = network.find_primary()
 
         # Create a new user but do not record its identity
-        network.create_user(4, args.participants_curve, record=False)
+        network.create_user(5, args.participants_curve, record=False)
 
         log_id = 101
         msg = "This message is anonymous"
-        with primary.client("user4") as c:
+        with primary.client("user5") as c:
             r = c.post("/app/log/private/anonymous", {"id": log_id, "msg": msg})
             assert r.body.json() == True
             r = c.get(f"/app/log/private?id={log_id}")
@@ -240,13 +240,25 @@ def test_multi_auth(network, args):
             require_new_response(r)
 
         LOG.info("Authenticate as a user, via HTTP signature")
-        with primary.client("user0", disable_client_auth=True) as c:
-            r = c.get("/app/multi_auth", signed=True)
+        with primary.client(None, "user0") as c:
+            r = c.get("/app/multi_auth")
             require_new_response(r)
 
         LOG.info("Authenticate as a member, via HTTP signature")
-        with primary.client("member0", disable_client_auth=True) as c:
-            r = c.get("/app/multi_auth", signed=True)
+        with primary.client(None, "member0") as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
+
+        LOG.info("Authenticate as user2 but sign as user1")
+        with primary.client("user2", "user1") as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
+
+        network.create_user(5, args.participants_curve, record=False)
+
+        LOG.info("Authenticate as invalid user5 but sign as valid user3")
+        with primary.client("user5", "user3") as c:
+            r = c.get("/app/multi_auth")
             require_new_response(r)
 
         LOG.info("Authenticate via JWT token")
@@ -270,6 +282,46 @@ def test_multi_auth(network, args):
             jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
             r = c.get("/app/multi_auth", headers={"authorization": "Bearer " + jwt})
             require_new_response(r)
+
+    return network
+
+
+@reqs.description("Call an endpoint with a custom auth policy")
+@reqs.supports_methods("custom_auth")
+def test_custom_auth(network, args):
+    if args.package == "liblogging":
+        primary, _ = network.find_primary()
+
+        with primary.client("user0") as c:
+            LOG.info("Request without custom headers is refused")
+            r = c.get("/app/custom_auth")
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
+
+            name_header = "x-custom-auth-name"
+            age_header = "x-custom-auth-age"
+
+            LOG.info("Requests with partial headers are refused")
+            r = c.get("/app/custom_auth", headers={name_header: "Bob"})
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
+            r = c.get("/app/custom_auth", headers={age_header: "42"})
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
+
+            LOG.info("Requests with unacceptable header contents are refused")
+            r = c.get("/app/custom_auth", headers={name_header: "", age_header: "42"})
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
+            r = c.get(
+                "/app/custom_auth", headers={name_header: "Bob", age_header: "12"}
+            )
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
+
+            LOG.info("Request which meets all requirements is accepted")
+            r = c.get(
+                "/app/custom_auth", headers={name_header: "Alice", age_header: "42"}
+            )
+            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+            response = r.body.json()
+            assert response["name"] == "Alice", response
+            assert response["age"] == 42, response
 
     return network
 
@@ -640,6 +692,7 @@ def run(args):
         network = test_cert_prefix(network, args)
         network = test_anonymous_caller(network, args)
         network = test_multi_auth(network, args)
+        network = test_custom_auth(network, args)
         network = test_raw_text(network, args)
         network = test_historical_query(network, args)
         network = test_view_history(network, args)
@@ -656,6 +709,6 @@ if __name__ == "__main__":
     else:
         args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
-    args.initial_user_count = 2
+    args.initial_user_count = 4
     args.initial_member_count = 2
     run(args)

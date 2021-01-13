@@ -632,6 +632,14 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME governance_no_session_auth_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
+                    --disable-member-session-auth
+  )
+
+  add_e2e_test(
     NAME ca_certs_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/ca_certs.py
     CONSENSUS cft
@@ -768,6 +776,16 @@ if(BUILD_TESTS)
     LABEL vegeta
     CONFIGURATIONS long_stress
     ADDITIONAL_ARGS -p liblogging --duration 45m
+  )
+
+  add_e2e_test(
+    NAME tutorial_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_tutorial.py
+    CONSENSUS cft
+    LABEL tutorial
+    CURL_CLIENT TRUE
+    ADDITIONAL_ARGS -p liblogging --tutorial
+                    ${CMAKE_SOURCE_DIR}/python/tutorial.py
   )
 
   add_e2e_sandbox_test(

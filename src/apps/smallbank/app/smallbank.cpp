@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "../smallbank_serializer.h"
 #include "enclave/app_interface.h"
+#include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"
 
 #include <charconv>
@@ -25,6 +26,7 @@ namespace ccfapp
   {
   private:
     SmallBankTables tables;
+    metrics::Tracker metrics_tracker;
 
     void set_error_status(
       EndpointContext& args, int status, std::string&& message)
@@ -447,6 +449,17 @@ namespace ccfapp
           "SmallBank_write_check", verb, writeCheck, user_sig_or_cert)
           .install();
       }
+
+      metrics_tracker.install_endpoint(*this);
+    }
+
+    void tick(
+      std::chrono::milliseconds elapsed,
+      kv::Consensus::Statistics stats) override
+    {
+      metrics_tracker.tick(elapsed, stats);
+
+      ccf::UserEndpointRegistry::tick(elapsed, stats);
     }
   };
 

@@ -332,6 +332,31 @@ namespace http
         }
       }
 
+      // If any sig params were not found, this is invalid
+      if (sig_params.key_id.empty())
+      {
+        LOG_TRACE_FMT("Signature params: Missing {}", auth::SIGN_PARAMS_KEYID);
+        return std::nullopt;
+      }
+      if (sig_params.signature_algorithm.empty())
+      {
+        LOG_TRACE_FMT(
+          "Signature params: Missing {}", auth::SIGN_PARAMS_ALGORITHM);
+        return std::nullopt;
+      }
+      if (sig_params.signature.empty())
+      {
+        LOG_TRACE_FMT(
+          "Signature params: Missing {}", auth::SIGN_PARAMS_SIGNATURE);
+        return std::nullopt;
+      }
+      if (sig_params.signed_headers.empty())
+      {
+        LOG_TRACE_FMT(
+          "Signature params: Missing {}", auth::SIGN_PARAMS_HEADERS);
+        return std::nullopt;
+      }
+
       return sig_params;
     }
 
@@ -356,17 +381,21 @@ namespace http
         std::string verify_error_reason;
         if (!verify_digest(headers, body, verify_error_reason))
         {
-          throw std::logic_error(fmt::format(
+          LOG_TRACE_FMT(
             "Error verifying HTTP {} header: {}",
             headers::DIGEST,
-            verify_error_reason));
+            verify_error_reason);
+          return std::nullopt;
         }
 
         auto parsed_sign_params = parse_signature_params(authz_header);
         if (!parsed_sign_params.has_value())
         {
-          throw std::logic_error(
-            fmt::format("Error parsing {} fields", headers::AUTHORIZATION));
+          LOG_TRACE_FMT(
+            "Error parsing elements in {} header: {}",
+            headers::AUTHORIZATION,
+            authz_header);
+          return std::nullopt;
         }
 
         const auto& signed_headers = parsed_sign_params->signed_headers;
@@ -383,17 +412,18 @@ namespace http
 
         if (!missing_required_headers.empty())
         {
-          throw std::logic_error(fmt::format(
+          LOG_TRACE_FMT(
             "HTTP signature does not cover required fields: {}",
-            fmt::join(missing_required_headers, ", ")));
+            fmt::join(missing_required_headers, ", "));
+          return std::nullopt;
         }
 
         auto signed_raw = construct_raw_signed_string(
           verb, path, query, headers, signed_headers);
         if (!signed_raw.has_value())
         {
-          throw std::logic_error(
-            fmt::format("Error constructing signed string"));
+          LOG_TRACE_FMT("Error constructing signed string");
+          return std::nullopt;
         }
 
         auto sig_raw = tls::raw_from_b64(parsed_sign_params->signature);

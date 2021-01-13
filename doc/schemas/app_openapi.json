@@ -94,48 +94,6 @@
         ],
         "type": "object"
       },
-      "GetMetrics__HistogramResults": {
-        "properties": {
-          "buckets": {
-            "$ref": "#/components/schemas/json"
-          },
-          "high": {
-            "$ref": "#/components/schemas/int32"
-          },
-          "low": {
-            "$ref": "#/components/schemas/int32"
-          },
-          "overflow": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "underflow": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "low",
-          "high",
-          "overflow",
-          "underflow",
-          "buckets"
-        ],
-        "type": "object"
-      },
-      "GetMetrics__Out": {
-        "properties": {
-          "histogram": {
-            "$ref": "#/components/schemas/GetMetrics__HistogramResults"
-          },
-          "tx_rates": {
-            "$ref": "#/components/schemas/json"
-          }
-        },
-        "required": [
-          "histogram",
-          "tx_rates"
-        ],
-        "type": "object"
-      },
       "GetNetworkInfo__NodeInfo": {
         "properties": {
           "host": {
@@ -253,6 +211,33 @@
         ],
         "type": "object"
       },
+      "HistogramResults": {
+        "properties": {
+          "buckets": {
+            "$ref": "#/components/schemas/json"
+          },
+          "high": {
+            "$ref": "#/components/schemas/int32"
+          },
+          "low": {
+            "$ref": "#/components/schemas/int32"
+          },
+          "overflow": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "underflow": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "low",
+          "high",
+          "overflow",
+          "underflow",
+          "buckets"
+        ],
+        "type": "object"
+      },
       "LoggingGet__Out": {
         "properties": {
           "msg": {
@@ -285,6 +270,21 @@
           "TRUSTED",
           "RETIRED"
         ]
+      },
+      "Report": {
+        "properties": {
+          "histogram": {
+            "$ref": "#/components/schemas/HistogramResults"
+          },
+          "tx_rates": {
+            "$ref": "#/components/schemas/json"
+          }
+        },
+        "required": [
+          "histogram",
+          "tx_rates"
+        ],
+        "type": "object"
       },
       "TxStatus": {
         "enum": [
@@ -361,6 +361,23 @@
         },
         "type": "array"
       }
+    },
+    "securitySchemes": {
+      "bearer_jwt": {
+        "bearerFormat": "JWT",
+        "scheme": "bearer",
+        "type": "http"
+      },
+      "member_signature": {
+        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a member identity registered with this service.",
+        "scheme": "signature",
+        "type": "http"
+      },
+      "user_signature": {
+        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a user identity registered with this service.",
+        "scheme": "signature",
+        "type": "http"
+      }
     }
   },
   "info": {
@@ -410,6 +427,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetCommit__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/custom_auth": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/json"
                 }
               }
             },
@@ -760,7 +793,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetMetrics__Out"
+                  "$ref": "#/components/schemas/Report"
                 }
               }
             },
@@ -782,7 +815,19 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "user_signature": []
+          },
+          {
+            "member_signature": []
+          },
+          {
+            "bearer_jwt": []
+          },
+          {}
+        ]
       }
     },
     "/network_info": {
@@ -966,7 +1011,15 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "user_signature": []
+          },
+          {
+            "member_signature": []
+          }
+        ]
       }
     }
   },

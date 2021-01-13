@@ -27,14 +27,6 @@ namespace ccf
 {
   using namespace endpoints;
 
-  // to be exposed in EndpointContext or similar
-  struct Jwt
-  {
-    std::string key_issuer;
-    nlohmann::json header;
-    nlohmann::json payload;
-  };
-
   // Commands are endpoints which do not interact with the kv, even to read
   struct CommandEndpointContext
   {
@@ -395,13 +387,15 @@ namespace ccf
        *  that do not read or mutate the state of the key-value store.
        * \endverbatim
        *
-       * @param v Boolean indicating whether the Endpoint is executed locally,
-       * on the node receiving the request
+       * @param v Enum indicating whether the Endpoint is executed locally,
+       * on the node receiving the request, locally on the primary or via the
+       * consensus.
        * @return This Endpoint for further modification
        */
-      Endpoint& set_execute_locally(bool v)
+      Endpoint& set_execute_outside_consensus(
+        ccf::endpoints::ExecuteOutsideConsensus v)
       {
-        properties.execute_locally = v;
+        properties.execute_outside_consensus = v;
         return *this;
       }
 
@@ -521,11 +515,9 @@ namespace ccf
     EndpointRegistry(
       const std::string& method_prefix_,
       kv::Store&,
-      const std::string& certs_table_name_ = "",
-      const std::string& digests_table_name_ = "") :
+      const std::string& certs_table_name_ = "") :
       method_prefix(method_prefix_),
-      certs_table_name(certs_table_name_),
-      digests_table_name(digests_table_name_)
+      certs_table_name(certs_table_name_)
     {}
 
     virtual ~EndpointRegistry() {}
@@ -593,7 +585,9 @@ namespace ccf
     {
       return make_endpoint(
                method, verb, [f](EndpointContext& args) { f(args); }, ap)
-        .set_forwarding_required(ForwardingRequired::Sometimes);
+        .set_forwarding_required(ForwardingRequired::Sometimes)
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Primary);
     }
 
     /** Install the given endpoint, using its method and verb
@@ -604,14 +598,6 @@ namespace ccf
      */
     void install(Endpoint& endpoint)
     {
-      if (endpoint.authn_policies.empty())
-      {
-        LOG_FAIL_FMT(
-          "Endpoint {} /{} does not have any authentication policy",
-          endpoint.dispatch.verb.c_str(),
-          endpoint.dispatch.uri_path);
-      }
-
       // A single empty auth policy is semantically equivalent to no policy, but
       // no policy is faster
       if (
@@ -655,31 +641,63 @@ namespace ccf
       default_endpoint = std::move(tmp);
     }
 
+    static void add_auth_policy_to_api_document() {}
+
     static void add_endpoint_to_api_document(
       nlohmann::json& document, const EndpointPtr& endpoint)
     {
-      if (endpoint->schema_builders.empty())
+      const auto http_verb = endpoint->dispatch.verb.get_http_method();
+      if (!http_verb.has_value())
       {
-        // If we have no more specific schema information, make sure the
-        // endpoint is still minimally documented (NB: this claims the endpoint
-        // will sometimes return a 200 status code, which may not be true!)
-        const auto http_verb = endpoint->dispatch.verb.get_http_method();
-        if (!http_verb.has_value())
-        {
-          return;
-        }
-
-        ds::openapi::response(
-          ds::openapi::path_operation(
-            ds::openapi::path(document, endpoint->dispatch.uri_path),
-            http_verb.value()),
-          HTTP_STATUS_OK);
+        return;
       }
-      else
+
+      for (const auto& builder_fn : endpoint->schema_builders)
       {
-        for (const auto& builder_fn : endpoint->schema_builders)
+        builder_fn(document, endpoint);
+      }
+
+      // Make sure the
+      // endpoint exists with minimal documentation, even if there are no more
+      // informed schema builders
+      auto& path_op = ds::openapi::path_operation(
+        ds::openapi::path(document, endpoint->dispatch.uri_path),
+        http_verb.value());
+
+      // Path Operation must contain at least one response - if none has been
+      // defined, assume this can return 200
+      if (ds::openapi::responses(path_op).empty())
+      {
+        ds::openapi::response(path_op, HTTP_STATUS_OK);
+      }
+
+      if (!endpoint->authn_policies.empty())
+      {
+        for (const auto& auth_policy : endpoint->authn_policies)
         {
-          builder_fn(document, endpoint);
+          const auto opt_scheme = auth_policy->get_openapi_security_schema();
+          if (opt_scheme.has_value())
+          {
+            auto& op_security =
+              ds::openapi::access::get_array(path_op, "security");
+            if (opt_scheme.value() == ccf::unauthenticated_schema)
+            {
+              // This auth policy is empty, allowing (optionally)
+              // unauthenticated access. This is represented in OpenAPI with an
+              // empty object
+              op_security.push_back(nlohmann::json::object());
+            }
+            else
+            {
+              const auto& [name, scheme] = opt_scheme.value();
+              ds::openapi::add_security_scheme_to_components(
+                document, name, scheme);
+
+              auto security_obj = nlohmann::json::object();
+              security_obj[name] = nlohmann::json::array();
+              op_security.push_back(security_obj);
+            }
+          }
         }
       }
     }
@@ -888,11 +906,6 @@ namespace ccf
     }
 
     virtual void tick(std::chrono::milliseconds, kv::Consensus::Statistics) {}
-
-    bool has_digests()
-    {
-      return !digests_table_name.empty();
-    }
 
     void set_consensus(kv::Consensus* c)
     {

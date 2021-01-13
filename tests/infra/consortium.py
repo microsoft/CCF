@@ -27,6 +27,7 @@ class Consortium:
         member_ids=None,
         curve=None,
         remote_node=None,
+        authenticate_session=True,
     ):
         self.common_dir = common_dir
         self.members = []
@@ -34,6 +35,7 @@ class Consortium:
         self.share_script = share_script
         self.members = []
         self.recovery_threshold = None
+        self.authenticate_session = authenticate_session
         # If a list of member IDs is passed in, generate fresh member identities.
         # Otherwise, recover the state of the consortium from the state of CCF.
         if member_ids is not None:
@@ -47,6 +49,7 @@ class Consortium:
                     has_share,
                     key_generator,
                     m_data,
+                    authenticate_session=authenticate_session,
                 )
                 if has_share:
                     self.recovery_threshold += 1
@@ -74,6 +77,7 @@ class Consortium:
                         self.common_dir,
                         share_script,
                         is_recovery_member="encryption_pub_key" in info,
+                        authenticate_session=authenticate_session,
                     )
                     status = info["status"]
                     if (
@@ -95,6 +99,11 @@ class Consortium:
                     },
                 )
                 self.recovery_threshold = r.body.json()["recovery_threshold"]
+
+    def set_authenticate_session(self, flag):
+        self.authenticate_session = flag
+        for member in self.members:
+            member.authenticate_session = flag
 
     def make_proposal(self, proposal_name, *args, **kwargs):
         func = getattr(ccf.proposal_generator, proposal_name)
@@ -136,6 +145,7 @@ class Consortium:
             self.share_script,
             is_recovery_member=recovery_member,
             key_generator=self.key_generator,
+            authenticate_session=self.authenticate_session,
         )
 
         proposal_body, careful_vote = self.make_proposal(
@@ -252,7 +262,8 @@ class Consortium:
         """
 
         proposals = []
-        with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
+        member = self.get_any_active_member()
+        with remote_node.client(*member.auth()) as c:
             r = c.post("/gov/query", {"text": script})
             assert r.status_code == http.HTTPStatus.OK.value
             for proposal_id, attr in r.body.json().items():
@@ -272,7 +283,8 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
-        with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
+        member = self.get_any_active_member()
+        with remote_node.client(*member.auth(write=True)) as c:
             r = c.post(
                 "/gov/read",
                 {"table": "public:ccf.gov.nodes", "key": node_to_retire.node_id},
@@ -449,7 +461,8 @@ class Consortium:
         """
         # When opening the service in BFT, the first transaction to be
         # completed when f = 1 takes a significant amount of time
-        with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
+        member = self.get_any_active_member()
+        with remote_node.client(*member.auth()) as c:
             r = c.post(
                 "/gov/query",
                 {
@@ -488,7 +501,8 @@ class Consortium:
             ), f"Service status {current_status} (expected {status.name})"
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
-        with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
+        member = self.get_any_active_member()
+        with remote_node.client(*member.auth()) as c:
             r = c.post("/gov/read", {"table": "public:ccf.gov.nodes", "key": node_id})
 
             if r.status_code != http.HTTPStatus.OK.value or (

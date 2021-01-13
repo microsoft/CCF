@@ -36,7 +36,8 @@ namespace kv
     Version last_committable = 0;
     Version rollback_count = 0;
 
-    std::unordered_map<Version, std::pair<PendingTx, bool>> pending_txs;
+    std::unordered_map<Version, std::pair<std::unique_ptr<PendingTx>, bool>>
+      pending_txs;
 
   public:
     void clear()
@@ -61,8 +62,9 @@ namespace kv
   {
   private:
     using Hooks = std::map<std::string, kv::untyped::Map::CommitHook>;
-    Hooks local_hooks;
+    using MapHooks = std::map<std::string, kv::untyped::Map::MapHook>;
     Hooks global_hooks;
+    MapHooks map_hooks;
 
     std::shared_ptr<Consensus> consensus = nullptr;
     std::shared_ptr<TxHistory> history = nullptr;
@@ -80,10 +82,13 @@ namespace kv
     const bool strict_versions = true;
 
     DeserialiseSuccess commit_deserialised(
-      OrderedChanges& changes, Version& v, const MapCollection& new_maps)
+      OrderedChanges& changes,
+      Version& v,
+      const MapCollection& new_maps,
+      kv::ConsensusHookPtrs& hooks)
     {
       auto c = apply_changes(
-        changes, [v]() { return v; }, new_maps);
+        changes, [v]() { return v; }, hooks, new_maps);
       if (!c.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
@@ -229,16 +234,16 @@ namespace kv
 
       {
         // If we have any hooks for the given map name, set them on this new map
-        const auto local_it = local_hooks.find(map_name);
-        if (local_it != local_hooks.end())
-        {
-          map->set_local_hook(local_it->second);
-        }
-
         const auto global_it = global_hooks.find(map_name);
         if (global_it != global_hooks.end())
         {
           map->set_global_hook(global_it->second);
+        }
+
+        const auto map_it = map_hooks.find(map_name);
+        if (map_it != map_hooks.end())
+        {
+          map->set_map_hook(map_it->second);
         }
       }
     }
@@ -337,6 +342,7 @@ namespace kv
 
     DeserialiseSuccess deserialise_snapshot(
       const std::vector<uint8_t>& data,
+      kv::ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) override
     {
@@ -352,7 +358,7 @@ namespace kv
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
         return DeserialiseSuccess::FAILED;
       }
-      auto v = v_.value();
+      auto [v, _] = v_.value();
 
       std::lock_guard<SpinLock> mguard(maps_lock);
 
@@ -435,7 +441,7 @@ namespace kv
       // overall snapshot version. The commit versions for each map are
       // contained in the snapshot and applied when the snapshot is committed.
       auto r = apply_changes(
-        changes, []() { return NoVersion; }, new_maps);
+        changes, []() { return NoVersion; }, hooks, new_maps);
       if (!r.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised snapshot at version {}", v);
@@ -598,6 +604,7 @@ namespace kv
 
     DeserialiseSuccess deserialise_views(
       const std::vector<uint8_t>& data,
+      kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
       Term* term_ = nullptr,
       Version* index_ = nullptr,
@@ -628,7 +635,7 @@ namespace kv
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
         return DeserialiseSuccess::FAILED;
       }
-      auto v = v_.value();
+      auto [v, _] = v_.value();
 
       // Throw away any local commits that have not propagated via the
       // consensus.
@@ -700,7 +707,7 @@ namespace kv
 
       if (commit)
       {
-        success = commit_deserialised(changes, v, new_maps);
+        success = commit_deserialised(changes, v, new_maps, hooks);
         if (success == DeserialiseSuccess::FAILED)
         {
           return success;
@@ -758,7 +765,7 @@ namespace kv
 
         if (changes.find(ccf::Tables::SIGNATURES) != changes.end())
         {
-          success = commit_deserialised(changes, v, new_maps);
+          success = commit_deserialised(changes, v, new_maps, hooks);
           if (success == DeserialiseSuccess::FAILED)
           {
             return success;
@@ -794,7 +801,7 @@ namespace kv
         }
         else if (changes.find(ccf::Tables::BACKUP_SIGNATURES) != changes.end())
         {
-          success = commit_deserialised(changes, v, new_maps);
+          success = commit_deserialised(changes, v, new_maps, hooks);
           if (success == DeserialiseSuccess::FAILED)
           {
             return success;
@@ -829,7 +836,7 @@ namespace kv
         }
         else if (changes.find(ccf::Tables::NONCES) != changes.end())
         {
-          success = commit_deserialised(changes, v, new_maps);
+          success = commit_deserialised(changes, v, new_maps, hooks);
           if (success == DeserialiseSuccess::FAILED)
           {
             return success;
@@ -851,7 +858,7 @@ namespace kv
         else if (changes.find(ccf::Tables::NEW_VIEWS) != changes.end())
         {
           LOG_INFO_FMT("Applying new view");
-          success = commit_deserialised(changes, v, new_maps);
+          success = commit_deserialised(changes, v, new_maps, hooks);
           if (success == DeserialiseSuccess::FAILED)
           {
             return success;
@@ -890,10 +897,11 @@ namespace kv
 
     DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
+      kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
       Term* term = nullptr) override
     {
-      return deserialise_views(data, public_only, term);
+      return deserialise_views(data, hooks, public_only, term);
     }
 
     bool operator==(const Store& that) const
@@ -954,7 +962,7 @@ namespace kv
 
     CommitSuccess commit(
       const TxID& txid,
-      PendingTx&& pending_tx,
+      std::unique_ptr<PendingTx> pending_tx,
       bool globally_committable) override
     {
       auto c = get_consensus();
@@ -1003,9 +1011,11 @@ namespace kv
             break;
 
           auto& [pending_tx_, committable_] = search->second;
-          auto [success_, reqid, data_] = pending_tx_();
+          auto [success_, reqid, data_, hooks_] = pending_tx_->call();
           auto data_shared =
             std::make_shared<std::vector<uint8_t>>(std::move(data_));
+          auto hooks_shared =
+            std::make_shared<kv::ConsensusHookPtrs>(std::move(hooks_));
 
           // NB: this cannot happen currently. Regular Tx only make it here if
           // they did succeed, and signatures cannot conflict because they
@@ -1023,7 +1033,7 @@ namespace kv
             "Batching {} ({})", last_replicated + offset, data_shared->size());
 
           batch.emplace_back(
-            last_replicated + offset, data_shared, committable_);
+            last_replicated + offset, data_shared, committable_, hooks_shared);
           pending_txs.erase(search);
         }
 
@@ -1189,26 +1199,26 @@ namespace kv
       }
     }
 
-    void set_local_hook(
-      const std::string& map_name, const kv::untyped::Map::CommitHook& hook)
+    void set_map_hook(
+      const std::string& map_name, const kv::untyped::Map::MapHook& hook)
     {
-      local_hooks[map_name] = hook;
+      map_hooks[map_name] = hook;
 
       const auto it = maps.find(map_name);
       if (it != maps.end())
       {
-        it->second.second->set_local_hook(hook);
+        it->second.second->set_map_hook(hook);
       }
     }
 
-    void unset_local_hook(const std::string& map_name)
+    void unset_map_hook(const std::string& map_name)
     {
-      local_hooks.erase(map_name);
+      map_hooks.erase(map_name);
 
       const auto it = maps.find(map_name);
       if (it != maps.end())
       {
-        it->second.second->unset_local_hook();
+        it->second.second->unset_map_hook();
       }
     }
 

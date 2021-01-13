@@ -62,6 +62,9 @@ namespace ccf
     std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
       const override
     {
+      // There is currently no OpenAPI-compliant way to describe cert-based TLS
+      // auth, so this policy is not documented. This should change in
+      // OpenAPI3.1: https://github.com/OAI/OpenAPI-Specification/pull/1764
       return std::nullopt;
     }
   };
@@ -115,6 +118,9 @@ namespace ccf
     std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
       const override
     {
+      // There is currently no OpenAPI-compliant way to describe cert-based TLS
+      // auth, so this policy is not documented. This should change in
+      // OpenAPI3.1: https://github.com/OAI/OpenAPI-Specification/pull/1764
       return std::nullopt;
     }
   };
@@ -163,6 +169,9 @@ namespace ccf
     std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
       const override
     {
+      // There is currently no OpenAPI-compliant way to describe cert-based TLS
+      // auth, so this policy is not documented. This should change in
+      // OpenAPI3.1: https://github.com/OAI/OpenAPI-Specification/pull/1764
       return std::nullopt;
     }
   };

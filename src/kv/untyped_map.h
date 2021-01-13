@@ -105,12 +105,13 @@ namespace kv::untyped
     using StateSnapshot = kv::Snapshot<K, V, H>;
 
     using CommitHook = CommitHook<Write>;
+    using MapHook = MapHook<Write>;
 
   private:
     AbstractStore* store;
     Roll roll;
-    CommitHook local_hook = nullptr;
     CommitHook global_hook = nullptr;
+    MapHook hook = nullptr;
     std::list<std::pair<Version, Write>> commit_deltas;
     SpinLock sl;
     const SecurityDomain security_domain;
@@ -141,7 +142,7 @@ namespace kv::untyped
         return committed_writes || change_set.has_writes();
       }
 
-      bool prepare() override
+      bool prepare(kv::Version& max_conflict_version) override
       {
         if (change_set.writes.empty())
           return true;
@@ -188,6 +189,11 @@ namespace kv::untyped
             {
               LOG_DEBUG_FMT("Read depends on invalid version of entry");
               return false;
+            }
+
+            if (max_conflict_version < search->version)
+            {
+              max_conflict_version = search->version;
             }
           }
         }
@@ -239,15 +245,15 @@ namespace kv::untyped
         }
       }
 
-      void post_commit() override
+      ConsensusHookPtr post_commit() override
       {
         // This is run separately from commit so that all commits in the Tx
-        // have been applied before local hooks are run. The maps in the Tx
+        // have been applied before map hooks are run. The maps in the Tx
         // are still locked when post_commit is run.
         if (change_set.writes.empty())
-          return;
+          return nullptr;
 
-        map.trigger_local_hook(commit_version, change_set.writes);
+        return map.trigger_map_hook(commit_version, change_set.writes);
       }
 
       void set_commit_version(Version v)
@@ -409,7 +415,7 @@ namespace kv::untyped
         return true;
       }
 
-      bool prepare() override
+      bool prepare(kv::Version&) override
       {
         // Snapshots never conflict
         return true;
@@ -429,8 +435,8 @@ namespace kv::untyped
         r->version = change_set.version;
 
         // Executing hooks from snapshot requires copying the entire snapshotted
-        // state so only do it if there's an hook on the table
-        if (map.local_hook || map.global_hook)
+        // state so only do it if there's a hook on the table
+        if (map.hook || map.global_hook)
         {
           r->state.foreach([&r](const K& k, const VersionV& v) {
             if (!is_deleted(v.version))
@@ -442,10 +448,10 @@ namespace kv::untyped
         }
       }
 
-      void post_commit() override
+      ConsensusHookPtr post_commit() override
       {
         auto r = map.roll.commits->get_head();
-        map.trigger_local_hook(change_set.version, r->writes);
+        return map.trigger_map_hook(change_set.version, r->writes);
       }
     };
 
@@ -537,20 +543,14 @@ namespace kv::untyped
       return store;
     }
 
-    /** Set handler to be called on local transaction commit
-     *
-     * @param hook function to be called on local transaction commit
-     */
-    void set_local_hook(const CommitHook& hook)
+    void set_map_hook(const MapHook& hook_)
     {
-      local_hook = hook;
+      hook = hook_;
     }
 
-    /** Reset local transaction commit handler
-     */
-    void unset_local_hook()
+    void unset_map_hook()
     {
-      local_hook = nullptr;
+      hook = nullptr;
     }
 
     /** Set handler to be called on global transaction commit
@@ -808,12 +808,13 @@ namespace kv::untyped
       return roll;
     }
 
-    void trigger_local_hook(Version version, const Write& writes)
+    ConsensusHookPtr trigger_map_hook(Version version, const Write& writes)
     {
-      if (local_hook)
+      if (hook)
       {
-        local_hook(version, writes);
+        return hook(version, writes);
       }
+      return nullptr;
     }
   };
 }

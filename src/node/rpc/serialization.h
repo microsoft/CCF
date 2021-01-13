@@ -80,12 +80,6 @@ namespace ccf
   DECLARE_JSON_TYPE(GetTxStatus::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::Out, status)
 
-  DECLARE_JSON_TYPE(GetMetrics::HistogramResults)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    GetMetrics::HistogramResults, low, high, overflow, underflow, buckets)
-  DECLARE_JSON_TYPE(GetMetrics::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetMetrics::Out, histogram, tx_rates)
-
   DECLARE_JSON_TYPE(GetPrimaryInfo::Out)
   DECLARE_JSON_REQUIRED_FIELDS(
     GetPrimaryInfo::Out, primary_id, primary_host, primary_port, current_view)

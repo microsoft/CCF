@@ -28,10 +28,10 @@
 
 namespace aft
 {
-  using Configuration = kv::Consensus::Configuration;
+  using Configuration = kv::Configuration;
 
   template <class LedgerProxy, class ChannelProxy, class SnapshotterProxy>
-  class Aft
+  class Aft : public kv::ConfigurableConsensus
   {
   private:
     enum ReplicaState
@@ -187,6 +187,8 @@ namespace aft
       }
     }
 
+    virtual ~Aft() = default;
+
     NodeId leader()
     {
       return leader_id;
@@ -328,21 +330,21 @@ namespace aft
 
     std::pair<Term, Index> get_commit_term_and_idx()
     {
-      if (consensus_type == ConsensusType::BFT && is_follower())
-      {
-        return {get_term_internal(state->commit_idx), state->commit_idx};
-      }
       std::lock_guard<SpinLock> guard(state->lock);
       return {get_term_internal(state->commit_idx), state->commit_idx};
     }
 
-    std::optional<std::pair<Term, Index>> get_signable_commit_term_and_idx()
+    std::optional<kv::Consensus::SignableTxIndices>
+    get_signable_commit_term_and_idx()
     {
       std::lock_guard<SpinLock> guard(state->lock);
       if (state->commit_idx >= election_index)
       {
-        return std::pair<Term, Index>{get_term_internal(state->commit_idx),
-                                      state->commit_idx};
+        kv::Consensus::SignableTxIndices r;
+        r.term = get_term_internal(state->commit_idx);
+        r.version = state->commit_idx;
+        r.previous_version = last_committable_index();
+        return r;
       }
       else
       {
@@ -352,10 +354,6 @@ namespace aft
 
     Term get_term(Index idx)
     {
-      if (consensus_type == ConsensusType::BFT && is_follower())
-      {
-        return get_term_internal(idx);
-      }
       std::lock_guard<SpinLock> guard(state->lock);
       return get_term_internal(idx);
     }
@@ -397,10 +395,21 @@ namespace aft
 
     template <typename T>
     bool replicate(
-      const std::vector<std::tuple<Index, T, bool>>& entries, Term term)
+      const std::vector<
+        std::tuple<Index, T, bool, std::shared_ptr<kv::ConsensusHookPtrs>>>&
+        entries,
+      Term term)
     {
       if (consensus_type == ConsensusType::BFT && is_follower())
       {
+        // Already under lock in the current BFT path
+        for (auto& [_, __, ___, hooks] : entries)
+        {
+          for (auto& hook : *hooks)
+          {
+            hook->call(this);
+          }
+        }
         return true;
       }
 
@@ -426,7 +435,7 @@ namespace aft
 
       LOG_DEBUG_FMT("Replicating {} entries", entries.size());
 
-      for (auto& [index, data, is_globally_committable] : entries)
+      for (auto& [index, data, is_globally_committable, hooks] : entries)
       {
         bool globally_committable = is_globally_committable;
 
@@ -434,10 +443,16 @@ namespace aft
           return false;
 
         LOG_DEBUG_FMT(
-          "Replicated on leader {}: {}{}",
+          "Replicated on leader {}: {}{} ({} hooks)",
           state->my_node_id,
           index,
-          (globally_committable ? " committable" : ""));
+          (globally_committable ? " committable" : ""),
+          hooks->size());
+
+        for (auto& hook : *hooks)
+        {
+          hook->call(this);
+        }
 
         bool force_ledger_chunk = false;
         if (globally_committable)
@@ -1088,15 +1103,21 @@ namespace aft
         auto tx = store->create_tx();
         kv::DeserialiseSuccess deserialise_success;
         ccf::PrimarySignature sig;
+        kv::ConsensusHookPtrs hooks;
         if (consensus_type == ConsensusType::BFT)
         {
           deserialise_success = store->deserialise_views(
-            entry, public_only, &sig_term, &sig_index, &tx, &sig);
+            entry, hooks, public_only, &sig_term, &sig_index, &tx, &sig);
         }
         else
         {
           deserialise_success =
-            store->deserialise(entry, public_only, &sig_term);
+            store->deserialise(entry, hooks, public_only, &sig_term);
+        }
+
+        for (auto& hook : hooks)
+        {
+          hook->call(this);
         }
 
         bool globally_committable =

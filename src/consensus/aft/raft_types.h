@@ -41,6 +41,7 @@ namespace aft
     virtual ~Store() {}
     virtual S deserialise(
       const std::vector<uint8_t>& data,
+      kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
       Term* term = nullptr) = 0;
     virtual void compact(Index v) = 0;
@@ -48,6 +49,7 @@ namespace aft
     virtual void set_term(Term t) = 0;
     virtual S deserialise_views(
       const std::vector<uint8_t>& data,
+      kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
       kv::Term* term = nullptr,
       kv::Version* index_ = nullptr,
@@ -68,13 +70,14 @@ namespace aft
 
     S deserialise(
       const std::vector<uint8_t>& data,
+      kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
       Term* term = nullptr) override
     {
       auto p = x.lock();
       if (p)
       {
-        return p->deserialise(data, public_only, term);
+        return p->deserialise(data, hooks, public_only, term);
       }
       return S::FAILED;
     }
@@ -128,6 +131,7 @@ namespace aft
 
     S deserialise_views(
       const std::vector<uint8_t>& data,
+      kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
       kv::Term* term = nullptr,
       kv::Version* index = nullptr,
@@ -136,7 +140,8 @@ namespace aft
     {
       auto p = x.lock();
       if (p)
-        return p->deserialise_views(data, public_only, term, index, tx, sig);
+        return p->deserialise_views(
+          data, hooks, public_only, term, index, tx, sig);
       return S::FAILED;
     }
   };
