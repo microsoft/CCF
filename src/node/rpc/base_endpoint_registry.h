@@ -45,19 +45,15 @@ namespace ccf
           q.raw = fmt::format("{:02x}", fmt::join(node_info->quote, ""));
 
 #ifdef GET_QUOTE
-          // TODO: Why don't we include this in BFT?
-          if (consensus != nullptr && consensus->type() != ConsensusType::BFT)
+          auto code_id_opt = QuoteGenerator::get_code_id(node_info->quote);
+          if (!code_id_opt.has_value())
           {
-            auto code_id_opt = QuoteGenerator::get_code_id(node_info->quote);
-            if (!code_id_opt.has_value())
-            {
-              q.error = fmt::format("Failed to retrieve code ID from quote");
-            }
-            else
-            {
-              q.mrenclave =
-                fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
-            }
+            q.error = fmt::format("Failed to retrieve code ID from quote");
+          }
+          else
+          {
+            q.mrenclave =
+              fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
           }
 #endif
         }
