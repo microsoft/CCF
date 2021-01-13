@@ -6,7 +6,6 @@
 #include "genesis_gen.h"
 #include "ledger_secrets.h"
 #include "network_state.h"
-#include "new_ledger_secrets.h"
 #include "tls/key_exchange.h"
 
 #include <optional>

@@ -4,12 +4,13 @@
 
 #include "consensus/aft/raft_consensus.h"
 #include "consensus/ledger_enclave.h"
+#include "crypto/symmetric_key.h"
 #include "ds/logger.h"
 #include "enclave/rpc_sessions.h"
 #include "entities.h"
 #include "genesis_gen.h"
 #include "history.h"
-#include "kv/new_encryptor.h"
+#include "kv/encryptor.h"
 #include "network_state.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/progress_tracker.h"
@@ -58,7 +59,8 @@ namespace ccf
   using RaftConsensusType =
     aft::Consensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
   using RaftType = aft::Aft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
-  using NodeEncryptor = kv::NewTxEncryptor<ccf::LedgerSecrets>;
+  using NodeEncryptor =
+    kv::TxEncryptor<ccf::LedgerSecrets, crypto::GcmHeader<crypto::GCM_SIZE_IV>>;
 
   struct NodeCreateInfo
   {

@@ -2,19 +2,19 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
+#include "kv/encryptor.h"
 #include "kv/kv_types.h"
-#include "kv/new_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/entities.h"
+#include "node/ledger_secrets.h"
 #include "node/network_state.h"
-#include "node/new_ledger_secrets.h"
 
 #include <doctest/doctest.h>
 #include <random>
 #include <string>
 
 using StringString = kv::Map<std::string, std::string>;
-using NodeEncryptor = kv::NewTxEncryptor<ccf::LedgerSecrets>;
+using NodeEncryptor = kv::TxEncryptor<ccf::LedgerSecrets>;
 
 void commit_one(kv::Store& store, StringString& map)
 {

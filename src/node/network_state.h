@@ -3,8 +3,8 @@
 #pragma once
 
 #include "identity.h"
+#include "ledger_secrets.h"
 #include "network_tables.h"
-#include "new_ledger_secrets.h"
 
 namespace ccf
 {
