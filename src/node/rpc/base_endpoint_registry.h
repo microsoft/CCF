@@ -9,18 +9,14 @@
 
 namespace ccf
 {
-  struct Quote
+  enum class QuoteFormat
   {
-    NodeId node_id = {};
-    std::string raw = {}; // < Hex-encoded
-
-    std::string error = {};
-    std::string mrenclave = {}; // < Hex-encoded
+    oe_sgx_v1,
   };
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Quote)
-  DECLARE_JSON_REQUIRED_FIELDS(Quote, node_id, raw)
-  DECLARE_JSON_OPTIONAL_FIELDS(Quote, error, mrenclave)
+  DECLARE_JSON_ENUM(
+    QuoteFormat,
+    {{QuoteFormat::oe_sgx_v1, "OE_SGX_v1"}})
 
   /*
    * Extends the basic EndpointRegistry with helper API methods for retrieving
@@ -30,49 +26,6 @@ namespace ccf
   {
   protected:
     AbstractNodeState& node;
-
-    Quote get_quote_for_node(kv::ReadOnlyTx& tx, NodeId node_id)
-    {
-      auto nodes_view = tx.get_read_only_view<ccf::Nodes>(Tables::NODES);
-      const auto node_info = nodes_view->get(node_id);
-      if (node_info.has_value())
-      {
-        Quote q;
-        q.node_id = node_id;
-
-        if (node_info->status == ccf::NodeStatus::TRUSTED)
-        {
-          q.raw = fmt::format("{:02x}", fmt::join(node_info->quote, ""));
-
-#ifdef GET_QUOTE
-          auto code_id_opt = QuoteGenerator::get_code_id(node_info->quote);
-          if (!code_id_opt.has_value())
-          {
-            q.error = fmt::format("Failed to retrieve code ID from quote");
-          }
-          else
-          {
-            q.mrenclave =
-              fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
-          }
-#endif
-        }
-        else
-        {
-          q.error = fmt::format(
-            "Node {} status is not TRUSTED, currently {}",
-            node_id,
-            node_info->status);
-        }
-
-        return q;
-      }
-      else
-      {
-        throw std::runtime_error(
-          fmt::format("{} is not a known node ID", node_id));
-      }
-    }
 
   public:
     BaseEndpointRegistry(
@@ -100,8 +53,11 @@ namespace ccf
           tx_status = ccf::evaluate_tx_status(
             view, seqno, tx_view, committed_view, committed_seqno);
         }
+        else
+        {
+          tx_status = ccf::TxStatus::Unknown;
+        }
 
-        tx_status = ccf::TxStatus::Unknown;
         return "";
       }
       catch (const std::exception& e)
@@ -153,8 +109,7 @@ namespace ccf
     }
 
     std::string get_receipt_for_index_v1(
-      kv::Consensus::SeqNo seqno,
-      std::vector<uint8_t>& receipt)
+      kv::Consensus::SeqNo seqno, std::vector<uint8_t>& receipt)
     {
       if (history != nullptr)
       {
@@ -173,11 +128,21 @@ namespace ccf
       return "Node is not yet initialised";
     }
 
-    Quote get_quote_for_this_node_v1(kv::ReadOnlyTx& tx)
+    std::string get_quote_for_this_node_v1(
+      kv::ReadOnlyTx& tx, QuoteFormat& format, std::vector<uint8_t>& raw_quote)
     {
       const auto node_id = node.get_node_id();
+      auto nodes_view = tx.get_read_only_view<ccf::Nodes>(Tables::NODES);
+      const auto node_info = nodes_view->get(node_id);
 
-      return get_quote_for_node(tx, node_id);
+      if (!node_info.has_value())
+      {
+        return fmt::format("{} is not a known node", node_id);
+      }
+
+      format = QuoteFormat::oe_sgx_v1;
+      raw_quote = node_info->quote;
+      return "";
     }
   };
 }

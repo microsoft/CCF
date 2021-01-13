@@ -11,6 +11,19 @@
 
 namespace ccf
 {
+  struct Quote
+  {
+    NodeId node_id = {};
+    std::string raw = {}; // < Hex-encoded
+    QuoteFormat format;
+
+    std::string mrenclave = {}; // < Hex-encoded
+  };
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Quote)
+  DECLARE_JSON_REQUIRED_FIELDS(Quote, node_id, raw, format)
+  DECLARE_JSON_OPTIONAL_FIELDS(Quote, mrenclave)
+
   struct GetQuotes
   {
     using In = void;
@@ -302,7 +315,35 @@ namespace ccf
         .install();
 
       auto get_quote = [this](auto& args, nlohmann::json&&) {
-        return make_success(get_quote_for_this_node_v1(args.tx));
+        QuoteFormat format;
+        std::vector<uint8_t> raw_quote;
+        const auto error_reason =
+          get_quote_for_this_node_v1(args.tx, format, raw_quote);
+        if (error_reason.empty())
+        {
+          Quote q;
+          q.node_id = node.get_node_id();
+          q.raw = fmt::format("{:02x}", fmt::join(raw_quote, ""));
+          q.format = format;
+
+#ifdef GET_QUOTE
+          auto code_id_opt = QuoteGenerator::get_code_id(raw_quote);
+          if (code_id_opt.has_value())
+          {
+            q.mrenclave =
+              fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
+          }
+#endif
+
+          return make_success(q);
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            std::move(error_reason));
+        }
       };
       make_read_only_endpoint(
         "quote", HTTP_GET, json_read_only_adapter(get_quote), no_auth_required)
@@ -314,9 +355,26 @@ namespace ccf
         GetQuotes::Out result;
 
         auto nodes_view = args.tx.get_read_only_view(network.nodes);
-        nodes_view->foreach([this, &tx = args.tx, &quotes = result.quotes](
-                              const auto& node_id, const auto&) {
-          quotes.emplace_back(get_quote_for_node(tx, node_id));
+        nodes_view->foreach([& quotes = result.quotes](
+                              const auto& node_id, const auto& node_info) {
+          if (node_info.status == ccf::NodeStatus::TRUSTED)
+          {
+            Quote q;
+            q.node_id = node_id;
+            q.raw = fmt::format("{:02x}", fmt::join(node_info.quote, ""));
+            q.format = QuoteFormat::oe_sgx_v1;
+
+#ifdef GET_QUOTE
+            auto code_id_opt = QuoteGenerator::get_code_id(node_info.quote);
+            if (code_id_opt.has_value())
+            {
+              q.mrenclave =
+                fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
+            }
+#endif
+
+            quotes.emplace_back(q);
+          }
           return true;
         });
 

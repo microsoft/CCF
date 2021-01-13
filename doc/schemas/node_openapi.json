@@ -275,8 +275,8 @@
       },
       "Quote": {
         "properties": {
-          "error": {
-            "$ref": "#/components/schemas/string"
+          "format": {
+            "$ref": "#/components/schemas/QuoteFormat"
           },
           "mrenclave": {
             "$ref": "#/components/schemas/string"
@@ -290,9 +290,15 @@
         },
         "required": [
           "node_id",
-          "raw"
+          "raw",
+          "format"
         ],
         "type": "object"
+      },
+      "QuoteFormat": {
+        "enum": [
+          "OE_SGX_v1"
+        ]
       },
       "Quote_array": {
         "items": {
