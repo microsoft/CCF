@@ -3,10 +3,10 @@
 
 #pragma once
 
+#include <chrono>
 #include <iostream>
 #include <merklecpp.h>
 #include <vector>
-#include <chrono>
 
 inline std::vector<merkle::Hash> make_hashes(size_t n, size_t print_size = 3)
 {
@@ -37,7 +37,9 @@ inline double get_timeout()
   return r;
 }
 
-inline bool timed_out(double timeout, const std::chrono::high_resolution_clock::time_point &test_start_time)
+inline bool timed_out(
+  double timeout,
+  const std::chrono::high_resolution_clock::time_point& test_start_time)
 {
   auto now = std::chrono::high_resolution_clock::now();
   double seconds =
