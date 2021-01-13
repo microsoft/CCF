@@ -32,7 +32,10 @@ inline double get_timeout()
   double r = 240.0;
   auto to = getenv("CTEST_TIMEOUT");
   if (to)
+  {
+    std::cout << "timeout string: " << to << std::endl;
     r = atof(to);
+  }
   std::cout << "test timeout: " << r << " sec" << std::endl;
   return r;
 }
