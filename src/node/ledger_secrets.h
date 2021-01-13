@@ -202,8 +202,6 @@ namespace ccf
 
       LedgerSecretsMap retrieved_keys(ledger_secrets.secrets.begin(), ++search);
 
-      LOG_FAIL_FMT("Retrieved keys count: {}", retrieved_keys.size());
-
       return VersionedLedgerSecrets(std::move(retrieved_keys));
     }
 

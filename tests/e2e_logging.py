@@ -29,11 +29,11 @@ def test(network, args, verify=True):
         network=network,
         number_txs=1,
     )
-    # network.txs.issue(
-    #     network=network,
-    #     number_txs=1,
-    #     on_backup=True,
-    # )
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+        on_backup=True,
+    )
     if verify:
         network.txs.verify()
     else:
@@ -67,11 +67,11 @@ def test_illegal(network, args, verify=True):
         network=network,
         number_txs=1,
     )
-    # network.txs.issue(
-    #     network=network,
-    #     number_txs=1,
-    #     on_backup=True,
-    # )
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+        on_backup=True,
+    )
     if verify:
         network.txs.verify()
     else:
@@ -239,15 +239,15 @@ def test_multi_auth(network, args):
             r = c.get("/app/multi_auth")
             require_new_response(r)
 
-        # LOG.info("Authenticate as a user, via HTTP signature")
-        # with primary.client("user0", disable_client_auth=True) as c:
-        #     r = c.get("/app/multi_auth", signed=True)
-        #     require_new_response(r)
+        LOG.info("Authenticate as a user, via HTTP signature")
+        with primary.client("user0", disable_client_auth=True) as c:
+            r = c.get("/app/multi_auth", signed=True)
+            require_new_response(r)
 
-        # LOG.info("Authenticate as a member, via HTTP signature")
-        # with primary.client("member0", disable_client_auth=True) as c:
-        #     r = c.get("/app/multi_auth", signed=True)
-        #     require_new_response(r)
+        LOG.info("Authenticate as a member, via HTTP signature")
+        with primary.client("member0", disable_client_auth=True) as c:
+            r = c.get("/app/multi_auth", signed=True)
+            require_new_response(r)
 
         LOG.info("Authenticate via JWT token")
         jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
@@ -587,14 +587,14 @@ def test_primary(network, args):
         r = c.head("/node/primary")
         assert r.status_code == http.HTTPStatus.OK.value
 
-    # backup = network.find_any_backup()
-    # with backup.client() as c:
-    #     r = c.head("/node/primary")
-    #     assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
-    #     assert (
-    #         r.headers["location"]
-    #         == f"https://{primary.pubhost}:{primary.pubport}/node/primary"
-    #     )
+    backup = network.find_any_backup()
+    with backup.client() as c:
+        r = c.head("/node/primary")
+        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
+        assert (
+            r.headers["location"]
+            == f"https://{primary.pubhost}:{primary.pubport}/node/primary"
+        )
     return network
 
 
@@ -635,7 +635,7 @@ def run(args):
         network = test_illegal(network, args, verify=args.package != "libjs_generic")
         network = test_large_messages(network, args)
         network = test_remove(network, args)
-        # network = test_forwarding_frontends(network, args)
+        network = test_forwarding_frontends(network, args)
         network = test_user_data_ACL(network, args)
         network = test_cert_prefix(network, args)
         network = test_anonymous_caller(network, args)

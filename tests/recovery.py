@@ -118,7 +118,7 @@ def run(args):
                     network, args, from_snapshot=True
                 )
             else:
-                recovered_network = test(network, args, from_snapshot=True)
+                recovered_network = test(network, args, from_snapshot=False)
             network.stop_all_nodes()
             network = recovered_network
             LOG.success("Recovery complete on all nodes")

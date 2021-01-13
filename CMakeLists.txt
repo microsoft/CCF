@@ -512,7 +512,7 @@ if(BUILD_TESTS)
     CONSENSUS cft
     ADDITIONAL_ARGS
       --recovery
-      10
+      2
       # Shorten Raft election timeout to speed up test when it kills a node on
       # purpose to check that a recovery network is robust to a view change.
       --raft-election-timeout

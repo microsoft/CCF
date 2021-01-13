@@ -214,10 +214,6 @@ namespace ccf
             check_node_exists(args.tx, caller_pem, joining_node_status);
           if (existing_node_info.has_value())
           {
-            if (existing_node_info->second.has_value())
-            {
-              LOG_FAIL_FMT("{}", existing_node_info->second.value());
-            }
             JoinNetworkNodeToNode::Out rep;
             rep.node_status = joining_node_status;
             rep.node_id = existing_node_info->first;
