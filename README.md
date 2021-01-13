@@ -13,7 +13,7 @@ Leveraging the power of trusted execution environments (TEEs), decentralised sys
 
 ## Get Started with CCF
 
-- [Install](https://microsoft.github.io/CCF/master/build_app/install_bin.html) CCF on Linux
+- [Install](https://microsoft.github.io/CCF/master/build_apps/install_bin.html) CCF on Linux
 - Read a [short overview of CCF](https://microsoft.github.io/CCF/master/overview/concepts.html) and get familiar with CCF's core concepts
 - [Build new CCF applications](https://microsoft.github.io/CCF/master/build_apps/index.html) in TypeScript/JavaScript or C++
 - [Contribute](https://microsoft.github.io/CCF/master/contribute) to this repository, following the [contribution guidelines](.github/CONTRIBUTING.md)
