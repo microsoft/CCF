@@ -551,6 +551,8 @@ if(BUILD_TESTS)
       --enforce-reqs
       --test-suite
       reconfiguration
+      --test-suite
+      rekey_reconfiguration
       --raft-election-timeout
       4000
   )

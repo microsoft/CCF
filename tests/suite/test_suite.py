@@ -49,7 +49,6 @@ suites["membership_recovery"] = suite_membership_recovery
 suite_reconfiguration = [
     reconfiguration.test_add_node_from_snapshot,
     reconfiguration.test_retire_primary,
-    rekey.test,
     reconfiguration.test_add_node,
     election.test_kill_primary,
     reconfiguration.test_add_node,
@@ -60,6 +59,19 @@ suite_reconfiguration = [
     e2e_logging.test_view_history,
 ]
 suites["reconfiguration"] = suite_reconfiguration
+
+# Slightly different reconfiguration suite that also interleaves rekeying
+# Once https://github.com/microsoft/CCF/issues/1648 is complete, this can
+# be merged with the main reconfiguration suite
+suite_rekey_reconfiguration = [
+    reconfiguration.test_add_node,
+    reconfiguration.test_retire_primary,
+    rekey.test,
+    reconfiguration.test_add_node,
+    election.test_kill_primary,
+    reconfiguration.test_add_node,
+]
+suites["rekey_reconfiguration"] = suite_rekey_reconfiguration
 
 all_tests_suite = [
     # e2e_logging:
