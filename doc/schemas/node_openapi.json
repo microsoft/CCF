@@ -15,7 +15,8 @@
       "CodeStatus": {
         "enum": [
           "ALLOWED_TO_JOIN"
-        ]
+        ],
+        "type": "string"
       },
       "EndpointMetrics__Metric": {
         "properties": {
@@ -274,7 +275,8 @@
           "PENDING",
           "TRUSTED",
           "RETIRED"
-        ]
+        ],
+        "type": "string"
       },
       "ServiceStatus": {
         "enum": [
@@ -282,7 +284,8 @@
           "OPEN",
           "WAITING_FOR_RECOVERY_SHARES",
           "CLOSED"
-        ]
+        ],
+        "type": "string"
       },
       "TxStatus": {
         "enum": [
@@ -290,7 +293,8 @@
           "PENDING",
           "COMMITTED",
           "INVALID"
-        ]
+        ],
+        "type": "string"
       },
       "VerifyReceipt__In": {
         "properties": {
@@ -327,7 +331,8 @@
           "readingPublicLedger",
           "readingPrivateLedger",
           "verifyingSnapshot"
-        ]
+        ],
+        "type": "string"
       },
       "int64": {
         "maximum": 9223372036854775807,
@@ -558,7 +563,8 @@
                 "PENDING",
                 "TRUSTED",
                 "RETIRED"
-              ]
+              ],
+              "type": "string"
             }
           }
         ],

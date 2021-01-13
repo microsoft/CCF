@@ -15,7 +15,8 @@
       "CodeStatus": {
         "enum": [
           "ALLOWED_TO_JOIN"
-        ]
+        ],
+        "type": "string"
       },
       "EndpointMetrics__Metric": {
         "properties": {
@@ -184,7 +185,8 @@
           "WITHDRAWN",
           "REJECTED",
           "FAILED"
-        ]
+        ],
+        "type": "string"
       },
       "Propose__In": {
         "properties": {
@@ -228,7 +230,8 @@
           "PENDING",
           "COMMITTED",
           "INVALID"
-        ]
+        ],
+        "type": "string"
       },
       "VerifyReceipt__In": {
         "properties": {
