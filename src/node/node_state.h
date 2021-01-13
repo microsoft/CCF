@@ -280,22 +280,19 @@ namespace ccf
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::BFT)
+      auto quote_opt =
+        QuoteGenerator::get_quote(node_sign_kp->public_key_pem());
+      if (!quote_opt.has_value())
       {
-        auto quote_opt =
-          QuoteGenerator::get_quote(node_sign_kp->public_key_pem());
-        if (!quote_opt.has_value())
-        {
-          throw std::runtime_error("Quote could not be retrieved");
-        }
-        quote = quote_opt.value();
-        auto node_code_id_opt = QuoteGenerator::get_code_id(quote);
-        if (!node_code_id_opt.has_value())
-        {
-          throw std::runtime_error("Code ID could not be retrieved from quote");
-        }
-        node_code_id = node_code_id_opt.value();
+        throw std::runtime_error("Quote could not be retrieved");
       }
+      quote = quote_opt.value();
+      auto node_code_id_opt = QuoteGenerator::get_code_id(quote);
+      if (!node_code_id_opt.has_value())
+      {
+        throw std::runtime_error("Code ID could not be retrieved from quote");
+      }
+      node_code_id = node_code_id_opt.value();
 #endif
 
       switch (start_type)
@@ -911,10 +908,7 @@ namespace ccf
       g.trust_node(self);
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::BFT)
-      {
-        g.trust_node_code_id(node_code_id);
-      }
+      g.trust_node_code_id(node_code_id);
 #endif
 
       if (g.finalize() != kv::CommitSuccess::OK)
