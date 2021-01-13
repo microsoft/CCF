@@ -1284,8 +1284,7 @@ namespace ccf
       // Effects of ledger rekey are only observed from the next transaction,
       // once the local hook on the secrets table has been triggered.
 
-      auto new_ledger_secret =
-        NewLedgerSecret(tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+      auto new_ledger_secret = make_ledger_secret();
       share_manager.issue_shares_on_rekey(tx, new_ledger_secret);
       LedgerSecretsBroadcast::broadcast_new(
         network, node_encrypt_kp, tx, std::move(new_ledger_secret));
@@ -1600,7 +1599,7 @@ namespace ccf
                   // When rekeying, set the encryption key for the next version
                   // onward (backups deserialise this transaction with the
                   // previous ledger secret)
-                  network.ledger_secrets->set_encryption_key_for(
+                  network.ledger_secrets->set_secret(
                     ledger_secret_version + 1, std::move(plain_ledger_secret));
                 }
               }

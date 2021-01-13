@@ -74,7 +74,7 @@ namespace ccf
       NetworkState& network,
       tls::KeyPairPtr encryption_key,
       kv::Tx& tx,
-      NewLedgerSecret&& new_ledger_secret)
+      LedgerSecret&& new_ledger_secret)
     {
       GenesisGenerator g(network, tx);
       auto secrets_view = tx.get_view(network.secrets);

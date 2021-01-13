@@ -14,37 +14,36 @@
 
 namespace ccf
 {
-  struct NewLedgerSecret
+  struct LedgerSecret
   {
     std::vector<uint8_t> raw_key;
     std::shared_ptr<crypto::KeyAesGcm> key;
 
-    bool operator==(const NewLedgerSecret& other) const
+    bool operator==(const LedgerSecret& other) const
     {
       return raw_key == other.raw_key;
     }
 
-    NewLedgerSecret() = default;
+    LedgerSecret() = default;
 
-    NewLedgerSecret(const NewLedgerSecret& other) :
+    LedgerSecret(const LedgerSecret& other) :
       raw_key(other.raw_key),
       key(std::make_shared<crypto::KeyAesGcm>(other.raw_key))
     {}
 
-    NewLedgerSecret(std::vector<uint8_t>&& raw_key_) :
+    LedgerSecret(std::vector<uint8_t>&& raw_key_) :
       raw_key(raw_key_),
       key(std::make_shared<crypto::KeyAesGcm>(std::move(raw_key_)))
     {}
   };
 
-  // TODO: Nice factory function for this??
-  // auto make_new_ledger_secret()
-  // {
-  //   return
-  // }
+  inline LedgerSecret make_ledger_secret()
+  {
+    return LedgerSecret(tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+  }
 
-  using VersionedLedgerSecret = std::pair<kv::Version, NewLedgerSecret>;
-  using LedgerSecretsMap = std::map<kv::Version, NewLedgerSecret>;
+  using VersionedLedgerSecret = std::pair<kv::Version, LedgerSecret>;
+  using LedgerSecretsMap = std::map<kv::Version, LedgerSecret>;
 
   struct VersionedLedgerSecrets
   {
@@ -136,8 +135,7 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      ledger_secrets.secrets.emplace(
-        initial_version, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+      ledger_secrets.secrets.emplace(initial_version, make_ledger_secret());
     }
 
     void set_node_id(NodeId id)
@@ -168,7 +166,7 @@ namespace ccf
         latest_ledger_secret->first, latest_ledger_secret->second);
     }
 
-    std::optional<NewLedgerSecret> get_penultimate(kv::Tx& tx)
+    std::optional<LedgerSecret> get_penultimate(kv::Tx& tx)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -229,7 +227,7 @@ namespace ccf
       return get_encryption_key_it(version)->second.key;
     }
 
-    void set_encryption_key_for(kv::Version version, std::vector<uint8_t>&& key)
+    void set_secret(kv::Version version, LedgerSecret&& secret)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -238,7 +236,7 @@ namespace ccf
         "Encryption key at {} already exists",
         version);
 
-      ledger_secrets.secrets.emplace(version, std::move(key));
+      ledger_secrets.secrets.emplace(version, std::move(secret));
 
       LOG_INFO_FMT("Added new encryption key at seqno {}", version);
     }

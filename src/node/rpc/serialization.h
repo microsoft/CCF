@@ -40,9 +40,9 @@ namespace ccf
   DECLARE_JSON_TYPE(NetworkIdentity)
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)
 
-  DECLARE_JSON_TYPE(NewLedgerSecret)
+  DECLARE_JSON_TYPE(LedgerSecret)
   DECLARE_JSON_REQUIRED_FIELDS(
-    NewLedgerSecret, raw_key) // Only raw_key is serialised
+    LedgerSecret, raw_key) // Only raw_key is serialised
   DECLARE_JSON_TYPE(VersionedLedgerSecrets)
   DECLARE_JSON_REQUIRED_FIELDS(VersionedLedgerSecrets, secrets)
 

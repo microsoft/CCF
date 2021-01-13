@@ -42,7 +42,7 @@ namespace ccf
       return ret;
     }
 
-    std::vector<uint8_t> wrap(const NewLedgerSecret& ledger_secret)
+    std::vector<uint8_t> wrap(const LedgerSecret& ledger_secret)
     {
       if (has_wrapped)
       {
@@ -65,7 +65,7 @@ namespace ccf
       return encrypted_ls.serialise();
     }
 
-    NewLedgerSecret unwrap(
+    LedgerSecret unwrap(
       const std::vector<uint8_t>& wrapped_latest_ledger_secret)
     {
       crypto::GcmCipher encrypted_ls;
@@ -82,7 +82,7 @@ namespace ccf
         throw std::logic_error("Unwrapping latest ledger secret failed");
       }
 
-      return NewLedgerSecret(std::move(decrypted_ls));
+      return LedgerSecret(std::move(decrypted_ls));
     }
   };
 
@@ -155,9 +155,8 @@ namespace ccf
 
     void set_recovery_shares_info(
       kv::Tx& tx,
-      const NewLedgerSecret& latest_ledger_secret,
-      const std::optional<NewLedgerSecret>& previous_ledger_secret =
-        std::nullopt,
+      const LedgerSecret& latest_ledger_secret,
+      const std::optional<LedgerSecret>& previous_ledger_secret = std::nullopt,
       kv::Version latest_ls_version = kv::NoVersion)
     {
       // First, generate a fresh ledger secrets wrapping key and wrap the
@@ -196,7 +195,7 @@ namespace ccf
 
     std::vector<uint8_t> encrypt_submitted_share(
       const std::vector<uint8_t>& submitted_share,
-      NewLedgerSecret&& current_ledger_secret)
+      LedgerSecret&& current_ledger_secret)
     {
       // Submitted recovery shares are encrypted with the latest ledger secret.
       crypto::GcmCipher encrypted_submitted_share(submitted_share.size());
@@ -216,7 +215,7 @@ namespace ccf
 
     std::vector<uint8_t> decrypt_submitted_share(
       const std::vector<uint8_t>& encrypted_submitted_share,
-      NewLedgerSecret&& current_ledger_secret)
+      LedgerSecret&& current_ledger_secret)
     {
       crypto::GcmCipher encrypted_share;
       encrypted_share.deserialise(encrypted_submitted_share);
@@ -287,7 +286,7 @@ namespace ccf
     }
 
     void issue_shares_on_rekey(
-      kv::Tx& tx, const NewLedgerSecret& new_ledger_secret)
+      kv::Tx& tx, const LedgerSecret& new_ledger_secret)
     {
       set_recovery_shares_info(
         tx, new_ledger_secret, network.ledger_secrets->get_latest(tx).second);

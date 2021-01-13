@@ -68,7 +68,7 @@ bool corrupt_serialised_tx(
   return false;
 }
 
-TEST_CASE("Simple encryption/decryption" * doctest::test_suite("encryption"))
+TEST_CASE("Simple encryption/decryption")
 {
   ccf::NetworkState network;
   uint64_t node_id = 0;
@@ -85,15 +85,13 @@ TEST_CASE("Simple encryption/decryption" * doctest::test_suite("encryption"))
   REQUIRE(encrypt_round_trip(encryptor, plain, 1));
   REQUIRE(encrypt_round_trip(encryptor, plain, 2));
 
-  ledger_secrets->set_encryption_key_for(
-    3, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+  ledger_secrets->set_secret(3, ccf::make_ledger_secret());
   REQUIRE(encrypt_round_trip(encryptor, plain, 1));
   REQUIRE(encrypt_round_trip(encryptor, plain, 2));
   REQUIRE(encrypt_round_trip(encryptor, plain, 3));
   REQUIRE(encrypt_round_trip(encryptor, plain, 4));
 
-  ledger_secrets->set_encryption_key_for(
-    5, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+  ledger_secrets->set_secret(5, ccf::make_ledger_secret());
   REQUIRE(encrypt_round_trip(encryptor, plain, 1));
   REQUIRE(encrypt_round_trip(encryptor, plain, 2));
   REQUIRE(encrypt_round_trip(encryptor, plain, 3));
@@ -240,7 +238,7 @@ TEST_CASE("Additional data")
   REQUIRE(decrypted_cipher2.empty());
 }
 
-TEST_CASE("KV encryption/decryption" * doctest::test_suite("encryption"))
+TEST_CASE("KV encryption/decryption")
 {
   auto consensus = std::make_shared<kv::StubConsensus>();
   StringString map("map");
@@ -277,14 +275,10 @@ TEST_CASE("KV encryption/decryption" * doctest::test_suite("encryption"))
   INFO("Simple rekey");
   {
     // In practice, rekey is done via local commit hooks
-    ledger_secrets->set_encryption_key_for(
-      2, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
-    ledger_secrets->set_encryption_key_for(
-      3, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
-    ledger_secrets->set_encryption_key_for(
-      4, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
-    ledger_secrets->set_encryption_key_for(
-      5, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+    ledger_secrets->set_secret(2, ccf::make_ledger_secret());
+    ledger_secrets->set_secret(3, ccf::make_ledger_secret());
+    ledger_secrets->set_secret(4, ccf::make_ledger_secret());
+    ledger_secrets->set_secret(5, ccf::make_ledger_secret());
 
     commit_one(primary_store, map);
 
@@ -335,9 +329,7 @@ TEST_CASE("KV integrity verification")
     kv::DeserialiseSuccess::FAILED);
 }
 
-// TODO: Better assertions?
-TEST_CASE(
-  "Encryptor compaction and rollback" * doctest::test_suite("encryption"))
+TEST_CASE("Encryptor compaction and rollback")
 {
   StringString map("map");
   kv::Store store;
@@ -355,8 +347,7 @@ TEST_CASE(
   // Assumes tx at seqno 2 rekeys. Txs from seqno 3 will be encrypted with new
   // secret
   commit_one(store, map);
-  ledger_secrets->set_encryption_key_for(
-    3, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+  ledger_secrets->set_secret(3, ccf::make_ledger_secret());
 
   commit_one(store, map);
 
@@ -368,8 +359,7 @@ TEST_CASE(
   // Assumes tx at seqno 3 rekeys. Txs from seqno 4 will be encrypted with new
   // secret
   commit_one(store, map);
-  ledger_secrets->set_encryption_key_for(
-    4, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+  ledger_secrets->set_secret(4, ccf::make_ledger_secret());
 
   commit_one(store, map);
   commit_one(store, map);
@@ -377,8 +367,7 @@ TEST_CASE(
   // Assumes tx at seqno 6 rekeys. Txs from seqno 7 will be encrypted with new
   // secret
   commit_one(store, map);
-  ledger_secrets->set_encryption_key_for(
-    7, tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+  ledger_secrets->set_secret(7, ccf::make_ledger_secret());
 
   store.compact(4);
   encryptor->rollback(1); // No effect as rollback before commit point

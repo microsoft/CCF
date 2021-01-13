@@ -89,9 +89,8 @@ TEST_CASE("Add a node to an opening service")
 
   // New node should not be given ledger secret past this one via join request
   kv::Version up_to_ledger_secret_seqno = 4;
-  network.ledger_secrets->set_encryption_key_for(
-    up_to_ledger_secret_seqno,
-    tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+  network.ledger_secrets->set_secret(
+    up_to_ledger_secret_seqno, make_ledger_secret());
 
   // Node certificate
   tls::KeyPairPtr kp = tls::make_key_pair();
@@ -162,9 +161,8 @@ TEST_CASE("Add a node to an opening service")
   {
     // Even if rekey occurs in between, the same ledger secrets should be
     // returned
-    network.ledger_secrets->set_encryption_key_for(
-      up_to_ledger_secret_seqno + 1,
-      tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+    network.ledger_secrets->set_secret(
+      up_to_ledger_secret_seqno + 1, make_ledger_secret());
 
     JoinNetworkNodeToNode::In join_input;
     join_input.public_encryption_key = node_public_encryption_key;
@@ -221,9 +219,8 @@ TEST_CASE("Add a node to an open service")
 
   // New node should not be given ledger secret past this one via join request
   kv::Version up_to_ledger_secret_seqno = 4;
-  network.ledger_secrets->set_encryption_key_for(
-    up_to_ledger_secret_seqno,
-    tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+  network.ledger_secrets->set_secret(
+    up_to_ledger_secret_seqno, make_ledger_secret());
 
   gen.create_service({});
   gen.set_recovery_threshold(1);
@@ -297,9 +294,8 @@ TEST_CASE("Add a node to an open service")
 
     // In the meantime, a new ledger secret is added. The new ledger secret
     // should not be passed to the new joiner via the join
-    network.ledger_secrets->set_encryption_key_for(
-      up_to_ledger_secret_seqno + 1,
-      tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+    network.ledger_secrets->set_secret(
+      up_to_ledger_secret_seqno + 1, make_ledger_secret());
 
     auto http_response = frontend_process(frontend, join_input, "join", caller);
     CHECK(http_response.status == HTTP_STATUS_OK);
