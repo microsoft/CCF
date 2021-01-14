@@ -736,6 +736,7 @@ namespace std
       enums.push_back(p.second); \
     } \
     j["enum"] = enums; \
+    j["type"] = "string"; \
   }
 
 #pragma clang diagnostic pop

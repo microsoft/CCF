@@ -80,17 +80,17 @@ assert r.body.json() == {"msg": "Public message"}
 # SNIPPET_END: authenticated_get_requests
 
 # SNIPPET_START: signature_authenticated_client
-user_client = ccf.clients.CCFClient(
+member_client = ccf.clients.CCFClient(
     host,
     port,
     ca,
     session_auth=None,
-    signing_auth=ccf.clients.Identity(key, cert, "sign client"),
+    signing_auth=ccf.clients.Identity(member_key, member_cert, "sign member client"),
 )
 # SNIPPET_END: signature_authenticated_client
 
 # SNIPPET_START: signed_request
-r = user_client.get("/app/multi_auth")
+r = member_client.post("/gov/ack/update_state_digest")
 assert r.status_code == http.HTTPStatus.OK
 # SNIPPET_END: signed_request
 

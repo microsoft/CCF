@@ -389,22 +389,180 @@ namespace ccf
         .install();
 
       auto network_status = [this](auto& args, nlohmann::json&&) {
+        GetNetworkInfo::Out out;
         auto service_view = args.tx.get_read_only_view(network.service);
         auto service_state = service_view->get(0);
         if (service_state.has_value())
         {
-          return make_success(service_state.value().status);
+          out.service_status = service_state.value().status;
+          if (consensus != nullptr)
+          {
+            out.current_view = consensus->get_view();
+
+            auto primary_id = consensus->primary();
+            auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
+            auto info = nodes_view->get(primary_id);
+            if (info)
+            {
+              out.primary_id = primary_id;
+            }
+          }
+          return make_success(out);
         }
         return make_error(
           HTTP_STATUS_NOT_FOUND,
           ccf::errors::ResourceNotFound,
-          "Network status is unknown.");
+          "Service state not available.");
       };
       make_read_only_endpoint(
         "network",
         HTTP_GET,
         json_read_only_adapter(network_status),
         no_auth_required)
+        .set_auto_schema<void, GetNetworkInfo::Out>()
+        .install();
+
+      auto get_nodes = [this](auto& args, nlohmann::json&& params) {
+        const auto in = params.get<GetNodes::In>();
+        GetNodes::Out out;
+
+        auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
+        nodes_view->foreach(
+          [this, &in, &out](const NodeId& nid, const NodeInfo& ni) {
+            if (in.host.has_value() && in.host.value() != ni.pubhost)
+              return true;
+            if (in.port.has_value() && in.port.value() != ni.pubport)
+              return true;
+            if (in.status.has_value() && in.status.value() != ni.status)
+              return true;
+            bool is_primary = false;
+            if (consensus != nullptr)
+            {
+              is_primary = consensus->primary() == nid;
+            }
+            out.nodes.push_back({nid,
+                                 ni.status,
+                                 ni.pubhost,
+                                 ni.pubport,
+                                 ni.rpchost,
+                                 ni.rpcport,
+                                 is_primary});
+            return true;
+          });
+
+        return make_success(out);
+      };
+      make_read_only_endpoint(
+        "network/nodes",
+        HTTP_GET,
+        json_read_only_adapter(get_nodes),
+        no_auth_required)
+        .set_auto_schema<GetNodes>()
+        .install();
+
+      auto get_node_info = [this](auto& args, nlohmann::json&&) {
+        NodeId node_id;
+        std::string error;
+        if (!get_path_param(
+              args.rpc_ctx->get_request_path_params(),
+              "node_id",
+              node_id,
+              error))
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+        }
+
+        auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
+        auto info = nodes_view->get(node_id);
+
+        if (!info)
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "Node not found");
+        }
+
+        bool is_primary = false;
+        if (consensus != nullptr)
+        {
+          is_primary = consensus->primary() == node_id;
+        }
+        auto ni = info.value();
+        return make_success({node_id,
+                             ni.status,
+                             ni.pubhost,
+                             ni.pubport,
+                             ni.rpchost,
+                             ni.rpcport,
+                             is_primary});
+      };
+      make_read_only_endpoint(
+        "network/nodes/{node_id}",
+        HTTP_GET,
+        json_read_only_adapter(get_node_info),
+        no_auth_required)
+        .set_auto_schema<void, GetNode::Out>()
+        .install();
+
+      auto get_self_node = [this](ReadOnlyEndpointContext& args) {
+        auto node_id = this->node.get_node_id();
+        auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
+        auto info = nodes_view->get(node_id);
+        if (info)
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
+          args.rpc_ctx->set_response_header(
+            "Location",
+            fmt::format(
+              "https://{}:{}/node/network/nodes/{}",
+              info->pubhost,
+              info->pubport,
+              node_id));
+          return;
+        }
+
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Node info not available");
+      };
+      make_read_only_endpoint(
+        "network/nodes/self", HTTP_GET, get_self_node, no_auth_required)
+        .set_forwarding_required(ForwardingRequired::Never)
+        .install();
+
+      auto get_primary_node = [this](ReadOnlyEndpointContext& args) {
+        if (consensus != nullptr)
+        {
+          auto node_id = this->node.get_node_id();
+          auto primary_id = consensus->primary();
+          auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
+          auto info = nodes_view->get(node_id);
+          auto info_primary = nodes_view->get(primary_id);
+          if (info && info_primary)
+          {
+            args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
+            args.rpc_ctx->set_response_header(
+              "Location",
+              fmt::format(
+                "https://{}:{}/node/network/nodes/{}",
+                info->pubhost,
+                info->pubport,
+                node_id));
+            return;
+          }
+        }
+
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Primary unknown");
+      };
+      make_read_only_endpoint(
+        "network/nodes/primary", HTTP_GET, get_primary_node, no_auth_required)
+        .set_forwarding_required(ForwardingRequired::Never)
         .install();
 
       auto is_primary = [this](ReadOnlyEndpointContext& args) {

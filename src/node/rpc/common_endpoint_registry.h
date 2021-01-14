@@ -147,67 +147,6 @@ namespace ccf
         .set_auto_schema<GetUserId::In, GetUserId::Out>()
         .install();
 
-      auto get_primary_info = [this](auto& args, nlohmann::json&&) {
-        if (consensus != nullptr)
-        {
-          NodeId primary_id = consensus->primary();
-          auto current_view = consensus->get_view();
-
-          auto nodes_view =
-            args.tx.template get_read_only_view<Nodes>(Tables::NODES);
-          auto info = nodes_view->get(primary_id);
-
-          if (info)
-          {
-            GetPrimaryInfo::Out out;
-            out.primary_id = primary_id;
-            out.primary_host = info->pubhost;
-            out.primary_port = info->pubport;
-            out.current_view = current_view;
-            return make_success(out);
-          }
-        }
-
-        return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "Primary unknown.");
-      };
-      make_read_only_endpoint(
-        "primary_info",
-        HTTP_GET,
-        json_read_only_adapter(get_primary_info),
-        no_auth_required)
-        .set_auto_schema<void, GetPrimaryInfo::Out>()
-        .install();
-
-      auto get_network_info = [this](auto& args, nlohmann::json&&) {
-        GetNetworkInfo::Out out;
-        if (consensus != nullptr)
-        {
-          out.primary_id = consensus->primary();
-        }
-
-        auto nodes_view =
-          args.tx.template get_read_only_view<Nodes>(Tables::NODES);
-        nodes_view->foreach([&out](const NodeId& nid, const NodeInfo& ni) {
-          if (ni.status == ccf::NodeStatus::TRUSTED)
-          {
-            out.nodes.push_back({nid, ni.pubhost, ni.pubport});
-          }
-          return true;
-        });
-
-        return make_success(out);
-      };
-      make_read_only_endpoint(
-        "network_info",
-        HTTP_GET,
-        json_read_only_adapter(get_network_info),
-        no_auth_required)
-        .set_auto_schema<void, GetNetworkInfo::Out>()
-        .install();
-
       auto get_code = [](auto& args, nlohmann::json&&) {
         GetCode::Out out;
 
@@ -225,33 +164,6 @@ namespace ccf
       make_read_only_endpoint(
         "code", HTTP_GET, json_read_only_adapter(get_code), no_auth_required)
         .set_auto_schema<void, GetCode::Out>()
-        .install();
-
-      auto get_nodes_by_rpc_address = [](auto& args, nlohmann::json&& params) {
-        const auto in = params.get<GetNodesByRPCAddress::In>();
-
-        GetNodesByRPCAddress::Out out;
-        auto nodes_view =
-          args.tx.template get_read_only_view<Nodes>(Tables::NODES);
-        nodes_view->foreach([&in, &out](const NodeId& nid, const NodeInfo& ni) {
-          if (ni.pubhost == in.host && ni.pubport == in.port)
-          {
-            if (ni.status != ccf::NodeStatus::RETIRED || in.retired)
-            {
-              out.nodes.push_back({nid, ni.status});
-            }
-          }
-          return true;
-        });
-
-        return make_success(out);
-      };
-      make_read_only_endpoint(
-        "node/ids",
-        HTTP_GET,
-        json_read_only_adapter(get_nodes_by_rpc_address),
-        no_auth_required)
-        .set_auto_schema<GetNodesByRPCAddress::In, GetNodesByRPCAddress::Out>()
         .install();
 
       auto openapi = [this](kv::Tx& tx, nlohmann::json&&) {
