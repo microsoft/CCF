@@ -190,6 +190,11 @@ namespace ws
       global_commit = gc;
     }
 
+    virtual bool has_global_commit() override
+    {
+      return global_commit != 0;
+    }
+
     virtual void set_apply_writes(bool apply) override
     {
       explicit_apply_writes = apply;
