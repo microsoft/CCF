@@ -8,6 +8,7 @@
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
 #include "node/nodes.h"
+#include "node/service.h"
 #include "node_call_types.h"
 #include "tx_status.h"
 
@@ -38,17 +39,6 @@ namespace ccf
     };
   };
 
-  struct GetPrimaryInfo
-  {
-    struct Out
-    {
-      NodeId primary_id;
-      std::string primary_host;
-      std::string primary_port;
-      kv::Consensus::View current_view;
-    };
-  };
-
   struct GetCode
   {
     struct Version
@@ -65,38 +55,43 @@ namespace ccf
 
   struct GetNetworkInfo
   {
-    struct NodeInfo
-    {
-      NodeId node_id;
-      std::string host;
-      std::string port;
-    };
-
     struct Out
     {
-      std::vector<NodeInfo> nodes = {};
-      std::optional<NodeId> primary_id = std::nullopt;
+      ServiceStatus service_status;
+      std::optional<kv::Consensus::View> current_view;
+      std::optional<NodeId> primary_id;
+      std::optional<bool> view_change_in_progress;
     };
   };
 
-  struct GetNodesByRPCAddress
+  struct GetNode
   {
     struct NodeInfo
     {
       NodeId node_id;
       NodeStatus status;
-    };
-
-    struct In
-    {
       std::string host;
       std::string port;
-      bool retired = false;
+      std::string local_host;
+      std::string local_port;
+      bool primary;
+    };
+
+    using Out = NodeInfo;
+  };
+
+  struct GetNodes
+  {
+    struct In
+    {
+      std::optional<std::string> host;
+      std::optional<std::string> port;
+      std::optional<NodeStatus> status;
     };
 
     struct Out
     {
-      std::vector<NodeInfo> nodes = {};
+      std::vector<GetNode::NodeInfo> nodes = {};
     };
   };
 
