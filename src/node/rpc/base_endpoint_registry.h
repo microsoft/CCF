@@ -14,13 +14,20 @@ namespace ccf
     oe_sgx_v1,
   };
 
-  DECLARE_JSON_ENUM(
-    QuoteFormat,
-    {{QuoteFormat::oe_sgx_v1, "OE_SGX_v1"}})
+  DECLARE_JSON_ENUM(QuoteFormat, {{QuoteFormat::oe_sgx_v1, "OE_SGX_v1"}})
 
-  /*
-   * Extends the basic EndpointRegistry with helper API methods for retrieving
+  /** Extends the basic EndpointRegistry with helper API methods for retrieving
    * core CCF properties.
+   *
+   * The API methods are versioned with a _vN suffix, indepdent of CCF release
+   * versions - these methods will remain supported as part of the public API
+   * for as long as possible. App developers should use the latest version which
+   * provides the values they need.
+   *
+   * The methods have a consistent parameter pattern, taking their arguments
+   * first and settings results to the later out-parameters, passed by
+   * reference. All return an error string, describing the error if they fail
+   * and empty if the call succeeded.
    */
   class BaseEndpointRegistry : public EndpointRegistry
   {
@@ -36,6 +43,12 @@ namespace ccf
       node(node_state)
     {}
 
+    /** Get the status of a transaction by ID, provided as a view+seqno pair.
+     * This is a node-local property - while it will converge on all nodes in
+     * a healthy network, it is derived from distributed state rather than
+     * distributed itself.
+     * @see ccf::TxStatus
+     */
     std::string get_status_for_txid_v1(
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
@@ -65,6 +78,8 @@ namespace ccf
       }
     }
 
+    /** Get the ID of latest transaction known to be committed.
+     */
     std::string get_last_committed_txid_v1(
       kv::Consensus::View& view, kv::Consensus::SeqNo& seqno)
     {
@@ -86,6 +101,15 @@ namespace ccf
       return "Node is not initialised";
     }
 
+    /** Generate an OpenAPI document describing the currently installed
+     * endpoints.
+     *
+     * The document is compatible with OpenAPI version 3.0.0 - the _v1 suffix
+     * describes the version of this API, not the returned document format.
+     * Similarly, the document_version argument should be used to version the
+     * returned document itself as the set of endpoints or their APIs change, it
+     * does not affect the OpenAPI version of the format of the document.
+     */
     std::string generate_openapi_document_v1(
       kv::ReadOnlyTx& tx,
       const std::string& title,
@@ -107,7 +131,11 @@ namespace ccf
       return "";
     }
 
-    std::string get_receipt_for_index_v1(
+    /** Get a receipt for the transaction at the specified sequence number
+     * containing a merkle tree path which proves that the service's ledger
+     * contains the given transaction.
+     */
+    std::string get_receipt_for_seqno_v1(
       kv::Consensus::SeqNo seqno, std::vector<uint8_t>& receipt)
     {
       if (history != nullptr)
@@ -127,6 +155,9 @@ namespace ccf
       return "Node is not yet initialised";
     }
 
+    /** Get a quote attesting to the hardware this node is running on. The
+     * format indicates how the raw_quote should be interpreted and verified.
+     */
     std::string get_quote_for_this_node_v1(
       kv::ReadOnlyTx& tx, QuoteFormat& format, std::vector<uint8_t>& raw_quote)
     {

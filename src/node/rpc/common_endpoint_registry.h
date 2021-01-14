@@ -210,7 +210,7 @@ namespace ccf
 
         GetReceipt::Out out;
         const auto error_reason =
-          get_receipt_for_index_v1(in.commit, out.receipt);
+          get_receipt_for_seqno_v1(in.commit, out.receipt);
         if (error_reason.empty())
         {
           return make_success(out);
