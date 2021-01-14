@@ -19,15 +19,16 @@ namespace ccf
   /** Extends the basic EndpointRegistry with helper API methods for retrieving
    * core CCF properties.
    *
-   * The API methods are versioned with a _vN suffix, indepdent of CCF release
-   * versions - these methods will remain supported as part of the public API
-   * for as long as possible. App developers should use the latest version which
-   * provides the values they need.
+   * The API methods are versioned with a @c _vN suffix. App developers should
+   * use the latest version which provides the values they need. Note that the
+   * @c N in these versions is specific to each method name, and is not related
+   * to a specific CCF release version. These APIs will be stable and supported
+   * for several CCF releases.
    *
-   * The methods have a consistent parameter pattern, taking their arguments
-   * first and settings results to the later out-parameters, passed by
-   * reference. All return an error string, describing the error if they fail
-   * and empty if the call succeeded.
+   * The methods have a consistent calling pattern, taking their arguments first
+   * and setting results to the later out-parameters, passed by reference. All
+   * return an error string, describing the error if they fail. If this string
+   * is empty, the call succeeded and the result(s) can be used.
    */
   class BaseEndpointRegistry : public EndpointRegistry
   {
