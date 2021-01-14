@@ -428,7 +428,6 @@ namespace merkle
         r->right = right;
         r->dirty = true;
         r->update_sizes();
-        r->left->parent = r->right->parent = r;
         assert(r->invariant());
         return r;
       }
@@ -448,7 +447,6 @@ namespace merkle
         r->size = from->size;
         r->height = from->height;
         r->dirty = from->dirty;
-        r->parent = nullptr;
         r->left = copy_node(
           from->left,
           leaf_nodes,
@@ -456,8 +454,6 @@ namespace merkle
           min_index,
           max_index,
           indent + 1);
-        if (r->left)
-          r->left->parent = r;
         r->right = copy_node(
           from->right,
           leaf_nodes,
@@ -465,8 +461,6 @@ namespace merkle
           min_index,
           max_index,
           indent + 1);
-        if (r->right)
-          r->right->parent = r;
         if (leaf_nodes && r->size == 1 && !r->left && !r->right)
         {
           if (*num_flushed == 0)
@@ -479,20 +473,18 @@ namespace merkle
 
       bool invariant()
       {
-        bool c1 = !parent || parent->left == this || parent->right == this;
-        bool c2 = (left && right) || (!left && !right);
-        bool c3 = !left || !right || (size == left->size + right->size + 1);
+        bool c1 = (left && right) || (!left && !right);
+        bool c2 = !left || !right || (size == left->size + right->size + 1);
         bool cl = !left || left->invariant();
         bool cr = !right || right->invariant();
         bool ch = height <= sizeof(size) * 8;
-        bool r = c1 && c2 && c3 && cl && cr && ch;
+        bool r = c1 && c2 && cl && cr && ch;
         return r;
       }
 
       ~Node()
       {
         assert(invariant());
-        parent = nullptr;
         // Potential future improvement: remove recursion and keep nodes for
         // future insertions
         delete (left);
@@ -518,7 +510,6 @@ namespace merkle
       }
 
       HashT<HASH_SIZE> hash;
-      Node* parent;
       Node *left, *right;
       size_t size;
       uint8_t height;
@@ -659,25 +650,18 @@ namespace merkle
                               << std::endl;);
             bool is_root = n == _root;
 
-            Node* old_parent = n->parent;
             Node* old_left = n->left;
             delete (n->right);
             n->right = nullptr;
 
             *n = *old_left;
-            n->parent = old_parent;
 
             old_left->left = old_left->right = nullptr;
-            old_left->parent = nullptr;
             delete (old_left);
             old_left = nullptr;
 
             if (n->left && n->right)
-            {
-              n->left->parent = n;
-              n->right->parent = n;
               n->dirty = true;
-            }
 
             if (is_root)
             {
@@ -685,7 +669,6 @@ namespace merkle
                                 << " - new root: "
                                 << n->hash.to_string(TRACE_HASH_SIZE)
                                 << std::endl;);
-              assert(n->parent == nullptr);
               assert(_root == n);
             }
 
@@ -1363,7 +1346,6 @@ namespace merkle
       insert_leaves(true);
       assert(_root);
       assert(_root->invariant());
-      assert(_root->parent == nullptr);
       if (_root->dirty)
       {
         if (num_leaves() == 0)
@@ -1380,11 +1362,7 @@ namespace merkle
       else
       {
         if (n->is_full())
-        {
-          Node* p = n->parent;
           n = Node::make(n, new_leaf);
-          n->parent = p;
-        }
         else
         {
           MERKLECPP_TRACE(MERKLECPP_TOUT << " @ "
@@ -1413,9 +1391,6 @@ namespace merkle
         if (n->is_full())
         {
           Node* result = Node::make(n, new_leaf);
-          assert(!insertion_stack.empty() || result->parent == nullptr);
-          if (!insertion_stack.empty())
-            result->parent = insertion_stack.back().n;
           insertion_stack.push_back(InsertionStackElement());
           insertion_stack.back().n = result;
           return;
