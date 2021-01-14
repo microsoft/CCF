@@ -106,7 +106,8 @@ namespace ccf
       // object, which must take a dependency on the secrets table.
       auto v = tx.get_view(secrets_table);
 
-      // Taking a read dependency on the key at self, which would get updated on rekey
+      // Taking a read dependency on the key at self, which would get updated on
+      // rekey
       if (!self.has_value())
       {
         throw std::logic_error(
