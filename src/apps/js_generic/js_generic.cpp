@@ -1137,7 +1137,7 @@ namespace ccfapp
 
   public:
     JSHandlers(NetworkTables& network, ccf::AbstractNodeState& node_state) :
-      UserEndpointRegistry(network, node_state),
+      UserEndpointRegistry(node_state),
       network(network)
     {
       JS_NewClassID(&kv_class_id);

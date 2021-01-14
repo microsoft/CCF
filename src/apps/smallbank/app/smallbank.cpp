@@ -19,7 +19,7 @@ namespace ccfapp
     kv::Map<uint64_t, int64_t> savings;
     kv::Map<uint64_t, int64_t> checkings;
 
-    SmallBankTables(kv::Store&) : accounts("a"), savings("b"), checkings("c") {}
+    SmallBankTables() : accounts("a"), savings("b"), checkings("c") {}
   };
 
   class SmallBankHandlers : public UserEndpointRegistry
@@ -51,9 +51,9 @@ namespace ccfapp
     }
 
   public:
-    SmallBankHandlers(kv::Store& store, ccf::AbstractNodeState& node_state) :
-      UserEndpointRegistry(store, node_state),
-      tables(store)
+    SmallBankHandlers(ccf::AbstractNodeState& node_state) :
+      UserEndpointRegistry(node_state),
+      tables()
     {}
 
     void init_handlers() override
@@ -471,7 +471,7 @@ namespace ccfapp
   public:
     SmallBank(kv::Store& store, ccfapp::AbstractNodeContext& node_context) :
       UserRpcFrontend(store, sb_handlers),
-      sb_handlers(store, node_context.get_node_state())
+      sb_handlers(node_context.get_node_state())
     {}
   };
 

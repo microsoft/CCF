@@ -21,10 +21,9 @@ namespace ccf
   public:
     CommonEndpointRegistry(
       const std::string& method_prefix_,
-      kv::Store& store,
       AbstractNodeState& node_state,
       const std::string& certs_table_name = "") :
-      BaseEndpointRegistry(method_prefix_, store, node_state, certs_table_name)
+      BaseEndpointRegistry(method_prefix_, node_state, certs_table_name)
     {}
 
     void init_handlers() override

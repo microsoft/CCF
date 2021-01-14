@@ -12,7 +12,6 @@
 #include "http/authentication/sig_auth.h"
 #include "http/http_consts.h"
 #include "http/ws_consts.h"
-#include "kv/store.h"
 #include "kv/tx.h"
 #include "node/certs.h"
 #include "serialization.h"
@@ -514,7 +513,6 @@ namespace ccf
   public:
     EndpointRegistry(
       const std::string& method_prefix_,
-      kv::Store&, // TODO: Would like to remove this too
       const std::string& certs_table_name_ = "") :
       method_prefix(method_prefix_),
       certs_table_name(certs_table_name_)

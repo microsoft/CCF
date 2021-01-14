@@ -159,7 +159,7 @@ namespace ccf
   public:
     NodeEndpoints(NetworkState& network, AbstractNodeState& node_state) :
       CommonEndpointRegistry(
-        get_actor_prefix(ActorsType::nodes), *network.tables, node_state),
+        get_actor_prefix(ActorsType::nodes), node_state),
       network(network)
     {
       openapi_info.title = "CCF Public Node API";

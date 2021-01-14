@@ -1209,7 +1209,6 @@ namespace ccf
       ShareManager& share_manager) :
       CommonEndpointRegistry(
         get_actor_prefix(ActorsType::members),
-        *network.tables,
         node_state,
         Tables::MEMBER_CERT_DERS),
       network(network),

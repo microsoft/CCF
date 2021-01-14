@@ -114,9 +114,8 @@ namespace loggingapp
 
   public:
     // SNIPPET_START: constructor
-    LoggerHandlers(
-      ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context) :
-      ccf::UserEndpointRegistry(nwt, context.get_node_state()),
+    LoggerHandlers(ccfapp::AbstractNodeContext& context) :
+      ccf::UserEndpointRegistry(context.get_node_state()),
       records("records"),
       public_records("public:records"),
       // SNIPPET_END: constructor
@@ -589,14 +588,14 @@ namespace loggingapp
         .install();
 
       auto record_admin_only =
-        [this, &nwt](ccf::EndpointContext& ctx, nlohmann::json&& params) {
+        [this](ccf::EndpointContext& ctx, nlohmann::json&& params) {
           {
             const auto& caller_ident =
               ctx.get_caller<ccf::UserCertAuthnIdentity>();
 
             // SNIPPET_START: user_data_check
             // Check caller's user-data for required permissions
-            auto users_view = ctx.tx.get_view(nwt.users);
+            auto users_view = ctx.tx.get_view<ccf::Users>(ccf::Tables::USERS);
             const auto user_opt = users_view->get(caller_ident.user_id);
             const nlohmann::json user_data = user_opt.has_value() ?
               user_opt->user_data :
@@ -660,7 +659,7 @@ namespace loggingapp
   public:
     Logger(ccf::NetworkTables& network, ccfapp::AbstractNodeContext& context) :
       ccf::UserRpcFrontend(*network.tables, logger_handlers),
-      logger_handlers(network, context)
+      logger_handlers(context)
     {}
 
     void open(std::optional<tls::Pem*> identity = std::nullopt) override
