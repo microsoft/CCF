@@ -7,7 +7,7 @@
 namespace kv
 {
   // NullTxEncryptor does not decrypt or verify integrity
-  class NullTxEncryptor : public kv::AbstractTxEncryptor
+  class NullTxEncryptor : public AbstractTxEncryptor
   {
   public:
     void encrypt(
@@ -15,8 +15,7 @@ namespace kv
       const std::vector<uint8_t>& additional_data,
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
-      kv::Version version,
-      kv::Term term,
+      const TxID& tx_id,
       bool is_snapshot = false) override
     {
       cipher = plain;
@@ -27,7 +26,7 @@ namespace kv
       const std::vector<uint8_t>& additional_data,
       const std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& plain,
-      kv::Version version) override
+      Version version) override
     {
       plain = cipher;
       return true;
@@ -40,7 +39,7 @@ namespace kv
 
     void disable_recovery() override {}
 
-    void rollback(kv::Version version) override {}
-    void compact(kv::Version version) override {}
+    void rollback(Version version) override {}
+    void compact(Version version) override {}
   };
 }

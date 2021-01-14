@@ -454,8 +454,7 @@ namespace kv
       const std::vector<uint8_t>& additional_data,
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
-      Version version,
-      Term term,
+      const TxID& tx_id,
       bool is_snapshot = false) = 0;
     virtual bool decrypt(
       const std::vector<uint8_t>& cipher,

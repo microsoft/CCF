@@ -16,7 +16,7 @@ namespace kv
     std::shared_ptr<T> ledger_secrets;
     bool is_recovery = false;
 
-    void set_iv(S& hdr, Version version, Term term, bool is_snapshot = false)
+    void set_iv(S& hdr, TxID tx_id, bool is_snapshot = false)
     {
       // IV is function of seqno, term and snapshot so that:
       // - Same seqno across rollbacks does not reuse IV
@@ -28,8 +28,8 @@ namespace kv
       // is acceptable for a live CCF as 2^31 elections will take decades, even
       // with an election timeout as low as 1 sec.
 
-      hdr.set_iv_seq(version);
-      hdr.set_iv_term(term);
+      hdr.set_iv_seq(tx_id.version);
+      hdr.set_iv_term(tx_id.term);
       hdr.set_iv_snapshot(is_snapshot);
     }
 
@@ -54,17 +54,16 @@ namespace kv
       const std::vector<uint8_t>& additional_data,
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
-      Version version,
-      Term term,
+      const TxID& tx_id,
       bool is_snapshot = false) override
     {
       S hdr;
       cipher.resize(plain.size());
 
-      set_iv(hdr, version, term, is_snapshot);
+      set_iv(hdr, tx_id, is_snapshot);
 
-      ledger_secrets->get_encryption_key_for(version)->encrypt(
-        hdr.get_iv(), plain, additional_data, cipher.data(), hdr.tag);
+      ledger_secrets->get_encryption_key_for(tx_id.version)
+        ->encrypt(hdr.get_iv(), plain, additional_data, cipher.data(), hdr.tag);
 
       serialised_header = hdr.serialise();
     }

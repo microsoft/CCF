@@ -49,8 +49,7 @@ namespace kv
     W public_writer;
     W private_writer;
     W* current_writer;
-    Version version;
-    Term term; // Used for encryption IV only
+    TxID tx_id;
     Version max_conflict_version;
     bool is_snapshot;
 
@@ -91,19 +90,17 @@ namespace kv
   public:
     GenericSerialiseWrapper(
       std::shared_ptr<AbstractTxEncryptor> e,
-      const Version& version_,
-      const Term& term_,
+      const TxID& tx_id_,
       const Version& max_conflict_version_,
       bool is_snapshot_ = false) :
-      version(version_),
-      term(term_),
+      tx_id(tx_id_),
       max_conflict_version(max_conflict_version_),
       is_snapshot(is_snapshot_),
       crypto_util(e)
     {
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(is_snapshot);
-      serialise_internal(version);
+      serialise_internal(tx_id.version);
       serialise_internal(max_conflict_version);
     }
 
@@ -212,8 +209,7 @@ namespace kv
         serialised_public_domain,
         serialised_hdr,
         encrypted_private_domain,
-        version,
-        term,
+        tx_id,
         is_snapshot);
 
       // Serialise entire tx

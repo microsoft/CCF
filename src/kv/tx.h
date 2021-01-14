@@ -401,7 +401,7 @@ namespace kv
       }
 
       KvStoreSerialiser replicated_serialiser(
-        e, version, term, max_conflict_version);
+        e, {term, version}, max_conflict_version);
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})

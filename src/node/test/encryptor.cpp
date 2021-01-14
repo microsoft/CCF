@@ -3,7 +3,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
 #include "kv/encryptor.h"
-
 #include "kv/kv_types.h"
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
@@ -37,7 +36,7 @@ bool encrypt_round_trip(
   std::vector<uint8_t> decrypted(plain.size());
 
   kv::Term term = 1;
-  encryptor.encrypt(plain, aad, header, cipher, version, term);
+  encryptor.encrypt(plain, aad, header, cipher, {term, version});
   encryptor.decrypt(cipher, aad, header, decrypted, version);
 
   return plain == decrypted;
@@ -120,11 +119,11 @@ TEST_CASE("Subsequent ciphers from same plaintext are different")
   kv::Term term = 1;
 
   encryptor.encrypt(
-    plain, additional_data, serialised_header, cipher, version, term);
+    plain, additional_data, serialised_header, cipher, {term, version});
 
   version++;
   encryptor.encrypt(
-    plain, additional_data, serialised_header2, cipher2, version, term);
+    plain, additional_data, serialised_header2, cipher2, {term, version});
 
   // Ciphers are different because IV is different
   REQUIRE(cipher != cipher2);
@@ -150,10 +149,10 @@ TEST_CASE("Ciphers at same seqno with different terms are different")
   kv::Term term = 1;
 
   encryptor.encrypt(
-    plain, additional_data, serialised_header, cipher, version, term);
+    plain, additional_data, serialised_header, cipher, {term, version});
   term++;
   encryptor.encrypt(
-    plain, additional_data, serialised_header2, cipher2, version, term);
+    plain, additional_data, serialised_header2, cipher2, {term, version});
 
   // Ciphers are different because IV is different
   REQUIRE(cipher != cipher2);
@@ -184,8 +183,7 @@ TEST_CASE("Ciphers at same seqno/term with and without snapshot are different")
     additional_data,
     serialised_header,
     cipher,
-    version,
-    term,
+    {term, version},
     is_snapshot);
 
   is_snapshot = !is_snapshot;
@@ -194,8 +192,7 @@ TEST_CASE("Ciphers at same seqno/term with and without snapshot are different")
     additional_data,
     serialised_header2,
     cipher2,
-    version,
-    term,
+    {term, version},
     is_snapshot);
 
   // Ciphers are different because IV is different
@@ -221,7 +218,7 @@ TEST_CASE("Additional data")
 
   // Encrypting plain at version 10
   encryptor.encrypt(
-    plain, additional_data, serialised_header, cipher, version, term);
+    plain, additional_data, serialised_header, cipher, {term, version});
 
   // Decrypting cipher at version 10
   std::vector<uint8_t> decrypted_cipher;
