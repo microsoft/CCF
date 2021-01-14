@@ -194,6 +194,21 @@ namespace aft
       return leader_id;
     }
 
+    bool view_change_in_progress()
+    {
+      std::unique_lock<SpinLock> guard(state->lock);
+      if (consensus_type == ConsensusType::BFT)
+      {
+        auto time = threading::ThreadMessaging::thread_messaging
+                      .get_current_time_offset();
+        return view_change_tracker->is_view_change_in_progress(time);
+      }
+      else
+      {
+        return (replica_state == Candidate);
+      }
+    }
+
     std::set<NodeId> active_nodes()
     {
       // Find all nodes present in any active configuration.
@@ -310,20 +325,12 @@ namespace aft
 
     Index get_commit_idx()
     {
-      if (consensus_type == ConsensusType::BFT && is_follower())
-      {
-        return state->commit_idx;
-      }
       std::lock_guard<SpinLock> guard(state->lock);
       return state->commit_idx;
     }
 
     Term get_term()
     {
-      if (consensus_type == ConsensusType::BFT && is_follower())
-      {
-        return state->current_view;
-      }
       std::lock_guard<SpinLock> guard(state->lock);
       return state->current_view;
     }
@@ -736,7 +743,7 @@ namespace aft
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
     {
-      auto request = executor->create_request_message(args);
+      auto request = executor->create_request_message(args, get_commit_idx());
       executor->execute_request(std::move(request), is_first_request);
       is_first_request = false;
 
@@ -1198,8 +1205,8 @@ namespace aft
           {
             if (consensus_type == ConsensusType::BFT)
             {
-              state->last_idx =
-                executor->commit_replayed_request(tx, request_tracker);
+              state->last_idx = executor->commit_replayed_request(
+                tx, request_tracker, state->commit_idx);
             }
             break;
           }

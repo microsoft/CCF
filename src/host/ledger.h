@@ -839,7 +839,7 @@ namespace asynchost
       {
         f->complete();
         require_new_file = true;
-        LOG_INFO_FMT("Ledger chunk completed at {}", last_idx);
+        LOG_DEBUG_FMT("Ledger chunk completed at {}", last_idx);
       }
 
       return last_idx;

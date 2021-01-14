@@ -94,7 +94,8 @@ namespace aft
   }
 
   std::unique_ptr<aft::RequestMessage> ExecutorImpl::create_request_message(
-    const kv::TxHistory::RequestCallbackArgs& args)
+    const kv::TxHistory::RequestCallbackArgs& args,
+    kv::Consensus::SeqNo committed_seqno)
   {
     Request request = {
       args.rid, args.caller_cert, args.request, args.frame_format};
@@ -113,12 +114,17 @@ namespace aft
 
     auto ctx = create_request_ctx(serialized_req.data(), serialized_req.size());
 
+    // Deprecated, this will be removed in future releases
+    ctx->ctx->set_global_commit(committed_seqno);
+
     return std::make_unique<RequestMessage>(
       std::move(serialized_req), args.rid, std::move(ctx), rep_cb);
   }
 
   kv::Version ExecutorImpl::commit_replayed_request(
-    kv::Tx& tx, std::shared_ptr<aft::RequestTracker> request_tracker)
+    kv::Tx& tx,
+    std::shared_ptr<aft::RequestTracker> request_tracker,
+    kv::Consensus::SeqNo committed_seqno)
   {
     auto tx_view = tx.get_view<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
     auto req_v = tx_view->get(0);
@@ -128,6 +134,9 @@ namespace aft
     Request request = req_v.value();
 
     auto ctx = create_request_ctx(request);
+
+    // Deprecated, this will be removed in future releases
+    ctx->ctx->set_global_commit(committed_seqno);
 
     auto request_message = RequestMessage::deserialize(
       std::move(request.raw), request.rid, std::move(ctx), nullptr);

@@ -300,6 +300,12 @@ namespace http
       response_headers[std::string(name)] = value;
     }
 
+    virtual bool has_global_commit() override
+    {
+      return response_headers.find(http::headers::CCF_GLOBAL_COMMIT) !=
+        response_headers.end();
+    }
+
     virtual void set_apply_writes(bool apply) override
     {
       explicit_apply_writes = apply;
