@@ -599,6 +599,9 @@ namespace merkle
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> flush_to " << index << std::endl;);
       statistics.num_flush++;
 
+      if (index <= min_index())
+        return;
+
       walk_to(index, false, [this](Node*& n, bool go_right) {
         if (go_right && n->left)
         {
@@ -1000,11 +1003,6 @@ namespace merkle
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> serialise " << std::endl;);
 
-      compute_root();
-
-      MERKLECPP_TRACE(MERKLECPP_TOUT << to_string(TRACE_HASH_SIZE)
-                                     << std::endl;);
-
       serialise_size_t(leaf_nodes.size() + uninserted_leaf_nodes.size(), bytes);
       serialise_size_t(num_flushed, bytes);
       for (auto& n : leaf_nodes)
@@ -1012,16 +1010,25 @@ namespace merkle
       for (auto& n : uninserted_leaf_nodes)
         n->hash.serialise(bytes);
 
-      // Find conflated/flushed nodes along the left edge of the tree.
-      std::vector<Node*> extras;
-      walk_to(min_index(), false, [&extras](Node*& n, bool go_right) {
-        if (go_right)
-          extras.push_back(n->left);
-        return true;
-      });
+      if (!empty())
+      {
+        // Find conflated/flushed nodes along the left edge of the tree.
 
-      for (size_t i = extras.size() - 1; i != SIZE_MAX; i--)
-        extras[i]->hash.serialise(bytes);
+        compute_root();
+
+        MERKLECPP_TRACE(MERKLECPP_TOUT << to_string(TRACE_HASH_SIZE)
+                                       << std::endl;);
+
+        std::vector<Node*> extras;
+        walk_to(min_index(), false, [&extras](Node*& n, bool go_right) {
+          if (go_right)
+            extras.push_back(n->left);
+          return true;
+        });
+
+        for (size_t i = extras.size() - 1; i != SIZE_MAX; i--)
+          extras[i]->hash.serialise(bytes);
+      }
     }
 
     void serialise(size_t from, size_t to, std::vector<uint8_t>& bytes)
@@ -1034,26 +1041,30 @@ namespace merkle
         (to < min_index() || max_index() < to) || from > to)
         throw std::runtime_error("invalid leaf indices");
 
-      compute_root();
-
-      MERKLECPP_TRACE(MERKLECPP_TOUT << to_string(TRACE_HASH_SIZE)
-                                     << std::endl;);
-
       serialise_size_t(to - from + 1, bytes);
       serialise_size_t(from, bytes);
       for (size_t i = from; i <= to; i++)
         leaf(i).serialise(bytes);
 
-      // Find nodes to conflate/flush along the left edge of the tree.
-      std::vector<Node*> extras;
-      walk_to(from, false, [&extras](Node*& n, bool go_right) {
-        if (go_right)
-          extras.push_back(n->left);
-        return true;
-      });
+      if (!empty())
+      {
+        // Find nodes to conflate/flush along the left edge of the tree.
 
-      for (size_t i = extras.size() - 1; i != SIZE_MAX; i--)
-        extras[i]->hash.serialise(bytes);
+        compute_root();
+
+        MERKLECPP_TRACE(MERKLECPP_TOUT << to_string(TRACE_HASH_SIZE)
+                                       << std::endl;);
+
+        std::vector<Node*> extras;
+        walk_to(from, false, [&extras](Node*& n, bool go_right) {
+          if (go_right)
+            extras.push_back(n->left);
+          return true;
+        });
+
+        for (size_t i = extras.size() - 1; i != SIZE_MAX; i--)
+          extras[i]->hash.serialise(bytes);
+      }
     }
 
     void deserialise(const std::vector<uint8_t>& bytes)
@@ -1170,7 +1181,13 @@ namespace merkle
 
     size_t max_index() const
     {
-      return num_leaves() - 1;
+      auto n = num_leaves();
+      return n == 0 ? 0 : n - 1;
+    }
+
+    bool empty() const
+    {
+      return num_leaves() == 0;
     }
 
     size_t size()
@@ -1183,11 +1200,15 @@ namespace merkle
     size_t serialised_size()
     {
       size_t num_extras = 0;
-      walk_to(min_index(), false, [&num_extras](Node*&, bool go_right) {
-        if (go_right)
-          num_extras++;
-        return true;
-      });
+
+      if (!empty())
+      {
+        walk_to(min_index(), false, [&num_extras](Node*&, bool go_right) {
+          if (go_right)
+            num_extras++;
+          return true;
+        });
+      }
 
       return sizeof(leaf_nodes.size()) + sizeof(num_flushed) +
         leaf_nodes.size() * sizeof(Hash) + num_extras * sizeof(Hash);
