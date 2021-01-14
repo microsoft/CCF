@@ -352,11 +352,13 @@ namespace ccf
             out.current_view = consensus->get_view();
 
             auto primary_id = consensus->primary();
+            auto view_change_in_progress = consensus->view_change_in_progress();
             auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
             auto info = nodes_view->get(primary_id);
             if (info)
             {
               out.primary_id = primary_id;
+              out.view_change_in_progress = view_change_in_progress;
             }
           }
           return make_success(out);
@@ -371,6 +373,8 @@ namespace ccf
         HTTP_GET,
         json_read_only_adapter(network_status),
         no_auth_required)
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .install();
 
