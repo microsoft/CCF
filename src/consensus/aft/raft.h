@@ -194,6 +194,21 @@ namespace aft
       return leader_id;
     }
 
+    bool view_change_in_progress()
+    {
+      std::unique_lock<SpinLock> guard(state->lock);
+      if (consensus_type == ConsensusType::BFT)
+      {
+        auto time = threading::ThreadMessaging::thread_messaging
+                      .get_current_time_offset();
+        return view_change_tracker->is_view_change_in_progress(time);
+      }
+      else
+      {
+        return (replica_state == Candidate);
+      }
+    }
+
     std::set<NodeId> active_nodes()
     {
       // Find all nodes present in any active configuration.

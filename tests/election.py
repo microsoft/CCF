@@ -131,13 +131,8 @@ def run(args):
 
             try:
                 test_kill_primary(network, args)
-            except (PrimaryNotFound, TimeoutError) as e:
+            except PrimaryNotFound:
                 if node_to_stop < nodes_to_stop - 1:
-                    raise
-                elif not (
-                    (type(e) == PrimaryNotFound and args.consensus == "cft")
-                    or (type(e) == TimeoutError and args.consensus == "bft")
-                ):
                     raise
                 else:
                     primary_is_known = False

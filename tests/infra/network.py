@@ -676,7 +676,7 @@ class Network:
                 break
             time.sleep(0.1)
 
-        if primary_id is None:
+        if primary_id is None or view_change_in_progress:
             flush_info(logs, log_capture, 0)
             raise PrimaryNotFound
 
