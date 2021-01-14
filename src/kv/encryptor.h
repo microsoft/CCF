@@ -24,6 +24,10 @@ namespace kv
       // - If all nodes execute the _same_ tx (or generate the same snapshot),
       // the same IV will be used
 
+      // Note that only the first 31 bits of the term are used for the IV which
+      // is acceptable for a live CCF as 2^31 elections will take decades, even
+      // with an election timeout as low as 1 sec.
+
       hdr.set_iv_seq(version);
       hdr.set_iv_term(term);
       hdr.set_iv_snapshot(is_snapshot);
