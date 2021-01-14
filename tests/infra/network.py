@@ -147,10 +147,10 @@ class Network:
         ), "Cannot adjust local node IDs if the network was started from an existing network"
 
         with primary.client() as nc:
-            r = nc.get("/node/primary_info")
-            first_node_id = r.body.json()["primary_id"]
-            assert (r.body.json()["primary_host"] == primary.pubhost) and (
-                int(r.body.json()["primary_port"]) == primary.pubport
+            r = nc.get("/node/network/nodes/primary")
+            first_node_id = r.body.json()["node_id"]
+            assert (r.body.json()["host"] == primary.pubhost) and (
+                int(r.body.json()["port"]) == primary.pubport
             ), "Primary is not the node that just started"
             for n in self.nodes:
                 n.node_id = n.node_id + first_node_id
@@ -660,14 +660,14 @@ class Network:
                 with node.client() as c:
                     try:
                         logs = []
-                        res = c.get("/node/primary_info", log_capture=logs)
-                        if res.status_code == 200:
-                            body = res.body.json()
-                            primary_id = body["primary_id"]
-                            view = body["current_view"]
+                        res = c.get("/node/network", log_capture=logs)
+                        assert res.status_code == 200, res
+                        body = res.body.json()
+                        primary_id = body["primary_id"]
+                        view = body["current_view"]
+                        if primary_id is not None:
                             break
-                        else:
-                            assert "Primary unknown" in res.body.text(), res
+
                     except CCFConnectionException:
                         LOG.warning(
                             f"Could not successfully connect to node {node.node_id}. Retrying..."
