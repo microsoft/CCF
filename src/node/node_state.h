@@ -1582,7 +1582,7 @@ namespace ccf
                     ledger_secret_set.primary_public_encryption_key),
                   encrypted_ledger_secret.encrypted_secret);
 
-                // On rekey, the version is infered from the version at which
+                // On rekey, the version is inferred from the version at which
                 // the hook is executed. Otherwise, on recovery, use the version
                 // read from the write set.
                 kv::Version ledger_secret_version =
