@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- Versioned APIs for common CCF functionality: `get_status_for_txid_v1`, `get_last_committed_txid_v1`, `generate_openapi_document_v1`, `get_receipt_for_seqno_v1`, `get_quote_for_this_node_v1`. We will aim to support these function signatures long-term, and provide similar functionality with incremental version bumps when this is no longer possible. In particular, this enables building an app which does not expose the [default endpoints](https://microsoft.github.io/CCF/master/build_apps//logging_cpp.html#default-endpoints) but instead exposes similar functionality through its own API.
+
 ## [0.16.3]
 
 ### Changed
