@@ -18,7 +18,7 @@ namespace nobuiltins
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeSummary, quote_format, quote, committed_view, committed_seqno)
 
-  // TODO: Snippet here
+  // SNIPPET: registry_inheritance
   class NoBuiltinsRegistry : public ccf::BaseEndpointRegistry
   {
   public:
@@ -31,6 +31,7 @@ namespace nobuiltins
         NodeSummary summary;
 
         {
+          // SNIPPET_START: get_quote_api_v1
           std::vector<uint8_t> raw_quote;
           error_reason =
             get_quote_for_this_node_v1(ctx.tx, summary.quote_format, raw_quote);
@@ -44,6 +45,7 @@ namespace nobuiltins
           }
 
           summary.quote = fmt::format("{:02x}", fmt::join(raw_quote, ""));
+          // SNIPPET_END: get_quote_api_v1
         }
 
         {
