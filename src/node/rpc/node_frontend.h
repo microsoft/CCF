@@ -361,8 +361,9 @@ namespace ccf
         HTTP_GET,
         json_read_only_adapter(network_status),
         no_auth_required)
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<void, GetNetworkInfo::Out>()
-        //.set_forwarding_required(ForwardingRequired::Never)
         .install();
 
       auto get_nodes = [this](auto& args, nlohmann::json&& params) {
