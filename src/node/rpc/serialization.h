@@ -80,21 +80,33 @@ namespace ccf
   DECLARE_JSON_TYPE(GetTxStatus::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::Out, status)
 
-  DECLARE_JSON_TYPE(GetPrimaryInfo::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    GetPrimaryInfo::Out, primary_id, primary_host, primary_port, current_view)
-
-  DECLARE_JSON_TYPE(GetNetworkInfo::NodeInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(GetNetworkInfo::NodeInfo, node_id, host, port)
   DECLARE_JSON_TYPE(GetNetworkInfo::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetNetworkInfo::Out, nodes, primary_id)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    GetNetworkInfo::Out, service_status, current_view, primary_id)
 
-  DECLARE_JSON_TYPE(GetNodesByRPCAddress::In)
-  DECLARE_JSON_REQUIRED_FIELDS(GetNodesByRPCAddress::In, host, port)
-  DECLARE_JSON_TYPE(GetNodesByRPCAddress::NodeInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(GetNodesByRPCAddress::NodeInfo, node_id, status)
-  DECLARE_JSON_TYPE(GetNodesByRPCAddress::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetNodesByRPCAddress::Out, nodes)
+  DECLARE_JSON_TYPE(GetNode::NodeInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    GetNode::NodeInfo,
+    node_id,
+    status,
+    host,
+    port,
+    local_host,
+    local_port,
+    primary)
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetNodes::In)
+  // Current limitation of the JSON macros: It is necessary to defined
+  // DECLARE_JSON_REQUIRED_FIELDS even though there are no required
+  // fields. This raises some compiler warnings that are disabled locally.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-parameter"
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+  DECLARE_JSON_REQUIRED_FIELDS(GetNodes::In);
+#pragma clang diagnostic pop
+  DECLARE_JSON_OPTIONAL_FIELDS(GetNodes::In, host, port, status)
+  DECLARE_JSON_TYPE(GetNodes::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(GetNodes::Out, nodes)
 
   DECLARE_JSON_TYPE(CallerInfo)
   DECLARE_JSON_REQUIRED_FIELDS(CallerInfo, caller_id)

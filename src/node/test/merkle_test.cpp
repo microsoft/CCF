@@ -50,7 +50,6 @@ TEST_CASE("Building a tree")
   REQUIRE(new_first >= prev_first);
   REQUIRE(new_first <= flush_point);
 
-  REQUIRE_THROWS(history.flush(new_first - 1));
   REQUIRE(history.begin_index() == new_first);
 }
 

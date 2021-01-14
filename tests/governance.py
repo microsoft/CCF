@@ -171,16 +171,19 @@ def test_user_id(network, args):
     return network
 
 
-@reqs.description("Check node/ids endpoint")
+@reqs.description("Check network/nodes endpoint")
 def test_node_ids(network, args):
     nodes = network.find_nodes()
     for node in nodes:
         with node.client() as c:
-            r = c.get(f'/node/node/ids?host="{node.pubhost}"&port="{node.pubport}"')
+            r = c.get(
+                f'/node/network/nodes?host="{node.pubhost}"&port="{node.pubport}"'
+            )
             assert r.status_code == 200
-            assert r.body.json()["nodes"] == [
-                {"node_id": node.node_id, "status": "TRUSTED"}
-            ]
+            info = r.body.json()["nodes"]
+            assert len(info) == 1
+            assert info[0]["node_id"] == node.node_id
+            assert info[0]["status"] == "TRUSTED"
         return network
 
 
