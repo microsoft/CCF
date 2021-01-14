@@ -537,8 +537,7 @@ namespace ccf
     }
 
   public:
-    EndpointRegistry(
-      const std::string& method_prefix_) :
+    EndpointRegistry(const std::string& method_prefix_) :
       method_prefix(method_prefix_)
     {}
 

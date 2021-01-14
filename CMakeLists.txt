@@ -222,7 +222,8 @@ sign_app_library(
 # Add NoBuiltins app
 add_ccf_app(nobuiltins SRCS samples/apps/nobuiltins/nobuiltins.cpp)
 sign_app_library(
-  nobuiltins.enclave ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/nobuiltins/oe_sign.conf
+  nobuiltins.enclave
+  ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/nobuiltins/oe_sign.conf
   ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 
