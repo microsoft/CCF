@@ -665,6 +665,7 @@ class Network:
                         body = res.body.json()
                         primary_id = body["primary_id"]
                         view = body["current_view"]
+                        view_change_in_progress = body["view_change_in_progress"]
                         if primary_id is not None:
                             break
 

@@ -103,6 +103,9 @@
           "primary_id": {
             "$ref": "#/components/schemas/uint64"
           },
+          "view_change_in_progress": {
+            "$ref": "#/components/schemas/boolean"
+          },
           "service_status": {
             "$ref": "#/components/schemas/ServiceStatus"
           }
@@ -110,7 +113,8 @@
         "required": [
           "service_status",
           "current_view",
-          "primary_id"
+          "primary_id",
+          "view_change_in_progress"
         ],
         "type": "object"
       },
