@@ -193,6 +193,8 @@ namespace enclave
       set_response_header(name, fmt::format("{}", n));
     }
 
+    virtual bool has_global_commit() = 0;
+
     virtual void set_error(
       http_status status, const std::string& code, std::string&& msg)
     {
