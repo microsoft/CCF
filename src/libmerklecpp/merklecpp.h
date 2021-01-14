@@ -218,20 +218,24 @@ namespace merkle
       _max_index(max_index),
       elements(elements)
     {}
+
     PathT(const PathT& other)
     {
       _leaf = other._leaf;
       elements = other.elements;
     }
+
     PathT(PathT&& other)
     {
       _leaf = std::move(other._leaf);
       elements = std::move(other.elements);
     }
+
     PathT(const std::vector<uint8_t>& bytes)
     {
       deserialise(bytes);
     }
+
     PathT(const std::vector<uint8_t>& bytes, size_t& position)
     {
       deserialise(bytes, position);
@@ -343,15 +347,17 @@ namespace merkle
 
     const HashT<HASH_SIZE>& operator[](size_t i) const
     {
-      return *elements[i].hash;
+      return std::next(begin(), i)->hash;
     }
 
     typedef typename std::list<Element>::const_iterator const_iterator;
-    const_iterator begin()
+
+    const_iterator begin() const
     {
       return elements.begin();
     }
-    const_iterator end()
+
+    const_iterator end() const
     {
       return elements.end();
     }
@@ -1344,12 +1350,12 @@ namespace merkle
     void compute_root()
     {
       insert_leaves(true);
+      if (num_leaves() == 0)
+        throw std::runtime_error("empty tree does not have a root");
       assert(_root);
       assert(_root->invariant());
       if (_root->dirty)
       {
-        if (num_leaves() == 0)
-          throw std::runtime_error("empty tree does not have a root");
         hash(_root);
         assert(_root && !_root->dirty);
       }

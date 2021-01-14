@@ -5,6 +5,7 @@ function(add_merklecpp_test target source)
   set_tests_properties(
     ${MERKLECPP_TEST_PREFIX}${target} PROPERTIES LABELS "merklecpp"
   )
+  target_include_directories(${MERKLECPP_TEST_PREFIX}${target} PRIVATE ${DOCTEST_DIR})
 endfunction()
 
 add_merklecpp_test(demo_tree demo_tree.cpp)
@@ -26,4 +27,11 @@ if(OPENSSL
    OR EVERCRYPT
 )
   add_merklecpp_test(compare_hash_functions compare_hash_functions.cpp)
+endif()
+
+
+find_path(DOCTEST_DIR doctest.h HINTS ../../../3rdparty/doctest)
+
+if(DOCTEST_DIR)
+  add_merklecpp_test(unit_tests unit_tests.cpp)
 endif()
