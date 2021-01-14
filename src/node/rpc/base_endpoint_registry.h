@@ -38,9 +38,8 @@ namespace ccf
   public:
     BaseEndpointRegistry(
       const std::string& method_prefix_,
-      AbstractNodeState& node_state,
-      const std::string& certs_table_name = "") :
-      EndpointRegistry(method_prefix_, certs_table_name),
+      AbstractNodeState& node_state) :
+      EndpointRegistry(method_prefix_),
       node(node_state)
     {}
 

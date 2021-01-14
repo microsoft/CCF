@@ -251,15 +251,6 @@
         ],
         "type": "string"
       },
-      "ServiceStatus": {
-        "enum": [
-          "OPENING",
-          "OPEN",
-          "WAITING_FOR_RECOVERY_SHARES",
-          "CLOSED"
-        ],
-        "type": "string"
-      },
       "Quote": {
         "properties": {
           "format": {
@@ -285,13 +276,23 @@
       "QuoteFormat": {
         "enum": [
           "OE_SGX_v1"
-        ]
+        ],
+        "type": "string"
       },
       "Quote_array": {
         "items": {
           "$ref": "#/components/schemas/Quote"
         },
         "type": "array"
+      },
+      "ServiceStatus": {
+        "enum": [
+          "OPENING",
+          "OPEN",
+          "WAITING_FOR_RECOVERY_SHARES",
+          "CLOSED"
+        ],
+        "type": "string"
       },
       "TxStatus": {
         "enum": [

@@ -18,12 +18,16 @@ namespace ccf
    */
   class CommonEndpointRegistry : public BaseEndpointRegistry
   {
+  protected:
+    std::string certs_table_name;
+
   public:
     CommonEndpointRegistry(
       const std::string& method_prefix_,
       AbstractNodeState& node_state,
-      const std::string& certs_table_name = "") :
-      BaseEndpointRegistry(method_prefix_, node_state, certs_table_name)
+      const std::string& certs_table_name_ = "") :
+      BaseEndpointRegistry(method_prefix_, node_state),
+      certs_table_name(certs_table_name_)
     {}
 
     void init_handlers() override

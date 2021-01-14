@@ -509,9 +509,6 @@ namespace ccf
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
 
-    std::string certs_table_name;
-    std::string digests_table_name;
-
     static void add_query_parameters(
       nlohmann::json& document,
       const std::string& uri,
@@ -541,10 +538,8 @@ namespace ccf
 
   public:
     EndpointRegistry(
-      const std::string& method_prefix_,
-      const std::string& certs_table_name_ = "") :
-      method_prefix(method_prefix_),
-      certs_table_name(certs_table_name_)
+      const std::string& method_prefix_) :
+      method_prefix(method_prefix_)
     {}
 
     virtual ~EndpointRegistry() {}

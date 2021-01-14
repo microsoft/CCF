@@ -212,9 +212,17 @@ add_custom_target(
   signing_key ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 
+# Add Logging app. Rebuilt/redefined here, rather than via add_subdirectory
 add_ccf_app(logging SRCS samples/apps/logging/logging.cpp)
 sign_app_library(
   logging.enclave ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/logging/oe_sign.conf
+  ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
+)
+
+# Add NoBuiltins app
+add_ccf_app(nobuiltins SRCS samples/apps/nobuiltins/nobuiltins.cpp)
+sign_app_library(
+  nobuiltins.enclave ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/nobuiltins/oe_sign.conf
   ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 
