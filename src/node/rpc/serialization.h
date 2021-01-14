@@ -84,7 +84,11 @@ namespace ccf
 
   DECLARE_JSON_TYPE(GetNetworkInfo::Out)
   DECLARE_JSON_REQUIRED_FIELDS(
-    GetNetworkInfo::Out, service_status, current_view, primary_id)
+    GetNetworkInfo::Out,
+    service_status,
+    current_view,
+    primary_id,
+    view_change_in_progress)
 
   DECLARE_JSON_TYPE(GetNode::NodeInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
