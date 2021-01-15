@@ -68,6 +68,8 @@ class Request:
     http_verb: str
     #: HTTP headers
     headers: dict
+    #: Whether redirect headers should be transparently followed
+    allow_redirects: bool
 
     def __str__(self):
         string = f"<cyan>{self.http_verb}</> <green>{self.path}</>"
@@ -283,6 +285,9 @@ class CurlClient:
                 f"-m {timeout}",
             ]
 
+            if request.allow_redirects:
+                cmd.append("-L")
+
             if request.body is not None:
                 if isinstance(request.body, str) and request.body.startswith("@"):
                     # Request is already a file path - pass it directly
@@ -462,7 +467,7 @@ class RequestClient:
                 url=f"https://{self.host}:{self.port}{request.path}",
                 auth=auth_value,
                 headers=extra_headers,
-                allow_redirects=False,
+                allow_redirects=request.allow_redirects,
                 timeout=timeout,
                 data=request_body,
             )
@@ -614,10 +619,11 @@ class CCFClient:
         headers: Optional[dict] = None,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
         log_capture: Optional[list] = None,
+        allow_redirects=True,
     ) -> Response:
         if headers is None:
             headers = {}
-        r = Request(path, body, http_verb, headers)
+        r = Request(path, body, http_verb, headers, allow_redirects)
 
         flush_info([f"{self.description} {r}"], log_capture, 3)
         response = self.client_impl.request(r, timeout)
@@ -632,6 +638,7 @@ class CCFClient:
         headers: Optional[dict] = None,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
         log_capture: Optional[list] = None,
+        allow_redirects=True,
     ) -> Response:
         """
         Issues one request, synchronously, and returns the response.
@@ -652,7 +659,7 @@ class CCFClient:
         logs: List[str] = []
 
         if self.is_connected:
-            r = self._call(path, body, http_verb, headers, timeout, logs)
+            r = self._call(path, body, http_verb, headers, timeout, logs, allow_redirects)
             flush_info(logs, log_capture, 2)
             return r
 
@@ -660,7 +667,7 @@ class CCFClient:
         while True:
             try:
                 logs = []
-                response = self._call(path, body, http_verb, headers, timeout, logs)
+                response = self._call(path, body, http_verb, headers, timeout, logs, allow_redirects)
                 # Only the first request gets this timeout logic - future calls
                 # call _call
                 self.is_connected = True

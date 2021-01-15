@@ -641,7 +641,7 @@ def test_primary(network, args):
 
     backup = network.find_any_backup()
     with backup.client() as c:
-        r = c.head("/node/primary")
+        r = c.head("/node/primary", allow_redirects=False)
         assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
         assert (
             r.headers["location"]
