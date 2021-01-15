@@ -174,7 +174,7 @@ auto frontend_process(
 }
 
 auto get_proposal(
-  MemberRpcFrontend& frontend, size_t proposal_id, const tls::Pem& caller)
+  MemberRpcFrontend& frontend, const ProposalId& proposal_id, const tls::Pem& caller)
 {
   const auto getter =
     create_request(nullptr, fmt::format("proposals/{}", proposal_id), HTTP_GET);
@@ -185,7 +185,7 @@ auto get_proposal(
 
 auto get_vote(
   MemberRpcFrontend& frontend,
-  size_t proposal_id,
+  ProposalId proposal_id,
   MemberId voter,
   const tls::Pem& caller)
 {
@@ -371,7 +371,7 @@ DOCTEST_TEST_CASE("Proposer ballot")
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  size_t proposal_id;
+  ProposalId proposal_id;
 
   const ccf::Script vote_for("return true");
   const ccf::Script vote_against("return false");
@@ -466,7 +466,7 @@ DOCTEST_TEST_CASE("Reject duplicate vote")
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  size_t proposal_id;
+  ProposalId proposal_id;
 
   const ccf::Script vote_for("return true");
   const ccf::Script vote_against("return false");
@@ -563,7 +563,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   auto i = 0ul;
   for (auto& new_member : new_members)
   {
-    const auto proposal_id = i;
+    const ProposalId proposal_id = std::to_string(i);
     new_member.id = initial_members + i++;
 
     // new member certificate
@@ -1385,7 +1385,7 @@ DOCTEST_TEST_CASE(
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  size_t proposal_id;
+  ProposalId proposal_id;
   size_t proposer_id = 1;
   size_t voter_id = 2;
 
@@ -1510,7 +1510,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  size_t proposal_id;
+  ProposalId proposal_id;
 
   const ccf::Script vote_for("return true");
   const ccf::Script vote_against("return false");
@@ -1687,7 +1687,7 @@ DOCTEST_TEST_CASE(
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  size_t proposal_id;
+  ProposalId proposal_id;
 
   const ccf::Script vote_for("return true");
   const ccf::Script vote_against("return false");
