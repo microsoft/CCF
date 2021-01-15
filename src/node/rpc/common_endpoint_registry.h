@@ -36,10 +36,9 @@ namespace ccf
 
       auto get_commit = [this](auto&, nlohmann::json&&) {
         GetCommit::Out out;
-        const auto error_reason =
-          get_last_committed_txid_v1(out.view, out.seqno);
+        const auto result = get_last_committed_txid_v1(out.view, out.seqno);
 
-        if (error_reason.empty())
+        if (result == ccf::ApiResult::OK)
         {
           return make_success(out);
         }
@@ -48,7 +47,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            std::move(error_reason));
+            fmt::format("Error code: {}", ccf::api_result_to_str(result)));
         }
       };
       make_command_endpoint(
@@ -62,9 +61,9 @@ namespace ccf
         const auto in = params.get<GetTxStatus::In>();
 
         GetTxStatus::Out out;
-        const auto error_reason =
+        const auto result =
           get_status_for_txid_v1(in.view, in.seqno, out.status);
-        if (error_reason.empty())
+        if (result == ccf::ApiResult::OK)
         {
           return make_success(out);
         }
@@ -73,7 +72,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            std::move(error_reason));
+            fmt::format("Error code: {}", ccf::api_result_to_str(result)));
         }
       };
       make_command_endpoint(
@@ -172,14 +171,14 @@ namespace ccf
 
       auto openapi = [this](kv::Tx& tx, nlohmann::json&&) {
         nlohmann::json document;
-        const auto error_reason = generate_openapi_document_v1(
+        const auto result = generate_openapi_document_v1(
           tx,
           openapi_info.title,
           openapi_info.description,
           openapi_info.document_version,
           document);
 
-        if (error_reason.empty())
+        if (result == ccf::ApiResult::OK)
         {
           return make_success(document);
         }
@@ -188,7 +187,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            std::move(error_reason));
+            fmt::format("Error code: {}", ccf::api_result_to_str(result)));
         }
       };
       make_endpoint("api", HTTP_GET, json_adapter(openapi), no_auth_required)
@@ -213,9 +212,8 @@ namespace ccf
         const auto in = params.get<GetReceipt::In>();
 
         GetReceipt::Out out;
-        const auto error_reason =
-          get_receipt_for_seqno_v1(in.commit, out.receipt);
-        if (error_reason.empty())
+        const auto result = get_receipt_for_seqno_v1(in.commit, out.receipt);
+        if (result == ccf::ApiResult::OK)
         {
           return make_success(out);
         }
@@ -224,7 +222,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            std::move(error_reason));
+            fmt::format("Error code: {}", ccf::api_result_to_str(result)));
         }
       };
       make_command_endpoint(

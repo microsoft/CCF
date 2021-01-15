@@ -316,9 +316,9 @@ namespace ccf
       auto get_quote = [this](auto& args, nlohmann::json&&) {
         QuoteFormat format;
         std::vector<uint8_t> raw_quote;
-        const auto error_reason =
+        const auto result =
           get_quote_for_this_node_v1(args.tx, format, raw_quote);
-        if (error_reason.empty())
+        if (result == ApiResult::OK)
         {
           Quote q;
           q.node_id = node.get_node_id();
@@ -341,7 +341,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            std::move(error_reason));
+            fmt::format("Error code: {}", ccf::api_result_to_str(result)));
         }
       };
       make_read_only_endpoint(

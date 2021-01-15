@@ -16,6 +16,52 @@ namespace ccf
 
   DECLARE_JSON_ENUM(QuoteFormat, {{QuoteFormat::oe_sgx_v1, "OE_SGX_v1"}})
 
+  /** Lists the possible return codes from the versioned APIs in @see
+   * ccf::BaseEndpointRegistry
+   */
+  enum class ApiResult
+  {
+    /** Call was successful, results can be used */
+    OK = 0,
+    /** The node is not yet initialised, and doesn't have access to the service
+       needed to answer this call. Should only be returned if the API is called
+       too early, during node construction. */
+    Uninitialised,
+    /** One of the arguments passed to the function is invalid. It may be
+       outside the range of known values, or not be in the expected format. */
+    InvalidArgs,
+    /** General error not covered by the cases above. Generally means that an
+       unexpected exception was thrown during execution. */
+    InternalError,
+  };
+
+  constexpr char const* api_result_to_str(ApiResult result)
+  {
+    switch (result)
+    {
+      case ApiResult::OK:
+      {
+        return "OK";
+      }
+      case ApiResult::Uninitialised:
+      {
+        return "Uninitialised";
+      }
+      case ApiResult::InvalidArgs:
+      {
+        return "InvalidArgs";
+      }
+      case ApiResult::InternalError:
+      {
+        return "InternalError";
+      }
+      default:
+      {
+        return "Unhandled ApiResult";
+      }
+    }
+  }
+
   /** Extends the basic EndpointRegistry with helper API methods for retrieving
    * core CCF properties.
    *
@@ -27,8 +73,7 @@ namespace ccf
    *
    * The methods have a consistent calling pattern, taking their arguments first
    * and setting results to the later out-parameters, passed by reference. All
-   * return an error string, describing the error if they fail. If this string
-   * is empty, the call succeeded and the result(s) can be used.
+   * return an ApiResult, with value OK if the call succeeded.
    */
   class BaseEndpointRegistry : public EndpointRegistry
   {
@@ -48,7 +93,7 @@ namespace ccf
      * distributed itself.
      * @see ccf::TxStatus
      */
-    std::string get_status_for_txid_v1(
+    ApiResult get_status_for_txid_v1(
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
       ccf::TxStatus& tx_status)
@@ -69,17 +114,18 @@ namespace ccf
           tx_status = ccf::TxStatus::Unknown;
         }
 
-        return "";
+        return ApiResult::OK;
       }
       catch (const std::exception& e)
       {
-        return fmt::format("Error finding tx status: {}", e.what());
+        LOG_TRACE_FMT("{}", e.what());
+        return ApiResult::InternalError;
       }
     }
 
     /** Get the ID of latest transaction known to be committed.
      */
-    std::string get_last_committed_txid_v1(
+    ApiResult get_last_committed_txid_v1(
       kv::Consensus::View& view, kv::Consensus::SeqNo& seqno)
     {
       if (consensus != nullptr)
@@ -89,15 +135,18 @@ namespace ccf
           const auto [v, s] = consensus->get_committed_txid();
           view = v;
           seqno = s;
-          return "";
+          return ApiResult::OK;
         }
         catch (const std::exception& e)
         {
-          return fmt::format("Error retrieving commit: {}", e.what());
+          LOG_TRACE_FMT("{}", e.what());
+          return ApiResult::InternalError;
         }
       }
-
-      return "Node is not initialised";
+      else
+      {
+        return ApiResult::Uninitialised;
+      }
     }
 
     /** Generate an OpenAPI document describing the currently installed
@@ -109,7 +158,7 @@ namespace ccf
      * returned document itself as the set of endpoints or their APIs change, it
      * does not affect the OpenAPI version of the format of the document.
      */
-    std::string generate_openapi_document_v1(
+    ApiResult generate_openapi_document_v1(
       kv::ReadOnlyTx& tx,
       const std::string& title,
       const std::string& description,
@@ -121,20 +170,20 @@ namespace ccf
         document =
           ds::openapi::create_document(title, description, document_version);
         build_api(document, tx);
+        return ApiResult::OK;
       }
       catch (const std::exception& e)
       {
-        return fmt::format("Error generating OpenAPI document: {}", e.what());
+        LOG_TRACE_FMT("{}", e.what());
+        return ApiResult::InternalError;
       }
-
-      return "";
     }
 
     /** Get a receipt for the transaction at the specified sequence number
      * containing a merkle tree path which proves that the service's ledger
      * contains the given transaction.
      */
-    std::string get_receipt_for_seqno_v1(
+    ApiResult get_receipt_for_seqno_v1(
       kv::Consensus::SeqNo seqno, std::vector<uint8_t>& receipt)
     {
       if (history != nullptr)
@@ -142,36 +191,47 @@ namespace ccf
         try
         {
           receipt = history->get_receipt(seqno);
-          return "";
+          return ApiResult::OK;
         }
         catch (const std::exception& e)
         {
-          return fmt::format(
-            "Exception thrown while retrieving receipt: {}", e.what());
+          LOG_TRACE_FMT("{}", e.what());
+          return ApiResult::InternalError;
         }
       }
-
-      return "Node is not yet initialised";
+      else
+      {
+        return ApiResult::Uninitialised;
+      }
     }
 
     /** Get a quote attesting to the hardware this node is running on. The
      * format indicates how the raw_quote should be interpreted and verified.
      */
-    std::string get_quote_for_this_node_v1(
+    ApiResult get_quote_for_this_node_v1(
       kv::ReadOnlyTx& tx, QuoteFormat& format, std::vector<uint8_t>& raw_quote)
     {
-      const auto node_id = node.get_node_id();
-      auto nodes_view = tx.get_read_only_view<ccf::Nodes>(Tables::NODES);
-      const auto node_info = nodes_view->get(node_id);
-
-      if (!node_info.has_value())
+      try
       {
-        return fmt::format("{} is not a known node", node_id);
-      }
+        const auto node_id = node.get_node_id();
+        auto nodes_view = tx.get_read_only_view<ccf::Nodes>(Tables::NODES);
+        const auto node_info = nodes_view->get(node_id);
 
-      format = QuoteFormat::oe_sgx_v1;
-      raw_quote = node_info->quote;
-      return "";
+        if (!node_info.has_value())
+        {
+          LOG_TRACE_FMT("{} is not a known node", node_id);
+          return ApiResult::Uninitialised;
+        }
+
+        format = QuoteFormat::oe_sgx_v1;
+        raw_quote = node_info->quote;
+        return ApiResult::OK;
+      }
+      catch (const std::exception& e)
+      {
+        LOG_TRACE_FMT("{}", e.what());
+        return ApiResult::InternalError;
+      }
     }
   };
 }

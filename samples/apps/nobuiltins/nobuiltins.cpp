@@ -26,21 +26,22 @@ namespace nobuiltins
       ccf::BaseEndpointRegistry("app", context.get_node_state())
     {
       auto node_summary = [this](ccf::EndpointContext& ctx) {
-        std::string error_reason;
+        ccf::ApiResult result;
 
         NodeSummary summary;
 
         {
           // SNIPPET_START: get_quote_api_v1
           std::vector<uint8_t> raw_quote;
-          error_reason =
+          result =
             get_quote_for_this_node_v1(ctx.tx, summary.quote_format, raw_quote);
-          if (!error_reason.empty())
+          if (result != ccf::ApiResult::OK)
           {
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              fmt::format("Failed to get quote: {}", error_reason));
+              fmt::format(
+                "Failed to get quote: {}", ccf::api_result_to_str(result)));
             return;
           }
 
@@ -49,15 +50,16 @@ namespace nobuiltins
         }
 
         {
-          error_reason = get_last_committed_txid_v1(
+          result = get_last_committed_txid_v1(
             summary.committed_view, summary.committed_seqno);
-          if (!error_reason.empty())
+          if (result != ccf::ApiResult::OK)
           {
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
               fmt::format(
-                "Failed to get committed transaction: {}", error_reason));
+                "Failed to get committed transaction: {}",
+                ccf::api_result_to_str(result)));
             return;
           }
         }
@@ -72,14 +74,14 @@ namespace nobuiltins
 
       auto openapi = [this](kv::Tx& tx, nlohmann::json&&) {
         nlohmann::json document;
-        const auto error_reason = generate_openapi_document_v1(
+        const auto result = generate_openapi_document_v1(
           tx,
           openapi_info.title,
           "A CCF sample demonstrating a minimal app, with no default endpoints",
           "0.0.1",
           document);
 
-        if (error_reason.empty())
+        if (result == ccf::ApiResult::OK)
         {
           return ccf::make_success(document);
         }
@@ -88,7 +90,9 @@ namespace nobuiltins
           return ccf::make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            std::move(error_reason));
+            fmt::format(
+              "Failed to generate OpenAPI: {}",
+              ccf::api_result_to_str(result)));
         }
       };
       make_endpoint(
@@ -98,10 +102,9 @@ namespace nobuiltins
 
       auto get_commit = [this](auto&, nlohmann::json&&) {
         ccf::GetCommit::Out out;
-        const auto error_reason =
-          get_last_committed_txid_v1(out.view, out.seqno);
+        const auto result = get_last_committed_txid_v1(out.view, out.seqno);
 
-        if (error_reason.empty())
+        if (result == ccf::ApiResult::OK)
         {
           return ccf::make_success(out);
         }
@@ -110,7 +113,9 @@ namespace nobuiltins
           return ccf::make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            std::move(error_reason));
+            fmt::format(
+              "Failed to get committed transaction: {}",
+              ccf::api_result_to_str(result)));
         }
       };
       make_command_endpoint(
