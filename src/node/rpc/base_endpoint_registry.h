@@ -64,8 +64,8 @@ namespace ccf
     }
   }
 
-  /** Extends the basic @ref EndpointRegistry with helper API methods for retrieving
-   * core CCF properties.
+  /** Extends the basic @ref EndpointRegistry with helper API methods for
+   * retrieving core CCF properties.
    *
    * The API methods are versioned with a @c _vN suffix. App developers should
    * use the latest version which provides the values they need. Note that the
