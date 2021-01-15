@@ -500,7 +500,7 @@ def test_view_history(network, args):
             for seqno in range(1, commit_seqno + 1):
                 views = []
                 for view in range(1, commit_view + 1):
-                    r = c.get(f"/node/tx?view={view}&seqno={seqno}")
+                    r = c.get(f"/node/tx?view={view}&seqno={seqno}", log_capture=[])
                     check(r)
                     status = TxStatus(r.body.json()["status"])
                     if status == TxStatus.Committed:
