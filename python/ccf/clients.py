@@ -202,10 +202,20 @@ class Response:
 
     @staticmethod
     def from_raw(raw):
-        sock = FakeSocket(raw)
-        response = HTTPResponse(sock)
-        response.begin()
-        raw_body = response.read(raw)
+        # Raw is the output of curl, which is a full HTTP response.
+        # But in the case of a redirect, it is multiple concatenated responses.
+        # We want the final response, so we keep constructing new responses from this stream until we have reached the end
+        while True:
+            sock = FakeSocket(raw)
+            response = HTTPResponse(sock)
+            response.begin()
+            response_len = sock.file.tell() + response.length
+            raw_len = len(raw)
+            if raw_len == response_len:
+                break
+            raw = raw[response_len:]
+
+        raw_body = response.read()
 
         return Response(
             response.status,
@@ -638,7 +648,7 @@ class CCFClient:
         headers: Optional[dict] = None,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
         log_capture: Optional[list] = None,
-        allow_redirects: bool=True,
+        allow_redirects: bool = True,
     ) -> Response:
         """
         Issues one request, synchronously, and returns the response.
@@ -660,7 +670,9 @@ class CCFClient:
         logs: List[str] = []
 
         if self.is_connected:
-            r = self._call(path, body, http_verb, headers, timeout, logs, allow_redirects)
+            r = self._call(
+                path, body, http_verb, headers, timeout, logs, allow_redirects
+            )
             flush_info(logs, log_capture, 2)
             return r
 
@@ -668,7 +680,9 @@ class CCFClient:
         while True:
             try:
                 logs = []
-                response = self._call(path, body, http_verb, headers, timeout, logs, allow_redirects)
+                response = self._call(
+                    path, body, http_verb, headers, timeout, logs, allow_redirects
+                )
                 # Only the first request gets this timeout logic - future calls
                 # call _call
                 self.is_connected = True
