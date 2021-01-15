@@ -494,7 +494,7 @@ namespace ccf
                 "https://{}:{}/node/network/nodes/{}",
                 info->pubhost,
                 info->pubport,
-                node_id));
+                primary_id));
             return;
           }
         }
