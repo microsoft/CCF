@@ -617,21 +617,13 @@ namespace kv
       }
     }
 
-    DeserialiseSuccess deserialise_views(
+    bool fill_maps(
       const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
-      bool public_only = false,
-      Term* term_ = nullptr,
-      Version* index_ = nullptr,
-      AbstractChangeContainer* tx = nullptr,
-      ccf::PrimarySignature* sig = nullptr)
+      bool public_only,
+      kv::Version& v,
+      OrderedChanges& changes,
+      MapCollection& new_maps)
     {
-      // If we pass in a transaction we don't want to commit, just deserialise
-      // and put the views into that transaction.
-      // Tread carefully here: at the moment passing in a transaction assumes we
-      // are using bft as the consensus
-      auto commit = (tx == nullptr);
-
       // This will return FAILED if the serialised transaction is being
       // applied out of order.
       // Processing transactions locally and also deserialising to the
@@ -650,7 +642,7 @@ namespace kv
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
         return DeserialiseSuccess::FAILED;
       }
-      auto [v, _] = v_.value();
+      std::tie(v, std::ignore) = v_.value();
 
       // Throw away any local commits that have not propagated via the
       // consensus.
@@ -673,8 +665,6 @@ namespace kv
       // need snapshot isolation on the map state, and so do not need to
       // lock each of the maps before creating the transaction.
       std::lock_guard<SpinLock> mguard(maps_lock);
-      OrderedChanges changes;
-      MapCollection new_maps;
 
       for (auto r = d.start_map(); r.has_value(); r = d.start_map())
       {
@@ -701,7 +691,7 @@ namespace kv
         {
           LOG_FAIL_FMT("Failed to deserialise transaction at version {}", v);
           LOG_DEBUG_FMT("Multiple writes on map {}", map_name);
-          return DeserialiseSuccess::FAILED;
+          return false;
         }
 
         auto deserialised_changes = map->deserialise_changes(d, v);
@@ -715,6 +705,31 @@ namespace kv
       if (!d.end())
       {
         LOG_FAIL_FMT("Unexpected content in transaction at version {}", v);
+        return false;
+      }
+      return true;
+    }
+
+    DeserialiseSuccess deserialise_views(
+      const std::vector<uint8_t>& data,
+      kv::ConsensusHookPtrs& hooks,
+      bool public_only = false,
+      Term* term_ = nullptr,
+      Version* index_ = nullptr,
+      AbstractChangeContainer* tx = nullptr,
+      ccf::PrimarySignature* sig = nullptr)
+    {
+      // If we pass in a transaction we don't want to commit, just deserialise
+      // and put the views into that transaction.
+      // Tread carefully here: at the moment passing in a transaction assumes we
+      // are using bft as the consensus
+      auto commit = (tx == nullptr);
+
+      OrderedChanges changes;
+      MapCollection new_maps;
+      kv::Version v;
+      if (!fill_maps(data, public_only, v, changes, new_maps))
+      {
         return DeserialiseSuccess::FAILED;
       }
 

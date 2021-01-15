@@ -1072,6 +1072,7 @@ namespace aft
         r.idx,
         r.prev_idx);
 
+      // TODO: we now know this is safe so start looking from here
       // Finally, deserialise each entry in the batch
       for (Index i = r.prev_idx + 1; i <= r.idx; i++)
       {
