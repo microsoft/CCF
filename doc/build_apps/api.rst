@@ -62,3 +62,6 @@ Supporting Types
 .. doxygenenum:: ccf::TxStatus
    :project: CCF
 
+.. doxygenenum:: ccf::ApiResult
+   :project: CCF
+

@@ -336,6 +336,13 @@ namespace ccf
 
           return make_success(q);
         }
+        else if (result == ApiResult::NotFound)
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "Could not find node quote.");
+        }
         else
         {
           return make_error(

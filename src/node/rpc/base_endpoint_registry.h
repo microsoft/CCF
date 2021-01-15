@@ -30,6 +30,8 @@ namespace ccf
     /** One of the arguments passed to the function is invalid. It may be
        outside the range of known values, or not be in the expected format. */
     InvalidArgs,
+    /** The requsted value was not found. */
+    NotFound,
     /** General error not covered by the cases above. Generally means that an
        unexpected exception was thrown during execution. */
     InternalError,
@@ -62,7 +64,7 @@ namespace ccf
     }
   }
 
-  /** Extends the basic EndpointRegistry with helper API methods for retrieving
+  /** Extends the basic @ref EndpointRegistry with helper API methods for retrieving
    * core CCF properties.
    *
    * The API methods are versioned with a @c _vN suffix. App developers should
@@ -73,7 +75,7 @@ namespace ccf
    *
    * The methods have a consistent calling pattern, taking their arguments first
    * and setting results to the later out-parameters, passed by reference. All
-   * return an ApiResult, with value OK if the call succeeded.
+   * return an @ref ApiResult, with value OK if the call succeeded.
    */
   class BaseEndpointRegistry : public EndpointRegistry
   {
@@ -220,7 +222,7 @@ namespace ccf
         if (!node_info.has_value())
         {
           LOG_TRACE_FMT("{} is not a known node", node_id);
-          return ApiResult::Uninitialised;
+          return ApiResult::NotFound;
         }
 
         format = QuoteFormat::oe_sgx_v1;
