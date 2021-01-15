@@ -641,12 +641,81 @@ def test_primary(network, args):
 
     backup = network.find_any_backup()
     with backup.client() as c:
-        r = c.head("/node/primary")
+        r = c.head("/node/primary", allow_redirects=False)
         assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
         assert (
             r.headers["location"]
             == f"https://{primary.pubhost}:{primary.pubport}/node/primary"
         )
+    return network
+
+
+@reqs.description("Network node info")
+@reqs.at_least_n_nodes(2)
+def test_network_node_info(network, args):
+    primary, backups = network.find_nodes()
+
+    all_nodes = [primary, *backups]
+
+    # Populate node_infos by calling self
+    node_infos = {}
+    for node in all_nodes:
+        with node.client() as c:
+            # /node/network/nodes/self is always a redirect
+            r = c.get("/node/network/nodes/self", allow_redirects=False)
+            assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
+            assert (
+                r.headers["location"]
+                == f"https://{node.pubhost}:{node.pubport}/node/network/nodes/{node.node_id}"
+            ), r.headers["location"]
+
+            # Following that redirect gets you the node info
+            r = c.get("/node/network/nodes/self", allow_redirects=True)
+            assert r.status_code == http.HTTPStatus.OK.value
+            body = r.body.json()
+            assert body["node_id"] == node.node_id
+            assert body["host"] == node.pubhost
+            assert body["port"] == str(node.pubport)
+            assert body["primary"] == (node == primary)
+
+            node_infos[node.node_id] = body
+
+    for node in all_nodes:
+        with node.client() as c:
+            # /node/primary is a 200 on the primary, and a redirect (to a 200) elsewhere
+            r = c.head("/node/primary", allow_redirects=False)
+            if node != primary:
+                assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
+                assert (
+                    r.headers["location"]
+                    == f"https://{primary.pubhost}:{primary.pubport}/node/primary"
+                ), r.headers["location"]
+                r = c.head("/node/primary", allow_redirects=True)
+
+            assert r.status_code == http.HTTPStatus.OK.value
+
+            # /node/network/nodes/primary is always a redirect
+            r = c.get("/node/network/nodes/primary", allow_redirects=False)
+            assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
+            actual = r.headers["location"]
+            expected = f"https://{node.pubhost}:{node.pubport}/node/network/nodes/{primary.node_id}"
+            assert actual == expected, f"{actual} != {expected}"
+
+            # Following that redirect gets you the primary's node info
+            r = c.get("/node/network/nodes/primary", allow_redirects=True)
+            assert r.status_code == http.HTTPStatus.OK.value
+            body = r.body.json()
+            assert body == node_infos[primary.node_id]
+
+            # Node info can be retrieved directly by node ID, from and about every node, without redirection
+            for target_node in all_nodes:
+                r = c.get(
+                    f"/node/network/nodes/{target_node.node_id}", allow_redirects=False
+                )
+                assert r.status_code == http.HTTPStatus.OK.value
+                body = r.body.json()
+                assert body == node_infos[target_node.node_id]
+
     return network
 
 
@@ -697,6 +766,7 @@ def run(args):
         network = test_historical_query(network, args)
         network = test_view_history(network, args)
         network = test_primary(network, args)
+        network = test_network_node_info(network, args)
         network = test_metrics(network, args)
         network = test_memory(network, args)
 
