@@ -638,7 +638,7 @@ class CCFClient:
         headers: Optional[dict] = None,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
         log_capture: Optional[list] = None,
-        allow_redirects=True,
+        allow_redirects: bool=True,
     ) -> Response:
         """
         Issues one request, synchronously, and returns the response.
@@ -650,6 +650,7 @@ class CCFClient:
         :param dict headers: HTTP request headers (optional).
         :param int timeout: Maximum time to wait for a response before giving up.
         :param list log_capture: Rather than emit to default handler, capture log lines to list (optional).
+        :param bool allow_redirects: Select whether redirects are followed.
 
         :return: :py:class:`ccf.clients.Response`
         """
