@@ -1312,12 +1312,19 @@ namespace ccf
         }
 
         const auto in = params.get<Propose::In>();
-        // Convert key to string
-        // Digest request
-        // Find Merkle Root as of read_version
-        // Digest both, to string
+        
+        // Read version is set here because member_signature_auth_policy
+        // reads from the Tx to resolve key_id -> member_identity 
+        auto read_version = ctx.tx.get_read_version();
+        if (read_version == NoVersion)
+          throw std::logic_error("Unset read_version after get_view()");
+
+        // TODO: grab history.past_root(rv)
+        // proposal_id = hash( past_root(rv) + caller_identity.request_digest)
         const auto proposal_id =
           fmt::format("{:02x}", fmt::join(caller_identity.request_digest, ""));
+
+
         Proposal proposal(in.script, in.parameter, caller_identity.member_id);
 
         auto proposals = ctx.tx.get_view(this->network.proposals);
