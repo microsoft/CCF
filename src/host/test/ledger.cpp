@@ -846,6 +846,7 @@ TEST_CASE("Recover from read-only ledger directory only")
   size_t chunk_threshold = 30;
   size_t chunk_count = 5;
 
+  size_t entries_per_chunk = 0;
   size_t last_idx = 0;
 
   INFO("Write many entries on first ledger");
@@ -854,7 +855,8 @@ TEST_CASE("Recover from read-only ledger directory only")
     TestEntrySubmitter entry_submitter(ledger);
 
     // Writing some committed chunks
-    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    entries_per_chunk =
+      initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
     last_idx = entry_submitter.get_last_idx();
     ledger.commit(last_idx);
   }
@@ -868,12 +870,67 @@ TEST_CASE("Recover from read-only ledger directory only")
 
     TestEntrySubmitter entry_submitter(ledger, last_idx);
 
-    for (size_t i = 0; i < chunk_count; i++)
+    for (size_t i = 0; i < entries_per_chunk; i++)
     {
       entry_submitter.write(true);
     }
 
     read_entries_range_from_ledger(ledger, 1, entry_submitter.get_last_idx());
+  }
+}
+
+TEST_CASE("Invalid ledger file resilience")
+{
+  fs::remove_all(ledger_dir);
+
+  size_t max_read_cache_size = 2;
+  size_t chunk_threshold = 30;
+  size_t chunk_count = 5;
+
+  size_t entries_per_chunk = 0;
+  size_t last_idx = 0;
+
+  INFO("Write many entries on first ledger");
+  {
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
+    TestEntrySubmitter entry_submitter(ledger);
+
+    // Writing some committed chunks
+    entries_per_chunk =
+      initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    last_idx = entry_submitter.get_last_idx();
+    ledger.commit(last_idx);
+  }
+
+  INFO("Restart with invalid ledger files");
+  {
+    std::vector<std::string> invalid_ledger_file_names = {
+      "invalid_file",
+      "invalid_ledger_file",
+      "ledger_invalid",
+      fmt::format("ledger_{}_invalid", last_idx + 1)};
+
+    // Valid file names but empty ledger files
+    invalid_ledger_file_names.emplace_back(
+      fmt::format("ledger_{}-{}", last_idx + 1, last_idx + 2));
+    invalid_ledger_file_names.emplace_back(fmt::format("ledger_{}", last_idx));
+
+    for (auto const& f : invalid_ledger_file_names)
+    {
+      std::ofstream output(fs::path(ledger_dir) / fs::path(f));
+      Ledger ledger(ledger_dir, wf, chunk_threshold, max_read_cache_size);
+
+      // Restarted ledger can read and write entries
+      read_entries_range_from_ledger(ledger, 1, last_idx);
+      TestEntrySubmitter entry_submitter(ledger, last_idx);
+      for (size_t i = 0; i < entries_per_chunk; i++)
+      {
+        entry_submitter.write(true);
+      }
+      last_idx = entry_submitter.get_last_idx();
+      ledger.commit(last_idx);
+      read_entries_range_from_ledger(ledger, 1, last_idx);
+    }
   }
 }
 

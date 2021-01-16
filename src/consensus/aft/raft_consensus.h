@@ -106,6 +106,11 @@ namespace aft
       return aft->leader();
     }
 
+    bool view_change_in_progress() override
+    {
+      return aft->view_change_in_progress();
+    }
+
     std::set<NodeId> active_nodes() override
     {
       return aft->active_nodes();

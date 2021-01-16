@@ -113,6 +113,11 @@ namespace kv
       return 1;
     }
 
+    bool view_change_in_progress() override
+    {
+      return false;
+    }
+
     std::set<NodeId> active_nodes() override
     {
       return {};
