@@ -500,13 +500,13 @@ namespace ccf
           is_primary = consensus->primary() == node_id;
         }
         auto ni = info.value();
-        return make_success({node_id,
-                             ni.status,
-                             ni.pubhost,
-                             ni.pubport,
-                             ni.rpchost,
-                             ni.rpcport,
-                             is_primary});
+        return make_success(GetNode::Out{node_id,
+                                         ni.status,
+                                         ni.pubhost,
+                                         ni.pubport,
+                                         ni.rpchost,
+                                         ni.rpcport,
+                                         is_primary});
       };
       make_read_only_endpoint(
         "network/nodes/{node_id}",
@@ -560,7 +560,7 @@ namespace ccf
                 "https://{}:{}/node/network/nodes/{}",
                 info->pubhost,
                 info->pubport,
-                node_id));
+                primary_id));
             return;
           }
         }
