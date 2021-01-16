@@ -205,7 +205,10 @@ namespace ccf
           std::vector<uint8_t> digest;
           auto verifier = verifiers.get_verifier(member->cert);
           if (verifier->verify(
-                signed_request->req, signed_request->sig, signed_request->md, digest))
+                signed_request->req,
+                signed_request->sig,
+                signed_request->md,
+                digest))
           {
             auto identity = std::make_unique<MemberSignatureAuthnIdentity>();
             identity->member_id = member_id.value();

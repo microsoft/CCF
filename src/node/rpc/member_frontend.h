@@ -365,7 +365,8 @@ namespace ccf
       auto key_issuer =
         tx.get_view(this->network.jwt_public_signing_key_issuer);
 
-      auto log_prefix = proposal_id.empty() ? "JWT key auto-refresh" :
+      auto log_prefix = proposal_id.empty() ?
+        "JWT key auto-refresh" :
         fmt::format("Proposal {}", proposal_id);
 
       // add keys
@@ -628,7 +629,8 @@ namespace ccf
            return true;
          }},
         {"set_member_data",
-         [this](ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<SetMemberData>();
            auto members_view = tx.get_view(this->network.members);
            auto member_info = members_view->get(parsed.member_id);
@@ -655,7 +657,8 @@ namespace ccf
            return true;
          }},
         {"remove_user",
-         [this](ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const UserId user_id = args;
 
            GenesisGenerator g(this->network, tx);
@@ -669,7 +672,8 @@ namespace ccf
            return r;
          }},
         {"set_user_data",
-         [this](ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<SetUserData>();
            auto users_view = tx.get_view(this->network.users);
            auto user_info = users_view->get(parsed.user_id);
@@ -687,7 +691,8 @@ namespace ccf
            return true;
          }},
         {"set_ca_cert",
-         [this](ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<SetCaCert>();
            auto ca_certs = tx.get_view(this->network.ca_certs);
            std::vector<uint8_t> cert_der;
@@ -715,7 +720,8 @@ namespace ccf
            return true;
          }},
         {"set_jwt_issuer",
-         [this](ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<SetJwtIssuer>();
            auto issuers = tx.get_view(this->network.jwt_issuers);
            auto ca_certs = tx.get_read_only_view(this->network.ca_certs);
@@ -782,7 +788,8 @@ namespace ccf
            return success;
          }},
         {"remove_jwt_issuer",
-         [this](ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<RemoveJwtIssuer>();
            const auto issuer = parsed.issuer;
            auto issuers = tx.get_view(this->network.jwt_issuers);
@@ -799,7 +806,8 @@ namespace ccf
            return true;
          }},
         {"set_jwt_public_signing_keys",
-         [this](ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<SetJwtPublicSigningKeys>();
 
            auto issuers = tx.get_view(this->network.jwt_issuers);
@@ -819,7 +827,8 @@ namespace ccf
          }},
         // accept a node
         {"trust_node",
-         [this](ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<NodeId>();
            auto nodes = tx.get_view(this->network.nodes);
            auto node_info = nodes->get(id);
@@ -842,7 +851,8 @@ namespace ccf
          }},
         // retire a node
         {"retire_node",
-         [this](ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<NodeId>();
            auto nodes = tx.get_view(this->network.nodes);
            auto node_info = nodes->get(id);
@@ -865,7 +875,8 @@ namespace ccf
          }},
         // accept new node code ID
         {"new_node_code",
-         [this](ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            return this->add_new_code_id(
              tx,
              args.get<CodeDigest>(),
@@ -874,7 +885,8 @@ namespace ccf
          }},
         // retire node code ID
         {"retire_node_code",
-         [this](ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            return this->retire_code_id(
              tx,
              args.get<CodeDigest>(),
@@ -956,7 +968,8 @@ namespace ccf
            return true;
          }},
         {"set_recovery_threshold",
-         [this](ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto new_recovery_threshold = args.get<size_t>();
 
            GenesisGenerator g(this->network, tx);
@@ -1299,12 +1312,12 @@ namespace ccf
         }
 
         const auto in = params.get<Propose::In>();
-        // TODO
         // Convert key to string
         // Digest request
         // Find Merkle Root as of read_version
         // Digest both, to string
-        const auto proposal_id = fmt::format("{:02x}", fmt::join(caller_identity.request_digest, ""));
+        const auto proposal_id =
+          fmt::format("{:02x}", fmt::join(caller_identity.request_digest, ""));
         Proposal proposal(in.script, in.parameter, caller_identity.member_id);
 
         auto proposals = ctx.tx.get_view(this->network.proposals);
