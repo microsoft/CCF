@@ -358,7 +358,7 @@
           "description": "Auto-generated request body schema"
         },
         "responses": {
-          "200": {
+          "204": {
             "description": "Default response description"
           }
         },
