@@ -51,4 +51,4 @@ encrypted_share=$(curl -sS --fail -X GET "${node_rpc_address}"/gov/recovery_shar
 
 # Then, decrypt encrypted share with member private key submit decrypted recovery share
 # Note: all in one line so that the decrypted recovery share is not exposed
-echo "${encrypted_share}" | openssl base64 -d | openssl pkeyutl -inkey "${member_enc_privk}" -decrypt -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 | openssl base64 | jq -R '{share: (.)}' | curl -i -sS --fail -X POST "${node_rpc_address}"/gov/recovery_share "${@}" -d @-
+echo "${encrypted_share}" | openssl base64 -d | openssl pkeyutl -inkey "${member_enc_privk}" -decrypt -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 | openssl base64 -A | jq -R '{share: (.)}' | curl -i -sS --fail -H "Content-Type: application/json" -X POST "${node_rpc_address}"/gov/recovery_share "${@}" -d @-
