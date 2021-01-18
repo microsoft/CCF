@@ -158,19 +158,20 @@ namespace ccf
 
   struct GetRecoveryShare
   {
-    struct RecoveryShare
-    {
-      std::string share = {};
-    };
-
     using In = void;
 
-    using Out = RecoveryShare;
+    struct Out
+    {
+      std::string encrypted_share;
+    };
   };
 
   struct SubmitRecoveryShare
   {
-    using In = GetRecoveryShare::RecoveryShare;
+    struct In
+    {
+      std::string share;
+    };
 
     struct Out
     {

@@ -1954,7 +1954,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
       auto resp = parse_response_body<GetRecoveryShare::Out>(
         frontend_process(frontend, get_recovery_shares, m.second.first));
 
-      auto encrypted_share = tls::raw_from_b64(resp.share);
+      auto encrypted_share = tls::raw_from_b64(resp.encrypted_share);
       retrieved_shares[m.first] = m.second.second->unwrap(encrypted_share);
     }
   }

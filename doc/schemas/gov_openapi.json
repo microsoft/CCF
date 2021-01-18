@@ -106,14 +106,14 @@
         ],
         "type": "object"
       },
-      "GetRecoveryShare__RecoveryShare": {
+      "GetRecoveryShare__Out": {
         "properties": {
-          "share": {
+          "encrypted_share": {
             "$ref": "#/components/schemas/string"
           }
         },
         "required": [
-          "share"
+          "encrypted_share"
         ],
         "type": "object"
       },
@@ -232,6 +232,17 @@
         },
         "required": [
           "state_digest"
+        ],
+        "type": "object"
+      },
+      "SubmitRecoveryShare__In": {
+        "properties": {
+          "share": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "share"
         ],
         "type": "object"
       },
@@ -817,7 +828,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetRecoveryShare__RecoveryShare"
+                  "$ref": "#/components/schemas/GetRecoveryShare__Out"
                 }
               }
             },
@@ -835,7 +846,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GetRecoveryShare__RecoveryShare"
+                "$ref": "#/components/schemas/SubmitRecoveryShare__In"
               }
             }
           },
