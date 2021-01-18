@@ -22,6 +22,28 @@ namespace ccf
       RpcFrontend::open(identity);
       endpoints.openapi_info.title = "CCF Application API";
     }
+  };
+
+  class UserEndpointRegistry : public CommonEndpointRegistry
+  {
+  public:
+    UserEndpointRegistry(ccf::AbstractNodeState& node) :
+      CommonEndpointRegistry(
+        get_actor_prefix(ActorsType::users), node, Tables::USER_CERT_DERS)
+    {}
+  };
+
+  class SimpleUserRpcFrontend : public UserRpcFrontend
+  {
+  protected:
+    UserEndpointRegistry common_handlers;
+
+  public:
+    SimpleUserRpcFrontend(
+      kv::Store& tables, ccf::AbstractNodeState& node_state) :
+      UserRpcFrontend(tables, common_handlers),
+      common_handlers(node_state)
+    {}
 
     // Forward these methods so that apps can write foo(...); rather than
     // endpoints.foo(...);
@@ -42,33 +64,5 @@ namespace ccf
     {
       return endpoints.make_command_endpoint(std::forward<Ts>(ts)...);
     }
-  };
-
-  class UserEndpointRegistry : public CommonEndpointRegistry
-  {
-  public:
-    UserEndpointRegistry(kv::Store& store) :
-      CommonEndpointRegistry(
-        get_actor_prefix(ActorsType::users), store, Tables::USER_CERT_DERS)
-    {}
-
-    UserEndpointRegistry(NetworkTables& network) :
-      CommonEndpointRegistry(
-        get_actor_prefix(ActorsType::users),
-        *network.tables,
-        Tables::USER_CERT_DERS)
-    {}
-  };
-
-  class SimpleUserRpcFrontend : public UserRpcFrontend
-  {
-  protected:
-    UserEndpointRegistry common_handlers;
-
-  public:
-    SimpleUserRpcFrontend(kv::Store& tables) :
-      UserRpcFrontend(tables, common_handlers),
-      common_handlers(tables)
-    {}
   };
 }

@@ -25,9 +25,9 @@ namespace ccf
   {
     /** CCF user ID, as defined in @c public:ccf.gov.users table */
     UserId user_id;
-    /** User certificate, as established by TLS */
+    /** User certificate, used to sign this request, described by keyId */
     tls::Pem user_cert;
-    /** Additional user data, as defined @c in public:ccf.gov.users */
+    /** Additional user data, as defined in @c public:ccf.gov.users */
     nlohmann::json user_data;
     /** Canonicalised request and associated signature */
     SignedReq signed_request;
