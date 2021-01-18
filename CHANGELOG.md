@@ -634,6 +634,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.17.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.17.0
 [0.16.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.16.3
 [0.16.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.16.2
 [0.16.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.16.1
