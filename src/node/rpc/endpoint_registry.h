@@ -12,7 +12,6 @@
 #include "http/authentication/sig_auth.h"
 #include "http/http_consts.h"
 #include "http/ws_consts.h"
-#include "kv/store.h"
 #include "kv/tx.h"
 #include "node/certs.h"
 #include "serialization.h"
@@ -510,9 +509,6 @@ namespace ccf
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
 
-    std::string certs_table_name;
-    std::string digests_table_name;
-
     static void add_query_parameters(
       nlohmann::json& document,
       const std::string& uri,
@@ -541,12 +537,8 @@ namespace ccf
     }
 
   public:
-    EndpointRegistry(
-      const std::string& method_prefix_,
-      kv::Store&,
-      const std::string& certs_table_name_ = "") :
-      method_prefix(method_prefix_),
-      certs_table_name(certs_table_name_)
+    EndpointRegistry(const std::string& method_prefix_) :
+      method_prefix(method_prefix_)
     {}
 
     virtual ~EndpointRegistry() {}
@@ -737,7 +729,7 @@ namespace ccf
      * internally, so must be able to populate the document
      * with the supported endpoints however it defines them.
      */
-    virtual void build_api(nlohmann::json& document, kv::Tx&)
+    virtual void build_api(nlohmann::json& document, kv::ReadOnlyTx&)
     {
       ds::openapi::server(document, fmt::format("/{}", method_prefix));
 
@@ -790,7 +782,7 @@ namespace ccf
       return metrics[e->dispatch.uri_path][e->dispatch.verb.c_str()];
     }
 
-    virtual void init_handlers(kv::Store&) {}
+    virtual void init_handlers() {}
 
     virtual EndpointDefinitionPtr find_endpoint(
       kv::Tx&, enclave::RpcContext& rpc_ctx)

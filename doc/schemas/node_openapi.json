@@ -173,40 +173,13 @@
       "GetQuotes__Out": {
         "properties": {
           "quotes": {
-            "$ref": "#/components/schemas/GetQuotes__Quote_array"
+            "$ref": "#/components/schemas/Quote_array"
           }
         },
         "required": [
           "quotes"
         ],
         "type": "object"
-      },
-      "GetQuotes__Quote": {
-        "properties": {
-          "error": {
-            "$ref": "#/components/schemas/string"
-          },
-          "mrenclave": {
-            "$ref": "#/components/schemas/string"
-          },
-          "node_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "raw": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "node_id",
-          "raw"
-        ],
-        "type": "object"
-      },
-      "GetQuotes__Quote_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetQuotes__Quote"
-        },
-        "type": "array"
       },
       "GetReceipt__Out": {
         "properties": {
@@ -281,6 +254,40 @@
           "RETIRED"
         ],
         "type": "string"
+      },
+      "Quote": {
+        "properties": {
+          "format": {
+            "$ref": "#/components/schemas/QuoteFormat"
+          },
+          "mrenclave": {
+            "$ref": "#/components/schemas/string"
+          },
+          "node_id": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "raw": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "node_id",
+          "raw",
+          "format"
+        ],
+        "type": "object"
+      },
+      "QuoteFormat": {
+        "enum": [
+          "OE_SGX_v1"
+        ],
+        "type": "string"
+      },
+      "Quote_array": {
+        "items": {
+          "$ref": "#/components/schemas/Quote"
+        },
+        "type": "array"
       },
       "ServiceStatus": {
         "enum": [
@@ -646,7 +653,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetQuotes__Quote"
+                  "$ref": "#/components/schemas/Quote"
                 }
               }
             },

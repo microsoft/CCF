@@ -40,25 +40,6 @@ namespace ccf
     };
   };
 
-  struct GetQuotes
-  {
-    using In = void;
-
-    struct Quote
-    {
-      NodeId node_id = {};
-      std::string raw = {}; // < Hex-encoded
-
-      std::string error = {};
-      std::string mrenclave = {}; // < Hex-encoded
-    };
-
-    struct Out
-    {
-      std::vector<Quote> quotes;
-    };
-  };
-
   struct CreateNetworkNodeToNode
   {
     struct In
