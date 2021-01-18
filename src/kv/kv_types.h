@@ -523,6 +523,13 @@ namespace kv
     virtual void swap(AbstractMap* map) = 0;
   };
 
+  class IExecutionWrapper
+  {
+  public:
+    virtual ~IExecutionWrapper() = default;
+    virtual kv::DeserialiseSuccess Execute() = 0;
+  };
+
   class AbstractStore
   {
   public:
@@ -561,7 +568,13 @@ namespace kv
       const std::vector<uint8_t>& data,
       ConsensusHookPtrs& hooks,
       bool public_only = false,
-      Term* term = nullptr) = 0;
+      kv::Term* term = nullptr) = 0;
+    virtual std::unique_ptr<IExecutionWrapper> deserialise_async(
+      const std::vector<uint8_t>& data,
+      kv::ConsensusHookPtrs& hooks,
+      bool public_only = false,
+      kv::Term* term = nullptr) = 0;
+
     virtual void compact(Version v) = 0;
     virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
