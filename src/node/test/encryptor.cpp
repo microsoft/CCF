@@ -3,6 +3,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
 #include "kv/encryptor.h"
+
 #include "kv/kv_types.h"
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
