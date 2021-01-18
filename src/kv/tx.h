@@ -400,7 +400,8 @@ namespace kv
         max_conflict_version = version - 1;
       }
 
-      KvStoreSerialiser replicated_serialiser(e, version, max_conflict_version);
+      KvStoreSerialiser replicated_serialiser(
+        e, {term, version}, max_conflict_version);
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})

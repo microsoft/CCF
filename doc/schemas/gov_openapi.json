@@ -391,14 +391,7 @@
           "description": "Auto-generated request body schema"
         },
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/boolean"
-                }
-              }
-            },
+          "204": {
             "description": "Default response description"
           }
         },

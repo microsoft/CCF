@@ -36,12 +36,8 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)
 
   DECLARE_JSON_TYPE(LedgerSecret)
-  DECLARE_JSON_REQUIRED_FIELDS(LedgerSecret, master)
-  DECLARE_JSON_TYPE(LedgerSecrets::VersionedLedgerSecret)
   DECLARE_JSON_REQUIRED_FIELDS(
-    LedgerSecrets::VersionedLedgerSecret, version, secret)
-  DECLARE_JSON_TYPE(LedgerSecrets)
-  DECLARE_JSON_REQUIRED_FIELDS(LedgerSecrets, secrets_list)
+    LedgerSecret, raw_key) // Only raw_key is serialised
 
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out::NetworkInfo)
   DECLARE_JSON_REQUIRED_FIELDS(

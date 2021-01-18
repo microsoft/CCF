@@ -35,12 +35,22 @@ namespace ccf
     tls::Pem encryption_pub_key;
     NodeStatus status = NodeStatus::PENDING;
 
+    // Set to the seqno of the latest ledger secret at the time the node is
+    // trusted
+    std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
+
     MSGPACK_DEFINE(
-      MSGPACK_BASE(NodeInfoNetwork), cert, quote, encryption_pub_key, status);
+      MSGPACK_BASE(NodeInfoNetwork),
+      cert,
+      quote,
+      encryption_pub_key,
+      status,
+      ledger_secret_seqno);
   };
-  DECLARE_JSON_TYPE_WITH_BASE(NodeInfo, NodeInfoNetwork);
+  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfo, cert, quote, encryption_pub_key, status);
+  DECLARE_JSON_OPTIONAL_FIELDS(NodeInfo, ledger_secret_seqno);
 
   using Nodes = kv::Map<NodeId, NodeInfo>;
 }
