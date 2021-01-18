@@ -36,7 +36,10 @@ static constexpr auto default_pack = serdes::Pack::MsgPack;
 class BaseTestFrontend : public SimpleUserRpcFrontend
 {
 public:
-  using SimpleUserRpcFrontend::SimpleUserRpcFrontend;
+  ccf::StubNodeState stub_node;
+
+  BaseTestFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables, stub_node)
+  {}
 
   // For testing only, we don't need to specify auth policies everywhere and
   // default to no auth
@@ -86,23 +89,6 @@ public:
       no_auth_required)
       .set_forwarding_required(ForwardingRequired::Sometimes)
       .install();
-  }
-};
-
-class TestReqNotStoredFrontend : public BaseTestFrontend
-{
-public:
-  TestReqNotStoredFrontend(kv::Store& tables) : BaseTestFrontend(tables)
-  {
-    open();
-
-    auto empty_function = [this](auto& args) {
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-    };
-    make_endpoint(
-      "empty_function", HTTP_POST, empty_function, {user_cert_auth_policy})
-      .install();
-    disable_request_storing();
   }
 };
 
@@ -272,7 +258,7 @@ class TestNoCertsFrontend : public RpcFrontend
 public:
   TestNoCertsFrontend(kv::Store& tables) :
     RpcFrontend(tables, endpoints),
-    endpoints("test", tables)
+    endpoints("test")
   {
     open();
 
@@ -634,21 +620,6 @@ TEST_CASE("process with signatures")
       REQUIRE(response.status == HTTP_STATUS_OK);
     }
   }
-
-  SUBCASE("request with signature but do not store")
-  {
-    TestReqNotStoredFrontend frontend_nostore(*network.tables);
-    const auto simple_call = create_simple_request("empty_function");
-    const auto signed_call = create_signed_request(simple_call);
-    const auto serialized_signed_call = signed_call.build_request();
-    auto signed_rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_signed_call);
-
-    const auto serialized_response =
-      frontend_nostore.process(signed_rpc_ctx).value();
-    const auto response = parse_response(serialized_response);
-    REQUIRE(response.status == HTTP_STATUS_OK);
-  }
 }
 
 TEST_CASE("process with caller")
@@ -775,7 +746,7 @@ TEST_CASE("Member caller")
   prepare_callers(network);
 
   ShareManager share_manager(network);
-  StubNodeState stub_node(share_manager);
+  StubNodeState stub_node;
 
   auto simple_call = create_simple_request();
   std::vector<uint8_t> serialized_call = simple_call.build_request();
@@ -1337,7 +1308,7 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   prepare_callers(network_backup);
 
   ShareManager share_manager(network_primary);
-  StubNodeState stub_node(share_manager);
+  StubNodeState stub_node;
 
   TestForwardingNodeFrontEnd node_frontend_primary(network_primary, stub_node);
   TestForwardingNodeFrontEnd node_frontend_backup(network_backup, stub_node);
@@ -1430,7 +1401,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   prepare_callers(network_backup);
 
   ShareManager share_manager(network_primary);
-  StubNodeState stub_node(share_manager);
+  StubNodeState stub_node;
 
   TestForwardingMemberFrontEnd member_frontend_primary(
     *network_primary.tables, network_primary, stub_node, share_manager);

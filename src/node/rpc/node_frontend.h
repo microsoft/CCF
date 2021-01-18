@@ -11,11 +11,36 @@
 
 namespace ccf
 {
+  struct Quote
+  {
+    NodeId node_id = {};
+    std::string raw = {}; // < Hex-encoded
+    QuoteFormat format;
+
+    std::string mrenclave = {}; // < Hex-encoded
+  };
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Quote)
+  DECLARE_JSON_REQUIRED_FIELDS(Quote, node_id, raw, format)
+  DECLARE_JSON_OPTIONAL_FIELDS(Quote, mrenclave)
+
+  struct GetQuotes
+  {
+    using In = void;
+
+    struct Out
+    {
+      std::vector<Quote> quotes;
+    };
+  };
+
+  DECLARE_JSON_TYPE(GetQuotes::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(GetQuotes::Out, quotes)
+
   class NodeEndpoints : public CommonEndpointRegistry
   {
   private:
     NetworkState& network;
-    AbstractNodeState& node;
 
     std::optional<NodeId> check_node_exists(
       kv::Tx& tx,
@@ -132,11 +157,9 @@ namespace ccf
     }
 
   public:
-    NodeEndpoints(NetworkState& network, AbstractNodeState& node) :
-      CommonEndpointRegistry(
-        get_actor_prefix(ActorsType::nodes), *network.tables),
-      network(network),
-      node(node)
+    NodeEndpoints(NetworkState& network, AbstractNodeState& node_state) :
+      CommonEndpointRegistry(get_actor_prefix(ActorsType::nodes), node_state),
+      network(network)
     {
       openapi_info.title = "CCF Public Node API";
       openapi_info.description =
@@ -144,9 +167,9 @@ namespace ccf
         "state.";
     }
 
-    void init_handlers(kv::Store& tables_) override
+    void init_handlers() override
     {
-      CommonEndpointRegistry::init_handlers(tables_);
+      CommonEndpointRegistry::init_handlers();
 
       auto accept = [this](
                       EndpointContext& args, const nlohmann::json& params) {
@@ -291,32 +314,75 @@ namespace ccf
         .install();
 
       auto get_quote = [this](auto& args, nlohmann::json&&) {
-        GetQuotes::Out result;
-        std::set<NodeId> filter;
-        filter.insert(this->node.get_node_id());
-        this->node.node_quotes(args.tx, result, filter);
-
-        if (result.quotes.size() == 1)
+        QuoteFormat format;
+        std::vector<uint8_t> raw_quote;
+        const auto result =
+          get_quote_for_this_node_v1(args.tx, format, raw_quote);
+        if (result == ApiResult::OK)
         {
-          return make_success(result.quotes[0]);
+          Quote q;
+          q.node_id = node.get_node_id();
+          q.raw = fmt::format("{:02x}", fmt::join(raw_quote, ""));
+          q.format = format;
+
+#ifdef GET_QUOTE
+          auto code_id_opt = QuoteGenerator::get_code_id(raw_quote);
+          if (code_id_opt.has_value())
+          {
+            q.mrenclave =
+              fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
+          }
+#endif
+
+          return make_success(q);
         }
-        else
+        else if (result == ApiResult::NotFound)
         {
           return make_error(
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ResourceNotFound,
             "Could not find node quote.");
         }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+        }
       };
       make_read_only_endpoint(
         "quote", HTTP_GET, json_read_only_adapter(get_quote), no_auth_required)
-        .set_auto_schema<void, GetQuotes::Quote>()
+        .set_auto_schema<void, Quote>()
         .set_forwarding_required(ForwardingRequired::Never)
         .install();
 
       auto get_quotes = [this](auto& args, nlohmann::json&&) {
         GetQuotes::Out result;
-        this->node.node_quotes(args.tx, result);
+
+        auto nodes_view = args.tx.get_read_only_view(network.nodes);
+        nodes_view->foreach([& quotes = result.quotes](
+                              const auto& node_id, const auto& node_info) {
+          if (node_info.status == ccf::NodeStatus::TRUSTED)
+          {
+            Quote q;
+            q.node_id = node_id;
+            q.raw = fmt::format("{:02x}", fmt::join(node_info.quote, ""));
+            q.format = QuoteFormat::oe_sgx_v1;
+
+#ifdef GET_QUOTE
+            auto code_id_opt = QuoteGenerator::get_code_id(node_info.quote);
+            if (code_id_opt.has_value())
+            {
+              q.mrenclave =
+                fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
+            }
+#endif
+
+            quotes.emplace_back(q);
+          }
+          return true;
+        });
 
         return make_success(result);
       };

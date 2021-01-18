@@ -6,11 +6,27 @@
 
 namespace ccf
 {
+  /** Describes the status of a transaction, as seen by this node.
+   */
   enum class TxStatus
   {
+    /** This node has not received this transaction, and knows nothing about it
+     */
     Unknown,
+
+    /** This node has this transaction locally, but has not yet heard that the
+       transaction has been committed by the distributed consensus */
     Pending,
+
+    /** This node has seen that this transaction is committed, it is an
+       irrevocable and durable part of the service's transaction history */
     Committed,
+
+    /** This node knows that the given transaction cannot be committed. This may
+       mean there has been a view change, and a previously pending transaction
+       has been lost (the original request should be resubmitted and will be
+       given a new Transaction ID). This also describes IDs which are known to
+       be impossible given the currently committed IDs */
     Invalid,
   };
 
@@ -50,7 +66,7 @@ namespace ccf
 
   constexpr int64_t VIEW_UNKNOWN = std::numeric_limits<int64_t>::min();
 
-  static TxStatus get_tx_status(
+  static TxStatus evaluate_tx_status(
     int64_t target_view,
     int64_t target_seqno,
     int64_t local_view,

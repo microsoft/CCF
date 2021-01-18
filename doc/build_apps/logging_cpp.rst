@@ -152,3 +152,22 @@ The final piece is the definition of the endpoint itself, which uses an instance
     :start-after: SNIPPET_START: custom_auth_endpoint
     :end-before: SNIPPET_END: custom_auth_endpoint
     :dedent: 6
+
+Default Endpoints
+~~~~~~~~~~~~~~~~~
+
+The logging app sample exposes several built-in endpoints which are provided by the framework for convenience, such as ``/app/tx``, ``/app/commit``, and ``/app/user_id``. It is also possible to write an app which does not expose these endpoints, either to build a minimal user-facing API or to re-wrap this common functionality in your own format or authentication. A sample of this is provided in ``samples/apps/nobuiltins``. Whereas the logging app declares a registry inheriting from :cpp:class:`ccf::CommonEndpointRegistry`, this app inherits from :cpp:class:`ccf::BaseEndpointRegistry` which does not install any default endpoints:
+
+.. literalinclude:: ../../samples/apps/nobuiltins/nobuiltins.cpp
+    :language: cpp
+    :start-after: SNIPPET: registry_inheritance
+    :lines: 1
+    :dedent: 2
+
+This app can then define its own endpoints from a blank slate. If it wants to provide similar functionality to the default endpoints, it does so using the APIs provided by :cpp:class:`ccf::BaseEndpointRegistry`. For instance to retrieve the hardware quote of the executing node:
+
+.. literalinclude:: ../../samples/apps/nobuiltins/nobuiltins.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: get_quote_api_v1
+    :end-before: SNIPPET_END: get_quote_api_v1
+    :dedent: 10
