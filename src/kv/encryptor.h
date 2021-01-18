@@ -49,6 +49,20 @@ namespace kv
       return S::RAW_DATA_SIZE;
     }
 
+    /**
+     * Encrypt data and return serialised GCM header and cipher.
+     *
+     * @param[in]   plain             Plaintext to encrypt
+     * @param[in]   additional_data   Additional data to tag
+     * @param[out]  serialised_header Serialised header (iv + tag)
+     * @param[out]  cipher            Encrypted ciphertext
+     * @param[in]   version           Version used to retrieve the corresponding
+     * encryption key
+     * @param[in]   tx_id             Transaction ID (version + term)
+     * corresponding with the plaintext
+     * @param[in]   is_snapshot       Indicates that the entry is a snapshot (to
+     * avoid IV re-use)
+     */
     void encrypt(
       const std::vector<uint8_t>& plain,
       const std::vector<uint8_t>& additional_data,
@@ -68,6 +82,18 @@ namespace kv
       serialised_header = hdr.serialise();
     }
 
+    /**
+     * Decrypt cipher and return plaintext.
+     *
+     * @param[in]   cipher            Cipher to decrypt
+     * @param[in]   additional_data   Additional data to verify tag
+     * @param[in]   serialised_header Serialised header (iv + tag)
+     * @param[out]  plain             Decrypted plaintext
+     * @param[in]   version           Version used to retrieve the corresponding
+     * encryption key
+     *
+     * @return Boolean status indicating success of decryption.
+     */
     bool decrypt(
       const std::vector<uint8_t>& cipher,
       const std::vector<uint8_t>& additional_data,
