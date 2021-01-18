@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/json.h"
+#include "enclave/consensus_type.h"
 #include "enclave/interface.h"
 #include "node/code_id.h"
 #include "node/rpc/call_types.h"
@@ -22,12 +23,6 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(GetState::Out, id, state, last_signed_seqno)
   DECLARE_JSON_OPTIONAL_FIELDS(
     GetState::Out, recovery_target_seqno, last_recovered_seqno)
-
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetQuotes::Quote)
-  DECLARE_JSON_REQUIRED_FIELDS(GetQuotes::Quote, node_id, raw)
-  DECLARE_JSON_OPTIONAL_FIELDS(GetQuotes::Quote, error, mrenclave)
-  DECLARE_JSON_TYPE(GetQuotes::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetQuotes::Out, quotes)
 
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::In)
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -82,7 +77,11 @@ namespace ccf
 
   DECLARE_JSON_TYPE(GetNetworkInfo::Out)
   DECLARE_JSON_REQUIRED_FIELDS(
-    GetNetworkInfo::Out, service_status, current_view, primary_id)
+    GetNetworkInfo::Out,
+    service_status,
+    current_view,
+    primary_id,
+    view_change_in_progress)
 
   DECLARE_JSON_TYPE(GetNode::NodeInfo)
   DECLARE_JSON_REQUIRED_FIELDS(

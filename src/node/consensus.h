@@ -4,14 +4,7 @@
 #include "entities.h"
 #include "kv/map.h"
 
-#include <msgpack/msgpack.hpp>
-
 namespace ccf
 {
   using ConsensusTable = kv::Map<ObjectId, ConsensusType>;
 }
-
-DECLARE_JSON_ENUM(
-  ConsensusType, {{ConsensusType::CFT, "CFT"}, {ConsensusType::BFT, "BFT"}})
-
-MSGPACK_ADD_ENUM(ConsensusType);

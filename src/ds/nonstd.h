@@ -62,12 +62,18 @@ namespace nonstd
   template <class T>
   using remove_cvref_t = typename remove_cvref<T>::type;
 
-  /** a more generic std::string member function is present in C++20
+  /** more generic std::string member functions are present in C++20
    */
   static inline bool starts_with(
     const std::string& s, const std::string& prefix)
   {
     return s.rfind(prefix, 0) == 0;
+  }
+
+  static inline bool ends_with(const std::string& s, const std::string& suffix)
+  {
+    return s.size() >= suffix.size() &&
+      s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
   }
 
   /** converts strings to upper or lower case, in-place

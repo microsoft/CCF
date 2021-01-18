@@ -78,7 +78,7 @@ TEST_CASE("Add a node to an opening service")
   gen.init_values();
 
   ShareManager share_manager(network);
-  StubNodeState node(share_manager);
+  StubNodeState node;
   NodeRpcFrontend frontend(network, node);
   frontend.open();
 
@@ -206,7 +206,7 @@ TEST_CASE("Add a node to an open service")
   gen.init_values();
 
   ShareManager share_manager(network);
-  StubNodeState node(share_manager);
+  StubNodeState node;
   node.set_is_public(true);
   NodeRpcFrontend frontend(network, node);
   frontend.open();

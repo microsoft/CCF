@@ -29,11 +29,6 @@ namespace ccf
     kv::Store& tables;
     EndpointRegistry& endpoints;
 
-    void disable_request_storing()
-    {
-      request_storing_disabled = true;
-    }
-
   private:
     SpinLock open_lock;
     bool is_open_ = false;
@@ -46,7 +41,6 @@ namespace ccf
     std::atomic<size_t> tx_count = 0;
     std::chrono::milliseconds sig_ms_interval = std::chrono::milliseconds(1000);
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
-    bool request_storing_disabled = false;
     tls::Pem* service_identity = nullptr;
 
     using PreExec = std::function<void(kv::Tx& tx, enclave::RpcContext& ctx)>;
@@ -298,8 +292,12 @@ namespace ccf
                   ctx->set_seqno(cv);
                   ctx->set_view(tx.commit_term());
                 }
+
                 // Deprecated, this will be removed in future releases
-                ctx->set_global_commit(consensus->get_committed_seqno());
+                if (!ctx->has_global_commit())
+                {
+                  ctx->set_global_commit(consensus->get_committed_seqno());
+                }
 
                 if (history != nullptr && consensus->is_primary())
                 {
@@ -436,7 +434,7 @@ namespace ccf
         if (!is_open_)
         {
           is_open_ = true;
-          endpoints.init_handlers(tables);
+          endpoints.init_handlers();
         }
       }
     }
@@ -455,7 +453,7 @@ namespace ccf
           LOG_INFO_FMT(
             "Service state is OPEN, now accepting user transactions");
           is_open_ = true;
-          endpoints.init_handlers(tables);
+          endpoints.init_handlers();
         }
       }
       return is_open_;
