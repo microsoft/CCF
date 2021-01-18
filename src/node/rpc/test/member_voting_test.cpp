@@ -220,7 +220,7 @@ auto get_cert(uint64_t member_id, tls::KeyPairPtr& kp_mem)
 }
 
 auto init_frontend(
-  NetworkTables& network,
+  NetworkState& network,
   GenesisGenerator& gen,
   StubNodeState& node,
   ShareManager& share_manager,
@@ -528,7 +528,8 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   constexpr auto n_new_members = 7;
   constexpr auto max_members = 8;
   NetworkState network;
-  network.ledger_secrets = std::make_shared<LedgerSecrets>();
+  NodeId node_id = 0;
+  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
   network.ledger_secrets->init();
   network.tables->set_encryptor(encryptor);
   auto gen_tx = network.tables->create_tx();
@@ -743,6 +744,9 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
 DOCTEST_TEST_CASE("Accept node")
 {
   NetworkState network;
+  NodeId node_id = 0;
+  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
+  network.ledger_secrets->init();
   network.tables->set_encryptor(encryptor);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
@@ -770,7 +774,6 @@ DOCTEST_TEST_CASE("Accept node")
   gen.finalize();
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
-  auto node_id = 0;
 
   // check node exists with status pending
   {
@@ -932,7 +935,7 @@ DOCTEST_TEST_CASE("Accept node")
 }
 
 ProposalInfo test_raw_writes(
-  NetworkTables& network,
+  NetworkState& network,
   GenesisGenerator& gen,
   StubNodeState& node,
   ShareManager& share_manager,
@@ -1473,6 +1476,9 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   // Operator issues a proposal that is an operator change
   // and gets it through without member votes
   NetworkState network;
+  NodeId node_id = 0;
+  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
+  network.ledger_secrets->init();
   network.tables->set_encryptor(encryptor);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
@@ -1482,7 +1488,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   auto new_ca = new_kp->self_sign("CN=new node");
   NodeInfo ni;
   ni.cert = new_ca;
-  auto node_id = gen.add_node(ni);
+  gen.add_node(ni);
 
   // Operating member, as indicated by member data
   const auto operator_cert = get_cert(0, kp);
@@ -1651,6 +1657,9 @@ DOCTEST_TEST_CASE(
   // Member proposes an operator change
   // A majority of members pass the vote
   NetworkState network;
+  NodeId node_id = 0;
+  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
+  network.ledger_secrets->init();
   network.tables->set_encryptor(encryptor);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
@@ -1692,7 +1701,6 @@ DOCTEST_TEST_CASE(
   const ccf::Script vote_for("return true");
   const ccf::Script vote_against("return false");
 
-  auto node_id = 0;
   {
     DOCTEST_INFO("Check node exists with status pending");
     const auto read_values =
@@ -1908,8 +1916,9 @@ DOCTEST_TEST_CASE("User data")
 
 DOCTEST_TEST_CASE("Submit recovery shares")
 {
-  NetworkState network(ConsensusType::CFT);
-  network.ledger_secrets = std::make_shared<LedgerSecrets>();
+  NetworkState network;
+  NodeId node_id = 0;
+  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
   network.ledger_secrets->init();
 
   ShareManager share_manager(network);

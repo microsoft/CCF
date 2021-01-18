@@ -821,24 +821,18 @@ namespace ccf
         // accept a node
         {"trust_node",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
-           const auto id = args.get<NodeId>();
-           auto nodes = tx.get_view(this->network.nodes);
-           auto node_info = nodes->get(id);
-           if (!node_info.has_value())
+           const auto node_id = args.get<NodeId>();
+           try
            {
-             LOG_FAIL_FMT(
-               "Proposal {}: Node {} does not exist", proposal_id, id);
+             GenesisGenerator g(network, tx);
+             g.trust_node(
+               node_id, network.ledger_secrets->get_latest(tx).first);
+           }
+           catch (const std::logic_error& e)
+           {
+             LOG_FAIL_FMT("Proposal {} failed: {}", proposal_id, e.what());
              return false;
            }
-           if (node_info->status == NodeStatus::RETIRED)
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: Node {} is already retired", proposal_id, id);
-             return false;
-           }
-           node_info->status = NodeStatus::TRUSTED;
-           nodes->put(id, node_info.value());
-           LOG_INFO_FMT("Node {} is now {}", id, node_info->status);
            return true;
          }},
         // retire a node
@@ -1171,13 +1165,13 @@ namespace ccf
       return get_path_param(params, "member_id", member_id, error);
     }
 
-    NetworkTables& network;
+    NetworkState& network;
     ShareManager& share_manager;
     const MemberTsr tsr;
 
   public:
     MemberEndpoints(
-      NetworkTables& network,
+      NetworkState& network,
       AbstractNodeState& node_state,
       ShareManager& share_manager) :
       CommonEndpointRegistry(
@@ -2006,7 +2000,7 @@ namespace ccf
 
   public:
     MemberRpcFrontend(
-      NetworkTables& network,
+      NetworkState& network,
       AbstractNodeState& node,
       ShareManager& share_manager) :
       RpcFrontend(*network.tables, member_endpoints),
