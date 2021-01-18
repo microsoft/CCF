@@ -148,7 +148,7 @@ class Member:
         state_digest = self.update_ack_state_digest(remote_node)
         with remote_node.client(*self.auth(write=True)) as mc:
             r = mc.post("/gov/ack", body=state_digest)
-            assert r.status_code == 204, f"Error ACK: {r}"
+            assert r.status_code == http.HTTPStatus.NO_CONTENT, f"Error ACK: {r}"
             self.status_code = MemberStatus.ACTIVE
             return r
 
