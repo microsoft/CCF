@@ -1646,7 +1646,7 @@ namespace ccf
         return make_success();
       };
       make_endpoint("ack", HTTP_POST, json_adapter(ack), member_sig_only)
-        .set_auto_schema<StateDigest, bool>()
+        .set_auto_schema<StateDigest, void>()
         .install();
 
       //! A member asks for a fresher state digest
