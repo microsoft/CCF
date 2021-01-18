@@ -6,7 +6,6 @@
 #include "kv/test/stub_consensus.h"
 #include "kv/tx.h"
 #include "node/encryptor.h"
-#include "node/secrets.h"
 
 #include <msgpack/msgpack.hpp>
 #include <picobench/picobench.hpp>
@@ -15,8 +14,6 @@
 using KeyType = kv::serialisers::SerialisedEntry;
 using ValueType = kv::serialisers::SerialisedEntry;
 using MapType = kv::untyped::Map;
-
-ccf::Secrets secrets_map("secrets");
 
 inline void clobber_memory()
 {
@@ -44,7 +41,7 @@ ValueType gen_value(size_t i)
 // Helper functions to use a dummy encryption key
 std::shared_ptr<ccf::LedgerSecrets> create_ledger_secrets()
 {
-  auto secrets = std::make_shared<ccf::LedgerSecrets>(secrets_map);
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
   secrets->init();
   return secrets;
 }

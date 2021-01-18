@@ -64,8 +64,6 @@ namespace ccf
   class LedgerSecrets
   {
   private:
-    Secrets& secrets_table;
-
     std::optional<NodeId> self = std::nullopt;
 
     SpinLock lock;
@@ -104,7 +102,7 @@ namespace ccf
       // updated (e.g. rekey tx) concurrently to their access by another tx. To
       // prevent conflicts, accessing the ledger secrets require access to a tx
       // object, which must take a dependency on the secrets table.
-      auto v = tx.get_read_only_view(secrets_table);
+      auto v = tx.get_read_only_view<Secrets>(Tables::SECRETS);
 
       // Taking a read dependency on the key at self, which would get updated on
       // rekey
@@ -117,17 +115,9 @@ namespace ccf
     }
 
   public:
-    LedgerSecrets(
-      Secrets& secrets_table_, std::optional<NodeId> self_ = std::nullopt) :
-      secrets_table(secrets_table_),
-      self(self_)
-    {}
+    LedgerSecrets(std::optional<NodeId> self_ = std::nullopt) : self(self_) {}
 
-    LedgerSecrets(
-      Secrets& secrets_table,
-      NodeId self_,
-      VersionedLedgerSecrets&& ledger_secrets_) :
-      secrets_table(secrets_table),
+    LedgerSecrets(NodeId self_, VersionedLedgerSecrets&& ledger_secrets_) :
       self(self_),
       ledger_secrets(std::move(ledger_secrets_))
     {}

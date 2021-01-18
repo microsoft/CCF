@@ -6,7 +6,6 @@
 #include "node/encryptor.h"
 #include "node/history.h"
 #include "node/rpc/serdes.h"
-#include "node/secrets.h"
 
 #include <nlohmann/json.hpp>
 #include <picobench/picobench.hpp>
@@ -19,12 +18,10 @@ inline void clobber_memory()
   asm volatile("" : : : "memory");
 }
 
-ccf::Secrets secrets_map("secrets");
-
 // Helper functions
 std::shared_ptr<ccf::LedgerSecrets> create_ledger_secrets()
 {
-  auto secrets = std::make_shared<ccf::LedgerSecrets>(secrets_map);
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
   secrets->init();
 
   return secrets;

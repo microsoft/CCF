@@ -305,8 +305,7 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
 
-          network.ledger_secrets =
-            std::make_shared<LedgerSecrets>(network.secrets, self);
+          network.ledger_secrets = std::make_shared<LedgerSecrets>(self);
           network.ledger_secrets->init();
 
           setup_encryptor();
@@ -350,8 +349,7 @@ namespace ccf
 
             // It is necessary to give an encryptor to the store for it to
             // deserialise the public domain when recovering the public ledger
-            network.ledger_secrets =
-              std::make_shared<LedgerSecrets>(network.secrets);
+            network.ledger_secrets = std::make_shared<LedgerSecrets>();
             setup_encryptor();
 
             initialise_startup_snapshot(config);
@@ -371,8 +369,7 @@ namespace ccf
 
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
-          network.ledger_secrets =
-            std::make_shared<LedgerSecrets>(network.secrets);
+          network.ledger_secrets = std::make_shared<LedgerSecrets>();
 
           setup_history();
 
@@ -471,9 +468,7 @@ namespace ccf
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
 
             network.ledger_secrets = std::make_shared<LedgerSecrets>(
-              network.secrets,
-              self,
-              std::move(resp.network_info.ledger_secrets));
+              self, std::move(resp.network_info.ledger_secrets));
 
             if (resp.network_info.consensus_type != network.consensus_type)
             {
