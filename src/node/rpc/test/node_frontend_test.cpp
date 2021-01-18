@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#define DOCTEST_CONFIG_IMPLEMENT
 #include "ds/logger.h"
 #include "nlohmann/json.hpp"
 #include "node/genesis_gen.h"
@@ -11,6 +10,7 @@
 #include "tls/pem.h"
 #include "tls/verifier.h"
 
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
 using namespace ccf;
@@ -21,6 +21,7 @@ using TResponse = http::SimpleResponseProcessor::Response;
 
 auto kp = tls::make_key_pair();
 auto member_cert = kp -> self_sign("CN=name_member");
+auto node_id = 0;
 
 void check_error(const TResponse& r, http_status expected)
 {
@@ -82,8 +83,13 @@ TEST_CASE("Add a node to an opening service")
   frontend.open();
 
   network.identity = std::make_unique<NetworkIdentity>();
-  network.ledger_secrets = std::make_shared<LedgerSecrets>();
+  network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>(node_id);
   network.ledger_secrets->init();
+
+  // New node should not be given ledger secret past this one via join request
+  kv::Version up_to_ledger_secret_seqno = 4;
+  network.ledger_secrets->set_secret(
+    up_to_ledger_secret_seqno, make_ledger_secret());
 
   // Node certificate
   tls::KeyPairPtr kp = tls::make_key_pair();
@@ -122,6 +128,7 @@ TEST_CASE("Add a node to an opening service")
 
   gen.create_service({});
   gen.finalize();
+  auto tx = network.tables->create_tx();
 
   INFO("Add first node which should be trusted straight away");
   {
@@ -135,12 +142,11 @@ TEST_CASE("Add a node to an opening service")
       parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
     CHECK(
-      response.network_info.ledger_secrets == *network.ledger_secrets.get());
+      response.network_info.ledger_secrets == network.ledger_secrets->get(tx));
     CHECK(response.network_info.identity == *network.identity.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
     CHECK(response.network_info.public_only == false);
 
-    auto tx = network.tables->create_tx();
     const NodeId node_id = response.node_id;
     auto nodes_view = tx.get_view(network.nodes);
     auto node_info = nodes_view->get(node_id);
@@ -152,6 +158,11 @@ TEST_CASE("Add a node to an opening service")
 
   INFO("Adding the same node should return the same result");
   {
+    // Even if rekey occurs in between, the same ledger secrets should be
+    // returned
+    network.ledger_secrets->set_secret(
+      up_to_ledger_secret_seqno + 1, make_ledger_secret());
+
     JoinNetworkNodeToNode::In join_input;
     join_input.public_encryption_key = node_public_encryption_key;
 
@@ -162,7 +173,8 @@ TEST_CASE("Add a node to an opening service")
       parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
     CHECK(
-      response.network_info.ledger_secrets == *network.ledger_secrets.get());
+      response.network_info.ledger_secrets ==
+      network.ledger_secrets->get(tx, up_to_ledger_secret_seqno));
     CHECK(response.network_info.identity == *network.identity.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
   }
@@ -199,9 +211,14 @@ TEST_CASE("Add a node to an open service")
   frontend.open();
 
   network.identity = std::make_unique<NetworkIdentity>();
-  network.ledger_secrets = std::make_shared<LedgerSecrets>();
+
+  network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>(node_id);
   network.ledger_secrets->init();
-  network.ledger_secrets->add_new_secret(4, LedgerSecret());
+
+  // New node should not be given ledger secret past this one via join request
+  kv::Version up_to_ledger_secret_seqno = 4;
+  network.ledger_secrets->set_secret(
+    up_to_ledger_secret_seqno, make_ledger_secret());
 
   gen.create_service({});
   gen.set_recovery_threshold(1);
@@ -269,10 +286,14 @@ TEST_CASE("Add a node to an open service")
   INFO("Trust node and attempt to join");
   {
     // In a real scenario, nodes are trusted via member governance.
-    node_info->status = NodeStatus::TRUSTED;
-    auto nodes_view = tx.get_view(network.nodes);
-    nodes_view->put(0, node_info.value());
-    CHECK(tx.commit() == kv::CommitSuccess::OK);
+    GenesisGenerator g(network, tx);
+    g.trust_node(0, network.ledger_secrets->get_latest(tx).first);
+    REQUIRE(g.finalize() == kv::CommitSuccess::OK);
+
+    // In the meantime, a new ledger secret is added. The new ledger secret
+    // should not be passed to the new joiner via the join
+    network.ledger_secrets->set_secret(
+      up_to_ledger_secret_seqno + 1, make_ledger_secret());
 
     auto http_response = frontend_process(frontend, join_input, "join", caller);
     CHECK(http_response.status == HTTP_STATUS_OK);
@@ -280,20 +301,12 @@ TEST_CASE("Add a node to an open service")
     const auto response =
       parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
+    auto tx = network.tables->create_tx();
     CHECK(
-      response.network_info.ledger_secrets == *network.ledger_secrets.get());
+      response.network_info.ledger_secrets ==
+      network.ledger_secrets->get(tx, up_to_ledger_secret_seqno));
     CHECK(response.network_info.identity == *network.identity.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
     CHECK(response.network_info.public_only == true);
   }
-}
-
-int main(int argc, char** argv)
-{
-  doctest::Context context;
-  context.applyCommandLine(argc, argv);
-  int res = context.run();
-  if (context.shouldExit())
-    return res;
-  return res;
 }
