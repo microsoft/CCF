@@ -106,6 +106,17 @@
         ],
         "type": "object"
       },
+      "GetRecoveryShare__RecoveryShare": {
+        "properties": {
+          "share": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "share"
+        ],
+        "type": "object"
+      },
       "GetTxStatus__Out": {
         "properties": {
           "status": {
@@ -221,6 +232,17 @@
         },
         "required": [
           "state_digest"
+        ],
+        "type": "object"
+      },
+      "SubmitRecoveryShare__Out": {
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "message"
         ],
         "type": "object"
       },
@@ -795,7 +817,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/string"
+                  "$ref": "#/components/schemas/GetRecoveryShare__RecoveryShare"
                 }
               }
             },
@@ -813,7 +835,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/string"
+                "$ref": "#/components/schemas/GetRecoveryShare__RecoveryShare"
               }
             }
           },
@@ -824,7 +846,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/string"
+                  "$ref": "#/components/schemas/SubmitRecoveryShare__Out"
                 }
               }
             },

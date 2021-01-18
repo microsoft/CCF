@@ -155,4 +155,26 @@ namespace ccf
       bool valid = false;
     };
   };
+
+  struct GetRecoveryShare
+  {
+    struct RecoveryShare
+    {
+      std::string share = {};
+    };
+
+    using In = void;
+
+    using Out = RecoveryShare;
+  };
+
+  struct SubmitRecoveryShare
+  {
+    using In = GetRecoveryShare::RecoveryShare;
+
+    struct Out
+    {
+      std::string message;
+    };
+  };
 }

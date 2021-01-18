@@ -135,6 +135,12 @@ namespace ccf
   DECLARE_JSON_TYPE(GetCode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCode::Out, versions)
 
+  DECLARE_JSON_TYPE(GetRecoveryShare::RecoveryShare)
+  DECLARE_JSON_REQUIRED_FIELDS(GetRecoveryShare::RecoveryShare, share)
+
+  DECLARE_JSON_TYPE(SubmitRecoveryShare::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(SubmitRecoveryShare::Out, message)
+
   DECLARE_JSON_TYPE(MemoryUsage::Out)
   DECLARE_JSON_REQUIRED_FIELDS(
     MemoryUsage::Out,
