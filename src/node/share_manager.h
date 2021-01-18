@@ -278,11 +278,10 @@ namespace ccf
 
     void issue_shares_on_recovery(kv::Tx& tx, kv::Version latest_ls_version)
     {
-      set_recovery_shares_info(
-        tx,
-        network.ledger_secrets->get_latest(tx).second,
-        network.ledger_secrets->get_penultimate(tx),
-        latest_ls_version);
+      auto [latest, penultimate] =
+        network.ledger_secrets->get_latest_and_penultimate(tx);
+
+      set_recovery_shares_info(tx, latest, penultimate, latest_ls_version);
     }
 
     void issue_shares_on_rekey(

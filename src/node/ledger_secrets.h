@@ -96,7 +96,7 @@ namespace ccf
       return --search;
     }
 
-    void take_dependency_on_secrets(kv::Tx& tx)
+    void take_dependency_on_secrets(kv::ReadOnlyTx& tx)
     {
       // Ledger secrets are not stored in the KV. Instead, they are
       // cached in a unique LedgerSecrets instance that can be accessed without
@@ -104,7 +104,7 @@ namespace ccf
       // updated (e.g. rekey tx) concurrently to their access by another tx. To
       // prevent conflicts, accessing the ledger secrets require access to a tx
       // object, which must take a dependency on the secrets table.
-      auto v = tx.get_view(secrets_table);
+      auto v = tx.get_read_only_view(secrets_table);
 
       // Taking a read dependency on the key at self, which would get updated on
       // rekey
@@ -162,22 +162,32 @@ namespace ccf
           "Could not retrieve latest ledger secret: no secret set");
       }
 
-      auto latest_ledger_secret = ledger_secrets.secrets.rbegin();
+      const auto& latest_ledger_secret = ledger_secrets.secrets.rbegin();
       return std::make_pair(
         latest_ledger_secret->first, latest_ledger_secret->second);
     }
 
-    std::optional<LedgerSecret> get_penultimate(kv::Tx& tx)
+    std::pair<LedgerSecret, std::optional<LedgerSecret>>
+    get_latest_and_penultimate(kv::Tx& tx)
     {
       std::lock_guard<SpinLock> guard(lock);
 
       take_dependency_on_secrets(tx);
 
+      if (ledger_secrets.secrets.empty())
+      {
+        throw std::logic_error(
+          "Could not retrieve latest ledger secret: no secret set");
+      }
+
+      const auto& latest_ledger_secret = ledger_secrets.secrets.rbegin();
       if (ledger_secrets.secrets.size() < 2)
       {
-        return std::nullopt;
+        return std::make_pair(latest_ledger_secret->second, std::nullopt);
       }
-      return std::next(ledger_secrets.secrets.rbegin())->second;
+      return std::make_pair(
+        latest_ledger_secret->second,
+        std::next(ledger_secrets.secrets.rbegin())->second);
     }
 
     VersionedLedgerSecrets get(
