@@ -1184,21 +1184,19 @@ namespace ccf
     }
 
     NetworkTables& network;
-    AbstractNodeState& node;
     ShareManager& share_manager;
     const MemberTsr tsr;
 
   public:
     MemberEndpoints(
       NetworkTables& network,
-      AbstractNodeState& node,
+      AbstractNodeState& node_state,
       ShareManager& share_manager) :
       CommonEndpointRegistry(
         get_actor_prefix(ActorsType::members),
-        *network.tables,
+        node_state,
         Tables::MEMBER_CERT_DERS),
       network(network),
-      node(node),
       share_manager(share_manager),
       tsr(network)
     {
@@ -1227,9 +1225,9 @@ namespace ccf
       return INVALID_ID;
     }
 
-    void init_handlers(kv::Store& tables_) override
+    void init_handlers() override
     {
-      CommonEndpointRegistry::init_handlers(tables_);
+      CommonEndpointRegistry::init_handlers();
 
       const AuthnPolicies member_sig_only = {member_signature_auth_policy};
 

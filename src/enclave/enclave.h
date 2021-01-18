@@ -40,6 +40,7 @@ namespace enclave
     struct NodeContext : public ccfapp::AbstractNodeContext
     {
       ccf::historical::StateCache historical_state_cache;
+      ccf::AbstractNodeState* node_state = nullptr;
 
       NodeContext(ccf::historical::StateCache&& hsc) :
         historical_state_cache(std::move(hsc))
@@ -48,6 +49,11 @@ namespace enclave
       ccf::historical::AbstractStateCache& get_historical_state() override
       {
         return historical_state_cache;
+      }
+
+      ccf::AbstractNodeState& get_node_state() override
+      {
+        return *node_state;
       }
     } context;
 
@@ -83,6 +89,7 @@ namespace enclave
 
       node = std::make_unique<ccf::NodeState>(
         writer_factory, network, rpcsessions, share_manager);
+      context.node_state = node.get();
 
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(

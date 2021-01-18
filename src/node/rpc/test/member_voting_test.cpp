@@ -252,7 +252,7 @@ DOCTEST_TEST_CASE("Member query/read")
   gen.init_values();
   gen.create_service({});
   ShareManager share_manager(network);
-  StubNodeState node(share_manager);
+  StubNodeState node;
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
   const auto member_id = gen.add_member(member_cert);
@@ -369,7 +369,7 @@ DOCTEST_TEST_CASE("Proposer ballot")
   gen.finalize();
 
   ShareManager share_manager(network);
-  StubNodeState node(share_manager);
+  StubNodeState node;
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
@@ -464,7 +464,7 @@ DOCTEST_TEST_CASE("Reject duplicate vote")
   gen.finalize();
 
   ShareManager share_manager(network);
-  StubNodeState node(share_manager);
+  StubNodeState node;
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
@@ -538,7 +538,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   gen.init_values();
   gen.create_service({});
   ShareManager share_manager(network);
-  StubNodeState node(share_manager);
+  StubNodeState node;
   // add three initial active members
   // the proposer
   auto proposer_id = gen.add_member({member_cert, dummy_enc_pubk});
@@ -751,7 +751,7 @@ DOCTEST_TEST_CASE("Accept node")
   gen.init_values();
   gen.create_service({});
   ShareManager share_manager(network);
-  StubNodeState node(share_manager);
+  StubNodeState node;
   auto new_kp = tls::make_key_pair();
 
   const auto member_0_cert = get_cert(0, new_kp);
@@ -1024,7 +1024,7 @@ DOCTEST_TEST_CASE("Propose raw writes")
       gen.init_values();
       gen.create_service({});
       ShareManager share_manager(network);
-      StubNodeState node(share_manager);
+      StubNodeState node;
       nlohmann::json recovery_threshold = 4;
 
       auto tx_before = network.tables->create_tx();
@@ -1080,7 +1080,7 @@ DOCTEST_TEST_CASE("Propose raw writes")
           gen.init_values();
           gen.create_service({});
           ShareManager share_manager(network);
-          StubNodeState node(share_manager);
+          StubNodeState node;
 
           const auto sensitive_put =
             "return Calls:call('raw_puts', Puts:put('"s + sensitive_table +
@@ -1119,7 +1119,7 @@ DOCTEST_TEST_CASE("Remove proposal")
   gen.create_service({});
 
   ShareManager share_manager(network);
-  StubNodeState node(share_manager);
+  StubNodeState node;
   gen.activate_member(gen.add_member(member_cert));
   gen.activate_member(gen.add_member(cert));
   set_whitelists(gen);
@@ -1208,7 +1208,7 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
   gen.init_values();
   gen.create_service({});
   ShareManager share_manager(network);
-  StubNodeState node(share_manager);
+  StubNodeState node;
   const auto voter_a_cert = get_cert(1, kp);
   auto voter_a = gen.add_member(voter_a_cert);
   const auto voter_b_cert = get_cert(2, kp);
@@ -1262,7 +1262,7 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
   gen.init_values();
   gen.create_service({});
   ShareManager share_manager(network);
-  StubNodeState node(share_manager);
+  StubNodeState node;
   const auto member_cert = get_cert(0, kp);
   gen.activate_member(gen.add_member(member_cert));
   set_whitelists(gen);
@@ -1381,7 +1381,7 @@ DOCTEST_TEST_CASE(
   gen.finalize();
 
   ShareManager share_manager(network);
-  StubNodeState node(share_manager);
+  StubNodeState node;
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
@@ -1506,7 +1506,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   gen.finalize();
 
   ShareManager share_manager(network);
-  StubNodeState node(share_manager);
+  StubNodeState node;
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
@@ -1683,7 +1683,7 @@ DOCTEST_TEST_CASE(
   gen.finalize();
 
   ShareManager share_manager(network);
-  StubNodeState node(share_manager);
+  StubNodeState node;
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
@@ -1787,7 +1787,7 @@ DOCTEST_TEST_CASE("User data")
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
 
   ShareManager share_manager(network);
-  StubNodeState node(share_manager);
+  StubNodeState node;
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
@@ -1913,7 +1913,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
   network.ledger_secrets->init();
 
   ShareManager share_manager(network);
-  auto node = StubNodeState(share_manager);
+  StubRecoverableNodeState node(share_manager);
   MemberRpcFrontend frontend(network, node, share_manager);
   std::map<size_t, std::pair<tls::Pem, tls::RSAKeyPairPtr>> members;
 
@@ -2066,7 +2066,7 @@ DOCTEST_TEST_CASE("Number of active members with recovery shares limits")
   network.ledger_secrets->init();
   network.tables->set_encryptor(encryptor);
   ShareManager share_manager(network);
-  StubNodeState node(share_manager);
+  StubNodeState node;
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
@@ -2134,7 +2134,7 @@ DOCTEST_TEST_CASE("Open network sequence")
   network.ledger_secrets->init();
 
   ShareManager share_manager(network);
-  auto node = StubNodeState(share_manager);
+  StubNodeState node;
   MemberRpcFrontend frontend(network, node, share_manager);
   std::map<size_t, std::pair<tls::Pem, std::vector<uint8_t>>> members;
 
