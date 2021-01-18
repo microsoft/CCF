@@ -68,6 +68,8 @@ class Request:
     http_verb: str
     #: HTTP headers
     headers: dict
+    #: Whether redirect headers should be transparently followed
+    allow_redirects: bool
 
     def __str__(self):
         string = f"<cyan>{self.http_verb}</> <green>{self.path}</>"
@@ -200,10 +202,20 @@ class Response:
 
     @staticmethod
     def from_raw(raw):
-        sock = FakeSocket(raw)
-        response = HTTPResponse(sock)
-        response.begin()
-        raw_body = response.read(raw)
+        # Raw is the output of curl, which is a full HTTP response.
+        # But in the case of a redirect, it is multiple concatenated responses.
+        # We want the final response, so we keep constructing new responses from this stream until we have reached the end
+        while True:
+            sock = FakeSocket(raw)
+            response = HTTPResponse(sock)
+            response.begin()
+            response_len = sock.file.tell() + response.length
+            raw_len = len(raw)
+            if raw_len == response_len:
+                break
+            raw = raw[response_len:]
+
+        raw_body = response.read()
 
         return Response(
             response.status,
@@ -282,6 +294,9 @@ class CurlClient:
                 "-i",
                 f"-m {timeout}",
             ]
+
+            if request.allow_redirects:
+                cmd.append("-L")
 
             if request.body is not None:
                 if isinstance(request.body, str) and request.body.startswith("@"):
@@ -462,7 +477,7 @@ class RequestClient:
                 url=f"https://{self.host}:{self.port}{request.path}",
                 auth=auth_value,
                 headers=extra_headers,
-                allow_redirects=False,
+                allow_redirects=request.allow_redirects,
                 timeout=timeout,
                 data=request_body,
             )
@@ -614,10 +629,11 @@ class CCFClient:
         headers: Optional[dict] = None,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
         log_capture: Optional[list] = None,
+        allow_redirects=True,
     ) -> Response:
         if headers is None:
             headers = {}
-        r = Request(path, body, http_verb, headers)
+        r = Request(path, body, http_verb, headers, allow_redirects)
 
         flush_info([f"{self.description} {r}"], log_capture, 3)
         response = self.client_impl.request(r, timeout)
@@ -632,6 +648,7 @@ class CCFClient:
         headers: Optional[dict] = None,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
         log_capture: Optional[list] = None,
+        allow_redirects: bool = True,
     ) -> Response:
         """
         Issues one request, synchronously, and returns the response.
@@ -643,6 +660,7 @@ class CCFClient:
         :param dict headers: HTTP request headers (optional).
         :param int timeout: Maximum time to wait for a response before giving up.
         :param list log_capture: Rather than emit to default handler, capture log lines to list (optional).
+        :param bool allow_redirects: Select whether redirects are followed.
 
         :return: :py:class:`ccf.clients.Response`
         """
@@ -652,7 +670,9 @@ class CCFClient:
         logs: List[str] = []
 
         if self.is_connected:
-            r = self._call(path, body, http_verb, headers, timeout, logs)
+            r = self._call(
+                path, body, http_verb, headers, timeout, logs, allow_redirects
+            )
             flush_info(logs, log_capture, 2)
             return r
 
@@ -660,7 +680,9 @@ class CCFClient:
         while True:
             try:
                 logs = []
-                response = self._call(path, body, http_verb, headers, timeout, logs)
+                response = self._call(
+                    path, body, http_verb, headers, timeout, logs, allow_redirects
+                )
                 # Only the first request gets this timeout logic - future calls
                 # call _call
                 self.is_connected = True
