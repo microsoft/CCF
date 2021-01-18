@@ -19,7 +19,7 @@ namespace ccfapp
     kv::Map<uint64_t, int64_t> savings;
     kv::Map<uint64_t, int64_t> checkings;
 
-    SmallBankTables(kv::Store&) : accounts("a"), savings("b"), checkings("c") {}
+    SmallBankTables() : accounts("a"), savings("b"), checkings("c") {}
   };
 
   class SmallBankHandlers : public UserEndpointRegistry
@@ -51,14 +51,14 @@ namespace ccfapp
     }
 
   public:
-    SmallBankHandlers(kv::Store& store) :
-      UserEndpointRegistry(store),
-      tables(store)
+    SmallBankHandlers(ccf::AbstractNodeState& node_state) :
+      UserEndpointRegistry(node_state),
+      tables()
     {}
 
-    void init_handlers(kv::Store& store) override
+    void init_handlers() override
     {
-      UserEndpointRegistry::init_handlers(store);
+      UserEndpointRegistry::init_handlers();
 
       auto create = [this](auto& args) {
         // Create an account with a balance from thin air.
@@ -469,17 +469,15 @@ namespace ccfapp
     SmallBankHandlers sb_handlers;
 
   public:
-    SmallBank(kv::Store& store) :
+    SmallBank(kv::Store& store, ccfapp::AbstractNodeContext& node_context) :
       UserRpcFrontend(store, sb_handlers),
-      sb_handlers(store)
-    {
-      disable_request_storing();
-    }
+      sb_handlers(node_context.get_node_state())
+    {}
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& nwt, ccfapp::AbstractNodeContext&)
+    NetworkTables& nwt, ccfapp::AbstractNodeContext& node_context)
   {
-    return make_shared<SmallBank>(*nwt.tables);
+    return make_shared<SmallBank>(*nwt.tables, node_context);
   }
 }
