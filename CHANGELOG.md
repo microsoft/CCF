@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - `/network`, `/network_info`, `/node/ids`, `/primary_info` have been restructured into `/network`, `/network/nodes`, `/network/nodes/{id}`, `/network/nodes/self`, `/network/nodes/primary` while also changing the response schemas (#1954).
+- `/ack` responds with HTTP status `204` now instead of `200` and `true` as body (#2088).
 
 ## [0.16.3]
 

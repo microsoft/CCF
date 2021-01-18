@@ -253,31 +253,47 @@ namespace ccf
       }
       else
       {
-        const auto packing = get_response_pack(ctx, request_packing);
         const auto body = std::get_if<nlohmann::json>(&res);
-        ctx->set_response_status(HTTP_STATUS_OK);
-        switch (packing)
+        if (body->is_null())
         {
-          case serdes::Pack::Text:
-          {
-            const auto s = body->dump();
-            ctx->set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
-            break;
-          }
-          case serdes::Pack::MsgPack:
-          {
-            ctx->set_response_body(nlohmann::json::to_msgpack(*body));
-            break;
-          }
-          default:
-          {
-            throw std::logic_error("Unhandled serdes::Pack");
-          }
+          ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
         }
-        ctx->set_response_header(
-          http::headers::CONTENT_TYPE, pack_to_content_type(packing));
+        else
+        {
+          ctx->set_response_status(HTTP_STATUS_OK);
+          const auto packing = get_response_pack(ctx, request_packing);
+          switch (packing)
+          {
+            case serdes::Pack::Text:
+            {
+              const auto s = body->dump();
+              ctx->set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
+              break;
+            }
+            case serdes::Pack::MsgPack:
+            {
+              ctx->set_response_body(nlohmann::json::to_msgpack(*body));
+              break;
+            }
+            default:
+            {
+              throw std::logic_error("Unhandled serdes::Pack");
+            }
+          }
+          ctx->set_response_header(
+            http::headers::CONTENT_TYPE, pack_to_content_type(packing));
+        }
       }
     }
+  }
+
+// -Wunused-function seems to _wrongly_ flag the following functions as unused
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+
+  static jsonhandler::JsonAdapterResponse make_success()
+  {
+    return nlohmann::json();
   }
 
   static jsonhandler::JsonAdapterResponse make_success(
@@ -297,10 +313,6 @@ namespace ccf
   {
     return ErrorDetails{status, code, msg};
   }
-
-// -Wunused-function seems to _wrongly_ flag the following functions as unused
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-function"
 
   using HandlerTxOnly =
     std::function<jsonhandler::JsonAdapterResponse(kv::Tx& tx)>;
