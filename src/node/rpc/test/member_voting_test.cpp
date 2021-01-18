@@ -726,8 +726,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
         create_signed_request(params, "ack", new_member->kp);
       const auto good_response =
         frontend_process(frontend, send_good_sig_req, new_member->cert);
-      DOCTEST_CHECK(good_response.status == HTTP_STATUS_OK);
-      DOCTEST_CHECK(parse_response_body<bool>(good_response));
+      DOCTEST_CHECK(good_response.status == HTTP_STATUS_NO_CONTENT);
 
       // (6) read own member status
       const auto read_status_req =
@@ -2103,8 +2102,7 @@ DOCTEST_TEST_CASE("Number of active members with recovery shares limits")
       }
       else
       {
-        DOCTEST_CHECK(resp.status == HTTP_STATUS_OK);
-        DOCTEST_CHECK(parse_response_body<bool>(resp));
+        DOCTEST_CHECK(resp.status == HTTP_STATUS_NO_CONTENT);
       }
     }
   }
@@ -2118,8 +2116,7 @@ DOCTEST_TEST_CASE("Number of active members with recovery shares limits")
     gen.finalize();
     auto resp = activate(frontend, kp, cert);
 
-    DOCTEST_CHECK(resp.status == HTTP_STATUS_OK);
-    DOCTEST_CHECK(parse_response_body<bool>(resp));
+    DOCTEST_CHECK(resp.status == HTTP_STATUS_NO_CONTENT);
   }
 
   // Revert logging
