@@ -825,7 +825,8 @@ namespace ccf
            try
            {
              GenesisGenerator g(network, tx);
-             g.trust_node(node_id, network.ledger_secrets->get_latest(tx));
+             g.trust_node(
+               node_id, network.ledger_secrets->get_latest(tx).first);
            }
            catch (const std::logic_error& e)
            {

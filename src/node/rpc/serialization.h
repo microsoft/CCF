@@ -38,8 +38,6 @@ namespace ccf
   DECLARE_JSON_TYPE(LedgerSecret)
   DECLARE_JSON_REQUIRED_FIELDS(
     LedgerSecret, raw_key) // Only raw_key is serialised
-  DECLARE_JSON_TYPE(VersionedLedgerSecrets)
-  DECLARE_JSON_REQUIRED_FIELDS(VersionedLedgerSecrets, secrets)
 
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out::NetworkInfo)
   DECLARE_JSON_REQUIRED_FIELDS(

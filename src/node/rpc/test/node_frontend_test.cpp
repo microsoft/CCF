@@ -287,7 +287,7 @@ TEST_CASE("Add a node to an open service")
   {
     // In a real scenario, nodes are trusted via member governance.
     GenesisGenerator g(network, tx);
-    g.trust_node(0, network.ledger_secrets->get_latest(tx));
+    g.trust_node(0, network.ledger_secrets->get_latest(tx).first);
     REQUIRE(g.finalize() == kv::CommitSuccess::OK);
 
     // In the meantime, a new ledger secret is added. The new ledger secret

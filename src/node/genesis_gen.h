@@ -393,7 +393,7 @@ namespace ccf
       return true;
     }
 
-    void trust_node(NodeId node_id, VersionedLedgerSecret latest_ledger_secret)
+    void trust_node(NodeId node_id, kv::Version latest_ledger_secret_seqno)
     {
       auto nodes_view = tx.get_view(tables.nodes);
       auto node_info = nodes_view->get(node_id);
@@ -409,7 +409,7 @@ namespace ccf
       }
 
       node_info->status = NodeStatus::TRUSTED;
-      node_info->ledger_secret_seqno = latest_ledger_secret.first;
+      node_info->ledger_secret_seqno = latest_ledger_secret_seqno;
       nodes_view->put(node_id, node_info.value());
 
       LOG_INFO_FMT("Node {} is now {}", node_id, node_info->status);
