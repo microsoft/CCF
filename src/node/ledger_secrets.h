@@ -26,6 +26,9 @@ namespace ccf
 
     LedgerSecret() = default;
 
+    // The copy construtor is used for serialising a LedgerSecret. However, only
+    // the raw_key is serialised and other.key is nullptr so use raw_key to seed
+    // key.
     LedgerSecret(const LedgerSecret& other) :
       raw_key(other.raw_key),
       key(std::make_shared<crypto::KeyAesGcm>(other.raw_key))
