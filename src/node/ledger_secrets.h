@@ -26,6 +26,11 @@ namespace ccf
 
     LedgerSecret() = default;
 
+    LedgerSecret(const LedgerSecret& other) :
+      raw_key(other.raw_key),
+      key(std::make_shared<crypto::KeyAesGcm>(other.raw_key))
+    {}
+
     LedgerSecret(std::vector<uint8_t>&& raw_key_) :
       raw_key(raw_key_),
       key(std::make_shared<crypto::KeyAesGcm>(std::move(raw_key_)))
