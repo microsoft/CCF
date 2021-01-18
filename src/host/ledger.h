@@ -583,11 +583,11 @@ namespace asynchost
       // the read cache is full
       auto match_file =
         std::make_shared<LedgerFile>(ledger_dir_, match.value());
-      if (files_read_cache.size() >= max_read_cache_files)
+      files_read_cache.emplace_back(match_file);
+      if (files_read_cache.size() > max_read_cache_files)
       {
         files_read_cache.erase(files_read_cache.begin());
       }
-      files_read_cache.emplace_back(match_file);
 
       return match_file;
     }
@@ -652,8 +652,8 @@ namespace asynchost
         LOG_DEBUG_FMT("Recovering read-only ledger directory \"{}\"", read_dir);
         if (!fs::is_directory(read_dir))
         {
-          throw std::logic_error(
-            fmt::format("\"{}\" is not a directory", read_dir));
+          throw std::logic_error(fmt::format(
+            "\"{}\" read-only ledger is not a directory", read_dir));
         }
 
         for (auto const& f : fs::directory_iterator(read_dir))

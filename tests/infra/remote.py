@@ -383,20 +383,6 @@ class SSHRemote(CmdMixin):
             client.close()
 
 
-@contextmanager
-def ssh_remote(*args, **kwargs):
-    """
-    Context Manager wrapper for SSHRemote
-    """
-    remote = SSHRemote(*args, **kwargs)
-    try:
-        remote.setup()
-        remote.start()
-        yield remote
-    finally:
-        remote.stop()
-
-
 class LocalRemote(CmdMixin):
     def __init__(
         self,
@@ -831,6 +817,9 @@ class CCFRemote(object):
 
     def ledger_path(self):
         return os.path.join(self.remote.root, self.ledger_dir_name)
+
+    def ledger_read_only_path(self):
+        return os.path.join(self.remote.root, self.read_only_ledger_dir)
 
 
 class StartType(Enum):

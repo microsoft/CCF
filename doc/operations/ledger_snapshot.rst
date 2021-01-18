@@ -1,3 +1,4 @@
+
 Ledger and Snapshots
 ====================
 
@@ -25,7 +26,7 @@ Ledger files containing only committed entries are named ``ledger_<start_seqno>-
 
 Ledger files that still contain some uncommitted entries are named ``ledger_<start_seqno>-<end_seqno>`` or ``ledger_<start_seqno>`` for the most recent one. These files are typically held open by the ``cchost`` process, which may modify their content, or even erase them completely. Uncommitted ledger files may differ arbitrarily across nodes.
 
-.. warning:: Removing files from the ``--ledger-dir`` ledger directory may cause a node to crash.
+.. warning:: Removing `uncommitted` ledger files from the ``--ledger-dir`` ledger directory may cause a node to crash.
 
 It is important to note that while all entries stored in ledger files ending in ``.committed`` are committed, not all committed entries are stored in such a file at any given time. A number of them are typically in the in-progress files, waiting to be flushed to a ``.committed`` file once the size threshold (``--ledger-chunk-bytes``) is met.
 
