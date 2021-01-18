@@ -1316,7 +1316,7 @@ namespace ccf
         // Read version is set here because member_signature_auth_policy
         // reads from the Tx to resolve key_id -> member_identity 
         auto read_version = ctx.tx.get_read_version();
-        if (read_version == NoVersion)
+        if (read_version == kv::NoVersion)
           throw std::logic_error("Unset read_version after get_view()");
 
         // TODO: grab history.past_root(rv)
