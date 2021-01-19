@@ -74,9 +74,8 @@ Each endpoint object contains the following information:
 - ``"js_module"``: The path to the module containing the endpoint handler, relative to the ``src/`` folder.
 - ``"js_function"``: The name of the endpoint handler function. This must be the name of a function exported by
   the ``js_module``.
-- ``"authn_policies"``: A list of authentication policies to be applied before the endpoint is executed. See
-  :ref:`the description of authentication in C++ <build_apps/logging_cpp:Authentication>` for an explanation of how
-  these policies are applied. Possible values are:
+- ``"authn_policies"``: A list of :ref:`authentication policies <build_apps/auth>` to be applied before the endpoint
+  is executed. An empty list indicates an unauthenticated endpoint which can be called by anyone. Possible entries are:
   
   - ``"user_cert"``
   - ``"user_sig"``
