@@ -348,6 +348,7 @@ namespace ccf
   class MerkleTreeHistory
   {
     HistoryTree* tree;
+    mutable SpinLock lock;
 
   public:
     MerkleTreeHistory(MerkleTreeHistory const&) = delete;
@@ -370,17 +371,20 @@ namespace ccf
 
     void deserialise(const std::vector<uint8_t>& serialised)
     {
+      std::lock_guard<SpinLock> guard(lock);
       delete (tree);
       tree = new HistoryTree(serialised);
     }
 
     void append(crypto::Sha256Hash& hash)
     {
+      std::lock_guard<SpinLock> guard(lock);
       tree->insert(merkle::Hash(hash.h));
     }
 
     crypto::Sha256Hash get_root() const
     {
+      std::lock_guard<SpinLock> guard(lock);
       const merkle::Hash& root = tree->root();
       crypto::Sha256Hash result;
       std::copy(root.bytes, root.bytes + root.size(), result.h.begin());
@@ -389,6 +393,7 @@ namespace ccf
 
     void operator=(const MerkleTreeHistory& rhs)
     {
+      std::lock_guard<SpinLock> guard(lock);
       delete (tree);
       crypto::Sha256Hash root(rhs.get_root());
       tree = new HistoryTree(merkle::Hash(root.h));
@@ -396,18 +401,21 @@ namespace ccf
 
     void flush(uint64_t index)
     {
+      std::lock_guard<SpinLock> guard(lock);
       LOG_TRACE_FMT("mt_flush_to index={}", index);
       tree->flush_to(index);
     }
 
     void retract(uint64_t index)
     {
+      std::lock_guard<SpinLock> guard(lock);
       LOG_TRACE_FMT("mt_retract_to index={}", index);
       tree->retract_to(index);
     }
 
     Receipt get_receipt(uint64_t index)
     {
+      std::lock_guard<SpinLock> guard(lock);
       if (index < begin_index())
       {
         throw std::logic_error(fmt::format(
@@ -425,11 +433,13 @@ namespace ccf
 
     bool verify(const Receipt& r)
     {
+      std::lock_guard<SpinLock> guard(lock);
       return r.verify(tree);
     }
 
     std::vector<uint8_t> serialise()
     {
+      std::lock_guard<SpinLock> guard(lock);
       LOG_TRACE_FMT("mt_serialize_size {}", tree->serialised_size());
       std::vector<uint8_t> output;
       tree->serialise(output);
@@ -438,6 +448,7 @@ namespace ccf
 
     std::vector<uint8_t> serialise(size_t from, size_t to)
     {
+      std::lock_guard<SpinLock> guard(lock);
       LOG_TRACE_FMT(
         "mt_serialize_size ({},{}) {}",
         from,
@@ -460,11 +471,13 @@ namespace ccf
 
     bool in_range(uint64_t index)
     {
+      std::lock_guard<SpinLock> guard(lock);
       return index >= begin_index() && index <= end_index();
     }
 
     crypto::Sha256Hash get_leaf(uint64_t index)
     {
+      std::lock_guard<SpinLock> guard(lock);
       const merkle::Hash& leaf = tree->leaf(index);
       crypto::Sha256Hash result;
       std::copy(leaf.bytes, leaf.bytes + leaf.size(), result.h.begin());
@@ -782,6 +795,7 @@ namespace ccf
 
     void emit_signature() override
     {
+      LOG_INFO_FMT("SIGN {}", fmt::ptr(this));
       // Signatures are only emitted when there is a consensus
       auto consensus = store.get_consensus();
       if (!consensus)
