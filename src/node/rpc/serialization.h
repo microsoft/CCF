@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/json.h"
+#include "enclave/consensus_type.h"
 #include "enclave/interface.h"
 #include "node/code_id.h"
 #include "node/rpc/call_types.h"
@@ -23,12 +24,6 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     GetState::Out, recovery_target_seqno, last_recovered_seqno)
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetQuotes::Quote)
-  DECLARE_JSON_REQUIRED_FIELDS(GetQuotes::Quote, node_id, raw)
-  DECLARE_JSON_OPTIONAL_FIELDS(GetQuotes::Quote, error, mrenclave)
-  DECLARE_JSON_TYPE(GetQuotes::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetQuotes::Out, quotes)
-
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::In)
   DECLARE_JSON_REQUIRED_FIELDS(
     JoinNetworkNodeToNode::In,
@@ -41,12 +36,8 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)
 
   DECLARE_JSON_TYPE(LedgerSecret)
-  DECLARE_JSON_REQUIRED_FIELDS(LedgerSecret, master)
-  DECLARE_JSON_TYPE(LedgerSecrets::VersionedLedgerSecret)
   DECLARE_JSON_REQUIRED_FIELDS(
-    LedgerSecrets::VersionedLedgerSecret, version, secret)
-  DECLARE_JSON_TYPE(LedgerSecrets)
-  DECLARE_JSON_REQUIRED_FIELDS(LedgerSecrets, secrets_list)
+    LedgerSecret, raw_key) // Only raw_key is serialised
 
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out::NetworkInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -82,21 +73,37 @@ namespace ccf
   DECLARE_JSON_TYPE(GetTxStatus::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::Out, status)
 
-  DECLARE_JSON_TYPE(GetPrimaryInfo::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    GetPrimaryInfo::Out, primary_id, primary_host, primary_port, current_view)
-
-  DECLARE_JSON_TYPE(GetNetworkInfo::NodeInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(GetNetworkInfo::NodeInfo, node_id, host, port)
   DECLARE_JSON_TYPE(GetNetworkInfo::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetNetworkInfo::Out, nodes, primary_id)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    GetNetworkInfo::Out,
+    service_status,
+    current_view,
+    primary_id,
+    view_change_in_progress)
 
-  DECLARE_JSON_TYPE(GetNodesByRPCAddress::In)
-  DECLARE_JSON_REQUIRED_FIELDS(GetNodesByRPCAddress::In, host, port)
-  DECLARE_JSON_TYPE(GetNodesByRPCAddress::NodeInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(GetNodesByRPCAddress::NodeInfo, node_id, status)
-  DECLARE_JSON_TYPE(GetNodesByRPCAddress::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetNodesByRPCAddress::Out, nodes)
+  DECLARE_JSON_TYPE(GetNode::NodeInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    GetNode::NodeInfo,
+    node_id,
+    status,
+    host,
+    port,
+    local_host,
+    local_port,
+    primary)
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetNodes::In)
+  // Current limitation of the JSON macros: It is necessary to defined
+  // DECLARE_JSON_REQUIRED_FIELDS even though there are no required
+  // fields. This raises some compiler warnings that are disabled locally.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-parameter"
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+  DECLARE_JSON_REQUIRED_FIELDS(GetNodes::In);
+#pragma clang diagnostic pop
+  DECLARE_JSON_OPTIONAL_FIELDS(GetNodes::In, host, port, status)
+  DECLARE_JSON_TYPE(GetNodes::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(GetNodes::Out, nodes)
 
   DECLARE_JSON_TYPE(CallerInfo)
   DECLARE_JSON_REQUIRED_FIELDS(CallerInfo, caller_id)

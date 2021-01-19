@@ -15,7 +15,8 @@
       "CodeStatus": {
         "enum": [
           "ALLOWED_TO_JOIN"
-        ]
+        ],
+        "type": "string"
       },
       "EndpointMetrics__Metric": {
         "properties": {
@@ -94,101 +95,6 @@
         ],
         "type": "object"
       },
-      "GetNetworkInfo__NodeInfo": {
-        "properties": {
-          "host": {
-            "$ref": "#/components/schemas/string"
-          },
-          "node_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "port": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "node_id",
-          "host",
-          "port"
-        ],
-        "type": "object"
-      },
-      "GetNetworkInfo__NodeInfo_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo"
-        },
-        "type": "array"
-      },
-      "GetNetworkInfo__Out": {
-        "properties": {
-          "nodes": {
-            "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo_array"
-          },
-          "primary_id": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "nodes",
-          "primary_id"
-        ],
-        "type": "object"
-      },
-      "GetNodesByRPCAddress__NodeInfo": {
-        "properties": {
-          "node_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "status": {
-            "$ref": "#/components/schemas/NodeStatus"
-          }
-        },
-        "required": [
-          "node_id",
-          "status"
-        ],
-        "type": "object"
-      },
-      "GetNodesByRPCAddress__NodeInfo_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo"
-        },
-        "type": "array"
-      },
-      "GetNodesByRPCAddress__Out": {
-        "properties": {
-          "nodes": {
-            "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo_array"
-          }
-        },
-        "required": [
-          "nodes"
-        ],
-        "type": "object"
-      },
-      "GetPrimaryInfo__Out": {
-        "properties": {
-          "current_view": {
-            "$ref": "#/components/schemas/int64"
-          },
-          "primary_host": {
-            "$ref": "#/components/schemas/string"
-          },
-          "primary_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "primary_port": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "primary_id",
-          "primary_host",
-          "primary_port",
-          "current_view"
-        ],
-        "type": "object"
-      },
       "GetReceipt__Out": {
         "properties": {
           "receipt": {
@@ -225,13 +131,6 @@
           "key"
         ],
         "type": "object"
-      },
-      "NodeStatus": {
-        "enum": [
-          "PENDING",
-          "TRUSTED",
-          "RETIRED"
-        ]
       },
       "Proposal": {
         "properties": {
@@ -286,7 +185,8 @@
           "WITHDRAWN",
           "REJECTED",
           "FAILED"
-        ]
+        ],
+        "type": "string"
       },
       "Propose__In": {
         "properties": {
@@ -330,7 +230,8 @@
           "PENDING",
           "COMMITTED",
           "INVALID"
-        ]
+        ],
+        "type": "string"
       },
       "VerifyReceipt__In": {
         "properties": {
@@ -457,14 +358,7 @@
           "description": "Auto-generated request body schema"
         },
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/boolean"
-                }
-              }
-            },
+          "204": {
             "description": "Default response description"
           }
         },
@@ -590,72 +484,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetTxStatus__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/network_info": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetNetworkInfo__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/node/ids": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "host",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "port",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetNodesByRPCAddress__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/primary_info": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetPrimaryInfo__Out"
                 }
               }
             },

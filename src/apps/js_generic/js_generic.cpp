@@ -1136,8 +1136,8 @@ namespace ccfapp
     {};
 
   public:
-    JSHandlers(NetworkTables& network) :
-      UserEndpointRegistry(network),
+    JSHandlers(NetworkTables& network, ccf::AbstractNodeState& node_state) :
+      UserEndpointRegistry(node_state),
       network(network)
     {
       JS_NewClassID(&kv_class_id);
@@ -1290,12 +1290,12 @@ namespace ccfapp
 
     // Since we do our own dispatch within the default handler, report the
     // supported methods here
-    void build_api(nlohmann::json& document, kv::Tx& tx) override
+    void build_api(nlohmann::json& document, kv::ReadOnlyTx& tx) override
     {
       UserEndpointRegistry::build_api(document, tx);
 
-      auto endpoints_view =
-        tx.get_view<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+      auto endpoints_view = tx.get_read_only_view<ccf::endpoints::EndpointsMap>(
+        ccf::Tables::ENDPOINTS);
 
       endpoints_view->foreach(
         [&document](const auto& key, const auto& properties) {
@@ -1338,15 +1338,15 @@ namespace ccfapp
     JSHandlers js_handlers;
 
   public:
-    JS(NetworkTables& network) :
+    JS(NetworkTables& network, ccfapp::AbstractNodeContext& node_context) :
       ccf::UserRpcFrontend(*network.tables, js_handlers),
-      js_handlers(network)
+      js_handlers(network, node_context.get_node_state())
     {}
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& network, ccfapp::AbstractNodeContext&)
+    NetworkTables& network, ccfapp::AbstractNodeContext& node_context)
   {
-    return make_shared<JS>(network);
+    return make_shared<JS>(network, node_context);
   }
 } // namespace ccfapp

@@ -5,12 +5,11 @@
 #include "consensus/ledger_enclave_types.h"
 #include "ds/logger.h"
 #include "ds/messaging.h"
+#include "ds/nonstd.h"
 
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
-#include <limits>
-#include <linux/limits.h>
 #include <list>
 #include <map>
 #include <string>
@@ -27,6 +26,7 @@ namespace asynchost
   static constexpr auto ledger_committed_suffix = "committed";
   static constexpr auto ledger_start_idx_delimiter = "_";
   static constexpr auto ledger_last_idx_delimiter = "-";
+  static constexpr auto ledger_corrupt_file_suffix = "corrupted";
 
   static inline bool is_ledger_file_committed(const std::string& file_name)
   {
@@ -64,17 +64,38 @@ namespace asynchost
     return std::stol(file_name.substr(pos + 1));
   }
 
+  static inline bool is_ledger_file_name_corrupted(const std::string& file_name)
+  {
+    return nonstd::ends_with(file_name, ledger_corrupt_file_suffix);
+  }
+
   std::optional<std::string> get_file_name_with_idx(
     const std::string& dir, size_t idx)
   {
     std::optional<std::string> match = std::nullopt;
     for (auto const& f : fs::directory_iterator(dir))
     {
-      // If any file, based on its name, contains idx. Only committed files
-      // (i.e. those with a last idx) are considered here.
+      // If any file, based on its name, contains idx. Only committed
+      // (i.e. those with a last idx) and non-corrupted files are considered
+      // here.
       auto f_name = f.path().filename();
-      auto start_idx = get_start_idx_from_file_name(f_name);
-      auto last_idx = get_last_idx_from_file_name(f_name);
+      if (is_ledger_file_name_corrupted(f_name))
+      {
+        continue;
+      }
+
+      size_t start_idx = 0;
+      std::optional<size_t> last_idx = std::nullopt;
+      try
+      {
+        start_idx = get_start_idx_from_file_name(f_name);
+        last_idx = get_last_idx_from_file_name(f_name);
+      }
+      catch (const std::exception& e)
+      {
+        // Ignoring invalid ledger file
+        continue;
+      }
       if (idx >= start_idx && last_idx.has_value() && idx <= last_idx.value())
       {
         match = f_name;
@@ -657,10 +678,46 @@ namespace asynchost
       if (fs::is_directory(ledger_dir))
       {
         // If the ledger directory exists, recover ledger files from it
+        std::vector<fs::path> corrupt_files = {};
         for (auto const& f : fs::directory_iterator(ledger_dir))
         {
-          files.push_back(
-            std::make_shared<LedgerFile>(ledger_dir, f.path().filename()));
+          auto file_name = f.path().filename();
+          std::shared_ptr<LedgerFile> ledger_file = nullptr;
+          try
+          {
+            ledger_file = std::make_shared<LedgerFile>(ledger_dir, file_name);
+          }
+          catch (const std::exception& e)
+          {
+            corrupt_files.emplace_back(f.path());
+            LOG_TRACE_FMT(
+              "Ignoring invalid ledger file {}: {}", file_name, e.what());
+            continue;
+          }
+
+          files.emplace_back(std::move(ledger_file));
+        }
+
+        // Rename corrupt files so that they are not considered for reading
+        // entries later on
+        for (auto const& f : corrupt_files)
+        {
+          if (!is_ledger_file_name_corrupted(f.filename()))
+          {
+            auto new_file_name = fmt::format(
+              "{}.{}", f.filename().string(), ledger_corrupt_file_suffix);
+            fs::rename(f, fs::path(ledger_dir) / fs::path(new_file_name));
+
+            LOG_FAIL_FMT(
+              "Renamed invalid ledger file {} to \"{}\" (file will be ignored)",
+              f.filename(),
+              new_file_name);
+          }
+          else
+          {
+            LOG_TRACE_FMT(
+              "Corrupted ledger file {} will be ignored", f.filename());
+          }
         }
 
         if (files.empty())
@@ -839,7 +896,7 @@ namespace asynchost
       {
         f->complete();
         require_new_file = true;
-        LOG_INFO_FMT("Ledger chunk completed at {}", last_idx);
+        LOG_DEBUG_FMT("Ledger chunk completed at {}", last_idx);
       }
 
       return last_idx;

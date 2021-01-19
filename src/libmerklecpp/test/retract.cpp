@@ -12,6 +12,11 @@
 
 int main()
 {
+  auto test_start_time = std::chrono::high_resolution_clock::now();
+  double timeout = get_timeout();
+  auto seed = std::time(0);
+  std::cout << "seed=" << seed << " timeout=" << timeout << std::endl;
+
   try
   {
 #ifndef NDEBUG
@@ -24,12 +29,10 @@ int main()
     const size_t max_retractions = 64;
 #endif
 
-    // std::srand(0);
-    std::srand(std::time(0));
-
     size_t total_leaves = 0, total_retractions = 0;
 
-    for (size_t k = 0; k < num_trees; k++)
+    for (size_t k = 0; k < num_trees && !timed_out(timeout, test_start_time);
+         k++)
     {
       size_t num_leaves = 1 + (std::rand() / (double)RAND_MAX) * max_num_leaves;
       total_leaves += num_leaves;

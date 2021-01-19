@@ -12,11 +12,11 @@
 #include "http/authentication/sig_auth.h"
 #include "http/http_consts.h"
 #include "http/ws_consts.h"
-#include "kv/store.h"
 #include "kv/tx.h"
 #include "node/certs.h"
 #include "serialization.h"
 
+#include <charconv>
 #include <functional>
 #include <llhttp/llhttp.h>
 #include <nlohmann/json.hpp>
@@ -225,16 +225,22 @@ namespace ccf
         return *this;
       }
 
+      http_status success_status = HTTP_STATUS_OK;
+
       nlohmann::json result_schema = nullptr;
 
       /** Sets the JSON schema that the request response must comply with.
        *
        * @param j Request response JSON schema
+       * @param status Request response status code
        * @return This Endpoint for further modification
        */
-      Endpoint& set_result_schema(const nlohmann::json& j)
+      Endpoint& set_result_schema(
+        const nlohmann::json& j,
+        std::optional<http_status> status = std::nullopt)
       {
         result_schema = j;
+        success_status = status.value_or(HTTP_STATUS_OK);
 
         schema_builders.push_back(
           [j](nlohmann::json& document, const EndpointPtr& endpoint) {
@@ -249,13 +255,10 @@ namespace ccf
               path_operation(
                 ds::openapi::path(document, endpoint->dispatch.uri_path),
                 http_verb.value()),
-              HTTP_STATUS_OK);
+              endpoint->success_status);
 
-            if (endpoint->result_schema != nullptr)
-            {
-              schema(media_type(r, http::headervalues::contenttype::JSON)) =
-                endpoint->result_schema;
-            }
+            schema(media_type(r, http::headervalues::contenttype::JSON)) =
+              endpoint->result_schema;
           });
 
         return *this;
@@ -272,10 +275,12 @@ namespace ccf
        *
        * @tparam In Request parameters JSON-serialisable data structure
        * @tparam Out Request response JSON-serialisable data structure
+       * @param status Request response status code
        * @return This Endpoint for further modification
        */
       template <typename In, typename Out>
-      Endpoint& set_auto_schema()
+      Endpoint& set_auto_schema(
+        std::optional<http_status> status = std::nullopt)
       {
         if constexpr (!std::is_same_v<In, void>)
         {
@@ -318,6 +323,8 @@ namespace ccf
 
         if constexpr (!std::is_same_v<Out, void>)
         {
+          success_status = status.value_or(HTTP_STATUS_OK);
+
           result_schema =
             ds::json::build_schema<Out>(dispatch.uri_path + "/result");
 
@@ -333,12 +340,13 @@ namespace ccf
                 document,
                 endpoint->dispatch.uri_path,
                 http_verb.value(),
-                HTTP_STATUS_OK,
+                endpoint->success_status,
                 http::headervalues::contenttype::JSON);
             });
         }
         else
         {
+          success_status = status.value_or(HTTP_STATUS_NO_CONTENT);
           result_schema = nullptr;
         }
 
@@ -356,12 +364,14 @@ namespace ccf
        *
        * @tparam T Request parameters and response JSON-serialisable data
        * structure
+       * @param status Request response status code
        * @return This Endpoint for further modification
        */
       template <typename T>
-      Endpoint& set_auto_schema()
+      Endpoint& set_auto_schema(
+        std::optional<http_status> status = std::nullopt)
       {
-        return set_auto_schema<typename T::In, typename T::Out>();
+        return set_auto_schema<typename T::In, typename T::Out>(status);
       }
 
       /** Overrides whether a Endpoint is always forwarded, or whether it is
@@ -468,6 +478,33 @@ namespace ccf
       return spec;
     }
 
+    template <typename T>
+    bool get_path_param(
+      const enclave::PathParams& params,
+      const std::string& param_name,
+      T& value,
+      std::string& error)
+    {
+      const auto it = params.find(param_name);
+      if (it == params.end())
+      {
+        error = fmt::format("No parameter named '{}' in path", param_name);
+        return false;
+      }
+
+      const auto param_s = it->second;
+      const auto [p, ec] =
+        std::from_chars(param_s.data(), param_s.data() + param_s.size(), value);
+      if (ec != std::errc())
+      {
+        error = fmt::format(
+          "Unable to parse path parameter '{}' as a {}", param_s, param_name);
+        return false;
+      }
+
+      return true;
+    }
+
   protected:
     EndpointPtr default_endpoint;
     std::map<std::string, std::map<RESTVerb, EndpointPtr>>
@@ -482,9 +519,6 @@ namespace ccf
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
 
-    std::string certs_table_name;
-    std::string digests_table_name;
-
     static void add_query_parameters(
       nlohmann::json& document,
       const std::string& uri,
@@ -497,7 +531,8 @@ namespace ccf
           fmt::format("Unexpected params schema type: {}", schema.dump()));
       }
 
-      const auto& required_parameters = schema["required"];
+      const auto& required_parameters =
+        schema.value("required", nlohmann::json::array());
       for (const auto& [name, schema] : schema["properties"].items())
       {
         auto parameter = nlohmann::json::object();
@@ -512,12 +547,8 @@ namespace ccf
     }
 
   public:
-    EndpointRegistry(
-      const std::string& method_prefix_,
-      kv::Store&,
-      const std::string& certs_table_name_ = "") :
-      method_prefix(method_prefix_),
-      certs_table_name(certs_table_name_)
+    EndpointRegistry(const std::string& method_prefix_) :
+      method_prefix(method_prefix_)
     {}
 
     virtual ~EndpointRegistry() {}
@@ -668,7 +699,7 @@ namespace ccf
       // defined, assume this can return 200
       if (ds::openapi::responses(path_op).empty())
       {
-        ds::openapi::response(path_op, HTTP_STATUS_OK);
+        ds::openapi::response(path_op, endpoint->success_status);
       }
 
       if (!endpoint->authn_policies.empty())
@@ -708,7 +739,7 @@ namespace ccf
      * internally, so must be able to populate the document
      * with the supported endpoints however it defines them.
      */
-    virtual void build_api(nlohmann::json& document, kv::Tx&)
+    virtual void build_api(nlohmann::json& document, kv::ReadOnlyTx&)
     {
       ds::openapi::server(document, fmt::format("/{}", method_prefix));
 
@@ -761,7 +792,7 @@ namespace ccf
       return metrics[e->dispatch.uri_path][e->dispatch.verb.c_str()];
     }
 
-    virtual void init_handlers(kv::Store&) {}
+    virtual void init_handlers() {}
 
     virtual EndpointDefinitionPtr find_endpoint(
       kv::Tx&, enclave::RpcContext& rpc_ctx)

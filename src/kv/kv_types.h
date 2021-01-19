@@ -94,7 +94,7 @@ namespace kv
   using ConsensusHookPtrs = std::vector<ConsensusHookPtr>;
 
   using BatchVector = std::vector<std::tuple<
-    kv::Version,
+    Version,
     std::shared_ptr<std::vector<uint8_t>>,
     bool,
     std::shared_ptr<ConsensusHookPtrs>>>;
@@ -265,25 +265,25 @@ namespace kv
     virtual std::vector<uint8_t> get_raw_leaf(uint64_t index) = 0;
 
     virtual bool add_request(
-      kv::TxHistory::RequestID id,
+      TxHistory::RequestID id,
       const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request,
       uint8_t frame_format) = 0;
     virtual void add_result(
       RequestID id,
-      kv::Version version,
+      Version version,
       const std::vector<uint8_t>& replicated) = 0;
     virtual void add_pending(
       RequestID id,
-      kv::Version version,
+      Version version,
       std::shared_ptr<std::vector<uint8_t>> replicated) = 0;
     virtual void flush_pending() = 0;
     virtual void add_result(
       RequestID id,
-      kv::Version version,
+      Version version,
       const uint8_t* replicated,
       size_t replicated_size) = 0;
-    virtual void add_result(RequestID id, kv::Version version) = 0;
+    virtual void add_result(RequestID id, Version version) = 0;
     virtual void add_response(
       RequestID id, const std::vector<uint8_t>& response) = 0;
     virtual void register_on_result(ResultCallbackHandler func) = 0;
@@ -362,11 +362,12 @@ namespace kv
     virtual void initialise_view_history(const std::vector<SeqNo>&) = 0;
     virtual SeqNo get_committed_seqno() = 0;
     virtual NodeId primary() = 0;
+    virtual bool view_change_in_progress() = 0;
     virtual std::set<NodeId> active_nodes() = 0;
 
     virtual void recv_message(OArray&& oa) = 0;
 
-    virtual bool on_request(const kv::TxHistory::RequestCallbackArgs&)
+    virtual bool on_request(const TxHistory::RequestCallbackArgs&)
     {
       return true;
     }
@@ -421,14 +422,14 @@ namespace kv
   {
   private:
     std::vector<uint8_t> data;
-    kv::TxHistory::RequestID req_id;
-    kv::ConsensusHookPtrs hooks;
+    TxHistory::RequestID req_id;
+    ConsensusHookPtrs hooks;
 
   public:
     MovePendingTx(
       std::vector<uint8_t>&& data_,
-      kv::TxHistory::RequestID&& req_id_,
-      kv::ConsensusHookPtrs&& hooks_) :
+      TxHistory::RequestID&& req_id_,
+      ConsensusHookPtrs&& hooks_) :
       data(std::move(data_)),
       req_id(std::move(req_id_)),
       hooks(std::move(hooks_))
@@ -448,23 +449,26 @@ namespace kv
   {
   public:
     virtual ~AbstractTxEncryptor() {}
+
     virtual void encrypt(
       const std::vector<uint8_t>& plain,
       const std::vector<uint8_t>& additional_data,
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
-      kv::Version version,
+      const TxID& tx_id,
       bool is_snapshot = false) = 0;
     virtual bool decrypt(
       const std::vector<uint8_t>& cipher,
       const std::vector<uint8_t>& additional_data,
       const std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& plain,
-      kv::Version version) = 0;
-    virtual void set_iv_id(size_t id) = 0;
+      Version version) = 0;
+
+    virtual void compact(Version version) = 0;
+    virtual void rollback(Version version) = 0;
+
     virtual size_t get_header_length() = 0;
-    virtual void update_encryption_key(
-      Version version, const std::vector<uint8_t>& raw_ledger_key) = 0;
+    virtual void disable_recovery() = 0;
   };
 
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
@@ -483,7 +487,7 @@ namespace kv
     virtual ~AbstractCommitter() = default;
 
     virtual bool has_writes() = 0;
-    virtual bool prepare(kv::Version& max_conflict_version) = 0;
+    virtual bool prepare(Version& max_conflict_version) = 0;
     virtual void commit(Version v) = 0;
     virtual ConsensusHookPtr post_commit() = 0;
   };
@@ -575,9 +579,9 @@ namespace kv
     virtual Version commit_version() = 0;
 
     virtual std::shared_ptr<AbstractMap> get_map(
-      kv::Version v, const std::string& map_name) = 0;
+      Version v, const std::string& map_name) = 0;
     virtual void add_dynamic_map(
-      kv::Version v, const std::shared_ptr<AbstractMap>& map) = 0;
+      Version v, const std::shared_ptr<AbstractMap>& map) = 0;
     virtual bool is_map_replicated(const std::string& map_name) = 0;
 
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
@@ -585,9 +589,9 @@ namespace kv
     virtual EncryptorPtr get_encryptor() = 0;
     virtual DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
+      ConsensusHookPtrs& hooks,
       bool public_only = false,
-      kv::Term* term = nullptr) = 0;
+      Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;
     virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
@@ -601,7 +605,7 @@ namespace kv
       std::unique_ptr<AbstractSnapshot> snapshot) = 0;
     virtual DeserialiseSuccess deserialise_snapshot(
       const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
+      ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) = 0;
 

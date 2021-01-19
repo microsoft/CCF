@@ -50,8 +50,9 @@ namespace aft
 
     bool is_view_change_in_progress(std::chrono::milliseconds time)
     {
-      return time <=
-        (time_between_attempts + time_previous_view_change_increment);
+      return (time <=
+              (time_between_attempts + time_previous_view_change_increment)) &&
+        (time_previous_view_change_increment != std::chrono::milliseconds(0));
     }
 
     kv::Consensus::View get_target_view() const

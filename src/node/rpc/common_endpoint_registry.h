@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "endpoint_registry.h"
+#include "base_endpoint_registry.h"
 #include "http/http_consts.h"
 #include "http/ws_consts.h"
 #include "json_handler.h"
@@ -11,34 +11,44 @@
 namespace ccf
 {
   /*
-   * Extends the basic EndpointRegistry with methods which should be present
-   * on all frontends
+   * Extends the BaseEndpointRegistry by installing common endpoints we expect
+   * to be available on most services. Override init_handlers or inherit from
+   * BaseEndpointRegistry directly if you wish to wrap some of this
+   * functionality in different Endpoints.
    */
-  class CommonEndpointRegistry : public EndpointRegistry
+  class CommonEndpointRegistry : public BaseEndpointRegistry
   {
+  protected:
+    std::string certs_table_name;
+
   public:
     CommonEndpointRegistry(
       const std::string& method_prefix_,
-      kv::Store& store,
-      const std::string& certs_table_name = "") :
-      EndpointRegistry(method_prefix_, store, certs_table_name)
+      AbstractNodeState& node_state,
+      const std::string& certs_table_name_ = "") :
+      BaseEndpointRegistry(method_prefix_, node_state),
+      certs_table_name(certs_table_name_)
     {}
 
-    void init_handlers(kv::Store& t) override
+    void init_handlers() override
     {
-      EndpointRegistry::init_handlers(t);
+      BaseEndpointRegistry::init_handlers();
 
       auto get_commit = [this](auto&, nlohmann::json&&) {
-        if (consensus != nullptr)
-        {
-          auto [view, seqno] = consensus->get_committed_txid();
-          return make_success(GetCommit::Out{view, seqno});
-        }
+        GetCommit::Out out;
+        const auto result = get_last_committed_txid_v1(out.view, out.seqno);
 
-        return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "Failed to get commit info from Consensus.");
+        if (result == ccf::ApiResult::OK)
+        {
+          return make_success(out);
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+        }
       };
       make_command_endpoint(
         "commit", HTTP_GET, json_command_adapter(get_commit), no_auth_required)
@@ -50,22 +60,20 @@ namespace ccf
       auto get_tx_status = [this](auto&, nlohmann::json&& params) {
         const auto in = params.get<GetTxStatus::In>();
 
-        if (consensus != nullptr)
+        GetTxStatus::Out out;
+        const auto result =
+          get_status_for_txid_v1(in.view, in.seqno, out.status);
+        if (result == ccf::ApiResult::OK)
         {
-          const auto tx_view = consensus->get_view(in.seqno);
-          const auto committed_seqno = consensus->get_committed_seqno();
-          const auto committed_view = consensus->get_view(committed_seqno);
-
-          GetTxStatus::Out out;
-          out.status = ccf::get_tx_status(
-            in.view, in.seqno, tx_view, committed_view, committed_seqno);
           return make_success(out);
         }
-
-        return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "Consensus is not yet configured.");
+        else
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+        }
       };
       make_command_endpoint(
         "tx", HTTP_GET, json_command_adapter(get_tx_status), no_auth_required)
@@ -142,67 +150,6 @@ namespace ccf
         .set_auto_schema<GetUserId::In, GetUserId::Out>()
         .install();
 
-      auto get_primary_info = [this](auto& args, nlohmann::json&&) {
-        if (consensus != nullptr)
-        {
-          NodeId primary_id = consensus->primary();
-          auto current_view = consensus->get_view();
-
-          auto nodes_view =
-            args.tx.template get_read_only_view<Nodes>(Tables::NODES);
-          auto info = nodes_view->get(primary_id);
-
-          if (info)
-          {
-            GetPrimaryInfo::Out out;
-            out.primary_id = primary_id;
-            out.primary_host = info->pubhost;
-            out.primary_port = info->pubport;
-            out.current_view = current_view;
-            return make_success(out);
-          }
-        }
-
-        return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "Primary unknown.");
-      };
-      make_read_only_endpoint(
-        "primary_info",
-        HTTP_GET,
-        json_read_only_adapter(get_primary_info),
-        no_auth_required)
-        .set_auto_schema<void, GetPrimaryInfo::Out>()
-        .install();
-
-      auto get_network_info = [this](auto& args, nlohmann::json&&) {
-        GetNetworkInfo::Out out;
-        if (consensus != nullptr)
-        {
-          out.primary_id = consensus->primary();
-        }
-
-        auto nodes_view =
-          args.tx.template get_read_only_view<Nodes>(Tables::NODES);
-        nodes_view->foreach([&out](const NodeId& nid, const NodeInfo& ni) {
-          if (ni.status == ccf::NodeStatus::TRUSTED)
-          {
-            out.nodes.push_back({nid, ni.pubhost, ni.pubport});
-          }
-          return true;
-        });
-
-        return make_success(out);
-      };
-      make_read_only_endpoint(
-        "network_info",
-        HTTP_GET,
-        json_read_only_adapter(get_network_info),
-        no_auth_required)
-        .set_auto_schema<void, GetNetworkInfo::Out>()
-        .install();
-
       auto get_code = [](auto& args, nlohmann::json&&) {
         GetCode::Out out;
 
@@ -222,40 +169,26 @@ namespace ccf
         .set_auto_schema<void, GetCode::Out>()
         .install();
 
-      auto get_nodes_by_rpc_address = [](auto& args, nlohmann::json&& params) {
-        const auto in = params.get<GetNodesByRPCAddress::In>();
-
-        GetNodesByRPCAddress::Out out;
-        auto nodes_view =
-          args.tx.template get_read_only_view<Nodes>(Tables::NODES);
-        nodes_view->foreach([&in, &out](const NodeId& nid, const NodeInfo& ni) {
-          if (ni.pubhost == in.host && ni.pubport == in.port)
-          {
-            if (ni.status != ccf::NodeStatus::RETIRED || in.retired)
-            {
-              out.nodes.push_back({nid, ni.status});
-            }
-          }
-          return true;
-        });
-
-        return make_success(out);
-      };
-      make_read_only_endpoint(
-        "node/ids",
-        HTTP_GET,
-        json_read_only_adapter(get_nodes_by_rpc_address),
-        no_auth_required)
-        .set_auto_schema<GetNodesByRPCAddress::In, GetNodesByRPCAddress::Out>()
-        .install();
-
       auto openapi = [this](kv::Tx& tx, nlohmann::json&&) {
-        auto document = ds::openapi::create_document(
+        nlohmann::json document;
+        const auto result = generate_openapi_document_v1(
+          tx,
           openapi_info.title,
           openapi_info.description,
-          openapi_info.document_version);
-        build_api(document, tx);
-        return make_success(document);
+          openapi_info.document_version,
+          document);
+
+        if (result == ccf::ApiResult::OK)
+        {
+          return make_success(document);
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+        }
       };
       make_endpoint("api", HTTP_GET, json_adapter(openapi), no_auth_required)
         .set_auto_schema<void, GetAPI::Out>()
@@ -278,31 +211,19 @@ namespace ccf
       auto get_receipt = [this](auto&, nlohmann::json&& params) {
         const auto in = params.get<GetReceipt::In>();
 
-        if (history != nullptr)
+        GetReceipt::Out out;
+        const auto result = get_receipt_for_seqno_v1(in.commit, out.receipt);
+        if (result == ccf::ApiResult::OK)
         {
-          try
-          {
-            auto p = history->get_receipt(in.commit);
-            const GetReceipt::Out out{p};
-
-            return make_success(out);
-          }
-          catch (const std::exception& e)
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              fmt::format(
-                "Unable to produce receipt for commit {} : {}.",
-                in.commit,
-                e.what()));
-          }
+          return make_success(out);
         }
-
-        return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "Unable to produce receipt.");
+        else
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+        }
       };
       make_command_endpoint(
         "receipt",

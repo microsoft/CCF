@@ -821,24 +821,18 @@ namespace ccf
         // accept a node
         {"trust_node",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
-           const auto id = args.get<NodeId>();
-           auto nodes = tx.get_view(this->network.nodes);
-           auto node_info = nodes->get(id);
-           if (!node_info.has_value())
+           const auto node_id = args.get<NodeId>();
+           try
            {
-             LOG_FAIL_FMT(
-               "Proposal {}: Node {} does not exist", proposal_id, id);
+             GenesisGenerator g(network, tx);
+             g.trust_node(
+               node_id, network.ledger_secrets->get_latest(tx).first);
+           }
+           catch (const std::logic_error& e)
+           {
+             LOG_FAIL_FMT("Proposal {} failed: {}", proposal_id, e.what());
              return false;
            }
-           if (node_info->status == NodeStatus::RETIRED)
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: Node {} is already retired", proposal_id, id);
-             return false;
-           }
-           node_info->status = NodeStatus::TRUSTED;
-           nodes->put(id, node_info.value());
-           LOG_INFO_FMT("Node {} is now {}", id, node_info->status);
            return true;
          }},
         // retire a node
@@ -1155,33 +1149,6 @@ namespace ccf
       return ProposalInfo{proposal_id, proposal.proposer, proposal.state};
     }
 
-    template <typename T>
-    bool get_path_param(
-      const enclave::PathParams& params,
-      const std::string& param_name,
-      T& value,
-      std::string& error)
-    {
-      const auto it = params.find(param_name);
-      if (it == params.end())
-      {
-        error = fmt::format("No parameter named '{}' in path", param_name);
-        return false;
-      }
-
-      const auto param_s = it->second;
-      const auto [p, ec] =
-        std::from_chars(param_s.data(), param_s.data() + param_s.size(), value);
-      if (ec != std::errc())
-      {
-        error = fmt::format(
-          "Unable to parse path parameter '{}' as a {}", param_s, param_name);
-        return false;
-      }
-
-      return true;
-    }
-
     bool get_proposal_id_from_path(
       const enclave::PathParams& params,
       ObjectId& proposal_id,
@@ -1198,22 +1165,20 @@ namespace ccf
       return get_path_param(params, "member_id", member_id, error);
     }
 
-    NetworkTables& network;
-    AbstractNodeState& node;
+    NetworkState& network;
     ShareManager& share_manager;
     const MemberTsr tsr;
 
   public:
     MemberEndpoints(
-      NetworkTables& network,
-      AbstractNodeState& node,
+      NetworkState& network,
+      AbstractNodeState& node_state,
       ShareManager& share_manager) :
       CommonEndpointRegistry(
         get_actor_prefix(ActorsType::members),
-        *network.tables,
+        node_state,
         Tables::MEMBER_CERT_DERS),
       network(network),
-      node(node),
       share_manager(share_manager),
       tsr(network)
     {
@@ -1242,9 +1207,9 @@ namespace ccf
       return INVALID_ID;
     }
 
-    void init_handlers(kv::Store& tables_) override
+    void init_handlers() override
     {
-      CommonEndpointRegistry::init_handlers(tables_);
+      CommonEndpointRegistry::init_handlers();
 
       const AuthnPolicies member_sig_only = {member_signature_auth_policy};
 
@@ -1672,10 +1637,10 @@ namespace ccf
               fmt::format("Error issuing new recovery shares: {}", e.what()));
           }
         }
-        return make_success(true);
+        return make_success();
       };
       make_endpoint("ack", HTTP_POST, json_adapter(ack), member_sig_only)
-        .set_auto_schema<StateDigest, bool>()
+        .set_auto_schema<StateDigest, void>()
         .install();
 
       //! A member asks for a fresher state digest
@@ -2035,7 +2000,7 @@ namespace ccf
 
   public:
     MemberRpcFrontend(
-      NetworkTables& network,
+      NetworkState& network,
       AbstractNodeState& node,
       ShareManager& share_manager) :
       RpcFrontend(*network.tables, member_endpoints),

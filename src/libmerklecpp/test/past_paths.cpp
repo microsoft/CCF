@@ -26,10 +26,15 @@ std::shared_ptr<merkle::Path> past_root_spec(
   return result;
 }
 
-int main()
+extern char** environ;
+
+int main(int argc, char** argv)
 {
-  // std::srand(0);
+  auto test_start_time = std::chrono::high_resolution_clock::now();
+  double timeout = get_timeout();
   auto seed = std::time(0);
+  std::cout << "seed=" << seed << " timeout=" << timeout << std::endl;
+
   std::srand(seed);
 
   try
@@ -48,7 +53,8 @@ int main()
 
     auto hashes = make_hashes(max_num_leaves);
 
-    for (size_t l = 0; l < num_trees; l++)
+    bool is_timed_out = false;
+    for (size_t l = 0; l < num_trees && !is_timed_out; l++)
     {
       size_t num_leaves = 1 + (std::rand() / (double)RAND_MAX) * max_num_leaves;
       size_t num_paths = 1 + (std::rand() / (double)RAND_MAX) * max_num_paths;
@@ -66,7 +72,9 @@ int main()
       MERKLECPP_TOUT << mt.to_string(PSZ) << std::endl;
 #endif
 
-      for (size_t m = 0; m < num_paths && mt.min_index() != mt.max_index(); m++)
+      for (size_t m = 0;
+           m < num_paths && mt.min_index() != mt.max_index() && !is_timed_out;
+           m++)
       {
         size_t index = random_index(mt);
         size_t as_of = random_index(mt);
@@ -124,6 +132,8 @@ int main()
           std::cout << (l + 1) << " trees, " << total_leaves << " leaves, "
                     << total_flushed_nodes << " flushed, " << total_paths
                     << " past paths: OK." << std::endl;
+
+        is_timed_out = timed_out(timeout, test_start_time);
       }
     }
   }

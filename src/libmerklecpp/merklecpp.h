@@ -218,20 +218,24 @@ namespace merkle
       _max_index(max_index),
       elements(elements)
     {}
+
     PathT(const PathT& other)
     {
       _leaf = other._leaf;
       elements = other.elements;
     }
+
     PathT(PathT&& other)
     {
       _leaf = std::move(other._leaf);
       elements = std::move(other.elements);
     }
+
     PathT(const std::vector<uint8_t>& bytes)
     {
       deserialise(bytes);
     }
+
     PathT(const std::vector<uint8_t>& bytes, size_t& position)
     {
       deserialise(bytes, position);
@@ -343,15 +347,17 @@ namespace merkle
 
     const HashT<HASH_SIZE>& operator[](size_t i) const
     {
-      return *elements[i].hash;
+      return std::next(begin(), i)->hash;
     }
 
     typedef typename std::list<Element>::const_iterator const_iterator;
-    const_iterator begin()
+
+    const_iterator begin() const
     {
       return elements.begin();
     }
-    const_iterator end()
+
+    const_iterator end() const
     {
       return elements.end();
     }
@@ -428,7 +434,6 @@ namespace merkle
         r->right = right;
         r->dirty = true;
         r->update_sizes();
-        r->left->parent = r->right->parent = r;
         assert(r->invariant());
         return r;
       }
@@ -448,7 +453,6 @@ namespace merkle
         r->size = from->size;
         r->height = from->height;
         r->dirty = from->dirty;
-        r->parent = nullptr;
         r->left = copy_node(
           from->left,
           leaf_nodes,
@@ -456,8 +460,6 @@ namespace merkle
           min_index,
           max_index,
           indent + 1);
-        if (r->left)
-          r->left->parent = r;
         r->right = copy_node(
           from->right,
           leaf_nodes,
@@ -465,8 +467,6 @@ namespace merkle
           min_index,
           max_index,
           indent + 1);
-        if (r->right)
-          r->right->parent = r;
         if (leaf_nodes && r->size == 1 && !r->left && !r->right)
         {
           if (*num_flushed == 0)
@@ -479,20 +479,18 @@ namespace merkle
 
       bool invariant()
       {
-        bool c1 = !parent || parent->left == this || parent->right == this;
-        bool c2 = (left && right) || (!left && !right);
-        bool c3 = !left || !right || (size == left->size + right->size + 1);
+        bool c1 = (left && right) || (!left && !right);
+        bool c2 = !left || !right || (size == left->size + right->size + 1);
         bool cl = !left || left->invariant();
         bool cr = !right || right->invariant();
         bool ch = height <= sizeof(size) * 8;
-        bool r = c1 && c2 && c3 && cl && cr && ch;
+        bool r = c1 && c2 && cl && cr && ch;
         return r;
       }
 
       ~Node()
       {
         assert(invariant());
-        parent = nullptr;
         // Potential future improvement: remove recursion and keep nodes for
         // future insertions
         delete (left);
@@ -518,7 +516,6 @@ namespace merkle
       }
 
       HashT<HASH_SIZE> hash;
-      Node* parent;
       Node *left, *right;
       size_t size;
       uint8_t height;
@@ -599,6 +596,9 @@ namespace merkle
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> flush_to " << index << std::endl;);
       statistics.num_flush++;
 
+      if (index <= min_index())
+        return;
+
       walk_to(index, false, [this](Node*& n, bool go_right) {
         if (go_right && n->left)
         {
@@ -656,25 +656,18 @@ namespace merkle
                               << std::endl;);
             bool is_root = n == _root;
 
-            Node* old_parent = n->parent;
             Node* old_left = n->left;
             delete (n->right);
             n->right = nullptr;
 
             *n = *old_left;
-            n->parent = old_parent;
 
             old_left->left = old_left->right = nullptr;
-            old_left->parent = nullptr;
             delete (old_left);
             old_left = nullptr;
 
             if (n->left && n->right)
-            {
-              n->left->parent = n;
-              n->right->parent = n;
               n->dirty = true;
-            }
 
             if (is_root)
             {
@@ -682,7 +675,6 @@ namespace merkle
                                 << " - new root: "
                                 << n->hash.to_string(TRACE_HASH_SIZE)
                                 << std::endl;);
-              assert(n->parent == nullptr);
               assert(_root == n);
             }
 
@@ -1000,11 +992,6 @@ namespace merkle
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> serialise " << std::endl;);
 
-      compute_root();
-
-      MERKLECPP_TRACE(MERKLECPP_TOUT << to_string(TRACE_HASH_SIZE)
-                                     << std::endl;);
-
       serialise_size_t(leaf_nodes.size() + uninserted_leaf_nodes.size(), bytes);
       serialise_size_t(num_flushed, bytes);
       for (auto& n : leaf_nodes)
@@ -1012,16 +999,25 @@ namespace merkle
       for (auto& n : uninserted_leaf_nodes)
         n->hash.serialise(bytes);
 
-      // Find conflated/flushed nodes along the left edge of the tree.
-      std::vector<Node*> extras;
-      walk_to(min_index(), false, [&extras](Node*& n, bool go_right) {
-        if (go_right)
-          extras.push_back(n->left);
-        return true;
-      });
+      if (!empty())
+      {
+        // Find conflated/flushed nodes along the left edge of the tree.
 
-      for (size_t i = extras.size() - 1; i != SIZE_MAX; i--)
-        extras[i]->hash.serialise(bytes);
+        compute_root();
+
+        MERKLECPP_TRACE(MERKLECPP_TOUT << to_string(TRACE_HASH_SIZE)
+                                       << std::endl;);
+
+        std::vector<Node*> extras;
+        walk_to(min_index(), false, [&extras](Node*& n, bool go_right) {
+          if (go_right)
+            extras.push_back(n->left);
+          return true;
+        });
+
+        for (size_t i = extras.size() - 1; i != SIZE_MAX; i--)
+          extras[i]->hash.serialise(bytes);
+      }
     }
 
     void serialise(size_t from, size_t to, std::vector<uint8_t>& bytes)
@@ -1034,26 +1030,30 @@ namespace merkle
         (to < min_index() || max_index() < to) || from > to)
         throw std::runtime_error("invalid leaf indices");
 
-      compute_root();
-
-      MERKLECPP_TRACE(MERKLECPP_TOUT << to_string(TRACE_HASH_SIZE)
-                                     << std::endl;);
-
       serialise_size_t(to - from + 1, bytes);
       serialise_size_t(from, bytes);
       for (size_t i = from; i <= to; i++)
         leaf(i).serialise(bytes);
 
-      // Find nodes to conflate/flush along the left edge of the tree.
-      std::vector<Node*> extras;
-      walk_to(from, false, [&extras](Node*& n, bool go_right) {
-        if (go_right)
-          extras.push_back(n->left);
-        return true;
-      });
+      if (!empty())
+      {
+        // Find nodes to conflate/flush along the left edge of the tree.
 
-      for (size_t i = extras.size() - 1; i != SIZE_MAX; i--)
-        extras[i]->hash.serialise(bytes);
+        compute_root();
+
+        MERKLECPP_TRACE(MERKLECPP_TOUT << to_string(TRACE_HASH_SIZE)
+                                       << std::endl;);
+
+        std::vector<Node*> extras;
+        walk_to(from, false, [&extras](Node*& n, bool go_right) {
+          if (go_right)
+            extras.push_back(n->left);
+          return true;
+        });
+
+        for (size_t i = extras.size() - 1; i != SIZE_MAX; i--)
+          extras[i]->hash.serialise(bytes);
+      }
     }
 
     void deserialise(const std::vector<uint8_t>& bytes)
@@ -1170,7 +1170,13 @@ namespace merkle
 
     size_t max_index() const
     {
-      return num_leaves() - 1;
+      auto n = num_leaves();
+      return n == 0 ? 0 : n - 1;
+    }
+
+    bool empty() const
+    {
+      return num_leaves() == 0;
     }
 
     size_t size()
@@ -1183,11 +1189,15 @@ namespace merkle
     size_t serialised_size()
     {
       size_t num_extras = 0;
-      walk_to(min_index(), false, [&num_extras](Node*&, bool go_right) {
-        if (go_right)
-          num_extras++;
-        return true;
-      });
+
+      if (!empty())
+      {
+        walk_to(min_index(), false, [&num_extras](Node*&, bool go_right) {
+          if (go_right)
+            num_extras++;
+          return true;
+        });
+      }
 
       return sizeof(leaf_nodes.size()) + sizeof(num_flushed) +
         leaf_nodes.size() * sizeof(Hash) + num_extras * sizeof(Hash);
@@ -1340,13 +1350,12 @@ namespace merkle
     void compute_root()
     {
       insert_leaves(true);
+      if (num_leaves() == 0)
+        throw std::runtime_error("empty tree does not have a root");
       assert(_root);
       assert(_root->invariant());
-      assert(_root->parent == nullptr);
       if (_root->dirty)
       {
-        if (num_leaves() == 0)
-          throw std::runtime_error("empty tree does not have a root");
         hash(_root);
         assert(_root && !_root->dirty);
       }
@@ -1359,11 +1368,7 @@ namespace merkle
       else
       {
         if (n->is_full())
-        {
-          Node* p = n->parent;
           n = Node::make(n, new_leaf);
-          n->parent = p;
-        }
         else
         {
           MERKLECPP_TRACE(MERKLECPP_TOUT << " @ "
@@ -1392,9 +1397,6 @@ namespace merkle
         if (n->is_full())
         {
           Node* result = Node::make(n, new_leaf);
-          assert(!insertion_stack.empty() || result->parent == nullptr);
-          if (!insertion_stack.empty())
-            result->parent = insertion_stack.back().n;
           insertion_stack.push_back(InsertionStackElement());
           insertion_stack.back().n = result;
           return;
