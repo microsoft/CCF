@@ -262,6 +262,11 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Disable session auth for members",
         action="store_true",
     )
+    parser.add_argument(
+        "--read-only-ledger-dir",
+        help="Location of read-only ledger directory",
+        type=str,
+    )
 
     add(parser)
 

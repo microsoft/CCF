@@ -29,6 +29,8 @@ def run(args):
         args.perf_nodes,
         pdb=args.pdb,
     ) as network:
+
+        args.read_only_ledger_dir = "/tmp/lalala"
         network.start_and_join(args)
 
         save_committed_ledger_files(network, args)

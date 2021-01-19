@@ -605,7 +605,14 @@ class CCFRemote(object):
             if self.ledger_dir
             else f"{local_node_id}.ledger"
         )
-        self.read_only_ledger_dir = read_only_ledger_dir
+        self.read_only_ledger_dir = (
+            os.path.normpath(read_only_ledger_dir) if ledger_dir else None
+        )
+        self.read_only_ledger_dir_name = (
+            os.path.basename(self.read_only_ledger_dir)
+            if self.read_only_ledger_dir
+            else f"{local_node_id}.ro.ledger"
+        )
 
         self.snapshot_dir = os.path.normpath(snapshot_dir) if snapshot_dir else None
         self.snapshot_dir_name = (
@@ -640,6 +647,7 @@ class CCFRemote(object):
             f"--rpc-address-file={self.rpc_address_path}",
             f"--public-rpc-address={make_address(pubhost, rpc_port)}",
             f"--ledger-dir={self.ledger_dir_name}",
+            f"--read-only-ledger-dir={self.read_only_ledger_dir_name}",
             f"--snapshot-dir={self.snapshot_dir_name}",
             f"--node-cert-file={self.pem}",
             f"--host-log-level={host_log_level}",
@@ -673,9 +681,9 @@ class CCFRemote(object):
             cmd += [f"--jwt-key-refresh-interval-s={jwt_key_refresh_interval_s}"]
 
         if self.read_only_ledger_dir is not None:
-            cmd += [
-                f"--read-only-ledger-dir={os.path.basename(self.read_only_ledger_dir)}"
-            ]
+            # cmd += [
+            #     f"--read-only-ledger-dir={os.path.basename(self.read_only_ledger_dir)}"
+            # ]
             data_files += [os.path.join(self.common_dir, self.read_only_ledger_dir)]
 
         if start_type == StartType.new:
@@ -819,7 +827,7 @@ class CCFRemote(object):
         return os.path.join(self.remote.root, self.ledger_dir_name)
 
     def ledger_read_only_path(self):
-        return os.path.join(self.remote.root, self.read_only_ledger_dir)
+        return os.path.join(self.remote.root, self.read_only_ledger_dir_name)
 
 
 class StartType(Enum):
