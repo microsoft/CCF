@@ -54,10 +54,9 @@ The ``app.json`` file of an app bundle has the following structure:
           "post": {
             "js_module": "app.js",
             "js_function": "foo_post",
-            "forwarding_required": "never",    
-            "execute_outside_consensus": "never",           
-            "require_client_signature": false, 
-            "require_client_identity": true,
+            "forwarding_required": "never",
+            "execute_outside_consensus": "never",
+            "authn_policies": ["user_cert"],
             "readonly": true,
             "openapi": {
               ...
@@ -71,6 +70,8 @@ The ``app.json`` file of an app bundle has the following structure:
 
 ``"endpoints"`` contains endpoint descriptions nested by REST API URL and HTTP method.
 Each endpoint object contains the following information:
+
+// TODO: Update these docs with authn_policies
 
 - ``"js_module"``: The path to the module containing the endpoint handler, relative to the ``src/`` folder.
 - ``"js_function"``: The name of the endpoint handler function.

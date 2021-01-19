@@ -68,9 +68,6 @@ namespace ccf
       ForwardingRequired forwarding_required = ForwardingRequired::Always;
       ExecuteOutsideConsensus execute_outside_consensus =
         ExecuteOutsideConsensus::Never;
-      bool require_client_signature = false;
-      bool require_client_identity = true;
-      bool require_jwt_authentication = false;
       std::vector<std::string> authn_policies = {};
 
       nlohmann::json openapi;
@@ -79,9 +76,6 @@ namespace ccf
       MSGPACK_DEFINE(
         forwarding_required,
         execute_outside_consensus,
-        require_client_signature,
-        require_client_identity,
-        require_jwt_authentication,
         authn_policies,
         openapi,
         openapi_hidden);
@@ -89,17 +83,9 @@ namespace ccf
 
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
     DECLARE_JSON_REQUIRED_FIELDS(
-      EndpointProperties,
-      forwarding_required);
+      EndpointProperties, forwarding_required, authn_policies);
     DECLARE_JSON_OPTIONAL_FIELDS(
-      EndpointProperties,
-      require_jwt_authentication,
-      openapi,
-      openapi_hidden,
-      authn_policies,
-      execute_outside_consensus,
-      require_client_signature,
-      require_client_identity);
+      EndpointProperties, openapi, openapi_hidden);
 
     struct EndpointDefinition
     {

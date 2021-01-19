@@ -790,6 +790,11 @@ namespace ccfapp
 
     static JSValue create_caller_obj(EndpointContext& args, JSContext* ctx)
     {
+      if (args.caller == nullptr)
+      {
+        return JS_NULL;
+      }
+
       auto caller = JS_NewObject(ctx);
 
       if (auto jwt_ident = args.try_get_caller<ccf::JwtAuthnIdentity>())
@@ -801,11 +806,18 @@ namespace ccfapp
           JS_NewString(ctx, get_policy_name_from_ident(jwt_ident)));
 
         auto jwt = JS_NewObject(ctx);
-        JS_SetPropertyStr(ctx, jwt, "key_issuer", JS_NewStringLen(ctx, jwt_ident->key_issuer.data(), jwt_ident->key_issuer.size()));
-        JS_SetPropertyStr(ctx, jwt, "header", create_json_obj(jwt_ident->header, ctx));
-        JS_SetPropertyStr(ctx, jwt, "payload", create_json_obj(jwt_ident->payload, ctx));
+        JS_SetPropertyStr(
+          ctx,
+          jwt,
+          "key_issuer",
+          JS_NewStringLen(
+            ctx, jwt_ident->key_issuer.data(), jwt_ident->key_issuer.size()));
+        JS_SetPropertyStr(
+          ctx, jwt, "header", create_json_obj(jwt_ident->header, ctx));
+        JS_SetPropertyStr(
+          ctx, jwt, "payload", create_json_obj(jwt_ident->payload, ctx));
         JS_SetPropertyStr(ctx, caller, "jwt", jwt);
-        
+
         return caller;
       }
       else if (
@@ -1262,34 +1274,15 @@ namespace ccfapp
 
     void instantiate_authn_policies(JSDynamicEndpoint& endpoint)
     {
-      if (!endpoint.properties.authn_policies.empty())
+      for (const auto& policy_name : endpoint.properties.authn_policies)
       {
-        for (const auto& policy_name : endpoint.properties.authn_policies)
+        auto policy = get_policy_by_name(policy_name);
+        if (policy == nullptr)
         {
-          auto policy = get_policy_by_name(policy_name);
-          if (policy == nullptr)
-          {
-            throw std::logic_error(
-              fmt::format("Unknown auth policy: {}", policy_name));
-          }
-          endpoint.authn_policies.push_back(std::move(policy));
+          throw std::logic_error(
+            fmt::format("Unknown auth policy: {}", policy_name));
         }
-      }
-      else
-      {
-        // TODO: Deprecate these?
-        if (endpoint.properties.require_client_identity)
-        {
-          endpoint.authn_policies.push_back(user_cert_auth_policy);
-        }
-        if (endpoint.properties.require_client_signature)
-        {
-          endpoint.authn_policies.push_back(user_signature_auth_policy);
-        }
-        if (endpoint.properties.require_jwt_authentication)
-        {
-          endpoint.authn_policies.push_back(jwt_auth_policy);
-        }
+        endpoint.authn_policies.push_back(std::move(policy));
       }
     }
 
