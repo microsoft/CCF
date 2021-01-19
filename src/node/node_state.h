@@ -1060,7 +1060,8 @@ namespace ccf
         self,
         *node_sign_kp,
         sig_tx_interval,
-        sig_ms_interval);
+        sig_ms_interval,
+        false /* No signature timer on recovery_history */);
 
 #ifdef USE_NULL_ENCRYPTOR
       recovery_encryptor = std::make_shared<kv::NullTxEncryptor>();
