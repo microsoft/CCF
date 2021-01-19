@@ -226,6 +226,14 @@ def test_multi_auth(network, args):
                 r = c.get("/app/multi_auth")
                 require_new_response(r)
 
+            LOG.info("Authenticate as same user, now with user data")
+            network.consortium.set_user_data(
+                primary, 0, {"some": ["interesting", "data", 42]}
+            )
+            with primary.client("user0") as c:
+                r = c.get("/app/multi_auth")
+                require_new_response(r)
+
             LOG.info("Authenticate as a different user, via TLS cert")
             with primary.client("user1") as c:
                 r = c.get("/app/multi_auth")
@@ -274,7 +282,9 @@ def test_multi_auth(network, args):
                 der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
                 data = {
                     "issuer": jwt_issuer,
-                    "jwks": {"keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]},
+                    "jwks": {
+                        "keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]
+                    },
                 }
                 json.dump(data, metadata_fp)
                 metadata_fp.flush()
