@@ -71,15 +71,26 @@ The ``app.json`` file of an app bundle has the following structure:
 ``"endpoints"`` contains endpoint descriptions nested by REST API URL and HTTP method.
 Each endpoint object contains the following information:
 
-// TODO: Update these docs with authn_policies
-
 - ``"js_module"``: The path to the module containing the endpoint handler, relative to the ``src/`` folder.
-- ``"js_function"``: The name of the endpoint handler function.
+- ``"js_function"``: The name of the endpoint handler function. This must be the name of a function exported by
+  the ``js_module``.
+- ``"authn_policies"``: A list of authentication policies to be applied before the endpoint is executed. See
+  :ref:`the description of authentication in C++ <build_apps/logging_cpp:Authentication>` for an explanation of how
+  these policies are applied. Possible values are:
+  
+  - ``"user_cert"``
+  - ``"user_sig"``
+  - ``"member_cert"``
+  - ``"member_sig"``
+  - ``"jwt"``
+  - ``"no_auth"``
+  
 - ``"forwarding_required"``, ``"execute_outside_consensus"``,
-  ``"require_client_signature"``, ``"require_client_identity"```,
   ``"readonly"``: Request execution policies, see **TODO**.
 - ``"openapi"``:  An `OpenAPI Operation Object <https://swagger.io/specification/#operation-object>`_ 
-  without `references <https://swagger.io/specification/#reference-object>`_.
+  without `references <https://swagger.io/specification/#reference-object>`_. This is descriptive but not
+  enforced - it will be inserted into the generated OpenAPI document for this service, but will not restrict the
+  types of the endpoint's requests or responses.
 
 You can find an example metadata file at
 `tests/js-app-bundle/app.json <https://github.com/microsoft/CCF/tree/master/tests/js-app-bundle/app.json>`_
@@ -128,6 +139,10 @@ A ``Request`` object has the following fields:
 - ``query``: The query string of the requested URL.
 - ``body``: An object with ``text()``/``json()``/``arrayBuffer()`` functions to access the
   request body in various ways.
+- ``caller``: An object describing the authenticated identity retrieved by this endpoint's authentication policies.
+  ``caller.policy`` is a string indicating which policy accepted this request, for use when multiple policies are
+  listed. The other fields depend on which policy accepted; most set ``caller.id``, ``caller.data``, and ``caller.cert``,
+  while the ``"jwt"`` policy sets ``caller.jwt``.
 
 A ``Response`` object can contain the following fields (all optional):
 

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- JS endpoints now list their auth policies by name, similar to C++ endpoints. The fields `require_client_identity`, `require_client_signature`, and `require_jwt_authentication` are removed, and should be replaced by `authn_policies`. Valid policies are `user_cert`, `user_sig`, `member_cert`, `member_sig`, `jwt`, and `no_auth`. For example, the previous default `"require_client_identity": true` should be replaced with `"authn_policies": ["user_cert"]`, an endpoint which would like to handle a JWT but will also accept unauthenticated requests would be `"authn_policies": ["jwt", "no_auth"]`, and a fully unauthenticated endpoint would be `"authn_policies": []`. The properties of the authenticated identity can be accessed inside the endpoint function as `request.caller`, for instance `request.caller.id` or `request.caller.jwt.payload`.
+- JS endpoints now list their auth policies by name, similar to C++ endpoints. The fields `require_client_identity`, `require_client_signature`, and `require_jwt_authentication` are removed, and should be replaced by `authn_policies`. For example, the previous default `"require_client_identity": true` should be replaced with `"authn_policies": ["user_cert"]`, an endpoint which would like to handle a JWT but will also accept unauthenticated requests would be `"authn_policies": ["jwt", "no_auth"]`, and a fully unauthenticated endpoint would be `"authn_policies": []`. See [docs](https://microsoft.github.io/CCF/master/build_apps/js_app_bundle.html#metadata) for further detail.
 
 ## [0.17.0]
 
