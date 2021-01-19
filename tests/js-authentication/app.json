@@ -10,6 +10,24 @@
         "readonly": true,
         "openapi": {}
       }
+    },
+    "/multi_auth": {
+      "get": {
+        "js_module": "endpoints.js",
+        "js_function": "multi_auth",
+        "forwarding_required": "sometimes",
+        "execute_outside_consensus": "never",
+        "authn_policies": [
+          "user_cert",
+          "user_sig",
+          "member_cert",
+          "member_sig",
+          "jwt",
+          "no_auth"
+        ],
+        "readonly": true,
+        "openapi": {}
+      }
     }
   }
 }
