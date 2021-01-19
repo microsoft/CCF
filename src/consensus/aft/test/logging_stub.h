@@ -222,6 +222,27 @@ namespace aft
       return kv::DeserialiseSuccess::PASS;
     }
 
+    class ExecutionWrapper : public kv::IExecutionWrapper
+    {
+    public:
+      kv::DeserialiseSuccess Execute() override
+      {
+        return kv::DeserialiseSuccess::PASS;
+      }
+    };
+
+    virtual std::unique_ptr<kv::IExecutionWrapper> deserialise_views_async(
+      const std::vector<uint8_t>& data,
+      kv::ConsensusHookPtrs& hooks,
+      bool public_only = false,
+      kv::Term* term = nullptr,
+      kv::Version* index = nullptr,
+      kv::AbstractChangeContainer* tx = nullptr,
+      ccf::PrimarySignature* sig = nullptr)
+    {
+      return std::make_unique<ExecutionWrapper>();
+    }
+
     std::shared_ptr<ccf::ProgressTracker> get_progress_tracker()
     {
       return nullptr;

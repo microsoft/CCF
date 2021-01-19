@@ -716,21 +716,15 @@ namespace kv
       ExecutionWrapper(
         Store* self_,
         const std::vector<uint8_t>& data_,
-        kv::Version& v_,
         Term* term_,
         Version* version_,
         ccf::PrimarySignature* sig_,
-        OrderedChanges changes_,
-        MapCollection new_maps_,
         kv::ConsensusHookPtrs& hooks_) :
         self(self_),
         data(data_),
-        v(v_),
         term(term_),
         version(version_),
         sig(sig_),
-        changes(std::move(changes_)),
-        new_maps(std::move(new_maps_)),
         hooks(hooks_)
       {}
 
@@ -753,7 +747,7 @@ namespace kv
 
       Store* self;
       const std::vector<uint8_t>& data;
-      kv::Version& v;
+      kv::Version v;
       Term* term;
       Version* version;
       ccf::PrimarySignature* sig;
@@ -762,13 +756,13 @@ namespace kv
       kv::ConsensusHookPtrs& hooks;
     };
 
-    std::unique_ptr<IExecutionWrapper> deserialise_views_async(
+    std::unique_ptr<kv::IExecutionWrapper> deserialise_views_async(
       const std::vector<uint8_t>& data,
       kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
-      Term* term_ = nullptr,
-      Version* index_ = nullptr,
-      AbstractChangeContainer* tx = nullptr,
+      kv::Term* term_ = nullptr,
+      kv::Version* index_ = nullptr,
+      kv::AbstractChangeContainer* tx = nullptr,
       ccf::PrimarySignature* sig = nullptr)
     {
       // If we pass in a transaction we don't want to commit, just deserialise
@@ -777,17 +771,14 @@ namespace kv
       // are using bft as the consensus
       auto commit = (tx == nullptr);
 
-      OrderedChanges changes;
-      MapCollection new_maps;
-      kv::Version v;
-      if (!fill_maps(data, public_only, v, changes, new_maps))
+      auto exec = std::make_unique<ExecutionWrapper>(
+        this, data, term_, index_, sig, hooks);
+      if (!fill_maps(data, public_only, exec->v, exec->changes, exec->new_maps))
       {
         // return DeserialiseSuccess::FAILED;
         return nullptr;
       }
 
-      auto exec = std::make_unique<ExecutionWrapper>(
-        this, data, v, term_, index_, sig, std::move(changes), std::move(new_maps), hooks);
       if (commit)
       {
         exec->fn = [](
@@ -856,7 +847,7 @@ namespace kv
           LOG_FAIL_FMT("Failed to deserialise");
           LOG_DEBUG_FMT(
             "Unexpected contents in bft transaction {}, size:{}",
-            v,
+            exec->v,
             exec->changes.size());
           return nullptr;
         }

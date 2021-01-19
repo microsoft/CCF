@@ -1114,8 +1114,19 @@ namespace aft
         kv::ConsensusHookPtrs hooks;
         if (consensus_type == ConsensusType::BFT)
         {
+            /*
           deserialise_success = store->deserialise_views(
             entry, hooks, public_only, &sig_term, &sig_index, &tx, &sig);
+          */
+          auto r = store->deserialise_views_async(
+            entry, hooks, public_only, &sig_term, &sig_index, &tx, &sig);
+
+          deserialise_success = kv::DeserialiseSuccess::FAILED;
+          if (r != nullptr)
+          {
+            deserialise_success = r->Execute();
+          }
+
         }
         else
         {

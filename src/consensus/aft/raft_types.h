@@ -55,6 +55,14 @@ namespace aft
       kv::Version* index_ = nullptr,
       kv::Tx* tx = nullptr,
       ccf::PrimarySignature* sig = nullptr) = 0;
+    virtual std::unique_ptr<kv::IExecutionWrapper> deserialise_views_async(
+      const std::vector<uint8_t>& data,
+      kv::ConsensusHookPtrs& hooks,
+      bool public_only = false,
+      kv::Term* term_ = nullptr,
+      kv::Version* index_ = nullptr,
+      kv::AbstractChangeContainer* tx = nullptr,
+      ccf::PrimarySignature* sig = nullptr) = 0;
     virtual std::shared_ptr<ccf::ProgressTracker> get_progress_tracker() = 0;
     virtual kv::Tx create_tx() = 0;
   };
@@ -144,6 +152,23 @@ namespace aft
           data, hooks, public_only, term, index, tx, sig);
       return S::FAILED;
     }
+
+    std::unique_ptr<kv::IExecutionWrapper> deserialise_views_async(
+      const std::vector<uint8_t>& data,
+      kv::ConsensusHookPtrs& hooks,
+      bool public_only = false,
+      kv::Term* term = nullptr,
+      kv::Version* index = nullptr,
+      kv::AbstractChangeContainer* tx = nullptr,
+      ccf::PrimarySignature* sig = nullptr) override
+      {
+        auto p = x.lock();
+        if (p)
+        {
+          return p->deserialise_views_async(data, hooks, public_only, term, index, tx, sig);
+        }
+      return nullptr;
+      }
   };
 
   enum RaftMsgType : Node2NodeMsg
