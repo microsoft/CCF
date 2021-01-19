@@ -84,8 +84,7 @@ namespace ccf
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
     DECLARE_JSON_REQUIRED_FIELDS(
       EndpointProperties, forwarding_required, authn_policies);
-    DECLARE_JSON_OPTIONAL_FIELDS(
-      EndpointProperties, openapi, openapi_hidden);
+    DECLARE_JSON_OPTIONAL_FIELDS(EndpointProperties, openapi, openapi_hidden);
 
     struct EndpointDefinition
     {
