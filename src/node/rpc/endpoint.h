@@ -71,6 +71,7 @@ namespace ccf
       bool require_client_signature = false;
       bool require_client_identity = true;
       bool require_jwt_authentication = false;
+      std::vector<std::string> authn_policies = {};
 
       nlohmann::json openapi;
       bool openapi_hidden = false;
@@ -81,6 +82,7 @@ namespace ccf
         require_client_signature,
         require_client_identity,
         require_jwt_authentication,
+        authn_policies,
         openapi,
         openapi_hidden);
     };
@@ -93,7 +95,11 @@ namespace ccf
       require_client_signature,
       require_client_identity);
     DECLARE_JSON_OPTIONAL_FIELDS(
-      EndpointProperties, require_jwt_authentication, openapi, openapi_hidden);
+      EndpointProperties,
+      require_jwt_authentication,
+      openapi,
+      openapi_hidden,
+      authn_policies);
 
     struct EndpointDefinition
     {

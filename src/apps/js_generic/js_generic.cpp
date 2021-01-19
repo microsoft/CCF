@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "enclave/app_interface.h"
 #include "kv/untyped_map.h"
+#include "named_auth_policies.h"
 #include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"
 #include "tls/entropy.h"
@@ -1161,6 +1162,39 @@ namespace ccfapp
       metrics_tracker.install_endpoint(*this);
     }
 
+    void instantiate_authn_policies(JSDynamicEndpoint& endpoint)
+    {
+      if (!endpoint.properties.authn_policies.empty())
+      {
+        for (const auto& policy_name : endpoint.properties.authn_policies)
+        {
+          auto policy = get_policy_by_name(policy_name);
+          if (policy == nullptr)
+          {
+            throw std::logic_error(
+              fmt::format("Unknown auth policy: {}", policy_name));
+          }
+          endpoint.authn_policies.push_back(std::move(policy));
+        }
+      }
+      else
+      {
+        // TODO: Deprecate these?
+        if (endpoint.properties.require_client_identity)
+        {
+          endpoint.authn_policies.push_back(user_cert_auth_policy);
+        }
+        if (endpoint.properties.require_client_signature)
+        {
+          endpoint.authn_policies.push_back(user_signature_auth_policy);
+        }
+        if (endpoint.properties.require_jwt_authentication)
+        {
+          endpoint.authn_policies.push_back(jwt_auth_policy);
+        }
+      }
+    }
+
     EndpointDefinitionPtr find_endpoint(
       kv::Tx& tx, enclave::RpcContext& rpc_ctx) override
     {
@@ -1179,20 +1213,7 @@ namespace ccfapp
         auto endpoint_def = std::make_shared<JSDynamicEndpoint>();
         endpoint_def->dispatch = key;
         endpoint_def->properties = it.value();
-
-        if (endpoint_def->properties.require_client_identity)
-        {
-          endpoint_def->authn_policies.push_back(user_cert_auth_policy);
-        }
-        if (endpoint_def->properties.require_client_signature)
-        {
-          endpoint_def->authn_policies.push_back(user_signature_auth_policy);
-        }
-        if (endpoint_def->properties.require_jwt_authentication)
-        {
-          endpoint_def->authn_policies.push_back(jwt_auth_policy);
-        }
-
+        instantiate_authn_policies(*endpoint_def);
         return endpoint_def;
       }
 
@@ -1203,7 +1224,7 @@ namespace ccfapp
         std::vector<EndpointDefinitionPtr> matches;
 
         endpoints_view->foreach(
-          [&matches, &key, &rpc_ctx](
+          [this, &matches, &key, &rpc_ctx](
             const auto& other_key, const auto& properties) {
             if (key.verb == other_key.verb)
             {
@@ -1238,6 +1259,7 @@ namespace ccfapp
                   auto endpoint = std::make_shared<JSDynamicEndpoint>();
                   endpoint->dispatch = other_key;
                   endpoint->properties = properties;
+                  instantiate_authn_policies(*endpoint);
                   matches.push_back(endpoint);
                 }
               }
