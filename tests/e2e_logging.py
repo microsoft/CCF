@@ -244,6 +244,14 @@ def test_multi_auth(network, args):
                 r = c.get("/app/multi_auth")
                 require_new_response(r)
 
+            LOG.info("Authenticate as same member, now with user data")
+            network.consortium.set_member_data(
+                primary, 0, {"distinct": {"arbitrary": ["data"]}}
+            )
+            with primary.client("member0") as c:
+                r = c.get("/app/multi_auth")
+                require_new_response(r)
+
             LOG.info("Authenticate as a different member, via TLS cert")
             with primary.client("member1") as c:
                 r = c.get("/app/multi_auth")

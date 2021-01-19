@@ -375,6 +375,15 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
+    def set_member_data(self, remote_node, member_id, member_data):
+        proposal, careful_vote = self.make_proposal(
+            "set_member_data",
+            member_id,
+            member_data,
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal)
+        self.vote_using_majority(remote_node, proposal, careful_vote)
+
     def set_js_app(self, remote_node, app_script_path):
         LOG.error(
             "set_js_app proposal type is deprecated - update to use deploy_js_app instead"
