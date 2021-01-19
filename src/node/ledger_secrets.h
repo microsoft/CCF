@@ -227,6 +227,11 @@ namespace ccf
     void rollback(kv::Version version)
     {
       std::lock_guard<SpinLock> guard(lock);
+      if (ledger_secrets.empty())
+      {
+        return;
+      }
+
       auto start = commit_key_it.value_or(ledger_secrets.begin());
       if (version < start->first)
       {
