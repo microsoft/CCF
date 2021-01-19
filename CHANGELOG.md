@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - `/network`, `/network_info`, `/node/ids`, `/primary_info` have been restructured into `/network`, `/network/nodes`, `/network/nodes/{id}`, `/network/nodes/self`, `/network/nodes/primary` while also changing the response schemas (#1954).
+- `/ack` responds with HTTP status `204` now instead of `200` and `true` as body (#2088).
+- `/recovery_share` has new request and response schemas (#2089).
 
 ## [0.16.3]
 
@@ -633,6 +635,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.17.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.17.0
 [0.16.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.16.3
 [0.16.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.16.2
 [0.16.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.16.1

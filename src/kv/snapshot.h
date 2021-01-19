@@ -44,7 +44,9 @@ namespace kv
       // Set the execution dependency for the snapshot to be the version
       // previous to said snapshot to ensure that the correct snapshot is
       // serialized.
-      KvStoreSerialiser serialiser(encryptor, version, version - 1, true);
+      // Note: Snapshots are always taken at compacted state so version only is
+      // unique enough to prevent IV reuse
+      KvStoreSerialiser serialiser(encryptor, {0, version}, version - 1, true);
 
       if (hash_at_snapshot.has_value())
       {

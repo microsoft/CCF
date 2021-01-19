@@ -19,7 +19,7 @@ namespace crypto
     uint8_t iv[SIZE_IV] = {};
 
     // 12 bytes IV with 8 LSB are unique sequence number
-    // and 4 MSB are 4 LSB of unique id (Node id or View)
+    // and 4 MSB are 4 LSB of term (with last bit indicating a snapshot)
     constexpr static uint8_t IV_DELIMITER = 8;
     constexpr static size_t RAW_DATA_SIZE = sizeof(tag) + sizeof(iv);
 
@@ -40,16 +40,16 @@ namespace crypto
       *reinterpret_cast<uint64_t*>(iv) = seq;
     }
 
-    void set_iv_id(uint64_t id)
+    void set_iv_term(uint64_t term)
     {
-      if (id > 0x7FFFFFFF)
+      if (term > 0x7FFFFFFF)
       {
-        throw std::logic_error(
-          fmt::format("id should fit in 31 bits of IV. Value is: 0x{0:x}", id));
+        throw std::logic_error(fmt::format(
+          "term should fit in 31 bits of IV. Value is: 0x{0:x}", term));
       }
 
       *reinterpret_cast<uint32_t*>(iv + IV_DELIMITER) =
-        static_cast<uint32_t>(id);
+        static_cast<uint32_t>(term);
     }
 
     void set_iv_snapshot(bool is_snapshot)

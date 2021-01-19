@@ -829,24 +829,18 @@ namespace ccf
         {"trust_node",
          [this](
            ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
-           const auto id = args.get<NodeId>();
-           auto nodes = tx.get_view(this->network.nodes);
-           auto node_info = nodes->get(id);
-           if (!node_info.has_value())
+           const auto node_id = args.get<NodeId>();
+           try
            {
-             LOG_FAIL_FMT(
-               "Proposal {}: Node {} does not exist", proposal_id, id);
+             GenesisGenerator g(network, tx);
+             g.trust_node(
+               node_id, network.ledger_secrets->get_latest(tx).first);
+           }
+           catch (const std::logic_error& e)
+           {
+             LOG_FAIL_FMT("Proposal {} failed: {}", proposal_id, e.what());
              return false;
            }
-           if (node_info->status == NodeStatus::RETIRED)
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: Node {} is already retired", proposal_id, id);
-             return false;
-           }
-           node_info->status = NodeStatus::TRUSTED;
-           nodes->put(id, node_info.value());
-           LOG_INFO_FMT("Node {} is now {}", id, node_info->status);
            return true;
          }},
         // retire a node
@@ -1183,13 +1177,13 @@ namespace ccf
       return get_path_param(params, "member_id", member_id, error);
     }
 
-    NetworkTables& network;
+    NetworkState& network;
     ShareManager& share_manager;
     const MemberTsr tsr;
 
   public:
     MemberEndpoints(
-      NetworkTables& network,
+      NetworkState& network,
       AbstractNodeState& node_state,
       ShareManager& share_manager) :
       CommonEndpointRegistry(
@@ -1666,10 +1660,10 @@ namespace ccf
               fmt::format("Error issuing new recovery shares: {}", e.what()));
           }
         }
-        return make_success(true);
+        return make_success();
       };
       make_endpoint("ack", HTTP_POST, json_adapter(ack), member_sig_only)
-        .set_auto_schema<StateDigest, bool>()
+        .set_auto_schema<StateDigest, void>()
         .install();
 
       //! A member asks for a fresher state digest
@@ -1729,47 +1723,50 @@ namespace ccf
             fmt::format("Recovery share not found for member {}.", member_id));
         }
 
-        return make_success(tls::b64_from_raw(encrypted_share.value()));
+        return make_success(
+          GetRecoveryShare::Out{tls::b64_from_raw(encrypted_share.value())});
       };
       make_endpoint(
         "recovery_share",
         HTTP_GET,
         json_adapter(get_encrypted_recovery_share),
         member_cert_or_sig)
-        .set_auto_schema<void, std::string>()
+        .set_auto_schema<GetRecoveryShare>()
         .install();
 
-      auto submit_recovery_share = [this](EndpointContext& ctx) {
+      auto submit_recovery_share = [this](
+                                     EndpointContext& ctx,
+                                     nlohmann::json&& params) {
         // Only active members can submit their shares for recovery
         const auto member_id = get_caller_member_id(ctx);
         if (!check_member_active(ctx.tx, member_id))
         {
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
-          ctx.rpc_ctx->set_response_body("Member is not active");
-          return;
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            errors::AuthorizationFailed,
+            "Member is not active");
         }
 
         GenesisGenerator g(this->network, ctx.tx);
         if (
           g.get_service_status() != ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
         {
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
-          ctx.rpc_ctx->set_response_body(
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            errors::ServiceNotWaitingForRecoveryShares,
             "Service is not waiting for recovery shares");
-          return;
         }
 
         if (node.is_reading_private_ledger())
         {
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
-          ctx.rpc_ctx->set_response_body(
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            errors::NodeAlreadyRecovering,
             "Node is already recovering private ledger");
-          return;
         }
 
-        const auto& in = ctx.rpc_ctx->get_request_body();
-        const auto s = std::string(in.begin(), in.end());
-        auto raw_recovery_share = tls::raw_from_b64(s);
+        const auto in = params.get<SubmitRecoveryShare::In>();
+        auto raw_recovery_share = tls::raw_from_b64(in.share);
 
         size_t submitted_shares_count = 0;
         try
@@ -1782,23 +1779,20 @@ namespace ccf
           constexpr auto error_msg = "Error submitting recovery shares";
           LOG_FAIL_FMT(error_msg);
           LOG_DEBUG_FMT("Error: {}", e.what());
-          ctx.rpc_ctx->set_error(
+          return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             errors::InternalError,
             error_msg);
-          return;
         }
 
         if (submitted_shares_count < g.get_recovery_threshold())
         {
           // The number of shares required to re-assemble the secret has not yet
           // been reached
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          ctx.rpc_ctx->set_response_body(fmt::format(
+          return make_success(SubmitRecoveryShare::Out{fmt::format(
             "{}/{} recovery shares successfully submitted.",
             submitted_shares_count,
-            g.get_recovery_threshold()));
-          return;
+            g.get_recovery_threshold())});
         }
 
         LOG_DEBUG_FMT(
@@ -1817,25 +1811,26 @@ namespace ccf
           LOG_DEBUG_FMT("Error: {}", e.what());
           share_manager.clear_submitted_recovery_shares(ctx.tx);
           ctx.rpc_ctx->set_apply_writes(true);
-          ctx.rpc_ctx->set_error(
+          return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             errors::InternalError,
             error_msg);
-          return;
         }
 
         share_manager.clear_submitted_recovery_shares(ctx.tx);
 
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        ctx.rpc_ctx->set_response_body(fmt::format(
+        return make_success(SubmitRecoveryShare::Out{fmt::format(
           "{}/{} recovery shares successfully submitted. End of recovery "
           "procedure initiated.",
           submitted_shares_count,
-          g.get_recovery_threshold()));
+          g.get_recovery_threshold())});
       };
       make_endpoint(
-        "recovery_share", HTTP_POST, submit_recovery_share, member_cert_or_sig)
-        .set_auto_schema<std::string, std::string>()
+        "recovery_share",
+        HTTP_POST,
+        json_adapter(submit_recovery_share),
+        member_cert_or_sig)
+        .set_auto_schema<SubmitRecoveryShare>()
         .install();
 
       auto create = [this](kv::Tx& tx, nlohmann::json&& params) {
@@ -2029,7 +2024,7 @@ namespace ccf
 
   public:
     MemberRpcFrontend(
-      NetworkTables& network,
+      NetworkState& network,
       AbstractNodeState& node,
       ShareManager& share_manager) :
       RpcFrontend(*network.tables, member_endpoints),

@@ -42,9 +42,7 @@ ValueType gen_value(size_t i)
 std::shared_ptr<ccf::LedgerSecrets> create_ledger_secrets()
 {
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
-  auto new_secret = ccf::LedgerSecret();
   secrets->init();
-
   return secrets;
 }
 
@@ -66,8 +64,7 @@ static void serialise(picobench::state& s)
 
   kv::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
-  encryptor->set_iv_id(1);
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
 
   auto map0 = build_map_name("map0", SD);
@@ -101,8 +98,7 @@ static void deserialise(picobench::state& s)
   kv::Store kv_store2;
 
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
-  encryptor->set_iv_id(1);
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
   kv_store2.set_encryptor(encryptor);
 
@@ -137,8 +133,7 @@ static void commit_latency(picobench::state& s)
 
   kv::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
-  encryptor->set_iv_id(1);
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
 
   auto map0 = "map0";
@@ -175,8 +170,7 @@ static void ser_snap(picobench::state& s)
 
   kv::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
-  encryptor->set_iv_id(1);
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
 
   auto tx = kv_store.create_tx();
@@ -210,8 +204,7 @@ static void des_snap(picobench::state& s)
   kv::Store kv_store;
   kv::Store kv_store2;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
-  encryptor->set_iv_id(1);
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
   kv_store2.set_encryptor(encryptor);
 

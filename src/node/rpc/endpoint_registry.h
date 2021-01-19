@@ -225,16 +225,22 @@ namespace ccf
         return *this;
       }
 
+      http_status success_status = HTTP_STATUS_OK;
+
       nlohmann::json result_schema = nullptr;
 
       /** Sets the JSON schema that the request response must comply with.
        *
        * @param j Request response JSON schema
+       * @param status Request response status code
        * @return This Endpoint for further modification
        */
-      Endpoint& set_result_schema(const nlohmann::json& j)
+      Endpoint& set_result_schema(
+        const nlohmann::json& j,
+        std::optional<http_status> status = std::nullopt)
       {
         result_schema = j;
+        success_status = status.value_or(HTTP_STATUS_OK);
 
         schema_builders.push_back(
           [j](nlohmann::json& document, const EndpointPtr& endpoint) {
@@ -249,13 +255,10 @@ namespace ccf
               path_operation(
                 ds::openapi::path(document, endpoint->dispatch.uri_path),
                 http_verb.value()),
-              HTTP_STATUS_OK);
+              endpoint->success_status);
 
-            if (endpoint->result_schema != nullptr)
-            {
-              schema(media_type(r, http::headervalues::contenttype::JSON)) =
-                endpoint->result_schema;
-            }
+            schema(media_type(r, http::headervalues::contenttype::JSON)) =
+              endpoint->result_schema;
           });
 
         return *this;
@@ -272,10 +275,12 @@ namespace ccf
        *
        * @tparam In Request parameters JSON-serialisable data structure
        * @tparam Out Request response JSON-serialisable data structure
+       * @param status Request response status code
        * @return This Endpoint for further modification
        */
       template <typename In, typename Out>
-      Endpoint& set_auto_schema()
+      Endpoint& set_auto_schema(
+        std::optional<http_status> status = std::nullopt)
       {
         if constexpr (!std::is_same_v<In, void>)
         {
@@ -318,6 +323,8 @@ namespace ccf
 
         if constexpr (!std::is_same_v<Out, void>)
         {
+          success_status = status.value_or(HTTP_STATUS_OK);
+
           result_schema =
             ds::json::build_schema<Out>(dispatch.uri_path + "/result");
 
@@ -333,12 +340,13 @@ namespace ccf
                 document,
                 endpoint->dispatch.uri_path,
                 http_verb.value(),
-                HTTP_STATUS_OK,
+                endpoint->success_status,
                 http::headervalues::contenttype::JSON);
             });
         }
         else
         {
+          success_status = status.value_or(HTTP_STATUS_NO_CONTENT);
           result_schema = nullptr;
         }
 
@@ -356,12 +364,14 @@ namespace ccf
        *
        * @tparam T Request parameters and response JSON-serialisable data
        * structure
+       * @param status Request response status code
        * @return This Endpoint for further modification
        */
       template <typename T>
-      Endpoint& set_auto_schema()
+      Endpoint& set_auto_schema(
+        std::optional<http_status> status = std::nullopt)
       {
-        return set_auto_schema<typename T::In, typename T::Out>();
+        return set_auto_schema<typename T::In, typename T::Out>(status);
       }
 
       /** Overrides whether a Endpoint is always forwarded, or whether it is
@@ -707,7 +717,7 @@ namespace ccf
       // defined, assume this can return 200
       if (ds::openapi::responses(path_op).empty())
       {
-        ds::openapi::response(path_op, HTTP_STATUS_OK);
+        ds::openapi::response(path_op, endpoint->success_status);
       }
 
       if (!endpoint->authn_policies.empty())
