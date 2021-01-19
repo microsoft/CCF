@@ -263,9 +263,10 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         action="store_true",
     )
     parser.add_argument(
-        "--read-only-ledger-dir",
-        help="Location of read-only ledger directory",
+        "--common-read-only-ledger-dir",
+        help="Location of read-only ledger directory available to all nodes",
         type=str,
+        default=None,
     )
 
     add(parser)
