@@ -166,7 +166,7 @@ class Member:
                 "r",
             ) as priv_enc_key:
                 return infra.crypto.unwrap_key_rsa_oaep(
-                    base64.b64decode(r.body.text()),
+                    base64.b64decode(r.body.json()["encrypted_share"]),
                     priv_enc_key.read(),
                 )
 
