@@ -1,8 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "ds/serialized.h"
 #include "host/ledger.h"
+
+#include "ds/serialized.h"
 #include "host/snapshot.h"
 
 #include <doctest/doctest.h>
@@ -1009,7 +1010,6 @@ TEST_CASE("Delete committed file from main directory")
 
   INFO("Move committed files back to read-only ledger directory");
   {
-    // Move all committed files back to read-only ledger directory
     move_all_from_to(
       ledger_dir_tmp, ledger_dir_read_only, ledger_committed_suffix);
 
