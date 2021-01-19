@@ -560,6 +560,19 @@ if(BUILD_TESTS)
       --enforce-reqs
       --test-suite
       reconfiguration
+      --raft-election-timeout
+      4000
+  )
+
+  add_e2e_test(
+    NAME reconfiguration_rekey_test_suite
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+    CONSENSUS cft
+    LABEL suite
+    ADDITIONAL_ARGS
+      --test-duration
+      200
+      --enforce-reqs
       --test-suite
       rekey_reconfiguration
       --raft-election-timeout
