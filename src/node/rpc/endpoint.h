@@ -90,16 +90,16 @@ namespace ccf
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
     DECLARE_JSON_REQUIRED_FIELDS(
       EndpointProperties,
-      forwarding_required,
-      execute_outside_consensus,
-      require_client_signature,
-      require_client_identity);
+      forwarding_required);
     DECLARE_JSON_OPTIONAL_FIELDS(
       EndpointProperties,
       require_jwt_authentication,
       openapi,
       openapi_hidden,
-      authn_policies);
+      authn_policies,
+      execute_outside_consensus,
+      require_client_signature,
+      require_client_identity);
 
     struct EndpointDefinition
     {

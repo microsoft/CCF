@@ -6,9 +6,7 @@
         "js_function": "jwt",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": false,
-        "require_jwt_authentication": true,
+        "authn_policies": ["jwt"],
         "readonly": true,
         "openapi": {}
       }
