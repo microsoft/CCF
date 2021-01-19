@@ -1106,35 +1106,16 @@ namespace aft
 
         state->last_idx = i;
 
-        Term sig_term = 0;
-        Index sig_index = 0;
-        auto tx = store->create_tx();
-        kv::DeserialiseSuccess deserialise_success;
-        ccf::PrimarySignature sig;
-        kv::ConsensusHookPtrs hooks;
-        if (consensus_type == ConsensusType::BFT)
-        {
-            /*
-          deserialise_success = store->deserialise_views(
-            entry, hooks, public_only, &sig_term, &sig_index, &tx, &sig);
-          */
-          auto r = store->deserialise_views_async(
-            entry, hooks, public_only, &sig_term, &sig_index, &tx, &sig);
+        auto ds =
+          store->deserialise_views_async(entry, consensus_type, public_only);
 
-          deserialise_success = kv::DeserialiseSuccess::FAILED;
-          if (r != nullptr)
-          {
-            deserialise_success = r->Execute();
-          }
-
-        }
-        else
+        kv::DeserialiseSuccess deserialise_success = kv::DeserialiseSuccess::FAILED;
+        if (ds != nullptr)
         {
-          deserialise_success =
-            store->deserialise(entry, hooks, public_only, &sig_term);
+          deserialise_success = ds->Execute();
         }
 
-        for (auto& hook : hooks)
+        for (auto& hook : ds->get_hooks())
         {
           hook->call(this);
         }
@@ -1147,7 +1128,7 @@ namespace aft
           force_ledger_chunk = snapshotter->record_committable(i);
         }
 
-        ledger->put_entry(entry, globally_committable, force_ledger_chunk);
+        ledger->put_entry(ds->get_entry(), globally_committable, force_ledger_chunk);
 
         switch (deserialise_success)
         {
@@ -1167,7 +1148,7 @@ namespace aft
             auto prev_lci = last_committable_index();
             committable_indices.push_back(i);
 
-            if (sig_term)
+            if (ds->get_term())
             {
               // A signature for sig_term tells us that all transactions from
               // the previous signature onwards (at least, if not further back)
@@ -1175,12 +1156,12 @@ namespace aft
               if (r.term_of_idx == aft::ViewHistory::InvalidView)
                 state->view_history.update(1, r.term);
               else
-                state->view_history.update(prev_lci + 1, sig_term);
+                state->view_history.update(prev_lci + 1, ds->get_term());
               commit_if_possible(r.leader_commit_idx);
             }
             if (consensus_type == ConsensusType::BFT)
             {
-              send_append_entries_signed_response(r.from_node, sig);
+              send_append_entries_signed_response(r.from_node, ds->get_signature());
             }
             break;
           }
@@ -1191,7 +1172,7 @@ namespace aft
           }
           case kv::DeserialiseSuccess::PASS_NEW_VIEW:
           {
-            view_change_tracker->clear(get_primary(sig_term) == id(), sig_term);
+            view_change_tracker->clear(get_primary(ds->get_term()) == id(), ds->get_term());
             request_tracker->clear();
             break;
           }
@@ -1199,7 +1180,7 @@ namespace aft
           case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
           {
             try_send_sig_ack(
-              {sig_term, sig_index},
+              {ds->get_term(), ds->get_index()},
               kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK);
             break;
           }
@@ -1218,7 +1199,7 @@ namespace aft
             if (consensus_type == ConsensusType::BFT)
             {
               state->last_idx = executor->commit_replayed_request(
-                tx, request_tracker, state->commit_idx);
+                ds->get_tx(), request_tracker, state->commit_idx);
             }
             break;
           }

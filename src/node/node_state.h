@@ -700,9 +700,9 @@ namespace ccf
       LOG_INFO_FMT(
         "Deserialising public ledger entry ({})", ledger_entry.size());
 
-      kv::ConsensusHookPtrs hooks;
       // When reading the public ledger, deserialise in the real store
-      auto result = network.tables->deserialise(ledger_entry, hooks, true);
+      auto r = network.tables->deserialise_views_async(ledger_entry, ConsensusType::CFT, true);
+      auto result = r->Execute();
       if (result == kv::DeserialiseSuccess::FAILED)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
@@ -717,7 +717,7 @@ namespace ccf
       }
 
       // Not synchronised because consensus isn't effectively running then
-      for (auto& hook : hooks)
+      for (auto& hook : r->get_hooks())
       {
         hook->call(consensus.get());
       }
@@ -942,9 +942,8 @@ namespace ccf
       LOG_INFO_FMT(
         "Deserialising private ledger entry ({})", ledger_entry.size());
 
-      kv::ConsensusHookPtrs hooks;
       // When reading the private ledger, deserialise in the recovery store
-      auto result = recovery_store->deserialise(ledger_entry, hooks);
+      auto result = recovery_store->deserialise_views_async(ledger_entry, ConsensusType::CFT)->Execute();
       if (result == kv::DeserialiseSuccess::FAILED)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in private ledger");

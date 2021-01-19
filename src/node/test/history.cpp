@@ -30,8 +30,7 @@ public:
     if (store)
     {
       REQUIRE(entries.size() == 1);
-      kv::ConsensusHookPtrs hooks;
-      return store->deserialise(*std::get<1>(entries[0]), hooks);
+      return store->deserialise_views_async(*std::get<1>(entries[0]), ConsensusType::CFT)->Execute();
     }
     return true;
   }

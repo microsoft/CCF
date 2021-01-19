@@ -201,8 +201,8 @@ namespace ccf::historical
         true /* Make use of historical secrets */);
 
       store->set_encryptor(source_store.get_encryptor());
-      kv::ConsensusHookPtrs hooks;
-      const auto deserialise_result = store->deserialise_views(entry, hooks);
+      const auto deserialise_result =
+        store->deserialise_views_async(entry, ConsensusType::CFT)->Execute();
 
       switch (deserialise_result)
       {

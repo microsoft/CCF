@@ -947,8 +947,7 @@ TEST_CASE("Deserialising from other Store")
   kv::Store clone;
   clone.set_encryptor(encryptor);
 
-  kv::ConsensusHookPtrs hooks_;
-  REQUIRE(clone.deserialise(data, hooks_) == kv::DeserialiseSuccess::PASS);
+  REQUIRE(clone.deserialise_views_async(data, ConsensusType::CFT)->Execute() == kv::DeserialiseSuccess::PASS);
 }
 
 TEST_CASE("Deserialise return status")
@@ -971,8 +970,7 @@ TEST_CASE("Deserialise return status")
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    kv::ConsensusHookPtrs hooks_;
-    REQUIRE(store.deserialise(data, hooks_) == kv::DeserialiseSuccess::PASS);
+    REQUIRE(store.deserialise_views_async(data, ConsensusType::CFT)->Execute() == kv::DeserialiseSuccess::PASS);
   }
 
   {
@@ -983,9 +981,8 @@ TEST_CASE("Deserialise return status")
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    kv::ConsensusHookPtrs hooks_;
     REQUIRE(
-      store.deserialise(data, hooks_) ==
+      store.deserialise_views_async(data, ConsensusType::CFT)->Execute() ==
       kv::DeserialiseSuccess::PASS_SIGNATURE);
   }
 
@@ -999,8 +996,7 @@ TEST_CASE("Deserialise return status")
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    kv::ConsensusHookPtrs hooks_;
-    REQUIRE(store.deserialise(data, hooks_) == kv::DeserialiseSuccess::FAILED);
+    REQUIRE(store.deserialise_views_async(data, ConsensusType::CFT)->Execute() == kv::DeserialiseSuccess::FAILED);
   }
 }
 

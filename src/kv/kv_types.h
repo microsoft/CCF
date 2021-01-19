@@ -523,11 +523,19 @@ namespace kv
     virtual void swap(AbstractMap* map) = 0;
   };
 
+  class Tx;
+
   class IExecutionWrapper
   {
   public:
     virtual ~IExecutionWrapper() = default;
     virtual kv::DeserialiseSuccess Execute() = 0;
+    virtual kv::ConsensusHookPtrs& get_hooks() = 0;
+    virtual const std::vector<uint8_t>& get_entry() = 0;
+    virtual kv::Term get_term() = 0;
+    virtual kv::Version get_index() = 0;
+    virtual ccf::PrimarySignature& get_signature() = 0;
+    virtual kv::Tx& get_tx() = 0;
   };
 
   class AbstractStore
@@ -564,17 +572,10 @@ namespace kv
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;
     virtual EncryptorPtr get_encryptor() = 0;
-    virtual DeserialiseSuccess deserialise(
-      const std::vector<uint8_t>& data,
-      ConsensusHookPtrs& hooks,
-      bool public_only = false,
-      kv::Term* term = nullptr) = 0;
-    virtual std::unique_ptr<IExecutionWrapper> deserialise_async(
-      const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
-      bool public_only = false,
-      kv::Term* term = nullptr) = 0;
-
+    virtual std::unique_ptr<IExecutionWrapper> deserialise_views_async(
+      const std::vector<uint8_t> data,
+      ConsensusType consensus_type,
+      bool public_only = false) = 0;
     virtual void compact(Version v) = 0;
     virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;

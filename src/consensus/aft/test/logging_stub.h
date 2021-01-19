@@ -225,22 +225,53 @@ namespace aft
     class ExecutionWrapper : public kv::IExecutionWrapper
     {
     public:
+      ExecutionWrapper(const std::vector<uint8_t>& data_) : data(data_) {}
+
       kv::DeserialiseSuccess Execute() override
       {
         return kv::DeserialiseSuccess::PASS;
       }
+
+      kv::ConsensusHookPtrs& get_hooks() override
+      {
+        return hooks;
+      }
+
+      const std::vector<uint8_t>& get_entry() override
+      {
+        return data;
+      }
+
+      Term get_term() override
+      {
+        return 0;
+      }
+
+      kv::Version get_index() override
+      {
+        return 0;
+      }
+      ccf::PrimarySignature& get_signature() override
+      {
+        throw std::logic_error("3. Not Implemented");
+      }
+
+      kv::Tx& get_tx() override
+      {
+        throw std::logic_error("4. Not Implemented");
+      }
+    private:
+      const std::vector<uint8_t>& data;
+      kv::ConsensusHookPtrs hooks;
+
     };
 
     virtual std::unique_ptr<kv::IExecutionWrapper> deserialise_views_async(
       const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
-      bool public_only = false,
-      kv::Term* term = nullptr,
-      kv::Version* index = nullptr,
-      kv::AbstractChangeContainer* tx = nullptr,
-      ccf::PrimarySignature* sig = nullptr)
+      ConsensusType consensus_type,
+      bool public_only = false)
     {
-      return std::make_unique<ExecutionWrapper>();
+      return std::make_unique<ExecutionWrapper>(data);
     }
 
     std::shared_ptr<ccf::ProgressTracker> get_progress_tracker()

@@ -715,22 +715,44 @@ namespace kv
     public:
       ExecutionWrapper(
         Store* self_,
-        const std::vector<uint8_t>& data_,
-        Term* term_,
-        Version* version_,
-        ccf::PrimarySignature* sig_,
-        kv::ConsensusHookPtrs& hooks_) :
+        const std::vector<uint8_t>& data_) :
         self(self_),
-        data(data_),
-        term(term_),
-        version(version_),
-        sig(sig_),
-        hooks(hooks_)
+        data(data_)
       {}
 
       DeserialiseSuccess Execute() override
       {
-        return fn(self, data, v, term, version, sig, changes, new_maps, hooks);
+        return fn(self, data, v, &term, &version, &sig, changes, new_maps, hooks);
+      }
+
+      kv::ConsensusHookPtrs& get_hooks() override
+      {
+        return hooks;
+      }
+
+      const std::vector<uint8_t>& get_entry() override
+      {
+        return data;
+      }
+
+      Term get_term() override
+      {
+        return term;
+      }
+
+      kv::Version get_index() override
+      {
+        return version;
+      }
+
+      ccf::PrimarySignature& get_signature() override
+      {
+        return sig;
+      }
+
+      Tx& get_tx() override
+      {
+        return *tx;
       }
 
       std::function<DeserialiseSuccess(
@@ -746,40 +768,29 @@ namespace kv
         fn = nullptr;
 
       Store* self;
-      const std::vector<uint8_t>& data;
+      const std::vector<uint8_t> data;
       kv::Version v;
-      Term* term;
-      Version* version;
-      ccf::PrimarySignature* sig;
+      Term term;
+      Version version;
+      ccf::PrimarySignature sig;
       OrderedChanges changes;
       MapCollection new_maps;
-      kv::ConsensusHookPtrs& hooks;
+      kv::ConsensusHookPtrs hooks;
+      std::unique_ptr<Tx> tx;
     };
 
     std::unique_ptr<kv::IExecutionWrapper> deserialise_views_async(
-      const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
-      bool public_only = false,
-      kv::Term* term_ = nullptr,
-      kv::Version* index_ = nullptr,
-      kv::AbstractChangeContainer* tx = nullptr,
-      ccf::PrimarySignature* sig = nullptr)
+      const std::vector<uint8_t> data,
+      ConsensusType consensus_type,
+      bool public_only = false) override
     {
-      // If we pass in a transaction we don't want to commit, just deserialise
-      // and put the views into that transaction.
-      // Tread carefully here: at the moment passing in a transaction assumes we
-      // are using bft as the consensus
-      auto commit = (tx == nullptr);
-
-      auto exec = std::make_unique<ExecutionWrapper>(
-        this, data, term_, index_, sig, hooks);
+      auto exec = std::make_unique<ExecutionWrapper>(this, std::move(data));
       if (!fill_maps(data, public_only, exec->v, exec->changes, exec->new_maps))
       {
-        // return DeserialiseSuccess::FAILED;
         return nullptr;
       }
 
-      if (commit)
+      if (consensus_type == ConsensusType::CFT)
       {
         exec->fn = [](
                     Store* self,
@@ -1016,7 +1027,8 @@ namespace kv
         }
         else if (exec->changes.find(ccf::Tables::AFT_REQUESTS) != exec->changes.end())
         {
-          tx->set_change_list(std::move(exec->changes), term);
+          exec->tx = std::make_unique<Tx>(this);
+          exec->tx->set_change_list(std::move(exec->changes), term);
           exec->fn = [](
                        Store*,
                        const std::vector<uint8_t>&,
@@ -1042,47 +1054,6 @@ namespace kv
       }
 
       return exec;
-    }
-
-    DeserialiseSuccess deserialise_views(
-      const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
-      bool public_only = false,
-      Term* term_ = nullptr,
-      Version* index_ = nullptr,
-      AbstractChangeContainer* tx = nullptr,
-      ccf::PrimarySignature* sig = nullptr)
-    {
-      auto r = deserialise_views_async(data, hooks, public_only, term_, index_, tx, sig);
-
-      if (r == nullptr)
-      {
-        return DeserialiseSuccess::FAILED;
-      }
-      return r->Execute();
-    }
-
-    std::unique_ptr<IExecutionWrapper> deserialise_async(
-      const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
-      bool public_only = false,
-      Term* term = nullptr) override
-    {
-      return deserialise_views_async(data, hooks, public_only, term);
-    }
-
-    DeserialiseSuccess deserialise(
-      const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
-      bool public_only = false,
-      kv::Term* term = nullptr) override
-    {
-      auto r = deserialise_views_async(data, hooks, public_only, term);
-      if (r == nullptr)
-      {
-        return DeserialiseSuccess::FAILED;
-      }
-      return r->Execute();
     }
 
     bool operator==(const Store& that) const
