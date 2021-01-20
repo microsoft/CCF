@@ -206,27 +206,7 @@ namespace client
 
   private:
     tls::Pem key = {};
-    std::shared_ptr<tls::Cert> tls_cert;
-
-    // Create tls_cert if it doesn't exist, and return it
-    bool get_cert()
-    {
-      if (tls_cert == nullptr)
-      {
-        const auto raw_cert = files::slurp(options.cert_file);
-        const auto raw_key = files::slurp(options.key_file);
-        const auto ca = files::slurp(options.ca_file);
-
-        key = tls::Pem(raw_key);
-
-        tls_cert = std::make_shared<tls::Cert>(
-          std::make_shared<tls::CA>(ca), raw_cert, key);
-
-        return true;
-      }
-
-      return false;
-    }
+    std::shared_ptr<tls::Cert> tls_cert = nullptr;
 
     // Process reply to an RPC. Records time reply was received. Calls
     // check_response for derived-overridable validation
@@ -307,7 +287,19 @@ namespace client
       bool force_unsigned = false, bool upgrade = false)
     {
       // Create a cert if this is our first rpc_connection
-      const bool is_first = get_cert();
+      const bool is_first_time = tls_cert == nullptr;
+
+      if (is_first_time)
+      {
+        const auto raw_cert = files::slurp(options.cert_file);
+        const auto raw_key = files::slurp(options.key_file);
+        const auto ca = files::slurp(options.ca_file);
+
+        key = tls::Pem(raw_key);
+
+        tls_cert = std::make_shared<tls::Cert>(
+          std::make_shared<tls::CA>(ca), raw_cert, key);
+      }
 
       auto conn = std::make_shared<RpcTlsClient>(
         options.server_address.hostname,
@@ -317,13 +309,14 @@ namespace client
 
       if (options.sign && !force_unsigned)
       {
+        LOG_INFO_FMT("Creating key pair");
         conn->create_key_pair(key);
       }
 
       conn->set_prefix("app");
 
       // Report ciphersuite of first client (assume it is the same for each)
-      if (is_first)
+      if (is_first_time)
       {
         LOG_DEBUG_FMT(
           "Connected to server via TLS ({})", conn->get_ciphersuite_name());

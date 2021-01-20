@@ -93,6 +93,7 @@ namespace http
   inline void sign_request(
     http::Request& request,
     const tls::KeyPairPtr& kp,
+    const std::string& key_id,
     const std::vector<std::string_view>& headers_to_sign,
     SigningDetails* details = nullptr)
   {
@@ -112,11 +113,11 @@ namespace http
 
     const auto signature = kp->sign(to_sign.value());
 
-    // https://github.com/microsoft/CCF/issues/2018
     auto auth_value = fmt::format(
       "Signature "
-      "keyId=\"ignored\",algorithm=\"{}\",headers=\"{}\",signature="
+      "keyId=\"{}\",algorithm=\"{}\",headers=\"{}\",signature="
       "\"{}\"",
+      key_id,
       auth::SIGN_ALGORITHM_HS_2019,
       fmt::format("{}", fmt::join(headers_to_sign, " ")),
       tls::b64_from_raw(signature.data(), signature.size()));
@@ -133,6 +134,7 @@ namespace http
   inline void sign_request(
     http::Request& request,
     const tls::KeyPairPtr& kp,
+    const std::string& key_id,
     SigningDetails* details = nullptr)
   {
     std::vector<std::string_view> headers_to_sign;
@@ -140,7 +142,7 @@ namespace http
     headers_to_sign.emplace_back(headers::DIGEST);
     headers_to_sign.emplace_back(headers::CONTENT_LENGTH);
 
-    sign_request(request, kp, headers_to_sign, details);
+    sign_request(request, kp, key_id, headers_to_sign, details);
   }
 
   // Implements verification of "Signature" scheme from

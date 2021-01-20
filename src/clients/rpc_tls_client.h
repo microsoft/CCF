@@ -40,6 +40,7 @@ protected:
   ws::ResponseParser ws_parser;
   std::optional<std::string> prefix;
   tls::KeyPairPtr key_pair = nullptr;
+  std::string key_id;
   bool is_ws = false;
 
   size_t next_send_id = 0;
@@ -74,6 +75,7 @@ protected:
 
     if (key_pair != nullptr)
     {
+      LOG_INFO_FMT("Signing HTTP request");
       http::sign_request(r, key_pair);
     }
 
@@ -129,7 +131,8 @@ public:
     TlsClient(host, port, node_ca, cert),
     parser(*this),
     ws_parser(*this)
-  {}
+  {
+  }
 
   HttpRpcTlsClient(const HttpRpcTlsClient& c) :
     TlsClient(c),
@@ -149,6 +152,7 @@ public:
   void create_key_pair(const tls::Pem priv_key)
   {
     key_pair = tls::make_key_pair(priv_key);
+    key_id = "Uhhh"; // TODO: hash cert
   }
 
   PreparedRpc gen_request(

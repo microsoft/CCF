@@ -73,6 +73,7 @@ namespace ccf
           tx.get_read_only_view<CertDigests>(Tables::USER_DIGESTS);
         auto user_id = digests_view->get(signed_request->key_id);
 
+        // TODO
         // This should be removed once
         // https://github.com/microsoft/CCF/issues/2018 is completed
         if (!user_id.has_value())
@@ -181,6 +182,7 @@ namespace ccf
           tx.get_read_only_view<CertDigests>(Tables::MEMBER_DIGESTS);
         auto member_id = digests_view->get(signed_request->key_id);
 
+        // TODO
         // This should be removed once
         // https://github.com/microsoft/CCF/issues/2018 is completed
         if (!member_id.has_value())

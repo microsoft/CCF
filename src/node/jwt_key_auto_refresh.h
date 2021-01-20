@@ -111,6 +111,8 @@ namespace ccf
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       request.set_body(&body);
+
+      // TODO
       // Need a custom authentication policy that accepts only node certs.
       // See https://github.com/microsoft/CCF/issues/1904
       // http::sign_request(request, node_sign_kp);
