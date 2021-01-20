@@ -14,7 +14,7 @@ export function multi_auth(request) {
       `The caller's user data is: ${JSON.stringify(request.caller.data)}`
     );
     lines.push(`The caller's cert is:\n${request.caller.cert}`);
-  } else if (request.caller.policy === "user_sig") {
+  } else if (request.caller.policy === "user_signature") {
     lines.push("User HTTP signature");
     lines.push(`The caller is a user with ID: ${request.caller.id}`);
     lines.push(
@@ -28,7 +28,7 @@ export function multi_auth(request) {
       `The caller's user data is: ${JSON.stringify(request.caller.data)}`
     );
     lines.push(`The caller's cert is:\n${request.caller.cert}`);
-  } else if (request.caller.policy === "member_sig") {
+  } else if (request.caller.policy === "member_signature") {
     lines.push("Member HTTP signature");
     lines.push(`The caller is a member with ID: ${request.caller.id}`);
     lines.push(

@@ -19,9 +19,9 @@
         "execute_outside_consensus": "never",
         "authn_policies": [
           "user_cert",
-          "user_sig",
+          "user_signature",
           "member_cert",
-          "member_sig",
+          "member_signature",
           "jwt",
           "no_auth"
         ],

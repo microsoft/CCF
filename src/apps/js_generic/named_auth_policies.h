@@ -7,40 +7,30 @@
 
 namespace ccfapp
 {
-  namespace
-  {
-    constexpr auto POLICY_NAME_USER_CERT = "user_cert";
-    constexpr auto POLICY_NAME_USER_SIG = "user_sig";
-    constexpr auto POLICY_NAME_MEMBER_CERT = "member_cert";
-    constexpr auto POLICY_NAME_MEMBER_SIG = "member_sig";
-    constexpr auto POLICY_NAME_JWT = "jwt";
-    constexpr auto POLICY_NAME_EMPTY = "no_auth";
-  }
-
   static std::shared_ptr<ccf::AuthnPolicy> get_policy_by_name(
     const std::string& name)
   {
-    if (name == POLICY_NAME_USER_CERT)
+    if (name == ccf::UserCertAuthnPolicy::SECURITY_SCHEME_NAME)
     {
       return ccf::user_cert_auth_policy;
     }
-    if (name == POLICY_NAME_USER_SIG)
+    if (name == ccf::UserSignatureAuthnPolicy::SECURITY_SCHEME_NAME)
     {
       return ccf::user_signature_auth_policy;
     }
-    if (name == POLICY_NAME_MEMBER_CERT)
+    if (name == ccf::MemberCertAuthnPolicy::SECURITY_SCHEME_NAME)
     {
       return ccf::member_cert_auth_policy;
     }
-    if (name == POLICY_NAME_MEMBER_SIG)
+    if (name == ccf::MemberSignatureAuthnPolicy::SECURITY_SCHEME_NAME)
     {
       return ccf::member_signature_auth_policy;
     }
-    if (name == POLICY_NAME_JWT)
+    if (name == ccf::JwtAuthnPolicy::SECURITY_SCHEME_NAME)
     {
       return ccf::jwt_auth_policy;
     }
-    if (name == POLICY_NAME_EMPTY)
+    if (name == ccf::EmptyAuthnPolicy::SECURITY_SCHEME_NAME)
     {
       return ccf::empty_auth_policy;
     }
@@ -52,27 +42,27 @@ namespace ccfapp
   {
     if constexpr (std::is_same_v<T, ccf::UserCertAuthnIdentity>)
     {
-      return POLICY_NAME_USER_CERT;
+      return ccf::UserCertAuthnPolicy::SECURITY_SCHEME_NAME;
     }
     else if constexpr (std::is_same_v<T, ccf::UserSignatureAuthnIdentity>)
     {
-      return POLICY_NAME_USER_SIG;
+      return ccf::UserSignatureAuthnPolicy::SECURITY_SCHEME_NAME;
     }
     else if constexpr (std::is_same_v<T, ccf::MemberCertAuthnIdentity>)
     {
-      return POLICY_NAME_MEMBER_CERT;
+      return ccf::MemberCertAuthnPolicy::SECURITY_SCHEME_NAME;
     }
     else if constexpr (std::is_same_v<T, ccf::MemberSignatureAuthnIdentity>)
     {
-      return POLICY_NAME_MEMBER_SIG;
+      return ccf::MemberSignatureAuthnPolicy::SECURITY_SCHEME_NAME;
     }
     else if constexpr (std::is_same_v<T, ccf::JwtAuthnIdentity>)
     {
-      return POLICY_NAME_JWT;
+      return ccf::JwtAuthnPolicy::SECURITY_SCHEME_NAME;
     }
     else if constexpr (std::is_same_v<T, ccf::EmptyAuthnIdentity>)
     {
-      return POLICY_NAME_EMPTY;
+      return ccf::EmptyAuthnPolicy::SECURITY_SCHEME_NAME;
     }
     else
     {
