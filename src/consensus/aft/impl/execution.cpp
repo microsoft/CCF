@@ -86,8 +86,6 @@ namespace aft
 
     enclave::RpcHandler::ProcessBftResp rep = frontend->process_bft(ctx);
 
-    frontend->update_merkle_tree();
-
     request->callback(std::move(rep.result));
 
     return rep.version;

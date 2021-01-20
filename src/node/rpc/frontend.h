@@ -582,14 +582,6 @@ namespace ccf
       return {std::move(rep.value()), version};
     }
 
-    void update_merkle_tree() override
-    {
-      if (history != nullptr)
-      {
-        history->flush_pending();
-      }
-    }
-
     /** Process a serialised input forwarded from another node
      *
      * @param ctx Context for this forwarded RPC
