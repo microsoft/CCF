@@ -108,15 +108,21 @@ std::vector<uint8_t> create_signed_request(
   const json& params,
   const string& method_name,
   const tls::KeyPairPtr& kp_,
+  const tls::Pem& caller,
   llhttp_method verb = HTTP_POST)
 {
   http::Request r(method_name, verb);
 
   const auto body = params.is_null() ? std::vector<uint8_t>() :
                                        serdes::pack(params, default_pack);
-
   r.set_body(&body);
-  http::sign_request(r, kp_);
+
+  crypto::Sha256Hash hash;
+  const auto contents = caller.contents();
+  tls::do_hash(contents.data(), contents.size(), hash.h, MBEDTLS_MD_SHA256);
+  const std::string key_id = fmt::format("{:02x}", fmt::join(hash.h, ""));
+
+  http::sign_request(r, kp_, key_id);
 
   return r.build_request();
 }
@@ -199,7 +205,7 @@ auto activate(
 
   StateDigest params;
   params.state_digest = ack.state_digest;
-  const auto ack_req = create_signed_request(params, "ack", kp);
+  const auto ack_req = create_signed_request(params, "ack", kp, caller);
   return frontend_process(frontend, ack_req, caller);
 }
 
@@ -376,7 +382,8 @@ DOCTEST_TEST_CASE("Proposer ballot")
     )xxx");
     proposal.parameter["cert"] = proposed_member;
     proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
-    const auto propose = create_signed_request(proposal, "proposals", kp);
+    const auto propose =
+      create_signed_request(proposal, "proposals", kp, proposer_cert);
     const auto r = frontend_process(frontend, propose, proposer_cert);
 
     // the proposal should be accepted, but not succeed immediately
@@ -390,7 +397,10 @@ DOCTEST_TEST_CASE("Proposer ballot")
     DOCTEST_INFO("Second member votes for proposal");
 
     const auto vote = create_signed_request(
-      Vote{vote_for}, fmt::format("proposals/{}/votes", proposal_id), kp);
+      Vote{vote_for},
+      fmt::format("proposals/{}/votes", proposal_id),
+      kp,
+      voter_cert);
     const auto r = frontend_process(frontend, vote, voter_cert);
 
     // The vote should not yet succeed
@@ -425,7 +435,10 @@ DOCTEST_TEST_CASE("Proposer ballot")
     DOCTEST_INFO("Proposer votes for");
 
     const auto vote = create_signed_request(
-      Vote{vote_for}, fmt::format("proposals/{}/votes", proposal_id), kp);
+      Vote{vote_for},
+      fmt::format("proposals/{}/votes", proposal_id),
+      kp,
+      proposer_cert);
     const auto r = frontend_process(frontend, vote, proposer_cert);
 
     // The vote should now succeed
@@ -471,7 +484,8 @@ DOCTEST_TEST_CASE("Reject duplicate vote")
     )xxx");
     proposal.parameter["cert"] = proposed_member;
     proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
-    const auto propose = create_signed_request(proposal, "proposals", kp);
+    const auto propose =
+      create_signed_request(proposal, "proposals", kp, proposer_cert);
     const auto r = frontend_process(frontend, propose, proposer_cert);
 
     // the proposal should be accepted, but not succeed immediately
@@ -485,7 +499,10 @@ DOCTEST_TEST_CASE("Reject duplicate vote")
     DOCTEST_INFO("Proposer votes for");
 
     const auto vote = create_signed_request(
-      Vote{vote_for}, fmt::format("proposals/{}/votes", proposal_id), kp);
+      Vote{vote_for},
+      fmt::format("proposals/{}/votes", proposal_id),
+      kp,
+      proposer_cert);
     const auto r = frontend_process(frontend, vote, proposer_cert);
 
     // The vote should now succeed
@@ -496,7 +513,10 @@ DOCTEST_TEST_CASE("Reject duplicate vote")
     DOCTEST_INFO("Proposer cannot vote again");
 
     const auto vote = create_signed_request(
-      Vote{vote_against}, fmt::format("proposals/{}/votes", proposal_id), kp);
+      Vote{vote_against},
+      fmt::format("proposals/{}/votes", proposal_id),
+      kp,
+      proposer_cert);
     check_error(
       frontend_process(frontend, vote, proposer_cert), HTTP_STATUS_BAD_REQUEST);
   }
@@ -577,7 +597,8 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
     proposal.parameter["cert"] = cert_pem;
     proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
 
-    const auto propose = create_signed_request(proposal, "proposals", kp);
+    const auto propose =
+      create_signed_request(proposal, "proposals", kp, member_cert);
 
     {
       const auto r = frontend_process(frontend, propose, member_cert);
@@ -592,7 +613,10 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       // vote for own proposal
       Script vote_yes("return true");
       const auto vote = create_signed_request(
-        Vote{vote_yes}, fmt::format("proposals/{}/votes", proposal_id), kp);
+        Vote{vote_yes},
+        fmt::format("proposals/{}/votes", proposal_id),
+        kp,
+        member_cert);
       const auto r = frontend_process(frontend, vote, member_cert);
       const auto result = parse_response_body<ProposalInfo>(r);
       DOCTEST_CHECK(result.state == ProposalState::OPEN);
@@ -620,7 +644,10 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       max_members));
 
     const auto vote = create_signed_request(
-      Vote{vote_ballot}, fmt::format("proposals/{}/votes", proposal_id), kp);
+      Vote{vote_ballot},
+      fmt::format("proposals/{}/votes", proposal_id),
+      kp,
+      voter_a_cert);
 
     {
       const auto r = frontend_process(frontend, vote, voter_a_cert);
@@ -705,7 +732,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       StateDigest params;
       params.state_digest = ack0.state_digest;
       const auto send_stale_sig_req =
-        create_signed_request(params, "ack", new_member->kp);
+        create_signed_request(params, "ack", new_member->kp, new_member->cert);
       check_error(
         frontend_process(frontend, send_stale_sig_req, new_member->cert),
         HTTP_STATUS_BAD_REQUEST);
@@ -713,7 +740,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       // (5) sign new state digest and send it
       params.state_digest = ack1.state_digest;
       const auto send_good_sig_req =
-        create_signed_request(params, "ack", new_member->kp);
+        create_signed_request(params, "ack", new_member->kp, new_member->cert);
       const auto good_response =
         frontend_process(frontend, send_good_sig_req, new_member->cert);
       DOCTEST_CHECK(good_response.status == HTTP_STATUS_NO_CONTENT);
@@ -781,7 +808,7 @@ DOCTEST_TEST_CASE("Accept node")
       return Calls:call("trust_node", node_id)
     )xxx");
     const auto propose = create_signed_request(
-      Propose::In{proposal, node_id}, "proposals", new_kp);
+      Propose::In{proposal, node_id}, "proposals", new_kp, member_0_cert);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_0_cert));
 
@@ -795,7 +822,8 @@ DOCTEST_TEST_CASE("Accept node")
     const auto vote = create_signed_request(
       Vote{vote_yes},
       fmt::format("proposals/{}/votes", trust_node_proposal_id),
-      new_kp);
+      new_kp,
+      member_0_cert);
     const auto r = frontend_process(frontend, vote, member_0_cert);
     const auto result = parse_response_body<ProposalInfo>(r);
     DOCTEST_CHECK(result.state == ProposalState::OPEN);
@@ -810,7 +838,8 @@ DOCTEST_TEST_CASE("Accept node")
     const auto vote = create_signed_request(
       Vote{vote_ballot},
       fmt::format("proposals/{}/votes", trust_node_proposal_id),
-      kp);
+      kp,
+      member_1_cert);
 
     check_result_state(
       frontend_process(frontend, vote, member_1_cert), ProposalState::ACCEPTED);
@@ -833,7 +862,7 @@ DOCTEST_TEST_CASE("Accept node")
       return Calls:call("retire_node", node_id)
     )xxx");
     const auto propose = create_signed_request(
-      Propose::In{proposal, node_id}, "proposals", new_kp);
+      Propose::In{proposal, node_id}, "proposals", new_kp, member_0_cert);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_0_cert));
 
@@ -847,7 +876,8 @@ DOCTEST_TEST_CASE("Accept node")
     const auto vote = create_signed_request(
       Vote{vote_yes},
       fmt::format("proposals/{}/votes", retire_node_proposal_id),
-      new_kp);
+      new_kp,
+      member_0_cert);
     const auto r = frontend_process(frontend, vote, member_0_cert);
     const auto result = parse_response_body<ProposalInfo>(r);
     DOCTEST_CHECK(result.state == ProposalState::OPEN);
@@ -859,7 +889,8 @@ DOCTEST_TEST_CASE("Accept node")
     const auto vote = create_signed_request(
       Vote{vote_ballot},
       fmt::format("proposals/{}/votes", retire_node_proposal_id),
-      kp);
+      kp,
+      member_1_cert);
     check_result_state(
       frontend_process(frontend, vote, member_1_cert), ProposalState::ACCEPTED);
   }
@@ -880,7 +911,7 @@ DOCTEST_TEST_CASE("Accept node")
       return Calls:call("trust_node", node_id)
     )xxx");
     const auto propose = create_signed_request(
-      Propose::In{proposal, node_id}, "proposals", new_kp);
+      Propose::In{proposal, node_id}, "proposals", new_kp, member_0_cert);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_0_cert));
 
@@ -888,11 +919,15 @@ DOCTEST_TEST_CASE("Accept node")
     auto vote = create_signed_request(
       Vote{vote_ballot},
       fmt::format("proposals/{}/votes", r.proposal_id),
-      new_kp);
+      new_kp,
+      member_0_cert);
     frontend_process(frontend, vote, member_0_cert);
 
     vote = create_signed_request(
-      Vote{vote_ballot}, fmt::format("proposals/{}/votes", r.proposal_id), kp);
+      Vote{vote_ballot},
+      fmt::format("proposals/{}/votes", r.proposal_id),
+      kp,
+      member_1_cert);
     check_result_state(
       frontend_process(frontend, vote, member_1_cert), ProposalState::FAILED);
   }
@@ -904,7 +939,7 @@ DOCTEST_TEST_CASE("Accept node")
       return Calls:call("retire_node", node_id)
     )xxx");
     const auto propose = create_signed_request(
-      Propose::In{proposal, node_id}, "proposals", new_kp);
+      Propose::In{proposal, node_id}, "proposals", new_kp, member_0_cert);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_0_cert));
 
@@ -912,11 +947,14 @@ DOCTEST_TEST_CASE("Accept node")
     auto vote = create_signed_request(
       Vote{vote_ballot},
       fmt::format("proposals/{}/votes", r.proposal_id),
-      new_kp);
+      new_kp, member_0_cert);
     frontend_process(frontend, vote, member_0_cert);
 
     vote = create_signed_request(
-      Vote{vote_ballot}, fmt::format("proposals/{}/votes", r.proposal_id), kp);
+      Vote{vote_ballot},
+      fmt::format("proposals/{}/votes", r.proposal_id),
+      kp,
+      member_1_cert);
     check_result_state(
       frontend_process(frontend, vote, member_1_cert), ProposalState::FAILED);
   }
@@ -950,7 +988,8 @@ ProposalInfo test_raw_writes(
   const auto proposal_id = 0ul;
   {
     const uint8_t proposer_id = 0;
-    const auto propose = create_signed_request(proposal, "proposals", kp);
+    const auto propose =
+      create_signed_request(proposal, "proposals", kp, member_certs[0]);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_certs[0]));
 
@@ -967,7 +1006,10 @@ ProposalInfo test_raw_writes(
   {
     const Script vote("return false");
     const auto vote_serialized = create_signed_request(
-      Vote{vote}, fmt::format("proposals/{}/votes", proposal_id), kp);
+      Vote{vote},
+      fmt::format("proposals/{}/votes", proposal_id),
+      kp,
+      member_certs[i]);
 
     check_result_state(
       frontend_process(frontend, vote_serialized, member_certs[i]),
@@ -980,7 +1022,10 @@ ProposalInfo test_raw_writes(
   {
     const Script vote("return true");
     const auto vote_serialized = create_signed_request(
-      Vote{vote}, fmt::format("proposals/{}/votes", proposal_id), kp);
+      Vote{vote},
+      fmt::format("proposals/{}/votes", proposal_id),
+      kp,
+      member_certs[i]);
     if (info.state == ProposalState::OPEN)
     {
       info = parse_response_body<ProposalInfo>(
@@ -1131,8 +1176,8 @@ DOCTEST_TEST_CASE("Remove proposal")
   }
 
   {
-    const auto propose =
-      create_signed_request(Propose::In{proposal_script, 0}, "proposals", kp);
+    const auto propose = create_signed_request(
+      Propose::In{proposal_script, 0}, "proposals", kp, member_cert);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_cert));
 
@@ -1153,7 +1198,10 @@ DOCTEST_TEST_CASE("Remove proposal")
   DOCTEST_SUBCASE("Attempt withdraw proposal with non existing id")
   {
     const auto withdraw = create_signed_request(
-      nullptr, fmt::format("proposals/{}/withdraw", wrong_proposal_id), kp);
+      nullptr,
+      fmt::format("proposals/{}/withdraw", wrong_proposal_id),
+      kp,
+      member_cert);
 
     check_error(
       frontend_process(frontend, withdraw, member_cert),
@@ -1163,7 +1211,10 @@ DOCTEST_TEST_CASE("Remove proposal")
   DOCTEST_SUBCASE("Attempt withdraw proposal that you didn't propose")
   {
     const auto withdraw = create_signed_request(
-      nullptr, fmt::format("proposals/{}/withdraw", proposal_id), caller.kp);
+      nullptr,
+      fmt::format("proposals/{}/withdraw", proposal_id),
+      caller.kp,
+      cert);
 
     check_error(
       frontend_process(frontend, withdraw, cert), HTTP_STATUS_FORBIDDEN);
@@ -1172,7 +1223,10 @@ DOCTEST_TEST_CASE("Remove proposal")
   DOCTEST_SUBCASE("Successfully withdraw proposal")
   {
     const auto withdraw = create_signed_request(
-      nullptr, fmt::format("proposals/{}/withdraw", proposal_id), kp);
+      nullptr,
+      fmt::format("proposals/{}/withdraw", proposal_id),
+      kp,
+      member_cert);
 
     check_result_state(
       frontend_process(frontend, withdraw, member_cert),
@@ -1215,8 +1269,8 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
       return Calls:call("new_user", user_cert)
     )xxx");
 
-  const auto propose =
-    create_signed_request(Propose::In{proposal, user_cert}, "proposals", kp);
+  const auto propose = create_signed_request(
+    Propose::In{proposal, user_cert}, "proposals", kp, voter_a_cert);
 
   const auto r = parse_response_body<Propose::Out>(
     frontend_process(frontend, propose, voter_a_cert));
@@ -1227,7 +1281,10 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
     DOCTEST_INFO("Member vetoes proposal");
 
     const auto vote = create_signed_request(
-      Vote{vote_against}, fmt::format("proposals/{}/votes", r.proposal_id), kp);
+      Vote{vote_against},
+      fmt::format("proposals/{}/votes", r.proposal_id),
+      kp,
+      voter_b_cert);
     const auto r = frontend_process(frontend, vote, voter_b_cert);
 
     check_result_state(r, ProposalState::REJECTED);
@@ -1271,8 +1328,8 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
       )xxx");
 
     const auto user_cert = kp->self_sign("CN=new user");
-    const auto propose =
-      create_signed_request(Propose::In{proposal, user_cert}, "proposals", kp);
+    const auto propose = create_signed_request(
+      Propose::In{proposal, user_cert}, "proposals", kp, member_cert);
 
     auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_cert));
@@ -1281,7 +1338,10 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
     // vote for own proposal
     Script vote_yes("return true");
     const auto vote = create_signed_request(
-      Vote{vote_yes}, fmt::format("proposals/{}/votes", r.proposal_id), kp);
+      Vote{vote_yes},
+      fmt::format("proposals/{}/votes", r.proposal_id),
+      kp,
+      member_cert);
     r = parse_response_body<ProposalInfo>(
       frontend_process(frontend, vote, member_cert));
 
@@ -1306,8 +1366,8 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
         return Calls:call("remove_user", user_id)
       )xxx");
 
-    const auto propose =
-      create_signed_request(Propose::In{proposal, 0}, "proposals", kp);
+    const auto propose = create_signed_request(
+      Propose::In{proposal, 0}, "proposals", kp, member_cert);
 
     auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_cert));
@@ -1316,7 +1376,10 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
     // vote for own proposal
     Script vote_yes("return true");
     const auto vote = create_signed_request(
-      Vote{vote_yes}, fmt::format("proposals/{}/votes", r.proposal_id), kp);
+      Vote{vote_yes},
+      fmt::format("proposals/{}/votes", r.proposal_id),
+      kp,
+      member_cert);
     r = parse_response_body<ProposalInfo>(
       frontend_process(frontend, vote, member_cert));
 
@@ -1395,7 +1458,8 @@ DOCTEST_TEST_CASE(
     proposal.parameter["cert"] = proposed_member;
     proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
 
-    const auto propose = create_signed_request(proposal, "proposals", kp);
+    const auto propose =
+      create_signed_request(proposal, "proposals", kp, members[proposer_id]);
     const auto r = parse_response_body<Propose::Out>(frontend_process(
       frontend,
       propose,
@@ -1410,7 +1474,10 @@ DOCTEST_TEST_CASE(
     DOCTEST_INFO("First member votes");
 
     const auto vote = create_signed_request(
-      Vote{vote_for}, fmt::format("proposals/{}/votes", proposal_id), kp);
+      Vote{vote_for},
+      fmt::format("proposals/{}/votes", proposal_id),
+      kp,
+      members[proposer_id]);
     const auto r = frontend_process(frontend, vote, members[proposer_id]);
 
     check_result_state(r, ProposalState::OPEN);
@@ -1420,7 +1487,10 @@ DOCTEST_TEST_CASE(
     DOCTEST_INFO("Operator votes, but without effect");
 
     const auto vote = create_signed_request(
-      Vote{vote_for}, fmt::format("proposals/{}/votes", proposal_id), kp);
+      Vote{vote_for},
+      fmt::format("proposals/{}/votes", proposal_id),
+      kp,
+      operator_cert);
     const auto r = frontend_process(frontend, vote, operator_cert);
 
     check_result_state(r, ProposalState::OPEN);
@@ -1430,7 +1500,10 @@ DOCTEST_TEST_CASE(
     DOCTEST_INFO("Second member votes for proposal, which passes");
 
     const auto vote = create_signed_request(
-      Vote{vote_for}, fmt::format("proposals/{}/votes", proposal_id), kp);
+      Vote{vote_for},
+      fmt::format("proposals/{}/votes", proposal_id),
+      kp,
+      members[voter_id]);
     const auto r = frontend_process(frontend, vote, members[voter_id]);
 
     check_result_state(r, ProposalState::ACCEPTED);
@@ -1526,8 +1599,8 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
       return Calls:call("trust_node", node_id)
     )xxx");
 
-    const auto propose =
-      create_signed_request(Propose::In{proposal, node_id}, "proposals", kp);
+    const auto propose = create_signed_request(
+      Propose::In{proposal, node_id}, "proposals", kp, operator_cert);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, operator_cert));
 
@@ -1561,7 +1634,8 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
     proposal.parameter["cert"] = new_operator_cert;
     proposal.parameter["member_data"] = operator_member_data();
 
-    const auto propose = create_signed_request(proposal, "proposals", kp);
+    const auto propose =
+      create_signed_request(proposal, "proposals", kp, operator_cert);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, operator_cert));
 
@@ -1576,8 +1650,8 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
 
       StateDigest params;
       params.state_digest = ack.state_digest;
-      const auto ack_req =
-        create_signed_request(params, "ack", new_operator_kp);
+      const auto ack_req = create_signed_request(
+        params, "ack", new_operator_kp, new_operator_cert);
       const auto resp = frontend_process(frontend, ack_req, new_operator_cert);
     }
   }
@@ -1588,8 +1662,8 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
     proposal.script = fmt::format(
       R"xxx(return Calls:call("retire_member", {}))xxx", operator_id);
 
-    const auto propose =
-      create_signed_request(proposal, "proposals", new_operator_kp);
+    const auto propose = create_signed_request(
+      proposal, "proposals", new_operator_kp, new_operator_cert);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, new_operator_cert));
 
@@ -1613,8 +1687,8 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
     proposal.parameter["member_data"] =
       nullptr; // blank member_data => not an operator
 
-    const auto propose =
-      create_signed_request(proposal, "proposals", new_operator_kp);
+    const auto propose = create_signed_request(
+      proposal, "proposals", new_operator_kp, new_operator_cert);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, new_operator_cert));
 
@@ -1630,8 +1704,8 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
     proposal.script = fmt::format(
       R"xxx(return Calls:call("retire_member", {}))xxx", normal_member_id);
 
-    const auto propose =
-      create_signed_request(proposal, "proposals", new_operator_kp);
+    const auto propose = create_signed_request(
+      proposal, "proposals", new_operator_kp, new_operator_cert);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, new_operator_cert));
 
@@ -1705,8 +1779,8 @@ DOCTEST_TEST_CASE(
       return Calls:call("trust_node", node_id)
     )xxx");
 
-    const auto propose =
-      create_signed_request(Propose::In{proposal, node_id}, "proposals", kp);
+    const auto propose = create_signed_request(
+      Propose::In{proposal, node_id}, "proposals", kp, proposer_cert);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, proposer_cert));
 
@@ -1718,7 +1792,10 @@ DOCTEST_TEST_CASE(
     DOCTEST_INFO("Member votes against");
 
     const auto vote = create_signed_request(
-      Vote{vote_against}, fmt::format("proposals/{}/votes", proposal_id), kp);
+      Vote{vote_against},
+      fmt::format("proposals/{}/votes", proposal_id),
+      kp,
+      proposer_cert);
     const auto r = frontend_process(frontend, vote, proposer_cert);
 
     check_result_state(r, ProposalState::OPEN);
@@ -1731,7 +1808,10 @@ DOCTEST_TEST_CASE(
     DOCTEST_INFO("First member votes for proposal");
 
     const auto vote = create_signed_request(
-      Vote{vote_for}, fmt::format("proposals/{}/votes", proposal_id), kp);
+      Vote{vote_for},
+      fmt::format("proposals/{}/votes", proposal_id),
+      kp,
+      members[first_voter_id]);
     const auto r = frontend_process(frontend, vote, members[first_voter_id]);
 
     check_result_state(r, ProposalState::OPEN);
@@ -1741,7 +1821,10 @@ DOCTEST_TEST_CASE(
     DOCTEST_INFO("Second member votes for proposal");
 
     const auto vote = create_signed_request(
-      Vote{vote_for}, fmt::format("proposals/{}/votes", proposal_id), kp);
+      Vote{vote_for},
+      fmt::format("proposals/{}/votes", proposal_id),
+      kp,
+      members[second_voter_id]);
     const auto r = frontend_process(frontend, vote, members[second_voter_id]);
 
     check_result_state(r, ProposalState::ACCEPTED);
@@ -1841,7 +1924,7 @@ DOCTEST_TEST_CASE("User data")
       )xxx",
       user_id);
     const auto proposal_serialized =
-      create_signed_request(proposal, "proposals", kp);
+      create_signed_request(proposal, "proposals", kp, member_cert);
     const auto propose_response = parse_response_body<Propose::Out>(
       frontend_process(frontend, proposal_serialized, member_cert));
 
@@ -1853,7 +1936,8 @@ DOCTEST_TEST_CASE("User data")
       const auto vote = create_signed_request(
         Vote{vote_yes},
         fmt::format("proposals/{}/votes", propose_response.proposal_id),
-        kp);
+        kp,
+        member_cert);
       const auto r = frontend_process(frontend, vote, member_cert);
       const auto result = parse_response_body<ProposalInfo>(r);
       DOCTEST_CHECK(result.state == ProposalState::ACCEPTED);
@@ -1878,7 +1962,7 @@ DOCTEST_TEST_CASE("User data")
     proposal.parameter["id"] = user_id;
     proposal.parameter["data"] = user_data_string;
     const auto proposal_serialized =
-      create_signed_request(proposal, "proposals", kp);
+      create_signed_request(proposal, "proposals", kp, member_cert);
     const auto propose_response = parse_response_body<Propose::Out>(
       frontend_process(frontend, proposal_serialized, member_cert));
     DOCTEST_CHECK(propose_response.state == ProposalState::OPEN);
@@ -1889,7 +1973,8 @@ DOCTEST_TEST_CASE("User data")
       const auto vote = create_signed_request(
         Vote{vote_yes},
         fmt::format("proposals/{}/votes", propose_response.proposal_id),
-        kp);
+        kp,
+        member_cert);
       const auto r = frontend_process(frontend, vote, member_cert);
       const auto result = parse_response_body<ProposalInfo>(r);
       DOCTEST_CHECK(result.state == ProposalState::ACCEPTED);

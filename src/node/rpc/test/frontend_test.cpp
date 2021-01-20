@@ -412,8 +412,7 @@ http::Request create_signed_request(
   tls::do_hash(contents.data(), contents.size(), hash.h, MBEDTLS_MD_SHA256);
   const std::string key_id = fmt::format("{:02x}", fmt::join(hash.h, ""));
 
-  http::SigningDetails details;
-  http::sign_request(s, kp, key_id, &details);
+  http::sign_request(s, kp, key_id);
 
   return s;
 }
