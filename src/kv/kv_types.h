@@ -245,9 +245,6 @@ namespace kv
       SEND_REPLY_AND_NONCE
     };
 
-    using ResultCallbackHandler = std::function<bool(ResultCallbackArgs)>;
-    using ResponseCallbackHandler = std::function<bool(ResponseCallbackArgs)>;
-
     virtual ~TxHistory() {}
     virtual void append(const std::vector<uint8_t>& replicated) = 0;
     virtual void append(const uint8_t* replicated, size_t replicated_size) = 0;
@@ -269,27 +266,10 @@ namespace kv
       const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request,
       uint8_t frame_format) = 0;
-    virtual void add_result(
-      RequestID id,
-      Version version,
-      const std::vector<uint8_t>& replicated) = 0;
     virtual void add_pending(
       RequestID id,
       Version version,
       std::shared_ptr<std::vector<uint8_t>> replicated) = 0;
-    virtual void flush_pending() = 0;
-    virtual void add_result(
-      RequestID id,
-      Version version,
-      const uint8_t* replicated,
-      size_t replicated_size) = 0;
-    virtual void add_result(RequestID id, Version version) = 0;
-    virtual void add_response(
-      RequestID id, const std::vector<uint8_t>& response) = 0;
-    virtual void register_on_result(ResultCallbackHandler func) = 0;
-    virtual void register_on_response(ResponseCallbackHandler func) = 0;
-    virtual void clear_on_result() = 0;
-    virtual void clear_on_response() = 0;
   };
 
   class Consensus : public ConfigurableConsensus
