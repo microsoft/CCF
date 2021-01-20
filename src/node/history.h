@@ -122,8 +122,6 @@ namespace ccf
 
     void append(const std::vector<uint8_t>&) override {}
 
-    void append(const uint8_t*, size_t) override {}
-
     kv::TxHistory::Result verify_and_sign(PrimarySignature&, kv::Term*) override
     {
       return kv::TxHistory::Result::OK;
@@ -173,8 +171,6 @@ namespace ccf
     void add_result(
       kv::TxHistory::RequestID, kv::Version, const std::vector<uint8_t>&)
     {}
-
-    void append(std::shared_ptr<std::vector<uint8_t>>) override {}
 
     virtual void add_result(RequestID, kv::Version, const uint8_t*, size_t) {}
 
@@ -588,18 +584,6 @@ namespace ccf
       return replicated_state_tree.get_root();
     }
 
-    void append(const std::vector<uint8_t>& replicated) override
-    {
-      append(replicated.data(), replicated.size());
-    }
-
-    void append(const uint8_t* replicated, size_t replicated_size) override
-    {
-      crypto::Sha256Hash rh({replicated, replicated_size});
-      log_hash(rh, APPEND);
-      replicated_state_tree.append(rh);
-    }
-
     kv::TxHistory::Result verify_and_sign(
       PrimarySignature& sig, kv::Term* term = nullptr) override
     {
@@ -784,9 +768,11 @@ namespace ccf
       return consensus->on_request({id, request, caller_cert, frame_format});
     }
 
-    void append(std::shared_ptr<std::vector<uint8_t>> replicated) override
+    void append(const std::vector<uint8_t>& replicated) override
     {
-      append(replicated->data(), replicated->size());
+      crypto::Sha256Hash rh({replicated.data(), replicated.size()});
+      log_hash(rh, APPEND);
+      replicated_state_tree.append(rh);
     }
   };
 

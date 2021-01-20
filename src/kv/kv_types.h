@@ -246,8 +246,6 @@ namespace kv
     };
 
     virtual ~TxHistory() {}
-    virtual void append(const std::vector<uint8_t>& replicated) = 0;
-    virtual void append(const uint8_t* replicated, size_t replicated_size) = 0;
     virtual Result verify_and_sign(
       ccf::PrimarySignature& signature, Term* term = nullptr) = 0;
     virtual bool verify(
@@ -266,7 +264,7 @@ namespace kv
       const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request,
       uint8_t frame_format) = 0;
-    virtual void append(std::shared_ptr<std::vector<uint8_t>> replicated) = 0;
+    virtual void append(const std::vector<uint8_t>& replicated) = 0;
   };
 
   class Consensus : public ConfigurableConsensus

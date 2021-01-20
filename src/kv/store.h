@@ -747,7 +747,7 @@ namespace kv
 
         if (h)
         {
-          h->append(data.data(), data.size());
+          h->append(data);
         }
       }
       else
@@ -796,7 +796,7 @@ namespace kv
               "Failed to verify signature, view-changes not implemented");
             return DeserialiseSuccess::FAILED;
           }
-          h->append(data.data(), data.size());
+          h->append(data);
           success = DeserialiseSuccess::PASS_SIGNATURE;
         }
         else if (changes.find(ccf::Tables::BACKUP_SIGNATURES) != changes.end())
@@ -832,7 +832,7 @@ namespace kv
           *index_ = tx_id.version;
 
           auto h = get_history();
-          h->append(data.data(), data.size());
+          h->append(data);
         }
         else if (changes.find(ccf::Tables::NONCES) != changes.end())
         {
@@ -852,7 +852,7 @@ namespace kv
           }
 
           auto h = get_history();
-          h->append(data.data(), data.size());
+          h->append(data);
           success = DeserialiseSuccess::PASS_NONCES;
         }
         else if (changes.find(ccf::Tables::NEW_VIEWS) != changes.end())
@@ -873,7 +873,7 @@ namespace kv
           }
 
           auto h = get_history();
-          h->append(data.data(), data.size());
+          h->append(data);
           success = DeserialiseSuccess::PASS_NEW_VIEW;
         }
         else if (changes.find(ccf::Tables::AFT_REQUESTS) == changes.end())
@@ -1026,7 +1026,7 @@ namespace kv
 
           if (h)
           {
-            h->append(data_shared);
+            h->append(*data_shared);
           }
 
           LOG_DEBUG_FMT(
