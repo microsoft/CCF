@@ -266,10 +266,7 @@ namespace kv
       const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request,
       uint8_t frame_format) = 0;
-    virtual void add_pending(
-      RequestID id,
-      Version version,
-      std::shared_ptr<std::vector<uint8_t>> replicated) = 0;
+    virtual void append(std::shared_ptr<std::vector<uint8_t>> replicated) = 0;
   };
 
   class Consensus : public ConfigurableConsensus

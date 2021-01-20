@@ -174,11 +174,7 @@ namespace ccf
       kv::TxHistory::RequestID, kv::Version, const std::vector<uint8_t>&)
     {}
 
-    void add_pending(
-      kv::TxHistory::RequestID,
-      kv::Version,
-      std::shared_ptr<std::vector<uint8_t>>) override
-    {}
+    void append(std::shared_ptr<std::vector<uint8_t>>) override {}
 
     virtual void add_result(RequestID, kv::Version, const uint8_t*, size_t) {}
 
@@ -788,13 +784,8 @@ namespace ccf
       return consensus->on_request({id, request, caller_cert, frame_format});
     }
 
-    void add_pending(
-      kv::TxHistory::RequestID id,
-      kv::Version version,
-      std::shared_ptr<std::vector<uint8_t>> replicated) override
+    void append(std::shared_ptr<std::vector<uint8_t>> replicated) override
     {
-      (void)id;
-      (void)version;
       append(replicated->data(), replicated->size());
     }
   };

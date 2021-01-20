@@ -1026,7 +1026,7 @@ namespace kv
 
           if (h)
           {
-            h->add_pending(reqid, txid.version, data_shared);
+            h->append(data_shared);
           }
 
           LOG_DEBUG_FMT(
