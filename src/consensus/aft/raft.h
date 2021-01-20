@@ -1072,6 +1072,7 @@ namespace aft
         r.idx,
         r.prev_idx);
 
+      std::vector<std::tuple<std::unique_ptr<kv::IExecutionWrapper>, kv::Version>> foobar;
       // TODO: we now know this is safe so start looking from here
       // Finally, deserialise each entry in the batch
       for (Index i = r.prev_idx + 1; i <= r.idx; i++)
@@ -1104,16 +1105,59 @@ namespace aft
           return;
         }
 
-        state->last_idx = i;
-
         auto ds =
           store->deserialise_views_async(entry, consensus_type, public_only);
+        if (ds == nullptr)
+        {
+          //throw std::logic_error("foobar - we failed to deserialise");
+          // TODO: this is not awesome
+          LOG_INFO_FMT("BBBBBBBB skipping because we failed to apply");
+          break;
+        }
+        foobar.push_back(std::make_tuple(std::move(ds), i));
+      }
+
+      LOG_INFO_FMT("starting new loop");
+      for (auto& d : foobar)
+      {
+        auto& [ds, i] = d;
+        LOG_INFO_FMT("current loop at i:{}", i);
+        state->last_idx = i;
 
         kv::DeserialiseSuccess deserialise_success = kv::DeserialiseSuccess::FAILED;
         if (ds != nullptr)
         {
           deserialise_success = ds->Execute();
+          if (deserialise_success == kv::DeserialiseSuccess::FAILED)
+          {
+            LOG_INFO_FMT("XXXXXXX Execute failed - i:{}", i);
+            state->last_idx--;
+            ledger->truncate(state->last_idx);
+
+            commit_if_possible(state->last_idx);
+
+            // The term may have changed, and we have not have seen a signature
+            // yet.
+            auto lci = last_committable_index();
+            if (r.term_of_idx == aft::ViewHistory::InvalidView)
+              state->view_history.update(1, r.term);
+            else
+              state->view_history.update(lci + 1, r.term_of_idx);
+
+            send_append_entries_response(
+              r.from_node, AppendEntriesResponseType::FAIL);
+            return;
+          }
+          else
+          {
+            LOG_INFO_FMT("YYYYYYY Execute result - {}, i:{}", deserialise_success, i);
+          }
         }
+        else
+        {
+          LOG_INFO_FMT("ds is null at i:{}", i);
+        }
+
 
         for (auto& hook : ds->get_hooks())
         {

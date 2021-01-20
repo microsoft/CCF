@@ -202,6 +202,14 @@ namespace kv
         {
           return map_ptr;
         }
+        else
+        {
+          LOG_INFO_FMT("1. PPPPPPP - v:{}, map_creation_version:{}", v, map_creation_version);
+        }
+      }
+      else
+      {
+        LOG_INFO_FMT("2. PPPPPPP - unknown map {}", map_name);
       }
 
       return nullptr;
@@ -622,7 +630,8 @@ namespace kv
       bool public_only,
       kv::Version& v,
       OrderedChanges& changes,
-      MapCollection& new_maps)
+      MapCollection& new_maps,
+      bool ignore_strict_versions = false)
     {
       // This will return FAILED if the serialised transaction is being
       // applied out of order.
@@ -648,7 +657,7 @@ namespace kv
       // consensus.
       rollback(v - 1);
 
-      if (strict_versions)
+      if (strict_versions && !ignore_strict_versions)
       {
         // Make sure this is the next transaction.
         auto cv = current_version();
@@ -715,14 +724,16 @@ namespace kv
     public:
       ExecutionWrapper(
         Store* self_,
-        const std::vector<uint8_t>& data_) :
+        const std::vector<uint8_t>& data_,
+        bool public_only_) :
         self(self_),
-        data(data_)
+        data(data_),
+        public_only(public_only_)
       {}
 
       DeserialiseSuccess Execute() override
       {
-        return fn(self, data, v, &term, &version, &sig, changes, new_maps, hooks);
+        return fn(self, data, public_only, v, &term, &version, &sig, changes, new_maps, hooks);
       }
 
       kv::ConsensusHookPtrs& get_hooks() override
@@ -758,6 +769,7 @@ namespace kv
       std::function<DeserialiseSuccess(
         Store* self,
         const std::vector<uint8_t>& data,
+        bool public_only,
         kv::Version& v,
         Term* term,
         Version* version,
@@ -769,6 +781,7 @@ namespace kv
 
       Store* self;
       const std::vector<uint8_t> data;
+      bool public_only;
       kv::Version v;
       Term term;
       Version version;
@@ -784,28 +797,31 @@ namespace kv
       ConsensusType consensus_type,
       bool public_only = false) override
     {
-      auto exec = std::make_unique<ExecutionWrapper>(this, std::move(data));
-      if (!fill_maps(data, public_only, exec->v, exec->changes, exec->new_maps))
-      {
-        return nullptr;
-      }
-
+      auto exec =
+        std::make_unique<ExecutionWrapper>(this, std::move(data), public_only);
       if (consensus_type == ConsensusType::CFT)
       {
         exec->fn = [](
-                    Store* self,
-                    const std::vector<uint8_t>& data,
-                    kv::Version& v,
-                    Term* term_,
-                    Version*,
-                    ccf::PrimarySignature*,
-                    OrderedChanges& changes,
-                    MapCollection& new_maps,
-                    kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
+                     Store* self,
+                     const std::vector<uint8_t>& data,
+                     bool public_only,
+                     kv::Version& v,
+                     Term* term_,
+                     Version*,
+                     ccf::PrimarySignature*,
+                     OrderedChanges& changes,
+                     MapCollection& new_maps,
+                     kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
+          if (!self->fill_maps(data, public_only, v, changes, new_maps, true))
+          {
+            return DeserialiseSuccess::FAILED;
+          }
+
           DeserialiseSuccess success =
             self->commit_deserialised(changes, v, new_maps, hooks);
           if (success == DeserialiseSuccess::FAILED)
           {
+            LOG_FAIL_FMT("1. Failed to deserialise");
             return success;
           }
 
@@ -814,11 +830,12 @@ namespace kv
           auto search = changes.find(ccf::Tables::SIGNATURES);
           if (search != changes.end())
           {
+            LOG_INFO_FMT("TTTTTT signature");
             // Transactions containing a signature must only contain
             // a signature and must be verified
             if (changes.size() > 1)
             {
-              LOG_FAIL_FMT("Failed to deserialise");
+              LOG_FAIL_FMT("2. Failed to deserialise");
               LOG_DEBUG_FMT(
                 "Unexpected contents in signature transaction {}", v);
               return DeserialiseSuccess::FAILED;
@@ -828,18 +845,20 @@ namespace kv
             {
               if (!h->verify(term_))
               {
-                LOG_FAIL_FMT("Failed to deserialise");
+                LOG_FAIL_FMT("3. TTTTTTT Failed to deserialise");
                 LOG_DEBUG_FMT(
                   "Signature in transaction {} failed to verify", v);
                 return DeserialiseSuccess::FAILED;
               }
             }
+            LOG_INFO_FMT("TTTTTTT signature verified");
             success = DeserialiseSuccess::PASS_SIGNATURE;
           }
 
           search = changes.find(ccf::Tables::SNAPSHOT_EVIDENCE);
           if (search != changes.end())
           {
+            LOG_INFO_FMT("TTTTTT snapshot evidence");
             success = DeserialiseSuccess::PASS_SNAPSHOT_EVIDENCE;
           }
 
@@ -852,6 +871,12 @@ namespace kv
       }
       else
       {
+        if (!fill_maps(
+              data, public_only, exec->v, exec->changes, exec->new_maps, true))
+        {
+          return nullptr;
+        }
+
         // BFT Transactions should only write to 1 table
         if (exec->changes.size() != 1)
         {
@@ -866,15 +891,16 @@ namespace kv
         if (exec->changes.find(ccf::Tables::SIGNATURES) != exec->changes.end())
         {
           exec->fn = [](
-                      Store* self,
-                      const std::vector<uint8_t>& data,
-                      kv::Version& v,
-                      Term* term_,
-                      Version*,
-                      ccf::PrimarySignature* sig,
-                      OrderedChanges& changes,
-                      MapCollection& new_maps,
-                      kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
+                       Store* self,
+                       const std::vector<uint8_t>& data,
+                       bool,
+                       kv::Version& v,
+                       Term* term_,
+                       Version*,
+                       ccf::PrimarySignature* sig,
+                       OrderedChanges& changes,
+                       MapCollection& new_maps,
+                       kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
             DeserialiseSuccess success = self->commit_deserialised(changes, v, new_maps, hooks);
             if (success == DeserialiseSuccess::FAILED)
             {
@@ -915,6 +941,7 @@ namespace kv
           exec->fn = [](
                       Store* self,
                       const std::vector<uint8_t>& data,
+                       bool,
                       kv::Version& v,
                       Term* term_,
                       Version* index_,
@@ -962,6 +989,7 @@ namespace kv
           exec->fn = [](
                       Store* self,
                       const std::vector<uint8_t>& data,
+                       bool,
                       kv::Version& v,
                       Term*,
                       Version*,
@@ -994,6 +1022,7 @@ namespace kv
           exec->fn = [](
                       Store* self,
                       const std::vector<uint8_t>& data,
+                       bool,
                       kv::Version& v,
                       Term* term_,
                       Version* index_,
@@ -1032,6 +1061,7 @@ namespace kv
           exec->fn = [](
                        Store*,
                        const std::vector<uint8_t>&,
+                       bool,
                        kv::Version&,
                        Term*,
                        Version*,
