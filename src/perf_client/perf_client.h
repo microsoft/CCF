@@ -55,7 +55,7 @@ namespace client
     std::string pid_file; //< Default set in constructor
 
     cli::ParsedAddress server_address;
-    std::string cert_file, key_file, ca_file, verification_file;
+    std::string cert_file, key_file, ca_file, verification_file, jwt;
 
     size_t num_transactions = 10000;
     size_t thread_count = 1;
@@ -115,6 +115,8 @@ namespace client
         ->required(true)
         ->check(CLI::ExistingFile);
       app.add_option("--ca", ca_file)->required(true)->check(CLI::ExistingFile);
+      app.add_option("--jwt", jwt)
+        ->required(false);
 
       app
         .add_option(
