@@ -1073,7 +1073,6 @@ namespace aft
         r.prev_idx);
 
       std::vector<std::tuple<std::unique_ptr<kv::IExecutionWrapper>, kv::Version>> foobar;
-      // TODO: we now know this is safe so start looking from here
       // Finally, deserialise each entry in the batch
       for (Index i = r.prev_idx + 1; i <= r.idx; i++)
       {
@@ -1109,15 +1108,14 @@ namespace aft
           store->deserialise_views_async(entry, consensus_type, public_only);
         if (ds == nullptr)
         {
-          //throw std::logic_error("foobar - we failed to deserialise");
-          // TODO: this is not awesome
-          LOG_INFO_FMT("BBBBBBBB skipping because we failed to apply");
-          break;
+          LOG_DEBUG_FMT("failed to deserialize we failed to apply");
+          send_append_entries_response(
+            r.from_node, AppendEntriesResponseType::FAIL);
+          return;
         }
         foobar.push_back(std::make_tuple(std::move(ds), i));
       }
 
-      LOG_INFO_FMT("starting new loop");
       for (auto& d : foobar)
       {
         auto& [ds, i] = d;
@@ -1130,7 +1128,6 @@ namespace aft
           deserialise_success = ds->Execute();
           if (deserialise_success == kv::DeserialiseSuccess::FAILED)
           {
-            LOG_INFO_FMT("XXXXXXX Execute failed - i:{}", i);
             state->last_idx--;
             ledger->truncate(state->last_idx);
 
@@ -1148,16 +1145,7 @@ namespace aft
               r.from_node, AppendEntriesResponseType::FAIL);
             return;
           }
-          else
-          {
-            LOG_INFO_FMT("YYYYYYY Execute result - {}, i:{}", deserialise_success, i);
-          }
         }
-        else
-        {
-          LOG_INFO_FMT("ds is null at i:{}", i);
-        }
-
 
         for (auto& hook : ds->get_hooks())
         {

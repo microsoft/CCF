@@ -202,14 +202,6 @@ namespace kv
         {
           return map_ptr;
         }
-        else
-        {
-          LOG_INFO_FMT("1. PPPPPPP - v:{}, map_creation_version:{}", v, map_creation_version);
-        }
-      }
-      else
-      {
-        LOG_INFO_FMT("2. PPPPPPP - unknown map {}", map_name);
       }
 
       return nullptr;
@@ -821,7 +813,6 @@ namespace kv
             self->commit_deserialised(changes, v, new_maps, hooks);
           if (success == DeserialiseSuccess::FAILED)
           {
-            LOG_FAIL_FMT("1. Failed to deserialise");
             return success;
           }
 
@@ -830,12 +821,11 @@ namespace kv
           auto search = changes.find(ccf::Tables::SIGNATURES);
           if (search != changes.end())
           {
-            LOG_INFO_FMT("TTTTTT signature");
             // Transactions containing a signature must only contain
             // a signature and must be verified
             if (changes.size() > 1)
             {
-              LOG_FAIL_FMT("2. Failed to deserialise");
+              LOG_FAIL_FMT("Failed to deserialise");
               LOG_DEBUG_FMT(
                 "Unexpected contents in signature transaction {}", v);
               return DeserialiseSuccess::FAILED;
@@ -845,20 +835,18 @@ namespace kv
             {
               if (!h->verify(term_))
               {
-                LOG_FAIL_FMT("3. TTTTTTT Failed to deserialise");
+                LOG_FAIL_FMT("Failed to deserialise");
                 LOG_DEBUG_FMT(
                   "Signature in transaction {} failed to verify", v);
                 return DeserialiseSuccess::FAILED;
               }
             }
-            LOG_INFO_FMT("TTTTTTT signature verified");
             success = DeserialiseSuccess::PASS_SIGNATURE;
           }
 
           search = changes.find(ccf::Tables::SNAPSHOT_EVIDENCE);
           if (search != changes.end())
           {
-            LOG_INFO_FMT("TTTTTT snapshot evidence");
             success = DeserialiseSuccess::PASS_SNAPSHOT_EVIDENCE;
           }
 

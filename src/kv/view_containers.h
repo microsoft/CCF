@@ -73,7 +73,6 @@ namespace kv
     {
       if (!it->second->prepare(max_conflict_version))
       {
-        LOG_INFO_FMT("1. NNNNNNNNNN");
         ok = false;
         break;
       }
@@ -103,7 +102,6 @@ namespace kv
 
       if (store->get_map(current_v, map_name) != nullptr)
       {
-        LOG_INFO_FMT("2. NNNNNNNNNN, current_v:{}", current_v);
         ok = false;
         break;
       }
