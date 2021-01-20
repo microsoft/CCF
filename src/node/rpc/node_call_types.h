@@ -79,7 +79,7 @@ namespace ccf
         kv::Version last_recovered_signed_idx = kv::NoVersion;
         ConsensusType consensus_type = ConsensusType::CFT;
 
-        LedgerSecrets ledger_secrets;
+        LedgerSecretsMap ledger_secrets;
         NetworkIdentity identity;
 
         bool operator==(const NetworkInfo& other) const

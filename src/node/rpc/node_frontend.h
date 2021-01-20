@@ -42,27 +42,29 @@ namespace ccf
   private:
     NetworkState& network;
 
-    std::optional<NodeId> check_node_exists(
+    using ExistingNodeInfo = std::pair<NodeId, std::optional<kv::Version>>;
+
+    std::optional<ExistingNodeInfo> check_node_exists(
       kv::Tx& tx,
       const tls::Pem& node_pem,
       std::optional<NodeStatus> node_status = std::nullopt)
     {
       auto nodes_view = tx.get_view(network.nodes);
 
-      std::optional<NodeId> existing_node_id;
-      nodes_view->foreach([&existing_node_id, &node_pem, &node_status](
+      std::optional<ExistingNodeInfo> existing_node_info = std::nullopt;
+      nodes_view->foreach([&existing_node_info, &node_pem, &node_status](
                             const NodeId& nid, const NodeInfo& ni) {
         if (
           ni.cert == node_pem &&
           (!node_status.has_value() || ni.status == node_status.value()))
         {
-          existing_node_id = nid;
+          existing_node_info = std::make_pair(nid, ni.ledger_secret_seqno);
           return false;
         }
         return true;
       });
 
-      return existing_node_id;
+      return existing_node_info;
     }
 
     std::optional<NodeId> check_conflicting_node_network(
@@ -130,13 +132,21 @@ namespace ccf
       NodeId joining_node_id =
         get_next_id(tx.get_view(this->network.values), NEXT_NODE_ID);
 
+      std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
+      if (node_status == NodeStatus::TRUSTED)
+      {
+        ledger_secret_seqno =
+          this->network.ledger_secrets->get_latest(tx).first;
+      }
+
       nodes_view->put(
         joining_node_id,
         {in.node_info_network,
          caller_pem,
          in.quote,
          in.public_encryption_key,
-         node_status});
+         node_status,
+         ledger_secret_seqno});
 
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);
 
@@ -150,7 +160,7 @@ namespace ccf
           node.is_part_of_public_network(),
           node.get_last_recovered_signed_idx(),
           this->network.consensus_type,
-          *this->network.ledger_secrets.get(),
+          this->network.ledger_secrets->get(tx),
           *this->network.identity.get()};
       }
       return make_success(rep);
@@ -220,17 +230,18 @@ namespace ccf
           NodeStatus joining_node_status = NodeStatus::TRUSTED;
 
           // If the node is already trusted, return network secrets
-          auto existing_node_id =
+          auto existing_node_info =
             check_node_exists(args.tx, caller_pem, joining_node_status);
-          if (existing_node_id.has_value())
+          if (existing_node_info.has_value())
           {
             JoinNetworkNodeToNode::Out rep;
             rep.node_status = joining_node_status;
-            rep.node_id = existing_node_id.value();
+            rep.node_id = existing_node_info->first;
             rep.network_info = {node.is_part_of_public_network(),
                                 node.get_last_recovered_signed_idx(),
                                 this->network.consensus_type,
-                                *this->network.ledger_secrets.get(),
+                                this->network.ledger_secrets->get(
+                                  args.tx, existing_node_info->second),
                                 *this->network.identity.get()};
             return make_success(rep);
           }
@@ -243,22 +254,23 @@ namespace ccf
         // node polls the network to retrieve the network secrets until it is
         // trusted
 
-        auto existing_node_id = check_node_exists(args.tx, caller_pem);
-        if (existing_node_id.has_value())
+        auto existing_node_info = check_node_exists(args.tx, caller_pem);
+        if (existing_node_info.has_value())
         {
           JoinNetworkNodeToNode::Out rep;
-          rep.node_id = existing_node_id.value();
+          rep.node_id = existing_node_info->first;
 
           // If the node already exists, return network secrets if is already
-          // trusted. Otherwise, only return its node id
-          auto node_status = nodes_view->get(existing_node_id.value())->status;
+          // trusted. Otherwise, only return its status
+          auto node_status = nodes_view->get(existing_node_info->first)->status;
           rep.node_status = node_status;
           if (node_status == NodeStatus::TRUSTED)
           {
             rep.network_info = {node.is_part_of_public_network(),
                                 node.get_last_recovered_signed_idx(),
                                 this->network.consensus_type,
-                                *this->network.ledger_secrets.get(),
+                                this->network.ledger_secrets->get(
+                                  args.tx, existing_node_info->second),
                                 *this->network.identity.get()};
             return make_success(rep);
           }

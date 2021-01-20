@@ -36,12 +36,8 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)
 
   DECLARE_JSON_TYPE(LedgerSecret)
-  DECLARE_JSON_REQUIRED_FIELDS(LedgerSecret, master)
-  DECLARE_JSON_TYPE(LedgerSecrets::VersionedLedgerSecret)
   DECLARE_JSON_REQUIRED_FIELDS(
-    LedgerSecrets::VersionedLedgerSecret, version, secret)
-  DECLARE_JSON_TYPE(LedgerSecrets)
-  DECLARE_JSON_REQUIRED_FIELDS(LedgerSecrets, secrets_list)
+    LedgerSecret, raw_key) // Only raw_key is serialised
 
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out::NetworkInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -134,6 +130,14 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(GetCode::Version, digest, status)
   DECLARE_JSON_TYPE(GetCode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCode::Out, versions)
+
+  DECLARE_JSON_TYPE(GetRecoveryShare::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(GetRecoveryShare::Out, encrypted_share)
+
+  DECLARE_JSON_TYPE(SubmitRecoveryShare::In)
+  DECLARE_JSON_REQUIRED_FIELDS(SubmitRecoveryShare::In, share)
+  DECLARE_JSON_TYPE(SubmitRecoveryShare::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(SubmitRecoveryShare::Out, message)
 
   DECLARE_JSON_TYPE(MemoryUsage::Out)
   DECLARE_JSON_REQUIRED_FIELDS(

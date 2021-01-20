@@ -56,8 +56,10 @@ namespace ccf
     // client-facing:
     ERROR(FrontendNotOpen)
     ERROR(KeyNotFound)
+    ERROR(NodeAlreadyRecovering)
     ERROR(ProposalNotOpen)
     ERROR(ProposalNotFound)
+    ERROR(ServiceNotWaitingForRecoveryShares)
     ERROR(StateDigestMismatch)
     ERROR(TransactionNotFound)
     ERROR(TransactionCommitAttemptsExceedLimit)
