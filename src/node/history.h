@@ -462,27 +462,10 @@ namespace ccf
     tls::KeyPair& kp;
 
     std::map<RequestID, std::vector<uint8_t>> requests;
-    std::map<RequestID, std::vector<uint8_t>> responses;
 
     threading::Task::TimerEntry emit_signature_timer_entry;
     size_t sig_tx_interval;
     size_t sig_ms_interval;
-
-    void discard_pending(kv::Version v)
-    {
-      std::lock_guard<SpinLock> vguard(version_lock);
-      auto* p = pending_inserts.get_head();
-      while (p != nullptr)
-      {
-        auto* next = p->next;
-        if (p->version > v)
-        {
-          pending_inserts.remove(p);
-          delete p;
-        }
-        p = next;
-      }
-    }
 
   public:
     HashedTxHistory(
@@ -696,7 +679,6 @@ namespace ccf
 
     void rollback(kv::Version v) override
     {
-      discard_pending(v);
       replicated_state_tree.retract(v);
       log_hash(replicated_state_tree.get_root(), ROLLBACK);
     }
@@ -805,29 +787,6 @@ namespace ccf
 
       return consensus->on_request({id, request, caller_cert, frame_format});
     }
-
-    struct PendingInsert
-    {
-      PendingInsert(
-        kv::TxHistory::RequestID i,
-        kv::Version v,
-        std::shared_ptr<std::vector<uint8_t>> r) :
-        id(i),
-        version(v),
-        replicated(std::move(r)),
-        next(nullptr),
-        prev(nullptr)
-      {}
-
-      kv::TxHistory::RequestID id;
-      kv::Version version;
-      std::shared_ptr<std::vector<uint8_t>> replicated;
-      PendingInsert* next;
-      PendingInsert* prev;
-    };
-
-    SpinLock version_lock;
-    snmalloc::DLList<PendingInsert, std::nullptr_t, true> pending_inserts;
 
     void add_pending(
       kv::TxHistory::RequestID id,
