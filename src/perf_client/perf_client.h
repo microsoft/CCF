@@ -345,7 +345,11 @@ namespace client
     {
       const PreparedTx tx{
         rpc_connection->gen_request(
-          method, params, http::headervalues::contenttype::JSON),
+          method,
+          params,
+          http::headervalues::contenttype::JSON,
+          HTTP_POST,
+          options.jwt.size() == 0 ? nullptr : options.jwt.c_str()),
         method,
         expects_commit};
 
@@ -366,7 +370,9 @@ namespace client
                             body,
                             serdes == serdes::Pack::Text ?
                               http::headervalues::contenttype::JSON :
-                              http::headervalues::contenttype::MSGPACK),
+                              http::headervalues::contenttype::MSGPACK,
+                              HTTP_POST,
+                              options.jwt.size() == 0 ? nullptr : options.jwt.c_str()),
                           method,
                           expects_commit};
 
