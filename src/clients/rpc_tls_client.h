@@ -60,7 +60,8 @@ protected:
     const std::string& method,
     const CBuffer params,
     const std::string& content_type,
-    llhttp_method verb)
+    llhttp_method verb,
+    const char* jwt = nullptr)
   {
     auto path = method;
     if (prefix.has_value())
@@ -71,6 +72,10 @@ protected:
     auto r = http::Request(path, verb);
     r.set_body(params.p, params.n);
     r.set_header(http::headers::CONTENT_TYPE, content_type);
+    if (jwt != nullptr)
+    {
+      r.set_header(http::headers::AUTHORIZATION, fmt::format("Bearer {}", jwt));
+    }
 
     if (key_pair != nullptr)
     {
@@ -96,12 +101,13 @@ protected:
     const std::string& method,
     const CBuffer params,
     const std::string& content_type,
-    llhttp_method verb)
+    llhttp_method verb,
+    const char* jwt = nullptr)
   {
     if (is_ws)
       return gen_ws_request_internal(method, params);
     else
-      return gen_http_request_internal(method, params, content_type, verb);
+      return gen_http_request_internal(method, params, content_type, verb, jwt);
   }
 
   Response call_raw(const std::vector<uint8_t>& raw)
@@ -155,16 +161,18 @@ public:
     const std::string& method,
     const CBuffer params,
     const std::string& content_type,
-    llhttp_method verb = HTTP_POST)
+    llhttp_method verb = HTTP_POST,
+    const char* jwt = nullptr)
   {
-    return {gen_request_internal(method, params, content_type, verb),
+    return {gen_request_internal(method, params, content_type, verb, jwt),
             next_send_id++};
   }
 
   PreparedRpc gen_request(
     const std::string& method,
     const nlohmann::json& params = nullptr,
-    llhttp_method verb = HTTP_POST)
+    llhttp_method verb = HTTP_POST,
+    const char* jwt = nullptr)
   {
     std::vector<uint8_t> body;
     if (!params.is_null())
@@ -175,7 +183,8 @@ public:
       method,
       {body.data(), body.size()},
       http::headervalues::contenttype::MSGPACK,
-      verb);
+      verb,
+      jwt);
   }
 
   Response call(
@@ -183,7 +192,7 @@ public:
     const nlohmann::json& params = nullptr,
     llhttp_method verb = HTTP_POST)
   {
-    return call_raw(gen_request(method, params, verb));
+    return call_raw(gen_request(method, params, verb, nullptr));
   }
 
   Response call(
