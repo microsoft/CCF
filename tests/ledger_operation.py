@@ -28,7 +28,7 @@ def save_committed_ledger_files(network, args):
         if infra.node.is_file_committed(l):
             shutil.move(
                 os.path.join(primary.remote.ledger_path(), l),
-                os.path.join("/tmp/ledger", l),
+                os.path.join(args.common_read_only_ledger_dir, l),
             )
 
     txs.verify(network)
