@@ -45,6 +45,5 @@ namespace enclave
       std::shared_ptr<enclave::RpcContext> ctx) = 0;
     virtual ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx) = 0;
-    virtual void update_merkle_tree() = 0;
   };
 }

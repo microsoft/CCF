@@ -122,8 +122,6 @@ namespace ccf
 
     void append(const std::vector<uint8_t>&) override {}
 
-    void append(const uint8_t*, size_t) override {}
-
     kv::TxHistory::Result verify_and_sign(PrimarySignature&, kv::Term*) override
     {
       return kv::TxHistory::Result::OK;
@@ -171,36 +169,10 @@ namespace ccf
     }
 
     void add_result(
-      kv::TxHistory::RequestID,
-      kv::Version,
-      const std::vector<uint8_t>&) override
+      kv::TxHistory::RequestID, kv::Version, const std::vector<uint8_t>&)
     {}
 
-    void add_pending(
-      kv::TxHistory::RequestID,
-      kv::Version,
-      std::shared_ptr<std::vector<uint8_t>>) override
-    {}
-
-    void flush_pending() override {}
-
-    virtual void add_result(
-      RequestID, kv::Version, const uint8_t*, size_t) override
-    {}
-
-    void add_result(RequestID, kv::Version) override {}
-
-    void add_response(
-      kv::TxHistory::RequestID, const std::vector<uint8_t>&) override
-    {}
-
-    void register_on_result(ResultCallbackHandler) override {}
-
-    void register_on_response(ResponseCallbackHandler) override {}
-
-    void clear_on_result() override {}
-
-    void clear_on_response() override {}
+    virtual void add_result(RequestID, kv::Version, const uint8_t*, size_t) {}
 
     crypto::Sha256Hash get_replicated_state_root() override
     {
@@ -482,30 +454,10 @@ namespace ccf
     tls::KeyPair& kp;
 
     std::map<RequestID, std::vector<uint8_t>> requests;
-    std::map<RequestID, std::pair<kv::Version, crypto::Sha256Hash>> results;
-    std::map<RequestID, std::vector<uint8_t>> responses;
-    std::optional<ResultCallbackHandler> on_result;
-    std::optional<ResponseCallbackHandler> on_response;
 
     threading::Task::TimerEntry emit_signature_timer_entry;
     size_t sig_tx_interval;
     size_t sig_ms_interval;
-
-    void discard_pending(kv::Version v)
-    {
-      std::lock_guard<SpinLock> vguard(version_lock);
-      auto* p = pending_inserts.get_head();
-      while (p != nullptr)
-      {
-        auto* next = p->next;
-        if (p->version > v)
-        {
-          pending_inserts.remove(p);
-          delete p;
-        }
-        p = next;
-      }
-    }
 
   public:
     HashedTxHistory(
@@ -593,34 +545,6 @@ namespace ccf
         emit_signature_timer_entry);
     }
 
-    void register_on_result(ResultCallbackHandler func) override
-    {
-      if (on_result.has_value())
-      {
-        throw std::logic_error("on_result has already been set");
-      }
-      on_result = func;
-    }
-
-    void register_on_response(ResponseCallbackHandler func) override
-    {
-      if (on_response.has_value())
-      {
-        throw std::logic_error("on_response has already been set");
-      }
-      on_response = func;
-    }
-
-    void clear_on_result() override
-    {
-      on_result.reset();
-    }
-
-    void clear_on_response() override
-    {
-      on_response.reset();
-    }
-
     void set_node_id(NodeId id_)
     {
       id = id_;
@@ -658,18 +582,6 @@ namespace ccf
     crypto::Sha256Hash get_replicated_state_root() override
     {
       return replicated_state_tree.get_root();
-    }
-
-    void append(const std::vector<uint8_t>& replicated) override
-    {
-      append(replicated.data(), replicated.size());
-    }
-
-    void append(const uint8_t* replicated, size_t replicated_size) override
-    {
-      crypto::Sha256Hash rh({replicated, replicated_size});
-      log_hash(rh, APPEND);
-      replicated_state_tree.append(rh);
     }
 
     kv::TxHistory::Result verify_and_sign(
@@ -747,14 +659,12 @@ namespace ccf
 
     void rollback(kv::Version v) override
     {
-      discard_pending(v);
       replicated_state_tree.retract(v);
       log_hash(replicated_state_tree.get_root(), ROLLBACK);
     }
 
     void compact(kv::Version v) override
     {
-      flush_pending();
       // Receipts can only be retrieved to the flushed index. Keep a range of
       // history so that a range of receipts are available.
       if (v > MAX_HISTORY_LEN)
@@ -858,105 +768,11 @@ namespace ccf
       return consensus->on_request({id, request, caller_cert, frame_format});
     }
 
-    struct PendingInsert
+    void append(const std::vector<uint8_t>& replicated) override
     {
-      PendingInsert(
-        kv::TxHistory::RequestID i,
-        kv::Version v,
-        std::shared_ptr<std::vector<uint8_t>> r) :
-        id(i),
-        version(v),
-        replicated(std::move(r)),
-        next(nullptr),
-        prev(nullptr)
-      {}
-
-      kv::TxHistory::RequestID id;
-      kv::Version version;
-      std::shared_ptr<std::vector<uint8_t>> replicated;
-      PendingInsert* next;
-      PendingInsert* prev;
-    };
-
-    SpinLock version_lock;
-    snmalloc::DLList<PendingInsert, std::nullptr_t, true> pending_inserts;
-
-    void add_pending(
-      kv::TxHistory::RequestID id,
-      kv::Version version,
-      std::shared_ptr<std::vector<uint8_t>> replicated) override
-    {
-      add_result(id, version, replicated->data(), replicated->size());
-    }
-
-    void flush_pending() override
-    {
-      snmalloc::DLList<PendingInsert, std::nullptr_t, true> pi;
-      {
-        std::lock_guard<SpinLock> vguard(version_lock);
-        pi = std::move(pending_inserts);
-      }
-
-      PendingInsert* p = pi.get_head();
-      while (p != nullptr)
-      {
-        add_result(p->id, p->version, *p->replicated);
-        p = p->next;
-      }
-    }
-
-    void add_result(
-      kv::TxHistory::RequestID id,
-      kv::Version version,
-      const std::vector<uint8_t>& replicated) override
-    {
-      add_result(id, version, replicated.data(), replicated.size());
-    }
-
-    void add_result(
-      RequestID id,
-      kv::Version version,
-      const uint8_t* replicated,
-      size_t replicated_size) override
-    {
-      append(replicated, replicated_size);
-
-      auto consensus = store.get_consensus();
-
-      if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
-      {
-        if (on_result.has_value())
-        {
-          auto root = get_replicated_state_root();
-          LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
-          results[id] = {version, root};
-          on_result.value()({id, version, root});
-        }
-      }
-    }
-
-    void add_result(kv::TxHistory::RequestID id, kv::Version version) override
-    {
-      auto consensus = store.get_consensus();
-
-      if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
-      {
-        if (on_result.has_value())
-        {
-          auto root = get_replicated_state_root();
-          LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
-          results[id] = {version, root};
-          on_result.value()({id, version, root});
-        }
-      }
-    }
-
-    void add_response(
-      kv::TxHistory::RequestID id,
-      const std::vector<uint8_t>& response) override
-    {
-      LOG_DEBUG_FMT("HISTORY: add_response {0}", id);
-      responses[id] = response;
+      crypto::Sha256Hash rh({replicated.data(), replicated.size()});
+      log_hash(rh, APPEND);
+      replicated_state_tree.append(rh);
     }
   };
 
