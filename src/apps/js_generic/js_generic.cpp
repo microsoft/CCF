@@ -1272,22 +1272,6 @@ namespace ccfapp
       EndpointRegistry::execute_endpoint(e, args);
     }
 
-    static std::pair<llhttp_method, std::string> split_script_key(
-      const std::string& key)
-    {
-      size_t s = key.find(' ');
-      if (s != std::string::npos)
-      {
-        return std::make_pair(
-          http::http_method_from_str(key.substr(0, s).c_str()),
-          key.substr(s + 1, key.size() - (s + 1)));
-      }
-      else
-      {
-        return std::make_pair(HTTP_POST, key);
-      }
-    }
-
     // Since we do our own dispatch within the default handler, report the
     // supported methods here
     void build_api(nlohmann::json& document, kv::ReadOnlyTx& tx) override

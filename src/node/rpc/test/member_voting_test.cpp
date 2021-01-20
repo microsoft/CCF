@@ -94,17 +94,6 @@ void set_whitelists(GenesisGenerator& gen)
     gen.set_whitelist(wl.first, wl.second);
 }
 
-std::vector<uint8_t> create_text_request(
-  const std::string& text,
-  const string& method_name,
-  llhttp_method verb = HTTP_POST)
-{
-  http::Request r(method_name, verb);
-  const auto body = std::vector<uint8_t>(text.begin(), text.end());
-  r.set_body(&body);
-  return r.build_request();
-}
-
 std::vector<uint8_t> create_request(
   const json& params, const string& method_name, llhttp_method verb = HTTP_POST)
 {
