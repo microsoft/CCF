@@ -701,7 +701,8 @@ namespace ccf
         "Deserialising public ledger entry ({})", ledger_entry.size());
 
       // When reading the public ledger, deserialise in the real store
-      auto r = network.tables->deserialise_views_async(ledger_entry, ConsensusType::CFT, true);
+      auto r =
+        network.tables->deserialise(ledger_entry, ConsensusType::CFT, true);
       auto result = r->Execute();
       if (result == kv::DeserialiseSuccess::FAILED)
       {
@@ -943,7 +944,9 @@ namespace ccf
         "Deserialising private ledger entry ({})", ledger_entry.size());
 
       // When reading the private ledger, deserialise in the recovery store
-      auto result = recovery_store->deserialise_views_async(ledger_entry, ConsensusType::CFT)->Execute();
+      auto result =
+        recovery_store->deserialise(ledger_entry, ConsensusType::CFT)
+          ->Execute();
       if (result == kv::DeserialiseSuccess::FAILED)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in private ledger");
@@ -1687,8 +1690,7 @@ namespace ccf
       auto shared_state = std::make_shared<aft::State>(self);
       auto raft = std::make_unique<RaftType>(
         network.consensus_type,
-        std::make_unique<aft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
-          network.tables),
+        std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         snapshotter,

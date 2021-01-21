@@ -30,7 +30,8 @@ public:
     if (store)
     {
       REQUIRE(entries.size() == 1);
-      return store->deserialise_views_async(*std::get<1>(entries[0]), ConsensusType::CFT)->Execute();
+      return store->deserialise(*std::get<1>(entries[0]), ConsensusType::CFT)
+        ->Execute();
     }
     return true;
   }

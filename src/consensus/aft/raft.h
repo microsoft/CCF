@@ -65,7 +65,7 @@ namespace aft
     };
 
     ConsensusType consensus_type;
-    std::unique_ptr<Store<kv::DeserialiseSuccess>> store;
+    std::unique_ptr<Store> store;
 
     // Persistent
     NodeId voted_for;
@@ -129,7 +129,7 @@ namespace aft
   public:
     Aft(
       ConsensusType consensus_type_,
-      std::unique_ptr<Store<kv::DeserialiseSuccess>> store_,
+      std::unique_ptr<Store> store_,
       std::unique_ptr<LedgerProxy> ledger_,
       std::shared_ptr<ccf::NodeToNode> channels_,
       std::shared_ptr<SnapshotterProxy> snapshotter_,
@@ -1072,7 +1072,9 @@ namespace aft
         r.idx,
         r.prev_idx);
 
-      std::vector<std::tuple<std::unique_ptr<kv::IExecutionWrapper>, kv::Version>> foobar;
+      std::vector<
+        std::tuple<std::unique_ptr<kv::IExecutionWrapper>, kv::Version>>
+        append_entries;
       // Finally, deserialise each entry in the batch
       for (Index i = r.prev_idx + 1; i <= r.idx; i++)
       {
@@ -1104,8 +1106,7 @@ namespace aft
           return;
         }
 
-        auto ds =
-          store->deserialise_views_async(entry, consensus_type, public_only);
+        auto ds = store->deserialise(entry, consensus_type, public_only);
         if (ds == nullptr)
         {
           LOG_DEBUG_FMT("failed to deserialize we failed to apply");
@@ -1113,15 +1114,16 @@ namespace aft
             r.from_node, AppendEntriesResponseType::FAIL);
           return;
         }
-        foobar.push_back(std::make_tuple(std::move(ds), i));
+        append_entries.push_back(std::make_tuple(std::move(ds), i));
       }
 
-      for (auto& d : foobar)
+      for (auto& ae : append_entries)
       {
-        auto& [ds, i] = d;
+        auto& [ds, i] = ae;
         state->last_idx = i;
 
-        kv::DeserialiseSuccess deserialise_success = kv::DeserialiseSuccess::FAILED;
+        kv::DeserialiseSuccess deserialise_success =
+          kv::DeserialiseSuccess::FAILED;
         if (ds != nullptr)
         {
           deserialise_success = ds->Execute();
@@ -1159,7 +1161,8 @@ namespace aft
           force_ledger_chunk = snapshotter->record_committable(i);
         }
 
-        ledger->put_entry(ds->get_entry(), globally_committable, force_ledger_chunk);
+        ledger->put_entry(
+          ds->get_entry(), globally_committable, force_ledger_chunk);
 
         switch (deserialise_success)
         {
@@ -1192,7 +1195,8 @@ namespace aft
             }
             if (consensus_type == ConsensusType::BFT)
             {
-              send_append_entries_signed_response(r.from_node, ds->get_signature());
+              send_append_entries_signed_response(
+                r.from_node, ds->get_signature());
             }
             break;
           }
@@ -1203,7 +1207,8 @@ namespace aft
           }
           case kv::DeserialiseSuccess::PASS_NEW_VIEW:
           {
-            view_change_tracker->clear(get_primary(ds->get_term()) == id(), ds->get_term());
+            view_change_tracker->clear(
+              get_primary(ds->get_term()) == id(), ds->get_term());
             request_tracker->clear();
             break;
           }

@@ -265,8 +265,9 @@ TEST_CASE("KV encryption/decryption")
   {
     commit_one(primary_store, map);
     REQUIRE(
-      backup_store.deserialise_views_async(*consensus->get_latest_data(), ConsensusType::CFT)->Execute() ==
-      kv::DeserialiseSuccess::PASS);
+      backup_store
+        .deserialise(*consensus->get_latest_data(), ConsensusType::CFT)
+        ->Execute() == kv::DeserialiseSuccess::PASS);
   }
 
   INFO("Rekeys");
@@ -291,8 +292,7 @@ TEST_CASE("KV encryption/decryption")
 
       REQUIRE(
         backup_store
-          .deserialise_views_async(
-            *consensus->get_latest_data(), ConsensusType::CFT)
+          .deserialise(*consensus->get_latest_data(), ConsensusType::CFT)
           ->Execute() == kv::DeserialiseSuccess::PASS);
     }
   }
@@ -353,7 +353,7 @@ TEST_CASE("Backup catchup from many ledger secrets")
     {
       REQUIRE(
         backup_store
-          .deserialise_views_async(
+          .deserialise(
             *std::get<1>(next_entry.value()), ConsensusType::CFT)
           ->Execute() == kv::DeserialiseSuccess::PASS);
       next_entry = consensus->pop_oldest_entry();
@@ -394,8 +394,8 @@ TEST_CASE("KV integrity verification")
   REQUIRE(corrupt_serialised_tx(latest_data.value(), value_to_corrupt));
 
   REQUIRE(
-    backup_store.deserialise_views_async(latest_data.value(), ConsensusType::CFT) ==
-    nullptr);
+    backup_store.deserialise(latest_data.value(), ConsensusType::CFT)
+      ->Execute() == kv::DeserialiseSuccess::FAILED);
 }
 
 TEST_CASE("Encryptor rollback")

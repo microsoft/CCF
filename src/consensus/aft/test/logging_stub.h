@@ -260,13 +260,13 @@ namespace aft
       {
         throw std::logic_error("4. Not Implemented");
       }
+
     private:
       const std::vector<uint8_t>& data;
       kv::ConsensusHookPtrs hooks;
-
     };
 
-    virtual std::unique_ptr<kv::IExecutionWrapper> deserialise_views_async(
+    virtual std::unique_ptr<kv::IExecutionWrapper> deserialise(
       const std::vector<uint8_t>& data,
       ConsensusType consensus_type,
       bool public_only = false)

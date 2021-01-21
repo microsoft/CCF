@@ -34,7 +34,6 @@ namespace aft
 
   static constexpr size_t starting_view_change = 2;
 
-  template <typename S>
   class Store
   {
   public:
@@ -42,7 +41,7 @@ namespace aft
     virtual void compact(Index v) = 0;
     virtual void rollback(Index v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
-    virtual std::unique_ptr<kv::IExecutionWrapper> deserialise_views_async(
+    virtual std::unique_ptr<kv::IExecutionWrapper> deserialise(
       const std::vector<uint8_t> data,
       ConsensusType consensus_type,
       bool public_only = false) = 0;
@@ -50,8 +49,8 @@ namespace aft
     virtual kv::Tx create_tx() = 0;
   };
 
-  template <typename T, typename S>
-  class Adaptor : public Store<S>
+  template <typename T>
+  class Adaptor : public Store
   {
   private:
     std::weak_ptr<T> x;
@@ -106,18 +105,18 @@ namespace aft
       throw std::logic_error("Can't create a tx without a store");
     }
 
-    std::unique_ptr<kv::IExecutionWrapper> deserialise_views_async(
+    std::unique_ptr<kv::IExecutionWrapper> deserialise(
       const std::vector<uint8_t> data,
       ConsensusType consensus_type,
       bool public_only = false) override
+    {
+      auto p = x.lock();
+      if (p)
       {
-        auto p = x.lock();
-        if (p)
-        {
-          return p->deserialise_views_async(data, consensus_type, public_only);
-        }
-      return nullptr;
+        return p->deserialise(data, consensus_type, public_only);
       }
+      return nullptr;
+    }
   };
 
   enum RaftMsgType : Node2NodeMsg

@@ -617,7 +617,7 @@ namespace kv
       }
     }
 
-    bool fill_maps (
+    bool fill_maps(
       const std::vector<uint8_t>& data,
       bool public_only,
       kv::Version& v,
@@ -711,13 +711,11 @@ namespace kv
       return true;
     }
 
-    class ExecutionWrapper : public IExecutionWrapper
+    class CFTExecutionWrapper : public IExecutionWrapper
     {
     public:
-      ExecutionWrapper(
-        Store* self_,
-        const std::vector<uint8_t>& data_,
-        bool public_only_) :
+      CFTExecutionWrapper(
+        Store* self_, const std::vector<uint8_t>& data_, bool public_only_) :
         self(self_),
         data(data_),
         public_only(public_only_)
@@ -725,7 +723,82 @@ namespace kv
 
       DeserialiseSuccess Execute() override
       {
-        return fn(self, data, public_only, v, &term, &version, &sig, changes, new_maps, hooks);
+        return fn(
+          self,
+          data,
+          public_only,
+          v,
+          &term,
+          changes,
+          new_maps,
+          hooks);
+      }
+
+      kv::ConsensusHookPtrs& get_hooks() override
+      {
+        return hooks;
+      }
+
+      const std::vector<uint8_t>& get_entry() override
+      {
+        return data;
+      }
+
+      Term get_term() override
+      {
+        return term;
+      }
+
+      Tx& get_tx() override
+      {
+        return *tx;
+      }
+
+      std::function<DeserialiseSuccess(
+        Store* self,
+        const std::vector<uint8_t>& data,
+        bool public_only,
+        kv::Version& v,
+        Term* term,
+        OrderedChanges& changes,
+        MapCollection& new_maps,
+        kv::ConsensusHookPtrs& hooks)>
+        fn = nullptr;
+
+      Store* self;
+      const std::vector<uint8_t> data;
+      bool public_only;
+      kv::Version v;
+      Term term;
+      OrderedChanges changes;
+      MapCollection new_maps;
+      kv::ConsensusHookPtrs hooks;
+      std::unique_ptr<Tx> tx;
+    };
+
+    class ExecutionWrapper : public IExecutionWrapper
+    {
+    public:
+      ExecutionWrapper(
+        Store* self_, const std::vector<uint8_t>& data_, bool public_only_) :
+        self(self_),
+        data(data_),
+        public_only(public_only_)
+      {}
+
+      DeserialiseSuccess Execute() override
+      {
+        return fn(
+          self,
+          data,
+          public_only,
+          v,
+          &term,
+          &version,
+          &sig,
+          changes,
+          new_maps,
+          hooks);
       }
 
       kv::ConsensusHookPtrs& get_hooks() override
@@ -784,23 +857,21 @@ namespace kv
       std::unique_ptr<Tx> tx;
     };
 
-    std::unique_ptr<kv::IExecutionWrapper> deserialise_views_async(
+    std::unique_ptr<kv::IExecutionWrapper> deserialise(
       const std::vector<uint8_t> data,
       ConsensusType consensus_type,
       bool public_only = false) override
     {
-      auto exec =
-        std::make_unique<ExecutionWrapper>(this, std::move(data), public_only);
       if (consensus_type == ConsensusType::CFT)
       {
+        auto exec =
+          std::make_unique<CFTExecutionWrapper>(this, std::move(data), public_only);
         exec->fn = [](
                      Store* self,
                      const std::vector<uint8_t>& data,
                      bool public_only,
                      kv::Version& v,
                      Term* term_,
-                     Version*,
-                     ccf::PrimarySignature*,
                      OrderedChanges& changes,
                      MapCollection& new_maps,
                      kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
@@ -856,9 +927,12 @@ namespace kv
           }
           return success;
         };
+        return exec;
       }
       else
       {
+        auto exec =
+          std::make_unique<ExecutionWrapper>(this, std::move(data), public_only);
         if (!fill_maps(
               data, public_only, exec->v, exec->changes, exec->new_maps, true))
         {
@@ -889,7 +963,8 @@ namespace kv
                        OrderedChanges& changes,
                        MapCollection& new_maps,
                        kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
-            DeserialiseSuccess success = self->commit_deserialised(changes, v, new_maps, hooks);
+            DeserialiseSuccess success =
+              self->commit_deserialised(changes, v, new_maps, hooks);
             if (success == DeserialiseSuccess::FAILED)
             {
               return success;
@@ -924,20 +999,23 @@ namespace kv
             return DeserialiseSuccess::PASS_SIGNATURE;
           };
         }
-        else if (exec->changes.find(ccf::Tables::BACKUP_SIGNATURES) != exec->changes.end())
+        else if (
+          exec->changes.find(ccf::Tables::BACKUP_SIGNATURES) !=
+          exec->changes.end())
         {
           exec->fn = [](
-                      Store* self,
-                      const std::vector<uint8_t>& data,
+                       Store* self,
+                       const std::vector<uint8_t>& data,
                        bool,
-                      kv::Version& v,
-                      Term* term_,
-                      Version* index_,
-                      ccf::PrimarySignature*,
-                      OrderedChanges& changes,
-                      MapCollection& new_maps,
-                      kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
-            DeserialiseSuccess success = self->commit_deserialised(changes, v, new_maps, hooks);
+                       kv::Version& v,
+                       Term* term_,
+                       Version* index_,
+                       ccf::PrimarySignature*,
+                       OrderedChanges& changes,
+                       MapCollection& new_maps,
+                       kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
+            DeserialiseSuccess success =
+              self->commit_deserialised(changes, v, new_maps, hooks);
             if (success == DeserialiseSuccess::FAILED)
             {
               return success;
@@ -946,7 +1024,9 @@ namespace kv
             kv::TxID tx_id;
 
             auto r = self->progress_tracker->receive_backup_signatures(
-              tx_id, self->consensus->node_count(), self->consensus->is_primary());
+              tx_id,
+              self->consensus->node_count(),
+              self->consensus->is_primary());
             if (r == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
             {
               success = DeserialiseSuccess::PASS_BACKUP_SIGNATURE_SEND_ACK;
@@ -975,17 +1055,18 @@ namespace kv
         else if (exec->changes.find(ccf::Tables::NONCES) != exec->changes.end())
         {
           exec->fn = [](
-                      Store* self,
-                      const std::vector<uint8_t>& data,
+                       Store* self,
+                       const std::vector<uint8_t>& data,
                        bool,
-                      kv::Version& v,
-                      Term*,
-                      Version*,
-                      ccf::PrimarySignature*,
-                      OrderedChanges& changes,
-                      MapCollection& new_maps,
-                      kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
-            DeserialiseSuccess success = self->commit_deserialised(changes, v, new_maps, hooks);
+                       kv::Version& v,
+                       Term*,
+                       Version*,
+                       ccf::PrimarySignature*,
+                       OrderedChanges& changes,
+                       MapCollection& new_maps,
+                       kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
+            DeserialiseSuccess success =
+              self->commit_deserialised(changes, v, new_maps, hooks);
             if (success == DeserialiseSuccess::FAILED)
             {
               return success;
@@ -1005,19 +1086,20 @@ namespace kv
             return DeserialiseSuccess::PASS_NONCES;
           };
         }
-        else if (exec->changes.find(ccf::Tables::NEW_VIEWS) != exec->changes.end())
+        else if (
+          exec->changes.find(ccf::Tables::NEW_VIEWS) != exec->changes.end())
         {
           exec->fn = [](
-                      Store* self,
-                      const std::vector<uint8_t>& data,
+                       Store* self,
+                       const std::vector<uint8_t>& data,
                        bool,
-                      kv::Version& v,
-                      Term* term_,
-                      Version* index_,
-                      ccf::PrimarySignature*,
-                      OrderedChanges& changes,
-                      MapCollection& new_maps,
-                      kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
+                       kv::Version& v,
+                       Term* term_,
+                       Version* index_,
+                       ccf::PrimarySignature*,
+                       OrderedChanges& changes,
+                       MapCollection& new_maps,
+                       kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
             LOG_INFO_FMT("Applying new view");
             DeserialiseSuccess success =
               self->commit_deserialised(changes, v, new_maps, hooks);
@@ -1042,7 +1124,8 @@ namespace kv
             return DeserialiseSuccess::PASS_NEW_VIEW;
           };
         }
-        else if (exec->changes.find(ccf::Tables::AFT_REQUESTS) != exec->changes.end())
+        else if (
+          exec->changes.find(ccf::Tables::AFT_REQUESTS) != exec->changes.end())
         {
           exec->tx = std::make_unique<Tx>(this);
           exec->tx->set_change_list(std::move(exec->changes), term);
@@ -1065,13 +1148,15 @@ namespace kv
           // we have deserialised an entry that didn't belong to the bft
           // requests nor the signatures table
           LOG_FAIL_FMT(
-            "Request contains unexpected table - {}", exec->changes.begin()->first);
+            "Request contains unexpected table - {}",
+            exec->changes.begin()->first);
           CCF_ASSERT_FMT_FAIL(
-            "Request contains unexpected table - {}", exec->changes.begin()->first);
+            "Request contains unexpected table - {}",
+            exec->changes.begin()->first);
         }
+        return exec;
       }
 
-      return exec;
     }
 
     bool operator==(const Store& that) const

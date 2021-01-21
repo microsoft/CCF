@@ -533,8 +533,14 @@ namespace kv
     virtual kv::ConsensusHookPtrs& get_hooks() = 0;
     virtual const std::vector<uint8_t>& get_entry() = 0;
     virtual kv::Term get_term() = 0;
-    virtual kv::Version get_index() = 0;
-    virtual ccf::PrimarySignature& get_signature() = 0;
+    virtual kv::Version get_index()
+    {
+      throw std::logic_error("get_index not implemented");
+    }
+    virtual ccf::PrimarySignature& get_signature()
+    {
+      throw std::logic_error("get_index not implemented");
+    }
     virtual kv::Tx& get_tx() = 0;
   };
 
@@ -572,7 +578,7 @@ namespace kv
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;
     virtual EncryptorPtr get_encryptor() = 0;
-    virtual std::unique_ptr<IExecutionWrapper> deserialise_views_async(
+    virtual std::unique_ptr<IExecutionWrapper> deserialise(
       const std::vector<uint8_t> data,
       ConsensusType consensus_type,
       bool public_only = false) = 0;

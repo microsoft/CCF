@@ -379,8 +379,7 @@ TEST_CASE("Dynamic map serialisation" * doctest::test_suite("dynamic"))
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
     REQUIRE(
-      kv_store_target
-        .deserialise_views_async(latest_data.value(), ConsensusType::CFT)
+      kv_store_target.deserialise(latest_data.value(), ConsensusType::CFT)
         ->Execute() == kv::DeserialiseSuccess::PASS);
 
     auto tx_target = kv_store_target.create_tx();

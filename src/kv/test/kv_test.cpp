@@ -947,7 +947,9 @@ TEST_CASE("Deserialising from other Store")
   kv::Store clone;
   clone.set_encryptor(encryptor);
 
-  REQUIRE(clone.deserialise_views_async(data, ConsensusType::CFT)->Execute() == kv::DeserialiseSuccess::PASS);
+  REQUIRE(
+    clone.deserialise(data, ConsensusType::CFT)->Execute() ==
+    kv::DeserialiseSuccess::PASS);
 }
 
 TEST_CASE("Deserialise return status")
@@ -970,7 +972,9 @@ TEST_CASE("Deserialise return status")
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    REQUIRE(store.deserialise_views_async(data, ConsensusType::CFT)->Execute() == kv::DeserialiseSuccess::PASS);
+    REQUIRE(
+      store.deserialise(data, ConsensusType::CFT)->Execute() ==
+      kv::DeserialiseSuccess::PASS);
   }
 
   {
@@ -982,7 +986,7 @@ TEST_CASE("Deserialise return status")
     REQUIRE(success == kv::CommitSuccess::OK);
 
     REQUIRE(
-      store.deserialise_views_async(data, ConsensusType::CFT)->Execute() ==
+      store.deserialise(data, ConsensusType::CFT)->Execute() ==
       kv::DeserialiseSuccess::PASS_SIGNATURE);
   }
 
@@ -996,7 +1000,9 @@ TEST_CASE("Deserialise return status")
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    REQUIRE(store.deserialise_views_async(data, ConsensusType::CFT)->Execute() == kv::DeserialiseSuccess::FAILED);
+    REQUIRE(
+      store.deserialise(data, ConsensusType::CFT)->Execute() ==
+      kv::DeserialiseSuccess::FAILED);
   }
 }
 
