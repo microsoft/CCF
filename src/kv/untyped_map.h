@@ -377,6 +377,7 @@ namespace kv::untyped
         }
       }
 
+      s.serialise_count_header(change_set.remove_count);
       for (auto it = change_set.writes.begin(); it != change_set.writes.end();
            ++it)
       {
