@@ -467,15 +467,6 @@ namespace ccf
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
 
-            LOG_FAIL_FMT(
-              "Start node with {} ledger secrets",
-              resp.network_info.ledger_secrets.size());
-
-            for (auto const& s : resp.network_info.ledger_secrets)
-            {
-              LOG_FAIL_FMT("LS from {}", s.first);
-            }
-
             network.ledger_secrets = std::make_shared<LedgerSecrets>(
               self, std::move(resp.network_info.ledger_secrets));
 
