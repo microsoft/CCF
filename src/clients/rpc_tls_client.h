@@ -40,7 +40,7 @@ protected:
   ws::ResponseParser ws_parser;
   std::optional<std::string> prefix;
   tls::KeyPairPtr key_pair = nullptr;
-  std::string key_id;
+  std::string key_id = "Invalid";
   bool is_ws = false;
 
   size_t next_send_id = 0;
@@ -76,7 +76,7 @@ protected:
     if (key_pair != nullptr)
     {
       LOG_INFO_FMT("Signing HTTP request");
-      http::sign_request(r, key_pair);
+      http::sign_request(r, key_pair, key_id);
     }
 
     return r.build_request();
@@ -127,15 +127,17 @@ public:
     const std::string& host,
     const std::string& port,
     std::shared_ptr<tls::CA> node_ca = nullptr,
-    std::shared_ptr<tls::Cert> cert = nullptr) :
+    std::shared_ptr<tls::Cert> cert = nullptr,
+    const std::string& key_id_ = "Invalid") :
     TlsClient(host, port, node_ca, cert),
+    key_id(key_id_),
     parser(*this),
     ws_parser(*this)
-  {
-  }
+  {}
 
   HttpRpcTlsClient(const HttpRpcTlsClient& c) :
     TlsClient(c),
+    key_id(c.key_id),
     parser(*this),
     ws_parser(*this)
   {}
@@ -152,7 +154,6 @@ public:
   void create_key_pair(const tls::Pem priv_key)
   {
     key_pair = tls::make_key_pair(priv_key);
-    key_id = "Uhhh"; // TODO: hash cert
   }
 
   PreparedRpc gen_request(

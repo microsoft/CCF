@@ -206,6 +206,7 @@ namespace client
 
   private:
     tls::Pem key = {};
+    std::string key_id = "Invalid";
     std::shared_ptr<tls::Cert> tls_cert = nullptr;
 
     // Process reply to an RPC. Records time reply was received. Calls
@@ -297,6 +298,11 @@ namespace client
 
         key = tls::Pem(raw_key);
 
+        crypto::Sha256Hash hash;
+        tls::do_hash(
+          raw_cert.data(), raw_cert.size(), hash.h, MBEDTLS_MD_SHA256);
+        key_id = fmt::format("{:02x}", fmt::join(hash.h, ""));
+
         tls_cert = std::make_shared<tls::Cert>(
           std::make_shared<tls::CA>(ca), raw_cert, key);
       }
@@ -305,7 +311,8 @@ namespace client
         options.server_address.hostname,
         options.server_address.port,
         nullptr,
-        tls_cert);
+        tls_cert,
+        key_id);
 
       if (options.sign && !force_unsigned)
       {
