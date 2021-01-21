@@ -75,7 +75,6 @@ protected:
 
     if (key_pair != nullptr)
     {
-      LOG_INFO_FMT("Signing HTTP request");
       http::sign_request(r, key_pair, key_id);
     }
 
