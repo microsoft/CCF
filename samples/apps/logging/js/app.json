@@ -6,8 +6,7 @@
         "js_function": "get_private",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": true,
         "openapi": {}
       },
@@ -16,8 +15,7 @@
         "js_function": "post_private",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": false,
         "openapi": {}
       },
@@ -26,8 +24,7 @@
         "js_function": "delete_private",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": false,
         "openapi": {}
       }
@@ -38,8 +35,7 @@
         "js_function": "get_public",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": true,
         "openapi": {}
       },
@@ -48,8 +44,7 @@
         "js_function": "post_public",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": false,
         "openapi": {}
       },
@@ -58,8 +53,7 @@
         "js_function": "delete_public",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": false,
         "openapi": {}
       }

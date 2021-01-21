@@ -193,7 +193,7 @@ def test_dynamic_endpoints(network, args):
         with open(metadata_path, "r") as f:
             metadata = json.load(f)
         # Modifying a single entry
-        metadata["endpoints"]["/compute"]["post"]["require_client_identity"] = False
+        metadata["endpoints"]["/compute"]["post"]["authn_policies"] = []
         # Adding new paths with ambiguous conflicting templates
         metadata["endpoints"]["/dispatch_test/{bar}"] = metadata["endpoints"][
             "/compute"

@@ -263,7 +263,7 @@
       }
     },
     "securitySchemes": {
-      "bearer_jwt": {
+      "jwt": {
         "bearerFormat": "JWT",
         "scheme": "bearer",
         "type": "http"
@@ -724,7 +724,7 @@
             "member_signature": []
           },
           {
-            "bearer_jwt": []
+            "jwt": []
           },
           {}
         ]

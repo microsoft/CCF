@@ -7,8 +7,7 @@ import jsonmergepatch from "json-merge-patch";
 const metadataDefaults = (readonly) => ({
   forwarding_required: "always",
   execute_outside_consensus: "never",
-  require_client_identity: true,
-  require_client_signature: false,
+  authn_policies: ["user_cert"],
   readonly: readonly,
 });
 
