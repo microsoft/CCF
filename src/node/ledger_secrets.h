@@ -54,8 +54,6 @@ namespace ccf
 
     SpinLock lock;
     LedgerSecretsMap ledger_secrets;
-    // std::optional<LedgerSecretsMap::iterator> first_non_compacted_it =
-    //   std::nullopt;
 
     LedgerSecret get_secret_for_version(kv::Version version)
     {
@@ -213,7 +211,6 @@ namespace ccf
       }
 
       ledger_secrets.merge(restored_ledger_secrets);
-      // first_non_compacted_it = ledger_secrets.begin();
     }
 
     auto get_encryption_key_for(kv::Version version)
@@ -244,7 +241,6 @@ namespace ccf
         return;
       }
 
-      // auto start = first_non_compacted_it.value_or(ledger_secrets.begin());
       if (version < ledger_secrets.begin()->first)
       {
         LOG_FAIL_FMT(
