@@ -165,11 +165,12 @@ TEST_CASE(
   kv::Store kv_store_target;
   kv_store_target.set_encryptor(encryptor);
 
-  INFO("Commit a new key in source store and deserialise in target store");
+  INFO("Commit new keys in source store and deserialise in target store");
   {
     auto tx = kv_store.create_tx();
-    auto view_priv = tx.get_view<MapTypes::StringString>("priv_map");
-    view_priv->put("privk1", "privv1");
+    auto view = tx.get_view<MapTypes::StringString>("map");
+    view->put("key1", "value1");
+    view->put("key2", "value2");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     const auto latest_data = consensus->get_latest_data();
@@ -180,22 +181,39 @@ TEST_CASE(
       kv::DeserialiseSuccess::FAILED);
 
     auto tx_target = kv_store_target.create_tx();
-    auto view_priv_target =
-      tx_target.get_view<MapTypes::StringString>("priv_map");
-    REQUIRE(view_priv_target->get("privk1") == "privv1");
+    auto view_target = tx_target.get_view<MapTypes::StringString>("map");
+    REQUIRE(view_target->get("key1") == "value1");
+    REQUIRE(view_target->get("key2") == "value2");
   }
 
-  INFO("Commit key removal in source store and deserialise in target store");
+  INFO("Commit keys removal in source store and deserialise in target store");
   {
     auto tx = kv_store.create_tx();
-    auto view_priv = tx.get_view<MapTypes::StringString>("priv_map");
-    view_priv->remove("privk1");
+    auto view_source = tx.get_view<MapTypes::StringString>("map");
+
+    // Key only exists in state
+    REQUIRE(view_source->remove("key1"));
+
+    // Key exists in write set as well as state
+    view_source->put("key2", "value2");
+    REQUIRE(view_source->remove("key2"));
+
+    // Key doesn't exist in either write set or state
+    REQUIRE_FALSE(view_source->remove("unknown_key"));
+
+    // Key only exists in write set
+    view_source->put("uncommitted_key", "uncommitted_value");
+    REQUIRE(view_source->remove("uncommitted_key"));
+
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
-    // Make sure it has been marked as deleted in source store
+    // Make sure keys have been marked as deleted in source store
     auto tx2 = kv_store.create_tx();
-    auto view_priv2 = tx2.get_view<MapTypes::StringString>("priv_map");
-    REQUIRE(view_priv2->get("privk1").has_value() == false);
+    auto view_source_2 = tx2.get_view<MapTypes::StringString>("map");
+    REQUIRE_FALSE(view_source_2->get("key1").has_value());
+    REQUIRE_FALSE(view_source_2->get("key2").has_value());
+    REQUIRE_FALSE(view_source_2->get("unknown_key").has_value());
+    REQUIRE_FALSE(view_source_2->get("uncommitted_key").has_value());
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
@@ -205,9 +223,11 @@ TEST_CASE(
       kv::DeserialiseSuccess::FAILED);
 
     auto tx_target = kv_store_target.create_tx();
-    auto view_priv_target =
-      tx_target.get_view<MapTypes::StringString>("priv_map");
-    REQUIRE(view_priv_target->get("privk1").has_value() == false);
+    auto view_target = tx_target.get_view<MapTypes::StringString>("map");
+    REQUIRE_FALSE(view_target->get("key1").has_value());
+    REQUIRE_FALSE(view_target->get("key2").has_value());
+    REQUIRE_FALSE(view_target->get("unknown_key").has_value());
+    REQUIRE_FALSE(view_target->get("uncommitted_key").has_value());
   }
 }
 
