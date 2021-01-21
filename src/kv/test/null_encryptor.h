@@ -26,8 +26,7 @@ namespace kv
       const std::vector<uint8_t>& additional_data,
       const std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& plain,
-      Version version,
-      bool is_historical = false) override
+      Version version) override
     {
       plain = cipher;
       return true;
@@ -37,8 +36,6 @@ namespace kv
     {
       return 0;
     }
-
-    void disable_recovery() override {}
 
     void rollback(Version version) override {}
     void compact(Version version) override {}

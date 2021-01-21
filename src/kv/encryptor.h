@@ -14,7 +14,6 @@ namespace kv
   {
   private:
     std::shared_ptr<T> ledger_secrets;
-    bool is_recovery = false;
 
     void set_iv(S& hdr, TxID tx_id, bool is_snapshot = false)
     {
@@ -34,15 +33,7 @@ namespace kv
     }
 
   public:
-    TxEncryptor(std::shared_ptr<T> secrets, bool is_recovery_ = false) :
-      ledger_secrets(secrets),
-      is_recovery(is_recovery_)
-    {}
-
-    void disable_recovery() override
-    {
-      is_recovery = false;
-    }
+    TxEncryptor(std::shared_ptr<T> secrets) : ledger_secrets(secrets) {}
 
     size_t get_header_length() override
     {
@@ -91,8 +82,6 @@ namespace kv
      * @param[out]  plain             Decrypted plaintext
      * @param[in]   version           Version used to retrieve the corresponding
      * encryption key
-     * @param[in]   is_historical     If set, only consider encryption keys
-     * that have not been compacted away (used to decrypt historical queries)
      *
      * @return Boolean status indicating success of decryption.
      */
@@ -101,17 +90,14 @@ namespace kv
       const std::vector<uint8_t>& additional_data,
       const std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& plain,
-      Version version,
-      bool is_historical = false) override
+      Version version) override
     {
       S hdr;
       hdr.deserialise(serialised_header);
       plain.resize(cipher.size());
 
-      auto ret =
-        ledger_secrets->get_encryption_key_for(version, is_historical)
-          ->decrypt(
-            hdr.get_iv(), hdr.tag, cipher, additional_data, plain.data());
+      auto ret = ledger_secrets->get_encryption_key_for(version)->decrypt(
+        hdr.get_iv(), hdr.tag, cipher, additional_data, plain.data());
       if (!ret)
       {
         plain.resize(0);
@@ -130,22 +116,6 @@ namespace kv
       // latest one after rollback). This is OK as the transaction replication
       // will fail.
       ledger_secrets->rollback(version);
-    }
-
-    void compact(Version version) override
-    {
-      // Advances the commit point to version, so that encryption keys that
-      // will no longer be used are not considered when selecting an encryption
-      // key.
-      // Note: Encryption keys are still kept in memory to be passed on to new
-      // nodes joining the service.
-
-      // Do not compact ledger secrets on recovery, as all historical secrets
-      // are used to decrypt the historical ledger
-      if (!is_recovery)
-      {
-        ledger_secrets->compact(version);
-      }
     }
   };
 }

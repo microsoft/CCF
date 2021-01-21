@@ -202,14 +202,7 @@ namespace kv
     }
   };
 
-  class Syncable
-  {
-  public:
-    virtual void rollback(Version v) = 0;
-    virtual void compact(Version v) = 0;
-  };
-
-  class TxHistory : public Syncable
+  class TxHistory
   {
   public:
     using RequestID = std::tuple<
@@ -265,6 +258,8 @@ namespace kv
       const std::vector<uint8_t>& request,
       uint8_t frame_format) = 0;
     virtual void append(const std::vector<uint8_t>& replicated) = 0;
+    virtual void rollback(Version v) = 0;
+    virtual void compact(Version v) = 0;
   };
 
   class Consensus : public ConfigurableConsensus
@@ -420,7 +415,7 @@ namespace kv
     }
   };
 
-  class AbstractTxEncryptor : public Syncable
+  class AbstractTxEncryptor
   {
   public:
     virtual ~AbstractTxEncryptor() {}
@@ -437,14 +432,11 @@ namespace kv
       const std::vector<uint8_t>& additional_data,
       const std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& plain,
-      Version version,
-      bool is_historical = false) = 0;
+      Version version) = 0;
 
-    virtual void compact(Version version) = 0;
     virtual void rollback(Version version) = 0;
 
     virtual size_t get_header_length() = 0;
-    virtual void disable_recovery() = 0;
   };
 
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
