@@ -739,6 +739,12 @@ if(BUILD_TESTS)
     CONSENSUS cft
   )
 
+  add_e2e_test(
+    NAME ledger_operation
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/ledger_operation.py
+    CONSENSUS cft
+  )
+
   if(NOT SAN)
     # Writing new ledger files and generating new snapshots uses more file
     # descriptors so disable those for this test

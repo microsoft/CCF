@@ -61,6 +61,8 @@ namespace ccf
     VerifierCache verifiers;
 
   public:
+    static constexpr auto SECURITY_SCHEME_NAME = "user_signature";
+
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx& tx,
       const std::shared_ptr<enclave::RpcContext>& ctx,
@@ -137,7 +139,7 @@ namespace ccf
 
   inline const OpenAPISecuritySchema UserSignatureAuthnPolicy::security_schema =
     std::make_pair(
-      "user_signature",
+      UserSignatureAuthnPolicy::SECURITY_SCHEME_NAME,
       nlohmann::json{
         {"type", "http"},
         {"scheme", "signature"},
@@ -160,6 +162,8 @@ namespace ccf
     VerifierCache verifiers;
 
   public:
+    static constexpr auto SECURITY_SCHEME_NAME = "member_signature";
+
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx& tx,
       const std::shared_ptr<enclave::RpcContext>& ctx,
@@ -237,7 +241,7 @@ namespace ccf
 
   inline const OpenAPISecuritySchema
     MemberSignatureAuthnPolicy::security_schema = std::make_pair(
-      "member_signature",
+      MemberSignatureAuthnPolicy::SECURITY_SCHEME_NAME,
       nlohmann::json{
         {"type", "http"},
         {"scheme", "signature"},

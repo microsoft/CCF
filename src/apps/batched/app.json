@@ -6,8 +6,7 @@
         "js_function": "submit_batch",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": true,
         "openapi": {}
       }
@@ -18,8 +17,7 @@
         "js_function": "fetch_batch",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": true,
         "openapi": {}
       }

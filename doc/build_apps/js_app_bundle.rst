@@ -54,10 +54,9 @@ The ``app.json`` file of an app bundle has the following structure:
           "post": {
             "js_module": "app.js",
             "js_function": "foo_post",
-            "forwarding_required": "never",    
-            "execute_outside_consensus": "never",           
-            "require_client_signature": false, 
-            "require_client_identity": true,
+            "forwarding_required": "never",
+            "execute_outside_consensus": "never",
+            "authn_policies": ["user_cert"],
             "readonly": true,
             "openapi": {
               ...
@@ -73,12 +72,24 @@ The ``app.json`` file of an app bundle has the following structure:
 Each endpoint object contains the following information:
 
 - ``"js_module"``: The path to the module containing the endpoint handler, relative to the ``src/`` folder.
-- ``"js_function"``: The name of the endpoint handler function.
+- ``"js_function"``: The name of the endpoint handler function. This must be the name of a function exported by
+  the ``js_module``.
+- ``"authn_policies"``: A list of :ref:`authentication policies <build_apps/auth>` to be applied before the endpoint
+  is executed. An empty list indicates an unauthenticated endpoint which can be called by anyone. Possible entries are:
+  
+  - ``"user_cert"``
+  - ``"user_signature"``
+  - ``"member_cert"``
+  - ``"member_signature"``
+  - ``"jwt"``
+  - ``"no_auth"``
+  
 - ``"forwarding_required"``, ``"execute_outside_consensus"``,
-  ``"require_client_signature"``, ``"require_client_identity"```,
   ``"readonly"``: Request execution policies, see **TODO**.
 - ``"openapi"``:  An `OpenAPI Operation Object <https://swagger.io/specification/#operation-object>`_ 
-  without `references <https://swagger.io/specification/#reference-object>`_.
+  without `references <https://swagger.io/specification/#reference-object>`_. This is descriptive but not
+  enforced - it will be inserted into the generated OpenAPI document for this service, but will not restrict the
+  types of the endpoint's requests or responses.
 
 You can find an example metadata file at
 `tests/js-app-bundle/app.json <https://github.com/microsoft/CCF/tree/master/tests/js-app-bundle/app.json>`_
@@ -127,6 +138,10 @@ A ``Request`` object has the following fields:
 - ``query``: The query string of the requested URL.
 - ``body``: An object with ``text()``/``json()``/``arrayBuffer()`` functions to access the
   request body in various ways.
+- ``caller``: An object describing the authenticated identity retrieved by this endpoint's authentication policies.
+  ``caller.policy`` is a string indicating which policy accepted this request, for use when multiple policies are
+  listed. The other fields depend on which policy accepted; most set ``caller.id``, ``caller.data``, and ``caller.cert``,
+  while the ``"jwt"`` policy sets ``caller.jwt``.
 
 A ``Response`` object can contain the following fields (all optional):
 
