@@ -91,6 +91,8 @@ namespace kv
      * @param[out]  plain             Decrypted plaintext
      * @param[in]   version           Version used to retrieve the corresponding
      * encryption key
+     * @param[in]   is_historical     If set, only consider encryption keys
+     * that have not been compacted away (used to decrypt historical queries)
      *
      * @return Boolean status indicating success of decryption.
      */
@@ -99,14 +101,17 @@ namespace kv
       const std::vector<uint8_t>& additional_data,
       const std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& plain,
-      Version version) override
+      Version version,
+      bool is_historical = false) override
     {
       S hdr;
       hdr.deserialise(serialised_header);
       plain.resize(cipher.size());
 
-      auto ret = ledger_secrets->get_encryption_key_for(version)->decrypt(
-        hdr.get_iv(), hdr.tag, cipher, additional_data, plain.data());
+      auto ret =
+        ledger_secrets->get_encryption_key_for(version, is_historical)
+          ->decrypt(
+            hdr.get_iv(), hdr.tag, cipher, additional_data, plain.data());
       if (!ret)
       {
         plain.resize(0);

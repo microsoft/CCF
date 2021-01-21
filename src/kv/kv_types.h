@@ -437,7 +437,8 @@ namespace kv
       const std::vector<uint8_t>& additional_data,
       const std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& plain,
-      Version version) = 0;
+      Version version,
+      bool is_historical = false) = 0;
 
     virtual void compact(Version version) = 0;
     virtual void rollback(Version version) = 0;

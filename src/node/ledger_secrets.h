@@ -54,16 +54,30 @@ namespace ccf
 
     SpinLock lock;
     LedgerSecretsMap ledger_secrets;
-    std::optional<LedgerSecretsMap::iterator> commit_key_it = std::nullopt;
+    std::optional<LedgerSecretsMap::iterator> first_non_compacted_it =
+      std::nullopt;
 
-    LedgerSecretsMap::iterator get_encryption_key_it(kv::Version version)
+    LedgerSecretsMap::iterator get_secret_it(
+      kv::Version version, bool is_historical = false)
     {
-      // Encryption key for a given version is the one with the highest version
-      // that is lower than the given version (e.g. if encryption_keys contains
-      // two keys for version 0 and 10 then the key associated with version 0
-      // is used for version [0..9] and version 10 for versions 10+)
+      // The ledger secret used to encrypt/decrypt a transaction at a given
+      // version is the one with the highest version that is lower than the
+      // given version (e.g. if ledger_secrets contains two keys for version 0
+      // and 10 then the key associated with version 0 is used for version
+      // [0..9] and version 10 for versions 10+)
 
-      auto search_begin = commit_key_it.value_or(ledger_secrets.begin());
+      // Unless is_historical is true, only consider ledger secrets that
+      // have not been compacted. Otherwise, consider all ledger secrets since
+      // the start of time.
+      LedgerSecretsMap::iterator search_begin;
+      if (is_historical)
+      {
+        search_begin = ledger_secrets.begin();
+      }
+      else
+      {
+        search_begin = first_non_compacted_it.value_or(ledger_secrets.begin());
+      }
 
       auto search = std::upper_bound(
         search_begin, ledger_secrets.end(), version, [](auto a, const auto& b) {
@@ -201,13 +215,13 @@ namespace ccf
       }
 
       ledger_secrets.merge(restored_ledger_secrets);
-      commit_key_it = ledger_secrets.begin();
+      first_non_compacted_it = ledger_secrets.begin();
     }
 
-    auto get_encryption_key_for(kv::Version version)
+    auto get_encryption_key_for(kv::Version version, bool is_historical = false)
     {
       std::lock_guard<SpinLock> guard(lock);
-      return get_encryption_key_it(version)->second.key;
+      return get_secret_it(version, is_historical)->second.key;
     }
 
     void set_secret(kv::Version version, LedgerSecret&& secret)
@@ -232,7 +246,7 @@ namespace ccf
         return;
       }
 
-      auto start = commit_key_it.value_or(ledger_secrets.begin());
+      auto start = first_non_compacted_it.value_or(ledger_secrets.begin());
       if (version < start->first)
       {
         LOG_FAIL_FMT(
@@ -263,10 +277,10 @@ namespace ccf
         return;
       }
 
-      commit_key_it = get_encryption_key_it(version);
+      first_non_compacted_it = get_secret_it(version);
       LOG_TRACE_FMT(
         "First usable encryption key is now at seqno {}",
-        commit_key_it.value()->first);
+        first_non_compacted_it.value()->first);
     }
   };
 }

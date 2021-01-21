@@ -79,7 +79,7 @@ namespace kv
     // is used for historical queries, where it may deserialise arbitrary
     // transactions. In this case the Store is a useful container for a set of
     // Tables, but its versioning invariants are ignored.
-    const bool strict_versions = true;
+    const bool is_historical = false;
 
     DeserialiseSuccess commit_deserialised(
       OrderedChanges& changes,
@@ -112,7 +112,7 @@ namespace kv
     }
 
   public:
-    Store(bool strict_versions_ = true) : strict_versions(strict_versions_) {}
+    Store(bool is_historical_ = false) : is_historical(is_historical_) {}
 
     Store(
       const ReplicateType& replicate_type_,
@@ -629,7 +629,7 @@ namespace kv
         public_only ? kv::SecurityDomain::PUBLIC :
                       std::optional<kv::SecurityDomain>());
 
-      auto v_ = d.init(data.data(), data.size());
+      auto v_ = d.init(data.data(), data.size(), is_historical);
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
@@ -641,7 +641,7 @@ namespace kv
       // consensus.
       rollback(v - 1);
 
-      if (strict_versions)
+      if (!is_historical)
       {
         // Make sure this is the next transaction.
         auto cv = current_version();
