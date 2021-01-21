@@ -6,8 +6,7 @@
         "js_function": "compute",
         "forwarding_required": "never",
         "execute_outside_consensus": "locally",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": true,
         "openapi": {
           "requestBody": {
@@ -80,8 +79,7 @@
         "js_function": "compute2",
         "forwarding_required": "never",
         "execute_outside_consensus": "locally",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": true,
         "openapi": {
           "parameters": [

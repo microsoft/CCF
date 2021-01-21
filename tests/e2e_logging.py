@@ -203,85 +203,110 @@ def test_anonymous_caller(network, args):
 @reqs.description("Use multiple auth types on the same endpoint")
 @reqs.supports_methods("multi_auth")
 def test_multi_auth(network, args):
-    if args.package == "liblogging":
-        primary, _ = network.find_primary()
+    primary, _ = network.find_primary()
+    with primary.client("user0") as c:
+        response = c.get("/app/api")
+        supported_methods = response.body.json()["paths"]
+        if "/multi_auth" in supported_methods.keys():
+            response_bodies = set()
 
-        response_bodies = set()
+            def require_new_response(r):
+                assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+                r_body = r.body.text()
+                assert r_body not in response_bodies, r_body
+                response_bodies.add(r_body)
 
-        def require_new_response(r):
-            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
-            r_body = r.body.text()
-            assert r_body not in response_bodies, r_body
-            response_bodies.add(r_body)
+            LOG.info("Anonymous, no auth")
+            with primary.client() as c:
+                r = c.get("/app/multi_auth")
+                require_new_response(r)
 
-        LOG.info("Anonymous, no auth")
-        with primary.client() as c:
-            r = c.get("/app/multi_auth")
-            require_new_response(r)
+            LOG.info("Authenticate as a user, via TLS cert")
+            with primary.client("user0") as c:
+                r = c.get("/app/multi_auth")
+                require_new_response(r)
 
-        LOG.info("Authenticate as a user, via TLS cert")
-        with primary.client("user0") as c:
-            r = c.get("/app/multi_auth")
-            require_new_response(r)
+            LOG.info("Authenticate as same user, now with user data")
+            network.consortium.set_user_data(
+                primary, 0, {"some": ["interesting", "data", 42]}
+            )
+            with primary.client("user0") as c:
+                r = c.get("/app/multi_auth")
+                require_new_response(r)
 
-        LOG.info("Authenticate as a different user, via TLS cert")
-        with primary.client("user1") as c:
-            r = c.get("/app/multi_auth")
-            require_new_response(r)
+            LOG.info("Authenticate as a different user, via TLS cert")
+            with primary.client("user1") as c:
+                r = c.get("/app/multi_auth")
+                require_new_response(r)
 
-        LOG.info("Authenticate as a member, via TLS cert")
-        with primary.client("member0") as c:
-            r = c.get("/app/multi_auth")
-            require_new_response(r)
+            LOG.info("Authenticate as a member, via TLS cert")
+            with primary.client("member0") as c:
+                r = c.get("/app/multi_auth")
+                require_new_response(r)
 
-        LOG.info("Authenticate as a different member, via TLS cert")
-        with primary.client("member1") as c:
-            r = c.get("/app/multi_auth")
-            require_new_response(r)
+            LOG.info("Authenticate as same member, now with user data")
+            network.consortium.set_member_data(
+                primary, 0, {"distinct": {"arbitrary": ["data"]}}
+            )
+            with primary.client("member0") as c:
+                r = c.get("/app/multi_auth")
+                require_new_response(r)
 
-        LOG.info("Authenticate as a user, via HTTP signature")
-        with primary.client(None, "user0") as c:
-            r = c.get("/app/multi_auth")
-            require_new_response(r)
+            LOG.info("Authenticate as a different member, via TLS cert")
+            with primary.client("member1") as c:
+                r = c.get("/app/multi_auth")
+                require_new_response(r)
 
-        LOG.info("Authenticate as a member, via HTTP signature")
-        with primary.client(None, "member0") as c:
-            r = c.get("/app/multi_auth")
-            require_new_response(r)
+            LOG.info("Authenticate as a user, via HTTP signature")
+            with primary.client(None, "user0") as c:
+                r = c.get("/app/multi_auth")
+                require_new_response(r)
 
-        LOG.info("Authenticate as user2 but sign as user1")
-        with primary.client("user2", "user1") as c:
-            r = c.get("/app/multi_auth")
-            require_new_response(r)
+            LOG.info("Authenticate as a member, via HTTP signature")
+            with primary.client(None, "member0") as c:
+                r = c.get("/app/multi_auth")
+                require_new_response(r)
 
-        network.create_user(5, args.participants_curve, record=False)
+            LOG.info("Authenticate as user2 but sign as user1")
+            with primary.client("user2", "user1") as c:
+                r = c.get("/app/multi_auth")
+                require_new_response(r)
 
-        LOG.info("Authenticate as invalid user5 but sign as valid user3")
-        with primary.client("user5", "user3") as c:
-            r = c.get("/app/multi_auth")
-            require_new_response(r)
+            network.create_user(5, args.participants_curve, record=False)
 
-        LOG.info("Authenticate via JWT token")
-        jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-        jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
-        jwt_kid = "my_key_id"
-        jwt_issuer = "https://example.issuer"
-        # Add JWT issuer
-        with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-            jwt_cert_der = infra.crypto.cert_pem_to_der(jwt_cert_pem)
-            der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
-            data = {
-                "issuer": jwt_issuer,
-                "jwks": {"keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]},
-            }
-            json.dump(data, metadata_fp)
-            metadata_fp.flush()
-            network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+            LOG.info("Authenticate as invalid user5 but sign as valid user3")
+            with primary.client("user5", "user3") as c:
+                r = c.get("/app/multi_auth")
+                require_new_response(r)
 
-        with primary.client() as c:
-            jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
-            r = c.get("/app/multi_auth", headers={"authorization": "Bearer " + jwt})
-            require_new_response(r)
+            LOG.info("Authenticate via JWT token")
+            jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+            jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
+            jwt_kid = "my_key_id"
+            jwt_issuer = "https://example.issuer"
+            # Add JWT issuer
+            with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+                jwt_cert_der = infra.crypto.cert_pem_to_der(jwt_cert_pem)
+                der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
+                data = {
+                    "issuer": jwt_issuer,
+                    "jwks": {
+                        "keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]
+                    },
+                }
+                json.dump(data, metadata_fp)
+                metadata_fp.flush()
+                network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+            with primary.client() as c:
+                jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
+                r = c.get("/app/multi_auth", headers={"authorization": "Bearer " + jwt})
+                require_new_response(r)
+
+        else:
+            LOG.warning(
+                f"Skipping {inspect.currentframe().f_code.co_name} as application does not implement '/multi_auth'"
+            )
 
     return network
 

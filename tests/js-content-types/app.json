@@ -6,8 +6,7 @@
         "js_function": "text",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": true,
         "openapi": {}
       }
@@ -18,8 +17,7 @@
         "js_function": "json",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": true,
         "openapi": {}
       }
@@ -30,8 +28,7 @@
         "js_function": "binary",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": true,
         "openapi": {}
       }
@@ -42,8 +39,7 @@
         "js_function": "custom",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": true,
         "openapi": {}
       }

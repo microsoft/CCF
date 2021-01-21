@@ -24,6 +24,8 @@ namespace ccf
   class UserCertAuthnPolicy : public AuthnPolicy
   {
   public:
+    static constexpr auto SECURITY_SCHEME_NAME = "user_cert";
+
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx& tx,
       const std::shared_ptr<enclave::RpcContext>& ctx,
@@ -79,6 +81,8 @@ namespace ccf
   class MemberCertAuthnPolicy : public AuthnPolicy
   {
   public:
+    static constexpr auto SECURITY_SCHEME_NAME = "member_cert";
+
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx& tx,
       const std::shared_ptr<enclave::RpcContext>& ctx,
