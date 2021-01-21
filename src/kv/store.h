@@ -617,7 +617,7 @@ namespace kv
       }
     }
 
-    bool fill_maps(
+    bool fill_maps (
       const std::vector<uint8_t>& data,
       bool public_only,
       kv::Version& v,
