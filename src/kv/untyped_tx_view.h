@@ -195,7 +195,6 @@ namespace kv::untyped
         {
           // If we have written, change the write set to indicate a remove.
           write->second = std::nullopt;
-          ++tx_changes.remove_count;
         }
 
         return true;
@@ -209,7 +208,6 @@ namespace kv::untyped
 
       // Record in the write set.
       tx_changes.writes[key] = std::nullopt;
-      ++tx_changes.remove_count;
       return true;
     }
 

@@ -358,12 +358,17 @@ namespace kv::untyped
       }
 
       uint64_t write_ctr = 0;
+      uint64_t remove_ctr = 0;
       for (auto it = change_set.writes.begin(); it != change_set.writes.end();
            ++it)
       {
         if (it->second.has_value())
         {
           ++write_ctr;
+        }
+        else
+        {
+          ++remove_ctr;
         }
       }
 
@@ -377,7 +382,7 @@ namespace kv::untyped
         }
       }
 
-      s.serialise_count_header(change_set.remove_count);
+      s.serialise_count_header(remove_ctr);
       for (auto it = change_set.writes.begin(); it != change_set.writes.end();
            ++it)
       {

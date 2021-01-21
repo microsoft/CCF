@@ -40,7 +40,6 @@ namespace kv
     Version read_version = NoVersion;
     Read<K> reads = {};
     Write<K, V> writes = {};
-    size_t remove_count = 0;
 
     ChangeSet(
       size_t rollbacks,
