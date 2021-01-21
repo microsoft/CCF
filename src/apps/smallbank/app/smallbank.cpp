@@ -207,23 +207,6 @@ namespace ccfapp
       };
 
       auto transact_savings = [this](auto& args) {
-        if (
-          const auto* cert_ident =
-            args.template try_get_caller<ccf::UserCertAuthnIdentity>())
-        {
-          LOG_INFO_FMT("Called as user {} via CERT", cert_ident->user_id);
-        }
-        else if (
-          const auto* sig_ident =
-            args.template try_get_caller<ccf::UserSignatureAuthnIdentity>())
-        {
-          LOG_INFO_FMT("Called as user {} via SIG", sig_ident->user_id);
-        }
-        else
-        {
-          LOG_INFO_FMT("Unknown auth ident type");
-        }
-
         // Add or remove money to the savings account
         const auto& body = args.rpc_ctx->get_request_body();
         auto transaction =
