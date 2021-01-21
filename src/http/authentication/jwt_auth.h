@@ -25,6 +25,8 @@ namespace ccf
     static const OpenAPISecuritySchema security_schema;
 
   public:
+    static constexpr auto SECURITY_SCHEME_NAME = "jwt";
+
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx& tx,
       const std::shared_ptr<enclave::RpcContext>& ctx,
@@ -87,7 +89,7 @@ namespace ccf
 
   inline const OpenAPISecuritySchema JwtAuthnPolicy::security_schema =
     std::make_pair(
-      "bearer_jwt",
+      JwtAuthnPolicy::SECURITY_SCHEME_NAME,
       nlohmann::json{
         {"type", "http"}, {"scheme", "bearer"}, {"bearerFormat", "JWT"}});
 }

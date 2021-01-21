@@ -49,6 +49,8 @@ namespace ccf
   class EmptyAuthnPolicy : public AuthnPolicy
   {
   public:
+    static constexpr auto SECURITY_SCHEME_NAME = "no_auth";
+
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx&,
       const std::shared_ptr<enclave::RpcContext>&,

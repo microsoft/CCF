@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "enclave/app_interface.h"
 #include "kv/untyped_map.h"
+#include "named_auth_policies.h"
 #include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"
 #include "tls/entropy.h"
@@ -781,6 +782,114 @@ namespace ccfapp
       JS_FreeValue(ctx, global_obj);
     }
 
+    static JSValue create_json_obj(const nlohmann::json& j, JSContext* ctx)
+    {
+      const auto buf = j.dump();
+      return JS_ParseJSON(ctx, buf.data(), buf.size(), "<json>");
+    }
+
+    static JSValue create_caller_obj(EndpointContext& args, JSContext* ctx)
+    {
+      if (args.caller == nullptr)
+      {
+        return JS_NULL;
+      }
+
+      auto caller = JS_NewObject(ctx);
+
+      if (auto jwt_ident = args.try_get_caller<ccf::JwtAuthnIdentity>())
+      {
+        JS_SetPropertyStr(
+          ctx,
+          caller,
+          "policy",
+          JS_NewString(ctx, get_policy_name_from_ident(jwt_ident)));
+
+        auto jwt = JS_NewObject(ctx);
+        JS_SetPropertyStr(
+          ctx,
+          jwt,
+          "key_issuer",
+          JS_NewStringLen(
+            ctx, jwt_ident->key_issuer.data(), jwt_ident->key_issuer.size()));
+        JS_SetPropertyStr(
+          ctx, jwt, "header", create_json_obj(jwt_ident->header, ctx));
+        JS_SetPropertyStr(
+          ctx, jwt, "payload", create_json_obj(jwt_ident->payload, ctx));
+        JS_SetPropertyStr(ctx, caller, "jwt", jwt);
+
+        return caller;
+      }
+      else if (
+        auto empty_ident = args.try_get_caller<ccf::EmptyAuthnIdentity>())
+      {
+        JS_SetPropertyStr(
+          ctx,
+          caller,
+          "policy",
+          JS_NewString(ctx, get_policy_name_from_ident(empty_ident)));
+        return caller;
+      }
+
+      char const* policy_name = nullptr;
+      size_t id;
+      nlohmann::json data;
+      std::string cert_s;
+
+      if (
+        auto user_cert_ident =
+          args.try_get_caller<ccf::UserCertAuthnIdentity>())
+      {
+        policy_name = get_policy_name_from_ident(user_cert_ident);
+        id = user_cert_ident->user_id;
+        data = user_cert_ident->user_data;
+        cert_s = user_cert_ident->user_cert.str();
+      }
+      else if (
+        auto member_cert_ident =
+          args.try_get_caller<ccf::MemberCertAuthnIdentity>())
+      {
+        policy_name = get_policy_name_from_ident(member_cert_ident);
+        id = member_cert_ident->member_id;
+        data = member_cert_ident->member_data;
+        cert_s = member_cert_ident->member_cert.str();
+      }
+      else if (
+        auto user_sig_ident =
+          args.try_get_caller<ccf::UserSignatureAuthnIdentity>())
+      {
+        policy_name = get_policy_name_from_ident(user_sig_ident);
+        id = user_sig_ident->user_id;
+        data = user_sig_ident->user_data;
+        cert_s = user_sig_ident->user_cert.str();
+      }
+      else if (
+        auto member_sig_ident =
+          args.try_get_caller<ccf::MemberSignatureAuthnIdentity>())
+      {
+        policy_name = get_policy_name_from_ident(member_sig_ident);
+        id = member_sig_ident->member_id;
+        data = member_sig_ident->member_data;
+        cert_s = member_sig_ident->member_cert.str();
+      }
+
+      if (policy_name == nullptr)
+      {
+        throw std::logic_error("Unable to convert caller info to JS object");
+      }
+
+      JS_SetPropertyStr(ctx, caller, "policy", JS_NewString(ctx, policy_name));
+      JS_SetPropertyStr(ctx, caller, "id", JS_NewUint32(ctx, id));
+      JS_SetPropertyStr(ctx, caller, "data", create_json_obj(data, ctx));
+      JS_SetPropertyStr(
+        ctx,
+        caller,
+        "cert",
+        JS_NewStringLen(ctx, cert_s.data(), cert_s.size()));
+
+      return caller;
+    }
+
     static JSValue create_request_obj(EndpointContext& args, JSContext* ctx)
     {
       auto request = JS_NewObject(ctx);
@@ -818,6 +927,8 @@ namespace ccfapp
       auto body_ = JS_NewObjectClass(ctx, body_class_id);
       JS_SetOpaque(body_, (void*)&request_body);
       JS_SetPropertyStr(ctx, request, "body", body_);
+
+      JS_SetPropertyStr(ctx, request, "caller", create_caller_obj(args, ctx));
 
       return request;
     }
@@ -1161,6 +1272,20 @@ namespace ccfapp
       metrics_tracker.install_endpoint(*this);
     }
 
+    void instantiate_authn_policies(JSDynamicEndpoint& endpoint)
+    {
+      for (const auto& policy_name : endpoint.properties.authn_policies)
+      {
+        auto policy = get_policy_by_name(policy_name);
+        if (policy == nullptr)
+        {
+          throw std::logic_error(
+            fmt::format("Unknown auth policy: {}", policy_name));
+        }
+        endpoint.authn_policies.push_back(std::move(policy));
+      }
+    }
+
     EndpointDefinitionPtr find_endpoint(
       kv::Tx& tx, enclave::RpcContext& rpc_ctx) override
     {
@@ -1179,20 +1304,7 @@ namespace ccfapp
         auto endpoint_def = std::make_shared<JSDynamicEndpoint>();
         endpoint_def->dispatch = key;
         endpoint_def->properties = it.value();
-
-        if (endpoint_def->properties.require_client_identity)
-        {
-          endpoint_def->authn_policies.push_back(user_cert_auth_policy);
-        }
-        if (endpoint_def->properties.require_client_signature)
-        {
-          endpoint_def->authn_policies.push_back(user_signature_auth_policy);
-        }
-        if (endpoint_def->properties.require_jwt_authentication)
-        {
-          endpoint_def->authn_policies.push_back(jwt_auth_policy);
-        }
-
+        instantiate_authn_policies(*endpoint_def);
         return endpoint_def;
       }
 
@@ -1203,7 +1315,7 @@ namespace ccfapp
         std::vector<EndpointDefinitionPtr> matches;
 
         endpoints_view->foreach(
-          [&matches, &key, &rpc_ctx](
+          [this, &matches, &key, &rpc_ctx](
             const auto& other_key, const auto& properties) {
             if (key.verb == other_key.verb)
             {
@@ -1238,6 +1350,7 @@ namespace ccfapp
                   auto endpoint = std::make_shared<JSDynamicEndpoint>();
                   endpoint->dispatch = other_key;
                   endpoint->properties = properties;
+                  instantiate_authn_policies(*endpoint);
                   matches.push_back(endpoint);
                 }
               }

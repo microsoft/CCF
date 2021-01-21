@@ -19,6 +19,7 @@ export interface Request<T extends JsonCompatible<T> = any> {
   params: { [key: string]: string };
   query: string;
   body: Body<T>;
+  caller: any;
   user?: any;
 }
 

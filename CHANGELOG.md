@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.17.1]
+
+### Changed
+
+- JS endpoints now list their auth policies by name, similar to C++ endpoints. The fields `require_client_identity`, `require_client_signature`, and `require_jwt_authentication` are removed, and should be replaced by `authn_policies`. For example, the previous default `"require_client_identity": true` should be replaced with `"authn_policies": ["user_cert"]`, an endpoint which would like to handle a JWT but will also accept unauthenticated requests would be `"authn_policies": ["jwt", "no_auth"]`, and a fully unauthenticated endpoint would be `"authn_policies": []`. See [docs](https://microsoft.github.io/CCF/master/build_apps/js_app_bundle.html#metadata) for further detail.
+
 ## [0.17.0]
 
 ### Added
@@ -635,6 +641,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.17.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.17.1
 [0.17.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.17.0
 [0.16.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.16.3
 [0.16.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.16.2
