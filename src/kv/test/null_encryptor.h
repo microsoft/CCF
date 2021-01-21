@@ -38,6 +38,5 @@ namespace kv
     }
 
     void rollback(Version version) override {}
-    void compact(Version version) override {}
   };
 }
