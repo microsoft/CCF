@@ -383,20 +383,6 @@ class SSHRemote(CmdMixin):
             client.close()
 
 
-@contextmanager
-def ssh_remote(*args, **kwargs):
-    """
-    Context Manager wrapper for SSHRemote
-    """
-    remote = SSHRemote(*args, **kwargs)
-    try:
-        remote.setup()
-        remote.start()
-        yield remote
-    finally:
-        remote.stop()
-
-
 class LocalRemote(CmdMixin):
     def __init__(
         self,
@@ -592,7 +578,8 @@ class CCFRemote(object):
         memory_reserve_startup=0,
         gov_script=None,
         ledger_dir=None,
-        read_only_ledger_dir=None,
+        read_only_ledger_dir=None,  # Read-only ledger dir to copy to node director
+        common_read_only_ledger_dir=None,  # Read-only ledger dir for all nodes
         log_format_json=None,
         binary_dir=".",
         ledger_chunk_bytes=(5 * 1000 * 1000),
@@ -619,7 +606,9 @@ class CCFRemote(object):
             if self.ledger_dir
             else f"{local_node_id}.ledger"
         )
+
         self.read_only_ledger_dir = read_only_ledger_dir
+        self.common_read_only_ledger_dir = common_read_only_ledger_dir
 
         self.snapshot_dir = os.path.normpath(snapshot_dir) if snapshot_dir else None
         self.snapshot_dir_name = (
@@ -691,6 +680,9 @@ class CCFRemote(object):
                 f"--read-only-ledger-dir={os.path.basename(self.read_only_ledger_dir)}"
             ]
             data_files += [os.path.join(self.common_dir, self.read_only_ledger_dir)]
+
+        if self.common_read_only_ledger_dir is not None:
+            cmd += [f"--read-only-ledger-dir={self.common_read_only_ledger_dir}"]
 
         if start_type == StartType.new:
             cmd += [

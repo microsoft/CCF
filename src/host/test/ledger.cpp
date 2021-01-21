@@ -15,6 +15,7 @@ using namespace asynchost;
 using frame_header_type = uint32_t;
 static constexpr size_t frame_header_size = sizeof(frame_header_type);
 static constexpr auto ledger_dir = "ledger_dir";
+static constexpr auto ledger_dir_read_only = "ledger_dir_ro";
 static constexpr auto snapshot_dir = "snapshot_dir";
 
 static const auto dummy_snapshot = std::vector<uint8_t>(128, 42);
@@ -25,6 +26,19 @@ auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
 ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
 
 auto wf = ringbuffer::WriterFactory(eio);
+
+void move_all_from_to(
+  const std::string& from, const std::string& to, const std::string& suffix)
+{
+  for (auto const& f : fs::directory_iterator(from))
+  {
+    if (nonstd::ends_with(f.path().filename(), suffix))
+    {
+      fs::copy_file(f.path(), fs::path(to) / f.path().filename());
+      fs::remove(f.path());
+    }
+  }
+}
 
 std::string get_snapshot_file_name(
   size_t idx, size_t evidence_idx, size_t evidence_commit_idx)
@@ -119,8 +133,13 @@ void read_entry_from_ledger(Ledger& ledger, size_t idx)
 
 void read_entries_range_from_ledger(Ledger& ledger, size_t from, size_t to)
 {
-  verify_framed_entries_range(
-    ledger.read_framed_entries(from, to).value(), from, to);
+  auto entries = ledger.read_framed_entries(from, to);
+  if (!entries.has_value())
+  {
+    throw std::logic_error(
+      fmt::format("Failed to read ledger entries from {} to {}", from, to));
+  }
+  verify_framed_entries_range(entries.value(), from, to);
 }
 
 // Keeps track of ledger entries written to the ledger.
@@ -931,6 +950,70 @@ TEST_CASE("Invalid ledger file resilience")
       ledger.commit(last_idx);
       read_entries_range_from_ledger(ledger, 1, last_idx);
     }
+  }
+}
+
+TEST_CASE("Delete committed file from main directory")
+{
+  // Used to temporarily copy committed ledger files
+  static constexpr auto ledger_dir_tmp = "ledger_dir_tmp";
+
+  fs::remove_all(ledger_dir);
+  fs::remove_all(ledger_dir_read_only);
+  fs::remove_all(ledger_dir_tmp);
+
+  size_t chunk_threshold = 30;
+  size_t chunk_count = 5;
+
+  // Worst-case scenario: do not keep any committed file in cache
+  size_t max_read_cache_size = 0;
+
+  size_t entries_per_chunk = 0;
+  size_t last_idx = 0;
+  size_t last_committed_idx = 0;
+
+  fs::create_directory(ledger_dir_read_only);
+  fs::create_directory(ledger_dir_tmp);
+
+  Ledger ledger(
+    ledger_dir,
+    wf,
+    chunk_threshold,
+    max_read_cache_size,
+    {ledger_dir_read_only});
+  TestEntrySubmitter entry_submitter(ledger);
+
+  INFO("Write many entries on ledger");
+  {
+    entries_per_chunk =
+      initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    last_committed_idx = entry_submitter.get_last_idx();
+    ledger.commit(last_committed_idx);
+
+    entry_submitter.write(true);
+    entry_submitter.write(true);
+    last_idx = entry_submitter.get_last_idx();
+
+    // Read all entries from ledger, filling up read cache
+    read_entries_range_from_ledger(ledger, 1, last_idx);
+  }
+
+  // Move all committed files to temporary directory
+  move_all_from_to(ledger_dir, ledger_dir_tmp, ledger_committed_suffix);
+
+  INFO("Only non-committed entries can be read");
+  {
+    read_entries_range_from_ledger(ledger, last_idx - 1, last_idx);
+    REQUIRE_FALSE(
+      ledger.read_framed_entries(1, last_committed_idx).has_value());
+  }
+
+  INFO("Move committed files back to read-only ledger directory");
+  {
+    move_all_from_to(
+      ledger_dir_tmp, ledger_dir_read_only, ledger_committed_suffix);
+
+    read_entries_range_from_ledger(ledger, 1, last_idx);
   }
 }
 
