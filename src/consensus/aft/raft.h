@@ -1119,7 +1119,6 @@ namespace aft
       for (auto& d : foobar)
       {
         auto& [ds, i] = d;
-        LOG_INFO_FMT("current loop at i:{}", i);
         state->last_idx = i;
 
         kv::DeserialiseSuccess deserialise_success = kv::DeserialiseSuccess::FAILED;
