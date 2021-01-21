@@ -368,11 +368,7 @@ namespace kv::untyped
         }
         else
         {
-          auto search = roll.commits->get_tail()->state.get(it->first);
-          if (search.has_value())
-          {
-            ++remove_ctr;
-          }
+          ++remove_ctr;
         }
       }
 
