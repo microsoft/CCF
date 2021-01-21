@@ -321,7 +321,7 @@ TEST_CASE("KV integrity verification")
     kv::DeserialiseSuccess::FAILED);
 }
 
-TEST_CASE("Encryptor compaction and rollback")
+TEST_CASE("Encryptor rollback")
 {
   StringString map("map");
   kv::Store store;
@@ -359,18 +359,6 @@ TEST_CASE("Encryptor compaction and rollback")
   // secret
   commit_one(store, map);
   ledger_secrets->set_secret(7, ccf::make_ledger_secret());
-
-  store.compact(4);
-  encryptor->rollback(1); // No effect as rollback before commit point
-
-  commit_one(store, map);
-
-  encryptor->compact(7);
-
-  commit_one(store, map);
-  commit_one(store, map);
-
-  store.rollback(7); // No effect as rollback unique encryption key
 
   commit_one(store, map);
   commit_one(store, map);
