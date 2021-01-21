@@ -26,7 +26,8 @@ namespace kv
       const std::vector<uint8_t>& additional_data,
       const std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& plain,
-      Version version) override
+      Version version,
+      bool is_historical = false) override
     {
       plain = cipher;
       return true;
