@@ -55,7 +55,7 @@ namespace client
     std::string pid_file; //< Default set in constructor
 
     cli::ParsedAddress server_address;
-    std::string cert_file, key_file, ca_file, verification_file, jwt;
+    std::string cert_file, key_file, ca_file, verification_file, bearer_token;
 
     size_t num_transactions = 10000;
     size_t thread_count = 1;
@@ -115,8 +115,7 @@ namespace client
         ->required(true)
         ->check(CLI::ExistingFile);
       app.add_option("--ca", ca_file)->required(true)->check(CLI::ExistingFile);
-      app.add_option("--jwt", jwt)
-        ->required(false);
+      app.add_option("--bearer-token", bearer_token)->required(false);
 
       app
         .add_option(
@@ -343,15 +342,16 @@ namespace client
       bool expects_commit,
       const std::optional<size_t>& index)
     {
-      const PreparedTx tx{
-        rpc_connection->gen_request(
-          method,
-          params,
-          http::headervalues::contenttype::JSON,
-          HTTP_POST,
-          options.jwt.size() == 0 ? nullptr : options.jwt.c_str()),
-        method,
-        expects_commit};
+      const PreparedTx tx{rpc_connection->gen_request(
+                            method,
+                            params,
+                            http::headervalues::contenttype::JSON,
+                            HTTP_POST,
+                            options.bearer_token.size() == 0 ?
+                              nullptr :
+                              options.bearer_token.c_str()),
+                          method,
+                          expects_commit};
 
       append_prepared_tx(tx, index);
     }
@@ -371,8 +371,10 @@ namespace client
                             serdes == serdes::Pack::Text ?
                               http::headervalues::contenttype::JSON :
                               http::headervalues::contenttype::MSGPACK,
-                              HTTP_POST,
-                              options.jwt.size() == 0 ? nullptr : options.jwt.c_str()),
+                            HTTP_POST,
+                            options.bearer_token.size() == 0 ?
+                              nullptr :
+                              options.bearer_token.c_str()),
                           method,
                           expects_commit};
 

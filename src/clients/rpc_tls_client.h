@@ -61,7 +61,7 @@ protected:
     const CBuffer params,
     const std::string& content_type,
     llhttp_method verb,
-    const char* jwt = nullptr)
+    const char* auth_token = nullptr)
   {
     auto path = method;
     if (prefix.has_value())
@@ -72,9 +72,10 @@ protected:
     auto r = http::Request(path, verb);
     r.set_body(params.p, params.n);
     r.set_header(http::headers::CONTENT_TYPE, content_type);
-    if (jwt != nullptr)
+    if (auth_token != nullptr)
     {
-      r.set_header(http::headers::AUTHORIZATION, fmt::format("Bearer {}", jwt));
+      r.set_header(
+        http::headers::AUTHORIZATION, fmt::format("Bearer {}", auth_token));
     }
 
     if (key_pair != nullptr)
@@ -102,12 +103,13 @@ protected:
     const CBuffer params,
     const std::string& content_type,
     llhttp_method verb,
-    const char* jwt = nullptr)
+    const char* auth_token = nullptr)
   {
     if (is_ws)
       return gen_ws_request_internal(method, params);
     else
-      return gen_http_request_internal(method, params, content_type, verb, jwt);
+      return gen_http_request_internal(
+        method, params, content_type, verb, auth_token);
   }
 
   Response call_raw(const std::vector<uint8_t>& raw)
@@ -162,17 +164,18 @@ public:
     const CBuffer params,
     const std::string& content_type,
     llhttp_method verb = HTTP_POST,
-    const char* jwt = nullptr)
+    const char* auth_token = nullptr)
   {
-    return {gen_request_internal(method, params, content_type, verb, jwt),
-            next_send_id++};
+    return {
+      gen_request_internal(method, params, content_type, verb, auth_token),
+      next_send_id++};
   }
 
   PreparedRpc gen_request(
     const std::string& method,
     const nlohmann::json& params = nullptr,
     llhttp_method verb = HTTP_POST,
-    const char* jwt = nullptr)
+    const char* auth_token = nullptr)
   {
     std::vector<uint8_t> body;
     if (!params.is_null())
@@ -184,7 +187,7 @@ public:
       {body.data(), body.size()},
       http::headervalues::contenttype::MSGPACK,
       verb,
-      jwt);
+      auth_token);
   }
 
   Response call(
