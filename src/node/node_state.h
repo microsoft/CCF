@@ -659,6 +659,7 @@ namespace ccf
         consensus,
         rpcsessions,
         rpc_map,
+        node_sign_kp,
         node_cert);
       jwt_key_auto_refresh->start();
 
@@ -1401,7 +1402,7 @@ namespace ccf
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
       request.set_body(&body);
-      
+
       crypto::Sha256Hash hash;
       const auto contents = node_cert.contents();
       tls::do_hash(contents.data(), contents.size(), hash.h, MBEDTLS_MD_SHA256);
