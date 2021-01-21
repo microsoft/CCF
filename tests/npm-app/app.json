@@ -6,8 +6,7 @@
         "js_function": "jwt",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": false,
+        "authn_policies": [],
         "readonly": true,
         "openapi": {
           "responses": {
@@ -57,8 +56,7 @@
         "js_function": "crypto",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": true,
         "openapi": {
           "responses": {
@@ -91,8 +89,7 @@
         "js_function": "generateAesKey",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": true,
         "openapi": {
           "requestBody": {
@@ -126,8 +123,7 @@
         "js_function": "wrapKeyRsaOaep",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": true,
         "openapi": {
           "requestBody": {
@@ -167,8 +163,7 @@
         "js_function": "partition",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": false,
         "openapi": {
           "responses": {
@@ -207,8 +202,7 @@
         "js_function": "proto",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": false,
         "openapi": {
           "requestBody": {
@@ -233,8 +227,7 @@
         "js_function": "getLogItem",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": false,
         "openapi": {
           "responses": {
@@ -264,8 +257,7 @@
         "js_function": "setLogItem",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": false,
         "openapi": {
           "responses": {
@@ -302,8 +294,7 @@
         "js_function": "getAllLogItems",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "require_client_signature": false,
-        "require_client_identity": true,
+        "authn_policies": ["user_cert"],
         "readonly": false,
         "openapi": {
           "responses": {
