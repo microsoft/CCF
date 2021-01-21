@@ -947,7 +947,8 @@ DOCTEST_TEST_CASE("Accept node")
     auto vote = create_signed_request(
       Vote{vote_ballot},
       fmt::format("proposals/{}/votes", r.proposal_id),
-      new_kp, member_0_cert);
+      new_kp,
+      member_0_cert);
     frontend_process(frontend, vote, member_0_cert);
 
     vote = create_signed_request(
