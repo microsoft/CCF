@@ -11,6 +11,8 @@ import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
 
+from e2e_logging import test_multi_auth
+
 from loguru import logger as LOG
 
 
@@ -50,6 +52,8 @@ def test_jwt_auth(network, args):
         r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
         assert r.status_code == HTTPStatus.OK, r.status_code
 
+    return network
+
 
 def run(args):
     with infra.network.network(
@@ -57,6 +61,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
         network = test_jwt_auth(network, args)
+        network = test_multi_auth(network, args)
 
 
 if __name__ == "__main__":
@@ -64,4 +69,6 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.package = "libjs_generic"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    args.initial_user_count = 4
+    args.initial_member_count = 2
     run(args)
