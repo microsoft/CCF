@@ -540,14 +540,26 @@ namespace kv
           term = t.value();
         if (v >= version)
           return;
-      }
 
-      if (v < commit_version())
-      {
-        throw std::logic_error(fmt::format(
-          "Attempting rollback to {}, earlier than commit version {}",
-          v,
-          commit_version()));
+        if (v < compacted)
+        {
+          throw std::logic_error(fmt::format(
+            "Attempting rollback to {}, earlier than commit version {}",
+            v,
+            compacted));
+        }
+
+        version = v;
+        last_replicated = v;
+        last_committable = v;
+        rollback_count++;
+        pending_txs.clear();
+        auto h = get_history();
+        if (h)
+          h->rollback(v, t);
+        auto e = get_encryptor();
+        if (e)
+          e->rollback(v);
       }
 
       for (auto& it : maps)
@@ -581,25 +593,15 @@ namespace kv
         auto& [_, map] = it.second;
         map->unlock();
       }
-
-      std::lock_guard<SpinLock> vguard(version_lock);
-      version = v;
-      last_replicated = v;
-      last_committable = v;
-      rollback_count++;
-      pending_txs.clear();
-      auto h = get_history();
-      if (h)
-        h->rollback(v);
-      auto e = get_encryptor();
-      if (e)
-        e->rollback(v);
     }
 
     void set_term(Term t) override
     {
       std::lock_guard<SpinLock> vguard(version_lock);
       term = t;
+      auto h = get_history();
+      if (h)
+        h->set_term(t);
     }
 
     DeserialiseSuccess deserialise_views(
@@ -889,6 +891,7 @@ namespace kv
 
       if (tx)
       {
+        // TODO: unlocked access to term!
         tx->set_change_list(std::move(changes), term);
       }
 
@@ -899,9 +902,9 @@ namespace kv
       const std::vector<uint8_t>& data,
       kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
-      Term* term = nullptr) override
+      Term* term_ = nullptr) override
     {
-      return deserialise_views(data, hooks, public_only, term);
+      return deserialise_views(data, hooks, public_only, term_);
     }
 
     bool operator==(const Store& that) const

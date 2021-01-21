@@ -132,7 +132,9 @@ namespace ccf
       return true;
     }
 
-    void rollback(kv::Version) override {}
+    void rollback(kv::Version, std::optional<kv::Term> = std::nullopt) override {}
+
+    void set_term(kv::Term) override {}
 
     void compact(kv::Version) override {}
 
@@ -177,6 +179,11 @@ namespace ccf
     crypto::Sha256Hash get_replicated_state_root() override
     {
       return crypto::Sha256Hash();
+    }
+
+    std::pair<kv::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root() override
+    {
+      return {{0, 0}, crypto::Sha256Hash()};
     }
 
     std::vector<uint8_t> get_receipt(kv::Version) override
@@ -459,6 +466,9 @@ namespace ccf
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
+    // TODO: guard?
+    kv::Term term = 0;
+
   public:
     HashedTxHistory(
       kv::Store& store_,
@@ -584,6 +594,11 @@ namespace ccf
       return replicated_state_tree.get_root();
     }
 
+    std::pair<kv::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root() override
+    {
+      return {{term, static_cast<kv::Version>(replicated_state_tree.end_index())}, replicated_state_tree.get_root()};
+    } 
+
     kv::TxHistory::Result verify_and_sign(
       PrimarySignature& sig, kv::Term* term = nullptr) override
     {
@@ -657,10 +672,19 @@ namespace ccf
       return true;
     }
 
-    void rollback(kv::Version v) override
+    void rollback(kv::Version v, std::optional<kv::Term> term_ = std::nullopt) override
     {
+      if (term_.has_value())
+      {
+        term = term_.value();
+      }
       replicated_state_tree.retract(v);
       log_hash(replicated_state_tree.get_root(), ROLLBACK);
+    }
+
+    void set_term(kv::Term term_) override
+    {
+      term = term_;
     }
 
     void compact(kv::Version v) override

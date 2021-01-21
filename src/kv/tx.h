@@ -50,6 +50,8 @@ namespace kv
     Version max_conflict_version = NoVersion;
     Term term = 0;
 
+    std::optional<crypto::Sha256Hash> root_at_read_version = std::nullopt;
+
     kv::TxHistory::RequestID req_id;
 
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
@@ -245,6 +247,30 @@ namespace kv
       return term;
     }
 
+    void set_read_version_and_term(Version v, Term t)
+    {
+      if (read_version == NoVersion)
+      {
+        read_version = v;
+        term = t;
+      }
+      else
+      {
+        throw std::logic_error("Read version already set");
+      }
+    }
+
+    void set_root_at_read_version(const crypto::Sha256Hash& r)
+    {
+      root_at_read_version = r;
+    }
+
+    std::optional<crypto::Sha256Hash> get_root_at_read_version()
+    {
+      return root_at_read_version;
+    }
+    
+
     /** Commit transaction
      *
      * A transaction can either succeed and replicate (`kv::CommitSuccess::OK`),
@@ -436,6 +462,7 @@ namespace kv
       read_version = NoVersion;
       version = NoVersion;
       term = 0;
+      root_at_read_version = std::nullopt;
     }
   };
 

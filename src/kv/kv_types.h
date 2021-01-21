@@ -205,8 +205,8 @@ namespace kv
   class Syncable
   {
   public:
-    virtual void rollback(Version v) = 0;
-    virtual void compact(Version v) = 0;
+    virtual void rollback(Version, std::optional<Term> t = std::nullopt) = 0;
+    virtual void compact(Version) = 0;
   };
 
   class TxHistory : public Syncable
@@ -253,11 +253,15 @@ namespace kv
     virtual void try_emit_signature() = 0;
     virtual void emit_signature() = 0;
     virtual crypto::Sha256Hash get_replicated_state_root() = 0;
+ 
     virtual std::vector<uint8_t> get_receipt(Version v) = 0;
     virtual bool verify_receipt(const std::vector<uint8_t>& receipt) = 0;
     virtual bool init_from_snapshot(
       const std::vector<uint8_t>& hash_at_snapshot) = 0;
     virtual std::vector<uint8_t> get_raw_leaf(uint64_t index) = 0;
+
+    virtual std::pair<kv::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root() = 0;
+    virtual void set_term(kv::Term) = 0;
 
     virtual bool add_request(
       TxHistory::RequestID id,
@@ -438,9 +442,6 @@ namespace kv
       const std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& plain,
       Version version) = 0;
-
-    virtual void compact(Version version) = 0;
-    virtual void rollback(Version version) = 0;
 
     virtual size_t get_header_length() = 0;
     virtual void disable_recovery() = 0;

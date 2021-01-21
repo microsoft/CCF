@@ -1304,18 +1304,26 @@ namespace ccf
         }
 
         const auto in = params.get<Propose::In>();
-        
-        // Read version is set here because member_signature_auth_policy
-        // reads from the Tx to resolve key_id -> member_identity 
-        auto read_version = ctx.tx.get_read_version();
-        if (read_version == kv::NoVersion)
-          throw std::logic_error("Unset read_version after get_view()");
+
+        // Read dependency on the signatures table
+        auto signatures = ctx.tx.get_view(this->network.signatures);
+        signatures->get(0);
 
         // TODO: grab history.past_root(rv)
         // proposal_id = hash( past_root(rv) + caller_identity.request_digest)
+        auto read_root = ctx.tx.get_root_at_read_version();
+        if (!read_root.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Proposal failed to obtain tree root at read version.");
+        }
+
+        LOG_INFO_FMT("TREE ROOT {}", read_root.value());
+
         const auto proposal_id =
           fmt::format("{:02x}", fmt::join(caller_identity.request_digest, ""));
-
 
         Proposal proposal(in.script, in.parameter, caller_identity.member_id);
 

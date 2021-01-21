@@ -474,6 +474,22 @@ namespace ccf
       update_consensus();
 
       auto tx = tables.create_tx();
+      
+      // TODO: that needs to happen again on re-execute!
+      LOG_INFO_FMT(">>>>>>>>>>>> {}", ctx->get_request_path());
+      if (nonstd::ends_with(ctx->get_request_path(), "/gov/proposals"))
+      {
+        update_history();
+        if (history)
+        {
+          const auto& [txid, root] = history->get_replicated_state_txid_and_root();
+          tx.set_read_version_and_term(txid.version, txid.term);
+          LOG_INFO_FMT("SSSSSSSSSSSSSSSSSSS {}", root);
+          tx.set_root_at_read_version(root);
+        }
+      }
+
+
       if (!is_open(tx))
       {
         ctx->set_error(

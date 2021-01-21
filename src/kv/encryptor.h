@@ -115,7 +115,7 @@ namespace kv
       return ret;
     }
 
-    void rollback(Version version) override
+    void rollback(Version version, std::optional<kv::Term> = std::nullopt) override
     {
       // Rolls back all encryption keys more recent than version.
       // Note: Because the store is not locked while the serialisation (and

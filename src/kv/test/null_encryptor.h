@@ -39,7 +39,7 @@ namespace kv
 
     void disable_recovery() override {}
 
-    void rollback(Version version) override {}
+    void rollback(Version version, std::optional<kv::Term> term_ = std::nullopt) override {}
     void compact(Version version) override {}
   };
 }
