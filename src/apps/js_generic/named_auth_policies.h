@@ -7,34 +7,49 @@
 
 namespace ccfapp
 {
+  using NamedAuthPolicies =
+    std::unordered_map<std::string, std::shared_ptr<ccf::AuthnPolicy>>;
+
+  static NamedAuthPolicies& auth_policies_by_name()
+  {
+    static NamedAuthPolicies policies;
+    if (policies.empty())
+    {
+      policies.emplace(
+        ccf::UserCertAuthnPolicy::SECURITY_SCHEME_NAME,
+        ccf::user_cert_auth_policy);
+      policies.emplace(
+        ccf::UserSignatureAuthnPolicy::SECURITY_SCHEME_NAME,
+        ccf::user_signature_auth_policy);
+
+      policies.emplace(
+        ccf::MemberCertAuthnPolicy::SECURITY_SCHEME_NAME,
+        ccf::member_cert_auth_policy);
+      policies.emplace(
+        ccf::MemberSignatureAuthnPolicy::SECURITY_SCHEME_NAME,
+        ccf::member_signature_auth_policy);
+
+      policies.emplace(
+        ccf::JwtAuthnPolicy::SECURITY_SCHEME_NAME, ccf::jwt_auth_policy);
+
+      policies.emplace(
+        ccf::EmptyAuthnPolicy::SECURITY_SCHEME_NAME, ccf::empty_auth_policy);
+    }
+
+    return policies;
+  }
+
   static std::shared_ptr<ccf::AuthnPolicy> get_policy_by_name(
     const std::string& name)
   {
-    if (name == ccf::UserCertAuthnPolicy::SECURITY_SCHEME_NAME)
+    auto& policies = auth_policies_by_name();
+    auto it = policies.find(name);
+    if (it == policies.end())
     {
-      return ccf::user_cert_auth_policy;
+      return nullptr;
     }
-    if (name == ccf::UserSignatureAuthnPolicy::SECURITY_SCHEME_NAME)
-    {
-      return ccf::user_signature_auth_policy;
-    }
-    if (name == ccf::MemberCertAuthnPolicy::SECURITY_SCHEME_NAME)
-    {
-      return ccf::member_cert_auth_policy;
-    }
-    if (name == ccf::MemberSignatureAuthnPolicy::SECURITY_SCHEME_NAME)
-    {
-      return ccf::member_signature_auth_policy;
-    }
-    if (name == ccf::JwtAuthnPolicy::SECURITY_SCHEME_NAME)
-    {
-      return ccf::jwt_auth_policy;
-    }
-    if (name == ccf::EmptyAuthnPolicy::SECURITY_SCHEME_NAME)
-    {
-      return ccf::empty_auth_policy;
-    }
-    return nullptr;
+
+    return it->second;
   }
 
   template <typename T>
