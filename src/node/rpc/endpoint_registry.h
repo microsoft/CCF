@@ -505,6 +505,24 @@ namespace ccf
       return true;
     }
 
+    template <>
+    bool get_path_param(
+      const enclave::PathParams& params,
+      const std::string& param_name,
+      std::string& value,
+      std::string& error)
+    {
+      const auto it = params.find(param_name);
+      if (it == params.end())
+      {
+        error = fmt::format("No parameter named '{}' in path", param_name);
+        return false;
+      }
+
+      value = it->second;
+      return true;
+    }
+
   protected:
     EndpointPtr default_endpoint;
     std::map<std::string, std::map<RESTVerb, EndpointPtr>>
