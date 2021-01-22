@@ -42,6 +42,6 @@ Transaction
 Transaction View
 ----------------
 
-.. doxygenclass:: kv::TxView
+.. doxygenclass:: kv::MapHandle
    :project: CCF
    :members: get, put, remove, foreach

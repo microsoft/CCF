@@ -7,7 +7,7 @@
 #include "ds/spin_lock.h"
 #include "kv/kv_serialiser.h"
 #include "kv/kv_types.h"
-#include "kv/untyped_tx_view.h"
+#include "kv/untyped_map_handle.h"
 
 #include <functional>
 #include <optional>
@@ -118,7 +118,7 @@ namespace kv::untyped
     const bool replicated;
 
   public:
-    class TxViewCommitter : public AbstractCommitter
+    class HandleCommitter : public AbstractCommitter
     {
     protected:
       Map& map;
@@ -131,7 +131,7 @@ namespace kv::untyped
       bool committed_writes = false;
 
     public:
-      TxViewCommitter(Map& m, ChangeSet& change_set_) :
+      HandleCommitter(Map& m, ChangeSet& change_set_) :
         map(m),
         change_set(change_set_)
       {}
@@ -300,7 +300,7 @@ namespace kv::untyped
     };
 
     // Public typedef for external consumption
-    using TxView = kv::untyped::TxView;
+    using Handle = kv::untyped::MapHandle;
 
     Map(
       AbstractStore* store_,
@@ -393,7 +393,7 @@ namespace kv::untyped
       }
     }
 
-    class SnapshotViewCommitter : public AbstractCommitter
+    class SnapshotHandleCommitter : public AbstractCommitter
     {
     private:
       Map& map;
@@ -401,7 +401,7 @@ namespace kv::untyped
       SnapshotChangeSet& change_set;
 
     public:
-      SnapshotViewCommitter(Map& m, SnapshotChangeSet& change_set_) :
+      SnapshotHandleCommitter(Map& m, SnapshotChangeSet& change_set_) :
         map(m),
         change_set(change_set_)
       {}
@@ -453,7 +453,7 @@ namespace kv::untyped
 
     ChangeSetPtr deserialise_snapshot_changes(KvStoreDeserialiser& d)
     {
-      // Create a new empty view, deserialising d's contents into it.
+      // Create a new empty change set, deserialising d's contents into it.
       auto v = d.deserialise_entry_version();
       auto map_snapshot = d.deserialise_raw();
 
@@ -473,8 +473,8 @@ namespace kv::untyped
       if (change_set_ptr == nullptr)
       {
         LOG_FAIL_FMT(
-          "Failed to create view over '{}' at {} - too early", name, version);
-        throw std::logic_error("Can't create view");
+          "Failed to create change set over '{}' at {} - too early", name, version);
+        throw std::logic_error("Can't create change set");
       }
 
       auto& change_set = *change_set_ptr;
@@ -523,11 +523,11 @@ namespace kv::untyped
       auto snapshot_change_set = dynamic_cast<SnapshotChangeSet*>(non_abstract);
       if (snapshot_change_set != nullptr)
       {
-        return std::make_unique<SnapshotViewCommitter>(
+        return std::make_unique<SnapshotHandleCommitter>(
           *this, *snapshot_change_set);
       }
 
-      return std::make_unique<TxViewCommitter>(*this, *non_abstract);
+      return std::make_unique<HandleCommitter>(*this, *non_abstract);
     }
 
     /** Get store that the map belongs to

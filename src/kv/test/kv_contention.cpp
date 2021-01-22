@@ -82,7 +82,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
           // Start a transaction over selected maps
           auto tx = args->kv_store->create_tx();
 
-          std::vector<MapType::TxView*> views;
+          std::vector<MapType::Handle*> views;
           for (const auto& map : args->maps)
           {
             views.push_back(tx.get_view(map));

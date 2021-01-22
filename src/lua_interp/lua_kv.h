@@ -12,22 +12,22 @@ namespace ccf
   namespace lua
   {
     /**
-     * Static functions to interact with a kv::Map<K, V>::TxView from lua.
+     * Static functions to interact with a kv::Map<K, V>::Handle from lua.
      *
-     * Each of the Txs public methods have an equivalent lua function. Where the
-     * C++ api throws exceptions or returns empty options, the lua version will
-     * return nil.
+     * Each of the Handle's public methods have an equivalent lua function.
+     * Where the C++ api throws exceptions or returns empty options, the lua
+     * version will return nil.
      *
-     * nlohmann::json is used to transfer types between C++/the KvTable and lua.
+     * nlohmann::json is used to transfer types between C++ and lua.
      * Thus, all types that nlohmann::json can serialize/unserialize can be
      * passed.
      */
-    template <typename TxView, typename X = TxView>
+    template <typename Handle, typename X = Handle>
     struct KvTable
     {
-      using UD = UserData<TxView, X>;
-      using K = typename TxView::KeyType;
-      using V = typename TxView::ValueType;
+      using UD = UserData<Handle, X>;
+      using K = typename Handle::KeyType;
+      using V = typename Handle::ValueType;
 
       /**
        * @brief Callable from lua.

@@ -22,11 +22,11 @@ namespace kv::untyped
   using SnapshotChangeSet = kv::
     SnapshotChangeSet<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
 
-  class TxView : public kv::AbstractTxView
+  class MapHandle : public kv::AbstractMapHandle
   {
   public:
     // Expose these types so that other code can use them as MyTx::KeyType or
-    // MyMap::TxView::KeyType, templated on the TxView or Map type
+    // MyMap::MapHandle::KeyType, templated on the MapHandle or Map type
     using KeyType = SerialisedEntry;
     using ValueType = SerialisedEntry;
 
@@ -80,7 +80,7 @@ namespace kv::untyped
     }
 
   public:
-    TxView(ChangeSet& cs) : tx_changes(cs) {}
+    MapHandle(ChangeSet& cs) : tx_changes(cs) {}
 
     /** Get value for key
      *

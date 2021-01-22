@@ -18,16 +18,16 @@ using namespace nlohmann;
 namespace ccf
 {
   using TableII = kv::Map<int, int>;
-  using TxII = TableII::TxView;
+  using TxII = TableII::Handle;
 
   using TableIS = kv::Map<int, std::string>;
-  using TxIS = TableIS::TxView;
+  using TxIS = TableIS::Handle;
 
   using TableSB = kv::Map<std::string, bool>;
-  using TxSB = TableSB::TxView;
+  using TxSB = TableSB::Handle;
 
   using TableVI = kv::Map<vector<uint8_t>, int>;
-  using TxVI = TableVI::TxView;
+  using TxVI = TableVI::Handle;
 
   TEST_CASE("lua tx")
   {

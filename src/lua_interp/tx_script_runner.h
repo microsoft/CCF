@@ -49,7 +49,7 @@ namespace ccf
         template <typename T>
         static void register_meta(lua::Interpreter& li)
         {
-          using TT = typename T::TxView;
+          using TT = typename T::Handle;
           if constexpr (READ_ONLY)
             li.register_metatable<TT>(lua::kv_methods_read_only<TT>);
           else
@@ -61,7 +61,7 @@ namespace ccf
         {
           decltype(auto) name = table.get_name();
 
-          using TT = typename T::TxView;
+          using TT = typename T::Handle;
           auto view = tx.get_view(table);
           if constexpr (READ_ONLY)
             li.push(view);

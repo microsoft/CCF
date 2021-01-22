@@ -26,7 +26,8 @@ namespace kv
     }
   };
 
-  // Manages a collection of TxViews. Derived implementations should call
+  // TODO: Replace all `view`s in these functions and docs with `handle`
+  // Manages a collection of MapHandles. Derived implementations should call
   // get_view_by_name to retrieve views over target maps.
   class BaseTx : public AbstractChangeContainer
   {
@@ -36,11 +37,11 @@ namespace kv
     OrderedChanges all_changes;
 
     // NB: This exists only to maintain the old API, where this Tx stores
-    // TxViews and returns raw pointers to them. It could be removed entirely
+    // MapHandles and returns raw pointers to them. It could be removed entirely
     // with a near-identical API if we return `shared_ptr`s, and assuming that
     // we don't actually care about returning the same View instance if
     // `get_view` is called multiple times
-    using PossibleViews = std::list<std::unique_ptr<AbstractTxView>>;
+    using PossibleViews = std::list<std::unique_ptr<AbstractMapHandle>>;
     std::map<std::string, PossibleViews> all_views;
 
     bool committed = false;
@@ -63,7 +64,7 @@ namespace kv
       {
         PossibleViews views;
         auto typed_view = new MapView(change_set);
-        views.emplace_back(std::unique_ptr<AbstractTxView>(typed_view));
+        views.emplace_back(std::unique_ptr<AbstractMapHandle>(typed_view));
         all_views[name] = std::move(views);
         return typed_view;
       }
@@ -79,7 +80,7 @@ namespace kv
           }
         }
         auto typed_view = new MapView(change_set);
-        views.emplace_back(std::unique_ptr<AbstractTxView>(typed_view));
+        views.emplace_back(std::unique_ptr<AbstractMapHandle>(typed_view));
         return typed_view;
       }
     }
@@ -419,12 +420,12 @@ namespace kv
      * @param m Map
      */
     template <class M>
-    typename M::ReadOnlyTxView* get_read_only_view(M& m)
+    typename M::ReadOnlyHandle* get_read_only_view(M& m)
     {
-      // NB: Always creates a (writeable) TxView, which is cast to
-      // ReadOnlyTxView on return. This is so that other calls (before or after)
-      // can retrieve writeable views over the same map.
-      return get_view_by_name<typename M::TxView>(m.get_name());
+      // NB: Always creates a (writeable) MapHandle, which is cast to
+      // ReadOnlyHandle on return. This is so that other calls (before or
+      // after) can retrieve writeable views over the same map.
+      return get_view_by_name<typename M::Handle>(m.get_name());
     }
 
     /** Get a read-only transaction view on a map by name.
@@ -435,9 +436,9 @@ namespace kv
      * @param map_name Name of map
      */
     template <class M>
-    typename M::ReadOnlyTxView* get_read_only_view(const std::string& map_name)
+    typename M::ReadOnlyHandle* get_read_only_view(const std::string& map_name)
     {
-      return get_view_by_name<typename M::TxView>(map_name);
+      return get_view_by_name<typename M::Handle>(map_name);
     }
   };
 
@@ -453,9 +454,9 @@ namespace kv
      * @param m Map
      */
     template <class M>
-    typename M::TxView* get_view(M& m)
+    typename M::Handle* get_view(M& m)
     {
-      return get_view_by_name<typename M::TxView>(m.get_name());
+      return get_view_by_name<typename M::Handle>(m.get_name());
     }
 
     /** Get a transaction view on a map by name
@@ -466,9 +467,9 @@ namespace kv
      * @param map_name Name of map
      */
     template <class M>
-    typename M::TxView* get_view(const std::string& map_name)
+    typename M::Handle* get_view(const std::string& map_name)
     {
-      return get_view_by_name<typename M::TxView>(map_name);
+      return get_view_by_name<typename M::Handle>(map_name);
     }
   };
 

@@ -6,7 +6,7 @@
 #include "serialise_entry_blit.h"
 #include "serialise_entry_json.h"
 #include "serialise_entry_msgpack.h"
-#include "tx_view.h"
+#include "map_handle.h"
 
 namespace kv
 {
@@ -25,8 +25,8 @@ namespace kv
     using CommitHook = CommitHook<Write>;
     using MapHook = MapHook<Write>;
 
-    using ReadOnlyTxView = kv::ReadOnlyTxView<K, V, KSerialiser, VSerialiser>;
-    using TxView = kv::TxView<K, V, KSerialiser, VSerialiser>;
+    using ReadOnlyHandle = kv::ReadOnlyMapHandle<K, V, KSerialiser, VSerialiser>;
+    using Handle = kv::MapHandle<K, V, KSerialiser, VSerialiser>;
 
     using KeySerialiser = KSerialiser;
     using ValueSerialiser = VSerialiser;

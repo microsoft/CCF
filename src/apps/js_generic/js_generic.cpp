@@ -349,7 +349,7 @@ namespace ccfapp
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
     auto map_view =
-      static_cast<KVMap::TxView*>(JS_GetOpaque(this_val, kv_map_view_class_id));
+      static_cast<KVMap::Handle*>(JS_GetOpaque(this_val, kv_map_view_class_id));
 
     if (argc != 1)
       return JS_ThrowTypeError(
@@ -370,7 +370,7 @@ namespace ccfapp
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
     auto map_view =
-      static_cast<KVMap::TxView*>(JS_GetOpaque(this_val, kv_map_view_class_id));
+      static_cast<KVMap::Handle*>(JS_GetOpaque(this_val, kv_map_view_class_id));
 
     if (argc != 1)
       return JS_ThrowTypeError(
@@ -400,7 +400,7 @@ namespace ccfapp
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
     auto map_view =
-      static_cast<KVMap::TxView*>(JS_GetOpaque(this_val, kv_map_view_class_id));
+      static_cast<KVMap::Handle*>(JS_GetOpaque(this_val, kv_map_view_class_id));
 
     if (argc != 1)
       return JS_ThrowTypeError(
@@ -427,7 +427,7 @@ namespace ccfapp
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
     auto map_view =
-      static_cast<KVMap::TxView*>(JS_GetOpaque(this_val, kv_map_view_class_id));
+      static_cast<KVMap::Handle*>(JS_GetOpaque(this_val, kv_map_view_class_id));
 
     if (argc != 2)
       return JS_ThrowTypeError(
@@ -458,7 +458,7 @@ namespace ccfapp
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
     auto map_view =
-      static_cast<KVMap::TxView*>(JS_GetOpaque(this_val, kv_map_view_class_id));
+      static_cast<KVMap::Handle*>(JS_GetOpaque(this_val, kv_map_view_class_id));
 
     if (argc != 1)
       return JS_ThrowTypeError(
