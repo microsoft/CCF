@@ -35,6 +35,7 @@ By name:
     // View on map1
     auto view_map1 = tx.get_view<kv::Map<string, string>>("map1");
     
+    // TODO: Remove this, update surrounding docs
     // Two Views created at the same time, over different public and private maps
     auto [view_map2, view_map3] =
         tx.get_view<kv::Map<string, string>, kv::Map<uint64_t, string>>("public:map2", "map3");

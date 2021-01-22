@@ -124,9 +124,8 @@ TEST_CASE(
   INFO("Commit to public and private map in source store");
   {
     auto tx = kv_store.create_tx();
-    auto [view_priv, view_pub] =
-      tx.get_view<MapTypes::StringString, MapTypes::StringString>(
-        priv_map, pub_map);
+    auto view_priv = tx.get_view<MapTypes::StringString>(priv_map);
+    auto view_pub = tx.get_view<MapTypes::StringString>(pub_map);
 
     view_priv->put("privk1", "privv1");
     view_pub->put("pubk1", "pubv1");
@@ -144,9 +143,8 @@ TEST_CASE(
       kv::DeserialiseSuccess::FAILED);
 
     auto tx_target = kv_store_target.create_tx();
-    auto [view_priv, view_pub] =
-      tx_target.get_view<MapTypes::StringString, MapTypes::StringString>(
-        priv_map, pub_map);
+    auto view_priv = tx_target.get_view<MapTypes::StringString>(priv_map);
+    auto view_pub = tx_target.get_view<MapTypes::StringString>(pub_map);
 
     REQUIRE(view_priv->get("privk1") == "privv1");
     REQUIRE(view_pub->get("pubk1") == "pubv1");
@@ -571,12 +569,10 @@ TEST_CASE(
   {
     auto tx = store.create_reserved_tx(store.next_version());
 
-    auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] =
-      tx.get_view<T, T, T, T>(
-        data_replicated,
-        data_replicated_private,
-        data_derived,
-        data_derived_private);
+    auto data_view_r = tx.get_view<T>(data_replicated);
+    auto data_view_r_p = tx.get_view<T>(data_replicated_private);
+    auto data_view_d = tx.get_view<T>(data_derived);
+    auto data_view_d_p = tx.get_view<T>(data_derived_private);
     data_view_r->put(44, 44);
     data_view_r_p->put(45, 45);
     data_view_d->put(46, 46);
@@ -594,12 +590,10 @@ TEST_CASE(
         kv_store_target.deserialise(data, hooks) ==
         kv::DeserialiseSuccess::PASS);
       auto tx = kv_store_target.create_tx();
-      auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] =
-        tx.get_view<T, T, T, T>(
-          data_replicated,
-          data_replicated_private,
-          data_derived,
-          data_derived_private);
+      auto data_view_r = tx.get_view<T>(data_replicated);
+      auto data_view_r_p = tx.get_view<T>(data_replicated_private);
+      auto data_view_d = tx.get_view<T>(data_derived);
+      auto data_view_d_p = tx.get_view<T>(data_derived_private);
       auto dvr = data_view_r->get(44);
       REQUIRE(dvr.has_value());
       REQUIRE(dvr.value() == 44);

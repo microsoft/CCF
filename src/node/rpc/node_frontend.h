@@ -207,8 +207,8 @@ namespace ccf
               this->network.consensus_type));
         }
 
-        auto [nodes_view, service_view] =
-          args.tx.get_view(this->network.nodes, this->network.service);
+        auto nodes_view = args.tx.get_view(this->network.nodes);
+        auto service_view = args.tx.get_view(this->network.service);
 
         auto active_service = service_view->get(0);
         if (!active_service.has_value())

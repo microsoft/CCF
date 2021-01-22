@@ -1559,10 +1559,10 @@ namespace ccf
           ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
         const auto& signed_request = caller_identity.signed_request;
 
-        auto [ma_view, sig_view, members_view] = ctx.tx.get_view(
-          this->network.member_acks,
-          this->network.signatures,
-          this->network.members);
+        auto ma_view = ctx.tx.get_view(this->network.member_acks);
+        auto sig_view = ctx.tx.get_view(this->network.signatures);
+        auto members_view = ctx.tx.get_view(this->network.members);
+
         const auto ma = ma_view->get(caller_identity.member_id);
         if (!ma)
         {
@@ -1644,31 +1644,31 @@ namespace ccf
         .install();
 
       //! A member asks for a fresher state digest
-      auto update_state_digest = [this](
-                                   EndpointContext& ctx, nlohmann::json&&) {
-        const auto member_id = get_caller_member_id(ctx);
-        auto [ma_view, sig_view] =
-          ctx.tx.get_view(this->network.member_acks, this->network.signatures);
-        auto ma = ma_view->get(member_id);
-        if (!ma)
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            fmt::format("No ACK record exists for caller {}.", member_id));
-        }
+      auto update_state_digest =
+        [this](EndpointContext& ctx, nlohmann::json&&) {
+          const auto member_id = get_caller_member_id(ctx);
+          auto ma_view = ctx.tx.get_view(this->network.member_acks);
+          auto sig_view = ctx.tx.get_view(this->network.signatures);
+          auto ma = ma_view->get(member_id);
+          if (!ma)
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              fmt::format("No ACK record exists for caller {}.", member_id));
+          }
 
-        auto s = sig_view->get(0);
-        if (s)
-        {
-          ma->state_digest = s->root.hex_str();
-          ma_view->put(member_id, ma.value());
-        }
-        nlohmann::json j;
-        j["state_digest"] = ma->state_digest;
+          auto s = sig_view->get(0);
+          if (s)
+          {
+            ma->state_digest = s->root.hex_str();
+            ma_view->put(member_id, ma.value());
+          }
+          nlohmann::json j;
+          j["state_digest"] = ma->state_digest;
 
-        return make_success(j);
-      };
+          return make_success(j);
+        };
       make_endpoint(
         "ack/update_state_digest",
         HTTP_POST,

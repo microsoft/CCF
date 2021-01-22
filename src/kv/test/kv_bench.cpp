@@ -71,7 +71,8 @@ static void serialise(picobench::state& s)
   auto map1 = build_map_name("map1", SD);
 
   auto tx = kv_store.create_tx();
-  auto [tx0, tx1] = tx.get_view<MapType, MapType>(map0, map1);
+  auto tx0 = tx.get_view<MapType>(map0);
+  auto tx1 = tx.get_view<MapType>(map1);
 
   for (int i = 0; i < s.iterations(); i++)
   {
@@ -106,7 +107,8 @@ static void deserialise(picobench::state& s)
   auto map1 = build_map_name("map1", SD);
 
   auto tx = kv_store.create_tx();
-  auto [tx0, tx1] = tx.get_view<MapType, MapType>(map0, map1);
+  auto tx0 = tx.get_view<MapType>(map0);
+  auto tx1 = tx.get_view<MapType>(map1);
 
   for (int i = 0; i < s.iterations(); i++)
   {
@@ -142,7 +144,8 @@ static void commit_latency(picobench::state& s)
   for (int i = 0; i < s.iterations(); i++)
   {
     auto tx = kv_store.create_tx();
-    auto [tx0, tx1] = tx.get_view<MapType, MapType>(map0, map1);
+    auto tx0 = tx.get_view<MapType>(map0);
+    auto tx1 = tx.get_view<MapType>(map1);
     for (int iTx = 0; iTx < S; iTx++)
     {
       const auto key = gen_key(i, std::to_string(iTx));

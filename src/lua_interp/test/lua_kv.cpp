@@ -167,10 +167,9 @@ namespace ccf
     TableSB sb("public:test_sb");
 
     auto txs = tables.create_tx();
-    auto tx = txs.get_view(ii, is, sb);
-    auto tx_ii = get<0>(tx);
-    auto tx_is = get<1>(tx);
-    auto tx_sb = get<2>(tx);
+    auto tx_ii = txs.get_view(ii);
+    auto tx_is = txs.get_view(is);
+    auto tx_sb = txs.get_view(sb);
 
     auto li = Interpreter();
     li.register_metatable<TxII>(kv_methods<TxII>);

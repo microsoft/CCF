@@ -614,8 +614,9 @@ namespace ccf
       kv::Term* term = nullptr, PrimarySignature* signature = nullptr) override
     {
       auto tx = store.create_tx();
-      auto [sig_tv, ni_tv] = tx.template get_view<ccf::Signatures, ccf::Nodes>(
-        ccf::Tables::SIGNATURES, ccf::Tables::NODES);
+      auto sig_tv =
+        tx.template get_view<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      auto ni_tv = tx.template get_view<ccf::Nodes>(ccf::Tables::NODES);
       auto sig = sig_tv->get(0);
       if (!sig.has_value())
       {

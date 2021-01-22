@@ -106,13 +106,12 @@ namespace ccf
 
     MemberId add_member(const MemberPubInfo& member_pub_info)
     {
-      auto [m, mc, md, v, ma, sig] = tx.get_view(
-        tables.members,
-        tables.member_certs,
-        tables.member_digests,
-        tables.values,
-        tables.member_acks,
-        tables.signatures);
+      auto m = tx.get_view(tables.members);
+      auto mc = tx.get_view(tables.member_certs);
+      auto md = tx.get_view(tables.member_digests);
+      auto v = tx.get_view(tables.values);
+      auto ma = tx.get_view(tables.member_acks);
+      auto sig = tx.get_view(tables.signatures);
 
       // The key to a CertDERs table must be a DER, for easy comparison against
       // the DER peer cert retrieved from the connection
@@ -232,8 +231,10 @@ namespace ccf
 
     auto add_user(const ccf::UserInfo& user_info)
     {
-      auto [u, uc, ud, v] = tx.get_view(
-        tables.users, tables.user_certs, tables.user_digests, tables.values);
+      auto u = tx.get_view(tables.users);
+      auto uc = tx.get_view(tables.user_certs);
+      auto ud = tx.get_view(tables.user_digests);
+      auto v = tx.get_view(tables.values);
 
       auto user_cert_der = tls::make_verifier(user_info.cert)->der_cert_data();
 
@@ -256,7 +257,8 @@ namespace ccf
 
     bool remove_user(UserId user_id)
     {
-      auto [u, uc] = tx.get_view(tables.users, tables.user_certs);
+      auto u = tx.get_view(tables.users);
+      auto uc = tx.get_view(tables.user_certs);
 
       auto user_info = u->get(user_id);
       if (!user_info.has_value())
@@ -290,8 +292,7 @@ namespace ccf
       // self_to_exclude is not included in the list of returned nodes.
       std::map<NodeId, NodeInfo> active_nodes;
 
-      auto [nodes_view, secrets_view] =
-        tx.get_view(tables.nodes, tables.secrets);
+      auto nodes_view = tx.get_view(tables.nodes);
 
       nodes_view->foreach([&active_nodes, self_to_exclude](
                             const NodeId& nid, const NodeInfo& ni) {

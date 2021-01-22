@@ -66,10 +66,10 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
     INFO("Multiple dynamic tables can be created in a single tx");
     auto tx = kv_store.create_tx();
 
-    auto [v1, v2] = tx.get_view<MapTypes::StringString, MapTypes::StringNum>(
-      new_map1, new_map2);
-    auto [v2a, v3] =
-      tx.get_view<MapTypes::StringNum, MapTypes::NumString>(new_map2, new_map3);
+    auto v1 = tx.get_view<MapTypes::StringString>(new_map1);
+    auto v2 = tx.get_view<MapTypes::StringNum>(new_map2);
+    auto v2a = tx.get_view<MapTypes::StringNum>(new_map2);
+    auto v3 = tx.get_view<MapTypes::NumString>(new_map3);
 
     REQUIRE(v2 == v2a);
 
@@ -96,10 +96,9 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
 
     {
       auto tx = kv_store.create_tx();
-      auto [v1, v2, v3] = tx.get_view<
-        MapTypes::StringString,
-        MapTypes::StringNum,
-        MapTypes::NumString>(new_map1, new_map2, new_map3);
+      auto v1 = tx.get_view<MapTypes::StringString>(new_map1);
+      auto v2 = tx.get_view<MapTypes::StringNum>(new_map2);
+      auto v3 = tx.get_view<MapTypes::NumString>(new_map3);
 
       REQUIRE(!v1->has("foo"));
       REQUIRE(!v2->has("foo"));
@@ -230,10 +229,9 @@ TEST_CASE("Read only views" * doctest::test_suite("dynamic"))
   {
     auto tx = kv_store.create_read_only_tx();
     auto va = tx.get_read_only_view<MapTypes::StringString>(dynamic_map_a);
-    auto [vaa, vb, vbb] = tx.get_read_only_view<
-      MapTypes::StringString,
-      MapTypes::StringString,
-      MapTypes::StringString>(dynamic_map_a, dynamic_map_b, dynamic_map_b);
+    auto vaa = tx.get_read_only_view<MapTypes::StringString>(dynamic_map_a);
+    auto vb = tx.get_read_only_view<MapTypes::StringString>(dynamic_map_b);
+    auto vbb = tx.get_read_only_view<MapTypes::StringString>(dynamic_map_b);
 
     REQUIRE(va != nullptr);
     REQUIRE(vaa != nullptr);
@@ -251,8 +249,8 @@ TEST_CASE("Read only views" * doctest::test_suite("dynamic"))
 
   {
     auto tx = kv_store.create_tx();
-    auto [va, vb] = tx.get_view<MapTypes::StringString, MapTypes::StringString>(
-      dynamic_map_a, dynamic_map_b);
+    auto va = tx.get_view<MapTypes::StringString>(dynamic_map_a);
+    auto vb = tx.get_view<MapTypes::StringString>(dynamic_map_b);
 
     va->put("foo", "bar");
     vb->put("foo", "baz");
@@ -262,9 +260,8 @@ TEST_CASE("Read only views" * doctest::test_suite("dynamic"))
 
   {
     auto tx = kv_store.create_read_only_tx();
-    auto [va, vb] =
-      tx.get_read_only_view<MapTypes::StringString, MapTypes::StringString>(
-        dynamic_map_a, dynamic_map_b);
+    auto va = tx.get_read_only_view<MapTypes::StringString>(dynamic_map_a);
+    auto vb = tx.get_read_only_view<MapTypes::StringString>(dynamic_map_b);
 
     const auto foo_a = va->get("foo");
     REQUIRE(foo_a.has_value());
@@ -337,9 +334,8 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
     {
       auto tx3 = kv_store.create_tx();
 
-      auto [view1, view2] =
-        tx3.get_view<MapTypes::NumString, MapTypes::StringNum>(
-          dynamic_map_a, dynamic_map_b);
+      auto view1 = tx1.get_view<MapTypes::NumString>(dynamic_map_a);
+      auto view2 = tx2.get_view<MapTypes::StringNum>(dynamic_map_b);
 
       const auto v1 = view1->get(42);
       REQUIRE(v1.has_value());
@@ -510,9 +506,9 @@ TEST_CASE(
 
   {
     auto tx = kv_store.create_tx();
-    auto [public_view, private_view] =
-      tx.get_view<MapTypes::StringString, MapTypes::StringString>(
-        "public:foo", "foo");
+
+    auto public_view = tx.get_view<MapTypes::StringString>("public:foo");
+    auto private_view = tx.get_view<MapTypes::StringString>("foo");
 
     // These are _different views_ over _different maps_
     REQUIRE(public_view != private_view);
@@ -536,8 +532,8 @@ TEST_CASE("Swapping dynamic maps" * doctest::test_suite("dynamic"))
 
   {
     auto tx = s1.create_tx();
-    auto [v0, v1] =
-      tx.get_view<MapTypes::StringString, MapTypes::NumString>("foo", "bar");
+    auto v0 = tx.get_view<MapTypes::StringString>("foo");
+    auto v1 = tx.get_view<MapTypes::NumString>("bar");
     v0->put("hello", "world");
     v1->put(42, "everything");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -545,8 +541,8 @@ TEST_CASE("Swapping dynamic maps" * doctest::test_suite("dynamic"))
 
   {
     auto tx = s1.create_tx();
-    auto [v0, v1] =
-      tx.get_view<MapTypes::StringString, MapTypes::StringNum>("foo", "baz");
+    auto v0 = tx.get_view<MapTypes::StringString>("foo");
+    auto v1 = tx.get_view<MapTypes::StringNum>("baz");
     v0->put("hello", "goodbye");
     v1->put("saluton", 100);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -581,10 +577,9 @@ TEST_CASE("Swapping dynamic maps" * doctest::test_suite("dynamic"))
     INFO("Private state is transferred");
     auto tx = s2.create_tx();
 
-    auto [v0, v1, v2] = tx.get_view<
-      MapTypes::StringString,
-      MapTypes::NumString,
-      MapTypes::StringNum>("foo", "bar", "baz");
+    auto v0 = tx.get_view<MapTypes::StringString>("foo");
+    auto v1 = tx.get_view<MapTypes::NumString>("bar");
+    auto v2 = tx.get_view<MapTypes::StringNum>("baz");
 
     const auto val0 = v0->get("hello");
     REQUIRE(val0.has_value());
@@ -603,8 +598,8 @@ TEST_CASE("Swapping dynamic maps" * doctest::test_suite("dynamic"))
     INFO("Public state is untouched");
     auto tx = s2.create_tx();
 
-    auto [v0, v1] = tx.get_view<MapTypes::StringString, MapTypes::StringString>(
-      "public:source_state", "public:target_state");
+    auto v0 = tx.get_view<MapTypes::StringString>("public:source_state");
+    auto v1 = tx.get_view<MapTypes::StringString>("public:target_state");
 
     const auto val0 = v0->get("store");
     REQUIRE_FALSE(val0.has_value());

@@ -304,7 +304,8 @@ TEST_CASE("KV integrity verification")
   StringString private_map("private_map");
 
   auto tx = primary_store.create_tx();
-  auto [public_view, private_view] = tx.get_view(public_map, private_map);
+  auto public_view = tx.get_view(public_map);
+  auto private_view = tx.get_view(private_map);
   std::string pub_value = "pubv1";
   public_view->put("pubk1", pub_value);
   private_view->put("privk1", "privv1");

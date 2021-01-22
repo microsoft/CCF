@@ -938,7 +938,8 @@ TEST_CASE("Deserialising from other Store")
   MapTypes::NumString public_map("public:public");
   MapTypes::NumString private_map("private");
   auto tx1 = store.create_reserved_tx(store.next_version());
-  auto [view1, view2] = tx1.get_view(public_map, private_map);
+  auto view1 = tx1.get_view(public_map);
+  auto view2 = tx1.get_view(private_map);
   view1->put(42, "aardvark");
   view2->put(14, "alligator");
   auto [success, reqid, data, hooks] = tx1.commit_reserved();
@@ -992,7 +993,8 @@ TEST_CASE("Deserialise return status")
   INFO("Signature transactions with additional contents should fail");
   {
     auto tx = store.create_reserved_tx(store.next_version());
-    auto [sig_view, data_view] = tx.get_view(signatures, data);
+    auto sig_view = tx.get_view(signatures);
+    auto data_view = tx.get_view(data);
     ccf::PrimarySignature sigv(0, 2);
     sig_view->put(0, sigv);
     data_view->put(43, 43);
@@ -1154,7 +1156,8 @@ TEST_CASE("Private recovery map swap")
   INFO("Check state looks as expected in s1");
   {
     auto tx = s1.create_tx();
-    auto [priv, pub] = tx.get_view(priv1, pub1);
+    auto priv = tx.get_view(priv1);
+    auto pub = tx.get_view(pub1);
     {
       auto val = pub->get(42);
       REQUIRE(val.has_value());
@@ -1183,7 +1186,8 @@ TEST_CASE("Private recovery map swap")
   INFO("Check committed state looks as expected in s1");
   {
     auto tx = s1.create_tx();
-    auto [priv, pub] = tx.get_view(priv1, pub1);
+    auto priv = tx.get_view(priv1);
+    auto pub = tx.get_view(pub1);
     {
       auto val = pub->get_globally_committed(42);
       REQUIRE(val.has_value());
@@ -1317,7 +1321,8 @@ TEST_CASE("Mid-tx compaction")
 
   auto increment_vals = [&]() {
     auto tx = kv_store.create_tx();
-    auto [view_a, view_b] = tx.get_view(map_a, map_b);
+    auto view_a = tx.get_view(map_a);
+    auto view_b = tx.get_view(map_b);
 
     auto a_opt = view_a->get(key_a);
     auto b_opt = view_b->get(key_b);
@@ -1428,7 +1433,8 @@ TEST_CASE("Store clear")
     for (int i = 0; i < tx_count; i++)
     {
       auto tx = kv_store.create_tx();
-      auto [view_a, view_b] = tx.get_view(map_a, map_b);
+      auto view_a = tx.get_view(map_a);
+      auto view_b = tx.get_view(map_b);
 
       view_a->put("key" + std::to_string(i), 42);
       view_b->put("key" + std::to_string(i), 42);

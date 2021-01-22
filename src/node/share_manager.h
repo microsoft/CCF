@@ -233,8 +233,8 @@ namespace ccf
 
     LedgerSecretWrappingKey combine_from_submitted_shares(kv::Tx& tx)
     {
-      auto [submitted_shares_view, config_view] =
-        tx.get_view(network.submitted_shares, network.config);
+      auto submitted_shares_view = tx.get_view(network.submitted_shares);
+      auto config_view = tx.get_view(network.config);
 
       std::vector<SecretSharing::Share> shares;
       submitted_shares_view->foreach(
@@ -378,8 +378,8 @@ namespace ccf
       MemberId member_id,
       const std::vector<uint8_t>& submitted_recovery_share)
     {
-      auto [service_view, submitted_shares_view] =
-        tx.get_view(network.service, network.submitted_shares);
+      auto service_view = tx.get_view(network.service);
+      auto submitted_shares_view = tx.get_view(network.submitted_shares);
       auto active_service = service_view->get(0);
       if (!active_service.has_value())
       {

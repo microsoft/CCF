@@ -116,8 +116,8 @@ TEST_CASE("StateCache")
         else
         {
           auto tx = store.create_tx();
-          auto [public_view, private_view] =
-            tx.get_view<NumToString, NumToString>("public:data", "data");
+          auto public_view = tx.get_view<NumToString>("public:data");
+          auto private_view = tx.get_view<NumToString>("data");
           const auto s = std::to_string(i);
           public_view->put(i, s);
           private_view->put(i, s);
@@ -249,8 +249,8 @@ TEST_CASE("StateCache")
 
     {
       auto tx = store_at_index->create_tx();
-      auto [public_view, private_view] =
-        tx.get_view<NumToString, NumToString>("public:data", "data");
+      auto public_view = tx.get_view<NumToString>("public:data");
+      auto private_view = tx.get_view<NumToString>("data");
 
       const auto k = high_index - 1;
       const auto v = std::to_string(k);
