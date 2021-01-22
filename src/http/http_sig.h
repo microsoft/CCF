@@ -67,12 +67,6 @@ namespace http
     return ret;
   }
 
-  struct SigningDetails
-  {
-    std::vector<uint8_t> to_sign;
-    std::vector<uint8_t> signature;
-  };
-
   inline void add_digest_header(http::Request& request)
   {
     // Ensure digest is present and up-to-date
@@ -93,8 +87,8 @@ namespace http
   inline void sign_request(
     http::Request& request,
     const tls::KeyPairPtr& kp,
-    const std::vector<std::string_view>& headers_to_sign,
-    SigningDetails* details = nullptr)
+    const std::string& key_id,
+    const std::vector<std::string_view>& headers_to_sign)
   {
     add_digest_header(request);
 
@@ -112,35 +106,29 @@ namespace http
 
     const auto signature = kp->sign(to_sign.value());
 
-    // https://github.com/microsoft/CCF/issues/2018
     auto auth_value = fmt::format(
       "Signature "
-      "keyId=\"ignored\",algorithm=\"{}\",headers=\"{}\",signature="
+      "keyId=\"{}\",algorithm=\"{}\",headers=\"{}\",signature="
       "\"{}\"",
+      key_id,
       auth::SIGN_ALGORITHM_HS_2019,
       fmt::format("{}", fmt::join(headers_to_sign, " ")),
       tls::b64_from_raw(signature.data(), signature.size()));
 
     request.set_header(headers::AUTHORIZATION, auth_value);
-
-    if (details != nullptr)
-    {
-      details->to_sign = to_sign.value();
-      details->signature = signature;
-    }
   }
 
   inline void sign_request(
     http::Request& request,
     const tls::KeyPairPtr& kp,
-    SigningDetails* details = nullptr)
+    const std::string& key_id)
   {
     std::vector<std::string_view> headers_to_sign;
     headers_to_sign.emplace_back(auth::SIGN_HEADER_REQUEST_TARGET);
     headers_to_sign.emplace_back(headers::DIGEST);
     headers_to_sign.emplace_back(headers::CONTENT_LENGTH);
 
-    sign_request(request, kp, headers_to_sign, details);
+    sign_request(request, kp, key_id, headers_to_sign);
   }
 
   // Implements verification of "Signature" scheme from

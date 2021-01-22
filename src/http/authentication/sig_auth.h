@@ -75,15 +75,6 @@ namespace ccf
           tx.get_read_only_view<CertDigests>(Tables::USER_DIGESTS);
         auto user_id = digests_view->get(signed_request->key_id);
 
-        // This should be removed once
-        // https://github.com/microsoft/CCF/issues/2018 is completed
-        if (!user_id.has_value())
-        {
-          auto user_certs_view =
-            tx.get_read_only_view<CertDERs>(Tables::USER_CERT_DERS);
-          user_id = user_certs_view->get(ctx->session->caller_cert);
-        }
-
         if (user_id.has_value())
         {
           Users users_table(Tables::USERS);
@@ -184,15 +175,6 @@ namespace ccf
         auto digests_view =
           tx.get_read_only_view<CertDigests>(Tables::MEMBER_DIGESTS);
         auto member_id = digests_view->get(signed_request->key_id);
-
-        // This should be removed once
-        // https://github.com/microsoft/CCF/issues/2018 is completed
-        if (!member_id.has_value())
-        {
-          auto member_certs_view =
-            tx.get_read_only_view<CertDERs>(Tables::MEMBER_CERT_DERS);
-          member_id = member_certs_view->get(ctx->session->caller_cert);
-        }
 
         if (member_id.has_value())
         {

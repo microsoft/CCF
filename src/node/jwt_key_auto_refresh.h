@@ -23,21 +23,24 @@ namespace ccf
     std::shared_ptr<kv::Consensus> consensus;
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
     std::shared_ptr<enclave::RPCMap> rpc_map;
+    tls::KeyPairPtr node_sign_kp;
     tls::Pem node_cert;
 
   public:
     JwtKeyAutoRefresh(
       size_t refresh_interval_s,
       NetworkState& network,
-      std::shared_ptr<kv::Consensus> consensus,
-      std::shared_ptr<enclave::RPCSessions> rpcsessions,
-      std::shared_ptr<enclave::RPCMap> rpc_map,
+      const std::shared_ptr<kv::Consensus>& consensus,
+      const std::shared_ptr<enclave::RPCSessions>& rpcsessions,
+      const std::shared_ptr<enclave::RPCMap>& rpc_map,
+      const tls::KeyPairPtr& node_sign_kp,
       tls::Pem node_cert) :
       refresh_interval_s(refresh_interval_s),
       network(network),
       consensus(consensus),
       rpcsessions(rpcsessions),
       rpc_map(rpc_map),
+      node_sign_kp(node_sign_kp),
       node_cert(node_cert)
     {}
 
@@ -111,9 +114,13 @@ namespace ccf
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       request.set_body(&body);
-      // Need a custom authentication policy that accepts only node certs.
-      // See https://github.com/microsoft/CCF/issues/1904
-      // http::sign_request(request, node_sign_kp);
+
+      crypto::Sha256Hash hash;
+      const auto contents = node_cert.contents();
+      tls::do_hash(contents.data(), contents.size(), hash.h, MBEDTLS_MD_SHA256);
+      const std::string key_id = fmt::format("{:02x}", fmt::join(hash.h, ""));
+
+      http::sign_request(request, node_sign_kp, key_id);
       auto packed = request.build_request();
 
       auto node_session = std::make_shared<enclave::SessionContext>(

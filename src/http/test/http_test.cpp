@@ -455,6 +455,7 @@ DOCTEST_TEST_CASE("Signatures")
   // Produce signed requests with some formatting variations, ensure we can
   // parse them
   auto kp = tls::make_key_pair();
+  const std::string key_id = "UniqueIdentifierForThisKeypair";
 
   http::Request request("/foo", HTTP_POST);
   request.set_query_param("param", "value");
@@ -486,7 +487,7 @@ DOCTEST_TEST_CASE("Signatures")
     headers_to_sign.emplace_back(http::auth::SIGN_HEADER_REQUEST_TARGET);
     headers_to_sign.emplace_back(http::headers::DIGEST);
 
-    http::sign_request(request, kp, headers_to_sign);
+    http::sign_request(request, kp, key_id, headers_to_sign);
 
     const auto serial_request = request.build_request();
 
@@ -496,6 +497,7 @@ DOCTEST_TEST_CASE("Signatures")
     p.execute(serial_request.data(), serial_request.size());
     DOCTEST_REQUIRE(sp.signed_reqs.size() == 1);
     const auto& sr = sp.signed_reqs.back();
+    DOCTEST_REQUIRE(sr.key_id == key_id);
     sp.signed_reqs.pop();
   }
 
@@ -512,7 +514,7 @@ DOCTEST_TEST_CASE("Signatures")
     std::sort(headers_to_sign.begin(), headers_to_sign.end());
     while (true)
     {
-      http::sign_request(request, kp, headers_to_sign);
+      http::sign_request(request, kp, key_id, headers_to_sign);
 
       const auto serial_request = request.build_request();
 
@@ -522,6 +524,7 @@ DOCTEST_TEST_CASE("Signatures")
       p.execute(serial_request.data(), serial_request.size());
       DOCTEST_REQUIRE(sp.signed_reqs.size() == 1);
       const auto& sr = sp.signed_reqs.back();
+      DOCTEST_REQUIRE(sr.key_id == key_id);
       sp.signed_reqs.pop();
 
       const bool was_last_permutation =
@@ -542,7 +545,7 @@ DOCTEST_TEST_CASE("Signatures")
       headers_to_sign.emplace_back(header_it.first);
     }
 
-    http::sign_request(request, kp, headers_to_sign);
+    http::sign_request(request, kp, key_id, headers_to_sign);
 
     const auto& headers = request.get_headers();
     const auto auth_it = headers.find(http::headers::AUTHORIZATION);
