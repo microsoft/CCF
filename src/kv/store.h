@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "apply_changes.h"
 #include "ds/ccf_exception.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
@@ -11,7 +12,6 @@
 #include "node/signatures.h"
 #include "snapshot.h"
 #include "tx.h"
-#include "view_containers.h"
 
 #include <fmt/format.h>
 

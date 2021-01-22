@@ -3,10 +3,10 @@
 #pragma once
 
 #include "kv_types.h"
+#include "map_handle.h"
 #include "serialise_entry_blit.h"
 #include "serialise_entry_json.h"
 #include "serialise_entry_msgpack.h"
-#include "map_handle.h"
 
 namespace kv
 {
@@ -25,7 +25,8 @@ namespace kv
     using CommitHook = CommitHook<Write>;
     using MapHook = MapHook<Write>;
 
-    using ReadOnlyHandle = kv::ReadOnlyMapHandle<K, V, KSerialiser, VSerialiser>;
+    using ReadOnlyHandle =
+      kv::ReadOnlyMapHandle<K, V, KSerialiser, VSerialiser>;
     using Handle = kv::MapHandle<K, V, KSerialiser, VSerialiser>;
 
     using KeySerialiser = KSerialiser;

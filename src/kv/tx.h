@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "apply_changes.h"
 #include "ds/ccf_assert.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
-#include "view_containers.h"
 
 #include <list>
 
@@ -26,9 +26,8 @@ namespace kv
     }
   };
 
-  // TODO: Replace all `view`s in these functions and docs with `handle`
   // Manages a collection of MapHandles. Derived implementations should call
-  // get_view_by_name to retrieve views over target maps.
+  // get_handle_by_name to retrieve handles over their desired maps.
   class BaseTx : public AbstractChangeContainer
   {
   protected:
@@ -39,10 +38,10 @@ namespace kv
     // NB: This exists only to maintain the old API, where this Tx stores
     // MapHandles and returns raw pointers to them. It could be removed entirely
     // with a near-identical API if we return `shared_ptr`s, and assuming that
-    // we don't actually care about returning the same View instance if
-    // `get_view` is called multiple times
-    using PossibleViews = std::list<std::unique_ptr<AbstractMapHandle>>;
-    std::map<std::string, PossibleViews> all_views;
+    // we don't actually care about returning exactly the same Handle instance
+    // if `get_view` is called multiple times
+    using PossibleHandles = std::list<std::unique_ptr<AbstractMapHandle>>;
+    std::map<std::string, PossibleHandles> all_handles;
 
     bool committed = false;
     bool success = false;
@@ -55,38 +54,38 @@ namespace kv
 
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
 
-    template <typename MapView>
-    MapView* get_or_insert_view(
+    template <typename THandle>
+    THandle* get_or_insert_handle(
       untyped::ChangeSet& change_set, const std::string& name)
     {
-      auto it = all_views.find(name);
-      if (it == all_views.end())
+      auto it = all_handles.find(name);
+      if (it == all_handles.end())
       {
-        PossibleViews views;
-        auto typed_view = new MapView(change_set);
-        views.emplace_back(std::unique_ptr<AbstractMapHandle>(typed_view));
-        all_views[name] = std::move(views);
-        return typed_view;
+        PossibleHandles handles;
+        auto typed_handle = new THandle(change_set);
+        handles.emplace_back(std::unique_ptr<AbstractMapHandle>(typed_handle));
+        all_handles[name] = std::move(handles);
+        return typed_handle;
       }
       else
       {
-        PossibleViews& views = it->second;
-        for (auto& view : views)
+        PossibleHandles& handles = it->second;
+        for (auto& handle : handles)
         {
-          auto typed_view = dynamic_cast<MapView*>(view.get());
-          if (typed_view != nullptr)
+          auto typed_handle = dynamic_cast<THandle*>(handle.get());
+          if (typed_handle != nullptr)
           {
-            return typed_view;
+            return typed_handle;
           }
         }
-        auto typed_view = new MapView(change_set);
-        views.emplace_back(std::unique_ptr<AbstractMapHandle>(typed_view));
-        return typed_view;
+        auto typed_handle = new THandle(change_set);
+        handles.emplace_back(std::unique_ptr<AbstractMapHandle>(typed_handle));
+        return typed_handle;
       }
     }
 
-    template <typename MapView>
-    MapView* check_and_store_change_set(
+    template <typename THandle>
+    THandle* check_and_store_change_set(
       std::unique_ptr<untyped::ChangeSet>&& change_set,
       const std::string& map_name,
       const std::shared_ptr<AbstractMap>& abstract_map)
@@ -99,20 +98,20 @@ namespace kv
           read_version));
       }
 
-      auto typed_view = get_or_insert_view<MapView>(*change_set, map_name);
+      auto typed_handle = get_or_insert_handle<THandle>(*change_set, map_name);
       all_changes[map_name] = {abstract_map, std::move(change_set)};
-      return typed_view;
+      return typed_handle;
     }
 
-    template <class MapView>
-    MapView* get_view_by_name(const std::string& map_name)
+    template <class THandle>
+    THandle* get_handle_by_name(const std::string& map_name)
     {
       auto search = all_changes.find(map_name);
       if (search != all_changes.end())
       {
-        auto view =
-          get_or_insert_view<MapView>(*search->second.changeset, map_name);
-        return view;
+        auto handle =
+          get_or_insert_handle<THandle>(*search->second.changeset, map_name);
+        return handle;
       }
 
       if (read_version == NoVersion)
@@ -131,12 +130,13 @@ namespace kv
           const auto map_it = created_maps.find(map_name);
           if (map_it != created_maps.end())
           {
-            throw std::logic_error("Created map without creating view over it");
+            throw std::logic_error(
+              "Created map without creating handle over it");
           }
         }
 
-        // NB: The created maps are always untyped. Only the views over them are
-        // typed
+        // NB: The created maps are always untyped. Only the handles over them
+        // are typed
         auto new_map = std::make_shared<kv::untyped::Map>(
           store,
           map_name,
@@ -156,7 +156,7 @@ namespace kv
       }
 
       auto change_set = untyped_map->create_change_set(read_version);
-      return check_and_store_change_set<MapView>(
+      return check_and_store_change_set<THandle>(
         std::move(change_set), map_name, abstract_map);
     }
 
@@ -239,8 +239,8 @@ namespace kv
 
       auto store = all_changes.begin()->second.map->get_store();
 
-      // If this transaction may create maps, ensure that commit gets a
-      // consistent view of the existing maps
+      // If this transaction creates any maps, ensure that commit gets a
+      // consistent snapshot of the existing maps
       if (!created_maps.empty())
         this->store->lock();
 
@@ -259,8 +259,8 @@ namespace kv
 
       if (!success)
       {
-        // Conflicting views (and contained writes) and all version tracking are
-        // discarded. They must be reconstructed at updated, non-conflicting
+        // Conflicting handles (and contained writes) and all version tracking
+        // are discarded. They must be reconstructed at updated, non-conflicting
         // versions
         reset();
 
@@ -398,7 +398,7 @@ namespace kv
     void reset()
     {
       all_changes.clear();
-      all_views.clear();
+      all_handles.clear();
       created_maps.clear();
       committed = false;
       success = false;
@@ -413,7 +413,7 @@ namespace kv
   public:
     using BaseTx::BaseTx;
 
-    /** Get a read-only transaction view on a map.
+    /** Get a read-only handle for a map.
      *
      * This adds the map to the transaction set if it is not yet present.
      *
@@ -424,11 +424,11 @@ namespace kv
     {
       // NB: Always creates a (writeable) MapHandle, which is cast to
       // ReadOnlyHandle on return. This is so that other calls (before or
-      // after) can retrieve writeable views over the same map.
-      return get_view_by_name<typename M::Handle>(m.get_name());
+      // after) can retrieve writeable handles over the same map.
+      return get_handle_by_name<typename M::Handle>(m.get_name());
     }
 
-    /** Get a read-only transaction view on a map by name.
+    /** Get a read-only handle for a map by name.
      *
      * This adds the map to the transaction set if it is not yet present, and
      * creates the map if it does not yet exist.
@@ -438,7 +438,7 @@ namespace kv
     template <class M>
     typename M::ReadOnlyHandle* get_read_only_view(const std::string& map_name)
     {
-      return get_view_by_name<typename M::Handle>(map_name);
+      return get_handle_by_name<typename M::Handle>(map_name);
     }
   };
 
@@ -447,7 +447,7 @@ namespace kv
   public:
     using ReadOnlyTx::ReadOnlyTx;
 
-    /** Get a transaction view on a map.
+    /** Get a handle for a map.
      *
      * This adds the map to the transaction set if it is not yet present.
      *
@@ -456,10 +456,10 @@ namespace kv
     template <class M>
     typename M::Handle* get_view(M& m)
     {
-      return get_view_by_name<typename M::Handle>(m.get_name());
+      return get_handle_by_name<typename M::Handle>(m.get_name());
     }
 
-    /** Get a transaction view on a map by name
+    /** Get a handle for a map by name
      *
      * This adds the map to the transaction set if it is not yet present, and
      * creates the map if it does not yet exist.
@@ -469,7 +469,7 @@ namespace kv
     template <class M>
     typename M::Handle* get_view(const std::string& map_name)
     {
-      return get_view_by_name<typename M::Handle>(map_name);
+      return get_handle_by_name<typename M::Handle>(map_name);
     }
   };
 

@@ -473,7 +473,9 @@ namespace kv::untyped
       if (change_set_ptr == nullptr)
       {
         LOG_FAIL_FMT(
-          "Failed to create change set over '{}' at {} - too early", name, version);
+          "Failed to create change set over '{}' at {} - too early",
+          name,
+          version);
         throw std::logic_error("Can't create change set");
       }
 
