@@ -26,7 +26,7 @@ A single ``Transaction`` (``tx``) is passed to each endpoint of an application a
 
 When the end-point successfully completes, the node on which the end-point was triggered attempts to commit the transaction to apply the changes to the Store. Once the transaction is committed successfully, it is automatically replicated by CCF and should globally commit.
 
-For each ``Map`` that a Transaction wants to write to or read from, a :cpp:class:`kv::Map::TxView` should first be acquired. This may be retrieved either purely by name (in which case the desired type must be explicitly specified as template parameters), or by using a ``Map`` which contains both the name and the desired types.
+For each ``Map`` that a Transaction wants to write to or read from, a :cpp:class:`kv::Map::TxView` must first be acquired. This may be retrieved either purely by name (in which case the desired type must be explicitly specified as template parameters), or by using a ``Map`` which contains both the name and the desired types.
 
 By name:
 
@@ -35,10 +35,9 @@ By name:
     // View on map1
     auto view_map1 = tx.get_view<kv::Map<string, string>>("map1");
     
-    // TODO: Remove this, update surrounding docs
-    // Two Views created at the same time, over different public and private maps
-    auto [view_map2, view_map3] =
-        tx.get_view<kv::Map<string, string>, kv::Map<uint64_t, string>>("public:map2", "map3");
+    // Views on 2 other maps, one public and one private, with different types
+    auto view_map2 = tx.get_view<kv::Map<string, uint64_t>>("public:map2");
+    auto view_map2 = tx.get_view<kv::Map<uint64_t, MyCustomClass>>("map3");
 
 By ``Map``:
 
@@ -48,14 +47,16 @@ By ``Map``:
     kv::Map<string, string> map_priv("map1");
     auto view_map1 = tx.get_view(map_priv);
 
-    // Two Views created at the same time, over different public and private maps
-    kv::Map<string, string> map_pub("public:map2");
-    kv::Map<uint64_t, string> map_priv_int("map3");
-    auto [view_map2, view_map3] = tx.get_view(map_pub, map_priv_int);
+    // Views on 2 other maps, one public and one private, with different types
+    kv::Map<string, stuint64_tring> map_pub("public:map2");
+    auto view_map2 = tx.get_view(map_pub);
+
+    kv::Map<uint64_t, string> MyCustomClass("map3");
+    auto view_map3 = tx.get_view(map_priv_int);
 
 The latter approach introduces a named binding between the map's name and the types of its keys and values, reducing the chance for errors where code attempts to read a map with the wrong type.
 
-As noted above, this access may cause the ``Map`` to be created, if it did not previously. In fact all ``Maps`` are created like this, in the first transaction in which they are accessed. Within a transaction, a newly created map behaves exactly the same as an existing map with no keys - there is no way to tell the difference, and this distinction should not matter to the transaction logic. Any writes to a newly created ``Map`` will be persisted when the transaction commits, and future transactions will be able to access this ``Map`` by name.
+As noted above, this access may cause the ``Map`` to be created, if it did not previously. In fact all ``Maps`` are created like this, in the first transaction in which they are written to. Within a transaction, a newly created ``Map`` behaves exactly the same as an existing ``Map`` with no keys - the framework views these as semantically identical, and offers no way for the application logic to tell them apart. Any writes to a newly created ``Map`` will be persisted when the transaction commits, and future transactions will be able to access this ``Map`` by name to read those writes.
 
 
 Modifying a ``View``
