@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <tuple>
 
 namespace kv
 {
@@ -43,20 +44,6 @@ namespace kv
       if (!replica.empty())
       {
         return *std::get<1>(replica.back());
-      }
-      else
-      {
-        return std::nullopt;
-      }
-    }
-
-    std::optional<std::vector<uint8_t>> pop_oldest_data()
-    {
-      if (!replica.empty())
-      {
-        auto data = *std::get<1>(replica.front());
-        replica.erase(replica.begin());
-        return data;
       }
       else
       {

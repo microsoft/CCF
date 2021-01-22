@@ -55,37 +55,73 @@ namespace ccf
     SpinLock lock;
     LedgerSecretsMap ledger_secrets;
 
-    LedgerSecret& get_secret_for_version(kv::Version version)
-    {
-      // The ledger secret used to encrypt/decrypt a transaction at a given
-      // version is the one with the highest version that is lower than the
-      // given version (e.g. if ledger_secrets contains two keys for version 0
-      // and 10 then the key associated with version 0 is used for version
-      // [0..9] and version 10 for versions 10+)
+    std::optional<LedgerSecretsMap::iterator> last_used_secret_it =
+      std::nullopt;
 
+    const LedgerSecret& get_secret_for_version(
+      kv::Version version, bool historical_hint = false)
+    {
       if (ledger_secrets.empty())
       {
         throw std::logic_error("Ledger secrets map is empty");
       }
 
-      if (version >= ledger_secrets.rbegin()->first)
+      if (!historical_hint)
       {
-        // Hot path for encrypting/decrypting transactions since the latest
-        // rekey
-        return ledger_secrets.rbegin()->second;
+        if (last_used_secret_it.has_value())
+        {
+          auto& last_used_secret_it_ = last_used_secret_it.value();
+          if (
+            std::next(last_used_secret_it_) == ledger_secrets.end() ||
+            version < std::next(last_used_secret_it_)->first)
+          {
+            // Hot path on backups, when decrypting in sequence after having
+            // been given access to historical secrets
+            LOG_FAIL_FMT("Fast path backup");
+            return last_used_secret_it_->second;
+          }
+          else
+          {
+            // After a rekey, the next ledger secret should be used
+            LOG_FAIL_FMT("Fast path update backup!");
+            ++last_used_secret_it_;
+            return last_used_secret_it_->second;
+          }
+        }
+        else
+        {
+          auto latest = std::prev(ledger_secrets.end());
+          if (version >= latest->first)
+          {
+            // Hot path when encrypting/decrypting latest entries
+            last_used_secret_it = latest;
+            return latest->second;
+          }
+        }
       }
 
+      // Slow path, e.g. historical queries or start of backup replay
+      LOG_FAIL_FMT("Slow path!");
+
+      // The ledger secret used to encrypt/decrypt a transaction at a given
+      // version is the one with the highest version that is lower than the
+      // given version (e.g. if ledger_secrets contains two keys for version 0
+      // and 10 then the key associated with version 0 is used for version
+      // [0..9] and version 10 for versions 10+)
       auto search = std::upper_bound(
         ledger_secrets.begin(),
         ledger_secrets.end(),
         version,
         [](auto a, const auto& b) { return b.first > a; });
+
       if (search == ledger_secrets.begin())
       {
         throw std::logic_error(
           fmt::format("Could not find ledger secret for seqno {}", version));
       }
-      return std::prev(search)->second;
+
+      last_used_secret_it = std::prev(search);
+      return last_used_secret_it.value()->second;
     }
 
     void take_dependency_on_secrets(kv::ReadOnlyTx& tx)
@@ -213,10 +249,11 @@ namespace ccf
       ledger_secrets.merge(restored_ledger_secrets);
     }
 
-    auto get_encryption_key_for(kv::Version version)
+    auto get_encryption_key_for(
+      kv::Version version, bool historical_hint = false)
     {
       std::lock_guard<SpinLock> guard(lock);
-      return get_secret_for_version(version).key;
+      return get_secret_for_version(version, historical_hint).key;
     }
 
     void set_secret(kv::Version version, LedgerSecret&& secret)
@@ -261,6 +298,10 @@ namespace ccf
         LOG_TRACE_FMT("Rollback ledger secrets at seqno {}", k->first);
         ledger_secrets.erase(k->first);
       }
+
+      // Optimistically assume that the next operation will use the first
+      // non-rollback secret
+      last_used_secret_it = std::prev(ledger_secrets.end());
     }
   };
 }
