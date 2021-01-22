@@ -540,14 +540,26 @@ namespace kv
           term = t.value();
         if (v >= version)
           return;
-      }
 
-      if (v < commit_version())
-      {
-        throw std::logic_error(fmt::format(
-          "Attempting rollback to {}, earlier than commit version {}",
-          v,
-          commit_version()));
+        if (v < compacted)
+        {
+          throw std::logic_error(fmt::format(
+            "Attempting rollback to {}, earlier than commit version {}",
+            v,
+            compacted));
+        }
+
+        version = v;
+        last_replicated = v;
+        last_committable = v;
+        rollback_count++;
+        pending_txs.clear();
+        auto h = get_history();
+        if (h)
+          h->rollback(v);
+        auto e = get_encryptor();
+        if (e)
+          e->rollback(v);
       }
 
       for (auto& it : maps)
@@ -581,19 +593,6 @@ namespace kv
         auto& [_, map] = it.second;
         map->unlock();
       }
-
-      std::lock_guard<SpinLock> vguard(version_lock);
-      version = v;
-      last_replicated = v;
-      last_committable = v;
-      rollback_count++;
-      pending_txs.clear();
-      auto h = get_history();
-      if (h)
-        h->rollback(v);
-      auto e = get_encryptor();
-      if (e)
-        e->rollback(v);
     }
 
     void set_term(Term t) override
