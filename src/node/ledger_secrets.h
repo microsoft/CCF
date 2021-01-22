@@ -55,7 +55,7 @@ namespace ccf
     SpinLock lock;
     LedgerSecretsMap ledger_secrets;
 
-    LedgerSecret get_secret_for_version(kv::Version version)
+    LedgerSecret& get_secret_for_version(kv::Version version)
     {
       // The ledger secret used to encrypt/decrypt a transaction at a given
       // version is the one with the highest version that is lower than the
