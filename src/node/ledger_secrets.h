@@ -69,7 +69,7 @@ namespace ccf
       if (!historical_hint && last_used_secret_it.has_value())
       {
         // Fast path for non-historical queries as both primary and backup nodes
-        // encryt/decrypt entries in sequence, it is sufficient to keep an
+        // encryt/decrypt transactions in order, it is sufficient to keep an
         // iterator on the last used secret to access ledger secrets in constant
         // time.
         auto& last_used_secret_it_ = last_used_secret_it.value();
