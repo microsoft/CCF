@@ -356,7 +356,7 @@ namespace ccf
 
     bool set_jwt_public_signing_keys(
       kv::Tx& tx,
-      ProposalId proposal_id,
+      const ProposalId& proposal_id,
       std::string issuer,
       const JwtIssuerMetadata& issuer_metadata,
       const JsonWebKeySet& jwks)
@@ -515,7 +515,7 @@ namespace ccf
       kv::Tx& tx,
       const CodeDigest& new_code_id,
       CodeIDs& code_id_table,
-      ProposalId proposal_id)
+      const ProposalId& proposal_id)
     {
       auto code_ids = tx.get_view(code_id_table);
       auto existing_code_id = code_ids->get(new_code_id);
@@ -535,7 +535,7 @@ namespace ccf
       kv::Tx& tx,
       const CodeDigest& code_id,
       CodeIDs& code_id_table,
-      ProposalId proposal_id)
+      const ProposalId& proposal_id)
     {
       auto code_ids = tx.get_view(code_id_table);
       auto existing_code_id = code_ids->get(code_id);
@@ -554,41 +554,41 @@ namespace ccf
     //! Table of functions that proposal scripts can propose to invoke
     const std::unordered_map<
       std::string,
-      std::function<bool(ProposalId, kv::Tx&, const nlohmann::json&)>>
+      std::function<bool(const ProposalId&, kv::Tx&, const nlohmann::json&)>>
       hardcoded_funcs = {
         // set the js application script
         {"set_js_app",
-         [this](ProposalId, kv::Tx& tx, const nlohmann::json& args) {
+         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const std::string app = args;
            set_js_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
            return true;
          }},
         // deploy the js application bundle
         {"deploy_js_app",
-         [this](ProposalId, kv::Tx& tx, const nlohmann::json& args) {
+         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<DeployJsApp>();
            return deploy_js_app(tx, parsed.bundle);
          }},
         // undeploy/remove the js application
         {"remove_js_app",
-         [this](ProposalId, kv::Tx& tx, const nlohmann::json&) {
+         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json&) {
            return remove_js_app(tx);
          }},
         // add/update a module
         {"set_module",
-         [this](ProposalId, kv::Tx& tx, const nlohmann::json& args) {
+         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<SetModule>();
            return set_module(tx, parsed.name, parsed.module);
          }},
         // remove a module
         {"remove_module",
-         [this](ProposalId, kv::Tx& tx, const nlohmann::json& args) {
+         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto name = args.get<std::string>();
            return remove_module(tx, name);
          }},
         // add a new member
         {"new_member",
-         [this](ProposalId, kv::Tx& tx, const nlohmann::json& args) {
+         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<MemberPubInfo>();
            GenesisGenerator g(this->network, tx);
            g.add_member(parsed);
@@ -597,7 +597,7 @@ namespace ccf
          }},
         // retire an existing member
         {"retire_member",
-         [this](ProposalId, kv::Tx& tx, const nlohmann::json& args) {
+         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto member_id = args.get<MemberId>();
 
            GenesisGenerator g(this->network, tx);
@@ -630,7 +630,9 @@ namespace ccf
          }},
         {"set_member_data",
          [this](
-           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const ProposalId& proposal_id,
+           kv::Tx& tx,
+           const nlohmann::json& args) {
            const auto parsed = args.get<SetMemberData>();
            auto members_view = tx.get_view(this->network.members);
            auto member_info = members_view->get(parsed.member_id);
@@ -648,7 +650,7 @@ namespace ccf
            return true;
          }},
         {"new_user",
-         [this](ProposalId, kv::Tx& tx, const nlohmann::json& args) {
+         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto user_info = args.get<ccf::UserInfo>();
 
            GenesisGenerator g(this->network, tx);
@@ -658,7 +660,9 @@ namespace ccf
          }},
         {"remove_user",
          [this](
-           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const ProposalId& proposal_id,
+           kv::Tx& tx,
+           const nlohmann::json& args) {
            const UserId user_id = args;
 
            GenesisGenerator g(this->network, tx);
@@ -673,7 +677,9 @@ namespace ccf
          }},
         {"set_user_data",
          [this](
-           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const ProposalId& proposal_id,
+           kv::Tx& tx,
+           const nlohmann::json& args) {
            const auto parsed = args.get<SetUserData>();
            auto users_view = tx.get_view(this->network.users);
            auto user_info = users_view->get(parsed.user_id);
@@ -692,7 +698,9 @@ namespace ccf
          }},
         {"set_ca_cert",
          [this](
-           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const ProposalId& proposal_id,
+           kv::Tx& tx,
+           const nlohmann::json& args) {
            const auto parsed = args.get<SetCaCert>();
            auto ca_certs = tx.get_view(this->network.ca_certs);
            std::vector<uint8_t> cert_der;
@@ -713,7 +721,7 @@ namespace ccf
            return true;
          }},
         {"remove_ca_cert",
-         [this](ProposalId, kv::Tx& tx, const nlohmann::json& args) {
+         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto cert_name = args.get<std::string>();
            auto ca_certs = tx.get_view(this->network.ca_certs);
            ca_certs->remove(cert_name);
@@ -721,7 +729,9 @@ namespace ccf
          }},
         {"set_jwt_issuer",
          [this](
-           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const ProposalId& proposal_id,
+           kv::Tx& tx,
+           const nlohmann::json& args) {
            const auto parsed = args.get<SetJwtIssuer>();
            auto issuers = tx.get_view(this->network.jwt_issuers);
            auto ca_certs = tx.get_read_only_view(this->network.ca_certs);
@@ -789,7 +799,9 @@ namespace ccf
          }},
         {"remove_jwt_issuer",
          [this](
-           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const ProposalId& proposal_id,
+           kv::Tx& tx,
+           const nlohmann::json& args) {
            const auto parsed = args.get<RemoveJwtIssuer>();
            const auto issuer = parsed.issuer;
            auto issuers = tx.get_view(this->network.jwt_issuers);
@@ -807,7 +819,9 @@ namespace ccf
          }},
         {"set_jwt_public_signing_keys",
          [this](
-           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const ProposalId& proposal_id,
+           kv::Tx& tx,
+           const nlohmann::json& args) {
            const auto parsed = args.get<SetJwtPublicSigningKeys>();
 
            auto issuers = tx.get_view(this->network.jwt_issuers);
@@ -828,7 +842,9 @@ namespace ccf
         // accept a node
         {"trust_node",
          [this](
-           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const ProposalId& proposal_id,
+           kv::Tx& tx,
+           const nlohmann::json& args) {
            const auto node_id = args.get<NodeId>();
            try
            {
@@ -846,7 +862,9 @@ namespace ccf
         // retire a node
         {"retire_node",
          [this](
-           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const ProposalId& proposal_id,
+           kv::Tx& tx,
+           const nlohmann::json& args) {
            const auto id = args.get<NodeId>();
            auto nodes = tx.get_view(this->network.nodes);
            auto node_info = nodes->get(id);
@@ -870,7 +888,9 @@ namespace ccf
         // accept new node code ID
         {"new_node_code",
          [this](
-           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const ProposalId& proposal_id,
+           kv::Tx& tx,
+           const nlohmann::json& args) {
            return this->add_new_code_id(
              tx,
              args.get<CodeDigest>(),
@@ -880,7 +900,9 @@ namespace ccf
         // retire node code ID
         {"retire_node_code",
          [this](
-           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const ProposalId& proposal_id,
+           kv::Tx& tx,
+           const nlohmann::json& args) {
            return this->retire_code_id(
              tx,
              args.get<CodeDigest>(),
@@ -888,7 +910,8 @@ namespace ccf
              proposal_id);
          }},
         {"accept_recovery",
-         [this](ProposalId proposal_id, kv::Tx& tx, const nlohmann::json&) {
+         [this](
+           const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
            if (node.is_part_of_public_network())
            {
              const auto accept_recovery = node.accept_recovery(tx);
@@ -906,7 +929,8 @@ namespace ccf
            }
          }},
         {"open_network",
-         [this](ProposalId proposal_id, kv::Tx& tx, const nlohmann::json&) {
+         [this](
+           const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
            // On network open, the service checks that a sufficient number of
            // recovery members have become active. If so, recovery shares are
            // allocated to each recovery member
@@ -937,7 +961,8 @@ namespace ccf
            return network_opened;
          }},
         {"rekey_ledger",
-         [this](ProposalId proposal_id, kv::Tx& tx, const nlohmann::json&) {
+         [this](
+           const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
            const auto ledger_rekeyed = node.rekey_ledger(tx);
            if (!ledger_rekeyed)
            {
@@ -946,7 +971,8 @@ namespace ccf
            return ledger_rekeyed;
          }},
         {"update_recovery_shares",
-         [this](ProposalId proposal_id, kv::Tx& tx, const nlohmann::json&) {
+         [this](
+           const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
            try
            {
              share_manager.issue_shares(tx);
@@ -963,7 +989,9 @@ namespace ccf
          }},
         {"set_recovery_threshold",
          [this](
-           ProposalId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const ProposalId& proposal_id,
+           kv::Tx& tx,
+           const nlohmann::json& args) {
            const auto new_recovery_threshold = args.get<size_t>();
 
            GenesisGenerator g(this->network, tx);
@@ -998,7 +1026,7 @@ namespace ccf
       };
 
     ProposalInfo complete_proposal(
-      kv::Tx& tx, const ProposalId proposal_id, Proposal& proposal)
+      kv::Tx& tx, const ProposalId& proposal_id, Proposal& proposal)
     {
       if (proposal.state != ProposalState::OPEN)
       {
@@ -1156,7 +1184,7 @@ namespace ccf
     }
 
     static ProposalInfo get_proposal_info(
-      ProposalId proposal_id, const Proposal& proposal)
+      const ProposalId& proposal_id, const Proposal& proposal)
     {
       return ProposalInfo{proposal_id, proposal.proposer, proposal.state};
     }
