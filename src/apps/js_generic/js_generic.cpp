@@ -832,7 +832,7 @@ namespace ccfapp
       }
 
       char const* policy_name = nullptr;
-      size_t id;
+      size_t id = ccf::INVALID_ID;
       nlohmann::json data;
       std::string cert_s;
 
