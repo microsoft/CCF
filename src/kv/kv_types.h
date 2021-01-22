@@ -541,7 +541,10 @@ namespace kv
     {
       throw std::logic_error("get_index not implemented");
     }
-    virtual kv::Tx& get_tx() = 0;
+    virtual kv::Tx& get_tx()
+    {
+      throw std::logic_error("get_index not implemented");
+    }
   };
 
   class AbstractStore
