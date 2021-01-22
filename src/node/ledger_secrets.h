@@ -66,48 +66,30 @@ namespace ccf
         throw std::logic_error("Ledger secrets map is empty");
       }
 
-      if (!historical_hint)
+      if (!historical_hint && last_used_secret_it.has_value())
       {
-        if (last_used_secret_it.has_value())
+        // Fast path for non-historical queries as both primary and backup nodes
+        // encryt/decrypt entries in sequence, it is sufficient to keep an
+        // iterator on the last used secret to access ledger secrets in constant
+        // time.
+        auto& last_used_secret_it_ = last_used_secret_it.value();
+        if (
+          std::next(last_used_secret_it_) != ledger_secrets.end() &&
+          version >= std::next(last_used_secret_it_)->first)
         {
-          auto& last_used_secret_it_ = last_used_secret_it.value();
-          if (
-            std::next(last_used_secret_it_) == ledger_secrets.end() ||
-            version < std::next(last_used_secret_it_)->first)
-          {
-            // Hot path on backups, when decrypting in sequence after having
-            // been given access to historical secrets
-            LOG_FAIL_FMT("Fast path backup");
-            return last_used_secret_it_->second;
-          }
-          else
-          {
-            // After a rekey, the next ledger secret should be used
-            LOG_FAIL_FMT("Fast path update backup!");
-            ++last_used_secret_it_;
-            return last_used_secret_it_->second;
-          }
+          // Across a rekey, start using the next key
+          ++last_used_secret_it_;
         }
-        else
-        {
-          auto latest = std::prev(ledger_secrets.end());
-          if (version >= latest->first)
-          {
-            // Hot path when encrypting/decrypting latest entries
-            last_used_secret_it = latest;
-            return latest->second;
-          }
-        }
+
+        return last_used_secret_it_->second;
       }
 
-      // Slow path, e.g. historical queries or start of backup replay
-      LOG_FAIL_FMT("Slow path!");
-
-      // The ledger secret used to encrypt/decrypt a transaction at a given
-      // version is the one with the highest version that is lower than the
-      // given version (e.g. if ledger_secrets contains two keys for version 0
-      // and 10 then the key associated with version 0 is used for version
-      // [0..9] and version 10 for versions 10+)
+      // Slow path, e.g. for historical queries. The ledger secret used to
+      // encrypt/decrypt a transaction at a given version is the one with the
+      // highest version that is lower than the given version (e.g. if
+      // ledger_secrets contains two keys for version 0 and 10 then the key
+      // associated with version 0 is used for version [0..9] and version 10 for
+      // versions 10+)
       auto search = std::upper_bound(
         ledger_secrets.begin(),
         ledger_secrets.end(),
@@ -120,22 +102,30 @@ namespace ccf
           fmt::format("Could not find ledger secret for seqno {}", version));
       }
 
-      last_used_secret_it = std::prev(search);
-      return last_used_secret_it.value()->second;
+      if (!historical_hint)
+      {
+        // Only update the last secret iterator on non-historical queries so
+        // that the fast path is always preserved for transactions on the main
+        // store
+        last_used_secret_it = std::prev(search);
+      }
+
+      return std::prev(search)->second;
     }
 
     void take_dependency_on_secrets(kv::ReadOnlyTx& tx)
     {
       // Ledger secrets are not stored in the KV. Instead, they are
-      // cached in a unique LedgerSecrets instance that can be accessed without
-      // reading the KV. However, it is possible that the ledger secrets are
-      // updated (e.g. rekey tx) concurrently to their access by another tx. To
-      // prevent conflicts, accessing the ledger secrets require access to a tx
-      // object, which must take a dependency on the secrets table.
+      // cached in a unique LedgerSecrets instance that can be accessed
+      // without reading the KV. However, it is possible that the ledger
+      // secrets are updated (e.g. rekey tx) concurrently to their access by
+      // another tx. To prevent conflicts, accessing the ledger secrets
+      // require access to a tx object, which must take a dependency on the
+      // secrets table.
       auto v = tx.get_read_only_view<Secrets>(Tables::SECRETS);
 
-      // Taking a read dependency on the key at self, which would get updated on
-      // rekey
+      // Taking a read dependency on the key at self, which would get updated
+      // on rekey
       if (!self.has_value())
       {
         throw std::logic_error(
@@ -241,7 +231,8 @@ namespace ccf
         ledger_secrets.begin()->first)
       {
         throw std::logic_error(fmt::format(
-          "Last restored version {} is greater than first existing version {}",
+          "Last restored version {} is greater than first existing version "
+          "{}",
           restored_ledger_secrets.rbegin()->first,
           ledger_secrets.begin()->first));
       }
@@ -299,8 +290,7 @@ namespace ccf
         ledger_secrets.erase(k->first);
       }
 
-      // Optimistically assume that the next operation will use the first
-      // non-rollback secret
+      // Assume that the next operation will use the first non-rollbacked secret
       last_used_secret_it = std::prev(ledger_secrets.end());
     }
   };

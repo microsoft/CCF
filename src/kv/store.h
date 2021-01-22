@@ -670,7 +670,7 @@ namespace kv
           map = new_map;
           new_maps[map_name] = new_map;
           LOG_DEBUG_FMT(
-            "Creating map {} while deserialising transaction at version {}",
+            "Creating map '{}' while deserialising transaction at version {}",
             map_name,
             v);
         }
