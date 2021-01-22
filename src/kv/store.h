@@ -79,6 +79,9 @@ namespace kv
     // is used for historical queries, where it may deserialise arbitrary
     // transactions. In this case the Store is a useful container for a set of
     // Tables, but its versioning invariants are ignored.
+    const bool strict_versions = true;
+
+    // If true, use historical ledger secrets to deserialise entries
     const bool is_historical = false;
 
     DeserialiseSuccess commit_deserialised(
@@ -112,7 +115,10 @@ namespace kv
     }
 
   public:
-    Store(bool is_historical_ = false) : is_historical(is_historical_) {}
+    Store(bool strict_versions_ = true, bool is_historical_ = false) :
+      strict_versions(strict_versions_),
+      is_historical(is_historical_)
+    {}
 
     Store(
       const ReplicateType& replicate_type_,
@@ -634,7 +640,7 @@ namespace kv
       // consensus.
       rollback(v - 1);
 
-      if (!is_historical)
+      if (strict_versions)
       {
         // Make sure this is the next transaction.
         auto cv = current_version();

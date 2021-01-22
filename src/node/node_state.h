@@ -1052,7 +1052,9 @@ namespace ccf
     //
     void setup_private_recovery_store()
     {
-      recovery_store = std::make_shared<kv::Store>();
+      recovery_store = std::make_shared<kv::Store>(
+        true /* Check transactions in order */,
+        true /* Make use of historical secrets */);
       recovery_history = std::make_shared<MerkleTxHistory>(
         *recovery_store.get(),
         self,
