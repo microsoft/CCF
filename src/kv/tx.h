@@ -26,8 +26,8 @@ namespace kv
     }
   };
 
-  // Manages a collection of TxViews. Derived implementations call get_tuple to
-  // retrieve views over target maps.
+  // Manages a collection of TxViews. Derived implementations should call
+  // get_view_by_name to retrieve views over target maps.
   class BaseTx : public AbstractChangeContainer
   {
   protected:
@@ -85,7 +85,7 @@ namespace kv
     }
 
     template <typename MapView>
-    std::tuple<MapView*> check_and_store_change_set(
+    MapView* check_and_store_change_set(
       std::unique_ptr<untyped::ChangeSet>&& change_set,
       const std::string& map_name,
       const std::shared_ptr<AbstractMap>& abstract_map)
@@ -100,18 +100,18 @@ namespace kv
 
       auto typed_view = get_or_insert_view<MapView>(*change_set, map_name);
       all_changes[map_name] = {abstract_map, std::move(change_set)};
-      return std::make_tuple(typed_view);
+      return typed_view;
     }
 
     template <class MapView>
-    std::tuple<MapView*> get_view_tuple_by_name(const std::string& map_name)
+    MapView* get_view_by_name(const std::string& map_name)
     {
       auto search = all_changes.find(map_name);
       if (search != all_changes.end())
       {
         auto view =
           get_or_insert_view<MapView>(*search->second.changeset, map_name);
-        return std::make_tuple(view);
+        return view;
       }
 
       if (read_version == NoVersion)
@@ -157,38 +157,6 @@ namespace kv
       auto change_set = untyped_map->create_change_set(read_version);
       return check_and_store_change_set<MapView>(
         std::move(change_set), map_name, abstract_map);
-    }
-
-    template <class M, class... Ms>
-    std::tuple<typename M::TxView*, typename Ms::TxView*...>
-    get_view_tuple_by_types(M& m, Ms&... ms)
-    {
-      if constexpr (sizeof...(Ms) == 0)
-      {
-        return get_view_tuple_by_name<typename M::TxView>(m.get_name());
-      }
-      else
-      {
-        return std::tuple_cat(
-          get_view_tuple_by_name<typename M::TxView>(m.get_name()),
-          get_view_tuple_by_types(ms...));
-      }
-    }
-
-    template <class M, class... Ms, class... Ts>
-    std::tuple<typename M::TxView*, typename Ms::TxView*...>
-    get_view_tuple_by_names(const std::string& map_name, const Ts&... names)
-    {
-      if constexpr (sizeof...(Ts) == 0)
-      {
-        return get_view_tuple_by_name<typename M::TxView>(map_name);
-      }
-      else
-      {
-        return std::tuple_cat(
-          get_view_tuple_by_name<typename M::TxView>(map_name),
-          get_view_tuple_by_names<Ms...>(names...));
-      }
     }
 
   public:
@@ -456,8 +424,7 @@ namespace kv
       // NB: Always creates a (writeable) TxView, which is cast to
       // ReadOnlyTxView on return. This is so that other calls (before or after)
       // can retrieve writeable views over the same map.
-      return std::get<0>(
-        get_view_tuple_by_name<typename M::TxView>(m.get_name()));
+      return get_view_by_name<typename M::TxView>(m.get_name());
     }
 
     /** Get a read-only transaction view on a map by name.
@@ -470,38 +437,8 @@ namespace kv
     template <class M>
     typename M::ReadOnlyTxView* get_read_only_view(const std::string& map_name)
     {
-      return std::get<0>(get_view_tuple_by_name<typename M::TxView>(map_name));
+      return get_view_by_name<typename M::TxView>(map_name);
     }
-
-    // TODO
-    // /** Get read-only transaction views over multiple maps.
-    //  *
-    //  * @param m Map
-    //  * @param ms Map
-    //  */
-    // template <class M, class... Ms>
-    // std::tuple<typename M::ReadOnlyTxView*, typename Ms::ReadOnlyTxView*...>
-    // get_read_only_view(M& m, Ms&... ms)
-    // {
-    //   return std::tuple_cat(
-    //     get_view_tuple_by_name<typename M::TxView>(m.get_name()),
-    //     get_view_tuple_by_types(ms...));
-    // }
-
-    // /** Get read-only transaction views over multiple maps by name. This will
-    //  * create the maps if they do not exist.
-    //  *
-    //  * @param map_name Name of first map to retrieve
-    //  * @param names Names of additional maps
-    //  */
-    // template <class M, class... Ms, class... Ts>
-    // std::tuple<typename M::TxView*, typename Ms::TxView*...> get_read_only_view(
-    //   const std::string& map_name, const Ts&... names)
-    // {
-    //   return std::tuple_cat(
-    //     get_view_tuple_by_name<typename M::TxView>(map_name),
-    //     get_view_tuple_by_names<Ms...>(names...));
-    // }
   };
 
   class Tx : public ReadOnlyTx
@@ -518,8 +455,7 @@ namespace kv
     template <class M>
     typename M::TxView* get_view(M& m)
     {
-      return std::get<0>(
-        get_view_tuple_by_name<typename M::TxView>(m.get_name()));
+      return get_view_by_name<typename M::TxView>(m.get_name());
     }
 
     /** Get a transaction view on a map by name
@@ -532,38 +468,8 @@ namespace kv
     template <class M>
     typename M::TxView* get_view(const std::string& map_name)
     {
-      return std::get<0>(get_view_tuple_by_name<typename M::TxView>(map_name));
+      return get_view_by_name<typename M::TxView>(map_name);
     }
-
-    // TODO
-    // /** Get transaction views over multiple maps.
-    //  *
-    //  * @param m Map
-    //  * @param ms Map
-    //  */
-    // template <class M, class... Ms>
-    // std::tuple<typename M::TxView*, typename Ms::TxView*...> get_view(
-    //   M& m, Ms&... ms)
-    // {
-    //   return std::tuple_cat(
-    //     get_view_tuple_by_name<typename M::TxView>(m.get_name()),
-    //     get_view_tuple_by_types(ms...));
-    // }
-
-    // /** Get transaction views over multiple maps by name. This will create the
-    //  * maps if they do not exist.
-    //  *
-    //  * @param map_name Name of first map to retrieve
-    //  * @param names Names of additional maps
-    //  */
-    // template <class M, class... Ms, class... Ts>
-    // std::tuple<typename M::TxView*, typename Ms::TxView*...> get_view(
-    //   const std::string& map_name, const Ts&... names)
-    // {
-    //   return std::tuple_cat(
-    //     get_view_tuple_by_name<typename M::TxView>(map_name),
-    //     get_view_tuple_by_names<Ms...>(names...));
-    // }
   };
 
   // Used by frontend for reserved transactions. These are constructed with a
