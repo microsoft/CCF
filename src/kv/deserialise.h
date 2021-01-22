@@ -30,7 +30,7 @@ namespace kv
       kv::ConsensusHookPtrs& hooks) = 0;
   };
 
-  class CFTExecutionWrapper : public IExecutionWrapper
+  class CFTExecutionWrapper : public AbstractExecutionWrapper
   {
   public:
     CFTExecutionWrapper(
@@ -38,12 +38,16 @@ namespace kv
       std::shared_ptr<TxHistory> history_,
       const std::vector<uint8_t>& data_,
       bool public_only_) :
-      self(self_), history(history_), data(data_), public_only(public_only_)
+      self(self_),
+      history(history_),
+      data(data_),
+      public_only(public_only_)
     {}
 
     DeserialiseSuccess Execute() override
     {
-      return fn(self, data, history, public_only, v, &term, changes, new_maps, hooks);
+      return fn(
+        self, data, history, public_only, v, &term, changes, new_maps, hooks);
     }
 
     kv::ConsensusHookPtrs& get_hooks() override
@@ -141,7 +145,7 @@ namespace kv
     kv::ConsensusHookPtrs hooks;
   };
 
-  class BFTExecutionWrapper : public IExecutionWrapper
+  class BFTExecutionWrapper : public AbstractExecutionWrapper
   {
   public:
     BFTExecutionWrapper(
@@ -194,19 +198,6 @@ namespace kv
     {
       return *tx;
     }
-
-    std::function<DeserialiseSuccess(
-      ExecutionWrapperStore* self,
-      const std::vector<uint8_t>& data,
-      bool public_only,
-      kv::Version& v,
-      Term* term,
-      Version* version,
-      ccf::PrimarySignature* sig,
-      OrderedChanges& changes,
-      MapCollection& new_maps,
-      kv::ConsensusHookPtrs& hooks)>
-      fn = nullptr;
 
     ExecutionWrapperStore* self;
     std::shared_ptr<TxHistory> history;
@@ -337,7 +328,18 @@ namespace kv
 
     DeserialiseSuccess Execute() override
     {
-      return fn(self, data, history, progress_tracker, consensus, v, &term, &version, changes, new_maps, hooks);
+      return fn(
+        self,
+        data,
+        history,
+        progress_tracker,
+        consensus,
+        v,
+        &term,
+        &version,
+        changes,
+        new_maps,
+        hooks);
     }
 
     std::function<DeserialiseSuccess(
@@ -356,8 +358,8 @@ namespace kv
              ExecutionWrapperStore* self,
              const std::vector<uint8_t>& data,
              std::shared_ptr<TxHistory> history,
-      std::shared_ptr<ccf::ProgressTracker> progress_tracker,
-      std::shared_ptr<Consensus> consensus,
+             std::shared_ptr<ccf::ProgressTracker> progress_tracker,
+             std::shared_ptr<Consensus> consensus,
              kv::Version& v,
              Term* term_,
              Version* index_,
@@ -426,7 +428,8 @@ namespace kv
 
     DeserialiseSuccess Execute() override
     {
-      return fn(self, data, history, progress_tracker, v, changes, new_maps, hooks);
+      return fn(
+        self, data, history, progress_tracker, v, changes, new_maps, hooks);
     }
 
     std::function<DeserialiseSuccess(
@@ -442,7 +445,7 @@ namespace kv
              ExecutionWrapperStore* self,
              const std::vector<uint8_t>& data,
              std::shared_ptr<TxHistory> history,
-      std::shared_ptr<ccf::ProgressTracker> progress_tracker,
+             std::shared_ptr<ccf::ProgressTracker> progress_tracker,
              kv::Version& v,
              OrderedChanges& changes,
              MapCollection& new_maps,
@@ -495,7 +498,18 @@ namespace kv
 
     DeserialiseSuccess Execute() override
     {
-      return fn(self, data, history, progress_tracker, consensus, v, &term, &version, changes, new_maps, hooks);
+      return fn(
+        self,
+        data,
+        history,
+        progress_tracker,
+        consensus,
+        v,
+        &term,
+        &version,
+        changes,
+        new_maps,
+        hooks);
     }
 
     std::function<DeserialiseSuccess(
@@ -514,8 +528,8 @@ namespace kv
              ExecutionWrapperStore* self,
              const std::vector<uint8_t>& data,
              std::shared_ptr<TxHistory> history,
-      std::shared_ptr<ccf::ProgressTracker> progress_tracker,
-      std::shared_ptr<Consensus> consensus,
+             std::shared_ptr<ccf::ProgressTracker> progress_tracker,
+             std::shared_ptr<Consensus> consensus,
              kv::Version& v,
              Term* term_,
              Version* index_,
@@ -531,10 +545,7 @@ namespace kv
       }
 
       if (!progress_tracker->apply_new_view(
-            consensus->primary(),
-            consensus->node_count(),
-            *term_,
-            *index_))
+            consensus->primary(), consensus->node_count(), *term_, *index_))
       {
         LOG_FAIL_FMT("apply_new_view Failed");
         LOG_DEBUG_FMT("NewView in transaction {} failed to verify", v);

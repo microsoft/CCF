@@ -1073,7 +1073,7 @@ namespace aft
         r.prev_idx);
 
       std::vector<
-        std::tuple<std::unique_ptr<kv::IExecutionWrapper>, kv::Version>>
+        std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>
         append_entries;
       // Finally, deserialise each entry in the batch
       for (Index i = r.prev_idx + 1; i <= r.idx; i++)

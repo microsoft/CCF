@@ -41,7 +41,7 @@ namespace aft
     virtual void compact(Index v) = 0;
     virtual void rollback(Index v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
-    virtual std::unique_ptr<kv::IExecutionWrapper> deserialise(
+    virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialise(
       const std::vector<uint8_t> data,
       ConsensusType consensus_type,
       bool public_only = false) = 0;
@@ -105,7 +105,7 @@ namespace aft
       throw std::logic_error("Can't create a tx without a store");
     }
 
-    std::unique_ptr<kv::IExecutionWrapper> deserialise(
+    std::unique_ptr<kv::AbstractExecutionWrapper> deserialise(
       const std::vector<uint8_t> data,
       ConsensusType consensus_type,
       bool public_only = false) override

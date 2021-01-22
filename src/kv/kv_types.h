@@ -525,10 +525,10 @@ namespace kv
 
   class Tx;
 
-  class IExecutionWrapper
+  class AbstractExecutionWrapper
   {
   public:
-    virtual ~IExecutionWrapper() = default;
+    virtual ~AbstractExecutionWrapper() = default;
     virtual kv::DeserialiseSuccess Execute() = 0;
     virtual kv::ConsensusHookPtrs& get_hooks() = 0;
     virtual const std::vector<uint8_t>& get_entry() = 0;
@@ -581,7 +581,7 @@ namespace kv
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;
     virtual EncryptorPtr get_encryptor() = 0;
-    virtual std::unique_ptr<IExecutionWrapper> deserialise(
+    virtual std::unique_ptr<AbstractExecutionWrapper> deserialise(
       const std::vector<uint8_t> data,
       ConsensusType consensus_type,
       bool public_only = false) = 0;

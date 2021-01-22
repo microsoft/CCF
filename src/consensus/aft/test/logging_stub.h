@@ -222,7 +222,7 @@ namespace aft
       return kv::DeserialiseSuccess::PASS;
     }
 
-    class ExecutionWrapper : public kv::IExecutionWrapper
+    class ExecutionWrapper : public kv::AbstractExecutionWrapper
     {
     public:
       ExecutionWrapper(const std::vector<uint8_t>& data_) : data(data_) {}
@@ -266,7 +266,7 @@ namespace aft
       kv::ConsensusHookPtrs hooks;
     };
 
-    virtual std::unique_ptr<kv::IExecutionWrapper> deserialise(
+    virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialise(
       const std::vector<uint8_t>& data,
       ConsensusType consensus_type,
       bool public_only = false)
