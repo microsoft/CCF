@@ -85,7 +85,7 @@ namespace ccf
         throw std::logic_error(
           fmt::format("Could not find ledger secret for seqno {}", version));
       }
-      return (--search)->second;
+      return std::prev(search)->second;
     }
 
     void take_dependency_on_secrets(kv::ReadOnlyTx& tx)
