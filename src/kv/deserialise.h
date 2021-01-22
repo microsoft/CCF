@@ -34,11 +34,11 @@ namespace kv
   {
   public:
     CFTExecutionWrapper(
-      ExecutionWrapperStore* self_,
+      ExecutionWrapperStore* store_,
       std::shared_ptr<TxHistory> history_,
       const std::vector<uint8_t>& data_,
       bool public_only_) :
-      self(self_),
+      store(store_),
       history(history_),
       data(data_),
       public_only(public_only_)
@@ -47,7 +47,7 @@ namespace kv
     DeserialiseSuccess Execute() override
     {
       return fn(
-        self, data, history, public_only, v, &term, changes, new_maps, hooks);
+        store, data, history, public_only, v, &term, changes, new_maps, hooks);
     }
 
     kv::ConsensusHookPtrs& get_hooks() override
@@ -66,7 +66,7 @@ namespace kv
     }
 
     std::function<DeserialiseSuccess(
-      ExecutionWrapperStore* self,
+      ExecutionWrapperStore* store,
       const std::vector<uint8_t>& data,
       std::shared_ptr<TxHistory> history,
       bool public_only,
@@ -76,7 +76,7 @@ namespace kv
       MapCollection& new_maps,
       kv::ConsensusHookPtrs& hooks)>
       fn = [](
-             ExecutionWrapperStore* self,
+             ExecutionWrapperStore* store,
              const std::vector<uint8_t>& data,
              std::shared_ptr<TxHistory> history,
              bool public_only,
@@ -85,13 +85,13 @@ namespace kv
              OrderedChanges& changes,
              MapCollection& new_maps,
              kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
-      if (!self->fill_maps(data, public_only, v, changes, new_maps, true))
+      if (!store->fill_maps(data, public_only, v, changes, new_maps, true))
       {
         return DeserialiseSuccess::FAILED;
       }
 
       DeserialiseSuccess success =
-        self->commit_deserialised(changes, v, new_maps, hooks);
+        store->commit_deserialised(changes, v, new_maps, hooks);
       if (success == DeserialiseSuccess::FAILED)
       {
         return success;
@@ -134,7 +134,7 @@ namespace kv
       return success;
     };
 
-    ExecutionWrapperStore* self;
+    ExecutionWrapperStore* store;
     std::shared_ptr<TxHistory> history;
     const std::vector<uint8_t> data;
     bool public_only;
@@ -149,7 +149,7 @@ namespace kv
   {
   public:
     BFTExecutionWrapper(
-      ExecutionWrapperStore* self_,
+      ExecutionWrapperStore* store_,
       std::shared_ptr<TxHistory> history_,
       std::shared_ptr<ccf::ProgressTracker> progress_tracker_,
       std::shared_ptr<Consensus> consensus_,
@@ -158,7 +158,7 @@ namespace kv
       kv::Version v_,
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
-      self(self_),
+      store(store_),
       history(history_),
       progress_tracker(progress_tracker_),
       consensus(consensus_),
@@ -199,7 +199,7 @@ namespace kv
       return *tx;
     }
 
-    ExecutionWrapperStore* self;
+    ExecutionWrapperStore* store;
     std::shared_ptr<TxHistory> history;
     std::shared_ptr<ccf::ProgressTracker> progress_tracker;
     std::shared_ptr<Consensus> consensus;
@@ -219,7 +219,7 @@ namespace kv
   {
   public:
     SignatureBFTExec(
-      ExecutionWrapperStore* self_,
+      ExecutionWrapperStore* store_,
       std::shared_ptr<TxHistory> history_,
       const std::vector<uint8_t>& data_,
       bool public_only_,
@@ -227,7 +227,7 @@ namespace kv
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
       BFTExecutionWrapper(
-        self_,
+        store_,
         history_,
         nullptr,
         nullptr,
@@ -240,11 +240,11 @@ namespace kv
 
     DeserialiseSuccess Execute() override
     {
-      return fn(self, data, history, v, &term, &sig, changes, new_maps, hooks);
+      return fn(store, data, history, v, &term, &sig, changes, new_maps, hooks);
     }
 
     std::function<DeserialiseSuccess(
-      ExecutionWrapperStore* self,
+      ExecutionWrapperStore* store,
       const std::vector<uint8_t>& data,
       std::shared_ptr<TxHistory> history,
       kv::Version& v,
@@ -254,7 +254,7 @@ namespace kv
       MapCollection& new_maps,
       kv::ConsensusHookPtrs& hooks)>
       fn = [](
-             ExecutionWrapperStore* self,
+             ExecutionWrapperStore* store,
              const std::vector<uint8_t>& data,
              std::shared_ptr<TxHistory> history,
              kv::Version& v,
@@ -266,7 +266,7 @@ namespace kv
 
     {
       DeserialiseSuccess success =
-        self->commit_deserialised(changes, v, new_maps, hooks);
+        store->commit_deserialised(changes, v, new_maps, hooks);
       if (success == DeserialiseSuccess::FAILED)
       {
         return success;
@@ -305,7 +305,7 @@ namespace kv
   {
   public:
     BackupSignatureBFTExec(
-      ExecutionWrapperStore* self_,
+      ExecutionWrapperStore* store_,
       std::shared_ptr<TxHistory> history_,
       std::shared_ptr<ccf::ProgressTracker> progress_tracker_,
       std::shared_ptr<Consensus> consensus_,
@@ -315,7 +315,7 @@ namespace kv
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
       BFTExecutionWrapper(
-        self_,
+        store_,
         history_,
         progress_tracker_,
         consensus_,
@@ -329,7 +329,7 @@ namespace kv
     DeserialiseSuccess Execute() override
     {
       return fn(
-        self,
+        store,
         data,
         history,
         progress_tracker,
@@ -343,7 +343,7 @@ namespace kv
     }
 
     std::function<DeserialiseSuccess(
-      ExecutionWrapperStore* self,
+      ExecutionWrapperStore* store,
       const std::vector<uint8_t>& data,
       std::shared_ptr<TxHistory> history,
       std::shared_ptr<ccf::ProgressTracker> progress_tracker,
@@ -355,7 +355,7 @@ namespace kv
       MapCollection& new_maps,
       kv::ConsensusHookPtrs& hooks)>
       fn = [](
-             ExecutionWrapperStore* self,
+             ExecutionWrapperStore* store,
              const std::vector<uint8_t>& data,
              std::shared_ptr<TxHistory> history,
              std::shared_ptr<ccf::ProgressTracker> progress_tracker,
@@ -367,7 +367,7 @@ namespace kv
              MapCollection& new_maps,
              kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
       DeserialiseSuccess success =
-        self->commit_deserialised(changes, v, new_maps, hooks);
+        store->commit_deserialised(changes, v, new_maps, hooks);
       if (success == DeserialiseSuccess::FAILED)
       {
         return success;
@@ -406,7 +406,7 @@ namespace kv
   {
   public:
     NoncesBFTExec(
-      ExecutionWrapperStore* self_,
+      ExecutionWrapperStore* store_,
       std::shared_ptr<TxHistory> history_,
       std::shared_ptr<ccf::ProgressTracker> progress_tracker_,
       const std::vector<uint8_t>& data_,
@@ -415,7 +415,7 @@ namespace kv
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
       BFTExecutionWrapper(
-        self_,
+        store_,
         history_,
         progress_tracker_,
         nullptr,
@@ -429,11 +429,11 @@ namespace kv
     DeserialiseSuccess Execute() override
     {
       return fn(
-        self, data, history, progress_tracker, v, changes, new_maps, hooks);
+        store, data, history, progress_tracker, v, changes, new_maps, hooks);
     }
 
     std::function<DeserialiseSuccess(
-      ExecutionWrapperStore* self,
+      ExecutionWrapperStore* store,
       const std::vector<uint8_t>& data,
       std::shared_ptr<TxHistory> history,
       std::shared_ptr<ccf::ProgressTracker> progress_tracker,
@@ -442,7 +442,7 @@ namespace kv
       MapCollection& new_maps,
       kv::ConsensusHookPtrs& hooks)>
       fn = [](
-             ExecutionWrapperStore* self,
+             ExecutionWrapperStore* store,
              const std::vector<uint8_t>& data,
              std::shared_ptr<TxHistory> history,
              std::shared_ptr<ccf::ProgressTracker> progress_tracker,
@@ -451,7 +451,7 @@ namespace kv
              MapCollection& new_maps,
              kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
       DeserialiseSuccess success =
-        self->commit_deserialised(changes, v, new_maps, hooks);
+        store->commit_deserialised(changes, v, new_maps, hooks);
       if (success == DeserialiseSuccess::FAILED)
       {
         return success;
@@ -475,7 +475,7 @@ namespace kv
   {
   public:
     NewViewBFTExec(
-      ExecutionWrapperStore* self_,
+      ExecutionWrapperStore* store_,
       std::shared_ptr<TxHistory> history_,
       std::shared_ptr<ccf::ProgressTracker> progress_tracker_,
       std::shared_ptr<Consensus> consensus_,
@@ -485,7 +485,7 @@ namespace kv
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
       BFTExecutionWrapper(
-        self_,
+        store_,
         history_,
         progress_tracker_,
         consensus_,
@@ -499,7 +499,7 @@ namespace kv
     DeserialiseSuccess Execute() override
     {
       return fn(
-        self,
+        store,
         data,
         history,
         progress_tracker,
@@ -513,7 +513,7 @@ namespace kv
     }
 
     std::function<DeserialiseSuccess(
-      ExecutionWrapperStore* self,
+      ExecutionWrapperStore* store,
       const std::vector<uint8_t>& data,
       std::shared_ptr<TxHistory> history,
       std::shared_ptr<ccf::ProgressTracker> progress_tracker,
@@ -525,7 +525,7 @@ namespace kv
       MapCollection& new_maps,
       kv::ConsensusHookPtrs& hooks)>
       fn = [](
-             ExecutionWrapperStore* self,
+             ExecutionWrapperStore* store,
              const std::vector<uint8_t>& data,
              std::shared_ptr<TxHistory> history,
              std::shared_ptr<ccf::ProgressTracker> progress_tracker,
@@ -538,7 +538,7 @@ namespace kv
              kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
       LOG_INFO_FMT("Applying new view");
       DeserialiseSuccess success =
-        self->commit_deserialised(changes, v, new_maps, hooks);
+        store->commit_deserialised(changes, v, new_maps, hooks);
       if (success == DeserialiseSuccess::FAILED)
       {
         return success;
@@ -561,7 +561,7 @@ namespace kv
   {
   public:
     TxBFTExec(
-      ExecutionWrapperStore* self_,
+      ExecutionWrapperStore* store_,
       std::shared_ptr<TxHistory> history_,
       const std::vector<uint8_t>& data_,
       bool public_only_,
@@ -570,7 +570,7 @@ namespace kv
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
       BFTExecutionWrapper(
-        self_,
+        store_,
         history_,
         nullptr,
         nullptr,
