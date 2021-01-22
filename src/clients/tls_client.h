@@ -23,7 +23,7 @@
 
 class TlsClient
 {
-private:
+protected:
   std::string host;
   std::string port;
   std::shared_ptr<tls::CA> node_ca;
