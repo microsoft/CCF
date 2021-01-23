@@ -158,7 +158,7 @@ namespace ccf
       next_snapshot_indices.push_back(last_snapshot_idx);
     }
 
-    void snapshot(consensus::Index idx)
+    void snapshot(consensus::Index idx, bool is_primary)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -173,16 +173,22 @@ namespace ccf
 
       if (idx - last_snapshot_idx >= snapshot_tx_interval)
       {
-        auto msg = std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
-        msg->data.self = shared_from_this();
-        msg->data.snapshot = network.tables->snapshot(idx);
-
         last_snapshot_idx = idx;
 
-        static uint32_t generation_count = 0;
-        threading::ThreadMessaging::thread_messaging.add_task(
-          threading::ThreadMessaging::get_execution_thread(generation_count++),
-          std::move(msg));
+        // Snapshots are only generated on primary node
+        if (is_primary)
+        {
+          auto msg =
+            std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
+          msg->data.self = shared_from_this();
+          msg->data.snapshot = network.tables->snapshot(idx);
+
+          static uint32_t generation_count = 0;
+          threading::ThreadMessaging::thread_messaging.add_task(
+            threading::ThreadMessaging::get_execution_thread(
+              generation_count++),
+            std::move(msg));
+        }
       }
     }
 
@@ -230,7 +236,9 @@ namespace ccf
       // Returns true if the idx will require the generation of a snapshot
       if ((idx - next_snapshot_indices.back()) >= snapshot_tx_interval)
       {
+        LOG_FAIL_FMT("Previous snapshot idx: {}", next_snapshot_indices.back());
         next_snapshot_indices.push_back(idx);
+        LOG_FAIL_FMT("Next snapshot idx: {}", idx);
         return true;
       }
       return false;

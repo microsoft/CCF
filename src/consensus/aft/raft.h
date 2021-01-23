@@ -2054,10 +2054,10 @@ namespace aft
 
       LOG_DEBUG_FMT("Compacting...");
       snapshotter->commit(idx);
-      if (replica_state == Leader && consensus_type == ConsensusType::CFT)
+      if (consensus_type == ConsensusType::CFT)
       {
         // Snapshots are not yet supported with BFT
-        snapshotter->snapshot(idx);
+        snapshotter->snapshot(idx, replica_state == Leader);
       }
       store->compact(idx);
       ledger->commit(idx);
