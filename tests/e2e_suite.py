@@ -107,7 +107,7 @@ def run(args):
             "name": s.test_name(test),
             "status": status.name,
             "elapsed (s)": round(test_elapsed, 2),
-            "memory": mem_stats(network),
+            "memory": mem_stats(new_network),
         }
 
         if reason is not None:

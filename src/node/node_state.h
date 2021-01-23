@@ -479,7 +479,7 @@ namespace ccf
                 resp.network_info.consensus_type));
             }
 
-            setup_encryptor(resp.network_info.public_only);
+            setup_encryptor();
             setup_consensus(resp.network_info.public_only);
             setup_progress_tracker();
             setup_history();
@@ -869,7 +869,7 @@ namespace ccf
 
       network.ledger_secrets->init(last_recovered_signed_idx + 1);
       network.ledger_secrets->set_node_id(self);
-      setup_encryptor(true);
+      setup_encryptor();
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
@@ -995,9 +995,6 @@ namespace ccf
       // Raft should deserialise all security domains when network is opened
       consensus->enable_all_domains();
 
-      // Disable recovery so that only non-compacted keys are used
-      encryptor->disable_recovery();
-
       // Snapshots are only generated after recovery is complete
       snapshotter->set_tx_interval(recovery_snapshot_tx_interval);
 
@@ -1055,7 +1052,9 @@ namespace ccf
     //
     void setup_private_recovery_store()
     {
-      recovery_store = std::make_shared<kv::Store>();
+      recovery_store = std::make_shared<kv::Store>(
+        true /* Check transactions in order */,
+        true /* Make use of historical secrets */);
       recovery_history = std::make_shared<MerkleTxHistory>(
         *recovery_store.get(),
         self,
@@ -1735,7 +1734,7 @@ namespace ccf
       network.tables->set_history(history);
     }
 
-    void setup_encryptor(bool recovery = false)
+    void setup_encryptor()
     {
       // This function makes use of ledger secrets and should be called once
       // the node has joined the service (either via start_network() or
@@ -1743,8 +1742,7 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       encryptor = std::make_shared<kv::NullTxEncryptor>();
 #else
-      encryptor =
-        std::make_shared<NodeEncryptor>(network.ledger_secrets, recovery);
+      encryptor = std::make_shared<NodeEncryptor>(network.ledger_secrets);
 #endif
 
       network.tables->set_encryptor(encryptor);
