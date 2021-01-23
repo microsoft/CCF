@@ -50,20 +50,6 @@ namespace kv
       }
     }
 
-    std::optional<std::vector<uint8_t>> pop_oldest_data()
-    {
-      if (!replica.empty())
-      {
-        auto data = *std::get<1>(replica.front());
-        replica.erase(replica.begin());
-        return data;
-      }
-      else
-      {
-        return std::nullopt;
-      }
-    }
-
     std::optional<kv::BatchVector::value_type> pop_oldest_entry()
     {
       if (!replica.empty())
