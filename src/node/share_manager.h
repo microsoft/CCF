@@ -156,7 +156,8 @@ namespace ccf
     void set_recovery_shares_info(
       kv::Tx& tx,
       const LedgerSecret& latest_ledger_secret,
-      const std::optional<LedgerSecret>& previous_ledger_secret = std::nullopt,
+      const std::optional<VersionedLedgerSecret>& previous_ledger_secret =
+        std::nullopt,
       kv::Version latest_ls_version = kv::NoVersion)
     {
       // First, generate a fresh ledger secrets wrapping key and wrap the
@@ -170,16 +171,19 @@ namespace ccf
       auto wrapped_latest_ls = ls_wrapping_key.wrap(latest_ledger_secret);
 
       std::vector<uint8_t> encrypted_previous_secret = {};
+      kv::Version version_previous_secret = kv::NoVersion;
       if (previous_ledger_secret.has_value())
       {
+        version_previous_secret = previous_ledger_secret->first;
+
         crypto::GcmCipher encrypted_previous_ls(
-          previous_ledger_secret->raw_key.size());
+          previous_ledger_secret->second.raw_key.size());
         auto iv = tls::create_entropy()->random(crypto::GCM_SIZE_IV);
         encrypted_previous_ls.hdr.set_iv(iv.data(), iv.size());
 
         latest_ledger_secret.key->encrypt(
           encrypted_previous_ls.hdr.get_iv(),
-          previous_ledger_secret->raw_key,
+          previous_ledger_secret.second.->raw_key,
           nullb,
           encrypted_previous_ls.cipher.data(),
           encrypted_previous_ls.hdr.tag);
@@ -188,9 +192,12 @@ namespace ccf
       }
 
       GenesisGenerator g(network, tx);
-      g.add_key_share_info({{latest_ls_version, wrapped_latest_ls},
-                            encrypted_previous_secret,
-                            compute_encrypted_shares(tx, ls_wrapping_key)});
+
+      // TODO: Rename this
+      g.add_key_share_info(
+        {{latest_ls_version, wrapped_latest_ls},
+         {version_previous_secret, encrypted_previous_secret},
+         compute_encrypted_shares(tx, ls_wrapping_key)});
     }
 
     std::vector<uint8_t> encrypt_submitted_share(
@@ -288,7 +295,7 @@ namespace ccf
       kv::Tx& tx, const LedgerSecret& new_ledger_secret)
     {
       set_recovery_shares_info(
-        tx, new_ledger_secret, network.ledger_secrets->get_latest(tx).second);
+        tx, new_ledger_secret, network.ledger_secrets->get_latest(tx));
     }
 
     std::optional<EncryptedShare> get_encrypted_share(

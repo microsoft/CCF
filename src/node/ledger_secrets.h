@@ -46,6 +46,7 @@ namespace ccf
   }
 
   using LedgerSecretsMap = std::map<kv::Version, LedgerSecret>;
+  using VersionedLedgerSecret = LedgerSecretsMap::value_type;
 
   class LedgerSecrets
   {
@@ -146,7 +147,13 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      ledger_secrets.emplace(initial_version, make_ledger_secret());
+      auto init_secret = make_ledger_secret();
+
+      LOG_INFO_FMT("Init ledger secrets at {}", initial_version);
+      LOG_FAIL_FMT(
+        "{}", tls::b64_from_raw(init_secret.raw_key)); // TODO: Delete
+
+      ledger_secrets.emplace(initial_version, std::move(init_secret));
     }
 
     void set_node_id(NodeId id)
@@ -160,7 +167,7 @@ namespace ccf
       self = id;
     }
 
-    LedgerSecretsMap::value_type get_latest(kv::Tx& tx)
+    VersionedLedgerSecret get_latest(kv::Tx& tx)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -177,7 +184,7 @@ namespace ccf
         latest_ledger_secret->first, latest_ledger_secret->second);
     }
 
-    std::pair<LedgerSecret, std::optional<LedgerSecret>>
+    std::pair<VersionedLedgerSecret, std::optional<VersionedLedgerSecret>>
     get_latest_and_penultimate(kv::Tx& tx)
     {
       std::lock_guard<SpinLock> guard(lock);
@@ -193,11 +200,10 @@ namespace ccf
       const auto& latest_ledger_secret = ledger_secrets.rbegin();
       if (ledger_secrets.size() < 2)
       {
-        return std::make_pair(latest_ledger_secret->second, std::nullopt);
+        return std::make_pair(latest_ledger_secret, std::nullopt);
       }
       return std::make_pair(
-        latest_ledger_secret->second,
-        std::next(ledger_secrets.rbegin())->second);
+        latest_ledger_secret, std::next(latest_ledger_secret));
     }
 
     LedgerSecretsMap get(
@@ -237,6 +243,16 @@ namespace ccf
           ledger_secrets.begin()->first));
       }
 
+      LOG_FAIL_FMT("Ledger secrets before: {}", ledger_secrets.size());
+      LOG_FAIL_FMT("LS before: {}", ledger_secrets.begin()->first);
+
+      LOG_FAIL_FMT("Restored secrets: {}", restored_ledger_secrets.size());
+      for (auto const& ls : restored_ledger_secrets)
+      {
+        LOG_FAIL_FMT(
+          "LS: {} - {}", ls.first, tls::b64_from_raw(ls.second.raw_key));
+      }
+
       ledger_secrets.merge(restored_ledger_secrets);
     }
 
@@ -256,9 +272,10 @@ namespace ccf
         "Ledger secret at seqno {} already exists",
         version);
 
-      ledger_secrets.emplace(version, std::move(secret));
-
       LOG_INFO_FMT("Added new ledger secret at seqno {}", version);
+      LOG_FAIL_FMT("{}", tls::b64_from_raw(secret.raw_key)); // TODO: Delete
+
+      ledger_secrets.emplace(version, std::move(secret));
     }
 
     void rollback(kv::Version version)

@@ -18,13 +18,17 @@ suites = dict()
 # This suite tests that rekeying, network configuration changes
 # and recoveries can be interleaved
 suite_rekey_recovery = [
-    recovery.test,
-    reconfiguration.test_add_node,
+    e2e_logging.test_historical_query,
     rekey.test,
-    reconfiguration.test_add_node,
-    recovery.test,
     rekey.test,
-    reconfiguration.test_add_node,
+    # reconfiguration.test_add_node_from_snapshot,
+    recovery.test,
+    # reconfiguration.test_add_node_from_snapshot,
+    # rekey.test,
+    # reconfiguration.test_add_node,
+    # recovery.test,
+    # rekey.test,
+    # reconfiguration.test_add_node,
 ]
 suites["rekey_recovery"] = suite_rekey_recovery
 

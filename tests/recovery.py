@@ -11,7 +11,7 @@ from loguru import logger as LOG
 
 @reqs.description("Recovering a network")
 @reqs.recover(number_txs=2)
-def test(network, args, from_snapshot=False):
+def test(network, args, from_snapshot=True):
     old_primary, _ = network.find_primary()
 
     snapshot_dir = None
@@ -36,7 +36,7 @@ def test(network, args, from_snapshot=False):
 
 @reqs.description("Recovering a network, kill one node while submitting shares")
 @reqs.recover(number_txs=2)
-def test_share_resilience(network, args, from_snapshot=False):
+def test_share_resilience(network, args, from_snapshot=True):
     old_primary, _ = network.find_primary()
 
     snapshot_dir = None
@@ -115,10 +115,10 @@ def run(args):
             # with and without snapshots
             if i % 2 == 0:
                 recovered_network = test_share_resilience(
-                    network, args, from_snapshot=True
+                    network, args, from_snapshot=False
                 )
             else:
-                recovered_network = test(network, args, from_snapshot=False)
+                recovered_network = test(network, args, from_snapshot=True)
             network.stop_all_nodes()
             network = recovered_network
             LOG.success("Recovery complete on all nodes")

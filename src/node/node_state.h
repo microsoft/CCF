@@ -467,6 +467,14 @@ namespace ccf
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
 
+            LOG_FAIL_FMT(
+              "Joining with {} ledger secrets",
+              resp.network_info.ledger_secrets.size());
+            for (auto const& s : resp.network_info.ledger_secrets)
+            {
+              LOG_FAIL_FMT("LS: {}", s.first);
+            }
+
             network.ledger_secrets = std::make_shared<LedgerSecrets>(
               self, std::move(resp.network_info.ledger_secrets));
 
@@ -1600,7 +1608,7 @@ namespace ccf
     {
       // When recoverying from a snapshot, the first secret is valid from the
       // version at which it was recorded
-      static bool is_first_secret = !from_snapshot;
+      static bool is_first_secret = !from_snapshot; // false on snapshot!
 
       network.tables->set_map_hook(
         network.shares.get_name(),
@@ -1616,6 +1624,10 @@ namespace ccf
               }
 
               const auto& v = opt_v.value();
+              LOG_FAIL_FMT(
+                "Ledger secrets at KV seqno {} and wrapped latest seqno {}",
+                version,
+                v.wrapped_latest_ledger_secret.version);
 
               kv::Version ledger_secret_version;
               if (is_first_secret)
@@ -1634,6 +1646,9 @@ namespace ccf
                   v.wrapped_latest_ledger_secret.version == kv::NoVersion ?
                   (version + 1) :
                   v.wrapped_latest_ledger_secret.version;
+
+                LOG_FAIL_FMT(
+                  "Ledger secret version: {}", ledger_secret_version);
               }
 
               // No encrypted ledger secret are stored in the case of a pure
