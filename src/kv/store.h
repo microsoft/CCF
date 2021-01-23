@@ -358,7 +358,7 @@ namespace kv
         public_only ? kv::SecurityDomain::PUBLIC :
                       std::optional<kv::SecurityDomain>());
 
-      auto v_ = d.init(data.data(), data.size());
+      auto v_ = d.init(data.data(), data.size(), is_historical);
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
