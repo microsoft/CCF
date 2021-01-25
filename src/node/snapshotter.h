@@ -51,7 +51,10 @@ namespace ccf
     consensus::Index last_snapshot_idx = 0;
 
     // Used for recovery to prevent snapshot generation in public mode
-    consensus::Index snapshot_max_tx_idx = max_tx_interval;
+    consensus::Index snapshot_max_tx_idx = max_tx_interval; // TODO: Delete
+
+    // Used to suspend snapshot generation during public recovery
+    bool snapshot_generation_suspended = false;
 
     // Indices at which a snapshot will be next generated
     std::deque<consensus::Index> next_snapshot_indices;
@@ -130,18 +133,14 @@ namespace ccf
   public:
     Snapshotter(
       ringbuffer::AbstractWriterFactory& writer_factory,
-      NetworkState& network_) :
+      NetworkState& network_,
+      size_t snapshot_tx_interval_) :
       to_host(writer_factory.create_writer_to_outside()),
-      network(network_)
+      network(network_),
+      snapshot_tx_interval(snapshot_tx_interval_)
     {
       next_snapshot_indices.push_back(last_snapshot_idx);
-    }
 
-    // TODO: Perhaps this can be passed to constructor instead??
-    void set_tx_interval(size_t snapshot_tx_interval_)
-    {
-      std::lock_guard<SpinLock> guard(lock);
-      snapshot_tx_interval = snapshot_tx_interval_;
       LOG_FAIL_FMT("Snapshotter interval set to {}", snapshot_tx_interval);
     }
 
@@ -209,7 +208,9 @@ namespace ccf
         LOG_FAIL_FMT("Last snapshot idx is now: {}", last_snapshot_idx);
 
         // Snapshots are only generated on primary node
-        if (is_primary && idx <= snapshot_max_tx_idx)
+        if (
+          is_primary && idx <= snapshot_max_tx_idx &&
+          !snapshot_generation_suspended)
         {
           auto msg =
             std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);

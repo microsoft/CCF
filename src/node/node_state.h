@@ -163,7 +163,6 @@ namespace ccf
     consensus::Index last_recovered_signed_idx = 1;
     std::list<RecoveredLedgerSecret> recovery_ledger_secrets;
     consensus::Index ledger_idx = 0;
-    // size_t recovery_snapshot_tx_interval = Snapshotter::max_tx_interval;
 
     struct StartupSnapshotInfo
     {
@@ -243,8 +242,7 @@ namespace ccf
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
       rpcsessions(rpcsessions),
-      share_manager(share_manager),
-      snapshotter(std::make_shared<Snapshotter>(writer_factory, network))
+      share_manager(share_manager)
     {}
 
     //
@@ -308,12 +306,11 @@ namespace ccf
           network.ledger_secrets = std::make_shared<LedgerSecrets>(self);
           network.ledger_secrets->init();
 
+          setup_snapshotter(config.snapshot_tx_interval);
           setup_encryptor();
           setup_consensus();
           setup_progress_tracker();
           setup_history();
-
-          snapshotter->set_tx_interval(config.snapshot_tx_interval);
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -380,15 +377,7 @@ namespace ccf
           // secrets.
           setup_encryptor();
 
-          // Snapshot generation is disabled until private recovery is
-          // complete
-          // recovery_snapshot_tx_interval = config.snapshot_tx_interval;
-          snapshotter->set_tx_interval(config.snapshot_tx_interval);
-
-          // LOG_FAIL_FMT(
-          //   "Recovery: snapshot interval set to {}",
-          //   recovery_snapshot_tx_interval);
-
+          setup_snapshotter(config.snapshot_tx_interval);
           bool from_snapshot = !config.startup_snapshot.empty();
           setup_recovery_hook(from_snapshot);
 
@@ -484,6 +473,7 @@ namespace ccf
                 resp.network_info.consensus_type));
             }
 
+            setup_snapshotter(config.snapshot_tx_interval);
             setup_encryptor(resp.network_info.public_only);
             setup_consensus(resp.network_info.public_only);
             setup_progress_tracker();
@@ -551,17 +541,10 @@ namespace ccf
                 resp.network_info.last_recovered_signed_idx;
               setup_recovery_hook(startup_snapshot_info != nullptr);
 
-              // recovery_snapshot_tx_interval = config.snapshot_tx_interval;
-
-              snapshotter->set_tx_interval(config.snapshot_tx_interval);
-              // snapshotter->suspend_snapshot_generation_up_to(
-              //   resp.network_info.last_recovered_signed_idx);
-
               sm.advance(State::partOfPublicNetwork);
             }
             else
             {
-              snapshotter->set_tx_interval(config.snapshot_tx_interval);
               reset_data(quote);
               sm.advance(State::partOfNetwork);
             }
@@ -890,8 +873,6 @@ namespace ccf
       setup_encryptor(true);
 
       // Set snapshot interval but do not actually create snapshots!
-      // snapshotter->set_tx_interval(recovery_snapshot_tx_interval);
-      // snapshotter->suspend_snapshot_generation_up_to(last_recovered_signed_idx);
       snapshotter->init_after_public_recovery();
 
       kv::Version index = 0;
@@ -1020,10 +1001,7 @@ namespace ccf
       encryptor->disable_recovery();
 
       // Snapshots are only generated after recovery is complete
-      // snapshotter->set_tx_interval(recovery_snapshot_tx_interval);
-      // LOG_FAIL_FMT(
-      //   "Snapshot generation re-started to: {}",
-      //   recovery_snapshot_tx_interval);
+      // TODO: Enable snapshot generation
 
       // Open the service
       if (consensus->is_primary())
@@ -1788,6 +1766,12 @@ namespace ccf
           std::make_shared<ccf::ProgressTracker>(tracker_store, self);
         network.tables->set_progress_tracker(progress_tracker);
       }
+    }
+
+    void setup_snapshotter(size_t snapshot_tx_interval)
+    {
+      snapshotter = std::make_shared<Snapshotter>(
+        writer_factory, network, snapshot_tx_interval);
     }
 
     void setup_tracker_store()
