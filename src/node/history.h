@@ -132,7 +132,9 @@ namespace ccf
       return true;
     }
 
-    void rollback(kv::Version) override {}
+    void set_term(kv::Term) override {}
+
+    void rollback(kv::Version, kv::Term) override {}
 
     void compact(kv::Version) override {}
 
@@ -459,6 +461,9 @@ namespace ccf
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
+    SpinLock term_lock;
+    kv::Term term = 0;
+
   public:
     HashedTxHistory(
       kv::Store& store_,
@@ -657,8 +662,15 @@ namespace ccf
       return true;
     }
 
-    void rollback(kv::Version v) override
+    void set_term(kv::Term t) override
     {
+      std::lock_guard<SpinLock> tguard(term_lock);
+      term = t;
+    }
+
+    void rollback(kv::Version v, kv::Term t) override
+    {
+      set_term(t);
       replicated_state_tree.retract(v);
       log_hash(replicated_state_tree.get_root(), ROLLBACK);
     }
@@ -770,6 +782,8 @@ namespace ccf
 
     void append(const std::vector<uint8_t>& replicated) override
     {
+      std::lock_guard<SpinLock> tguard(term_lock);
+        LOG_INFO_FMT("Term is {}", term);
       crypto::Sha256Hash rh({replicated.data(), replicated.size()});
       log_hash(rh, APPEND);
       replicated_state_tree.append(rh);

@@ -556,7 +556,7 @@ namespace kv
         pending_txs.clear();
         auto h = get_history();
         if (h)
-          h->rollback(v);
+          h->rollback(v, term);
         auto e = get_encryptor();
         if (e)
           e->rollback(v);
@@ -599,6 +599,9 @@ namespace kv
     {
       std::lock_guard<SpinLock> vguard(version_lock);
       term = t;
+      auto h = get_history();
+      if (h)
+        h->set_term(term);
     }
 
     DeserialiseSuccess deserialise_views(
