@@ -22,7 +22,7 @@ namespace ccfapp
   using KVMap = kv::untyped::Map;
 
   JSClassID kv_class_id;
-  JSClassID kv_map_view_class_id;
+  JSClassID kv_map_handle_class_id;
   JSClassID body_class_id;
 
 #pragma clang diagnostic push
@@ -348,8 +348,8 @@ namespace ccfapp
   static JSValue js_kv_map_has(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    auto map_view =
-      static_cast<KVMap::Handle*>(JS_GetOpaque(this_val, kv_map_view_class_id));
+    auto handle = static_cast<KVMap::Handle*>(
+      JS_GetOpaque(this_val, kv_map_handle_class_id));
 
     if (argc != 1)
       return JS_ThrowTypeError(
@@ -361,7 +361,7 @@ namespace ccfapp
     if (!key)
       return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
 
-    auto has = map_view->has({key, key + key_size});
+    auto has = handle->has({key, key + key_size});
 
     return JS_NewBool(ctx, has);
   }
@@ -369,8 +369,8 @@ namespace ccfapp
   static JSValue js_kv_map_get(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    auto map_view =
-      static_cast<KVMap::Handle*>(JS_GetOpaque(this_val, kv_map_view_class_id));
+    auto handle = static_cast<KVMap::Handle*>(
+      JS_GetOpaque(this_val, kv_map_handle_class_id));
 
     if (argc != 1)
       return JS_ThrowTypeError(
@@ -382,7 +382,7 @@ namespace ccfapp
     if (!key)
       return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
 
-    auto val = map_view->get({key, key + key_size});
+    auto val = handle->get({key, key + key_size});
 
     if (!val.has_value())
       return JS_UNDEFINED;
@@ -399,8 +399,8 @@ namespace ccfapp
   static JSValue js_kv_map_delete(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    auto map_view =
-      static_cast<KVMap::Handle*>(JS_GetOpaque(this_val, kv_map_view_class_id));
+    auto handle = static_cast<KVMap::Handle*>(
+      JS_GetOpaque(this_val, kv_map_handle_class_id));
 
     if (argc != 1)
       return JS_ThrowTypeError(
@@ -412,7 +412,7 @@ namespace ccfapp
     if (!key)
       return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
 
-    auto val = map_view->remove({key, key + key_size});
+    auto val = handle->remove({key, key + key_size});
 
     return JS_NewBool(ctx, val);
   }
@@ -426,8 +426,8 @@ namespace ccfapp
   static JSValue js_kv_map_set(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    auto map_view =
-      static_cast<KVMap::Handle*>(JS_GetOpaque(this_val, kv_map_view_class_id));
+    auto handle = static_cast<KVMap::Handle*>(
+      JS_GetOpaque(this_val, kv_map_handle_class_id));
 
     if (argc != 2)
       return JS_ThrowTypeError(
@@ -442,7 +442,7 @@ namespace ccfapp
     if (!key || !val)
       return JS_ThrowTypeError(ctx, "Arguments must be ArrayBuffers");
 
-    if (!map_view->put({key, key + key_size}, {val, val + val_size}))
+    if (!handle->put({key, key + key_size}, {val, val + val_size}))
       return JS_ThrowRangeError(ctx, "Could not insert at key");
 
     return JS_DupValue(ctx, this_val);
@@ -457,8 +457,8 @@ namespace ccfapp
   static JSValue js_kv_map_foreach(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    auto map_view =
-      static_cast<KVMap::Handle*>(JS_GetOpaque(this_val, kv_map_view_class_id));
+    auto handle = static_cast<KVMap::Handle*>(
+      JS_GetOpaque(this_val, kv_map_handle_class_id));
 
     if (argc != 1)
       return JS_ThrowTypeError(
@@ -470,7 +470,7 @@ namespace ccfapp
       return JS_ThrowTypeError(ctx, "Argument must be a function");
 
     bool failed = false;
-    map_view->foreach(
+    handle->foreach(
       [ctx, this_val, func, &failed](const auto& k, const auto& v) {
         JSValue args[3];
 
@@ -557,7 +557,7 @@ namespace ccfapp
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
     // Keys and values are ArrayBuffers. Keys are matched based on their
     // contents.
-    auto view_val = JS_NewObjectClass(ctx, kv_map_view_class_id);
+    auto view_val = JS_NewObjectClass(ctx, kv_map_handle_class_id);
     JS_SetOpaque(view_val, handle);
 
     JS_SetPropertyStr(
@@ -712,7 +712,7 @@ namespace ccfapp
     JSClassDef kv_class_def = {};
     JSClassExoticMethods kv_exotic_methods = {};
 
-    JSClassDef kv_map_view_class_def = {};
+    JSClassDef kv_map_handle_class_def = {};
 
     JSClassDef body_class_def = {};
 
@@ -988,7 +988,7 @@ namespace ccfapp
       // Register class for KV map views
       {
         auto ret =
-          JS_NewClass(rt, kv_map_view_class_id, &kv_map_view_class_def);
+          JS_NewClass(rt, kv_map_handle_class_id, &kv_map_handle_class_def);
         if (ret != 0)
         {
           throw std::logic_error(
@@ -1256,8 +1256,8 @@ namespace ccfapp
       kv_class_def.class_name = "KV Tables";
       kv_class_def.exotic = &kv_exotic_methods;
 
-      JS_NewClassID(&kv_map_view_class_id);
-      kv_map_view_class_def.class_name = "KV View";
+      JS_NewClassID(&kv_map_handle_class_id);
+      kv_map_handle_class_def.class_name = "KV Map Handle";
 
       JS_NewClassID(&body_class_id);
       body_class_def.class_name = "Body";
