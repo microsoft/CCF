@@ -348,6 +348,7 @@ namespace ccf
             // deserialise the public domain when recovering the public ledger
             network.ledger_secrets = std::make_shared<LedgerSecrets>();
             setup_encryptor();
+            setup_snapshotter(config.snapshot_tx_interval);
 
             initialise_startup_snapshot(config);
 
@@ -873,7 +874,7 @@ namespace ccf
       network.ledger_secrets->set_node_id(self);
       setup_encryptor(true);
 
-      // Set snapshot interval but do not actually create snapshots!
+      // Initialise snapshotter after public recovery
       snapshotter->init_after_public_recovery();
       snapshotter->set_snapshot_generation(false);
 

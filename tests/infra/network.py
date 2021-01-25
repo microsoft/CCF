@@ -499,10 +499,9 @@ class Network:
             )
 
             # Verify that all ledger files present on the stopped node are also
-            # present on the primary, and identical
-            for stopped_node_ledger in sorted(
-                os.listdir(stopped_node_committed_ledger_dir)
-            ):
+            # present on the primary, and are identical
+            stopped_node_ledgers = sorted(os.listdir(stopped_node_committed_ledger_dir))
+            for stopped_node_ledger in stopped_node_ledgers:
                 stopped_node_ledger_checksum = infra.path.compute_file_checksum(
                     os.path.join(stopped_node_committed_ledger_dir, stopped_node_ledger)
                 )
@@ -516,7 +515,7 @@ class Network:
                     primary_committed_ledger_dir, stopped_node_ledger
                 )
                 if (
-                    self.compute_file_checksum(primary_ledger)
+                    infra.path.compute_file_checksum(primary_ledger)
                     != stopped_node_ledger_checksum
                 ):
                     raise Exception(
@@ -524,7 +523,7 @@ class Network:
                     )
 
             LOG.info(
-                f"Ledger files on stopped node {node.node_id} successfully matched those of primary {primary.node_id}"
+                f"{len(stopped_node_ledgers)} ledger files on stopped node {node.node_id} successfully matched those of primary {primary.node_id}"
             )
 
         return errors
