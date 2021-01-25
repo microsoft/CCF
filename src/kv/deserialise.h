@@ -65,6 +65,19 @@ namespace kv
       return term;
     }
 
+    kv::Version get_index() override
+    {
+      throw std::logic_error("get_index not implemented");
+    }
+    ccf::PrimarySignature& get_signature() override
+    {
+      throw std::logic_error("get_index not implemented");
+    }
+    kv::Tx& get_tx() override
+    {
+      throw std::logic_error("get_index not implemented");
+    }
+
     std::function<ApplySuccess(
       ExecutionWrapperStore* store,
       const std::vector<uint8_t>& data,

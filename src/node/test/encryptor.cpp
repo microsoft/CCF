@@ -290,8 +290,7 @@ TEST_CASE("KV encryption/decryption")
         current_version + i, std::move(ledger_secret_for_backup));
 
       REQUIRE(
-        backup_store
-          .apply(*consensus->get_latest_data(), ConsensusType::CFT)
+        backup_store.apply(*consensus->get_latest_data(), ConsensusType::CFT)
           ->execute() == kv::ApplySuccess::PASS);
     }
   }
@@ -352,8 +351,7 @@ TEST_CASE("Backup catchup from many ledger secrets")
     {
       REQUIRE(
         backup_store
-          .apply(
-            *std::get<1>(next_entry.value()), ConsensusType::CFT)
+          .apply(*std::get<1>(next_entry.value()), ConsensusType::CFT)
           ->execute() == kv::ApplySuccess::PASS);
       next_entry = consensus->pop_oldest_entry();
     }

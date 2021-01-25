@@ -253,12 +253,12 @@ namespace aft
       }
       ccf::PrimarySignature& get_signature() override
       {
-        throw std::logic_error("3. Not Implemented");
+        throw std::logic_error("Not Implemented");
       }
 
       kv::Tx& get_tx() override
       {
-        throw std::logic_error("4. Not Implemented");
+        throw std::logic_error("Not Implemented");
       }
 
     private:
