@@ -167,9 +167,9 @@ namespace kv
   }
 
   // Note that failed = 0, and all other values are variants of PASS, which
-  // allows DeserialiseSuccess to be used as a boolean in code that does not
+  // allows ApplySuccess to be used as a boolean in code that does not
   // need any detail about what happened on success
-  enum DeserialiseSuccess
+  enum ApplySuccess
   {
     FAILED = 0,
     PASS = 1,
@@ -529,7 +529,7 @@ namespace kv
   {
   public:
     virtual ~AbstractExecutionWrapper() = default;
-    virtual kv::DeserialiseSuccess Execute() = 0;
+    virtual kv::ApplySuccess execute() = 0;
     virtual kv::ConsensusHookPtrs& get_hooks() = 0;
     virtual const std::vector<uint8_t>& get_entry() = 0;
     virtual kv::Term get_term() = 0;
@@ -581,7 +581,7 @@ namespace kv
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;
     virtual EncryptorPtr get_encryptor() = 0;
-    virtual std::unique_ptr<AbstractExecutionWrapper> deserialise(
+    virtual std::unique_ptr<AbstractExecutionWrapper> apply(
       const std::vector<uint8_t> data,
       ConsensusType consensus_type,
       bool public_only = false) = 0;
@@ -596,7 +596,7 @@ namespace kv
     virtual std::unique_ptr<AbstractSnapshot> snapshot(Version v) = 0;
     virtual std::vector<uint8_t> serialise_snapshot(
       std::unique_ptr<AbstractSnapshot> snapshot) = 0;
-    virtual DeserialiseSuccess deserialise_snapshot(
+    virtual ApplySuccess deserialise_snapshot(
       const std::vector<uint8_t>& data,
       ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,

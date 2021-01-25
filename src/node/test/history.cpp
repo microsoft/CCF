@@ -30,8 +30,8 @@ public:
     if (store)
     {
       REQUIRE(entries.size() == 1);
-      return store->deserialise(*std::get<1>(entries[0]), ConsensusType::CFT)
-        ->Execute();
+      return store->apply(*std::get<1>(entries[0]), ConsensusType::CFT)
+        ->execute();
     }
     return true;
   }

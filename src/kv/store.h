@@ -87,7 +87,7 @@ namespace kv
     // If true, use historical ledger secrets to deserialise entries
     const bool is_historical = false;
 
-    DeserialiseSuccess commit_deserialised(
+    ApplySuccess commit_deserialised(
       OrderedChanges& changes,
       Version& v,
       const MapCollection& new_maps,
@@ -98,14 +98,14 @@ namespace kv
       if (!c.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
-        return DeserialiseSuccess::FAILED;
+        return ApplySuccess::FAILED;
       }
       {
         std::lock_guard<SpinLock> vguard(version_lock);
         version = v;
         last_replicated = version;
       }
-      return DeserialiseSuccess::PASS;
+      return ApplySuccess::PASS;
     }
 
     bool has_map_internal(const std::string& name)
@@ -349,7 +349,7 @@ namespace kv
       return snapshot->serialise(e);
     }
 
-    DeserialiseSuccess deserialise_snapshot(
+    ApplySuccess deserialise_snapshot(
       const std::vector<uint8_t>& data,
       kv::ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,
@@ -365,7 +365,7 @@ namespace kv
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
-        return DeserialiseSuccess::FAILED;
+        return ApplySuccess::FAILED;
       }
       auto [v, _] = v_.value();
 
@@ -423,7 +423,7 @@ namespace kv
         {
           LOG_FAIL_FMT("Failed to deserialise snapshot at version {}", v);
           LOG_DEBUG_FMT("Multiple writes on map {}", map_name);
-          return DeserialiseSuccess::FAILED;
+          return ApplySuccess::FAILED;
         }
 
         auto deserialised_snapshot_changes =
@@ -443,7 +443,7 @@ namespace kv
       if (!d.end())
       {
         LOG_FAIL_FMT("Unexpected content in snapshot at version {}", v);
-        return DeserialiseSuccess::FAILED;
+        return ApplySuccess::FAILED;
       }
 
       // Each map is committed at a different version, independently of the
@@ -454,7 +454,7 @@ namespace kv
       if (!r.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised snapshot at version {}", v);
-        return DeserialiseSuccess::FAILED;
+        return ApplySuccess::FAILED;
       }
 
       {
@@ -468,7 +468,7 @@ namespace kv
       {
         if (!h->init_from_snapshot(hash_at_snapshot))
         {
-          return DeserialiseSuccess::FAILED;
+          return ApplySuccess::FAILED;
         }
       }
 
@@ -477,7 +477,7 @@ namespace kv
         *view_history = std::move(view_history_);
       }
 
-      return DeserialiseSuccess::PASS;
+      return ApplySuccess::PASS;
     }
 
     void compact(Version v) override
@@ -644,7 +644,7 @@ namespace kv
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
-        return DeserialiseSuccess::FAILED;
+        return ApplySuccess::FAILED;
       }
       std::tie(v, std::ignore) = v_.value();
 
@@ -660,7 +660,7 @@ namespace kv
         {
           LOG_FAIL_FMT(
             "Tried to deserialise {} but current_version is {}", v, cv);
-          return DeserialiseSuccess::FAILED;
+          return ApplySuccess::FAILED;
         }
       }
 
@@ -714,7 +714,7 @@ namespace kv
       return true;
     }
 
-    std::unique_ptr<kv::AbstractExecutionWrapper> deserialise(
+    std::unique_ptr<kv::AbstractExecutionWrapper> apply(
       const std::vector<uint8_t> data,
       ConsensusType consensus_type,
       bool public_only = false) override

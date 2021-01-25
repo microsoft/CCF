@@ -23,7 +23,7 @@ namespace kv
       kv::MapCollection& new_maps,
       bool ignore_strict_versions = false) = 0;
 
-    virtual DeserialiseSuccess commit_deserialised(
+    virtual ApplySuccess commit_deserialised(
       kv::OrderedChanges& changes,
       kv::Version& v,
       const MapCollection& new_maps,
@@ -44,7 +44,7 @@ namespace kv
       public_only(public_only_)
     {}
 
-    DeserialiseSuccess Execute() override
+    ApplySuccess execute() override
     {
       return fn(
         store, data, history, public_only, v, &term, changes, new_maps, hooks);
@@ -65,7 +65,7 @@ namespace kv
       return term;
     }
 
-    std::function<DeserialiseSuccess(
+    std::function<ApplySuccess(
       ExecutionWrapperStore* store,
       const std::vector<uint8_t>& data,
       std::shared_ptr<TxHistory> history,
@@ -84,15 +84,15 @@ namespace kv
              Term* term_,
              OrderedChanges& changes,
              MapCollection& new_maps,
-             kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
+             kv::ConsensusHookPtrs& hooks) -> ApplySuccess {
       if (!store->fill_maps(data, public_only, v, changes, new_maps, true))
       {
-        return DeserialiseSuccess::FAILED;
+        return ApplySuccess::FAILED;
       }
 
-      DeserialiseSuccess success =
+      ApplySuccess success =
         store->commit_deserialised(changes, v, new_maps, hooks);
-      if (success == DeserialiseSuccess::FAILED)
+      if (success == ApplySuccess::FAILED)
       {
         return success;
       }
@@ -106,7 +106,7 @@ namespace kv
         {
           LOG_FAIL_FMT("Failed to deserialise");
           LOG_DEBUG_FMT("Unexpected contents in signature transaction {}", v);
-          return DeserialiseSuccess::FAILED;
+          return ApplySuccess::FAILED;
         }
 
         if (history)
@@ -115,16 +115,16 @@ namespace kv
           {
             LOG_FAIL_FMT("Failed to deserialise");
             LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
-            return DeserialiseSuccess::FAILED;
+            return ApplySuccess::FAILED;
           }
         }
-        success = DeserialiseSuccess::PASS_SIGNATURE;
+        success = ApplySuccess::PASS_SIGNATURE;
       }
 
       search = changes.find(ccf::Tables::SNAPSHOT_EVIDENCE);
       if (search != changes.end())
       {
-        success = DeserialiseSuccess::PASS_SNAPSHOT_EVIDENCE;
+        success = ApplySuccess::PASS_SNAPSHOT_EVIDENCE;
       }
 
       if (history)
@@ -238,12 +238,12 @@ namespace kv
         std::move(new_maps_))
     {}
 
-    DeserialiseSuccess Execute() override
+    ApplySuccess execute() override
     {
       return fn(store, data, history, v, &term, &sig, changes, new_maps, hooks);
     }
 
-    std::function<DeserialiseSuccess(
+    std::function<ApplySuccess(
       ExecutionWrapperStore* store,
       const std::vector<uint8_t>& data,
       std::shared_ptr<TxHistory> history,
@@ -262,12 +262,12 @@ namespace kv
              ccf::PrimarySignature* sig,
              OrderedChanges& changes,
              MapCollection& new_maps,
-             kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess
+             kv::ConsensusHookPtrs& hooks) -> ApplySuccess
 
     {
-      DeserialiseSuccess success =
+      ApplySuccess success =
         store->commit_deserialised(changes, v, new_maps, hooks);
-      if (success == DeserialiseSuccess::FAILED)
+      if (success == ApplySuccess::FAILED)
       {
         return success;
       }
@@ -294,10 +294,10 @@ namespace kv
         LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
         throw std::logic_error(
           "Failed to verify signature, view-changes not implemented");
-        return DeserialiseSuccess::FAILED;
+        return ApplySuccess::FAILED;
       }
       history->append(data);
-      return DeserialiseSuccess::PASS_SIGNATURE;
+      return ApplySuccess::PASS_SIGNATURE;
     };
   };
 
@@ -326,7 +326,7 @@ namespace kv
         std::move(new_maps_))
     {}
 
-    DeserialiseSuccess Execute() override
+    ApplySuccess execute() override
     {
       return fn(
         store,
@@ -342,7 +342,7 @@ namespace kv
         hooks);
     }
 
-    std::function<DeserialiseSuccess(
+    std::function<ApplySuccess(
       ExecutionWrapperStore* store,
       const std::vector<uint8_t>& data,
       std::shared_ptr<TxHistory> history,
@@ -365,10 +365,10 @@ namespace kv
              Version* index_,
              OrderedChanges& changes,
              MapCollection& new_maps,
-             kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
-      DeserialiseSuccess success =
+             kv::ConsensusHookPtrs& hooks) -> ApplySuccess {
+      ApplySuccess success =
         store->commit_deserialised(changes, v, new_maps, hooks);
-      if (success == DeserialiseSuccess::FAILED)
+      if (success == ApplySuccess::FAILED)
       {
         return success;
       }
@@ -379,11 +379,11 @@ namespace kv
         tx_id, consensus->node_count(), consensus->is_primary());
       if (r == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
       {
-        success = DeserialiseSuccess::PASS_BACKUP_SIGNATURE_SEND_ACK;
+        success = ApplySuccess::PASS_BACKUP_SIGNATURE_SEND_ACK;
       }
       else if (r == kv::TxHistory::Result::OK)
       {
-        success = DeserialiseSuccess::PASS_BACKUP_SIGNATURE;
+        success = ApplySuccess::PASS_BACKUP_SIGNATURE;
       }
       else
       {
@@ -391,7 +391,7 @@ namespace kv
         LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
         throw std::logic_error(
           "Failed to verify signature, view-changes not implemented");
-        return DeserialiseSuccess::FAILED;
+        return ApplySuccess::FAILED;
       }
 
       *term_ = tx_id.term;
@@ -426,13 +426,13 @@ namespace kv
         std::move(new_maps_))
     {}
 
-    DeserialiseSuccess Execute() override
+    ApplySuccess execute() override
     {
       return fn(
         store, data, history, progress_tracker, v, changes, new_maps, hooks);
     }
 
-    std::function<DeserialiseSuccess(
+    std::function<ApplySuccess(
       ExecutionWrapperStore* store,
       const std::vector<uint8_t>& data,
       std::shared_ptr<TxHistory> history,
@@ -449,10 +449,10 @@ namespace kv
              kv::Version& v,
              OrderedChanges& changes,
              MapCollection& new_maps,
-             kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
-      DeserialiseSuccess success =
+             kv::ConsensusHookPtrs& hooks) -> ApplySuccess {
+      ApplySuccess success =
         store->commit_deserialised(changes, v, new_maps, hooks);
-      if (success == DeserialiseSuccess::FAILED)
+      if (success == ApplySuccess::FAILED)
       {
         return success;
       }
@@ -463,11 +463,11 @@ namespace kv
         LOG_FAIL_FMT("receive_nonces Failed");
         throw std::logic_error(
           "Failed to verify nonces, view-changes not implemented");
-        return DeserialiseSuccess::FAILED;
+        return ApplySuccess::FAILED;
       }
 
       history->append(data);
-      return DeserialiseSuccess::PASS_NONCES;
+      return ApplySuccess::PASS_NONCES;
     };
   };
 
@@ -496,7 +496,7 @@ namespace kv
         std::move(new_maps_))
     {}
 
-    DeserialiseSuccess Execute() override
+    ApplySuccess execute() override
     {
       return fn(
         store,
@@ -512,7 +512,7 @@ namespace kv
         hooks);
     }
 
-    std::function<DeserialiseSuccess(
+    std::function<ApplySuccess(
       ExecutionWrapperStore* store,
       const std::vector<uint8_t>& data,
       std::shared_ptr<TxHistory> history,
@@ -535,11 +535,11 @@ namespace kv
              Version* index_,
              OrderedChanges& changes,
              MapCollection& new_maps,
-             kv::ConsensusHookPtrs& hooks) -> DeserialiseSuccess {
+             kv::ConsensusHookPtrs& hooks) -> ApplySuccess {
       LOG_INFO_FMT("Applying new view");
-      DeserialiseSuccess success =
+      ApplySuccess success =
         store->commit_deserialised(changes, v, new_maps, hooks);
-      if (success == DeserialiseSuccess::FAILED)
+      if (success == ApplySuccess::FAILED)
       {
         return success;
       }
@@ -549,11 +549,11 @@ namespace kv
       {
         LOG_FAIL_FMT("apply_new_view Failed");
         LOG_DEBUG_FMT("NewView in transaction {} failed to verify", v);
-        return DeserialiseSuccess::FAILED;
+        return ApplySuccess::FAILED;
       }
 
       history->append(data);
-      return DeserialiseSuccess::PASS_NEW_VIEW;
+      return ApplySuccess::PASS_NEW_VIEW;
     };
   };
 
@@ -583,17 +583,17 @@ namespace kv
       tx = std::move(tx_);
     }
 
-    DeserialiseSuccess Execute() override
+    ApplySuccess execute() override
     {
       return fn(tx, term, changes);
     }
 
-    std::function<DeserialiseSuccess(
+    std::function<ApplySuccess(
       std::unique_ptr<Tx>& tx, Term term, OrderedChanges& changes)>
       fn = [](std::unique_ptr<Tx>& tx, Term term, OrderedChanges& changes)
-      -> DeserialiseSuccess {
+      -> ApplySuccess {
       tx->set_change_list(std::move(changes), term);
-      return DeserialiseSuccess::PASS;
+      return ApplySuccess::PASS;
     };
   };
 }

@@ -1106,7 +1106,7 @@ namespace aft
           return;
         }
 
-        auto ds = store->deserialise(entry, consensus_type, public_only);
+        auto ds = store->apply(entry, consensus_type, public_only);
         if (ds == nullptr)
         {
           LOG_DEBUG_FMT("failed to deserialize we failed to apply");
@@ -1122,26 +1122,14 @@ namespace aft
         auto& [ds, i] = ae;
         state->last_idx = i;
 
-        kv::DeserialiseSuccess deserialise_success =
-          kv::DeserialiseSuccess::FAILED;
+        kv::ApplySuccess apply_success = kv::ApplySuccess::FAILED;
         if (ds != nullptr)
         {
-          deserialise_success = ds->Execute();
-          if (deserialise_success == kv::DeserialiseSuccess::FAILED)
+          apply_success = ds->execute();
+          if (apply_success == kv::ApplySuccess::FAILED)
           {
-            state->last_idx--;
+            rollback(last_committable_index());
             ledger->truncate(state->last_idx);
-
-            commit_if_possible(state->last_idx);
-
-            // The term may have changed, and we have not have seen a signature
-            // yet.
-            auto lci = last_committable_index();
-            if (r.term_of_idx == aft::ViewHistory::InvalidView)
-              state->view_history.update(1, r.term);
-            else
-              state->view_history.update(lci + 1, r.term_of_idx);
-
             send_append_entries_response(
               r.from_node, AppendEntriesResponseType::FAIL);
             return;
@@ -1154,7 +1142,7 @@ namespace aft
         }
 
         bool globally_committable =
-          (deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
+          (apply_success == kv::ApplySuccess::PASS_SIGNATURE);
         bool force_ledger_chunk = false;
         if (globally_committable)
         {
@@ -1164,9 +1152,9 @@ namespace aft
         ledger->put_entry(
           ds->get_entry(), globally_committable, force_ledger_chunk);
 
-        switch (deserialise_success)
+        switch (apply_success)
         {
-          case kv::DeserialiseSuccess::FAILED:
+          case kv::ApplySuccess::FAILED:
           {
             LOG_FAIL_FMT("Follower failed to apply log entry: {}", i);
             state->last_idx--;
@@ -1176,7 +1164,7 @@ namespace aft
             break;
           }
 
-          case kv::DeserialiseSuccess::PASS_SIGNATURE:
+          case kv::ApplySuccess::PASS_SIGNATURE:
           {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
             auto prev_lci = last_committable_index();
@@ -1188,9 +1176,13 @@ namespace aft
               // the previous signature onwards (at least, if not further back)
               // happened in sig_term. We reflect this in the history.
               if (r.term_of_idx == aft::ViewHistory::InvalidView)
+              {
                 state->view_history.update(1, r.term);
+              }
               else
+              {
                 state->view_history.update(prev_lci + 1, ds->get_term());
+              }
               commit_if_possible(r.leader_commit_idx);
             }
             if (consensus_type == ConsensusType::BFT)
@@ -1201,11 +1193,11 @@ namespace aft
             break;
           }
 
-          case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE:
+          case kv::ApplySuccess::PASS_BACKUP_SIGNATURE:
           {
             break;
           }
-          case kv::DeserialiseSuccess::PASS_NEW_VIEW:
+          case kv::ApplySuccess::PASS_NEW_VIEW:
           {
             view_change_tracker->clear(
               get_primary(ds->get_term()) == id(), ds->get_term());
@@ -1213,7 +1205,7 @@ namespace aft
             break;
           }
 
-          case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
+          case kv::ApplySuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
           {
             try_send_sig_ack(
               {ds->get_term(), ds->get_index()},
@@ -1221,7 +1213,7 @@ namespace aft
             break;
           }
 
-          case kv::DeserialiseSuccess::PASS_NONCES:
+          case kv::ApplySuccess::PASS_NONCES:
           {
             request_tracker->insert_signed_request(
               state->last_idx,
@@ -1230,7 +1222,7 @@ namespace aft
             break;
           }
 
-          case kv::DeserialiseSuccess::PASS:
+          case kv::ApplySuccess::PASS:
           {
             if (consensus_type == ConsensusType::BFT)
             {
@@ -1240,14 +1232,14 @@ namespace aft
             break;
           }
 
-          case kv::DeserialiseSuccess::PASS_SNAPSHOT_EVIDENCE:
+          case kv::ApplySuccess::PASS_SNAPSHOT_EVIDENCE:
           {
             break;
           }
 
           default:
           {
-            throw std::logic_error("Unknown DeserialiseSuccess value");
+            throw std::logic_error("Unknown ApplySuccess value");
           }
         }
       }

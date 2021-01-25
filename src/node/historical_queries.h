@@ -202,22 +202,22 @@ namespace ccf::historical
 
       store->set_encryptor(source_store.get_encryptor());
       const auto deserialise_result =
-        store->deserialise(entry, ConsensusType::CFT)->Execute();
+        store->apply(entry, ConsensusType::CFT)->execute();
 
       switch (deserialise_result)
       {
-        case kv::DeserialiseSuccess::FAILED:
+        case kv::ApplySuccess::FAILED:
         {
           throw std::logic_error("Deserialise failed!");
           break;
         }
-        case kv::DeserialiseSuccess::PASS:
-        case kv::DeserialiseSuccess::PASS_SIGNATURE:
-        case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE:
-        case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
-        case kv::DeserialiseSuccess::PASS_NONCES:
-        case kv::DeserialiseSuccess::PASS_NEW_VIEW:
-        case kv::DeserialiseSuccess::PASS_SNAPSHOT_EVIDENCE:
+        case kv::ApplySuccess::PASS:
+        case kv::ApplySuccess::PASS_SIGNATURE:
+        case kv::ApplySuccess::PASS_BACKUP_SIGNATURE:
+        case kv::ApplySuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
+        case kv::ApplySuccess::PASS_NONCES:
+        case kv::ApplySuccess::PASS_NEW_VIEW:
+        case kv::ApplySuccess::PASS_SNAPSHOT_EVIDENCE:
         {
           LOG_DEBUG_FMT("Processed transaction at {}", idx);
 
@@ -241,7 +241,7 @@ namespace ccf::historical
             }
           }
 
-          if (deserialise_result == kv::DeserialiseSuccess::PASS_SIGNATURE)
+          if (deserialise_result == kv::ApplySuccess::PASS_SIGNATURE)
           {
             // This looks like a valid signature - try to use this signature to
             // move some stores from untrusted to trusted

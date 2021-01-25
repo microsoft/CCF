@@ -196,13 +196,13 @@ namespace aft
 #endif
     }
 
-    virtual kv::DeserialiseSuccess deserialise(
+    virtual kv::ApplySuccess apply(
       const std::vector<uint8_t>& data,
       kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
       Term* term = nullptr)
     {
-      return kv::DeserialiseSuccess::PASS;
+      return kv::ApplySuccess::PASS;
     }
 
     kv::Version current_version()
@@ -210,7 +210,7 @@ namespace aft
       return kv::NoVersion;
     }
 
-    virtual kv::DeserialiseSuccess deserialise_views(
+    virtual kv::ApplySuccess deserialise_views(
       const std::vector<uint8_t>& data,
       kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
@@ -219,7 +219,7 @@ namespace aft
       kv::Tx* tx = nullptr,
       ccf::PrimarySignature* sig = nullptr)
     {
-      return kv::DeserialiseSuccess::PASS;
+      return kv::ApplySuccess::PASS;
     }
 
     class ExecutionWrapper : public kv::AbstractExecutionWrapper
@@ -227,9 +227,9 @@ namespace aft
     public:
       ExecutionWrapper(const std::vector<uint8_t>& data_) : data(data_) {}
 
-      kv::DeserialiseSuccess Execute() override
+      kv::ApplySuccess execute() override
       {
-        return kv::DeserialiseSuccess::PASS;
+        return kv::ApplySuccess::PASS;
       }
 
       kv::ConsensusHookPtrs& get_hooks() override
@@ -266,7 +266,7 @@ namespace aft
       kv::ConsensusHookPtrs hooks;
     };
 
-    virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialise(
+    virtual std::unique_ptr<kv::AbstractExecutionWrapper> apply(
       const std::vector<uint8_t>& data,
       ConsensusType consensus_type,
       bool public_only = false)
@@ -290,13 +290,13 @@ namespace aft
   public:
     LoggingStubStoreSig(aft::NodeId id) : LoggingStubStore(id) {}
 
-    kv::DeserialiseSuccess deserialise(
+    kv::ApplySuccess apply(
       const std::vector<uint8_t>& data,
       kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
       Term* term = nullptr) override
     {
-      return kv::DeserialiseSuccess::PASS_SIGNATURE;
+      return kv::ApplySuccess::PASS_SIGNATURE;
     }
   };
 
