@@ -33,24 +33,24 @@ By name:
 .. code-block:: cpp
 
     // Handle for map1
-    auto map1_handle = tx.get_view<kv::Map<string, string>>("map1");
+    auto map1_handle = tx.get_handle<kv::Map<string, string>>("map1");
     
     // Handles for 2 other maps, one public and one private, with different types
-    auto map2_handle = tx.get_view<kv::Map<string, uint64_t>>("public:map2");
-    auto map3_handle = tx.get_view<kv::Map<uint64_t, MyCustomClass>>("map3");
+    auto map2_handle = tx.get_handle<kv::Map<string, uint64_t>>("public:map2");
+    auto map3_handle = tx.get_handle<kv::Map<uint64_t, MyCustomClass>>("map3");
 
 By ``Map``:
 
 .. code-block:: cpp
 
     kv::Map<string, string> map_priv("map1");
-    auto map1_handle = tx.get_view(map_priv);
+    auto map1_handle = tx.get_handle(map_priv);
 
     kv::Map<string, stuint64_tring> map_pub("public:map2");
-    auto map2_handle = tx.get_view(map_pub);
+    auto map2_handle = tx.get_handle(map_pub);
 
     kv::Map<uint64_t, string> MyCustomClass("map3");
-    auto map3_handle = tx.get_view(map_priv_int);
+    auto map3_handle = tx.get_handle(map_priv_int);
 
 The latter approach introduces a named binding between the map's name and the types of its keys and values, reducing the chance for errors where code attempts to read a map with the wrong type.
 
@@ -109,13 +109,13 @@ If a Key-Value pair was written to a ``Map`` by a previous ``Transaction``, it i
 .. code-block:: cpp
 
     // In transaction A, assuming that "key1" has already been committed
-    auto handle = tx.get_view(map_priv);
+    auto handle = tx.get_handle(map_priv);
     auto v = handle->get("key1"); // v.value() == "value1"
     handle->remove("key1");
     auto rc = tx.commit();
 
     // In a later transaction B, which sees the state after A is applied
-    auto handle = tx.get_view(map_priv);
+    auto handle = tx.get_handle(map_priv);
     auto v1 = handle->get("key1"); // v1.has_value() == false
 
 Global commit
@@ -129,7 +129,7 @@ The :cpp:func:`kv::MapHandle::get_globally_committed` member function returns th
 .. code-block:: cpp
 
     // Assuming that "key1":"value1" has already been committed
-    auto handle = tx.get_view(map_priv);
+    auto handle = tx.get_handle(map_priv);
 
     // "key1" has not yet been globally committed
     auto v = handle.get_globally_committed("key1");
@@ -158,7 +158,7 @@ CCF offers a member function :cpp:func:`kv::MapHandle::foreach` to iterate over 
     using namespace std;
 
     // Assuming that "key1":"value1" and "key2":"value2" have already been committed
-    auto handle = tx.get_view(map_priv);
+    auto handle = tx.get_handle(map_priv);
 
     // Outputs:
     //  key: key1 - value: value1
@@ -183,7 +183,7 @@ By default CCF decides which transactions are successful (so should be applied t
 .. code-block:: cpp
 
     args.rpc_ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
-    auto handle = tx.get_view(forbidden_requests);
+    auto handle = tx.get_handle(forbidden_requests);
 
     // Log details of forbidden request
     handle->put(...);

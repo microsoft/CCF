@@ -37,7 +37,7 @@ Transaction
 
 .. doxygenclass:: kv::Tx
    :project: CCF
-   :members: get_view
+   :members: get_handle
 
 Transaction View
 ----------------
