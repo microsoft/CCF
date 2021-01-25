@@ -32,6 +32,8 @@
 
 namespace ccf
 {
+  constexpr auto INVALID_PROPOSAL_ID = "INVALID";
+
   static oe_result_t oe_verify_attestation_certificate_with_evidence_cb(
     oe_claim_t* claims, size_t claims_length, void* arg)
   {
@@ -365,7 +367,7 @@ namespace ccf
       auto key_issuer =
         tx.get_view(this->network.jwt_public_signing_key_issuer);
 
-      auto log_prefix = proposal_id.empty() ?
+      auto log_prefix = proposal_id == INVALID_PROPOSAL_ID ?
         "JWT key auto-refresh" :
         fmt::format("Proposal {}", proposal_id);
 
@@ -2008,7 +2010,11 @@ namespace ccf
         }
 
         if (!set_jwt_public_signing_keys(
-              ctx.tx, "", parsed.issuer, issuer_metadata, parsed.jwks))
+              ctx.tx,
+              INVALID_PROPOSAL_ID,
+              parsed.issuer,
+              issuer_metadata,
+              parsed.jwks))
         {
           LOG_FAIL_FMT(
             "JWT key auto-refresh: error while storing signing keys for issuer "
