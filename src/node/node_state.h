@@ -384,6 +384,10 @@ namespace ccf
           // complete
           recovery_snapshot_tx_interval = config.snapshot_tx_interval;
 
+          LOG_FAIL_FMT(
+            "Recovery: snapshot interval set to {}",
+            recovery_snapshot_tx_interval);
+
           bool from_snapshot = !config.startup_snapshot.empty();
           setup_recovery_hook(from_snapshot);
 
@@ -528,10 +532,13 @@ namespace ccf
                 // recovery store
                 startup_snapshot_info.reset();
               }
-              else
-              {
-                recovery_snapshot_tx_interval = config.snapshot_tx_interval;
-              }
+              // else
+              // {
+              //   recovery_snapshot_tx_interval = config.snapshot_tx_interval;
+              //   LOG_FAIL_FMT(
+              //     "Joiner snapshot tx interval: {}",
+              //     recovery_snapshot_tx_interval);
+              // }
 
               LOG_INFO_FMT(
                 "Joiner successfully resumed from snapshot at seqno {} and "
@@ -549,6 +556,17 @@ namespace ccf
               last_recovered_signed_idx =
                 resp.network_info.last_recovered_signed_idx;
               setup_recovery_hook(startup_snapshot_info != nullptr);
+
+              recovery_snapshot_tx_interval = config.snapshot_tx_interval;
+
+              // TODO: Only way to tell the new joiner to snapshot at the right
+              // interval but the backup should not snapshot while in public
+              // only mode!!!!
+              snapshotter->set_tx_interval(config.snapshot_tx_interval);
+              LOG_FAIL_FMT(
+                "Joiner snapshot tx interval: {}",
+                recovery_snapshot_tx_interval);
+
               sm.advance(State::partOfPublicNetwork);
             }
             else
@@ -1000,6 +1018,8 @@ namespace ccf
 
       // Snapshots are only generated after recovery is complete
       snapshotter->set_tx_interval(recovery_snapshot_tx_interval);
+      LOG_FAIL_FMT(
+        "Snapshot generation re-started to: {}", recovery_snapshot_tx_interval);
 
       // Open the service
       if (consensus->is_primary())

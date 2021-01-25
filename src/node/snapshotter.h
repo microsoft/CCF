@@ -138,6 +138,7 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
       snapshot_tx_interval = snapshot_tx_interval_;
+      LOG_FAIL_FMT("Snapshotter interval set to {}", snapshot_tx_interval);
     }
 
     void set_last_snapshot_idx(consensus::Index idx)

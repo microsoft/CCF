@@ -493,83 +493,73 @@ class Network:
                 h.update(b)
         return h.hexdigest()
 
-    def stop_all_nodes(self):
+    def stop_node(self, node, primary=None):
+        if primary is None:
+            primary, _ = self.find_primary()
 
-        # TODO:
-        # 1. Replace node.stop() with network.stop(node)
+        errors = node.stop()
 
-        primary, _ = self.find_primary()
-        primary_current_ledger_dir, primary_committed_ledger_dir = primary.get_ledger(
-            include_read_only_dirs=True
-        )
-
-        input("")
-
-        LOG.error(primary_current_ledger_dir)
-        LOG.error(primary_committed_ledger_dir)
-
-        primary_current_ledger_dir = None
-        primary_committed_ledger_dir = None
-        backups_current_ledger_dirs = []
-        backups_committed_ledger_dirs = []
-
-        fatal_error_found = False
-        for node in self.nodes:  # TODO: What about nodes that are already stopped??
-            _, fatal_errors = node.stop()
-
-            current_ledger, committed_ledger = node.get_ledger(
+        if node != primary:
+            LOG.info(
+                f"Verifying stopped node {node.node_id} ledger consistency with primary node {primary.node_id}"
+            )
+            _, primary_committed_ledger_dir = primary.get_ledger(
                 include_read_only_dirs=True
             )
-            if node == primary:
-                primary_current_ledger_dir = current_ledger
-                primary_committed_ledger_dir = committed_ledger
-                LOG.error("Primary ledger!")
-            else:
-                backups_current_ledger_dirs.append(current_ledger)
-                backups_committed_ledger_dirs.append(committed_ledger)
-                LOG.error("Backup ledger!")
 
-            # Verify that:
-            # 1. Committed ledger files from are the same on another 2f nodes at least!
-            # 2.
+            _, stopped_node_committed_ledger_dir = node.get_ledger(
+                include_read_only_dirs=True
+            )
 
-            delayed_backups_info = defaultdict(list)
-
-            primary_committed_ledgers = os.listdir(primary_committed_ledger_dir)
-            LOG.warning(primary_committed_ledgers)
-
-            for primary_ledger in sorted(os.listdir(primary_committed_ledger_dir)):
-                LOG.info(f"Checking {primary_ledger}...")
-                primary_ledger_digest = self.compute_file_checksum(
-                    os.path.join(primary_committed_ledger_dir, primary_ledger)
+            # Verify that all ledger files present on the stopped node are also
+            # present on the primary, and identical
+            for stopped_node_ledger in sorted(
+                os.listdir(stopped_node_committed_ledger_dir)
+            ):
+                stopped_node_ledger_checksum = self.compute_file_checksum(
+                    os.path.join(stopped_node_committed_ledger_dir, stopped_node_ledger)
                 )
-                for backup_committed_ledger_dir in backups_committed_ledger_dirs:
-                    # for backup_ledger in os.listdir(backup_committed_ledger_dir):
-                    backup_ledger = os.path.join(
-                        backup_committed_ledger_dir, primary_ledger
+
+                if stopped_node_ledger not in os.listdir(primary_committed_ledger_dir):
+                    raise Exception(
+                        f"Ledger file on stopped node {node.node_id} does not exist on primary {primary.node_id}: {stopped_node_ledger}"
                     )
-                    if not os.path.exists(backup_ledger):
-                        delayed_backups_info[backup_committed_ledger_dir].append(
-                            primary_ledger
-                        )
-                        continue
 
-                    if (
-                        self.compute_file_checksum(backup_ledger)
-                        != primary_ledger_digest
-                    ):
-                        assert False
+                primary_ledger = os.path.join(
+                    primary_committed_ledger_dir, stopped_node_ledger
+                )
+                if (
+                    self.compute_file_checksum(primary_ledger)
+                    != stopped_node_ledger_checksum
+                ):
+                    raise Exception(
+                        f"Ledger file checksums between stopped node {node.node_id} and primary {primary.node_id} did not match: {stopped_node_ledger}"
+                    )
 
-            for key, value in delayed_backups_info.items():
-                LOG.error(key)
-                LOG.success(value)
+            LOG.info(
+                f"Ledger files on stopped node {node.node_id} successfully matched those of primary {primary.node_id}"
+            )
 
-            if fatal_errors:
-                fatal_error_found = True
+        return errors
+
+    def stop_all_nodes(self):
+
+        for node in self.nodes:
+            LOG.error(f"Stopping node {node.node_id}: {node.network_state}")
+
+        # TODO: Doesn't work if all nodes are dead!
+        # primary, _ = self.find_primary()
+        primary = None
+
+        fatal_error_found = False
+        for node in self.nodes:
+            LOG.error(f"Stopping node {node.node_id}: {node.network_state}")
+            if node.network_state != infra.node.NodeNetworkState.stopped:
+                _, fatal_errors = self.stop_node(node, primary)
+                if fatal_errors:
+                    fatal_error_found = True
 
         LOG.info("All nodes stopped")
-
-        # TODO: Verify ledger files
 
         if fatal_error_found:
             if self.ignoring_shutdown_errors:
@@ -737,6 +727,7 @@ class Network:
         end_time = time.time() + timeout
         while time.time() < end_time:
             for node in self.get_joined_nodes():
+                LOG.error(f"Connecting to node {node.node_id}")
                 with node.client() as c:
                     try:
                         logs = []
