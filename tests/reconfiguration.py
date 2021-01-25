@@ -159,12 +159,8 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        # for _ in range(1, 10):
-        #     txs.issue(network, number_txs=10)
-
         test_add_node_from_backup(network, args)
         test_add_node(network, args)
-
         test_retire_backup(network, args)
         test_add_as_many_pending_nodes(network, args)
         test_add_node(network, args)

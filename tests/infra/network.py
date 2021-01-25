@@ -13,7 +13,6 @@ import infra.consortium
 from ccf.tx_status import TxStatus
 import random
 from math import ceil
-from collections import defaultdict
 import http
 
 from loguru import logger as LOG
@@ -484,15 +483,6 @@ class Network:
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True
 
-    def compute_file_checksum(self, file_name):
-        import hashlib
-
-        h = hashlib.sha256()
-        with open(file_name, "rb") as f:
-            for b in iter(lambda: f.read(4096), b""):
-                h.update(b)
-        return h.hexdigest()
-
     def stop_node(self, node, primary=None):
         if primary is None:
             primary, _ = self.find_primary()
@@ -500,9 +490,6 @@ class Network:
         errors = node.stop()
 
         if node != primary:
-            LOG.info(
-                f"Verifying stopped node {node.node_id} ledger consistency with primary node {primary.node_id}"
-            )
             _, primary_committed_ledger_dir = primary.get_ledger(
                 include_read_only_dirs=True
             )
@@ -516,7 +503,7 @@ class Network:
             for stopped_node_ledger in sorted(
                 os.listdir(stopped_node_committed_ledger_dir)
             ):
-                stopped_node_ledger_checksum = self.compute_file_checksum(
+                stopped_node_ledger_checksum = infra.path.compute_file_checksum(
                     os.path.join(stopped_node_committed_ledger_dir, stopped_node_ledger)
                 )
 
@@ -543,10 +530,7 @@ class Network:
         return errors
 
     def stop_all_nodes(self):
-
-        # TODO: Doesn't work if all nodes are dead!
-        # primary, _ = self.find_primary()
-        primary = None
+        primary, _ = self.find_primary()
 
         fatal_error_found = False
         for node in self.nodes:

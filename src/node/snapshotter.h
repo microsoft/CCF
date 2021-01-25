@@ -51,7 +51,7 @@ namespace ccf
     consensus::Index last_snapshot_idx = 0;
 
     // Used to suspend snapshot generation during public recovery
-    bool snapshot_generation_enabled = false;
+    bool snapshot_generation_enabled = true;
 
     // Indices at which a snapshot will be next generated
     std::deque<consensus::Index> next_snapshot_indices;
