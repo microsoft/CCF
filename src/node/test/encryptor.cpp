@@ -5,11 +5,11 @@
 #include "kv/encryptor.h"
 
 #include "kv/kv_types.h"
+#include "kv/store.h"
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
 #include "node/entities.h"
 #include "node/ledger_secrets.h"
-#include "node/network_state.h"
 
 #include <doctest/doctest.h>
 #include <random>
@@ -71,7 +71,6 @@ bool corrupt_serialised_tx(
 
 TEST_CASE("Simple encryption/decryption")
 {
-  ccf::NetworkState network;
   uint64_t node_id = 0;
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>(node_id);
   ledger_secrets->init();
@@ -102,7 +101,6 @@ TEST_CASE("Simple encryption/decryption")
 
 TEST_CASE("Subsequent ciphers from same plaintext are different")
 {
-  ccf::NetworkState network;
   uint64_t node_id = 0;
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>(node_id);
   ledger_secrets->init();
@@ -131,7 +129,6 @@ TEST_CASE("Subsequent ciphers from same plaintext are different")
 
 TEST_CASE("Ciphers at same seqno with different terms are different")
 {
-  ccf::NetworkState network;
   uint64_t node_id = 0;
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>(node_id);
   ledger_secrets->init();
@@ -159,7 +156,6 @@ TEST_CASE("Ciphers at same seqno with different terms are different")
 
 TEST_CASE("Ciphers at same seqno/term with and without snapshot are different")
 {
-  ccf::NetworkState network;
   uint64_t node_id = 0;
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>(node_id);
   ledger_secrets->init();
@@ -199,7 +195,6 @@ TEST_CASE("Ciphers at same seqno/term with and without snapshot are different")
 
 TEST_CASE("Additional data")
 {
-  ccf::NetworkState network;
   uint64_t node_id = 0;
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>(node_id);
   ledger_secrets->init();
@@ -239,47 +234,126 @@ TEST_CASE("KV encryption/decryption")
   kv::Store primary_store;
   kv::Store backup_store;
 
-  ccf::NetworkState network;
-  uint64_t node_id = 0;
-  auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>(node_id);
-  ledger_secrets->init();
-  ccf::NodeEncryptor encryptor(ledger_secrets);
+  ccf::NodeId primary_id = 0;
+  ccf::NodeId backup_id = 1;
+  std::shared_ptr<ccf::LedgerSecrets> primary_ledger_secrets;
+  std::shared_ptr<ccf::LedgerSecrets> backup_ledger_secrets;
 
-  // Primary and backup stores have access to same ledger secrets
-  auto primary_encryptor = std::make_shared<ccf::NodeEncryptor>(ledger_secrets);
-  auto backup_encryptor = std::make_shared<ccf::NodeEncryptor>(ledger_secrets);
-
-  INFO("Setup stores");
+  INFO("Initialise and communicate secrets to backup store");
   {
+    // Initialise primary ledger secrets
+    primary_ledger_secrets = std::make_shared<ccf::LedgerSecrets>(primary_id);
+    primary_ledger_secrets->init();
+
+    // Initialise backup ledger secrets from primary
+    auto tx = primary_store.create_tx();
+    auto secrets_so_far = primary_ledger_secrets->get(tx);
+    backup_ledger_secrets = std::make_shared<ccf::LedgerSecrets>(
+      backup_id, primary_ledger_secrets->get(tx));
+
+    auto primary_encryptor =
+      std::make_shared<ccf::NodeEncryptor>(primary_ledger_secrets);
+    auto backup_encryptor =
+      std::make_shared<ccf::NodeEncryptor>(backup_ledger_secrets);
+
     primary_store.set_encryptor(primary_encryptor);
     primary_store.set_consensus(consensus);
     backup_store.set_encryptor(backup_encryptor);
   }
 
-  commit_one(primary_store, map);
-
   INFO("Apply transaction to backup store");
   {
+    commit_one(primary_store, map);
     REQUIRE(
       backup_store.deserialise(*consensus->get_latest_data(), hooks) ==
       kv::DeserialiseSuccess::PASS);
   }
 
-  INFO("Simple rekey");
+  INFO("Rekeys");
   {
-    // In practice, rekey is done via local commit hooks
-    ledger_secrets->set_secret(2, ccf::make_ledger_secret());
-    ledger_secrets->set_secret(3, ccf::make_ledger_secret());
-    ledger_secrets->set_secret(4, ccf::make_ledger_secret());
-    ledger_secrets->set_secret(5, ccf::make_ledger_secret());
+    auto current_version = primary_store.current_version();
+    for (size_t i = 1; i < 3; ++i)
+    {
+      // The primary and caught-up backup always encrypt/decrypt with the latest
+      // available ledger secret
+      auto new_ledger_secret = ccf::make_ledger_secret();
 
-    commit_one(primary_store, map);
+      // In practice, rekey is done via local commit hooks on the secrets table.
+      auto ledger_secret_for_backup = new_ledger_secret;
 
-    auto serialised_tx = consensus->get_latest_data();
+      primary_ledger_secrets->set_secret(
+        current_version + i, std::move(new_ledger_secret));
 
-    REQUIRE(
-      backup_store.deserialise(*serialised_tx, hooks) ==
-      kv::DeserialiseSuccess::PASS);
+      commit_one(primary_store, map);
+
+      backup_ledger_secrets->set_secret(
+        current_version + i, std::move(ledger_secret_for_backup));
+
+      REQUIRE(
+        backup_store.deserialise(*consensus->get_latest_data(), hooks) ==
+        kv::DeserialiseSuccess::PASS);
+    }
+  }
+}
+
+TEST_CASE("Backup catchup from many ledger secrets")
+{
+  auto consensus = std::make_shared<kv::StubConsensus>();
+  StringString map("map");
+  kv::Store primary_store;
+  kv::Store backup_store;
+
+  ccf::NodeId primary_id = 0;
+  ccf::NodeId backup_id = 1;
+  std::shared_ptr<ccf::LedgerSecrets> primary_ledger_secrets;
+  std::shared_ptr<ccf::LedgerSecrets> backup_ledger_secrets;
+
+  INFO("Initialise primary store and rekey ledger secrets a few times");
+  {
+    // Initialise primary ledger secrets
+    primary_ledger_secrets = std::make_shared<ccf::LedgerSecrets>(primary_id);
+    primary_ledger_secrets->init();
+    auto primary_encryptor =
+      std::make_shared<ccf::NodeEncryptor>(primary_ledger_secrets);
+    primary_store.set_encryptor(primary_encryptor);
+    primary_store.set_consensus(consensus);
+
+    auto current_version = primary_store.current_version();
+    for (size_t i = 2; i < 6; ++i)
+    {
+      commit_one(primary_store, map);
+      primary_ledger_secrets->set_secret(
+        current_version + i, ccf::make_ledger_secret());
+    }
+  }
+
+  INFO("Initialise backup from primary");
+  {
+    // Just like in the join protocol, ledger secrets are passed to the joining
+    // node in advance of KV store catch up
+    auto tx = primary_store.create_tx();
+    auto secrets_so_far = primary_ledger_secrets->get(tx);
+    backup_ledger_secrets = std::make_shared<ccf::LedgerSecrets>(
+      backup_id, primary_ledger_secrets->get(tx));
+
+    auto backup_encryptor =
+      std::make_shared<ccf::NodeEncryptor>(backup_ledger_secrets);
+
+    backup_store.set_encryptor(backup_encryptor);
+  }
+
+  // At this point, the backup has been given the ledger secrets but still
+  // needs to catch up (similar to join protocol)
+  INFO("Backup catch up over multiple rekeys");
+  {
+    auto next_entry = consensus->pop_oldest_entry();
+    while (next_entry.has_value())
+    {
+      REQUIRE(
+        backup_store.deserialise(*std::get<1>(next_entry.value()), hooks) ==
+        kv::DeserialiseSuccess::PASS);
+      next_entry = consensus->pop_oldest_entry();
+    }
   }
 }
 
@@ -290,7 +364,6 @@ TEST_CASE("KV integrity verification")
   kv::Store primary_store;
   kv::Store backup_store;
 
-  ccf::NetworkState network;
   uint64_t node_id = 0;
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>(node_id);
   ledger_secrets->init();
@@ -319,12 +392,11 @@ TEST_CASE("KV integrity verification")
     kv::DeserialiseSuccess::FAILED);
 }
 
-TEST_CASE("Encryptor compaction and rollback")
+TEST_CASE("Encryptor rollback")
 {
   StringString map("map");
   kv::Store store;
 
-  ccf::NetworkState network;
   uint64_t node_id = 0;
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>(node_id);
   ledger_secrets->init();
@@ -357,18 +429,6 @@ TEST_CASE("Encryptor compaction and rollback")
   // secret
   commit_one(store, map);
   ledger_secrets->set_secret(7, ccf::make_ledger_secret());
-
-  store.compact(4);
-  encryptor->rollback(1); // No effect as rollback before commit point
-
-  commit_one(store, map);
-
-  encryptor->compact(7);
-
-  commit_one(store, map);
-  commit_one(store, map);
-
-  store.rollback(7); // No effect as rollback unique encryption key
 
   commit_one(store, map);
   commit_one(store, map);

@@ -169,7 +169,9 @@ auto frontend_process(
 }
 
 auto get_proposal(
-  MemberRpcFrontend& frontend, size_t proposal_id, const tls::Pem& caller)
+  MemberRpcFrontend& frontend,
+  const ProposalId& proposal_id,
+  const tls::Pem& caller)
 {
   const auto getter =
     create_request(nullptr, fmt::format("proposals/{}", proposal_id), HTTP_GET);
@@ -180,7 +182,7 @@ auto get_proposal(
 
 auto get_vote(
   MemberRpcFrontend& frontend,
-  size_t proposal_id,
+  ProposalId proposal_id,
   MemberId voter,
   const tls::Pem& caller)
 {
@@ -366,7 +368,7 @@ DOCTEST_TEST_CASE("Proposer ballot")
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  size_t proposal_id;
+  ProposalId proposal_id;
 
   const ccf::Script vote_for("return true");
   const ccf::Script vote_against("return false");
@@ -468,7 +470,7 @@ DOCTEST_TEST_CASE("Reject duplicate vote")
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  size_t proposal_id;
+  ProposalId proposal_id;
 
   const ccf::Script vote_for("return true");
   const ccf::Script vote_against("return false");
@@ -573,7 +575,6 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   auto i = 0ul;
   for (auto& new_member : new_members)
   {
-    const auto proposal_id = i;
     new_member.id = initial_members + i++;
 
     // new member certificate
@@ -600,12 +601,13 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
     const auto propose =
       create_signed_request(proposal, "proposals", kp, member_cert);
 
+    ProposalId proposal_id;
     {
       const auto r = frontend_process(frontend, propose, member_cert);
       const auto result = parse_response_body<Propose::Out>(r);
 
       // the proposal should be accepted, but not succeed immediately
-      DOCTEST_CHECK(result.proposal_id == proposal_id);
+      proposal_id = result.proposal_id;
       DOCTEST_CHECK(result.state == ProposalState::OPEN);
     }
 
@@ -801,7 +803,7 @@ DOCTEST_TEST_CASE("Accept node")
   }
 
   // m0 proposes adding new node
-  ObjectId trust_node_proposal_id;
+  ProposalId trust_node_proposal_id;
   {
     Script proposal(R"xxx(
       local tables, node_id = ...
@@ -855,7 +857,7 @@ DOCTEST_TEST_CASE("Accept node")
   }
 
   // m0 proposes retire node
-  ObjectId retire_node_proposal_id;
+  ProposalId retire_node_proposal_id;
   {
     Script proposal(R"xxx(
       local tables, node_id = ...
@@ -986,7 +988,7 @@ ProposalInfo test_raw_writes(
   }
 
   // propose
-  const auto proposal_id = 0ul;
+  ProposalId proposal_id;
   {
     const uint8_t proposer_id = 0;
     const auto propose =
@@ -997,7 +999,7 @@ ProposalInfo test_raw_writes(
     const auto expected_state =
       (n_members == 1) ? ProposalState::ACCEPTED : ProposalState::OPEN;
     DOCTEST_CHECK(r.state == expected_state);
-    DOCTEST_CHECK(r.proposal_id == proposal_id);
+    proposal_id = r.proposal_id;
     if (r.state == ProposalState::ACCEPTED)
       return r;
   }
@@ -1162,7 +1164,7 @@ DOCTEST_TEST_CASE("Remove proposal")
   gen.finalize();
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
-  auto proposal_id = 0;
+  ProposalId proposal_id;
   auto wrong_proposal_id = 1;
   ccf::Script proposal_script(R"xxx(
       local tables, param = ...
@@ -1182,7 +1184,7 @@ DOCTEST_TEST_CASE("Remove proposal")
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_cert));
 
-    DOCTEST_CHECK(r.proposal_id == proposal_id);
+    proposal_id = r.proposal_id;
     DOCTEST_CHECK(r.state == ProposalState::OPEN);
   }
 
@@ -1294,7 +1296,7 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
   {
     DOCTEST_INFO("Check proposal was rejected");
 
-    const auto proposal = get_proposal(frontend, 0, voter_a_cert);
+    const auto proposal = get_proposal(frontend, r.proposal_id, voter_a_cert);
 
     DOCTEST_CHECK(proposal.state == ProposalState::REJECTED);
   }
@@ -1347,7 +1349,6 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
       frontend_process(frontend, vote, member_cert));
 
     DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
-    DOCTEST_CHECK(r.proposal_id == 0);
 
     auto tx1 = network.tables->create_tx();
     const auto uid = tx1.get_handle(network.values)->get(ValueIds::NEXT_USER_ID);
@@ -1385,7 +1386,6 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
       frontend_process(frontend, vote, member_cert));
 
     DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
-    DOCTEST_CHECK(r.proposal_id == 1);
 
     auto tx1 = network.tables->create_tx();
     auto user = tx1.get_handle(network.users)->get(0);
@@ -1440,7 +1440,7 @@ DOCTEST_TEST_CASE(
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  size_t proposal_id;
+  ProposalId proposal_id;
   size_t proposer_id = 1;
   size_t voter_id = 2;
 
@@ -1578,7 +1578,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  size_t proposal_id;
+  ProposalId proposal_id;
 
   const ccf::Script vote_for("return true");
   const ccf::Script vote_against("return false");
@@ -1759,7 +1759,7 @@ DOCTEST_TEST_CASE(
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  size_t proposal_id;
+  ProposalId proposal_id;
 
   const ccf::Script vote_for("return true");
   const ccf::Script vote_against("return false");

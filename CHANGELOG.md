@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- Governance proposal ids are now digests, hex-encoded as strings.
 - `tx.get_view` can no longer be used to retrieve multiple views in a single call. Instead of `auto [view1, view2] = tx.get_view(map1, map2);`, you must write `auto view1 = tx.get_view(map1); auto view2 = tx.get_view(map2);`.
 
 ## [0.17.1]

@@ -43,12 +43,10 @@ suites["membership_recovery"] = suite_membership_recovery
 
 # This suite tests that nodes addition, deletion and primary changes
 # can be interleaved
-# Note: snapshot tests are not yet integrated in the main test suite
-# as they test historical queries which do not yet work across rekey/recovery
-# https://github.com/microsoft/CCF/issues/1648
 suite_reconfiguration = [
     reconfiguration.test_add_node_from_snapshot,
     reconfiguration.test_retire_primary,
+    rekey.test,
     reconfiguration.test_add_node,
     election.test_kill_primary,
     reconfiguration.test_add_node,
@@ -60,18 +58,6 @@ suite_reconfiguration = [
 ]
 suites["reconfiguration"] = suite_reconfiguration
 
-# Slightly different reconfiguration suite that also interleaves rekeying
-# Once https://github.com/microsoft/CCF/issues/1648 is complete, this can
-# be merged with the main reconfiguration suite
-suite_rekey_reconfiguration = [
-    reconfiguration.test_add_node,
-    reconfiguration.test_retire_primary,
-    rekey.test,
-    reconfiguration.test_add_node,
-    election.test_kill_primary,
-    reconfiguration.test_add_node,
-]
-suites["rekey_reconfiguration"] = suite_rekey_reconfiguration
 
 all_tests_suite = [
     # e2e_logging:

@@ -81,6 +81,9 @@ namespace kv
     // Tables, but its versioning invariants are ignored.
     const bool strict_versions = true;
 
+    // If true, use historical ledger secrets to deserialise entries
+    const bool is_historical = false;
+
     DeserialiseSuccess commit_deserialised(
       OrderedChanges& changes,
       Version& v,
@@ -112,7 +115,10 @@ namespace kv
     }
 
   public:
-    Store(bool strict_versions_ = true) : strict_versions(strict_versions_) {}
+    Store(bool strict_versions_ = true, bool is_historical_ = false) :
+      strict_versions(strict_versions_),
+      is_historical(is_historical_)
+    {}
 
     Store(
       const ReplicateType& replicate_type_,
@@ -352,7 +358,7 @@ namespace kv
         public_only ? kv::SecurityDomain::PUBLIC :
                       std::optional<kv::SecurityDomain>());
 
-      auto v_ = d.init(data.data(), data.size());
+      auto v_ = d.init(data.data(), data.size(), is_historical);
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
@@ -510,12 +516,6 @@ namespace kv
         {
           h->compact(v);
         }
-
-        auto e = get_encryptor();
-        if (e)
-        {
-          e->compact(v);
-        }
       }
 
       for (auto& it : maps)
@@ -628,7 +628,7 @@ namespace kv
         public_only ? kv::SecurityDomain::PUBLIC :
                       std::optional<kv::SecurityDomain>());
 
-      auto v_ = d.init(data.data(), data.size());
+      auto v_ = d.init(data.data(), data.size(), is_historical);
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
@@ -675,7 +675,7 @@ namespace kv
           map = new_map;
           new_maps[map_name] = new_map;
           LOG_DEBUG_FMT(
-            "Creating map {} while deserialising transaction at version {}",
+            "Creating map '{}' while deserialising transaction at version {}",
             map_name,
             v);
         }

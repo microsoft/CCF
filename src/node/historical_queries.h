@@ -196,7 +196,9 @@ namespace ccf::historical
     void deserialise_ledger_entry(
       consensus::Index idx, const LedgerEntry& entry)
     {
-      StorePtr store = std::make_shared<kv::Store>(false);
+      StorePtr store = std::make_shared<kv::Store>(
+        false /* Do not start from very first idx */,
+        true /* Make use of historical secrets */);
 
       store->set_encryptor(source_store.get_encryptor());
       kv::ConsensusHookPtrs hooks;
