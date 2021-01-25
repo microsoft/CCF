@@ -39,12 +39,12 @@ namespace ccf
 
       if (token.has_value())
       {
-        auto keys_view = tx.get_read_only_view<JwtPublicSigningKeys>(
+        auto keys = tx.get_read_only_handle<JwtPublicSigningKeys>(
           ccf::Tables::JWT_PUBLIC_SIGNING_KEYS);
-        auto key_issuer_view = tx.get_read_only_view<JwtPublicSigningKeyIssuer>(
+        auto key_issuers = tx.get_read_only_handle<JwtPublicSigningKeyIssuer>(
           ccf::Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER);
         const auto key_id = token.value().header_typed.kid;
-        const auto token_key = keys_view->get(key_id);
+        const auto token_key = keys->get(key_id);
         if (!token_key.has_value())
         {
           error_reason = "JWT signing key not found";
@@ -57,7 +57,7 @@ namespace ccf
         else
         {
           auto identity = std::make_unique<JwtAuthnIdentity>();
-          identity->key_issuer = key_issuer_view->get(key_id).value();
+          identity->key_issuer = key_issuers->get(key_id).value();
           identity->header = std::move(token->header);
           identity->payload = std::move(token->payload);
           return identity;

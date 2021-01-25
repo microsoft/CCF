@@ -228,21 +228,21 @@ TEST_CASE("Read only views" * doctest::test_suite("dynamic"))
 
   {
     auto tx = kv_store.create_read_only_tx();
-    auto va = tx.get_read_only_view<MapTypes::StringString>(dynamic_map_a);
-    auto vaa = tx.get_read_only_view<MapTypes::StringString>(dynamic_map_a);
-    auto vb = tx.get_read_only_view<MapTypes::StringString>(dynamic_map_b);
-    auto vbb = tx.get_read_only_view<MapTypes::StringString>(dynamic_map_b);
+    auto a = tx.get_read_only_handle<MapTypes::StringString>(dynamic_map_a);
+    auto aa = tx.get_read_only_handle<MapTypes::StringString>(dynamic_map_a);
+    auto b = tx.get_read_only_handle<MapTypes::StringString>(dynamic_map_b);
+    auto bb = tx.get_read_only_handle<MapTypes::StringString>(dynamic_map_b);
 
-    REQUIRE(va != nullptr);
-    REQUIRE(vaa != nullptr);
-    REQUIRE(vb != nullptr);
-    REQUIRE(vbb != nullptr);
+    REQUIRE(a != nullptr);
+    REQUIRE(aa != nullptr);
+    REQUIRE(b != nullptr);
+    REQUIRE(bb != nullptr);
 
-    REQUIRE(va == vaa);
-    REQUIRE(vb == vbb);
+    REQUIRE(a == aa);
+    REQUIRE(b == bb);
 
-    REQUIRE(!va->get("foo").has_value());
-    REQUIRE(!vb->get("foo").has_value());
+    REQUIRE(!a->get("foo").has_value());
+    REQUIRE(!b->get("foo").has_value());
 
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -260,14 +260,14 @@ TEST_CASE("Read only views" * doctest::test_suite("dynamic"))
 
   {
     auto tx = kv_store.create_read_only_tx();
-    auto va = tx.get_read_only_view<MapTypes::StringString>(dynamic_map_a);
-    auto vb = tx.get_read_only_view<MapTypes::StringString>(dynamic_map_b);
+    auto a = tx.get_read_only_handle<MapTypes::StringString>(dynamic_map_a);
+    auto b = tx.get_read_only_handle<MapTypes::StringString>(dynamic_map_b);
 
-    const auto foo_a = va->get("foo");
+    const auto foo_a = a->get("foo");
     REQUIRE(foo_a.has_value());
     REQUIRE(*foo_a == "bar");
 
-    const auto foo_b = vb->get("foo");
+    const auto foo_b = b->get("foo");
     REQUIRE(foo_b.has_value());
     REQUIRE(*foo_b == "baz");
   }

@@ -4,6 +4,7 @@
 
 #include "apply_changes.h"
 #include "ds/ccf_assert.h"
+#include "ds/ccf_deprecated.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
@@ -420,7 +421,7 @@ namespace kv
      * @param m Map
      */
     template <class M>
-    typename M::ReadOnlyHandle* get_read_only_view(M& m)
+    typename M::ReadOnlyHandle* get_read_only_handle(M& m)
     {
       // NB: Always creates a (writeable) MapHandle, which is cast to
       // ReadOnlyHandle on return. This is so that other calls (before or
@@ -436,9 +437,24 @@ namespace kv
      * @param map_name Name of map
      */
     template <class M>
-    typename M::ReadOnlyHandle* get_read_only_view(const std::string& map_name)
+    typename M::ReadOnlyHandle* get_read_only_handle(
+      const std::string& map_name)
     {
       return get_handle_by_name<typename M::Handle>(map_name);
+    }
+
+    template <class M>
+    CCF_DEPRECATED("Replace with get_read_only_handle")
+    typename M::ReadOnlyHandle* get_read_only_view(M& m)
+    {
+      return get_read_only_handle<M>(m);
+    }
+
+    template <class M>
+    CCF_DEPRECATED("Replace with get_read_only_handle")
+    typename M::ReadOnlyHandle* get_read_only_view(const std::string& map_name)
+    {
+      return get_read_only_handle<M>(map_name);
     }
   };
 

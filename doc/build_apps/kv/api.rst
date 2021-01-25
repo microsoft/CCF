@@ -33,7 +33,7 @@ Transaction
 
 .. doxygenclass:: kv::ReadOnlyTx
    :project: CCF
-   :members: get_read_only_view
+   :members: get_read_only_handle
 
 .. doxygenclass:: kv::Tx
    :project: CCF

@@ -91,7 +91,7 @@ For operations which only need to read from a :cpp:class:`kv::Map`, it is possib
 .. code-block:: cpp
 
     // Read-only handle for map_priv
-    auto map1_handle_ro = tx.get_read_only_view(map_priv);
+    auto map1_handle_ro = tx.get_read_only_handle(map_priv);
 
     // Reading from that handle
     auto v1 = map1_handle_ro->get("key1");

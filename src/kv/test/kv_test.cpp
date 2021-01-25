@@ -611,37 +611,37 @@ TEST_CASE("Read-only tx")
   INFO("Do only reads with an overpowered Tx");
   {
     auto tx = kv_store.create_tx();
-    auto view = tx.get_read_only_view(map);
-    REQUIRE(view->has(k));
-    const auto v = view->get(k);
+    auto handle = tx.get_read_only_handle(map);
+    REQUIRE(handle->has(k));
+    const auto v = handle->get(k);
     REQUIRE(v.has_value());
     REQUIRE(v.value() == v1);
 
-    REQUIRE(!view->has(invalid_key));
-    const auto invalid_v = view->get(invalid_key);
+    REQUIRE(!handle->has(invalid_key));
+    const auto invalid_v = handle->get(invalid_key);
     REQUIRE(!invalid_v.has_value());
 
     // The following won't compile:
-    // view->put(k, v1);
-    // view->remove(k);
+    // handle->put(k, v1);
+    // handle->remove(k);
   }
 
   INFO("Read with read-only tx");
   {
     auto tx = kv_store.create_read_only_tx();
-    auto view = tx.get_read_only_view(map);
-    REQUIRE(view->has(k));
-    const auto v = view->get(k);
+    auto handle = tx.get_read_only_handle(map);
+    REQUIRE(handle->has(k));
+    const auto v = handle->get(k);
     REQUIRE(v.has_value());
     REQUIRE(v.value() == v1);
 
-    REQUIRE(!view->has(invalid_key));
-    const auto invalid_v = view->get(invalid_key);
+    REQUIRE(!handle->has(invalid_key));
+    const auto invalid_v = handle->get(invalid_key);
     REQUIRE(!invalid_v.has_value());
 
     // The following won't compile:
-    // view->put(k, v1);
-    // view->remove(k);
+    // handle->put(k, v1);
+    // handle->remove(k);
   }
 }
 
