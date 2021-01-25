@@ -306,7 +306,7 @@ namespace ccf
         result.last_recovered_seqno = lrs;
 
         auto sig_view =
-          args.tx.template get_read_only_view<Signatures>(Tables::SIGNATURES);
+          args.tx.template get_read_only_handle<Signatures>(Tables::SIGNATURES);
         auto sig = sig_view->get(0);
         if (!sig.has_value())
         {
@@ -372,9 +372,9 @@ namespace ccf
       auto get_quotes = [this](auto& args, nlohmann::json&&) {
         GetQuotes::Out result;
 
-        auto nodes_view = args.tx.get_read_only_view(network.nodes);
-        nodes_view->foreach([& quotes = result.quotes](
-                              const auto& node_id, const auto& node_info) {
+        auto nodes = args.tx.get_read_only_handle(network.nodes);
+        nodes->foreach([& quotes = result.quotes](
+                         const auto& node_id, const auto& node_info) {
           if (node_info.status == ccf::NodeStatus::TRUSTED)
           {
             Quote q;
@@ -408,7 +408,7 @@ namespace ccf
 
       auto network_status = [this](auto& args, nlohmann::json&&) {
         GetNetworkInfo::Out out;
-        auto service_view = args.tx.get_read_only_view(network.service);
+        auto service_view = args.tx.get_read_only_handle(network.service);
         auto service_state = service_view->get(0);
         if (service_state.has_value())
         {
@@ -419,8 +419,8 @@ namespace ccf
 
             auto primary_id = consensus->primary();
             auto view_change_in_progress = consensus->view_change_in_progress();
-            auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
-            auto info = nodes_view->get(primary_id);
+            auto nodes = args.tx.get_read_only_handle(this->network.nodes);
+            auto info = nodes->get(primary_id);
             if (info)
             {
               out.primary_id = primary_id;
@@ -448,8 +448,8 @@ namespace ccf
         const auto in = params.get<GetNodes::In>();
         GetNodes::Out out;
 
-        auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
-        nodes_view->foreach(
+        auto nodes = args.tx.get_read_only_handle(this->network.nodes);
+        nodes->foreach(
           [this, &in, &out](const NodeId& nid, const NodeInfo& ni) {
             if (in.host.has_value() && in.host.value() != ni.pubhost)
               return true;
@@ -495,8 +495,8 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
-        auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
-        auto info = nodes_view->get(node_id);
+        auto nodes = args.tx.get_read_only_handle(this->network.nodes);
+        auto info = nodes->get(node_id);
 
         if (!info)
         {
@@ -530,8 +530,8 @@ namespace ccf
 
       auto get_self_node = [this](ReadOnlyEndpointContext& args) {
         auto node_id = this->node.get_node_id();
-        auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
-        auto info = nodes_view->get(node_id);
+        auto nodes = args.tx.get_read_only_handle(this->network.nodes);
+        auto info = nodes->get(node_id);
         if (info)
         {
           args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
@@ -560,9 +560,9 @@ namespace ccf
         {
           auto node_id = this->node.get_node_id();
           auto primary_id = consensus->primary();
-          auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
-          auto info = nodes_view->get(node_id);
-          auto info_primary = nodes_view->get(primary_id);
+          auto nodes = args.tx.get_read_only_handle(this->network.nodes);
+          auto info = nodes->get(node_id);
+          auto info_primary = nodes->get(primary_id);
           if (info && info_primary)
           {
             args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
@@ -598,8 +598,8 @@ namespace ccf
           if (consensus != nullptr)
           {
             NodeId primary_id = consensus->primary();
-            auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
-            auto info = nodes_view->get(primary_id);
+            auto nodes = args.tx.get_read_only_handle(this->network.nodes);
+            auto info = nodes->get(primary_id);
             if (info)
             {
               args.rpc_ctx->set_response_header(

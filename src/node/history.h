@@ -557,9 +557,9 @@ namespace ccf
       // deserialising the tree in the signatures table and then applying the
       // hash of the transaction at which the snapshot was taken
       auto tx = store.create_read_only_tx();
-      auto sig_tv = tx.template get_read_only_view<ccf::Signatures>(
+      auto signatures = tx.template get_read_only_handle<ccf::Signatures>(
         ccf::Tables::SIGNATURES);
-      auto sig = sig_tv->get(0);
+      auto sig = signatures->get(0);
       if (!sig.has_value())
       {
         LOG_FAIL_FMT("No signature found in signatures map");

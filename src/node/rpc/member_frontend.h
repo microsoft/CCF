@@ -719,7 +719,7 @@ namespace ccf
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<SetJwtIssuer>();
            auto issuers = tx.get_view(this->network.jwt_issuers);
-           auto ca_certs = tx.get_read_only_view(this->network.ca_certs);
+           auto ca_certs = tx.get_read_only_handle(this->network.ca_certs);
 
            if (parsed.auto_refresh)
            {
@@ -1121,7 +1121,7 @@ namespace ccf
       MemberId id,
       std::initializer_list<MemberStatus> allowed)
     {
-      auto member = tx.get_read_only_view(this->network.members)->get(id);
+      auto member = tx.get_read_only_handle(this->network.members)->get(id);
       if (!member)
       {
         return false;
@@ -1330,7 +1330,7 @@ namespace ccf
               HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
           }
 
-          auto proposals = ctx.tx.get_read_only_view(this->network.proposals);
+          auto proposals = ctx.tx.get_read_only_handle(this->network.proposals);
           auto proposal = proposals->get(proposal_id);
 
           if (!proposal)
@@ -1521,7 +1521,7 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
-        auto proposals = ctx.tx.get_read_only_view(this->network.proposals);
+        auto proposals = ctx.tx.get_read_only_handle(this->network.proposals);
         auto proposal = proposals->get(proposal_id);
         if (!proposal)
         {
@@ -1903,8 +1903,8 @@ namespace ccf
         }
 
         auto primary_id = consensus->primary();
-        auto nodes_view = ctx.tx.get_read_only_view(this->network.nodes);
-        auto info = nodes_view->get(primary_id);
+        auto nodes = ctx.tx.get_read_only_handle(this->network.nodes);
+        auto info = nodes->get(primary_id);
         if (!info.has_value())
         {
           LOG_FAIL_FMT(

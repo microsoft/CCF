@@ -1391,30 +1391,29 @@ namespace ccfapp
     {
       UserEndpointRegistry::build_api(document, tx);
 
-      auto endpoints_view = tx.get_read_only_view<ccf::endpoints::EndpointsMap>(
+      auto endpoints = tx.get_read_only_handle<ccf::endpoints::EndpointsMap>(
         ccf::Tables::ENDPOINTS);
 
-      endpoints_view->foreach(
-        [&document](const auto& key, const auto& properties) {
-          const auto http_verb = key.verb.get_http_method();
-          if (!http_verb.has_value())
-          {
-            return true;
-          }
-
-          if (!properties.openapi_hidden)
-          {
-            auto& path_op = ds::openapi::path_operation(
-              ds::openapi::path(document, key.uri_path), http_verb.value());
-            if (!properties.openapi.empty())
-            {
-              path_op.insert(
-                properties.openapi.cbegin(), properties.openapi.cend());
-            }
-          }
-
+      endpoints->foreach([&document](const auto& key, const auto& properties) {
+        const auto http_verb = key.verb.get_http_method();
+        if (!http_verb.has_value())
+        {
           return true;
-        });
+        }
+
+        if (!properties.openapi_hidden)
+        {
+          auto& path_op = ds::openapi::path_operation(
+            ds::openapi::path(document, key.uri_path), http_verb.value());
+          if (!properties.openapi.empty())
+          {
+            path_op.insert(
+              properties.openapi.cbegin(), properties.openapi.cend());
+          }
+        }
+
+        return true;
+      });
     }
 
     void tick(

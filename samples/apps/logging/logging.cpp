@@ -166,11 +166,11 @@ namespace loggingapp
       auto get =
         [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&& params) {
           const auto in = params.get<LoggingGet::In>();
-          auto view = args.tx.get_read_only_view(records);
-          auto r = view->get(in.id);
+          auto records_handle = args.tx.get_read_only_handle(records);
+          auto record = records_handle->get(in.id);
 
-          if (r.has_value())
-            return ccf::make_success(LoggingGet::Out{r.value()});
+          if (record.has_value())
+            return ccf::make_success(LoggingGet::Out{record.value()});
 
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -233,11 +233,11 @@ namespace loggingapp
       auto get_public =
         [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&& params) {
           const auto in = params.get<LoggingGet::In>();
-          auto view = args.tx.get_read_only_view(public_records);
-          auto r = view->get(in.id);
+          auto public_records_handle = args.tx.get_read_only_handle(public_records);
+          auto record = public_records_handle->get(in.id);
 
-          if (r.has_value())
-            return ccf::make_success(LoggingGet::Out{r.value()});
+          if (record.has_value())
+            return ccf::make_success(LoggingGet::Out{record.value()});
 
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -532,8 +532,8 @@ namespace loggingapp
         const auto in = params.get<LoggingGetHistorical::In>();
 
         auto historical_tx = historical_store->create_read_only_tx();
-        auto view = historical_tx.get_read_only_view(records);
-        const auto v = view->get(in.id);
+        auto records_handle = historical_tx.get_read_only_handle(records);
+        const auto v = records_handle->get(in.id);
 
         if (v.has_value())
         {
