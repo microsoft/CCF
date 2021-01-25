@@ -163,7 +163,7 @@ namespace ccf
     consensus::Index last_recovered_signed_idx = 1;
     std::list<RecoveredLedgerSecret> recovery_ledger_secrets;
     consensus::Index ledger_idx = 0;
-    size_t recovery_snapshot_tx_interval = Snapshotter::max_tx_interval;
+    // size_t recovery_snapshot_tx_interval = Snapshotter::max_tx_interval;
 
     struct StartupSnapshotInfo
     {
@@ -382,12 +382,12 @@ namespace ccf
 
           // Snapshot generation is disabled until private recovery is
           // complete
-          recovery_snapshot_tx_interval = config.snapshot_tx_interval;
+          // recovery_snapshot_tx_interval = config.snapshot_tx_interval;
           snapshotter->set_tx_interval(config.snapshot_tx_interval);
 
-          LOG_FAIL_FMT(
-            "Recovery: snapshot interval set to {}",
-            recovery_snapshot_tx_interval);
+          // LOG_FAIL_FMT(
+          //   "Recovery: snapshot interval set to {}",
+          //   recovery_snapshot_tx_interval);
 
           bool from_snapshot = !config.startup_snapshot.empty();
           setup_recovery_hook(from_snapshot);
@@ -545,28 +545,17 @@ namespace ccf
 
             accept_network_tls_connections(config);
 
-            // TODO: Only way to tell the new joiner to snapshot at the right
-            // interval but the backup should not snapshot while in public
-            // only mode!!!!
-            // snapshotter->set_tx_interval(
-            //   config.snapshot_tx_interval,
-            //   resp.network_info.last_recovered_signed_idx);
-            // LOG_FAIL_FMT(
-            //   "Joiner snapshot tx interval: {}",
-            //   recovery_snapshot_tx_interval);
-
             if (resp.network_info.public_only)
             {
               last_recovered_signed_idx =
                 resp.network_info.last_recovered_signed_idx;
               setup_recovery_hook(startup_snapshot_info != nullptr);
 
-              // TODO: Still needed?
-              recovery_snapshot_tx_interval = config.snapshot_tx_interval;
+              // recovery_snapshot_tx_interval = config.snapshot_tx_interval;
 
               snapshotter->set_tx_interval(config.snapshot_tx_interval);
-              snapshotter->suspend_snapshot_generation_up_to(
-                resp.network_info.last_recovered_signed_idx);
+              // snapshotter->suspend_snapshot_generation_up_to(
+              //   resp.network_info.last_recovered_signed_idx);
 
               sm.advance(State::partOfPublicNetwork);
             }
@@ -748,16 +737,13 @@ namespace ccf
         hook->call(consensus.get());
       }
 
-      // If the ledger entry is a signature, it is safe to compact the store
       if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
       {
+        // If the ledger entry is a signature, it is safe to compact the store
         network.tables->compact(ledger_idx);
         auto tx = network.tables->create_tx();
         GenesisGenerator g(network, tx);
         auto last_sig = g.get_last_signature();
-
-        // TODO: Assumes it's chunking!
-        snapshotter->requires_snapshot(ledger_idx);
 
         if (!last_sig.has_value())
         {
@@ -791,6 +777,12 @@ namespace ccf
         {
           startup_snapshot_info->is_evidence_committed = true;
         }
+
+        // Inform snapshotter of all signature entries so that this node can
+        // continue generating snapshots at the correct interval once the
+        // recovery is complete
+        snapshotter->requires_snapshot(ledger_idx);
+        snapshotter->commit(ledger_idx);
       }
       else if (
         result == kv::DeserialiseSuccess::PASS_SNAPSHOT_EVIDENCE &&
@@ -896,9 +888,9 @@ namespace ccf
       setup_encryptor(true);
 
       // Set snapshot interval but do not actually create snapshots!
-      snapshotter->set_tx_interval(recovery_snapshot_tx_interval);
-      snapshotter->suspend_snapshot_generation_up_to(last_recovered_signed_idx);
-      snapshotter->reset();
+      // snapshotter->set_tx_interval(recovery_snapshot_tx_interval);
+      // snapshotter->suspend_snapshot_generation_up_to(last_recovered_signed_idx);
+      snapshotter->init_after_public_recovery();
 
       kv::Version index = 0;
       kv::Term view = 0;
@@ -1001,7 +993,7 @@ namespace ccf
       if (recovery_v != recovery_store->current_version())
       {
         throw std::logic_error(fmt::format(
-          "Private recovery did not reach public ledger version: {}/{}",
+          "Private recovery did not reach public ledger seqno: {}/{}",
           recovery_store->current_version(),
           recovery_v));
       }
@@ -1026,9 +1018,10 @@ namespace ccf
       encryptor->disable_recovery();
 
       // Snapshots are only generated after recovery is complete
-      snapshotter->set_tx_interval(recovery_snapshot_tx_interval);
-      LOG_FAIL_FMT(
-        "Snapshot generation re-started to: {}", recovery_snapshot_tx_interval);
+      // snapshotter->set_tx_interval(recovery_snapshot_tx_interval);
+      // LOG_FAIL_FMT(
+      //   "Snapshot generation re-started to: {}",
+      //   recovery_snapshot_tx_interval);
 
       // Open the service
       if (consensus->is_primary())

@@ -544,16 +544,12 @@ class Network:
 
     def stop_all_nodes(self):
 
-        for node in self.nodes:
-            LOG.error(f"Stopping node {node.node_id}: {node.network_state}")
-
         # TODO: Doesn't work if all nodes are dead!
         # primary, _ = self.find_primary()
         primary = None
 
         fatal_error_found = False
         for node in self.nodes:
-            LOG.error(f"Stopping node {node.node_id}: {node.network_state}")
             if node.network_state != infra.node.NodeNetworkState.stopped:
                 _, fatal_errors = self.stop_node(node, primary)
                 if fatal_errors:
