@@ -251,16 +251,16 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      while (!next_snapshot_indices.empty() &&
+      while ((next_snapshot_indices.size() > 1) &&
              (next_snapshot_indices.front() < idx))
       {
         next_snapshot_indices.pop_front();
       }
 
-      if (next_snapshot_indices.empty())
-      {
-        next_snapshot_indices.push_back(last_snapshot_idx);
-      }
+      // if (next_snapshot_indices.empty())
+      // {
+      //   next_snapshot_indices.push_back(last_snapshot_idx);
+      // }
 
       LOG_FAIL_FMT("Snapshotter commit: {}", next_snapshot_indices.back());
 
