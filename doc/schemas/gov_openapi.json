@@ -173,7 +173,7 @@
       "ProposalInfo": {
         "properties": {
           "proposal_id": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/string"
           },
           "proposer_id": {
             "$ref": "#/components/schemas/uint64"

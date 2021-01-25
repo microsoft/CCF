@@ -313,7 +313,7 @@ namespace kv
     {}
 
     std::optional<std::tuple<Version, Version>> init(
-      const uint8_t* data, size_t size)
+      const uint8_t* data, size_t size, bool historical_hint = false)
     {
       current_reader = &public_reader;
       auto data_ = data;
@@ -356,7 +356,8 @@ namespace kv
             {data_public, data_public + public_domain_length},
             {data, data + crypto_util->get_header_length()},
             decrypted_buffer,
-            version))
+            version,
+            historical_hint))
       {
         return std::nullopt;
       }
