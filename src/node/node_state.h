@@ -1763,8 +1763,7 @@ namespace ccf
       if (tracker_store == nullptr)
       {
         tracker_store = std::make_shared<ccf::ProgressTrackerStoreAdapter>(
-          *network.tables.get(),
-          *node_sign_kp);
+          *network.tables.get(), *node_sign_kp);
       }
     }
 

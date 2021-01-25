@@ -233,7 +233,8 @@ namespace loggingapp
       auto get_public =
         [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&& params) {
           const auto in = params.get<LoggingGet::In>();
-          auto public_records_handle = args.tx.get_read_only_handle(public_records);
+          auto public_records_handle =
+            args.tx.get_read_only_handle(public_records);
           auto record = public_records_handle->get(in.id);
 
           if (record.has_value())
@@ -596,7 +597,7 @@ namespace loggingapp
             // SNIPPET_START: user_data_check
             // Check caller's user-data for required permissions
             const nlohmann::json user_data = caller_ident.user_data;
-            const auto is_admin_it =  user_data.find("isAdmin");
+            const auto is_admin_it = user_data.find("isAdmin");
 
             // Exit if this user has no user data, or the user data is not an
             // object with isAdmin field, or the value of this field is not true
