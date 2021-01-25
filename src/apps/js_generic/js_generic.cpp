@@ -551,14 +551,14 @@ namespace ccfapp
     }
 
     auto tx_ptr = static_cast<kv::Tx*>(JS_GetOpaque(this_val, kv_class_id));
-    auto view = tx_ptr->get_view<KVMap>(property_name);
+    auto handle = tx_ptr->get_handle<KVMap>(property_name);
 
     // This follows the interface of Map:
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
     // Keys and values are ArrayBuffers. Keys are matched based on their
     // contents.
     auto view_val = JS_NewObjectClass(ctx, kv_map_view_class_id);
-    JS_SetOpaque(view_val, view);
+    JS_SetOpaque(view_val, handle);
 
     JS_SetPropertyStr(
       ctx,
@@ -675,7 +675,7 @@ namespace ccfapp
 
     auto arg = (JSModuleLoaderArg*)opaque;
 
-    const auto modules = arg->tx->get_view(arg->network->modules);
+    const auto modules = arg->tx->get_handle(arg->network->modules);
     auto module = modules->get(module_name_kv);
     if (!module.has_value())
     {
@@ -940,7 +940,7 @@ namespace ccfapp
     {
       const auto local_method = method.substr(method.find_first_not_of('/'));
 
-      const auto scripts = args.tx.get_view(this->network.app_scripts);
+      const auto scripts = args.tx.get_handle(this->network.app_scripts);
 
       // Try to find script for method
       // - First try a script called "foo"
@@ -1292,13 +1292,13 @@ namespace ccfapp
       const auto method = fmt::format("/{}", rpc_ctx.get_method());
       const auto verb = rpc_ctx.get_request_verb();
 
-      auto endpoints_view =
-        tx.get_view<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+      auto endpoints =
+        tx.get_handle<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
 
       const auto key = ccf::endpoints::EndpointKey{method, verb};
 
       // Look for a direct match of the given path
-      const auto it = endpoints_view->get(key);
+      const auto it = endpoints->get(key);
       if (it.has_value())
       {
         auto endpoint_def = std::make_shared<JSDynamicEndpoint>();
@@ -1314,49 +1314,48 @@ namespace ccfapp
       {
         std::vector<EndpointDefinitionPtr> matches;
 
-        endpoints_view->foreach(
-          [this, &matches, &key, &rpc_ctx](
-            const auto& other_key, const auto& properties) {
-            if (key.verb == other_key.verb)
+        endpoints->foreach([this, &matches, &key, &rpc_ctx](
+                             const auto& other_key, const auto& properties) {
+          if (key.verb == other_key.verb)
+          {
+            const auto opt_spec =
+              EndpointRegistry::parse_path_template(other_key.uri_path);
+            if (opt_spec.has_value())
             {
-              const auto opt_spec =
-                EndpointRegistry::parse_path_template(other_key.uri_path);
-              if (opt_spec.has_value())
+              const auto& template_spec = opt_spec.value();
+              // This endpoint has templates in its path, and the correct verb
+              // - now check if template matches the current request's path
+              std::smatch match;
+              if (std::regex_match(
+                    key.uri_path, match, template_spec.template_regex))
               {
-                const auto& template_spec = opt_spec.value();
-                // This endpoint has templates in its path, and the correct verb
-                // - now check if template matches the current request's path
-                std::smatch match;
-                if (std::regex_match(
-                      key.uri_path, match, template_spec.template_regex))
+                if (matches.empty())
                 {
-                  if (matches.empty())
+                  // Populate the request_path_params while we have the match,
+                  // though this will be discarded on error if we later find
+                  // multiple matches
+                  auto& path_params = rpc_ctx.get_request_path_params();
+                  for (size_t i = 0;
+                       i < template_spec.template_component_names.size();
+                       ++i)
                   {
-                    // Populate the request_path_params while we have the match,
-                    // though this will be discarded on error if we later find
-                    // multiple matches
-                    auto& path_params = rpc_ctx.get_request_path_params();
-                    for (size_t i = 0;
-                         i < template_spec.template_component_names.size();
-                         ++i)
-                    {
-                      const auto& template_name =
-                        template_spec.template_component_names[i];
-                      const auto& template_value = match[i + 1].str();
-                      path_params[template_name] = template_value;
-                    }
+                    const auto& template_name =
+                      template_spec.template_component_names[i];
+                    const auto& template_value = match[i + 1].str();
+                    path_params[template_name] = template_value;
                   }
-
-                  auto endpoint = std::make_shared<JSDynamicEndpoint>();
-                  endpoint->dispatch = other_key;
-                  endpoint->properties = properties;
-                  instantiate_authn_policies(*endpoint);
-                  matches.push_back(endpoint);
                 }
+
+                auto endpoint = std::make_shared<JSDynamicEndpoint>();
+                endpoint->dispatch = other_key;
+                endpoint->properties = properties;
+                instantiate_authn_policies(*endpoint);
+                matches.push_back(endpoint);
               }
             }
-            return true;
-          });
+          }
+          return true;
+        });
 
         if (matches.size() > 1)
         {

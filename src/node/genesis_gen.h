@@ -34,7 +34,7 @@ namespace ccf
       T& table,
       const bool compile = false)
     {
-      auto tx_scripts = tx.get_view(table);
+      auto tx_scripts = tx.get_handle(table);
       for (auto& rs : scripts)
       {
         if (compile)
@@ -52,7 +52,7 @@ namespace ccf
 
     void init_values()
     {
-      auto v = tx.get_view(tables.values);
+      auto v = tx.get_handle(tables.values);
       for (int id_type = 0; id_type < ValueIds::END_ID; id_type++)
         v->put(id_type, 0);
     }
@@ -64,36 +64,35 @@ namespace ccf
 
     void retire_active_nodes()
     {
-      auto nodes_view = tx.get_view(tables.nodes);
+      auto nodes = tx.get_handle(tables.nodes);
 
       std::map<NodeId, NodeInfo> nodes_to_delete;
-      nodes_view->foreach(
-        [&nodes_to_delete](const NodeId& nid, const NodeInfo& ni) {
-          // Only retire nodes that have not already been retired
-          if (ni.status != NodeStatus::RETIRED)
-            nodes_to_delete[nid] = ni;
-          return true;
-        });
+      nodes->foreach([&nodes_to_delete](const NodeId& nid, const NodeInfo& ni) {
+        // Only retire nodes that have not already been retired
+        if (ni.status != NodeStatus::RETIRED)
+          nodes_to_delete[nid] = ni;
+        return true;
+      });
 
       for (auto [nid, ni] : nodes_to_delete)
       {
         ni.status = NodeStatus::RETIRED;
-        nodes_view->put(nid, ni);
+        nodes->put(nid, ni);
       }
     }
 
     auto add_consensus(ConsensusType consensus_type)
     {
-      auto cv = tx.get_view(tables.consensus);
+      auto cv = tx.get_handle(tables.consensus);
       cv->put(0, consensus_type);
     }
 
     auto get_active_recovery_members()
     {
-      auto members_view = tx.get_view(tables.members);
+      auto members = tx.get_handle(tables.members);
       std::map<MemberId, tls::Pem> active_members_info;
 
-      members_view->foreach(
+      members->foreach(
         [&active_members_info](const MemberId& mid, const MemberInfo& mi) {
           if (mi.status == MemberStatus::ACTIVE && mi.is_recovery())
           {
@@ -106,12 +105,12 @@ namespace ccf
 
     MemberId add_member(const MemberPubInfo& member_pub_info)
     {
-      auto m = tx.get_view(tables.members);
-      auto mc = tx.get_view(tables.member_certs);
-      auto md = tx.get_view(tables.member_digests);
-      auto v = tx.get_view(tables.values);
-      auto ma = tx.get_view(tables.member_acks);
-      auto sig = tx.get_view(tables.signatures);
+      auto m = tx.get_handle(tables.members);
+      auto mc = tx.get_handle(tables.member_certs);
+      auto md = tx.get_handle(tables.member_digests);
+      auto v = tx.get_handle(tables.values);
+      auto ma = tx.get_handle(tables.member_acks);
+      auto sig = tx.get_handle(tables.signatures);
 
       // The key to a CertDERs table must be a DER, for easy comparison against
       // the DER peer cert retrieved from the connection
@@ -146,7 +145,7 @@ namespace ccf
 
     void activate_member(MemberId member_id)
     {
-      auto members = tx.get_view(tables.members);
+      auto members = tx.get_handle(tables.members);
       auto member = members->get(member_id);
       if (!member.has_value())
       {
@@ -174,7 +173,7 @@ namespace ccf
 
     bool retire_member(MemberId member_id)
     {
-      auto m = tx.get_view(tables.members);
+      auto m = tx.get_handle(tables.members);
       auto member_to_retire = m->get(member_id);
       if (!member_to_retire.has_value())
       {
@@ -219,7 +218,7 @@ namespace ccf
 
     std::optional<MemberInfo> get_member_info(MemberId member_id)
     {
-      auto m = tx.get_view(tables.members);
+      auto m = tx.get_handle(tables.members);
       auto member = m->get(member_id);
       if (!member.has_value())
       {
@@ -231,10 +230,10 @@ namespace ccf
 
     auto add_user(const ccf::UserInfo& user_info)
     {
-      auto u = tx.get_view(tables.users);
-      auto uc = tx.get_view(tables.user_certs);
-      auto ud = tx.get_view(tables.user_digests);
-      auto v = tx.get_view(tables.values);
+      auto u = tx.get_handle(tables.users);
+      auto uc = tx.get_handle(tables.user_certs);
+      auto ud = tx.get_handle(tables.user_digests);
+      auto v = tx.get_handle(tables.values);
 
       auto user_cert_der = tls::make_verifier(user_info.cert)->der_cert_data();
 
@@ -257,8 +256,8 @@ namespace ccf
 
     bool remove_user(UserId user_id)
     {
-      auto u = tx.get_view(tables.users);
-      auto uc = tx.get_view(tables.user_certs);
+      auto u = tx.get_handle(tables.users);
+      auto uc = tx.get_handle(tables.user_certs);
 
       auto user_info = u->get(user_id);
       if (!user_info.has_value())
@@ -277,12 +276,12 @@ namespace ccf
     auto add_node(const NodeInfo& node_info)
     {
       auto node_id =
-        get_next_id(tx.get_view(tables.values), ValueIds::NEXT_NODE_ID);
+        get_next_id(tx.get_handle(tables.values), ValueIds::NEXT_NODE_ID);
 
       auto raw_cert = tls::make_verifier(node_info.cert)->der_cert_data();
 
-      auto node_view = tx.get_view(tables.nodes);
-      node_view->put(node_id, node_info);
+      auto node = tx.get_handle(tables.nodes);
+      node->put(node_id, node_info);
       return node_id;
     }
 
@@ -292,10 +291,10 @@ namespace ccf
       // self_to_exclude is not included in the list of returned nodes.
       std::map<NodeId, NodeInfo> active_nodes;
 
-      auto nodes_view = tx.get_view(tables.nodes);
+      auto nodes = tx.get_handle(tables.nodes);
 
-      nodes_view->foreach([&active_nodes, self_to_exclude](
-                            const NodeId& nid, const NodeInfo& ni) {
+      nodes->foreach([&active_nodes,
+                      self_to_exclude](const NodeId& nid, const NodeInfo& ni) {
         if (
           ni.status == ccf::NodeStatus::TRUSTED &&
           (!self_to_exclude.has_value() || self_to_exclude.value() != nid))
@@ -311,19 +310,19 @@ namespace ccf
     // Service status should use a state machine, very much like NodeState.
     void create_service(const tls::Pem& network_cert)
     {
-      auto service_view = tx.get_view(tables.service);
-      service_view->put(0, {network_cert, ServiceStatus::OPENING});
+      auto service = tx.get_handle(tables.service);
+      service->put(0, {network_cert, ServiceStatus::OPENING});
     }
 
     bool is_service_created()
     {
-      auto service_view = tx.get_view(tables.service);
-      return service_view->get(0).has_value();
+      auto service = tx.get_handle(tables.service);
+      return service->get(0).has_value();
     }
 
     bool open_service()
     {
-      auto service_view = tx.get_view(tables.service);
+      auto service = tx.get_handle(tables.service);
 
       auto active_recovery_members_count = get_active_recovery_members().size();
       if (active_recovery_members_count < get_recovery_threshold())
@@ -336,7 +335,7 @@ namespace ccf
         return false;
       }
 
-      auto active_service = service_view->get(0);
+      auto active_service = service->get(0);
       if (!active_service.has_value())
       {
         LOG_FAIL_FMT("Failed to get active service");
@@ -352,15 +351,15 @@ namespace ccf
       }
 
       active_service->status = ServiceStatus::OPEN;
-      service_view->put(0, active_service.value());
+      service->put(0, active_service.value());
 
       return true;
     }
 
     std::optional<ServiceStatus> get_service_status()
     {
-      auto service_view = tx.get_view(tables.service);
-      auto active_service = service_view->get(0);
+      auto service = tx.get_handle(tables.service);
+      auto active_service = service->get(0);
       if (!active_service.has_value())
       {
         LOG_FAIL_FMT("Failed to get active service");
@@ -372,8 +371,8 @@ namespace ccf
 
     bool service_wait_for_shares()
     {
-      auto service_view = tx.get_view(tables.service);
-      auto active_service = service_view->get(0);
+      auto service = tx.get_handle(tables.service);
+      auto active_service = service->get(0);
       if (!active_service.has_value())
       {
         LOG_FAIL_FMT("Failed to get active service");
@@ -389,15 +388,15 @@ namespace ccf
       }
 
       active_service->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
-      service_view->put(0, active_service.value());
+      service->put(0, active_service.value());
 
       return true;
     }
 
     void trust_node(NodeId node_id, kv::Version latest_ledger_secret_seqno)
     {
-      auto nodes_view = tx.get_view(tables.nodes);
-      auto node_info = nodes_view->get(node_id);
+      auto nodes = tx.get_handle(tables.nodes);
+      auto node_info = nodes->get(node_id);
 
       if (!node_info.has_value())
       {
@@ -411,20 +410,20 @@ namespace ccf
 
       node_info->status = NodeStatus::TRUSTED;
       node_info->ledger_secret_seqno = latest_ledger_secret_seqno;
-      nodes_view->put(node_id, node_info.value());
+      nodes->put(node_id, node_info.value());
 
       LOG_INFO_FMT("Node {} is now {}", node_id, node_info->status);
     }
 
     auto get_last_signature()
     {
-      auto sig_view = tx.get_view(tables.signatures);
-      return sig_view->get(0);
+      auto sig = tx.get_handle(tables.signatures);
+      return sig->get(0);
     }
 
     void set_whitelist(WlIds id, Whitelist wl)
     {
-      tx.get_view(tables.whitelists)->put(id, wl);
+      tx.get_handle(tables.whitelists)->put(id, wl);
     }
 
     void set_gov_scripts(std::map<std::string, std::string> scripts)
@@ -441,19 +440,19 @@ namespace ccf
 
     void trust_node_code_id(CodeDigest& node_code_id)
     {
-      auto codeid_view = tx.get_view(tables.node_code_ids);
-      codeid_view->put(node_code_id, CodeStatus::ALLOWED_TO_JOIN);
+      auto codeid = tx.get_handle(tables.node_code_ids);
+      codeid->put(node_code_id, CodeStatus::ALLOWED_TO_JOIN);
     }
 
     void add_key_share_info(const RecoverySharesInfo& key_share_info)
     {
-      auto shares_view = tx.get_view(tables.shares);
-      shares_view->put(0, key_share_info);
+      auto shares = tx.get_handle(tables.shares);
+      shares->put(0, key_share_info);
     }
 
     bool set_recovery_threshold(size_t threshold, bool allow_zero = false)
     {
-      auto config_view = tx.get_view(tables.config);
+      auto config = tx.get_handle(tables.config);
 
       if (!allow_zero && threshold == 0)
       {
@@ -493,20 +492,20 @@ namespace ccf
         }
       }
 
-      config_view->put(0, {threshold});
+      config->put(0, {threshold});
       return true;
     }
 
     size_t get_recovery_threshold()
     {
-      auto config_view = tx.get_view(tables.config);
-      auto config = config_view->get(0);
-      if (!config.has_value())
+      auto config = tx.get_handle(tables.config);
+      auto current_config = config->get(0);
+      if (!current_config.has_value())
       {
         throw std::logic_error(
           "Failed to get recovery threshold: No active configuration found");
       }
-      return config->recovery_threshold;
+      return current_config->recovery_threshold;
     }
   };
 }

@@ -786,9 +786,7 @@ namespace ccf
             throw std::logic_error("Invalid snapshot evidence");
           }
 
-          if (
-            evidence->hash ==
-            crypto::Sha256Hash(startup_snapshot_info->raw))
+          if (evidence->hash == crypto::Sha256Hash(startup_snapshot_info->raw))
           {
             LOG_DEBUG_FMT(
               "Snapshot evidence for snapshot found at {}",

@@ -62,11 +62,11 @@ namespace ccf
           decltype(auto) name = table.get_name();
 
           using TT = typename T::Handle;
-          auto view = tx.get_view(table);
+          auto h = tx.get_handle(table);
           if constexpr (READ_ONLY)
-            li.push(view);
+            li.push(h);
           else
-            li.push(WT<TT>{view});
+            li.push(WT<TT>{h});
           lua_setfield(li.get_state(), -2, name.c_str());
         }
 
@@ -139,7 +139,7 @@ namespace ccf
 
       Whitelist get_whitelist(kv::Tx& tx, WlId id) const
       {
-        const auto wl = tx.get_view(network_tables.whitelists)->get(id);
+        const auto wl = tx.get_handle(network_tables.whitelists)->get(id);
         if (!wl)
           throw std::logic_error(
             "Whitelist with id: " + std::to_string(id) + " does not exist");

@@ -95,8 +95,8 @@ namespace ccf::historical
       const StorePtr& sig_store)
     {
       auto tx = sig_store->create_tx();
-      auto sig_view = tx.get_view<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      return sig_view->get(0);
+      auto signatures = tx.get_handle<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      return signatures->get(0);
     }
 
     std::optional<ccf::NodeInfo> get_node_info(ccf::NodeId node_id)
@@ -106,8 +106,8 @@ namespace ccf::historical
       // makes no check that the signing node was active at the point it
       // produced this signature
       auto tx = source_store.create_tx();
-      auto nodes_view = tx.get_view<ccf::Nodes>(ccf::Tables::NODES);
-      return nodes_view->get(node_id);
+      auto nodes = tx.get_handle<ccf::Nodes>(ccf::Tables::NODES);
+      return nodes->get(node_id);
     }
 
     void handle_signature_transaction(

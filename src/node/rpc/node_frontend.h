@@ -49,10 +49,10 @@ namespace ccf
       const tls::Pem& node_pem,
       std::optional<NodeStatus> node_status = std::nullopt)
     {
-      auto nodes_view = tx.get_view(network.nodes);
+      auto nodes = tx.get_handle(network.nodes);
 
       std::optional<ExistingNodeInfo> existing_node_info = std::nullopt;
-      nodes_view->foreach([&existing_node_info, &node_pem, &node_status](
+      nodes->foreach([&existing_node_info, &node_pem, &node_status](
                             const NodeId& nid, const NodeInfo& ni) {
         if (
           ni.cert == node_pem &&
@@ -70,10 +70,10 @@ namespace ccf
     std::optional<NodeId> check_conflicting_node_network(
       kv::Tx& tx, const NodeInfoNetwork& node_info_network)
     {
-      auto nodes_view = tx.get_view(network.nodes);
+      auto nodes = tx.get_handle(network.nodes);
 
       std::optional<NodeId> duplicate_node_id;
-      nodes_view->foreach([&node_info_network, &duplicate_node_id](
+      nodes->foreach([&node_info_network, &duplicate_node_id](
                             const NodeId& nid, const NodeInfo& ni) {
         if (
           node_info_network.nodeport == ni.nodeport &&
@@ -95,7 +95,7 @@ namespace ccf
       const JoinNetworkNodeToNode::In& in,
       NodeStatus node_status)
     {
-      auto nodes_view = tx.get_view(network.nodes);
+      auto nodes = tx.get_handle(network.nodes);
 
       auto conflicting_node_id =
         check_conflicting_node_network(tx, in.node_info_network);
@@ -130,7 +130,7 @@ namespace ccf
 #endif
 
       NodeId joining_node_id =
-        get_next_id(tx.get_view(this->network.values), NEXT_NODE_ID);
+        get_next_id(tx.get_handle(this->network.values), NEXT_NODE_ID);
 
       std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
       if (node_status == NodeStatus::TRUSTED)
@@ -139,7 +139,7 @@ namespace ccf
           this->network.ledger_secrets->get_latest(tx).first;
       }
 
-      nodes_view->put(
+      nodes->put(
         joining_node_id,
         {in.node_info_network,
          caller_pem,
@@ -207,10 +207,10 @@ namespace ccf
               this->network.consensus_type));
         }
 
-        auto nodes_view = args.tx.get_view(this->network.nodes);
-        auto service_view = args.tx.get_view(this->network.service);
+        auto nodes = args.tx.get_handle(this->network.nodes);
+        auto service = args.tx.get_handle(this->network.service);
 
-        auto active_service = service_view->get(0);
+        auto active_service = service->get(0);
         if (!active_service.has_value())
         {
           return make_error(
@@ -262,7 +262,7 @@ namespace ccf
 
           // If the node already exists, return network secrets if is already
           // trusted. Otherwise, only return its status
-          auto node_status = nodes_view->get(existing_node_info->first)->status;
+          auto node_status = nodes->get(existing_node_info->first)->status;
           rep.node_status = node_status;
           if (node_status == NodeStatus::TRUSTED)
           {
@@ -305,9 +305,9 @@ namespace ccf
         result.recovery_target_seqno = rts;
         result.last_recovered_seqno = lrs;
 
-        auto sig_view =
+        auto signatures =
           args.tx.template get_read_only_handle<Signatures>(Tables::SIGNATURES);
-        auto sig = sig_view->get(0);
+        auto sig = signatures->get(0);
         if (!sig.has_value())
         {
           result.last_signed_seqno = 0;
@@ -408,8 +408,8 @@ namespace ccf
 
       auto network_status = [this](auto& args, nlohmann::json&&) {
         GetNetworkInfo::Out out;
-        auto service_view = args.tx.get_read_only_handle(network.service);
-        auto service_state = service_view->get(0);
+        auto service = args.tx.get_read_only_handle(network.service);
+        auto service_state = service->get(0);
         if (service_state.has_value())
         {
           out.service_status = service_state.value().status;
