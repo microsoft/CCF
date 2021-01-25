@@ -83,25 +83,18 @@ namespace ccf
   class ProgressTrackerStoreAdapter : public ProgressTrackerStore
   {
   public:
-    ProgressTrackerStoreAdapter(
-      kv::AbstractStore& store_,
-      tls::KeyPair& kp_,
-      ccf::Nodes& nodes_,
-      ccf::BackupSignaturesMap& backup_signatures_,
-      aft::RevealedNoncesMap& revealed_nonces_,
-      ccf::NewViewsMap& new_views_) :
+    ProgressTrackerStoreAdapter(kv::AbstractStore& store_, tls::KeyPair& kp_) :
       store(store_),
       kp(kp_),
-      nodes(nodes_),
-      backup_signatures(backup_signatures_),
-      revealed_nonces(revealed_nonces_),
-      new_views(new_views_)
+      nodes(ccf::Tables::NODES),
+      backup_signatures(ccf::Tables::BACKUP_SIGNATURES),
+      revealed_nonces(ccf::Tables::NONCES),
+      new_views(ccf::Tables::NEW_VIEWS)
     {}
 
     void write_backup_signatures(ccf::BackupSignatures& sig_value) override
     {
       kv::Tx tx(&store);
-      // TODO: Get all maps in this class by name
       auto backup_sig_view = tx.get_handle(backup_signatures);
 
       backup_sig_view->put(0, sig_value);
@@ -291,10 +284,10 @@ namespace ccf
   private:
     kv::AbstractStore& store;
     tls::KeyPair& kp;
-    ccf::Nodes& nodes;
-    ccf::BackupSignaturesMap& backup_signatures;
-    aft::RevealedNoncesMap& revealed_nonces;
-    ccf::NewViewsMap& new_views;
+    ccf::Nodes nodes;
+    ccf::BackupSignaturesMap backup_signatures;
+    aft::RevealedNoncesMap revealed_nonces;
+    ccf::NewViewsMap new_views;
 
     crypto::Sha256Hash hash_view_change(
       const ViewChangeRequest& v,

@@ -1351,7 +1351,8 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
     DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
 
     auto tx1 = network.tables->create_tx();
-    const auto uid = tx1.get_handle(network.values)->get(ValueIds::NEXT_USER_ID);
+    const auto uid =
+      tx1.get_handle(network.values)->get(ValueIds::NEXT_USER_ID);
     DOCTEST_CHECK(uid);
     DOCTEST_CHECK(*uid == 1);
     user_der = tls::make_verifier(user_cert)->der_cert_data();

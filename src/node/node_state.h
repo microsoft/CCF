@@ -1764,11 +1764,7 @@ namespace ccf
       {
         tracker_store = std::make_shared<ccf::ProgressTrackerStoreAdapter>(
           *network.tables.get(),
-          *node_sign_kp,
-          network.nodes,
-          network.backup_signatures_map,
-          network.revealed_nonces_map,
-          network.new_views_map);
+          *node_sign_kp);
       }
     }
 

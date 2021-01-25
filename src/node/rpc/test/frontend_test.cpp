@@ -1455,13 +1455,15 @@ public:
         // Warning: Never do this in a real application!
         // Create another transaction that conflicts with the frontend one
         auto tx = this->tables.create_tx();
-        auto conflict_map = tx.template get_handle<Values>("test_values_conflict");
+        auto conflict_map =
+          tx.template get_handle<Values>("test_values_conflict");
         conflict_map->put(0, 42);
         REQUIRE(tx.commit() == kv::CommitSuccess::OK);
         conflict_next = false;
       }
 
-      auto conflict_map = args.tx.template get_handle<Values>("test_values_conflict");
+      auto conflict_map =
+        args.tx.template get_handle<Values>("test_values_conflict");
       conflict_map->get(0); // Record a read dependency
       conflict_map->put(0, 0);
 
