@@ -383,6 +383,7 @@ namespace ccf
           // Snapshot generation is disabled until private recovery is
           // complete
           recovery_snapshot_tx_interval = config.snapshot_tx_interval;
+          snapshotter->set_tx_interval(config.snapshot_tx_interval);
 
           LOG_FAIL_FMT(
             "Recovery: snapshot interval set to {}",
@@ -532,13 +533,6 @@ namespace ccf
                 // recovery store
                 startup_snapshot_info.reset();
               }
-              // else
-              // {
-              //   recovery_snapshot_tx_interval = config.snapshot_tx_interval;
-              //   LOG_FAIL_FMT(
-              //     "Joiner snapshot tx interval: {}",
-              //     recovery_snapshot_tx_interval);
-              // }
 
               LOG_INFO_FMT(
                 "Joiner successfully resumed from snapshot at seqno {} and "
@@ -551,21 +545,28 @@ namespace ccf
 
             accept_network_tls_connections(config);
 
+            // TODO: Only way to tell the new joiner to snapshot at the right
+            // interval but the backup should not snapshot while in public
+            // only mode!!!!
+            // snapshotter->set_tx_interval(
+            //   config.snapshot_tx_interval,
+            //   resp.network_info.last_recovered_signed_idx);
+            // LOG_FAIL_FMT(
+            //   "Joiner snapshot tx interval: {}",
+            //   recovery_snapshot_tx_interval);
+
             if (resp.network_info.public_only)
             {
               last_recovered_signed_idx =
                 resp.network_info.last_recovered_signed_idx;
               setup_recovery_hook(startup_snapshot_info != nullptr);
 
+              // TODO: Still needed?
               recovery_snapshot_tx_interval = config.snapshot_tx_interval;
 
-              // TODO: Only way to tell the new joiner to snapshot at the right
-              // interval but the backup should not snapshot while in public
-              // only mode!!!!
               snapshotter->set_tx_interval(config.snapshot_tx_interval);
-              LOG_FAIL_FMT(
-                "Joiner snapshot tx interval: {}",
-                recovery_snapshot_tx_interval);
+              snapshotter->suspend_snapshot_generation_up_to(
+                resp.network_info.last_recovered_signed_idx);
 
               sm.advance(State::partOfPublicNetwork);
             }
@@ -755,6 +756,9 @@ namespace ccf
         GenesisGenerator g(network, tx);
         auto last_sig = g.get_last_signature();
 
+        // TODO: Assumes it's chunking!
+        snapshotter->requires_snapshot(ledger_idx);
+
         if (!last_sig.has_value())
         {
           throw std::logic_error("Signature missing");
@@ -866,12 +870,12 @@ namespace ccf
       ledger_truncate(last_recovered_signed_idx);
       LOG_INFO_FMT(
         "End of public ledger recovery - Truncating ledger to last signed "
-        "index: {}",
+        "seqno: {}",
         last_recovered_signed_idx);
 
       // KV term must be set before the first Tx is committed
       auto new_term = view_history.size() + 2;
-      LOG_INFO_FMT("Setting term on public recovery KV to {}", new_term);
+      LOG_INFO_FMT("Setting term on public recovery store to {}", new_term);
       network.tables->set_term(new_term);
 
       auto tx = network.tables->create_tx();
@@ -885,11 +889,16 @@ namespace ccf
                               node_encrypt_kp->public_key_pem().raw(),
                               NodeStatus::PENDING}));
 
+      LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
+
       network.ledger_secrets->init(last_recovered_signed_idx + 1);
       network.ledger_secrets->set_node_id(self);
       setup_encryptor(true);
 
-      LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
+      // Set snapshot interval but do not actually create snapshots!
+      snapshotter->set_tx_interval(recovery_snapshot_tx_interval);
+      snapshotter->suspend_snapshot_generation_up_to(last_recovered_signed_idx);
+      snapshotter->reset();
 
       kv::Version index = 0;
       kv::Term view = 0;

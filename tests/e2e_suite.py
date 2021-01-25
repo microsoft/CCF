@@ -120,7 +120,7 @@ def run(args):
         # If the network was changed (e.g. recovery test), stop the previous network
         # and use the new network from now on
         if new_network != network:
-            network.stop_all_nodes()
+            # network.stop_all_nodes()
             network = new_network
 
         LOG.debug(f"Test {s.test_name(test)} took {test_elapsed:.2f} secs")

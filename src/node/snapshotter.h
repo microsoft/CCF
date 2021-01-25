@@ -50,6 +50,9 @@ namespace ccf
     // Index at which the lastest snapshot was generated
     consensus::Index last_snapshot_idx = 0;
 
+    // Used for recovery to prevent snapshot generation in public mode
+    consensus::Index snapshot_max_tx_idx = max_tx_interval;
+
     // Indices at which a snapshot will be next generated
     std::deque<consensus::Index> next_snapshot_indices;
 
@@ -141,6 +144,25 @@ namespace ccf
       LOG_FAIL_FMT("Snapshotter interval set to {}", snapshot_tx_interval);
     }
 
+    void suspend_snapshot_generation_up_to(
+      consensus::Index snapshot_max_tx_idx_ = max_tx_interval)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+
+      snapshot_max_tx_idx = snapshot_max_tx_idx_;
+
+      LOG_FAIL_FMT(
+        "Snapshot generation suspended until {}", snapshot_max_tx_idx);
+    }
+
+    // TODO: Unify!
+    void reset()
+    {
+      std::lock_guard<SpinLock> guard(lock);
+
+      last_snapshot_idx = next_snapshot_indices.back();
+    }
+
     void set_last_snapshot_idx(consensus::Index idx)
     {
       std::lock_guard<SpinLock> guard(lock);
@@ -175,9 +197,10 @@ namespace ccf
       if (idx - last_snapshot_idx >= snapshot_tx_interval)
       {
         last_snapshot_idx = idx;
+        LOG_FAIL_FMT("Last snapshot idx is now: {}", last_snapshot_idx);
 
         // Snapshots are only generated on primary node
-        if (is_primary)
+        if (is_primary && idx <= snapshot_max_tx_idx)
         {
           auto msg =
             std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);

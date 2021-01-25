@@ -727,7 +727,6 @@ class Network:
         end_time = time.time() + timeout
         while time.time() < end_time:
             for node in self.get_joined_nodes():
-                LOG.error(f"Connecting to node {node.node_id}")
                 with node.client() as c:
                     try:
                         logs = []

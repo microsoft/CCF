@@ -297,9 +297,6 @@ class Node:
                 if is_file_committed(f):
                     infra.path.copy_dir(os.path.join(ro_dir, f), committed_ledger_dir)
 
-        if self.node_id == 8:
-            input("Copied ledger file")
-
         return current_ledger_dir, committed_ledger_dir
 
     def get_snapshots(self):
