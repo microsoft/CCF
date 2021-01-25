@@ -860,6 +860,8 @@ namespace ccf
       // index and promote network secrets to this index
       network.tables->rollback(last_recovered_signed_idx);
       ledger_truncate(last_recovered_signed_idx);
+      snapshotter->rollback(last_recovered_signed_idx);
+
       LOG_INFO_FMT(
         "End of public ledger recovery - Truncating ledger to last signed "
         "seqno: {}",
