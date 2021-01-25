@@ -1128,7 +1128,7 @@ namespace aft
           apply_success = ds->execute();
           if (apply_success == kv::ApplySuccess::FAILED)
           {
-            rollback(last_committable_index());
+            state->last_idx = i - 1;
             ledger->truncate(state->last_idx);
             send_append_entries_response(
               r.from_node, AppendEntriesResponseType::FAIL);
