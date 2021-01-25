@@ -251,7 +251,7 @@ namespace aft
   class StubSnapshotter
   {
   public:
-    void snapshot(Index)
+    void snapshot(Index, bool)
     {
       // For now, do not test snapshots in unit tests
       return;

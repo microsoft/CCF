@@ -80,11 +80,11 @@ TEST_CASE("Regular snapshotting")
     for (size_t i = 1; i <= interval_count; i++)
     {
       // No snapshot generated if < interval
-      snapshotter->snapshot(i * (snapshot_tx_interval - 1));
+      snapshotter->snapshot(i * (snapshot_tx_interval - 1), true);
       threading::ThreadMessaging::thread_messaging.run_one();
       REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
 
-      snapshotter->snapshot(i * snapshot_tx_interval);
+      snapshotter->snapshot(i * snapshot_tx_interval, true);
       threading::ThreadMessaging::thread_messaging.run_one();
       REQUIRE(
         read_ringbuffer_out(eio) ==
@@ -95,7 +95,7 @@ TEST_CASE("Regular snapshotting")
   INFO("Cannot snapshot before latest snapshot");
   {
     REQUIRE_THROWS_AS(
-      snapshotter->snapshot(snapshot_tx_interval - 1), std::logic_error);
+      snapshotter->snapshot(snapshot_tx_interval - 1, true), std::logic_error);
   }
 }
 
@@ -118,7 +118,7 @@ TEST_CASE("Commit snapshot evidence")
 
   INFO("Generate snapshot");
   {
-    snapshotter->snapshot(snapshot_tx_interval);
+    snapshotter->snapshot(snapshot_tx_interval, true);
     threading::ThreadMessaging::thread_messaging.run_one();
     REQUIRE(
       read_ringbuffer_out(eio) ==
@@ -164,7 +164,7 @@ TEST_CASE("Rollback before evidence is committed")
 
   INFO("Generate snapshot");
   {
-    snapshotter->snapshot(snapshot_tx_interval);
+    snapshotter->snapshot(snapshot_tx_interval, true);
     threading::ThreadMessaging::thread_messaging.run_one();
     REQUIRE(
       read_ringbuffer_out(eio) ==
@@ -189,7 +189,7 @@ TEST_CASE("Rollback before evidence is committed")
     issue_transactions(network, snapshot_tx_interval);
 
     size_t snapshot_idx = network.tables->current_version();
-    snapshotter->snapshot(snapshot_idx);
+    snapshotter->snapshot(snapshot_idx, true);
     threading::ThreadMessaging::thread_messaging.run_one();
     REQUIRE(
       read_ringbuffer_out(eio) == rb_msg({consensus::snapshot, snapshot_idx}));

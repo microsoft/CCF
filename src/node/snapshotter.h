@@ -50,11 +50,8 @@ namespace ccf
     // Index at which the lastest snapshot was generated
     consensus::Index last_snapshot_idx = 0;
 
-    // Used for recovery to prevent snapshot generation in public mode
-    consensus::Index snapshot_max_tx_idx = max_tx_interval; // TODO: Delete
-
     // Used to suspend snapshot generation during public recovery
-    bool snapshot_generation_suspended = false;
+    bool snapshot_generation_enabled = false;
 
     // Indices at which a snapshot will be next generated
     std::deque<consensus::Index> next_snapshot_indices;
@@ -140,22 +137,8 @@ namespace ccf
       snapshot_tx_interval(snapshot_tx_interval_)
     {
       next_snapshot_indices.push_back(last_snapshot_idx);
-
-      LOG_FAIL_FMT("Snapshotter interval set to {}", snapshot_tx_interval);
     }
 
-    // void suspend_snapshot_generation_up_to(
-    //   consensus::Index snapshot_max_tx_idx_ = max_tx_interval)
-    // {
-    //   std::lock_guard<SpinLock> guard(lock);
-
-    //   snapshot_max_tx_idx = snapshot_max_tx_idx_;
-
-    //   LOG_FAIL_FMT(
-    //     "Snapshot generation suspended until {}", snapshot_max_tx_idx);
-    // }
-
-    // TODO: Unify!
     void init_after_public_recovery()
     {
       // After public recovery, the primary node should have restored all
@@ -164,8 +147,12 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
 
       last_snapshot_idx = next_snapshot_indices.back();
+    }
 
-      // TODO: Also suspend snapshot generation during public mode
+    void set_snapshot_generation(bool enabled)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      snapshot_generation_enabled = enabled;
     }
 
     void set_last_snapshot_idx(consensus::Index idx)
@@ -186,7 +173,7 @@ namespace ccf
       next_snapshot_indices.push_back(last_snapshot_idx);
     }
 
-    void snapshot(consensus::Index idx, bool is_primary)
+    void snapshot(consensus::Index idx, bool generate_snapshot)
     {
       // On the primary, takes a snapshot of the key value store at idx, and
       // schedule snapshot serialisation on another thread (round-robin). On
@@ -205,12 +192,9 @@ namespace ccf
       if (idx - last_snapshot_idx >= snapshot_tx_interval)
       {
         last_snapshot_idx = idx;
-        LOG_FAIL_FMT("Last snapshot idx is now: {}", last_snapshot_idx);
 
         // Snapshots are only generated on primary node
-        if (
-          is_primary && idx <= snapshot_max_tx_idx &&
-          !snapshot_generation_suspended)
+        if (generate_snapshot && snapshot_generation_enabled)
         {
           auto msg =
             std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
@@ -232,17 +216,9 @@ namespace ccf
       // thus a new ledger chunk
       std::lock_guard<SpinLock> guard(lock);
 
-      LOG_FAIL_FMT("Requires snapshot? {}", idx);
-      LOG_FAIL_FMT(
-        "Back: {} (size: {})",
-        next_snapshot_indices.back(),
-        next_snapshot_indices.size());
-
       if ((idx - next_snapshot_indices.back()) >= snapshot_tx_interval)
       {
-        LOG_FAIL_FMT("Previous snapshot idx: {}", next_snapshot_indices.back());
         next_snapshot_indices.push_back(idx);
-        LOG_FAIL_FMT("Next snapshot idx: {}", idx);
         return true;
       }
       return false;
@@ -257,13 +233,6 @@ namespace ccf
       {
         next_snapshot_indices.pop_front();
       }
-
-      // if (next_snapshot_indices.empty())
-      // {
-      //   next_snapshot_indices.push_back(last_snapshot_idx);
-      // }
-
-      LOG_FAIL_FMT("Snapshotter commit: {}", next_snapshot_indices.back());
 
       for (auto it = snapshot_evidence_indices.begin();
            it != snapshot_evidence_indices.end();)

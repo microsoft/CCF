@@ -540,6 +540,7 @@ namespace ccf
               last_recovered_signed_idx =
                 resp.network_info.last_recovered_signed_idx;
               setup_recovery_hook(startup_snapshot_info != nullptr);
+              snapshotter->set_snapshot_generation(false);
 
               sm.advance(State::partOfPublicNetwork);
             }
@@ -874,6 +875,7 @@ namespace ccf
 
       // Set snapshot interval but do not actually create snapshots!
       snapshotter->init_after_public_recovery();
+      snapshotter->set_snapshot_generation(false);
 
       kv::Version index = 0;
       kv::Term view = 0;
@@ -1001,7 +1003,7 @@ namespace ccf
       encryptor->disable_recovery();
 
       // Snapshots are only generated after recovery is complete
-      // TODO: Enable snapshot generation
+      snapshotter->set_snapshot_generation(true);
 
       // Open the service
       if (consensus->is_primary())
