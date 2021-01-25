@@ -82,19 +82,19 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
           // Start a transaction over selected maps
           auto tx = args->kv_store->create_tx();
 
-          std::vector<MapType::Handle*> views;
+          std::vector<MapType::Handle*> handles;
           for (const auto& map : args->maps)
           {
-            views.push_back(tx.get_view(map));
+            handles.push_back(tx.get_handle(map));
           }
 
           for (const auto& [from_map, from_k, to_map, to_k] : writes)
           {
-            auto from_view = views[from_map];
-            const auto v = from_view->get(from_k).value_or(from_k);
+            auto from_handle = handles[from_map];
+            const auto v = from_handle->get(from_k).value_or(from_k);
 
-            auto to_view = views[to_map];
-            to_view->put(to_k, v);
+            auto to_handle = handles[to_map];
+            to_handle->put(to_k, v);
           }
 
           // Yield now, to increase the chance of conflicts

@@ -101,7 +101,8 @@ namespace ccf
     void write_backup_signatures(ccf::BackupSignatures& sig_value) override
     {
       kv::Tx tx(&store);
-      auto backup_sig_view = tx.get_view(backup_signatures);
+      // TODO: Get all maps in this class by name
+      auto backup_sig_view = tx.get_handle(backup_signatures);
 
       backup_sig_view->put(0, sig_value);
       auto r = tx.commit();
@@ -115,7 +116,7 @@ namespace ccf
     std::optional<ccf::BackupSignatures> get_backup_signatures() override
     {
       kv::Tx tx(&store);
-      auto sigs_tv = tx.get_view(backup_signatures);
+      auto sigs_tv = tx.get_handle(backup_signatures);
       auto sigs = sigs_tv->get(0);
       if (!sigs.has_value())
       {
@@ -128,7 +129,7 @@ namespace ccf
     std::optional<ccf::ViewChangeConfirmation> get_new_view() override
     {
       kv::Tx tx(&store);
-      auto new_views_tv = tx.get_view(new_views);
+      auto new_views_tv = tx.get_handle(new_views);
       auto new_view = new_views_tv->get(0);
       if (!new_view.has_value())
       {
@@ -141,7 +142,7 @@ namespace ccf
     void write_nonces(aft::RevealedNonces& nonces) override
     {
       kv::Tx tx(&store);
-      auto nonces_tv = tx.get_view(revealed_nonces);
+      auto nonces_tv = tx.get_handle(revealed_nonces);
 
       nonces_tv->put(0, nonces);
       auto r = tx.commit();
@@ -161,7 +162,7 @@ namespace ccf
     std::optional<aft::RevealedNonces> get_nonces() override
     {
       kv::Tx tx(&store);
-      auto nonces_tv = tx.get_view(revealed_nonces);
+      auto nonces_tv = tx.get_handle(revealed_nonces);
       auto nonces = nonces_tv->get(0);
       if (!nonces.has_value())
       {
@@ -178,7 +179,7 @@ namespace ccf
       uint8_t* sig) override
     {
       kv::Tx tx(&store);
-      auto ni_tv = tx.get_view(nodes);
+      auto ni_tv = tx.get_handle(nodes);
 
       auto ni = ni_tv->get(node_id);
       if (!ni.has_value())
@@ -210,7 +211,7 @@ namespace ccf
       crypto::Sha256Hash h = hash_view_change(view_change, view, seqno);
 
       kv::Tx tx(&store);
-      auto ni_tv = tx.get_view(nodes);
+      auto ni_tv = tx.get_handle(nodes);
 
       auto ni = ni_tv->get(from);
       if (!ni.has_value())
@@ -230,7 +231,7 @@ namespace ccf
       ViewChangeConfirmation& new_view, kv::NodeId from) override
     {
       kv::Tx tx(&store);
-      auto ni_tv = tx.get_view(nodes);
+      auto ni_tv = tx.get_handle(nodes);
 
       auto ni = ni_tv->get(from);
       if (!ni.has_value())
@@ -251,7 +252,7 @@ namespace ccf
       ccf::ViewChangeConfirmation& new_view) override
     {
       kv::Tx tx(&store);
-      auto new_views_tv = tx.get_view(new_views);
+      auto new_views_tv = tx.get_handle(new_views);
 
       crypto::Sha256Hash h = hash_new_view(new_view);
       new_view.signature = kp.sign_hash(h.h.data(), h.h.size());
