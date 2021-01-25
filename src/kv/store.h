@@ -534,13 +534,6 @@ namespace kv
 
       {
         std::lock_guard<SpinLock> vguard(version_lock);
-        // The term should always be updated on rollback() when passed
-        // regardless of whether version needs to be updated or not
-        if (t.has_value())
-          term = t.value();
-        if (v >= version)
-          return;
-
         if (v < compacted)
         {
           throw std::logic_error(fmt::format(
@@ -549,14 +542,24 @@ namespace kv
             compacted));
         }
 
+        // The term should always be updated on rollback() when passed
+        // regardless of whether version needs to be updated or not
+        if (t.has_value())
+          term = t.value();
+        // History must be informed of the term change, even if no
+        // actual rollback is required
+        auto h = get_history();
+        if (h)
+          h->rollback(v, term);
+
+        if (v >= version)
+          return;
+
         version = v;
         last_replicated = v;
         last_committable = v;
         rollback_count++;
         pending_txs.clear();
-        auto h = get_history();
-        if (h)
-          h->rollback(v, term);
         auto e = get_encryptor();
         if (e)
           e->rollback(v);

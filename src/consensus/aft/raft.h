@@ -1857,7 +1857,8 @@ namespace aft
     void become_leader()
     {
       election_index = last_committable_index();
-      LOG_DEBUG_FMT("Election index is {}", election_index);
+      LOG_DEBUG_FMT(
+        "Election index is {} in term", election_index, state->current_view);
       // Discard any un-committable updates we may hold,
       // since we have no signature for them. Except at startup,
       // where we do not want to roll back the genesis transaction.

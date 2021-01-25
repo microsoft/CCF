@@ -782,8 +782,6 @@ namespace ccf
 
     void append(const std::vector<uint8_t>& replicated) override
     {
-      std::lock_guard<SpinLock> tguard(term_lock);
-        LOG_INFO_FMT("Term is {}", term);
       crypto::Sha256Hash rh({replicated.data(), replicated.size()});
       log_hash(rh, APPEND);
       replicated_state_tree.append(rh);
