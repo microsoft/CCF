@@ -141,8 +141,8 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto view = tx.get_view(records);
-        view->put(in.id, in.msg);
+        auto records_handle = tx.get_handle(records);
+        records_handle->put(in.id, in.msg);
         return ccf::make_success(true);
       };
       // SNIPPET_END: record
@@ -191,8 +191,8 @@ namespace loggingapp
 
       auto remove = [this](kv::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRemove::In>();
-        auto view = tx.get_view(records);
-        auto removed = view->remove(in.id);
+        auto records_handle = tx.get_handle(records);
+        auto removed = records_handle->remove(in.id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
       };
@@ -216,8 +216,8 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto view = tx.get_view(public_records);
-        view->put(params["id"], in.msg);
+        auto records_handle = tx.get_handle(public_records);
+        records_handle->put(params["id"], in.msg);
         return ccf::make_success(true);
       };
       // SNIPPET_END: record_public
@@ -255,8 +255,8 @@ namespace loggingapp
 
       auto remove_public = [this](kv::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRemove::In>();
-        auto view = tx.get_view(public_records);
-        auto removed = view->remove(in.id);
+        auto records_handle = tx.get_handle(public_records);
+        auto removed = records_handle->remove(in.id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
       };
@@ -299,8 +299,8 @@ namespace loggingapp
         }
 
         const auto log_line = fmt::format("{}: {}", cert->subject, in.msg);
-        auto view = args.tx.get_view(records);
-        view->put(in.id, log_line);
+        auto records_handle = args.tx.get_handle(records);
+        records_handle->put(in.id, log_line);
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         args.rpc_ctx->set_response_header(
@@ -328,8 +328,8 @@ namespace loggingapp
           }
 
           const auto log_line = fmt::format("Anonymous: {}", in.msg);
-          auto view = args.tx.get_view(records);
-          view->put(in.id, log_line);
+          auto records_handle = args.tx.get_handle(records);
+          records_handle->put(in.id, log_line);
           return ccf::make_success(true);
         };
       make_endpoint(
@@ -508,8 +508,8 @@ namespace loggingapp
         const std::vector<uint8_t>& content = args.rpc_ctx->get_request_body();
         const std::string log_line(content.begin(), content.end());
 
-        auto view = args.tx.get_view(records);
-        view->put(id, log_line);
+        auto records_handle = args.tx.get_handle(records);
+        records_handle->put(id, log_line);
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
@@ -595,12 +595,8 @@ namespace loggingapp
 
             // SNIPPET_START: user_data_check
             // Check caller's user-data for required permissions
-            auto users_view = ctx.tx.get_view<ccf::Users>(ccf::Tables::USERS);
-            const auto user_opt = users_view->get(caller_ident.user_id);
-            const nlohmann::json user_data = user_opt.has_value() ?
-              user_opt->user_data :
-              nlohmann::json(nullptr);
-            const auto is_admin_it = user_data.find("isAdmin");
+            const nlohmann::json user_data = caller_ident.user_data;
+            const auto is_admin_it =  user_data.find("isAdmin");
 
             // Exit if this user has no user data, or the user data is not an
             // object with isAdmin field, or the value of this field is not true
@@ -626,7 +622,7 @@ namespace loggingapp
               "Cannot record an empty log message.");
           }
 
-          auto view = ctx.tx.get_view(records);
+          auto view = ctx.tx.get_handle(records);
           view->put(in.id, in.msg);
           return ccf::make_success(true);
         };

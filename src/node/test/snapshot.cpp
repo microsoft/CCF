@@ -37,8 +37,8 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     for (size_t i = 0; i < transactions_count; i++)
     {
       auto tx = source_store.create_tx();
-      auto view = tx.get_view(string_map);
-      view->put(fmt::format("key#{}", i), "value");
+      auto map = tx.get_handle(string_map);
+      map->put(fmt::format("key#{}", i), "value");
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     }
   }
@@ -129,8 +129,8 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     INFO("Deserialise additional transaction after restart");
     {
       auto tx = source_store.create_tx();
-      auto view = tx.get_view(string_map);
-      view->put("key", "value");
+      auto map = tx.get_handle(string_map);
+      map->put("key", "value");
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
       auto serialised_tx = source_consensus->get_latest_data().value();

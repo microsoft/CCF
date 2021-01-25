@@ -148,8 +148,8 @@ TEST_CASE("Add a node to an opening service")
     CHECK(response.network_info.public_only == false);
 
     const NodeId node_id = response.node_id;
-    auto nodes_view = tx.get_view(network.nodes);
-    auto node_info = nodes_view->get(node_id);
+    auto nodes = tx.get_handle(network.nodes);
+    auto node_info = nodes->get(node_id);
 
     CHECK(node_info.has_value());
     CHECK(node_info->status == NodeStatus::TRUSTED);
@@ -248,8 +248,8 @@ TEST_CASE("Add a node to an open service")
 
     auto node_id = response.node_id;
 
-    auto nodes_view = tx.get_view(network.nodes);
-    node_info = nodes_view->get(node_id);
+    auto nodes = tx.get_handle(network.nodes);
+    node_info = nodes->get(node_id);
     CHECK(node_info.has_value());
     CHECK(node_info->status == NodeStatus::PENDING);
     CHECK(caller == node_info->cert);

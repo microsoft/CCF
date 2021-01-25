@@ -90,7 +90,7 @@ TEST_CASE("Check signature verification")
   INFO("Write certificate");
   {
     auto txs = primary_store.create_tx();
-    auto tx = txs.get_view(nodes);
+    auto tx = txs.get_handle(nodes);
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
     tx->put(0, ni);
@@ -106,7 +106,7 @@ TEST_CASE("Check signature verification")
   INFO("Issue a bogus signature, rejected by verification on the backup");
   {
     auto txs = primary_store.create_tx();
-    auto tx = txs.get_view(signatures);
+    auto tx = txs.get_handle(signatures);
     ccf::PrimarySignature bogus(0, 0);
     bogus.sig = std::vector<uint8_t>(MBEDTLS_ECDSA_MAX_LEN, 1);
     tx->put(0, bogus);
@@ -145,7 +145,7 @@ TEST_CASE("Check signing works across rollback")
   INFO("Write certificate");
   {
     auto txs = primary_store.create_tx();
-    auto tx = txs.get_view(nodes);
+    auto tx = txs.get_handle(nodes);
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
     tx->put(0, ni);
@@ -155,7 +155,7 @@ TEST_CASE("Check signing works across rollback")
   INFO("Transaction that we will roll back");
   {
     auto txs = primary_store.create_tx();
-    auto tx = txs.get_view(nodes);
+    auto tx = txs.get_handle(nodes);
     ccf::NodeInfo ni;
     tx->put(1, ni);
     REQUIRE(txs.commit() == kv::CommitSuccess::OK);
@@ -252,7 +252,7 @@ public:
   kv::PendingTxInfo call() override
   {
     auto txr = store.create_reserved_tx(txid.version);
-    auto txrv = txr.get_view(other_table);
+    auto txrv = txr.get_handle(other_table);
     txrv->put(0, 1);
     return txr.commit_reserved();
   }
@@ -273,7 +273,7 @@ TEST_CASE(
   INFO("Write first tx");
   {
     auto tx = store.create_tx();
-    auto txv = tx.get_view(table);
+    auto txv = tx.get_handle(table);
     txv->put(0, 1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(consensus->count == 1);
@@ -284,7 +284,7 @@ TEST_CASE(
     auto rv = store.next_txid();
 
     auto tx = store.create_tx();
-    auto txv = tx.get_view(table);
+    auto txv = tx.get_handle(table);
     txv->put(0, 2);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(consensus->count == 1);
@@ -297,7 +297,7 @@ TEST_CASE(
   INFO("Single tx");
   {
     auto tx = store.create_tx();
-    auto txv = tx.get_view(table);
+    auto txv = tx.get_handle(table);
     txv->put(0, 3);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(consensus->count == 4);
@@ -374,7 +374,7 @@ TEST_CASE(
   INFO("Write first tx");
   {
     auto tx = store.create_tx();
-    auto txv = tx.get_view(table);
+    auto txv = tx.get_handle(table);
     txv->put(0, 1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(consensus->count == 1);
@@ -383,7 +383,7 @@ TEST_CASE(
   INFO("Write second tx, causing a rollback");
   {
     auto tx = store.create_tx();
-    auto txv = tx.get_view(table);
+    auto txv = tx.get_handle(table);
     txv->put(0, 2);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(consensus->count == 2);
@@ -392,7 +392,7 @@ TEST_CASE(
   INFO("Single tx");
   {
     auto tx = store.create_tx();
-    auto txv = tx.get_view(table);
+    auto txv = tx.get_handle(table);
     txv->put(0, 3);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(consensus->count == 3);
@@ -412,7 +412,7 @@ TEST_CASE(
   INFO("Write first tx");
   {
     auto tx = store.create_tx();
-    auto txv = tx.get_view(table);
+    auto txv = tx.get_handle(table);
     txv->put(0, 1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(consensus->count == 1);
@@ -421,7 +421,7 @@ TEST_CASE(
   INFO("Write second tx, causing a rollback");
   {
     auto tx = store.create_tx();
-    auto txv = tx.get_view(table);
+    auto txv = tx.get_handle(table);
     txv->put(0, 2);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(consensus->count == 2);
@@ -430,7 +430,7 @@ TEST_CASE(
   INFO("Single tx");
   {
     auto tx = store.create_tx();
-    auto txv = tx.get_view(table);
+    auto txv = tx.get_handle(table);
     txv->put(0, 3);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(consensus->count == 3);
