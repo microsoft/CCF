@@ -1,10 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "node/snapshotter.h"
-
 #include "ds/logger.h"
 #include "kv/test/null_encryptor.h"
+#include "node/snapshotter.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -73,19 +72,19 @@ TEST_CASE("Regular snapshotting")
   auto snapshotter = std::make_shared<ccf::Snapshotter>(
     *writer_factory, network, snapshot_tx_interval);
 
-  REQUIRE_FALSE(snapshotter->requires_snapshot(snapshot_tx_interval - 1));
-  REQUIRE(snapshotter->requires_snapshot(snapshot_tx_interval));
+  REQUIRE_FALSE(snapshotter->record_committable(snapshot_tx_interval - 1));
+  REQUIRE(snapshotter->record_committable(snapshot_tx_interval));
 
   INFO("Generate snapshots at regular intervals");
   {
     for (size_t i = 1; i <= interval_count; i++)
     {
       // No snapshot generated if < interval
-      snapshotter->snapshot(i * (snapshot_tx_interval - 1), true);
+      snapshotter->update(i * (snapshot_tx_interval - 1), true);
       threading::ThreadMessaging::thread_messaging.run_one();
       REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
 
-      snapshotter->snapshot(i * snapshot_tx_interval, true);
+      snapshotter->update(i * snapshot_tx_interval, true);
       threading::ThreadMessaging::thread_messaging.run_one();
       REQUIRE(
         read_ringbuffer_out(eio) ==
@@ -96,7 +95,7 @@ TEST_CASE("Regular snapshotting")
   INFO("Cannot snapshot before latest snapshot");
   {
     REQUIRE_THROWS_AS(
-      snapshotter->snapshot(snapshot_tx_interval - 1, true), std::logic_error);
+      snapshotter->update(snapshot_tx_interval - 1, true), std::logic_error);
   }
 }
 
@@ -119,7 +118,7 @@ TEST_CASE("Commit snapshot evidence")
 
   INFO("Generate snapshot");
   {
-    snapshotter->snapshot(snapshot_tx_interval, true);
+    snapshotter->update(snapshot_tx_interval, true);
     threading::ThreadMessaging::thread_messaging.run_one();
     REQUIRE(
       read_ringbuffer_out(eio) ==
@@ -165,7 +164,7 @@ TEST_CASE("Rollback before evidence is committed")
 
   INFO("Generate snapshot");
   {
-    snapshotter->snapshot(snapshot_tx_interval, true);
+    snapshotter->update(snapshot_tx_interval, true);
     threading::ThreadMessaging::thread_messaging.run_one();
     REQUIRE(
       read_ringbuffer_out(eio) ==
@@ -190,7 +189,7 @@ TEST_CASE("Rollback before evidence is committed")
     issue_transactions(network, snapshot_tx_interval);
 
     size_t snapshot_idx = network.tables->current_version();
-    snapshotter->snapshot(snapshot_idx, true);
+    snapshotter->update(snapshot_idx, true);
     threading::ThreadMessaging::thread_messaging.run_one();
     REQUIRE(
       read_ringbuffer_out(eio) == rb_msg({consensus::snapshot, snapshot_idx}));

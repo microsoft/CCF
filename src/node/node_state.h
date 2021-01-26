@@ -766,7 +766,7 @@ namespace ccf
         // Inform snapshotter of all signature entries so that this node can
         // continue generating snapshots at the correct interval once the
         // recovery is complete
-        snapshotter->requires_snapshot(ledger_idx);
+        snapshotter->record_committable(ledger_idx);
         snapshotter->commit(ledger_idx);
       }
       else if (

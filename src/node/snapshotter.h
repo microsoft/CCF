@@ -141,7 +141,7 @@ namespace ccf
 
     void init_after_public_recovery()
     {
-      // After public recovery, the primary node should have restored all
+      // After public recovery, the first node should have restored all
       // snapshot indices in next_snapshot_indices so that snapshot
       // generation can continue at the correct interval
       std::lock_guard<SpinLock> guard(lock);
@@ -173,11 +173,12 @@ namespace ccf
       next_snapshot_indices.push_back(last_snapshot_idx);
     }
 
-    void snapshot(consensus::Index idx, bool generate_snapshot)
+    void update(consensus::Index idx, bool generate_snapshot)
     {
-      // On the primary, takes a snapshot of the key value store at idx, and
-      // schedule snapshot serialisation on another thread (round-robin). On
-      // other nodes, only record that a snapshot was generated at idx.
+      // If generate_snapshot is true, takes a snapshot of the key value store
+      // at idx, and schedule snapshot serialisation on another thread
+      // (round-robin). Otherwise, only record that a snapshot was
+      // generated at idx.
       std::lock_guard<SpinLock> guard(lock);
 
       if (idx < last_snapshot_idx)
@@ -193,7 +194,6 @@ namespace ccf
       {
         last_snapshot_idx = idx;
 
-        // Snapshots are only generated on primary node
         if (generate_snapshot && snapshot_generation_enabled)
         {
           auto msg =
@@ -210,10 +210,10 @@ namespace ccf
       }
     }
 
-    bool requires_snapshot(consensus::Index idx)
+    bool record_committable(consensus::Index idx)
     {
-      // Returns true if the idx will require the generation of a snapshot, and
-      // thus a new ledger chunk
+      // Returns true if the committable idx will require the generation of a
+      // snapshot, and thus a new ledger chunk
       std::lock_guard<SpinLock> guard(lock);
 
       if ((idx - next_snapshot_indices.back()) >= snapshot_tx_interval)
