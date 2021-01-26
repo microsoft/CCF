@@ -89,7 +89,7 @@ static void serialise(picobench::state& s)
 }
 
 template <kv::SecurityDomain SD>
-static void deserialise(picobench::state& s)
+static void apply(picobench::state& s)
 {
   logger::config::level() = logger::INFO;
 
@@ -117,10 +117,11 @@ static void deserialise(picobench::state& s)
   }
   tx.commit();
 
-  kv::ConsensusHookPtrs hooks;
   s.start_timer();
-  auto rc = kv_store2.deserialise(consensus->get_latest_data().value(), hooks);
-  if (rc != kv::DeserialiseSuccess::PASS)
+  auto rc =
+    kv_store2.apply(consensus->get_latest_data().value(), ConsensusType::CFT)
+      ->execute();
+  if (rc != kv::ApplySuccess::PASS)
     throw std::logic_error(
       "Transaction deserialisation failed: " + std::to_string(rc));
   s.stop_timer();
@@ -250,12 +251,12 @@ PICOBENCH(serialise<SD::PUBLIC>)
   .baseline();
 PICOBENCH(serialise<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
 
-PICOBENCH_SUITE("deserialise");
-PICOBENCH(deserialise<SD::PUBLIC>)
+PICOBENCH_SUITE("apply");
+PICOBENCH(apply<SD::PUBLIC>)
   .iterations(tx_count)
   .samples(sample_size)
   .baseline();
-PICOBENCH(deserialise<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
+PICOBENCH(apply<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
 
 const uint32_t snapshot_sample_size = 10;
 const std::vector<int> map_count = {20, 100};

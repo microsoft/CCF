@@ -206,7 +206,7 @@ namespace ccf
     Receipt(const std::vector<uint8_t>& v)
     {
       size_t position = 0;
-      root.deserialise(v, position);
+      root.apply(v, position);
       path = std::make_shared<HistoryTree::Path>(v, position);
     }
 
@@ -342,7 +342,7 @@ namespace ccf
       tree = nullptr;
     }
 
-    void deserialise(const std::vector<uint8_t>& serialised)
+    void apply(const std::vector<uint8_t>& serialised)
     {
       delete (tree);
       tree = new HistoryTree(serialised);
@@ -575,7 +575,7 @@ namespace ccf
         !replicated_state_tree.in_range(1),
         "Tree is not empty before initialising from snapshot");
 
-      replicated_state_tree.deserialise(sig->tree);
+      replicated_state_tree.apply(sig->tree);
 
       crypto::Sha256Hash hash;
       std::copy_n(

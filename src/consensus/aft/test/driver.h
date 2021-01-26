@@ -19,7 +19,7 @@ using ms = std::chrono::milliseconds;
 using TRaft =
   aft::Aft<aft::LedgerStubProxy, aft::ChannelStubProxy, aft::StubSnapshotter>;
 using Store = aft::LoggingStubStore;
-using Adaptor = aft::Adaptor<Store, kv::DeserialiseSuccess>;
+using Adaptor = aft::Adaptor<Store>;
 
 std::vector<uint8_t> cert;
 

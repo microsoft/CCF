@@ -204,7 +204,7 @@ namespace ccf
       kv::ConsensusHookPtrs hooks;
       auto rc = network.tables->deserialise_snapshot(
         config.startup_snapshot, hooks, &view_history, true);
-      if (rc != kv::DeserialiseSuccess::PASS)
+      if (rc != kv::ApplySuccess::PASS)
       {
         throw std::logic_error(
           fmt::format("Failed to apply public snapshot: {}", rc));
@@ -494,7 +494,7 @@ namespace ccf
                 hooks,
                 &view_history,
                 resp.network_info.public_only);
-              if (rc != kv::DeserialiseSuccess::PASS)
+              if (rc != kv::ApplySuccess::PASS)
               {
                 throw std::logic_error(
                   fmt::format("Failed to apply snapshot on join: {}", rc));
@@ -700,10 +700,10 @@ namespace ccf
       LOG_INFO_FMT(
         "Deserialising public ledger entry ({})", ledger_entry.size());
 
-      kv::ConsensusHookPtrs hooks;
       // When reading the public ledger, deserialise in the real store
-      auto result = network.tables->deserialise(ledger_entry, hooks, true);
-      if (result == kv::DeserialiseSuccess::FAILED)
+      auto r = network.tables->apply(ledger_entry, ConsensusType::CFT, true);
+      auto result = r->execute();
+      if (result == kv::ApplySuccess::FAILED)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
         network.tables->rollback(ledger_idx - 1);
@@ -717,12 +717,13 @@ namespace ccf
       }
 
       // Not synchronised because consensus isn't effectively running then
-      for (auto& hook : hooks)
+      for (auto& hook : r->get_hooks())
       {
         hook->call(consensus.get());
       }
 
-      if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
+      // If the ledger entry is a signature, it is safe to compact the store
+      if (result == kv::ApplySuccess::PASS_SIGNATURE)
       {
         // If the ledger entry is a signature, it is safe to compact the store
         network.tables->compact(ledger_idx);
@@ -770,7 +771,7 @@ namespace ccf
         snapshotter->commit(ledger_idx);
       }
       else if (
-        result == kv::DeserialiseSuccess::PASS_SNAPSHOT_EVIDENCE &&
+        result == kv::ApplySuccess::PASS_SNAPSHOT_EVIDENCE &&
         startup_snapshot_info)
       {
         auto tx = network.tables->create_read_only_tx();
@@ -942,10 +943,10 @@ namespace ccf
       LOG_INFO_FMT(
         "Deserialising private ledger entry ({})", ledger_entry.size());
 
-      kv::ConsensusHookPtrs hooks;
       // When reading the private ledger, deserialise in the recovery store
-      auto result = recovery_store->deserialise(ledger_entry, hooks);
-      if (result == kv::DeserialiseSuccess::FAILED)
+      auto result =
+        recovery_store->apply(ledger_entry, ConsensusType::CFT)->execute();
+      if (result == kv::ApplySuccess::FAILED)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in private ledger");
         recovery_store->rollback(ledger_idx - 1);
@@ -953,7 +954,7 @@ namespace ccf
         return;
       }
 
-      if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
+      if (result == kv::ApplySuccess::PASS_SIGNATURE)
       {
         recovery_store->compact(ledger_idx);
       }
@@ -1092,7 +1093,7 @@ namespace ccf
         kv::ConsensusHookPtrs hooks;
         auto rc = recovery_store->deserialise_snapshot(
           startup_snapshot_info->raw, hooks, &view_history);
-        if (rc != kv::DeserialiseSuccess::PASS)
+        if (rc != kv::ApplySuccess::PASS)
         {
           throw std::logic_error(fmt::format(
             "Could not deserialise snapshot in recovery store: {}", rc));
@@ -1688,8 +1689,7 @@ namespace ccf
       auto shared_state = std::make_shared<aft::State>(self);
       auto raft = std::make_unique<RaftType>(
         network.consensus_type,
-        std::make_unique<aft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
-          network.tables),
+        std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         snapshotter,
