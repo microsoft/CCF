@@ -142,7 +142,7 @@ def test_update_all_nodes(network, args):
             LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
             primary = new_primary
         network.nodes.remove(node)
-        network.stop_node(node)
+        node.stop()
 
     LOG.info("Check the network is still functional")
     reconfiguration.check_can_progress(new_node)

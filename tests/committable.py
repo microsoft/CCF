@@ -48,7 +48,7 @@ def run(args):
         # Suspend three of the backups to prevent commit
         backups[1].suspend()
         backups[2].suspend()
-        network.stop_node(backups[3])
+        backups[3].stop()
 
         txs = []
         # Run some transactions that can't be committed
@@ -63,7 +63,7 @@ def run(args):
             wait_for_pending(bc, sig_view, sig_seqno)
 
         # Kill the primary, restore other backups
-        network.stop_node(primary)
+        primary.stop()
         backups[1].resume()
         backups[2].resume()
         new_primary, new_term = network.wait_for_new_primary(

@@ -125,7 +125,7 @@ def test_retire_backup(network, args):
     primary, _ = network.find_primary()
     backup_to_retire = network.find_any_backup()
     network.consortium.retire_node(primary, backup_to_retire)
-    network.stop_node(backup_to_retire)
+    backup_to_retire.stop()
     check_can_progress(primary)
     return network
 
@@ -143,7 +143,7 @@ def test_retire_primary(network, args):
     network.nodes.remove(primary)
     post_count = count_nodes(node_configs(network), network)
     assert pre_count == post_count + 1
-    network.stop_node(primary)
+    primary.stop()
     return network
 
 
@@ -169,7 +169,7 @@ def run(args):
         test_add_node_from_snapshot(network, args)
         test_add_node_from_snapshot(network, args, from_backup=True)
         test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
-        errors, _ = network.stop_node(network.get_joined_nodes()[-1])
+        errors, _ = network.get_joined_nodes()[-1].stop()
         if not any(
             "No snapshot found: Node will request all historical transactions" in s
             for s in errors

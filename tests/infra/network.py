@@ -483,62 +483,60 @@ class Network:
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True
 
-    def stop_node(self, node, primary=None):
-        if primary is None:
-            primary, _ = self.find_primary()
-
-        errors = node.stop()
-
-        if node != primary:
-            _, primary_committed_ledger_dir = primary.get_ledger(
-                include_read_only_dirs=True
-            )
-
-            _, stopped_node_committed_ledger_dir = node.get_ledger(
-                include_read_only_dirs=True
-            )
-
-            # Verify that all ledger files present on the stopped node are also
-            # present on the primary, and are identical
-            stopped_node_ledgers = sorted(os.listdir(stopped_node_committed_ledger_dir))
-            for stopped_node_ledger in stopped_node_ledgers:
-                stopped_node_ledger_checksum = infra.path.compute_file_checksum(
-                    os.path.join(stopped_node_committed_ledger_dir, stopped_node_ledger)
-                )
-
-                if stopped_node_ledger not in os.listdir(primary_committed_ledger_dir):
-                    raise Exception(
-                        f"Ledger file on stopped node {node.node_id} does not exist on primary {primary.node_id}: {stopped_node_ledger}"
-                    )
-
-                primary_ledger = os.path.join(
-                    primary_committed_ledger_dir, stopped_node_ledger
-                )
-                if (
-                    infra.path.compute_file_checksum(primary_ledger)
-                    != stopped_node_ledger_checksum
-                ):
-                    raise Exception(
-                        f"Ledger file checksums between stopped node {node.node_id} and primary {primary.node_id} did not match: {stopped_node_ledger}"
-                    )
-
-            LOG.info(
-                f"{len(stopped_node_ledgers)} ledger files on stopped node {node.node_id} successfully matched those of primary {primary.node_id}"
-            )
-
-        return errors
-
     def stop_all_nodes(self):
-        primary, _ = self.find_primary()
-
         fatal_error_found = False
+        longest_ledger_seqno = 0
+        most_up_to_date_node = None
+        committed_ledger_dirs = {}
+
         for node in self.nodes:
-            if node.network_state != infra.node.NodeNetworkState.stopped:
-                _, fatal_errors = self.stop_node(node, primary)
-                if fatal_errors:
-                    fatal_error_found = True
+            _, fatal_errors = node.stop()
+            if fatal_errors:
+                fatal_error_found = True
+
+            # Find stopped node with longest ledger
+            _, committed_ledger_dir = node.get_ledger(include_read_only_dirs=True)
+            ledger_end_seqno = 0
+            for ledger_file in os.listdir(committed_ledger_dir):
+                end_seqno = infra.node.get_committed_ledger_end_seqno(ledger_file)
+                if end_seqno > ledger_end_seqno:
+                    ledger_end_seqno = end_seqno
+
+            if ledger_end_seqno > longest_ledger_seqno:
+                longest_ledger_seqno = ledger_end_seqno
+                most_up_to_date_node = node
+            committed_ledger_dirs[node.node_id] = [
+                committed_ledger_dir,
+                ledger_end_seqno,
+            ]
 
         LOG.info("All nodes stopped")
+
+        # Verify that all ledger files on stopped nodes exist on most up-to-date node
+        # and are identical
+        longest_ledger_dir, _ = committed_ledger_dirs[most_up_to_date_node.node_id]
+        for node_id, (committed_ledger_dir, _) in (
+            l
+            for l in committed_ledger_dirs.items()
+            if not l[0] == most_up_to_date_node.node_id
+        ):
+            for ledger_file in os.listdir(committed_ledger_dir):
+                if ledger_file not in os.listdir(longest_ledger_dir):
+                    raise Exception(
+                        f"Ledger file on node {node_id} does not exist on most up-to-date node {most_up_to_date_node.node_id}: {ledger_file}"
+                    )
+                if infra.path.compute_file_checksum(
+                    os.path.join(longest_ledger_dir, ledger_file)
+                ) != infra.path.compute_file_checksum(
+                    os.path.join(committed_ledger_dir, ledger_file)
+                ):
+                    raise Exception(
+                        f"Ledger file checksums between node {node_id} and most up-to-date node {most_up_to_date_node.node_id} did not match: {ledger_file}"
+                    )
+
+        LOG.success(
+            f"Verified ledger files consistency on all {len(self.nodes)} stopped nodes"
+        )
 
         if fatal_error_found:
             if self.ignoring_shutdown_errors:

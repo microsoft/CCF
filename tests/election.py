@@ -25,7 +25,7 @@ from loguru import logger as LOG
 @reqs.can_kill_n_nodes(1)
 def test_kill_primary(network, args):
     primary, backup = network.find_primary_and_any_backup()
-    network.stop_node(primary)
+    primary.stop()
 
     # When the consensus is BFT there is no status message timer that triggers a new election.
     # It is triggered with a timeout from a message not executing. We need to send the message that
