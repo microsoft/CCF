@@ -18,7 +18,7 @@
         ],
         "type": "string"
       },
-      "EndpointMetrics__Metric": {
+      "EndpointMetrics__Entry": {
         "properties": {
           "calls": {
             "$ref": "#/components/schemas/uint64"
@@ -28,19 +28,33 @@
           },
           "failures": {
             "$ref": "#/components/schemas/uint64"
+          },
+          "method": {
+            "$ref": "#/components/schemas/string"
+          },
+          "path": {
+            "$ref": "#/components/schemas/string"
           }
         },
         "required": [
+          "path",
+          "method",
           "calls",
           "errors",
           "failures"
         ],
         "type": "object"
       },
+      "EndpointMetrics__Entry_array": {
+        "items": {
+          "$ref": "#/components/schemas/EndpointMetrics__Entry"
+        },
+        "type": "array"
+      },
       "EndpointMetrics__Out": {
         "properties": {
           "metrics": {
-            "$ref": "#/components/schemas/named_named_EndpointMetrics__Metric"
+            "$ref": "#/components/schemas/EndpointMetrics__Entry_array"
           }
         },
         "required": [
@@ -308,18 +322,6 @@
         "type": "integer"
       },
       "json": {},
-      "named_EndpointMetrics__Metric": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/EndpointMetrics__Metric"
-        },
-        "type": "object"
-      },
-      "named_named_EndpointMetrics__Metric": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/named_EndpointMetrics__Metric"
-        },
-        "type": "object"
-      },
       "string": {
         "type": "string"
       },
@@ -439,6 +441,22 @@
         }
       }
     },
+    "/api/metrics": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EndpointMetrics__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
     "/code": {
       "get": {
         "responses": {
@@ -463,22 +481,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetCommit__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/endpoint_metrics": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EndpointMetrics__Out"
                 }
               }
             },
