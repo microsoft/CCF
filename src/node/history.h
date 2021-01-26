@@ -132,7 +132,9 @@ namespace ccf
       return true;
     }
 
-    void rollback(kv::Version) override {}
+    void set_term(kv::Term) override {}
+
+    void rollback(kv::Version, kv::Term) override {}
 
     void compact(kv::Version) override {}
 
@@ -204,7 +206,7 @@ namespace ccf
     Receipt(const std::vector<uint8_t>& v)
     {
       size_t position = 0;
-      root.deserialise(v, position);
+      root.apply(v, position);
       path = std::make_shared<HistoryTree::Path>(v, position);
     }
 
@@ -340,7 +342,7 @@ namespace ccf
       tree = nullptr;
     }
 
-    void deserialise(const std::vector<uint8_t>& serialised)
+    void apply(const std::vector<uint8_t>& serialised)
     {
       delete (tree);
       tree = new HistoryTree(serialised);
@@ -459,6 +461,9 @@ namespace ccf
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
+    SpinLock term_lock;
+    kv::Term term = 0;
+
   public:
     HashedTxHistory(
       kv::Store& store_,
@@ -570,7 +575,7 @@ namespace ccf
         !replicated_state_tree.in_range(1),
         "Tree is not empty before initialising from snapshot");
 
-      replicated_state_tree.deserialise(sig->tree);
+      replicated_state_tree.apply(sig->tree);
 
       crypto::Sha256Hash hash;
       std::copy_n(
@@ -657,8 +662,15 @@ namespace ccf
       return true;
     }
 
-    void rollback(kv::Version v) override
+    void set_term(kv::Term t) override
     {
+      std::lock_guard<SpinLock> tguard(term_lock);
+      term = t;
+    }
+
+    void rollback(kv::Version v, kv::Term t) override
+    {
+      set_term(t);
       replicated_state_tree.retract(v);
       log_hash(replicated_state_tree.get_root(), ROLLBACK);
     }
