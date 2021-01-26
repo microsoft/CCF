@@ -98,8 +98,8 @@ namespace ccf
         auto tx = UD::unbox(l, -3);
         const K key = lua::check_get<nlohmann::json>(l, -2);
         const V value = lua::check_get<nlohmann::json>(l, -1);
-        const auto b = tx->put(key, value);
-        lua_pushboolean(l, b);
+        tx->put(key, value);
+        lua_pushboolean(l, true);
         return 1;
       }
 

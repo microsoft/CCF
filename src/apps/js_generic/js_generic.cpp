@@ -442,8 +442,7 @@ namespace ccfapp
     if (!key || !val)
       return JS_ThrowTypeError(ctx, "Arguments must be ArrayBuffers");
 
-    if (!handle->put({key, key + key_size}, {val, val + val_size}))
-      return JS_ThrowRangeError(ctx, "Could not insert at key");
+    handle->put({key, key + key_size}, {val, val + val_size});
 
     return JS_DupValue(ctx, this_val);
   }

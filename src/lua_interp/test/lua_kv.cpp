@@ -120,7 +120,7 @@ namespace ccf
 
       INFO("Transaction is committed");
       {
-        REQUIRE(table->put(k, s0));
+        table->put(k, s0);
         REQUIRE(txs.commit() == kv::CommitSuccess::OK);
       }
 
@@ -131,7 +131,7 @@ namespace ccf
         auto next_txs = tables.create_tx();
         auto next_tx = next_txs.rw<TableIS>("public:test");
 
-        REQUIRE(next_tx->put(k, s1));
+        next_tx->put(k, s1);
 
         INFO("get and get_globally_committed may return different values");
         {
@@ -142,7 +142,7 @@ namespace ccf
         INFO("get_globally_committed for a new key returns nil");
         {
           const auto next_k = k + 1;
-          REQUIRE(next_tx->put(next_k, s1));
+          next_tx->put(next_k, s1);
           REQUIRE(
             li.invoke<nullptr_t>(get_globally_committed, next_tx, next_k) ==
             nullptr);
