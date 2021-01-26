@@ -122,7 +122,7 @@ namespace ccf
       // another tx. To prevent conflicts, accessing the ledger secrets
       // require access to a tx object, which must take a dependency on the
       // secrets table.
-      auto secrets = tx.get_read_only_handle<Secrets>(Tables::SECRETS);
+      auto secrets = tx.ro<Secrets>(Tables::SECRETS);
 
       // Taking a read dependency on the key at self, which would get updated
       // on rekey

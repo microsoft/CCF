@@ -109,7 +109,7 @@ namespace ccf
     {
       auto code_digest = get_digest_from_parsed_quote(parsed_quote);
 
-      auto code_ids = tx.get_handle(code_ids_table);
+      auto code_ids = tx.rw(code_ids_table);
       auto code_id_status = code_ids->get(code_digest);
       if (!code_id_status.has_value())
       {

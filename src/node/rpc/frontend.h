@@ -122,7 +122,7 @@ namespace ccf
         {
           NodeId primary_id = consensus->primary();
           auto tx = tables.create_tx();
-          auto nodes = tx.get_handle<Nodes>(Tables::NODES);
+          auto nodes = tx.rw<Nodes>(Tables::NODES);
           auto info = nodes->get(primary_id);
 
           if (info)
@@ -444,7 +444,7 @@ namespace ccf
       std::lock_guard<SpinLock> mguard(open_lock);
       if (!is_open_)
       {
-        auto service = tx.get_handle<Service>(Tables::SERVICE);
+        auto service = tx.rw<Service>(Tables::SERVICE);
         auto s = service->get_globally_committed(0);
         if (
           s.has_value() && s.value().status == ServiceStatus::OPEN &&
@@ -567,7 +567,7 @@ namespace ccf
 
       PreExec fn = [](kv::Tx& tx, enclave::RpcContext& ctx) {
         auto aft_requests =
-          tx.get_handle<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
+          tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
         aft_requests->put(
           0,
           {tx.get_req_id(),

@@ -97,7 +97,7 @@ namespace ccf
         {
           const GetUserId::In in = params;
           auto certs =
-            args.tx.template get_read_only_handle<CertDERs>(certs_table_name);
+            args.tx.template ro<CertDERs>(certs_table_name);
           std::vector<uint8_t> pem(in.cert.begin(), in.cert.end());
           std::vector<uint8_t> der = tls::make_verifier(pem)->der_cert_data();
           auto caller_id_opt = certs->get(der);
@@ -154,7 +154,7 @@ namespace ccf
         GetCode::Out out;
 
         auto codes_ids =
-          args.tx.template get_read_only_handle<CodeIDs>(Tables::NODE_CODE_IDS);
+          args.tx.template ro<CodeIDs>(Tables::NODE_CODE_IDS);
         codes_ids->foreach(
           [&out](const ccf::CodeDigest& cd, const ccf::CodeStatus& cs) {
             auto digest = fmt::format("{:02x}", fmt::join(cd, ""));

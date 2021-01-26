@@ -35,7 +35,7 @@ TEST_CASE(
   INFO("Commit to public map in source store");
   {
     auto tx = kv_store.create_tx();
-    auto handle0 = tx.get_handle<MapTypes::StringString>("public:pub_map");
+    auto handle0 = tx.rw<MapTypes::StringString>("public:pub_map");
     handle0->put("pubk1", "pubv1");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -52,7 +52,7 @@ TEST_CASE(
 
     auto tx_target = kv_store_target.create_tx();
     auto handle_target =
-      tx_target.get_handle<MapTypes::StringString>("public:pub_map");
+      tx_target.rw<MapTypes::StringString>("public:pub_map");
     REQUIRE(handle_target->get("pubk1") == "pubv1");
   }
 }
@@ -73,7 +73,7 @@ TEST_CASE(
     "Commit a private transaction without an encryptor throws an exception")
   {
     auto tx = kv_store.create_tx();
-    auto handle0 = tx.get_handle<MapTypes::StringString>("priv_map");
+    auto handle0 = tx.rw<MapTypes::StringString>("priv_map");
     handle0->put("privk1", "privv1");
     REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
   }
@@ -84,7 +84,7 @@ TEST_CASE(
     INFO("Commit to private map in source store");
     {
       auto tx = kv_store.create_tx();
-      auto handle0 = tx.get_handle<MapTypes::StringString>("priv_map");
+      auto handle0 = tx.rw<MapTypes::StringString>("priv_map");
       handle0->put("privk1", "privv1");
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     }
@@ -100,7 +100,7 @@ TEST_CASE(
 
       auto tx_target = kv_store_target.create_tx();
       auto handle_target =
-        tx_target.get_handle<MapTypes::StringString>("priv_map");
+        tx_target.rw<MapTypes::StringString>("priv_map");
       REQUIRE(handle_target->get("privk1") == "privv1");
     }
   }
@@ -125,8 +125,8 @@ TEST_CASE(
   INFO("Commit to public and private map in source store");
   {
     auto tx = kv_store.create_tx();
-    auto handle_priv = tx.get_handle<MapTypes::StringString>(priv_map);
-    auto handle_pub = tx.get_handle<MapTypes::StringString>(pub_map);
+    auto handle_priv = tx.rw<MapTypes::StringString>(priv_map);
+    auto handle_pub = tx.rw<MapTypes::StringString>(pub_map);
 
     handle_priv->put("privk1", "privv1");
     handle_pub->put("pubk1", "pubv1");
@@ -144,8 +144,8 @@ TEST_CASE(
       kv::DeserialiseSuccess::FAILED);
 
     auto tx_target = kv_store_target.create_tx();
-    auto handle_priv = tx_target.get_handle<MapTypes::StringString>(priv_map);
-    auto handle_pub = tx_target.get_handle<MapTypes::StringString>(pub_map);
+    auto handle_priv = tx_target.rw<MapTypes::StringString>(priv_map);
+    auto handle_pub = tx_target.rw<MapTypes::StringString>(pub_map);
 
     REQUIRE(handle_priv->get("privk1") == "privv1");
     REQUIRE(handle_pub->get("pubk1") == "pubv1");
@@ -167,8 +167,8 @@ TEST_CASE(
   INFO("Commit new keys in source store and deserialise in target store");
   {
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle<MapTypes::StringString>("map");
-    auto handle2 = tx.get_handle<MapTypes::StringString>("map2");
+    auto handle = tx.rw<MapTypes::StringString>("map");
+    auto handle2 = tx.rw<MapTypes::StringString>("map2");
     handle->put("key1", "value1");
     handle2->put("key2", "value2");
     handle2->put("key3", "value3");
@@ -182,8 +182,8 @@ TEST_CASE(
       kv::DeserialiseSuccess::FAILED);
 
     auto tx_target = kv_store_target.create_tx();
-    auto handle_target = tx_target.get_handle<MapTypes::StringString>("map");
-    auto handle_target2 = tx_target.get_handle<MapTypes::StringString>("map2");
+    auto handle_target = tx_target.rw<MapTypes::StringString>("map");
+    auto handle_target2 = tx_target.rw<MapTypes::StringString>("map2");
     REQUIRE(handle_target->get("key1") == "value1");
     REQUIRE(handle_target2->get("key2") == "value2");
     REQUIRE(handle_target2->get("key3") == "value3");
@@ -192,8 +192,8 @@ TEST_CASE(
   INFO("Commit keys removal in source store and deserialise in target store");
   {
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle<MapTypes::StringString>("map");
-    auto handle_ = tx.get_handle<MapTypes::StringString>("map2");
+    auto handle = tx.rw<MapTypes::StringString>("map");
+    auto handle_ = tx.rw<MapTypes::StringString>("map2");
 
     // Key only exists in state
     REQUIRE(handle->remove("key1"));
@@ -217,8 +217,8 @@ TEST_CASE(
 
     // Make sure keys have been marked as deleted in source store
     auto tx2 = kv_store.create_tx();
-    auto handle2 = tx2.get_handle<MapTypes::StringString>("map");
-    auto handle_2 = tx2.get_handle<MapTypes::StringString>("map2");
+    auto handle2 = tx2.rw<MapTypes::StringString>("map");
+    auto handle_2 = tx2.rw<MapTypes::StringString>("map2");
     REQUIRE_FALSE(handle2->get("key1").has_value());
     REQUIRE_FALSE(handle_2->get("key2").has_value());
     REQUIRE_FALSE(handle2->get("unknown_key").has_value());
@@ -232,8 +232,8 @@ TEST_CASE(
       kv::DeserialiseSuccess::FAILED);
 
     auto tx_target = kv_store_target.create_tx();
-    auto handle_target = tx_target.get_handle<MapTypes::StringString>("map");
-    auto handle_target_2 = tx_target.get_handle<MapTypes::StringString>("map2");
+    auto handle_target = tx_target.rw<MapTypes::StringString>("map");
+    auto handle_target_2 = tx_target.rw<MapTypes::StringString>("map2");
     REQUIRE_FALSE(handle_target->get("key1").has_value());
     REQUIRE_FALSE(handle_target_2->get("key2").has_value());
     REQUIRE_FALSE(handle_target->get("unknown_key").has_value());
@@ -471,7 +471,7 @@ TEST_CASE_TEMPLATE(
     MapType map2("public:map");
 
     auto tx = kv_store.create_reserved_tx(kv_store.next_version());
-    auto handle = tx.get_handle(map);
+    auto handle = tx.rw(map);
     handle->put(k1, v1);
     handle->put(k2, v2);
 
@@ -483,7 +483,7 @@ TEST_CASE_TEMPLATE(
     REQUIRE(
       kv_store2.deserialise(data, hooks_) == kv::DeserialiseSuccess::PASS);
     auto tx2 = kv_store2.create_tx();
-    auto handle2 = tx2.get_handle(map2);
+    auto handle2 = tx2.rw(map2);
 
     // operator== does not need to be defined for custom types. In this case it
     // is not, and we check each member manually
@@ -515,7 +515,7 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     Table t("public:t");
 
     auto tx = s0.create_tx();
-    tx.get_handle(t)->put(k1, v1);
+    tx.rw(t)->put(k1, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     const auto latest_data = consensus->get_latest_data();
@@ -534,8 +534,8 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     Table t("public:t");
 
     auto tx = s0.create_tx();
-    tx.get_handle(t)->put(k0, v0);
-    tx.get_handle(t)->put(k1, v1);
+    tx.rw(t)->put(k0, v0);
+    tx.rw(t)->put(k1, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     const auto latest_data = consensus->get_latest_data();
@@ -570,10 +570,10 @@ TEST_CASE(
   {
     auto tx = store.create_reserved_tx(store.next_version());
 
-    auto data_handle_r = tx.get_handle<T>(data_replicated);
-    auto data_handle_r_p = tx.get_handle<T>(data_replicated_private);
-    auto data_handle_d = tx.get_handle<T>(data_derived);
-    auto data_handle_d_p = tx.get_handle<T>(data_derived_private);
+    auto data_handle_r = tx.rw<T>(data_replicated);
+    auto data_handle_r_p = tx.rw<T>(data_replicated_private);
+    auto data_handle_d = tx.rw<T>(data_derived);
+    auto data_handle_d_p = tx.rw<T>(data_derived_private);
     data_handle_r->put(44, 44);
     data_handle_r_p->put(45, 45);
     data_handle_d->put(46, 46);
@@ -591,10 +591,10 @@ TEST_CASE(
         kv_store_target.deserialise(data, hooks) ==
         kv::DeserialiseSuccess::PASS);
       auto tx = kv_store_target.create_tx();
-      auto data_handle_r = tx.get_handle<T>(data_replicated);
-      auto data_handle_r_p = tx.get_handle<T>(data_replicated_private);
-      auto data_handle_d = tx.get_handle<T>(data_derived);
-      auto data_handle_d_p = tx.get_handle<T>(data_derived_private);
+      auto data_handle_r = tx.rw<T>(data_replicated);
+      auto data_handle_r_p = tx.rw<T>(data_replicated_private);
+      auto data_handle_d = tx.rw<T>(data_derived);
+      auto data_handle_d_p = tx.rw<T>(data_derived_private);
       auto dvr = data_handle_r->get(44);
       REQUIRE(dvr.has_value());
       REQUIRE(dvr.value() == 44);
@@ -652,13 +652,13 @@ TEST_CASE("Exceptional serdes" * doctest::test_suite("serialisation"))
 
   {
     auto tx = store.create_tx();
-    auto bad_handle = tx.get_handle(bad_map_k);
+    auto bad_handle = tx.rw(bad_map_k);
     REQUIRE_THROWS(bad_handle->put({}, 0));
   }
 
   {
     auto tx = store.create_tx();
-    auto bad_handle = tx.get_handle(bad_map_v);
+    auto bad_handle = tx.rw(bad_map_v);
     REQUIRE_THROWS(bad_handle->put(0, {}));
   }
 }

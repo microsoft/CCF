@@ -95,7 +95,7 @@ TEST_CASE("StateCache")
     {
       INFO("Store the signing node's key");
       auto tx = store.create_tx();
-      auto nodes = tx.get_handle<ccf::Nodes>(ccf::Tables::NODES);
+      auto nodes = tx.rw<ccf::Nodes>(ccf::Tables::NODES);
       ccf::NodeInfo ni;
       ni.cert = kp->self_sign("CN=Test node");
       ni.status = ccf::NodeStatus::TRUSTED;
@@ -116,8 +116,8 @@ TEST_CASE("StateCache")
         else
         {
           auto tx = store.create_tx();
-          auto public_map = tx.get_handle<NumToString>("public:data");
-          auto private_map = tx.get_handle<NumToString>("data");
+          auto public_map = tx.rw<NumToString>("public:data");
+          auto private_map = tx.rw<NumToString>("data");
           const auto s = std::to_string(i);
           public_map->put(i, s);
           private_map->put(i, s);
@@ -249,8 +249,8 @@ TEST_CASE("StateCache")
 
     {
       auto tx = store_at_index->create_tx();
-      auto public_map = tx.get_handle<NumToString>("public:data");
-      auto private_map = tx.get_handle<NumToString>("data");
+      auto public_map = tx.rw<NumToString>("public:data");
+      auto private_map = tx.rw<NumToString>("data");
 
       const auto k = high_index - 1;
       const auto v = std::to_string(k);

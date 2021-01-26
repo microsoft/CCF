@@ -233,8 +233,8 @@ namespace ccf
 
     LedgerSecretWrappingKey combine_from_submitted_shares(kv::Tx& tx)
     {
-      auto submitted_shares = tx.get_handle(network.submitted_shares);
-      auto config = tx.get_handle(network.config);
+      auto submitted_shares = tx.rw(network.submitted_shares);
+      auto config = tx.rw(network.config);
 
       std::vector<SecretSharing::Share> shares;
       submitted_shares->foreach([&shares, &tx, this](
@@ -293,7 +293,7 @@ namespace ccf
       kv::Tx& tx, MemberId member_id)
     {
       std::optional<EncryptedShare> encrypted_share = std::nullopt;
-      auto recovery_shares_info = tx.get_handle(network.shares)->get(0);
+      auto recovery_shares_info = tx.rw(network.shares)->get(0);
       if (!recovery_shares_info.has_value())
       {
         throw std::logic_error(
@@ -320,7 +320,7 @@ namespace ccf
 
       auto ls_wrapping_key = combine_from_submitted_shares(tx);
 
-      auto recovery_shares_info = tx.get_handle(network.shares)->get(0);
+      auto recovery_shares_info = tx.rw(network.shares)->get(0);
       if (!recovery_shares_info.has_value())
       {
         throw std::logic_error(
@@ -376,8 +376,8 @@ namespace ccf
       MemberId member_id,
       const std::vector<uint8_t>& submitted_recovery_share)
     {
-      auto service = tx.get_handle(network.service);
-      auto submitted_shares = tx.get_handle(network.submitted_shares);
+      auto service = tx.rw(network.service);
+      auto submitted_shares = tx.rw(network.submitted_shares);
       auto active_service = service->get(0);
       if (!active_service.has_value())
       {
@@ -402,7 +402,7 @@ namespace ccf
 
     void clear_submitted_recovery_shares(kv::Tx& tx)
     {
-      auto submitted_shares = tx.get_handle(network.submitted_shares);
+      auto submitted_shares = tx.rw(network.submitted_shares);
 
       std::vector<uint8_t> submitted_share_ids = {};
 

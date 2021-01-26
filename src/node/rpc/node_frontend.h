@@ -49,7 +49,7 @@ namespace ccf
       const tls::Pem& node_pem,
       std::optional<NodeStatus> node_status = std::nullopt)
     {
-      auto nodes = tx.get_handle(network.nodes);
+      auto nodes = tx.rw(network.nodes);
 
       std::optional<ExistingNodeInfo> existing_node_info = std::nullopt;
       nodes->foreach([&existing_node_info, &node_pem, &node_status](
@@ -70,7 +70,7 @@ namespace ccf
     std::optional<NodeId> check_conflicting_node_network(
       kv::Tx& tx, const NodeInfoNetwork& node_info_network)
     {
-      auto nodes = tx.get_handle(network.nodes);
+      auto nodes = tx.rw(network.nodes);
 
       std::optional<NodeId> duplicate_node_id;
       nodes->foreach([&node_info_network, &duplicate_node_id](
@@ -95,7 +95,7 @@ namespace ccf
       const JoinNetworkNodeToNode::In& in,
       NodeStatus node_status)
     {
-      auto nodes = tx.get_handle(network.nodes);
+      auto nodes = tx.rw(network.nodes);
 
       auto conflicting_node_id =
         check_conflicting_node_network(tx, in.node_info_network);
@@ -130,7 +130,7 @@ namespace ccf
 #endif
 
       NodeId joining_node_id =
-        get_next_id(tx.get_handle(this->network.values), NEXT_NODE_ID);
+        get_next_id(tx.rw(this->network.values), NEXT_NODE_ID);
 
       std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
       if (node_status == NodeStatus::TRUSTED)
@@ -207,8 +207,8 @@ namespace ccf
                 this->network.consensus_type));
           }
 
-          auto nodes = args.tx.get_handle(this->network.nodes);
-          auto service = args.tx.get_handle(this->network.service);
+          auto nodes = args.tx.rw(this->network.nodes);
+          auto service = args.tx.rw(this->network.service);
 
           auto active_service = service->get(0);
           if (!active_service.has_value())
@@ -306,7 +306,7 @@ namespace ccf
         result.last_recovered_seqno = lrs;
 
         auto signatures =
-          args.tx.template get_read_only_handle<Signatures>(Tables::SIGNATURES);
+          args.tx.template ro<Signatures>(Tables::SIGNATURES);
         auto sig = signatures->get(0);
         if (!sig.has_value())
         {
@@ -372,7 +372,7 @@ namespace ccf
       auto get_quotes = [this](auto& args, nlohmann::json&&) {
         GetQuotes::Out result;
 
-        auto nodes = args.tx.get_read_only_handle(network.nodes);
+        auto nodes = args.tx.ro(network.nodes);
         nodes->foreach([& quotes = result.quotes](
                          const auto& node_id, const auto& node_info) {
           if (node_info.status == ccf::NodeStatus::TRUSTED)
@@ -408,7 +408,7 @@ namespace ccf
 
       auto network_status = [this](auto& args, nlohmann::json&&) {
         GetNetworkInfo::Out out;
-        auto service = args.tx.get_read_only_handle(network.service);
+        auto service = args.tx.ro(network.service);
         auto service_state = service->get(0);
         if (service_state.has_value())
         {
@@ -419,7 +419,7 @@ namespace ccf
 
             auto primary_id = consensus->primary();
             auto view_change_in_progress = consensus->view_change_in_progress();
-            auto nodes = args.tx.get_read_only_handle(this->network.nodes);
+            auto nodes = args.tx.ro(this->network.nodes);
             auto info = nodes->get(primary_id);
             if (info)
             {
@@ -448,7 +448,7 @@ namespace ccf
         const auto in = params.get<GetNodes::In>();
         GetNodes::Out out;
 
-        auto nodes = args.tx.get_read_only_handle(this->network.nodes);
+        auto nodes = args.tx.ro(this->network.nodes);
         nodes->foreach(
           [this, &in, &out](const NodeId& nid, const NodeInfo& ni) {
             if (in.host.has_value() && in.host.value() != ni.pubhost)
@@ -495,7 +495,7 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
-        auto nodes = args.tx.get_read_only_handle(this->network.nodes);
+        auto nodes = args.tx.ro(this->network.nodes);
         auto info = nodes->get(node_id);
 
         if (!info)
@@ -530,7 +530,7 @@ namespace ccf
 
       auto get_self_node = [this](ReadOnlyEndpointContext& args) {
         auto node_id = this->node.get_node_id();
-        auto nodes = args.tx.get_read_only_handle(this->network.nodes);
+        auto nodes = args.tx.ro(this->network.nodes);
         auto info = nodes->get(node_id);
         if (info)
         {
@@ -560,7 +560,7 @@ namespace ccf
         {
           auto node_id = this->node.get_node_id();
           auto primary_id = consensus->primary();
-          auto nodes = args.tx.get_read_only_handle(this->network.nodes);
+          auto nodes = args.tx.ro(this->network.nodes);
           auto info = nodes->get(node_id);
           auto info_primary = nodes->get(primary_id);
           if (info && info_primary)
@@ -598,7 +598,7 @@ namespace ccf
           if (consensus != nullptr)
           {
             NodeId primary_id = consensus->primary();
-            auto nodes = args.tx.get_read_only_handle(this->network.nodes);
+            auto nodes = args.tx.ro(this->network.nodes);
             auto info = nodes->get(primary_id);
             if (info)
             {

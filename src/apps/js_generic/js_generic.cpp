@@ -551,7 +551,7 @@ namespace ccfapp
     }
 
     auto tx_ptr = static_cast<kv::Tx*>(JS_GetOpaque(this_val, kv_class_id));
-    auto handle = tx_ptr->get_handle<KVMap>(property_name);
+    auto handle = tx_ptr->rw<KVMap>(property_name);
 
     // This follows the interface of Map:
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
@@ -675,7 +675,7 @@ namespace ccfapp
 
     auto arg = (JSModuleLoaderArg*)opaque;
 
-    const auto modules = arg->tx->get_handle(arg->network->modules);
+    const auto modules = arg->tx->rw(arg->network->modules);
     auto module = modules->get(module_name_kv);
     if (!module.has_value())
     {
@@ -940,7 +940,7 @@ namespace ccfapp
     {
       const auto local_method = method.substr(method.find_first_not_of('/'));
 
-      const auto scripts = args.tx.get_handle(this->network.app_scripts);
+      const auto scripts = args.tx.rw(this->network.app_scripts);
 
       // Try to find script for method
       // - First try a script called "foo"
@@ -1293,7 +1293,7 @@ namespace ccfapp
       const auto verb = rpc_ctx.get_request_verb();
 
       auto endpoints =
-        tx.get_handle<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+        tx.rw<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
 
       const auto key = ccf::endpoints::EndpointKey{method, verb};
 
@@ -1390,7 +1390,7 @@ namespace ccfapp
     {
       UserEndpointRegistry::build_api(document, tx);
 
-      auto endpoints = tx.get_read_only_handle<ccf::endpoints::EndpointsMap>(
+      auto endpoints = tx.ro<ccf::endpoints::EndpointsMap>(
         ccf::Tables::ENDPOINTS);
 
       endpoints->foreach([&document](const auto& key, const auto& properties) {

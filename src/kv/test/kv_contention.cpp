@@ -85,7 +85,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
           std::vector<MapType::Handle*> handles;
           for (const auto& map : args->maps)
           {
-            handles.push_back(tx.get_handle(map));
+            handles.push_back(tx.rw(map));
           }
 
           for (const auto& [from_map, from_k, to_map, to_k] : writes)

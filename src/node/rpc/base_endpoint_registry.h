@@ -216,7 +216,7 @@ namespace ccf
       try
       {
         const auto node_id = node.get_node_id();
-        auto nodes = tx.get_read_only_handle<ccf::Nodes>(Tables::NODES);
+        auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
         const auto node_info = nodes->get(node_id);
 
         if (!node_info.has_value())

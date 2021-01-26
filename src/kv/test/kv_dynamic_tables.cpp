@@ -28,7 +28,7 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
   {
     auto tx = kv_store.create_tx();
 
-    auto handle = tx.get_handle<MapTypes::StringString>(map_name);
+    auto handle = tx.rw<MapTypes::StringString>(map_name);
     handle->put("foo", "bar");
 
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -38,7 +38,7 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
     INFO("New style access");
     auto tx = kv_store.create_tx();
 
-    auto handle = tx.get_handle<MapTypes::StringString>(map_name);
+    auto handle = tx.rw<MapTypes::StringString>(map_name);
     const auto it = handle->get("foo");
     REQUIRE(it.has_value());
     REQUIRE(it.value() == "bar");
@@ -50,7 +50,7 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
 
     auto tx = kv_store.create_tx();
 
-    auto handle = tx.get_handle<MapTypes::StringString>(map_name);
+    auto handle = tx.rw<MapTypes::StringString>(map_name);
     const auto it = handle->get("foo");
     REQUIRE(it.has_value());
     REQUIRE(it.value() == "bar");
@@ -66,24 +66,24 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
     INFO("Multiple dynamic tables can be created in a single tx");
     auto tx = kv_store.create_tx();
 
-    auto v1 = tx.get_handle<MapTypes::StringString>(new_map1);
-    auto v2 = tx.get_handle<MapTypes::StringNum>(new_map2);
-    auto v2a = tx.get_handle<MapTypes::StringNum>(new_map2);
-    auto v3 = tx.get_handle<MapTypes::NumString>(new_map3);
+    auto v1 = tx.rw<MapTypes::StringString>(new_map1);
+    auto v2 = tx.rw<MapTypes::StringNum>(new_map2);
+    auto v2a = tx.rw<MapTypes::StringNum>(new_map2);
+    auto v3 = tx.rw<MapTypes::NumString>(new_map3);
 
     REQUIRE(v2 == v2a);
 
     v1->put("foo", "bar");
     v3->put(42, "hello");
 
-    auto a = tx.get_handle<MapTypes::StringString>(map_name);
+    auto a = tx.rw<MapTypes::StringString>(map_name);
     a->put("foo", "baz");
 
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     {
       auto check_tx = kv_store.create_tx();
-      auto check_va = check_tx.get_handle<MapTypes::StringString>(map_name);
+      auto check_va = check_tx.rw<MapTypes::StringString>(map_name);
       const auto v = check_va->get("foo");
       REQUIRE(v.has_value());
       REQUIRE(v.value() == "baz");
@@ -96,9 +96,9 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
 
     {
       auto tx = kv_store.create_tx();
-      auto v1 = tx.get_handle<MapTypes::StringString>(new_map1);
-      auto v2 = tx.get_handle<MapTypes::StringNum>(new_map2);
-      auto v3 = tx.get_handle<MapTypes::NumString>(new_map3);
+      auto v1 = tx.rw<MapTypes::StringString>(new_map1);
+      auto v2 = tx.rw<MapTypes::StringNum>(new_map2);
+      auto v3 = tx.rw<MapTypes::NumString>(new_map3);
 
       REQUIRE(!v1->has("foo"));
       REQUIRE(!v2->has("foo"));
@@ -108,7 +108,7 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
     {
       INFO("Retained dynamic maps have their state rolled back");
       auto check_tx = kv_store.create_tx();
-      auto check_va = check_tx.get_handle<MapTypes::StringString>(map_name);
+      auto check_va = check_tx.rw<MapTypes::StringString>(map_name);
       const auto v = check_va->get("foo");
       REQUIRE(v.has_value());
       REQUIRE(v.value() == "bar");
@@ -128,11 +128,11 @@ TEST_CASE("Dynamic table opacity" * doctest::test_suite("dynamic"))
   auto tx1 = kv_store.create_tx();
   auto tx2 = kv_store.create_tx();
 
-  auto handle1 = tx1.get_handle<MapTypes::StringString>(map_name);
+  auto handle1 = tx1.rw<MapTypes::StringString>(map_name);
   handle1->put("foo", "bar");
   REQUIRE(handle1->get("foo").value() == "bar");
 
-  auto handle2 = tx2.get_handle<MapTypes::StringString>(map_name);
+  auto handle2 = tx2.rw<MapTypes::StringString>(map_name);
   handle2->put("foo", "baz");
   REQUIRE(handle2->get("foo").value() == "baz");
 
@@ -144,7 +144,7 @@ TEST_CASE("Dynamic table opacity" * doctest::test_suite("dynamic"))
   {
     INFO("Committed transaction results are persisted");
     auto txx = kv_store.create_tx();
-    auto handle = txx.get_handle<MapTypes::StringString>(map_name);
+    auto handle = txx.rw<MapTypes::StringString>(map_name);
     const auto v = handle->get("foo");
     REQUIRE(v.has_value());
     REQUIRE(v.value() == "bar");
@@ -158,7 +158,7 @@ TEST_CASE("Dynamic table opacity" * doctest::test_suite("dynamic"))
   {
     INFO("Conflicting transaction can be rerun, on existing map");
     auto tx3 = kv_store.create_tx();
-    auto handle3 = tx3.get_handle<MapTypes::StringString>(map_name);
+    auto handle3 = tx3.rw<MapTypes::StringString>(map_name);
     const auto v = handle3->get("foo");
     REQUIRE(v.has_value());
     handle3->put("foo", "baz");
@@ -170,7 +170,7 @@ TEST_CASE("Dynamic table opacity" * doctest::test_suite("dynamic"))
   {
     INFO("Subsequent transactions over dynamic map are persisted");
     auto tx4 = kv_store.create_tx();
-    auto handle4 = tx4.get_handle<MapTypes::StringString>(map_name);
+    auto handle4 = tx4.rw<MapTypes::StringString>(map_name);
     const auto v = handle4->get("foo");
     REQUIRE(v.has_value());
     REQUIRE(v.value() == "baz");
@@ -193,26 +193,26 @@ TEST_CASE(
   auto tx3 = kv_store.create_tx();
   auto tx4 = kv_store.create_tx();
 
-  auto handle1 = tx1.get_handle<MapTypes::StringString>(map_name);
+  auto handle1 = tx1.rw<MapTypes::StringString>(map_name);
   handle1->put("foo", "bar");
 
   // Map created in tx1 is not visible
-  auto handle2 = tx2.get_handle<MapTypes::StringString>(map_name);
+  auto handle2 = tx2.rw<MapTypes::StringString>(map_name);
   REQUIRE(!handle2->get("foo").has_value());
 
   // tx3 takes a read dependency at an early version, before the map is visible
-  auto handle3_static = tx3.get_handle<MapTypes::StringString>(other_map);
+  auto handle3_static = tx3.rw<MapTypes::StringString>(other_map);
 
   REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
   // Even after commit, the new map is not visible to tx3 because it is reading
   // from an earlier version
-  auto handle3 = tx3.get_handle<MapTypes::StringString>(map_name);
+  auto handle3 = tx3.rw<MapTypes::StringString>(map_name);
   REQUIRE(!handle3->get("foo").has_value());
 
   // Map created in tx1 is visible, because tx4 first _reads_ (creates a
   // handle) after tx1 has committed
-  auto handle4 = tx4.get_handle<MapTypes::StringString>(map_name);
+  auto handle4 = tx4.rw<MapTypes::StringString>(map_name);
   REQUIRE(handle4->get("foo").has_value());
 }
 
@@ -228,10 +228,10 @@ TEST_CASE("Read only handles" * doctest::test_suite("dynamic"))
 
   {
     auto tx = kv_store.create_read_only_tx();
-    auto a = tx.get_read_only_handle<MapTypes::StringString>(dynamic_map_a);
-    auto aa = tx.get_read_only_handle<MapTypes::StringString>(dynamic_map_a);
-    auto b = tx.get_read_only_handle<MapTypes::StringString>(dynamic_map_b);
-    auto bb = tx.get_read_only_handle<MapTypes::StringString>(dynamic_map_b);
+    auto a = tx.ro<MapTypes::StringString>(dynamic_map_a);
+    auto aa = tx.ro<MapTypes::StringString>(dynamic_map_a);
+    auto b = tx.ro<MapTypes::StringString>(dynamic_map_b);
+    auto bb = tx.ro<MapTypes::StringString>(dynamic_map_b);
 
     REQUIRE(a != nullptr);
     REQUIRE(aa != nullptr);
@@ -249,8 +249,8 @@ TEST_CASE("Read only handles" * doctest::test_suite("dynamic"))
 
   {
     auto tx = kv_store.create_tx();
-    auto a = tx.get_handle<MapTypes::StringString>(dynamic_map_a);
-    auto b = tx.get_handle<MapTypes::StringString>(dynamic_map_b);
+    auto a = tx.rw<MapTypes::StringString>(dynamic_map_a);
+    auto b = tx.rw<MapTypes::StringString>(dynamic_map_b);
 
     a->put("foo", "bar");
     b->put("foo", "baz");
@@ -260,8 +260,8 @@ TEST_CASE("Read only handles" * doctest::test_suite("dynamic"))
 
   {
     auto tx = kv_store.create_read_only_tx();
-    auto a = tx.get_read_only_handle<MapTypes::StringString>(dynamic_map_a);
-    auto b = tx.get_read_only_handle<MapTypes::StringString>(dynamic_map_b);
+    auto a = tx.ro<MapTypes::StringString>(dynamic_map_a);
+    auto b = tx.ro<MapTypes::StringString>(dynamic_map_b);
 
     const auto foo_a = a->get("foo");
     REQUIRE(foo_a.has_value());
@@ -285,7 +285,7 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
   MapTypes::StringString prior_map("prior_map");
   {
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle(prior_map);
+    auto handle = tx.rw(prior_map);
     handle->put(key, "bar");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -298,8 +298,8 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
     auto tx1 = kv_store.create_tx();
     auto tx2 = kv_store.create_tx();
 
-    auto handle1 = tx1.get_handle<MapTypes::NumString>(dynamic_map_a);
-    auto handle2 = tx2.get_handle<MapTypes::StringNum>(dynamic_map_b);
+    auto handle1 = tx1.rw<MapTypes::NumString>(dynamic_map_a);
+    auto handle2 = tx2.rw<MapTypes::StringNum>(dynamic_map_b);
 
     handle1->put(42, "hello");
     handle2->put("hello", 42);
@@ -312,19 +312,19 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
   {
     auto tx1 = kv_store.create_tx();
     {
-      auto handle1 = tx1.get_handle(prior_map);
+      auto handle1 = tx1.rw(prior_map);
       const auto v = handle1->get(key); // Introduce read-dependency
       handle1->put(key, "bar");
-      auto dynamic_handle = tx1.get_handle<MapTypes::NumString>(dynamic_map_a);
+      auto dynamic_handle = tx1.rw<MapTypes::NumString>(dynamic_map_a);
       dynamic_handle->put(42, "hello world");
     }
 
     auto tx2 = kv_store.create_tx();
     {
-      auto handle2 = tx2.get_handle(prior_map);
+      auto handle2 = tx2.rw(prior_map);
       const auto v = handle2->get(key); // Introduce read-dependency
       handle2->put(key, "bar");
-      auto dynamic_handle = tx2.get_handle<MapTypes::StringNum>(dynamic_map_b);
+      auto dynamic_handle = tx2.rw<MapTypes::StringNum>(dynamic_map_b);
       dynamic_handle->put("hello world", 42);
     }
 
@@ -334,8 +334,8 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
     {
       auto tx3 = kv_store.create_tx();
 
-      auto handle1 = tx1.get_handle<MapTypes::NumString>(dynamic_map_a);
-      auto handle2 = tx2.get_handle<MapTypes::StringNum>(dynamic_map_b);
+      auto handle1 = tx1.rw<MapTypes::NumString>(dynamic_map_a);
+      auto handle2 = tx2.rw<MapTypes::StringNum>(dynamic_map_b);
 
       const auto v1 = handle1->get(42);
       REQUIRE(v1.has_value());
@@ -365,7 +365,7 @@ TEST_CASE("Dynamic map serialisation" * doctest::test_suite("dynamic"))
   {
     INFO("Commit a map creation in source store");
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle<MapTypes::StringString>(map_name);
+    auto handle = tx.rw<MapTypes::StringString>(map_name);
     handle->put(key, value);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -380,7 +380,7 @@ TEST_CASE("Dynamic map serialisation" * doctest::test_suite("dynamic"))
       kv::DeserialiseSuccess::PASS);
 
     auto tx_target = kv_store_target.create_tx();
-    auto handle_target = tx_target.get_handle<MapTypes::StringString>(map_name);
+    auto handle_target = tx_target.rw<MapTypes::StringString>(map_name);
     const auto v = handle_target->get(key);
     REQUIRE(v.has_value());
     REQUIRE(v.value() == value);
@@ -399,12 +399,12 @@ TEST_CASE("Dynamic map snapshot serialisation" * doctest::test_suite("dynamic"))
   INFO("Create maps in original store");
   {
     auto tx1 = store.create_tx();
-    auto handle_1 = tx1.get_handle<MapTypes::StringString>(map_name);
+    auto handle_1 = tx1.rw<MapTypes::StringString>(map_name);
     handle_1->put("foo", "foo");
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
     auto tx2 = store.create_tx();
-    auto handle_2 = tx2.get_handle<MapTypes::StringString>(map_name);
+    auto handle_2 = tx2.rw<MapTypes::StringString>(map_name);
     handle_2->put("bar", "bar");
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
 
@@ -423,7 +423,7 @@ TEST_CASE("Dynamic map snapshot serialisation" * doctest::test_suite("dynamic"))
     new_store.deserialise_snapshot(serialised_snapshot, hooks);
 
     auto tx = new_store.create_tx();
-    auto handle = tx.get_handle<MapTypes::StringString>(map_name);
+    auto handle = tx.rw<MapTypes::StringString>(map_name);
 
     const auto foo_v = handle->get("foo");
     REQUIRE(foo_v.has_value());
@@ -449,7 +449,7 @@ TEST_CASE("Mid rollback safety" * doctest::test_suite("dynamic"))
   {
     auto tx = kv_store.create_tx();
 
-    auto handle = tx.get_handle<MapTypes::StringString>(map_name);
+    auto handle = tx.rw<MapTypes::StringString>(map_name);
     handle->put("foo", "bar");
 
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -457,7 +457,7 @@ TEST_CASE("Mid rollback safety" * doctest::test_suite("dynamic"))
 
   {
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle<MapTypes::StringString>(map_name);
+    auto handle = tx.rw<MapTypes::StringString>(map_name);
     const auto v_0 = handle->get("foo");
     REQUIRE(v_0.has_value());
     REQUIRE(v_0.value() == "bar");
@@ -470,7 +470,7 @@ TEST_CASE("Mid rollback safety" * doctest::test_suite("dynamic"))
     REQUIRE(v_0.has_value());
     REQUIRE(v_0.value() == "bar");
 
-    auto handle_after = tx.get_handle<MapTypes::StringString>(map_name);
+    auto handle_after = tx.rw<MapTypes::StringString>(map_name);
     REQUIRE(handle_after == handle);
 
     handle->put("foo", "baz");
@@ -490,7 +490,7 @@ TEST_CASE(
 
   {
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle<MapTypes::StringString>("public:foo");
+    auto handle = tx.rw<MapTypes::StringString>("public:foo");
     handle->put("foo", "bar");
 
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -498,7 +498,7 @@ TEST_CASE(
 
   {
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle<MapTypes::StringString>("foo");
+    auto handle = tx.rw<MapTypes::StringString>("foo");
     handle->put("hello", "world");
 
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -507,8 +507,8 @@ TEST_CASE(
   {
     auto tx = kv_store.create_tx();
 
-    auto public_handle = tx.get_handle<MapTypes::StringString>("public:foo");
-    auto private_handle = tx.get_handle<MapTypes::StringString>("foo");
+    auto public_handle = tx.rw<MapTypes::StringString>("public:foo");
+    auto private_handle = tx.rw<MapTypes::StringString>("foo");
 
     // These are _different handles_ over _different maps_
     REQUIRE(public_handle != private_handle);
@@ -532,8 +532,8 @@ TEST_CASE("Swapping dynamic maps" * doctest::test_suite("dynamic"))
 
   {
     auto tx = s1.create_tx();
-    auto v0 = tx.get_handle<MapTypes::StringString>("foo");
-    auto v1 = tx.get_handle<MapTypes::NumString>("bar");
+    auto v0 = tx.rw<MapTypes::StringString>("foo");
+    auto v1 = tx.rw<MapTypes::NumString>("bar");
     v0->put("hello", "world");
     v1->put(42, "everything");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -541,8 +541,8 @@ TEST_CASE("Swapping dynamic maps" * doctest::test_suite("dynamic"))
 
   {
     auto tx = s1.create_tx();
-    auto v0 = tx.get_handle<MapTypes::StringString>("foo");
-    auto v1 = tx.get_handle<MapTypes::StringNum>("baz");
+    auto v0 = tx.rw<MapTypes::StringString>("foo");
+    auto v1 = tx.rw<MapTypes::StringNum>("baz");
     v0->put("hello", "goodbye");
     v1->put("saluton", 100);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -551,7 +551,7 @@ TEST_CASE("Swapping dynamic maps" * doctest::test_suite("dynamic"))
   {
     // Create _public_ state in source store
     auto tx = s1.create_tx();
-    auto v0 = tx.get_handle<MapTypes::StringString>("public:source_state");
+    auto v0 = tx.rw<MapTypes::StringString>("public:source_state");
     v0->put("store", "source");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -564,7 +564,7 @@ TEST_CASE("Swapping dynamic maps" * doctest::test_suite("dynamic"))
   {
     // Create public state in target store, to confirm it is unaffected
     auto tx = s2.create_tx();
-    auto v0 = tx.get_handle<MapTypes::StringString>("public:target_state");
+    auto v0 = tx.rw<MapTypes::StringString>("public:target_state");
     v0->put("store", "target");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -577,9 +577,9 @@ TEST_CASE("Swapping dynamic maps" * doctest::test_suite("dynamic"))
     INFO("Private state is transferred");
     auto tx = s2.create_tx();
 
-    auto v0 = tx.get_handle<MapTypes::StringString>("foo");
-    auto v1 = tx.get_handle<MapTypes::NumString>("bar");
-    auto v2 = tx.get_handle<MapTypes::StringNum>("baz");
+    auto v0 = tx.rw<MapTypes::StringString>("foo");
+    auto v1 = tx.rw<MapTypes::NumString>("bar");
+    auto v2 = tx.rw<MapTypes::StringNum>("baz");
 
     const auto val0 = v0->get("hello");
     REQUIRE(val0.has_value());
@@ -598,8 +598,8 @@ TEST_CASE("Swapping dynamic maps" * doctest::test_suite("dynamic"))
     INFO("Public state is untouched");
     auto tx = s2.create_tx();
 
-    auto v0 = tx.get_handle<MapTypes::StringString>("public:source_state");
-    auto v1 = tx.get_handle<MapTypes::StringString>("public:target_state");
+    auto v0 = tx.rw<MapTypes::StringString>("public:source_state");
+    auto v1 = tx.rw<MapTypes::StringString>("public:target_state");
 
     const auto val0 = v0->get("store");
     REQUIRE_FALSE(val0.has_value());

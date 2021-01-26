@@ -34,13 +34,13 @@ namespace ccf
       const auto caller_cert = ctx->session->caller_cert;
 
       auto users_by_cert =
-        tx.get_read_only_handle<CertDERs>(Tables::USER_CERT_DERS);
+        tx.ro<CertDERs>(Tables::USER_CERT_DERS);
       const auto user_id = users_by_cert->get(caller_cert);
 
       if (user_id.has_value())
       {
         Users users_table(Tables::USERS);
-        auto users = tx.get_read_only_handle(users_table);
+        auto users = tx.ro(users_table);
         const auto user = users->get(user_id.value());
         if (!user.has_value())
         {
@@ -91,13 +91,13 @@ namespace ccf
       const auto caller_cert = ctx->session->caller_cert;
 
       auto members_by_cert =
-        tx.get_read_only_handle<CertDERs>(Tables::MEMBER_CERT_DERS);
+        tx.ro<CertDERs>(Tables::MEMBER_CERT_DERS);
       const auto member_id = members_by_cert->get(caller_cert);
 
       if (member_id.has_value())
       {
         Members members_table(Tables::MEMBERS);
-        auto members = tx.get_read_only_handle(members_table);
+        auto members = tx.ro(members_table);
         const auto member = members->get(member_id.value());
         if (!member.has_value())
         {
@@ -148,7 +148,7 @@ namespace ccf
 
       std::unique_ptr<NodeCertAuthnIdentity> identity = nullptr;
 
-      auto nodes = tx.get_read_only_handle<ccf::Nodes>(Tables::NODES);
+      auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
       nodes->foreach(
         [&caller_cert_pem, &identity](const auto& id, const auto& info) {
           if (info.cert == caller_cert_pem)

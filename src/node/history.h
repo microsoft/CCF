@@ -102,7 +102,7 @@ namespace ccf
     {
       auto sig = store.create_reserved_tx(txid.version);
       auto signatures =
-        sig.template get_handle<ccf::Signatures>(ccf::Tables::SIGNATURES);
+        sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
       PrimarySignature sig_value(id, txid.version);
       signatures->put(0, sig_value);
       return sig.commit_reserved();
@@ -261,7 +261,7 @@ namespace ccf
     {
       auto sig = store.create_reserved_tx(txid.version);
       auto signatures =
-        sig.template get_handle<ccf::Signatures>(ccf::Tables::SIGNATURES);
+        sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
       crypto::Sha256Hash root = replicated_state_tree.get_root();
 
       Nonce hashed_nonce;
@@ -557,7 +557,7 @@ namespace ccf
       // deserialising the tree in the signatures table and then applying the
       // hash of the transaction at which the snapshot was taken
       auto tx = store.create_read_only_tx();
-      auto signatures = tx.template get_read_only_handle<ccf::Signatures>(
+      auto signatures = tx.template ro<ccf::Signatures>(
         ccf::Tables::SIGNATURES);
       auto sig = signatures->get(0);
       if (!sig.has_value())
@@ -615,8 +615,8 @@ namespace ccf
     {
       auto tx = store.create_tx();
       auto signatures =
-        tx.template get_handle<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      auto nodes = tx.template get_handle<ccf::Nodes>(ccf::Tables::NODES);
+        tx.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      auto nodes = tx.template rw<ccf::Nodes>(ccf::Tables::NODES);
       auto sig = signatures->get(0);
       if (!sig.has_value())
       {

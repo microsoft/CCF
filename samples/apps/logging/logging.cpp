@@ -141,7 +141,7 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto records_handle = tx.get_handle(records);
+        auto records_handle = tx.rw(records);
         records_handle->put(in.id, in.msg);
         return ccf::make_success(true);
       };
@@ -166,7 +166,7 @@ namespace loggingapp
       auto get =
         [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&& params) {
           const auto in = params.get<LoggingGet::In>();
-          auto records_handle = args.tx.get_read_only_handle(records);
+          auto records_handle = args.tx.ro(records);
           auto record = records_handle->get(in.id);
 
           if (record.has_value())
@@ -191,7 +191,7 @@ namespace loggingapp
 
       auto remove = [this](kv::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRemove::In>();
-        auto records_handle = tx.get_handle(records);
+        auto records_handle = tx.rw(records);
         auto removed = records_handle->remove(in.id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
@@ -216,7 +216,7 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto records_handle = tx.get_handle(public_records);
+        auto records_handle = tx.rw(public_records);
         records_handle->put(params["id"], in.msg);
         return ccf::make_success(true);
       };
@@ -234,7 +234,7 @@ namespace loggingapp
         [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&& params) {
           const auto in = params.get<LoggingGet::In>();
           auto public_records_handle =
-            args.tx.get_read_only_handle(public_records);
+            args.tx.ro(public_records);
           auto record = public_records_handle->get(in.id);
 
           if (record.has_value())
@@ -256,7 +256,7 @@ namespace loggingapp
 
       auto remove_public = [this](kv::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRemove::In>();
-        auto records_handle = tx.get_handle(public_records);
+        auto records_handle = tx.rw(public_records);
         auto removed = records_handle->remove(in.id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
@@ -300,7 +300,7 @@ namespace loggingapp
         }
 
         const auto log_line = fmt::format("{}: {}", cert->subject, in.msg);
-        auto records_handle = args.tx.get_handle(records);
+        auto records_handle = args.tx.rw(records);
         records_handle->put(in.id, log_line);
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
@@ -329,7 +329,7 @@ namespace loggingapp
           }
 
           const auto log_line = fmt::format("Anonymous: {}", in.msg);
-          auto records_handle = args.tx.get_handle(records);
+          auto records_handle = args.tx.rw(records);
           records_handle->put(in.id, log_line);
           return ccf::make_success(true);
         };
@@ -509,7 +509,7 @@ namespace loggingapp
         const std::vector<uint8_t>& content = args.rpc_ctx->get_request_body();
         const std::string log_line(content.begin(), content.end());
 
-        auto records_handle = args.tx.get_handle(records);
+        auto records_handle = args.tx.rw(records);
         records_handle->put(id, log_line);
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
@@ -533,7 +533,7 @@ namespace loggingapp
         const auto in = params.get<LoggingGetHistorical::In>();
 
         auto historical_tx = historical_store->create_read_only_tx();
-        auto records_handle = historical_tx.get_read_only_handle(records);
+        auto records_handle = historical_tx.ro(records);
         const auto v = records_handle->get(in.id);
 
         if (v.has_value())
@@ -623,7 +623,7 @@ namespace loggingapp
               "Cannot record an empty log message.");
           }
 
-          auto view = ctx.tx.get_handle(records);
+          auto view = ctx.tx.rw(records);
           view->put(in.id, in.msg);
           return ccf::make_success(true);
         };

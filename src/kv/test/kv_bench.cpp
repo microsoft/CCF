@@ -71,8 +71,8 @@ static void serialise(picobench::state& s)
   auto map1 = build_map_name("map1", SD);
 
   auto tx = kv_store.create_tx();
-  auto tx0 = tx.get_handle<MapType>(map0);
-  auto tx1 = tx.get_handle<MapType>(map1);
+  auto tx0 = tx.rw<MapType>(map0);
+  auto tx1 = tx.rw<MapType>(map1);
 
   for (int i = 0; i < s.iterations(); i++)
   {
@@ -107,8 +107,8 @@ static void deserialise(picobench::state& s)
   auto map1 = build_map_name("map1", SD);
 
   auto tx = kv_store.create_tx();
-  auto tx0 = tx.get_handle<MapType>(map0);
-  auto tx1 = tx.get_handle<MapType>(map1);
+  auto tx0 = tx.rw<MapType>(map0);
+  auto tx1 = tx.rw<MapType>(map1);
 
   for (int i = 0; i < s.iterations(); i++)
   {
@@ -144,8 +144,8 @@ static void commit_latency(picobench::state& s)
   for (int i = 0; i < s.iterations(); i++)
   {
     auto tx = kv_store.create_tx();
-    auto tx0 = tx.get_handle<MapType>(map0);
-    auto tx1 = tx.get_handle<MapType>(map1);
+    auto tx0 = tx.rw<MapType>(map0);
+    auto tx1 = tx.rw<MapType>(map1);
     for (int iTx = 0; iTx < S; iTx++)
     {
       const auto key = gen_key(i, std::to_string(iTx));
@@ -179,7 +179,7 @@ static void ser_snap(picobench::state& s)
   auto tx = kv_store.create_tx();
   for (int i = 0; i < s.iterations(); i++)
   {
-    auto handle = tx.get_handle<MapType>(fmt::format("map{}", i));
+    auto handle = tx.rw<MapType>(fmt::format("map{}", i));
     for (int j = 0; j < KEY_COUNT; j++)
     {
       const auto key = gen_key(j);
@@ -214,7 +214,7 @@ static void des_snap(picobench::state& s)
   auto tx = kv_store.create_tx();
   for (int i = 0; i < s.iterations(); i++)
   {
-    auto handle = tx.get_handle<MapType>(fmt::format("map{}", i));
+    auto handle = tx.rw<MapType>(fmt::format("map{}", i));
     for (int j = 0; j < KEY_COUNT; j++)
     {
       const auto key = gen_key(j);

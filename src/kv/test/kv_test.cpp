@@ -70,7 +70,7 @@ TEST_CASE("Reads/writes and deletions")
   INFO("Read own writes");
   {
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle(map);
+    auto handle = tx.rw(map);
     REQUIRE(!handle->has(k));
     auto v = handle->get(k);
     REQUIRE(!v.has_value());
@@ -85,7 +85,7 @@ TEST_CASE("Reads/writes and deletions")
   INFO("Read previous writes");
   {
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle(map);
+    auto handle = tx.rw(map);
     REQUIRE(handle->has(k));
     auto v = handle->get(k);
     REQUIRE(v.has_value());
@@ -97,7 +97,7 @@ TEST_CASE("Reads/writes and deletions")
   {
     {
       auto tx = kv_store.create_tx();
-      auto handle = tx.get_handle(map);
+      auto handle = tx.rw(map);
       handle->put(k, v1);
 
       REQUIRE(!handle->has(invalid_key));
@@ -113,7 +113,7 @@ TEST_CASE("Reads/writes and deletions")
 
     {
       auto tx2 = kv_store.create_tx();
-      auto handle2 = tx2.get_handle(map);
+      auto handle2 = tx2.rw(map);
       REQUIRE(handle2->has(k));
       REQUIRE(handle2->remove(k));
     }
@@ -123,7 +123,7 @@ TEST_CASE("Reads/writes and deletions")
   {
     {
       auto tx = kv_store.create_tx();
-      auto handle = tx.get_handle(map);
+      auto handle = tx.rw(map);
       handle->put(k, v1);
       auto va = handle->get_globally_committed(k);
       REQUIRE(!va.has_value());
@@ -132,7 +132,7 @@ TEST_CASE("Reads/writes and deletions")
 
     {
       auto tx2 = kv_store.create_tx();
-      auto handle2 = tx2.get_handle(map);
+      auto handle2 = tx2.rw(map);
       REQUIRE(handle2->has(k));
       REQUIRE(handle2->remove(k));
       REQUIRE(!handle2->has(k));
@@ -141,7 +141,7 @@ TEST_CASE("Reads/writes and deletions")
 
     {
       auto tx3 = kv_store.create_tx();
-      auto handle3 = tx3.get_handle(map);
+      auto handle3 = tx3.rw(map);
       REQUIRE(!handle3->has(k));
       auto vc = handle3->get(k);
       REQUIRE(!vc.has_value());
@@ -167,7 +167,7 @@ TEST_CASE("foreach")
   SUBCASE("Empty map")
   {
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle(map);
+    auto handle = tx.rw(map);
     handle->foreach(store_iterated);
     REQUIRE(iterated_entries.empty());
   }
@@ -175,7 +175,7 @@ TEST_CASE("foreach")
   SUBCASE("Reading own writes")
   {
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle(map);
+    auto handle = tx.rw(map);
     handle->put("key1", "value1");
     handle->put("key2", "value2");
     handle->foreach(store_iterated);
@@ -187,7 +187,7 @@ TEST_CASE("foreach")
 
     INFO("Uncommitted writes from other txs are not visible");
     auto tx2 = kv_store.create_tx();
-    auto handle2 = tx2.get_handle(map);
+    auto handle2 = tx2.rw(map);
     handle2->foreach(store_iterated);
     REQUIRE(iterated_entries.empty());
   }
@@ -195,13 +195,13 @@ TEST_CASE("foreach")
   SUBCASE("Reading committed writes")
   {
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle(map);
+    auto handle = tx.rw(map);
     handle->put("key1", "value1");
     handle->put("key2", "value2");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     auto tx2 = kv_store.create_tx();
-    auto handle2 = tx2.get_handle(map);
+    auto handle2 = tx2.rw(map);
     handle2->foreach(store_iterated);
     REQUIRE(iterated_entries.size() == 2);
     REQUIRE(iterated_entries["key1"] == "value1");
@@ -211,13 +211,13 @@ TEST_CASE("foreach")
   SUBCASE("Mix of committed and own writes")
   {
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle(map);
+    auto handle = tx.rw(map);
     handle->put("key1", "value1");
     handle->put("key2", "value2");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     auto tx2 = kv_store.create_tx();
-    auto handle2 = tx2.get_handle(map);
+    auto handle2 = tx2.rw(map);
     handle2->put("key2", "replaced2");
     handle2->put("key3", "value3");
     handle2->foreach(store_iterated);
@@ -231,7 +231,7 @@ TEST_CASE("foreach")
   {
     {
       auto tx = kv_store.create_tx();
-      auto handle = tx.get_handle(map);
+      auto handle = tx.rw(map);
       handle->put("key1", "value1");
       handle->put("key2", "value2");
       handle->put("key3", "value3");
@@ -240,14 +240,14 @@ TEST_CASE("foreach")
 
     {
       auto tx = kv_store.create_tx();
-      auto handle = tx.get_handle(map);
+      auto handle = tx.rw(map);
       handle->remove("key1");
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     }
 
     {
       auto tx = kv_store.create_tx();
-      auto handle = tx.get_handle(map);
+      auto handle = tx.rw(map);
       handle->foreach(store_iterated);
       REQUIRE(iterated_entries.size() == 2);
       REQUIRE(iterated_entries["key2"] == "value2");
@@ -276,7 +276,7 @@ TEST_CASE("foreach")
   {
     {
       auto tx = kv_store.create_tx();
-      auto handle = tx.get_handle(map);
+      auto handle = tx.rw(map);
       handle->put("key1", "value1");
       handle->put("key2", "value2");
       handle->put("key3", "value3");
@@ -292,7 +292,7 @@ TEST_CASE("foreach")
 
     {
       auto tx = kv_store.create_tx();
-      auto handle = tx.get_handle(map);
+      auto handle = tx.rw(map);
       handle->put("key4", "value4");
       handle->put("key5", "value5");
 
@@ -339,7 +339,7 @@ TEST_CASE("Modifications during foreach iteration")
     INFO("Insert initial keys");
 
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle(map);
+    auto handle = tx.rw(map);
     for (size_t i = 0; i < 60; ++i)
     {
       keys.insert(i);
@@ -350,7 +350,7 @@ TEST_CASE("Modifications during foreach iteration")
   }
 
   auto tx = kv_store.create_tx();
-  auto handle = tx.get_handle(map);
+  auto handle = tx.rw(map);
 
   // 5 types of key:
   // 1) previously committed and unmodified
@@ -599,7 +599,7 @@ TEST_CASE("Read-only tx")
   INFO("Write some keys");
   {
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle(map);
+    auto handle = tx.rw(map);
     auto v = handle->get(k);
     REQUIRE(!v.has_value());
     handle->put(k, v1);
@@ -612,7 +612,7 @@ TEST_CASE("Read-only tx")
   INFO("Do only reads with an overpowered Tx");
   {
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_read_only_handle(map);
+    auto handle = tx.ro(map);
     REQUIRE(handle->has(k));
     const auto v = handle->get(k);
     REQUIRE(v.has_value());
@@ -630,7 +630,7 @@ TEST_CASE("Read-only tx")
   INFO("Read with read-only tx");
   {
     auto tx = kv_store.create_read_only_tx();
-    auto handle = tx.get_read_only_handle(map);
+    auto handle = tx.ro(map);
     REQUIRE(handle->has(k));
     const auto v = handle->get(k);
     REQUIRE(v.has_value());
@@ -648,7 +648,7 @@ TEST_CASE("Read-only tx")
   INFO("Write-only handles");
   {
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_write_only_handle(map);
+    auto handle = tx.wo(map);
 
     handle->put(k, v1);
     handle->remove(k);
@@ -672,12 +672,12 @@ TEST_CASE("Rollback and compact")
   {
     auto tx = kv_store.create_tx();
     auto tx2 = kv_store.create_tx();
-    auto handle = tx.get_handle(map);
+    auto handle = tx.rw(map);
     handle->put(k, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     kv_store.rollback(0);
-    auto handle2 = tx2.get_handle(map);
+    auto handle2 = tx2.rw(map);
     auto v = handle2->get(k);
     REQUIRE(!v.has_value());
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
@@ -687,12 +687,12 @@ TEST_CASE("Rollback and compact")
   {
     auto tx = kv_store.create_tx();
     auto tx2 = kv_store.create_tx();
-    auto handle = tx.get_handle(map);
+    auto handle = tx.rw(map);
     handle->put(k, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     kv_store.compact(kv_store.current_version());
 
-    auto handle2 = tx2.get_handle(map);
+    auto handle2 = tx2.rw(map);
     auto va = handle2->get_globally_committed(k);
     REQUIRE(va.has_value());
     REQUIRE(va.value() == v1);
@@ -702,12 +702,12 @@ TEST_CASE("Rollback and compact")
   {
     auto tx = kv_store.create_tx();
     auto tx2 = kv_store.create_tx();
-    auto handle = tx.get_handle(map);
+    auto handle = tx.rw(map);
     REQUIRE(handle->remove(k));
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     kv_store.compact(kv_store.current_version());
 
-    auto handle2 = tx2.get_handle(map);
+    auto handle2 = tx2.rw(map);
     auto va = handle2->get_globally_committed(k);
     REQUIRE(!va.has_value());
   }
@@ -736,7 +736,7 @@ TEST_CASE("Local commit hooks")
   INFO("Write with hooks");
   {
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle(map);
+    auto handle = tx.rw(map);
     handle->put("key1", "value1");
     handle->put("key2", "value2");
     handle->remove("key2");
@@ -760,7 +760,7 @@ TEST_CASE("Local commit hooks")
     kv_store.unset_global_hook(map_name);
 
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle(map);
+    auto handle = tx.rw(map);
     handle->put("key2", "value2");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
@@ -774,7 +774,7 @@ TEST_CASE("Local commit hooks")
     kv_store.set_global_hook(map_name, map.wrap_commit_hook(global_hook));
 
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle(map);
+    auto handle = tx.rw(map);
     handle->remove("key2");
     handle->put("key3", "value3");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -832,7 +832,7 @@ TEST_CASE("Global commit hooks")
   SUBCASE("Compact one transaction")
   {
     auto tx1 = kv_store.create_tx();
-    auto handle_hook = tx1.get_handle(map_with_hook);
+    auto handle_hook = tx1.rw(map_with_hook);
     handle_hook->put("key1", "value1");
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
@@ -852,11 +852,11 @@ TEST_CASE("Global commit hooks")
     auto tx1 = kv_store.create_tx();
     auto tx2 = kv_store.create_tx();
     auto tx3 = kv_store.create_tx();
-    auto handle_hook = tx1.get_handle(map_with_hook);
+    auto handle_hook = tx1.rw(map_with_hook);
     handle_hook->put("key1", "value1");
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
-    handle_hook = tx2.get_handle(map_with_hook);
+    handle_hook = tx2.rw(map_with_hook);
     handle_hook->put("key2", "value2");
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
 
@@ -864,7 +864,7 @@ TEST_CASE("Global commit hooks")
 
     // This does not affect map_with_hook but still increments the current
     // version of the store
-    auto handle_no_hook = tx3.get_handle(map_no_hook);
+    auto handle_no_hook = tx3.rw(map_no_hook);
     handle_no_hook->put("key3", "value3");
     REQUIRE(tx3.commit() == kv::CommitSuccess::OK);
 
@@ -889,19 +889,19 @@ TEST_CASE("Global commit hooks")
     auto tx1 = kv_store.create_tx();
     auto tx2 = kv_store.create_tx();
     auto tx3 = kv_store.create_tx();
-    auto handle_hook = tx1.get_handle(map_with_hook);
+    auto handle_hook = tx1.rw(map_with_hook);
     handle_hook->put("key1", "value1");
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
     // This does not affect map_with_hook but still increments the current
     // version of the store
-    auto handle_no_hook = tx2.get_handle(map_no_hook);
+    auto handle_no_hook = tx2.rw(map_no_hook);
     handle_no_hook->put("key2", "value2");
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
 
     const auto compact_version = kv_store.current_version();
 
-    handle_hook = tx3.get_handle(map_with_hook);
+    handle_hook = tx3.rw(map_with_hook);
     handle_hook->put("key3", "value3");
     REQUIRE(tx3.commit() == kv::CommitSuccess::OK);
 
@@ -921,14 +921,14 @@ TEST_CASE("Global commit hooks")
   {
     auto tx1 = kv_store.create_tx();
     auto tx2 = kv_store.create_tx();
-    auto handle_hook = tx1.get_handle(map_with_hook);
+    auto handle_hook = tx1.rw(map_with_hook);
     handle_hook->put("key1", "value1");
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
     kv_store.compact(kv_store.current_version());
     global_writes.clear();
 
-    handle_hook = tx2.get_handle(map_with_hook);
+    handle_hook = tx2.rw(map_with_hook);
     handle_hook->put("key2", "value2");
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
 
@@ -953,8 +953,8 @@ TEST_CASE("Deserialising from other Store")
   MapTypes::NumString public_map("public:public");
   MapTypes::NumString private_map("private");
   auto tx1 = store.create_reserved_tx(store.next_version());
-  auto handle1 = tx1.get_handle(public_map);
-  auto handle2 = tx1.get_handle(private_map);
+  auto handle1 = tx1.rw(public_map);
+  auto handle2 = tx1.rw(private_map);
   handle1->put(42, "aardvark");
   handle2->put(14, "alligator");
   auto [success, reqid, data, hooks] = tx1.commit_reserved();
@@ -982,7 +982,7 @@ TEST_CASE("Deserialise return status")
 
   {
     auto tx = store.create_reserved_tx(store.next_version());
-    auto data_handle = tx.get_handle(data);
+    auto data_handle = tx.rw(data);
     data_handle->put(42, 42);
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
@@ -993,7 +993,7 @@ TEST_CASE("Deserialise return status")
 
   {
     auto tx = store.create_reserved_tx(store.next_version());
-    auto sig_handle = tx.get_handle(signatures);
+    auto sig_handle = tx.rw(signatures);
     ccf::PrimarySignature sigv(0, 2);
     sig_handle->put(0, sigv);
     auto [success, reqid, data, hooks] = tx.commit_reserved();
@@ -1008,8 +1008,8 @@ TEST_CASE("Deserialise return status")
   INFO("Signature transactions with additional contents should fail");
   {
     auto tx = store.create_reserved_tx(store.next_version());
-    auto sig_handle = tx.get_handle(signatures);
-    auto data_handle = tx.get_handle(data);
+    auto sig_handle = tx.rw(signatures);
+    auto data_handle = tx.rw(data);
     ccf::PrimarySignature sigv(0, 2);
     sig_handle->put(0, sigv);
     data_handle->put(43, 43);
@@ -1035,14 +1035,14 @@ TEST_CASE("Map swap between stores")
 
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_handle(d);
+    auto v = tx.rw(d);
     v->put(42, 42);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_handle(pd);
+    auto v = tx.rw(pd);
     v->put(14, 14);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -1051,7 +1051,7 @@ TEST_CASE("Map swap between stores")
   while (s2.current_version() < target_version)
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_handle(d);
+    auto v = tx.rw(d);
     v->put(41, 41);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -1060,7 +1060,7 @@ TEST_CASE("Map swap between stores")
 
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_handle(d);
+    auto v = tx.rw(d);
     auto val = v->get(41);
     REQUIRE_FALSE(v->get(42).has_value());
     REQUIRE(val.has_value());
@@ -1069,7 +1069,7 @@ TEST_CASE("Map swap between stores")
 
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_handle(pd);
+    auto v = tx.rw(pd);
     auto val = v->get(14);
     REQUIRE(val.has_value());
     REQUIRE(val.value() == 14);
@@ -1077,7 +1077,7 @@ TEST_CASE("Map swap between stores")
 
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_handle(d);
+    auto v = tx.rw(d);
     auto val = v->get(42);
     REQUIRE_FALSE(v->get(41).has_value());
     REQUIRE(val.has_value());
@@ -1086,7 +1086,7 @@ TEST_CASE("Map swap between stores")
 
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_handle(pd);
+    auto v = tx.rw(pd);
     REQUIRE_FALSE(v->get(14).has_value());
   }
 }
@@ -1109,27 +1109,27 @@ TEST_CASE("Private recovery map swap")
   // would have compacted some number of times.
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_handle(pub1);
+    auto v = tx.rw(pub1);
     v->put(42, "42");
     tx.commit();
   }
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_handle(pub1);
+    auto v = tx.rw(pub1);
     v->put(42, "43");
     tx.commit();
   }
   s1.compact(s1.current_version());
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_handle(pub1);
+    auto v = tx.rw(pub1);
     v->put(44, "44");
     tx.commit();
   }
   s1.compact(s1.current_version());
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_handle(pub1);
+    auto v = tx.rw(pub1);
     v->put(45, "45");
     tx.commit();
   }
@@ -1140,26 +1140,26 @@ TEST_CASE("Private recovery map swap")
   // that the _entire_ private state is compacted
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_handle(priv2);
+    auto v = tx.rw(priv2);
     v->put(12, 12);
     tx.commit();
   }
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_handle(priv2);
+    auto v = tx.rw(priv2);
     v->put(13, 13);
     tx.commit();
   }
   s2.compact(s2.current_version());
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_handle(priv2);
+    auto v = tx.rw(priv2);
     v->put(14, 14);
     tx.commit();
   }
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_handle(priv2);
+    auto v = tx.rw(priv2);
     v->put(15, 15);
     tx.commit();
   }
@@ -1171,8 +1171,8 @@ TEST_CASE("Private recovery map swap")
   INFO("Check state looks as expected in s1");
   {
     auto tx = s1.create_tx();
-    auto priv = tx.get_handle(priv1);
-    auto pub = tx.get_handle(pub1);
+    auto priv = tx.rw(priv1);
+    auto pub = tx.rw(pub1);
     {
       auto val = pub->get(42);
       REQUIRE(val.has_value());
@@ -1201,8 +1201,8 @@ TEST_CASE("Private recovery map swap")
   INFO("Check committed state looks as expected in s1");
   {
     auto tx = s1.create_tx();
-    auto priv = tx.get_handle(priv1);
-    auto pub = tx.get_handle(pub1);
+    auto priv = tx.rw(priv1);
+    auto pub = tx.rw(pub1);
     {
       auto val = pub->get_globally_committed(42);
       REQUIRE(val.has_value());
@@ -1241,13 +1241,13 @@ TEST_CASE("Conflict resolution")
   {
     // Ensure this map already exists, by making a prior write to it
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle(map);
+    auto handle = tx.rw(map);
     handle->put("foo", "initial");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
   auto try_write = [&](kv::Tx& tx, const std::string& s) {
-    auto handle = tx.get_handle(map);
+    auto handle = tx.rw(map);
 
     // Introduce read-dependency
     handle->get("foo");
@@ -1260,7 +1260,7 @@ TEST_CASE("Conflict resolution")
                          const std::vector<std::string>& present,
                          const std::vector<std::string>& missing) {
     auto tx = kv_store.create_tx();
-    auto handle = tx.get_handle(map);
+    auto handle = tx.rw(map);
 
     for (const auto& s : present)
     {
@@ -1301,7 +1301,7 @@ TEST_CASE("Conflict resolution")
 
   // A third transaction just wants to read the value
   auto tx3 = kv_store.create_tx();
-  auto handle3 = tx3.get_handle(map);
+  auto handle3 = tx3.rw(map);
   REQUIRE(handle3->has("foo"));
 
   // First transaction is rerun with same object, producing different result
@@ -1336,8 +1336,8 @@ TEST_CASE("Mid-tx compaction")
 
   auto increment_vals = [&]() {
     auto tx = kv_store.create_tx();
-    auto handle_a = tx.get_handle(map_a);
-    auto handle_b = tx.get_handle(map_b);
+    auto handle_a = tx.rw(map_a);
+    auto handle_b = tx.rw(map_b);
 
     auto a_opt = handle_a->get(key_a);
     auto b_opt = handle_b->get(key_b);
@@ -1362,8 +1362,8 @@ TEST_CASE("Mid-tx compaction")
     increment_vals();
     kv_store.compact(kv_store.current_version());
 
-    auto handle_a = tx.get_handle(map_a);
-    auto handle_b = tx.get_handle(map_b);
+    auto handle_a = tx.rw(map_a);
+    auto handle_b = tx.rw(map_b);
 
     auto a_opt = handle_a->get(key_a);
     auto b_opt = handle_b->get(key_b);
@@ -1378,9 +1378,9 @@ TEST_CASE("Mid-tx compaction")
     INFO("Compaction after get_handles");
     auto tx = kv_store.create_tx();
 
-    auto handle_a = tx.get_handle(map_a);
+    auto handle_a = tx.rw(map_a);
     increment_vals();
-    auto handle_b = tx.get_handle(map_b);
+    auto handle_b = tx.rw(map_b);
     kv_store.compact(kv_store.current_version());
 
     auto a_opt = handle_a->get(key_a);
@@ -1400,7 +1400,7 @@ TEST_CASE("Mid-tx compaction")
     {
       auto tx = kv_store.create_tx();
 
-      auto handle_a = tx.get_handle(map_a);
+      auto handle_a = tx.rw(map_a);
       // This transaction does something slow. Meanwhile...
 
       // ...another transaction commits...
@@ -1411,7 +1411,7 @@ TEST_CASE("Mid-tx compaction")
       // ...then the original transaction proceeds, expecting to read a single
       // version
       // This should throw a CompactedVersionConflict error
-      auto handle_b = tx.get_handle(map_b);
+      auto handle_b = tx.rw(map_b);
 
       auto a_opt = handle_a->get(key_a);
       auto b_opt = handle_b->get(key_b);
@@ -1448,8 +1448,8 @@ TEST_CASE("Store clear")
     for (int i = 0; i < tx_count; i++)
     {
       auto tx = kv_store.create_tx();
-      auto handle_a = tx.get_handle(map_a);
-      auto handle_b = tx.get_handle(map_b);
+      auto handle_a = tx.rw(map_a);
+      auto handle_b = tx.rw(map_b);
 
       handle_a->put("key" + std::to_string(i), 42);
       handle_b->put("key" + std::to_string(i), 42);

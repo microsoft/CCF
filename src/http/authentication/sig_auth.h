@@ -72,13 +72,13 @@ namespace ccf
       if (signed_request.has_value())
       {
         auto digests =
-          tx.get_read_only_handle<CertDigests>(Tables::USER_DIGESTS);
+          tx.ro<CertDigests>(Tables::USER_DIGESTS);
         auto user_id = digests->get(signed_request->key_id);
 
         if (user_id.has_value())
         {
           Users users_table(Tables::USERS);
-          auto users = tx.get_read_only_handle(users_table);
+          auto users = tx.ro(users_table);
           const auto user = users->get(user_id.value());
           if (!user.has_value())
           {
@@ -174,13 +174,13 @@ namespace ccf
       if (signed_request.has_value())
       {
         auto digests =
-          tx.get_read_only_handle<CertDigests>(Tables::MEMBER_DIGESTS);
+          tx.ro<CertDigests>(Tables::MEMBER_DIGESTS);
         auto member_id = digests->get(signed_request->key_id);
 
         if (member_id.has_value())
         {
           Members members_table(Tables::MEMBERS);
-          auto members = tx.get_read_only_handle(members_table);
+          auto members = tx.ro(members_table);
           const auto member = members->get(member_id.value());
           if (!member.has_value())
           {

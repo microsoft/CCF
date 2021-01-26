@@ -62,7 +62,7 @@ namespace ccf
           decltype(auto) name = table.get_name();
 
           using TT = typename T::Handle;
-          auto h = tx.get_handle(table);
+          auto h = tx.rw(table);
           if constexpr (READ_ONLY)
             li.push(h);
           else
@@ -139,7 +139,7 @@ namespace ccf
 
       Whitelist get_whitelist(kv::Tx& tx, WlId id) const
       {
-        const auto wl = tx.get_handle(network_tables.whitelists)->get(id);
+        const auto wl = tx.rw(network_tables.whitelists)->get(id);
         if (!wl)
           throw std::logic_error(
             "Whitelist with id: " + std::to_string(id) + " does not exist");

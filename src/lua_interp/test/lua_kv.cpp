@@ -38,7 +38,7 @@ namespace ccf
     const auto a = "Alice";
     const auto b = "Bob";
 
-    auto table = txs.get_handle<TableIS>("public:test");
+    auto table = txs.rw<TableIS>("public:test");
     table->put(0, a);
 
     auto li = Interpreter();
@@ -129,7 +129,7 @@ namespace ccf
         tables.compact(tables.current_version());
 
         auto next_txs = tables.create_tx();
-        auto next_tx = next_txs.get_handle<TableIS>("public:test");
+        auto next_tx = next_txs.rw<TableIS>("public:test");
 
         REQUIRE(next_tx->put(k, s1));
 
@@ -163,9 +163,9 @@ namespace ccf
     kv::Store tables;
 
     auto txs = tables.create_tx();
-    auto ii = txs.get_handle<TableII>("public:test_ii");
-    auto is = txs.get_handle<TableIS>("public:test_is");
-    auto sb = txs.get_handle<TableSB>("public:test_sb");
+    auto ii = txs.rw<TableII>("public:test_ii");
+    auto is = txs.rw<TableIS>("public:test_is");
+    auto sb = txs.rw<TableSB>("public:test_sb");
 
     auto li = Interpreter();
     li.register_metatable<TxII>(kv_methods<TxII>);
@@ -228,7 +228,7 @@ namespace ccf
 
     kv::Store tables;
     auto txs = tables.create_tx();
-    auto table = txs.get_handle<TableVI>("v");
+    auto table = txs.rw<TableVI>("v");
     table->put(vector<uint8_t>(100, 1), 123);
 
     SUBCASE("read 1")
@@ -331,7 +331,7 @@ namespace ccf
 
     kv::Store tables;
     auto txs = tables.create_tx();
-    auto table = txs.get_handle<TableII>("public:t");
+    auto table = txs.rw<TableII>("public:t");
 
     auto create = [table](int dst, int amt) {
       json params;
@@ -390,7 +390,7 @@ namespace ccf
 
     kv::Store tables;
     auto txs = tables.create_tx();
-    auto table = txs.get_handle<TableII>("public:t");
+    auto table = txs.rw<TableII>("public:t");
 
     Interpreter li;
     li.register_metatable<TxII>(kv_methods_read_only<TxII>);

@@ -173,7 +173,7 @@ public:
         serdes::unpack(args.rpc_ctx->get_request_body(), default_pack);
 
       const auto new_value = parsed["value"].get<size_t>();
-      auto vs = args.tx.get_handle(values);
+      auto vs = args.tx.rw(values);
       vs->put(0, new_value);
 
       const auto apply_it = parsed.find("apply");
@@ -527,7 +527,7 @@ TEST_CASE("process_bft")
 
   auto tx = bft_network.tables->create_tx();
   auto aft_requests =
-    tx.get_handle<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
+    tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
   auto request_value = aft_requests->get(0);
   REQUIRE(request_value.has_value());
 
@@ -962,7 +962,7 @@ TEST_CASE("Explicit commitability")
 
   auto get_value = [&]() {
     auto tx = network.tables->create_tx();
-    auto values = tx.get_handle(frontend.values);
+    auto values = tx.rw(frontend.values);
     auto actual_v = values->get(0).value();
     return actual_v;
   };
@@ -970,7 +970,7 @@ TEST_CASE("Explicit commitability")
   // Set initial value
   {
     auto tx = network.tables->create_tx();
-    tx.get_handle(frontend.values)->put(0, next_value);
+    tx.rw(frontend.values)->put(0, next_value);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
@@ -1456,14 +1456,14 @@ public:
         // Create another transaction that conflicts with the frontend one
         auto tx = this->tables.create_tx();
         auto conflict_map =
-          tx.template get_handle<Values>("test_values_conflict");
+          tx.template rw<Values>("test_values_conflict");
         conflict_map->put(0, 42);
         REQUIRE(tx.commit() == kv::CommitSuccess::OK);
         conflict_next = false;
       }
 
       auto conflict_map =
-        args.tx.template get_handle<Values>("test_values_conflict");
+        args.tx.template rw<Values>("test_values_conflict");
       conflict_map->get(0); // Record a read dependency
       conflict_map->put(0, 0);
 

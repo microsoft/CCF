@@ -148,7 +148,7 @@ TEST_CASE("Add a node to an opening service")
     CHECK(response.network_info.public_only == false);
 
     const NodeId node_id = response.node_id;
-    auto nodes = tx.get_handle(network.nodes);
+    auto nodes = tx.rw(network.nodes);
     auto node_info = nodes->get(node_id);
 
     CHECK(node_info.has_value());
@@ -248,7 +248,7 @@ TEST_CASE("Add a node to an open service")
 
     auto node_id = response.node_id;
 
-    auto nodes = tx.get_handle(network.nodes);
+    auto nodes = tx.rw(network.nodes);
     node_info = nodes->get(node_id);
     CHECK(node_info.has_value());
     CHECK(node_info->status == NodeStatus::PENDING);

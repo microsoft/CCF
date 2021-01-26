@@ -26,52 +26,58 @@ A single ``Transaction`` (``tx``) is passed to each endpoint of an application a
 
 When the end-point successfully completes, the node on which the end-point was triggered attempts to commit the transaction to apply the changes to the Store. Once the transaction is committed successfully, it is automatically replicated by CCF and should globally commit.
 
-For each :cpp:class:`kv::Map` that a transaction wants to write to or read from, a :cpp:class:`kv::MapHandle` must first be acquired. This may be retrieved either by name (in which case the desired type must be explicitly specified as a template parameter), or by using a :cpp:class:`kv::Map` instance which contains both the name and the desired types.
+For each :cpp:class:`kv::Map` that a transaction wants to write to or read from, a :cpp:class:`kv::MapHandle` must first be acquired. These are acquired from the :cpp:func:`kv::Tx::rw` (`read-write`) method. These may be axquired either by name (in which case the desired type must be explicitly specified as a template parameter), or by using a :cpp:class:`kv::Map` instance which defines both the map's name and key-value types.
 
 By name:
 
 .. code-block:: cpp
 
     // Handle for map1
-    auto map1_handle = tx.get_handle<kv::Map<string, string>>("map1");
+    auto map1_handle = tx.rw<kv::Map<string, string>>("map1");
     
     // Handles for 2 other maps, one public and one private, with different types
-    auto map2_handle = tx.get_handle<kv::Map<string, uint64_t>>("public:map2");
-    auto map3_handle = tx.get_handle<kv::Map<uint64_t, MyCustomClass>>("map3");
+    auto map2_handle = tx.rw<kv::Map<string, uint64_t>>("public:map2");
+    auto map3_handle = tx.rw<kv::Map<uint64_t, MyCustomClass>>("map3");
 
 By ``Map``:
 
 .. code-block:: cpp
 
     kv::Map<string, string> map_priv("map1");
-    auto map1_handle = tx.get_handle(map_priv);
+    auto map1_handle = tx.rw(map_priv);
 
     kv::Map<string, stuint64_tring> map_pub("public:map2");
-    auto map2_handle = tx.get_handle(map_pub);
+    auto map2_handle = tx.rw(map_pub);
 
     kv::Map<uint64_t, string> MyCustomClass("map3");
-    auto map3_handle = tx.get_handle(map_priv_int);
+    auto map3_handle = tx.rw(map_priv_int);
 
 The latter approach introduces a named binding between the map's name and the types of its keys and values, reducing the chance for errors where code attempts to read a map with the wrong type.
 
 As noted above, this access may cause the ``Map`` to be created, if it did not previously. In fact all ``Maps`` are created like this, in the first transaction in which they are written to. Within a transaction, a newly created ``Map`` behaves exactly the same as an existing ``Map`` with no keys - the framework views these as semantically identical, and offers no way for the application logic to tell them apart. Any writes to a newly created ``Map`` will be persisted when the transaction commits, and future transactions will be able to access this ``Map`` by name to read those writes.
 
 
-Modifying a Map via its Handle
-------------------------------
+Accessing Map content via a Handle
+---------------------------=------
 
 Once a :cpp:class:`kv::MapHandle` on a specific :cpp:class:`kv::Map` has been obtained, it is possible to:
 
-- write (:cpp:func:`kv::MapHandle::put`) a new value for a key;
+- test (:cpp:func:`kv::MapHandle::has`) whether a key has any associated value;
 - read (:cpp:func:`kv::MapHandle::get`) the value associated with a key;
-- delete (:cpp:func:`kv::MapHandle::remove`) a Key-Value pair.
+- write (:cpp:func:`kv::MapHandle::put`) a new value for a key;
+- delete (:cpp:func:`kv::MapHandle::remove`) a key and its current value;
+- iterate (:cpp:func:`kv::MapHandle::foreach`) through all key-value pairs.
 
 .. code-block:: cpp
 
     // Writing to a handle
     map1_handle1->put("key1", "value1");
 
-    // Reading from a handle
+    // Reading presence of a key
+    bool has_key_1 = map1_handle->has("key1");
+    assert(has_key_1);
+
+    // Reading a value
     std::optional<std::string> read_val = map1_handle1->get("key1");
     assert(read_val.has_value());
     assert(read_val.value() == "value1");
@@ -80,18 +86,19 @@ Once a :cpp:class:`kv::MapHandle` on a specific :cpp:class:`kv::Map` has been ob
     map1_handle1->remove("key1");
 
     // Reading a deleted/non-existent key
+    assert(!map_handle1->has("key1"));
     read_val = map1_handle1->get("key1");
     assert(!read_val.has_value());
 
-Read-only handles
----------------
+Read/Write safety
+-----------------
 
-For operations which only need to read from a :cpp:class:`kv::Map`, it is possible to retrieve a :cpp:class:`kv::ReadOnlyMapHandle` which only supports the ``get`` operation:
+If you are only reading from or only writing to a given :cpp:class:`kv::Map` you can retrieve a `read-only` or `write-only` handle for it, turning unexpected reads/writes (which would introduce unintended dependencies between transactions) into compile-time errors. Instead of calling :cpp:func:`kv::Tx::rw` to get a handle which can both read and write, you can call :cpp:func:`kv::Tx::ro` to acquire a read-only handle or :cpp:func:`kv::Tx::wo` to acquire a write-only handle.
 
 .. code-block:: cpp
 
     // Read-only handle for map_priv
-    auto map1_handle_ro = tx.get_read_only_handle(map_priv);
+    auto map1_handle_ro = tx.ro(map_priv);
 
     // Reading from that handle
     auto v1 = map1_handle_ro->get("key1");
@@ -101,6 +108,19 @@ For operations which only need to read from a :cpp:class:`kv::Map`, it is possib
     map1_handle_ro->put("key1", "value2"); // Does not compile
     map1_handle_ro->remove("key1"); // Does not compile
 
+
+    // Write-only handle for the same map
+    auto map1_handle_wo = tx.wo(map_priv);
+
+    // Write to that handle
+    map1_handle_wo->put("key1", "value2");
+
+    // Reads are blocked at compile time
+    map1_handle_wo->has("key1"); // Does not compile
+    map1_handle_wo->get("key1"); // Does not compile
+
+Note that, as in the sample above, it is possible to acquire different kinds of handle at different points within your transaction's execution. So if you need to read in one location and write in another you can retrieve multiple distinct handles and get local type-safety, while the resulting transaction correctly handles all reads and writes made.
+
 Removing a key
 --------------
 
@@ -109,13 +129,13 @@ If a Key-Value pair was written to a ``Map`` by a previous ``Transaction``, it i
 .. code-block:: cpp
 
     // In transaction A, assuming that "key1" has already been committed
-    auto handle = tx.get_handle(map_priv);
+    auto handle = tx.rw(map_priv);
     auto v = handle->get("key1"); // v.value() == "value1"
     handle->remove("key1");
     auto rc = tx.commit();
 
     // In a later transaction B, which sees the state after A is applied
-    auto handle = tx.get_handle(map_priv);
+    auto handle = tx.rw(map_priv);
     auto v1 = handle->get("key1"); // v1.has_value() == false
 
 Global commit
@@ -129,7 +149,7 @@ The :cpp:func:`kv::MapHandle::get_globally_committed` member function returns th
 .. code-block:: cpp
 
     // Assuming that "key1":"value1" has already been committed
-    auto handle = tx.get_handle(map_priv);
+    auto handle = tx.rw(map_priv);
 
     // "key1" has not yet been globally committed
     auto v = handle.get_globally_committed("key1");
@@ -158,7 +178,7 @@ CCF offers a member function :cpp:func:`kv::MapHandle::foreach` to iterate over 
     using namespace std;
 
     // Assuming that "key1":"value1" and "key2":"value2" have already been committed
-    auto handle = tx.get_handle(map_priv);
+    auto handle = tx.rw(map_priv);
 
     // Outputs:
     //  key: key1 - value: value1
@@ -183,7 +203,7 @@ By default CCF decides which transactions are successful (so should be applied t
 .. code-block:: cpp
 
     args.rpc_ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
-    auto handle = tx.get_handle(forbidden_requests);
+    auto handle = tx.rw(forbidden_requests);
 
     // Log details of forbidden request
     handle->put(...);

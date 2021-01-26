@@ -281,8 +281,8 @@ namespace ccf
     void refresh_jwt_keys()
     {
       auto tx = network.tables->create_read_only_tx();
-      auto jwt_issuers = tx.get_read_only_handle(network.jwt_issuers);
-      auto ca_certs = tx.get_read_only_handle(network.ca_certs);
+      auto jwt_issuers = tx.ro(network.jwt_issuers);
+      auto ca_certs = tx.ro(network.ca_certs);
       jwt_issuers->foreach([this, &ca_certs](
                              const JwtIssuer& issuer,
                              const JwtIssuerMetadata& metadata) {

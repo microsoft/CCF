@@ -45,7 +45,7 @@ namespace ccf
       const LedgerSecretsMap& some_ledger_secrets)
     {
       GenesisGenerator g(network, tx);
-      auto secrets = tx.get_handle(network.secrets);
+      auto secrets = tx.rw(network.secrets);
 
       auto trusted_nodes = g.get_trusted_nodes(self);
 
@@ -77,7 +77,7 @@ namespace ccf
       LedgerSecret&& new_ledger_secret)
     {
       GenesisGenerator g(network, tx);
-      auto secrets = tx.get_handle(network.secrets);
+      auto secrets = tx.rw(network.secrets);
 
       for (auto [nid, ni] : g.get_trusted_nodes())
       {

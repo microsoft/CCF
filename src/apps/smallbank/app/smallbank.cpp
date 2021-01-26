@@ -69,7 +69,7 @@ namespace ccfapp
         std::from_chars(name.data(), name.data() + name.size(), acc_id);
         int64_t checking_amt = ai.checking_amt;
         int64_t savings_amt = ai.savings_amt;
-        auto accounts = args.tx.get_handle(tables.accounts);
+        auto accounts = args.tx.rw(tables.accounts);
         auto account_r = accounts->get(name);
 
         if (account_r.has_value())
@@ -81,7 +81,7 @@ namespace ccfapp
 
         accounts->put(name, acc_id);
 
-        auto savings = args.tx.get_handle(tables.savings);
+        auto savings = args.tx.rw(tables.savings);
         auto savings_r = savings->get(acc_id);
 
         if (savings_r.has_value())
@@ -93,7 +93,7 @@ namespace ccfapp
 
         savings->put(acc_id, savings_amt);
 
-        auto checkings = args.tx.get_handle(tables.checkings);
+        auto checkings = args.tx.rw(tables.checkings);
         auto checking_r = checkings->get(acc_id);
 
         if (checking_r.has_value())
@@ -114,9 +114,9 @@ namespace ccfapp
         auto ac =
           smallbank::AccountCreation::deserialize(body.data(), body.size());
 
-        auto accounts = args.tx.get_handle(tables.accounts);
-        auto savings = args.tx.get_handle(tables.savings);
-        auto checkings = args.tx.get_handle(tables.checkings);
+        auto accounts = args.tx.rw(tables.accounts);
+        auto savings = args.tx.rw(tables.savings);
+        auto checkings = args.tx.rw(tables.checkings);
 
         for (auto acc_id = ac.new_id_from; acc_id < ac.new_id_to; ++acc_id)
         {
@@ -167,7 +167,7 @@ namespace ccfapp
         const auto& body = args.rpc_ctx->get_request_body();
         auto account =
           smallbank::AccountName::deserialize(body.data(), body.size());
-        auto accounts = args.tx.get_handle(tables.accounts);
+        auto accounts = args.tx.rw(tables.accounts);
         auto account_r = accounts->get(account.name);
 
         if (!account_r.has_value())
@@ -177,7 +177,7 @@ namespace ccfapp
           return;
         }
 
-        auto savings = args.tx.get_handle(tables.savings);
+        auto savings = args.tx.rw(tables.savings);
         auto savings_r = savings->get(account_r.value());
 
         if (!savings_r.has_value())
@@ -187,7 +187,7 @@ namespace ccfapp
           return;
         }
 
-        auto checkings = args.tx.get_handle(tables.checkings);
+        auto checkings = args.tx.rw(tables.checkings);
         auto checking_r = checkings->get(account_r.value());
 
         if (!checking_r.has_value())
@@ -221,7 +221,7 @@ namespace ccfapp
           return;
         }
 
-        auto accounts = args.tx.get_handle(tables.accounts);
+        auto accounts = args.tx.rw(tables.accounts);
         auto account_r = accounts->get(name);
 
         if (!account_r.has_value())
@@ -230,7 +230,7 @@ namespace ccfapp
             args, HTTP_STATUS_BAD_REQUEST, "Account does not exist");
         }
 
-        auto savings = args.tx.get_handle(tables.savings);
+        auto savings = args.tx.rw(tables.savings);
         auto savings_r = savings->get(account_r.value());
 
         if (!savings_r.has_value())
@@ -274,7 +274,7 @@ namespace ccfapp
           return;
         }
 
-        auto accounts = args.tx.get_handle(tables.accounts);
+        auto accounts = args.tx.rw(tables.accounts);
         auto account_r = accounts->get(name);
 
         if (!account_r.has_value())
@@ -284,7 +284,7 @@ namespace ccfapp
           return;
         }
 
-        auto checkings = args.tx.get_handle(tables.checkings);
+        auto checkings = args.tx.rw(tables.checkings);
         auto checking_r = checkings->get(account_r.value());
 
         if (!checking_r.has_value())
@@ -303,7 +303,7 @@ namespace ccfapp
         auto ad = smallbank::Amalgamate::deserialize(body.data(), body.size());
         auto name_1 = ad.src;
         auto name_2 = ad.dst;
-        auto accounts = args.tx.get_handle(tables.accounts);
+        auto accounts = args.tx.rw(tables.accounts);
         auto account_1_r = accounts->get(name_1);
 
         if (!account_1_r.has_value())
@@ -324,7 +324,7 @@ namespace ccfapp
           return;
         }
 
-        auto savings = args.tx.get_handle(tables.savings);
+        auto savings = args.tx.rw(tables.savings);
         auto savings_r = savings->get(account_1_r.value());
 
         if (!savings_r.has_value())
@@ -336,7 +336,7 @@ namespace ccfapp
           return;
         }
 
-        auto checkings = args.tx.get_handle(tables.checkings);
+        auto checkings = args.tx.rw(tables.checkings);
         auto checking_r = checkings->get(account_1_r.value());
 
         if (!checking_r.has_value())
@@ -377,7 +377,7 @@ namespace ccfapp
         auto name = transaction.name;
         auto amount = transaction.value;
 
-        auto accounts = args.tx.get_handle(tables.accounts);
+        auto accounts = args.tx.rw(tables.accounts);
         auto account_r = accounts->get(name);
 
         if (!account_r.has_value())
@@ -387,7 +387,7 @@ namespace ccfapp
           return;
         }
 
-        auto savings = args.tx.get_handle(tables.savings);
+        auto savings = args.tx.rw(tables.savings);
         auto savings_r = savings->get(account_r.value());
 
         if (!savings_r.has_value())
@@ -397,7 +397,7 @@ namespace ccfapp
           return;
         }
 
-        auto checkings = args.tx.get_handle(tables.checkings);
+        auto checkings = args.tx.rw(tables.checkings);
         auto checking_r = checkings->get(account_r.value());
 
         if (!checking_r.has_value())

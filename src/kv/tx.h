@@ -40,7 +40,7 @@ namespace kv
     // MapHandles and returns raw pointers to them. It could be removed entirely
     // with a near-identical API if we return `shared_ptr`s, and assuming that
     // we don't actually care about returning exactly the same Handle instance
-    // if `get_handle` is called multiple times
+    // if `rw` is called multiple times
     using PossibleHandles = std::list<std::unique_ptr<AbstractMapHandle>>;
     std::map<std::string, PossibleHandles> all_handles;
 
@@ -421,7 +421,7 @@ namespace kv
      * @param m Map
      */
     template <class M>
-    typename M::ReadOnlyHandle* get_read_only_handle(M& m)
+    typename M::ReadOnlyHandle* ro(M& m)
     {
       // NB: Always creates a (writeable) MapHandle, which is cast to
       // ReadOnlyHandle on return. This is so that other calls (before or
@@ -437,24 +437,24 @@ namespace kv
      * @param map_name Name of map
      */
     template <class M>
-    typename M::ReadOnlyHandle* get_read_only_handle(
+    typename M::ReadOnlyHandle* ro(
       const std::string& map_name)
     {
       return get_handle_by_name<typename M::Handle>(map_name);
     }
 
     template <class M>
-    CCF_DEPRECATED("Replace with get_read_only_handle")
+    CCF_DEPRECATED("Replace with ro")
     typename M::ReadOnlyHandle* get_read_only_view(M& m)
     {
-      return get_read_only_handle<M>(m);
+      return ro<M>(m);
     }
 
     template <class M>
-    CCF_DEPRECATED("Replace with get_read_only_handle")
+    CCF_DEPRECATED("Replace with ro")
     typename M::ReadOnlyHandle* get_read_only_view(const std::string& map_name)
     {
-      return get_read_only_handle<M>(map_name);
+      return ro<M>(map_name);
     }
   };
 
@@ -470,7 +470,7 @@ namespace kv
      * @param m Map
      */
     template <class M>
-    typename M::Handle* get_handle(M& m)
+    typename M::Handle* rw(M& m)
     {
       return get_handle_by_name<typename M::Handle>(m.get_name());
     }
@@ -483,23 +483,23 @@ namespace kv
      * @param map_name Name of map
      */
     template <class M>
-    typename M::Handle* get_handle(const std::string& map_name)
+    typename M::Handle* rw(const std::string& map_name)
     {
       return get_handle_by_name<typename M::Handle>(map_name);
     }
 
     template <class M>
-    CCF_DEPRECATED("Replace with get_handle")
+    CCF_DEPRECATED("Replace with rw")
     typename M::ReadOnlyHandle* get_view(M& m)
     {
-      return get_handle<M>(m);
+      return rw<M>(m);
     }
 
     template <class M>
-    CCF_DEPRECATED("Replace with get_handle")
+    CCF_DEPRECATED("Replace with rw")
     typename M::ReadOnlyHandle* get_view(const std::string& map_name)
     {
-      return get_handle<M>(map_name);
+      return rw<M>(map_name);
     }
 
     /** Get a write-only handle for a map.
@@ -509,9 +509,9 @@ namespace kv
      * @param m Map
      */
     template <class M>
-    typename M::WriteOnlyHandle* get_write_only_handle(M& m)
+    typename M::WriteOnlyHandle* wo(M& m)
     {
-      // As with get_read_only_handle, this returns a full-featured Handle
+      // As with ro, this returns a full-featured Handle
       // which is cast to only show its writeable facet.
       return get_handle_by_name<typename M::Handle>(m.get_name());
     }
@@ -524,7 +524,7 @@ namespace kv
      * @param map_name Name of map
      */
     template <class M>
-    typename M::WriteOnlyHandle* get_write_only_handle(
+    typename M::WriteOnlyHandle* wo(
       const std::string& map_name)
     {
       return get_handle_by_name<typename M::Handle>(map_name);

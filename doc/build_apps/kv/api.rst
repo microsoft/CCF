@@ -33,11 +33,11 @@ Transaction
 
 .. doxygenclass:: kv::ReadOnlyTx
    :project: CCF
-   :members: get_read_only_handle
+   :members: ro
 
 .. doxygenclass:: kv::Tx
    :project: CCF
-   :members: get_handle
+   :members: rw, ro
 
 Handle
 ------

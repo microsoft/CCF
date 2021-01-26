@@ -48,7 +48,7 @@ void issue_transactions(ccf::NetworkState& network, size_t tx_count)
   for (size_t i = 0; i < tx_count; i++)
   {
     auto tx = network.tables->create_tx();
-    auto map = tx.get_handle<StringString>("public:map");
+    auto map = tx.rw<StringString>("public:map");
     map->put("foo", "bar");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }

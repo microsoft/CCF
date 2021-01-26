@@ -39,9 +39,9 @@ namespace ccf
 
       if (token.has_value())
       {
-        auto keys = tx.get_read_only_handle<JwtPublicSigningKeys>(
+        auto keys = tx.ro<JwtPublicSigningKeys>(
           ccf::Tables::JWT_PUBLIC_SIGNING_KEYS);
-        auto key_issuers = tx.get_read_only_handle<JwtPublicSigningKeyIssuer>(
+        auto key_issuers = tx.ro<JwtPublicSigningKeyIssuer>(
           ccf::Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER);
         const auto key_id = token.value().header_typed.kid;
         const auto token_key = keys->get(key_id);

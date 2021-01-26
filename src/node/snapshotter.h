@@ -91,7 +91,7 @@ namespace ccf
         network.tables->serialise_snapshot(std::move(snapshot));
 
       auto tx = network.tables->create_tx();
-      auto evidence = tx.get_handle(network.snapshot_evidence);
+      auto evidence = tx.rw(network.snapshot_evidence);
       auto snapshot_hash = crypto::Sha256Hash(serialised_snapshot);
       evidence->put(0, {snapshot_hash, snapshot_version});
 

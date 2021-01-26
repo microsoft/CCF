@@ -21,7 +21,7 @@ using StringString = kv::Map<std::string, std::string>;
 void commit_one(kv::Store& store, StringString& map)
 {
   auto tx = store.create_tx();
-  auto m = tx.get_handle(map);
+  auto m = tx.rw(map);
   m->put("key", "value");
   REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 }
@@ -374,8 +374,8 @@ TEST_CASE("KV integrity verification")
   backup_store.set_encryptor(encryptor);
 
   auto tx = primary_store.create_tx();
-  auto public_map = tx.get_handle<StringString>("public:public_map");
-  auto private_map = tx.get_handle<StringString>("private_map");
+  auto public_map = tx.rw<StringString>("public:public_map");
+  auto private_map = tx.rw<StringString>("private_map");
   std::string pub_value = "pubv1";
   public_map->put("pubk1", pub_value);
   private_map->put("privk1", "privv1");

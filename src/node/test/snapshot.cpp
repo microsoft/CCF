@@ -37,7 +37,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     for (size_t i = 0; i < transactions_count; i++)
     {
       auto tx = source_store.create_tx();
-      auto map = tx.get_handle(string_map);
+      auto map = tx.rw(string_map);
       map->put(fmt::format("key#{}", i), "value");
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     }
@@ -59,7 +59,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     // mini-tree in a signature and the hash of the signature
     auto tx = source_store.create_read_only_tx();
     auto signatures =
-      tx.get_read_only_handle<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
     REQUIRE(signatures->has(0));
     auto sig = signatures->get(0).value();
 
@@ -129,7 +129,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     INFO("Deserialise additional transaction after restart");
     {
       auto tx = source_store.create_tx();
-      auto map = tx.get_handle(string_map);
+      auto map = tx.rw(string_map);
       map->put("key", "value");
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 

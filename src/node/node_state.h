@@ -510,7 +510,7 @@ namespace ccf
               }
 
               auto tx = network.tables->create_read_only_tx();
-              auto signatures = tx.get_read_only_handle(network.signatures);
+              auto signatures = tx.ro(network.signatures);
               auto sig = signatures->get(0);
               if (!sig.has_value())
               {
@@ -776,7 +776,7 @@ namespace ccf
       {
         auto tx = network.tables->create_read_only_tx();
         auto snapshot_evidence =
-          tx.get_read_only_handle(network.snapshot_evidence);
+          tx.ro(network.snapshot_evidence);
 
         if (ledger_idx == startup_snapshot_info->evidence_seqno)
         {

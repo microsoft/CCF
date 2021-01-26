@@ -125,7 +125,7 @@ namespace aft
     kv::Consensus::SeqNo committed_seqno)
   {
     auto aft_requests =
-      tx.get_handle<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
+      tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
     auto req_v = aft_requests->get(0);
     CCF_ASSERT(
       req_v.has_value(),
