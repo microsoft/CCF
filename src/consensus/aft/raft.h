@@ -468,7 +468,7 @@ namespace aft
 
           // Only if globally committable, a snapshot requires a new ledger
           // chunk to be created
-          force_ledger_chunk = snapshotter->requires_snapshot(index);
+          force_ledger_chunk = snapshotter->record_committable(index);
         }
 
         state->last_idx = index;
@@ -1132,7 +1132,7 @@ namespace aft
         bool force_ledger_chunk = false;
         if (globally_committable)
         {
-          force_ledger_chunk = snapshotter->requires_snapshot(i);
+          force_ledger_chunk = snapshotter->record_committable(i);
         }
 
         ledger->put_entry(entry, globally_committable, force_ledger_chunk);
@@ -2054,10 +2054,10 @@ namespace aft
 
       LOG_DEBUG_FMT("Compacting...");
       snapshotter->commit(idx);
-      if (replica_state == Leader && consensus_type == ConsensusType::CFT)
+      if (consensus_type == ConsensusType::CFT)
       {
         // Snapshots are not yet supported with BFT
-        snapshotter->snapshot(idx);
+        snapshotter->update(idx, replica_state == Leader);
       }
       store->compact(idx);
       ledger->commit(idx);
