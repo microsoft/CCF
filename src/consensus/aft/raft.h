@@ -1122,18 +1122,24 @@ namespace aft
         auto& [ds, i] = ae;
         state->last_idx = i;
 
-        kv::ApplySuccess apply_success = kv::ApplySuccess::FAILED;
-        if (ds != nullptr)
+        kv::ApplySuccess apply_success = ds->execute();
+        if (apply_success == kv::ApplySuccess::FAILED)
         {
-          apply_success = ds->execute();
-          if (apply_success == kv::ApplySuccess::FAILED)
-          {
-            state->last_idx = i - 1;
-            ledger->truncate(state->last_idx);
-            send_append_entries_response(
-              r.from_node, AppendEntriesResponseType::FAIL);
-            return;
-          }
+          // Setting last_idx to i-1 is a work around that should be fixed
+          // shortly. In BFT mode when we deserialize and realize we need to
+          // create a new map we remember this. If we need to create the same
+          // map multiple times (for tx in the same group of append entries) the
+          // first create successes but the second fails because the map is
+          // already there. This works around the problem by stopping just
+          // before the 2nd create (which failed at this point) and when the
+          // primary resends the append entries we will succeed as the map is
+          // already there. This will only occur on BFT startup so not a perf
+          // problem but still need to be resolved.
+          state->last_idx = i - 1;
+          ledger->truncate(state->last_idx);
+          send_append_entries_response(
+            r.from_node, AppendEntriesResponseType::FAIL);
+          return;
         }
 
         for (auto& hook : ds->get_hooks())
