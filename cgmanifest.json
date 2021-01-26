@@ -132,7 +132,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nodejs/llhttp",
-          "commitHash": "8b3939e29a01ffbf9e481a76db81e372f0fb2f0c"
+          "commitHash": "005a3da976877a27457178a6bc1e10d65dd06324"
         }
       }
     }
