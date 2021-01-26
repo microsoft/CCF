@@ -545,15 +545,21 @@ namespace kv
         // The term should always be updated on rollback() when passed
         // regardless of whether version needs to be updated or not
         if (t.has_value())
+        {
           term = t.value();
+        }
         // History must be informed of the term change, even if no
         // actual rollback is required
         auto h = get_history();
         if (h)
+        {
           h->rollback(v, term);
+        }
 
         if (v >= version)
+        {
           return;
+        }
 
         version = v;
         last_replicated = v;
@@ -562,7 +568,9 @@ namespace kv
         pending_txs.clear();
         auto e = get_encryptor();
         if (e)
+        {
           e->rollback(v);
+        }
       }
 
       for (auto& it : maps)
