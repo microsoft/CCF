@@ -50,6 +50,9 @@ namespace ccf
     // Index at which the lastest snapshot was generated
     consensus::Index last_snapshot_idx = 0;
 
+    // Used to suspend snapshot generation during public recovery
+    bool snapshot_generation_enabled = true;
+
     // Indices at which a snapshot will be next generated
     std::deque<consensus::Index> next_snapshot_indices;
 
@@ -127,24 +130,36 @@ namespace ccf
   public:
     Snapshotter(
       ringbuffer::AbstractWriterFactory& writer_factory,
-      NetworkState& network_) :
+      NetworkState& network_,
+      size_t snapshot_tx_interval_) :
       to_host(writer_factory.create_writer_to_outside()),
-      network(network_)
+      network(network_),
+      snapshot_tx_interval(snapshot_tx_interval_)
     {
       next_snapshot_indices.push_back(last_snapshot_idx);
     }
 
-    void set_tx_interval(size_t snapshot_tx_interval_)
+    void init_after_public_recovery()
+    {
+      // After public recovery, the first node should have restored all
+      // snapshot indices in next_snapshot_indices so that snapshot
+      // generation can continue at the correct interval
+      std::lock_guard<SpinLock> guard(lock);
+
+      last_snapshot_idx = next_snapshot_indices.back();
+    }
+
+    void set_snapshot_generation(bool enabled)
     {
       std::lock_guard<SpinLock> guard(lock);
-      snapshot_tx_interval = snapshot_tx_interval_;
+      snapshot_generation_enabled = enabled;
     }
 
     void set_last_snapshot_idx(consensus::Index idx)
     {
+      // Should only be called once, after a snapshot has been applied
       std::lock_guard<SpinLock> guard(lock);
 
-      // Should only be called once, after a snapshot has been applied
       if (last_snapshot_idx != 0)
       {
         throw std::logic_error(
@@ -158,8 +173,12 @@ namespace ccf
       next_snapshot_indices.push_back(last_snapshot_idx);
     }
 
-    void snapshot(consensus::Index idx)
+    void update(consensus::Index idx, bool generate_snapshot)
     {
+      // If generate_snapshot is true, takes a snapshot of the key value store
+      // at idx, and schedule snapshot serialisation on another thread
+      // (round-robin). Otherwise, only record that a snapshot was
+      // generated at idx.
       std::lock_guard<SpinLock> guard(lock);
 
       if (idx < last_snapshot_idx)
@@ -173,32 +192,46 @@ namespace ccf
 
       if (idx - last_snapshot_idx >= snapshot_tx_interval)
       {
-        auto msg = std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
-        msg->data.self = shared_from_this();
-        msg->data.snapshot = network.tables->snapshot(idx);
-
         last_snapshot_idx = idx;
 
-        static uint32_t generation_count = 0;
-        threading::ThreadMessaging::thread_messaging.add_task(
-          threading::ThreadMessaging::get_execution_thread(generation_count++),
-          std::move(msg));
+        if (generate_snapshot && snapshot_generation_enabled)
+        {
+          auto msg =
+            std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
+          msg->data.self = shared_from_this();
+          msg->data.snapshot = network.tables->snapshot(idx);
+
+          static uint32_t generation_count = 0;
+          threading::ThreadMessaging::thread_messaging.add_task(
+            threading::ThreadMessaging::get_execution_thread(
+              generation_count++),
+            std::move(msg));
+        }
       }
+    }
+
+    bool record_committable(consensus::Index idx)
+    {
+      // Returns true if the committable idx will require the generation of a
+      // snapshot, and thus a new ledger chunk
+      std::lock_guard<SpinLock> guard(lock);
+
+      if ((idx - next_snapshot_indices.back()) >= snapshot_tx_interval)
+      {
+        next_snapshot_indices.push_back(idx);
+        return true;
+      }
+      return false;
     }
 
     void commit(consensus::Index idx)
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      while (!next_snapshot_indices.empty() &&
+      while ((next_snapshot_indices.size() > 1) &&
              (next_snapshot_indices.front() < idx))
       {
         next_snapshot_indices.pop_front();
-      }
-
-      if (next_snapshot_indices.empty())
-      {
-        next_snapshot_indices.push_back(last_snapshot_idx);
       }
 
       for (auto it = snapshot_evidence_indices.begin();
@@ -221,19 +254,6 @@ namespace ccf
         }
         it++;
       }
-    }
-
-    bool requires_snapshot(consensus::Index idx)
-    {
-      std::lock_guard<SpinLock> guard(lock);
-
-      // Returns true if the idx will require the generation of a snapshot
-      if ((idx - next_snapshot_indices.back()) >= snapshot_tx_interval)
-      {
-        next_snapshot_indices.push_back(idx);
-        return true;
-      }
-      return false;
     }
 
     void rollback(consensus::Index idx)
