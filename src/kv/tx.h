@@ -437,8 +437,7 @@ namespace kv
      * @param map_name Name of map
      */
     template <class M>
-    typename M::ReadOnlyHandle* ro(
-      const std::string& map_name)
+    typename M::ReadOnlyHandle* ro(const std::string& map_name)
     {
       return get_handle_by_name<typename M::Handle>(map_name);
     }
@@ -524,8 +523,7 @@ namespace kv
      * @param map_name Name of map
      */
     template <class M>
-    typename M::WriteOnlyHandle* wo(
-      const std::string& map_name)
+    typename M::WriteOnlyHandle* wo(const std::string& map_name)
     {
       return get_handle_by_name<typename M::Handle>(map_name);
     }

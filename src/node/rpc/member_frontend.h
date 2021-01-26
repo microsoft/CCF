@@ -342,8 +342,7 @@ namespace ccf
     void remove_jwt_keys(kv::Tx& tx, std::string issuer)
     {
       auto keys = tx.rw(this->network.jwt_public_signing_keys);
-      auto key_issuer =
-        tx.rw(this->network.jwt_public_signing_key_issuer);
+      auto key_issuer = tx.rw(this->network.jwt_public_signing_key_issuer);
 
       key_issuer->foreach(
         [&issuer, &keys, &key_issuer](const auto& k, const auto& v) {
@@ -364,8 +363,7 @@ namespace ccf
       const JsonWebKeySet& jwks)
     {
       auto keys = tx.rw(this->network.jwt_public_signing_keys);
-      auto key_issuer =
-        tx.rw(this->network.jwt_public_signing_key_issuer);
+      auto key_issuer = tx.rw(this->network.jwt_public_signing_key_issuer);
 
       auto log_prefix = proposal_id == INVALID_PROPOSAL_ID ?
         "JWT key auto-refresh" :

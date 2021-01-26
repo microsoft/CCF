@@ -775,8 +775,7 @@ namespace ccf
         startup_snapshot_info)
       {
         auto tx = network.tables->create_read_only_tx();
-        auto snapshot_evidence =
-          tx.ro(network.snapshot_evidence);
+        auto snapshot_evidence = tx.ro(network.snapshot_evidence);
 
         if (ledger_idx == startup_snapshot_info->evidence_seqno)
         {

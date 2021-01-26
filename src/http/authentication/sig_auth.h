@@ -71,8 +71,7 @@ namespace ccf
       const auto signed_request = parse_signed_request(ctx);
       if (signed_request.has_value())
       {
-        auto digests =
-          tx.ro<CertDigests>(Tables::USER_DIGESTS);
+        auto digests = tx.ro<CertDigests>(Tables::USER_DIGESTS);
         auto user_id = digests->get(signed_request->key_id);
 
         if (user_id.has_value())
@@ -173,8 +172,7 @@ namespace ccf
       const auto signed_request = parse_signed_request(ctx);
       if (signed_request.has_value())
       {
-        auto digests =
-          tx.ro<CertDigests>(Tables::MEMBER_DIGESTS);
+        auto digests = tx.ro<CertDigests>(Tables::MEMBER_DIGESTS);
         auto member_id = digests->get(signed_request->key_id);
 
         if (member_id.has_value())

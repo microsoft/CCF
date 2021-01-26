@@ -1390,8 +1390,8 @@ namespace ccfapp
     {
       UserEndpointRegistry::build_api(document, tx);
 
-      auto endpoints = tx.ro<ccf::endpoints::EndpointsMap>(
-        ccf::Tables::ENDPOINTS);
+      auto endpoints =
+        tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
 
       endpoints->foreach([&document](const auto& key, const auto& properties) {
         const auto http_verb = key.verb.get_http_method();

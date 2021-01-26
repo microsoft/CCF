@@ -526,8 +526,7 @@ TEST_CASE("process_bft")
   frontend.process_bft(ctx);
 
   auto tx = bft_network.tables->create_tx();
-  auto aft_requests =
-    tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
+  auto aft_requests = tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
   auto request_value = aft_requests->get(0);
   REQUIRE(request_value.has_value());
 
@@ -1455,15 +1454,13 @@ public:
         // Warning: Never do this in a real application!
         // Create another transaction that conflicts with the frontend one
         auto tx = this->tables.create_tx();
-        auto conflict_map =
-          tx.template rw<Values>("test_values_conflict");
+        auto conflict_map = tx.template rw<Values>("test_values_conflict");
         conflict_map->put(0, 42);
         REQUIRE(tx.commit() == kv::CommitSuccess::OK);
         conflict_next = false;
       }
 
-      auto conflict_map =
-        args.tx.template rw<Values>("test_values_conflict");
+      auto conflict_map = args.tx.template rw<Values>("test_values_conflict");
       conflict_map->get(0); // Record a read dependency
       conflict_map->put(0, 0);
 

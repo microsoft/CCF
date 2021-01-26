@@ -51,8 +51,7 @@ TEST_CASE(
       kv::DeserialiseSuccess::PASS);
 
     auto tx_target = kv_store_target.create_tx();
-    auto handle_target =
-      tx_target.rw<MapTypes::StringString>("public:pub_map");
+    auto handle_target = tx_target.rw<MapTypes::StringString>("public:pub_map");
     REQUIRE(handle_target->get("pubk1") == "pubv1");
   }
 }
@@ -99,8 +98,7 @@ TEST_CASE(
         kv::DeserialiseSuccess::PASS);
 
       auto tx_target = kv_store_target.create_tx();
-      auto handle_target =
-        tx_target.rw<MapTypes::StringString>("priv_map");
+      auto handle_target = tx_target.rw<MapTypes::StringString>("priv_map");
       REQUIRE(handle_target->get("privk1") == "privv1");
     }
   }

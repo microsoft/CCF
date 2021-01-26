@@ -272,8 +272,7 @@ DOCTEST_TEST_CASE("Member query/read")
   {
     // set member ACL so that the VALUES table is accessible
     auto tx = network.tables->create_tx();
-    tx.rw(network.whitelists)
-      ->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
+    tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
     DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     bool compile = true;
@@ -303,8 +302,7 @@ DOCTEST_TEST_CASE("Member query/read")
   DOCTEST_SUBCASE("Read: allowed access, key exists")
   {
     auto tx = network.tables->create_tx();
-    tx.rw(network.whitelists)
-      ->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
+    tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
     DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     auto read_call =
@@ -318,8 +316,7 @@ DOCTEST_TEST_CASE("Member query/read")
   {
     constexpr auto wrong_key = 321;
     auto tx = network.tables->create_tx();
-    tx.rw(network.whitelists)
-      ->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
+    tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
     DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     auto read_call =
@@ -1351,8 +1348,7 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
     DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
 
     auto tx1 = network.tables->create_tx();
-    const auto uid =
-      tx1.rw(network.values)->get(ValueIds::NEXT_USER_ID);
+    const auto uid = tx1.rw(network.values)->get(ValueIds::NEXT_USER_ID);
     DOCTEST_CHECK(uid);
     DOCTEST_CHECK(*uid == 1);
     user_der = tls::make_verifier(user_cert)->der_cert_data();

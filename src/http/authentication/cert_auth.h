@@ -33,8 +33,7 @@ namespace ccf
     {
       const auto caller_cert = ctx->session->caller_cert;
 
-      auto users_by_cert =
-        tx.ro<CertDERs>(Tables::USER_CERT_DERS);
+      auto users_by_cert = tx.ro<CertDERs>(Tables::USER_CERT_DERS);
       const auto user_id = users_by_cert->get(caller_cert);
 
       if (user_id.has_value())
@@ -90,8 +89,7 @@ namespace ccf
     {
       const auto caller_cert = ctx->session->caller_cert;
 
-      auto members_by_cert =
-        tx.ro<CertDERs>(Tables::MEMBER_CERT_DERS);
+      auto members_by_cert = tx.ro<CertDERs>(Tables::MEMBER_CERT_DERS);
       const auto member_id = members_by_cert->get(caller_cert);
 
       if (member_id.has_value())

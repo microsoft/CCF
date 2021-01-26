@@ -557,8 +557,8 @@ namespace ccf
       // deserialising the tree in the signatures table and then applying the
       // hash of the transaction at which the snapshot was taken
       auto tx = store.create_read_only_tx();
-      auto signatures = tx.template ro<ccf::Signatures>(
-        ccf::Tables::SIGNATURES);
+      auto signatures =
+        tx.template ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
       auto sig = signatures->get(0);
       if (!sig.has_value())
       {

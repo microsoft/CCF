@@ -275,8 +275,7 @@ namespace ccf
 
     auto add_node(const NodeInfo& node_info)
     {
-      auto node_id =
-        get_next_id(tx.rw(tables.values), ValueIds::NEXT_NODE_ID);
+      auto node_id = get_next_id(tx.rw(tables.values), ValueIds::NEXT_NODE_ID);
 
       auto raw_cert = tls::make_verifier(node_info.cert)->der_cert_data();
 

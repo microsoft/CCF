@@ -305,8 +305,7 @@ namespace ccf
         result.recovery_target_seqno = rts;
         result.last_recovered_seqno = lrs;
 
-        auto signatures =
-          args.tx.template ro<Signatures>(Tables::SIGNATURES);
+        auto signatures = args.tx.template ro<Signatures>(Tables::SIGNATURES);
         auto sig = signatures->get(0);
         if (!sig.has_value())
         {

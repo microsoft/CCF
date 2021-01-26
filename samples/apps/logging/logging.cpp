@@ -233,8 +233,7 @@ namespace loggingapp
       auto get_public =
         [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&& params) {
           const auto in = params.get<LoggingGet::In>();
-          auto public_records_handle =
-            args.tx.ro(public_records);
+          auto public_records_handle = args.tx.ro(public_records);
           auto record = public_records_handle->get(in.id);
 
           if (record.has_value())
