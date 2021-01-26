@@ -644,6 +644,20 @@ TEST_CASE("Read-only tx")
     // handle->put(k, v1);
     // handle->remove(k);
   }
+
+  INFO("Write-only handles");
+  {
+    auto tx = kv_store.create_tx();
+    auto handle = tx.get_write_only_handle(map);
+
+    handle->put(k, v1);
+    handle->remove(k);
+
+    // The following won't compile:
+    // REQUIRE(handle->has(k));
+    // const auto v = handle->get(k);
+    // handle->foreach([](const auto&, const auto&) {});
+  }
 }
 
 TEST_CASE("Rollback and compact")

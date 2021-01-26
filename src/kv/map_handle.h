@@ -9,22 +9,20 @@
 namespace kv
 {
   template <typename K, typename V, typename KSerialiser, typename VSerialiser>
-  class ReadOnlyMapHandle : public AbstractMapHandle
+  class ReadableMapHandle
   {
   protected:
-    kv::untyped::MapHandle untyped_handle;
+    kv::untyped::MapHandle& read_handle;
 
   public:
     using KeyType = K;
     using ValueType = V;
 
-    ReadOnlyMapHandle(kv::untyped::ChangeSet& changes) : untyped_handle(changes)
-    {}
+    ReadableMapHandle(kv::untyped::MapHandle& uh) : read_handle(uh) {}
 
     std::optional<V> get(const K& key)
     {
-      const auto opt_v_rep =
-        untyped_handle.get(KSerialiser::to_serialised(key));
+      const auto opt_v_rep = read_handle.get(KSerialiser::to_serialised(key));
 
       if (opt_v_rep.has_value())
       {
@@ -37,7 +35,7 @@ namespace kv
     std::optional<V> get_globally_committed(const K& key)
     {
       const auto opt_v_rep =
-        untyped_handle.get_globally_committed(KSerialiser::to_serialised(key));
+        read_handle.get_globally_committed(KSerialiser::to_serialised(key));
 
       if (opt_v_rep.has_value())
       {
@@ -49,7 +47,7 @@ namespace kv
 
     bool has(const K& key)
     {
-      return untyped_handle.has(KSerialiser::to_serialised(key));
+      return read_handle.has(KSerialiser::to_serialised(key));
     }
 
     template <class F>
@@ -62,29 +60,47 @@ namespace kv
           KSerialiser::from_serialised(k_rep),
           VSerialiser::from_serialised(v_rep));
       };
-      untyped_handle.foreach(g);
+      read_handle.foreach(g);
     }
   };
 
   template <typename K, typename V, typename KSerialiser, typename VSerialiser>
-  class MapHandle : public ReadOnlyMapHandle<K, V, KSerialiser, VSerialiser>
+  class WriteableMapHandle
   {
   protected:
-    using ReadOnlyBase = ReadOnlyMapHandle<K, V, KSerialiser, VSerialiser>;
+    kv::untyped::MapHandle& write_handle;
 
   public:
-    using ReadOnlyBase::ReadOnlyBase;
+    WriteableMapHandle(kv::untyped::MapHandle& uh) : write_handle(uh) {}
 
     bool put(const K& key, const V& value)
     {
-      return ReadOnlyBase::untyped_handle.put(
+      return write_handle.put(
         KSerialiser::to_serialised(key), VSerialiser::to_serialised(value));
     }
 
     bool remove(const K& key)
     {
-      return ReadOnlyBase::untyped_handle.remove(
-        KSerialiser::to_serialised(key));
+      return write_handle.remove(KSerialiser::to_serialised(key));
     }
+  };
+
+  template <typename K, typename V, typename KSerialiser, typename VSerialiser>
+  class MapHandle : public AbstractMapHandle,
+                    public ReadableMapHandle<K, V, KSerialiser, VSerialiser>,
+                    public WriteableMapHandle<K, V, KSerialiser, VSerialiser>
+  {
+  protected:
+    kv::untyped::MapHandle untyped_handle;
+
+    using ReadableBase = ReadableMapHandle<K, V, KSerialiser, VSerialiser>;
+    using WriteableBase = WriteableMapHandle<K, V, KSerialiser, VSerialiser>;
+
+  public:
+    MapHandle(kv::untyped::ChangeSet& changes) :
+      ReadableBase(untyped_handle),
+      WriteableBase(untyped_handle),
+      untyped_handle(changes)
+    {}
   };
 }

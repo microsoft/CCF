@@ -26,7 +26,9 @@ namespace kv
     using MapHook = MapHook<Write>;
 
     using ReadOnlyHandle =
-      kv::ReadOnlyMapHandle<K, V, KSerialiser, VSerialiser>;
+      kv::ReadableMapHandle<K, V, KSerialiser, VSerialiser>;
+    using WriteOnlyHandle =
+      kv::WriteableMapHandle<K, V, KSerialiser, VSerialiser>;
     using Handle = kv::MapHandle<K, V, KSerialiser, VSerialiser>;
 
     using KeySerialiser = KSerialiser;

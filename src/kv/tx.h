@@ -501,6 +501,34 @@ namespace kv
     {
       return get_handle<M>(map_name);
     }
+
+    /** Get a write-only handle for a map.
+     *
+     * This adds the map to the transaction set if it is not yet present.
+     *
+     * @param m Map
+     */
+    template <class M>
+    typename M::WriteOnlyHandle* get_write_only_handle(M& m)
+    {
+      // As with get_read_only_handle, this returns a full-featured Handle
+      // which is cast to only show its writeable facet.
+      return get_handle_by_name<typename M::Handle>(m.get_name());
+    }
+
+    /** Get a write-only handle for a map by name
+     *
+     * This adds the map to the transaction set if it is not yet present, and
+     * creates the map if it does not yet exist.
+     *
+     * @param map_name Name of map
+     */
+    template <class M>
+    typename M::WriteOnlyHandle* get_write_only_handle(
+      const std::string& map_name)
+    {
+      return get_handle_by_name<typename M::Handle>(map_name);
+    }
   };
 
   // Used by frontend for reserved transactions. These are constructed with a
