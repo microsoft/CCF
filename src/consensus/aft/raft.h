@@ -65,7 +65,7 @@ namespace aft
     };
 
     ConsensusType consensus_type;
-    std::unique_ptr<Store<kv::DeserialiseSuccess>> store;
+    std::unique_ptr<Store> store;
 
     // Persistent
     NodeId voted_for;
@@ -129,7 +129,7 @@ namespace aft
   public:
     Aft(
       ConsensusType consensus_type_,
-      std::unique_ptr<Store<kv::DeserialiseSuccess>> store_,
+      std::unique_ptr<Store> store_,
       std::unique_ptr<LedgerProxy> ledger_,
       std::shared_ptr<ccf::NodeToNode> channels_,
       std::shared_ptr<SnapshotterProxy> snapshotter_,
@@ -1072,6 +1072,9 @@ namespace aft
         r.idx,
         r.prev_idx);
 
+      std::vector<
+        std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>
+        append_entries;
       // Finally, deserialise each entry in the batch
       for (Index i = r.prev_idx + 1; i <= r.idx; i++)
       {
@@ -1103,43 +1106,61 @@ namespace aft
           return;
         }
 
+        auto ds = store->apply(entry, consensus_type, public_only);
+        if (ds == nullptr)
+        {
+          LOG_DEBUG_FMT("failed to deserialize we failed to apply");
+          send_append_entries_response(
+            r.from_node, AppendEntriesResponseType::FAIL);
+          return;
+        }
+        append_entries.push_back(std::make_tuple(std::move(ds), i));
+      }
+
+      for (auto& ae : append_entries)
+      {
+        auto& [ds, i] = ae;
         state->last_idx = i;
 
-        Term sig_term = 0;
-        Index sig_index = 0;
-        auto tx = store->create_tx();
-        kv::DeserialiseSuccess deserialise_success;
-        ccf::PrimarySignature sig;
-        kv::ConsensusHookPtrs hooks;
-        if (consensus_type == ConsensusType::BFT)
+        kv::ApplySuccess apply_success = ds->execute();
+        if (apply_success == kv::ApplySuccess::FAILED)
         {
-          deserialise_success = store->deserialise_views(
-            entry, hooks, public_only, &sig_term, &sig_index, &tx, &sig);
-        }
-        else
-        {
-          deserialise_success =
-            store->deserialise(entry, hooks, public_only, &sig_term);
+          // Setting last_idx to i-1 is a work around that should be fixed
+          // shortly. In BFT mode when we deserialize and realize we need to
+          // create a new map we remember this. If we need to create the same
+          // map multiple times (for tx in the same group of append entries) the
+          // first create successes but the second fails because the map is
+          // already there. This works around the problem by stopping just
+          // before the 2nd create (which failed at this point) and when the
+          // primary resends the append entries we will succeed as the map is
+          // already there. This will only occur on BFT startup so not a perf
+          // problem but still need to be resolved.
+          state->last_idx = i - 1;
+          ledger->truncate(state->last_idx);
+          send_append_entries_response(
+            r.from_node, AppendEntriesResponseType::FAIL);
+          return;
         }
 
-        for (auto& hook : hooks)
+        for (auto& hook : ds->get_hooks())
         {
           hook->call(this);
         }
 
         bool globally_committable =
-          (deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
+          (apply_success == kv::ApplySuccess::PASS_SIGNATURE);
         bool force_ledger_chunk = false;
         if (globally_committable)
         {
           force_ledger_chunk = snapshotter->record_committable(i);
         }
 
-        ledger->put_entry(entry, globally_committable, force_ledger_chunk);
+        ledger->put_entry(
+          ds->get_entry(), globally_committable, force_ledger_chunk);
 
-        switch (deserialise_success)
+        switch (apply_success)
         {
-          case kv::DeserialiseSuccess::FAILED:
+          case kv::ApplySuccess::FAILED:
           {
             LOG_FAIL_FMT("Follower failed to apply log entry: {}", i);
             state->last_idx--;
@@ -1149,50 +1170,56 @@ namespace aft
             break;
           }
 
-          case kv::DeserialiseSuccess::PASS_SIGNATURE:
+          case kv::ApplySuccess::PASS_SIGNATURE:
           {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
             auto prev_lci = last_committable_index();
             committable_indices.push_back(i);
 
-            if (sig_term)
+            if (ds->get_term())
             {
               // A signature for sig_term tells us that all transactions from
               // the previous signature onwards (at least, if not further back)
               // happened in sig_term. We reflect this in the history.
               if (r.term_of_idx == aft::ViewHistory::InvalidView)
+              {
                 state->view_history.update(1, r.term);
+              }
               else
-                state->view_history.update(prev_lci + 1, sig_term);
+              {
+                state->view_history.update(prev_lci + 1, ds->get_term());
+              }
               commit_if_possible(r.leader_commit_idx);
             }
             if (consensus_type == ConsensusType::BFT)
             {
-              send_append_entries_signed_response(r.from_node, sig);
+              send_append_entries_signed_response(
+                r.from_node, ds->get_signature());
             }
             break;
           }
 
-          case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE:
+          case kv::ApplySuccess::PASS_BACKUP_SIGNATURE:
           {
             break;
           }
-          case kv::DeserialiseSuccess::PASS_NEW_VIEW:
+          case kv::ApplySuccess::PASS_NEW_VIEW:
           {
-            view_change_tracker->clear(get_primary(sig_term) == id(), sig_term);
+            view_change_tracker->clear(
+              get_primary(ds->get_term()) == id(), ds->get_term());
             request_tracker->clear();
             break;
           }
 
-          case kv::DeserialiseSuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
+          case kv::ApplySuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
           {
             try_send_sig_ack(
-              {sig_term, sig_index},
+              {ds->get_term(), ds->get_index()},
               kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK);
             break;
           }
 
-          case kv::DeserialiseSuccess::PASS_NONCES:
+          case kv::ApplySuccess::PASS_NONCES:
           {
             request_tracker->insert_signed_request(
               state->last_idx,
@@ -1201,24 +1228,24 @@ namespace aft
             break;
           }
 
-          case kv::DeserialiseSuccess::PASS:
+          case kv::ApplySuccess::PASS:
           {
             if (consensus_type == ConsensusType::BFT)
             {
               state->last_idx = executor->commit_replayed_request(
-                tx, request_tracker, state->commit_idx);
+                ds->get_tx(), request_tracker, state->commit_idx);
             }
             break;
           }
 
-          case kv::DeserialiseSuccess::PASS_SNAPSHOT_EVIDENCE:
+          case kv::ApplySuccess::PASS_SNAPSHOT_EVIDENCE:
           {
             break;
           }
 
           default:
           {
-            throw std::logic_error("Unknown DeserialiseSuccess value");
+            throw std::logic_error("Unknown ApplySuccess value");
           }
         }
       }
