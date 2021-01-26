@@ -125,8 +125,7 @@ namespace loggingapp
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
       const ccf::endpoints::AuthnPolicies auth_policies = {
-        ccf::jwt_auth_policy,
-        ccf::user_cert_auth_policy};
+        ccf::jwt_auth_policy, ccf::user_cert_auth_policy};
 
       // SNIPPET_START: record
       auto record = [this](kv::Tx& tx, nlohmann::json&& params) {
@@ -198,10 +197,7 @@ namespace loggingapp
         return ccf::make_success(LoggingRemove::Out{removed});
       };
       make_endpoint(
-        "log/private",
-        HTTP_DELETE,
-        ccf::json_adapter(remove),
-        auth_policies)
+        "log/private", HTTP_DELETE, ccf::json_adapter(remove), auth_policies)
         .set_auto_schema<LoggingRemove>()
         .install();
 
@@ -515,10 +511,7 @@ namespace loggingapp
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
       make_endpoint(
-        "log/private/raw_text/{id}",
-        HTTP_POST,
-        log_record_text,
-        auth_policies)
+        "log/private/raw_text/{id}", HTTP_POST, log_record_text, auth_policies)
         .install();
       // SNIPPET_END: log_record_text
 
