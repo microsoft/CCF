@@ -85,7 +85,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   target_link_libraries(
     ccf.enclave
     PUBLIC ${OE_TARGET_ENCLAVE_AND_STD}
-           -static-libgcc
            -lgcc
            ccfcrypto.enclave
            http_parser.enclave
@@ -136,7 +135,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   target_link_libraries(
     ccf.virtual
     PUBLIC ${LINK_LIBCXX}
-           -static-libgcc
            -lgcc
            ccfcrypto.host
            http_parser.host
