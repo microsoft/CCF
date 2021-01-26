@@ -124,7 +124,8 @@ namespace loggingapp
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
-      const ccf::endpoints::AuthnPolicies user_cert_required = {
+      const ccf::endpoints::AuthnPolicies auth_policies = {
+        ccf::jwt_auth_policy,
         ccf::user_cert_auth_policy};
 
       // SNIPPET_START: record
@@ -149,7 +150,7 @@ namespace loggingapp
 
       // SNIPPET_START: install_record
       make_endpoint(
-        "log/private", HTTP_POST, ccf::json_adapter(record), user_cert_required)
+        "log/private", HTTP_POST, ccf::json_adapter(record), auth_policies)
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
       // SNIPPET_END: install_record
@@ -158,7 +159,7 @@ namespace loggingapp
         "log/private",
         ws::Verb::WEBSOCKET,
         ccf::json_adapter(record),
-        user_cert_required)
+        auth_policies)
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
 
@@ -184,7 +185,7 @@ namespace loggingapp
         "log/private",
         HTTP_GET,
         ccf::json_read_only_adapter(get),
-        user_cert_required)
+        auth_policies)
         .set_auto_schema<LoggingGet>()
         .install();
       // SNIPPET_END: install_get
@@ -200,7 +201,7 @@ namespace loggingapp
         "log/private",
         HTTP_DELETE,
         ccf::json_adapter(remove),
-        user_cert_required)
+        auth_policies)
         .set_auto_schema<LoggingRemove>()
         .install();
 
@@ -225,7 +226,7 @@ namespace loggingapp
         "log/public",
         HTTP_POST,
         ccf::json_adapter(record_public),
-        user_cert_required)
+        auth_policies)
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
 
@@ -249,7 +250,7 @@ namespace loggingapp
         "log/public",
         HTTP_GET,
         ccf::json_read_only_adapter(get_public),
-        user_cert_required)
+        auth_policies)
         .set_auto_schema<LoggingGet>()
         .install();
 
@@ -264,7 +265,7 @@ namespace loggingapp
         "log/public",
         HTTP_DELETE,
         ccf::json_adapter(remove_public),
-        user_cert_required)
+        auth_policies)
         .set_auto_schema<LoggingRemove>()
         .install();
 
@@ -311,7 +312,7 @@ namespace loggingapp
         "log/private/prefix_cert",
         HTTP_POST,
         log_record_prefix_cert,
-        user_cert_required)
+        auth_policies)
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
       // SNIPPET_END: log_record_prefix_cert
@@ -517,7 +518,7 @@ namespace loggingapp
         "log/private/raw_text/{id}",
         HTTP_POST,
         log_record_text,
-        user_cert_required)
+        auth_policies)
         .install();
       // SNIPPET_END: log_record_text
 
@@ -582,7 +583,7 @@ namespace loggingapp
         HTTP_GET,
         ccf::historical::adapter(
           get_historical, context.get_historical_state(), is_tx_committed),
-        user_cert_required)
+        auth_policies)
         .set_auto_schema<LoggingGetHistorical>()
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
@@ -634,7 +635,7 @@ namespace loggingapp
         "log/private/admin_only",
         HTTP_POST,
         ccf::json_adapter(record_admin_only),
-        user_cert_required)
+        auth_policies)
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
 

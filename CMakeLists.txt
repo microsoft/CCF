@@ -866,6 +866,26 @@ if(BUILD_TESTS)
   )
 
   add_perf_test(
+    NAME logging_scenario_jwt_perf_test
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+    CONSENSUS cft
+    CLIENT_BIN ./scenario_perf_client
+    LABEL log_scenario_jwt
+    ADDITIONAL_ARGS
+      --package
+      liblogging
+      --scenario-file
+      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+      --max-writes-ahead
+      1000
+      --repetitions
+      10000
+      --use-jwt
+      --msg-ser-fmt
+      msgpack
+  )
+
+  add_perf_test(
     NAME logging_scenario_js_perf_test
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
@@ -880,6 +900,26 @@ if(BUILD_TESTS)
       1000
       --repetitions
       1000
+      --msg-ser-fmt
+      text
+  )
+
+  add_perf_test(
+    NAME logging_scenario_js_jwt_perf_test
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+    CONSENSUS cft
+    CLIENT_BIN ./scenario_perf_client
+    LABEL log_scenario_js_jwt
+    ADDITIONAL_ARGS
+      --js-app-bundle
+      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+      --scenario-file
+      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+      --max-writes-ahead
+      1000
+      --repetitions
+      1000
+      --use-jwt
       --msg-ser-fmt
       text
   )
