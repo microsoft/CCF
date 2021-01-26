@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Governance proposal ids are now digests, hex-encoded as strings.
+- `endpoint_metrics` endpoint now returns an array of objects instead of nested path/method objects (#2068).
 
 ## [0.17.1]
 
