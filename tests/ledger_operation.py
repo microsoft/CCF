@@ -47,8 +47,8 @@ def run(args):
         with tempfile.TemporaryDirectory() as tmp_dir:
             args.common_read_only_ledger_dir = tmp_dir
             network.start_and_join(args)
-
             save_committed_ledger_files(network, args)
+            network.stop_all_nodes()
 
 
 if __name__ == "__main__":
