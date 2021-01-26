@@ -201,7 +201,7 @@ namespace ccf
         return make_success(out);
       };
       make_endpoint(
-        "endpoint_metrics",
+        "api/metrics",
         HTTP_GET,
         json_adapter(endpoint_metrics_fn),
         no_auth_required)
