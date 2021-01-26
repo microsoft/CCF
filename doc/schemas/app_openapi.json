@@ -430,7 +430,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       },
       "get": {
         "parameters": [
@@ -456,7 +461,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       },
       "post": {
         "requestBody": {
@@ -480,7 +490,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       }
     },
     "/log/private/admin_only": {
@@ -506,7 +521,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       }
     },
     "/log/private/anonymous": {
@@ -560,7 +580,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       }
     },
     "/log/private/prefix_cert": {
@@ -586,7 +611,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       }
     },
     "/log/private/raw_text/{id}": {
@@ -605,7 +635,12 @@
           "200": {
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       }
     },
     "/log/public": {
@@ -633,7 +668,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       },
       "get": {
         "parameters": [
@@ -659,7 +699,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       },
       "post": {
         "requestBody": {
@@ -683,7 +728,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       }
     },
     "/metrics": {
