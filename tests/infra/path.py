@@ -3,6 +3,7 @@
 import os
 from contextlib import contextmanager
 from shutil import copy2, rmtree
+import hashlib
 
 from loguru import logger as LOG
 
@@ -84,6 +85,14 @@ def create_dir(dir_path):
 
 def copy_dir(src_path, dst_path):
     copy2(src_path, dst_path)
+
+
+def compute_file_checksum(file_name):
+    h = hashlib.sha256()
+    with open(file_name, "rb") as f:
+        for b in iter(lambda: f.read(4096), b""):
+            h.update(b)
+    return h.hexdigest()
 
 
 @contextmanager

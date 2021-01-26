@@ -251,13 +251,13 @@ namespace aft
   class StubSnapshotter
   {
   public:
-    void snapshot(Index)
+    void update(Index, bool)
     {
       // For now, do not test snapshots in unit tests
       return;
     }
 
-    bool requires_snapshot(Index)
+    bool record_committable(Index)
     {
       // For now, do not test snapshots in unit tests
       return false;
