@@ -420,14 +420,7 @@ class LocalRemote(CmdMixin):
 
     def _cp(self, src_path, dst_path):
         if os.path.isdir(src_path):
-            assert (
-                self._rc(
-                    "rm -rf {}".format(
-                        os.path.join(dst_path, os.path.basename(src_path))
-                    )
-                )
-                == 0
-            )
+            assert self._rc("rm -rf {}".format(os.path.join(dst_path))) == 0
             assert self._rc("cp -r {} {}".format(src_path, dst_path)) == 0
         else:
             assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
@@ -461,10 +454,8 @@ class LocalRemote(CmdMixin):
             raise ValueError(path)
         if not pre_condition_func(path, os.listdir):
             raise RuntimeError("Pre-condition for getting remote files failed")
-        if target_name is not None:
-            self._cp(path, os.path.join(dst_path, target_name))
-        else:
-            self._cp(path, dst_path)
+        target_name = target_name or os.path.basename(src_path)
+        self._cp(path, os.path.join(dst_path, target_name))
 
     def list_files(self):
         return os.listdir(self.root)
