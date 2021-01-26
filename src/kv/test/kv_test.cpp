@@ -654,8 +654,8 @@ TEST_CASE("Read-only tx")
     handle->remove(k);
 
     // The following won't compile:
-    // REQUIRE(handle->has(k));
-    // const auto v = handle->get(k);
+    // handle->has(k);
+    // handle->get(k);
     // handle->foreach([](const auto&, const auto&) {});
   }
 }

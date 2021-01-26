@@ -39,9 +39,9 @@ Transaction
    :project: CCF
    :members: get_handle
 
-Transaction View
-----------------
+Handle
+------
 
 .. doxygenclass:: kv::MapHandle
    :project: CCF
-   :members: get, put, remove, foreach
+   :members: get, has, put, remove, foreach
