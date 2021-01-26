@@ -117,8 +117,10 @@ namespace ccf
 
   struct EndpointMetrics
   {
-    struct Metric
+    struct Entry
     {
+      std::string path;
+      std::string method;
       size_t calls = 0;
       size_t errors = 0;
       size_t failures = 0;
@@ -126,7 +128,7 @@ namespace ccf
 
     struct Out
     {
-      std::map<std::string, std::map<std::string, Metric>> metrics;
+      std::vector<Entry> metrics;
     };
   };
 
