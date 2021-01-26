@@ -879,7 +879,7 @@ if(BUILD_TESTS)
       --max-writes-ahead
       1000
       --repetitions
-      10000
+      7000
       --use-jwt
       --msg-ser-fmt
       msgpack
@@ -918,7 +918,7 @@ if(BUILD_TESTS)
       --max-writes-ahead
       1000
       --repetitions
-      1000
+      700
       --use-jwt
       --msg-ser-fmt
       text
