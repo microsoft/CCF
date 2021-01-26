@@ -82,16 +82,6 @@ namespace kv::untyped
   public:
     MapHandle(ChangeSet& cs) : tx_changes(cs) {}
 
-    /** Get value for key
-     *
-     * This returns the value for the key inside the transaction. If the key
-     * has been updated in the current transaction, that update will be
-     * reflected in the return of this call.
-     *
-     * @param key Key
-     *
-     * @return optional containing value, empty if the key doesn't exist
-     */
     std::optional<ValueType> get(const KeyType& key)
     {
       auto value_p = read_key(key);
@@ -103,19 +93,6 @@ namespace kv::untyped
       return *value_p;
     }
 
-    /** Get globally committed value for key
-     *
-     * This reads a globally replicated value for the specified key.
-     * The value will have been the replicated value when the transaction
-     * began, but the map may be compacted while the transaction is in
-     * flight. If that happens, there may be a more recent committed
-     * version. This is undetectable to the transaction.
-     *
-     * @param key Key
-     *
-     * @return optional containing value, empty if the key doesn't exist in
-     * globally committed state
-     */
     std::optional<ValueType> get_globally_committed(const KeyType& key)
     {
       // If there is no committed value, return empty.
@@ -136,48 +113,18 @@ namespace kv::untyped
       return found.value;
     }
 
-    /** Test if key is present
-     *
-     * This returns true if the key has a value inside the transaction. If the
-     * key has been updated (written to or deleted) in the current transaction,
-     * that update will be reflected in the return of this call.
-     *
-     * @param key Key
-     *
-     * @return bool true iff key exists
-     */
     bool has(const KeyType& key)
     {
       auto value_p = read_key(key);
       return value_p != nullptr;
     }
 
-    /** Write value at key
-     *
-     * If the key already exists, the value will be replaced.
-     * This will fail if the transaction is already committed.
-     *
-     * @param key Key
-     * @param value Value
-     *
-     * @return true if successful, false otherwise
-     */
-    bool put(const KeyType& key, const ValueType& value)
+    void put(const KeyType& key, const ValueType& value)
     {
       // Record in the write set.
       tx_changes.writes[key] = value;
-      return true;
     }
 
-    /** Remove key
-     *
-     * This will fail if the key does not exist, or if the transaction
-     * is already committed.
-     *
-     * @param key Key
-     *
-     * @return true if successful, false otherwise
-     */
     bool remove(const KeyType& key)
     {
       auto write = tx_changes.writes.find(key);
@@ -211,24 +158,6 @@ namespace kv::untyped
       return true;
     }
 
-    /** Iterate over all entries in the map. There is no guarantee on the
-     * iteration order.
-     *
-     * The set of key-value entries which will be iterated over is determined at
-     * the point foreach is called, and does not include any modifications made
-     * by the functor. This means:
-     * - If the functor sets a value V at a new key K', the functor will not be
-     * called for (K', V)
-     * - If the functor changes the value at key K from V to V', the functor
-     * will be called with the old value (K, V)
-     * - If the functor removes K, the functor will still be called for (K, V)
-     *
-     * Calling `get` will always return the true latest state, this behaviour
-     * only applies to the keys and values passed as functor arguments.
-     *
-     * @param F functor, taking a key and a value, return value determines
-     * whether the iteration should continue (true) or stop (false)
-     */
     template <class F>
     void foreach(F&& f)
     {

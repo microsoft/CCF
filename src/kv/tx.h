@@ -409,16 +409,20 @@ namespace kv
     }
   };
 
+  /** Used to create read-only handles for accessing a Map.
+   *
+   * Acquiring a handle will create the map in the KV if it does not yet exist.
+   * The returned handles can view state written by previous transactions, and
+   * any additional modifications made in this transaction.
+   */
   class ReadOnlyTx : public BaseTx
   {
   public:
     using BaseTx::BaseTx;
 
-    /** Get a read-only handle for a map.
+    /** Get a read-only handle from a map instance.
      *
-     * This adds the map to the transaction set if it is not yet present.
-     *
-     * @param m Map
+     * @param m Map instance
      */
     template <class M>
     typename M::ReadOnlyHandle* ro(M& m)
@@ -429,10 +433,8 @@ namespace kv
       return get_handle_by_name<typename M::Handle>(m.get_name());
     }
 
-    /** Get a read-only handle for a map by name.
-     *
-     * This adds the map to the transaction set if it is not yet present, and
-     * creates the map if it does not yet exist.
+    /** Get a read-only handle by map name. Map type must be specified
+     * as explicit template parameter.
      *
      * @param map_name Name of map
      */
@@ -457,16 +459,27 @@ namespace kv
     }
   };
 
+  /** Used to create writeable handles for accessing a Map.
+   *
+   * Acquiring a handle will create the map in the KV if it does not yet exist.
+   * Any writes made by the returned handles will be visible to all other
+   * handles created by this transaction. They will only be visible to other
+   * transactions after this transaction has completed and been applied. For
+   * type-safety, prefer restricted handles returned by @c ro or @c wo where
+   * possible, rather than the general @c rw.
+   *
+   * @see kv::ReadOnlyTx
+   */
   class Tx : public ReadOnlyTx
   {
   public:
     using ReadOnlyTx::ReadOnlyTx;
 
-    /** Get a handle for a map.
+    /** Get a read-write handle from a map instance.
      *
-     * This adds the map to the transaction set if it is not yet present.
+     * This handle can be used for both reads and writes.
      *
-     * @param m Map
+     * @param m Map instance
      */
     template <class M>
     typename M::Handle* rw(M& m)
@@ -474,10 +487,8 @@ namespace kv
       return get_handle_by_name<typename M::Handle>(m.get_name());
     }
 
-    /** Get a handle for a map by name
-     *
-     * This adds the map to the transaction set if it is not yet present, and
-     * creates the map if it does not yet exist.
+    /** Get a read-write handle by map name. Map type must be specified
+     * as explicit template parameter.
      *
      * @param map_name Name of map
      */
@@ -501,11 +512,9 @@ namespace kv
       return rw<M>(map_name);
     }
 
-    /** Get a write-only handle for a map.
+    /** Get a write-only handle from a map instance.
      *
-     * This adds the map to the transaction set if it is not yet present.
-     *
-     * @param m Map
+     * @param m Map instance
      */
     template <class M>
     typename M::WriteOnlyHandle* wo(M& m)
@@ -515,10 +524,8 @@ namespace kv
       return get_handle_by_name<typename M::Handle>(m.get_name());
     }
 
-    /** Get a write-only handle for a map by name
-     *
-     * This adds the map to the transaction set if it is not yet present, and
-     * creates the map if it does not yet exist.
+    /** Get a read-write handle by map name. Map type must be specified
+     * as explicit template parameter.
      *
      * @param map_name Name of map
      */
@@ -530,8 +537,9 @@ namespace kv
   };
 
   // Used by frontend for reserved transactions. These are constructed with a
-  // pre-reserved Version, and _must succeed_ to fulfil this version, else
-  // creating a hole in the history
+  // pre-reserved Version, and _must succeed_ to fulfil this version. Otherwise
+  // they create a hole in the transaction order, and no future transactions can
+  // complete.
   class ReservedTx : public Tx
   {
   public:
