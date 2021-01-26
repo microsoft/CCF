@@ -14,7 +14,7 @@
 
 namespace snmalloc
 {
-  template<class PAL>
+  template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
   class MemoryProviderStateMixin;
 
   class Largeslab : public Baseslab
@@ -24,7 +24,7 @@ namespace snmalloc
   private:
     template<class a, Construction c>
     friend class MPMCStack;
-    template<class PAL>
+    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
     friend class MemoryProviderStateMixin;
     std::atomic<Largeslab*> next;
 
@@ -56,8 +56,8 @@ namespace snmalloc
   // This represents the state that the large allcoator needs to add to the
   // global state of the allocator.  This is currently stored in the memory
   // provider, so we add this in.
-  template<class PAL>
-  class MemoryProviderStateMixin : public PalNotificationObject, public PAL
+  template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
+  class MemoryProviderStateMixin : public PalNotificationObject
   {
     /**
      * Simple flag for checking if another instance of lazy-decommit is
@@ -70,7 +70,19 @@ namespace snmalloc
      */
     AddressSpaceManager<PAL> address_space = {};
 
+    /**
+     * High-water mark of used memory.
+     */
+    std::atomic<size_t> peak_memory_used_bytes{0};
+
   public:
+    using Pal = PAL;
+
+    /**
+     * Memory current available in large_stacks
+     */
+    std::atomic<size_t> available_large_chunks_in_bytes{0};
+
     /**
      * Stack of large allocations that have been returned for reuse.
      */
@@ -184,10 +196,13 @@ namespace snmalloc
     {
       // Cache line align
       size_t size = bits::align_up(sizeof(T), 64);
-      size = bits::max(size, alignment);
-      void* p = address_space.template reserve<true>(bits::next_pow2(size));
+      size = bits::next_pow2(bits::max(size, alignment));
+      void* p = address_space.template reserve<true>(size);
       if (p == nullptr)
         return nullptr;
+
+      peak_memory_used_bytes += size;
+
       return new (p) T(std::forward<Args...>(args)...);
     }
 
@@ -195,8 +210,19 @@ namespace snmalloc
     void* reserve(size_t large_class) noexcept
     {
       size_t size = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
-
+      peak_memory_used_bytes += size;
       return address_space.template reserve<committed>(size);
+    }
+
+    /**
+     * Returns a pair of current memory usage and peak memory usage.
+     * Both statistics are very coarse-grained.
+     */
+    std::pair<size_t, size_t> memory_usage()
+    {
+      size_t avail = available_large_chunks_in_bytes;
+      size_t peak = peak_memory_used_bytes;
+      return {peak - avail, peak};
     }
   };
 
@@ -234,11 +260,12 @@ namespace snmalloc
         p = memory_provider.template reserve<false>(large_class);
         if (p == nullptr)
           return nullptr;
-        memory_provider.template notify_using<zero_mem>(p, rsize);
+        MemoryProvider::Pal::template notify_using<zero_mem>(p, rsize);
       }
       else
       {
         stats.superslab_pop();
+        memory_provider.available_large_chunks_in_bytes -= rsize;
 
         // Cross-reference alloc.h's large_dealloc decommitment condition.
         bool decommitted =
@@ -251,19 +278,19 @@ namespace snmalloc
           // The first page is already in "use" for the stack element,
           // this will need zeroing for a YesZero call.
           if constexpr (zero_mem == YesZero)
-            memory_provider.template zero<true>(p, OS_PAGE_SIZE);
+            MemoryProvider::Pal::template zero<true>(p, OS_PAGE_SIZE);
 
           // Notify we are using the rest of the allocation.
           // Passing zero_mem ensures the PAL provides zeroed pages if
           // required.
-          memory_provider.template notify_using<zero_mem>(
+          MemoryProvider::Pal::template notify_using<zero_mem>(
             pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
         }
         else
         {
           // This is a superslab that has not been decommitted.
           if constexpr (zero_mem == YesZero)
-            memory_provider.template zero<true>(
+            MemoryProvider::Pal::template zero<true>(
               p, bits::align_up(size, OS_PAGE_SIZE));
           else
             UNUSED(size);
@@ -279,23 +306,24 @@ namespace snmalloc
       if constexpr (decommit_strategy == DecommitSuperLazy)
       {
         static_assert(
-          pal_supports<LowMemoryNotification, MemoryProvider>,
+          pal_supports<LowMemoryNotification, typename MemoryProvider::Pal>,
           "A lazy decommit strategy cannot be implemented on platforms "
           "without low memory notifications");
       }
+
+      size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
 
       // Cross-reference largealloc's alloc() decommitted condition.
       if (
         (decommit_strategy != DecommitNone) &&
         (large_class != 0 || decommit_strategy == DecommitSuper))
       {
-        size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
-
-        memory_provider.notify_not_using(
+        MemoryProvider::Pal::notify_not_using(
           pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
       }
 
       stats.superslab_push();
+      memory_provider.available_large_chunks_in_bytes += rsize;
       memory_provider.large_stack[large_class].push(static_cast<Largeslab*>(p));
     }
   };

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../ds/concept.h"
+#include "pal_concept.h"
 #include "pal_consts.h"
 
 // If simultating OE, then we need the underlying platform
@@ -8,6 +10,7 @@
 #endif
 #if !defined(OPEN_ENCLAVE) || defined(OPEN_ENCLAVE_SIMULATION)
 #  include "pal_apple.h"
+#  include "pal_dragonfly.h"
 #  include "pal_freebsd.h"
 #  include "pal_freebsd_kernel.h"
 #  include "pal_haiku.h"
@@ -41,6 +44,8 @@ namespace snmalloc
     PALOpenBSD;
 #  elif defined(__sun)
     PALSolaris;
+#  elif defined(__DragonFly__)
+    PALDragonfly;
 #  else
 #    error Unsupported platform
 #  endif
@@ -63,7 +68,7 @@ namespace snmalloc
   /**
    * Query whether the PAL supports a specific feature.
    */
-  template<PalFeatures F, typename PAL = Pal>
+  template<PalFeatures F, SNMALLOC_CONCEPT(ConceptPAL) PAL = Pal>
   constexpr static bool pal_supports = (PAL::pal_features & F) == F;
 
   // Used to keep Superslab metadata committed.

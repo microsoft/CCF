@@ -71,6 +71,9 @@ macro(clangformat_targets)
   else ()
     message(STATUS "Generating clangformat target using ${CLANG_FORMAT}")
     file(GLOB_RECURSE ALL_SOURCE_FILES *.cc *.h *.hh)
+    # clangformat does not yet understand concepts well; for the moment, don't
+    # ask it to format them.  See https://reviews.llvm.org/D79773
+    list(FILTER ALL_SOURCE_FILES EXCLUDE REGEX "src/pal/pal_concept\.h$")
     add_custom_target(
       clangformat
       COMMAND ${CLANG_FORMAT}
@@ -169,13 +172,14 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
   else()
     add_compile_options(-fno-exceptions -fno-rtti -g -fomit-frame-pointer)
-    # Static TLS model unsupported on Haiku
+    # Static TLS model is unsupported on Haiku.
+    # All symbols are always dynamic on haiku and -rdynamic is redundant (and unsupported).
     if (NOT CMAKE_SYSTEM_NAME MATCHES "Haiku")
 	    add_compile_options(-ftls-model=initial-exec)
-    endif()
-    if(SNMALLOC_CI_BUILD OR (${CMAKE_BUILD_TYPE} MATCHES "Debug"))
-      # Get better stack traces in CI and Debug.
-      target_link_libraries(snmalloc_lib INTERFACE "-rdynamic")
+    	    if(SNMALLOC_CI_BUILD OR (${CMAKE_BUILD_TYPE} MATCHES "Debug"))
+      		# Get better stack traces in CI and Debug.
+      		target_link_libraries(snmalloc_lib INTERFACE "-rdynamic")
+    	    endif()
     endif()
 
     if(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE)
@@ -255,7 +259,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     add_shim(snmallocshim SHARED ${SHARED_FILES})
     add_shim(snmallocshim-1mib SHARED ${SHARED_FILES})
     add_shim(snmallocshim-16mib SHARED ${SHARED_FILES})
-    target_compile_definitions(snmallocshim-16mib PRIVATE SNMALOC_USE_LARGE_CHUNKS)
+    target_compile_definitions(snmallocshim-16mib PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
     # Build a shim with some settings from oe.
     add_shim(snmallocshim-oe SHARED ${SHARED_FILES})
     oe_simulate(snmallocshim-oe)
@@ -276,7 +280,18 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
   foreach(TEST_CATEGORY ${TEST_CATEGORIES})
     subdirlist(TESTS ${TESTDIR}/${TEST_CATEGORY})
     foreach(TEST ${TESTS})
-      foreach(SUPER_SLAB_SIZE 1;16;oe)
+      if (WIN32
+          OR (CMAKE_SYSTEM_NAME STREQUAL NetBSD)
+          OR (CMAKE_SYSTEM_NAME STREQUAL OpenBSD)
+          OR (CMAKE_SYSTEM_NAME STREQUAL DragonFly))
+        # Windows does not support aligned allocation well enough
+        # for pass through.
+        # NetBSD, OpenBSD and DragonFlyBSD do not support malloc*size calls.
+        set(FLAVOURS 1;16;oe)
+      else()
+        set(FLAVOURS 1;16;oe;malloc)
+      endif()
+      foreach(SUPER_SLAB_SIZE ${FLAVOURS})
         unset(SRC)
         aux_source_directory(${TESTDIR}/${TEST_CATEGORY}/${TEST} SRC)
         set(TESTNAME "${TEST_CATEGORY}-${TEST}-${SUPER_SLAB_SIZE}")
@@ -285,8 +300,11 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
         if (${SUPER_SLAB_SIZE} EQUAL 16)
           target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
         endif()
-        if (${SUPER_SLAB_SIZE} EQUAL oe)
+        if (${SUPER_SLAB_SIZE} STREQUAL "oe")
           oe_simulate(${TESTNAME})
+        endif()
+        if (${SUPER_SLAB_SIZE} STREQUAL "malloc")
+          target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_PASS_THROUGH)
         endif()
         target_link_libraries(${TESTNAME} snmalloc_lib)
         if (${TEST} MATCHES "release-.*")
