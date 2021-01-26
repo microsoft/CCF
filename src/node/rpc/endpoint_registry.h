@@ -799,8 +799,8 @@ namespace ccf
       {
         for (const auto& [verb, metric] : verb_metrics)
         {
-          std::string v(verb.c_str());
-          out.metrics[path][v] = {metric.calls, metric.errors, metric.failures};
+          out.metrics.push_back(
+            {path, verb, metric.calls, metric.errors, metric.failures});
         }
       }
     }

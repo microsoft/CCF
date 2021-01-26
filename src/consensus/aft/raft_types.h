@@ -34,53 +34,29 @@ namespace aft
 
   static constexpr size_t starting_view_change = 2;
 
-  template <typename S>
   class Store
   {
   public:
     virtual ~Store() {}
-    virtual S deserialise(
-      const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
-      bool public_only = false,
-      Term* term = nullptr) = 0;
     virtual void compact(Index v) = 0;
     virtual void rollback(Index v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
-    virtual S deserialise_views(
-      const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
-      bool public_only = false,
-      kv::Term* term = nullptr,
-      kv::Version* index_ = nullptr,
-      kv::Tx* tx = nullptr,
-      ccf::PrimarySignature* sig = nullptr) = 0;
+    virtual std::unique_ptr<kv::AbstractExecutionWrapper> apply(
+      const std::vector<uint8_t> data,
+      ConsensusType consensus_type,
+      bool public_only = false) = 0;
     virtual std::shared_ptr<ccf::ProgressTracker> get_progress_tracker() = 0;
     virtual kv::Tx create_tx() = 0;
   };
 
-  template <typename T, typename S>
-  class Adaptor : public Store<S>
+  template <typename T>
+  class Adaptor : public Store
   {
   private:
     std::weak_ptr<T> x;
 
   public:
     Adaptor(std::shared_ptr<T> x) : x(x) {}
-
-    S deserialise(
-      const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
-      bool public_only = false,
-      Term* term = nullptr) override
-    {
-      auto p = x.lock();
-      if (p)
-      {
-        return p->deserialise(data, hooks, public_only, term);
-      }
-      return S::FAILED;
-    }
 
     void compact(Index v) override
     {
@@ -129,20 +105,17 @@ namespace aft
       throw std::logic_error("Can't create a tx without a store");
     }
 
-    S deserialise_views(
-      const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
-      bool public_only = false,
-      kv::Term* term = nullptr,
-      kv::Version* index = nullptr,
-      kv::Tx* tx = nullptr,
-      ccf::PrimarySignature* sig = nullptr) override
+    std::unique_ptr<kv::AbstractExecutionWrapper> apply(
+      const std::vector<uint8_t> data,
+      ConsensusType consensus_type,
+      bool public_only = false) override
     {
       auto p = x.lock();
       if (p)
-        return p->deserialise_views(
-          data, hooks, public_only, term, index, tx, sig);
-      return S::FAILED;
+      {
+        return p->apply(data, consensus_type, public_only);
+      }
+      return nullptr;
     }
   };
 
