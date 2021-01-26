@@ -612,7 +612,9 @@ namespace kv
       term = t;
       auto h = get_history();
       if (h)
+      {
         h->set_term(term);
+      }
     }
 
     DeserialiseSuccess deserialise_views(
