@@ -338,7 +338,7 @@ def get_jwt_refresh_endpoint_metrics(network) -> dict:
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
-        r = c.get("/gov/endpoint_metrics")
+        r = c.get("/gov/api/metrics")
         m = next(
             v
             for v in r.body.json()["metrics"]
