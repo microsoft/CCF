@@ -775,23 +775,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME vegeta_stress_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
-    CONSENSUS cft
-    LABEL vegeta
-    ADDITIONAL_ARGS -p liblogging
-  )
-
-  add_e2e_test(
-    NAME vegeta_long_stress_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
-    CONSENSUS cft
-    LABEL vegeta
-    CONFIGURATIONS long_stress
-    ADDITIONAL_ARGS -p liblogging --duration 45m
-  )
-
-  add_e2e_test(
     NAME tutorial_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_tutorial.py
     CONSENSUS cft
@@ -820,6 +803,23 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS "--raft-election-timeout" "4000"
+    )
+
+    add_e2e_test(
+      NAME vegeta_stress_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
+      CONSENSUS ${CONSENSUS}
+      LABEL vegeta
+      ADDITIONAL_ARGS -p liblogging
+    )
+
+    add_e2e_test(
+      NAME vegeta_long_stress_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
+      CONSENSUS ${CONSENSUS}
+      LABEL vegeta
+      CONFIGURATIONS long_stress
+      ADDITIONAL_ARGS -p liblogging --duration 45m
     )
 
   endforeach()
