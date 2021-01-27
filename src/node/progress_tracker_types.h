@@ -269,7 +269,7 @@ namespace ccf
 
     crypto::Sha256Hash hash_new_view(ccf::ViewChangeConfirmation& new_view)
     {
-      crypto::CSha256Hash ch;
+      crypto::ISha256Hash ch;
       ch.update(new_view.view);
       ch.update(new_view.seqno);
 
@@ -278,7 +278,7 @@ namespace ccf
         ch.update(it.second.signature);
       }
 
-      return ch.finalize();
+      return ch.finalise();
     }
 
   private:
@@ -294,7 +294,7 @@ namespace ccf
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno) const
     {
-      crypto::CSha256Hash ch;
+      crypto::ISha256Hash ch;
 
       ch.update(view);
       ch.update(seqno);
@@ -304,7 +304,7 @@ namespace ccf
         ch.update(s.sig);
       }
 
-      return ch.finalize();
+      return ch.finalise();
     }
   };
 

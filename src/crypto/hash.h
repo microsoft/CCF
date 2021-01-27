@@ -22,6 +22,10 @@ namespace crypto
 
     static void mbedtls_sha256(const CBuffer& data, uint8_t* h);
 
+#ifdef HAVE_OPENSSL
+    static void openssl_sha256(const CBuffer& data, uint8_t* h);
+#endif
+
     friend std::ostream& operator<<(
       std::ostream& os, const crypto::Sha256Hash& h)
     {
@@ -61,14 +65,14 @@ namespace crypto
     return !(lhs == rhs);
   }
 
-  class MBSha256HashImpl;
-  class CSha256Hash
+  class ISha256HashBase
   {
   public:
-    CSha256Hash();
-    ~CSha256Hash();
+    ISha256HashBase() {}
+    virtual ~ISha256HashBase() {}
 
-    void update_hash(CBuffer data);
+    virtual void update_hash(CBuffer data) = 0;
+    virtual Sha256Hash finalise() = 0;
 
     template <typename T>
     void update(const T& t)
@@ -81,12 +85,38 @@ namespace crypto
     {
       update_hash({d.data(), d.size()});
     }
-
-    Sha256Hash finalize();
-
-  private:
-    std::unique_ptr<MBSha256HashImpl> p;
   };
+
+  class ISha256MbedTLS : public ISha256HashBase
+  {
+  public:
+    ISha256MbedTLS();
+    ~ISha256MbedTLS();
+    virtual void update_hash(CBuffer data);
+    virtual Sha256Hash finalise();
+
+  protected:
+    void* ctx;
+  };
+
+#ifdef HAVE_OPENSSL
+  class ISha256OpenSSL : public ISha256HashBase
+  {
+  public:
+    ISha256OpenSSL();
+    ~ISha256OpenSSL();
+    virtual void update_hash(CBuffer data);
+    virtual Sha256Hash finalise();
+
+  protected:
+    void* ctx;
+  };
+
+
+  typedef ISha256OpenSSL ISha256Hash;
+#else
+  typedef ISha256MbedTLS ISha256Hash;
+#endif
 }
 
 namespace fmt

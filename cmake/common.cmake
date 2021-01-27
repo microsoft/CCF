@@ -593,8 +593,10 @@ function(add_picobench name)
 
   target_link_libraries(
     ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${PARSED_ARGS_LINK_LIBS}
-                    $<BUILD_INTERFACE:merklecpp>
+                    $<BUILD_INTERFACE:merklecpp> crypto
   )
+
+  target_compile_definitions(${name} PRIVATE HAVE_OPENSSL)
 
   # -Wall -Werror catches a number of warnings in picobench
   target_include_directories(${name} SYSTEM PRIVATE 3rdparty)
