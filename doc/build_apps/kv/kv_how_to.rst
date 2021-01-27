@@ -26,7 +26,7 @@ A single ``Transaction`` (``tx``) is passed to each endpoint of an application a
 
 When the end-point successfully completes, the node on which the end-point was triggered attempts to commit the transaction to apply the changes to the Store. Once the transaction is committed successfully, it is automatically replicated by CCF and should globally commit.
 
-For each :cpp:class:`kv::Map` that a transaction wants to write to or read from, a :cpp:class:`kv::MapHandle` must first be acquired. These are acquired from the :cpp:func:`kv::Tx::rw` (`read-write`) method. These may be axquired either by name (in which case the desired type must be explicitly specified as a template parameter), or by using a :cpp:class:`kv::Map` instance which defines both the map's name and key-value types.
+For each :cpp:class:`kv::Map` that a transaction wants to write to or read from, a :cpp:class:`kv::MapHandle` must first be acquired. These are acquired from the :cpp:func:`kv::Tx::rw` (`read-write`) method. These may be acquired either by name (in which case the desired type must be explicitly specified as a template parameter), or by using a :cpp:class:`kv::Map` instance which defines both the map's name and key-value types.
 
 By name:
 
