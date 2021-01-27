@@ -508,17 +508,17 @@ namespace aft
 
     void recv_message(OArray&& d)
     {
-      try
-      {
         std::unique_ptr<AbstractExecEntry> aee;
         const uint8_t* data = d.data();
         size_t size = d.size();
+      RaftMsgType type = serialized::peek<RaftMsgType>(data, size);
+
+      try
+      {
         // The host does a CALLIN to this when a Aft message
         // is received. Invalid or malformed messages are ignored
         // without informing the host. Messages are idempotent,
         // so it is not necessary to defend against replay attacks.
-        RaftMsgType type = serialized::peek<RaftMsgType>(data, size);
-
         if (type == raft_append_entries)
         {
           AppendEntries r =
@@ -572,11 +572,10 @@ namespace aft
             channels->template recv_authenticated<NonceRevealMsg>(data, size);
           aee = std::make_unique<NonceRevealExecEntry>(this,std::move(r));
         }
-
         else if (type == bft_view_change)
         {
           RequestViewChangeMsg r =
-            channels->template recv_authenticated<RequestViewChangeMsg>(
+            channels->template recv_authenticated_with_load<RequestViewChangeMsg>(
               data, size);
           aee = std::make_unique<ViewChangeExecEntry>(this,std::move(r), data, size, std::move(d));
         }
@@ -585,8 +584,9 @@ namespace aft
         {
           ViewChangeEvidenceMsg r =
             channels
-              ->template recv_authenticated_with_load<ViewChangeEvidenceMsg>(
+                ->template recv_authenticated_with_load<ViewChangeEvidenceMsg>(
                 data, size);
+
           aee = std::make_unique<ViewChangeEvidenceExecEntry>(this,std::move(r), data, size, std::move(d));
         }
         else
@@ -605,7 +605,7 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_EXC(err.what());
+        LOG_FAIL_FMT("error type:{}, err.what:{}", type, err.what());
       }
 
       while (!is_execution_pending && !pending_execution.empty())
@@ -619,6 +619,10 @@ namespace aft
     void periodic(std::chrono::milliseconds elapsed)
     {
       std::unique_lock<SpinLock> guard(state->lock);
+      if (is_execution_pending)
+      {
+        return;
+      }
       if (consensus_type == ConsensusType::BFT)
       {
         auto time = threading::ThreadMessaging::thread_messaging
