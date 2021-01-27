@@ -124,8 +124,8 @@ namespace aft
     std::shared_ptr<aft::RequestTracker> request_tracker,
     kv::Consensus::SeqNo committed_seqno)
   {
-    auto tx_view = tx.get_view<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
-    auto req_v = tx_view->get(0);
+    auto aft_requests = tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
+    auto req_v = aft_requests->get(0);
     CCF_ASSERT(
       req_v.has_value(),
       "Deserialised request but it was not found in the requests map");

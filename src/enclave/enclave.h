@@ -101,7 +101,7 @@ namespace enclave
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
         std::make_unique<ccf::NodeRpcFrontend>(network, *node));
 
-      for (auto& [actor, fe] : rpc_map->get_map())
+      for (auto& [actor, fe] : rpc_map->frontends())
       {
         fe->set_sig_intervals(
           signature_intervals.sig_tx_interval,
@@ -219,9 +219,9 @@ namespace enclave
               // public ledger is being read
               if (!node->is_reading_public_ledger())
               {
-                for (auto& r : rpc_map->get_map())
+                for (auto& [actor, frontend] : rpc_map->frontends())
                 {
-                  r.second->tick(elapsed_ms);
+                  frontend->tick(elapsed_ms);
                 }
               }
               node->tick_end();

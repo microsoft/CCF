@@ -95,11 +95,11 @@ TEST_CASE("StateCache")
     {
       INFO("Store the signing node's key");
       auto tx = store.create_tx();
-      auto view = tx.get_view<ccf::Nodes>(ccf::Tables::NODES);
+      auto nodes = tx.rw<ccf::Nodes>(ccf::Tables::NODES);
       ccf::NodeInfo ni;
       ni.cert = kp->self_sign("CN=Test node");
       ni.status = ccf::NodeStatus::TRUSTED;
-      view->put(node_id, ni);
+      nodes->put(node_id, ni);
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     }
 
@@ -116,11 +116,11 @@ TEST_CASE("StateCache")
         else
         {
           auto tx = store.create_tx();
-          auto [public_view, private_view] =
-            tx.get_view<NumToString, NumToString>("public:data", "data");
+          auto public_map = tx.rw<NumToString>("public:data");
+          auto private_map = tx.rw<NumToString>("data");
           const auto s = std::to_string(i);
-          public_view->put(i, s);
-          private_view->put(i, s);
+          public_map->put(i, s);
+          private_map->put(i, s);
 
           REQUIRE(tx.commit() == kv::CommitSuccess::OK);
         }
@@ -249,28 +249,28 @@ TEST_CASE("StateCache")
 
     {
       auto tx = store_at_index->create_tx();
-      auto [public_view, private_view] =
-        tx.get_view<NumToString, NumToString>("public:data", "data");
+      auto public_map = tx.rw<NumToString>("public:data");
+      auto private_map = tx.rw<NumToString>("data");
 
       const auto k = high_index - 1;
       const auto v = std::to_string(k);
 
-      auto public_v = public_view->get(k);
+      auto public_v = public_map->get(k);
       REQUIRE(public_v.has_value());
       REQUIRE(*public_v == v);
 
-      auto private_v = private_view->get(k);
+      auto private_v = private_map->get(k);
       REQUIRE(private_v.has_value());
       REQUIRE(*private_v == v);
 
       size_t public_count = 0;
-      public_view->foreach([&public_count](const auto& k, const auto& v) {
+      public_map->foreach([&public_count](const auto& k, const auto& v) {
         REQUIRE(public_count++ == 0);
         return true;
       });
 
       size_t private_count = 0;
-      private_view->foreach([&private_count](const auto& k, const auto& v) {
+      private_map->foreach([&private_count](const auto& k, const auto& v) {
         REQUIRE(private_count++ == 0);
         return true;
       });

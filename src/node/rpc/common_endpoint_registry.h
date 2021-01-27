@@ -96,11 +96,10 @@ namespace ccf
         if (!params.is_null())
         {
           const GetUserId::In in = params;
-          auto certs_view =
-            args.tx.template get_read_only_view<CertDERs>(certs_table_name);
+          auto certs = args.tx.template ro<CertDERs>(certs_table_name);
           std::vector<uint8_t> pem(in.cert.begin(), in.cert.end());
           std::vector<uint8_t> der = tls::make_verifier(pem)->der_cert_data();
-          auto caller_id_opt = certs_view->get(der);
+          auto caller_id_opt = certs->get(der);
 
           if (!caller_id_opt.has_value())
           {
@@ -153,9 +152,8 @@ namespace ccf
       auto get_code = [](auto& args, nlohmann::json&&) {
         GetCode::Out out;
 
-        auto code_view =
-          args.tx.template get_read_only_view<CodeIDs>(Tables::NODE_CODE_IDS);
-        code_view->foreach(
+        auto codes_ids = args.tx.template ro<CodeIDs>(Tables::NODE_CODE_IDS);
+        codes_ids->foreach(
           [&out](const ccf::CodeDigest& cd, const ccf::CodeStatus& cs) {
             auto digest = fmt::format("{:02x}", fmt::join(cd, ""));
             out.versions.push_back({digest, cs});

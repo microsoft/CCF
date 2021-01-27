@@ -94,9 +94,9 @@ namespace ccf
         network.tables->serialise_snapshot(std::move(snapshot));
 
       auto tx = network.tables->create_tx();
-      auto view = tx.get_view(network.snapshot_evidence);
+      auto evidence = tx.rw(network.snapshot_evidence);
       auto snapshot_hash = crypto::Sha256Hash(serialised_snapshot);
-      view->put(0, {snapshot_hash, snapshot_version});
+      evidence->put(0, {snapshot_hash, snapshot_version});
 
       auto rc = tx.commit();
       if (rc != kv::CommitSuccess::OK)

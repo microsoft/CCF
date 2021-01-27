@@ -3,7 +3,7 @@
 #pragma once
 
 #include "kv_types.h"
-#include "untyped_tx_view.h"
+#include "untyped_map_handle.h"
 
 #include <functional>
 #include <map>

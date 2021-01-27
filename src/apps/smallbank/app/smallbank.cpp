@@ -69,8 +69,8 @@ namespace ccfapp
         std::from_chars(name.data(), name.data() + name.size(), acc_id);
         int64_t checking_amt = ai.checking_amt;
         int64_t savings_amt = ai.savings_amt;
-        auto account_view = args.tx.get_view(tables.accounts);
-        auto account_r = account_view->get(name);
+        auto accounts = args.tx.rw(tables.accounts);
+        auto account_r = accounts->get(name);
 
         if (account_r.has_value())
         {
@@ -79,10 +79,10 @@ namespace ccfapp
           return;
         }
 
-        account_view->put(name, acc_id);
+        accounts->put(name, acc_id);
 
-        auto savings_view = args.tx.get_view(tables.savings);
-        auto savings_r = savings_view->get(acc_id);
+        auto savings = args.tx.rw(tables.savings);
+        auto savings_r = savings->get(acc_id);
 
         if (savings_r.has_value())
         {
@@ -91,10 +91,10 @@ namespace ccfapp
           return;
         }
 
-        savings_view->put(acc_id, savings_amt);
+        savings->put(acc_id, savings_amt);
 
-        auto checking_view = args.tx.get_view(tables.checkings);
-        auto checking_r = checking_view->get(acc_id);
+        auto checkings = args.tx.rw(tables.checkings);
+        auto checking_r = checkings->get(acc_id);
 
         if (checking_r.has_value())
         {
@@ -103,7 +103,7 @@ namespace ccfapp
           return;
         }
 
-        checking_view->put(acc_id, checking_amt);
+        checkings->put(acc_id, checking_amt);
 
         set_no_content_status(args);
       };
@@ -114,15 +114,15 @@ namespace ccfapp
         auto ac =
           smallbank::AccountCreation::deserialize(body.data(), body.size());
 
-        auto account_view = args.tx.get_view(tables.accounts);
-        auto savings_view = args.tx.get_view(tables.savings);
-        auto checking_view = args.tx.get_view(tables.checkings);
+        auto accounts = args.tx.rw(tables.accounts);
+        auto savings = args.tx.rw(tables.savings);
+        auto checkings = args.tx.rw(tables.checkings);
 
         for (auto acc_id = ac.new_id_from; acc_id < ac.new_id_to; ++acc_id)
         {
           std::string name = std::to_string(acc_id);
 
-          auto account_r = account_view->get(name);
+          auto account_r = accounts->get(name);
           if (account_r.has_value())
           {
             set_error_status(
@@ -132,9 +132,9 @@ namespace ccfapp
                 "Account already exists in accounts table: '{}'", name));
             return;
           }
-          account_view->put(name, acc_id);
+          accounts->put(name, acc_id);
 
-          auto savings_r = savings_view->get(acc_id);
+          auto savings_r = savings->get(acc_id);
           if (savings_r.has_value())
           {
             set_error_status(
@@ -144,9 +144,9 @@ namespace ccfapp
                 "Account already exists in savings table: '{}'", name));
             return;
           }
-          savings_view->put(acc_id, ac.initial_savings_amt);
+          savings->put(acc_id, ac.initial_savings_amt);
 
-          auto checking_r = checking_view->get(acc_id);
+          auto checking_r = checkings->get(acc_id);
           if (checking_r.has_value())
           {
             set_error_status(
@@ -156,7 +156,7 @@ namespace ccfapp
                 "Account already exists in checkings table: '{}'", name));
             return;
           }
-          checking_view->put(acc_id, ac.initial_checking_amt);
+          checkings->put(acc_id, ac.initial_checking_amt);
         }
 
         set_no_content_status(args);
@@ -167,8 +167,8 @@ namespace ccfapp
         const auto& body = args.rpc_ctx->get_request_body();
         auto account =
           smallbank::AccountName::deserialize(body.data(), body.size());
-        auto account_view = args.tx.get_view(tables.accounts);
-        auto account_r = account_view->get(account.name);
+        auto accounts = args.tx.rw(tables.accounts);
+        auto account_r = accounts->get(account.name);
 
         if (!account_r.has_value())
         {
@@ -177,8 +177,8 @@ namespace ccfapp
           return;
         }
 
-        auto savings_view = args.tx.get_view(tables.savings);
-        auto savings_r = savings_view->get(account_r.value());
+        auto savings = args.tx.rw(tables.savings);
+        auto savings_r = savings->get(account_r.value());
 
         if (!savings_r.has_value())
         {
@@ -187,8 +187,8 @@ namespace ccfapp
           return;
         }
 
-        auto checking_view = args.tx.get_view(tables.checkings);
-        auto checking_r = checking_view->get(account_r.value());
+        auto checkings = args.tx.rw(tables.checkings);
+        auto checking_r = checkings->get(account_r.value());
 
         if (!checking_r.has_value())
         {
@@ -221,8 +221,8 @@ namespace ccfapp
           return;
         }
 
-        auto account_view = args.tx.get_view(tables.accounts);
-        auto account_r = account_view->get(name);
+        auto accounts = args.tx.rw(tables.accounts);
+        auto account_r = accounts->get(name);
 
         if (!account_r.has_value())
         {
@@ -230,8 +230,8 @@ namespace ccfapp
             args, HTTP_STATUS_BAD_REQUEST, "Account does not exist");
         }
 
-        auto savings_view = args.tx.get_view(tables.savings);
-        auto savings_r = savings_view->get(account_r.value());
+        auto savings = args.tx.rw(tables.savings);
+        auto savings_r = savings->get(account_r.value());
 
         if (!savings_r.has_value())
         {
@@ -249,7 +249,7 @@ namespace ccfapp
           return;
         }
 
-        savings_view->put(account_r.value(), value + savings_r.value());
+        savings->put(account_r.value(), value + savings_r.value());
         set_no_content_status(args);
       };
 
@@ -274,8 +274,8 @@ namespace ccfapp
           return;
         }
 
-        auto account_view = args.tx.get_view(tables.accounts);
-        auto account_r = account_view->get(name);
+        auto accounts = args.tx.rw(tables.accounts);
+        auto account_r = accounts->get(name);
 
         if (!account_r.has_value())
         {
@@ -284,8 +284,8 @@ namespace ccfapp
           return;
         }
 
-        auto checking_view = args.tx.get_view(tables.checkings);
-        auto checking_r = checking_view->get(account_r.value());
+        auto checkings = args.tx.rw(tables.checkings);
+        auto checking_r = checkings->get(account_r.value());
 
         if (!checking_r.has_value())
         {
@@ -293,7 +293,7 @@ namespace ccfapp
             args, HTTP_STATUS_BAD_REQUEST, "Checking account does not exist");
           return;
         }
-        checking_view->put(account_r.value(), value + checking_r.value());
+        checkings->put(account_r.value(), value + checking_r.value());
         set_no_content_status(args);
       };
 
@@ -303,8 +303,8 @@ namespace ccfapp
         auto ad = smallbank::Amalgamate::deserialize(body.data(), body.size());
         auto name_1 = ad.src;
         auto name_2 = ad.dst;
-        auto account_view = args.tx.get_view(tables.accounts);
-        auto account_1_r = account_view->get(name_1);
+        auto accounts = args.tx.rw(tables.accounts);
+        auto account_1_r = accounts->get(name_1);
 
         if (!account_1_r.has_value())
         {
@@ -313,7 +313,7 @@ namespace ccfapp
           return;
         }
 
-        auto account_2_r = account_view->get(name_2);
+        auto account_2_r = accounts->get(name_2);
 
         if (!account_2_r.has_value())
         {
@@ -324,8 +324,8 @@ namespace ccfapp
           return;
         }
 
-        auto savings_view = args.tx.get_view(tables.savings);
-        auto savings_r = savings_view->get(account_1_r.value());
+        auto savings = args.tx.rw(tables.savings);
+        auto savings_r = savings->get(account_1_r.value());
 
         if (!savings_r.has_value())
         {
@@ -336,8 +336,8 @@ namespace ccfapp
           return;
         }
 
-        auto checking_view = args.tx.get_view(tables.checkings);
-        auto checking_r = checking_view->get(account_1_r.value());
+        auto checkings = args.tx.rw(tables.checkings);
+        auto checking_r = checkings->get(account_1_r.value());
 
         if (!checking_r.has_value())
         {
@@ -349,11 +349,10 @@ namespace ccfapp
         }
 
         auto sum_account_1 = checking_r.value() + savings_r.value();
-        checking_view->put(account_1_r.value(), 0);
-        savings_view->put(account_1_r.value(), 0);
+        checkings->put(account_1_r.value(), 0);
+        savings->put(account_1_r.value(), 0);
 
-        auto checking_2_view = args.tx.get_view(tables.checkings);
-        auto checking_2_r = checking_2_view->get(account_2_r.value());
+        auto checking_2_r = checkings->get(account_2_r.value());
 
         if (!checking_2_r.has_value())
         {
@@ -364,7 +363,7 @@ namespace ccfapp
           return;
         }
 
-        checking_2_view->put(
+        checkings->put(
           account_2_r.value(), checking_2_r.value() + sum_account_1);
 
         set_no_content_status(args);
@@ -378,8 +377,8 @@ namespace ccfapp
         auto name = transaction.name;
         auto amount = transaction.value;
 
-        auto account_view = args.tx.get_view(tables.accounts);
-        auto account_r = account_view->get(name);
+        auto accounts = args.tx.rw(tables.accounts);
+        auto account_r = accounts->get(name);
 
         if (!account_r.has_value())
         {
@@ -388,8 +387,8 @@ namespace ccfapp
           return;
         }
 
-        auto savings_view = args.tx.get_view(tables.savings);
-        auto savings_r = savings_view->get(account_r.value());
+        auto savings = args.tx.rw(tables.savings);
+        auto savings_r = savings->get(account_r.value());
 
         if (!savings_r.has_value())
         {
@@ -398,8 +397,8 @@ namespace ccfapp
           return;
         }
 
-        auto checking_view = args.tx.get_view(tables.checkings);
-        auto checking_r = checking_view->get(account_r.value());
+        auto checkings = args.tx.rw(tables.checkings);
+        auto checking_r = checkings->get(account_r.value());
 
         if (!checking_r.has_value())
         {
@@ -413,7 +412,7 @@ namespace ccfapp
         {
           ++amount;
         }
-        checking_view->put(account_r.value(), account_value - amount);
+        checkings->put(account_r.value(), account_value - amount);
         set_no_content_status(args);
       };
 
