@@ -179,9 +179,7 @@ namespace ccf
           "Could not retrieve latest ledger secret: no secret set");
       }
 
-      const auto& latest_ledger_secret = ledger_secrets.rbegin();
-      return std::make_pair(
-        latest_ledger_secret->first, latest_ledger_secret->second);
+      return *ledger_secrets.rbegin();
     }
 
     std::pair<VersionedLedgerSecret, std::optional<VersionedLedgerSecret>>
@@ -200,10 +198,10 @@ namespace ccf
       const auto& latest_ledger_secret = ledger_secrets.rbegin();
       if (ledger_secrets.size() < 2)
       {
-        return std::make_pair(latest_ledger_secret, std::nullopt);
+        return std::make_pair(*latest_ledger_secret, std::nullopt);
       }
       return std::make_pair(
-        latest_ledger_secret, std::next(latest_ledger_secret));
+        *latest_ledger_secret, *std::next(latest_ledger_secret));
     }
 
     LedgerSecretsMap get(

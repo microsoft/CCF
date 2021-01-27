@@ -14,7 +14,8 @@ namespace ccf
   using EncryptedShare = std::vector<uint8_t>;
   using EncryptedSharesMap = std::map<MemberId, EncryptedShare>;
 
-  struct EncryptedLedgerSecret
+  // TODO: To unify with secrets.h encrypted ledger secret??
+  struct SharesEncryptedLedgerSecret
   {
     // In most cases (e.g. re-key, member retirement), this is unset
     // (kv::NoVersion), and the version at which the ledger secret is applicable
@@ -30,8 +31,9 @@ namespace ccf
     MSGPACK_DEFINE(version, encrypted_data)
   };
 
-  DECLARE_JSON_TYPE(EncryptedLedgerSecret)
-  DECLARE_JSON_REQUIRED_FIELDS(EncryptedLedgerSecret, version, encrypted_data)
+  DECLARE_JSON_TYPE(SharesEncryptedLedgerSecret)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    SharesEncryptedLedgerSecret, version, encrypted_data)
 
   struct RecoverySharesInfo
   {
@@ -43,10 +45,10 @@ namespace ccf
     // re-assembled.
 
     // Latest ledger secret wrapped with the ledger secret wrapping key
-    EncryptedLedgerSecret wrapped_latest_ledger_secret;
+    SharesEncryptedLedgerSecret wrapped_latest_ledger_secret;
 
     // Previous ledger secret encrypted with the latest ledger secret
-    EncryptedLedgerSecret encrypted_previous_ledger_secret;
+    SharesEncryptedLedgerSecret encrypted_previous_ledger_secret;
 
     EncryptedSharesMap encrypted_shares;
 

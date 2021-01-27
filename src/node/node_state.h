@@ -1654,7 +1654,7 @@ namespace ccf
               // No encrypted ledger secret are stored in the case of a pure
               // re-share (i.e. no ledger rekey).
               if (
-                !v.encrypted_previous_ledger_secret.empty() ||
+                !v.encrypted_previous_ledger_secret.encrypted_data.empty() ||
                 ledger_secret_version == 1)
               {
                 LOG_TRACE_FMT(
@@ -1662,7 +1662,8 @@ namespace ccf
                   ledger_secret_version);
 
                 recovery_ledger_secrets.push_back(
-                  {ledger_secret_version, v.encrypted_previous_ledger_secret});
+                  {ledger_secret_version,
+                   v.encrypted_previous_ledger_secret.encrypted_data});
               }
             }
 

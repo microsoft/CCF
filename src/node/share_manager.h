@@ -158,7 +158,8 @@ namespace ccf
       const LedgerSecret& latest_ledger_secret,
       const std::optional<VersionedLedgerSecret>& previous_ledger_secret =
         std::nullopt,
-      kv::Version latest_ls_version = kv::NoVersion)
+      kv::Version latest_ls_version =
+        kv::NoVersion) // TODO: latest_ls_version should be optional
     {
       // First, generate a fresh ledger secrets wrapping key and wrap the
       // latest ledger secret with it. Then, encrypt the penultimate ledger
@@ -183,7 +184,7 @@ namespace ccf
 
         latest_ledger_secret.key->encrypt(
           encrypted_previous_ls.hdr.get_iv(),
-          previous_ledger_secret.second.->raw_key,
+          previous_ledger_secret->second.raw_key,
           nullb,
           encrypted_previous_ls.cipher.data(),
           encrypted_previous_ls.hdr.tag);
@@ -288,7 +289,8 @@ namespace ccf
       auto [latest, penultimate] =
         network.ledger_secrets->get_latest_and_penultimate(tx);
 
-      set_recovery_shares_info(tx, latest, penultimate, latest_ls_version);
+      set_recovery_shares_info(
+        tx, latest.second, penultimate, latest_ls_version);
     }
 
     void issue_shares_on_rekey(
