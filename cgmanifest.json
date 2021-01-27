@@ -23,7 +23,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/onqtam/doctest.git",
-          "commitHash": "1c8da00c978c19e00a434b2b1f854fcffc9fba35"
+          "commitHash": "97d5a9447e66cd5e107b7a6c463be4a468a40496"
         }
       }
     },
@@ -68,7 +68,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/fmtlib/fmt",
-          "commitHash": "cd4af11efc9c622896a3e4cb599fa28668ca3d05"
+          "commitHash": "7bdf0628b1276379886c7f6dda2cef2b3b374f0b"
         }
       }
     },
@@ -132,7 +132,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nodejs/llhttp",
-          "commitHash": "8b3939e29a01ffbf9e481a76db81e372f0fb2f0c"
+          "commitHash": "005a3da976877a27457178a6bc1e10d65dd06324"
         }
       }
     }

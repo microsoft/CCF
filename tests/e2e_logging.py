@@ -378,33 +378,38 @@ def test_raw_text(network, args):
 
 
 @reqs.description("Read metrics")
-@reqs.supports_methods("endpoint_metrics")
+@reqs.supports_methods("api/metrics")
 def test_metrics(network, args):
     primary, _ = network.find_primary()
+
+    def get_metrics(r, path, method):
+        return next(
+            v
+            for v in r.body.json()["metrics"]
+            if v["path"] == path and v["method"] == method
+        )
 
     calls = 0
     errors = 0
     with primary.client("user0") as c:
-        r = c.get("/app/endpoint_metrics")
-        m = r.body.json()["metrics"]["endpoint_metrics"]["GET"]
+        r = c.get("/app/api/metrics")
+        m = get_metrics(r, "api/metrics", "GET")
         calls = m["calls"]
         errors = m["errors"]
 
     with primary.client("user0") as c:
-        r = c.get("/app/endpoint_metrics")
-        assert r.body.json()["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 1
-        r = c.get("/app/endpoint_metrics")
-        assert r.body.json()["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 2
+        r = c.get("/app/api/metrics")
+        assert get_metrics(r, "api/metrics", "GET")["calls"] == calls + 1
+        r = c.get("/app/api/metrics")
+        assert get_metrics(r, "api/metrics", "GET")["calls"] == calls + 2
 
     with primary.client() as c:
-        r = c.get("/app/endpoint_metrics", headers={"accept": "nonsense"})
+        r = c.get("/app/api/metrics", headers={"accept": "nonsense"})
         assert r.status_code == http.HTTPStatus.NOT_ACCEPTABLE.value
 
     with primary.client() as c:
-        r = c.get("/app/endpoint_metrics")
-        assert (
-            r.body.json()["metrics"]["endpoint_metrics"]["GET"]["errors"] == errors + 1
-        )
+        r = c.get("/app/api/metrics")
+        assert get_metrics(r, "api/metrics", "GET")["errors"] == errors + 1
 
     return network
 

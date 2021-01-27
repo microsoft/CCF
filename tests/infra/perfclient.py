@@ -51,6 +51,11 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         help="Set a fixed seed for port and IP generation.",
         action="store_true",
     )
+    parser.add_argument(
+        "--use-jwt",
+        help="Use JWT with a temporary issuer as authentication method.",
+        action="store_true",
+    )
 
     # Client binary args are parsed from a config file
     # Default is in the same directory as this script

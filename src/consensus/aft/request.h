@@ -48,7 +48,7 @@ namespace aft
       return serialized_req;
     }
 
-    void deserialise(const uint8_t* data_, size_t size_)
+    void apply(const uint8_t* data_, size_t size_)
     {
       rid = serialized::read<kv::TxHistory::RequestID>(data_, size_);
       auto includes_caller = serialized::read<bool>(data_, size_);

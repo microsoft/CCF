@@ -163,7 +163,6 @@ namespace ccf
     consensus::Index last_recovered_signed_idx = 1;
     std::list<RecoveredLedgerSecret> recovery_ledger_secrets;
     consensus::Index ledger_idx = 0;
-    size_t recovery_snapshot_tx_interval = Snapshotter::max_tx_interval;
 
     struct StartupSnapshotInfo
     {
@@ -205,7 +204,7 @@ namespace ccf
       kv::ConsensusHookPtrs hooks;
       auto rc = network.tables->deserialise_snapshot(
         config.startup_snapshot, hooks, &view_history, true);
-      if (rc != kv::DeserialiseSuccess::PASS)
+      if (rc != kv::ApplySuccess::PASS)
       {
         throw std::logic_error(
           fmt::format("Failed to apply public snapshot: {}", rc));
@@ -243,8 +242,7 @@ namespace ccf
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
       rpcsessions(rpcsessions),
-      share_manager(share_manager),
-      snapshotter(std::make_shared<Snapshotter>(writer_factory, network))
+      share_manager(share_manager)
     {}
 
     //
@@ -308,12 +306,11 @@ namespace ccf
           network.ledger_secrets = std::make_shared<LedgerSecrets>(self);
           network.ledger_secrets->init();
 
+          setup_snapshotter(config.snapshot_tx_interval);
           setup_encryptor();
           setup_consensus();
           setup_progress_tracker();
           setup_history();
-
-          snapshotter->set_tx_interval(config.snapshot_tx_interval);
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -351,6 +348,7 @@ namespace ccf
             // deserialise the public domain when recovering the public ledger
             network.ledger_secrets = std::make_shared<LedgerSecrets>();
             setup_encryptor();
+            setup_snapshotter(config.snapshot_tx_interval);
 
             initialise_startup_snapshot(config);
 
@@ -380,10 +378,7 @@ namespace ccf
           // secrets.
           setup_encryptor();
 
-          // Snapshot generation is disabled until private recovery is
-          // complete
-          recovery_snapshot_tx_interval = config.snapshot_tx_interval;
-
+          setup_snapshotter(config.snapshot_tx_interval);
           bool from_snapshot = !config.startup_snapshot.empty();
           setup_recovery_hook(from_snapshot);
 
@@ -479,6 +474,7 @@ namespace ccf
                 resp.network_info.consensus_type));
             }
 
+            setup_snapshotter(config.snapshot_tx_interval);
             setup_encryptor();
             setup_consensus(resp.network_info.public_only);
             setup_progress_tracker();
@@ -498,7 +494,7 @@ namespace ccf
                 hooks,
                 &view_history,
                 resp.network_info.public_only);
-              if (rc != kv::DeserialiseSuccess::PASS)
+              if (rc != kv::ApplySuccess::PASS)
               {
                 throw std::logic_error(
                   fmt::format("Failed to apply snapshot on join: {}", rc));
@@ -528,10 +524,6 @@ namespace ccf
                 // recovery store
                 startup_snapshot_info.reset();
               }
-              else
-              {
-                recovery_snapshot_tx_interval = config.snapshot_tx_interval;
-              }
 
               LOG_INFO_FMT(
                 "Joiner successfully resumed from snapshot at seqno {} and "
@@ -549,11 +541,12 @@ namespace ccf
               last_recovered_signed_idx =
                 resp.network_info.last_recovered_signed_idx;
               setup_recovery_hook(startup_snapshot_info != nullptr);
+              snapshotter->set_snapshot_generation(false);
+
               sm.advance(State::partOfPublicNetwork);
             }
             else
             {
-              snapshotter->set_tx_interval(config.snapshot_tx_interval);
               reset_data(quote);
               sm.advance(State::partOfNetwork);
             }
@@ -707,10 +700,10 @@ namespace ccf
       LOG_INFO_FMT(
         "Deserialising public ledger entry ({})", ledger_entry.size());
 
-      kv::ConsensusHookPtrs hooks;
       // When reading the public ledger, deserialise in the real store
-      auto result = network.tables->deserialise(ledger_entry, hooks, true);
-      if (result == kv::DeserialiseSuccess::FAILED)
+      auto r = network.tables->apply(ledger_entry, ConsensusType::CFT, true);
+      auto result = r->execute();
+      if (result == kv::ApplySuccess::FAILED)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
         network.tables->rollback(ledger_idx - 1);
@@ -724,14 +717,15 @@ namespace ccf
       }
 
       // Not synchronised because consensus isn't effectively running then
-      for (auto& hook : hooks)
+      for (auto& hook : r->get_hooks())
       {
         hook->call(consensus.get());
       }
 
       // If the ledger entry is a signature, it is safe to compact the store
-      if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
+      if (result == kv::ApplySuccess::PASS_SIGNATURE)
       {
+        // If the ledger entry is a signature, it is safe to compact the store
         network.tables->compact(ledger_idx);
         auto tx = network.tables->create_tx();
         GenesisGenerator g(network, tx);
@@ -769,9 +763,15 @@ namespace ccf
         {
           startup_snapshot_info->is_evidence_committed = true;
         }
+
+        // Inform snapshotter of all signature entries so that this node can
+        // continue generating snapshots at the correct interval once the
+        // recovery is complete
+        snapshotter->record_committable(ledger_idx);
+        snapshotter->commit(ledger_idx);
       }
       else if (
-        result == kv::DeserialiseSuccess::PASS_SNAPSHOT_EVIDENCE &&
+        result == kv::ApplySuccess::PASS_SNAPSHOT_EVIDENCE &&
         startup_snapshot_info)
       {
         auto tx = network.tables->create_read_only_tx();
@@ -846,14 +846,16 @@ namespace ccf
       // index and promote network secrets to this index
       network.tables->rollback(last_recovered_signed_idx);
       ledger_truncate(last_recovered_signed_idx);
+      snapshotter->rollback(last_recovered_signed_idx);
+
       LOG_INFO_FMT(
         "End of public ledger recovery - Truncating ledger to last signed "
-        "index: {}",
+        "seqno: {}",
         last_recovered_signed_idx);
 
       // KV term must be set before the first Tx is committed
       auto new_term = view_history.size() + 2;
-      LOG_INFO_FMT("Setting term on public recovery KV to {}", new_term);
+      LOG_INFO_FMT("Setting term on public recovery store to {}", new_term);
       network.tables->set_term(new_term);
 
       auto tx = network.tables->create_tx();
@@ -867,11 +869,15 @@ namespace ccf
                               node_encrypt_kp->public_key_pem().raw(),
                               NodeStatus::PENDING}));
 
+      LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
+
       network.ledger_secrets->init(last_recovered_signed_idx + 1);
       network.ledger_secrets->set_node_id(self);
       setup_encryptor();
 
-      LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
+      // Initialise snapshotter after public recovery
+      snapshotter->init_after_public_recovery();
+      snapshotter->set_snapshot_generation(false);
 
       kv::Version index = 0;
       kv::Term view = 0;
@@ -937,10 +943,10 @@ namespace ccf
       LOG_INFO_FMT(
         "Deserialising private ledger entry ({})", ledger_entry.size());
 
-      kv::ConsensusHookPtrs hooks;
       // When reading the private ledger, deserialise in the recovery store
-      auto result = recovery_store->deserialise(ledger_entry, hooks);
-      if (result == kv::DeserialiseSuccess::FAILED)
+      auto result =
+        recovery_store->apply(ledger_entry, ConsensusType::CFT)->execute();
+      if (result == kv::ApplySuccess::FAILED)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in private ledger");
         recovery_store->rollback(ledger_idx - 1);
@@ -948,7 +954,7 @@ namespace ccf
         return;
       }
 
-      if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
+      if (result == kv::ApplySuccess::PASS_SIGNATURE)
       {
         recovery_store->compact(ledger_idx);
       }
@@ -974,7 +980,7 @@ namespace ccf
       if (recovery_v != recovery_store->current_version())
       {
         throw std::logic_error(fmt::format(
-          "Private recovery did not reach public ledger version: {}/{}",
+          "Private recovery did not reach public ledger seqno: {}/{}",
           recovery_store->current_version(),
           recovery_v));
       }
@@ -996,7 +1002,7 @@ namespace ccf
       consensus->enable_all_domains();
 
       // Snapshots are only generated after recovery is complete
-      snapshotter->set_tx_interval(recovery_snapshot_tx_interval);
+      snapshotter->set_snapshot_generation(true);
 
       // Open the service
       if (consensus->is_primary())
@@ -1087,7 +1093,7 @@ namespace ccf
         kv::ConsensusHookPtrs hooks;
         auto rc = recovery_store->deserialise_snapshot(
           startup_snapshot_info->raw, hooks, &view_history);
-        if (rc != kv::DeserialiseSuccess::PASS)
+        if (rc != kv::ApplySuccess::PASS)
         {
           throw std::logic_error(fmt::format(
             "Could not deserialise snapshot in recovery store: {}", rc));
@@ -1683,8 +1689,7 @@ namespace ccf
       auto shared_state = std::make_shared<aft::State>(self);
       auto raft = std::make_unique<RaftType>(
         network.consensus_type,
-        std::make_unique<aft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
-          network.tables),
+        std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         snapshotter,
@@ -1762,6 +1767,12 @@ namespace ccf
           std::make_shared<ccf::ProgressTracker>(tracker_store, self);
         network.tables->set_progress_tracker(progress_tracker);
       }
+    }
+
+    void setup_snapshotter(size_t snapshot_tx_interval)
+    {
+      snapshotter = std::make_shared<Snapshotter>(
+        writer_factory, network, snapshot_tx_interval);
     }
 
     void setup_tracker_store()
