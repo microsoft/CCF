@@ -3,12 +3,11 @@
 #include <mbedtls/sha256.h>
 
 #ifdef HAVE_OPENSSL
-#include <openssl/sha.h>
+#  include <openssl/sha.h>
 #endif
 
-#include "hash.h"
-
 #include "../tls/mbedtls_wrappers.h"
+#include "hash.h"
 
 #include <stdexcept>
 using namespace std;
@@ -56,7 +55,8 @@ namespace crypto
 
   Sha256Hash ISha256MbedTLS::finalise()
   {
-    if (!ctx) {
+    if (!ctx)
+    {
       throw std::logic_error("Attempting to use hash after it was finalised");
     }
 
@@ -70,11 +70,13 @@ namespace crypto
 
   void ISha256MbedTLS::update_hash(CBuffer data)
   {
-    if (!ctx) {
+    if (!ctx)
+    {
       throw std::logic_error("Attempting to use hash after it was finalised");
     }
 
-    mbedtls_sha256_update_ret((mbedtls_sha256_context*)ctx, data.p, data.rawSize());
+    mbedtls_sha256_update_ret(
+      (mbedtls_sha256_context*)ctx, data.p, data.rawSize());
   }
 
 #ifdef HAVE_OPENSSL
@@ -91,7 +93,8 @@ namespace crypto
 
   void ISha256OpenSSL::update_hash(CBuffer data)
   {
-    if (!ctx) {
+    if (!ctx)
+    {
       throw std::logic_error("Attempting to use hash after it was finalised");
     }
 
@@ -100,7 +103,8 @@ namespace crypto
 
   Sha256Hash ISha256OpenSSL::finalise()
   {
-    if (!ctx) {
+    if (!ctx)
+    {
       throw std::logic_error("Attempting to use hash after it was finalised");
     }
 

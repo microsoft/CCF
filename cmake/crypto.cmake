@@ -8,7 +8,8 @@ set(CCFCRYPTO_SRC ${CCF_DIR}/src/crypto/hash.cpp
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_library(ccfcrypto.enclave STATIC ${CCFCRYPTO_SRC})
   target_compile_definitions(
-    ccfcrypto.enclave PRIVATE INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD HAVE_OPENSSL
+    ccfcrypto.enclave PRIVATE INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
+                              HAVE_OPENSSL
   )
   target_compile_options(ccfcrypto.enclave PRIVATE -nostdinc++)
   target_link_libraries(

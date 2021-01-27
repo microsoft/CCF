@@ -112,7 +112,6 @@ namespace crypto
     void* ctx;
   };
 
-
   typedef ISha256OpenSSL ISha256Hash;
 #else
   typedef ISha256MbedTLS ISha256Hash;
