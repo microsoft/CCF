@@ -516,7 +516,6 @@ if(BUILD_TESTS)
     LINK_LIBS ccfcrypto.host
   )
 
-
   # Storing signed governance operations
   add_e2e_test(
     NAME governance_history_test
