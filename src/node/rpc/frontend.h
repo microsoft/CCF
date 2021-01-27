@@ -122,7 +122,7 @@ namespace ccf
         {
           NodeId primary_id = consensus->primary();
           auto tx = tables.create_tx();
-          auto nodes = tx.rw<Nodes>(Tables::NODES);
+          auto nodes = tx.ro<Nodes>(Tables::NODES);
           auto info = nodes->get(primary_id);
 
           if (info)
@@ -444,7 +444,7 @@ namespace ccf
       std::lock_guard<SpinLock> mguard(open_lock);
       if (!is_open_)
       {
-        auto service = tx.rw<Service>(Tables::SERVICE);
+        auto service = tx.ro<Service>(Tables::SERVICE);
         auto s = service->get_globally_committed(0);
         if (
           s.has_value() && s.value().status == ServiceStatus::OPEN &&

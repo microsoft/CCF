@@ -89,7 +89,7 @@ namespace ccf
 
     auto get_active_recovery_members()
     {
-      auto members = tx.rw(tables.members);
+      auto members = tx.ro(tables.members);
       std::map<MemberId, tls::Pem> active_members_info;
 
       members->foreach(
@@ -218,7 +218,7 @@ namespace ccf
 
     std::optional<MemberInfo> get_member_info(MemberId member_id)
     {
-      auto m = tx.rw(tables.members);
+      auto m = tx.ro(tables.members);
       auto member = m->get(member_id);
       if (!member.has_value())
       {
@@ -290,7 +290,7 @@ namespace ccf
       // self_to_exclude is not included in the list of returned nodes.
       std::map<NodeId, NodeInfo> active_nodes;
 
-      auto nodes = tx.rw(tables.nodes);
+      auto nodes = tx.ro(tables.nodes);
 
       nodes->foreach([&active_nodes,
                       self_to_exclude](const NodeId& nid, const NodeInfo& ni) {
@@ -315,7 +315,7 @@ namespace ccf
 
     bool is_service_created()
     {
-      auto service = tx.rw(tables.service);
+      auto service = tx.ro(tables.service);
       return service->get(0).has_value();
     }
 
@@ -357,7 +357,7 @@ namespace ccf
 
     std::optional<ServiceStatus> get_service_status()
     {
-      auto service = tx.rw(tables.service);
+      auto service = tx.ro(tables.service);
       auto active_service = service->get(0);
       if (!active_service.has_value())
       {
@@ -416,7 +416,7 @@ namespace ccf
 
     auto get_last_signature()
     {
-      auto sig = tx.rw(tables.signatures);
+      auto sig = tx.ro(tables.signatures);
       return sig->get(0);
     }
 
@@ -497,7 +497,7 @@ namespace ccf
 
     size_t get_recovery_threshold()
     {
-      auto config = tx.rw(tables.config);
+      auto config = tx.ro(tables.config);
       auto current_config = config->get(0);
       if (!current_config.has_value())
       {

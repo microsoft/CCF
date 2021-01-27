@@ -620,8 +620,8 @@ namespace ccf
     {
       auto tx = store.create_tx();
       auto signatures =
-        tx.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      auto nodes = tx.template rw<ccf::Nodes>(ccf::Tables::NODES);
+        tx.template ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      auto nodes = tx.template ro<ccf::Nodes>(ccf::Tables::NODES);
       auto sig = signatures->get(0);
       if (!sig.has_value())
       {

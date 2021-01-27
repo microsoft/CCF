@@ -58,7 +58,7 @@ As noted above, this access may cause the ``Map`` to be created, if it did not p
 
 
 Accessing Map content via a Handle
----------------------------=------
+----------------------------------
 
 Once a :cpp:class:`kv::MapHandle` on a specific :cpp:class:`kv::Map` has been obtained, it is possible to:
 

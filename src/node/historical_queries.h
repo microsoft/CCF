@@ -95,7 +95,7 @@ namespace ccf::historical
       const StorePtr& sig_store)
     {
       auto tx = sig_store->create_tx();
-      auto signatures = tx.rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      auto signatures = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
       return signatures->get(0);
     }
 
@@ -106,7 +106,7 @@ namespace ccf::historical
       // makes no check that the signing node was active at the point it
       // produced this signature
       auto tx = source_store.create_tx();
-      auto nodes = tx.rw<ccf::Nodes>(ccf::Tables::NODES);
+      auto nodes = tx.ro<ccf::Nodes>(ccf::Tables::NODES);
       return nodes->get(node_id);
     }
 
