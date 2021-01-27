@@ -897,6 +897,29 @@ namespace aft
       node.sent_idx = end_idx;
     }
 
+    struct AsyncExecution
+    {
+      AsyncExecution(
+        Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self_,
+        std::vector<std::tuple<
+          std::unique_ptr<kv::AbstractExecutionWrapper>,
+          kv::Version>>&& append_entries_,
+        AppendEntries&& r_,
+        bool confirm_evidence_) :
+        self(self_),
+        append_entries(std::move(append_entries_)),
+        r(std::move(r_)),
+        confirm_evidence(confirm_evidence_)
+      {}
+
+      Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self;
+      std::vector<
+        std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>
+        append_entries;
+      AppendEntries r;
+      bool confirm_evidence;
+    };
+
     void recv_append_entries(const uint8_t* data, size_t size)
     {
       std::lock_guard<SpinLock> guard(state->lock);
@@ -1116,7 +1139,23 @@ namespace aft
         }
         append_entries.push_back(std::make_tuple(std::move(ds), i));
       }
+      auto msg = std::make_unique<threading::Tmsg<AsyncExecution>>(
+        foobar_cb, this, std::move(append_entries), std::move(r), confirm_evidence);
+      foobar_cb(std::move(msg)); // TODO: fix this
+    }
 
+    static void foobar_cb(std::unique_ptr<threading::Tmsg<AsyncExecution>> msg)
+    {
+      msg->data.self->foobar(msg->data.append_entries, msg->data.r, msg->data.confirm_evidence);
+    }
+
+    void foobar(
+      std::vector<
+        std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>&
+        append_entries,
+      AppendEntries& r,
+      bool confirm_evidence)
+    {
       for (auto& ae : append_entries)
       {
         auto& [ds, i] = ae;
