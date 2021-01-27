@@ -184,7 +184,7 @@ namespace ccf
   private:
     Script get_script(kv::Tx& tx, std::string name)
     {
-      const auto s = tx.rw(network.gov_scripts)->get(name);
+      const auto s = tx.ro(network.gov_scripts)->get(name);
       if (!s)
       {
         throw std::logic_error(

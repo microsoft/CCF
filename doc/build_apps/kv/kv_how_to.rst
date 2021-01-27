@@ -119,7 +119,7 @@ If you are only reading from or only writing to a given :cpp:class:`kv::Map` you
     map1_handle_wo->has("key1"); // Does not compile
     map1_handle_wo->get("key1"); // Does not compile
 
-Note that, as in the sample above, it is possible to acquire different kinds of handle at different points within your transaction's execution. So if you need to read in one location and write in another you can retrieve multiple distinct handles and get local type-safety, while the resulting transaction correctly handles all reads and writes made.
+Note that, as in the sample above, it is possible to acquire different kinds of handles at different points within your transaction's execution. So if you need to read in one location and write in another you can retrieve multiple distinct handles and get local type-safety, while the resulting transaction correctly handles all reads and writes made.
 
 Removing a key
 --------------

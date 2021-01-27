@@ -674,7 +674,7 @@ namespace ccfapp
 
     auto arg = (JSModuleLoaderArg*)opaque;
 
-    const auto modules = arg->tx->rw(arg->network->modules);
+    const auto modules = arg->tx->ro(arg->network->modules);
     auto module = modules->get(module_name_kv);
     if (!module.has_value())
     {
@@ -939,7 +939,7 @@ namespace ccfapp
     {
       const auto local_method = method.substr(method.find_first_not_of('/'));
 
-      const auto scripts = args.tx.rw(this->network.app_scripts);
+      const auto scripts = args.tx.ro(this->network.app_scripts);
 
       // Try to find script for method
       // - First try a script called "foo"
@@ -1292,7 +1292,7 @@ namespace ccfapp
       const auto verb = rpc_ctx.get_request_verb();
 
       auto endpoints =
-        tx.rw<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+        tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
 
       const auto key = ccf::endpoints::EndpointKey{method, verb};
 
