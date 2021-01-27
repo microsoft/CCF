@@ -54,7 +54,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     kv::ConsensusHookPtrs hooks;
     REQUIRE_EQ(
       new_store.deserialise_snapshot(first_serialised_snapshot, hooks),
-      kv::DeserialiseSuccess::PASS);
+      kv::ApplySuccess::PASS);
     REQUIRE_EQ(new_store.current_version(), 1);
 
     auto tx1 = new_store.create_tx();

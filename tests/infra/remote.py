@@ -420,14 +420,7 @@ class LocalRemote(CmdMixin):
 
     def _cp(self, src_path, dst_path):
         if os.path.isdir(src_path):
-            assert (
-                self._rc(
-                    "rm -rf {}".format(
-                        os.path.join(dst_path, os.path.basename(src_path))
-                    )
-                )
-                == 0
-            )
+            assert self._rc("rm -rf {}".format(os.path.join(dst_path))) == 0
             assert self._rc("cp -r {} {}".format(src_path, dst_path)) == 0
         else:
             assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
@@ -461,10 +454,8 @@ class LocalRemote(CmdMixin):
             raise ValueError(path)
         if not pre_condition_func(path, os.listdir):
             raise RuntimeError("Pre-condition for getting remote files failed")
-        if target_name is not None:
-            self._cp(path, os.path.join(dst_path, target_name))
-        else:
-            self._cp(path, dst_path)
+        target_name = target_name or os.path.basename(src_path)
+        self._cp(path, os.path.join(dst_path, target_name))
 
     def list_files(self):
         return os.listdir(self.root)
@@ -794,18 +785,29 @@ class CCFRemote(object):
     # For now, it makes sense to default include_read_only_dirs to False
     # but when nodes started from snapshots are fully supported in the test
     # suite, this argument will probably default to True (or be deleted entirely)
-    def get_ledger(self, include_read_only_dirs=False):
-        self.remote.get(self.ledger_dir_name, self.common_dir)
+    def get_ledger(self, ledger_dir_name, include_read_only_dirs=False):
+        self.remote.get(
+            self.ledger_dir_name,
+            self.common_dir,
+            target_name=ledger_dir_name,
+        )
         read_only_ledger_dirs = []
         if include_read_only_dirs and self.read_only_ledger_dir is not None:
+            read_only_ledger_dir_name = (
+                f"{ledger_dir_name}.ro"
+                if ledger_dir_name
+                else self.read_only_ledger_dir
+            )
             self.remote.get(
-                os.path.basename(self.read_only_ledger_dir), self.common_dir
+                os.path.basename(self.read_only_ledger_dir),
+                self.common_dir,
+                target_name=read_only_ledger_dir_name,
             )
             read_only_ledger_dirs.append(
-                os.path.join(self.common_dir, self.read_only_ledger_dir)
+                os.path.join(self.common_dir, read_only_ledger_dir_name)
             )
         return (
-            os.path.join(self.common_dir, self.ledger_dir_name),
+            os.path.join(self.common_dir, ledger_dir_name),
             read_only_ledger_dirs,
         )
 

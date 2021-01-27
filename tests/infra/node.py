@@ -39,9 +39,20 @@ def is_file_committed(file_name):
     return ".committed" in file_name
 
 
+def is_ledger_file(file_name):
+    return file_name.startswith("ledger_")
+
+
+def get_committed_ledger_end_seqno(file_name):
+    if not is_ledger_file(file_name) or not is_file_committed(file_name):
+        raise ValueError(f"{file_name} ledger file is not a committed ledger file")
+    return int(re.findall(r"\d+", file_name)[1])
+
+
 def get_snapshot_seqnos(file_name):
     # Returns the tuple (snapshot_seqno, evidence_seqno)
-    return int(re.findall(r"\d+", file_name)[0]), int(re.findall(r"\d+", file_name)[1])
+    seqnos = re.findall(r"\d+", file_name)
+    return int(seqnos[0]), int(seqnos[1])
 
 
 class Node:
@@ -270,11 +281,13 @@ class Node:
         except ccf.clients.CCFConnectionException as e:
             raise TimeoutError(f"Node {self.node_id} failed to join the network") from e
 
-    def get_ledger(self, **kwargs):
+    def get_ledger(self, include_read_only_dirs=False):
         """
         Triage committed and un-committed (i.e. current) ledger files
         """
-        main_ledger_dir, read_only_ledger_dirs = self.remote.get_ledger(**kwargs)
+        main_ledger_dir, read_only_ledger_dirs = self.remote.get_ledger(
+            f"{self.node_id}.ledger", include_read_only_dirs
+        )
 
         current_ledger_dir = os.path.join(
             self.common_dir, f"{self.node_id}.ledger.current"

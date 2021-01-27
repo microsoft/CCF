@@ -69,7 +69,7 @@ namespace ccf
       const std::vector<uint8_t>& wrapped_latest_ledger_secret)
     {
       crypto::GcmCipher encrypted_ls;
-      encrypted_ls.deserialise(wrapped_latest_ledger_secret);
+      encrypted_ls.apply(wrapped_latest_ledger_secret);
       std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
 
       if (!crypto::KeyAesGcm(data).decrypt(
@@ -218,7 +218,7 @@ namespace ccf
       LedgerSecret&& current_ledger_secret)
     {
       crypto::GcmCipher encrypted_share;
-      encrypted_share.deserialise(encrypted_submitted_share);
+      encrypted_share.apply(encrypted_submitted_share);
       std::vector<uint8_t> decrypted_share(encrypted_share.cipher.size());
 
       current_ledger_secret.key->decrypt(
@@ -347,7 +347,7 @@ namespace ccf
         }
 
         crypto::GcmCipher encrypted_ls;
-        encrypted_ls.deserialise(i->encrypted_ledger_secret);
+        encrypted_ls.apply(i->encrypted_ledger_secret);
         std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
 
         if (!crypto::KeyAesGcm(decryption_key)

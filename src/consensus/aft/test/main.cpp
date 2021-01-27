@@ -18,7 +18,7 @@ using TRaft =
   aft::Aft<aft::LedgerStubProxy, aft::ChannelStubProxy, aft::StubSnapshotter>;
 using Store = aft::LoggingStubStore;
 using StoreSig = aft::LoggingStubStoreSig;
-using Adaptor = aft::Adaptor<Store, kv::DeserialiseSuccess>;
+using Adaptor = aft::Adaptor<Store>;
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;

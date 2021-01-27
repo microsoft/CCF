@@ -85,7 +85,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   target_link_libraries(
     ccf.enclave
     PUBLIC ${OE_TARGET_ENCLAVE_AND_STD}
-           -static-libgcc
            -lgcc
            ccfcrypto.enclave
            http_parser.enclave
@@ -136,7 +135,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   target_link_libraries(
     ccf.virtual
     PUBLIC ${LINK_LIBCXX}
-           -static-libgcc
            -lgcc
            ccfcrypto.host
            http_parser.host
@@ -777,23 +775,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME vegeta_stress_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
-    CONSENSUS cft
-    LABEL vegeta
-    ADDITIONAL_ARGS -p liblogging
-  )
-
-  add_e2e_test(
-    NAME vegeta_long_stress_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
-    CONSENSUS cft
-    LABEL vegeta
-    CONFIGURATIONS long_stress
-    ADDITIONAL_ARGS -p liblogging --duration 45m
-  )
-
-  add_e2e_test(
     NAME tutorial_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_tutorial.py
     CONSENSUS cft
@@ -822,6 +803,23 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS "--raft-election-timeout" "4000"
+    )
+
+    add_e2e_test(
+      NAME vegeta_stress_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
+      CONSENSUS ${CONSENSUS}
+      LABEL vegeta
+      ADDITIONAL_ARGS -p liblogging
+    )
+
+    add_e2e_test(
+      NAME vegeta_long_stress_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
+      CONSENSUS ${CONSENSUS}
+      LABEL vegeta
+      CONFIGURATIONS long_stress
+      ADDITIONAL_ARGS -p liblogging --duration 45m
     )
 
   endforeach()
@@ -866,6 +864,26 @@ if(BUILD_TESTS)
   )
 
   add_perf_test(
+    NAME logging_scenario_jwt_perf_test
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+    CONSENSUS cft
+    CLIENT_BIN ./scenario_perf_client
+    LABEL log_scenario_jwt
+    ADDITIONAL_ARGS
+      --package
+      liblogging
+      --scenario-file
+      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+      --max-writes-ahead
+      1000
+      --repetitions
+      1000
+      --use-jwt
+      --msg-ser-fmt
+      msgpack
+  )
+
+  add_perf_test(
     NAME logging_scenario_js_perf_test
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
@@ -880,6 +898,26 @@ if(BUILD_TESTS)
       1000
       --repetitions
       1000
+      --msg-ser-fmt
+      text
+  )
+
+  add_perf_test(
+    NAME logging_scenario_js_jwt_perf_test
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+    CONSENSUS cft
+    CLIENT_BIN ./scenario_perf_client
+    LABEL log_scenario_js_jwt
+    ADDITIONAL_ARGS
+      --js-app-bundle
+      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+      --scenario-file
+      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+      --max-writes-ahead
+      1000
+      --repetitions
+      700
+      --use-jwt
       --msg-ser-fmt
       text
   )

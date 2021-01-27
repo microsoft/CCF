@@ -16,7 +16,7 @@ namespace aft
     uint8_t* req_start, size_t req_size)
   {
     Request request;
-    request.deserialise(req_start, req_size);
+    request.apply(req_start, req_size);
     return create_request_ctx(request);
   }
 

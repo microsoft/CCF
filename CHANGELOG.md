@@ -9,9 +9,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Governance proposal ids are now digests, hex-encoded as strings.
-- `TxView`s have been renamed to `MapHandle`s, to clearly distinguish them from consensus views. Calls to `tx.get_view` should be replaced with `tx.rw`.
-- `rw` does not support retrieving multiple views in a single call. Instead of `auto [view1, view2] = tx.get_view(map1, map2);`, you must write `auto handle1 = tx.rw(map1); auto handle2 = tx.rw(map2);`.
+- `endpoint_metrics` is renamed `api/metrics` and now returns an array of objects instead of nested path/method objects (#2068).
+- Governance proposal ids are now digests, hex-encoded as strings (#2104).
+- `TxView`s have been renamed to `MapHandle`s, to clearly distinguish them from consensus views. Calls to `tx.get_view` must be replaced with `tx.rw`.
+- `tx.rw` does not support retrieving multiple views in a single call. Instead of `auto [view1, view2] = tx.get_view(map1, map2);`, you must write `auto handle1 = tx.rw(map1); auto handle2 = tx.rw(map2);`.
+
+## [0.17.2]
+
+### Fixed
+
+- Fixed incorrect ledger chunking on backup nodes when snapshotting is enabled (#2110).
 
 ## [0.17.1]
 
@@ -649,6 +656,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.17.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.17.2
 [0.17.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.17.1
 [0.17.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.17.0
 [0.16.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.16.3
