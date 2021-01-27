@@ -83,6 +83,8 @@ namespace aft
     // or even previous terms, and can therefore not meaningfully sign
     // over the commit level.
     kv::Version election_index = 0;
+    bool is_execution_pending = false;
+    std::list<OArray> pending_execution;
 
     // BFT
     std::shared_ptr<aft::State> state;
@@ -505,6 +507,12 @@ namespace aft
 
     void recv_message(OArray&& d)
     {
+      if (is_execution_pending)
+      {
+        pending_execution.push_back(std::move(d));
+        return;
+      }
+      
       const uint8_t* data = d.data();
       size_t size = d.size();
       // The host does a CALLIN to this when a Aft message
@@ -552,6 +560,13 @@ namespace aft
         default:
         {
         }
+      }
+
+      if (!is_execution_pending && !pending_execution.empty())
+      {
+        OArray d = std::move(pending_execution.front());
+        pending_execution.pop_front();
+        recv_message(std::move(d));
       }
     }
 
@@ -1139,14 +1154,32 @@ namespace aft
         }
         append_entries.push_back(std::make_tuple(std::move(ds), i));
       }
+      is_execution_pending = true;
       auto msg = std::make_unique<threading::Tmsg<AsyncExecution>>(
         foobar_cb, this, std::move(append_entries), std::move(r), confirm_evidence);
-      foobar_cb(std::move(msg)); // TODO: fix this
+      threading::ThreadMessaging::thread_messaging.add_task(
+        0, std::move(msg)); // TODO: fix this
     }
 
     static void foobar_cb(std::unique_ptr<threading::Tmsg<AsyncExecution>> msg)
     {
       msg->data.self->foobar(msg->data.append_entries, msg->data.r, msg->data.confirm_evidence);
+      msg->cb = reinterpret_cast<void (*)(std::unique_ptr<threading::ThreadMsg>)>(continue_execution);
+      threading::ThreadMessaging::thread_messaging.add_task(
+        0, std::move(msg)); // TODO: fix this
+    }
+
+    static void continue_execution(std::unique_ptr<threading::Tmsg<AsyncExecution>> msg)
+    {
+      msg->data.self->is_execution_pending = false;
+      if (msg->data.self->pending_execution.empty())
+      {
+        return;
+      }
+
+      OArray d = std::move(msg->data.self->pending_execution.front());
+      msg->data.self->pending_execution.pop_front();
+      msg->data.self->recv_message(std::move(d));
     }
 
     void foobar(
@@ -1156,6 +1189,7 @@ namespace aft
       AppendEntries& r,
       bool confirm_evidence)
     {
+      std::lock_guard<SpinLock> guard(state->lock);
       for (auto& ae : append_entries)
       {
         auto& [ds, i] = ae;
