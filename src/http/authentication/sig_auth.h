@@ -71,15 +71,14 @@ namespace ccf
       const auto signed_request = parse_signed_request(ctx);
       if (signed_request.has_value())
       {
-        auto digests_view =
-          tx.get_read_only_view<CertDigests>(Tables::USER_DIGESTS);
-        auto user_id = digests_view->get(signed_request->key_id);
+        auto digests = tx.ro<CertDigests>(Tables::USER_DIGESTS);
+        auto user_id = digests->get(signed_request->key_id);
 
         if (user_id.has_value())
         {
           Users users_table(Tables::USERS);
-          auto users_view = tx.get_read_only_view(users_table);
-          const auto user = users_view->get(user_id.value());
+          auto users = tx.ro(users_table);
+          const auto user = users->get(user_id.value());
           if (!user.has_value())
           {
             throw std::logic_error("Users and user certs tables do not match");
@@ -173,15 +172,14 @@ namespace ccf
       const auto signed_request = parse_signed_request(ctx);
       if (signed_request.has_value())
       {
-        auto digests_view =
-          tx.get_read_only_view<CertDigests>(Tables::MEMBER_DIGESTS);
-        auto member_id = digests_view->get(signed_request->key_id);
+        auto digests = tx.ro<CertDigests>(Tables::MEMBER_DIGESTS);
+        auto member_id = digests->get(signed_request->key_id);
 
         if (member_id.has_value())
         {
           Members members_table(Tables::MEMBERS);
-          auto members_view = tx.get_read_only_view(members_table);
-          const auto member = members_view->get(member_id.value());
+          auto members = tx.ro(members_table);
+          const auto member = members->get(member_id.value());
           if (!member.has_value())
           {
             throw std::logic_error(

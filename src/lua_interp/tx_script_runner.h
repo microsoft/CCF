@@ -49,7 +49,7 @@ namespace ccf
         template <typename T>
         static void register_meta(lua::Interpreter& li)
         {
-          using TT = typename T::TxView;
+          using TT = typename T::Handle;
           if constexpr (READ_ONLY)
             li.register_metatable<TT>(lua::kv_methods_read_only<TT>);
           else
@@ -61,12 +61,12 @@ namespace ccf
         {
           decltype(auto) name = table.get_name();
 
-          using TT = typename T::TxView;
-          auto view = tx.get_view(table);
+          using TT = typename T::Handle;
+          auto h = tx.rw(table);
           if constexpr (READ_ONLY)
-            li.push(view);
+            li.push(h);
           else
-            li.push(WT<TT>{view});
+            li.push(WT<TT>{h});
           lua_setfield(li.get_state(), -2, name.c_str());
         }
 
@@ -139,7 +139,7 @@ namespace ccf
 
       Whitelist get_whitelist(kv::Tx& tx, WlId id) const
       {
-        const auto wl = tx.get_view(network_tables.whitelists)->get(id);
+        const auto wl = tx.rw(network_tables.whitelists)->get(id);
         if (!wl)
           throw std::logic_error(
             "Whitelist with id: " + std::to_string(id) + " does not exist");

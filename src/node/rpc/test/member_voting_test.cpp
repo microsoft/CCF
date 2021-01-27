@@ -260,7 +260,7 @@ DOCTEST_TEST_CASE("Member query/read")
   constexpr auto key = 123;
   constexpr auto value = 456;
   auto tx = network.tables->create_tx();
-  tx.get_view(network.values)->put(key, value);
+  tx.rw(network.values)->put(key, value);
   DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
 
   static constexpr auto query = R"xxx(
@@ -272,8 +272,7 @@ DOCTEST_TEST_CASE("Member query/read")
   {
     // set member ACL so that the VALUES table is accessible
     auto tx = network.tables->create_tx();
-    tx.get_view(network.whitelists)
-      ->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
+    tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
     DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     bool compile = true;
@@ -291,7 +290,7 @@ DOCTEST_TEST_CASE("Member query/read")
   {
     // set member ACL so that no table is accessible
     auto tx = network.tables->create_tx();
-    tx.get_view(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {});
+    tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {});
     DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     auto req = create_request(query_params(query, true), "query");
@@ -303,8 +302,7 @@ DOCTEST_TEST_CASE("Member query/read")
   DOCTEST_SUBCASE("Read: allowed access, key exists")
   {
     auto tx = network.tables->create_tx();
-    tx.get_view(network.whitelists)
-      ->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
+    tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
     DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     auto read_call =
@@ -318,8 +316,7 @@ DOCTEST_TEST_CASE("Member query/read")
   {
     constexpr auto wrong_key = 321;
     auto tx = network.tables->create_tx();
-    tx.get_view(network.whitelists)
-      ->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
+    tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
     DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     auto read_call =
@@ -332,7 +329,7 @@ DOCTEST_TEST_CASE("Member query/read")
   DOCTEST_SUBCASE("Read: access not allowed")
   {
     auto tx = network.tables->create_tx();
-    tx.get_view(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {});
+    tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {});
     DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     auto read_call =
@@ -711,9 +708,9 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
         // make sure that there is a signature in the signatures table since
         // ack's depend on that
         auto tx = network.tables->create_tx();
-        auto sig_view = tx.get_view(network.signatures);
+        auto signatures = tx.rw(network.signatures);
         PrimarySignature sig_value;
-        sig_view->put(0, sig_value);
+        signatures->put(0, sig_value);
         DOCTEST_REQUIRE(tx.commit() == kv::CommitSuccess::OK);
       }
 
@@ -982,7 +979,7 @@ ProposalInfo test_raw_writes(
   {
     auto tx = network.tables->create_tx();
     auto next_member_id_r =
-      tx.get_view(network.values)->get(ValueIds::NEXT_MEMBER_ID);
+      tx.rw(network.values)->get(ValueIds::NEXT_MEMBER_ID);
     DOCTEST_CHECK(next_member_id_r);
     DOCTEST_CHECK(*next_member_id_r == n_members);
   }
@@ -1065,7 +1062,7 @@ DOCTEST_TEST_CASE("Propose raw writes")
       nlohmann::json recovery_threshold = 4;
 
       auto tx_before = network.tables->create_tx();
-      auto configuration = tx_before.get_view(network.config)->get(0);
+      auto configuration = tx_before.rw(network.config)->get(0);
       DOCTEST_REQUIRE_FALSE(configuration.has_value());
 
       const auto expected_state =
@@ -1091,7 +1088,7 @@ DOCTEST_TEST_CASE("Propose raw writes")
 
       // check results
       auto tx_after = network.tables->create_tx();
-      configuration = tx_after.get_view(network.config)->get(0);
+      configuration = tx_after.rw(network.config)->get(0);
       DOCTEST_CHECK(configuration.has_value());
       DOCTEST_CHECK(configuration->recovery_threshold == recovery_threshold);
     }
@@ -1174,7 +1171,7 @@ DOCTEST_TEST_CASE("Remove proposal")
   // check that the proposal doesn't exist
   {
     auto tx = network.tables->create_tx();
-    auto proposal = tx.get_view(network.proposals)->get(proposal_id);
+    auto proposal = tx.rw(network.proposals)->get(proposal_id);
     DOCTEST_CHECK(!proposal);
   }
 
@@ -1191,7 +1188,7 @@ DOCTEST_TEST_CASE("Remove proposal")
   // check that the proposal is there
   {
     auto tx = network.tables->create_tx();
-    auto proposal = tx.get_view(network.proposals)->get(proposal_id);
+    auto proposal = tx.rw(network.proposals)->get(proposal_id);
     DOCTEST_CHECK(proposal);
     DOCTEST_CHECK(proposal->state == ProposalState::OPEN);
     DOCTEST_CHECK(
@@ -1238,7 +1235,7 @@ DOCTEST_TEST_CASE("Remove proposal")
     // check that the proposal is now withdrawn
     {
       auto tx = network.tables->create_tx();
-      auto proposal = tx.get_view(network.proposals)->get(proposal_id);
+      auto proposal = tx.rw(network.proposals)->get(proposal_id);
       DOCTEST_CHECK(proposal.has_value());
       DOCTEST_CHECK(proposal->state == ProposalState::WITHDRAWN);
     }
@@ -1351,11 +1348,11 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
     DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
 
     auto tx1 = network.tables->create_tx();
-    const auto uid = tx1.get_view(network.values)->get(ValueIds::NEXT_USER_ID);
+    const auto uid = tx1.rw(network.values)->get(ValueIds::NEXT_USER_ID);
     DOCTEST_CHECK(uid);
     DOCTEST_CHECK(*uid == 1);
     user_der = tls::make_verifier(user_cert)->der_cert_data();
-    const auto uid1 = tx1.get_view(network.user_certs)->get(user_der);
+    const auto uid1 = tx1.rw(network.user_certs)->get(user_der);
     DOCTEST_CHECK(uid1);
     DOCTEST_CHECK(*uid1 == 0);
   }
@@ -1388,9 +1385,9 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
     DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
 
     auto tx1 = network.tables->create_tx();
-    auto user = tx1.get_view(network.users)->get(0);
+    auto user = tx1.rw(network.users)->get(0);
     DOCTEST_CHECK(!user.has_value());
-    auto user_cert = tx1.get_view(network.user_certs)->get(user_der);
+    auto user_cert = tx1.rw(network.user_certs)->get(user_der);
     DOCTEST_CHECK(!user_cert.has_value());
   }
 }
@@ -2088,7 +2085,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
       submitted_shares_count++;
 
       auto tx = network.tables->create_tx();
-      auto submitted_shares = tx.get_view(network.submitted_shares);
+      auto submitted_shares = tx.rw(network.submitted_shares);
       // Share submission should only complete when the recovery threshold
       // has been reached
       if (submitted_shares_count >= recovery_threshold)

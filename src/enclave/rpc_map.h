@@ -42,7 +42,7 @@ namespace enclave
       return search->second;
     }
 
-    auto& get_map()
+    auto& frontends()
     {
       return map;
     }

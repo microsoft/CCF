@@ -184,7 +184,7 @@ namespace ccf
   private:
     Script get_script(kv::Tx& tx, std::string name)
     {
-      const auto s = tx.get_view(network.gov_scripts)->get(name);
+      const auto s = tx.ro(network.gov_scripts)->get(name);
       if (!s)
       {
         throw std::logic_error(
@@ -195,7 +195,7 @@ namespace ccf
 
     void set_app_scripts(kv::Tx& tx, std::map<std::string, std::string> scripts)
     {
-      auto tx_scripts = tx.get_view(network.app_scripts);
+      auto tx_scripts = tx.rw(network.app_scripts);
 
       // First, remove all existing handlers
       tx_scripts->foreach(
@@ -212,7 +212,7 @@ namespace ccf
 
     void set_js_scripts(kv::Tx& tx, std::map<std::string, std::string> scripts)
     {
-      auto tx_scripts = tx.get_view(network.app_scripts);
+      auto tx_scripts = tx.rw(network.app_scripts);
 
       // First, remove all existing handlers
       tx_scripts->foreach(
@@ -235,8 +235,8 @@ namespace ccf
 
       remove_endpoints(tx);
 
-      auto endpoints_view =
-        tx.get_view<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+      auto endpoints =
+        tx.rw<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
 
       std::map<std::string, std::string> scripts;
       for (auto& [url, endpoint] : bundle.metadata.endpoints)
@@ -260,7 +260,7 @@ namespace ccf
           }
 
           auto verb = nlohmann::json(method).get<RESTVerb>();
-          endpoints_view->put(ccf::endpoints::EndpointKey{url, verb}, info);
+          endpoints->put(ccf::endpoints::EndpointKey{url, verb}, info);
 
           // CCF currently requires each endpoint to have an inline JS module.
           std::string method_uppercase = method;
@@ -311,14 +311,14 @@ namespace ccf
         LOG_FAIL_FMT("module names must start with /");
         return false;
       }
-      auto tx_modules = tx.get_view(network.modules);
+      auto tx_modules = tx.rw(network.modules);
       tx_modules->put(name, module);
       return true;
     }
 
     void remove_modules(kv::Tx& tx, std::string prefix)
     {
-      auto tx_modules = tx.get_view(network.modules);
+      auto tx_modules = tx.rw(network.modules);
       tx_modules->foreach(
         [&tx_modules, &prefix](const std::string& name, const Module&) {
           if (nonstd::starts_with(name, prefix))
@@ -335,15 +335,14 @@ namespace ccf
 
     bool remove_module(kv::Tx& tx, std::string name)
     {
-      auto tx_modules = tx.get_view(network.modules);
+      auto tx_modules = tx.rw(network.modules);
       return tx_modules->remove(name);
     }
 
     void remove_jwt_keys(kv::Tx& tx, std::string issuer)
     {
-      auto keys = tx.get_view(this->network.jwt_public_signing_keys);
-      auto key_issuer =
-        tx.get_view(this->network.jwt_public_signing_key_issuer);
+      auto keys = tx.rw(this->network.jwt_public_signing_keys);
+      auto key_issuer = tx.rw(this->network.jwt_public_signing_key_issuer);
 
       key_issuer->foreach(
         [&issuer, &keys, &key_issuer](const auto& k, const auto& v) {
@@ -363,9 +362,8 @@ namespace ccf
       const JwtIssuerMetadata& issuer_metadata,
       const JsonWebKeySet& jwks)
     {
-      auto keys = tx.get_view(this->network.jwt_public_signing_keys);
-      auto key_issuer =
-        tx.get_view(this->network.jwt_public_signing_key_issuer);
+      auto keys = tx.rw(this->network.jwt_public_signing_keys);
+      auto key_issuer = tx.rw(this->network.jwt_public_signing_key_issuer);
 
       auto log_prefix = proposal_id == INVALID_PROPOSAL_ID ?
         "JWT key auto-refresh" :
@@ -505,10 +503,10 @@ namespace ccf
 
     void remove_endpoints(kv::Tx& tx)
     {
-      auto endpoints_view =
-        tx.get_view<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
-      endpoints_view->foreach([&endpoints_view](const auto& k, const auto&) {
-        endpoints_view->remove(k);
+      auto endpoints =
+        tx.rw<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+      endpoints->foreach([&endpoints](const auto& k, const auto&) {
+        endpoints->remove(k);
         return true;
       });
     }
@@ -519,7 +517,7 @@ namespace ccf
       CodeIDs& code_id_table,
       const ProposalId& proposal_id)
     {
-      auto code_ids = tx.get_view(code_id_table);
+      auto code_ids = tx.rw(code_id_table);
       auto existing_code_id = code_ids->get(new_code_id);
       if (existing_code_id)
       {
@@ -539,7 +537,7 @@ namespace ccf
       CodeIDs& code_id_table,
       const ProposalId& proposal_id)
     {
-      auto code_ids = tx.get_view(code_id_table);
+      auto code_ids = tx.rw(code_id_table);
       auto existing_code_id = code_ids->get(code_id);
       if (!existing_code_id)
       {
@@ -636,8 +634,8 @@ namespace ccf
            kv::Tx& tx,
            const nlohmann::json& args) {
            const auto parsed = args.get<SetMemberData>();
-           auto members_view = tx.get_view(this->network.members);
-           auto member_info = members_view->get(parsed.member_id);
+           auto members = tx.rw(this->network.members);
+           auto member_info = members->get(parsed.member_id);
            if (!member_info.has_value())
            {
              LOG_FAIL_FMT(
@@ -648,7 +646,7 @@ namespace ccf
            }
 
            member_info->member_data = parsed.member_data;
-           members_view->put(parsed.member_id, member_info.value());
+           members->put(parsed.member_id, member_info.value());
            return true;
          }},
         {"new_user",
@@ -683,8 +681,8 @@ namespace ccf
            kv::Tx& tx,
            const nlohmann::json& args) {
            const auto parsed = args.get<SetUserData>();
-           auto users_view = tx.get_view(this->network.users);
-           auto user_info = users_view->get(parsed.user_id);
+           auto users = tx.rw(this->network.users);
+           auto user_info = users->get(parsed.user_id);
            if (!user_info.has_value())
            {
              LOG_FAIL_FMT(
@@ -695,7 +693,7 @@ namespace ccf
            }
 
            user_info->user_data = parsed.user_data;
-           users_view->put(parsed.user_id, user_info.value());
+           users->put(parsed.user_id, user_info.value());
            return true;
          }},
         {"set_ca_cert",
@@ -704,7 +702,7 @@ namespace ccf
            kv::Tx& tx,
            const nlohmann::json& args) {
            const auto parsed = args.get<SetCaCert>();
-           auto ca_certs = tx.get_view(this->network.ca_certs);
+           auto ca_certs = tx.rw(this->network.ca_certs);
            std::vector<uint8_t> cert_der;
            try
            {
@@ -725,7 +723,7 @@ namespace ccf
         {"remove_ca_cert",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto cert_name = args.get<std::string>();
-           auto ca_certs = tx.get_view(this->network.ca_certs);
+           auto ca_certs = tx.rw(this->network.ca_certs);
            ca_certs->remove(cert_name);
            return true;
          }},
@@ -735,8 +733,8 @@ namespace ccf
            kv::Tx& tx,
            const nlohmann::json& args) {
            const auto parsed = args.get<SetJwtIssuer>();
-           auto issuers = tx.get_view(this->network.jwt_issuers);
-           auto ca_certs = tx.get_read_only_view(this->network.ca_certs);
+           auto issuers = tx.rw(this->network.jwt_issuers);
+           auto ca_certs = tx.ro(this->network.ca_certs);
 
            if (parsed.auto_refresh)
            {
@@ -806,7 +804,7 @@ namespace ccf
            const nlohmann::json& args) {
            const auto parsed = args.get<RemoveJwtIssuer>();
            const auto issuer = parsed.issuer;
-           auto issuers = tx.get_view(this->network.jwt_issuers);
+           auto issuers = tx.rw(this->network.jwt_issuers);
 
            if (!issuers->remove(issuer))
            {
@@ -826,7 +824,7 @@ namespace ccf
            const nlohmann::json& args) {
            const auto parsed = args.get<SetJwtPublicSigningKeys>();
 
-           auto issuers = tx.get_view(this->network.jwt_issuers);
+           auto issuers = tx.rw(this->network.jwt_issuers);
            auto issuer_metadata_ = issuers->get(parsed.issuer);
            if (!issuer_metadata_.has_value())
            {
@@ -868,7 +866,7 @@ namespace ccf
            kv::Tx& tx,
            const nlohmann::json& args) {
            const auto id = args.get<NodeId>();
-           auto nodes = tx.get_view(this->network.nodes);
+           auto nodes = tx.rw(this->network.nodes);
            auto node_info = nodes->get(id);
            if (!node_info.has_value())
            {
@@ -1037,7 +1035,7 @@ namespace ccf
           proposal.state));
       }
 
-      auto proposals = tx.get_view(this->network.proposals);
+      auto proposals = tx.rw(this->network.proposals);
 
       // run proposal script
       const auto proposed_calls = tsr.run<nlohmann::json>(
@@ -1126,7 +1124,7 @@ namespace ccf
         }
 
         // proposing a script function?
-        const auto s = tx.get_view(network.gov_scripts)->get(call.func);
+        const auto s = tx.rw(network.gov_scripts)->get(call.func);
         if (!s.has_value())
         {
           continue;
@@ -1163,7 +1161,7 @@ namespace ccf
       MemberId id,
       std::initializer_list<MemberStatus> allowed)
     {
-      auto member = tx.get_read_only_view(this->network.members)->get(id);
+      auto member = tx.ro(this->network.members)->get(id);
       if (!member)
       {
         return false;
@@ -1181,7 +1179,7 @@ namespace ccf
     void record_voting_history(
       kv::Tx& tx, MemberId caller_id, const SignedReq& signed_request)
     {
-      auto governance_history = tx.get_view(network.governance_history);
+      auto governance_history = tx.rw(network.governance_history);
       governance_history->put(caller_id, {signed_request});
     }
 
@@ -1339,7 +1337,7 @@ namespace ccf
 
         Proposal proposal(in.script, in.parameter, caller_identity.member_id);
 
-        auto proposals = ctx.tx.get_view(this->network.proposals);
+        auto proposals = ctx.tx.rw(this->network.proposals);
         proposals->put(proposal_id, proposal);
 
         record_voting_history(
@@ -1373,7 +1371,7 @@ namespace ccf
               HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
           }
 
-          auto proposals = ctx.tx.get_read_only_view(this->network.proposals);
+          auto proposals = ctx.tx.ro(this->network.proposals);
           auto proposal = proposals->get(proposal_id);
 
           if (!proposal)
@@ -1414,7 +1412,7 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
-        auto proposals = ctx.tx.get_view(this->network.proposals);
+        auto proposals = ctx.tx.rw(this->network.proposals);
         auto proposal = proposals->get(proposal_id);
 
         if (!proposal)
@@ -1487,7 +1485,7 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
-        auto proposals = ctx.tx.get_view(this->network.proposals);
+        auto proposals = ctx.tx.rw(this->network.proposals);
         auto proposal = proposals->get(proposal_id);
         if (!proposal)
         {
@@ -1564,7 +1562,7 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
-        auto proposals = ctx.tx.get_read_only_view(this->network.proposals);
+        auto proposals = ctx.tx.ro(this->network.proposals);
         auto proposal = proposals->get(proposal_id);
         if (!proposal)
         {
@@ -1602,11 +1600,11 @@ namespace ccf
           ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
         const auto& signed_request = caller_identity.signed_request;
 
-        auto [ma_view, sig_view, members_view] = ctx.tx.get_view(
-          this->network.member_acks,
-          this->network.signatures,
-          this->network.members);
-        const auto ma = ma_view->get(caller_identity.member_id);
+        auto mas = ctx.tx.rw(this->network.member_acks);
+        auto sig = ctx.tx.rw(this->network.signatures);
+        auto members = ctx.tx.rw(this->network.members);
+
+        const auto ma = mas->get(caller_identity.member_id);
         if (!ma)
         {
           return make_error(
@@ -1626,15 +1624,14 @@ namespace ccf
             "Submitted state digest is not valid.");
         }
 
-        const auto s = sig_view->get(0);
+        const auto s = sig->get(0);
         if (!s)
         {
-          ma_view->put(
-            caller_identity.member_id, MemberAck({}, signed_request));
+          mas->put(caller_identity.member_id, MemberAck({}, signed_request));
         }
         else
         {
-          ma_view->put(
+          mas->put(
             caller_identity.member_id, MemberAck(s->root, signed_request));
         }
 
@@ -1661,7 +1658,7 @@ namespace ccf
             "No service currently available.");
         }
 
-        auto member_info = members_view->get(caller_identity.member_id);
+        auto member_info = members->get(caller_identity.member_id);
         if (
           service_status.value() == ServiceStatus::OPEN &&
           member_info->is_recovery())
@@ -1687,31 +1684,31 @@ namespace ccf
         .install();
 
       //! A member asks for a fresher state digest
-      auto update_state_digest = [this](
-                                   EndpointContext& ctx, nlohmann::json&&) {
-        const auto member_id = get_caller_member_id(ctx);
-        auto [ma_view, sig_view] =
-          ctx.tx.get_view(this->network.member_acks, this->network.signatures);
-        auto ma = ma_view->get(member_id);
-        if (!ma)
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            fmt::format("No ACK record exists for caller {}.", member_id));
-        }
+      auto update_state_digest =
+        [this](EndpointContext& ctx, nlohmann::json&&) {
+          const auto member_id = get_caller_member_id(ctx);
+          auto mas = ctx.tx.rw(this->network.member_acks);
+          auto sig = ctx.tx.rw(this->network.signatures);
+          auto ma = mas->get(member_id);
+          if (!ma)
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              fmt::format("No ACK record exists for caller {}.", member_id));
+          }
 
-        auto s = sig_view->get(0);
-        if (s)
-        {
-          ma->state_digest = s->root.hex_str();
-          ma_view->put(member_id, ma.value());
-        }
-        nlohmann::json j;
-        j["state_digest"] = ma->state_digest;
+          auto s = sig->get(0);
+          if (s)
+          {
+            ma->state_digest = s->root.hex_str();
+            mas->put(member_id, ma.value());
+          }
+          nlohmann::json j;
+          j["state_digest"] = ma->state_digest;
 
-        return make_success(j);
-      };
+          return make_success(j);
+        };
       make_endpoint(
         "ack/update_state_digest",
         HTTP_POST,
@@ -1946,8 +1943,8 @@ namespace ccf
         }
 
         auto primary_id = consensus->primary();
-        auto nodes_view = ctx.tx.get_read_only_view(this->network.nodes);
-        auto info = nodes_view->get(primary_id);
+        auto nodes = ctx.tx.ro(this->network.nodes);
+        auto info = nodes->get(primary_id);
         if (!info.has_value())
         {
           LOG_FAIL_FMT(
@@ -1984,7 +1981,7 @@ namespace ccf
             "Unable to parse body.");
         }
 
-        auto issuers = ctx.tx.get_view(this->network.jwt_issuers);
+        auto issuers = ctx.tx.rw(this->network.jwt_issuers);
         auto issuer_metadata_ = issuers->get(parsed.issuer);
         if (!issuer_metadata_.has_value())
         {
