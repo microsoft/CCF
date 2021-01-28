@@ -7,6 +7,7 @@
 
 #include <map>
 #include <msgpack/msgpack.hpp>
+#include <optional>
 #include <vector>
 
 namespace ccf
@@ -14,26 +15,39 @@ namespace ccf
   using EncryptedShare = std::vector<uint8_t>;
   using EncryptedSharesMap = std::map<MemberId, EncryptedShare>;
 
-  // TODO: To unify with secrets.h encrypted ledger secret??
-  struct SharesEncryptedLedgerSecret
+  struct WrappedLedgerSecret
   {
-    // In most cases (e.g. re-key, member retirement), this is unset
-    // (kv::NoVersion), and the version at which the ledger secret is applicable
-    // from is derived from the local hook on recovery.
-    // In one case (i.e. after recovery of the public ledger), a new ledger
-    // secret is created to protect the integrity on the public-only
-    // transactions. However, the corresponding shares are only written at a
-    // later version, once the previous ledger secrets have been restored.
-    kv::Version version;
-
     std::vector<uint8_t> encrypted_data;
 
-    MSGPACK_DEFINE(version, encrypted_data)
+    // In most cases (e.g. re-key, member retirement), this is unset and the
+    // version at which the ledger secret is applicable from is derived from the
+    // version at which the recovery hook is triggered. In other cases (service
+    // open or in recovery), a new ledger secret is created to protect the
+    // integrity on the public-only transactions. However, the corresponding
+    // shares are only written at a later version, once the previous ledger
+    // secrets have been recovered.
+    std::optional<kv::Version> version = std::nullopt;
+
+    MSGPACK_DEFINE(encrypted_data, version)
   };
 
-  DECLARE_JSON_TYPE(SharesEncryptedLedgerSecret)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(WrappedLedgerSecret)
+  DECLARE_JSON_REQUIRED_FIELDS(WrappedLedgerSecret, encrypted_data)
+  DECLARE_JSON_OPTIONAL_FIELDS(WrappedLedgerSecret, version)
+
+  // TODO: To unify with secrets.h encrypted ledger secret??
+  struct PreviousEncryptedLedgerSecret
+  {
+    std::vector<uint8_t> encrypted_data;
+
+    kv::Version version;
+
+    MSGPACK_DEFINE(encrypted_data, version)
+  };
+
+  DECLARE_JSON_TYPE(PreviousEncryptedLedgerSecret)
   DECLARE_JSON_REQUIRED_FIELDS(
-    SharesEncryptedLedgerSecret, version, encrypted_data)
+    PreviousEncryptedLedgerSecret, encrypted_data, version)
 
   struct RecoverySharesInfo
   {
@@ -45,10 +59,10 @@ namespace ccf
     // re-assembled.
 
     // Latest ledger secret wrapped with the ledger secret wrapping key
-    SharesEncryptedLedgerSecret wrapped_latest_ledger_secret;
+    WrappedLedgerSecret wrapped_latest_ledger_secret;
 
     // Previous ledger secret encrypted with the latest ledger secret
-    SharesEncryptedLedgerSecret encrypted_previous_ledger_secret;
+    PreviousEncryptedLedgerSecret encrypted_previous_ledger_secret;
 
     EncryptedSharesMap encrypted_shares;
 

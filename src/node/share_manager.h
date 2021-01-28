@@ -69,7 +69,7 @@ namespace ccf
       const std::vector<uint8_t>& wrapped_latest_ledger_secret)
     {
       crypto::GcmCipher encrypted_ls;
-      encrypted_ls.apply(wrapped_latest_ledger_secret);
+      encrypted_ls.deserialise(wrapped_latest_ledger_secret);
       std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
 
       if (!crypto::KeyAesGcm(data).decrypt(
@@ -93,8 +93,13 @@ namespace ccf
     // Version at which the next ledger secret is applicable from
     kv::Version next_version;
 
+    PreviousEncryptedLedgerSecret encrypted_ledger_secret;
+
+    // Version at which the ledger secret is applicable from
+    // kv::Version version;
+
     // Previous ledger secret, encrypted with the current ledger secret
-    std::vector<uint8_t> encrypted_ledger_secret;
+    // std::vector<uint8_t> encrypted_ledger_secret;
   };
 
   // The ShareManager class provides the interface between the ledger secrets,
@@ -104,6 +109,10 @@ namespace ccf
   //  membership updates)
   //  - Re-assemble the ledger secrets on recovery, once a threshold of members
   //  have successfully submitted their shares
+
+  // TODO: Make this a map!
+  using RecoveredEncryptedLedgerSecrets = std::list<RecoveredLedgerSecret>;
+
   class ShareManager
   {
   private:
@@ -158,8 +167,7 @@ namespace ccf
       const LedgerSecret& latest_ledger_secret,
       const std::optional<VersionedLedgerSecret>& previous_ledger_secret =
         std::nullopt,
-      kv::Version latest_ls_version =
-        kv::NoVersion) // TODO: latest_ls_version should be optional
+      std::optional<kv::Version> latest_ls_version = std::nullopt)
     {
       // First, generate a fresh ledger secrets wrapping key and wrap the
       // latest ledger secret with it. Then, encrypt the penultimate ledger
@@ -194,10 +202,15 @@ namespace ccf
 
       GenesisGenerator g(network, tx);
 
+      // LOG_FAIL_FMT(
+      //   "Writing shares info: previous secret at {}, latest secret at {}",
+      //   version_previous_secret,
+      //   latest_ls_version);
+
       // TODO: Rename this
       g.add_key_share_info(
-        {{latest_ls_version, wrapped_latest_ls},
-         {version_previous_secret, encrypted_previous_secret},
+        {{wrapped_latest_ls, latest_ls_version},
+         {encrypted_previous_secret, version_previous_secret},
          compute_encrypted_shares(tx, ls_wrapping_key)});
     }
 
@@ -226,7 +239,7 @@ namespace ccf
       LedgerSecret&& current_ledger_secret)
     {
       crypto::GcmCipher encrypted_share;
-      encrypted_share.apply(encrypted_submitted_share);
+      encrypted_share.deserialise(encrypted_submitted_share);
       std::vector<uint8_t> decrypted_share(encrypted_share.cipher.size());
 
       current_ledger_secret.key->decrypt(
@@ -276,12 +289,14 @@ namespace ccf
   public:
     ShareManager(NetworkState& network_) : network(network_) {}
 
+    // TODO: Unify this with issue_shares_on_recovery()
     void issue_shares(kv::Tx& tx)
     {
       // Assumes that the ledger secrets have not been updated since the
       // last time shares have been issued (i.e. genesis or re-sharing only)
-      set_recovery_shares_info(
-        tx, network.ledger_secrets->get_latest(tx).second);
+      auto [latest, penultimate] =
+        network.ledger_secrets->get_latest_and_penultimate(tx);
+      set_recovery_shares_info(tx, latest.second, penultimate, latest.first);
     }
 
     void issue_shares_on_recovery(kv::Tx& tx, kv::Version latest_ls_version)
@@ -296,6 +311,8 @@ namespace ccf
     void issue_shares_on_rekey(
       kv::Tx& tx, const LedgerSecret& new_ledger_secret)
     {
+      // No version here, on recovery, the version is derived from the hook at
+      // which the ledger secret is applied to the store
       set_recovery_shares_info(
         tx, new_ledger_secret, network.ledger_secrets->get_latest(tx));
     }
@@ -323,7 +340,7 @@ namespace ccf
 
     LedgerSecretsMap restore_recovery_shares_info(
       kv::Tx& tx,
-      const std::list<RecoveredLedgerSecret>& encrypted_recovery_secrets)
+      const RecoveredEncryptedLedgerSecrets& encrypted_recovery_secrets)
     {
       // First, re-assemble the ledger secret wrapping key from the submitted
       // encrypted shares. Then, unwrap the latest ledger secret and use it to
@@ -344,21 +361,26 @@ namespace ccf
         recovery_shares_info->wrapped_latest_ledger_secret.encrypted_data);
       auto decryption_key = restored_ls.raw_key;
 
+      LOG_FAIL_FMT(
+        "Recovering {} encrypted ledger secrets",
+        encrypted_recovery_secrets.size());
+
       restored_ledger_secrets.emplace(
         encrypted_recovery_secrets.back().next_version, std::move(restored_ls));
 
-      for (auto i = encrypted_recovery_secrets.rbegin();
-           i != encrypted_recovery_secrets.rend();
-           i++)
+      for (auto it = encrypted_recovery_secrets.rbegin();
+           it != encrypted_recovery_secrets.rend();
+           it++)
       {
-        if (i->encrypted_ledger_secret.empty())
+        // TODO: Just ignore this instead??
+        if (it->encrypted_ledger_secret.encrypted_data.empty())
         {
           // First entry does not encrypt any other ledger secret (i.e. genesis)
           break;
         }
 
         crypto::GcmCipher encrypted_ls;
-        encrypted_ls.apply(i->encrypted_ledger_secret);
+        encrypted_ls.deserialise(it->encrypted_ledger_secret.encrypted_data);
         std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
 
         if (!crypto::KeyAesGcm(decryption_key)
@@ -371,12 +393,12 @@ namespace ccf
         {
           throw std::logic_error(fmt::format(
             "Decryption of ledger secret at {} failed",
-            std::next(i)->next_version));
+            it->encrypted_ledger_secret.version));
         }
 
         decryption_key = decrypted_ls;
         restored_ledger_secrets.emplace(
-          std::next(i)->next_version, std::move(decrypted_ls));
+          it->encrypted_ledger_secret.version, std::move(decrypted_ls));
       }
 
       return restored_ledger_secrets;

@@ -124,10 +124,9 @@ namespace crypto
       return serial;
     }
 
-    void apply(const std::vector<uint8_t>& serial)
+    void deserialise(const std::vector<uint8_t>& serial)
     {
       auto size = serial.size();
-
       auto data_ = serial.data();
       hdr = serialized::read(data_, size, GcmHeader<>::RAW_DATA_SIZE);
       cipher = serialized::read(data_, size, size);

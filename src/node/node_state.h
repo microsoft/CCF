@@ -1626,23 +1626,16 @@ namespace ccf
               }
 
               const auto& v = opt_v.value();
-              LOG_FAIL_FMT(
-                "Ledger secrets at KV seqno {} and wrapped latest seqno {}",
-                version,
-                v.wrapped_latest_ledger_secret.version);
 
               // If the version is not set (rekeying), use the version
               // from the hook plus one. Otherwise (recovery), use the
               // version specified.
               auto ledger_secret_version =
-                v.wrapped_latest_ledger_secret.version == kv::NoVersion ?
-                (version + 1) :
-                v.wrapped_latest_ledger_secret.version;
+                v.wrapped_latest_ledger_secret.version.value_or(version + 1);
 
               // Do not recover the ledger secrets in case of a pure re-share
               // (e.g. recovery threshold update) as they are the same as in
               // the previous entry.
-
               if (
                 recovery_ledger_secrets.empty() ||
                 recovery_ledger_secrets.back().next_version !=
@@ -1656,12 +1649,6 @@ namespace ccf
 
                 recovery_ledger_secrets.push_back(
                   {ledger_secret_version, v.encrypted_previous_ledger_secret});
-              }
-              else
-              {
-                LOG_FAIL_FMT(
-                  "Skipping recovering ledger secret at {}",
-                  ledger_secret_version);
               }
             }
 

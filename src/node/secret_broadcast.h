@@ -102,7 +102,7 @@ namespace ccf
       const std::vector<uint8_t>& cipher)
     {
       crypto::GcmCipher gcmcipher;
-      gcmcipher.apply(cipher);
+      gcmcipher.deserialise(cipher);
       std::vector<uint8_t> plain(gcmcipher.cipher.size());
 
       crypto::KeyAesGcm primary_shared_key(
