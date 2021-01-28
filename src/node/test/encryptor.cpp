@@ -3,7 +3,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
 #include "kv/encryptor.h"
-
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
@@ -265,8 +264,8 @@ TEST_CASE("KV encryption/decryption")
   {
     commit_one(primary_store, map);
     REQUIRE(
-      backup_store.deserialise(*consensus->get_latest_data(), hooks) ==
-      kv::DeserialiseSuccess::PASS);
+      backup_store.apply(*consensus->get_latest_data(), ConsensusType::CFT)
+        ->execute() == kv::ApplySuccess::PASS);
   }
 
   INFO("Rekeys");
@@ -290,8 +289,8 @@ TEST_CASE("KV encryption/decryption")
         current_version + i, std::move(ledger_secret_for_backup));
 
       REQUIRE(
-        backup_store.deserialise(*consensus->get_latest_data(), hooks) ==
-        kv::DeserialiseSuccess::PASS);
+        backup_store.apply(*consensus->get_latest_data(), ConsensusType::CFT)
+          ->execute() == kv::ApplySuccess::PASS);
     }
   }
 }
@@ -350,8 +349,9 @@ TEST_CASE("Backup catchup from many ledger secrets")
     while (next_entry.has_value())
     {
       REQUIRE(
-        backup_store.deserialise(*std::get<1>(next_entry.value()), hooks) ==
-        kv::DeserialiseSuccess::PASS);
+        backup_store
+          .apply(*std::get<1>(next_entry.value()), ConsensusType::CFT)
+          ->execute() == kv::ApplySuccess::PASS);
       next_entry = consensus->pop_oldest_entry();
     }
   }
@@ -390,8 +390,8 @@ TEST_CASE("KV integrity verification")
   REQUIRE(corrupt_serialised_tx(latest_data.value(), value_to_corrupt));
 
   REQUIRE(
-    backup_store.deserialise(latest_data.value(), hooks) ==
-    kv::DeserialiseSuccess::FAILED);
+    backup_store.apply(latest_data.value(), ConsensusType::CFT)->execute() ==
+    kv::ApplySuccess::FAILED);
 }
 
 TEST_CASE("Encryptor rollback")

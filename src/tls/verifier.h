@@ -122,6 +122,21 @@ namespace tls
     }
 
     bool verify(
+      const std::vector<uint8_t>& contents,
+      const std::vector<uint8_t>& signature,
+      mbedtls_md_type_t md_type,
+      HashBytes& hash_bytes) const
+    {
+      return verify(
+        contents.data(),
+        contents.size(),
+        signature.data(),
+        signature.size(),
+        md_type,
+        hash_bytes);
+    }
+
+    bool verify(
       const uint8_t* contents,
       size_t contents_size,
       const uint8_t* sig,
@@ -132,6 +147,18 @@ namespace tls
       do_hash(cert->pk, contents, contents_size, hash, md_type);
 
       return verify_hash(hash, sig, sig_size, md_type);
+    }
+
+    bool verify(
+      const uint8_t* contents,
+      size_t contents_size,
+      const uint8_t* sig,
+      size_t sig_size,
+      mbedtls_md_type_t md_type,
+      HashBytes& hash_bytes) const
+    {
+      do_hash(cert->pk, contents, contents_size, hash_bytes, md_type);
+      return verify_hash(hash_bytes, sig, sig_size, md_type);
     }
 
     const mbedtls_x509_crt* raw()

@@ -338,8 +338,12 @@ def get_jwt_refresh_endpoint_metrics(network) -> dict:
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
-        r = c.get("/gov/endpoint_metrics")
-        m = r.body.json()["metrics"]["jwt_keys/refresh"]["POST"]
+        r = c.get("/gov/api/metrics")
+        m = next(
+            v
+            for v in r.body.json()["metrics"]
+            if v["path"] == "jwt_keys/refresh" and v["method"] == "POST"
+        )
         assert m["errors"] == 0, m["errors"]  # not used in jwt refresh endpoint
         m["successes"] = m["calls"] - m["failures"]
         return m

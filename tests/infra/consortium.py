@@ -269,7 +269,7 @@ class Consortium:
             for proposal_id, attr in r.body.json().items():
                 proposals.append(
                     infra.proposal.Proposal(
-                        proposal_id=int(proposal_id),
+                        proposal_id=proposal_id,
                         proposer_id=int(attr["proposer"]),
                         state=infra.proposal.ProposalState(attr["state"]),
                     )

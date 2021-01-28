@@ -6,6 +6,7 @@
 #include "kv/kv_types.h"
 #include "kv/tx.h"
 #include "secrets.h"
+#include "tls/base64.h"
 #include "tls/entropy.h"
 
 #include <algorithm>

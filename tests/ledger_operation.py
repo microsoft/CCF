@@ -36,15 +36,16 @@ def save_committed_ledger_files(network, args):
 
 
 def run(args):
-    with infra.network.network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        args.perf_nodes,
-        pdb=args.pdb,
-    ) as network:
+    with tempfile.TemporaryDirectory() as tmp_dir:
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with infra.network.network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            args.perf_nodes,
+            pdb=args.pdb,
+        ) as network:
+
             args.common_read_only_ledger_dir = tmp_dir
             network.start_and_join(args)
 
@@ -55,7 +56,7 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
 
-    args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    args.nodes = infra.e2e_args.min_nodes(args, f=0)
     args.initial_user_count = 1
     args.ledger_chunk_bytes = "1"  # Chunk ledger at every signature transaction
     run(args)

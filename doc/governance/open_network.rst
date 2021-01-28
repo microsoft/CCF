@@ -22,7 +22,7 @@ Then, the certificates of trusted users should be registered in CCF via the memb
 
     $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member0_privk --cert member0_cert --data-binary @add_user.json -H "content-type: application/json"
     {
-        "proposal_id": 5,
+        "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
         "proposer_id": 0,
         "state": "OPEN"
     }
@@ -38,9 +38,9 @@ Other members are then allowed to vote for the proposal, using the proposal id r
         }
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/5/votes --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/votes --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
-        "proposal_id": 5,
+        "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
         "proposer_id": 0,
         "state": "OPEN"
     }
@@ -52,9 +52,9 @@ Other members are then allowed to vote for the proposal, using the proposal id r
         }
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/5/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json -H "content-type: application/json"
     {
-        "proposal_id": 5,
+        "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
         "proposer_id": 0,
         "state": "ACCEPTED"
     }
@@ -134,7 +134,7 @@ Once users are added to the opening network, members should create a proposal to
 
     $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member0_privk --cert member0_cert --data-binary @open_network.json -H "content-type: application/json"
     {
-        "proposal_id": 10,
+        "proposal_id": "77374e16de0b2d61f58aec84d01e6218205d19c9401d2df127d893ce62576b81",
         "proposer_id": 0,
         "state": "OPEN"
     }

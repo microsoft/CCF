@@ -11,7 +11,7 @@ from loguru import logger as LOG
 
 @reqs.description("Recovering a network")
 @reqs.recover(number_txs=2)
-def test(network, args, from_snapshot=True):
+def test(network, args, from_snapshot=False):
     old_primary, _ = network.find_primary()
 
     snapshot_dir = None
@@ -20,6 +20,8 @@ def test(network, args, from_snapshot=True):
     current_ledger_dir, committed_ledger_dir = old_primary.get_ledger(
         include_read_only_dirs=True
     )
+
+    network.stop_all_nodes()
 
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
@@ -45,6 +47,8 @@ def test_share_resilience(network, args, from_snapshot=True):
     current_ledger_dir, committed_ledger_dir = old_primary.get_ledger(
         include_read_only_dirs=True
     )
+
+    network.stop_all_nodes()
 
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
@@ -113,13 +117,12 @@ def run(args):
         for i in range(args.recovery):
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
-            if i % 2 == 0:
-                recovered_network = test_share_resilience(
-                    network, args, from_snapshot=False
-                )
-            else:
-                recovered_network = test(network, args, from_snapshot=True)
-            network.stop_all_nodes()
+            # if i % 2 == 0:
+            #     recovered_network = test_share_resilience(
+            #         network, args, from_snapshot=False
+            #     )
+            # else:
+            recovered_network = test(network, args, from_snapshot=True)
             network = recovered_network
             LOG.success("Recovery complete on all nodes")
 
