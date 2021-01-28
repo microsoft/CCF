@@ -212,7 +212,7 @@ namespace enclave
                 AdminMessage::work_stats, to_host, j.dump());
 
               std::chrono::milliseconds elapsed_ms(ms_count);
-              logger::config::tick(elapsed_ms);
+              logger::config::set_time(std::chrono::duration_cast<std::chrono::milliseconds>(enclave::get_enclave_time()));
               node->tick(elapsed_ms);
               threading::ThreadMessaging::thread_messaging.tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
