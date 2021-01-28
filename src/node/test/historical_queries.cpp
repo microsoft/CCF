@@ -294,4 +294,18 @@ TEST_CASE("StateCache")
         unsigned_index, ledger[high_signature_transaction]));
     REQUIRE(!result);
   }
+
+  {
+    INFO("Signature transactions can be requested");
+    for (const auto i : {low_signature_transaction, high_signature_transaction})
+    {
+      auto store_at_index = cache.get_store_at(i);
+      REQUIRE(store_at_index == nullptr);
+
+      REQUIRE(provide_ledger_entry(i));
+
+      store_at_index = cache.get_store_at(i);
+      REQUIRE(store_at_index != nullptr);
+    }
+  }
 }
