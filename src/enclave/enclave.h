@@ -196,12 +196,11 @@ namespace enclave
             threading::ThreadMessaging::thread_messaging.set_finished();
           });
 
-        last_tick_time = std::chrono::duration_cast<std::chrono::milliseconds>(enclave::get_enclave_time());
+        last_tick_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+          enclave::get_enclave_time());
 
         DISPATCHER_SET_MESSAGE_HANDLER(
-          bp,
-          AdminMessage::tick,
-          [this, &bp](const uint8_t*, size_t) {
+          bp, AdminMessage::tick, [this, &bp](const uint8_t*, size_t) {
             const auto message_counts =
               bp.get_dispatcher().retrieve_message_counts();
             const auto j =
@@ -209,12 +208,14 @@ namespace enclave
             RINGBUFFER_WRITE_MESSAGE(
               AdminMessage::work_stats, to_host, j.dump());
 
-            const auto time_now = std::chrono::duration_cast<std::chrono::milliseconds>(enclave::get_enclave_time());
+            const auto time_now =
+              std::chrono::duration_cast<std::chrono::milliseconds>(
+                enclave::get_enclave_time());
             logger::config::set_time(time_now);
 
             std::chrono::milliseconds elapsed_ms = time_now - last_tick_time;
             last_tick_time = time_now;
-            
+
             node->tick(elapsed_ms);
             threading::ThreadMessaging::thread_messaging.tick(elapsed_ms);
             // When recovering, no signature should be emitted while the
