@@ -74,13 +74,19 @@ TEST_CASE("Reads/writes and deletions")
     REQUIRE(!handle->has(k));
     auto v = handle->get(k);
     REQUIRE(!v.has_value());
+    REQUIRE(!handle->get_version(k).has_value());
     handle->put(k, v1);
     REQUIRE(handle->has(k));
     auto va = handle->get(k);
     REQUIRE(va.has_value());
     REQUIRE(va.value() == v1);
+    const auto vera = handle->get_version(k);
+    REQUIRE(vera.has_value());
+    REQUIRE(vera.value() == kv::NoVersion);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
+
+  const auto commit_v = kv_store.current_version();
 
   INFO("Read previous writes");
   {
@@ -90,6 +96,9 @@ TEST_CASE("Reads/writes and deletions")
     auto v = handle->get(k);
     REQUIRE(v.has_value());
     REQUIRE(v.value() == v1);
+    const auto ver = handle->get_version(k);
+    REQUIRE(ver.has_value());
+    REQUIRE(ver.value() == commit_v);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
@@ -102,7 +111,11 @@ TEST_CASE("Reads/writes and deletions")
 
       REQUIRE(!handle->has(invalid_key));
       REQUIRE(!handle->remove(invalid_key));
+      REQUIRE(!handle->get_version(invalid_key).has_value());
+      REQUIRE(handle->get_version(k).has_value());
+      REQUIRE(handle->get_version(k).value() == kv::NoVersion);
       REQUIRE(handle->remove(k));
+      REQUIRE(!handle->get_version(k).has_value());
       REQUIRE(!handle->has(k));
       auto va = handle->get(k);
       REQUIRE(!va.has_value());
@@ -146,6 +159,136 @@ TEST_CASE("Reads/writes and deletions")
       auto vc = handle3->get(k);
       REQUIRE(!vc.has_value());
     }
+  }
+}
+
+TEST_CASE("get_version")
+{
+  kv::Store kv_store;
+  MapTypes::StringString map("public:map");
+
+  const auto k1 = "k1";
+  const auto k2 = "k2";
+  const auto k3 = "k3";
+
+  const auto v1 = "v1";
+  const auto v2 = "v2";
+  const auto v3 = "v3";
+
+  {
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put(k1, v1);
+    handle->put(k2, v1);
+
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+
+  const auto first_version = kv_store.current_version();
+
+  {
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put(k1, v2);
+    handle->remove(k2);
+
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+
+  const auto second_version = kv_store.current_version();
+
+  {
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+
+    {
+      auto tx_other = kv_store.create_tx();
+      auto handle = tx_other.rw(map);
+      handle->put(k2, v3);
+      tx_other.commit();
+    }
+
+    {
+      // We don't see effects of tx_other because we started executing earlier.
+      // k1 is at second_version
+      const auto ver1 = handle->get_version(k1);
+      REQUIRE(ver1.has_value());
+      REQUIRE(ver1.value() == second_version);
+
+      // k2 was removed, so has no version...
+      REQUIRE(!handle->get_version(k2).has_value());
+
+      // ...just like k3 which was never written
+      REQUIRE(!handle->get_version(k3).has_value());
+
+      {
+        INFO("Reading from these keys doesn't change this");
+        handle->has(k1);
+        handle->has(k2);
+        handle->has(k3);
+
+        REQUIRE(handle->get_version(k1).value() == second_version);
+        REQUIRE(!handle->get_version(k2).has_value());
+        REQUIRE(!handle->get_version(k3).has_value());
+
+        handle->get(k1);
+        handle->get(k2);
+        handle->get(k3);
+
+        REQUIRE(handle->get_version(k1).value() == second_version);
+        REQUIRE(!handle->get_version(k2).has_value());
+        REQUIRE(!handle->get_version(k3).has_value());
+      }
+
+      SUBCASE("Writing means you get NoVersion")
+      {
+        handle->put(k1, v3);
+        handle->put(k2, v3);
+        handle->put(k3, v3);
+
+        auto require_no_version = [&](const auto& k)
+        {
+          const auto ver = handle->get_version(k);
+          REQUIRE(ver.has_value());
+          REQUIRE(ver.value() == kv::NoVersion);
+        };
+
+        require_no_version(k1);
+        require_no_version(k2);
+        require_no_version(k3);
+      }
+
+      SUBCASE("Removing is just a kind of write, not a reset")
+      {
+        handle->remove(k1);
+        handle->remove(k2);
+        handle->remove(k3);
+
+        REQUIRE(!handle->get_version(k1).has_value());
+        REQUIRE(!handle->get_version(k2).has_value());
+        REQUIRE(!handle->get_version(k3).has_value());
+      }
+
+      // This conflicts with tx_other so is not committed
+      REQUIRE(tx.commit() == kv::CommitSuccess::CONFLICT);
+    }
+  }
+
+  const auto third_version = kv_store.current_version();
+
+  {
+    INFO("Version is per-key");
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+
+    const auto ver1 = handle->get_version(k1);
+    const auto ver2 = handle->get_version(k2);
+
+    REQUIRE(ver1.has_value());
+    REQUIRE(ver2.has_value());
+
+    REQUIRE(ver1.value() == second_version);
+    REQUIRE(ver2.value() == third_version);
   }
 }
 

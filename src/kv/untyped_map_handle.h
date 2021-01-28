@@ -40,8 +40,14 @@ namespace kv::untyped
      * appropriate to record read dependency on this key, at the version of the
      * returned data.
      */
-    const ValueType* read_key(const KeyType& key)
+    const ValueType* read_key(
+      const KeyType& key, Version* read_version = nullptr)
     {
+      if (read_version != nullptr)
+      {
+        *read_version = NoVersion;
+      }
+
       // A write followed by a read doesn't introduce a read dependency.
       // If we have written, return the value without updating the read set.
       auto write = tx_changes.writes.find(key);
@@ -75,6 +81,11 @@ namespace kv::untyped
         return nullptr;
       }
 
+      if (read_version != nullptr)
+      {
+        *read_version = search->version;
+      }
+
       // Return the value.
       return &search->value;
     }
@@ -91,6 +102,21 @@ namespace kv::untyped
       }
 
       return *value_p;
+    }
+
+    std::optional<Version> get_version(const KeyType& key)
+    {
+      Version version;
+      auto value_p = read_key(key, &version);
+
+      // If there is no value to read (non-existent or deleted), then there's no
+      // associated version
+      if (value_p == nullptr)
+      {
+        return std::nullopt;
+      }
+
+      return version;
     }
 
     std::optional<ValueType> get_globally_committed(const KeyType& key)
@@ -115,8 +141,8 @@ namespace kv::untyped
 
     bool has(const KeyType& key)
     {
-      auto value_p = read_key(key);
-      return value_p != nullptr;
+      auto versionv_p = read_key(key);
+      return versionv_p != nullptr;
     }
 
     void put(const KeyType& key, const ValueType& value)

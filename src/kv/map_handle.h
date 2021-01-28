@@ -88,6 +88,23 @@ namespace kv
       return read_handle.has(KSerialiser::to_serialised(key));
     }
 
+    /** Get version of currently readable key.
+     *
+     * Returns nullopt when there is no value (ie - when @c has would return
+     * false). Returns special value @c kv::NoVersion for changes written by
+     * this transaction, which are pending and have no assigned version yet.
+     *
+     * @param key Key to read
+     *
+     * @return Optional containing version of previous transaction which last
+     * wrote at this key, or @c kv::NoVersion if this transaction wrote to this
+     * key, or nullopt of this key has no associated value
+     */
+    std::optional<Version> get_version(const K& key)
+    {
+      return read_handle.get_version(KSerialiser::to_serialised(key));
+    }
+
     /** Iterate over all entries in the map.
      *
      * The passed functor should have the signature `bool(const K& k, const V&
