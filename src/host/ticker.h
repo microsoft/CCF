@@ -28,13 +28,7 @@ namespace asynchost
 
     void on_timer()
     {
-      auto next = std::chrono::system_clock::now();
-      auto elapsed =
-        std::chrono::duration_cast<std::chrono::milliseconds>(next - last);
-      last = next;
-
-      RINGBUFFER_WRITE_MESSAGE(
-        AdminMessage::tick, to_enclave, (size_t)elapsed.count());
+      RINGBUFFER_WRITE_MESSAGE(AdminMessage::tick, to_enclave);
     }
   };
 

@@ -33,6 +33,7 @@ namespace enclave
     std::unique_ptr<ccf::NodeState> node;
     std::shared_ptr<ccf::Forwarder<ccf::NodeToNode>> cmd_forwarder;
     ringbuffer::WriterPtr to_host = nullptr;
+    std::chrono::milliseconds last_tick_time;
 
     CCFConfig ccf_config;
     StartType start_type;
@@ -195,37 +196,39 @@ namespace enclave
             threading::ThreadMessaging::thread_messaging.set_finished();
           });
 
+        last_tick_time = std::chrono::duration_cast<std::chrono::milliseconds>(enclave::get_enclave_time());
+
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp,
           AdminMessage::tick,
-          [this, &bp](const uint8_t* data, size_t size) {
-            auto [ms_count] =
-              ringbuffer::read_message<AdminMessage::tick>(data, size);
+          [this, &bp](const uint8_t*, size_t) {
+            const auto message_counts =
+              bp.get_dispatcher().retrieve_message_counts();
+            const auto j =
+              bp.get_dispatcher().convert_message_counts(message_counts);
+            RINGBUFFER_WRITE_MESSAGE(
+              AdminMessage::work_stats, to_host, j.dump());
 
-            if (ms_count > 0)
+            const auto time_now = std::chrono::duration_cast<std::chrono::milliseconds>(enclave::get_enclave_time());
+            logger::config::set_time(time_now);
+
+            std::chrono::milliseconds elapsed_ms = time_now - last_tick_time;
+            last_tick_time = time_now;
+            
+            node->tick(elapsed_ms);
+            threading::ThreadMessaging::thread_messaging.tick(elapsed_ms);
+            // When recovering, no signature should be emitted while the
+            // public ledger is being read
+            if (!node->is_reading_public_ledger())
             {
-              const auto message_counts =
-                bp.get_dispatcher().retrieve_message_counts();
-              const auto j =
-                bp.get_dispatcher().convert_message_counts(message_counts);
-              RINGBUFFER_WRITE_MESSAGE(
-                AdminMessage::work_stats, to_host, j.dump());
-
-              std::chrono::milliseconds elapsed_ms(ms_count);
-              logger::config::set_time(std::chrono::duration_cast<std::chrono::milliseconds>(enclave::get_enclave_time()));
-              node->tick(elapsed_ms);
-              threading::ThreadMessaging::thread_messaging.tick(elapsed_ms);
-              // When recovering, no signature should be emitted while the
-              // public ledger is being read
-              if (!node->is_reading_public_ledger())
+              for (auto& [actor, frontend] : rpc_map->frontends())
               {
-                for (auto& [actor, frontend] : rpc_map->frontends())
-                {
-                  frontend->tick(elapsed_ms);
-                }
+                frontend->tick(elapsed_ms);
               }
-              node->tick_end();
             }
+            node->tick_end();
+
+            LOG_INFO_FMT("Logging every tick");
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
