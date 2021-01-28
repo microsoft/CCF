@@ -11,6 +11,7 @@
 #include "node/genesis_gen.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/serdes.h"
+#include "node/rpc/test/stub_consensus.h"
 #include "node/rpc/user_frontend.h"
 #include "node_stub.h"
 #include "runtime_config/default_whitelists.h"
@@ -363,6 +364,8 @@ DOCTEST_TEST_CASE("Proposer ballot")
   ShareManager share_manager(network);
   StubNodeState node;
   MemberRpcFrontend frontend(network, node, share_manager);
+  auto consensus = std::make_shared<aft::StubCFTConsensus>();
+  network.tables->set_consensus(consensus);
   frontend.open();
 
   ProposalId proposal_id;
