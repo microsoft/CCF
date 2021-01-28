@@ -133,8 +133,7 @@ namespace ccf
         // If the nonce received has already been processed, return
         LOG_FAIL_FMT(
           "Invalid nonce, possible replay attack, from:{} received:{}, "
-          "last_seen:{}, "
-          "recv_nonce.tid:{}",
+          "last_seen:{}, recv_nonce.tid:{}",
           peer_id,
           reinterpret_cast<uint64_t>(recv_nonce.nonce),
           *local_nonce,

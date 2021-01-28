@@ -32,7 +32,7 @@ namespace aft
   using Configuration = kv::Configuration;
 
   template <class LedgerProxy, class ChannelProxy, class SnapshotterProxy>
-  class Aft : public kv::ConfigurableConsensus, public AbstractExecEntryStore
+  class Aft : public kv::ConfigurableConsensus, public AbstractExecMsgStore
   {
   private:
     enum ReplicaState
@@ -85,7 +85,7 @@ namespace aft
     // over the commit level.
     kv::Version election_index = 0;
     bool is_execution_pending = false;
-    std::list<std::unique_ptr<AbstractExecEntry>> pending_execution;
+    std::list<std::unique_ptr<AbstractExecMsg>> pending_execution;
 
     // BFT
     std::shared_ptr<aft::State> state;
@@ -508,9 +508,9 @@ namespace aft
 
     void recv_message(OArray&& d)
     {
-        std::unique_ptr<AbstractExecEntry> aee;
-        const uint8_t* data = d.data();
-        size_t size = d.size();
+      std::unique_ptr<AbstractExecMsg> aee;
+      const uint8_t* data = d.data();
+      size_t size = d.size();
       RaftMsgType type = serialized::peek<RaftMsgType>(data, size);
 
       try
@@ -523,31 +523,31 @@ namespace aft
         {
           AppendEntries r =
             channels->template recv_authenticated<AppendEntries>(data, size);
-          aee = std::make_unique<AppendEntryExecEntry>(this,
-            std::move(r), data, size, std::move(d));
+          aee = std::make_unique<AppendEntryExecEntry>(
+            this, std::move(r), data, size, std::move(d));
         }
         else if (type == raft_append_entries_response)
         {
           AppendEntriesResponse r =
             channels->template recv_authenticated<AppendEntriesResponse>(
               data, size);
-          aee = std::make_unique<AppendEntryResponseExecEntry>(this,
-            std::move(r));
+          aee =
+            std::make_unique<AppendEntryResponseExecEntry>(this, std::move(r));
         }
         else if (type == raft_append_entries_signed_response)
         {
           SignedAppendEntriesResponse r =
             channels->template recv_authenticated<SignedAppendEntriesResponse>(
               data, size);
-          aee =
-            std::make_unique<SignedAppendEntryResponseExecEntry>(this,std::move(r));
+          aee = std::make_unique<SignedAppendEntryResponseExecEntry>(
+            this, std::move(r));
         }
 
         else if (type == raft_request_vote)
         {
           RequestVote r =
             channels->template recv_authenticated<RequestVote>(data, size);
-          aee = std::make_unique<RequestVoteExecEntry>(this,std::move(r));
+          aee = std::make_unique<RequestVoteExecEntry>(this, std::move(r));
         }
 
         else if (type == raft_request_vote_response)
@@ -555,7 +555,8 @@ namespace aft
           RequestVoteResponse r =
             channels->template recv_authenticated<RequestVoteResponse>(
               data, size);
-          aee = std::make_unique<RequestVoteResponseExecEntry>(this,std::move(r));
+          aee =
+            std::make_unique<RequestVoteResponseExecEntry>(this, std::move(r));
         }
 
         else if (type == bft_signature_received_ack)
@@ -563,31 +564,34 @@ namespace aft
           SignaturesReceivedAck r =
             channels->template recv_authenticated<SignaturesReceivedAck>(
               data, size);
-          aee = std::make_unique<SignatureAckExecEntry>(this,std::move(r));
+          aee = std::make_unique<SignatureAckExecEntry>(this, std::move(r));
         }
 
         else if (type == bft_nonce_reveal)
         {
           NonceRevealMsg r =
             channels->template recv_authenticated<NonceRevealMsg>(data, size);
-          aee = std::make_unique<NonceRevealExecEntry>(this,std::move(r));
+          aee = std::make_unique<NonceRevealExecEntry>(this, std::move(r));
         }
         else if (type == bft_view_change)
         {
           RequestViewChangeMsg r =
-            channels->template recv_authenticated_with_load<RequestViewChangeMsg>(
-              data, size);
-          aee = std::make_unique<ViewChangeExecEntry>(this,std::move(r), data, size, std::move(d));
+            channels
+              ->template recv_authenticated_with_load<RequestViewChangeMsg>(
+                data, size);
+          aee = std::make_unique<ViewChangeExecEntry>(
+            this, std::move(r), data, size, std::move(d));
         }
 
         else if (type == bft_view_change_evidence)
         {
           ViewChangeEvidenceMsg r =
             channels
-                ->template recv_authenticated_with_load<ViewChangeEvidenceMsg>(
+              ->template recv_authenticated_with_load<ViewChangeEvidenceMsg>(
                 data, size);
 
-          aee = std::make_unique<ViewChangeEvidenceExecEntry>(this,std::move(r), data, size, std::move(d));
+          aee = std::make_unique<ViewChangeEvidenceExecEntry>(
+            this, std::move(r), data, size, std::move(d));
         }
         else
         {
@@ -608,6 +612,11 @@ namespace aft
         LOG_FAIL_FMT("error type:{}, err.what:{}", type, err.what());
       }
 
+      try_execute_pending();
+    }
+
+    void try_execute_pending()
+    {
       while (!is_execution_pending && !pending_execution.empty())
       {
         auto pe = std::move(pending_execution.front());
@@ -619,10 +628,12 @@ namespace aft
     void periodic(std::chrono::milliseconds elapsed)
     {
       std::unique_lock<SpinLock> guard(state->lock);
+      timeout_elapsed += elapsed;
       if (is_execution_pending)
       {
         return;
       }
+
       if (consensus_type == ConsensusType::BFT)
       {
         auto time = threading::ThreadMessaging::thread_messaging
@@ -691,8 +702,6 @@ namespace aft
         }
       }
 
-      timeout_elapsed += elapsed;
-
       if (replica_state == Leader)
       {
         if (timeout_elapsed >= request_timeout)
@@ -718,7 +727,8 @@ namespace aft
       }
     }
 
-    void recv_view_change(RequestViewChangeMsg r, const uint8_t* data, size_t size)
+    void recv_view_change(
+      RequestViewChangeMsg r, const uint8_t* data, size_t size)
     {
       auto node = nodes.find(r.from_node);
       if (node == nodes.end())
@@ -753,7 +763,8 @@ namespace aft
       }
     }
 
-    void recv_view_change_evidence(ViewChangeEvidenceMsg r, const uint8_t* data, size_t size)
+    void recv_view_change_evidence(
+      ViewChangeEvidenceMsg r, const uint8_t* data, size_t size)
     {
       auto node = nodes.find(r.from_node);
       if (node == nodes.end())
@@ -961,7 +972,7 @@ namespace aft
 
     void recv_append_entries(AppendEntries r, const uint8_t* data, size_t size)
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::unique_lock<SpinLock> guard(state->lock);
       LOG_DEBUG_FMT(
         "Received pt: {} pi: {} t: {} i: {} toi: {}",
         r.prev_term,
@@ -1166,33 +1177,55 @@ namespace aft
         }
         append_entries.push_back(std::make_tuple(std::move(ds), i));
       }
+
       is_execution_pending = true;
       auto msg = std::make_unique<threading::Tmsg<AsyncExecution>>(
-        foobar_cb, this, std::move(append_entries), std::move(r), confirm_evidence);
-      threading::ThreadMessaging::thread_messaging.add_task(
-        0, std::move(msg)); // TODO: fix this
-    }
-
-    static void foobar_cb(std::unique_ptr<threading::Tmsg<AsyncExecution>> msg)
-    {
-      msg->data.self->foobar(msg->data.append_entries, msg->data.r, msg->data.confirm_evidence);
-      msg->cb = reinterpret_cast<void (*)(std::unique_ptr<threading::ThreadMsg>)>(continue_execution);
-      threading::ThreadMessaging::thread_messaging.add_task(
-        0, std::move(msg)); // TODO: fix this
-    }
-
-    static void continue_execution(std::unique_ptr<threading::Tmsg<AsyncExecution>> msg)
-    {
-      msg->data.self->is_execution_pending = false;
-      while (!msg->data.self->is_execution_pending && !msg->data.self->pending_execution.empty())
+        execute_append_entries_cb,
+        this,
+        std::move(append_entries),
+        std::move(r),
+        confirm_evidence);
+      if (threading::ThreadMessaging::thread_count > 1)
       {
-        auto pe = std::move(msg->data.self->pending_execution.front());
-        pe->execute();
-        msg->data.self->pending_execution.pop_front();
+        threading::ThreadMessaging::thread_messaging.add_task(
+          threading::ThreadMessaging::get_execution_thread(
+            threading::MAIN_THREAD_ID),
+          std::move(msg));
+      }
+      else
+      {
+        guard.unlock();
+        msg->cb(std::move(msg));
       }
     }
 
-    void foobar(
+    static void execute_append_entries_cb(
+      std::unique_ptr<threading::Tmsg<AsyncExecution>> msg)
+    {
+      msg->data.self->execute_append_entries(
+        msg->data.append_entries, msg->data.r, msg->data.confirm_evidence);
+      msg->cb =
+        reinterpret_cast<void (*)(std::unique_ptr<threading::ThreadMsg>)>(
+          continue_execution);
+      if (threading::ThreadMessaging::thread_count > 1)
+      {
+        threading::ThreadMessaging::thread_messaging.add_task(
+          threading::MAIN_THREAD_ID, std::move(msg));
+      }
+      else
+      {
+        msg->cb(std::move(msg));
+      }
+    }
+
+    static void continue_execution(
+      std::unique_ptr<threading::Tmsg<AsyncExecution>> msg)
+    {
+      msg->data.self->is_execution_pending = false;
+      msg->data.self->try_execute_pending();
+    }
+
+    void execute_append_entries(
       std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>&
         append_entries,
@@ -1793,8 +1826,7 @@ namespace aft
         ccf::NodeMsgType::consensus_msg, to, response);
     }
 
-    void recv_request_vote_response(
-      RequestVoteResponse r)
+    void recv_request_vote_response(RequestVoteResponse r)
     {
       if (replica_state != Candidate)
       {

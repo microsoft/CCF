@@ -6,7 +6,7 @@
 
 namespace aft
 {
-  class AbstractExecEntryStore
+  class AbstractExecMsgStore
   {
   public:
     virtual void recv_append_entries(
@@ -18,22 +18,24 @@ namespace aft
     virtual void recv_request_vote_response(RequestVoteResponse r) = 0;
     virtual void recv_signature_received_ack(SignaturesReceivedAck r) = 0;
     virtual void recv_nonce_reveal(NonceRevealMsg r) = 0;
-    virtual void recv_view_change(RequestViewChangeMsg r, const uint8_t* data, size_t size) = 0;
-    virtual void recv_view_change_evidence(ViewChangeEvidenceMsg r, const uint8_t* data, size_t size) = 0;
+    virtual void recv_view_change(
+      RequestViewChangeMsg r, const uint8_t* data, size_t size) = 0;
+    virtual void recv_view_change_evidence(
+      ViewChangeEvidenceMsg r, const uint8_t* data, size_t size) = 0;
   };
 
-  class AbstractExecEntry
+  class AbstractExecMsg
   {
   public:
-    virtual ~AbstractExecEntry() = default;
+    virtual ~AbstractExecMsg() = default;
     virtual void execute() = 0;
   };
 
-  class AppendEntryExecEntry : public AbstractExecEntry
+  class AppendEntryExecEntry : public AbstractExecMsg
   {
   public:
     AppendEntryExecEntry(
-      AbstractExecEntryStore* store_,
+      AbstractExecMsgStore* store_,
       AppendEntries&& hdr_,
       const uint8_t* data_,
       size_t size_,
@@ -51,19 +53,18 @@ namespace aft
     }
 
   private:
-    AbstractExecEntryStore* store;
+    AbstractExecMsgStore* store;
     AppendEntries hdr;
     const uint8_t* data;
     size_t size;
     OArray oarray;
   };
 
-  class AppendEntryResponseExecEntry : public AbstractExecEntry
+  class AppendEntryResponseExecEntry : public AbstractExecMsg
   {
   public:
     AppendEntryResponseExecEntry(
-      AbstractExecEntryStore* store_,
-      AppendEntriesResponse&& hdr_) :
+      AbstractExecMsgStore* store_, AppendEntriesResponse&& hdr_) :
       store(store_),
       hdr(std::move(hdr_))
     {}
@@ -74,16 +75,15 @@ namespace aft
     }
 
   private:
-    AbstractExecEntryStore* store;
+    AbstractExecMsgStore* store;
     AppendEntriesResponse hdr;
   };
 
-  class SignedAppendEntryResponseExecEntry : public AbstractExecEntry
+  class SignedAppendEntryResponseExecEntry : public AbstractExecMsg
   {
   public:
     SignedAppendEntryResponseExecEntry(
-      AbstractExecEntryStore* store_,
-      SignedAppendEntriesResponse&& hdr_) :
+      AbstractExecMsgStore* store_, SignedAppendEntriesResponse&& hdr_) :
       store(store_),
       hdr(std::move(hdr_))
     {}
@@ -94,16 +94,14 @@ namespace aft
     }
 
   private:
-    AbstractExecEntryStore* store;
+    AbstractExecMsgStore* store;
     SignedAppendEntriesResponse hdr;
   };
 
-  class RequestVoteExecEntry : public AbstractExecEntry
+  class RequestVoteExecEntry : public AbstractExecMsg
   {
   public:
-    RequestVoteExecEntry(
-      AbstractExecEntryStore* store_,
-      RequestVote&& hdr_) :
+    RequestVoteExecEntry(AbstractExecMsgStore* store_, RequestVote&& hdr_) :
       store(store_),
       hdr(std::move(hdr_))
     {}
@@ -114,16 +112,15 @@ namespace aft
     }
 
   private:
-    AbstractExecEntryStore* store;
+    AbstractExecMsgStore* store;
     RequestVote hdr;
   };
 
-  class RequestVoteResponseExecEntry : public AbstractExecEntry
+  class RequestVoteResponseExecEntry : public AbstractExecMsg
   {
   public:
     RequestVoteResponseExecEntry(
-      AbstractExecEntryStore* store_,
-      RequestVoteResponse&& hdr_) :
+      AbstractExecMsgStore* store_, RequestVoteResponse&& hdr_) :
       store(store_),
       hdr(std::move(hdr_))
     {}
@@ -134,16 +131,15 @@ namespace aft
     }
 
   private:
-    AbstractExecEntryStore* store;
+    AbstractExecMsgStore* store;
     RequestVoteResponse hdr;
   };
 
-  class SignatureAckExecEntry : public AbstractExecEntry
+  class SignatureAckExecEntry : public AbstractExecMsg
   {
   public:
     SignatureAckExecEntry(
-      AbstractExecEntryStore* store_,
-      SignaturesReceivedAck && hdr_) :
+      AbstractExecMsgStore* store_, SignaturesReceivedAck&& hdr_) :
       store(store_),
       hdr(std::move(hdr_))
     {}
@@ -154,16 +150,14 @@ namespace aft
     }
 
   private:
-    AbstractExecEntryStore* store;
+    AbstractExecMsgStore* store;
     SignaturesReceivedAck hdr;
   };
 
-  class NonceRevealExecEntry : public AbstractExecEntry
+  class NonceRevealExecEntry : public AbstractExecMsg
   {
   public:
-    NonceRevealExecEntry(
-      AbstractExecEntryStore* store_,
-      NonceRevealMsg&& hdr_) :
+    NonceRevealExecEntry(AbstractExecMsgStore* store_, NonceRevealMsg&& hdr_) :
       store(store_),
       hdr(std::move(hdr_))
     {}
@@ -174,15 +168,15 @@ namespace aft
     }
 
   private:
-    AbstractExecEntryStore* store;
+    AbstractExecMsgStore* store;
     NonceRevealMsg hdr;
   };
 
-  class ViewChangeExecEntry : public AbstractExecEntry
+  class ViewChangeExecEntry : public AbstractExecMsg
   {
   public:
     ViewChangeExecEntry(
-      AbstractExecEntryStore* store_,
+      AbstractExecMsgStore* store_,
       RequestViewChangeMsg&& hdr_,
       const uint8_t* data_,
       size_t size_,
@@ -200,18 +194,18 @@ namespace aft
     }
 
   private:
-    AbstractExecEntryStore* store;
+    AbstractExecMsgStore* store;
     RequestViewChangeMsg hdr;
     const uint8_t* data;
     size_t size;
     OArray oarray;
   };
 
-  class ViewChangeEvidenceExecEntry : public AbstractExecEntry
+  class ViewChangeEvidenceExecEntry : public AbstractExecMsg
   {
   public:
     ViewChangeEvidenceExecEntry(
-      AbstractExecEntryStore* store_,
+      AbstractExecMsgStore* store_,
       ViewChangeEvidenceMsg&& hdr_,
       const uint8_t* data_,
       size_t size_,
@@ -229,7 +223,7 @@ namespace aft
     }
 
   private:
-    AbstractExecEntryStore* store;
+    AbstractExecMsgStore* store;
     ViewChangeEvidenceMsg hdr;
     const uint8_t* data;
     size_t size;
