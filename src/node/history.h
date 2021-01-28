@@ -181,6 +181,11 @@ namespace ccf
       return crypto::Sha256Hash();
     }
 
+    std::pair<kv::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root() override
+    {
+      return {{0, 0}, crypto::Sha256Hash()};
+    }
+
     std::vector<uint8_t> get_receipt(kv::Version) override
     {
       return {};
@@ -587,6 +592,12 @@ namespace ccf
     crypto::Sha256Hash get_replicated_state_root() override
     {
       return replicated_state_tree.get_root();
+    }
+
+    std::pair<kv::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root() override
+    {
+      std::lock_guard<SpinLock> tguard(term_lock);
+      return {{term, static_cast<kv::Version>(replicated_state_tree.end_index())}, replicated_state_tree.get_root()};
     }
 
     kv::TxHistory::Result verify_and_sign(
