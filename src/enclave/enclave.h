@@ -227,8 +227,6 @@ namespace enclave
               }
             }
             node->tick_end();
-
-            LOG_INFO_FMT("Logging every tick");
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
