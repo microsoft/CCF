@@ -463,10 +463,10 @@ namespace kv
     virtual ConsensusHookPtr post_commit() = 0;
   };
 
-  class AbstractTxView
+  class AbstractMapHandle
   {
   public:
-    virtual ~AbstractTxView() = default;
+    virtual ~AbstractMapHandle() = default;
   };
 
   struct NamedMap

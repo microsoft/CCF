@@ -274,9 +274,9 @@ namespace logger
     // offsets to host time when logging from inside the enclave
     static std::atomic<std::chrono::milliseconds> ms;
 
-    static void tick(std::chrono::milliseconds ms_)
+    static void set_time(std::chrono::milliseconds ms_)
     {
-      ms.exchange(ms.load() + ms_);
+      ms.exchange(ms_);
     }
 
     static std::chrono::milliseconds elapsed_ms()

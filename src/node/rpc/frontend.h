@@ -122,8 +122,8 @@ namespace ccf
         {
           NodeId primary_id = consensus->primary();
           auto tx = tables.create_tx();
-          auto nodes_view = tx.get_view<Nodes>(Tables::NODES);
-          auto info = nodes_view->get(primary_id);
+          auto nodes = tx.ro<Nodes>(Tables::NODES);
+          auto info = nodes->get(primary_id);
 
           if (info)
           {
@@ -445,8 +445,8 @@ namespace ccf
       std::lock_guard<SpinLock> mguard(open_lock);
       if (!is_open_)
       {
-        auto sv = tx.get_view<Service>(Tables::SERVICE);
-        auto s = sv->get_globally_committed(0);
+        auto service = tx.ro<Service>(Tables::SERVICE);
+        auto s = service->get_globally_committed(0);
         if (
           s.has_value() && s.value().status == ServiceStatus::OPEN &&
           service_identity != nullptr && s.value().cert == *service_identity)
@@ -464,7 +464,6 @@ namespace ccf
     {
       if (nonstd::ends_with(ctx.get_request_path(), "/gov/proposals"))
       {
-        LOG_INFO_FMT(">>>>>>>>>>>> {}", ctx.get_request_path());
         update_history();
         if (history)
         {
@@ -584,9 +583,8 @@ namespace ccf
       update_consensus();
 
       PreExec fn = [](kv::Tx& tx, enclave::RpcContext& ctx) {
-        auto req_view =
-          tx.get_view<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
-        req_view->put(
+        auto aft_requests = tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
+        aft_requests->put(
           0,
           {tx.get_req_id(),
            ctx.session->caller_cert,

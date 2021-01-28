@@ -35,8 +35,8 @@ TEST_CASE(
   INFO("Commit to public map in source store");
   {
     auto tx = kv_store.create_tx();
-    auto view0 = tx.get_view<MapTypes::StringString>("public:pub_map");
-    view0->put("pubk1", "pubv1");
+    auto handle0 = tx.rw<MapTypes::StringString>("public:pub_map");
+    handle0->put("pubk1", "pubv1");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
@@ -50,9 +50,8 @@ TEST_CASE(
         ->execute() == kv::ApplySuccess::PASS);
 
     auto tx_target = kv_store_target.create_tx();
-    auto view_target =
-      tx_target.get_view<MapTypes::StringString>("public:pub_map");
-    REQUIRE(view_target->get("pubk1") == "pubv1");
+    auto handle_target = tx_target.rw<MapTypes::StringString>("public:pub_map");
+    REQUIRE(handle_target->get("pubk1") == "pubv1");
   }
 }
 
@@ -72,8 +71,8 @@ TEST_CASE(
     "Commit a private transaction without an encryptor throws an exception")
   {
     auto tx = kv_store.create_tx();
-    auto view0 = tx.get_view<MapTypes::StringString>("priv_map");
-    view0->put("privk1", "privv1");
+    auto handle0 = tx.rw<MapTypes::StringString>("priv_map");
+    handle0->put("privk1", "privv1");
     REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
   }
 
@@ -83,8 +82,8 @@ TEST_CASE(
     INFO("Commit to private map in source store");
     {
       auto tx = kv_store.create_tx();
-      auto view0 = tx.get_view<MapTypes::StringString>("priv_map");
-      view0->put("privk1", "privv1");
+      auto handle0 = tx.rw<MapTypes::StringString>("priv_map");
+      handle0->put("privk1", "privv1");
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     }
 
@@ -97,8 +96,8 @@ TEST_CASE(
           ->execute() == kv::ApplySuccess::PASS);
 
       auto tx_target = kv_store_target.create_tx();
-      auto view_target = tx_target.get_view<MapTypes::StringString>("priv_map");
-      REQUIRE(view_target->get("privk1") == "privv1");
+      auto handle_target = tx_target.rw<MapTypes::StringString>("priv_map");
+      REQUIRE(handle_target->get("privk1") == "privv1");
     }
   }
 }
@@ -122,12 +121,11 @@ TEST_CASE(
   INFO("Commit to public and private map in source store");
   {
     auto tx = kv_store.create_tx();
-    auto [view_priv, view_pub] =
-      tx.get_view<MapTypes::StringString, MapTypes::StringString>(
-        priv_map, pub_map);
+    auto handle_priv = tx.rw<MapTypes::StringString>(priv_map);
+    auto handle_pub = tx.rw<MapTypes::StringString>(pub_map);
 
-    view_priv->put("privk1", "privv1");
-    view_pub->put("pubk1", "pubv1");
+    handle_priv->put("privk1", "privv1");
+    handle_pub->put("pubk1", "pubv1");
 
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -141,12 +139,11 @@ TEST_CASE(
         ->execute() != kv::ApplySuccess::FAILED);
 
     auto tx_target = kv_store_target.create_tx();
-    auto [view_priv, view_pub] =
-      tx_target.get_view<MapTypes::StringString, MapTypes::StringString>(
-        priv_map, pub_map);
+    auto handle_priv = tx_target.rw<MapTypes::StringString>(priv_map);
+    auto handle_pub = tx_target.rw<MapTypes::StringString>(pub_map);
 
-    REQUIRE(view_priv->get("privk1") == "privv1");
-    REQUIRE(view_pub->get("pubk1") == "pubv1");
+    REQUIRE(handle_priv->get("privk1") == "privv1");
+    REQUIRE(handle_pub->get("pubk1") == "pubv1");
   }
 }
 
@@ -165,11 +162,11 @@ TEST_CASE(
   INFO("Commit new keys in source store and deserialise in target store");
   {
     auto tx = kv_store.create_tx();
-    auto view = tx.get_view<MapTypes::StringString>("map");
-    auto view2 = tx.get_view<MapTypes::StringString>("map2");
-    view->put("key1", "value1");
-    view2->put("key2", "value2");
-    view2->put("key3", "value3");
+    auto handle = tx.rw<MapTypes::StringString>("map");
+    auto handle2 = tx.rw<MapTypes::StringString>("map2");
+    handle->put("key1", "value1");
+    handle2->put("key2", "value2");
+    handle2->put("key3", "value3");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     const auto latest_data = consensus->get_latest_data();
@@ -179,47 +176,47 @@ TEST_CASE(
         ->execute() != kv::ApplySuccess::FAILED);
 
     auto tx_target = kv_store_target.create_tx();
-    auto view_target = tx_target.get_view<MapTypes::StringString>("map");
-    auto view_target2 = tx_target.get_view<MapTypes::StringString>("map2");
-    REQUIRE(view_target->get("key1") == "value1");
-    REQUIRE(view_target2->get("key2") == "value2");
-    REQUIRE(view_target2->get("key3") == "value3");
+    auto handle_target = tx_target.rw<MapTypes::StringString>("map");
+    auto handle_target2 = tx_target.rw<MapTypes::StringString>("map2");
+    REQUIRE(handle_target->get("key1") == "value1");
+    REQUIRE(handle_target2->get("key2") == "value2");
+    REQUIRE(handle_target2->get("key3") == "value3");
   }
 
   INFO("Commit keys removal in source store and deserialise in target store");
   {
     auto tx = kv_store.create_tx();
-    auto view = tx.get_view<MapTypes::StringString>("map");
-    auto view_ = tx.get_view<MapTypes::StringString>("map2");
+    auto handle = tx.rw<MapTypes::StringString>("map");
+    auto handle_ = tx.rw<MapTypes::StringString>("map2");
 
     // Key only exists in state
-    REQUIRE(view->remove("key1"));
+    REQUIRE(handle->remove("key1"));
 
     // Key exists in write set as well as state
-    view_->put("key2", "value2");
-    REQUIRE(view_->remove("key2"));
+    handle_->put("key2", "value2");
+    REQUIRE(handle_->remove("key2"));
 
     // Key doesn't exist in either write set or state
-    REQUIRE_FALSE(view->remove("unknown_key"));
+    REQUIRE_FALSE(handle->remove("unknown_key"));
 
     // Key only exists in write set
-    view_->put("uncommitted_key", "uncommitted_value");
-    REQUIRE(view_->remove("uncommitted_key"));
+    handle_->put("uncommitted_key", "uncommitted_value");
+    REQUIRE(handle_->remove("uncommitted_key"));
 
     // Key is removed then added again
-    REQUIRE(view_->remove("key3"));
-    view_->put("key3", "value3");
+    REQUIRE(handle_->remove("key3"));
+    handle_->put("key3", "value3");
 
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     // Make sure keys have been marked as deleted in source store
     auto tx2 = kv_store.create_tx();
-    auto view2 = tx2.get_view<MapTypes::StringString>("map");
-    auto view_2 = tx2.get_view<MapTypes::StringString>("map2");
-    REQUIRE_FALSE(view2->get("key1").has_value());
-    REQUIRE_FALSE(view_2->get("key2").has_value());
-    REQUIRE_FALSE(view2->get("unknown_key").has_value());
-    REQUIRE_FALSE(view_2->get("uncommitted_key").has_value());
+    auto handle2 = tx2.rw<MapTypes::StringString>("map");
+    auto handle_2 = tx2.rw<MapTypes::StringString>("map2");
+    REQUIRE_FALSE(handle2->get("key1").has_value());
+    REQUIRE_FALSE(handle_2->get("key2").has_value());
+    REQUIRE_FALSE(handle2->get("unknown_key").has_value());
+    REQUIRE_FALSE(handle_2->get("uncommitted_key").has_value());
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
@@ -228,12 +225,12 @@ TEST_CASE(
         ->execute() != kv::ApplySuccess::FAILED);
 
     auto tx_target = kv_store_target.create_tx();
-    auto view_target = tx_target.get_view<MapTypes::StringString>("map");
-    auto view_target_2 = tx_target.get_view<MapTypes::StringString>("map2");
-    REQUIRE_FALSE(view_target->get("key1").has_value());
-    REQUIRE_FALSE(view_target_2->get("key2").has_value());
-    REQUIRE_FALSE(view_target->get("unknown_key").has_value());
-    REQUIRE_FALSE(view_target_2->get("uncommitted_key").has_value());
+    auto handle_target = tx_target.rw<MapTypes::StringString>("map");
+    auto handle_target_2 = tx_target.rw<MapTypes::StringString>("map2");
+    REQUIRE_FALSE(handle_target->get("key1").has_value());
+    REQUIRE_FALSE(handle_target_2->get("key2").has_value());
+    REQUIRE_FALSE(handle_target->get("unknown_key").has_value());
+    REQUIRE_FALSE(handle_target_2->get("uncommitted_key").has_value());
   }
 }
 
@@ -467,9 +464,9 @@ TEST_CASE_TEMPLATE(
     MapType map2("public:map");
 
     auto tx = kv_store.create_reserved_tx(kv_store.next_version());
-    auto view = tx.get_view(map);
-    view->put(k1, v1);
-    view->put(k2, v2);
+    auto handle = tx.rw(map);
+    handle->put(k1, v1);
+    handle->put(k2, v2);
 
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
@@ -479,16 +476,16 @@ TEST_CASE_TEMPLATE(
       kv_store2.apply(data, ConsensusType::CFT)->execute() ==
       kv::ApplySuccess::PASS);
     auto tx2 = kv_store2.create_tx();
-    auto view2 = tx2.get_view(map2);
+    auto handle2 = tx2.rw(map2);
 
     // operator== does not need to be defined for custom types. In this case it
     // is not, and we check each member manually
-    auto va = view2->get(k1);
+    auto va = handle2->get(k1);
     REQUIRE(va.has_value());
     REQUIRE(va->s == v1.s);
     REQUIRE(va->n == v1.n);
 
-    auto vb = view2->get(k2);
+    auto vb = handle2->get(k2);
     REQUIRE(vb.has_value());
     REQUIRE(vb->s == v2.s);
     REQUIRE(vb->n == v2.n);
@@ -511,7 +508,7 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     Table t("public:t");
 
     auto tx = s0.create_tx();
-    tx.get_view(t)->put(k1, v1);
+    tx.rw(t)->put(k1, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     const auto latest_data = consensus->get_latest_data();
@@ -529,8 +526,8 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     Table t("public:t");
 
     auto tx = s0.create_tx();
-    tx.get_view(t)->put(k0, v0);
-    tx.get_view(t)->put(k1, v1);
+    tx.rw(t)->put(k0, v0);
+    tx.rw(t)->put(k1, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     const auto latest_data = consensus->get_latest_data();
@@ -564,16 +561,14 @@ TEST_CASE(
   {
     auto tx = store.create_reserved_tx(store.next_version());
 
-    auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] =
-      tx.get_view<T, T, T, T>(
-        data_replicated,
-        data_replicated_private,
-        data_derived,
-        data_derived_private);
-    data_view_r->put(44, 44);
-    data_view_r_p->put(45, 45);
-    data_view_d->put(46, 46);
-    data_view_d_p->put(47, 47);
+    auto data_handle_r = tx.rw<T>(data_replicated);
+    auto data_handle_r_p = tx.rw<T>(data_replicated_private);
+    auto data_handle_d = tx.rw<T>(data_derived);
+    auto data_handle_d_p = tx.rw<T>(data_derived_private);
+    data_handle_r->put(44, 44);
+    data_handle_r_p->put(45, 45);
+    data_handle_d->put(46, 46);
+    data_handle_d_p->put(47, 47);
 
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
@@ -587,23 +582,21 @@ TEST_CASE(
         kv_store_target.apply(data, ConsensusType::CFT)->execute() ==
         kv::ApplySuccess::PASS);
       auto tx = kv_store_target.create_tx();
-      auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] =
-        tx.get_view<T, T, T, T>(
-          data_replicated,
-          data_replicated_private,
-          data_derived,
-          data_derived_private);
-      auto dvr = data_view_r->get(44);
+      auto data_handle_r = tx.rw<T>(data_replicated);
+      auto data_handle_r_p = tx.rw<T>(data_replicated_private);
+      auto data_handle_d = tx.rw<T>(data_derived);
+      auto data_handle_d_p = tx.rw<T>(data_derived_private);
+      auto dvr = data_handle_r->get(44);
       REQUIRE(dvr.has_value());
       REQUIRE(dvr.value() == 44);
 
-      auto dvrp = data_view_r_p->get(45);
+      auto dvrp = data_handle_r_p->get(45);
       REQUIRE(dvrp.has_value());
       REQUIRE(dvrp.value() == 45);
 
-      auto dvd = data_view_d->get(46);
+      auto dvd = data_handle_d->get(46);
       REQUIRE(!dvd.has_value());
-      auto dvdp = data_view_d_p->get(47);
+      auto dvdp = data_handle_d_p->get(47);
       REQUIRE(!dvdp.has_value());
     }
   }
@@ -650,13 +643,13 @@ TEST_CASE("Exceptional serdes" * doctest::test_suite("serialisation"))
 
   {
     auto tx = store.create_tx();
-    auto bad_view = tx.get_view(bad_map_k);
-    REQUIRE_THROWS(bad_view->put({}, 0));
+    auto bad_handle = tx.rw(bad_map_k);
+    REQUIRE_THROWS(bad_handle->put({}, 0));
   }
 
   {
     auto tx = store.create_tx();
-    auto bad_view = tx.get_view(bad_map_v);
-    REQUIRE_THROWS(bad_view->put(0, {}));
+    auto bad_handle = tx.rw(bad_map_v);
+    REQUIRE_THROWS(bad_handle->put(0, {}));
   }
 }

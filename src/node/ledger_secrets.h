@@ -122,7 +122,7 @@ namespace ccf
       // another tx. To prevent conflicts, accessing the ledger secrets
       // require access to a tx object, which must take a dependency on the
       // secrets table.
-      auto v = tx.get_read_only_view<Secrets>(Tables::SECRETS);
+      auto secrets = tx.ro<Secrets>(Tables::SECRETS);
 
       // Taking a read dependency on the key at self, which would get updated
       // on rekey
@@ -131,7 +131,7 @@ namespace ccf
         throw std::logic_error(
           "Node id should be set before taking dependency on secrets table");
       }
-      v->get(self.value());
+      secrets->get(self.value());
     }
 
   public:

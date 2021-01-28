@@ -33,15 +33,14 @@ namespace ccf
     {
       const auto caller_cert = ctx->session->caller_cert;
 
-      CertDERs users_by_cert(Tables::USER_CERT_DERS);
-      auto by_certs_view = tx.get_read_only_view(users_by_cert);
-      const auto user_id = by_certs_view->get(caller_cert);
+      auto users_by_cert = tx.ro<CertDERs>(Tables::USER_CERT_DERS);
+      const auto user_id = users_by_cert->get(caller_cert);
 
       if (user_id.has_value())
       {
         Users users_table(Tables::USERS);
-        auto users_view = tx.get_read_only_view(users_table);
-        const auto user = users_view->get(user_id.value());
+        auto users = tx.ro(users_table);
+        const auto user = users->get(user_id.value());
         if (!user.has_value())
         {
           throw std::logic_error("Users and user certs tables do not match");
@@ -90,15 +89,14 @@ namespace ccf
     {
       const auto caller_cert = ctx->session->caller_cert;
 
-      CertDERs members_by_cert(Tables::MEMBER_CERT_DERS);
-      auto by_certs_view = tx.get_read_only_view(members_by_cert);
-      const auto member_id = by_certs_view->get(caller_cert);
+      auto members_by_cert = tx.ro<CertDERs>(Tables::MEMBER_CERT_DERS);
+      const auto member_id = members_by_cert->get(caller_cert);
 
       if (member_id.has_value())
       {
         Members members_table(Tables::MEMBERS);
-        auto members_view = tx.get_read_only_view(members_table);
-        const auto member = members_view->get(member_id.value());
+        auto members = tx.ro(members_table);
+        const auto member = members->get(member_id.value());
         if (!member.has_value())
         {
           throw std::logic_error(
@@ -148,8 +146,8 @@ namespace ccf
 
       std::unique_ptr<NodeCertAuthnIdentity> identity = nullptr;
 
-      auto nodes_view = tx.get_read_only_view<ccf::Nodes>(Tables::NODES);
-      nodes_view->foreach(
+      auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
+      nodes->foreach(
         [&caller_cert_pem, &identity](const auto& id, const auto& info) {
           if (info.cert == caller_cert_pem)
           {

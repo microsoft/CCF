@@ -70,13 +70,13 @@ TEST_CASE("Reads/writes and deletions")
   INFO("Read own writes");
   {
     auto tx = kv_store.create_tx();
-    auto view = tx.get_view(map);
-    REQUIRE(!view->has(k));
-    auto v = view->get(k);
+    auto handle = tx.rw(map);
+    REQUIRE(!handle->has(k));
+    auto v = handle->get(k);
     REQUIRE(!v.has_value());
-    view->put(k, v1);
-    REQUIRE(view->has(k));
-    auto va = view->get(k);
+    handle->put(k, v1);
+    REQUIRE(handle->has(k));
+    auto va = handle->get(k);
     REQUIRE(va.has_value());
     REQUIRE(va.value() == v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -85,9 +85,9 @@ TEST_CASE("Reads/writes and deletions")
   INFO("Read previous writes");
   {
     auto tx = kv_store.create_tx();
-    auto view = tx.get_view(map);
-    REQUIRE(view->has(k));
-    auto v = view->get(k);
+    auto handle = tx.rw(map);
+    REQUIRE(handle->has(k));
+    auto v = handle->get(k);
     REQUIRE(v.has_value());
     REQUIRE(v.value() == v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -97,25 +97,25 @@ TEST_CASE("Reads/writes and deletions")
   {
     {
       auto tx = kv_store.create_tx();
-      auto view = tx.get_view(map);
-      view->put(k, v1);
+      auto handle = tx.rw(map);
+      handle->put(k, v1);
 
-      REQUIRE(!view->has(invalid_key));
-      REQUIRE(!view->remove(invalid_key));
-      REQUIRE(view->remove(k));
-      REQUIRE(!view->has(k));
-      auto va = view->get(k);
+      REQUIRE(!handle->has(invalid_key));
+      REQUIRE(!handle->remove(invalid_key));
+      REQUIRE(handle->remove(k));
+      REQUIRE(!handle->has(k));
+      auto va = handle->get(k);
       REQUIRE(!va.has_value());
 
-      view->put(k, v1);
+      handle->put(k, v1);
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     }
 
     {
       auto tx2 = kv_store.create_tx();
-      auto view2 = tx2.get_view(map);
-      REQUIRE(view2->has(k));
-      REQUIRE(view2->remove(k));
+      auto handle2 = tx2.rw(map);
+      REQUIRE(handle2->has(k));
+      REQUIRE(handle2->remove(k));
     }
   }
 
@@ -123,27 +123,27 @@ TEST_CASE("Reads/writes and deletions")
   {
     {
       auto tx = kv_store.create_tx();
-      auto view = tx.get_view(map);
-      view->put(k, v1);
-      auto va = view->get_globally_committed(k);
+      auto handle = tx.rw(map);
+      handle->put(k, v1);
+      auto va = handle->get_globally_committed(k);
       REQUIRE(!va.has_value());
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     }
 
     {
       auto tx2 = kv_store.create_tx();
-      auto view2 = tx2.get_view(map);
-      REQUIRE(view2->has(k));
-      REQUIRE(view2->remove(k));
-      REQUIRE(!view2->has(k));
+      auto handle2 = tx2.rw(map);
+      REQUIRE(handle2->has(k));
+      REQUIRE(handle2->remove(k));
+      REQUIRE(!handle2->has(k));
       REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
     }
 
     {
       auto tx3 = kv_store.create_tx();
-      auto view3 = tx3.get_view(map);
-      REQUIRE(!view3->has(k));
-      auto vc = view3->get(k);
+      auto handle3 = tx3.rw(map);
+      REQUIRE(!handle3->has(k));
+      auto vc = handle3->get(k);
       REQUIRE(!vc.has_value());
     }
   }
@@ -167,18 +167,18 @@ TEST_CASE("foreach")
   SUBCASE("Empty map")
   {
     auto tx = kv_store.create_tx();
-    auto view = tx.get_view(map);
-    view->foreach(store_iterated);
+    auto handle = tx.rw(map);
+    handle->foreach(store_iterated);
     REQUIRE(iterated_entries.empty());
   }
 
   SUBCASE("Reading own writes")
   {
     auto tx = kv_store.create_tx();
-    auto view = tx.get_view(map);
-    view->put("key1", "value1");
-    view->put("key2", "value2");
-    view->foreach(store_iterated);
+    auto handle = tx.rw(map);
+    handle->put("key1", "value1");
+    handle->put("key2", "value2");
+    handle->foreach(store_iterated);
     REQUIRE(iterated_entries.size() == 2);
     REQUIRE(iterated_entries["key1"] == "value1");
     REQUIRE(iterated_entries["key2"] == "value2");
@@ -187,22 +187,22 @@ TEST_CASE("foreach")
 
     INFO("Uncommitted writes from other txs are not visible");
     auto tx2 = kv_store.create_tx();
-    auto view2 = tx2.get_view(map);
-    view2->foreach(store_iterated);
+    auto handle2 = tx2.rw(map);
+    handle2->foreach(store_iterated);
     REQUIRE(iterated_entries.empty());
   }
 
   SUBCASE("Reading committed writes")
   {
     auto tx = kv_store.create_tx();
-    auto view = tx.get_view(map);
-    view->put("key1", "value1");
-    view->put("key2", "value2");
+    auto handle = tx.rw(map);
+    handle->put("key1", "value1");
+    handle->put("key2", "value2");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     auto tx2 = kv_store.create_tx();
-    auto view2 = tx2.get_view(map);
-    view2->foreach(store_iterated);
+    auto handle2 = tx2.rw(map);
+    handle2->foreach(store_iterated);
     REQUIRE(iterated_entries.size() == 2);
     REQUIRE(iterated_entries["key1"] == "value1");
     REQUIRE(iterated_entries["key2"] == "value2");
@@ -211,16 +211,16 @@ TEST_CASE("foreach")
   SUBCASE("Mix of committed and own writes")
   {
     auto tx = kv_store.create_tx();
-    auto view = tx.get_view(map);
-    view->put("key1", "value1");
-    view->put("key2", "value2");
+    auto handle = tx.rw(map);
+    handle->put("key1", "value1");
+    handle->put("key2", "value2");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     auto tx2 = kv_store.create_tx();
-    auto view2 = tx2.get_view(map);
-    view2->put("key2", "replaced2");
-    view2->put("key3", "value3");
-    view2->foreach(store_iterated);
+    auto handle2 = tx2.rw(map);
+    handle2->put("key2", "replaced2");
+    handle2->put("key3", "value3");
+    handle2->foreach(store_iterated);
     REQUIRE(iterated_entries.size() == 3);
     REQUIRE(iterated_entries["key1"] == "value1");
     REQUIRE(iterated_entries["key2"] == "replaced2");
@@ -231,40 +231,40 @@ TEST_CASE("foreach")
   {
     {
       auto tx = kv_store.create_tx();
-      auto view = tx.get_view(map);
-      view->put("key1", "value1");
-      view->put("key2", "value2");
-      view->put("key3", "value3");
+      auto handle = tx.rw(map);
+      handle->put("key1", "value1");
+      handle->put("key2", "value2");
+      handle->put("key3", "value3");
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     }
 
     {
       auto tx = kv_store.create_tx();
-      auto view = tx.get_view(map);
-      view->remove("key1");
+      auto handle = tx.rw(map);
+      handle->remove("key1");
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     }
 
     {
       auto tx = kv_store.create_tx();
-      auto view = tx.get_view(map);
-      view->foreach(store_iterated);
+      auto handle = tx.rw(map);
+      handle->foreach(store_iterated);
       REQUIRE(iterated_entries.size() == 2);
       REQUIRE(iterated_entries["key2"] == "value2");
       REQUIRE(iterated_entries["key3"] == "value3");
 
       iterated_entries.clear();
 
-      view->remove("key2");
-      view->foreach(store_iterated);
+      handle->remove("key2");
+      handle->foreach(store_iterated);
       REQUIRE(iterated_entries.size() == 1);
       REQUIRE(iterated_entries["key3"] == "value3");
 
       iterated_entries.clear();
 
-      view->put("key1", "value1");
-      view->put("key2", "value2");
-      view->foreach(store_iterated);
+      handle->put("key1", "value1");
+      handle->put("key2", "value2");
+      handle->foreach(store_iterated);
       REQUIRE(iterated_entries.size() == 3);
       REQUIRE(iterated_entries["key1"] == "value1");
       REQUIRE(iterated_entries["key2"] == "value2");
@@ -276,12 +276,12 @@ TEST_CASE("foreach")
   {
     {
       auto tx = kv_store.create_tx();
-      auto view = tx.get_view(map);
-      view->put("key1", "value1");
-      view->put("key2", "value2");
-      view->put("key3", "value3");
+      auto handle = tx.rw(map);
+      handle->put("key1", "value1");
+      handle->put("key2", "value2");
+      handle->put("key3", "value3");
       size_t ctr = 0;
-      view->foreach([&ctr](const auto& key, const auto& value) {
+      handle->foreach([&ctr](const auto& key, const auto& value) {
         ++ctr;
         return ctr < 2; // Continue after the first, but not the second (so
                         // never see the third)
@@ -292,13 +292,13 @@ TEST_CASE("foreach")
 
     {
       auto tx = kv_store.create_tx();
-      auto view = tx.get_view(map);
-      view->put("key4", "value4");
-      view->put("key5", "value5");
+      auto handle = tx.rw(map);
+      handle->put("key4", "value4");
+      handle->put("key5", "value5");
 
       {
         size_t ctr = 0;
-        view->foreach([&ctr](const auto&, const auto&) {
+        handle->foreach([&ctr](const auto&, const auto&) {
           ++ctr;
           return ctr < 2; //< See only committed state
         });
@@ -307,7 +307,7 @@ TEST_CASE("foreach")
 
       {
         size_t ctr = 0;
-        view->foreach([&ctr](const auto&, const auto&) {
+        handle->foreach([&ctr](const auto&, const auto&) {
           ++ctr;
           return ctr < 4; //< See mix of old state and new writes
         });
@@ -316,7 +316,7 @@ TEST_CASE("foreach")
 
       {
         size_t ctr = 0;
-        view->foreach([&ctr](const auto&, const auto&) {
+        handle->foreach([&ctr](const auto&, const auto&) {
           ++ctr;
           return ctr < 100; //< See as much as possible
         });
@@ -339,18 +339,18 @@ TEST_CASE("Modifications during foreach iteration")
     INFO("Insert initial keys");
 
     auto tx = kv_store.create_tx();
-    auto view = tx.get_view(map);
+    auto handle = tx.rw(map);
     for (size_t i = 0; i < 60; ++i)
     {
       keys.insert(i);
-      view->put(i, value1);
+      handle->put(i, value1);
     }
 
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
   auto tx = kv_store.create_tx();
-  auto view = tx.get_view(map);
+  auto handle = tx.rw(map);
 
   // 5 types of key:
   // 1) previously committed and unmodified
@@ -362,14 +362,14 @@ TEST_CASE("Modifications during foreach iteration")
   for (size_t i = keys_per_category; i < 2 * keys_per_category; ++i)
   {
     keys.insert(i);
-    view->put(i, value2);
+    handle->put(i, value2);
   }
 
   // 3) previously committed and now removed
   for (size_t i = 2 * keys_per_category; i < initial_keys_size; ++i)
   {
     keys.erase(i);
-    view->remove(i);
+    handle->remove(i);
   }
 
   // 4) newly written
@@ -377,7 +377,7 @@ TEST_CASE("Modifications during foreach iteration")
        ++i)
   {
     keys.insert(i);
-    view->put(i, value2);
+    handle->put(i, value2);
   }
 
   // 5) newly written and then removed
@@ -386,10 +386,10 @@ TEST_CASE("Modifications during foreach iteration")
        ++i)
   {
     keys.insert(i);
-    view->put(i, value2);
+    handle->put(i, value2);
 
     keys.erase(i);
-    view->remove(i);
+    handle->remove(i);
   }
 
   size_t keys_seen = 0;
@@ -399,8 +399,8 @@ TEST_CASE("Modifications during foreach iteration")
   {
     auto should_remove = [](size_t n) { return n % 3 == 0 || n % 5 == 0; };
 
-    view->foreach(
-      [&view, &keys, &keys_seen, should_remove](const auto& k, const auto&) {
+    handle->foreach(
+      [&handle, &keys, &keys_seen, should_remove](const auto& k, const auto&) {
         ++keys_seen;
         const auto it = keys.find(k);
         REQUIRE(it != keys.end());
@@ -408,7 +408,7 @@ TEST_CASE("Modifications during foreach iteration")
         // Remove a 'random' set of keys while iterating
         if (should_remove(k))
         {
-          view->remove(k);
+          handle->remove(k);
           keys.erase(it);
         }
 
@@ -418,7 +418,7 @@ TEST_CASE("Modifications during foreach iteration")
     REQUIRE(keys_seen == expected_keys_seen);
 
     // Check all expected keys are still there...
-    view->foreach([&keys, should_remove](const auto& k, const auto&) {
+    handle->foreach([&keys, should_remove](const auto& k, const auto&) {
       REQUIRE(!should_remove(k));
       const auto it = keys.find(k);
       REQUIRE(it != keys.end());
@@ -436,42 +436,43 @@ TEST_CASE("Modifications during foreach iteration")
 
     std::optional<size_t> removal_trigger = std::nullopt;
 
-    view->foreach([&view, &keys, &keys_seen, &removal_trigger, should_remove](
-                    const auto& k, const auto&) {
-      ++keys_seen;
+    handle->foreach(
+      [&handle, &keys, &keys_seen, &removal_trigger, should_remove](
+        const auto& k, const auto&) {
+        ++keys_seen;
 
-      // The first time we find a removable, remove _all the others_ (not
-      // ourself!)
-      if (should_remove(k) && !removal_trigger.has_value())
-      {
-        REQUIRE(!removal_trigger.has_value());
-        removal_trigger = k;
-
-        auto remove_it = keys.begin();
-        while (remove_it != keys.end())
+        // The first time we find a removable, remove _all the others_ (not
+        // ourself!)
+        if (should_remove(k) && !removal_trigger.has_value())
         {
-          const auto n = *remove_it;
-          if (should_remove(n) && n != k)
+          REQUIRE(!removal_trigger.has_value());
+          removal_trigger = k;
+
+          auto remove_it = keys.begin();
+          while (remove_it != keys.end())
           {
-            view->remove(n);
-            remove_it = keys.erase(remove_it);
-          }
-          else
-          {
-            ++remove_it;
+            const auto n = *remove_it;
+            if (should_remove(n) && n != k)
+            {
+              handle->remove(n);
+              remove_it = keys.erase(remove_it);
+            }
+            else
+            {
+              ++remove_it;
+            }
           }
         }
-      }
 
-      return true;
-    });
+        return true;
+      });
 
     REQUIRE(keys_seen == expected_keys_seen);
 
     REQUIRE(removal_trigger.has_value());
 
     // Check all expected keys are still there...
-    view->foreach(
+    handle->foreach(
       [&keys, removal_trigger, should_remove](const auto& k, const auto&) {
         const auto should_be_here =
           !should_remove(k) || k == removal_trigger.value();
@@ -494,30 +495,30 @@ TEST_CASE("Modifications during foreach iteration")
 
     std::set<size_t> updated_keys;
 
-    view->foreach([&view, &keys, &keys_seen, &updated_keys, should_modify](
-                    const auto& k, const auto& v) {
+    handle->foreach([&handle, &keys, &keys_seen, &updated_keys, should_modify](
+                      const auto& k, const auto& v) {
       ++keys_seen;
 
       if (should_modify(k))
       {
         // Modify ourselves
-        view->put(k, value3);
+        handle->put(k, value3);
         updated_keys.insert(k);
 
         // Modify someone else ('before' and 'after' are guesses - iteration
         // order is undefined!)
         const auto before = k / 2;
-        view->put(before, value3);
+        handle->put(before, value3);
         keys.insert(before);
         updated_keys.insert(before);
 
         const auto after = k * 2;
-        view->put(after, value3);
+        handle->put(after, value3);
         keys.insert(after);
         updated_keys.insert(after);
 
         // Note discrepancy with externally visible value
-        const auto visible_v = view->get(k);
+        const auto visible_v = handle->get(k);
         REQUIRE(visible_v.has_value());
         REQUIRE(visible_v.value() == value3);
         REQUIRE(visible_v.value() != v); // !!
@@ -529,7 +530,7 @@ TEST_CASE("Modifications during foreach iteration")
     REQUIRE(keys_seen == expected_keys_seen);
 
     // Check all expected keys are still there...
-    view->foreach([&keys, &updated_keys](const auto& k, const auto& v) {
+    handle->foreach([&keys, &updated_keys](const auto& k, const auto& v) {
       const auto updated_it = updated_keys.find(k);
       if (updated_it != updated_keys.end())
       {
@@ -558,14 +559,14 @@ TEST_CASE("Modifications during foreach iteration")
   SUBCASE("Rewriting to new keys")
   {
     // Rewrite map, placing each value at a new key
-    view->foreach([&view, &keys_seen](const auto& k, const auto& v) {
+    handle->foreach([&handle, &keys_seen](const auto& k, const auto& v) {
       ++keys_seen;
 
-      view->remove(k);
+      handle->remove(k);
 
       const auto new_key = k + 1000;
-      REQUIRE(!view->has(new_key));
-      view->put(new_key, v);
+      REQUIRE(!handle->has(new_key));
+      handle->put(new_key, v);
 
       return true;
     });
@@ -574,7 +575,7 @@ TEST_CASE("Modifications during foreach iteration")
 
     // Check map contains only new keys, and the same count
     keys_seen = 0;
-    view->foreach([&view, &keys, &keys_seen](const auto& k, const auto& v) {
+    handle->foreach([&handle, &keys, &keys_seen](const auto& k, const auto& v) {
       ++keys_seen;
 
       REQUIRE(keys.find(k) == keys.end());
@@ -598,11 +599,11 @@ TEST_CASE("Read-only tx")
   INFO("Write some keys");
   {
     auto tx = kv_store.create_tx();
-    auto view = tx.get_view(map);
-    auto v = view->get(k);
+    auto handle = tx.rw(map);
+    auto v = handle->get(k);
     REQUIRE(!v.has_value());
-    view->put(k, v1);
-    auto va = view->get(k);
+    handle->put(k, v1);
+    auto va = handle->get(k);
     REQUIRE(va.has_value());
     REQUIRE(va.value() == v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -611,37 +612,51 @@ TEST_CASE("Read-only tx")
   INFO("Do only reads with an overpowered Tx");
   {
     auto tx = kv_store.create_tx();
-    auto view = tx.get_read_only_view(map);
-    REQUIRE(view->has(k));
-    const auto v = view->get(k);
+    auto handle = tx.ro(map);
+    REQUIRE(handle->has(k));
+    const auto v = handle->get(k);
     REQUIRE(v.has_value());
     REQUIRE(v.value() == v1);
 
-    REQUIRE(!view->has(invalid_key));
-    const auto invalid_v = view->get(invalid_key);
+    REQUIRE(!handle->has(invalid_key));
+    const auto invalid_v = handle->get(invalid_key);
     REQUIRE(!invalid_v.has_value());
 
     // The following won't compile:
-    // view->put(k, v1);
-    // view->remove(k);
+    // handle->put(k, v1);
+    // handle->remove(k);
   }
 
   INFO("Read with read-only tx");
   {
     auto tx = kv_store.create_read_only_tx();
-    auto view = tx.get_read_only_view(map);
-    REQUIRE(view->has(k));
-    const auto v = view->get(k);
+    auto handle = tx.ro(map);
+    REQUIRE(handle->has(k));
+    const auto v = handle->get(k);
     REQUIRE(v.has_value());
     REQUIRE(v.value() == v1);
 
-    REQUIRE(!view->has(invalid_key));
-    const auto invalid_v = view->get(invalid_key);
+    REQUIRE(!handle->has(invalid_key));
+    const auto invalid_v = handle->get(invalid_key);
     REQUIRE(!invalid_v.has_value());
 
     // The following won't compile:
-    // view->put(k, v1);
-    // view->remove(k);
+    // handle->put(k, v1);
+    // handle->remove(k);
+  }
+
+  INFO("Write-only handles");
+  {
+    auto tx = kv_store.create_tx();
+    auto handle = tx.wo(map);
+
+    handle->put(k, v1);
+    handle->remove(k);
+
+    // The following won't compile:
+    // handle->has(k);
+    // handle->get(k);
+    // handle->foreach([](const auto&, const auto&) {});
   }
 }
 
@@ -657,13 +672,13 @@ TEST_CASE("Rollback and compact")
   {
     auto tx = kv_store.create_tx();
     auto tx2 = kv_store.create_tx();
-    auto view = tx.get_view(map);
-    view->put(k, v1);
+    auto handle = tx.rw(map);
+    handle->put(k, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     kv_store.rollback(0);
-    auto view2 = tx2.get_view(map);
-    auto v = view2->get(k);
+    auto handle2 = tx2.rw(map);
+    auto v = handle2->get(k);
     REQUIRE(!v.has_value());
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
   }
@@ -672,13 +687,13 @@ TEST_CASE("Rollback and compact")
   {
     auto tx = kv_store.create_tx();
     auto tx2 = kv_store.create_tx();
-    auto view = tx.get_view(map);
-    view->put(k, v1);
+    auto handle = tx.rw(map);
+    handle->put(k, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     kv_store.compact(kv_store.current_version());
 
-    auto view2 = tx2.get_view(map);
-    auto va = view2->get_globally_committed(k);
+    auto handle2 = tx2.rw(map);
+    auto va = handle2->get_globally_committed(k);
     REQUIRE(va.has_value());
     REQUIRE(va.value() == v1);
   }
@@ -687,13 +702,13 @@ TEST_CASE("Rollback and compact")
   {
     auto tx = kv_store.create_tx();
     auto tx2 = kv_store.create_tx();
-    auto view = tx.get_view(map);
-    REQUIRE(view->remove(k));
+    auto handle = tx.rw(map);
+    REQUIRE(handle->remove(k));
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     kv_store.compact(kv_store.current_version());
 
-    auto view2 = tx2.get_view(map);
-    auto va = view2->get_globally_committed(k);
+    auto handle2 = tx2.rw(map);
+    auto va = handle2->get_globally_committed(k);
     REQUIRE(!va.has_value());
   }
 }
@@ -721,10 +736,10 @@ TEST_CASE("Local commit hooks")
   INFO("Write with hooks");
   {
     auto tx = kv_store.create_tx();
-    auto view = tx.get_view(map);
-    view->put("key1", "value1");
-    view->put("key2", "value2");
-    view->remove("key2");
+    auto handle = tx.rw(map);
+    handle->put("key1", "value1");
+    handle->put("key2", "value2");
+    handle->remove("key2");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     REQUIRE(global_writes.size() == 0);
@@ -745,8 +760,8 @@ TEST_CASE("Local commit hooks")
     kv_store.unset_global_hook(map_name);
 
     auto tx = kv_store.create_tx();
-    auto view = tx.get_view(map);
-    view->put("key2", "value2");
+    auto handle = tx.rw(map);
+    handle->put("key2", "value2");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     REQUIRE(local_writes.size() == 0);
@@ -759,9 +774,9 @@ TEST_CASE("Local commit hooks")
     kv_store.set_global_hook(map_name, map.wrap_commit_hook(global_hook));
 
     auto tx = kv_store.create_tx();
-    auto view = tx.get_view(map);
-    view->remove("key2");
-    view->put("key3", "value3");
+    auto handle = tx.rw(map);
+    handle->remove("key2");
+    handle->put("key3", "value3");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     REQUIRE(global_writes.size() == 0);
@@ -817,8 +832,8 @@ TEST_CASE("Global commit hooks")
   SUBCASE("Compact one transaction")
   {
     auto tx1 = kv_store.create_tx();
-    auto view_hook = tx1.get_view(map_with_hook);
-    view_hook->put("key1", "value1");
+    auto handle_hook = tx1.rw(map_with_hook);
+    handle_hook->put("key1", "value1");
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
     kv_store.compact(1);
@@ -837,20 +852,20 @@ TEST_CASE("Global commit hooks")
     auto tx1 = kv_store.create_tx();
     auto tx2 = kv_store.create_tx();
     auto tx3 = kv_store.create_tx();
-    auto view_hook = tx1.get_view(map_with_hook);
-    view_hook->put("key1", "value1");
+    auto handle_hook = tx1.rw(map_with_hook);
+    handle_hook->put("key1", "value1");
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
-    view_hook = tx2.get_view(map_with_hook);
-    view_hook->put("key2", "value2");
+    handle_hook = tx2.rw(map_with_hook);
+    handle_hook->put("key2", "value2");
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
 
     const auto compact_version = kv_store.current_version();
 
     // This does not affect map_with_hook but still increments the current
     // version of the store
-    auto view_no_hook = tx3.get_view(map_no_hook);
-    view_no_hook->put("key3", "value3");
+    auto handle_no_hook = tx3.rw(map_no_hook);
+    handle_no_hook->put("key3", "value3");
     REQUIRE(tx3.commit() == kv::CommitSuccess::OK);
 
     kv_store.compact(compact_version);
@@ -874,20 +889,20 @@ TEST_CASE("Global commit hooks")
     auto tx1 = kv_store.create_tx();
     auto tx2 = kv_store.create_tx();
     auto tx3 = kv_store.create_tx();
-    auto view_hook = tx1.get_view(map_with_hook);
-    view_hook->put("key1", "value1");
+    auto handle_hook = tx1.rw(map_with_hook);
+    handle_hook->put("key1", "value1");
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
     // This does not affect map_with_hook but still increments the current
     // version of the store
-    auto view_no_hook = tx2.get_view(map_no_hook);
-    view_no_hook->put("key2", "value2");
+    auto handle_no_hook = tx2.rw(map_no_hook);
+    handle_no_hook->put("key2", "value2");
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
 
     const auto compact_version = kv_store.current_version();
 
-    view_hook = tx3.get_view(map_with_hook);
-    view_hook->put("key3", "value3");
+    handle_hook = tx3.rw(map_with_hook);
+    handle_hook->put("key3", "value3");
     REQUIRE(tx3.commit() == kv::CommitSuccess::OK);
 
     kv_store.compact(compact_version);
@@ -906,15 +921,15 @@ TEST_CASE("Global commit hooks")
   {
     auto tx1 = kv_store.create_tx();
     auto tx2 = kv_store.create_tx();
-    auto view_hook = tx1.get_view(map_with_hook);
-    view_hook->put("key1", "value1");
+    auto handle_hook = tx1.rw(map_with_hook);
+    handle_hook->put("key1", "value1");
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
     kv_store.compact(kv_store.current_version());
     global_writes.clear();
 
-    view_hook = tx2.get_view(map_with_hook);
-    view_hook->put("key2", "value2");
+    handle_hook = tx2.rw(map_with_hook);
+    handle_hook->put("key2", "value2");
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
 
     kv_store.compact(kv_store.current_version());
@@ -938,9 +953,10 @@ TEST_CASE("Deserialising from other Store")
   MapTypes::NumString public_map("public:public");
   MapTypes::NumString private_map("private");
   auto tx1 = store.create_reserved_tx(store.next_version());
-  auto [view1, view2] = tx1.get_view(public_map, private_map);
-  view1->put(42, "aardvark");
-  view2->put(14, "alligator");
+  auto handle1 = tx1.rw(public_map);
+  auto handle2 = tx1.rw(private_map);
+  handle1->put(42, "aardvark");
+  handle2->put(14, "alligator");
   auto [success, reqid, data, hooks] = tx1.commit_reserved();
   REQUIRE(success == kv::CommitSuccess::OK);
 
@@ -966,8 +982,8 @@ TEST_CASE("Deserialise return status")
 
   {
     auto tx = store.create_reserved_tx(store.next_version());
-    auto data_view = tx.get_view(data);
-    data_view->put(42, 42);
+    auto data_handle = tx.rw(data);
+    data_handle->put(42, 42);
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
@@ -978,9 +994,9 @@ TEST_CASE("Deserialise return status")
 
   {
     auto tx = store.create_reserved_tx(store.next_version());
-    auto sig_view = tx.get_view(signatures);
+    auto sig_handle = tx.rw(signatures);
     ccf::PrimarySignature sigv(0, 2);
-    sig_view->put(0, sigv);
+    sig_handle->put(0, sigv);
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
@@ -992,10 +1008,11 @@ TEST_CASE("Deserialise return status")
   INFO("Signature transactions with additional contents should fail");
   {
     auto tx = store.create_reserved_tx(store.next_version());
-    auto [sig_view, data_view] = tx.get_view(signatures, data);
+    auto sig_handle = tx.rw(signatures);
+    auto data_handle = tx.rw(data);
     ccf::PrimarySignature sigv(0, 2);
-    sig_view->put(0, sigv);
-    data_view->put(43, 43);
+    sig_handle->put(0, sigv);
+    data_handle->put(43, 43);
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
@@ -1019,14 +1036,14 @@ TEST_CASE("Map swap between stores")
 
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_view(d);
+    auto v = tx.rw(d);
     v->put(42, 42);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_view(pd);
+    auto v = tx.rw(pd);
     v->put(14, 14);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -1035,7 +1052,7 @@ TEST_CASE("Map swap between stores")
   while (s2.current_version() < target_version)
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_view(d);
+    auto v = tx.rw(d);
     v->put(41, 41);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -1044,7 +1061,7 @@ TEST_CASE("Map swap between stores")
 
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_view(d);
+    auto v = tx.rw(d);
     auto val = v->get(41);
     REQUIRE_FALSE(v->get(42).has_value());
     REQUIRE(val.has_value());
@@ -1053,7 +1070,7 @@ TEST_CASE("Map swap between stores")
 
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_view(pd);
+    auto v = tx.rw(pd);
     auto val = v->get(14);
     REQUIRE(val.has_value());
     REQUIRE(val.value() == 14);
@@ -1061,7 +1078,7 @@ TEST_CASE("Map swap between stores")
 
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_view(d);
+    auto v = tx.rw(d);
     auto val = v->get(42);
     REQUIRE_FALSE(v->get(41).has_value());
     REQUIRE(val.has_value());
@@ -1070,7 +1087,7 @@ TEST_CASE("Map swap between stores")
 
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_view(pd);
+    auto v = tx.rw(pd);
     REQUIRE_FALSE(v->get(14).has_value());
   }
 }
@@ -1093,27 +1110,27 @@ TEST_CASE("Private recovery map swap")
   // would have compacted some number of times.
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_view(pub1);
+    auto v = tx.rw(pub1);
     v->put(42, "42");
     tx.commit();
   }
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_view(pub1);
+    auto v = tx.rw(pub1);
     v->put(42, "43");
     tx.commit();
   }
   s1.compact(s1.current_version());
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_view(pub1);
+    auto v = tx.rw(pub1);
     v->put(44, "44");
     tx.commit();
   }
   s1.compact(s1.current_version());
   {
     auto tx = s1.create_tx();
-    auto v = tx.get_view(pub1);
+    auto v = tx.rw(pub1);
     v->put(45, "45");
     tx.commit();
   }
@@ -1124,26 +1141,26 @@ TEST_CASE("Private recovery map swap")
   // that the _entire_ private state is compacted
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_view(priv2);
+    auto v = tx.rw(priv2);
     v->put(12, 12);
     tx.commit();
   }
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_view(priv2);
+    auto v = tx.rw(priv2);
     v->put(13, 13);
     tx.commit();
   }
   s2.compact(s2.current_version());
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_view(priv2);
+    auto v = tx.rw(priv2);
     v->put(14, 14);
     tx.commit();
   }
   {
     auto tx = s2.create_tx();
-    auto v = tx.get_view(priv2);
+    auto v = tx.rw(priv2);
     v->put(15, 15);
     tx.commit();
   }
@@ -1155,7 +1172,8 @@ TEST_CASE("Private recovery map swap")
   INFO("Check state looks as expected in s1");
   {
     auto tx = s1.create_tx();
-    auto [priv, pub] = tx.get_view(priv1, pub1);
+    auto priv = tx.rw(priv1);
+    auto pub = tx.rw(pub1);
     {
       auto val = pub->get(42);
       REQUIRE(val.has_value());
@@ -1184,7 +1202,8 @@ TEST_CASE("Private recovery map swap")
   INFO("Check committed state looks as expected in s1");
   {
     auto tx = s1.create_tx();
-    auto [priv, pub] = tx.get_view(priv1, pub1);
+    auto priv = tx.rw(priv1);
+    auto pub = tx.rw(pub1);
     {
       auto val = pub->get_globally_committed(42);
       REQUIRE(val.has_value());
@@ -1223,40 +1242,40 @@ TEST_CASE("Conflict resolution")
   {
     // Ensure this map already exists, by making a prior write to it
     auto tx = kv_store.create_tx();
-    auto view = tx.get_view(map);
-    view->put("foo", "initial");
+    auto handle = tx.rw(map);
+    handle->put("foo", "initial");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
   auto try_write = [&](kv::Tx& tx, const std::string& s) {
-    auto view = tx.get_view(map);
+    auto handle = tx.rw(map);
 
     // Introduce read-dependency
-    view->get("foo");
-    view->put("foo", s);
+    handle->get("foo");
+    handle->put("foo", s);
 
-    view->put(s, s);
+    handle->put(s, s);
   };
 
   auto confirm_state = [&](
                          const std::vector<std::string>& present,
                          const std::vector<std::string>& missing) {
     auto tx = kv_store.create_tx();
-    auto view = tx.get_view(map);
+    auto handle = tx.rw(map);
 
     for (const auto& s : present)
     {
-      const auto it = view->get(s);
+      const auto it = handle->get(s);
       REQUIRE(it.has_value());
-      REQUIRE(view->has(s));
+      REQUIRE(handle->has(s));
       REQUIRE(it.value() == s);
     }
 
     for (const auto& s : missing)
     {
-      const auto it = view->get(s);
+      const auto it = handle->get(s);
       REQUIRE(!it.has_value());
-      REQUIRE(!view->has(s));
+      REQUIRE(!handle->has(s));
     }
   };
 
@@ -1283,8 +1302,8 @@ TEST_CASE("Conflict resolution")
 
   // A third transaction just wants to read the value
   auto tx3 = kv_store.create_tx();
-  auto view3 = tx3.get_view(map);
-  REQUIRE(view3->has("foo"));
+  auto handle3 = tx3.rw(map);
+  REQUIRE(handle3->has("foo"));
 
   // First transaction is rerun with same object, producing different result
   try_write(tx1, "buzz");
@@ -1318,17 +1337,18 @@ TEST_CASE("Mid-tx compaction")
 
   auto increment_vals = [&]() {
     auto tx = kv_store.create_tx();
-    auto [view_a, view_b] = tx.get_view(map_a, map_b);
+    auto handle_a = tx.rw(map_a);
+    auto handle_b = tx.rw(map_b);
 
-    auto a_opt = view_a->get(key_a);
-    auto b_opt = view_b->get(key_b);
+    auto a_opt = handle_a->get(key_a);
+    auto b_opt = handle_b->get(key_b);
 
     REQUIRE(a_opt == b_opt);
 
     const auto new_val = a_opt.has_value() ? *a_opt + 1 : 0;
 
-    view_a->put(key_a, new_val);
-    view_b->put(key_b, new_val);
+    handle_a->put(key_a, new_val);
+    handle_b->put(key_b, new_val);
 
     const auto result = tx.commit();
     REQUIRE(result == kv::CommitSuccess::OK);
@@ -1337,17 +1357,17 @@ TEST_CASE("Mid-tx compaction")
   increment_vals();
 
   {
-    INFO("Compaction before get_views");
+    INFO("Compaction before get_handles");
     auto tx = kv_store.create_tx();
 
     increment_vals();
     kv_store.compact(kv_store.current_version());
 
-    auto view_a = tx.get_view(map_a);
-    auto view_b = tx.get_view(map_b);
+    auto handle_a = tx.rw(map_a);
+    auto handle_b = tx.rw(map_b);
 
-    auto a_opt = view_a->get(key_a);
-    auto b_opt = view_b->get(key_b);
+    auto a_opt = handle_a->get(key_a);
+    auto b_opt = handle_b->get(key_b);
 
     REQUIRE(a_opt == b_opt);
 
@@ -1356,16 +1376,16 @@ TEST_CASE("Mid-tx compaction")
   }
 
   {
-    INFO("Compaction after get_views");
+    INFO("Compaction after get_handles");
     auto tx = kv_store.create_tx();
 
-    auto view_a = tx.get_view(map_a);
+    auto handle_a = tx.rw(map_a);
     increment_vals();
-    auto view_b = tx.get_view(map_b);
+    auto handle_b = tx.rw(map_b);
     kv_store.compact(kv_store.current_version());
 
-    auto a_opt = view_a->get(key_a);
-    auto b_opt = view_b->get(key_b);
+    auto a_opt = handle_a->get(key_a);
+    auto b_opt = handle_b->get(key_b);
 
     REQUIRE(a_opt == b_opt);
 
@@ -1374,14 +1394,14 @@ TEST_CASE("Mid-tx compaction")
   }
 
   {
-    INFO("Compaction between get_views");
+    INFO("Compaction between get_handles");
     bool threw = false;
 
     try
     {
       auto tx = kv_store.create_tx();
 
-      auto view_a = tx.get_view(map_a);
+      auto handle_a = tx.rw(map_a);
       // This transaction does something slow. Meanwhile...
 
       // ...another transaction commits...
@@ -1392,10 +1412,10 @@ TEST_CASE("Mid-tx compaction")
       // ...then the original transaction proceeds, expecting to read a single
       // version
       // This should throw a CompactedVersionConflict error
-      auto view_b = tx.get_view(map_b);
+      auto handle_b = tx.rw(map_b);
 
-      auto a_opt = view_a->get(key_a);
-      auto b_opt = view_b->get(key_b);
+      auto a_opt = handle_a->get(key_a);
+      auto b_opt = handle_b->get(key_b);
 
       REQUIRE(a_opt == b_opt);
 
@@ -1429,10 +1449,11 @@ TEST_CASE("Store clear")
     for (int i = 0; i < tx_count; i++)
     {
       auto tx = kv_store.create_tx();
-      auto [view_a, view_b] = tx.get_view(map_a, map_b);
+      auto handle_a = tx.rw(map_a);
+      auto handle_b = tx.rw(map_b);
 
-      view_a->put("key" + std::to_string(i), 42);
-      view_b->put("key" + std::to_string(i), 42);
+      handle_a->put("key" + std::to_string(i), 42);
+      handle_b->put("key" + std::to_string(i), 42);
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     }
 

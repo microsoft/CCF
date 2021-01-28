@@ -37,8 +37,8 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     for (size_t i = 0; i < transactions_count; i++)
     {
       auto tx = source_store.create_tx();
-      auto view = tx.get_view(string_map);
-      view->put(fmt::format("key#{}", i), "value");
+      auto map = tx.rw(string_map);
+      map->put(fmt::format("key#{}", i), "value");
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     }
   }
@@ -58,9 +58,9 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     // No snapshot here, only verify that a fresh tree can be started from the
     // mini-tree in a signature and the hash of the signature
     auto tx = source_store.create_read_only_tx();
-    auto view = tx.get_read_only_view<ccf::Signatures>(ccf::Tables::SIGNATURES);
-    REQUIRE(view->has(0));
-    auto sig = view->get(0).value();
+    auto signatures = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
+    REQUIRE(signatures->has(0));
+    auto sig = signatures->get(0).value();
 
     auto serialised_signature = source_consensus->get_latest_data().value();
     auto serialised_signature_hash = crypto::Sha256Hash(serialised_signature);
@@ -127,8 +127,8 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     INFO("Deserialise additional transaction after restart");
     {
       auto tx = source_store.create_tx();
-      auto view = tx.get_view(string_map);
-      view->put("key", "value");
+      auto map = tx.rw(string_map);
+      map->put("key", "value");
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
       auto serialised_tx = source_consensus->get_latest_data().value();
