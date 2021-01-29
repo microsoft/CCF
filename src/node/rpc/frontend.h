@@ -462,7 +462,7 @@ namespace ccf
 
     void set_root_on_proposals(const enclave::RpcContext& ctx, kv::Tx& tx)
     {
-      if (nonstd::ends_with(ctx.get_request_path(), "/proposals"))
+      if (ctx.get_request_path() == "/gov/proposals")
       {
         update_history();
         if (history)

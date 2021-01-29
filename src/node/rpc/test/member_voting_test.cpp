@@ -99,7 +99,7 @@ void set_whitelists(GenesisGenerator& gen)
 std::vector<uint8_t> create_request(
   const json& params, const string& method_name, llhttp_method verb = HTTP_POST)
 {
-  http::Request r(method_name, verb);
+  http::Request r(fmt::format("/gov/{}", method_name), verb);
   const auto body = params.is_null() ? std::vector<uint8_t>() :
                                        serdes::pack(params, default_pack);
   r.set_body(&body);
@@ -113,7 +113,7 @@ std::vector<uint8_t> create_signed_request(
   const tls::Pem& caller,
   llhttp_method verb = HTTP_POST)
 {
-  http::Request r(method_name, verb);
+  http::Request r(fmt::format("/gov/{}", method_name), verb);
 
   const auto body = params.is_null() ? std::vector<uint8_t>() :
                                        serdes::pack(params, default_pack);
@@ -157,6 +157,7 @@ auto frontend_process(
   auto session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, tls::make_verifier(caller)->der_cert_data());
   auto rpc_ctx = enclave::make_rpc_context(session, serialized_request);
+  http::extract_actor(*rpc_ctx);
   auto serialized_response = frontend.process(rpc_ctx);
 
   DOCTEST_CHECK(serialized_response.has_value());

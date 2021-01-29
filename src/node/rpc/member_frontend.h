@@ -1375,6 +1375,11 @@ namespace ccf
 
         Proposal proposal(in.script, in.parameter, caller_identity.member_id);
         auto proposals = ctx.tx.rw(this->network.proposals);
+        // The existence of this check guarantees that we always enter this
+        // block because it creates a read-dependency on that proposal_id, and
+        // so any other request with an identical digest and the same
+        // read_version will conflict, be re-based, acquire a new read_version
+        // and therefore a new proposal_id.
         if (!proposals->has(proposal_id))
         {
           proposals->put(proposal_id, proposal);
