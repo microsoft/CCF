@@ -9,6 +9,7 @@
 #include "kv/test/null_encryptor.h"
 #include "node/client_signatures.h"
 #include "node/genesis_gen.h"
+#include "node/history.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/serdes.h"
 #include "node/rpc/test/stub_consensus.h"
@@ -345,6 +346,10 @@ DOCTEST_TEST_CASE("Proposer ballot")
 {
   NetworkState network;
   network.tables->set_encryptor(encryptor);
+  auto history = std::make_shared<ccf::NullTxHistory>(*network.tables, 0, *kp);
+  network.tables->set_history(history);
+  auto consensus = std::make_shared<aft::StubCFTConsensus>();
+  network.tables->set_consensus(consensus);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -364,8 +369,7 @@ DOCTEST_TEST_CASE("Proposer ballot")
   ShareManager share_manager(network);
   StubNodeState node;
   MemberRpcFrontend frontend(network, node, share_manager);
-  auto consensus = std::make_shared<aft::StubCFTConsensus>();
-  network.tables->set_consensus(consensus);
+
   frontend.open();
 
   ProposalId proposal_id;
@@ -452,6 +456,10 @@ DOCTEST_TEST_CASE("Reject duplicate vote")
 {
   NetworkState network;
   network.tables->set_encryptor(encryptor);
+  auto history = std::make_shared<ccf::NullTxHistory>(*network.tables, 0, *kp);
+  network.tables->set_history(history);
+  auto consensus = std::make_shared<aft::StubCFTConsensus>();
+  network.tables->set_consensus(consensus);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -543,6 +551,10 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
   network.ledger_secrets->init();
   network.tables->set_encryptor(encryptor);
+  auto history = std::make_shared<ccf::NullTxHistory>(*network.tables, 0, *kp);
+  network.tables->set_history(history);
+  auto consensus = std::make_shared<aft::StubCFTConsensus>();
+  network.tables->set_consensus(consensus);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -765,6 +777,10 @@ DOCTEST_TEST_CASE("Accept node")
   network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
   network.ledger_secrets->init();
   network.tables->set_encryptor(encryptor);
+  auto history = std::make_shared<ccf::NullTxHistory>(*network.tables, 0, *kp);
+  network.tables->set_history(history);
+  auto consensus = std::make_shared<aft::StubCFTConsensus>();
+  network.tables->set_consensus(consensus);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1056,6 +1072,11 @@ DOCTEST_TEST_CASE("Propose raw writes")
       const bool should_succeed = pro_votes > n_members / 2;
       NetworkState network;
       network.tables->set_encryptor(encryptor);
+      auto history =
+        std::make_shared<ccf::NullTxHistory>(*network.tables, 0, *kp);
+      network.tables->set_history(history);
+      auto consensus = std::make_shared<aft::StubCFTConsensus>();
+      network.tables->set_consensus(consensus);
       auto gen_tx = network.tables->create_tx();
       GenesisGenerator gen(network, gen_tx);
       gen.init_values();
@@ -1112,6 +1133,11 @@ DOCTEST_TEST_CASE("Propose raw writes")
         {
           NetworkState network;
           network.tables->set_encryptor(encryptor);
+          auto history =
+            std::make_shared<ccf::NullTxHistory>(*network.tables, 0, *kp);
+          network.tables->set_history(history);
+          auto consensus = std::make_shared<aft::StubCFTConsensus>();
+          network.tables->set_consensus(consensus);
           auto gen_tx = network.tables->create_tx();
           GenesisGenerator gen(network, gen_tx);
           gen.init_values();
@@ -1150,6 +1176,10 @@ DOCTEST_TEST_CASE("Remove proposal")
 
   NetworkState network;
   network.tables->set_encryptor(encryptor);
+  auto history = std::make_shared<ccf::NullTxHistory>(*network.tables, 0, *kp);
+  network.tables->set_history(history);
+  auto consensus = std::make_shared<aft::StubCFTConsensus>();
+  network.tables->set_consensus(consensus);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1249,6 +1279,10 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
 {
   NetworkState network;
   network.tables->set_encryptor(encryptor);
+  auto history = std::make_shared<ccf::NullTxHistory>(*network.tables, 0, *kp);
+  network.tables->set_history(history);
+  auto consensus = std::make_shared<aft::StubCFTConsensus>();
+  network.tables->set_consensus(consensus);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1306,6 +1340,10 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
 {
   NetworkState network;
   network.tables->set_encryptor(encryptor);
+  auto history = std::make_shared<ccf::NullTxHistory>(*network.tables, 0, *kp);
+  network.tables->set_history(history);
+  auto consensus = std::make_shared<aft::StubCFTConsensus>();
+  network.tables->set_consensus(consensus);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1409,6 +1447,10 @@ DOCTEST_TEST_CASE(
   // Operator votes, but is _not_ taken into consideration
   NetworkState network;
   network.tables->set_encryptor(encryptor);
+  auto history = std::make_shared<ccf::NullTxHistory>(*network.tables, 0, *kp);
+  network.tables->set_history(history);
+  auto consensus = std::make_shared<aft::StubCFTConsensus>();
+  network.tables->set_consensus(consensus);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1542,6 +1584,10 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
   network.ledger_secrets->init();
   network.tables->set_encryptor(encryptor);
+  auto history = std::make_shared<ccf::NullTxHistory>(*network.tables, 0, *kp);
+  network.tables->set_history(history);
+  auto consensus = std::make_shared<aft::StubCFTConsensus>();
+  network.tables->set_consensus(consensus);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1724,6 +1770,10 @@ DOCTEST_TEST_CASE(
   network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
   network.ledger_secrets->init();
   network.tables->set_encryptor(encryptor);
+  auto history = std::make_shared<ccf::NullTxHistory>(*network.tables, 0, *kp);
+  network.tables->set_history(history);
+  auto consensus = std::make_shared<aft::StubCFTConsensus>();
+  network.tables->set_consensus(consensus);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1857,6 +1907,10 @@ DOCTEST_TEST_CASE("User data")
 {
   NetworkState network;
   network.tables->set_encryptor(encryptor);
+  auto history = std::make_shared<ccf::NullTxHistory>(*network.tables, 0, *kp);
+  network.tables->set_history(history);
+  auto consensus = std::make_shared<aft::StubCFTConsensus>();
+  network.tables->set_consensus(consensus);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
