@@ -15,6 +15,7 @@ namespace ccf
   using EncryptedShare = std::vector<uint8_t>;
   using EncryptedSharesMap = std::map<MemberId, EncryptedShare>;
 
+  // TODO: Delete this type
   struct WrappedLedgerSecret
   {
     std::vector<uint8_t> encrypted_data;
@@ -26,14 +27,14 @@ namespace ccf
     // integrity on the public-only transactions. However, the corresponding
     // shares are only written at a later version, once the previous ledger
     // secrets have been recovered.
-    std::optional<kv::Version> version = std::nullopt;
+    // std::optional<kv::Version> version = std::nullopt;
 
-    MSGPACK_DEFINE(encrypted_data, version)
+    MSGPACK_DEFINE(encrypted_data)
   };
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(WrappedLedgerSecret)
+  DECLARE_JSON_TYPE(WrappedLedgerSecret)
   DECLARE_JSON_REQUIRED_FIELDS(WrappedLedgerSecret, encrypted_data)
-  DECLARE_JSON_OPTIONAL_FIELDS(WrappedLedgerSecret, version)
+  // DECLARE_JSON_OPTIONAL_FIELDS(WrappedLedgerSecret, version)
 
   struct RecoverySharesInfo
   {
@@ -51,6 +52,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     RecoverySharesInfo, wrapped_latest_ledger_secret, encrypted_shares)
 
+  // TODO: Perhaps rename this??
   struct EncryptedPastLedgerSecretInfo
   {
     // Past ledger secret encrypted with the latest ledger secret
@@ -61,14 +63,20 @@ namespace ccf
 
     // Version at which the ledger secret was written to the store
     // TODO: Unused for now
-    kv::Version stored_version = kv::NoVersion;
+    std::optional<kv::Version> stored_version = std::nullopt;
 
-    MSGPACK_DEFINE(encrypted_data, version, stored_version)
+    // Version at which the _next_ ledger secret is applicable from
+    // TODO: Paste larger comment from the top of this file
+    std::optional<kv::Version> next_version = std::nullopt;
+
+    MSGPACK_DEFINE(encrypted_data, version, stored_version, next_version)
   };
 
-  DECLARE_JSON_TYPE(EncryptedPastLedgerSecretInfo)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EncryptedPastLedgerSecretInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
-    EncryptedPastLedgerSecretInfo, encrypted_data, version, stored_version)
+    EncryptedPastLedgerSecretInfo, encrypted_data, version)
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    EncryptedPastLedgerSecretInfo, stored_version, next_version)
 
   // The following two tables are distinct because some operations trigger a
   // re-share without requiring the ledger secrets to be updated (e.g. updating
