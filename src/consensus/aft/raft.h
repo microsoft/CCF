@@ -2,6 +2,21 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+// AFT supports multithreaded execution of append entries and the follows the
+// following pseudocode
+//
+// func run_next_message:
+// if async_exec_in_progress then
+//   queue_message
+// if message == append_entry and thread_count > 1:
+//   exec_on_async_thread
+//   return_to_home_thread
+// else:
+//   exec_on_current_thread
+// if queued_messages > 0:
+//   run_next_message
+//
+
 #include "async_execution.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
@@ -32,7 +47,7 @@ namespace aft
   using Configuration = kv::Configuration;
 
   template <class LedgerProxy, class ChannelProxy, class SnapshotterProxy>
-  class Aft : public kv::ConfigurableConsensus, public AbstractExecMsgStore
+  class Aft : public kv::ConfigurableConsensus, public AbstractConsensusCallback
   {
   private:
     enum ReplicaState
@@ -85,7 +100,7 @@ namespace aft
     // over the commit level.
     kv::Version election_index = 0;
     bool is_execution_pending = false;
-    std::list<std::unique_ptr<AbstractExecMsg>> pending_execution;
+    std::list<std::unique_ptr<AbstractMsgCallback>> pending_executions;
 
     // BFT
     std::shared_ptr<aft::State> state;
@@ -508,94 +523,103 @@ namespace aft
 
     void recv_message(OArray&& d)
     {
-      std::unique_ptr<AbstractExecMsg> aee;
+      std::unique_ptr<AbstractMsgCallback> aee;
       const uint8_t* data = d.data();
       size_t size = d.size();
       RaftMsgType type = serialized::peek<RaftMsgType>(data, size);
 
       try
       {
-        // The host does a CALLIN to this when a Aft message
-        // is received. Invalid or malformed messages are ignored
-        // without informing the host. Messages are idempotent,
-        // so it is not necessary to defend against replay attacks.
-        if (type == raft_append_entries)
+        switch (type)
         {
-          AppendEntries r =
-            channels->template recv_authenticated<AppendEntries>(data, size);
-          aee = std::make_unique<AppendEntryExecEntry>(
-            this, std::move(r), data, size, std::move(d));
-        }
-        else if (type == raft_append_entries_response)
-        {
-          AppendEntriesResponse r =
-            channels->template recv_authenticated<AppendEntriesResponse>(
-              data, size);
-          aee =
-            std::make_unique<AppendEntryResponseExecEntry>(this, std::move(r));
-        }
-        else if (type == raft_append_entries_signed_response)
-        {
-          SignedAppendEntriesResponse r =
-            channels->template recv_authenticated<SignedAppendEntriesResponse>(
-              data, size);
-          aee = std::make_unique<SignedAppendEntryResponseExecEntry>(
-            this, std::move(r));
-        }
-
-        else if (type == raft_request_vote)
-        {
-          RequestVote r =
-            channels->template recv_authenticated<RequestVote>(data, size);
-          aee = std::make_unique<RequestVoteExecEntry>(this, std::move(r));
-        }
-
-        else if (type == raft_request_vote_response)
-        {
-          RequestVoteResponse r =
-            channels->template recv_authenticated<RequestVoteResponse>(
-              data, size);
-          aee =
-            std::make_unique<RequestVoteResponseExecEntry>(this, std::move(r));
-        }
-
-        else if (type == bft_signature_received_ack)
-        {
-          SignaturesReceivedAck r =
-            channels->template recv_authenticated<SignaturesReceivedAck>(
-              data, size);
-          aee = std::make_unique<SignatureAckExecEntry>(this, std::move(r));
-        }
-
-        else if (type == bft_nonce_reveal)
-        {
-          NonceRevealMsg r =
-            channels->template recv_authenticated<NonceRevealMsg>(data, size);
-          aee = std::make_unique<NonceRevealExecEntry>(this, std::move(r));
-        }
-        else if (type == bft_view_change)
-        {
-          RequestViewChangeMsg r =
-            channels
-              ->template recv_authenticated_with_load<RequestViewChangeMsg>(
+          case raft_append_entries:
+          {
+            AppendEntries r =
+              channels->template recv_authenticated<AppendEntries>(data, size);
+            aee = std::make_unique<AppendEntryCallback>(
+              *this, std::move(r), data, size, std::move(d));
+            break;
+          }
+          case raft_append_entries_response:
+          {
+            AppendEntriesResponse r =
+              channels->template recv_authenticated<AppendEntriesResponse>(
                 data, size);
-          aee = std::make_unique<ViewChangeExecEntry>(
-            this, std::move(r), data, size, std::move(d));
-        }
+            aee = std::make_unique<AppendEntryResponseCallback>(
+              *this, std::move(r));
+            break;
+          }
+          case raft_append_entries_signed_response:
+          {
+            SignedAppendEntriesResponse r =
+              channels
+                ->template recv_authenticated<SignedAppendEntriesResponse>(
+                  data, size);
+            aee = std::make_unique<SignedAppendEntryResponseCallback>(
+              *this, std::move(r));
+            break;
+          }
 
-        else if (type == bft_view_change_evidence)
-        {
-          ViewChangeEvidenceMsg r =
-            channels
-              ->template recv_authenticated_with_load<ViewChangeEvidenceMsg>(
+          case raft_request_vote:
+          {
+            RequestVote r =
+              channels->template recv_authenticated<RequestVote>(data, size);
+            aee = std::make_unique<RequestVoteCallback>(*this, std::move(r));
+            break;
+          }
+
+          case raft_request_vote_response:
+          {
+            RequestVoteResponse r =
+              channels->template recv_authenticated<RequestVoteResponse>(
                 data, size);
+            aee = std::make_unique<RequestVoteResponseCallback>(
+              *this, std::move(r));
+            break;
+          }
 
-          aee = std::make_unique<ViewChangeEvidenceExecEntry>(
-            this, std::move(r), data, size, std::move(d));
-        }
-        else
-        {
-          throw std::logic_error("Unknown message type");
+          case bft_signature_received_ack:
+          {
+            SignaturesReceivedAck r =
+              channels->template recv_authenticated<SignaturesReceivedAck>(
+                data, size);
+            aee = std::make_unique<SignatureAckCallback>(*this, std::move(r));
+            break;
+          }
+
+          case bft_nonce_reveal:
+          {
+            NonceRevealMsg r =
+              channels->template recv_authenticated<NonceRevealMsg>(data, size);
+            aee = std::make_unique<NonceRevealCallback>(*this, std::move(r));
+            break;
+          }
+          case bft_view_change:
+          {
+            RequestViewChangeMsg r =
+              channels
+                ->template recv_authenticated_with_load<RequestViewChangeMsg>(
+                  data, size);
+            aee = std::make_unique<ViewChangeCallback>(
+              *this, std::move(r), data, size, std::move(d));
+            break;
+          }
+
+          case bft_view_change_evidence:
+          {
+            ViewChangeEvidenceMsg r =
+              channels
+                ->template recv_authenticated_with_load<ViewChangeEvidenceMsg>(
+                  data, size);
+
+            aee = std::make_unique<ViewChangeEvidenceCallback>(
+              *this, std::move(r), data, size, std::move(d));
+            break;
+          }
+
+          default:
+          {
+          }
         }
 
         if (!is_execution_pending)
@@ -604,12 +628,12 @@ namespace aft
         }
         else
         {
-          pending_execution.push_back(std::move(aee));
+          pending_executions.push_back(std::move(aee));
         }
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT("error type:{}, err.what:{}", type, err.what());
+        LOG_FAIL_EXC(err.what());
       }
 
       try_execute_pending();
@@ -617,11 +641,21 @@ namespace aft
 
     void try_execute_pending()
     {
-      while (!is_execution_pending && !pending_execution.empty())
+      if (threading::ThreadMessaging::thread_count > 1)
       {
-        auto pe = std::move(pending_execution.front());
-        pending_execution.pop_front();
-        pe->execute();
+        periodic(std::chrono::milliseconds(0));
+        while (!is_execution_pending && !pending_executions.empty())
+        {
+          auto pe = std::move(pending_executions.front());
+          pending_executions.pop_front();
+          pe->execute();
+        }
+      }
+      else
+      {
+        CCF_ASSERT_FMT(
+          pending_executions.empty(),
+          "No message should be run asynchronously");
       }
     }
 

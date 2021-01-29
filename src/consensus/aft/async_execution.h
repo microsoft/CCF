@@ -6,7 +6,7 @@
 
 namespace aft
 {
-  class AbstractExecMsgStore
+  class AbstractConsensusCallback
   {
   public:
     virtual void recv_append_entries(
@@ -24,18 +24,18 @@ namespace aft
       ViewChangeEvidenceMsg r, const uint8_t* data, size_t size) = 0;
   };
 
-  class AbstractExecMsg
+  class AbstractMsgCallback
   {
   public:
-    virtual ~AbstractExecMsg() = default;
+    virtual ~AbstractMsgCallback() = default;
     virtual void execute() = 0;
   };
 
-  class AppendEntryExecEntry : public AbstractExecMsg
+  class AppendEntryCallback : public AbstractMsgCallback
   {
   public:
-    AppendEntryExecEntry(
-      AbstractExecMsgStore* store_,
+    AppendEntryCallback(
+      AbstractConsensusCallback& store_,
       AppendEntries&& hdr_,
       const uint8_t* data_,
       size_t size_,
@@ -49,134 +49,135 @@ namespace aft
 
     void execute() override
     {
-      store->recv_append_entries(hdr, data, size);
+      store.recv_append_entries(hdr, data, size);
     }
 
   private:
-    AbstractExecMsgStore* store;
+    AbstractConsensusCallback& store;
     AppendEntries hdr;
     const uint8_t* data;
     size_t size;
     OArray oarray;
   };
 
-  class AppendEntryResponseExecEntry : public AbstractExecMsg
+  class AppendEntryResponseCallback : public AbstractMsgCallback
   {
   public:
-    AppendEntryResponseExecEntry(
-      AbstractExecMsgStore* store_, AppendEntriesResponse&& hdr_) :
+    AppendEntryResponseCallback(
+      AbstractConsensusCallback& store_, AppendEntriesResponse&& hdr_) :
       store(store_),
       hdr(std::move(hdr_))
     {}
 
     void execute() override
     {
-      store->recv_append_entries_response(hdr);
+      store.recv_append_entries_response(hdr);
     }
 
   private:
-    AbstractExecMsgStore* store;
+    AbstractConsensusCallback& store;
     AppendEntriesResponse hdr;
   };
 
-  class SignedAppendEntryResponseExecEntry : public AbstractExecMsg
+  class SignedAppendEntryResponseCallback : public AbstractMsgCallback
   {
   public:
-    SignedAppendEntryResponseExecEntry(
-      AbstractExecMsgStore* store_, SignedAppendEntriesResponse&& hdr_) :
+    SignedAppendEntryResponseCallback(
+      AbstractConsensusCallback& store_, SignedAppendEntriesResponse&& hdr_) :
       store(store_),
       hdr(std::move(hdr_))
     {}
 
     void execute() override
     {
-      store->recv_append_entries_signed_response(hdr);
+      store.recv_append_entries_signed_response(hdr);
     }
 
   private:
-    AbstractExecMsgStore* store;
+    AbstractConsensusCallback& store;
     SignedAppendEntriesResponse hdr;
   };
 
-  class RequestVoteExecEntry : public AbstractExecMsg
+  class RequestVoteCallback : public AbstractMsgCallback
   {
   public:
-    RequestVoteExecEntry(AbstractExecMsgStore* store_, RequestVote&& hdr_) :
+    RequestVoteCallback(AbstractConsensusCallback& store_, RequestVote&& hdr_) :
       store(store_),
       hdr(std::move(hdr_))
     {}
 
     void execute() override
     {
-      store->recv_request_vote(hdr);
+      store.recv_request_vote(hdr);
     }
 
   private:
-    AbstractExecMsgStore* store;
+    AbstractConsensusCallback& store;
     RequestVote hdr;
   };
 
-  class RequestVoteResponseExecEntry : public AbstractExecMsg
+  class RequestVoteResponseCallback : public AbstractMsgCallback
   {
   public:
-    RequestVoteResponseExecEntry(
-      AbstractExecMsgStore* store_, RequestVoteResponse&& hdr_) :
+    RequestVoteResponseCallback(
+      AbstractConsensusCallback& store_, RequestVoteResponse&& hdr_) :
       store(store_),
       hdr(std::move(hdr_))
     {}
 
     void execute() override
     {
-      store->recv_request_vote_response(hdr);
+      store.recv_request_vote_response(hdr);
     }
 
   private:
-    AbstractExecMsgStore* store;
+    AbstractConsensusCallback& store;
     RequestVoteResponse hdr;
   };
 
-  class SignatureAckExecEntry : public AbstractExecMsg
+  class SignatureAckCallback : public AbstractMsgCallback
   {
   public:
-    SignatureAckExecEntry(
-      AbstractExecMsgStore* store_, SignaturesReceivedAck&& hdr_) :
+    SignatureAckCallback(
+      AbstractConsensusCallback& store_, SignaturesReceivedAck&& hdr_) :
       store(store_),
       hdr(std::move(hdr_))
     {}
 
     void execute() override
     {
-      store->recv_signature_received_ack(hdr);
+      store.recv_signature_received_ack(hdr);
     }
 
   private:
-    AbstractExecMsgStore* store;
+    AbstractConsensusCallback& store;
     SignaturesReceivedAck hdr;
   };
 
-  class NonceRevealExecEntry : public AbstractExecMsg
+  class NonceRevealCallback : public AbstractMsgCallback
   {
   public:
-    NonceRevealExecEntry(AbstractExecMsgStore* store_, NonceRevealMsg&& hdr_) :
+    NonceRevealCallback(
+      AbstractConsensusCallback& store_, NonceRevealMsg&& hdr_) :
       store(store_),
       hdr(std::move(hdr_))
     {}
 
     void execute() override
     {
-      store->recv_nonce_reveal(hdr);
+      store.recv_nonce_reveal(hdr);
     }
 
   private:
-    AbstractExecMsgStore* store;
+    AbstractConsensusCallback& store;
     NonceRevealMsg hdr;
   };
 
-  class ViewChangeExecEntry : public AbstractExecMsg
+  class ViewChangeCallback : public AbstractMsgCallback
   {
   public:
-    ViewChangeExecEntry(
-      AbstractExecMsgStore* store_,
+    ViewChangeCallback(
+      AbstractConsensusCallback& store_,
       RequestViewChangeMsg&& hdr_,
       const uint8_t* data_,
       size_t size_,
@@ -190,22 +191,22 @@ namespace aft
 
     void execute() override
     {
-      store->recv_view_change(hdr, data, size);
+      store.recv_view_change(hdr, data, size);
     }
 
   private:
-    AbstractExecMsgStore* store;
+    AbstractConsensusCallback& store;
     RequestViewChangeMsg hdr;
     const uint8_t* data;
     size_t size;
     OArray oarray;
   };
 
-  class ViewChangeEvidenceExecEntry : public AbstractExecMsg
+  class ViewChangeEvidenceCallback : public AbstractMsgCallback
   {
   public:
-    ViewChangeEvidenceExecEntry(
-      AbstractExecMsgStore* store_,
+    ViewChangeEvidenceCallback(
+      AbstractConsensusCallback& store_,
       ViewChangeEvidenceMsg&& hdr_,
       const uint8_t* data_,
       size_t size_,
@@ -219,11 +220,11 @@ namespace aft
 
     void execute() override
     {
-      store->recv_view_change_evidence(hdr, data, size);
+      store.recv_view_change_evidence(hdr, data, size);
     }
 
   private:
-    AbstractExecMsgStore* store;
+    AbstractConsensusCallback& store;
     ViewChangeEvidenceMsg hdr;
     const uint8_t* data;
     size_t size;
