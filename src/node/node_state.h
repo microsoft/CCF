@@ -1605,44 +1605,50 @@ namespace ccf
     void setup_recovery_hook()
     {
       network.tables->set_map_hook(
-        network.shares.get_name(),
-        network.shares.wrap_map_hook(
-          [this](kv::Version version, const Shares::Write& w)
+        network.encrypted_past_ledger_secret.get_name(),
+        network.encrypted_past_ledger_secret.wrap_map_hook(
+          [this](kv::Version version, const EncryptedPastLedgerSecret::Write& w)
             -> kv::ConsensusHookPtr {
-            for (const auto& [k, opt_v] : w)
-            {
-              if (!opt_v.has_value())
-              {
-                throw std::logic_error(
-                  fmt::format("Unexpected: removal from shares table ({})", k));
-              }
+            (void)version;
+            (void)w;
+            (void)this;
+            // TODO: Rewrite hook
+            // for (const auto& [k, opt_v] : w)
+            // {
+            //   if (!opt_v.has_value())
+            //   {
+            //     throw std::logic_error(
+            //       fmt::format("Unexpected: removal from shares table ({})",
+            //       k));
+            //   }
 
-              const auto& v = opt_v.value();
+            //   const auto& v = opt_v.value();
 
-              // If the version is not set (rekeying), use the version
-              // from the hook plus one. Otherwise (recovery), use the
-              // version specified.
-              auto ledger_secret_version =
-                v.wrapped_latest_ledger_secret.version.value_or(version + 1);
+            //   // If the version is not set (rekeying), use the version
+            //   // from the hook plus one. Otherwise (recovery), use the
+            //   // version specified.
+            //   auto ledger_secret_version =
+            //     v.wrapped_latest_ledger_secret.version.value_or(version + 1);
 
-              // Do not recover the ledger secrets in case of a pure re-share
-              // (e.g. recovery threshold update) as they are the same as in
-              // the previous entry.
-              if (
-                recovery_ledger_secrets.empty() ||
-                recovery_ledger_secrets.back().next_version !=
-                  ledger_secret_version)
-              {
-                LOG_TRACE_FMT(
-                  "Recovering one encrypted ledger secret at version {} and "
-                  "next version {}",
-                  v.encrypted_previous_ledger_secret.version,
-                  ledger_secret_version);
+            //   // Do not recover the ledger secrets in case of a pure re-share
+            //   // (e.g. recovery threshold update) as they are the same as in
+            //   // the previous entry.
+            //   if (
+            //     recovery_ledger_secrets.empty() ||
+            //     recovery_ledger_secrets.back().next_version !=
+            //       ledger_secret_version)
+            //   {
+            //     LOG_TRACE_FMT(
+            //       "Recovering one encrypted ledger secret at version {} and "
+            //       "next version {}",
+            //       v.encrypted_previous_ledger_secret.version,
+            //       ledger_secret_version);
 
-                recovery_ledger_secrets.push_back(
-                  {ledger_secret_version, v.encrypted_previous_ledger_secret});
-              }
-            }
+            //     recovery_ledger_secrets.push_back(
+            //       {ledger_secret_version,
+            //       v.encrypted_previous_ledger_secret});
+            //   }
+            // }
 
             return kv::ConsensusHookPtr(nullptr);
           }));

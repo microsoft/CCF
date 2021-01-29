@@ -119,7 +119,7 @@ namespace ccf
       member_acks(Tables::MEMBER_ACKS),
       governance_history(Tables::GOV_HISTORY),
       shares(Tables::SHARES),
-      encrypted_previous_ledger_secret(Tables::ENCRYPTED_PAST_LEDGER_SECRET),
+      encrypted_past_ledger_secret(Tables::ENCRYPTED_PAST_LEDGER_SECRET),
       submitted_shares(Tables::SUBMITTED_SHARES),
       config(Tables::CONFIGURATION),
       ca_certs(Tables::CA_CERT_DERS),

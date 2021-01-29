@@ -28,7 +28,7 @@ namespace ccf
     // secrets have been recovered.
     std::optional<kv::Version> version = std::nullopt;
 
-    MSGPACK_DEFINE(data, version)
+    MSGPACK_DEFINE(encrypted_data, version)
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(WrappedLedgerSecret)
@@ -60,14 +60,15 @@ namespace ccf
     kv::Version version;
 
     // Version at which the ledger secret was written to the store
-    kv::Version stored_version;
+    // TODO: Unused for now
+    kv::Version stored_version = kv::NoVersion;
 
     MSGPACK_DEFINE(encrypted_data, version, stored_version)
   };
 
-  DECLARE_JSON_TYPE(PreviousEncryptedLedgerSecret)
+  DECLARE_JSON_TYPE(EncryptedPastLedgerSecretInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
-    PreviousEncryptedLedgerSecret, encrypted_data, version.stored_version)
+    EncryptedPastLedgerSecretInfo, encrypted_data, version, stored_version)
 
   // The following two tables are distinct because some operations trigger a
   // re-share without requiring the ledger secrets to be updated (e.g. updating
