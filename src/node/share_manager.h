@@ -200,18 +200,17 @@ namespace ccf
         encrypted_previous_secret = encrypted_previous_ls.serialise();
       }
 
-      GenesisGenerator g(network, tx);
-
-      // LOG_FAIL_FMT(
-      //   "Writing shares info: previous secret at {}, latest secret at {}",
-      //   version_previous_secret,
-      //   latest_ls_version);
-
-      // TODO: Rename this
-      g.add_key_share_info(
+      // TODO: We shouldn't have to update both on pure re-share!!
+      auto recovery_shares_handle = tx.get_view(network.shares);
+      recovery_shares_handle->put(
+        0,
         {{wrapped_latest_ls, latest_ls_version},
-         {encrypted_previous_secret, version_previous_secret},
          compute_encrypted_shares(tx, ls_wrapping_key)});
+
+      auto encrypted_past_ls_handle =
+        tx.get_view(network.encrypted_past_ledger_secret);
+      encrypted_past_ls_handle->put(
+        0, {encrypted_previous_secret, version_previous_secret});
     }
 
     std::vector<uint8_t> encrypt_submitted_share(
@@ -310,7 +309,6 @@ namespace ccf
     std::optional<EncryptedShare> get_encrypted_share(
       kv::Tx& tx, MemberId member_id)
     {
-      std::optional<EncryptedShare> encrypted_share = std::nullopt;
       auto recovery_shares_info = tx.get_view(network.shares)->get(0);
       if (!recovery_shares_info.has_value())
       {
@@ -318,14 +316,13 @@ namespace ccf
           "Failed to retrieve current recovery shares info");
       }
 
-      for (auto const& s : recovery_shares_info->encrypted_shares)
+      auto search = recovery_shares_info->encrypted_shares.find(member_id);
+      if (search == recovery_shares_info->encrypted_shares.end())
       {
-        if (s.first == member_id)
-        {
-          encrypted_share = s.second;
-        }
+        return std::nullopt;
       }
-      return encrypted_share;
+
+      return search->second;
     }
 
     LedgerSecretsMap restore_recovery_shares_info(

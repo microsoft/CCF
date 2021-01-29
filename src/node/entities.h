@@ -81,6 +81,8 @@ namespace ccf
     static constexpr auto GOV_HISTORY = "public:ccf.gov.governance.history";
     static constexpr auto SERVICE = "public:ccf.gov.service";
     static constexpr auto SHARES = "public:ccf.gov.shares";
+    static constexpr auto ENCRYPTED_PAST_LEDGER_SECRET =
+      "public:ccf.gov.encrypted_past_ledger_secret";
     static constexpr auto CONFIGURATION = "public:ccf.gov.config";
     static constexpr auto SUBMITTED_SHARES = "public:ccf.gov.submitted_shares";
     static constexpr auto SNAPSHOT_EVIDENCE =

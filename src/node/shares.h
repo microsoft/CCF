@@ -28,58 +28,61 @@ namespace ccf
     // secrets have been recovered.
     std::optional<kv::Version> version = std::nullopt;
 
-    MSGPACK_DEFINE(encrypted_data, version)
+    MSGPACK_DEFINE(data, version)
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(WrappedLedgerSecret)
   DECLARE_JSON_REQUIRED_FIELDS(WrappedLedgerSecret, encrypted_data)
   DECLARE_JSON_OPTIONAL_FIELDS(WrappedLedgerSecret, version)
 
-  // TODO: To unify with secrets.h encrypted ledger secret??
-  struct PreviousEncryptedLedgerSecret
-  {
-    std::vector<uint8_t> encrypted_data;
-
-    kv::Version version;
-
-    MSGPACK_DEFINE(encrypted_data, version)
-  };
-
-  DECLARE_JSON_TYPE(PreviousEncryptedLedgerSecret)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    PreviousEncryptedLedgerSecret, encrypted_data, version)
-
   struct RecoverySharesInfo
   {
-    // Keeping track of the latest and penultimate ledger secret allows the
-    // value of this table to remain at a constant size through the lifetime of
-    // the service. On recovery, a local hook on this table allows the service
-    // to reconstruct the history of encrypted ledger secrets which are
-    // decrypted in sequence once the ledger secret wrapping key is
-    // re-assembled.
-
     // Latest ledger secret wrapped with the ledger secret wrapping key
     WrappedLedgerSecret wrapped_latest_ledger_secret;
 
-    // Previous ledger secret encrypted with the latest ledger secret
-    PreviousEncryptedLedgerSecret encrypted_previous_ledger_secret;
-
+    // Recovery shares encrypted with each active recovery member's public
+    // encryption key
     EncryptedSharesMap encrypted_shares;
 
-    MSGPACK_DEFINE(
-      wrapped_latest_ledger_secret,
-      encrypted_previous_ledger_secret,
-      encrypted_shares);
+    MSGPACK_DEFINE(wrapped_latest_ledger_secret, encrypted_shares);
   };
 
   DECLARE_JSON_TYPE(RecoverySharesInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
-    RecoverySharesInfo,
-    wrapped_latest_ledger_secret,
-    encrypted_previous_ledger_secret,
-    encrypted_shares)
+    RecoverySharesInfo, wrapped_latest_ledger_secret, encrypted_shares)
 
-  // The key for this table will always be 0 since a live service never needs to
-  // access historical recovery shares info.
-  using Shares = kv::Map<size_t, RecoverySharesInfo>;
+  struct EncryptedPastLedgerSecretInfo
+  {
+    // Past ledger secret encrypted with the latest ledger secret
+    std::vector<uint8_t> encrypted_data;
+
+    // Version at which the ledger secret is applicable from
+    kv::Version version;
+
+    // Version at which the ledger secret was written to the store
+    kv::Version stored_version;
+
+    MSGPACK_DEFINE(encrypted_data, version, stored_version)
+  };
+
+  DECLARE_JSON_TYPE(PreviousEncryptedLedgerSecret)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    PreviousEncryptedLedgerSecret, encrypted_data, version.stored_version)
+
+  // The following two tables are distinct because some operations trigger a
+  // re-share without requiring the ledger secrets to be updated (e.g. updating
+  // the recovery threshold), and vice versa (e.g. ledger rekey). For historical
+  // queries, when recovering ledger secrets from the ledger, the version at
+  // which the previous ledger secret was _written_ to the store must be known
+  // and can be deduced to the version at which the
+  // EncryptedPastLedgerSecret map was updated.
+
+  // The key for this table is always 0. It is updated every time the member
+  // recovery shares are updated, e.g. when the recovery threshold is modified
+  using RecoveryShares = kv::Map<size_t, RecoverySharesInfo>;
+
+  // The key for this table is always 0. It is updated every time the ledger
+  // secrets are updated, e.g. at startup or on ledger rekey
+  using EncryptedPastLedgerSecret =
+    kv::Map<size_t, EncryptedPastLedgerSecretInfo>;
 }

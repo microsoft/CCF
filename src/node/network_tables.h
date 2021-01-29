@@ -54,7 +54,8 @@ namespace ccf
     CodeIDs node_code_ids;
     MemberAcks member_acks;
     GovernanceHistory governance_history;
-    Shares shares;
+    RecoveryShares shares;
+    EncryptedPastLedgerSecret encrypted_past_ledger_secret;
     SubmittedShares submitted_shares;
     Configuration config;
 
@@ -118,6 +119,7 @@ namespace ccf
       member_acks(Tables::MEMBER_ACKS),
       governance_history(Tables::GOV_HISTORY),
       shares(Tables::SHARES),
+      encrypted_previous_ledger_secret(Tables::ENCRYPTED_PAST_LEDGER_SECRET),
       submitted_shares(Tables::SUBMITTED_SHARES),
       config(Tables::CONFIGURATION),
       ca_certs(Tables::CA_CERT_DERS),
