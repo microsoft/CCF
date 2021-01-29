@@ -93,7 +93,7 @@ namespace kv::untyped
       return *value_p;
     }
 
-    std::optional<Version> get_version_of_last_put(const KeyType& key)
+    std::optional<Version> get_previous_version(const KeyType& key)
     {
       // If the key doesn't exist, return empty and record that we depend on
       // the key not existing.
@@ -108,8 +108,8 @@ namespace kv::untyped
       tx_changes.reads.insert(std::make_pair(key, search->version));
 
       // If the key has been deleted, return empty. NB: We still depend on this
-      // version above, but we don't distinguish deleted from non-existent in
-      // the returned values.
+      // version with the call above, but we don't distinguish deleted from
+      // non-existent in the returned values.
       if (is_deleted(search->version))
       {
         return std::nullopt;

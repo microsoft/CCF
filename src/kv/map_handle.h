@@ -88,7 +88,8 @@ namespace kv
       return read_handle.has(KSerialiser::to_serialised(key));
     }
 
-    /** Get version when this key was last modified by a visible put.
+    /** Get version when this key was last written to, by a previous
+     * transaction.
      *
      * Returns nullopt when there is no value, because the key has no value
      * (never existed or has been removed). Note that this is always talking
@@ -101,9 +102,9 @@ namespace kv
      * @return Optional containing version of applied transaction which last
      * wrote at this key, or nullopt of this key has no associated value
      */
-    std::optional<Version> get_version_of_last_put(const K& key)
+    std::optional<Version> get_previous_version(const K& key)
     {
-      return read_handle.get_version_of_last_put(
+      return read_handle.get_previous_version(
         KSerialiser::to_serialised(key));
     }
 
