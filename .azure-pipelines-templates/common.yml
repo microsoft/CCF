@@ -10,6 +10,7 @@ jobs:
     steps:
       - checkout: self
         clean: true
+        fetchDepth: 1
 
       - template: cmake.yml
         parameters:
