@@ -214,20 +214,23 @@ namespace enclave
             logger::config::set_time(time_now);
 
             std::chrono::milliseconds elapsed_ms = time_now - last_tick_time;
-            last_tick_time = time_now;
-
-            node->tick(elapsed_ms);
-            threading::ThreadMessaging::thread_messaging.tick(elapsed_ms);
-            // When recovering, no signature should be emitted while the
-            // public ledger is being read
-            if (!node->is_reading_public_ledger())
+            if (elapsed_ms.count() > 0)
             {
-              for (auto& [actor, frontend] : rpc_map->frontends())
+              last_tick_time = time_now;
+
+              node->tick(elapsed_ms);
+              threading::ThreadMessaging::thread_messaging.tick(elapsed_ms);
+              // When recovering, no signature should be emitted while the
+              // public ledger is being read
+              if (!node->is_reading_public_ledger())
               {
-                frontend->tick(elapsed_ms);
+                for (auto& [actor, frontend] : rpc_map->frontends())
+                {
+                  frontend->tick(elapsed_ms);
+                }
               }
+              node->tick_end();
             }
-            node->tick_end();
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
