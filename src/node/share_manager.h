@@ -201,15 +201,14 @@ namespace ccf
       }
 
       // TODO: We shouldn't have to update both on pure re-share!!
-      auto recovery_shares_handle = tx.get_view(network.shares);
-      recovery_shares_handle->put(
+      auto recovery_shares = tx.rw(network.shares);
+      recovery_shares->put(
         0,
         {{wrapped_latest_ls, latest_ls_version},
          compute_encrypted_shares(tx, ls_wrapping_key)});
 
-      auto encrypted_past_ls_handle =
-        tx.get_view(network.encrypted_past_ledger_secret);
-      encrypted_past_ls_handle->put(
+      auto encrypted_past_ls = tx.rw(network.encrypted_past_ledger_secret);
+      encrypted_past_ls->put(
         0, {encrypted_previous_secret, version_previous_secret});
     }
 
@@ -253,25 +252,23 @@ namespace ccf
 
     LedgerSecretWrappingKey combine_from_submitted_shares(kv::Tx& tx)
     {
-      auto [submitted_shares_view, config_view] =
-        tx.get_view(network.submitted_shares, network.config);
+      auto submitted_shares = tx.rw(network.submitted_shares);
+      auto config = tx.rw(network.config);
 
       std::vector<SecretSharing::Share> shares;
-      submitted_shares_view->foreach(
-        [&shares, &tx, this](
-          const MemberId, const std::vector<uint8_t>& encrypted_share) {
-          SecretSharing::Share share;
-          auto decrypted_share = decrypt_submitted_share(
-            encrypted_share, network.ledger_secrets->get_latest(tx).second);
-          std::copy_n(
-            decrypted_share.begin(),
-            SecretSharing::SHARE_LENGTH,
-            share.begin());
-          shares.emplace_back(share);
-          return true;
-        });
+      submitted_shares->foreach([&shares, &tx, this](
+                                  const MemberId,
+                                  const std::vector<uint8_t>& encrypted_share) {
+        SecretSharing::Share share;
+        auto decrypted_share = decrypt_submitted_share(
+          encrypted_share, network.ledger_secrets->get_latest(tx).second);
+        std::copy_n(
+          decrypted_share.begin(), SecretSharing::SHARE_LENGTH, share.begin());
+        shares.emplace_back(share);
+        return true;
+      });
 
-      auto recovery_threshold = config_view->get(0)->recovery_threshold;
+      auto recovery_threshold = config->get(0)->recovery_threshold;
       if (recovery_threshold > shares.size())
       {
         throw std::logic_error(fmt::format(
@@ -309,7 +306,7 @@ namespace ccf
     std::optional<EncryptedShare> get_encrypted_share(
       kv::Tx& tx, MemberId member_id)
     {
-      auto recovery_shares_info = tx.get_view(network.shares)->get(0);
+      auto recovery_shares_info = tx.rw(network.shares)->get(0);
       if (!recovery_shares_info.has_value())
       {
         throw std::logic_error(
@@ -335,7 +332,7 @@ namespace ccf
 
       auto ls_wrapping_key = combine_from_submitted_shares(tx);
 
-      auto recovery_shares_info = tx.get_view(network.shares)->get(0);
+      auto recovery_shares_info = tx.rw(network.shares)->get(0);
       if (!recovery_shares_info.has_value())
       {
         throw std::logic_error(
@@ -396,22 +393,22 @@ namespace ccf
       MemberId member_id,
       const std::vector<uint8_t>& submitted_recovery_share)
     {
-      auto [service_view, submitted_shares_view] =
-        tx.get_view(network.service, network.submitted_shares);
-      auto active_service = service_view->get(0);
+      auto service = tx.rw(network.service);
+      auto submitted_shares = tx.rw(network.submitted_shares);
+      auto active_service = service->get(0);
       if (!active_service.has_value())
       {
         throw std::logic_error("Failed to get active service");
       }
 
-      submitted_shares_view->put(
+      submitted_shares->put(
         member_id,
         encrypt_submitted_share(
           submitted_recovery_share,
           network.ledger_secrets->get_latest(tx).second));
 
       size_t submitted_shares_count = 0;
-      submitted_shares_view->foreach(
+      submitted_shares->foreach(
         [&submitted_shares_count](const MemberId, const std::vector<uint8_t>&) {
           submitted_shares_count++;
           return true;
@@ -422,11 +419,11 @@ namespace ccf
 
     void clear_submitted_recovery_shares(kv::Tx& tx)
     {
-      auto submitted_shares_view = tx.get_view(network.submitted_shares);
+      auto submitted_shares = tx.rw(network.submitted_shares);
 
       std::vector<uint8_t> submitted_share_ids = {};
 
-      submitted_shares_view->foreach(
+      submitted_shares->foreach(
         [&submitted_share_ids](
           const MemberId member_id, const std::vector<uint8_t>&) {
           submitted_share_ids.push_back(member_id);
@@ -435,7 +432,7 @@ namespace ccf
 
       for (auto const& id : submitted_share_ids)
       {
-        submitted_shares_view->remove(id);
+        submitted_shares->remove(id);
       }
     }
   };

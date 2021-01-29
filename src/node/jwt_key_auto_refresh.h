@@ -281,11 +281,11 @@ namespace ccf
     void refresh_jwt_keys()
     {
       auto tx = network.tables->create_read_only_tx();
-      auto jwt_issuers_view = tx.get_read_only_view(network.jwt_issuers);
-      auto ca_certs_view = tx.get_read_only_view(network.ca_certs);
-      jwt_issuers_view->foreach([this, &ca_certs_view](
-                                  const JwtIssuer& issuer,
-                                  const JwtIssuerMetadata& metadata) {
+      auto jwt_issuers = tx.ro(network.jwt_issuers);
+      auto ca_certs = tx.ro(network.ca_certs);
+      jwt_issuers->foreach([this, &ca_certs](
+                             const JwtIssuer& issuer,
+                             const JwtIssuerMetadata& metadata) {
         if (!metadata.auto_refresh)
         {
           LOG_DEBUG_FMT(
@@ -297,7 +297,7 @@ namespace ccf
         LOG_DEBUG_FMT(
           "JWT key auto-refresh: Refreshing keys for issuer '{}'", issuer);
         auto& ca_cert_name = metadata.ca_cert_name.value();
-        auto ca_cert_der = ca_certs_view->get(ca_cert_name);
+        auto ca_cert_der = ca_certs->get(ca_cert_name);
         if (!ca_cert_der.has_value())
         {
           LOG_FAIL_FMT(

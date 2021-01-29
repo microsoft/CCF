@@ -2,11 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "apply_changes.h"
 #include "ds/ccf_assert.h"
+#include "ds/ccf_deprecated.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
-#include "view_containers.h"
 
 #include <list>
 
@@ -26,8 +27,8 @@ namespace kv
     }
   };
 
-  // Manages a collection of TxViews. Derived implementations call get_tuple to
-  // retrieve views over target maps.
+  // Manages a collection of MapHandles. Derived implementations should call
+  // get_handle_by_name to retrieve handles over their desired maps.
   class BaseTx : public AbstractChangeContainer
   {
   protected:
@@ -36,12 +37,12 @@ namespace kv
     OrderedChanges all_changes;
 
     // NB: This exists only to maintain the old API, where this Tx stores
-    // TxViews and returns raw pointers to them. It could be removed entirely
+    // MapHandles and returns raw pointers to them. It could be removed entirely
     // with a near-identical API if we return `shared_ptr`s, and assuming that
-    // we don't actually care about returning the same View instance if
-    // `get_view` is called multiple times
-    using PossibleViews = std::list<std::unique_ptr<AbstractTxView>>;
-    std::map<std::string, PossibleViews> all_views;
+    // we don't actually care about returning exactly the same Handle instance
+    // if `rw` is called multiple times
+    using PossibleHandles = std::list<std::unique_ptr<AbstractMapHandle>>;
+    std::map<std::string, PossibleHandles> all_handles;
 
     bool committed = false;
     bool success = false;
@@ -54,38 +55,38 @@ namespace kv
 
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
 
-    template <typename MapView>
-    MapView* get_or_insert_view(
+    template <typename THandle>
+    THandle* get_or_insert_handle(
       untyped::ChangeSet& change_set, const std::string& name)
     {
-      auto it = all_views.find(name);
-      if (it == all_views.end())
+      auto it = all_handles.find(name);
+      if (it == all_handles.end())
       {
-        PossibleViews views;
-        auto typed_view = new MapView(change_set);
-        views.emplace_back(std::unique_ptr<AbstractTxView>(typed_view));
-        all_views[name] = std::move(views);
-        return typed_view;
+        PossibleHandles handles;
+        auto typed_handle = new THandle(change_set);
+        handles.emplace_back(std::unique_ptr<AbstractMapHandle>(typed_handle));
+        all_handles[name] = std::move(handles);
+        return typed_handle;
       }
       else
       {
-        PossibleViews& views = it->second;
-        for (auto& view : views)
+        PossibleHandles& handles = it->second;
+        for (auto& handle : handles)
         {
-          auto typed_view = dynamic_cast<MapView*>(view.get());
-          if (typed_view != nullptr)
+          auto typed_handle = dynamic_cast<THandle*>(handle.get());
+          if (typed_handle != nullptr)
           {
-            return typed_view;
+            return typed_handle;
           }
         }
-        auto typed_view = new MapView(change_set);
-        views.emplace_back(std::unique_ptr<AbstractTxView>(typed_view));
-        return typed_view;
+        auto typed_handle = new THandle(change_set);
+        handles.emplace_back(std::unique_ptr<AbstractMapHandle>(typed_handle));
+        return typed_handle;
       }
     }
 
-    template <typename MapView>
-    std::tuple<MapView*> check_and_store_change_set(
+    template <typename THandle>
+    THandle* check_and_store_change_set(
       std::unique_ptr<untyped::ChangeSet>&& change_set,
       const std::string& map_name,
       const std::shared_ptr<AbstractMap>& abstract_map)
@@ -98,20 +99,20 @@ namespace kv
           read_version));
       }
 
-      auto typed_view = get_or_insert_view<MapView>(*change_set, map_name);
+      auto typed_handle = get_or_insert_handle<THandle>(*change_set, map_name);
       all_changes[map_name] = {abstract_map, std::move(change_set)};
-      return std::make_tuple(typed_view);
+      return typed_handle;
     }
 
-    template <class MapView>
-    std::tuple<MapView*> get_view_tuple_by_name(const std::string& map_name)
+    template <class THandle>
+    THandle* get_handle_by_name(const std::string& map_name)
     {
       auto search = all_changes.find(map_name);
       if (search != all_changes.end())
       {
-        auto view =
-          get_or_insert_view<MapView>(*search->second.changeset, map_name);
-        return std::make_tuple(view);
+        auto handle =
+          get_or_insert_handle<THandle>(*search->second.changeset, map_name);
+        return handle;
       }
 
       if (read_version == NoVersion)
@@ -130,12 +131,13 @@ namespace kv
           const auto map_it = created_maps.find(map_name);
           if (map_it != created_maps.end())
           {
-            throw std::logic_error("Created map without creating view over it");
+            throw std::logic_error(
+              "Created map without creating handle over it");
           }
         }
 
-        // NB: The created maps are always untyped. Only the views over them are
-        // typed
+        // NB: The created maps are always untyped. Only the handles over them
+        // are typed
         auto new_map = std::make_shared<kv::untyped::Map>(
           store,
           map_name,
@@ -155,40 +157,8 @@ namespace kv
       }
 
       auto change_set = untyped_map->create_change_set(read_version);
-      return check_and_store_change_set<MapView>(
+      return check_and_store_change_set<THandle>(
         std::move(change_set), map_name, abstract_map);
-    }
-
-    template <class M, class... Ms>
-    std::tuple<typename M::TxView*, typename Ms::TxView*...>
-    get_view_tuple_by_types(M& m, Ms&... ms)
-    {
-      if constexpr (sizeof...(Ms) == 0)
-      {
-        return get_view_tuple_by_name<typename M::TxView>(m.get_name());
-      }
-      else
-      {
-        return std::tuple_cat(
-          get_view_tuple_by_name<typename M::TxView>(m.get_name()),
-          get_view_tuple_by_types(ms...));
-      }
-    }
-
-    template <class M, class... Ms, class... Ts>
-    std::tuple<typename M::TxView*, typename Ms::TxView*...>
-    get_view_tuple_by_names(const std::string& map_name, const Ts&... names)
-    {
-      if constexpr (sizeof...(Ts) == 0)
-      {
-        return get_view_tuple_by_name<typename M::TxView>(map_name);
-      }
-      else
-      {
-        return std::tuple_cat(
-          get_view_tuple_by_name<typename M::TxView>(map_name),
-          get_view_tuple_by_names<Ms...>(names...));
-      }
     }
 
   public:
@@ -270,8 +240,8 @@ namespace kv
 
       auto store = all_changes.begin()->second.map->get_store();
 
-      // If this transaction may create maps, ensure that commit gets a
-      // consistent view of the existing maps
+      // If this transaction creates any maps, ensure that commit gets a
+      // consistent snapshot of the existing maps
       if (!created_maps.empty())
         this->store->lock();
 
@@ -290,8 +260,8 @@ namespace kv
 
       if (!success)
       {
-        // Conflicting views (and contained writes) and all version tracking are
-        // discarded. They must be reconstructed at updated, non-conflicting
+        // Conflicting handles (and contained writes) and all version tracking
+        // are discarded. They must be reconstructed at updated, non-conflicting
         // versions
         reset();
 
@@ -429,7 +399,7 @@ namespace kv
     void reset()
     {
       all_changes.clear();
-      all_views.clear();
+      all_handles.clear();
       created_maps.clear();
       committed = false;
       success = false;
@@ -439,134 +409,137 @@ namespace kv
     }
   };
 
+  /** Used to create read-only handles for accessing a Map.
+   *
+   * Acquiring a handle will create the map in the KV if it does not yet exist.
+   * The returned handles can view state written by previous transactions, and
+   * any additional modifications made in this transaction.
+   */
   class ReadOnlyTx : public BaseTx
   {
   public:
     using BaseTx::BaseTx;
 
-    /** Get a read-only transaction view on a map.
+    /** Get a read-only handle from a map instance.
      *
-     * This adds the map to the transaction set if it is not yet present.
-     *
-     * @param m Map
+     * @param m Map instance
      */
     template <class M>
-    typename M::ReadOnlyTxView* get_read_only_view(M& m)
+    typename M::ReadOnlyHandle* ro(M& m)
     {
-      // NB: Always creates a (writeable) TxView, which is cast to
-      // ReadOnlyTxView on return. This is so that other calls (before or after)
-      // can retrieve writeable views over the same map.
-      return std::get<0>(
-        get_view_tuple_by_name<typename M::TxView>(m.get_name()));
+      // NB: Always creates a (writeable) MapHandle, which is cast to
+      // ReadOnlyHandle on return. This is so that other calls (before or
+      // after) can retrieve writeable handles over the same map.
+      return get_handle_by_name<typename M::Handle>(m.get_name());
     }
 
-    /** Get a read-only transaction view on a map by name.
-     *
-     * This adds the map to the transaction set if it is not yet present, and
-     * creates the map if it does not yet exist.
+    /** Get a read-only handle by map name. Map type must be specified
+     * as explicit template parameter.
      *
      * @param map_name Name of map
      */
     template <class M>
-    typename M::ReadOnlyTxView* get_read_only_view(const std::string& map_name)
+    typename M::ReadOnlyHandle* ro(const std::string& map_name)
     {
-      return std::get<0>(get_view_tuple_by_name<typename M::TxView>(map_name));
+      return get_handle_by_name<typename M::Handle>(map_name);
     }
 
-    /** Get read-only transaction views over multiple maps.
-     *
-     * @param m Map
-     * @param ms Map
-     */
-    template <class M, class... Ms>
-    std::tuple<typename M::ReadOnlyTxView*, typename Ms::ReadOnlyTxView*...>
-    get_read_only_view(M& m, Ms&... ms)
+    template <class M>
+    CCF_DEPRECATED("Replace with ro")
+    typename M::ReadOnlyHandle* get_read_only_view(M& m)
     {
-      return std::tuple_cat(
-        get_view_tuple_by_name<typename M::TxView>(m.get_name()),
-        get_view_tuple_by_types(ms...));
+      return ro<M>(m);
     }
 
-    /** Get read-only transaction views over multiple maps by name. This will
-     * create the maps if they do not exist.
-     *
-     * @param map_name Name of first map to retrieve
-     * @param names Names of additional maps
-     */
-    template <class M, class... Ms, class... Ts>
-    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_read_only_view(
-      const std::string& map_name, const Ts&... names)
+    template <class M>
+    CCF_DEPRECATED("Replace with ro")
+    typename M::ReadOnlyHandle* get_read_only_view(const std::string& map_name)
     {
-      return std::tuple_cat(
-        get_view_tuple_by_name<typename M::TxView>(map_name),
-        get_view_tuple_by_names<Ms...>(names...));
+      return ro<M>(map_name);
     }
   };
 
+  /** Used to create writeable handles for accessing a Map.
+   *
+   * Acquiring a handle will create the map in the KV if it does not yet exist.
+   * Any writes made by the returned handles will be visible to all other
+   * handles created by this transaction. They will only be visible to other
+   * transactions after this transaction has completed and been applied. For
+   * type-safety, prefer restricted handles returned by @c ro or @c wo where
+   * possible, rather than the general @c rw.
+   *
+   * @see kv::ReadOnlyTx
+   */
   class Tx : public ReadOnlyTx
   {
   public:
     using ReadOnlyTx::ReadOnlyTx;
 
-    /** Get a transaction view on a map.
+    /** Get a read-write handle from a map instance.
      *
-     * This adds the map to the transaction set if it is not yet present.
+     * This handle can be used for both reads and writes.
      *
-     * @param m Map
+     * @param m Map instance
      */
     template <class M>
-    typename M::TxView* get_view(M& m)
+    typename M::Handle* rw(M& m)
     {
-      return std::get<0>(
-        get_view_tuple_by_name<typename M::TxView>(m.get_name()));
+      return get_handle_by_name<typename M::Handle>(m.get_name());
     }
 
-    /** Get a transaction view on a map by name
-     *
-     * This adds the map to the transaction set if it is not yet present, and
-     * creates the map if it does not yet exist.
+    /** Get a read-write handle by map name. Map type must be specified
+     * as explicit template parameter.
      *
      * @param map_name Name of map
      */
     template <class M>
-    typename M::TxView* get_view(const std::string& map_name)
+    typename M::Handle* rw(const std::string& map_name)
     {
-      return std::get<0>(get_view_tuple_by_name<typename M::TxView>(map_name));
+      return get_handle_by_name<typename M::Handle>(map_name);
     }
 
-    /** Get transaction views over multiple maps.
-     *
-     * @param m Map
-     * @param ms Map
-     */
-    template <class M, class... Ms>
-    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_view(
-      M& m, Ms&... ms)
+    template <class M>
+    CCF_DEPRECATED("Replace with rw")
+    typename M::ReadOnlyHandle* get_view(M& m)
     {
-      return std::tuple_cat(
-        get_view_tuple_by_name<typename M::TxView>(m.get_name()),
-        get_view_tuple_by_types(ms...));
+      return rw<M>(m);
     }
 
-    /** Get transaction views over multiple maps by name. This will create the
-     * maps if they do not exist.
-     *
-     * @param map_name Name of first map to retrieve
-     * @param names Names of additional maps
-     */
-    template <class M, class... Ms, class... Ts>
-    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_view(
-      const std::string& map_name, const Ts&... names)
+    template <class M>
+    CCF_DEPRECATED("Replace with rw")
+    typename M::ReadOnlyHandle* get_view(const std::string& map_name)
     {
-      return std::tuple_cat(
-        get_view_tuple_by_name<typename M::TxView>(map_name),
-        get_view_tuple_by_names<Ms...>(names...));
+      return rw<M>(map_name);
+    }
+
+    /** Get a write-only handle from a map instance.
+     *
+     * @param m Map instance
+     */
+    template <class M>
+    typename M::WriteOnlyHandle* wo(M& m)
+    {
+      // As with ro, this returns a full-featured Handle
+      // which is cast to only show its writeable facet.
+      return get_handle_by_name<typename M::Handle>(m.get_name());
+    }
+
+    /** Get a read-write handle by map name. Map type must be specified
+     * as explicit template parameter.
+     *
+     * @param map_name Name of map
+     */
+    template <class M>
+    typename M::WriteOnlyHandle* wo(const std::string& map_name)
+    {
+      return get_handle_by_name<typename M::Handle>(map_name);
     }
   };
 
   // Used by frontend for reserved transactions. These are constructed with a
-  // pre-reserved Version, and _must succeed_ to fulfil this version, else
-  // creating a hole in the history
+  // pre-reserved Version, and _must succeed_ to fulfil this version. Otherwise
+  // they create a hole in the transaction order, and no future transactions can
+  // complete.
   class ReservedTx : public Tx
   {
   public:

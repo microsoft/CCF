@@ -45,7 +45,7 @@ namespace ccf
       const LedgerSecretsMap& some_ledger_secrets)
     {
       GenesisGenerator g(network, tx);
-      auto secrets_view = tx.get_view(network.secrets);
+      auto secrets = tx.rw(network.secrets);
 
       auto trusted_nodes = g.get_trusted_nodes(self);
 
@@ -63,7 +63,7 @@ namespace ccf
                std::move(s.second.raw_key))});
         }
 
-        secrets_view->put(
+        secrets->put(
           nid,
           {encryption_key->public_key_pem().raw(),
            std::move(ledger_secrets_for_node)});
@@ -77,7 +77,7 @@ namespace ccf
       LedgerSecret&& new_ledger_secret)
     {
       GenesisGenerator g(network, tx);
-      auto secrets_view = tx.get_view(network.secrets);
+      auto secrets = tx.rw(network.secrets);
 
       for (auto [nid, ni] : g.get_trusted_nodes())
       {
@@ -89,7 +89,7 @@ namespace ccf
              tls::make_public_key(ni.encryption_pub_key),
              std::move(new_ledger_secret.raw_key))});
 
-        secrets_view->put(
+        secrets->put(
           nid,
           {encryption_key->public_key_pem().raw(),
            std::move(ledger_secrets_for_node)});

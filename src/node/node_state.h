@@ -514,8 +514,8 @@ namespace ccf
               }
 
               auto tx = network.tables->create_read_only_tx();
-              auto sig_view = tx.get_read_only_view(network.signatures);
-              auto sig = sig_view->get(0);
+              auto signatures = tx.ro(network.signatures);
+              auto sig = signatures->get(0);
               if (!sig.has_value())
               {
                 throw std::logic_error(
@@ -783,24 +783,17 @@ namespace ccf
         startup_snapshot_info)
       {
         auto tx = network.tables->create_read_only_tx();
-        auto snapshot_evidence_view =
-          tx.get_read_only_view(network.snapshot_evidence);
-        if (!snapshot_evidence_view)
-        {
-          throw std::logic_error("Invalid snapshot evidence");
-        }
+        auto snapshot_evidence = tx.ro(network.snapshot_evidence);
 
         if (ledger_idx == startup_snapshot_info->evidence_seqno)
         {
-          auto snapshot_evidence = snapshot_evidence_view->get(0);
-          if (!snapshot_evidence.has_value())
+          auto evidence = snapshot_evidence->get(0);
+          if (!evidence.has_value())
           {
             throw std::logic_error("Invalid snapshot evidence");
           }
 
-          if (
-            snapshot_evidence->hash ==
-            crypto::Sha256Hash(startup_snapshot_info->raw))
+          if (evidence->hash == crypto::Sha256Hash(startup_snapshot_info->raw))
           {
             LOG_DEBUG_FMT(
               "Snapshot evidence for snapshot found at {}",
@@ -1774,12 +1767,7 @@ namespace ccf
       if (tracker_store == nullptr)
       {
         tracker_store = std::make_shared<ccf::ProgressTrackerStoreAdapter>(
-          *network.tables.get(),
-          *node_sign_kp,
-          network.nodes,
-          network.backup_signatures_map,
-          network.revealed_nonces_map,
-          network.new_views_map);
+          *network.tables.get(), *node_sign_kp);
       }
     }
 

@@ -18,29 +18,28 @@ using namespace nlohmann;
 namespace ccf
 {
   using TableII = kv::Map<int, int>;
-  using TxII = TableII::TxView;
+  using TxII = TableII::Handle;
 
   using TableIS = kv::Map<int, std::string>;
-  using TxIS = TableIS::TxView;
+  using TxIS = TableIS::Handle;
 
   using TableSB = kv::Map<std::string, bool>;
-  using TxSB = TableSB::TxView;
+  using TxSB = TableSB::Handle;
 
   using TableVI = kv::Map<vector<uint8_t>, int>;
-  using TxVI = TableVI::TxView;
+  using TxVI = TableVI::Handle;
 
   TEST_CASE("lua tx")
   {
     kv::Store tables;
-    TableIS table("public:test");
 
     auto txs = tables.create_tx();
 
     const auto a = "Alice";
     const auto b = "Bob";
 
-    auto tx = txs.get_view(table);
-    tx->put(0, a);
+    auto table = txs.rw<TableIS>("public:test");
+    table->put(0, a);
 
     auto li = Interpreter();
     li.register_metatable<TxIS>(kv_methods<TxIS>);
@@ -58,13 +57,13 @@ namespace ccf
         "tx:put(1, b);"
         "if tx:get(1) ~= b then return 'tx overwrite failed' end;");
 
-      li.invoke<nullptr_t>(code, tx, a, b);
+      li.invoke<nullptr_t>(code, table, a, b);
 
-      const auto res0 = tx->get(0);
+      const auto res0 = table->get(0);
       REQUIRE(res0.has_value());
       REQUIRE(res0.value() == a);
 
-      const auto res1 = tx->get(1);
+      const auto res1 = table->get(1);
       REQUIRE(res1.has_value());
       REQUIRE(res1.value() == b);
 
@@ -98,30 +97,30 @@ namespace ccf
 
       INFO("1 key initially");
       {
-        REQUIRE(li.invoke<int>(count_keys, tx) == 1);
+        REQUIRE(li.invoke<int>(count_keys, table) == 1);
       }
 
       INFO("Added key is counted");
       {
-        REQUIRE(li.invoke<bool>(put, tx, 1, b));
-        REQUIRE(li.invoke<int>(count_keys, tx) == 2);
+        REQUIRE(li.invoke<bool>(put, table, 1, b));
+        REQUIRE(li.invoke<int>(count_keys, table) == 2);
       }
 
       INFO("Same key is not counted twice");
       {
-        REQUIRE(li.invoke<bool>(put, tx, 1, b));
-        REQUIRE(li.invoke<int>(count_keys, tx) == 2);
+        REQUIRE(li.invoke<bool>(put, table, 1, b));
+        REQUIRE(li.invoke<int>(count_keys, table) == 2);
       }
 
       INFO("Removed key is not counted");
       {
-        REQUIRE(li.invoke<bool>(remove, tx, 1));
-        REQUIRE(li.invoke<int>(count_keys, tx) == 1);
+        REQUIRE(li.invoke<bool>(remove, table, 1));
+        REQUIRE(li.invoke<int>(count_keys, table) == 1);
       }
 
       INFO("Transaction is committed");
       {
-        REQUIRE(tx->put(k, s0));
+        table->put(k, s0);
         REQUIRE(txs.commit() == kv::CommitSuccess::OK);
       }
 
@@ -130,9 +129,9 @@ namespace ccf
         tables.compact(tables.current_version());
 
         auto next_txs = tables.create_tx();
-        auto next_tx = next_txs.get_view(table);
+        auto next_tx = next_txs.rw<TableIS>("public:test");
 
-        REQUIRE(next_tx->put(k, s1));
+        next_tx->put(k, s1);
 
         INFO("get and get_globally_committed may return different values");
         {
@@ -143,7 +142,7 @@ namespace ccf
         INFO("get_globally_committed for a new key returns nil");
         {
           const auto next_k = k + 1;
-          REQUIRE(next_tx->put(next_k, s1));
+          next_tx->put(next_k, s1);
           REQUIRE(
             li.invoke<nullptr_t>(get_globally_committed, next_tx, next_k) ==
             nullptr);
@@ -154,7 +153,7 @@ namespace ccf
 
       INFO("Errors caught in foreach");
       {
-        REQUIRE_THROWS_AS(li.invoke<int>(foreach_error, tx), lua::ex);
+        REQUIRE_THROWS_AS(li.invoke<int>(foreach_error, table), lua::ex);
       }
     }
   }
@@ -162,15 +161,11 @@ namespace ccf
   TEST_CASE("multiple tables")
   {
     kv::Store tables;
-    TableII ii("public:test_ii");
-    TableIS is("public:test_is");
-    TableSB sb("public:test_sb");
 
     auto txs = tables.create_tx();
-    auto tx = txs.get_view(ii, is, sb);
-    auto tx_ii = get<0>(tx);
-    auto tx_is = get<1>(tx);
-    auto tx_sb = get<2>(tx);
+    auto ii = txs.rw<TableII>("public:test_ii");
+    auto is = txs.rw<TableIS>("public:test_is");
+    auto sb = txs.rw<TableSB>("public:test_sb");
 
     auto li = Interpreter();
     li.register_metatable<TxII>(kv_methods<TxII>);
@@ -198,19 +193,19 @@ namespace ccf
       "  assert(s_to_b:put(s, contains_n));"
       "end;");
 
-    li.invoke<nullptr_t>(code, tx_ii, tx_is, tx_sb);
+    li.invoke<nullptr_t>(code, ii, is, sb);
 
     // Does string(n**n) contain string(n)?
-    auto expect_result = [tx_ii, tx_is, tx_sb](int n, auto s, bool b) {
-      auto r_ii = tx_ii->get(n);
+    auto expect_result = [ii, is, sb](int n, auto s, bool b) {
+      auto r_ii = ii->get(n);
       REQUIRE(r_ii.has_value());
       REQUIRE(r_ii.value() == pow(n, n));
 
-      auto r_is = tx_is->get(r_ii.value());
+      auto r_is = is->get(r_ii.value());
       REQUIRE(r_is.has_value());
       REQUIRE(r_is.value() == s);
 
-      auto r_sb = tx_sb->get(r_is.value());
+      auto r_sb = sb->get(r_is.value());
       REQUIRE(r_sb.has_value());
       REQUIRE(r_sb.value() == b);
     };
@@ -232,10 +227,9 @@ namespace ccf
     li.register_metatable<TxVI>(kv_methods<TxVI>);
 
     kv::Store tables;
-    TableVI table("v");
     auto txs = tables.create_tx();
-    auto tx = txs.get_view(table);
-    tx->put(vector<uint8_t>(100, 1), 123);
+    auto table = txs.rw<TableVI>("v");
+    table->put(vector<uint8_t>(100, 1), 123);
 
     SUBCASE("read 1")
     {
@@ -245,7 +239,7 @@ namespace ccf
         "for i=1, 100 do a[i] = 1 end;"
         "return tx:get(a) == 123;");
 
-      REQUIRE(li.invoke<bool>(code, tx));
+      REQUIRE(li.invoke<bool>(code, table));
     }
 
     SUBCASE("write 1")
@@ -256,10 +250,10 @@ namespace ccf
         "for i=1, 100 do a[i] = i end;"
         "tx:put(a, 321)");
 
-      li.invoke<nullptr_t>(code, tx);
+      li.invoke<nullptr_t>(code, table);
       vector<uint8_t> v(100);
       std::iota(v.begin(), v.end(), 1);
-      REQUIRE(tx->get(v) == 321);
+      REQUIRE(table->get(v) == 321);
     }
 
     SUBCASE("write many")
@@ -268,9 +262,9 @@ namespace ccf
         "local tx = ...;"
         "for i=1, 100 do tx:put({i,i}, i) end;");
 
-      li.invoke<nullptr_t>(code, tx);
+      li.invoke<nullptr_t>(code, table);
       for (uint8_t i = 1; i <= 100; i++)
-        REQUIRE(tx->get({i, i}) == i);
+        REQUIRE(table->get({i, i}) == i);
     }
   }
 
@@ -336,44 +330,43 @@ namespace ccf
   )xxx";
 
     kv::Store tables;
-    TableII table("public:t");
     auto txs = tables.create_tx();
-    auto tx = txs.get_view(table);
+    auto table = txs.rw<TableII>("public:t");
 
-    auto create = [tx](int dst, int amt) {
+    auto create = [table](int dst, int amt) {
       json params;
       params["dst"] = dst;
       params["amt"] = amt;
       Interpreter li;
       li.register_metatable<TxII>(kv_methods<TxII>);
-      const auto r = li.invoke<json>(code, tx, 1, 1, "SB_create", params);
+      const auto r = li.invoke<json>(code, table, 1, 1, "SB_create", params);
       REQUIRE(r.find("error") == r.end());
-      REQUIRE(tx->get(dst) == amt);
+      REQUIRE(table->get(dst) == amt);
     };
 
-    auto read = [tx](int acc, int expected) {
+    auto read = [table](int acc, int expected) {
       json params;
       params["account"] = acc;
       Interpreter li;
       li.register_metatable<TxII>(kv_methods<TxII>);
-      const auto r = li.invoke<json>(code, tx, 1, 1, "SB_read", params);
+      const auto r = li.invoke<json>(code, table, 1, 1, "SB_read", params);
       REQUIRE(int(r["result"]) == expected);
     };
 
-    auto transfer = [tx](int src, int dst, int amt) {
+    auto transfer = [table](int src, int dst, int amt) {
       json params;
       params["src"] = src;
       params["dst"] = dst;
       params["amt"] = amt;
-      const auto dst_before = tx->get(dst);
-      const auto src_before = tx->get(src);
+      const auto dst_before = table->get(dst);
+      const auto src_before = table->get(src);
 
       Interpreter li;
       li.register_metatable<TxII>(kv_methods<TxII>);
-      const auto r = li.invoke<json>(code, tx, 1, 1, "SB_transfer", params);
+      const auto r = li.invoke<json>(code, table, 1, 1, "SB_transfer", params);
       REQUIRE(r.find("error") == r.end());
-      REQUIRE(*tx->get(dst) == *dst_before + amt);
-      REQUIRE(*tx->get(src) == *src_before - amt);
+      REQUIRE(*table->get(dst) == *dst_before + amt);
+      REQUIRE(*table->get(src) == *src_before - amt);
     };
 
     create(1, 234);
@@ -396,17 +389,16 @@ namespace ccf
       "return tx:get(k)");
 
     kv::Store tables;
-    TableII table("public:t");
     auto txs = tables.create_tx();
-    auto tx = txs.get_view(table);
+    auto table = txs.rw<TableII>("public:t");
 
     Interpreter li;
     li.register_metatable<TxII>(kv_methods_read_only<TxII>);
-    tx->put(1, 2);
+    table->put(1, 2);
 
     // read works
-    REQUIRE(li.invoke<int>(get, tx, 1) == 2);
+    REQUIRE(li.invoke<int>(get, table, 1) == 2);
     // write doesn't
-    REQUIRE_THROWS_AS(li.invoke<bool>(put, tx, 1, 3), lua::ex);
+    REQUIRE_THROWS_AS(li.invoke<bool>(put, table, 1, 3), lua::ex);
   }
 }

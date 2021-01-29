@@ -20,8 +20,8 @@ using StringString = kv::Map<std::string, std::string>;
 void commit_one(kv::Store& store, StringString& map)
 {
   auto tx = store.create_tx();
-  auto view = tx.get_view(map);
-  view->put("key", "value");
+  auto m = tx.rw(map);
+  m->put("key", "value");
   REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 }
 
@@ -373,14 +373,12 @@ TEST_CASE("KV integrity verification")
   primary_store.set_consensus(consensus);
   backup_store.set_encryptor(encryptor);
 
-  StringString public_map("public:public_map");
-  StringString private_map("private_map");
-
   auto tx = primary_store.create_tx();
-  auto [public_view, private_view] = tx.get_view(public_map, private_map);
+  auto public_map = tx.rw<StringString>("public:public_map");
+  auto private_map = tx.rw<StringString>("private_map");
   std::string pub_value = "pubv1";
-  public_view->put("pubk1", pub_value);
-  private_view->put("privk1", "privv1");
+  public_map->put("pubk1", pub_value);
+  private_map->put("privk1", "privv1");
   auto rc = tx.commit();
 
   // Tamper with serialised public data

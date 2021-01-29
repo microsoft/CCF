@@ -101,10 +101,10 @@ namespace ccf
     kv::PendingTxInfo call() override
     {
       auto sig = store.create_reserved_tx(txid.version);
-      auto sig_view =
-        sig.template get_view<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      auto signatures =
+        sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
       PrimarySignature sig_value(id, txid.version);
-      sig_view->put(0, sig_value);
+      signatures->put(0, sig_value);
       return sig.commit_reserved();
     }
   };
@@ -262,8 +262,8 @@ namespace ccf
     kv::PendingTxInfo call() override
     {
       auto sig = store.create_reserved_tx(txid.version);
-      auto sig_view =
-        sig.template get_view<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      auto signatures =
+        sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
       crypto::Sha256Hash root = replicated_state_tree.get_root();
 
       Nonce hashed_nonce;
@@ -314,7 +314,7 @@ namespace ccf
         progress_tracker->record_primary_signature(txid, primary_sig);
       }
 
-      sig_view->put(0, sig_value);
+      signatures->put(0, sig_value);
       return sig.commit_reserved();
     }
   };
@@ -562,9 +562,9 @@ namespace ccf
       // deserialising the tree in the signatures table and then applying the
       // hash of the transaction at which the snapshot was taken
       auto tx = store.create_read_only_tx();
-      auto sig_tv = tx.template get_read_only_view<ccf::Signatures>(
-        ccf::Tables::SIGNATURES);
-      auto sig = sig_tv->get(0);
+      auto signatures =
+        tx.template ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      auto sig = signatures->get(0);
       if (!sig.has_value())
       {
         LOG_FAIL_FMT("No signature found in signatures map");
@@ -619,9 +619,10 @@ namespace ccf
       kv::Term* term = nullptr, PrimarySignature* signature = nullptr) override
     {
       auto tx = store.create_tx();
-      auto [sig_tv, ni_tv] = tx.template get_view<ccf::Signatures, ccf::Nodes>(
-        ccf::Tables::SIGNATURES, ccf::Tables::NODES);
-      auto sig = sig_tv->get(0);
+      auto signatures =
+        tx.template ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      auto nodes = tx.template ro<ccf::Nodes>(ccf::Tables::NODES);
+      auto sig = signatures->get(0);
       if (!sig.has_value())
       {
         LOG_FAIL_FMT("No signature found in signatures map");
@@ -638,13 +639,14 @@ namespace ccf
         *signature = sig_value;
       }
 
-      auto ni = ni_tv->get(sig_value.node);
+      auto ni = nodes->get(sig_value.node);
       if (!ni.has_value())
       {
         LOG_FAIL_FMT(
           "No node info, and therefore no cert for node {}", sig_value.node);
         return false;
       }
+
       tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
       crypto::Sha256Hash root = replicated_state_tree.get_root();
       log_hash(root, VERIFY);

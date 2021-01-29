@@ -3,13 +3,24 @@
 #pragma once
 
 #include "kv_types.h"
+#include "map_handle.h"
 #include "serialise_entry_blit.h"
 #include "serialise_entry_json.h"
 #include "serialise_entry_msgpack.h"
-#include "tx_view.h"
 
 namespace kv
 {
+  /** Defines the schema of a table within the @c kv::Store, exposing associated
+   * types.
+   *
+   * K defines the type of the Key which indexes each entry, while V is the type
+   * of the Value associated with a given Key. KSerialiser and VSerialiser
+   * determine how each K and V are serialised and deserialised, so they may be
+   * written to the ledger and replicated by the consensus algorithm. Note that
+   * equality is always evaluated on the serialised form; if unequal Ks produce
+   * the same serialisation, they will coincide within this table. Serialisers
+   * which leverage existing msgpack or JSON serialisation are provided by CCF.
+   */
   template <typename K, typename V, typename KSerialiser, typename VSerialiser>
   class TypedMap : public NamedMap
   {
@@ -25,8 +36,11 @@ namespace kv
     using CommitHook = CommitHook<Write>;
     using MapHook = MapHook<Write>;
 
-    using ReadOnlyTxView = kv::ReadOnlyTxView<K, V, KSerialiser, VSerialiser>;
-    using TxView = kv::TxView<K, V, KSerialiser, VSerialiser>;
+    using ReadOnlyHandle =
+      kv::ReadableMapHandle<K, V, KSerialiser, VSerialiser>;
+    using WriteOnlyHandle =
+      kv::WriteableMapHandle<K, V, KSerialiser, VSerialiser>;
+    using Handle = kv::MapHandle<K, V, KSerialiser, VSerialiser>;
 
     using KeySerialiser = KSerialiser;
     using ValueSerialiser = VSerialiser;

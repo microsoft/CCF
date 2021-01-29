@@ -173,8 +173,8 @@ public:
         serdes::unpack(args.rpc_ctx->get_request_body(), default_pack);
 
       const auto new_value = parsed["value"].get<size_t>();
-      auto view = args.tx.get_view(values);
-      view->put(0, new_value);
+      auto vs = args.tx.rw(values);
+      vs->put(0, new_value);
 
       const auto apply_it = parsed.find("apply");
       if (apply_it != parsed.end())
@@ -526,9 +526,8 @@ TEST_CASE("process_bft")
   frontend.process_bft(ctx);
 
   auto tx = bft_network.tables->create_tx();
-  auto bft_requests_view =
-    tx.get_view<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
-  auto request_value = bft_requests_view->get(0);
+  auto aft_requests = tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
+  auto request_value = aft_requests->get(0);
   REQUIRE(request_value.has_value());
 
   aft::Request deserialised_req = request_value.value();
@@ -962,15 +961,15 @@ TEST_CASE("Explicit commitability")
 
   auto get_value = [&]() {
     auto tx = network.tables->create_tx();
-    auto view = tx.get_view(frontend.values);
-    auto actual_v = view->get(0).value();
+    auto values = tx.rw(frontend.values);
+    auto actual_v = values->get(0).value();
     return actual_v;
   };
 
   // Set initial value
   {
     auto tx = network.tables->create_tx();
-    tx.get_view(frontend.values)->put(0, next_value);
+    tx.rw(frontend.values)->put(0, next_value);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
@@ -1455,15 +1454,15 @@ public:
         // Warning: Never do this in a real application!
         // Create another transaction that conflicts with the frontend one
         auto tx = this->tables.create_tx();
-        auto view = tx.template get_view<Values>("test_values_conflict");
-        view->put(0, 42);
+        auto conflict_map = tx.template rw<Values>("test_values_conflict");
+        conflict_map->put(0, 42);
         REQUIRE(tx.commit() == kv::CommitSuccess::OK);
         conflict_next = false;
       }
 
-      auto view = args.tx.template get_view<Values>("test_values_conflict");
-      view->get(0); // Record a read dependency
-      view->put(0, 0);
+      auto conflict_map = args.tx.template rw<Values>("test_values_conflict");
+      conflict_map->get(0); // Record a read dependency
+      conflict_map->put(0, 0);
 
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };

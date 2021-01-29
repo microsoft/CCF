@@ -26,9 +26,9 @@ namespace ccf
   /* returns the given value and increments it in the table.
   This is for example useful for getting a new member ID.
   */
-  inline auto get_next_id(Values::TxView* view, ValueId id)
+  inline auto get_next_id(Values::Handle* handle, ValueId id)
   {
-    auto search = view->get(id);
+    auto search = handle->get(id);
     if (!search.has_value())
       throw std::logic_error("Failed to get next ID.");
 
@@ -39,7 +39,7 @@ namespace ccf
     if (nextId < v)
       throw std::overflow_error("Overflow in ID");
 
-    view->put(id, nextId);
+    handle->put(id, nextId);
     return v;
   }
 }

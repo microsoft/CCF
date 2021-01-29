@@ -109,8 +109,8 @@ namespace ccf
     {
       auto code_digest = get_digest_from_parsed_quote(parsed_quote);
 
-      auto codeid_view = tx.get_view(code_ids_table);
-      auto code_id_status = codeid_view->get(code_digest);
+      auto code_ids = tx.ro(code_ids_table);
+      auto code_id_status = code_ids->get(code_digest);
       if (!code_id_status.has_value())
       {
         return QuoteVerificationResult::FAIL_VERIFY_CODE_ID_NOT_FOUND;
