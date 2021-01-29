@@ -32,26 +32,93 @@ TEST_CASE(
 
   kv::Store kv_store_target;
 
-  INFO("Commit to public map in source store");
+  MapTypes::StringString map("public:pub_map");
+
+  const auto k1 = "pubk1";
+  const auto k2 = "pubk2";
+  const auto k3 = "pubk3";
+  const auto k4 = "never_written";
+
+  const auto v1 = "pubv1";
+  const auto v2 = "pubv2";
+
   {
+    INFO("Commit to public map in source store");
     auto tx = kv_store.create_tx();
-    auto handle0 = tx.rw<MapTypes::StringString>("public:pub_map");
-    handle0->put("pubk1", "pubv1");
+    auto handle0 = tx.rw(map);
+    handle0->put(k1, v1);
+    handle0->put(k2, v1);
+    handle0->put(k3, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
-  INFO("Deserialise transaction in target store");
+  const auto first_version = kv_store.current_version();
+  const auto first_tx_serialised = consensus->get_latest_data();
+  REQUIRE(first_tx_serialised.has_value());
+  REQUIRE(!first_tx_serialised.value().empty());
+
   {
-    const auto latest_data = consensus->get_latest_data();
-    REQUIRE(latest_data.has_value());
-    REQUIRE(!latest_data.value().empty());
+    INFO("Modify source store in second transaction");
+    auto tx = kv_store.create_tx();
+    auto handle0 = tx.rw(map);
+    // no change to k1, write to k2, remove k3
+    handle0->put(k2, v2);
+    handle0->remove(k3);
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+
+  const auto second_version = kv_store.current_version();
+  const auto second_tx_serialised = consensus->get_latest_data();
+  REQUIRE(second_tx_serialised.has_value());
+  REQUIRE(!second_tx_serialised.value().empty());
+
+  {
+    INFO("Deserialise first transaction in target store");
     REQUIRE(
-      kv_store_target.apply(latest_data.value(), ConsensusType::CFT)
+      kv_store_target.apply(first_tx_serialised.value(), ConsensusType::CFT)
         ->execute() == kv::ApplySuccess::PASS);
 
     auto tx_target = kv_store_target.create_tx();
-    auto handle_target = tx_target.rw<MapTypes::StringString>("public:pub_map");
-    REQUIRE(handle_target->get("pubk1") == "pubv1");
+    auto handle_target = tx_target.ro(map);
+
+    REQUIRE(handle_target->has(k1));
+    REQUIRE(handle_target->get(k1) == v1);
+    REQUIRE(handle_target->get_previous_version(k1) == first_version);
+
+    REQUIRE(handle_target->has(k2));
+    REQUIRE(handle_target->get(k2) == v1);
+    REQUIRE(handle_target->get_previous_version(k2) == first_version);
+
+    REQUIRE(handle_target->has(k3));
+    REQUIRE(handle_target->get(k3) == v1);
+    REQUIRE(handle_target->get_previous_version(k3) == first_version);
+
+    REQUIRE(!handle_target->has(k4));
+    REQUIRE(!handle_target->get_previous_version(k4).has_value());
+  }
+
+  {
+    INFO("Deserialise second transaction in target store");
+    REQUIRE(
+      kv_store_target.apply(second_tx_serialised.value(), ConsensusType::CFT)
+        ->execute() == kv::ApplySuccess::PASS);
+
+    auto tx_target = kv_store_target.create_tx();
+    auto handle_target = tx_target.ro(map);
+
+    REQUIRE(handle_target->has(k1));
+    REQUIRE(handle_target->get(k1) == v1);
+    REQUIRE(handle_target->get_previous_version(k1) == first_version);
+
+    REQUIRE(handle_target->has(k2));
+    REQUIRE(handle_target->get(k2) == v2);
+    REQUIRE(handle_target->get_previous_version(k2) == second_version);
+
+    REQUIRE(!handle_target->has(k3));
+    REQUIRE(!handle_target->get_previous_version(k3).has_value());
+
+    REQUIRE(!handle_target->has(k4));
+    REQUIRE(!handle_target->get_previous_version(k4).has_value());
   }
 }
 
