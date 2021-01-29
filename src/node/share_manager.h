@@ -86,23 +86,15 @@ namespace ccf
     }
   };
 
-  // struct RecoveredLedgerSecret
-  // {
-  //   // Version at which the next ledger secret is applicable from
-  //   kv::Version next_version;
+  // During recovery, a list of RecoveredEncryptedLedgerSecrets is constructed
+  // from the local hook on the encrypted ledger secrets table. The key for each
+  // entry is the version at which the next ledger secret is applicable from.
+  using RecoveredEncryptedLedgerSecrets =
+    std::map<kv::Version, EncryptedPastLedgerSecretInfo>;
 
-  //   PreviousEncryptedLedgerSecret encrypted_ledger_secret;
-
-  //   // Version at which the ledger secret is applicable from
-  //   // kv::Version version;
-
-  //   // Previous ledger secret, encrypted with the current ledger secret
-  //   // std::vector<uint8_t> encrypted_ledger_secret;
-  // };
-
-  // The ShareManager class provides the interface between the ledger secrets,
-  // the ccf.shares and ccf.submitted_shares KV tables and the rest of the
-  // service. In particular, it is used to:
+  // The ShareManager class provides the interface between the ledger secrets
+  // object and the shares, ledger secrets and submitted shares KV tables. In
+  // particular, it is used to:
   //  - Issue new recovery shares whenever required (e.g. on startup, rekey and
   //  membership updates)
   //  - Re-assemble the ledger secrets on recovery, once a threshold of members
@@ -197,8 +189,7 @@ namespace ccf
       // TODO: We shouldn't have to update both on pure re-share!!
       auto recovery_shares = tx.rw(network.shares);
       recovery_shares->put(
-        0,
-        {{wrapped_latest_ls}, compute_encrypted_shares(tx, ls_wrapping_key)});
+        0, {wrapped_latest_ls, compute_encrypted_shares(tx, ls_wrapping_key)});
 
       auto encrypted_past_ls = tx.rw(network.encrypted_past_ledger_secret);
       encrypted_past_ls->put(
@@ -319,11 +310,6 @@ namespace ccf
       return search->second;
     }
 
-    // During recovery, a list of RecoveredEncryptedLedgerSecrets is constructed
-    // from the local hook on the encrypted ledger secrets table
-    using RecoveredEncryptedLedgerSecrets =
-      std::map<kv::Version, EncryptedPastLedgerSecretInfo>;
-
     LedgerSecretsMap restore_recovery_shares_info(
       kv::Tx& tx,
       const RecoveredEncryptedLedgerSecrets& encrypted_recovery_secrets)
@@ -350,7 +336,7 @@ namespace ccf
       LedgerSecretsMap restored_ledger_secrets;
 
       auto restored_ls = ls_wrapping_key.unwrap(
-        recovery_shares_info->wrapped_latest_ledger_secret.encrypted_data);
+        recovery_shares_info->wrapped_latest_ledger_secret);
       auto decryption_key = restored_ls.raw_key;
 
       LOG_FAIL_FMT(

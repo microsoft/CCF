@@ -15,31 +15,10 @@ namespace ccf
   using EncryptedShare = std::vector<uint8_t>;
   using EncryptedSharesMap = std::map<MemberId, EncryptedShare>;
 
-  // TODO: Delete this type
-  struct WrappedLedgerSecret
-  {
-    std::vector<uint8_t> encrypted_data;
-
-    // In most cases (e.g. re-key, member retirement), this is unset and the
-    // version at which the ledger secret is applicable from is derived from the
-    // version at which the recovery hook is triggered. In other cases (service
-    // open or in recovery), a new ledger secret is created to protect the
-    // integrity on the public-only transactions. However, the corresponding
-    // shares are only written at a later version, once the previous ledger
-    // secrets have been recovered.
-    // std::optional<kv::Version> version = std::nullopt;
-
-    MSGPACK_DEFINE(encrypted_data)
-  };
-
-  DECLARE_JSON_TYPE(WrappedLedgerSecret)
-  DECLARE_JSON_REQUIRED_FIELDS(WrappedLedgerSecret, encrypted_data)
-  // DECLARE_JSON_OPTIONAL_FIELDS(WrappedLedgerSecret, version)
-
   struct RecoverySharesInfo
   {
     // Latest ledger secret wrapped with the ledger secret wrapping key
-    WrappedLedgerSecret wrapped_latest_ledger_secret;
+    std::vector<uint8_t> wrapped_latest_ledger_secret;
 
     // Recovery shares encrypted with each active recovery member's public
     // encryption key
@@ -88,10 +67,12 @@ namespace ccf
 
   // The key for this table is always 0. It is updated every time the member
   // recovery shares are updated, e.g. when the recovery threshold is modified
+  // and when the ledger secret is updated
   using RecoveryShares = kv::Map<size_t, RecoverySharesInfo>;
 
   // The key for this table is always 0. It is updated every time the ledger
-  // secrets are updated, e.g. at startup or on ledger rekey
+  // secret is updated, e.g. at startup or on ledger rekey. It is not updated on
+  // a pure re-share.
   using EncryptedPastLedgerSecret =
     kv::Map<size_t, EncryptedPastLedgerSecretInfo>;
 }
