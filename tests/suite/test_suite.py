@@ -20,7 +20,7 @@ suites = dict()
 suite_rekey_recovery = [
     e2e_logging.test_historical_query,
     rekey.test,
-    membership.test_set_recovery_threshold,
+    # membership.test_set_recovery_threshold,
     rekey.test,
     # reconfiguration.test_add_node_from_snapshot,
     recovery.test,

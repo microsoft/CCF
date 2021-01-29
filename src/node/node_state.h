@@ -1123,8 +1123,8 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
 
-      auto restored_ledger_secrets =
-        share_manager.restore_recovery_shares_info(tx, recovery_ledger_secrets);
+      auto restored_ledger_secrets = share_manager.restore_recovery_shares_info(
+        tx, std::move(recovery_ledger_secrets));
 
       // Broadcast decrypted ledger secrets to other nodes for them to initiate
       // private recovery too
@@ -1146,7 +1146,6 @@ namespace ccf
       ledger_idx = recovery_store->current_version();
       read_ledger_idx(++ledger_idx);
 
-      recovery_ledger_secrets.clear();
       sm.advance(State::readingPrivateLedger);
     }
 
@@ -1605,58 +1604,35 @@ namespace ccf
     void setup_recovery_hook()
     {
       network.tables->set_map_hook(
-        network.encrypted_past_ledger_secret.get_name(),
-        network.encrypted_past_ledger_secret.wrap_map_hook(
-          [this](kv::Version version, const EncryptedPastLedgerSecret::Write& w)
+        network.encrypted_ledger_secrets.get_name(),
+        network.encrypted_ledger_secrets.wrap_map_hook(
+          [this](
+            kv::Version version, const EncryptedLedgerSecretsInfo::Write& w)
             -> kv::ConsensusHookPtr {
             if (w.size() > 1)
             {
               throw std::logic_error(fmt::format(
                 "Unexpected: multiple writes to {} table",
-                network.encrypted_past_ledger_secret.get_name()));
+                network.encrypted_ledger_secrets.get_name()));
             }
 
-            auto& encrypted_past_ledger_secret = w.at(0);
-            if (!encrypted_past_ledger_secret.has_value())
+            auto& encrypted_ledger_secret = w.at(0);
+            if (!encrypted_ledger_secret.has_value())
             {
               throw std::logic_error(fmt::format(
                 "Unexpected: removal from {} table",
-                network.encrypted_past_ledger_secret.get_name()));
+                network.encrypted_ledger_secrets.get_name()));
             }
 
             auto next_ledger_secret_version =
-              encrypted_past_ledger_secret->next_version.value_or(version);
+              encrypted_ledger_secret->next_version.value_or(version);
 
             LOG_FAIL_FMT(
               "Next ledger secret at: {}", next_ledger_secret_version);
 
             recovery_ledger_secrets.emplace(
               next_ledger_secret_version,
-              std::move(encrypted_past_ledger_secret.value()));
-
-            // // If the version is not set (rekeying), use the version
-            // // from the hook plus one. Otherwise (recovery), use the
-            // // version specified.
-            // auto ledger_secret_version =
-            //   v.wrapped_latest_ledger_secret.version.value_or(version + 1);
-
-            // // Do not recover the ledger secrets in case of a pure re-share
-            // // (e.g. recovery threshold update) as they are the same as in
-            // // the previous entry.
-            // if (
-            //   recovery_ledger_secrets.empty() ||
-            //   recovery_ledger_secrets.back().next_version !=
-            //     ledger_secret_version)
-            // {
-            //   LOG_TRACE_FMT(
-            //     "Recovering one encrypted ledger secret at version {} and "
-            //     "next version {}",
-            //     v.encrypted_previous_ledger_secret.version,
-            //     ledger_secret_version);
-
-            //   recovery_ledger_secrets.push_back(
-            //     {ledger_secret_version, v.encrypted_previous_ledger_secret});
-            // }
+              std::move(encrypted_ledger_secret->previous_ledger_secret));
 
             return kv::ConsensusHookPtr(nullptr);
           }));
@@ -1664,7 +1640,8 @@ namespace ccf
 
     void reset_recovery_hook()
     {
-      network.tables->unset_map_hook(network.shares.get_name());
+      network.tables->unset_map_hook(
+        network.encrypted_ledger_secrets.get_name());
     }
 
     void setup_n2n_channels()

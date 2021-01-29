@@ -90,7 +90,7 @@ namespace ccf
   // from the local hook on the encrypted ledger secrets table. The key for each
   // entry is the version at which the next ledger secret is applicable from.
   using RecoveredEncryptedLedgerSecrets =
-    std::map<kv::Version, EncryptedPastLedgerSecretInfo>;
+    std::map<kv::Version, std::optional<PreviousLedgerSecretInfo>>;
 
   // The ShareManager class provides the interface between the ledger secrets
   // object and the shares, ledger secrets and submitted shares KV tables. In
@@ -162,8 +162,15 @@ namespace ccf
       // Finally, encrypt each share with the public key of each member and
       // record it in the shares table.
 
+      // TODO: We shouldn't have to update both on pure re-share!!
+
       auto ls_wrapping_key = LedgerSecretWrappingKey();
       auto wrapped_latest_ls = ls_wrapping_key.wrap(latest_ledger_secret);
+      auto recovery_shares = tx.rw(network.shares);
+      recovery_shares->put(
+        0, {wrapped_latest_ls, compute_encrypted_shares(tx, ls_wrapping_key)});
+
+      auto encrypted_ls = tx.rw(network.encrypted_ledger_secrets);
 
       std::vector<uint8_t> encrypted_previous_secret = {};
       kv::Version version_previous_secret = kv::NoVersion;
@@ -184,20 +191,18 @@ namespace ccf
           encrypted_previous_ls.hdr.tag);
 
         encrypted_previous_secret = encrypted_previous_ls.serialise();
+        encrypted_ls->put(
+          0,
+          {PreviousLedgerSecretInfo(
+             std::move(encrypted_previous_secret),
+             version_previous_secret,
+             std::nullopt),
+           latest_ls_version});
       }
-
-      // TODO: We shouldn't have to update both on pure re-share!!
-      auto recovery_shares = tx.rw(network.shares);
-      recovery_shares->put(
-        0, {wrapped_latest_ls, compute_encrypted_shares(tx, ls_wrapping_key)});
-
-      auto encrypted_past_ls = tx.rw(network.encrypted_past_ledger_secret);
-      encrypted_past_ls->put(
-        0,
-        {encrypted_previous_secret,
-         version_previous_secret,
-         std::nullopt,
-         latest_ls_version});
+      else
+      {
+        encrypted_ls->put(0, {std::nullopt, latest_ls_version});
+      }
     }
 
     std::vector<uint8_t> encrypt_submitted_share(
@@ -311,20 +316,17 @@ namespace ccf
     }
 
     LedgerSecretsMap restore_recovery_shares_info(
-      kv::Tx& tx,
-      const RecoveredEncryptedLedgerSecrets& encrypted_recovery_secrets)
+      kv::Tx& tx, RecoveredEncryptedLedgerSecrets&& recovery_ledger_secrets)
     {
       // First, re-assemble the ledger secret wrapping key from the submitted
       // encrypted shares. Then, unwrap the latest ledger secret and use it to
       // decrypt the previous ledger secret and so on.
 
-      if (encrypted_recovery_secrets.empty())
+      if (recovery_ledger_secrets.empty())
       {
         throw std::logic_error(
           "There should be at least one encrypted ledger secret to recover");
       }
-
-      auto ls_wrapping_key = combine_from_submitted_shares(tx);
 
       auto recovery_shares_info = tx.ro(network.shares)->get(0);
       if (!recovery_shares_info.has_value())
@@ -335,30 +337,30 @@ namespace ccf
 
       LedgerSecretsMap restored_ledger_secrets;
 
-      auto restored_ls = ls_wrapping_key.unwrap(
+      auto restored_ls = combine_from_submitted_shares(tx).unwrap(
         recovery_shares_info->wrapped_latest_ledger_secret);
       auto decryption_key = restored_ls.raw_key;
 
       LOG_FAIL_FMT(
         "Recovering {} encrypted ledger secrets",
-        encrypted_recovery_secrets.size());
+        recovery_ledger_secrets.size());
 
       restored_ledger_secrets.emplace(
-        encrypted_recovery_secrets.rbegin()->first, std::move(restored_ls));
+        recovery_ledger_secrets.rbegin()->first, std::move(restored_ls));
 
-      for (auto it = encrypted_recovery_secrets.rbegin();
-           it != encrypted_recovery_secrets.rend();
+      for (auto it = recovery_ledger_secrets.rbegin();
+           it != recovery_ledger_secrets.rend();
            it++)
       {
-        // TODO: Use optional here instead
-        if (it->second.encrypted_data.empty())
+        if (!it->second.has_value())
         {
-          // First entry does not encrypt any other ledger secret (i.e. genesis)
+          // Very first entry does not encrypt any other ledger secret
+          LOG_FAIL_FMT("Skipping!"); // TODO: Remove
           break;
         }
 
         crypto::GcmCipher encrypted_ls;
-        encrypted_ls.deserialise(it->second.encrypted_data);
+        encrypted_ls.deserialise(it->second->encrypted_data);
         std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
 
         if (!crypto::KeyAesGcm(decryption_key)
@@ -370,13 +372,15 @@ namespace ccf
                  decrypted_ls.data()))
         {
           throw std::logic_error(fmt::format(
-            "Decryption of ledger secret at {} failed", it->second.version));
+            "Decryption of ledger secret at {} failed", it->second->version));
         }
 
         decryption_key = decrypted_ls;
         restored_ledger_secrets.emplace(
-          it->second.version, std::move(decrypted_ls));
+          std::next(it)->second->version, std::move(decrypted_ls));
       }
+
+      recovery_ledger_secrets.clear();
 
       return restored_ledger_secrets;
     }
