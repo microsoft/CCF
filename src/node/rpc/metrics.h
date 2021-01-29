@@ -112,6 +112,11 @@ namespace metrics
     void track_tx_rates(
       const std::chrono::milliseconds& elapsed, kv::Consensus::Statistics stats)
     {
+      if (elapsed.count() == 0)
+      {
+        return;
+      }
+
       // calculate how many tx/sec we have processed in this tick
       auto duration = elapsed.count() / 1000.0;
       auto tx_rate = stats.tx_count / duration;
