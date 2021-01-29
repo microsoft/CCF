@@ -148,6 +148,16 @@ namespace ccf
       return encrypted_shares;
     }
 
+    void shuffle_recovery_shares(
+      kv::Tx& tx, const LedgerSecret& latest_ledger_secret)
+    {
+      auto ls_wrapping_key = LedgerSecretWrappingKey();
+      auto wrapped_latest_ls = ls_wrapping_key.wrap(latest_ledger_secret);
+      auto recovery_shares = tx.rw(network.shares);
+      recovery_shares->put(
+        0, {wrapped_latest_ls, compute_encrypted_shares(tx, ls_wrapping_key)});
+    }
+
     void set_recovery_shares_info(
       kv::Tx& tx,
       const LedgerSecret& latest_ledger_secret,
@@ -162,13 +172,7 @@ namespace ccf
       // Finally, encrypt each share with the public key of each member and
       // record it in the shares table.
 
-      // TODO: We shouldn't have to update both on pure re-share!!
-
-      auto ls_wrapping_key = LedgerSecretWrappingKey();
-      auto wrapped_latest_ls = ls_wrapping_key.wrap(latest_ledger_secret);
-      auto recovery_shares = tx.rw(network.shares);
-      recovery_shares->put(
-        0, {wrapped_latest_ls, compute_encrypted_shares(tx, ls_wrapping_key)});
+      shuffle_recovery_shares(tx, latest_ledger_secret);
 
       auto encrypted_ls = tx.rw(network.encrypted_ledger_secrets);
 
@@ -280,6 +284,9 @@ namespace ccf
 
     void issue_recovery_shares(kv::Tx& tx)
     {
+      // Issue new recovery shares for the current ledger secret, recording the
+      // wrapped new ledger secret and encrypted previous ledger secret in the
+      // store.
       auto [latest, penultimate] =
         network.ledger_secrets->get_latest_and_penultimate(tx);
 
@@ -289,11 +296,23 @@ namespace ccf
     void issue_recovery_shares(
       kv::Tx& tx, const LedgerSecret& new_ledger_secret)
     {
-      // The version at which the new ledger secret is applicable from is
-      // derived from the hook at which the ledger secret is applied to the
-      // store
+      // Issue new recovery shares of the new ledger secret, recording the
+      // wrapped new ledger secret and encrypted previous ledger secret in the
+      // store.
+      // Note: The version at which the new ledger secret is applicable from is
+      // derived from the hook at which the ledgersecret is applied to the
+      // store.
       set_recovery_shares_info(
         tx, new_ledger_secret, network.ledger_secrets->get_latest(tx));
+    }
+
+    void reshuffle_recovery_shares(kv::Tx& tx)
+    {
+      // Issue new recovery shares of the _same_ current ledger secret to all
+      // active recovery members. The encrypted ledger secrets recorded in the
+      // store are _not_ updated.
+      shuffle_recovery_shares(
+        tx, network.ledger_secrets->get_latest(tx).second);
     }
 
     std::optional<EncryptedShare> get_encrypted_share(

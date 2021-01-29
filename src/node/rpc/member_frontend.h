@@ -975,7 +975,7 @@ namespace ccf
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
            try
            {
-             share_manager.issue_recovery_shares(tx);
+             share_manager.reshuffle_recovery_shares(tx);
            }
            catch (const std::logic_error& e)
            {
@@ -1008,10 +1008,9 @@ namespace ccf
              return false;
            }
 
-           // Update recovery shares (same number of shares)
            try
            {
-             share_manager.issue_recovery_shares(tx);
+             share_manager.reshuffle_recovery_shares(tx);
            }
            catch (const std::logic_error& e)
            {
