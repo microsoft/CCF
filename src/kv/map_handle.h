@@ -104,8 +104,7 @@ namespace kv
      */
     std::optional<Version> get_previous_version(const K& key)
     {
-      return read_handle.get_previous_version(
-        KSerialiser::to_serialised(key));
+      return read_handle.get_previous_version(KSerialiser::to_serialised(key));
     }
 
     /** Iterate over all entries in the map.

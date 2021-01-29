@@ -248,7 +248,7 @@ TEST_CASE("get_previous_version")
         REQUIRE(handle->get_previous_version(k1).value() == second_version);
         REQUIRE(!handle->get_previous_version(k2).has_value());
         REQUIRE(!handle->get_previous_version(k3).has_value());
-  
+
         handle->remove(k1);
         handle->remove(k2);
         handle->remove(k3);

@@ -209,7 +209,8 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   }
 }
 
-DOCTEST_TEST_CASE("get_previous_version ordering" * doctest::test_suite("concurrency"))
+DOCTEST_TEST_CASE(
+  "get_previous_version ordering" * doctest::test_suite("concurrency"))
 {
   // Many threads attempt to produce a chain of transactions pointing at the
   // previous write to a single key, at that key.
