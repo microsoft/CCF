@@ -74,15 +74,13 @@ TEST_CASE("Reads/writes and deletions")
     REQUIRE(!handle->has(k));
     auto v = handle->get(k);
     REQUIRE(!v.has_value());
-    REQUIRE(!handle->get_version(k).has_value());
+    REQUIRE(!handle->get_version_of_last_put(k).has_value());
     handle->put(k, v1);
     REQUIRE(handle->has(k));
     auto va = handle->get(k);
     REQUIRE(va.has_value());
     REQUIRE(va.value() == v1);
-    const auto vera = handle->get_version(k);
-    REQUIRE(vera.has_value());
-    REQUIRE(vera.value() == kv::NoVersion);
+    REQUIRE(!handle->get_version_of_last_put(k).has_value());
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
@@ -96,7 +94,7 @@ TEST_CASE("Reads/writes and deletions")
     auto v = handle->get(k);
     REQUIRE(v.has_value());
     REQUIRE(v.value() == v1);
-    const auto ver = handle->get_version(k);
+    const auto ver = handle->get_version_of_last_put(k);
     REQUIRE(ver.has_value());
     REQUIRE(ver.value() == commit_v);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -111,11 +109,12 @@ TEST_CASE("Reads/writes and deletions")
 
       REQUIRE(!handle->has(invalid_key));
       REQUIRE(!handle->remove(invalid_key));
-      REQUIRE(!handle->get_version(invalid_key).has_value());
-      REQUIRE(handle->get_version(k).has_value());
-      REQUIRE(handle->get_version(k).value() == kv::NoVersion);
+      REQUIRE(!handle->get_version_of_last_put(invalid_key).has_value());
+      REQUIRE(handle->get_version_of_last_put(k).has_value());
+      REQUIRE(handle->get_version_of_last_put(k).value() == commit_v);
       REQUIRE(handle->remove(k));
-      REQUIRE(!handle->get_version(k).has_value());
+      REQUIRE(handle->get_version_of_last_put(k).has_value());
+      REQUIRE(handle->get_version_of_last_put(k).value() == commit_v);
       REQUIRE(!handle->has(k));
       auto va = handle->get(k);
       REQUIRE(!va.has_value());
@@ -162,7 +161,7 @@ TEST_CASE("Reads/writes and deletions")
   }
 }
 
-TEST_CASE("get_version")
+TEST_CASE("get_version_of_last_put")
 {
   kv::Store kv_store;
   MapTypes::StringString map("public:map");
@@ -211,15 +210,15 @@ TEST_CASE("get_version")
     {
       // We don't see effects of tx_other because we started executing earlier.
       // k1 is at second_version
-      const auto ver1 = handle->get_version(k1);
+      const auto ver1 = handle->get_version_of_last_put(k1);
       REQUIRE(ver1.has_value());
       REQUIRE(ver1.value() == second_version);
 
       // k2 was removed, so has no version...
-      REQUIRE(!handle->get_version(k2).has_value());
+      REQUIRE(!handle->get_version_of_last_put(k2).has_value());
 
       // ...just like k3 which was never written
-      REQUIRE(!handle->get_version(k3).has_value());
+      REQUIRE(!handle->get_version_of_last_put(k3).has_value());
 
       {
         INFO("Reading from these keys doesn't change this");
@@ -227,46 +226,36 @@ TEST_CASE("get_version")
         handle->has(k2);
         handle->has(k3);
 
-        REQUIRE(handle->get_version(k1).value() == second_version);
-        REQUIRE(!handle->get_version(k2).has_value());
-        REQUIRE(!handle->get_version(k3).has_value());
+        REQUIRE(handle->get_version_of_last_put(k1).value() == second_version);
+        REQUIRE(!handle->get_version_of_last_put(k2).has_value());
+        REQUIRE(!handle->get_version_of_last_put(k3).has_value());
 
         handle->get(k1);
         handle->get(k2);
         handle->get(k3);
 
-        REQUIRE(handle->get_version(k1).value() == second_version);
-        REQUIRE(!handle->get_version(k2).has_value());
-        REQUIRE(!handle->get_version(k3).has_value());
+        REQUIRE(handle->get_version_of_last_put(k1).value() == second_version);
+        REQUIRE(!handle->get_version_of_last_put(k2).has_value());
+        REQUIRE(!handle->get_version_of_last_put(k3).has_value());
       }
 
-      SUBCASE("Writing means you get NoVersion")
+      SUBCASE("Writing to these keys doesn't change this")
       {
         handle->put(k1, v3);
         handle->put(k2, v3);
         handle->put(k3, v3);
 
-        auto require_no_version = [&](const auto& k)
-        {
-          const auto ver = handle->get_version(k);
-          REQUIRE(ver.has_value());
-          REQUIRE(ver.value() == kv::NoVersion);
-        };
-
-        require_no_version(k1);
-        require_no_version(k2);
-        require_no_version(k3);
-      }
-
-      SUBCASE("Removing is just a kind of write, not a reset")
-      {
+        REQUIRE(handle->get_version_of_last_put(k1).value() == second_version);
+        REQUIRE(!handle->get_version_of_last_put(k2).has_value());
+        REQUIRE(!handle->get_version_of_last_put(k3).has_value());
+  
         handle->remove(k1);
         handle->remove(k2);
         handle->remove(k3);
 
-        REQUIRE(!handle->get_version(k1).has_value());
-        REQUIRE(!handle->get_version(k2).has_value());
-        REQUIRE(!handle->get_version(k3).has_value());
+        REQUIRE(handle->get_version_of_last_put(k1).value() == second_version);
+        REQUIRE(!handle->get_version_of_last_put(k2).has_value());
+        REQUIRE(!handle->get_version_of_last_put(k3).has_value());
       }
 
       // This conflicts with tx_other so is not committed
@@ -281,8 +270,8 @@ TEST_CASE("get_version")
     auto tx = kv_store.create_tx();
     auto handle = tx.rw(map);
 
-    const auto ver1 = handle->get_version(k1);
-    const auto ver2 = handle->get_version(k2);
+    const auto ver1 = handle->get_version_of_last_put(k1);
+    const auto ver2 = handle->get_version_of_last_put(k2);
 
     REQUIRE(ver1.has_value());
     REQUIRE(ver2.has_value());

@@ -88,21 +88,23 @@ namespace kv
       return read_handle.has(KSerialiser::to_serialised(key));
     }
 
-    /** Get version of currently readable key.
+    /** Get version when this key was last modified by a visible put.
      *
-     * Returns nullopt when there is no value (ie - when @c has would return
-     * false). Returns special value @c kv::NoVersion for changes written by
-     * this transaction, which are pending and have no assigned version yet.
+     * Returns nullopt when there is no value, because the key has no value
+     * (never existed or has been removed). Note that this is always talking
+     * about the version of previously committed state and not the same values
+     * as @c get or @c has - this transaction's pending writes have no version
+     * yet, and this method does not talk about them.
      *
      * @param key Key to read
      *
-     * @return Optional containing version of previous transaction which last
-     * wrote at this key, or @c kv::NoVersion if this transaction wrote to this
-     * key, or nullopt of this key has no associated value
+     * @return Optional containing version of applied transaction which last
+     * wrote at this key, or nullopt of this key has no associated value
      */
-    std::optional<Version> get_version(const K& key)
+    std::optional<Version> get_version_of_last_put(const K& key)
     {
-      return read_handle.get_version(KSerialiser::to_serialised(key));
+      return read_handle.get_version_of_last_put(
+        KSerialiser::to_serialised(key));
     }
 
     /** Iterate over all entries in the map.

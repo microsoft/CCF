@@ -40,14 +40,8 @@ namespace kv::untyped
      * appropriate to record read dependency on this key, at the version of the
      * returned data.
      */
-    const ValueType* read_key(
-      const KeyType& key, Version* read_version = nullptr)
+    const ValueType* read_key(const KeyType& key)
     {
-      if (read_version != nullptr)
-      {
-        *read_version = NoVersion;
-      }
-
       // A write followed by a read doesn't introduce a read dependency.
       // If we have written, return the value without updating the read set.
       auto write = tx_changes.writes.find(key);
@@ -81,11 +75,6 @@ namespace kv::untyped
         return nullptr;
       }
 
-      if (read_version != nullptr)
-      {
-        *read_version = search->version;
-      }
-
       // Return the value.
       return &search->value;
     }
@@ -104,19 +93,29 @@ namespace kv::untyped
       return *value_p;
     }
 
-    std::optional<Version> get_version(const KeyType& key)
+    std::optional<Version> get_version_of_last_put(const KeyType& key)
     {
-      Version version;
-      auto value_p = read_key(key, &version);
+      // If the key doesn't exist, return empty and record that we depend on
+      // the key not existing.
+      const auto search = tx_changes.state.getp(key);
+      if (search == nullptr)
+      {
+        tx_changes.reads.insert(std::make_pair(key, NoVersion));
+        return std::nullopt;
+      }
 
-      // If there is no value to read (non-existent or deleted), then there's no
-      // associated version
-      if (value_p == nullptr)
+      // Record the version that we depend on.
+      tx_changes.reads.insert(std::make_pair(key, search->version));
+
+      // If the key has been deleted, return empty. NB: We still depend on this
+      // version above, but we don't distinguish deleted from non-existent in
+      // the returned values.
+      if (is_deleted(search->version))
       {
         return std::nullopt;
       }
 
-      return version;
+      return search->version;
     }
 
     std::optional<ValueType> get_globally_committed(const KeyType& key)
