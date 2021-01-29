@@ -2022,7 +2022,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
       members[id] = {cert, enc_kp};
     }
     gen.set_recovery_threshold(recovery_threshold);
-    share_manager.issue_shares(gen_tx);
+    share_manager.issue_recovery_shares(gen_tx);
     gen.finalize();
     frontend.open();
   }

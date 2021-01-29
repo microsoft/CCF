@@ -1019,8 +1019,7 @@ namespace ccf
 
         // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
-        share_manager.issue_shares_on_recovery(
-          tx, last_recovered_signed_idx + 1);
+        share_manager.issue_recovery_shares(tx);
         GenesisGenerator g(network, tx);
         if (!g.open_service())
         {
@@ -1295,7 +1294,7 @@ namespace ccf
       // once the local hook on the secrets table has been triggered.
 
       auto new_ledger_secret = make_ledger_secret();
-      share_manager.issue_shares_on_rekey(tx, new_ledger_secret);
+      share_manager.issue_recovery_shares(tx, new_ledger_secret);
       LedgerSecretsBroadcast::broadcast_new(
         network, node_encrypt_kp, tx, std::move(new_ledger_secret));
 

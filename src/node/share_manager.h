@@ -172,9 +172,9 @@ namespace ccf
       // First, generate a fresh ledger secrets wrapping key and wrap the
       // latest ledger secret with it. Then, encrypt the penultimate ledger
       // secret with the latest ledger secret and split the ledger secret
-      // wrapping key, allocating a new share for each active member. Finally,
-      // encrypt each share with the public key of each member and record it in
-      // the shares table.
+      // wrapping key, allocating a new share for each active recovery member.
+      // Finally, encrypt each share with the public key of each member and
+      // record it in the shares table.
 
       auto ls_wrapping_key = LedgerSecretWrappingKey();
       auto wrapped_latest_ls = ls_wrapping_key.wrap(latest_ledger_secret);
@@ -289,30 +289,20 @@ namespace ccf
   public:
     ShareManager(NetworkState& network_) : network(network_) {}
 
-    // TODO: Unify this with issue_shares_on_recovery()
-    void issue_shares(kv::Tx& tx)
+    void issue_recovery_shares(kv::Tx& tx)
     {
-      // Assumes that the ledger secrets have not been updated since the
-      // last time shares have been issued (i.e. genesis or re-sharing only)
       auto [latest, penultimate] =
         network.ledger_secrets->get_latest_and_penultimate(tx);
+
       set_recovery_shares_info(tx, latest.second, penultimate, latest.first);
     }
 
-    void issue_shares_on_recovery(kv::Tx& tx, kv::Version latest_ls_version)
-    {
-      auto [latest, penultimate] =
-        network.ledger_secrets->get_latest_and_penultimate(tx);
-
-      set_recovery_shares_info(
-        tx, latest.second, penultimate, latest_ls_version);
-    }
-
-    void issue_shares_on_rekey(
+    void issue_recovery_shares(
       kv::Tx& tx, const LedgerSecret& new_ledger_secret)
     {
-      // No version here, on recovery, the version is derived from the hook at
-      // which the ledger secret is applied to the store
+      // The version at which the new ledger secret is applicable from is
+      // derived from the hook at which the ledger secret is applied to the
+      // store
       set_recovery_shares_info(
         tx, new_ledger_secret, network.ledger_secrets->get_latest(tx));
     }
