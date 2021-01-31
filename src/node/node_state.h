@@ -1123,8 +1123,8 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
 
-      auto restored_ledger_secrets =
-        share_manager.restore_recovery_shares_info(tx, recovery_ledger_secrets);
+      auto restored_ledger_secrets = share_manager.restore_recovery_shares_info(
+        tx, std::move(recovery_ledger_secrets));
 
       // Broadcast decrypted ledger secrets to other nodes for them to initiate
       // private recovery too
@@ -1616,23 +1616,26 @@ namespace ccf
                 network.encrypted_ledger_secrets.get_name()));
             }
 
-            auto& encrypted_ledger_secret = w.at(0);
-            if (!encrypted_ledger_secret.has_value())
+            auto encrypted_ledger_secret_info = w.at(0);
+            if (!encrypted_ledger_secret_info.has_value())
             {
               throw std::logic_error(fmt::format(
                 "Unexpected: removal from {} table",
                 network.encrypted_ledger_secrets.get_name()));
             }
 
-            auto next_ledger_secret_version =
-              encrypted_ledger_secret->next_version.value_or(version + 1);
+            // If the version of the next ledger secret is not set, deduce it
+            // from the hook version (i.e. ledger rekey)
+            if (!encrypted_ledger_secret_info->next_version.has_value())
+            {
+              encrypted_ledger_secret_info->next_version = version + 1;
+            }
 
-            LOG_FAIL_FMT(
-              "Next ledger secret at: {}", next_ledger_secret_version);
+            LOG_DEBUG_FMT(
+              "Recovering encrypted ledger secret valid at seqno {}", version);
 
-            recovery_ledger_secrets.emplace(
-              next_ledger_secret_version,
-              std::move(encrypted_ledger_secret->previous_ledger_secret));
+            recovery_ledger_secrets.emplace_back(
+              std::move(encrypted_ledger_secret_info.value()));
 
             return kv::ConsensusHookPtr(nullptr);
           }));
