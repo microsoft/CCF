@@ -272,7 +272,7 @@ DOCTEST_TEST_CASE("Proposer ballot")
   frontend.open();
 
   {
-    DOCTEST_INFO("Propose, no votes");
+    DOCTEST_INFO("Identical proposals");
     const auto proposed_member = get_cert(2, kp);
 
     Propose::In proposal;
@@ -319,6 +319,18 @@ DOCTEST_TEST_CASE("Proposer ballot")
     DOCTEST_CHECK(out1.state == ProposalState::OPEN);
     DOCTEST_CHECK(out2.state == ProposalState::OPEN);
     DOCTEST_CHECK(out1.proposal_id != out2.proposal_id);
+
+    EndpointMetrics::Out out;
+    frontend.member_endpoints.endpoint_metrics(out);
+    size_t retries = 0;
+    for (auto& m: out.metrics)
+    {
+      if (m.path == "proposals")
+      {
+        retries += m.retries;
+      }
+    }
+    DOCTEST_CHECK(retries == 1);
   }
 }
 

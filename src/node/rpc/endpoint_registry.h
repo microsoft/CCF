@@ -145,6 +145,7 @@ namespace ccf
       size_t calls = 0;
       size_t errors = 0;
       size_t failures = 0;
+      size_t retries = 0;
     };
 
     struct Endpoint;
@@ -793,14 +794,14 @@ namespace ccf
       }
     }
 
-    virtual void endpoint_metrics(kv::Tx&, EndpointMetrics::Out& out)
+    virtual void endpoint_metrics(EndpointMetrics::Out& out)
     {
       for (const auto& [path, verb_metrics] : metrics)
       {
         for (const auto& [verb, metric] : verb_metrics)
         {
           out.metrics.push_back(
-            {path, verb, metric.calls, metric.errors, metric.failures});
+            {path, verb, metric.calls, metric.errors, metric.failures, metric.retries});
         }
       }
     }

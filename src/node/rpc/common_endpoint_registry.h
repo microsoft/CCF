@@ -192,10 +192,10 @@ namespace ccf
         .set_auto_schema<void, GetAPI::Out>()
         .install();
 
-      auto endpoint_metrics_fn = [this](kv::Tx& tx, nlohmann::json&&) {
+      // TODO: why isn't that a command?
+      auto endpoint_metrics_fn = [this](kv::Tx&, nlohmann::json&&) {
         EndpointMetrics::Out out;
-        endpoint_metrics(tx, out);
-
+        endpoint_metrics(out);
         return make_success(out);
       };
       make_endpoint(

@@ -2083,12 +2083,12 @@ namespace ccf
   };
 
   class MemberRpcFrontend : public RpcFrontend
-  {
-  protected:
+  { 
+  public:
+    // TODO: obviously not
     MemberEndpoints member_endpoints;
     Members* members;
 
-  public:
     MemberRpcFrontend(
       NetworkState& network,
       AbstractNodeState& node,
