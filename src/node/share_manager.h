@@ -86,9 +86,8 @@ namespace ccf
     }
   };
 
-  // During recovery, a list of RecoveredEncryptedLedgerSecrets is constructed
-  // from the local hook on the encrypted ledger secrets table. The key for each
-  // entry is the version at which the next ledger secret is applicable from.
+  // During recovery, a list of EncryptedLedgerSecretInfo is constructed
+  // from the local hook on the encrypted ledger secrets table.
   using RecoveredEncryptedLedgerSecrets = std::list<EncryptedLedgerSecretInfo>;
 
   // The ShareManager class provides the interface between the ledger secrets
@@ -147,7 +146,7 @@ namespace ccf
       return encrypted_shares;
     }
 
-    void shuffle_recovery_shares(
+    void _shuffle_recovery_shares(
       kv::Tx& tx, const LedgerSecret& latest_ledger_secret)
     {
       auto ls_wrapping_key = LedgerSecretWrappingKey();
@@ -171,7 +170,7 @@ namespace ccf
       // Finally, encrypt each share with the public key of each member and
       // record it in the shares table.
 
-      shuffle_recovery_shares(tx, latest_ledger_secret);
+      _shuffle_recovery_shares(tx, latest_ledger_secret);
 
       auto encrypted_ls = tx.rw(network.encrypted_ledger_secrets);
 
@@ -305,12 +304,12 @@ namespace ccf
         tx, new_ledger_secret, network.ledger_secrets->get_latest(tx));
     }
 
-    void reshuffle_recovery_shares(kv::Tx& tx)
+    void shuffle_recovery_shares(kv::Tx& tx)
     {
       // Issue new recovery shares of the _same_ current ledger secret to all
       // active recovery members. The encrypted ledger secrets recorded in the
       // store are _not_ updated.
-      shuffle_recovery_shares(
+      _shuffle_recovery_shares(
         tx, network.ledger_secrets->get_latest(tx).second);
     }
 
@@ -338,7 +337,7 @@ namespace ccf
     {
       // First, re-assemble the ledger secret wrapping key from the submitted
       // encrypted shares. Then, unwrap the latest ledger secret and use it to
-      // decrypt the sequence of recovered ledger secrets, from the end.
+      // decrypt the sequence of recovered ledger secrets, from the last one.
 
       if (recovery_ledger_secrets.empty())
       {
