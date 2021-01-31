@@ -195,6 +195,11 @@ namespace ccf
           encrypted_previous_ls.hdr.tag);
 
         encrypted_previous_secret = encrypted_previous_ls.serialise();
+
+        LOG_FAIL_FMT(
+          "Setting recovery share info with previous secret at "
+          "{}",
+          version_previous_secret);
         encrypted_ls->put(
           0,
           {PreviousLedgerSecretInfo(
@@ -205,6 +210,7 @@ namespace ccf
       }
       else
       {
+        LOG_FAIL_FMT("Setting recovery share info with no previous secret");
         encrypted_ls->put(0, {std::nullopt, latest_ls_version});
       }
     }
@@ -311,6 +317,7 @@ namespace ccf
       // Issue new recovery shares of the _same_ current ledger secret to all
       // active recovery members. The encrypted ledger secrets recorded in the
       // store are _not_ updated.
+      LOG_FAIL_FMT("Shuffling recovery shares");
       shuffle_recovery_shares(
         tx, network.ledger_secrets->get_latest(tx).second);
     }
@@ -334,8 +341,10 @@ namespace ccf
       return search->second;
     }
 
+    // TODO: rvalue recovery_ledger_secrets
     LedgerSecretsMap restore_recovery_shares_info(
-      kv::Tx& tx, RecoveredEncryptedLedgerSecrets&& recovery_ledger_secrets)
+      kv::Tx& tx,
+      const RecoveredEncryptedLedgerSecrets& recovery_ledger_secrets)
     {
       // First, re-assemble the ledger secret wrapping key from the submitted
       // encrypted shares. Then, unwrap the latest ledger secret and use it to
@@ -367,10 +376,13 @@ namespace ccf
       restored_ledger_secrets.emplace(
         recovery_ledger_secrets.rbegin()->first, std::move(restored_ls));
 
+      LOG_FAIL_FMT("Emplaced");
+
       for (auto it = recovery_ledger_secrets.rbegin();
            it != recovery_ledger_secrets.rend();
            it++)
       {
+        LOG_FAIL_FMT("First!");
         if (!it->second.has_value())
         {
           // Very first entry does not encrypt any other ledger secret
@@ -394,12 +406,23 @@ namespace ccf
             "Decryption of ledger secret at {} failed", it->second->version));
         }
 
+        LOG_FAIL_FMT("Recovering ledger secret at {}", it->second->version);
         decryption_key = decrypted_ls;
         restored_ledger_secrets.emplace(
-          std::next(it)->second->version, std::move(decrypted_ls));
+          it->second->version, std::move(decrypted_ls));
+        // if (std::next(it) == recovery_ledger_secrets.rend())
+        // {
+        //   restored_ledger_secrets.emplace(it->      ,
+        //   std::move(decrypted_ls));
+        // }
+        // else
+        // {
+        //   restored_ledger_secrets.emplace(
+        //     std::next(it)->first, std::move(decrypted_ls));
+        // }
       }
 
-      recovery_ledger_secrets.clear();
+      // recovery_ledger_secrets.clear();
 
       return restored_ledger_secrets;
     }

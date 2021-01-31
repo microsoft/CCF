@@ -38,7 +38,7 @@ def test(network, args, from_snapshot=False):
 
 @reqs.description("Recovering a network, kill one node while submitting shares")
 @reqs.recover(number_txs=2)
-def test_share_resilience(network, args, from_snapshot=True):
+def test_share_resilience(network, args, from_snapshot=False):
     old_primary, _ = network.find_primary()
 
     snapshot_dir = None
@@ -122,7 +122,7 @@ def run(args):
             #         network, args, from_snapshot=False
             #     )
             # else:
-            recovered_network = test(network, args, from_snapshot=False)
+            recovered_network = test(network, args, from_snapshot=True)
             network = recovered_network
             LOG.success("Recovery complete on all nodes")
 

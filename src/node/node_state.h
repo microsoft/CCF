@@ -1123,8 +1123,8 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
 
-      auto restored_ledger_secrets = share_manager.restore_recovery_shares_info(
-        tx, std::move(recovery_ledger_secrets));
+      auto restored_ledger_secrets =
+        share_manager.restore_recovery_shares_info(tx, recovery_ledger_secrets);
 
       // Broadcast decrypted ledger secrets to other nodes for them to initiate
       // private recovery too
@@ -1625,7 +1625,7 @@ namespace ccf
             }
 
             auto next_ledger_secret_version =
-              encrypted_ledger_secret->next_version.value_or(version);
+              encrypted_ledger_secret->next_version.value_or(version + 1);
 
             LOG_FAIL_FMT(
               "Next ledger secret at: {}", next_ledger_secret_version);
