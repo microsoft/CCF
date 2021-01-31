@@ -1666,7 +1666,7 @@ namespace ccf
           // member, all recovery members are allocated new recovery shares
           try
           {
-            share_manager.issue_recovery_shares(ctx.tx);
+            share_manager.shuffle_recovery_shares(ctx.tx);
           }
           catch (const std::logic_error& e)
           {
