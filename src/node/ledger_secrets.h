@@ -6,7 +6,6 @@
 #include "kv/kv_types.h"
 #include "kv/tx.h"
 #include "secrets.h"
-#include "tls/base64.h"
 #include "tls/entropy.h"
 
 #include <algorithm>
@@ -63,8 +62,6 @@ namespace ccf
     const LedgerSecret& get_secret_for_version(
       kv::Version version, bool historical_hint = false)
     {
-      LOG_FAIL_FMT("Getting secret for version {}", version);
-
       if (ledger_secrets.empty())
       {
         throw std::logic_error("Ledger secrets map is empty");
@@ -114,11 +111,6 @@ namespace ccf
         last_used_secret_it = std::prev(search);
       }
 
-      LOG_FAIL_FMT(
-        "Using key at {}: {}",
-        std::prev(search)->first,
-        tls::b64_from_raw(std::prev(search)->second.raw_key));
-
       return std::prev(search)->second;
     }
 
@@ -155,13 +147,7 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      auto init_secret = make_ledger_secret();
-
-      LOG_INFO_FMT("Init ledger secrets at {}", initial_version);
-      LOG_FAIL_FMT(
-        "{}", tls::b64_from_raw(init_secret.raw_key)); // TODO: Delete
-
-      ledger_secrets.emplace(initial_version, std::move(init_secret));
+      ledger_secrets.emplace(initial_version, make_ledger_secret());
     }
 
     void set_node_id(NodeId id)
@@ -249,16 +235,6 @@ namespace ccf
           ledger_secrets.begin()->first));
       }
 
-      LOG_FAIL_FMT("Ledger secrets before: {}", ledger_secrets.size());
-      LOG_FAIL_FMT("LS before: {}", ledger_secrets.begin()->first);
-
-      LOG_FAIL_FMT("Restored secrets: {}", restored_ledger_secrets.size());
-      for (auto const& ls : restored_ledger_secrets)
-      {
-        LOG_FAIL_FMT(
-          "LS: {} - {}", ls.first, tls::b64_from_raw(ls.second.raw_key));
-      }
-
       ledger_secrets.merge(restored_ledger_secrets);
     }
 
@@ -278,10 +254,9 @@ namespace ccf
         "Ledger secret at seqno {} already exists",
         version);
 
-      LOG_INFO_FMT("Added new ledger secret at seqno {}", version);
-      LOG_FAIL_FMT("{}", tls::b64_from_raw(secret.raw_key)); // TODO: Delete
-
       ledger_secrets.emplace(version, std::move(secret));
+
+      LOG_INFO_FMT("Added new ledger secret at seqno {}", version);
     }
 
     void rollback(kv::Version version)

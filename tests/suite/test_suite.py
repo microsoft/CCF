@@ -15,21 +15,26 @@ from inspect import signature, Parameter
 
 suites = dict()
 
+# This test suite currently fails and is not yet run by the CI
+# https://github.com/microsoft/CCF/issues/1648
+historical_recovery_snapshot_failure = [
+    e2e_logging.test_historical_query,
+    rekey.test,
+    rekey.test,
+    recovery.test,
+]
+
+
 # This suite tests that rekeying, network configuration changes
 # and recoveries can be interleaved
 suite_rekey_recovery = [
-    e2e_logging.test_historical_query,
-    rekey.test,
-    membership.test_set_recovery_threshold,
-    rekey.test,
-    # reconfiguration.test_add_node_from_snapshot,
     recovery.test,
-    # reconfiguration.test_add_node_from_snapshot,
-    # rekey.test,
-    # reconfiguration.test_add_node,
-    # recovery.test,
-    # rekey.test,
-    # reconfiguration.test_add_node,
+    reconfiguration.test_add_node,
+    rekey.test,
+    reconfiguration.test_add_node,
+    recovery.test,
+    rekey.test,
+    reconfiguration.test_add_node,
 ]
 suites["rekey_recovery"] = suite_rekey_recovery
 

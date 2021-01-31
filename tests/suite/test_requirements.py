@@ -153,11 +153,6 @@ def recover(number_txs=5):
                 network=network,
                 number_txs=infra.e2e_args.get("msgs_per_recovery") or number_txs,
             )
-            # network.txs.issue(
-            #     network=network,
-            #     number_txs=1,
-            #     repeat=True,
-            # )
             new_network = func(*args, **kwargs)
             new_network.txs.verify(
                 network=new_network,

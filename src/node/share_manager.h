@@ -194,11 +194,6 @@ namespace ccf
           encrypted_previous_ls.hdr.tag);
 
         encrypted_previous_secret = encrypted_previous_ls.serialise();
-
-        LOG_FAIL_FMT(
-          "Setting recovery share info with previous secret at "
-          "{}",
-          version_previous_secret);
         encrypted_ls->put(
           0,
           {PreviousLedgerSecretInfo(
@@ -209,7 +204,6 @@ namespace ccf
       }
       else
       {
-        LOG_FAIL_FMT("Setting recovery share info with no previous secret");
         encrypted_ls->put(0, {std::nullopt, latest_ls_version});
       }
     }
@@ -305,7 +299,7 @@ namespace ccf
       // wrapped new ledger secret and encrypted previous ledger secret in the
       // store.
       // Note: The version at which the new ledger secret is applicable from is
-      // derived from the hook at which the ledgersecret is applied to the
+      // derived from the hook at which the ledger secret is applied to the
       // store.
       set_recovery_shares_info(
         tx, new_ledger_secret, network.ledger_secrets->get_latest(tx));
@@ -316,7 +310,6 @@ namespace ccf
       // Issue new recovery shares of the _same_ current ledger secret to all
       // active recovery members. The encrypted ledger secrets recorded in the
       // store are _not_ updated.
-      LOG_FAIL_FMT("Shuffling recovery shares");
       shuffle_recovery_shares(
         tx, network.ledger_secrets->get_latest(tx).second);
     }
