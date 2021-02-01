@@ -192,12 +192,12 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        network = test_node_ids(network, args)
-        network = test_member_data(network, args)
+        # network = test_node_ids(network, args)
+        # network = test_member_data(network, args)
         network = test_quote(network, args)
-        network = test_user(network, args)
-        network = test_no_quote(network, args)
-        network = test_user_id(network, args)
+        # network = test_user(network, args)
+        # network = test_no_quote(network, args)
+        # network = test_user_id(network, args)
 
 
 if __name__ == "__main__":
@@ -207,6 +207,6 @@ if __name__ == "__main__":
         sys.exit(0)
 
     args.package = "liblogging"
-    args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    args.nodes = infra.e2e_args.min_nodes(args, f=0)
     args.initial_user_count = 3
     run(args)

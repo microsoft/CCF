@@ -1889,6 +1889,8 @@ namespace ccf
 
         g.add_consensus(in.consensus_type);
 
+        LOG_FAIL_FMT("Adding quote of size {}", in.quote.size());
+
         size_t self = g.add_node({in.node_info_network,
                                   in.node_cert,
                                   in.quote,
