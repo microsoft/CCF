@@ -102,9 +102,10 @@ namespace kv
      * @return Optional containing version of applied transaction which last
      * wrote at this key, or nullopt of this key has no associated value
      */
-    std::optional<Version> get_previous_version(const K& key)
+    std::optional<Version> get_version_of_previous_write(const K& key)
     {
-      return read_handle.get_previous_version(KSerialiser::to_serialised(key));
+      return read_handle.get_version_of_previous_write(
+        KSerialiser::to_serialised(key));
     }
 
     /** Iterate over all entries in the map.

@@ -83,18 +83,18 @@ TEST_CASE(
 
     REQUIRE(handle_target->has(k1));
     REQUIRE(handle_target->get(k1) == v1);
-    REQUIRE(handle_target->get_previous_version(k1) == first_version);
+    REQUIRE(handle_target->get_version_of_previous_write(k1) == first_version);
 
     REQUIRE(handle_target->has(k2));
     REQUIRE(handle_target->get(k2) == v1);
-    REQUIRE(handle_target->get_previous_version(k2) == first_version);
+    REQUIRE(handle_target->get_version_of_previous_write(k2) == first_version);
 
     REQUIRE(handle_target->has(k3));
     REQUIRE(handle_target->get(k3) == v1);
-    REQUIRE(handle_target->get_previous_version(k3) == first_version);
+    REQUIRE(handle_target->get_version_of_previous_write(k3) == first_version);
 
     REQUIRE(!handle_target->has(k4));
-    REQUIRE(!handle_target->get_previous_version(k4).has_value());
+    REQUIRE(!handle_target->get_version_of_previous_write(k4).has_value());
   }
 
   {
@@ -108,17 +108,17 @@ TEST_CASE(
 
     REQUIRE(handle_target->has(k1));
     REQUIRE(handle_target->get(k1) == v1);
-    REQUIRE(handle_target->get_previous_version(k1) == first_version);
+    REQUIRE(handle_target->get_version_of_previous_write(k1) == first_version);
 
     REQUIRE(handle_target->has(k2));
     REQUIRE(handle_target->get(k2) == v2);
-    REQUIRE(handle_target->get_previous_version(k2) == second_version);
+    REQUIRE(handle_target->get_version_of_previous_write(k2) == second_version);
 
     REQUIRE(!handle_target->has(k3));
-    REQUIRE(!handle_target->get_previous_version(k3).has_value());
+    REQUIRE(!handle_target->get_version_of_previous_write(k3).has_value());
 
     REQUIRE(!handle_target->has(k4));
-    REQUIRE(!handle_target->get_previous_version(k4).has_value());
+    REQUIRE(!handle_target->get_version_of_previous_write(k4).has_value());
   }
 }
 

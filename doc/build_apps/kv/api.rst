@@ -43,7 +43,7 @@ Handle
 
 .. doxygenclass:: kv::ReadableMapHandle
    :project: CCF
-   :members: get, has, foreach, get_previous_version
+   :members: get, has, foreach, get_version_of_previous_write
 
 .. doxygenclass:: kv::WriteableMapHandle
    :project: CCF

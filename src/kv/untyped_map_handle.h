@@ -93,7 +93,7 @@ namespace kv::untyped
       return *value_p;
     }
 
-    std::optional<Version> get_previous_version(const KeyType& key)
+    std::optional<Version> get_version_of_previous_write(const KeyType& key)
     {
       // If the key doesn't exist, return empty and record that we depend on
       // the key not existing.

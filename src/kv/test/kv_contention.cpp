@@ -210,7 +210,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 }
 
 DOCTEST_TEST_CASE(
-  "get_previous_version ordering" * doctest::test_suite("concurrency"))
+  "get_version_of_previous_write ordering" * doctest::test_suite("concurrency"))
 {
   // Many threads attempt to produce a chain of transactions pointing at the
   // previous write to a single key, at that key.
@@ -229,7 +229,7 @@ DOCTEST_TEST_CASE(
       auto tx = kv_store.create_tx();
       auto h = tx.rw(map);
 
-      auto ver = h->get_previous_version(k);
+      auto ver = h->get_version_of_previous_write(k);
 
       std::string message;
       if (ver.has_value())
@@ -297,7 +297,7 @@ DOCTEST_TEST_CASE(
     const auto j = v.value();
     DOCTEST_REQUIRE(j["version"] == last_write_version - 1);
 
-    auto ver = h->get_previous_version(k);
+    auto ver = h->get_version_of_previous_write(k);
     DOCTEST_REQUIRE(ver.has_value());
     DOCTEST_REQUIRE(ver.value() == last_write_version);
   }

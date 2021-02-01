@@ -70,7 +70,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
         REQUIRE(v.has_value());
         REQUIRE_EQ(v.value(), "bar");
 
-        const auto ver = handle->get_previous_version("foo");
+        const auto ver = handle->get_version_of_previous_write("foo");
         REQUIRE(ver.has_value());
         REQUIRE_EQ(ver.value(), first_snapshot_version);
       }
@@ -80,7 +80,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
         REQUIRE(v.has_value());
         REQUIRE_EQ(v.value(), "hello");
 
-        const auto ver = handle->get_previous_version("baz");
+        const auto ver = handle->get_version_of_previous_write("baz");
         REQUIRE(ver.has_value());
         REQUIRE_EQ(ver.value(), first_snapshot_version);
       }
@@ -94,7 +94,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
       REQUIRE(v.has_value());
       REQUIRE_EQ(v.value(), 100);
 
-      const auto ver = num_handle->get_previous_version(42);
+      const auto ver = num_handle->get_version_of_previous_write(42);
       REQUIRE(ver.has_value());
       REQUIRE_EQ(ver.value(), first_snapshot_version);
     }
@@ -122,7 +122,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
         REQUIRE(v.has_value());
         REQUIRE_EQ(v.value(), "bar");
 
-        const auto ver = handle->get_previous_version("foo");
+        const auto ver = handle->get_version_of_previous_write("foo");
         REQUIRE(ver.has_value());
         REQUIRE_EQ(ver.value(), first_snapshot_version);
       }
@@ -131,7 +131,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
         auto v = handle->get("baz");
         REQUIRE(!v.has_value());
 
-        const auto ver = handle->get_previous_version("baz");
+        const auto ver = handle->get_version_of_previous_write("baz");
         REQUIRE(!ver.has_value());
       }
 
@@ -144,7 +144,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
       REQUIRE(num_v.has_value());
       REQUIRE_EQ(num_v.value(), 123);
 
-      const auto ver = num_handle->get_previous_version(42);
+      const auto ver = num_handle->get_version_of_previous_write(42);
       REQUIRE(ver.has_value());
       REQUIRE_EQ(ver.value(), second_snapshot_version);
     }
