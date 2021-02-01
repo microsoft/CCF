@@ -7,7 +7,7 @@ jobs:
     steps:
       - checkout: self
         clean: true
-        submodules: true
+        fetchDepth: 1
 
       - script: ./scripts/ci-checks.sh
         displayName: "Checks"
