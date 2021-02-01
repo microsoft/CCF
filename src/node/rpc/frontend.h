@@ -312,7 +312,6 @@ namespace ccf
             case kv::CommitSuccess::CONFLICT:
             {
               set_root_on_proposals(*ctx, tx);
-              // TODO: this whole metrics business is super not thread safe
               metrics.retries++;
               break;
             }

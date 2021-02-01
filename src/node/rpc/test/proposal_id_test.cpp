@@ -51,10 +51,6 @@ string get_script_path(string name)
   return ss.str();
 }
 const auto gov_script_file = files::slurp_string(get_script_path("gov.lua"));
-const auto gov_veto_script_file =
-  files::slurp_string(get_script_path("gov_veto.lua"));
-const auto operator_gov_script_file =
-  files::slurp_string(get_script_path("operator_gov.lua"));
 
 template <typename T>
 T parse_response_body(const TResponse& r)
@@ -76,18 +72,6 @@ T parse_response_body(const TResponse& r)
 std::string parse_response_body(const TResponse& r)
 {
   return std::string(r.body.begin(), r.body.end());
-}
-
-void check_error(const TResponse& r, http_status expected)
-{
-  DOCTEST_CHECK(r.status == expected);
-}
-
-void check_result_state(const TResponse& r, ProposalState expected)
-{
-  DOCTEST_CHECK(r.status == HTTP_STATUS_OK);
-  const auto result = parse_response_body<ProposalInfo>(r);
-  DOCTEST_CHECK(result.state == expected);
 }
 
 void set_whitelists(GenesisGenerator& gen)
@@ -129,26 +113,6 @@ std::vector<uint8_t> create_signed_request(
   return r.build_request();
 }
 
-template <typename T>
-auto query_params(T script, bool compile)
-{
-  json params;
-  if (compile)
-    params["bytecode"] = lua::compile(script);
-  else
-    params["text"] = script;
-  return params;
-}
-
-template <typename T>
-auto read_params(const T& key, const string& table_name)
-{
-  json params;
-  params["key"] = key;
-  params["table"] = table_name;
-  return params;
-}
-
 auto frontend_process(
   MemberRpcFrontend& frontend,
   const std::vector<uint8_t>& serialized_request,
@@ -171,74 +135,9 @@ auto frontend_process(
   return processor.received.front();
 }
 
-auto get_proposal(
-  MemberRpcFrontend& frontend,
-  const ProposalId& proposal_id,
-  const tls::Pem& caller)
-{
-  const auto getter =
-    create_request(nullptr, fmt::format("proposals/{}", proposal_id), HTTP_GET);
-
-  return parse_response_body<Proposal>(
-    frontend_process(frontend, getter, caller));
-}
-
-auto get_vote(
-  MemberRpcFrontend& frontend,
-  ProposalId proposal_id,
-  MemberId voter,
-  const tls::Pem& caller)
-{
-  const auto getter = create_request(
-    nullptr,
-    fmt::format("proposals/{}/votes/{}", proposal_id, voter),
-    HTTP_GET);
-
-  return parse_response_body<Script>(
-    frontend_process(frontend, getter, caller));
-}
-
-auto activate(
-  MemberRpcFrontend& frontend,
-  const tls::KeyPairPtr& kp,
-  const tls::Pem& caller)
-{
-  const auto state_digest_req =
-    create_request(nullptr, "ack/update_state_digest");
-  const auto ack = parse_response_body<StateDigest>(
-    frontend_process(frontend, state_digest_req, caller));
-
-  StateDigest params;
-  params.state_digest = ack.state_digest;
-  const auto ack_req = create_signed_request(params, "ack", kp, caller);
-  return frontend_process(frontend, ack_req, caller);
-}
-
 auto get_cert(uint64_t member_id, tls::KeyPairPtr& kp_mem)
 {
   return kp_mem->self_sign("CN=new member" + to_string(member_id));
-}
-
-auto init_frontend(
-  NetworkState& network,
-  GenesisGenerator& gen,
-  StubNodeState& node,
-  ShareManager& share_manager,
-  const int n_members,
-  std::vector<tls::Pem>& member_certs)
-{
-  // create members
-  for (uint8_t i = 0; i < n_members; i++)
-  {
-    member_certs.push_back(get_cert(i, kp));
-    gen.activate_member(gen.add_member(member_certs.back()));
-  }
-
-  set_whitelists(gen);
-  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  gen.finalize();
-
-  return MemberRpcFrontend(network, node, share_manager);
 }
 
 DOCTEST_TEST_CASE("Proposer ballot")
@@ -270,67 +169,62 @@ DOCTEST_TEST_CASE("Proposer ballot")
   MemberRpcFrontend frontend(network, node, share_manager);
 
   frontend.open();
+  const auto proposed_member = get_cert(2, kp);
 
+  Propose::In proposal;
+  proposal.script = std::string(R"xxx(
+    tables, member_info = ...
+    for i = 1,10000000,1
+    do
+    u = i ^ 0.5
+    end
+    return Calls:call("new_member", member_info)
+  )xxx");
+  proposal.parameter["cert"] = proposed_member;
+  proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
+  const auto propose =
+    create_signed_request(proposal, "proposals", kp, proposer_cert);
+
+  Propose::Out out1;
+  Propose::Out out2;
+
+  auto fn = [](
+              MemberRpcFrontend& f,
+              const std::vector<uint8_t>& r,
+              const tls::Pem& i,
+              Propose::Out& o) {
+    const auto rs = frontend_process(f, r, i);
+    o = parse_response_body<Propose::Out>(rs);
+  };
+
+  auto t1 = std::thread(
+    fn,
+    std::ref(frontend),
+    std::ref(propose),
+    std::ref(proposer_cert),
+    std::ref(out1));
+  auto t2 = std::thread(
+    fn,
+    std::ref(frontend),
+    std::ref(propose),
+    std::ref(proposer_cert),
+    std::ref(out2));
+  t1.join();
+  t2.join();
+
+  DOCTEST_CHECK(out1.state == ProposalState::OPEN);
+  DOCTEST_CHECK(out2.state == ProposalState::OPEN);
+  DOCTEST_CHECK(out1.proposal_id != out2.proposal_id);
+
+  auto metrics_req = create_request(nlohmann::json(), "api/metrics", HTTP_GET);
+  auto metrics = frontend_process(frontend, metrics_req, proposer_cert);
+  auto metrics_json = serdes::unpack(metrics.body, serdes::Pack::Text);
+  for (auto& row : metrics_json["metrics"])
   {
-    DOCTEST_INFO("Identical proposals");
-    const auto proposed_member = get_cert(2, kp);
-
-    Propose::In proposal;
-    proposal.script = std::string(R"xxx(
-      tables, member_info = ...
-      for i = 1,10000000,1
-      do
-      u = i ^ 0.5
-      end
-      return Calls:call("new_member", member_info)
-    )xxx");
-    proposal.parameter["cert"] = proposed_member;
-    proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
-    const auto propose =
-      create_signed_request(proposal, "proposals", kp, proposer_cert);
-
-    Propose::Out out1;
-    Propose::Out out2;
-
-    auto fn = [](
-                MemberRpcFrontend& f,
-                const std::vector<uint8_t>& r,
-                const tls::Pem& i,
-                Propose::Out& o) {
-      const auto rs = frontend_process(f, r, i);
-      o = parse_response_body<Propose::Out>(rs);
-    };
-
-    auto t1 = std::thread(
-      fn,
-      std::ref(frontend),
-      std::ref(propose),
-      std::ref(proposer_cert),
-      std::ref(out1));
-    auto t2 = std::thread(
-      fn,
-      std::ref(frontend),
-      std::ref(propose),
-      std::ref(proposer_cert),
-      std::ref(out2));
-    t1.join();
-    t2.join();
-
-    DOCTEST_CHECK(out1.state == ProposalState::OPEN);
-    DOCTEST_CHECK(out2.state == ProposalState::OPEN);
-    DOCTEST_CHECK(out1.proposal_id != out2.proposal_id);
-
-    EndpointMetrics::Out out;
-    frontend.member_endpoints.endpoint_metrics(out);
-    size_t retries = 0;
-    for (auto& m: out.metrics)
+    if (row["path"] == "proposals")
     {
-      if (m.path == "proposals")
-      {
-        retries += m.retries;
-      }
+      DOCTEST_CHECK(row["retries"] == 1);
     }
-    DOCTEST_CHECK(retries == 1);
   }
 }
 
