@@ -11,6 +11,7 @@
 
 #  include <openenclave/attestation/attester.h>
 #  include <openenclave/attestation/sgx/evidence.h>
+#  include <openenclave/attestation/verifier.h>
 // #  include <openenclave/bits/report.h>
 // #  include <openenclave/bits/result.h>
 #  include <optional>
@@ -40,17 +41,53 @@ namespace ccf
     static std::optional<CodeDigest> get_code_id(
       const std::vector<uint8_t>& raw_quote)
     {
-      oe_report_t parsed_quote;
+      oe_claim_t* claims = nullptr;
+      size_t claims_length = 0;
 
-      auto rc =
-        oe_parse_report(raw_quote.data(), raw_quote.size(), &parsed_quote);
+      auto rc = oe_verifier_initialize();
       if (rc != OE_OK)
       {
-        LOG_FAIL_FMT("Failed to parse quote: {}", oe_result_str(rc));
+        LOG_FAIL_FMT(
+          "Failed to initialise evidence verifier: {}", oe_result_str(rc));
         return std::nullopt;
       }
 
-      return get_digest_from_parsed_quote(parsed_quote);
+      // TODO: Move this to verification function
+      rc = oe_verify_evidence(
+        &sgx_remote_uuid,
+        raw_quote.data(),
+        raw_quote.size(),
+        nullptr,
+        0,
+        nullptr,
+        0,
+        &claims,
+        &claims_length);
+      if (rc != OE_OK)
+      {
+        LOG_FAIL_FMT("Failed to verify evidence: {}", oe_result_str(rc));
+        return std::nullopt;
+      }
+
+      LOG_FAIL_FMT("Number of claims: {}", claims_length);
+      LOG_FAIL_FMT("Unique id: {}", OE_CLAIM_UNIQUE_ID);
+      for (size_t i = 0; i < claims_length; i++)
+      {
+        auto claim_name = std::string(claims[i].name);
+
+        LOG_FAIL_FMT("{}", claims[i].name);
+        if (claim_name == OE_CLAIM_UNIQUE_ID)
+        {
+          CodeDigest unique_id;
+          std::copy(
+            claims[i].value,
+            claims[i].value + claims[i].value_size,
+            unique_id.begin());
+          return unique_id;
+        }
+      }
+
+      return std::nullopt;
     }
 
     static std::optional<std::vector<uint8_t>> get_quote(const tls::Pem& cert)
@@ -62,7 +99,7 @@ namespace ccf
       if (rc != OE_OK)
       {
         LOG_FAIL_FMT(
-          "Failed to initialise attester format: {}", oe_result_str(rc));
+          "Failed to initialise evidence attester: {}", oe_result_str(rc));
         return std::nullopt;
       }
 

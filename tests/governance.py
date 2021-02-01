@@ -24,8 +24,8 @@ from loguru import logger as LOG
 
 @reqs.description("Test quotes")
 @reqs.supports_methods("quote", "quotes")
-def test_quote(network, args, verify=True):
-    primary, _ = network.find_nodes()
+def test_quote(network, args):
+    primary, _ = network.find_primary()
     with primary.client() as c:
         oed = subprocess.run(
             [
@@ -55,7 +55,7 @@ def test_quote(network, args, verify=True):
 
         r = c.get("/node/quotes")
         quotes = r.body.json()["quotes"]
-        assert len(quotes) == len(network.find_nodes())
+        assert len(quotes) == len(network.get_joined_nodes())
 
         for quote in quotes:
             mrenclave = quote["mrenclave"]
@@ -69,13 +69,12 @@ def test_quote(network, args, verify=True):
                         os.path.join(args.oe_binary, "oeverify"),
                         "-r",
                         qpath,
-                        "-f",
-                        "LEGACY_REPORT_REMOTE",
                     ],
                     capture_output=True,
                     check=True,
                 )
                 out = oed.stdout.decode().split(os.linesep)
+                LOG.debug(out)
                 for line in out:
                     if line.startswith("Enclave sgx_report_data:"):
                         report_digest = line.split(" ")[-1][2:]
