@@ -184,25 +184,35 @@ namespace snmalloc
       size_t shift = TOPLEVEL_SHIFT;
       std::atomic<PagemapEntry*>* e = &top[ix];
 
-      for (size_t i = 0; i < INDEX_LEVELS; i++)
+      // This is effectively a
+      //   for (size_t i = 0; i < INDEX_LEVELS; i++)
+      // loop, but uses constexpr to guarantee optimised version
+      // where the INDEX_LEVELS in {0,1}.
+      if constexpr (INDEX_LEVELS != 0)
       {
-        PagemapEntry* value = get_node<create_addr>(e, result);
-        if (unlikely(!result))
-          return {nullptr, 0};
-
-        shift -= BITS_PER_INDEX_LEVEL;
-        ix = (static_cast<size_t>(addr) >> shift) & ENTRIES_MASK;
-        e = &value->entries[ix];
-
-        if constexpr (INDEX_LEVELS == 1)
+        size_t i = 0;
+        while (true)
         {
-          UNUSED(i);
-          break;
-        }
-        i++;
+          PagemapEntry* value = get_node<create_addr>(e, result);
+          if (unlikely(!result))
+            return {nullptr, 0};
 
-        if (i == INDEX_LEVELS)
-          break;
+          shift -= BITS_PER_INDEX_LEVEL;
+          ix = (static_cast<size_t>(addr) >> shift) & ENTRIES_MASK;
+          e = &value->entries[ix];
+
+          if constexpr (INDEX_LEVELS == 1)
+          {
+            UNUSED(i);
+            break;
+          }
+          else
+          {
+            i++;
+            if (i == INDEX_LEVELS)
+              break;
+          }
+        }
       }
 
       Leaf* leaf = reinterpret_cast<Leaf*>(get_node<create_addr>(e, result));
@@ -326,9 +336,7 @@ namespace snmalloc
   private:
     static constexpr size_t COVERED_BITS =
       bits::ADDRESS_BITS - GRANULARITY_BITS;
-    static constexpr size_t CONTENT_BITS =
-      bits::next_pow2_bits_const(sizeof(T));
-    static constexpr size_t ENTRIES = 1ULL << (COVERED_BITS + CONTENT_BITS);
+    static constexpr size_t ENTRIES = 1ULL << COVERED_BITS;
     static constexpr size_t SHIFT = GRANULARITY_BITS;
 
     std::atomic<T> top[ENTRIES];
@@ -387,7 +395,7 @@ namespace snmalloc
      */
     size_t index_for_address(uintptr_t p)
     {
-      return bits::align_down(static_cast<size_t>(p) >> SHIFT, OS_PAGE_SIZE);
+      return (static_cast<size_t>(p) >> SHIFT) % OS_PAGE_SIZE;
     }
 
     /**
