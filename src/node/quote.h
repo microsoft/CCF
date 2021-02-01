@@ -12,27 +12,23 @@
 #  include <openenclave/attestation/attester.h>
 #  include <openenclave/attestation/sgx/evidence.h>
 #  include <openenclave/attestation/verifier.h>
-// #  include <openenclave/bits/report.h>
-// #  include <openenclave/bits/result.h>
 #  include <optional>
 #  include <vector>
 
 namespace ccf
 {
-  inline CodeDigest get_digest_from_parsed_quote(
-    const oe_report_t& parsed_quote)
+  // TODO: Re-word!
+  enum QuoteVerificationResult : uint32_t
   {
-    CodeDigest ret;
-    std::copy(
-      std::begin(parsed_quote.identity.unique_id),
-      std::end(parsed_quote.identity.unique_id),
-      ret.begin());
+    VERIFIED = 0,
+    FAIL_VERIFY_OE,
+    FAIL_VERIFY_CODE_ID_RETIRED,
+    FAIL_VERIFY_CODE_ID_NOT_FOUND,
+    FAIL_VERIFY_INVALID_QUOTED_CERT,
+  };
 
-    auto raw_digest = std::vector<uint8_t>(ret.begin(), ret.end());
-    return ret;
-  }
-
-  class QuoteGenerator
+  // TODO: destroy verifier/initializer in destructor!
+  class EnclaveEvidenceGenerator
   {
   private:
     static constexpr oe_uuid_t sgx_remote_uuid = {OE_FORMAT_UUID_SGX_ECDSA};
@@ -41,53 +37,16 @@ namespace ccf
     static std::optional<CodeDigest> get_code_id(
       const std::vector<uint8_t>& raw_quote)
     {
-      oe_claim_t* claims = nullptr;
-      size_t claims_length = 0;
-
-      auto rc = oe_verifier_initialize();
-      if (rc != OE_OK)
+      std::optional<CodeDigest> unique_id = std::nullopt;
+      auto rc = verify_oe_quote(raw_quote, unique_id);
+      if (rc != QuoteVerificationResult::VERIFIED)
       {
-        LOG_FAIL_FMT(
-          "Failed to initialise evidence verifier: {}", oe_result_str(rc));
-        return std::nullopt;
+        // TODO: Return error
+        throw std::logic_error(
+          fmt::format("Failed to verify evidence: {}", rc));
       }
 
-      // TODO: Move this to verification function
-      rc = oe_verify_evidence(
-        &sgx_remote_uuid,
-        raw_quote.data(),
-        raw_quote.size(),
-        nullptr,
-        0,
-        nullptr,
-        0,
-        &claims,
-        &claims_length);
-      if (rc != OE_OK)
-      {
-        LOG_FAIL_FMT("Failed to verify evidence: {}", oe_result_str(rc));
-        return std::nullopt;
-      }
-
-      LOG_FAIL_FMT("Number of claims: {}", claims_length);
-      LOG_FAIL_FMT("Unique id: {}", OE_CLAIM_UNIQUE_ID);
-      for (size_t i = 0; i < claims_length; i++)
-      {
-        auto claim_name = std::string(claims[i].name);
-
-        LOG_FAIL_FMT("{}", claims[i].name);
-        if (claim_name == OE_CLAIM_UNIQUE_ID)
-        {
-          CodeDigest unique_id;
-          std::copy(
-            claims[i].value,
-            claims[i].value + claims[i].value_size,
-            unique_id.begin());
-          return unique_id;
-        }
-      }
-
-      return std::nullopt;
+      return unique_id;
     }
 
     static std::optional<std::vector<uint8_t>> get_quote(const tls::Pem& cert)
@@ -143,51 +102,117 @@ namespace ccf
 
       return raw_quote;
     }
-  };
 
-  enum QuoteVerificationResult : uint32_t
-  {
-    VERIFIED = 0,
-    FAIL_VERIFY_OE,
-    FAIL_VERIFY_CODE_ID_RETIRED,
-    FAIL_VERIFY_CODE_ID_NOT_FOUND,
-    FAIL_VERIFY_INVALID_QUOTED_CERT,
-  };
-
-  class QuoteVerifier
-  {
   private:
     static QuoteVerificationResult verify_oe_quote(
-      const std::vector<uint8_t>& quote, oe_report_t& parsed_quote)
+      const std::vector<uint8_t>& raw_quote, CodeDigest& unique_id)
     {
-      oe_result_t result =
-        oe_verify_report(quote.data(), quote.size(), &parsed_quote);
+      // TODO: Create wrapper for this!
+      oe_claim_t* claims = nullptr;
+      size_t claims_length = 0;
 
-      if (result != OE_OK)
+      auto rc = oe_verifier_initialize();
+      if (rc != OE_OK)
       {
-        LOG_FAIL_FMT("Quote verification failed: {}", oe_result_str(result));
-        return QuoteVerificationResult::FAIL_VERIFY_OE;
+        LOG_FAIL_FMT(
+          "Failed to initialise evidence verifier: {}", oe_result_str(rc));
+        return std::nullopt;
       }
-      return QuoteVerificationResult::VERIFIED;
+
+      rc = oe_verify_evidence(
+        &sgx_remote_uuid,
+        raw_quote.data(),
+        raw_quote.size(),
+        nullptr,
+        0,
+        nullptr,
+        0,
+        &claims,
+        &claims_length);
+      if (rc != OE_OK)
+      {
+        oe_free_claims(claims, claims_length);
+        LOG_FAIL_FMT("Failed to verify evidence: {}", oe_result_str(rc));
+        return std::nullopt;
+      }
+
+      for (size_t i = 0; i < claims_length; i++)
+      {
+        auto claim_name = std::string(claims[i].name);
+        if (claim_name == OE_CLAIM_UNIQUE_ID)
+        {
+          CodeDigest unique_id;
+          std::copy(
+            claims[i].value,
+            claims[i].value + claims[i].value_size,
+            unique_id.begin());
+
+          oe_free_claims(claims, claims_length);
+          return unique_id;
+        }
+      }
+
+      oe_free_claims(claims, claims_length);
+
+      return std::nullopt;
+
+      // auto rc = oe_verifier_initialize();
+      // if (rc != OE_OK)
+      // {
+      //   LOG_FAIL_FMT(
+      //     "Failed to initialise evidence verifier: {}", oe_result_str(rc));
+      //   return QuoteVerificationResult::FAIL_VERIFY_OE;
+      // }
+
+      // // TODO: Move this to verification function
+      // rc = oe_verify_evidence(
+      //   &sgx_remote_uuid,
+      //   raw_quote.data(),
+      //   raw_quote.size(),
+      //   nullptr,
+      //   0,
+      //   nullptr,
+      //   0,
+      //   &claims,
+      //   &claims_length);
+      // if (rc != OE_OK)
+      // {
+      //   oe_free_claims(claims, claims_length);
+      //   LOG_FAIL_FMT("Failed to verify evidence: {}", oe_result_str(rc));
+      //   return QuoteVerificationResult::FAIL_VERIFY_OE;
+      // }
+
+      // for (size_t i = 0; i < claims_length; i++)
+      // {
+      //   auto claim_name = std::string(claims[i].name);
+      //   if (claim_name == OE_CLAIM_UNIQUE_ID)
+      //   {
+      //     std::copy(
+      //       claims[i].value,
+      //       claims[i].value + claims[i].value_size,
+      //       unique_id.begin());
+      //     break;
+      //   }
+      // }
+
+      // oe_free_claims(claims, claims_length);
+
+      // return QuoteVerificationResult::VERIFIED;
     }
 
     static QuoteVerificationResult verify_enclave_measurement_against_store(
-      kv::Tx& tx, CodeIDs& code_ids_table, const oe_report_t& parsed_quote)
+      kv::Tx& tx, CodeIDs& code_ids_table, const CodeDigest& unique_id)
     {
-      auto code_digest = get_digest_from_parsed_quote(parsed_quote);
-
       auto code_ids = tx.ro(code_ids_table);
-      auto code_id_status = code_ids->get(code_digest);
+      auto code_id_status = code_ids->get(unique_id);
       if (!code_id_status.has_value())
       {
-        // TODO: Revert
-        // return QuoteVerificationResult::FAIL_VERIFY_CODE_ID_NOT_FOUND;
+        return QuoteVerificationResult::FAIL_VERIFY_CODE_ID_NOT_FOUND;
       }
 
       if (code_id_status.value() != CodeStatus::ALLOWED_TO_JOIN)
       {
-        // TODO: Revert
-        // return QuoteVerificationResult::FAIL_VERIFY_CODE_ID_RETIRED;
+        return QuoteVerificationResult::FAIL_VERIFY_CODE_ID_RETIRED;
       }
 
       return QuoteVerificationResult::VERIFIED;
@@ -217,25 +242,26 @@ namespace ccf
       const std::vector<uint8_t>& raw_quote,
       const tls::Pem& cert)
     {
-      oe_report_t parsed_quote;
+      CodeDigest unique_id;
+      // TODO: Also retrieve report data from claims!
 
-      auto rc = verify_oe_quote(raw_quote, parsed_quote);
+      auto rc = verify_oe_quote(raw_quote, unique_id);
       if (rc != QuoteVerificationResult::VERIFIED)
       {
         return rc;
       }
 
-      rc = verify_enclave_measurement_against_store(tx, code_ids, parsed_quote);
+      rc = verify_enclave_measurement_against_store(tx, code_ids, unique_id);
       if (rc != QuoteVerificationResult::VERIFIED)
       {
         return rc;
       }
 
-      rc = verify_quoted_certificate(cert, parsed_quote);
-      if (rc != QuoteVerificationResult::VERIFIED)
-      {
-        return rc;
-      }
+      // rc = verify_quoted_certificate(cert, parsed_quote);
+      // if (rc != QuoteVerificationResult::VERIFIED)
+      // {
+      //   return rc;
+      // }
 
       return QuoteVerificationResult::VERIFIED;
     }

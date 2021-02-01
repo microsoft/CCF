@@ -116,13 +116,13 @@ namespace ccf
       auto pk_pem = public_key_pem_from_cert(caller_pem);
 
       QuoteVerificationResult verify_result =
-        QuoteVerifier::verify_quote_against_store(
+        EnclaveEvidenceGenerator::verify_quote_against_store(
           tx, this->network.node_code_ids, in.quote, pk_pem);
 
       if (verify_result != QuoteVerificationResult::VERIFIED)
       {
         const auto [code, message] =
-          QuoteVerifier::quote_verification_error(verify_result);
+          EnclaveEvidenceGenerator::quote_verification_error(verify_result);
         return make_error(code, ccf::errors::InvalidQuote, message);
       }
 #else
@@ -337,7 +337,7 @@ namespace ccf
           q.format = format;
 
 #ifdef GET_QUOTE
-          auto code_id_opt = QuoteGenerator::get_code_id(raw_quote);
+          auto code_id_opt = EnclaveEvidenceGenerator::get_code_id(raw_quote);
           if (code_id_opt.has_value())
           {
             q.mrenclave =
@@ -382,7 +382,8 @@ namespace ccf
             q.format = QuoteFormat::oe_sgx_v1;
 
 #ifdef GET_QUOTE
-            auto code_id_opt = QuoteGenerator::get_code_id(node_info.quote);
+            auto code_id_opt =
+              EnclaveEvidenceGenerator::get_code_id(node_info.quote);
             if (code_id_opt.has_value())
             {
               q.mrenclave =

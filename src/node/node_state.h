@@ -281,10 +281,10 @@ namespace ccf
 
 #ifdef GET_QUOTE
       // auto quote_opt =
-      //   QuoteGenerator::get_quote(node_sign_kp->public_key_pem());
+      //   EnclaveEvidenceGenerator::get_quote(node_sign_kp->public_key_pem());
       {
         auto quote_opt =
-          QuoteGenerator::get_quote(node_sign_kp->public_key_pem());
+          EnclaveEvidenceGenerator::get_quote(node_sign_kp->public_key_pem());
         if (!quote_opt.has_value())
         {
           throw std::logic_error("Quote could not be retrieved");
@@ -292,7 +292,7 @@ namespace ccf
         quote = quote_opt.value();
 
         LOG_FAIL_FMT("Retrieved quote size: {}", quote.size());
-        // auto node_code_id_opt = QuoteGenerator::get_code_id(quote);
+        // auto node_code_id_opt = EnclaveEvidenceGenerator::get_code_id(quote);
         // if (!node_code_id_opt.has_value())
         // {
         //   return Fail<CreateNew::Out>(
