@@ -143,7 +143,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--raft-election-timeout",
         help="Raft maximum election timeout for each node in the network",
         type=int,
-        default=100000,
+        default=4000,
     )
     parser.add_argument(
         "--bft-view-change-timeout",
