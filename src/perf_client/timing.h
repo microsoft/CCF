@@ -297,7 +297,7 @@ namespace timing
           {
             if (tx_id.has_value())
             {
-              record_receive(response.id, tx_id);
+              record_receive(response.id, tx_id, target.seqno);
             }
             else
             {
