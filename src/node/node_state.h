@@ -480,6 +480,14 @@ namespace ccf
             setup_progress_tracker();
             setup_history();
 
+            if (resp.network_info.public_only)
+            {
+              last_recovered_signed_idx =
+                resp.network_info.last_recovered_signed_idx;
+              setup_recovery_hook();
+              snapshotter->set_snapshot_generation(false);
+            }
+
             if (startup_snapshot_info)
             {
               // It is only possible to deserialise the entire snapshot then,
@@ -538,11 +546,6 @@ namespace ccf
 
             if (resp.network_info.public_only)
             {
-              last_recovered_signed_idx =
-                resp.network_info.last_recovered_signed_idx;
-              setup_recovery_hook();
-              snapshotter->set_snapshot_generation(false);
-
               sm.advance(State::partOfPublicNetwork);
             }
             else
