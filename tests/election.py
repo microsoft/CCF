@@ -9,6 +9,7 @@ import infra.e2e_args
 import infra.checker
 import http
 import suite.test_requirements as reqs
+from ccf.clients import CCFConnectionException
 
 from ccf.tx_status import TxStatus
 from ccf.log_capture import flush_info
@@ -23,8 +24,25 @@ from loguru import logger as LOG
 @reqs.description("Stopping current primary and waiting for a new one to be elected")
 @reqs.can_kill_n_nodes(1)
 def test_kill_primary(network, args):
-    primary, _ = network.find_primary()
+    primary, backup = network.find_primary_and_any_backup()
     primary.stop()
+
+    # When the consensus is BFT there is no status message timer that triggers a new election.
+    # It is triggered with a timeout from a message not executing. We need to send the message that
+    # will not execute because of the stopped primary which will then trigger a view change
+    if args.consensus == "bft":
+        try:
+            with backup.client("user0") as c:
+                _ = c.post(
+                    "/app/log/private",
+                    {
+                        "id": -1,
+                        "msg": "This is submitted to force a view change",
+                    },
+                )
+        except CCFConnectionException:
+            LOG.warning(f"Could not successfully connect to node {backup.node_id}.")
+
     new_primary, new_term = network.wait_for_new_primary(primary.node_id)
     LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
 
@@ -68,12 +86,8 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
 
 
 def run(args):
-    # Three nodes minimum to make sure that the raft network can still make progress
-    # if one node stops
-    hosts = ["localhost"] * (4 if args.consensus == "bft" else 3)
-
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         check = infra.checker.Checker()
 
@@ -81,15 +95,15 @@ def run(args):
         current_view = None
 
         # Number of nodes F to stop until network cannot make progress
-        nodes_to_stop = math.ceil(len(hosts) / 2)
+        nodes_to_stop = math.ceil(len(args.nodes) / 2)
         if args.consensus == "bft":
-            nodes_to_stop = math.ceil(len(hosts) / 3)
+            nodes_to_stop = math.ceil(len(args.nodes) / 3)
 
         primary_is_known = True
         for node_to_stop in range(nodes_to_stop):
             # Note that for the first iteration, the primary is known in advance anyway
             LOG.debug("Find freshly elected primary")
-            # After a view change in pbft, finding the new primary takes longer
+            # After a view change in bft, finding the new primary takes longer
             primary, current_view = network.find_primary(
                 timeout=(30 if args.consensus == "bft" else 3)
             )
@@ -129,4 +143,5 @@ if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
     run(args)

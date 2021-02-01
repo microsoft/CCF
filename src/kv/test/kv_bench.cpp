@@ -42,10 +42,18 @@ ValueType gen_value(size_t i)
 std::shared_ptr<ccf::LedgerSecrets> create_ledger_secrets()
 {
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
-  auto new_secret = ccf::LedgerSecret();
   secrets->init();
-
   return secrets;
+}
+
+std::string build_map_name(const std::string& core_name, kv::SecurityDomain sd)
+{
+  if (sd == kv::SecurityDomain::PUBLIC)
+  {
+    return fmt::format("{}{}", kv::public_domain_prefix, core_name);
+  }
+
+  return core_name;
 }
 
 // Test functions
@@ -56,14 +64,15 @@ static void serialise(picobench::state& s)
 
   kv::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
-  encryptor->set_iv_id(1);
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
 
-  auto& map0 = kv_store.create<MapType>("map0", SD);
-  auto& map1 = kv_store.create<MapType>("map1", SD);
-  kv::Tx tx;
-  auto [tx0, tx1] = tx.get_view(map0, map1);
+  auto map0 = build_map_name("map0", SD);
+  auto map1 = build_map_name("map1", SD);
+
+  auto tx = kv_store.create_tx();
+  auto tx0 = tx.rw<MapType>(map0);
+  auto tx1 = tx.rw<MapType>(map1);
 
   for (int i = 0; i < s.iterations(); i++)
   {
@@ -81,7 +90,7 @@ static void serialise(picobench::state& s)
 }
 
 template <kv::SecurityDomain SD>
-static void deserialise(picobench::state& s)
+static void apply(picobench::state& s)
 {
   logger::config::level() = logger::INFO;
 
@@ -90,17 +99,16 @@ static void deserialise(picobench::state& s)
   kv::Store kv_store2;
 
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
-  encryptor->set_iv_id(1);
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
   kv_store2.set_encryptor(encryptor);
 
-  auto& map0 = kv_store.create<MapType>("map0", SD);
-  auto& map1 = kv_store.create<MapType>("map1", SD);
-  kv_store2.clone_schema(kv_store);
+  auto map0 = build_map_name("map0", SD);
+  auto map1 = build_map_name("map1", SD);
 
-  kv::Tx tx;
-  auto [tx0, tx1] = tx.get_view(map0, map1);
+  auto tx = kv_store.create_tx();
+  auto tx0 = tx.rw<MapType>(map0);
+  auto tx1 = tx.rw<MapType>(map1);
 
   for (int i = 0; i < s.iterations(); i++)
   {
@@ -112,8 +120,10 @@ static void deserialise(picobench::state& s)
   tx.commit();
 
   s.start_timer();
-  auto rc = kv_store2.deserialise(consensus->get_latest_data().value());
-  if (rc != kv::DeserialiseSuccess::PASS)
+  auto rc =
+    kv_store2.apply(consensus->get_latest_data().value(), ConsensusType::CFT)
+      ->execute();
+  if (rc != kv::ApplySuccess::PASS)
     throw std::logic_error(
       "Transaction deserialisation failed: " + std::to_string(rc));
   s.stop_timer();
@@ -126,17 +136,17 @@ static void commit_latency(picobench::state& s)
 
   kv::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
-  encryptor->set_iv_id(1);
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
 
-  auto& map0 = kv_store.create<MapType>("map0");
-  auto& map1 = kv_store.create<MapType>("map1");
+  auto map0 = "map0";
+  auto map1 = "map1";
 
   for (int i = 0; i < s.iterations(); i++)
   {
-    kv::Tx tx;
-    auto [tx0, tx1] = tx.get_view(map0, map1);
+    auto tx = kv_store.create_tx();
+    auto tx0 = tx.rw<MapType>(map0);
+    auto tx1 = tx.rw<MapType>(map1);
     for (int iTx = 0; iTx < S; iTx++)
     {
       const auto key = gen_key(i, std::to_string(iTx));
@@ -164,26 +174,19 @@ static void ser_snap(picobench::state& s)
 
   kv::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
-  encryptor->set_iv_id(1);
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
 
+  auto tx = kv_store.create_tx();
   for (int i = 0; i < s.iterations(); i++)
   {
-    kv_store.create<MapType>(
-      fmt::format("map{}", i), kv::SecurityDomain::PRIVATE);
-  }
-
-  kv::Tx tx;
-  for (int i = 0; i < s.iterations(); i++)
-  {
-    auto view = tx.get_view(*kv_store.get<MapType>(fmt::format("map{}", i)));
+    auto handle = tx.rw<MapType>(fmt::format("map{}", i));
     for (int j = 0; j < KEY_COUNT; j++)
     {
       const auto key = gen_key(j);
       const auto value = gen_value(j);
 
-      view->put(key, value);
+      handle->put(key, value);
     }
   }
 
@@ -205,29 +208,20 @@ static void des_snap(picobench::state& s)
   kv::Store kv_store;
   kv::Store kv_store2;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
-  encryptor->set_iv_id(1);
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
   kv_store2.set_encryptor(encryptor);
 
+  auto tx = kv_store.create_tx();
   for (int i = 0; i < s.iterations(); i++)
   {
-    kv_store.create<MapType>(
-      fmt::format("map{}", i), kv::SecurityDomain::PRIVATE);
-  }
-
-  kv_store2.clone_schema(kv_store);
-
-  kv::Tx tx;
-  for (int i = 0; i < s.iterations(); i++)
-  {
-    auto view = tx.get_view(*kv_store.get<MapType>(fmt::format("map{}", i)));
+    auto handle = tx.rw<MapType>(fmt::format("map{}", i));
     for (int j = 0; j < KEY_COUNT; j++)
     {
       const auto key = gen_key(j);
       const auto value = gen_value(j);
 
-      view->put(key, value);
+      handle->put(key, value);
     }
   }
 
@@ -238,8 +232,9 @@ static void des_snap(picobench::state& s)
   auto snap = kv_store.snapshot(tx.commit_version());
   auto serialised_snap = kv_store.serialise_snapshot(std::move(snap));
 
+  kv::ConsensusHookPtrs hooks;
   s.start_timer();
-  kv_store2.deserialise_snapshot(serialised_snap);
+  kv_store2.deserialise_snapshot(serialised_snap, hooks);
   s.stop_timer();
 }
 
@@ -259,12 +254,12 @@ PICOBENCH(serialise<SD::PUBLIC>)
   .baseline();
 PICOBENCH(serialise<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
 
-PICOBENCH_SUITE("deserialise");
-PICOBENCH(deserialise<SD::PUBLIC>)
+PICOBENCH_SUITE("apply");
+PICOBENCH(apply<SD::PUBLIC>)
   .iterations(tx_count)
   .samples(sample_size)
   .baseline();
-PICOBENCH(deserialise<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
+PICOBENCH(apply<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
 
 const uint32_t snapshot_sample_size = 10;
 const std::vector<int> map_count = {20, 100};

@@ -3,10 +3,31 @@
 import infra.e2e_args
 import infra.network
 import infra.proc
+import infra.logging_app as app
 import suite.test_requirements as reqs
 import time
 
 from loguru import logger as LOG
+
+
+def node_configs(network):
+    configs = {}
+    for node in network.nodes:
+        try:
+            with node.client() as nc:
+                configs[node.node_id] = nc.get("/node/config").body.json()
+        except Exception:
+            pass
+    return configs
+
+
+def count_nodes(configs, network):
+    nodes = set(str(k) for k in configs.keys())
+    stopped = {str(n.node_id) for n in network.nodes if n.is_stopped()}
+    for node_id, node_config in configs.items():
+        nodes_in_config = set(node_config.keys()) - stopped
+        assert nodes == nodes_in_config, f"{nodes} {nodes_in_config} {node_id}"
+    return len(nodes)
 
 
 def check_can_progress(node, timeout=3):
@@ -22,9 +43,14 @@ def check_can_progress(node, timeout=3):
         assert False, f"Stuck at {r}"
 
 
-@reqs.description("Adding a valid node from primary")
+@reqs.description("Adding a valid node without snapshot")
 def test_add_node(network, args):
-    new_node = network.create_and_trust_node(args.package, "localhost", args)
+    new_node = network.create_and_trust_node(
+        args.package,
+        "local://localhost",
+        args,
+        from_snapshot=False,
+    )
     with new_node.client() as c:
         s = c.get("/node/state")
         assert s.body.json()["id"] == new_node.node_id
@@ -35,19 +61,39 @@ def test_add_node(network, args):
 @reqs.description("Adding a valid node from a backup")
 @reqs.at_least_n_nodes(2)
 def test_add_node_from_backup(network, args):
-    backup = network.find_any_backup()
     new_node = network.create_and_trust_node(
-        args.package, "localhost", args, target_node=backup
+        args.package,
+        "local://localhost",
+        args,
+        target_node=network.find_any_backup(),
     )
     assert new_node
     return network
 
 
+# Note: this test cannot be included in the full test suite yet as
+# add_from_snapshot() decorator makes use of historical queries (#1648)
 @reqs.description("Adding a valid node from snapshot")
 @reqs.at_least_n_nodes(2)
-def test_add_node_from_snapshot(network, args):
+@reqs.add_from_snapshot()
+def test_add_node_from_snapshot(
+    network, args, copy_ledger_read_only=True, from_backup=False
+):
+    target_node = None
+    snapshot_dir = None
+    if from_backup:
+        primary, target_node = network.find_primary_and_any_backup()
+        # Retrieve snapshot from primary as only primary node
+        # generates snapshots
+        snapshot_dir = network.get_committed_snapshots(primary)
+
     new_node = network.create_and_trust_node(
-        args.package, "localhost", args, from_snapshot=True
+        args.package,
+        "local://localhost",
+        args,
+        copy_ledger_read_only=copy_ledger_read_only,
+        target_node=target_node,
+        snapshot_dir=snapshot_dir,
     )
     assert new_node
     return network
@@ -63,88 +109,80 @@ def test_add_as_many_pending_nodes(network, args):
     )
 
     for _ in range(number_new_nodes):
-        network.create_and_add_pending_node(args.package, "localhost", args)
+        network.create_and_add_pending_node(
+            args.package,
+            "local://localhost",
+            args,
+        )
     check_can_progress(network.find_primary()[0])
-    return network
-
-
-@reqs.description("Add node with untrusted code version")
-def test_add_node_untrusted_code(network, args):
-    if args.enclave_type != "virtual":
-        LOG.info("Adding an invalid node (unknown code id)")
-        code_not_found_exception = None
-        try:
-            network.create_and_add_pending_node(
-                "liblua_generic", "localhost", args, timeout=3
-            )
-        except infra.network.CodeIdNotFound as err:
-            code_not_found_exception = err
-
-        assert (
-            code_not_found_exception is not None
-        ), "Adding node with unknown code id should fail"
-
-    else:
-        LOG.warning("Skipping unknown code id test with virtual enclave")
     return network
 
 
 @reqs.description("Retiring a backup")
 @reqs.at_least_n_nodes(2)
+@reqs.can_kill_n_nodes(1)
 def test_retire_backup(network, args):
     primary, _ = network.find_primary()
     backup_to_retire = network.find_any_backup()
     network.consortium.retire_node(primary, backup_to_retire)
     backup_to_retire.stop()
+    check_can_progress(primary)
     return network
 
 
 @reqs.description("Retiring the primary")
 @reqs.can_kill_n_nodes(1)
 def test_retire_primary(network, args):
+    pre_count = count_nodes(node_configs(network), network)
+
     primary, backup = network.find_primary_and_any_backup()
     network.consortium.retire_node(primary, primary)
-    LOG.debug(
-        f"Waiting {network.election_duration}s for a new primary to be elected..."
-    )
-    time.sleep(network.election_duration)
-    new_primary, new_term = network.find_primary()
-    assert new_primary.node_id != primary.node_id
+    new_primary, new_term = network.wait_for_new_primary(primary.node_id)
     LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
     check_can_progress(backup)
+    network.nodes.remove(primary)
+    post_count = count_nodes(node_configs(network), network)
+    assert pre_count == post_count + 1
     primary.stop()
     return network
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
-
+    txs = app.LoggingTxs()
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
     ) as network:
         network.start_and_join(args)
-        if args.snapshot_tx_interval is not None:
-            test_add_node_from_snapshot(network, args)
 
         test_add_node_from_backup(network, args)
         test_add_node(network, args)
-        test_add_node_untrusted_code(network, args)
         test_retire_backup(network, args)
         test_add_as_many_pending_nodes(network, args)
         test_add_node(network, args)
         test_retire_primary(network, args)
 
+        test_add_node_from_snapshot(network, args)
+        test_add_node_from_snapshot(network, args, from_backup=True)
+        test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+        errors, _ = network.get_joined_nodes()[-1].stop()
+        if not any(
+            "No snapshot found: Node will request all historical transactions" in s
+            for s in errors
+        ):
+            raise ValueError(
+                "New node shouldn't join from snapshot if snapshot cannot be verified"
+            )
+
 
 if __name__ == "__main__":
 
-    def add(parser):
-        parser.add_argument(
-            "-p",
-            "--package",
-            help="The enclave package to load (e.g., libsimplebank)",
-            default="liblogging",
-        )
-
-    args = infra.e2e_args.cli_args(add)
-    args.package = args.app_script and "liblua_generic" or "liblogging"
+    args = infra.e2e_args.cli_args()
+    args.package = "liblogging"
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    args.initial_user_count = 1
     run(args)

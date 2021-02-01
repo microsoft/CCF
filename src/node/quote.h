@@ -34,8 +34,7 @@ namespace ccf
   class QuoteGenerator
   {
   private:
-    static constexpr oe_uuid_t sgx_remote_uuid = {
-      OE_FORMAT_UUID_LEGACY_REPORT_REMOTE};
+    static constexpr oe_uuid_t sgx_remote_uuid = {OE_FORMAT_UUID_SGX_ECDSA};
 
   public:
     static std::optional<CodeDigest> get_code_id(
@@ -57,7 +56,7 @@ namespace ccf
     static std::optional<std::vector<uint8_t>> get_quote(const tls::Pem& cert)
     {
       std::vector<uint8_t> raw_quote;
-      crypto::Sha256Hash h{cert.raw()};
+      crypto::Sha256Hash h{cert.contents()};
 
       auto rc = oe_attester_initialize();
       if (rc != OE_OK)
@@ -97,7 +96,11 @@ namespace ccf
         return std::nullopt;
       }
 
+      LOG_FAIL_FMT("Evidence size: {}", evidence_size);
+
       raw_quote.assign(evidence, evidence + evidence_size);
+
+      LOG_FAIL_FMT("Raw quote size: {}", raw_quote.size());
       oe_free_report(evidence);
       oe_free_endorsements(endorsements);
 
@@ -136,15 +139,15 @@ namespace ccf
     {
       auto code_digest = get_digest_from_parsed_quote(parsed_quote);
 
-      auto codeid_view = tx.get_view(code_ids_table);
-      auto code_id_status = codeid_view->get(code_digest);
+      auto code_ids = tx.ro(code_ids_table);
+      auto code_id_status = code_ids->get(code_digest);
       if (!code_id_status.has_value())
       {
         // TODO: Revert
         // return QuoteVerificationResult::FAIL_VERIFY_CODE_ID_NOT_FOUND;
       }
 
-      if (code_id_status.value() != CodeStatus::ACCEPTED)
+      if (code_id_status.value() != CodeStatus::ALLOWED_TO_JOIN)
       {
         // TODO: Revert
         // return QuoteVerificationResult::FAIL_VERIFY_CODE_ID_RETIRED;
@@ -156,7 +159,7 @@ namespace ccf
     static QuoteVerificationResult verify_quoted_certificate(
       const tls::Pem& cert, const oe_report_t& parsed_quote)
     {
-      crypto::Sha256Hash hash{cert.raw()};
+      crypto::Sha256Hash hash{cert.contents()};
 
       if (
         parsed_quote.report_data_size != OE_REPORT_DATA_SIZE ||

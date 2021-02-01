@@ -5,25 +5,31 @@ import sys
 import http
 import json
 import os
+from loguru import logger as LOG
+
+# Change default log format
+LOG.remove()
+LOG.add(
+    sys.stdout,
+    format="<green>[{time:HH:mm:ss.SSS}]</green> {message}",
+)
 
 # SNIPPET: import_clients
 import ccf.clients
 
 # Load client info file.
-if len(sys.argv) < 2:
-    print("Client info file should be specified as first argument")
+if len(sys.argv) < 3:
+    print(
+        "Error: Ledger directory and common directory should be specified as first and second arguments, respectively"
+    )
     sys.exit(1)
 
-client_info_file_path = sys.argv[1]
+ledger_dir = sys.argv[1]
+common_dir = sys.argv[2]
 
-client_info = {}
-with open(client_info_file_path) as client_info_file:
-    client_info = json.load(client_info_file)
-
-host = client_info["host"]
-port = client_info["port"]
-ledger_dir = client_info["ledger"]
-common_dir = client_info["common_dir"]
+# Assumes sandbox started with at least one node
+host = "127.0.0.1"
+port = 8000
 ca = os.path.join(common_dir, "networkcert.pem")
 cert = os.path.join(common_dir, "user0_cert.pem")
 key = os.path.join(common_dir, "user0_privk.pem")
@@ -45,8 +51,11 @@ r = anonymous_client.get("/node/network")
 assert r.status_code == http.HTTPStatus.OK
 # SNIPPET_END: anonymous_requests
 
-# SNIPPET: authenticated_client
-user_client = ccf.clients.CCFClient(host, port, ca, cert, key)
+# SNIPPET_START: session_authenticated_client
+user_client = ccf.clients.CCFClient(
+    host, port, ca, session_auth=ccf.clients.Identity(key, cert, "session client")
+)
+# SNIPPET_END: session_authenticated_client
 
 # SNIPPET_START: authenticated_post_requests
 r = user_client.post("/app/log/private", body={"id": 0, "msg": "Private message"})
@@ -70,6 +79,21 @@ assert r.status_code == http.HTTPStatus.OK
 assert r.body.json() == {"msg": "Public message"}
 # SNIPPET_END: authenticated_get_requests
 
+# SNIPPET_START: signature_authenticated_client
+member_client = ccf.clients.CCFClient(
+    host,
+    port,
+    ca,
+    session_auth=None,
+    signing_auth=ccf.clients.Identity(member_key, member_cert, "sign member client"),
+)
+# SNIPPET_END: signature_authenticated_client
+
+# SNIPPET_START: signed_request
+r = member_client.post("/gov/ack/update_state_digest")
+assert r.status_code == http.HTTPStatus.OK
+# SNIPPET_END: signed_request
+
 # SNIPPET: import_ledger
 import ccf.ledger
 
@@ -77,19 +101,20 @@ import ccf.ledger
 ledger = ccf.ledger.Ledger(ledger_dir)
 
 # SNIPPET: target_table
-target_table = "ccf.nodes"
+target_table = "public:ccf.gov.nodes"
 
 # SNIPPET_START: iterate_over_ledger
 target_table_changes = 0  # Simple counter
 
-for transaction in ledger:
-    # Retrieve all public tables changed in transaction
-    public_tables = transaction.get_public_domain().get_tables()
+for chunk in ledger:
+    for transaction in chunk:
+        # Retrieve all public tables changed in transaction
+        public_tables = transaction.get_public_domain().get_tables()
 
-    # If target_table was changed, count the number of keys changed
-    if target_table in public_tables:
-        for key, value in public_tables[target_table].items():
-            target_table_changes += 1  # A key was changed
+        # If target_table was changed, count the number of keys changed
+        if target_table in public_tables:
+            for key, value in public_tables[target_table].items():
+                target_table_changes += 1  # A key was changed
 # SNIPPET_END: iterate_over_ledger
 
 # SNIPPET: import_proposal_generator
@@ -100,11 +125,16 @@ proposal, vote = ccf.proposal_generator.open_network()
 # >>> proposal
 # {'script': {'text': 'return Calls:call("open_network")'}}
 
-member_client = ccf.clients.CCFClient(host, port, ca, member_cert, member_key)
+member_client = ccf.clients.CCFClient(
+    host,
+    port,
+    ca,
+    session_auth=ccf.clients.Identity(member_key, member_cert, "member"),
+    signing_auth=ccf.clients.Identity(member_key, member_cert, "member"),
+)
 response = member_client.post(
     "/gov/proposals",
     body=proposal,
-    signed=True,
 )
 # SNIPPET_END: dict_proposal
 
@@ -116,6 +146,5 @@ with open("my_open_network_proposal.json", "w") as f:
 response = member_client.post(
     "/gov/proposals",
     body="@my_open_network_proposal.json",
-    signed=True,
 )
 # SNIPPET_END: json_proposal_with_file

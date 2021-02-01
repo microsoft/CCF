@@ -221,6 +221,11 @@ namespace messaging
       finished.store(v);
     }
 
+    bool get_finished()
+    {
+      return finished.load();
+    }
+
     size_t read_n(size_t max_messages, ringbuffer::Reader& r)
     {
       size_t total_read = 0;

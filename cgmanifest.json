@@ -23,7 +23,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/onqtam/doctest.git",
-          "commitHash": "1c8da00c978c19e00a434b2b1f854fcffc9fba35"
+          "commitHash": "97d5a9447e66cd5e107b7a6c463be4a468a40496"
         }
       }
     },
@@ -68,34 +68,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/fmtlib/fmt",
-          "commitHash": "cd4af11efc9c622896a3e4cb599fa28668ca3d05"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
-          "repositoryUrl": "https://github.com/tristanpenman/valijson",
-          "commitHash": "7a52fc88cdffd6678c009ca2fad700151f7363c6"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
-          "repositoryUrl": "https://github.com/nodejs/http-parser",
-          "commitHash": "2343fd6b5214b2ded2cdcf76de2bf60903bb90cd"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
-          "repositoryUrl": "https://github.com/project-everest/hacl-star",
-          "commitHash": "983baba407d2c91134ee270656a3d2c35683e1ff"
+          "commitHash": "7bdf0628b1276379886c7f6dda2cef2b3b374f0b"
         }
       }
     },
@@ -104,8 +77,8 @@
         "Type": "other",
         "Other": {
           "Name": "QuickJS",
-          "Version": "2020-09-06",
-          "DownloadUrl": "https://bellard.org/quickjs/quickjs-2020-09-06.tar.xz"
+          "Version": "2020-11-08",
+          "DownloadUrl": "https://bellard.org/quickjs/quickjs-2020-11-08.tar.xz"
         }
       }
     },
@@ -142,6 +115,24 @@
         "git": {
           "repositoryUrl": "https://github.com/bombela/backward-cpp",
           "commitHash": "83da75636cef3ee6e0c83cf8651e2929e1b87261"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/rollbear/trompeloeil",
+          "commitHash": "08cba57ed7207c8ad5c94fd2a20dc0bfecabe878"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/nodejs/llhttp",
+          "commitHash": "005a3da976877a27457178a6bc1e10d65dd06324"
         }
       }
     }

@@ -21,7 +21,14 @@
 
 struct EnclaveConfig
 {
-  ringbuffer::Circuit* circuit = nullptr;
+  uint8_t* to_enclave_buffer_start;
+  size_t to_enclave_buffer_size;
+  ringbuffer::Offsets* to_enclave_buffer_offsets;
+
+  uint8_t* from_enclave_buffer_start;
+  size_t from_enclave_buffer_size;
+  ringbuffer::Offsets* from_enclave_buffer_offsets;
+
   oversized::WriterConfig writer_config = {};
 
 #ifdef DEBUG_CONFIG
@@ -39,6 +46,10 @@ struct CCFConfig
   ccf::NodeInfoNetwork node_info_network = {};
   std::string domain;
   size_t snapshot_tx_interval;
+
+  // Only if joining or recovering
+  std::vector<uint8_t> startup_snapshot;
+  size_t startup_snapshot_evidence_seqno;
 
   struct SignatureIntervals
   {
@@ -63,25 +74,28 @@ struct CCFConfig
     std::string target_port;
     std::vector<uint8_t> network_cert;
     size_t join_timer;
-    std::vector<uint8_t> snapshot;
-    MSGPACK_DEFINE(
-      target_host, target_port, network_cert, join_timer, snapshot);
+    MSGPACK_DEFINE(target_host, target_port, network_cert, join_timer);
   };
   Joining joining = {};
 
   std::string subject_name;
   std::vector<tls::SubjectAltName> subject_alternative_names;
 
+  size_t jwt_key_refresh_interval_s;
+
   MSGPACK_DEFINE(
     consensus_config,
     node_info_network,
     domain,
     snapshot_tx_interval,
+    startup_snapshot,
+    startup_snapshot_evidence_seqno,
     signature_intervals,
     genesis,
     joining,
     subject_name,
-    subject_alternative_names);
+    subject_alternative_names,
+    jwt_key_refresh_interval_s);
 };
 
 /// General administrative messages
@@ -117,5 +131,5 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::fatal_error_msg, std::string);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stop);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stopped);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::tick, size_t);
+DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::tick);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::work_stats, std::string);

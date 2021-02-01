@@ -94,16 +94,9 @@ namespace ccf::historical
     std::optional<ccf::PrimarySignature> get_signature(
       const StorePtr& sig_store)
     {
-      kv::Tx tx;
-      auto sig_table = sig_store->get<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      if (sig_table == nullptr)
-      {
-        throw std::logic_error(
-          "Missing signatures table in signature transaction");
-      }
-
-      auto sig_view = tx.get_view(*sig_table);
-      return sig_view->get(0);
+      auto tx = sig_store->create_tx();
+      auto signatures = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      return signatures->get(0);
     }
 
     std::optional<ccf::NodeInfo> get_node_info(ccf::NodeId node_id)
@@ -112,16 +105,9 @@ namespace ccf::historical
       // This only works while entries are never deleted from this table, and
       // makes no check that the signing node was active at the point it
       // produced this signature
-      kv::Tx tx;
-
-      auto nodes_table = source_store.get<ccf::Nodes>(ccf::Tables::NODES);
-      if (nodes_table == nullptr)
-      {
-        throw std::logic_error("Missing nodes table");
-      }
-
-      auto nodes_view = tx.get_view(*nodes_table);
-      return nodes_view->get(node_id);
+      auto tx = source_store.create_tx();
+      auto nodes = tx.ro<ccf::Nodes>(ccf::Tables::NODES);
+      return nodes->get(node_id);
     }
 
     void handle_signature_transaction(
@@ -169,27 +155,37 @@ namespace ccf::historical
       {
         auto& request = it->second;
         const auto& untrusted_idx = it->first;
+        const auto sig_is_requested = (sig_idx == untrusted_idx);
 
         if (
           request.current_stage == RequestStage::Untrusted &&
-          tree.in_range(untrusted_idx))
+          (tree.in_range(untrusted_idx) || sig_is_requested))
         {
-          // Compare signed hash, from signature mini-tree, with hash of the
-          // entry which was used to populate the store
-          const auto& untrusted_hash = request.entry_hash;
-          const auto trusted_hash = tree.get_leaf(untrusted_idx);
-          if (trusted_hash != untrusted_hash)
+          if (!sig_is_requested)
           {
-            LOG_FAIL_FMT(
-              "Signature at {} has a different transaction at {} than "
-              "previously received",
-              sig_idx,
-              untrusted_idx);
-            // We trust the signature but not the store - delete this untrusted
-            // store. If it is re-requested, maybe the host will give us a valid
-            // pair of transaction+sig next time
-            it = requests.erase(it);
-            continue;
+            // Compare signed hash, from signature mini-tree, with hash of the
+            // entry which was used to populate the store
+            const auto& untrusted_hash = request.entry_hash;
+            const auto trusted_hash = tree.get_leaf(untrusted_idx);
+            if (trusted_hash != untrusted_hash)
+            {
+              LOG_FAIL_FMT(
+                "Signature at {} has a different transaction at {} than "
+                "previously received",
+                sig_idx,
+                untrusted_idx);
+              // We trust the signature but not the store - delete this
+              // untrusted store. If it is re-requested, maybe the host will
+              // give us a valid pair of transaction+sig next time
+              it = requests.erase(it);
+              continue;
+            }
+          }
+          else
+          {
+            // We already trust this transaction (it contains a signature
+            // written by a node we trust, and nothing else) so don't have
+            // anything further to validate
           }
 
           // Move store from untrusted to trusted
@@ -210,23 +206,28 @@ namespace ccf::historical
     void deserialise_ledger_entry(
       consensus::Index idx, const LedgerEntry& entry)
     {
-      StorePtr store = std::make_shared<kv::Store>(false);
+      StorePtr store = std::make_shared<kv::Store>(
+        false /* Do not start from very first idx */,
+        true /* Make use of historical secrets */);
 
       store->set_encryptor(source_store.get_encryptor());
-
-      store->clone_schema(source_store);
-
-      const auto deserialise_result = store->deserialise_views(entry);
+      const auto deserialise_result =
+        store->apply(entry, ConsensusType::CFT)->execute();
 
       switch (deserialise_result)
       {
-        case kv::DeserialiseSuccess::FAILED:
+        case kv::ApplySuccess::FAILED:
         {
           throw std::logic_error("Deserialise failed!");
           break;
         }
-        case kv::DeserialiseSuccess::PASS:
-        case kv::DeserialiseSuccess::PASS_SIGNATURE:
+        case kv::ApplySuccess::PASS:
+        case kv::ApplySuccess::PASS_SIGNATURE:
+        case kv::ApplySuccess::PASS_BACKUP_SIGNATURE:
+        case kv::ApplySuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
+        case kv::ApplySuccess::PASS_NONCES:
+        case kv::ApplySuccess::PASS_NEW_VIEW:
+        case kv::ApplySuccess::PASS_SNAPSHOT_EVIDENCE:
         {
           LOG_DEBUG_FMT("Processed transaction at {}", idx);
 
@@ -250,7 +251,7 @@ namespace ccf::historical
             }
           }
 
-          if (deserialise_result == kv::DeserialiseSuccess::PASS_SIGNATURE)
+          if (deserialise_result == kv::ApplySuccess::PASS_SIGNATURE)
           {
             // This looks like a valid signature - try to use this signature to
             // move some stores from untrusted to trusted

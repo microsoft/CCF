@@ -51,6 +51,11 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         help="Set a fixed seed for port and IP generation.",
         action="store_true",
     )
+    parser.add_argument(
+        "--use-jwt",
+        help="Use JWT with a temporary issuer as authentication method.",
+        action="store_true",
+    )
 
     # Client binary args are parsed from a config file
     # Default is in the same directory as this script
@@ -74,15 +79,7 @@ def run(*args, **kwargs):
 
 if __name__ == "__main__":
 
-    def add(parser):
-        parser.add_argument(
-            "-p",
-            "--package",
-            help="The enclave package to load (e.g., liblogging)",
-            required=True,
-        )
-
-    args, unknown_args = cli_args(add, accept_unknown=True)
+    args, unknown_args = cli_args(accept_unknown=True)
 
     unknown_args = [term for arg in unknown_args for term in arg.split(" ")]
 

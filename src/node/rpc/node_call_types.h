@@ -5,10 +5,10 @@
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
 #include "node/members.h"
-#include "node/network_encryption.h"
 #include "node/node_info_network.h"
 
 #include <nlohmann/json.hpp>
+#include <openenclave/advanced/mallinfo.h>
 
 namespace ccf
 {
@@ -20,7 +20,8 @@ namespace ccf
     partOfPublicNetwork,
     partOfNetwork,
     readingPublicLedger,
-    readingPrivateLedger
+    readingPrivateLedger,
+    verifyingSnapshot
   };
 
   struct GetState
@@ -36,25 +37,6 @@ namespace ccf
       // Only on recovery
       std::optional<kv::Version> recovery_target_seqno;
       std::optional<kv::Version> last_recovered_seqno;
-    };
-  };
-
-  struct GetQuotes
-  {
-    using In = void;
-
-    struct Quote
-    {
-      NodeId node_id = {};
-      std::string raw = {}; // < Hex-encoded
-
-      std::string error = {};
-      std::string mrenclave = {}; // < Hex-encoded
-    };
-
-    struct Out
-    {
-      std::vector<Quote> quotes;
     };
   };
 
@@ -94,21 +76,19 @@ namespace ccf
       struct NetworkInfo
       {
         bool public_only = false;
-        kv::Version last_recovered_commit_idx = kv::NoVersion;
+        kv::Version last_recovered_signed_idx = kv::NoVersion;
         ConsensusType consensus_type = ConsensusType::CFT;
 
-        LedgerSecrets ledger_secrets;
+        LedgerSecretsMap ledger_secrets;
         NetworkIdentity identity;
-        NetworkEncryptionKey encryption_key;
 
         bool operator==(const NetworkInfo& other) const
         {
           return public_only == other.public_only &&
-            last_recovered_commit_idx == other.last_recovered_commit_idx &&
+            last_recovered_signed_idx == other.last_recovered_signed_idx &&
             consensus_type == other.consensus_type &&
             ledger_secrets == other.ledger_secrets &&
-            identity == other.identity &&
-            encryption_key == other.encryption_key;
+            identity == other.identity;
         }
 
         bool operator!=(const NetworkInfo& other) const
@@ -118,6 +98,25 @@ namespace ccf
       };
 
       NetworkInfo network_info;
+    };
+  };
+
+  struct MemoryUsage
+  {
+    using In = void;
+
+    struct Out
+    {
+      Out(const oe_mallinfo_t& info) :
+        max_total_heap_size(info.max_total_heap_size),
+        current_allocated_heap_size(info.current_allocated_heap_size),
+        peak_allocated_heap_size(info.peak_allocated_heap_size)
+      {}
+      Out() = default;
+
+      size_t max_total_heap_size = 0;
+      size_t current_allocated_heap_size = 0;
+      size_t peak_allocated_heap_size = 0;
     };
   };
 }

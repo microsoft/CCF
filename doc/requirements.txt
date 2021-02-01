@@ -8,3 +8,5 @@ sphinxcontrib-mermaid
 sphinx-multiversion
 pydata-sphinx-theme
 sphinx-copybutton
+sphinxcontrib.openapi
+sphinx-panels

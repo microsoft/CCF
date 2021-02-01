@@ -14,10 +14,9 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
-extern "C"
-{
-#include <evercrypt/EverCrypt_AutoConfig2.h>
-}
+threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
+using MapT = kv::Map<size_t, size_t>;
 
 class DummyConsensus : public kv::StubConsensus
 {
@@ -31,7 +30,8 @@ public:
     if (store)
     {
       REQUIRE(entries.size() == 1);
-      return store->deserialise(*std::get<1>(entries[0]));
+      return store->apply(*std::get<1>(entries[0]), ConsensusType::CFT)
+        ->execute();
     }
     return true;
   }
@@ -60,19 +60,15 @@ public:
 TEST_CASE("Check signature verification")
 {
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+
   kv::Store primary_store;
   primary_store.set_encryptor(encryptor);
-  auto& primary_nodes = primary_store.create<ccf::Nodes>(
-    ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& primary_signatures = primary_store.create<ccf::Signatures>(
-    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
 
   kv::Store backup_store;
   backup_store.set_encryptor(encryptor);
-  auto& backup_nodes = backup_store.create<ccf::Nodes>(
-    ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& backup_signatures = backup_store.create<ccf::Signatures>(
-    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
+
+  ccf::Nodes nodes(ccf::Tables::NODES);
+  ccf::Signatures signatures(ccf::Tables::SIGNATURES);
 
   auto kp = tls::make_key_pair();
 
@@ -84,19 +80,17 @@ TEST_CASE("Check signature verification")
   backup_store.set_consensus(null_consensus);
 
   std::shared_ptr<kv::TxHistory> primary_history =
-    std::make_shared<ccf::MerkleTxHistory>(
-      primary_store, 0, *kp, primary_signatures, primary_nodes);
+    std::make_shared<ccf::MerkleTxHistory>(primary_store, 0, *kp);
   primary_store.set_history(primary_history);
 
   std::shared_ptr<kv::TxHistory> backup_history =
-    std::make_shared<ccf::MerkleTxHistory>(
-      backup_store, 1, *kp, backup_signatures, backup_nodes);
+    std::make_shared<ccf::MerkleTxHistory>(backup_store, 1, *kp);
   backup_store.set_history(backup_history);
 
   INFO("Write certificate");
   {
-    kv::Tx txs;
-    auto tx = txs.get_view(primary_nodes);
+    auto txs = primary_store.create_tx();
+    auto tx = txs.rw(nodes);
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
     tx->put(0, ni);
@@ -111,8 +105,8 @@ TEST_CASE("Check signature verification")
 
   INFO("Issue a bogus signature, rejected by verification on the backup");
   {
-    kv::Tx txs;
-    auto tx = txs.get_view(primary_signatures);
+    auto txs = primary_store.create_tx();
+    auto tx = txs.rw(signatures);
     ccf::PrimarySignature bogus(0, 0);
     bogus.sig = std::vector<uint8_t>(MBEDTLS_ECDSA_MAX_LEN, 1);
     tx->put(0, bogus);
@@ -125,17 +119,11 @@ TEST_CASE("Check signing works across rollback")
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv::Store primary_store;
   primary_store.set_encryptor(encryptor);
-  auto& primary_nodes = primary_store.create<ccf::Nodes>(
-    ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& primary_signatures = primary_store.create<ccf::Signatures>(
-    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
 
   kv::Store backup_store;
   backup_store.set_encryptor(encryptor);
-  auto& backup_nodes = backup_store.create<ccf::Nodes>(
-    ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& backup_signatures = backup_store.create<ccf::Signatures>(
-    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
+
+  ccf::Nodes nodes(ccf::Tables::NODES);
 
   auto kp = tls::make_key_pair();
 
@@ -147,19 +135,17 @@ TEST_CASE("Check signing works across rollback")
   backup_store.set_consensus(null_consensus);
 
   std::shared_ptr<kv::TxHistory> primary_history =
-    std::make_shared<ccf::MerkleTxHistory>(
-      primary_store, 0, *kp, primary_signatures, primary_nodes);
+    std::make_shared<ccf::MerkleTxHistory>(primary_store, 0, *kp);
   primary_store.set_history(primary_history);
 
   std::shared_ptr<kv::TxHistory> backup_history =
-    std::make_shared<ccf::MerkleTxHistory>(
-      backup_store, 1, *kp, backup_signatures, backup_nodes);
+    std::make_shared<ccf::MerkleTxHistory>(backup_store, 1, *kp);
   backup_store.set_history(backup_history);
 
   INFO("Write certificate");
   {
-    kv::Tx txs;
-    auto tx = txs.get_view(primary_nodes);
+    auto txs = primary_store.create_tx();
+    auto tx = txs.rw(nodes);
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
     tx->put(0, ni);
@@ -168,8 +154,8 @@ TEST_CASE("Check signing works across rollback")
 
   INFO("Transaction that we will roll back");
   {
-    kv::Tx txs;
-    auto tx = txs.get_view(primary_nodes);
+    auto txs = primary_store.create_tx();
+    auto tx = txs.rw(nodes);
     ccf::NodeInfo ni;
     tx->put(1, ni);
     REQUIRE(txs.commit() == kv::CommitSuccess::OK);
@@ -215,7 +201,7 @@ public:
 
   bool replicate(const kv::BatchVector& entries, View view) override
   {
-    for (auto& [version, data, committable] : entries)
+    for (auto& [version, data, committable, hooks] : entries)
     {
       count++;
       if (committable)
@@ -250,6 +236,28 @@ public:
   }
 };
 
+class TestPendingTx : public kv::PendingTx
+{
+  kv::TxID txid;
+  kv::Store& store;
+  MapT& other_table;
+
+public:
+  TestPendingTx(kv::TxID txid_, kv::Store& store_, MapT& other_table_) :
+    txid(txid_),
+    store(store_),
+    other_table(other_table_)
+  {}
+
+  kv::PendingTxInfo call() override
+  {
+    auto txr = store.create_reserved_tx(txid.version);
+    auto txrv = txr.rw(other_table);
+    txrv->put(0, 1);
+    return txr.commit_reserved();
+  }
+};
+
 TEST_CASE(
   "Batches containing but not ending on a committable transaction should not "
   "halt replication")
@@ -259,15 +267,13 @@ TEST_CASE(
     std::make_shared<CompactingConsensus>(&store);
   store.set_consensus(consensus);
 
-  auto& table =
-    store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
-  auto& other_table =
-    store.create<size_t, size_t>("other_table", kv::SecurityDomain::PUBLIC);
+  MapT table("public:table");
+  MapT other_table("public:other_table");
 
   INFO("Write first tx");
   {
-    kv::Tx tx;
-    auto txv = tx.get_view(table);
+    auto tx = store.create_tx();
+    auto txv = tx.rw(table);
     txv->put(0, 1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(consensus->count == 1);
@@ -277,28 +283,21 @@ TEST_CASE(
   {
     auto rv = store.next_txid();
 
-    kv::Tx tx;
-    auto txv = tx.get_view(table);
+    auto tx = store.create_tx();
+    auto txv = tx.rw(table);
     txv->put(0, 2);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(consensus->count == 1);
 
     store.commit(
-      rv,
-      [rv, &other_table]() {
-        kv::Tx txr(rv.version);
-        auto txrv = txr.get_view(other_table);
-        txrv->put(0, 1);
-        return txr.commit_reserved();
-      },
-      true);
+      rv, std::make_unique<TestPendingTx>(rv, store, other_table), true);
     REQUIRE(consensus->count == 3);
   }
 
   INFO("Single tx");
   {
-    kv::Tx tx;
-    auto txv = tx.get_view(table);
+    auto tx = store.create_tx();
+    auto txv = tx.rw(table);
     txv->put(0, 3);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(consensus->count == 4);
@@ -322,7 +321,7 @@ public:
 
   bool replicate(const kv::BatchVector& entries, View view) override
   {
-    for (auto& [version, data, committable] : entries)
+    for (auto& [version, data, committable, hook] : entries)
     {
       count++;
       if (version == rollback_at)
@@ -370,13 +369,12 @@ TEST_CASE(
     std::make_shared<RollbackConsensus>(&store, 2, 2);
   store.set_consensus(consensus);
 
-  auto& table =
-    store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
+  MapT table("public:table");
 
   INFO("Write first tx");
   {
-    kv::Tx tx;
-    auto txv = tx.get_view(table);
+    auto tx = store.create_tx();
+    auto txv = tx.rw(table);
     txv->put(0, 1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(consensus->count == 1);
@@ -384,8 +382,8 @@ TEST_CASE(
 
   INFO("Write second tx, causing a rollback");
   {
-    kv::Tx tx;
-    auto txv = tx.get_view(table);
+    auto tx = store.create_tx();
+    auto txv = tx.rw(table);
     txv->put(0, 2);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(consensus->count == 2);
@@ -393,8 +391,8 @@ TEST_CASE(
 
   INFO("Single tx");
   {
-    kv::Tx tx;
-    auto txv = tx.get_view(table);
+    auto tx = store.create_tx();
+    auto txv = tx.rw(table);
     txv->put(0, 3);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(consensus->count == 3);
@@ -409,13 +407,12 @@ TEST_CASE(
     std::make_shared<RollbackConsensus>(&store, 2, 1);
   store.set_consensus(consensus);
 
-  auto& table =
-    store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
+  MapT table("public:table");
 
   INFO("Write first tx");
   {
-    kv::Tx tx;
-    auto txv = tx.get_view(table);
+    auto tx = store.create_tx();
+    auto txv = tx.rw(table);
     txv->put(0, 1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(consensus->count == 1);
@@ -423,8 +420,8 @@ TEST_CASE(
 
   INFO("Write second tx, causing a rollback");
   {
-    kv::Tx tx;
-    auto txv = tx.get_view(table);
+    auto tx = store.create_tx();
+    auto txv = tx.rw(table);
     txv->put(0, 2);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(consensus->count == 2);
@@ -432,20 +429,18 @@ TEST_CASE(
 
   INFO("Single tx");
   {
-    kv::Tx tx;
-    auto txv = tx.get_view(table);
+    auto tx = store.create_tx();
+    auto txv = tx.rw(table);
     txv->put(0, 3);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(consensus->count == 3);
   }
 }
 
-// We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
 {
   doctest::Context context;
   context.applyCommandLine(argc, argv);
-  ::EverCrypt_AutoConfig2_init();
   int res = context.run();
   if (context.shouldExit())
     return res;

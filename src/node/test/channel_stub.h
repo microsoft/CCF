@@ -28,6 +28,17 @@ namespace ccf
     }
 
     template <class T>
+    bool send_authenticated(
+      const ccf::NodeMsgType& msg_type, NodeId to, const T& data)
+    {
+      return true;
+    }
+
+    void send_request_hash_to_nodes(
+      std::shared_ptr<enclave::RpcContext> rpc_ctx, std::set<ccf::NodeId> nodes)
+    {}
+
+    template <class T>
     std::pair<T, std::vector<uint8_t>> recv_encrypted(
       const uint8_t* data, size_t size)
     {

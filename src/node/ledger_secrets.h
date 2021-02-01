@@ -3,124 +3,295 @@
 #pragma once
 
 #include "crypto/symmetric_key.h"
-#include "ds/logger.h"
 #include "kv/kv_types.h"
+#include "kv/tx.h"
+#include "secrets.h"
 #include "tls/entropy.h"
 
 #include <algorithm>
-#include <nlohmann/json.hpp>
+#include <map>
+#include <optional>
 
 namespace ccf
 {
   struct LedgerSecret
   {
-    static constexpr auto MASTER_KEY_SIZE = crypto::GCM_SIZE_KEY;
-
-    std::vector<uint8_t> master; // Referred to as "sd" in TR
+    std::vector<uint8_t> raw_key;
+    std::shared_ptr<crypto::KeyAesGcm> key;
 
     bool operator==(const LedgerSecret& other) const
     {
-      return master == other.master;
+      return raw_key == other.raw_key;
     }
 
-    LedgerSecret()
-    {
-      master = tls::create_entropy()->random(MASTER_KEY_SIZE);
-    }
+    LedgerSecret() = default;
 
-    LedgerSecret(const std::vector<uint8_t>& master_) : master(master_) {}
+    // The copy construtor is used for serialising a LedgerSecret. However, only
+    // the raw_key is serialised and other.key is nullptr so use raw_key to seed
+    // key.
+    LedgerSecret(const LedgerSecret& other) :
+      raw_key(other.raw_key),
+      key(std::make_shared<crypto::KeyAesGcm>(other.raw_key))
+    {}
+
+    LedgerSecret(std::vector<uint8_t>&& raw_key_) :
+      raw_key(raw_key_),
+      key(std::make_shared<crypto::KeyAesGcm>(std::move(raw_key_)))
+    {}
   };
+
+  inline LedgerSecret make_ledger_secret()
+  {
+    return LedgerSecret(tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+  }
+
+  using LedgerSecretsMap = std::map<kv::Version, LedgerSecret>;
 
   class LedgerSecrets
   {
-  public:
-    struct VersionedLedgerSecret
+  private:
+    std::optional<NodeId> self = std::nullopt;
+
+    SpinLock lock;
+    LedgerSecretsMap ledger_secrets;
+
+    std::optional<LedgerSecretsMap::iterator> last_used_secret_it =
+      std::nullopt;
+
+    const LedgerSecret& get_secret_for_version(
+      kv::Version version, bool historical_hint = false)
     {
-      kv::Version version;
-      LedgerSecret secret;
-
-      bool operator==(const VersionedLedgerSecret& other) const
+      if (ledger_secrets.empty())
       {
-        return version == other.version && secret == other.secret;
+        throw std::logic_error("Ledger secrets map is empty");
       }
-    };
-    // List of ledger secrets that are valid from a specific version to the
-    // version of the next entry in the list. The last entry in the list is
-    // valid for all subsequent versions.
-    std::list<VersionedLedgerSecret> secrets_list;
 
-    LedgerSecrets() = default;
+      if (!historical_hint && last_used_secret_it.has_value())
+      {
+        // Fast path for non-historical queries as both primary and backup nodes
+        // encryt/decrypt transactions in order, it is sufficient to keep an
+        // iterator on the last used secret to access ledger secrets in constant
+        // time.
+        auto& last_used_secret_it_ = last_used_secret_it.value();
+        if (
+          std::next(last_used_secret_it_) != ledger_secrets.end() &&
+          version >= std::next(last_used_secret_it_)->first)
+        {
+          // Across a rekey, start using the next key
+          ++last_used_secret_it_;
+        }
 
-    // Called when a node joins the network and get given the ledger secrets
-    // since the beginning of time
-    LedgerSecrets(const LedgerSecrets& ledger_secrets_) :
-      secrets_list(ledger_secrets_.secrets_list)
+        return last_used_secret_it_->second;
+      }
+
+      // Slow path, e.g. for historical queries. The ledger secret used to
+      // encrypt/decrypt a transaction at a given version is the one with the
+      // highest version that is lower than the given version (e.g. if
+      // ledger_secrets contains two keys for version 0 and 10 then the key
+      // associated with version 0 is used for version [0..9] and version 10 for
+      // versions 10+)
+      auto search = std::upper_bound(
+        ledger_secrets.begin(),
+        ledger_secrets.end(),
+        version,
+        [](auto a, const auto& b) { return b.first > a; });
+
+      if (search == ledger_secrets.begin())
+      {
+        throw std::logic_error(
+          fmt::format("Could not find ledger secret for seqno {}", version));
+      }
+
+      if (!historical_hint)
+      {
+        // Only update the last secret iterator on non-historical queries so
+        // that the fast path is always preserved for transactions on the main
+        // store
+        last_used_secret_it = std::prev(search);
+      }
+
+      return std::prev(search)->second;
+    }
+
+    void take_dependency_on_secrets(kv::ReadOnlyTx& tx)
+    {
+      // Ledger secrets are not stored in the KV. Instead, they are
+      // cached in a unique LedgerSecrets instance that can be accessed
+      // without reading the KV. However, it is possible that the ledger
+      // secrets are updated (e.g. rekey tx) concurrently to their access by
+      // another tx. To prevent conflicts, accessing the ledger secrets
+      // require access to a tx object, which must take a dependency on the
+      // secrets table.
+      auto secrets = tx.ro<Secrets>(Tables::SECRETS);
+
+      // Taking a read dependency on the key at self, which would get updated
+      // on rekey
+      if (!self.has_value())
+      {
+        throw std::logic_error(
+          "Node id should be set before taking dependency on secrets table");
+      }
+      secrets->get(self.value());
+    }
+
+  public:
+    LedgerSecrets(std::optional<NodeId> self_ = std::nullopt) : self(self_) {}
+
+    LedgerSecrets(NodeId self_, LedgerSecretsMap&& ledger_secrets_) :
+      self(self_),
+      ledger_secrets(std::move(ledger_secrets_))
     {}
 
-    bool operator==(const LedgerSecrets& other) const
+    void init(kv::Version initial_version = 1)
     {
-      return secrets_list == other.secrets_list;
+      std::lock_guard<SpinLock> guard(lock);
+
+      ledger_secrets.emplace(initial_version, make_ledger_secret());
     }
 
-    void init(kv::Version version = 1)
+    void set_node_id(NodeId id)
     {
-      if (secrets_list.size() != 0)
+      if (self.has_value())
       {
-        throw std::logic_error("Ledger secrets have already been initialised!");
+        throw std::logic_error(
+          "Node id has already been set on ledger secrets");
       }
 
-      secrets_list.push_back({version, LedgerSecret()});
+      self = id;
     }
 
-    LedgerSecret get_latest()
+    LedgerSecretsMap::value_type get_latest(kv::Tx& tx)
     {
-      if (secrets_list.size() == 0)
+      std::lock_guard<SpinLock> guard(lock);
+
+      take_dependency_on_secrets(tx);
+
+      if (ledger_secrets.empty())
       {
         throw std::logic_error(
           "Could not retrieve latest ledger secret: no secret set");
       }
-      return secrets_list.back().secret;
+
+      const auto& latest_ledger_secret = ledger_secrets.rbegin();
+      return std::make_pair(
+        latest_ledger_secret->first, latest_ledger_secret->second);
     }
 
-    std::optional<LedgerSecret> get_penultimate()
+    std::pair<LedgerSecret, std::optional<LedgerSecret>>
+    get_latest_and_penultimate(kv::Tx& tx)
     {
-      if (secrets_list.size() <= 1)
+      std::lock_guard<SpinLock> guard(lock);
+
+      take_dependency_on_secrets(tx);
+
+      if (ledger_secrets.empty())
       {
-        return std::nullopt;
+        throw std::logic_error(
+          "Could not retrieve latest ledger secret: no secret set");
       }
-      return std::next(secrets_list.rbegin())->secret;
+
+      const auto& latest_ledger_secret = ledger_secrets.rbegin();
+      if (ledger_secrets.size() < 2)
+      {
+        return std::make_pair(latest_ledger_secret->second, std::nullopt);
+      }
+      return std::make_pair(
+        latest_ledger_secret->second,
+        std::next(ledger_secrets.rbegin())->second);
     }
 
-    void add_new_secret(kv::Version v, const LedgerSecret& ledger_secret)
+    LedgerSecretsMap get(
+      kv::Tx& tx, std::optional<kv::Version> up_to = std::nullopt)
     {
-      secrets_list.push_back({v, ledger_secret});
+      std::lock_guard<SpinLock> guard(lock);
+
+      take_dependency_on_secrets(tx);
+
+      if (!up_to.has_value())
+      {
+        return ledger_secrets;
+      }
+
+      auto search = ledger_secrets.find(up_to.value());
+      if (search == ledger_secrets.end())
+      {
+        throw std::logic_error(
+          fmt::format("No ledger secrets at {}", up_to.has_value()));
+      }
+
+      return LedgerSecretsMap(ledger_secrets.begin(), ++search);
     }
 
-    void restore(std::list<VersionedLedgerSecret>&& restored_secrets)
+    void restore_historical(LedgerSecretsMap&& restored_ledger_secrets)
     {
+      std::lock_guard<SpinLock> guard(lock);
+
       if (
-        secrets_list.size() >= 1 &&
-        restored_secrets.back().version >= secrets_list.front().version)
+        restored_ledger_secrets.rbegin()->first >=
+        ledger_secrets.begin()->first)
       {
         throw std::logic_error(fmt::format(
-          "Restored historical secrets should be before {}",
-          secrets_list.front().version));
+          "Last restored version {} is greater than first existing version "
+          "{}",
+          restored_ledger_secrets.rbegin()->first,
+          ledger_secrets.begin()->first));
       }
 
-      secrets_list.splice(secrets_list.begin(), std::move(restored_secrets));
+      ledger_secrets.merge(restored_ledger_secrets);
     }
 
-    std::optional<LedgerSecret> get_secret(kv::Version v)
+    auto get_encryption_key_for(
+      kv::Version version, bool historical_hint = false)
     {
-      for (auto const& s : secrets_list)
+      std::lock_guard<SpinLock> guard(lock);
+      return get_secret_for_version(version, historical_hint).key;
+    }
+
+    void set_secret(kv::Version version, LedgerSecret&& secret)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+
+      CCF_ASSERT_FMT(
+        ledger_secrets.find(version) == ledger_secrets.end(),
+        "Ledger secret at seqno {} already exists",
+        version);
+
+      ledger_secrets.emplace(version, std::move(secret));
+
+      LOG_INFO_FMT("Added new ledger secret at seqno {}", version);
+    }
+
+    void rollback(kv::Version version)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      if (ledger_secrets.empty())
       {
-        if (s.version == v)
-        {
-          return s.secret;
-        }
+        return;
       }
-      LOG_FAIL_FMT("Ledger secret at version {} does not exist", v);
-      return std::nullopt;
+
+      if (version < ledger_secrets.begin()->first)
+      {
+        LOG_FAIL_FMT(
+          "Cannot rollback ledger secrets at {}: first secret is at {}",
+          version,
+          ledger_secrets.begin()->first);
+        return;
+      }
+
+      while (ledger_secrets.size() > 1)
+      {
+        auto k = ledger_secrets.rbegin();
+        if (k->first <= version)
+        {
+          break;
+        }
+
+        LOG_TRACE_FMT("Rollback ledger secrets at seqno {}", k->first);
+        ledger_secrets.erase(k->first);
+      }
+
+      // Assume that the next operation will use the first non-rollbacked secret
+      last_used_secret_it = std::prev(ledger_secrets.end());
     }
   };
 }

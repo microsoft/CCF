@@ -1,6 +1,6 @@
-msgpack==1.0.0
-loguru==0.5.2
-requests==2.24.0
-requests-http-signature==0.1.0
-websocket-client==0.57.0
-cryptography==3.0
+msgpack >= 1.0, == 1.*
+loguru >= 0.5, == 0.*
+requests >= 2.24, == 2.*
+requests-http-signature >= 0.2, == 0.*
+websocket-client >= 0.57, == 0.*
+cryptography >= 3.2, == 3.*

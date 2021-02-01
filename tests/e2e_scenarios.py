@@ -17,9 +17,7 @@ def run(args):
     with open(args.scenario) as f:
         scenario = json.load(f)
 
-    hosts = scenario.get("hosts", ["localhost", "localhost"])
-    if args.consensus == "bft":
-        hosts = ["localhost"] * 3
+    hosts = scenario.get("hosts", infra.e2e_args.max_nodes(args, f=0))
     args.package = scenario["package"]
     # SNIPPET_END: parsing
 
@@ -74,13 +72,13 @@ def run(args):
                         else:
                             check_commit(r, result=lambda res: res is not None)
 
-                network.wait_for_node_commit_sync(args.consensus)
+                network.wait_for_node_commit_sync()
 
     if args.network_only:
         LOG.info("Keeping network alive with the following nodes:")
-        LOG.info("  Primary = {}:{}".format(primary.pubhost, primary.rpc_port))
+        LOG.info("  Primary = {}:{}".format(primary.pubhost, primary.pubport))
         for i, f in enumerate(backups):
-            LOG.info("  Backup[{}] = {}:{}".format(i, f.pubhost, f.rpc_port))
+            LOG.info("  Backup[{}] = {}:{}".format(i, f.pubhost, f.pubport))
 
         input("Press Enter to shutdown...")
 

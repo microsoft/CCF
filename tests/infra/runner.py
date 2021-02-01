@@ -2,7 +2,11 @@
 # Licensed under the Apache 2.0 License.
 import getpass
 import time
+import http
 import logging
+import tempfile
+import base64
+import json
 from random import seed
 import infra.network
 import infra.proc
@@ -18,10 +22,10 @@ logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 def minimum_number_of_local_nodes(args):
     """
-    If we are using pbft then we need to have 4 nodes. CFT will run with 1 nodes, unless it expects a backup
+    If we are using bft then we need to have 3 nodes. CFT will run with 1 nodes, unless it expects a backup
     """
     if args.consensus == "bft":
-        return 4
+        return 3
 
     if args.send_tx_to == "backups":
         return 2
@@ -77,7 +81,9 @@ def run(get_command, args):
 
     hosts = args.nodes
     if not hosts:
-        hosts = ["localhost"] * minimum_number_of_local_nodes(args)
+        hosts = ["local://localhost"] * minimum_number_of_local_nodes(args)
+
+    args.initial_user_count = 3
 
     LOG.info("Starting nodes on {}".format(hosts))
 
@@ -88,6 +94,28 @@ def run(get_command, args):
         primary, backups = network.find_nodes()
 
         command_args = get_command_args(args, get_command)
+
+        if args.use_jwt:
+            jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+            jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
+            jwt_kid = "my_key_id"
+            jwt_issuer = "https://example.issuer"
+            # Add JWT issuer
+            with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+                jwt_cert_der = infra.crypto.cert_pem_to_der(jwt_cert_pem)
+                der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
+                data = {
+                    "issuer": jwt_issuer,
+                    "jwks": {
+                        "keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]
+                    },
+                }
+                json.dump(data, metadata_fp)
+                metadata_fp.flush()
+                network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+            jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
+
+            command_args += ["--bearer-token", jwt]
 
         nodes_to_send_to = filter_nodes(primary, backups, args.send_tx_to)
         clients = []
@@ -161,6 +189,22 @@ def run(get_command, args):
                             metrics.put(args.label, perf_result)
                         else:
                             LOG.warning(f"Skipping upload for {remote_client.name}")
+
+                    primary, _ = network.find_primary()
+                    with primary.client() as nc:
+                        r = nc.get("/node/memory")
+                        assert r.status_code == http.HTTPStatus.OK.value
+
+                        results = r.body.json()
+                        tx_rates.insert_metrics(**results)
+
+                        # Construct name for heap metric, removing ^ suffix if present
+                        heap_peak_metric = f"Mem_{args.label}"
+                        if heap_peak_metric.endswith("^"):
+                            heap_peak_metric = heap_peak_metric[:-1]
+
+                        peak_value = results["peak_allocated_heap_size"]
+                        metrics.put(heap_peak_metric, peak_value)
 
                     LOG.info(f"Rates:\n{tx_rates}")
                     tx_rates.save_results(args.metrics_file)

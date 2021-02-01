@@ -1,44 +1,44 @@
 jobs:
-- job: GitHubRelease
-  variables:
-    skipComponentGovernanceDetection: true
-  displayName: 'GitHub Release'
-  dependsOn: ${{ parameters.depends_on }}
+  - job: GitHubRelease
+    variables:
+      skipComponentGovernanceDetection: true
+    displayName: "GitHub Release"
+    dependsOn: ${{ parameters.depends_on }}
 
-  ${{ insert }}: ${{ parameters.env }}
+    ${{ insert }}: ${{ parameters.env }}
 
-  steps:
-    - task: DownloadPipelineArtifact@2
-      inputs:
-        source: current
-        patterns: '**'
-        path: $(Build.ArtifactStagingDirectory)
-    
-    - script: |
-        python3.8 ./scripts/extract-release-notes.py $(Build.BinariesDirectory)/rel-notes.md
-      displayName: Extract release notes
+    steps:
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          source: current
+          patterns: "**"
+          path: $(Build.ArtifactStagingDirectory)
 
-    - task: GitHubRelease@0
-      inputs:
-        gitHubConnection: ccf_release
-        repositoryName: '$(Build.Repository.Name)'
-        action: 'create'
-        target: '$(Build.SourceVersion)'
-        tagSource: 'auto'
-        assets: $(Build.ArtifactStagingDirectory)/**/*
-        assetUploadMode: 'delete'
-        isDraft: true
-        isPreRelease: true
-        releaseNotesSource: 'file'
-        releaseNotesFile: $(Build.BinariesDirectory)/rel-notes.md
-        addChangeLog: false
-      displayName: 'GitHub Release'
+      - script: |
+          python3.8 ./scripts/extract-release-notes.py $(Build.BinariesDirectory)/rel-notes.md
+        displayName: Extract release notes
 
-    - script: |
-        python3.8 -m venv env
-        source ./env/bin/activate
-        pip install -r requirements.txt
-        pip install twine
-        twine upload -u __token__ -p $(pypi_token) $(Build.ArtifactStagingDirectory)/**/*.whl
-      workingDirectory: python
-      displayName: PyPi https://pypi.org/project/ccf/
+      - task: GitHubRelease@0
+        inputs:
+          gitHubConnection: ccf_release
+          repositoryName: "$(Build.Repository.Name)"
+          action: "create"
+          target: "$(Build.SourceVersion)"
+          tagSource: "auto"
+          assets: $(Build.ArtifactStagingDirectory)/**/*
+          assetUploadMode: "delete"
+          isDraft: true
+          isPreRelease: true
+          releaseNotesSource: "file"
+          releaseNotesFile: $(Build.BinariesDirectory)/rel-notes.md
+          addChangeLog: false
+        displayName: "GitHub Release"
+
+      - script: |
+          python3.8 -m venv env
+          source ./env/bin/activate
+          pip install -r requirements.txt
+          pip install twine
+          twine upload -u __token__ -p $(pypi_token) $(Build.ArtifactStagingDirectory)/**/*.whl
+        workingDirectory: python
+        displayName: PyPi https://pypi.org/project/ccf/

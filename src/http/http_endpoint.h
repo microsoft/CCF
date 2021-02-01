@@ -49,24 +49,30 @@ namespace http
         execution_thread, std::move(msg));
     }
 
-    void recv_(const uint8_t* data, size_t size)
+    void recv_(const uint8_t* data_, size_t size_)
     {
-      recv_buffered(data, size);
+      recv_buffered(data_, size_);
 
-      LOG_TRACE_FMT("recv called with {} bytes", size);
+      LOG_TRACE_FMT("recv called with {} bytes", size_);
 
       if (is_websocket)
       {
+        std::vector<uint8_t> buf(ws_next_read);
         while (true)
         {
-          auto r = read(ws_next_read, true);
-          if (r.empty())
+          if (ws_next_read > buf.size())
+          {
+            buf.resize(ws_next_read);
+          }
+
+          auto r = read(buf.data(), ws_next_read, true);
+          if (r == 0)
           {
             return;
           }
           else
           {
-            ws_next_read = wp.consume(r);
+            ws_next_read = wp.consume(buf.data(), r);
             if (!ws_next_read)
             {
               close();
@@ -77,51 +83,26 @@ namespace http
       }
       else
       {
-        auto buf = read(4096, false);
+        constexpr auto read_block_size = 4096;
+        std::vector<uint8_t> buf(read_block_size);
         auto data = buf.data();
-        auto size = buf.size();
+        auto n_read = read(data, buf.size(), false);
 
         while (true)
         {
-          if (size == 0)
+          if (n_read == 0)
           {
             return;
           }
 
-          LOG_TRACE_FMT("Going to parse {} bytes", size);
+          LOG_TRACE_FMT("Going to parse {} bytes", n_read);
 
           try
           {
-            const auto used = p.execute(data, size);
-            if (used == 0)
-            {
-              // Parsing error
-              LOG_FAIL_FMT("Failed to parse request");
-              return;
-            }
-            else if (used > size)
-            {
-              // Something has gone very wrong
-              LOG_FAIL_FMT(
-                "Unexpected return result - tried to parse {} bytes, actually "
-                "parsed {}",
-                size,
-                used);
-              return;
-            }
-            else if (used == size)
-            {
-              // Used all provided bytes - check if more are available
-              buf = read(4096, false);
-              data = buf.data();
-              size = buf.size();
-            }
-            else
-            {
-              // Used some bytes - pass over these and retry with remainder
-              data += used;
-              size -= used;
-            }
+            p.execute(data, n_read);
+
+            // Used all provided bytes - check if more are available
+            n_read = read(buf.data(), buf.size(), false);
           }
           catch (const std::exception& e)
           {
@@ -165,21 +146,22 @@ namespace http
       session_id(session_id)
     {}
 
-    void send(const std::vector<uint8_t>& data) override
+    void send(std::vector<uint8_t>&& data) override
     {
-      send_raw(data);
+      send_raw(std::move(data));
     }
 
     void handle_request(
-      http_method verb,
+      llhttp_method verb,
       const std::string_view& path,
       const std::string& query,
+      const std::string&,
       http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
       LOG_TRACE_FMT(
         "Processing msg({}, {}, {}, [{} bytes])",
-        http_method_str(verb),
+        llhttp_method_name(verb),
         path,
         query,
         body.size());
@@ -194,7 +176,7 @@ namespace http
         {
           LOG_TRACE_FMT("Upgraded to websocket");
           is_websocket = true;
-          send_raw(upgrade_resp.value());
+          send_raw(std::move(upgrade_resp.value()));
           return;
         }
 
@@ -228,23 +210,31 @@ namespace http
         {
           if (is_websocket)
           {
-            send_raw(ws::error(HTTP_STATUS_BAD_REQUEST, e.what()));
+            send_raw(ws::error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              e.what()));
           }
           else
           {
-            send_raw(http::error(HTTP_STATUS_BAD_REQUEST, e.what()));
+            send_raw(http::error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              e.what()));
           }
         }
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
         if (!actor_opt.has_value())
         {
-          send_raw(rpc_ctx->serialise_error(
+          rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
             fmt::format(
               "Request path must contain '/[actor]/[method]'. Unable to parse "
-              "'{}'.\n",
-              rpc_ctx->get_method())));
+              "'{}'.",
+              rpc_ctx->get_method()));
+          send_raw(rpc_ctx->serialise_response());
           return;
         }
 
@@ -253,17 +243,11 @@ namespace http
         auto search = rpc_map->find(actor);
         if (actor == ccf::ActorsType::unknown || !search.has_value())
         {
-          send_raw(rpc_ctx->serialise_error(
+          rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
-            fmt::format("Unknown session '{}'.\n", actor_s)));
-          return;
-        }
-
-        if (!search.value()->is_open())
-        {
-          send_raw(rpc_ctx->serialise_error(
-            HTTP_STATUS_NOT_FOUND,
-            fmt::format("Session '{}' is not open.\n", actor_s)));
+            ccf::errors::ResourceNotFound,
+            fmt::format("Unknown actor '{}'.", actor_s));
+          send_raw(rpc_ctx->serialise_response());
           return;
         }
 
@@ -287,13 +271,15 @@ namespace http
         {
           send_raw(ws::error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            fmt::format("Exception:\n{}\n", e.what())));
+            ccf::errors::InternalError,
+            fmt::format("Exception: {}", e.what())));
         }
         else
         {
           send_raw(http::error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            fmt::format("Exception:\n{}\n", e.what())));
+            ccf::errors::InternalError,
+            fmt::format("Exception: {}", e.what())));
         }
 
         // On any exception, close the connection.
@@ -329,12 +315,12 @@ namespace http
       ws_response_parser(*this)
     {}
 
-    void send_request(const std::vector<uint8_t>& data) override
+    void send_request(std::vector<uint8_t>&& data) override
     {
-      send_raw(data);
+      send_raw(std::move(data));
     }
 
-    void send(const std::vector<uint8_t>&) override
+    void send(std::vector<uint8_t>&&) override
     {
       throw std::logic_error(
         "send() should not be called directly on HTTPClient");

@@ -1,0 +1,62 @@
+{
+  "endpoints": {
+    "/log/private": {
+      "get": {
+        "js_module": "logging.js",
+        "js_function": "get_private",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["jwt", "user_cert"],
+        "readonly": true,
+        "openapi": {}
+      },
+      "post": {
+        "js_module": "logging.js",
+        "js_function": "post_private",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["jwt", "user_cert"],
+        "readonly": false,
+        "openapi": {}
+      },
+      "delete": {
+        "js_module": "logging.js",
+        "js_function": "delete_private",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["jwt", "user_cert"],
+        "readonly": false,
+        "openapi": {}
+      }
+    },
+    "/log/public": {
+      "get": {
+        "js_module": "logging.js",
+        "js_function": "get_public",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["jwt", "user_cert"],
+        "readonly": true,
+        "openapi": {}
+      },
+      "post": {
+        "js_module": "logging.js",
+        "js_function": "post_public",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["jwt", "user_cert"],
+        "readonly": false,
+        "openapi": {}
+      },
+      "delete": {
+        "js_module": "logging.js",
+        "js_function": "delete_public",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["jwt", "user_cert"],
+        "readonly": false,
+        "openapi": {}
+      }
+    }
+  }
+}

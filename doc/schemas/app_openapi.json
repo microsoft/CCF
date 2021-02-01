@@ -14,11 +14,11 @@
       },
       "CodeStatus": {
         "enum": [
-          "ACCEPTED",
-          "RETIRED"
-        ]
+          "ALLOWED_TO_JOIN"
+        ],
+        "type": "string"
       },
-      "EndpointMetrics__Metric": {
+      "EndpointMetrics__Entry": {
         "properties": {
           "calls": {
             "$ref": "#/components/schemas/uint64"
@@ -28,19 +28,33 @@
           },
           "failures": {
             "$ref": "#/components/schemas/uint64"
+          },
+          "method": {
+            "$ref": "#/components/schemas/string"
+          },
+          "path": {
+            "$ref": "#/components/schemas/string"
           }
         },
         "required": [
+          "path",
+          "method",
           "calls",
           "errors",
           "failures"
         ],
         "type": "object"
       },
+      "EndpointMetrics__Entry_array": {
+        "items": {
+          "$ref": "#/components/schemas/EndpointMetrics__Entry"
+        },
+        "type": "array"
+      },
       "EndpointMetrics__Out": {
         "properties": {
           "metrics": {
-            "$ref": "#/components/schemas/named_named_EndpointMetrics__Metric"
+            "$ref": "#/components/schemas/EndpointMetrics__Entry_array"
           }
         },
         "required": [
@@ -95,7 +109,29 @@
         ],
         "type": "object"
       },
-      "GetMetrics__HistogramResults": {
+      "GetReceipt__Out": {
+        "properties": {
+          "receipt": {
+            "$ref": "#/components/schemas/uint8_array"
+          }
+        },
+        "required": [
+          "receipt"
+        ],
+        "type": "object"
+      },
+      "GetTxStatus__Out": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/TxStatus"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "HistogramResults": {
         "properties": {
           "buckets": {
             "$ref": "#/components/schemas/json"
@@ -119,153 +155,6 @@
           "overflow",
           "underflow",
           "buckets"
-        ],
-        "type": "object"
-      },
-      "GetMetrics__Out": {
-        "properties": {
-          "histogram": {
-            "$ref": "#/components/schemas/GetMetrics__HistogramResults"
-          },
-          "tx_rates": {
-            "$ref": "#/components/schemas/json"
-          }
-        },
-        "required": [
-          "histogram",
-          "tx_rates"
-        ],
-        "type": "object"
-      },
-      "GetNetworkInfo__NodeInfo": {
-        "properties": {
-          "host": {
-            "$ref": "#/components/schemas/string"
-          },
-          "node_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "port": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "node_id",
-          "host",
-          "port"
-        ],
-        "type": "object"
-      },
-      "GetNetworkInfo__NodeInfo_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo"
-        },
-        "type": "array"
-      },
-      "GetNetworkInfo__Out": {
-        "properties": {
-          "nodes": {
-            "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo_array"
-          },
-          "primary_id": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "nodes",
-          "primary_id"
-        ],
-        "type": "object"
-      },
-      "GetNodesByRPCAddress__NodeInfo": {
-        "properties": {
-          "node_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "status": {
-            "$ref": "#/components/schemas/NodeStatus"
-          }
-        },
-        "required": [
-          "node_id",
-          "status"
-        ],
-        "type": "object"
-      },
-      "GetNodesByRPCAddress__NodeInfo_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo"
-        },
-        "type": "array"
-      },
-      "GetNodesByRPCAddress__Out": {
-        "properties": {
-          "nodes": {
-            "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo_array"
-          }
-        },
-        "required": [
-          "nodes"
-        ],
-        "type": "object"
-      },
-      "GetPrimaryInfo__Out": {
-        "properties": {
-          "current_view": {
-            "$ref": "#/components/schemas/int64"
-          },
-          "primary_host": {
-            "$ref": "#/components/schemas/string"
-          },
-          "primary_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "primary_port": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "primary_id",
-          "primary_host",
-          "primary_port",
-          "current_view"
-        ],
-        "type": "object"
-      },
-      "GetReceipt__Out": {
-        "properties": {
-          "receipt": {
-            "$ref": "#/components/schemas/uint8_array"
-          }
-        },
-        "required": [
-          "receipt"
-        ],
-        "type": "object"
-      },
-      "GetSchema__Out": {
-        "properties": {
-          "params_schema": {
-            "$ref": "#/components/schemas/json_schema"
-          },
-          "result_schema": {
-            "$ref": "#/components/schemas/json_schema"
-          }
-        },
-        "required": [
-          "params_schema",
-          "result_schema"
-        ],
-        "type": "object"
-      },
-      "GetTxStatus__Out": {
-        "properties": {
-          "status": {
-            "$ref": "#/components/schemas/TxStatus"
-          }
-        },
-        "required": [
-          "status"
         ],
         "type": "object"
       },
@@ -295,12 +184,20 @@
         ],
         "type": "object"
       },
-      "NodeStatus": {
-        "enum": [
-          "PENDING",
-          "TRUSTED",
-          "RETIRED"
-        ]
+      "Report": {
+        "properties": {
+          "histogram": {
+            "$ref": "#/components/schemas/HistogramResults"
+          },
+          "tx_rates": {
+            "$ref": "#/components/schemas/json"
+          }
+        },
+        "required": [
+          "histogram",
+          "tx_rates"
+        ],
+        "type": "object"
       },
       "TxStatus": {
         "enum": [
@@ -308,7 +205,8 @@
           "PENDING",
           "COMMITTED",
           "INVALID"
-        ]
+        ],
+        "type": "string"
       },
       "VerifyReceipt__In": {
         "properties": {
@@ -346,21 +244,6 @@
         "type": "integer"
       },
       "json": {},
-      "json_schema": {
-        "type": "object"
-      },
-      "named_EndpointMetrics__Metric": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/EndpointMetrics__Metric"
-        },
-        "type": "object"
-      },
-      "named_named_EndpointMetrics__Metric": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/named_EndpointMetrics__Metric"
-        },
-        "type": "object"
-      },
       "string": {
         "type": "string"
       },
@@ -379,6 +262,23 @@
           "$ref": "#/components/schemas/uint8"
         },
         "type": "array"
+      }
+    },
+    "securitySchemes": {
+      "jwt": {
+        "bearerFormat": "JWT",
+        "scheme": "bearer",
+        "type": "http"
+      },
+      "member_signature": {
+        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a member identity registered with this service.",
+        "scheme": "signature",
+        "type": "http"
+      },
+      "user_signature": {
+        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a user identity registered with this service.",
+        "scheme": "signature",
+        "type": "http"
       }
     }
   },
@@ -405,24 +305,14 @@
         }
       }
     },
-    "/api/schema": {
+    "/api/metrics": {
       "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "method",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetSchema__Out"
+                  "$ref": "#/components/schemas/EndpointMetrics__Out"
                 }
               }
             },
@@ -463,14 +353,14 @@
         }
       }
     },
-    "/endpoint_metrics": {
+    "/custom_auth": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EndpointMetrics__Out"
+                  "$ref": "#/components/schemas/json"
                 }
               }
             },
@@ -542,7 +432,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       },
       "get": {
         "parameters": [
@@ -568,7 +463,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       },
       "post": {
         "requestBody": {
@@ -592,7 +492,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       }
     },
     "/log/private/admin_only": {
@@ -618,7 +523,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       }
     },
     "/log/private/anonymous": {
@@ -647,6 +557,70 @@
         }
       }
     },
+    "/log/private/historical": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggingGet__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
+      }
+    },
+    "/log/private/prefix_cert": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoggingRecord__In"
+              }
+            }
+          },
+          "description": "Auto-generated request body schema"
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/boolean"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
+      }
+    },
     "/log/private/raw_text/{id}": {
       "parameters": [
         {
@@ -657,7 +631,19 @@
             "type": "string"
           }
         }
-      ]
+      ],
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
+      }
     },
     "/log/public": {
       "delete": {
@@ -684,7 +670,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       },
       "get": {
         "parameters": [
@@ -693,7 +684,9 @@
             "name": "id",
             "required": false,
             "schema": {
-              "type": "number"
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
             }
           }
         ],
@@ -702,59 +695,47 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "msg": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "msg"
-                  ],
-                  "title": "log/public/result",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LoggingGet__Out"
                 }
               }
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       },
       "post": {
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "properties": {
-                  "id": {
-                    "type": "number"
-                  },
-                  "msg": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "id",
-                  "msg"
-                ],
-                "title": "log/public/params",
-                "type": "object"
+                "$ref": "#/components/schemas/LoggingRecord__In"
               }
             }
-          }
+          },
+          "description": "Auto-generated request body schema"
         },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "log/public/result",
-                  "type": "boolean"
+                  "$ref": "#/components/schemas/boolean"
                 }
               }
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       }
     },
     "/metrics": {
@@ -764,7 +745,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetMetrics__Out"
+                  "$ref": "#/components/schemas/Report"
                 }
               }
             },
@@ -773,70 +754,32 @@
         }
       }
     },
-    "/network_info": {
+    "/multi_auth": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetNetworkInfo__Out"
+                  "$ref": "#/components/schemas/string"
                 }
               }
             },
             "description": "Default response description"
           }
-        }
-      }
-    },
-    "/node/ids": {
-      "get": {
-        "parameters": [
+        },
+        "security": [
           {
-            "in": "query",
-            "name": "host",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
+            "user_signature": []
           },
           {
-            "in": "query",
-            "name": "port",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetNodesByRPCAddress__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/primary_info": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetPrimaryInfo__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
+            "member_signature": []
+          },
+          {
+            "jwt": []
+          },
+          {}
+        ]
       }
     },
     "/receipt": {
@@ -939,12 +882,7 @@
             "name": "cert",
             "required": false,
             "schema": {
-              "items": {
-                "maximum": 255,
-                "minimum": 0,
-                "type": "integer"
-              },
-              "type": "array"
+              "type": "string"
             }
           }
         ],
@@ -959,7 +897,15 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "user_signature": []
+          },
+          {
+            "member_signature": []
+          }
+        ]
       }
     }
   },

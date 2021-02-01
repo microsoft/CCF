@@ -19,11 +19,9 @@ using ms = std::chrono::milliseconds;
 using TRaft =
   aft::Aft<aft::LedgerStubProxy, aft::ChannelStubProxy, aft::StubSnapshotter>;
 using Store = aft::LoggingStubStore;
-using Adaptor = aft::Adaptor<Store, kv::DeserialiseSuccess>;
+using Adaptor = aft::Adaptor<Store>;
 
 std::vector<uint8_t> cert;
-kv::Map<size_t, aft::Request> request_map(
-  nullptr, "test", kv::SecurityDomain::PUBLIC, true);
 
 class RaftDriver
 {
@@ -40,7 +38,7 @@ private:
 public:
   RaftDriver(size_t number_of_nodes)
   {
-    kv::Consensus::Configuration::Nodes configuration;
+    kv::Configuration::Nodes configuration;
 
     for (size_t i = 0; i < number_of_nodes; ++i)
     {
@@ -56,10 +54,12 @@ public:
         nullptr,
         nullptr,
         cert,
-        request_map,
         std::make_shared<aft::State>(node_id),
         nullptr,
+        std::make_shared<aft::RequestTracker>(),
+        nullptr,
         ms(10),
+        ms(i * 100),
         ms(i * 100));
 
       _nodes.emplace(node_id, NodeDriver{kv, raft});
@@ -88,8 +88,8 @@ public:
     aft::NodeId node_id, aft::NodeId tgt_node_id, aft::RequestVote rv)
   {
     std::ostringstream s;
-    s << "request_vote t: " << rv.term << ", lli: " << rv.last_commit_idx
-      << ", llt: " << rv.last_commit_term;
+    s << "request_vote t: " << rv.term << ", lci: " << rv.last_committable_idx
+      << ", tolci: " << rv.term_of_last_committable_idx;
     log(node_id, tgt_node_id, s.str());
   }
 
@@ -118,7 +118,8 @@ public:
   {
     std::ostringstream s;
     s << "append_entries_response t: " << aer.term
-      << ", lli: " << aer.last_log_idx << ", s: " << aer.success;
+      << ", lli: " << aer.last_log_idx
+      << ", s: " << static_cast<uint8_t>(aer.success);
     rlog(node_id, tgt_node_id, s.str());
   }
 
@@ -151,7 +152,7 @@ public:
     std::cout << "  Note right of Node" << node_id << ": ";
     auto raft = _nodes.at(node_id).raft;
 
-    if (raft->is_leader())
+    if (raft->is_primary())
       std::cout << "L ";
 
     std::cout << " t: " << raft->get_term() << ", li: " << raft->get_last_idx()
@@ -245,7 +246,9 @@ public:
   {
     std::cout << "  KV" << node_id << "->>Node" << node_id
               << ": replicate idx: " << idx << std::endl;
-    _nodes.at(node_id).raft->replicate(kv::BatchVector{{idx, data, true}}, 1);
+    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+    _nodes.at(node_id).raft->replicate(
+      kv::BatchVector{{idx, data, true, hooks}}, 1);
   }
 
   void disconnect(aft::NodeId left, aft::NodeId right)

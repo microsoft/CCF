@@ -17,8 +17,6 @@ namespace ccf
       Tables::NODES,
       Tables::VALUES,
       Tables::SIGNATURES,
-      Tables::USER_CLIENT_SIGNATURES,
-      Tables::MEMBER_CLIENT_SIGNATURES,
       Tables::NODE_CODE_IDS,
       Tables::WHITELISTS,
       Tables::PROPOSALS,
@@ -27,7 +25,10 @@ namespace ccf
       Tables::MODULES,
       Tables::SERVICE,
       Tables::CONFIGURATION,
-      Tables::CA_CERT_DERS}},
+      Tables::CA_CERT_DERS,
+      Tables::JWT_ISSUERS,
+      Tables::JWT_PUBLIC_SIGNING_KEYS,
+      Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER}},
 
     {MEMBER_CAN_PROPOSE,
      {Tables::USERS,
@@ -38,7 +39,10 @@ namespace ccf
       Tables::APP_SCRIPTS,
       Tables::MODULES,
       Tables::CONFIGURATION,
-      Tables::CA_CERT_DERS}},
+      Tables::CA_CERT_DERS,
+      Tables::JWT_ISSUERS,
+      Tables::JWT_PUBLIC_SIGNING_KEYS,
+      Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER}},
 
     {USER_APP_CAN_READ_ONLY,
      {Tables::MEMBERS,
@@ -50,5 +54,8 @@ namespace ccf
       Tables::APP_SCRIPTS,
       Tables::MODULES,
       Tables::GOV_HISTORY,
-      Tables::CA_CERT_DERS}}};
+      Tables::CA_CERT_DERS,
+      Tables::JWT_ISSUERS,
+      Tables::JWT_PUBLIC_SIGNING_KEYS,
+      Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER}}};
 }

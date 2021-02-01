@@ -11,17 +11,7 @@
 
 namespace ccf
 {
-  struct EncryptedShare
-  {
-    std::vector<uint8_t> nonce;
-    std::vector<uint8_t> encrypted_share;
-
-    MSGPACK_DEFINE(nonce, encrypted_share);
-  };
-
-  DECLARE_JSON_TYPE(EncryptedShare)
-  DECLARE_JSON_REQUIRED_FIELDS(EncryptedShare, nonce, encrypted_share)
-
+  using EncryptedShare = std::vector<uint8_t>;
   using EncryptedSharesMap = std::map<MemberId, EncryptedShare>;
 
   struct LatestLedgerSecret

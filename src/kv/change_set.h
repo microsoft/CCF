@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+
 #include "ds/champ_map.h"
 #include "ds/hash.h"
 #include "kv/kv_types.h"
@@ -26,32 +27,44 @@ namespace kv
   // This is a container for a write-set + dependencies. It can be applied to a
   // given state, or used to track a set of operations on a state
   template <typename K, typename V, typename H>
-  struct ChangeSet
+  struct ChangeSet : public AbstractChangeSet
   {
-    const State<K, V, H> state;
-    const State<K, V, H> committed;
-    const Version start_version;
+  protected:
+    ChangeSet() {}
+
+  public:
+    const size_t rollback_counter = {};
+    const State<K, V, H> state = {};
+    const State<K, V, H> committed = {};
+    const Version start_version = {};
 
     Version read_version = NoVersion;
     Read<K> reads = {};
     Write<K, V> writes = {};
 
     ChangeSet(
+      size_t rollbacks,
       State<K, V, H>& current_state,
       State<K, V, H>& committed_state,
       Version current_version) :
+      rollback_counter(rollbacks),
       state(current_state),
       committed(committed_state),
       start_version(current_version)
     {}
 
     ChangeSet(ChangeSet&) = delete;
+
+    bool has_writes() const override
+    {
+      return !writes.empty();
+    }
   };
 
   // This is a container for a snapshot. It has no dependencies as the snapshot
   // obliterates the current state.
   template <typename K, typename V, typename H>
-  struct SnapshotChangeSet
+  struct SnapshotChangeSet : public ChangeSet<K, V, H>
   {
     const State<K, V, H> state;
     const Version version;
@@ -62,9 +75,18 @@ namespace kv
     {}
 
     SnapshotChangeSet(SnapshotChangeSet&) = delete;
+
+    bool has_writes() const override
+    {
+      return true;
+    }
   };
 
   /// Signature for transaction commit handlers
   template <typename W>
   using CommitHook = std::function<void(Version, const W&)>;
+
+  template <typename W>
+  using MapHook =
+    std::function<std::unique_ptr<ConsensusHook>(Version, const W&)>;
 }

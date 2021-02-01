@@ -50,20 +50,6 @@ namespace kv
       }
     }
 
-    std::optional<std::vector<uint8_t>> pop_oldest_data()
-    {
-      if (!replica.empty())
-      {
-        auto data = *std::get<1>(replica.front());
-        replica.erase(replica.begin());
-        return data;
-      }
-      else
-      {
-        return std::nullopt;
-      }
-    }
-
     std::optional<kv::BatchVector::value_type> pop_oldest_entry()
     {
       if (!replica.empty())
@@ -93,6 +79,16 @@ namespace kv
       return {2, 0};
     }
 
+    std::optional<SignableTxIndices> get_signable_txid() override
+    {
+      auto txid = get_committed_txid();
+      SignableTxIndices r;
+      r.term = txid.first;
+      r.version = txid.second;
+      r.previous_version = 0;
+      return r;
+    }
+
     SeqNo get_committed_seqno() override
     {
       return 0;
@@ -101,6 +97,16 @@ namespace kv
     NodeId primary() override
     {
       return 1;
+    }
+
+    bool view_change_in_progress() override
+    {
+      return false;
+    }
+
+    std::set<NodeId> active_nodes() override
+    {
+      return {};
     }
 
     NodeId id() override
@@ -140,9 +146,9 @@ namespace kv
       return {};
     }
 
-    void open_network() override
+    uint32_t node_count() override
     {
-      return;
+      return 0;
     }
 
     void emit_signature() override

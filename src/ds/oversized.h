@@ -97,6 +97,11 @@ namespace oversized
     ~FragmentReconstructor()
     {
       dispatcher.remove_message_handler(OversizedMessage::fragment);
+
+      for (const auto& [_, partial] : partial_messages)
+      {
+        delete[] partial.data;
+      }
     }
   };
 

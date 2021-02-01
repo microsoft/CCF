@@ -47,18 +47,15 @@ def test(network, args):
 
 
 def run(args):
-    hosts = ["localhost"] * (4 if args.consensus == "bft" else 2)
-
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
         test(network, args)
 
 
 if __name__ == "__main__":
-
     args = infra.e2e_args.cli_args()
-    args.package = args.app_script or "liblogging"
-
+    args.package = "liblogging"
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
     run(args)

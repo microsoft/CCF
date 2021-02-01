@@ -49,7 +49,7 @@ namespace ccf
         template <typename T>
         static void register_meta(lua::Interpreter& li)
         {
-          using TT = typename T::TxView;
+          using TT = typename T::Handle;
           if constexpr (READ_ONLY)
             li.register_metatable<TT>(lua::kv_methods_read_only<TT>);
           else
@@ -61,12 +61,12 @@ namespace ccf
         {
           decltype(auto) name = table.get_name();
 
-          using TT = typename T::TxView;
-          auto view = tx.get_view(table);
+          using TT = typename T::Handle;
+          auto h = tx.rw(table);
           if constexpr (READ_ONLY)
-            li.push(view);
+            li.push(h);
           else
-            li.push(WT<TT>{view});
+            li.push(WT<TT>{h});
           lua_setfield(li.get_state(), -2, name.c_str());
         }
 
@@ -104,12 +104,12 @@ namespace ccf
       public:
         template <typename T>
         static void create(
-          lua::Interpreter& li, kv::Tx& tx, const std::vector<T*>& tables)
+          lua::Interpreter& li, kv::Tx& tx, const std::vector<T>& tables)
         {
           register_meta<T>(li);
           lua_newtable(li.get_state());
           for (decltype(auto) table : tables)
-            add_table(li, tx, *table);
+            add_table(li, tx, table);
         }
 
         template <typename... T>
@@ -139,7 +139,7 @@ namespace ccf
 
       Whitelist get_whitelist(kv::Tx& tx, WlId id) const
       {
-        const auto wl = tx.get_view(network_tables.whitelists)->get(id);
+        const auto wl = tx.rw(network_tables.whitelists)->get(id);
         if (!wl)
           throw std::logic_error(
             "Whitelist with id: " + std::to_string(id) + " does not exist");
@@ -150,7 +150,10 @@ namespace ccf
       {
         std::stringstream ss;
         ss << "Script failed: " << e.what();
-        throw RpcException(ss.str(), HTTP_STATUS_INTERNAL_SERVER_ERROR);
+        throw RpcException(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          ss.str());
       }
 
       static std::string get_var_string_from_args(lua_State* l)
@@ -174,25 +177,25 @@ namespace ccf
 
       static int lua_log_trace(lua_State* l)
       {
-        LOG_TRACE_FMT(get_var_string_from_args(l));
+        LOG_TRACE_FMT("{}", get_var_string_from_args(l));
         return 0;
       }
 
       static int lua_log_debug(lua_State* l)
       {
-        LOG_DEBUG_FMT(get_var_string_from_args(l));
+        LOG_DEBUG_FMT("{}", get_var_string_from_args(l));
         return 0;
       }
 
       static int lua_log_info(lua_State* l)
       {
-        LOG_INFO_FMT(get_var_string_from_args(l));
+        LOG_INFO_FMT("{}", get_var_string_from_args(l));
         return 0;
       }
 
       static int lua_log_fail(lua_State* l)
       {
-        LOG_FAIL_FMT(get_var_string_from_args(l));
+        LOG_FAIL_FMT("{}", get_var_string_from_args(l));
         return 0;
       }
 
@@ -234,7 +237,7 @@ namespace ccf
        *
        * tables_writable, tables_readable, a, b, c = ...
        * -- read members table
-       * local member_0 = tables_readable["ccf.members"]:get(0)
+       * local member_0 = tables_readable["public:ccf.gov.members"]:get(0)
        *
        * Further, subclasses of this class may add custom tables by overriding
        * the add_custom_tables() method.

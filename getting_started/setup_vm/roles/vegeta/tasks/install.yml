@@ -1,0 +1,20 @@
+- name: Include vars
+  include_vars: common.yml
+
+- name: Download Vegeta
+  get_url:
+    url: https://github.com/tsenart/vegeta/releases/download/v{{ vegeta_version }}/vegeta_{{ vegeta_version }}_linux_386.tar.gz
+    dest: "{{ workspace }}/vegeta.tar.gz"
+  become: true
+
+- name: Create directory for Vegeta
+  file:
+    path: "{{ vegeta_install_prefix }}"
+    state: directory
+  become: true
+
+- name: Unpack Vegeta
+  unarchive:
+    src: "{{ workspace }}/vegeta.tar.gz"
+    dest: "{{ vegeta_install_prefix }}"
+  become: true

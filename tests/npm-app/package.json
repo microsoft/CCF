@@ -1,13 +1,15 @@
 {
   "private": true,
   "scripts": {
-    "build": "del-cli -f dist/ && rollup --config",
+    "build": "del-cli -f dist/ && rollup --config && cp app.json dist/",
     "demo": "npm run build && http-server -o demo/index.html"
   },
   "type": "module",
   "dependencies": {
-    "jsrsasign": "^8.0.22",
-    "jsrsasign-util": "^1.0.0",
+    "js-base64": "^3.5.2",
+    "jsrsasign": "^10.0.4",
+    "jsrsasign-util": "^1.0.2",
+    "jwt-decode": "^3.0.0",
     "lodash-es": "^4.17.15",
     "protobufjs": "^6.10.1"
   },
@@ -15,7 +17,8 @@
     "@rollup/plugin-commonjs": "^14.0.0",
     "@rollup/plugin-node-resolve": "^8.4.0",
     "@rollup/plugin-typescript": "^5.0.2",
-    "@types/jsrsasign": "^8.0.5",
+    "@types/jsrsasign": "^8.0.7",
+    "@types/jwt-decode": "^2.2.1",
     "@types/lodash-es": "^4.17.3",
     "del-cli": "^3.0.1",
     "http-server": "^0.12.3",

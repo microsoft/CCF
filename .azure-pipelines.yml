@@ -3,7 +3,7 @@ trigger:
   branches:
     include:
       - master
-      - 'refs/tags/ccf-*'
+      - "refs/tags/ccf-*"
 
 pr:
   autoCancel: true
@@ -12,24 +12,24 @@ pr:
       - master
   paths:
     include:
-      - '*'
+      - "*"
 
 schedules:
-- cron: "0 3 * * Mon-Fri"
-  displayName: Daily morning build
-  branches:
-    include:
-    - master
-  always: true
+  - cron: "0 3 * * Mon-Fri"
+    displayName: Daily morning build
+    branches:
+      include:
+        - master
+    always: true
 
 resources:
   containers:
     - container: nosgx
-      image: ccfciteam/ccf-ci:oe0.11.0
+      image: ccfciteam/ccf-ci:oe0.13.0
       options: --publish-all --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache -v /lib/modules:/lib/modules:ro
 
     - container: sgx
-      image: ccfciteam/ccf-ci:oe0.11.0
+      image: ccfciteam/ccf-ci:oe0.13.0
       options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache -v /lib/modules:/lib/modules:ro
 
 variables:
@@ -39,6 +39,6 @@ variables:
     perf_or_release: perf
 
 jobs:
-- template: .azure-pipelines-templates/matrix.yml
-  parameters:
-    perf_or_release: ${{ variables['perf_or_release'] }}
+  - template: .azure-pipelines-templates/matrix.yml
+    parameters:
+      perf_or_release: ${{ variables['perf_or_release'] }}

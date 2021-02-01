@@ -20,19 +20,17 @@ namespace aft
   private:
     std::unique_ptr<Aft<T...>> aft;
     ConsensusType consensus_type;
-    bool is_open;
 
   public:
     Consensus(std::unique_ptr<Aft<T...>> raft_, ConsensusType consensus_type_) :
       kv::Consensus(raft_->id()),
       aft(std::move(raft_)),
-      consensus_type(consensus_type_),
-      is_open(false)
+      consensus_type(consensus_type_)
     {}
 
     bool is_primary() override
     {
-      return aft->is_leader();
+      return aft->is_primary();
     }
 
     bool is_backup() override
@@ -54,9 +52,12 @@ namespace aft
       aft->force_become_leader(seqno, view, terms, commit_seqno);
     }
 
-    void init_as_backup(SeqNo seqno, View view) override
+    void init_as_backup(
+      SeqNo seqno,
+      View view,
+      const std::vector<kv::Version>& view_history) override
     {
-      aft->init_as_follower(seqno, view);
+      aft->init_as_follower(seqno, view, view_history);
     }
 
     bool replicate(const kv::BatchVector& entries, View view) override
@@ -67,6 +68,11 @@ namespace aft
     std::pair<View, SeqNo> get_committed_txid() override
     {
       return aft->get_commit_term_and_idx();
+    }
+
+    std::optional<SignableTxIndices> get_signable_txid() override
+    {
+      return aft->get_signable_commit_term_and_idx();
     }
 
     View get_view(SeqNo seqno) override
@@ -100,6 +106,16 @@ namespace aft
       return aft->leader();
     }
 
+    bool view_change_in_progress() override
+    {
+      return aft->view_change_in_progress();
+    }
+
+    std::set<NodeId> active_nodes() override
+    {
+      return aft->active_nodes();
+    }
+
     void recv_message(OArray&& data) override
     {
       return aft->recv_message(std::move(data));
@@ -126,10 +142,9 @@ namespace aft
       aft->enable_all_domains();
     }
 
-    void open_network() override
+    uint32_t node_count() override
     {
-      is_open = true;
-      return;
+      return aft->node_count();
     }
 
     void emit_signature() override {}

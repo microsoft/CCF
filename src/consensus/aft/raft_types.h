@@ -3,6 +3,7 @@
 #pragma once
 
 #include "consensus/consensus_types.h"
+#include "crypto/hash.h"
 #include "ds/ring_buffer_types.h"
 #include "enclave/rpc_context.h"
 #include "enclave/rpc_handler.h"
@@ -21,57 +22,41 @@ namespace aft
   using Term = int64_t;
   using NodeId = uint64_t;
   using Node2NodeMsg = uint64_t;
+  using Nonce = crypto::Sha256Hash;
 
   using ReplyCallback = std::function<bool(
     void* owner,
     kv::TxHistory::RequestID caller_rid,
     int status,
-    std::vector<uint8_t>& data)>;
+    std::vector<uint8_t>&& data)>;
 
   static constexpr NodeId NoNode = std::numeric_limits<NodeId>::max();
 
-  template <typename S>
+  static constexpr size_t starting_view_change = 2;
+
   class Store
   {
   public:
     virtual ~Store() {}
-    virtual S deserialise(
-      const std::vector<uint8_t>& data,
-      bool public_only = false,
-      Term* term = nullptr) = 0;
     virtual void compact(Index v) = 0;
     virtual void rollback(Index v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
-    virtual S deserialise_views(
-      const std::vector<uint8_t>& data,
-      bool public_only = false,
-      kv::Term* term = nullptr,
-      kv::Tx* tx = nullptr,
-      ccf::PrimarySignature* sig = nullptr) = 0;
+    virtual std::unique_ptr<kv::AbstractExecutionWrapper> apply(
+      const std::vector<uint8_t> data,
+      ConsensusType consensus_type,
+      bool public_only = false) = 0;
     virtual std::shared_ptr<ccf::ProgressTracker> get_progress_tracker() = 0;
+    virtual kv::Tx create_tx() = 0;
   };
 
-  template <typename T, typename S>
-  class Adaptor : public Store<S>
+  template <typename T>
+  class Adaptor : public Store
   {
   private:
     std::weak_ptr<T> x;
 
   public:
     Adaptor(std::shared_ptr<T> x) : x(x) {}
-
-    S deserialise(
-      const std::vector<uint8_t>& data,
-      bool public_only = false,
-      Term* term = nullptr) override
-    {
-      auto p = x.lock();
-      if (p)
-      {
-        return p->deserialise(data, public_only, term);
-      }
-      return S::FAILED;
-    }
 
     void compact(Index v) override
     {
@@ -110,17 +95,27 @@ namespace aft
       return nullptr;
     }
 
-    S deserialise_views(
-      const std::vector<uint8_t>& data,
-      bool public_only = false,
-      kv::Term* term = nullptr,
-      kv::Tx* tx = nullptr,
-      ccf::PrimarySignature* sig = nullptr) override
+    kv::Tx create_tx() override
     {
       auto p = x.lock();
       if (p)
-        return p->deserialise_views(data, public_only, term, tx, sig);
-      return S::FAILED;
+      {
+        return p->create_tx();
+      }
+      throw std::logic_error("Can't create a tx without a store");
+    }
+
+    std::unique_ptr<kv::AbstractExecutionWrapper> apply(
+      const std::vector<uint8_t> data,
+      ConsensusType consensus_type,
+      bool public_only = false) override
+    {
+      auto p = x.lock();
+      if (p)
+      {
+        return p->apply(data, consensus_type, public_only);
+      }
+      return nullptr;
     }
   };
 
@@ -133,6 +128,10 @@ namespace aft
     raft_request_vote_response,
 
     bft_request,
+    bft_signature_received_ack,
+    bft_nonce_reveal,
+    bft_view_change,
+    bft_view_change_evidence
   };
 
 #pragma pack(push, 1)
@@ -149,32 +148,61 @@ namespace aft
     Term prev_term;
     Index leader_commit_idx;
     Term term_of_idx;
+    bool contains_new_view;
+  };
+
+  enum class AppendEntriesResponseType : uint8_t
+  {
+    OK = 0,
+    FAIL = 1,
+    REQUIRE_EVIDENCE = 2
   };
 
   struct AppendEntriesResponse : RaftHeader
   {
     Term term;
     Index last_log_idx;
-    bool success;
+    AppendEntriesResponseType success;
   };
 
   struct SignedAppendEntriesResponse : RaftHeader
   {
     Term term;
     Index last_log_idx;
+    Nonce hashed_nonce;
     uint32_t signature_size;
     std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
+  };
+
+  struct SignaturesReceivedAck : RaftHeader
+  {
+    Term term;
+    Index idx;
+  };
+
+  struct NonceRevealMsg : RaftHeader
+  {
+    Term term;
+    Index idx;
+    Nonce nonce;
+  };
+
+  struct RequestViewChangeMsg : RaftHeader
+  {
+    kv::Consensus::View view = 0;
+    kv::Consensus::SeqNo seqno = 0;
+  };
+
+  struct ViewChangeEvidenceMsg : RaftHeader
+  {
+    kv::Consensus::View view = 0;
   };
 
   struct RequestVote : RaftHeader
   {
     Term term;
-    // last_log_idx in vanilla raft but last_commit_idx here to preserve
-    // verifiability
-    Index last_commit_idx;
-    // last_log_term in vanilla raft but last_commit_term here to preserve
-    // verifiability
-    Term last_commit_term;
+    Index last_committable_idx;
+    Term term_of_last_committable_idx;
   };
 
   struct RequestVoteResponse : RaftHeader

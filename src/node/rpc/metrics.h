@@ -4,7 +4,6 @@
 
 #include "ds/histogram.h"
 #include "ds/logger.h"
-#include "serialization.h"
 
 #include <nlohmann/json.hpp>
 
@@ -15,6 +14,26 @@
 
 namespace metrics
 {
+  struct HistogramResults
+  {
+    int low = {};
+    int high = {};
+    size_t overflow = {};
+    size_t underflow = {};
+    nlohmann::json buckets = {};
+  };
+  DECLARE_JSON_TYPE(HistogramResults)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    HistogramResults, low, high, overflow, underflow, buckets)
+
+  struct Report
+  {
+    HistogramResults histogram;
+    nlohmann::json tx_rates;
+  };
+  DECLARE_JSON_TYPE(Report)
+  DECLARE_JSON_REQUIRED_FIELDS(Report, histogram, tx_rates)
+
   class Metrics
   {
   private:
@@ -35,9 +54,9 @@ namespace metrics
     };
     std::array<TxStatistics, 100> times;
 
-    ccf::GetMetrics::HistogramResults get_histogram_results()
+    HistogramResults get_histogram_results()
     {
-      ccf::GetMetrics::HistogramResults result;
+      HistogramResults result;
       result.low = histogram.get_low();
       result.high = histogram.get_high();
       result.overflow = histogram.get_overflow();
@@ -85,18 +104,19 @@ namespace metrics
     }
 
   public:
-    ccf::GetMetrics::Out get_metrics()
+    Report get_metrics_report()
     {
-      nlohmann::json result;
-      result["histogram"] = get_histogram_results();
-      result["tx_rates"] = get_tx_rates();
-
-      return result;
+      return {get_histogram_results(), get_tx_rates()};
     }
 
     void track_tx_rates(
       const std::chrono::milliseconds& elapsed, kv::Consensus::Statistics stats)
     {
+      if (elapsed.count() == 0)
+      {
+        return;
+      }
+
       // calculate how many tx/sec we have processed in this tick
       auto duration = elapsed.count() / 1000.0;
       auto tx_rate = stats.tx_count / duration;
@@ -122,4 +142,5 @@ namespace metrics
       }
     }
   };
+
 }

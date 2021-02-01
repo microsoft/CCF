@@ -110,40 +110,48 @@ namespace enclave
         client_cert->raw.p, client_cert->raw.p + client_cert->raw.len);
     }
 
-    std::vector<uint8_t> read(size_t up_to, bool exact = false)
+    // Returns count N of bytes read, which will be the first N bytes of data,
+    // up to a maximum of size. If exact is true, will only return either size
+    // or 0 (when size bytes are not currently available). data may be accessed
+    // beyond N during operation, up to size, but only the first N should be
+    // used by caller.
+    size_t read(uint8_t* data, size_t size, bool exact = false)
     {
-      LOG_TRACE_FMT("Requesting {} bytes", up_to);
-      // This will return an empty vector if the connection isn't
+      LOG_TRACE_FMT("Requesting up to {} bytes", size);
+
+      // This will return empty if the connection isn't
       // ready, but it will not block on the handshake.
       do_handshake();
 
       if (status != ready)
       {
-        return {};
+        return 0;
       }
 
       // Send pending writes.
       flush();
 
-      std::vector<uint8_t> data(up_to);
       size_t offset = 0;
 
       if (read_buffer.size() > 0)
       {
-        LOG_TRACE_FMT("read_buffer is of size: {}", read_buffer.size());
-        offset = std::min(up_to, read_buffer.size());
-        ::memcpy(data.data(), read_buffer.data(), offset);
+        LOG_TRACE_FMT(
+          "Have existing read_buffer of size: {}", read_buffer.size());
+        offset = std::min(size, read_buffer.size());
+        ::memcpy(data, read_buffer.data(), offset);
 
         if (offset < read_buffer.size())
           read_buffer.erase(read_buffer.begin(), read_buffer.begin() + offset);
         else
           read_buffer.clear();
 
-        if (offset == up_to)
-          return data;
+        if (offset == size)
+          return size;
+
+        // NB: If we continue past here, read_buffer is empty
       }
 
-      auto r = ctx->read(data.data() + offset, up_to - offset);
+      auto r = ctx->read(data + offset, size - offset);
       LOG_TRACE_FMT("ctx->read returned: {}", r);
 
       switch (r)
@@ -158,25 +166,26 @@ namespace enclave
 
           if (!exact)
           {
-            data.resize(offset);
-            return data;
+            // Hit an error, but may still have some useful data from the
+            // previous read_buffer
+            return offset;
           }
 
-          return {};
+          return 0;
         }
 
         case MBEDTLS_ERR_SSL_WANT_READ:
         case MBEDTLS_ERR_SSL_WANT_WRITE:
         {
-          data.resize(offset);
-
           if (!exact)
           {
-            return data;
+            return offset;
           }
 
-          read_buffer = move(data);
-          return {};
+          // May have read something but not enough - copy it into read_buffer
+          // for next call
+          read_buffer.insert(read_buffer.end(), data, data + offset);
+          return 0;
         }
 
         default:
@@ -188,23 +197,23 @@ namespace enclave
       {
         LOG_TRACE_FMT("TLS {} on read: {}", session_id, tls::error_string(r));
         stop(error);
-        return {};
+        return 0;
       }
 
       auto total = r + offset;
-      data.resize(total);
 
       // We read _some_ data but not enough, and didn't get
-      // MBEDTLS_ERR_SSL_WANT_READ. Probably hit a size limit - try again
-      if (exact && (total < up_to))
+      // MBEDTLS_ERR_SSL_WANT_READ. Probably hit an internal size limit - try
+      // again
+      if (exact && (total < size))
       {
         LOG_TRACE_FMT(
-          "Asked for exactly {}, received {}, retrying", up_to, total);
-        read_buffer = move(data);
-        return read(up_to, exact);
+          "Asked for exactly {}, received {}, retrying", size, total);
+        read_buffer.insert(read_buffer.end(), data, data + total);
+        return read(data, size, exact);
       }
 
-      return data;
+      return total;
     }
 
     void recv_buffered(const uint8_t* data, size_t size)
@@ -229,17 +238,17 @@ namespace enclave
         ->send_raw_thread(msg->data.data);
     }
 
-    void send_raw(const std::vector<uint8_t>& data)
+    void send_raw(std::vector<uint8_t>&& data)
     {
       auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
       msg->data.self = this->shared_from_this();
-      msg->data.data = data;
+      msg->data.data = std::move(data);
 
       threading::ThreadMessaging::thread_messaging.add_task(
         execution_thread, std::move(msg));
     }
 
-    void send_raw_thread(std::vector<uint8_t>& data)
+    void send_raw_thread(const std::vector<uint8_t>& data)
     {
       if (threading::get_current_thread_id() != execution_thread)
       {
@@ -429,7 +438,9 @@ namespace enclave
           if (r > 0)
           {
             buf.resize(r);
-            LOG_TRACE_FMT(std::string(buf.data(), buf.size()));
+            LOG_TRACE_FMT(
+              "Certificate verify failed: {}",
+              std::string(buf.data(), buf.size()));
           }
 
           LOG_TRACE_FMT(

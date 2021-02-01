@@ -7,6 +7,7 @@ namespace http
   namespace headers
   {
     // All HTTP headers are expected to be lowercase
+    static constexpr auto ACCEPT = "accept";
     static constexpr auto ALLOW = "allow";
     static constexpr auto AUTHORIZATION = "authorization";
     static constexpr auto CONTENT_LENGTH = "content-length";
@@ -40,17 +41,20 @@ namespace http
   {
     static constexpr auto DIGEST_SHA256 = "SHA-256";
 
-    static constexpr auto AUTH_SCHEME = "Signature";
+    static constexpr auto SIGN_AUTH_SCHEME = "Signature";
     static constexpr auto SIGN_PARAMS_KEYID = "keyId";
     static constexpr auto SIGN_PARAMS_SIGNATURE = "signature";
     static constexpr auto SIGN_PARAMS_ALGORITHM = "algorithm";
     static constexpr auto SIGN_PARAMS_HEADERS = "headers";
-    static constexpr auto SIGN_ALGORITHM_SHA256 = "ecdsa-sha256";
+    static constexpr auto SIGN_ALGORITHM_ECDSA_SHA256 = "ecdsa-sha256";
+    static constexpr auto SIGN_ALGORITHM_HS_2019 = "hs2019";
 
     static constexpr auto SIGN_HEADER_REQUEST_TARGET = "(request-target)";
 
     static constexpr auto SIGN_PARAMS_DELIMITER = ",";
     static constexpr auto SIGN_PARAMS_HEADERS_DELIMITER = " ";
+
+    static constexpr auto BEARER_AUTH_SCHEME = "Bearer";
   }
 
   static constexpr char const* required_signature_headers[] = {

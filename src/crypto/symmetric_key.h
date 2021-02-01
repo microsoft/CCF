@@ -1,11 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "../ds/buffer.h"
-#include "../ds/serialized.h"
+#include "ds/buffer.h"
+#include "ds/serialized.h"
 #include "ds/thread_messaging.h"
-
-struct mbedtls_gcm_context;
+#include "tls/mbedtls_wrappers.h"
 
 namespace crypto
 {
@@ -20,7 +19,7 @@ namespace crypto
     uint8_t iv[SIZE_IV] = {};
 
     // 12 bytes IV with 8 LSB are unique sequence number
-    // and 4 MSB are 4 LSB of unique id (Node id or View)
+    // and 4 MSB are 4 LSB of term (with last bit indicating a snapshot)
     constexpr static uint8_t IV_DELIMITER = 8;
     constexpr static size_t RAW_DATA_SIZE = sizeof(tag) + sizeof(iv);
 
@@ -41,16 +40,16 @@ namespace crypto
       *reinterpret_cast<uint64_t*>(iv) = seq;
     }
 
-    void set_iv_id(uint64_t id)
+    void set_iv_term(uint64_t term)
     {
-      if (id > 0x7FFFFFFF)
+      if (term > 0x7FFFFFFF)
       {
-        throw std::logic_error(
-          fmt::format("id should fit in 31 bits of IV. Value is: 0x{0:x}", id));
+        throw std::logic_error(fmt::format(
+          "term should fit in 31 bits of IV. Value is: 0x{0:x}", term));
       }
 
       *reinterpret_cast<uint32_t*>(iv + IV_DELIMITER) =
-        static_cast<uint32_t>(id);
+        static_cast<uint32_t>(term);
     }
 
     void set_iv_snapshot(bool is_snapshot)
@@ -92,7 +91,7 @@ namespace crypto
       return serial_hdr;
     }
 
-    void deserialise(const std::vector<uint8_t>& serial_hdr)
+    void apply(const std::vector<uint8_t>& serial_hdr)
     {
       auto data_ = serial_hdr.data();
       auto size = serial_hdr.size();
@@ -125,7 +124,7 @@ namespace crypto
       return serial;
     }
 
-    void deserialise(const std::vector<uint8_t>& serial)
+    void apply(const std::vector<uint8_t>& serial)
     {
       auto size = serial.size();
 
@@ -139,14 +138,13 @@ namespace crypto
   {
   private:
     mutable std::
-      array<mbedtls_gcm_context*, threading::ThreadMessaging::max_num_threads>
+      array<mbedtls::GcmContext, threading::ThreadMessaging::max_num_threads>
         ctxs;
 
   public:
     KeyAesGcm(CBuffer rawKey);
     KeyAesGcm(const KeyAesGcm& that) = delete;
     KeyAesGcm(KeyAesGcm&& that);
-    ~KeyAesGcm();
 
     void encrypt(
       CBuffer iv,

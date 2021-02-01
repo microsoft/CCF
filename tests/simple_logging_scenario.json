@@ -1,8 +1,5 @@
 {
-  "hosts": [
-    "localhost",
-    "localhost"
-  ],
+  "hosts": ["local://localhost", "local://localhost"],
   "package": "liblogging",
   "connections": [
     {

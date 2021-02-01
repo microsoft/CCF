@@ -11,6 +11,9 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
+threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
+
 struct StubWriter : public ringbuffer::AbstractWriter
 {
 public:
@@ -71,16 +74,9 @@ TEST_CASE("StateCache")
   store.set_encryptor(encryptor);
 
   // Make history to produce signatures
-  auto& signatures = store.create<ccf::Signatures>(
-    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
-  auto& nodes =
-    store.create<ccf::Nodes>(ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-
   const auto node_id = 0;
-
   auto kp = tls::make_key_pair();
-  auto history = std::make_shared<ccf::MerkleTxHistory>(
-    store, node_id, *kp, signatures, nodes);
+  auto history = std::make_shared<ccf::MerkleTxHistory>(store, node_id, *kp);
 
   store.set_history(history);
 
@@ -98,19 +94,14 @@ TEST_CASE("StateCache")
 
     {
       INFO("Store the signing node's key");
-      kv::Tx tx;
-      auto view = tx.get_view(nodes);
+      auto tx = store.create_tx();
+      auto nodes = tx.rw<ccf::Nodes>(ccf::Tables::NODES);
       ccf::NodeInfo ni;
       ni.cert = kp->self_sign("CN=Test node");
       ni.status = ccf::NodeStatus::TRUSTED;
-      view->put(node_id, ni);
+      nodes->put(node_id, ni);
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     }
-
-    auto& public_table =
-      store.create<NumToString>("public", kv::SecurityDomain::PUBLIC);
-    auto& private_table =
-      store.create<NumToString>("private", kv::SecurityDomain::PRIVATE);
 
     {
       for (size_t i = 1; i < high_signature_transaction; ++i)
@@ -124,12 +115,12 @@ TEST_CASE("StateCache")
         }
         else
         {
-          kv::Tx tx;
-          auto [public_view, private_view] =
-            tx.get_view(public_table, private_table);
+          auto tx = store.create_tx();
+          auto public_map = tx.rw<NumToString>("public:data");
+          auto private_map = tx.rw<NumToString>("data");
           const auto s = std::to_string(i);
-          public_view->put(i, s);
-          private_view->put(i, s);
+          public_map->put(i, s);
+          private_map->put(i, s);
 
           REQUIRE(tx.commit() == kv::CommitSuccess::OK);
         }
@@ -169,8 +160,9 @@ TEST_CASE("StateCache")
     });
 
   constexpr size_t buffer_size = 1 << 12;
+  auto buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  ringbuffer::Reader rr(buffer->bd);
 
-  ringbuffer::Reader rr(buffer_size);
   auto rw = std::make_shared<ringbuffer::Writer>(rr);
   ccf::historical::StateCache cache(store, rw);
 
@@ -256,32 +248,29 @@ TEST_CASE("StateCache")
     REQUIRE(store_at_index != nullptr);
 
     {
-      auto& public_table = *store_at_index->get<NumToString>("public");
-      auto& private_table = *store_at_index->get<NumToString>("private");
-
-      kv::Tx tx;
-      auto [public_view, private_view] =
-        tx.get_view(public_table, private_table);
+      auto tx = store_at_index->create_tx();
+      auto public_map = tx.rw<NumToString>("public:data");
+      auto private_map = tx.rw<NumToString>("data");
 
       const auto k = high_index - 1;
       const auto v = std::to_string(k);
 
-      auto public_v = public_view->get(k);
+      auto public_v = public_map->get(k);
       REQUIRE(public_v.has_value());
       REQUIRE(*public_v == v);
 
-      auto private_v = private_view->get(k);
+      auto private_v = private_map->get(k);
       REQUIRE(private_v.has_value());
       REQUIRE(*private_v == v);
 
       size_t public_count = 0;
-      public_view->foreach([&public_count](const auto& k, const auto& v) {
+      public_map->foreach([&public_count](const auto& k, const auto& v) {
         REQUIRE(public_count++ == 0);
         return true;
       });
 
       size_t private_count = 0;
-      private_view->foreach([&private_count](const auto& k, const auto& v) {
+      private_map->foreach([&private_count](const auto& k, const auto& v) {
         REQUIRE(private_count++ == 0);
         return true;
       });
@@ -304,5 +293,19 @@ TEST_CASE("StateCache")
       result = cache.handle_ledger_entry(
         unsigned_index, ledger[high_signature_transaction]));
     REQUIRE(!result);
+  }
+
+  {
+    INFO("Signature transactions can be requested");
+    for (const auto i : {low_signature_transaction, high_signature_transaction})
+    {
+      auto store_at_index = cache.get_store_at(i);
+      REQUIRE(store_at_index == nullptr);
+
+      REQUIRE(provide_ledger_entry(i));
+
+      store_at_index = cache.get_store_at(i);
+      REQUIRE(store_at_index != nullptr);
+    }
   }
 }

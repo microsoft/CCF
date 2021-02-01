@@ -1,0 +1,327 @@
+{
+  "endpoints": {
+    "/jwt": {
+      "get": {
+        "js_module": "src/endpoints/jwt.js",
+        "js_function": "jwt",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": [],
+        "readonly": true,
+        "openapi": {
+          "responses": {
+            "200": {
+              "description": "Ok",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "userId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["userId"],
+                    "type": "object",
+                    "additionalProperties": false
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthorized",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "msg": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["msg"],
+                    "type": "object",
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "security": [],
+          "parameters": []
+        }
+      }
+    },
+    "/crypto": {
+      "get": {
+        "js_module": "src/endpoints/crypto.js",
+        "js_function": "crypto",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "readonly": true,
+        "openapi": {
+          "responses": {
+            "200": {
+              "description": "Ok",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "available": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": ["available"],
+                    "type": "object",
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "security": [],
+          "parameters": []
+        }
+      }
+    },
+    "/generateAesKey": {
+      "post": {
+        "js_module": "src/endpoints/crypto.js",
+        "js_function": "generateAesKey",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "readonly": true,
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "size": {
+                      "type": "number"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "content": {
+                "application/octet-stream": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wrapKeyRsaOaep": {
+      "post": {
+        "js_module": "src/endpoints/crypto.js",
+        "js_function": "wrapKeyRsaOaep",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "readonly": true,
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "wrappingKey": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "content": {
+                "application/octet-stream": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/partition": {
+      "post": {
+        "js_module": "src/endpoints/partition.js",
+        "js_function": "partition",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "readonly": false,
+        "openapi": {
+          "responses": {
+            "200": {
+              "description": "Ok",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "items": {
+                      "type": "array"
+                    },
+                    "type": "array"
+                  }
+                }
+              }
+            }
+          },
+          "security": [],
+          "parameters": [],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/proto": {
+      "post": {
+        "js_module": "src/endpoints/proto.js",
+        "js_function": "proto",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "readonly": false,
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "text/plain": {}
+            }
+          },
+          "responses": {
+            "200": {
+              "content": {
+                "application/x-protobuf": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/log": {
+      "get": {
+        "js_module": "src/endpoints/log.js",
+        "js_function": "getLogItem",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "readonly": false,
+        "openapi": {
+          "responses": {
+            "200": {
+              "description": "Ok",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "id": {
+                        "type": "number"
+                      },
+                      "msg": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "js_module": "src/endpoints/log.js",
+        "js_function": "setLogItem",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "readonly": false,
+        "openapi": {
+          "responses": {
+            "200": {
+              "description": "Ok",
+              "content": {
+                "application/json": {
+                  "schema": {}
+                }
+              }
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "msg": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/log/all": {
+      "get": {
+        "js_module": "src/endpoints/log.js",
+        "js_function": "getAllLogItems",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "readonly": false,
+        "openapi": {
+          "responses": {
+            "200": {
+              "description": "Ok",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "array",
+                    "items": {
+                      "properties": {
+                        "id": {
+                          "type": "number"
+                        },
+                        "msg": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

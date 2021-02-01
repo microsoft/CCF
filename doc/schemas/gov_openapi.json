@@ -14,11 +14,11 @@
       },
       "CodeStatus": {
         "enum": [
-          "ACCEPTED",
-          "RETIRED"
-        ]
+          "ALLOWED_TO_JOIN"
+        ],
+        "type": "string"
       },
-      "EndpointMetrics__Metric": {
+      "EndpointMetrics__Entry": {
         "properties": {
           "calls": {
             "$ref": "#/components/schemas/uint64"
@@ -28,19 +28,33 @@
           },
           "failures": {
             "$ref": "#/components/schemas/uint64"
+          },
+          "method": {
+            "$ref": "#/components/schemas/string"
+          },
+          "path": {
+            "$ref": "#/components/schemas/string"
           }
         },
         "required": [
+          "path",
+          "method",
           "calls",
           "errors",
           "failures"
         ],
         "type": "object"
       },
+      "EndpointMetrics__Entry_array": {
+        "items": {
+          "$ref": "#/components/schemas/EndpointMetrics__Entry"
+        },
+        "type": "array"
+      },
       "EndpointMetrics__Out": {
         "properties": {
           "metrics": {
-            "$ref": "#/components/schemas/named_named_EndpointMetrics__Metric"
+            "$ref": "#/components/schemas/EndpointMetrics__Entry_array"
           }
         },
         "required": [
@@ -95,158 +109,6 @@
         ],
         "type": "object"
       },
-      "GetEncryptedRecoveryShare": {
-        "properties": {
-          "encrypted_recovery_share": {
-            "$ref": "#/components/schemas/string"
-          },
-          "nonce": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "encrypted_recovery_share",
-          "nonce"
-        ],
-        "type": "object"
-      },
-      "GetMetrics__HistogramResults": {
-        "properties": {
-          "buckets": {
-            "$ref": "#/components/schemas/json"
-          },
-          "high": {
-            "$ref": "#/components/schemas/int32"
-          },
-          "low": {
-            "$ref": "#/components/schemas/int32"
-          },
-          "overflow": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "underflow": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "low",
-          "high",
-          "overflow",
-          "underflow",
-          "buckets"
-        ],
-        "type": "object"
-      },
-      "GetMetrics__Out": {
-        "properties": {
-          "histogram": {
-            "$ref": "#/components/schemas/GetMetrics__HistogramResults"
-          },
-          "tx_rates": {
-            "$ref": "#/components/schemas/json"
-          }
-        },
-        "required": [
-          "histogram",
-          "tx_rates"
-        ],
-        "type": "object"
-      },
-      "GetNetworkInfo__NodeInfo": {
-        "properties": {
-          "host": {
-            "$ref": "#/components/schemas/string"
-          },
-          "node_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "port": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "node_id",
-          "host",
-          "port"
-        ],
-        "type": "object"
-      },
-      "GetNetworkInfo__NodeInfo_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo"
-        },
-        "type": "array"
-      },
-      "GetNetworkInfo__Out": {
-        "properties": {
-          "nodes": {
-            "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo_array"
-          },
-          "primary_id": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "nodes",
-          "primary_id"
-        ],
-        "type": "object"
-      },
-      "GetNodesByRPCAddress__NodeInfo": {
-        "properties": {
-          "node_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "status": {
-            "$ref": "#/components/schemas/NodeStatus"
-          }
-        },
-        "required": [
-          "node_id",
-          "status"
-        ],
-        "type": "object"
-      },
-      "GetNodesByRPCAddress__NodeInfo_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo"
-        },
-        "type": "array"
-      },
-      "GetNodesByRPCAddress__Out": {
-        "properties": {
-          "nodes": {
-            "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo_array"
-          }
-        },
-        "required": [
-          "nodes"
-        ],
-        "type": "object"
-      },
-      "GetPrimaryInfo__Out": {
-        "properties": {
-          "current_view": {
-            "$ref": "#/components/schemas/int64"
-          },
-          "primary_host": {
-            "$ref": "#/components/schemas/string"
-          },
-          "primary_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "primary_port": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "primary_id",
-          "primary_host",
-          "primary_port",
-          "current_view"
-        ],
-        "type": "object"
-      },
       "GetReceipt__Out": {
         "properties": {
           "receipt": {
@@ -258,18 +120,14 @@
         ],
         "type": "object"
       },
-      "GetSchema__Out": {
+      "GetRecoveryShare__Out": {
         "properties": {
-          "params_schema": {
-            "$ref": "#/components/schemas/json_schema"
-          },
-          "result_schema": {
-            "$ref": "#/components/schemas/json_schema"
+          "encrypted_share": {
+            "$ref": "#/components/schemas/string"
           }
         },
         "required": [
-          "params_schema",
-          "result_schema"
+          "encrypted_share"
         ],
         "type": "object"
       },
@@ -298,28 +156,6 @@
           "key"
         ],
         "type": "object"
-      },
-      "MemberAck": {
-        "properties": {
-          "signed_req": {
-            "$ref": "#/components/schemas/SignedReq"
-          },
-          "state_digest": {
-            "$ref": "#/components/schemas/uint8_array"
-          }
-        },
-        "required": [
-          "state_digest",
-          "signed_req"
-        ],
-        "type": "object"
-      },
-      "NodeStatus": {
-        "enum": [
-          "PENDING",
-          "TRUSTED",
-          "RETIRED"
-        ]
       },
       "Proposal": {
         "properties": {
@@ -351,7 +187,7 @@
       "ProposalInfo": {
         "properties": {
           "proposal_id": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/string"
           },
           "proposer_id": {
             "$ref": "#/components/schemas/uint64"
@@ -374,13 +210,11 @@
           "WITHDRAWN",
           "REJECTED",
           "FAILED"
-        ]
+        ],
+        "type": "string"
       },
       "Propose__In": {
         "properties": {
-          "ballot": {
-            "$ref": "#/components/schemas/Script"
-          },
           "parameter": {
             "$ref": "#/components/schemas/json"
           },
@@ -404,37 +238,36 @@
         },
         "type": "object"
       },
-      "SignedReq": {
-        "properties": {
-          "md": {
-            "$ref": "#/components/schemas/mbedtls_md_type_t"
-          },
-          "req": {
-            "$ref": "#/components/schemas/uint8_array"
-          },
-          "request_body": {
-            "$ref": "#/components/schemas/uint8_array"
-          },
-          "sig": {
-            "$ref": "#/components/schemas/uint8_array"
-          }
-        },
-        "required": [
-          "sig",
-          "req",
-          "request_body",
-          "md"
-        ],
-        "type": "object"
-      },
       "StateDigest": {
         "properties": {
           "state_digest": {
-            "$ref": "#/components/schemas/uint8_array"
+            "$ref": "#/components/schemas/string"
           }
         },
         "required": [
           "state_digest"
+        ],
+        "type": "object"
+      },
+      "SubmitRecoveryShare__In": {
+        "properties": {
+          "share": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "share"
+        ],
+        "type": "object"
+      },
+      "SubmitRecoveryShare__Out": {
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "message"
         ],
         "type": "object"
       },
@@ -444,7 +277,8 @@
           "PENDING",
           "COMMITTED",
           "INVALID"
-        ]
+        ],
+        "type": "string"
       },
       "VerifyReceipt__In": {
         "properties": {
@@ -482,41 +316,12 @@
       "boolean": {
         "type": "boolean"
       },
-      "int32": {
-        "maximum": 2147483647,
-        "minimum": -2147483648,
-        "type": "integer"
-      },
       "int64": {
         "maximum": 9223372036854775807,
         "minimum": -9223372036854775808,
         "type": "integer"
       },
       "json": {},
-      "json_schema": {
-        "type": "object"
-      },
-      "mbedtls_md_type_t": {
-        "enum": [
-          "MBEDTLS_MD_NONE",
-          "MBEDTLS_MD_SHA1",
-          "MBEDTLS_MD_SHA256",
-          "MBEDTLS_MD_SHA384",
-          "MBEDTLS_MD_SHA512"
-        ]
-      },
-      "named_EndpointMetrics__Metric": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/EndpointMetrics__Metric"
-        },
-        "type": "object"
-      },
-      "named_named_EndpointMetrics__Metric": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/named_EndpointMetrics__Metric"
-        },
-        "type": "object"
-      },
       "string": {
         "type": "string"
       },
@@ -527,14 +332,18 @@
       },
       "uint64_to_Script": {
         "items": {
-          "items": [
-            {
-              "$ref": "#/components/schemas/uint64"
-            },
-            {
-              "$ref": "#/components/schemas/Script"
-            }
-          ],
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/uint64"
+              },
+              {
+                "$ref": "#/components/schemas/Script"
+              }
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
           "type": "array"
         },
         "type": "array"
@@ -549,6 +358,18 @@
           "$ref": "#/components/schemas/uint8"
         },
         "type": "array"
+      }
+    },
+    "securitySchemes": {
+      "member_signature": {
+        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a member identity registered with this service.",
+        "scheme": "signature",
+        "type": "http"
+      },
+      "user_signature": {
+        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a user identity registered with this service.",
+        "scheme": "signature",
+        "type": "http"
       }
     }
   },
@@ -572,17 +393,15 @@
           "description": "Auto-generated request body schema"
         },
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/boolean"
-                }
-              }
-            },
+          "204": {
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/ack/update_state_digest": {
@@ -592,13 +411,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MemberAck"
+                  "$ref": "#/components/schemas/StateDigest"
                 }
               }
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/api": {
@@ -617,24 +441,14 @@
         }
       }
     },
-    "/api/schema": {
+    "/api/metrics": {
       "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "method",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetSchema__Out"
+                  "$ref": "#/components/schemas/EndpointMetrics__Out"
                 }
               }
             },
@@ -667,22 +481,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetCommit__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/endpoint_metrics": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EndpointMetrics__Out"
                 }
               }
             },
@@ -729,88 +527,6 @@
         }
       }
     },
-    "/metrics": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetMetrics__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/network_info": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetNetworkInfo__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/node/ids": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "host",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "port",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetNodesByRPCAddress__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/primary_info": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetPrimaryInfo__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
     "/proposals": {
       "post": {
         "requestBody": {
@@ -834,7 +550,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/proposals/{proposal_id}": {
@@ -850,7 +571,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       },
       "parameters": [
         {
@@ -862,32 +588,6 @@
           }
         }
       ]
-    },
-    "/proposals/{proposal_id}/complete": {
-      "parameters": [
-        {
-          "in": "path",
-          "name": "proposal_id",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        }
-      ],
-      "post": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProposalInfo"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
     },
     "/proposals/{proposal_id}/votes": {
       "parameters": [
@@ -922,7 +622,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/proposals/{proposal_id}/votes/{member_id}": {
@@ -938,7 +643,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       },
       "parameters": [
         {
@@ -982,7 +692,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/query": {
@@ -1008,7 +723,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/read": {
@@ -1034,7 +754,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/receipt": {
@@ -1098,22 +823,25 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetEncryptedRecoveryShare"
+                  "$ref": "#/components/schemas/GetRecoveryShare__Out"
                 }
               }
             },
             "description": "Default response description"
           }
-        }
-      }
-    },
-    "/recovery_share/submit": {
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
+      },
       "post": {
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/string"
+                "$ref": "#/components/schemas/SubmitRecoveryShare__In"
               }
             }
           },
@@ -1124,13 +852,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/string"
+                  "$ref": "#/components/schemas/SubmitRecoveryShare__Out"
                 }
               }
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/tx": {
@@ -1179,12 +912,7 @@
             "name": "cert",
             "required": false,
             "schema": {
-              "items": {
-                "maximum": 255,
-                "minimum": 0,
-                "type": "integer"
-              },
-              "type": "array"
+              "type": "string"
             }
           }
         ],
@@ -1199,7 +927,15 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "user_signature": []
+          },
+          {
+            "member_signature": []
+          }
+        ]
       }
     }
   },

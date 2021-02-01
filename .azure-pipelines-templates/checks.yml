@@ -1,14 +1,18 @@
 jobs:
-- job: Checks
-  displayName: 'Formatting, License and Lint Checks'
+  - job: Checks
+    displayName: "Formatting, License and Lint Checks"
 
-  ${{ insert }}: ${{ parameters.env }}
+    ${{ insert }}: ${{ parameters.env }}
 
-  steps:
-    - checkout: self
-      clean: true
-      submodules: true
+    steps:
+      - checkout: self
+        clean: true
+        submodules: true
 
-    - script: ./scripts/ci-checks.sh
-      displayName: 'Checks'
-      condition: succeededOrFailed()
+      - script: ./scripts/ci-checks.sh
+        displayName: "Checks"
+        condition: succeededOrFailed()
+
+      - script: python3.8 scripts/extract-release-notes.py /dev/null
+        displayName: "Check presence of release notes entry"
+        condition: eq('${{ parameters.perf_or_release }}', 'release')

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "logger_formatters.h"
 #include "ring_buffer.h"
 #include "thread_ids.h"
 
@@ -273,9 +274,9 @@ namespace logger
     // offsets to host time when logging from inside the enclave
     static std::atomic<std::chrono::milliseconds> ms;
 
-    static void tick(std::chrono::milliseconds ms_)
+    static void set_time(std::chrono::milliseconds ms_)
     {
-      ms.exchange(ms.load() + ms_);
+      ms.exchange(ms_);
     }
 
     static std::chrono::milliseconds elapsed_ms()
@@ -507,28 +508,47 @@ namespace logger
   // This allows:
   // LOG_DEBUG << "info" << std::endl;
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+
 #define LOG_TRACE \
   logger::config::ok(logger::TRACE) && \
     logger::Out() == logger::LogLine(logger::TRACE, __FILE__, __LINE__)
-#define LOG_TRACE_FMT(...) LOG_TRACE << fmt::format(__VA_ARGS__) << std::endl
+#define LOG_TRACE_FMT(s, ...) \
+  LOG_TRACE << fmt::format(FMT_STRING(s), ##__VA_ARGS__) << std::endl
 
 #define LOG_DEBUG \
   logger::config::ok(logger::DEBUG) && \
     logger::Out() == logger::LogLine(logger::DEBUG, __FILE__, __LINE__)
-#define LOG_DEBUG_FMT(...) LOG_DEBUG << fmt::format(__VA_ARGS__) << std::endl
+#define LOG_DEBUG_FMT(s, ...) \
+  LOG_DEBUG << fmt::format(FMT_STRING(s), ##__VA_ARGS__) << std::endl
 
 #define LOG_INFO \
   logger::config::ok(logger::INFO) && \
     logger::Out() == logger::LogLine(logger::INFO, __FILE__, __LINE__)
-#define LOG_INFO_FMT(...) LOG_INFO << fmt::format(__VA_ARGS__) << std::endl
+#define LOG_INFO_FMT(s, ...) \
+  LOG_INFO << fmt::format(FMT_STRING(s), ##__VA_ARGS__) << std::endl
 
 #define LOG_FAIL \
   logger::config::ok(logger::FAIL) && \
     logger::Out() == logger::LogLine(logger::FAIL, __FILE__, __LINE__)
-#define LOG_FAIL_FMT(...) LOG_FAIL << fmt::format(__VA_ARGS__) << std::endl
+#define LOG_FAIL_FMT(s, ...) \
+  LOG_FAIL << fmt::format(FMT_STRING(s), ##__VA_ARGS__) << std::endl
 
 #define LOG_FATAL \
   logger::config::ok(logger::FATAL) && \
     logger::Out() == logger::LogLine(logger::FATAL, __FILE__, __LINE__)
-#define LOG_FATAL_FMT(...) LOG_FATAL << fmt::format(__VA_ARGS__) << std::endl
+#define LOG_FATAL_FMT(s, ...) \
+  LOG_FATAL << fmt::format(FMT_STRING(s), ##__VA_ARGS__) << std::endl
+
+// Convenient wrapper to report exception errors. Exception message is only
+// displayed in debug mode
+#define LOG_FAIL_EXC(msg) \
+  do \
+  { \
+    LOG_FAIL_FMT("Exception in {}", __PRETTY_FUNCTION__); \
+    LOG_DEBUG_FMT("Error: {}", msg); \
+  } while (0)
+
+#pragma clang diagnostic pop
 }

@@ -1,17 +1,13 @@
-import { nodeResolve } from '@rollup/plugin-node-resolve';
-import commonjs from '@rollup/plugin-commonjs';
-import typescript from '@rollup/plugin-typescript';
+import { nodeResolve } from "@rollup/plugin-node-resolve";
+import commonjs from "@rollup/plugin-commonjs";
+import typescript from "@rollup/plugin-typescript";
 
 export default {
-  input: 'src/endpoints.ts',
+  input: "src/endpoints/all.ts",
   output: {
-    dir: 'dist',
-    format: 'es',
-    preserveModules: true
+    dir: "dist/src",
+    format: "es",
+    preserveModules: true,
   },
-  plugins: [
-    nodeResolve(),
-    typescript(),
-    commonjs(),
-  ]
+  plugins: [nodeResolve(), typescript(), commonjs()],
 };

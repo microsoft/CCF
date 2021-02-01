@@ -22,6 +22,18 @@ class TestStatus(Enum):
     skipped = 3
 
 
+def mem_stats(network):
+    mem = {}
+    for node in network.get_joined_nodes():
+        try:
+            with node.client() as c:
+                r = c.get("/node/memory", 0.1)
+                mem[node.node_id] = r.body.json()
+        except Exception:
+            pass
+    return mem
+
+
 def run(args):
 
     chosen_suite = []
@@ -49,10 +61,9 @@ def run(args):
     if args.enforce_reqs is False:
         LOG.warning("Test requirements will be ignored")
 
-    hosts = ["localhost", "localhost"]
     txs = app.LoggingTxs()
     network = infra.network.Network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, txs=txs
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, txs=txs
     )
     network.start_and_join(args)
 
@@ -96,6 +107,7 @@ def run(args):
             "name": s.test_name(test),
             "status": status.name,
             "elapsed (s)": round(test_elapsed, 2),
+            "memory": mem_stats(new_network),
         }
 
         if reason is not None:
@@ -108,7 +120,6 @@ def run(args):
         # If the network was changed (e.g. recovery test), stop the previous network
         # and use the new network from now on
         if new_network != network:
-            network.stop_all_nodes()
             network = new_network
 
         LOG.debug(f"Test {s.test_name(test)} took {test_elapsed:.2f} secs")
@@ -158,6 +169,7 @@ if __name__ == "__main__":
         )
 
     args = infra.e2e_args.cli_args(add)
-    args.package = args.app_script and "liblua_generic" or "liblogging"
-
+    args.package = "liblogging"
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    args.initial_user_count = 3
     run(args)

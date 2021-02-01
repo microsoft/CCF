@@ -1,85 +1,25 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import http
+import re
 
 import infra.e2e_args
 import infra.network
 import infra.consortium
 import ccf.proposal_generator
 from infra.proposal import ProposalState
-import random
 
 import suite.test_requirements as reqs
 
 from loguru import logger as LOG
 
 
-@reqs.description("Set recovery threshold")
-def test_set_recovery_threshold(network, args, recovery_threshold=None):
-    if recovery_threshold is None:
-        # If the recovery threshold is not specified, a new threshold is
-        # randomly selected based on the number of active members. The new
-        # recovery threshold is guaranteed to be different from the
-        # previous one.
-        list_recovery_threshold = list(
-            range(1, len(network.consortium.get_active_members()) + 1)
-        )
-        list_recovery_threshold.remove(network.consortium.recovery_threshold)
-        recovery_threshold = random.choice(list_recovery_threshold)
-
-    primary, _ = network.find_primary()
-    network.consortium.set_recovery_threshold(primary, recovery_threshold)
-    LOG.info(f"Recovery threshold is now {recovery_threshold}")
-
-    return network
-
-
-@reqs.description("Add a new member to the consortium (+ activation)")
-def test_add_member(network, args):
-    primary, _ = network.find_primary()
-
-    new_member = network.consortium.generate_and_add_new_member(
-        primary, curve=infra.network.ParticipantsCurve(args.participants_curve).next()
-    )
-
-    try:
-        new_member.get_and_decrypt_recovery_share(
-            primary, network.store_current_network_encryption_key()
-        )
-        assert False, "New accepted members are not given recovery shares"
-    except infra.member.NoRecoveryShareFound as e:
-        assert e.response.body.text() == "Only active members are given recovery shares"
-
-    new_member.ack(primary)
-
-    return network
-
-
-@reqs.description("Retire an existing member")
-@reqs.sufficient_member_count()
-def test_retire_member(network, args, member_to_retire=None):
-    primary, _ = network.find_primary()
-
-    if member_to_retire is None:
-        member_to_retire = network.consortium.get_any_active_member()
-    network.consortium.retire_member(primary, member_to_retire)
-
-    return network
-
-
-@reqs.description("Issue new recovery shares (without re-key)")
-def test_update_recovery_shares(network, args):
-    primary, _ = network.find_primary()
-    network.consortium.update_recovery_shares(primary)
-    return network
-
-
 @reqs.description("Send an unsigned request where signature is required")
-def test_missing_signature(network, args):
+def test_missing_signature_header(network, args):
     primary, _ = network.find_primary()
     member = network.consortium.get_any_active_member()
     with primary.client(f"member{member.member_id}") as mc:
-        r = mc.post("/gov/proposals", signed=False)
+        r = mc.post("/gov/proposals")
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
         www_auth = "www-authenticate"
         assert www_auth in r.headers, r.headers
@@ -99,52 +39,88 @@ def test_missing_signature(network, args):
     return network
 
 
-def assert_recovery_shares_update(func, network, args, **kwargs):
+def make_signature_corrupter(fn):
+    class SignatureCorrupter(ccf.clients.HTTPSignatureAuth_AlwaysDigest):
+        def __call__(self, request):
+            r = super(SignatureCorrupter, self).__call__(request)
+            return fn(r)
+
+    return SignatureCorrupter
+
+
+signature_regex = 'signature="([^"]*)",'
+
+
+def missing_signature(request):
+    original = request.headers["Authorization"]
+    request.headers["Authorization"] = re.sub(signature_regex, "", original)
+    return request
+
+
+def empty_signature(request):
+    original = request.headers["Authorization"]
+    request.headers["Authorization"] = re.sub(
+        signature_regex, 'signature="",', original
+    )
+    return request
+
+
+def modified_signature(request):
+    original = request.headers["Authorization"]
+    s = re.search(signature_regex, original).group(1)
+    index = len(s) // 3
+    char = s[index]
+    new_char = "B" if char == "A" else "A"
+    new_s = s[:index] + new_char + s[index + 1 :]
+    request.headers["Authorization"] = re.sub(
+        signature_regex, f'signature="{new_s}",', original
+    )
+    return request
+
+
+@reqs.description("Send a corrupted signature where signed request is required")
+def test_corrupted_signature(network, args):
     primary, _ = network.find_primary()
 
-    recovery_threshold_before = network.consortium.recovery_threshold
-    active_members_before = network.consortium.get_active_members()
-    network.store_current_network_encryption_key()
-    already_active_member = network.consortium.get_any_active_member()
-    defunct_network_enc_pubk = network.store_current_network_encryption_key()
-    saved_share = already_active_member.get_and_decrypt_recovery_share(
-        primary, defunct_network_enc_pubk
-    )
-
-    if func is test_retire_member:
-        # When retiring a member, the active member which retrieved their share
-        # should not be retired for them to be able to compare their share afterwards.
-        member_to_retire = [
-            m
-            for m in network.consortium.get_active_members()
-            if m is not already_active_member
-        ][0]
-        func(network, args, member_to_retire)
-    elif func is test_set_recovery_threshold and "recovery_threshold" in kwargs:
-        func(network, args, recovery_threshold=kwargs["recovery_threshold"])
-    else:
-        func(network, args)
-
-    if (
-        recovery_threshold_before != network.consortium.recovery_threshold
-        or active_members_before != network.consortium.get_active_members
-    ):
-        new_share = already_active_member.get_and_decrypt_recovery_share(
-            primary, defunct_network_enc_pubk
+    # Test each supported curve
+    for curve in infra.network.ParticipantsCurve:
+        LOG.info(f"Testing curve: {curve.name}")
+        # Add a member so we have at least one on this curve
+        member = network.consortium.generate_and_add_new_member(
+            primary,
+            curve=curve,
         )
-        assert saved_share != new_share, "New recovery shares should have been issued"
+
+        with primary.client(*member.auth(write=True)) as mc:
+            # pylint: disable=protected-access
+
+            # Cache the original auth provider
+            original_auth = ccf.clients.RequestClient._auth_provider
+
+            # Override the auth provider with invalid ones
+            for fn in (missing_signature, empty_signature, modified_signature):
+                ccf.clients.RequestClient._auth_provider = make_signature_corrupter(fn)
+                r = mc.post("/gov/proposals")
+                assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+
+            # Restore original auth provider for future calls!
+            ccf.clients.RequestClient._auth_provider = original_auth
+
+        # Remove the new member once we're done with them
+        network.consortium.retire_member(primary, member)
+
+    return network
 
 
 def run(args):
-    hosts = ["localhost"] * (4 if args.consensus == "bft" else 2)
-
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
         primary, _ = network.find_primary()
 
-        network = test_missing_signature(network, args)
+        network = test_missing_signature_header(network, args)
+        network = test_corrupted_signature(network, args)
 
         LOG.info("Original members can ACK")
         network.consortium.get_any_active_member().ack(primary)
@@ -159,6 +135,7 @@ def run(args):
         (
             new_member_proposal,
             new_member,
+            careful_vote,
         ) = network.consortium.generate_and_propose_new_member(
             remote_node=primary,
             curve=infra.network.ParticipantsCurve(args.participants_curve).next(),
@@ -174,7 +151,9 @@ def run(args):
         assert proposal_entry.state == ProposalState.Open
 
         LOG.info("Rest of consortium accept the proposal")
-        network.consortium.vote_using_majority(primary, new_member_proposal)
+        network.consortium.vote_using_majority(
+            primary, new_member_proposal, careful_vote
+        )
         assert new_member_proposal.state == ProposalState.Accepted
 
         # Manually add new member to consortium
@@ -186,25 +165,13 @@ def run(args):
         params_error = http.HTTPStatus.BAD_REQUEST.value
         assert (
             network.consortium.get_member_by_id(0)
-            .vote(primary, new_member_proposal, accept=True)
-            .status_code
-            == params_error
-        )
-        assert (
-            network.consortium.get_member_by_id(0)
-            .vote(primary, new_member_proposal, accept=False)
+            .vote(primary, new_member_proposal, careful_vote)
             .status_code
             == params_error
         )
         assert (
             network.consortium.get_member_by_id(1)
-            .vote(primary, new_member_proposal, accept=True)
-            .status_code
-            == params_error
-        )
-        assert (
-            network.consortium.get_member_by_id(1)
-            .vote(primary, new_member_proposal, accept=False)
+            .vote(primary, new_member_proposal, careful_vote)
             .status_code
             == params_error
         )
@@ -216,11 +183,9 @@ def run(args):
         assert response.status_code == params_error
 
         LOG.info("New non-active member should get insufficient rights response")
-        proposal_trust_0, careful_vote = ccf.proposal_generator.trust_node(
-            0, vote_against=True
-        )
         try:
-            new_member.propose(primary, proposal_trust_0, has_proposer_voted_for=False)
+            proposal_trust_0, careful_vote = ccf.proposal_generator.trust_node(0)
+            new_member.propose(primary, proposal_trust_0)
             assert (
                 False
             ), "New non-active member should get insufficient rights response"
@@ -231,17 +196,17 @@ def run(args):
         new_member.ack(primary)
 
         LOG.info("New member is now active and send an accept node proposal")
-        trust_node_proposal_0 = new_member.propose(
-            primary, proposal_trust_0, has_proposer_voted_for=False
-        )
+        trust_node_proposal_0 = new_member.propose(primary, proposal_trust_0)
         trust_node_proposal_0.vote_for = careful_vote
 
         LOG.debug("Members vote to accept the accept node proposal")
-        network.consortium.vote_using_majority(primary, trust_node_proposal_0)
+        network.consortium.vote_using_majority(
+            primary, trust_node_proposal_0, careful_vote
+        )
         assert trust_node_proposal_0.state == infra.proposal.ProposalState.Accepted
 
-        LOG.info("New member makes a new proposal, with initial no vote")
-        proposal_trust_1, _ = ccf.proposal_generator.trust_node(1)
+        LOG.info("New member makes a new proposal")
+        proposal_trust_1, careful_vote = ccf.proposal_generator.trust_node(1)
         trust_node_proposal = new_member.propose(primary, proposal_trust_1)
 
         LOG.debug("Other members (non proposer) are unable to withdraw new proposal")
@@ -268,79 +233,12 @@ def run(args):
         assert response.status_code == params_error
 
         LOG.debug("Further votes fail")
-        response = new_member.vote(primary, trust_node_proposal, accept=True)
+        response = new_member.vote(primary, trust_node_proposal, careful_vote)
         assert response.status_code == params_error
-
-        response = new_member.vote(primary, trust_node_proposal, accept=False)
-        assert response.status_code == params_error
-
-        # Membership changes trigger re-sharing and re-keying and are
-        # only supported with Raft
-        if args.consensus == "cft":
-            LOG.debug("New member proposes to retire member 0")
-            network.consortium.retire_member(
-                primary, network.consortium.get_member_by_id(0)
-            )
-
-            LOG.debug("Retired member cannot make a new proposal")
-            try:
-                response = network.consortium.get_member_by_id(0).propose(
-                    primary, proposal_trust_0
-                )
-                assert False, "Retired member cannot make a new proposal"
-            except infra.proposal.ProposalNotCreated as e:
-                assert e.response.status_code == http.HTTPStatus.FORBIDDEN.value
-                assert e.response.body.text() == "Member is not active"
-
-            LOG.debug("New member should still be able to make a new proposal")
-            new_proposal = new_member.propose(primary, proposal_trust_0)
-            assert new_proposal.state == ProposalState.Open
-
-            LOG.info(
-                "Recovery threshold is originally set to the original number of members"
-            )
-            LOG.info("Retiring a member should not be possible")
-            try:
-                assert_recovery_shares_update(test_retire_member, network, args)
-                assert False, "Retiring a member should not be possible"
-            except infra.proposal.ProposalNotAccepted as e:
-                assert e.proposal.state == infra.proposal.ProposalState.Failed
-
-            assert_recovery_shares_update(test_add_member, network, args)
-            assert_recovery_shares_update(test_retire_member, network, args)
-
-        LOG.info("Set different recovery thresholds")
-        assert_recovery_shares_update(
-            test_set_recovery_threshold, network, args, recovery_threshold=1
-        )
-        test_set_recovery_threshold(
-            network,
-            args,
-            recovery_threshold=network.consortium.recovery_threshold,
-        )
-
-        LOG.info(
-            "Setting the recovery threshold above the number of active members is not possible"
-        )
-        try:
-            test_set_recovery_threshold(
-                network,
-                args,
-                recovery_threshold=len(network.consortium.get_active_members()) + 1,
-            )
-        except infra.proposal.ProposalNotAccepted as e:
-            assert e.proposal.state == infra.proposal.ProposalState.Failed
 
 
 if __name__ == "__main__":
-
-    def add(parser):
-        parser.add_argument(
-            "-p",
-            "--package",
-            help="The enclave package to load (e.g., liblogging)",
-            default="liblogging",
-        )
-
-    args = infra.e2e_args.cli_args(add)
+    args = infra.e2e_args.cli_args()
+    args.package = "liblogging"
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
     run(args)

@@ -11,30 +11,54 @@ from loguru import logger as LOG
 
 @reqs.description("Recovering a network")
 @reqs.recover(number_txs=2)
-def test(network, args):
-    primary, _ = network.find_primary()
-    ledger = primary.get_ledger()
-    defunct_network_enc_pubk = network.store_current_network_encryption_key()
+def test(network, args, from_snapshot=False):
+    old_primary, _ = network.find_primary()
+
+    snapshot_dir = None
+    if from_snapshot:
+        snapshot_dir = network.get_committed_snapshots(old_primary)
+    current_ledger_dir, committed_ledger_dir = old_primary.get_ledger(
+        include_read_only_dirs=True
+    )
+
+    network.stop_all_nodes()
 
     recovered_network = infra.network.Network(
-        network.hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, network
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
-    recovered_network.start_in_recovery(args, ledger)
-    recovered_network.recover(args, defunct_network_enc_pubk)
+    recovered_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dir=committed_ledger_dir,
+        snapshot_dir=snapshot_dir,
+    )
+    recovered_network.recover(args)
     return recovered_network
 
 
 @reqs.description("Recovering a network, kill one node while submitting shares")
 @reqs.recover(number_txs=2)
-def test_share_resilience(network, args):
+def test_share_resilience(network, args, from_snapshot=False):
     old_primary, _ = network.find_primary()
-    ledger = old_primary.get_ledger()
-    defunct_network_enc_pubk = network.store_current_network_encryption_key()
+
+    snapshot_dir = None
+    if from_snapshot:
+        snapshot_dir = network.get_committed_snapshots(old_primary)
+    current_ledger_dir, committed_ledger_dir = old_primary.get_ledger(
+        include_read_only_dirs=True
+    )
+
+    network.stop_all_nodes()
 
     recovered_network = infra.network.Network(
-        network.hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, network
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
-    recovered_network.start_in_recovery(args, ledger)
+    recovered_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dir=committed_ledger_dir,
+        snapshot_dir=snapshot_dir,
+    )
     primary, _ = recovered_network.find_primary()
     recovered_network.consortium.accept_recovery(primary)
 
@@ -51,20 +75,9 @@ def test_share_resilience(network, args):
                 break
 
             check_commit = infra.checker.Checker(nc)
-            check_commit(
-                m.get_and_submit_recovery_share(primary, defunct_network_enc_pubk)
-            )
+            check_commit(m.get_and_submit_recovery_share(primary))
             submitted_shares_count += 1
 
-    # In theory, check_commit should be sufficient to guarantee that the new primary
-    # will know about all the recovery shares submitted so far. However, because of
-    # https://github.com/microsoft/CCF/issues/589, we have to wait for all nodes
-    # to have committed all transactions.
-    recovered_network.wait_for_all_nodes_to_catch_up(primary)
-
-    # Here, we kill the current primary instead of just suspending it.
-    # However, because of https://github.com/microsoft/CCF/issues/99#issuecomment-630875387,
-    # the new primary will most likely be the previous primary, which defies the point of this test.
     LOG.info(
         f"Shutting down node {primary.node_id} before submitting last recovery share"
     )
@@ -74,9 +87,7 @@ def test_share_resilience(network, args):
         new_primary is not primary
     ), f"Primary {primary.node_id} should have changed after election"
 
-    last_member_to_submit.get_and_submit_recovery_share(
-        new_primary, defunct_network_enc_pubk
-    )
+    last_member_to_submit.get_and_submit_recovery_share(new_primary)
 
     for node in recovered_network.get_joined_nodes():
         recovered_network.wait_for_state(
@@ -91,22 +102,27 @@ def test_share_resilience(network, args):
 
 
 def run(args):
-    hosts = ["localhost", "localhost", "localhost"]
-
     txs = app.LoggingTxs()
 
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb, txs=txs
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
     ) as network:
         network.start_and_join(args)
 
         for i in range(args.recovery):
-            # Alternate between recovery with primary change and stable primary-ship
+            # Alternate between recovery with primary change and stable primary-ship,
+            # with and without snapshots
             if i % 2 == 0:
-                recovered_network = test_share_resilience(network, args)
+                recovered_network = test_share_resilience(
+                    network, args, from_snapshot=True
+                )
             else:
-                recovered_network = test(network, args)
-            network.stop_all_nodes()
+                recovered_network = test(network, args, from_snapshot=False)
             network = recovered_network
             LOG.success("Recovery complete on all nodes")
 
@@ -133,5 +149,6 @@ checked. Note that the key for each logging message is unique (per table).
 
     args = infra.e2e_args.cli_args(add)
     args.package = "liblogging"
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
 
     run(args)

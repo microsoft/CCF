@@ -1,0 +1,28 @@
+pr:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - .stress.yml
+      - .stress-matrix.yml
+      - .azure-pipelines-templates/*
+
+trigger: none
+
+schedules:
+  - cron: "0 3 * * Mon-Fri"
+    displayName: Stress test build
+    branches:
+      include:
+        - master
+    always: true
+
+resources:
+  containers:
+    - container: sgx
+      image: ccfciteam/ccf-ci:oe0.13.0
+      options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
+
+jobs:
+  - template: .azure-pipelines-templates/stress-matrix.yml

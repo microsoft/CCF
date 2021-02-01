@@ -410,11 +410,14 @@ namespace std
 #    FIELD \
   }
 
-/** Defines from_json, to_json, fill_json_schema, and schema_name functions for
- * struct/class types, converting member fields to JSON elements. Missing
- * elements will cause errors to be raised. This assumes that from_json,
- * to_json, and fill_json_schema are implemented for each member field type,
- * either manually or through these macros.
+/** Defines from_json, to_json, fill_json_schema, schema_name, fill_json_schema,
+ * and add_schema_components functions for struct/class types, converting member
+ * fields to JSON elements and populating schema documents describing this
+ * transformation. Missing elements will cause errors to be raised. This assumes
+ * that from_json, to_json, are implemented for each member
+ * field type, either manually or through these macros. Additionally, you will
+ * schema_name, fill_json_schema, and add_schema_components to be defined for
+ * OpenAPI schema generation.
  * // clang-format off
  *  ie, the following must compile, for each foo in T:
  *    T t; nlohmann::json j, schema;
@@ -733,6 +736,7 @@ namespace std
       enums.push_back(p.second); \
     } \
     j["enum"] = enums; \
+    j["type"] = "string"; \
   }
 
 #pragma clang diagnostic pop

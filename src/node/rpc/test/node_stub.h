@@ -11,11 +11,8 @@ namespace ccf
   {
   private:
     bool is_public = false;
-    ShareManager& share_manager;
 
   public:
-    StubNodeState(ShareManager& share_manager) : share_manager(share_manager) {}
-
     bool accept_recovery(kv::Tx& tx) override
     {
       return true;
@@ -46,23 +43,22 @@ namespace ccf
       return false;
     }
 
+    bool is_verifying_snapshot() const override
+    {
+      return false;
+    }
+
     bool is_part_of_network() const override
     {
       return true;
     }
 
-    void node_quotes(
-      kv::ReadOnlyTx& tx,
-      GetQuotes::Out& result,
-      const std::optional<std::set<NodeId>>& filter) override
-    {}
-
     void initiate_private_recovery(kv::Tx& tx) override
     {
-      share_manager.restore_recovery_shares_info(tx, {});
+      throw std::logic_error("Unimplemented");
     }
 
-    kv::Version get_last_recovered_commit_idx() override
+    kv::Version get_last_recovered_signed_idx() override
     {
       return kv::NoVersion;
     }
@@ -80,6 +76,22 @@ namespace ccf
     ExtendedState state() override
     {
       return {State::partOfNetwork, {}, {}};
+    }
+
+    void open_user_frontend() override{};
+  };
+
+  class StubRecoverableNodeState : public StubNodeState
+  {
+  private:
+    ShareManager& share_manager;
+
+  public:
+    StubRecoverableNodeState(ShareManager& sm) : share_manager(sm) {}
+
+    void initiate_private_recovery(kv::Tx& tx) override
+    {
+      share_manager.restore_recovery_shares_info(tx, {});
     }
   };
 }

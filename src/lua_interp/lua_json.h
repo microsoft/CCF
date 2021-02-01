@@ -24,6 +24,8 @@ namespace ccf
     template <>
     inline void push_raw(lua_State* l, const nlohmann::json& j)
     {
+      const auto stack_before = lua_gettop(l);
+
       switch (j.type())
       {
         case nlohmann::json::value_t::null:
@@ -33,17 +35,25 @@ namespace ccf
         }
         case nlohmann::json::value_t::object:
         {
-          lua_newtable(l);
+          lua_createtable(l, 0, j.size());
           for (auto it = j.begin(); it != j.end(); ++it)
           {
             push_raw(l, it.value());
             lua_setfield(l, -2, it.key().c_str());
           }
+          // Set custom __was_object metatable property
+          if (lua_getmetatable(l, -1) == 0)
+          {
+            lua_createtable(l, 0, 1);
+          }
+          lua_pushboolean(l, true);
+          lua_setfield(l, -2, "__was_object");
+          lua_setmetatable(l, -2);
           break;
         }
         case nlohmann::json::value_t::array:
         {
-          lua_newtable(l);
+          lua_createtable(l, j.size(), 0);
           size_t i = 0;
           for (const auto& v : j)
           {
@@ -51,6 +61,14 @@ namespace ccf
             lua_seti(
               l, -2, ++i); // lua 'arrays' are 1-indexed, so pre-increment
           }
+          // Set custom __was_object metatable property
+          if (lua_getmetatable(l, -1) == 0)
+          {
+            lua_createtable(l, 0, 1);
+          }
+          lua_pushboolean(l, false);
+          lua_setfield(l, -2, "__was_object");
+          lua_setmetatable(l, -2);
           break;
         }
         case nlohmann::json::value_t::string:
@@ -83,11 +101,14 @@ namespace ccf
           throw ex("Unhandled json type, unable to push onto lua stack");
         }
       }
+
+      expect_top(l, stack_before + 1);
     }
 
     template <>
     inline nlohmann::json check_get(lua_State* l, int arg)
     {
+      const auto stack_before = lua_gettop(l);
       arg = sanitize_stack_idx(l, arg);
 
       nlohmann::json j;
@@ -128,7 +149,7 @@ namespace ccf
           // (1) attempt to create a json array
           // there must a sequence of integer keys starting from 1
           auto a = nlohmann::json::array();
-          bool is_array = true;
+          bool is_array = false;
           bool saw_integer_key = false;
           int prev_key = 0;
           lua_pushnil(l); // first key
@@ -137,13 +158,19 @@ namespace ccf
             is_array = false;
             // is the key an integer
             if (!lua_isinteger(l, ikey))
+            {
+              lua_pop(l, 2);
               break;
+            }
             saw_integer_key = true;
 
             // does the key come directly after the previous one?
             if (const auto key = lua_tointegerx(l, ikey, nullptr);
                 key != ++prev_key)
+            {
+              lua_pop(l, 2);
               break;
+            }
 
             is_array = true;
             a.push_back(check_get<nlohmann::json>(l, ivalue));
@@ -162,12 +189,12 @@ namespace ccf
           if (saw_integer_key)
             non_string_key();
 
-          // failed to create array; pop the remaining k-v pair from the stack
-          lua_pop(l, 2);
+          expect_top(l, stack_before);
 
           // (2) parse the table as dictionary instead
           // since json only supports strings as keys, we throw for anything
           // else
+          j = nlohmann::json::object();
           lua_pushnil(l); // first key
           while (lua_next(l, arg) != 0)
           {
@@ -181,6 +208,36 @@ namespace ccf
             // pop value and keep original key for next iteration
             lua_pop(l, 1);
           }
+          if (!j.empty())
+          {
+            // Found some keys, done
+            break;
+          }
+
+          expect_top(l, stack_before);
+
+          // (3) Have an empty Lua table. See if there is a metatable to
+          // distinguish empty-object (will be present if this value was
+          // originally a JSON object) from empty-array
+          if (lua_getmetatable(l, -1) != 0)
+          {
+            lua_getfield(l, -1, "__was_object");
+            if (lua_isboolean(l, -1))
+            {
+              if (lua_toboolean(l, -1))
+              {
+                j = nlohmann::json::object();
+              }
+              else
+              {
+                j = nlohmann::json::array();
+              }
+            }
+
+            // pop metatable and requested field
+            lua_pop(l, 2);
+          }
+
           break;
         }
         case LUA_TUSERDATA:
@@ -192,6 +249,7 @@ namespace ccf
           throw ex(
             "Encountered unexpected lua type while constructing json object.");
       }
+      expect_top(l, stack_before);
       return j;
     }
   } // namespace lua

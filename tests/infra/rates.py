@@ -62,7 +62,7 @@ class TxRates:
 
     def get_metrics(self):
         with self.primary.client() as client:
-            rv = client.get("/node/metrics")
+            rv = client.get("/app/metrics")
             self.all_metrics = rv.body.json()
 
             all_rates = []
@@ -81,3 +81,6 @@ class TxRates:
                 LOG.info("No histogram metrics found...")
             else:
                 self.histogram_data = histogram
+
+    def insert_metrics(self, **kwargs):
+        self.all_metrics.update(**kwargs)

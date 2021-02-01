@@ -154,6 +154,12 @@ namespace aft
     {
       return {};
     }
+
+    bool recv_authenticated_with_load(
+      NodeId from_node, const uint8_t*& data, size_t& size) override
+    {
+      return true;
+    }
   };
 
   class LoggingStubStore
@@ -190,12 +196,13 @@ namespace aft
 #endif
     }
 
-    virtual kv::DeserialiseSuccess deserialise(
+    virtual kv::ApplySuccess apply(
       const std::vector<uint8_t>& data,
+      kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
       Term* term = nullptr)
     {
-      return kv::DeserialiseSuccess::PASS;
+      return kv::ApplySuccess::PASS;
     }
 
     kv::Version current_version()
@@ -203,19 +210,78 @@ namespace aft
       return kv::NoVersion;
     }
 
-    virtual kv::DeserialiseSuccess deserialise_views(
+    virtual kv::ApplySuccess deserialise_views(
       const std::vector<uint8_t>& data,
+      kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
       kv::Term* term = nullptr,
+      kv::Version* index = nullptr,
       kv::Tx* tx = nullptr,
       ccf::PrimarySignature* sig = nullptr)
     {
-      return kv::DeserialiseSuccess::PASS;
+      return kv::ApplySuccess::PASS;
+    }
+
+    class ExecutionWrapper : public kv::AbstractExecutionWrapper
+    {
+    public:
+      ExecutionWrapper(const std::vector<uint8_t>& data_) : data(data_) {}
+
+      kv::ApplySuccess execute() override
+      {
+        return kv::ApplySuccess::PASS;
+      }
+
+      kv::ConsensusHookPtrs& get_hooks() override
+      {
+        return hooks;
+      }
+
+      const std::vector<uint8_t>& get_entry() override
+      {
+        return data;
+      }
+
+      Term get_term() override
+      {
+        return 0;
+      }
+
+      kv::Version get_index() override
+      {
+        return 0;
+      }
+      ccf::PrimarySignature& get_signature() override
+      {
+        throw std::logic_error("Not Implemented");
+      }
+
+      kv::Tx& get_tx() override
+      {
+        throw std::logic_error("Not Implemented");
+      }
+
+    private:
+      const std::vector<uint8_t>& data;
+      kv::ConsensusHookPtrs hooks;
+    };
+
+    virtual std::unique_ptr<kv::AbstractExecutionWrapper> apply(
+      const std::vector<uint8_t>& data,
+      ConsensusType consensus_type,
+      bool public_only = false)
+    {
+      return std::make_unique<ExecutionWrapper>(data);
     }
 
     std::shared_ptr<ccf::ProgressTracker> get_progress_tracker()
     {
       return nullptr;
+    }
+
+    kv::Tx create_tx()
+    {
+      return kv::Tx(nullptr, true);
     }
   };
 
@@ -224,31 +290,32 @@ namespace aft
   public:
     LoggingStubStoreSig(aft::NodeId id) : LoggingStubStore(id) {}
 
-    kv::DeserialiseSuccess deserialise(
+    kv::ApplySuccess apply(
       const std::vector<uint8_t>& data,
+      kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
       Term* term = nullptr) override
     {
-      return kv::DeserialiseSuccess::PASS_SIGNATURE;
+      return kv::ApplySuccess::PASS_SIGNATURE;
     }
   };
 
   class StubSnapshotter
   {
   public:
-    void snapshot(Index)
+    void update(Index, bool)
     {
       // For now, do not test snapshots in unit tests
       return;
     }
 
-    bool requires_snapshot(Index)
+    bool record_committable(Index)
     {
       // For now, do not test snapshots in unit tests
       return false;
     }
 
-    void compact(Index)
+    void commit(Index)
     {
       // For now, do not test snapshots in unit tests
       return;

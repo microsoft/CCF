@@ -82,4 +82,3 @@
     dest: "{{ oe_lvi_bin_dir }}/ld"
     mode: "0775"
   become: yes
-  

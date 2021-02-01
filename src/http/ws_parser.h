@@ -29,7 +29,7 @@ namespace ws
   class Parser
   {
   public:
-    virtual size_t consume(std::vector<uint8_t>&) = 0;
+    virtual size_t consume(const uint8_t*, size_t) = 0;
   };
 
   class ResponseParser : public Parser
@@ -42,13 +42,13 @@ namespace ws
   public:
     ResponseParser(http::ResponseProcessor& proc_) : proc(proc_) {}
 
-    size_t consume(std::vector<uint8_t>& data) override
+    size_t consume(const uint8_t* data, size_t s) override
     {
       switch (state)
       {
         case INIT:
         {
-          assert(data.size() == INITIAL_READ);
+          assert(s == INITIAL_READ);
 
           bool fin = data[0] & 0x80;
           if (!fin)
@@ -94,33 +94,30 @@ namespace ws
         }
         case READ_SLEN:
         {
-          assert(data.size() == 2);
+          assert(s == 2);
 
-          size = be16toh(*(uint16_t*)data.data());
+          size = be16toh(*(uint16_t*)data);
           state = READ_BODY;
           return size;
         }
         case READ_LLEN:
         {
-          assert(data.size() == 8);
+          assert(s == 8);
 
-          size = be64toh(*(uint64_t*)data.data());
+          size = be64toh(*(uint64_t*)data);
           state = READ_BODY;
           return size;
         }
         case READ_BODY:
         {
-          assert(data.size() == size);
+          assert(s == size);
 
-          const uint8_t* buf = data.data();
-          size_t s = data.size();
+          auto status = serialized::read<uint16_t>(data, s);
+          auto seqno = serialized::read<size_t>(data, s);
+          auto view = serialized::read<size_t>(data, s);
+          auto global_commit = serialized::read<size_t>(data, s);
 
-          auto status = serialized::read<uint16_t>(buf, s);
-          auto seqno = serialized::read<size_t>(buf, s);
-          auto view = serialized::read<size_t>(buf, s);
-          auto global_commit = serialized::read<size_t>(buf, s);
-
-          std::vector<uint8_t> body(buf, buf + s);
+          std::vector<uint8_t> body(data, data + s);
 
           proc.handle_response(
             (http_status)status,
@@ -150,13 +147,13 @@ namespace ws
   public:
     RequestParser(http::RequestProcessor& proc_) : proc(proc_) {}
 
-    size_t consume(std::vector<uint8_t>& data) override
+    size_t consume(const uint8_t* data, size_t s) override
     {
       switch (state)
       {
         case INIT:
         {
-          assert(data.size() == INITIAL_READ);
+          assert(s == INITIAL_READ);
 
           bool fin = data[0] & 0x80;
           if (!fin)
@@ -202,37 +199,36 @@ namespace ws
         }
         case READ_SLEN:
         {
-          assert(data.size() == 2);
+          assert(s == 2);
 
-          size = be16toh(*(uint16_t*)data.data());
+          size = be16toh(*(uint16_t*)data);
           state = READ_BODY;
           return size;
         }
         case READ_LLEN:
         {
-          assert(data.size() == 8);
+          assert(s == 8);
 
-          size = be64toh(*(uint64_t*)data.data());
+          size = be64toh(*(uint64_t*)data);
           state = READ_BODY;
           return size;
         }
         case READ_BODY:
         {
-          assert(data.size() == size);
+          assert(s == size);
 
-          const uint8_t* buf = data.data();
-          size_t s = data.size();
-          auto path = serialized::read_lpsv(buf, s);
-          std::vector<uint8_t> body(buf, buf + s);
+          auto path = serialized::read_lpsv(data, s);
+          std::vector<uint8_t> body(data, data + s);
 
           proc.handle_request(
-            http_method::HTTP_POST,
+            llhttp_method::HTTP_POST,
             path,
+            {},
             {},
             {{"Content-type", "application/json"}},
             std::move(body));
           state = INIT;
-          return 2;
+          return INITIAL_READ;
         }
         default:
         {

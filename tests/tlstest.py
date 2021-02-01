@@ -12,7 +12,7 @@ import subprocess
 @reqs.at_least_n_nodes(1)
 def test(network, args):
     node = network.nodes[0]
-    endpoint = f"https://{node.host}:{node.rpc_port}"
+    endpoint = f"https://{node.pubhost}:{node.pubport}"
     r = subprocess.run(
         ["testssl/testssl.sh", "--outfile", "tls_report", endpoint], check=False
     )
@@ -20,18 +20,15 @@ def test(network, args):
 
 
 def run(args):
-    hosts = ["localhost"]
-
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
         test(network, args)
 
 
 if __name__ == "__main__":
-
     args = infra.e2e_args.cli_args()
-    args.package = args.app_script or "liblogging"
-
+    args.package = "liblogging"
+    args.nodes = ["local://localhost"]
     run(args)

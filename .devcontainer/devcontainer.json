@@ -1,7 +1,7 @@
 {
-	"name": "Sample Development Environment for CCF",
-	"context": "..",
-	"image": "ccfciteam/ccf-app-ci:latest",
-	"runArgs": [],
-	"extensions": ["ms-vscode.cpptools", "ms-python.python"]
+  "name": "Sample Development Environment for CCF",
+  "context": "..",
+  "image": "ccfciteam/ccf-app-ci:latest",
+  "runArgs": [],
+  "extensions": ["ms-vscode.cpptools", "ms-python.python"]
 }

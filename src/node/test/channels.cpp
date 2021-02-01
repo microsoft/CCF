@@ -9,8 +9,17 @@
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
-ringbuffer::Circuit eio1(1024 * 16);
-ringbuffer::Circuit eio2(1024 * 16);
+
+constexpr auto buffer_size = 1024 * 16;
+
+auto in_buffer_1 = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+auto out_buffer_1 = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+ringbuffer::Circuit eio1(in_buffer_1->bd, out_buffer_1->bd);
+
+auto in_buffer_2 = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+auto out_buffer_2 = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+ringbuffer::Circuit eio2(in_buffer_1->bd, out_buffer_2->bd);
+
 auto wf1 = ringbuffer::WriterFactory(eio1);
 auto wf2 = ringbuffer::WriterFactory(eio2);
 

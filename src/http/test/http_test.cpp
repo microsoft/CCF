@@ -41,7 +41,7 @@ DOCTEST_TEST_CASE("Complete request")
     auto request = http::Request(url, method);
     request.set_body(&r);
     auto req = request.build_request();
-    auto parsed = p.execute(req.data(), req.size());
+    p.execute(req.data(), req.size());
 
     DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
@@ -65,7 +65,7 @@ DOCTEST_TEST_CASE("Complete response")
     auto response = http::Response(status);
     response.set_body(&r);
     auto res = response.build_response();
-    auto parsed = p.execute(res.data(), res.size());
+    p.execute(res.data(), res.size());
 
     DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
@@ -107,10 +107,8 @@ DOCTEST_TEST_CASE("Partial request")
   auto req = http::build_post_request(r0);
   size_t offset = 10;
 
-  auto parsed = p.execute(req.data(), req.size() - offset);
-  DOCTEST_CHECK(parsed == req.size() - offset);
-  parsed = p.execute(req.data() + req.size() - offset, offset);
-  DOCTEST_CHECK(parsed == offset);
+  p.execute(req.data(), req.size() - offset);
+  p.execute(req.data() + req.size() - offset, offset);
 
   DOCTEST_CHECK(!sp.received.empty());
   const auto& m = sp.received.front();
@@ -125,12 +123,10 @@ DOCTEST_TEST_CASE("Partial body")
 
   const auto r0 = s_to_v(request_0);
   auto req = http::build_post_request(r0);
-  size_t offset = http::build_post_header(r0).size() + 4;
+  size_t offset = http::build_post_header(r0).size() + r0.size() / 3;
 
-  auto parsed = p.execute(req.data(), req.size() - offset);
-  DOCTEST_CHECK(parsed == req.size() - offset);
-  parsed = p.execute(req.data() + req.size() - offset, offset);
-  DOCTEST_CHECK(parsed == offset);
+  p.execute(req.data(), req.size() - offset);
+  p.execute(req.data() + req.size() - offset, offset);
 
   DOCTEST_CHECK(!sp.received.empty());
   const auto& m = sp.received.front();
@@ -149,8 +145,35 @@ DOCTEST_TEST_CASE("Multiple requests")
   auto req1 = http::build_post_request(r1);
   std::copy(req1.begin(), req1.end(), std::back_inserter(req));
 
-  auto parsed = p.execute(req.data(), req.size());
-  DOCTEST_CHECK(parsed == req.size());
+  DOCTEST_SUBCASE("All at once")
+  {
+    p.execute(req.data(), req.size());
+  }
+
+  DOCTEST_SUBCASE("In chunks")
+  {
+    constexpr auto chunks = 7;
+    const auto chunk_size = req.size() / chunks;
+    auto remaining = req.size();
+    auto next_data = req.data();
+
+    while (remaining > 0)
+    {
+      const auto next = std::min(remaining, chunk_size);
+      p.execute(next_data, next);
+      next_data += next;
+      remaining -= next;
+    }
+  }
+
+  DOCTEST_SUBCASE("Byte-by-byte")
+  {
+    constexpr size_t next = 1;
+    for (size_t i = 0; i < req.size(); ++i)
+    {
+      p.execute(req.data() + i, next);
+    }
+  }
 
   {
     DOCTEST_CHECK(!sp.received.empty());
@@ -179,7 +202,7 @@ DOCTEST_TEST_CASE("Method parsing")
   {
     const auto r = s_to_v(choice ? request_0 : request_1);
     auto req = http::build_request(method, r);
-    auto parsed = p.execute(req.data(), req.size());
+    p.execute(req.data(), req.size());
 
     DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
@@ -206,8 +229,7 @@ DOCTEST_TEST_CASE("URL parsing")
   r.set_body(&body);
   auto req = r.build_request();
 
-  auto parsed = p.execute(req.data(), req.size());
-  DOCTEST_CHECK(parsed == req.size());
+  p.execute(req.data(), req.size());
 
   DOCTEST_CHECK(!sp.received.empty());
   const auto& m = sp.received.front();
@@ -253,8 +275,7 @@ DOCTEST_TEST_CASE("Pessimal transport")
       // Simulate dreadful transport - send 1 byte at a time
       size_t next = 1;
       next = std::min(next, req.size() - done);
-      auto parsed = p.execute(req.data() + done, next);
-      DOCTEST_CHECK(parsed == next);
+      p.execute(req.data() + done, next);
       done += next;
     }
 
@@ -292,20 +313,24 @@ DOCTEST_TEST_CASE("Escaping")
 
   {
     const std::string request =
-      "GET /foo/bar?this=that&awkward=escaped+string+%3A%3B-%3D%3F%21%22 "
+      "GET "
+      "/foo/"
+      "bar?this=that&awkward=escaped+string+%3A%3B-%3D%3F%21%22%25%23#"
+      "AndThisFragment+%3A%3B-%3D%3F%21%22%25%23 "
       "HTTP/1.1\r\n\r\n";
 
     http::SimpleRequestProcessor sp;
     http::RequestParser p(sp);
 
     const std::vector<uint8_t> req(request.begin(), request.end());
-    auto parsed = p.execute(req.data(), req.size());
+    p.execute(req.data(), req.size());
 
     DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
     DOCTEST_CHECK(m.method == HTTP_GET);
     DOCTEST_CHECK(m.path == "/foo/bar");
-    DOCTEST_CHECK(m.query == "this=that&awkward=escaped string :;-=?!\"");
+    DOCTEST_CHECK(m.query == "this=that&awkward=escaped string :;-=?!\"%#");
+    DOCTEST_CHECK(m.fragment == "AndThisFragment :;-=?!\"%#");
   }
 
   {
@@ -318,7 +343,7 @@ DOCTEST_TEST_CASE("Escaping")
     http::RequestParser p(sp);
 
     const std::vector<uint8_t> req(request.begin(), request.end());
-    auto parsed = p.execute(req.data(), req.size());
+    p.execute(req.data(), req.size());
 
     DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
@@ -329,25 +354,99 @@ DOCTEST_TEST_CASE("Escaping")
   }
 }
 
+DOCTEST_TEST_CASE("URL parser")
+{
+  // Test cases taken from https://tools.ietf.org/html/rfc3986
+  {
+    constexpr auto url_s = "http://www.ietf.org/rfc/rfc2396.txt";
+    const auto url = http::parse_url_full(url_s);
+    DOCTEST_CHECK(url.scheme == "http");
+    DOCTEST_CHECK(url.host == "www.ietf.org");
+    DOCTEST_CHECK(url.port.empty());
+    DOCTEST_CHECK(url.path == "/rfc/rfc2396.txt");
+    DOCTEST_CHECK(url.query.empty());
+    DOCTEST_CHECK(url.fragment.empty());
+  }
+
+  {
+    constexpr auto url_s = "ftp://ftp.is.co.za/rfc/rfc1808.txt";
+    const auto url = http::parse_url_full(url_s);
+    DOCTEST_CHECK(url.scheme == "ftp");
+    DOCTEST_CHECK(url.host == "ftp.is.co.za");
+    DOCTEST_CHECK(url.port.empty());
+    DOCTEST_CHECK(url.path == "/rfc/rfc1808.txt");
+    DOCTEST_CHECK(url.query.empty());
+    DOCTEST_CHECK(url.fragment.empty());
+  }
+
+  {
+    constexpr auto url_s = "foo://example.com";
+    const auto url = http::parse_url_full(url_s);
+    DOCTEST_CHECK(url.scheme == "foo");
+    DOCTEST_CHECK(url.host == "example.com");
+    DOCTEST_CHECK(url.port.empty());
+    DOCTEST_CHECK(url.path.empty());
+    DOCTEST_CHECK(url.query.empty());
+    DOCTEST_CHECK(url.fragment.empty());
+  }
+
+  {
+    constexpr auto url_s = "foo://example.com:8042/over/there?name=ferret#nose";
+    const auto url = http::parse_url_full(url_s);
+    DOCTEST_CHECK(url.scheme == "foo");
+    DOCTEST_CHECK(url.host == "example.com");
+    DOCTEST_CHECK(url.port == "8042");
+    DOCTEST_CHECK(url.path == "/over/there");
+    DOCTEST_CHECK(url.query == "name=ferret");
+    DOCTEST_CHECK(url.fragment == "nose");
+  }
+
+  {
+    constexpr auto url_s =
+      "https://[2001:0db8:0000:0000:0000::1428:57ab]:8042/over/there#nose";
+    const auto url = http::parse_url_full(url_s);
+    DOCTEST_CHECK(url.scheme == "https");
+    DOCTEST_CHECK(url.host == "[2001:0db8:0000:0000:0000::1428:57ab]");
+    DOCTEST_CHECK(url.port == "8042");
+    DOCTEST_CHECK(url.path == "/over/there");
+    DOCTEST_CHECK(url.query.empty());
+    DOCTEST_CHECK(url.fragment == "nose");
+  }
+
+  {
+    constexpr auto url_s = "http://[::ffff:0c22:384e]/";
+    const auto url = http::parse_url_full(url_s);
+    DOCTEST_CHECK(url.scheme == "http");
+    DOCTEST_CHECK(url.host == "[::ffff:0c22:384e]");
+    DOCTEST_CHECK(url.port.empty());
+    DOCTEST_CHECK(url.path == "/");
+    DOCTEST_CHECK(url.query.empty());
+    DOCTEST_CHECK(url.fragment.empty());
+  }
+}
+
 struct SignedRequestProcessor : public http::SimpleRequestProcessor
 {
   std::queue<ccf::SignedReq> signed_reqs;
 
   virtual void handle_request(
-    http_method method,
+    llhttp_method method,
     const std::string_view& path,
     const std::string& query,
+    const std::string& fragment,
     http::HeaderMap&& headers,
     std::vector<uint8_t>&& body) override
   {
     const auto signed_req = http::HttpSignatureVerifier::parse(
-      http_method_str(method), path, query, headers, body);
-    DOCTEST_REQUIRE(signed_req.has_value());
+      llhttp_method_name(method), path, query, headers, body);
 
-    signed_reqs.push(signed_req.value());
+    if (signed_req.has_value())
+    {
+      signed_reqs.push(signed_req.value());
+    }
 
     http::SimpleRequestProcessor::handle_request(
-      method, path, query, std::move(headers), std::move(body));
+      method, path, query, fragment, std::move(headers), std::move(body));
   }
 };
 
@@ -356,6 +455,7 @@ DOCTEST_TEST_CASE("Signatures")
   // Produce signed requests with some formatting variations, ensure we can
   // parse them
   auto kp = tls::make_key_pair();
+  const std::string key_id = "UniqueIdentifierForThisKeypair";
 
   http::Request request("/foo", HTTP_POST);
   request.set_query_param("param", "value");
@@ -387,16 +487,18 @@ DOCTEST_TEST_CASE("Signatures")
     headers_to_sign.emplace_back(http::auth::SIGN_HEADER_REQUEST_TARGET);
     headers_to_sign.emplace_back(http::headers::DIGEST);
 
-    http::sign_request(request, kp, headers_to_sign);
+    http::sign_request(request, kp, key_id, headers_to_sign);
 
     const auto serial_request = request.build_request();
 
     SignedRequestProcessor sp;
     http::RequestParser p(sp);
 
-    auto parsed = p.execute(serial_request.data(), serial_request.size());
-    DOCTEST_REQUIRE(parsed == serial_request.size());
-    DOCTEST_REQUIRE(!sp.signed_reqs.empty());
+    p.execute(serial_request.data(), serial_request.size());
+    DOCTEST_REQUIRE(sp.signed_reqs.size() == 1);
+    const auto& sr = sp.signed_reqs.back();
+    DOCTEST_REQUIRE(sr.key_id == key_id);
+    sp.signed_reqs.pop();
   }
 
   DOCTEST_SUBCASE("All headers")
@@ -412,17 +514,17 @@ DOCTEST_TEST_CASE("Signatures")
     std::sort(headers_to_sign.begin(), headers_to_sign.end());
     while (true)
     {
-      http::sign_request(request, kp, headers_to_sign);
+      http::sign_request(request, kp, key_id, headers_to_sign);
 
       const auto serial_request = request.build_request();
 
       SignedRequestProcessor sp;
       http::RequestParser p(sp);
 
-      auto parsed = p.execute(serial_request.data(), serial_request.size());
-      DOCTEST_REQUIRE(parsed == serial_request.size());
+      p.execute(serial_request.data(), serial_request.size());
       DOCTEST_REQUIRE(sp.signed_reqs.size() == 1);
-
+      const auto& sr = sp.signed_reqs.back();
+      DOCTEST_REQUIRE(sr.key_id == key_id);
       sp.signed_reqs.pop();
 
       const bool was_last_permutation =
@@ -443,7 +545,7 @@ DOCTEST_TEST_CASE("Signatures")
       headers_to_sign.emplace_back(header_it.first);
     }
 
-    http::sign_request(request, kp, headers_to_sign);
+    http::sign_request(request, kp, key_id, headers_to_sign);
 
     const auto& headers = request.get_headers();
     const auto auth_it = headers.find(http::headers::AUTHORIZATION);
@@ -463,8 +565,10 @@ DOCTEST_TEST_CASE("Signatures")
 
         SignedRequestProcessor sp;
         http::RequestParser p(sp);
-        DOCTEST_REQUIRE_THROWS(
-          p.execute(serial_request.data(), serial_request.size()));
+        p.execute(serial_request.data(), serial_request.size());
+        DOCTEST_REQUIRE(
+          sp.signed_reqs
+            .empty()); // Invalid headers mean no signed request is parsed
       }
 
       std::string missing_second_quote = original;
@@ -478,8 +582,8 @@ DOCTEST_TEST_CASE("Signatures")
 
         SignedRequestProcessor sp;
         http::RequestParser p(sp);
-        DOCTEST_REQUIRE_THROWS(
-          p.execute(serial_request.data(), serial_request.size()));
+        p.execute(serial_request.data(), serial_request.size());
+        DOCTEST_REQUIRE(sp.signed_reqs.empty());
       }
     }
 
@@ -496,8 +600,7 @@ DOCTEST_TEST_CASE("Signatures")
 
       SignedRequestProcessor sp;
       http::RequestParser p(sp);
-      auto parsed = p.execute(serial_request.data(), serial_request.size());
-      DOCTEST_REQUIRE(parsed == serial_request.size());
+      p.execute(serial_request.data(), serial_request.size());
       DOCTEST_REQUIRE(sp.signed_reqs.size() == 1);
     }
   }

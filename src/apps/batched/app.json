@@ -1,0 +1,26 @@
+{
+  "endpoints": {
+    "/batch/submit": {
+      "post": {
+        "js_module": "batched.js",
+        "js_function": "submit_batch",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "readonly": true,
+        "openapi": {}
+      }
+    },
+    "/batch/fetch": {
+      "post": {
+        "js_module": "batched.js",
+        "js_function": "fetch_batch",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "readonly": true,
+        "openapi": {}
+      }
+    }
+  }
+}

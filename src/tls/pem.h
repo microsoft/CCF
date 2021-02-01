@@ -25,6 +25,8 @@ namespace tls
 
     Pem(const std::string& s_) : s(s_) {}
 
+    Pem(size_t size) : s(size, '0') {}
+
     Pem(const uint8_t* data, size_t size)
     {
       if (size == 0)
@@ -45,6 +47,11 @@ namespace tls
     bool operator==(const Pem& rhs) const
     {
       return s == rhs.s;
+    }
+
+    bool operator!=(const Pem& rhs) const
+    {
+      return !(*this == rhs);
     }
 
     const std::string& str() const
@@ -78,6 +85,12 @@ namespace tls
       return {data(), data() + size()};
     }
 
+    // Not null-terminated
+    std::vector<uint8_t> contents() const
+    {
+      return {data(), data() + s.size()};
+    }
+
     MSGPACK_DEFINE(s);
   };
 
@@ -102,4 +115,16 @@ namespace tls
         fmt::format("Unable to parse pem from this JSON: {}", j.dump()));
     }
   }
+}
+
+namespace std
+{
+  template <>
+  struct hash<tls::Pem>
+  {
+    size_t operator()(const tls::Pem& pem) const
+    {
+      return std::hash<std::string>()(pem.str());
+    }
+  };
 }

@@ -80,14 +80,14 @@ def at_least_n_nodes(n):
     return ensure_reqs(check)
 
 
-def sufficient_member_count():
+def sufficient_recovery_member_count():
     def check(network, args, *nargs, **kwargs):
         if (
-            len(network.consortium.get_active_members())
+            len(network.consortium.get_active_recovery_members())
             <= network.consortium.recovery_threshold
         ):
             raise TestRequirementsNotMet(
-                "Cannot retire a member since number of active members"
+                "Cannot retire recovery member since number of active recovery members"
                 f" ({len(network.consortium.get_active_members()) - 1}) would be less than"
                 f" the recovery threshold ({network.consortium.recovery_threshold})"
             )
@@ -98,13 +98,15 @@ def sufficient_member_count():
 def can_kill_n_nodes(nodes_to_kill_count):
     def check(network, args, *nargs, **kwargs):
         primary, _ = network.find_primary()
-        with primary.client("member0") as c:
+        with primary.client(
+            f"member{network.consortium.get_any_active_member().member_id}"
+        ) as c:
             r = c.post(
                 "/gov/query",
                 {
                     "text": """tables = ...
                         trusted_nodes_count = 0
-                        tables["ccf.nodes"]:foreach(function(node_id, details)
+                        tables["public:ccf.gov.nodes"]:foreach(function(node_id, details)
                             if details["status"] == "TRUSTED" then
                                 trusted_nodes_count = trusted_nodes_count + 1
                             end
@@ -139,13 +141,9 @@ def installed_package(p):
     return ensure_reqs(check)
 
 
-def lua_generic_app(func):
-    return installed_package("liblua_generic")(func)
-
-
-# Runs some transactions before recovering the network and guarantees that all
-# transactions are successfully recovered
 def recover(number_txs=5):
+    # Runs some transactions before recovering the network and guarantees that all
+    # transactions are successfully recovered
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -154,7 +152,6 @@ def recover(number_txs=5):
             network.txs.issue(
                 network=network,
                 number_txs=infra.e2e_args.get("msgs_per_recovery") or number_txs,
-                consensus=infra.e2e_args.get("consensus"),
             )
             new_network = func(*args, **kwargs)
             new_network.txs.verify(
@@ -162,6 +159,39 @@ def recover(number_txs=5):
                 timeout=infra.e2e_args.get("ledger_recovery_timeout"),
             )
             return new_network
+
+        return wrapper
+
+    return decorator
+
+
+def add_from_snapshot():
+    # Before adding the node from a snapshot, override at least one app entry
+    # and wait for a snapshot covering that entry. After the test, verify
+    # that all entries (including historical ones) can be read.
+    def issue_historical_queries_with_snapshot(network, snapshot_tx_interval):
+        network.txs.issue(network, number_txs=1)
+        for _ in range(1, snapshot_tx_interval):
+            network.txs.issue(network, number_txs=1, repeat=True)
+            last_tx = network.txs.get_last_tx(priv=True)
+            if network.wait_for_snapshot_committed_for(seqno=last_tx[1]["seqno"]):
+                break
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            network = args[0]
+            infra.e2e_args = vars(args[1])
+            snapshot_tx_interval = infra.e2e_args.get("snapshot_tx_interval")
+            if snapshot_tx_interval is not None:
+                issue_historical_queries_with_snapshot(
+                    network, int(snapshot_tx_interval)
+                )
+            network = func(*args, **kwargs)
+            # Only verify entries on node just added
+            network.txs.verify(node=network.get_joined_nodes()[-1])
+
+            return network
 
         return wrapper
 

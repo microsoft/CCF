@@ -21,7 +21,6 @@ namespace crypto
     std::array<uint8_t, SIZE> h;
 
     static void mbedtls_sha256(const CBuffer& data, uint8_t* h);
-    static void evercrypt_sha256(const CBuffer& data, uint8_t* h);
 
     friend std::ostream& operator<<(
       std::ostream& os, const crypto::Sha256Hash& h)
@@ -33,6 +32,11 @@ namespace crypto
 
       return os;
     }
+
+    std::string hex_str() const
+    {
+      return fmt::format("{:02x}", fmt::join(h, ""));
+    };
 
     MSGPACK_DEFINE(h);
   };
@@ -56,6 +60,33 @@ namespace crypto
   {
     return !(lhs == rhs);
   }
+
+  class MBSha256HashImpl;
+  class CSha256Hash
+  {
+  public:
+    CSha256Hash();
+    ~CSha256Hash();
+
+    void update_hash(CBuffer data);
+
+    template <typename T>
+    void update(const T& t)
+    {
+      update_hash({reinterpret_cast<const uint8_t*>(&t), sizeof(T)});
+    }
+
+    template <>
+    void update<std::vector<uint8_t>>(const std::vector<uint8_t>& d)
+    {
+      update_hash({d.data(), d.size()});
+    }
+
+    Sha256Hash finalize();
+
+  private:
+    std::unique_ptr<MBSha256HashImpl> p;
+  };
 }
 
 namespace fmt

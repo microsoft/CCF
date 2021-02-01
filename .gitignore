@@ -1,5 +1,6 @@
 build*/
 _build/
+!doc/build_apps/
 Debug*/
 Release*/
 CMakeFiles/
@@ -25,3 +26,6 @@ env/
 *.egg-info
 **/dist
 python/setup.py
+node_modules
+package-lock.json
+.cache

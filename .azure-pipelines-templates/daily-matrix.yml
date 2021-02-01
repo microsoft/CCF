@@ -6,19 +6,23 @@ parameters:
     SGX:
       container: sgx
       pool: Ubuntu-1804-DC8_v2
+    Perf:
+      pool: CCF-Perf
 
   build:
+    common:
+      cmake_args: "-DLONG_TESTS=ON"
     NoSGX:
-      cmake_args: '-DCOMPILE_TARGETS=virtual'
+      cmake_args: "-DCOMPILE_TARGETS=virtual"
     SGX:
-      cmake_args: '-DCOMPILE_TARGETS=sgx'
+      cmake_args: "-DCOMPILE_TARGETS=sgx"
     debug:
-      cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DCOVERAGE=ON -DBUILD_SMALLBANK=OFF -DLVI_MITIGATIONS=OFF'
+      cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DBUILD_SMALLBANK=OFF -DLVI_MITIGATIONS=OFF"
 
 jobs:
-  - job: 'Make'
-    displayName: 'Make generator'
-    ${{ insert }}: '${{ parameters.env.NoSGX }}'
+  - job: "Make"
+    displayName: "Make generator"
+    ${{ insert }}: "${{ parameters.env.NoSGX }}"
     variables:
       skipComponentGovernanceDetection: true
     steps:
@@ -33,18 +37,18 @@ jobs:
   - template: common.yml
     parameters:
       target: NoSGX
-      env: '${{ parameters.env.NoSGX }}'
-      cmake_args: '${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
-      suffix: 'Instrumented'
-      artifact_name: 'NoSGX_Instrumented'
-      ctest_filter: '-LE "benchmark|perf|long_test"'
-      ctest_timeout: '300'
+      env: "${{ parameters.env.NoSGX }}"
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
+      suffix: "Instrumented"
+      artifact_name: "NoSGX_Instrumented"
+      ctest_filter: '-LE "benchmark|perf"'
+      ctest_timeout: "300"
 
   - template: common.yml
     parameters:
       target: SGX
-      env: '${{ parameters.env.SGX }}'
-      cmake_args: '${{ parameters.build.SGX.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON'
-      suffix: 'Release'
-      artifact_name: 'SGX_Release'
+      env: "${{ parameters.env.SGX }}"
+      cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
+      suffix: "Release"
+      artifact_name: "SGX_Release"
       ctest_filter: '-LE "benchmark|perf"'

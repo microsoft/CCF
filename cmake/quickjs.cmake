@@ -25,7 +25,7 @@ message(STATUS "QuickJS prefix: ${QUICKJS_PREFIX} version: ${QUICKJS_VERSION}")
 
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_library(
-    quickjs.enclave STATIC ${QUICKJS_SRC} ${CCF_DIR}/3rdparty/stub/stub.c
+    quickjs.enclave STATIC ${QUICKJS_SRC} ${CCF_DIR}/3rdparty/stub/time.c
   )
   target_compile_options(
     quickjs.enclave PUBLIC -nostdinc -DCONFIG_VERSION="${QUICKJS_VERSION}"
@@ -42,6 +42,7 @@ add_library(quickjs.host STATIC ${QUICKJS_SRC})
 target_compile_options(
   quickjs.host PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}"
 )
+add_san(quickjs.host)
 set_property(TARGET quickjs.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(quickjs.host PUBLIC ${QUICKJS_INC})
 

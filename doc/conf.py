@@ -16,7 +16,8 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../python'))
+
+sys.path.insert(0, os.path.abspath("../python"))
 
 
 # -- Project information -----------------------------------------------------
@@ -51,7 +52,9 @@ extensions = [
     "sphinx.ext.githubpages",
     "sphinx_multiversion",
     "sphinx_copybutton",
-    "sphinx.ext.autodoc"
+    "sphinx.ext.autodoc",
+    "sphinxcontrib.openapi",
+    "sphinx_panels"
 ]
 
 autosectionlabel_prefix_document = True
@@ -110,7 +113,13 @@ html_static_path = ["_static"]
 # default: ``['localtoc.html', 'relations.html', 'sourcelink.html',
 # 'searchbox.html']``.
 #
-# html_sidebars = {}
+html_sidebars = {
+    "**": ["sidebar-search-bs.html", "sidebar-nav-bs.html"],
+}
+
+html_css_files = [
+    'css/custom.css',
+]
 
 
 # -- Options for HTMLHelp output ---------------------------------------------
@@ -208,9 +217,14 @@ html_context = {
 
 # Python autodoc options
 autodoc_default_options = {
-    'member-order':    'bysource',
+    "member-order": "bysource",
 }
 
+# sphinxcontrib.spelling options
+spelling_show_suggestions = True
+spelling_lang = "en_UK"
+tokenizer_lang = "en_UK"
+spelling_word_list_filename = ["spelling_wordlist.txt"]
 
 
 def setup(self):
@@ -220,4 +234,5 @@ def setup(self):
     srcdir = pathlib.Path(self.srcdir)
 
     breathe_projects["CCF"] = str(srcdir / breathe_projects["CCF"])
-    subprocess.run(["doxygen"], cwd=srcdir / '..', check=True)
+    if not os.environ.get("SKIP_DOXYGEN"):
+        subprocess.run(["doxygen"], cwd=srcdir / "..", check=True)

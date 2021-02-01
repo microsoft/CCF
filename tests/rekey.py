@@ -7,7 +7,6 @@ import infra.e2e_args
 
 
 @reqs.description("Rekey the ledger once")
-@reqs.supports_methods("primary_info")
 @reqs.at_least_n_nodes(1)
 def test(network, args):
     primary, _ = network.find_primary()
@@ -16,10 +15,8 @@ def test(network, args):
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
-
     with infra.network.network(
-        hosts,
+        args.nodes,
         args.binary_dir,
         args.debug_nodes,
         args.perf_nodes,
@@ -31,22 +28,21 @@ def run(args):
         txs.issue(
             network=network,
             number_txs=3,
-            consensus=args.consensus,
         )
-        txs.verify(network=network)
+        txs.verify()
 
         network = test(network, args)
 
         txs.issue(
             network=network,
             number_txs=3,
-            consensus=args.consensus,
         )
-        txs.verify(network=network)
+        txs.verify()
 
 
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
-    args.package = args.app_script and "liblua_generic" or "liblogging"
+    args.package = "liblogging"
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
     run(args)

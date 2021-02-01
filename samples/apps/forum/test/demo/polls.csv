@@ -1,0 +1,16 @@
+"Topic","Opinion Type"
+
+"Contoso, Ltd - Country of Risk",string
+"Woodgrove Bank - Country of Risk",string
+"Proseware - Country of Risk",string
+"Fabrikam - Country of Risk",string
+
+"Contoso, Ltd - 1Y CDS Spread",number
+"Woodgrove Bank - 1Y CDS Spread",number
+"Proseware - 1Y CDS Spread",number
+"Fabrikam - 1Y CDS Spread",number
+
+"Contoso, Ltd - 3Y CDS Spread",number
+"Woodgrove Bank - 3Y CDS Spread",number
+"Proseware - 3Y CDS Spread",number
+"Fabrikam - 3Y CDS Spread",number

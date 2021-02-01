@@ -23,7 +23,10 @@ namespace enclave
   class RPCSessions : public AbstractRPCResponder
   {
   private:
+    static constexpr size_t max_open_sessions = 1000;
+
     ringbuffer::AbstractWriterFactory& writer_factory;
+    ringbuffer::WriterPtr to_host = nullptr;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<tls::Cert> cert;
 
@@ -41,7 +44,9 @@ namespace enclave
       std::shared_ptr<RPCMap> rpc_map_) :
       writer_factory(writer_factory),
       rpc_map(rpc_map_)
-    {}
+    {
+      to_host = writer_factory.create_writer_to_outside();
+    }
 
     void set_cert(const tls::Pem& cert_, const tls::Pem& pk)
     {
@@ -63,6 +68,20 @@ namespace enclave
         throw std::logic_error(
           "Duplicate conn ID received inside enclave: " + std::to_string(id));
 
+      if (sessions.size() >= max_open_sessions)
+      {
+        LOG_INFO_FMT(
+          "Refusing a session inside the enclave - already have {} sessions "
+          "and limit is {}: {}",
+          sessions.size(),
+          max_open_sessions,
+          id);
+
+        RINGBUFFER_WRITE_MESSAGE(
+          tls::tls_stop, to_host, id, std::string("Session refused"));
+        return;
+      }
+
       LOG_DEBUG_FMT("Accepting a session inside the enclave: {}", id);
       auto ctx = std::make_unique<tls::Server>(cert);
 
@@ -71,7 +90,7 @@ namespace enclave
       sessions.insert(std::make_pair(id, std::move(session)));
     }
 
-    bool reply_async(size_t id, const std::vector<uint8_t>& data) override
+    bool reply_async(size_t id, std::vector<uint8_t>&& data) override
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -84,7 +103,7 @@ namespace enclave
 
       LOG_DEBUG_FMT("Replying to session {}", id);
 
-      search->second->send(data);
+      search->second->send(std::move(data));
       return true;
     }
 
@@ -106,6 +125,10 @@ namespace enclave
 
       auto session = std::make_shared<ClientEndpointImpl>(
         id, writer_factory, std::move(ctx));
+
+      // We do not check the max_open_sessions limit here, because we expect
+      // this type of session to be rare and want it to succeed even when we are
+      // busy.
       sessions.insert(std::make_pair(id, session));
       return session;
     }
@@ -127,8 +150,9 @@ namespace enclave
           auto search = sessions.find(id);
           if (search == sessions.end())
           {
-            throw std::logic_error(
-              "tls_inbound for unknown session: " + std::to_string(id));
+            LOG_DEBUG_FMT(
+              "Ignoring tls_inbound for unknown or refused session: {}", id);
+            return;
           }
 
           search->second->recv(body.data, body.size);

@@ -73,7 +73,6 @@ namespace host
       const CCFConfig& ccf_config,
       std::vector<uint8_t>& node_cert,
       std::vector<uint8_t>& network_cert,
-      std::vector<uint8_t>& network_enc_pubk,
       StartType start_type,
       ConsensusType consensus_type,
       size_t num_worker_thread,
@@ -82,7 +81,6 @@ namespace host
       bool ret;
       size_t node_cert_len = 0;
       size_t network_cert_len = 0;
-      size_t network_enc_pubk_len = 0;
 
       msgpack::sbuffer sbuf;
       msgpack::pack(sbuf, ccf_config);
@@ -99,9 +97,6 @@ namespace host
         network_cert.data(),
         network_cert.size(),
         &network_cert_len,
-        network_enc_pubk.data(),
-        network_enc_pubk.size(),
-        &network_enc_pubk_len,
         start_type,
         consensus_type,
         num_worker_thread,
@@ -120,7 +115,6 @@ namespace host
 
       node_cert.resize(node_cert_len);
       network_cert.resize(network_cert_len);
-      network_enc_pubk.resize(network_enc_pubk_len);
 
       return ret;
     }

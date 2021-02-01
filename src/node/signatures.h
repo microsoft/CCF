@@ -13,8 +13,8 @@ namespace ccf
 {
   struct PrimarySignature : public NodeSignature
   {
-    ObjectId seqno = 0;
-    ObjectId view = 0;
+    kv::Consensus::SeqNo seqno = 0;
+    kv::Consensus::View view = 0;
     ObjectId commit_seqno = 0;
     ObjectId commit_view = 0;
     crypto::Sha256Hash root;
@@ -31,7 +31,7 @@ namespace ccf
 
     PrimarySignature() {}
 
-    PrimarySignature(ccf::NodeId node_, ObjectId seqno_) :
+    PrimarySignature(ccf::NodeId node_, kv::Consensus::SeqNo seqno_) :
       NodeSignature(node_),
       seqno(seqno_)
     {}
@@ -40,14 +40,15 @@ namespace ccf
 
     PrimarySignature(
       ccf::NodeId node_,
-      ObjectId seqno_,
-      ObjectId view_,
-      ObjectId commit_seqno_,
-      ObjectId commit_view_,
+      kv::Consensus::SeqNo seqno_,
+      kv::Consensus::View view_,
+      kv::Consensus::SeqNo commit_seqno_,
+      kv::Consensus::View commit_view_,
       const crypto::Sha256Hash root_,
+      Nonce hashed_nonce_,
       const std::vector<uint8_t>& sig_,
       const std::vector<uint8_t>& tree_) :
-      NodeSignature(sig_, node_),
+      NodeSignature(sig_, node_, hashed_nonce_),
       seqno(seqno_),
       view(view_),
       commit_seqno(commit_seqno_),
@@ -58,6 +59,6 @@ namespace ccf
   };
   DECLARE_JSON_TYPE_WITH_BASE(PrimarySignature, NodeSignature)
   DECLARE_JSON_REQUIRED_FIELDS(
-    PrimarySignature, seqno, view, commit_seqno, commit_view, root)
+    PrimarySignature, seqno, view, commit_seqno, commit_view, root, tree)
   using Signatures = kv::Map<ObjectId, PrimarySignature>;
 }

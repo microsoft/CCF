@@ -2,179 +2,185 @@
 # Licensed under the Apache 2.0 License.
 
 import infra.checker
-import ccf.clients
-import suite.test_requirements as reqs
 import time
 import http
+import ccf.clients
+from collections import defaultdict
 
 from loguru import logger as LOG
 
 
-@reqs.description("Running transactions against logging app")
-@reqs.supports_methods("log/private", "log/public")
-def test_run_txs(
-    network,
-    args,
-    nodes=None,
-    num_txs=1,
-    verify=True,
-    timeout=3,
-    ignore_failures=False,
-    wait_for_sync=False,
-):
-    if nodes is None:
-        nodes = network.get_joined_nodes()
-    num_nodes = len(nodes)
-
-    for tx in range(num_txs):
-        network.txs.issue_on_node(
-            network=network,
-            remote_node=nodes[tx % num_nodes],
-            number_txs=1,
-            consensus=args.consensus,
-            timeout=timeout,
-            ignore_failures=ignore_failures,
-            wait_for_sync=wait_for_sync,
-        )
-
-    if verify:
-        network.txs.verify_last_tx(network)
-    else:
-        LOG.warning("Skipping log messages verification")
-
-    return network
+class LoggingTxsVerifyException(Exception):
+    """
+    Exception raised if a LoggingTxs instance cannot successfully verify all
+    entries previously issued.
+    """
 
 
 class LoggingTxs:
     def __init__(self, user_id=0):
-        self.pub = {}
-        self.priv = {}
-        self.next_pub_index = 1
-        self.next_priv_index = 1
+        self.pub = defaultdict(list)
+        self.priv = defaultdict(list)
+        self.idx = 0
         self.user = f"user{user_id}"
+        self.network = None
+
+    def get_last_tx(self, priv=True):
+        txs = self.priv if priv else self.pub
+        idx, msgs = list(txs.items())[-1]
+        return (idx, msgs[-1])
 
     def issue(
         self,
         network,
-        number_txs,
-        consensus,
+        number_txs=1,
         on_backup=False,
-        ignore_failures=False,
-        wait_for_sync=True,
-        timeout=3,
+        repeat=False,
     ):
+        self.network = network
         remote_node, _ = network.find_primary()
         if on_backup:
             remote_node = network.find_any_backup()
 
-        self.issue_on_node(
-            network,
-            remote_node,
-            number_txs,
-            consensus,
-            ignore_failures,
-            wait_for_sync,
-            timeout,
-        )
+        LOG.info(f"Applying {number_txs} logging txs to node {remote_node.node_id}")
 
-    def issue_on_node(
-        self,
-        network,
-        remote_node,
-        number_txs,
-        consensus,
-        ignore_failures=False,
-        wait_for_sync=True,
-        timeout=3,
+        with remote_node.client(self.user) as c:
+            check_commit = infra.checker.Checker(c)
+
+            for _ in range(number_txs):
+                if not repeat:
+                    self.idx += 1
+
+                priv_msg = (
+                    f"Private message at idx {self.idx} [{len(self.priv[self.idx])}]"
+                )
+                rep_priv = c.post(
+                    "/app/log/private",
+                    {
+                        "id": self.idx,
+                        "msg": priv_msg,
+                    },
+                )
+                self.priv[self.idx].append(
+                    {"msg": priv_msg, "seqno": rep_priv.seqno, "view": rep_priv.view}
+                )
+
+                pub_msg = (
+                    f"Public message at idx {self.idx} [{len(self.pub[self.idx])}]"
+                )
+                rep_pub = c.post(
+                    "/app/log/public",
+                    {
+                        "id": self.idx,
+                        "msg": pub_msg,
+                    },
+                )
+                self.pub[self.idx].append(
+                    {"msg": pub_msg, "seqno": rep_pub.seqno, "view": rep_pub.view}
+                )
+            if number_txs:
+                check_commit(rep_pub, result=True)
+
+        network.wait_for_node_commit_sync()
+
+    def verify(self, network=None, node=None, timeout=3):
+        LOG.info("Verifying all logging txs")
+        if network is not None:
+            self.network = network
+        if self.network is None:
+            raise ValueError(
+                "Network object is not yet set - txs should be issued before calling verify"
+            )
+
+        nodes = self.network.get_joined_nodes() if node is None else [node]
+        for node in nodes:
+            for pub_idx, pub_value in self.pub.items():
+                # As public records do not yet handle historical queries,
+                # only verify the latest entry
+                entry = pub_value[-1]
+                self._verify_tx(
+                    node,
+                    pub_idx,
+                    entry["msg"],
+                    entry["seqno"],
+                    entry["view"],
+                    priv=False,
+                    timeout=timeout,
+                )
+
+            for priv_idx, priv_value in self.priv.items():
+                for v in priv_value:
+                    self._verify_tx(
+                        node,
+                        priv_idx,
+                        v["msg"],
+                        v["seqno"],
+                        v["view"],
+                        priv=True,
+                        historical=(v != priv_value[-1]),
+                        timeout=timeout,
+                    )
+
+    def _verify_tx(
+        self, node, idx, msg, seqno, view, priv=True, historical=False, timeout=3
     ):
-        LOG.success(f"Applying {number_txs} logging txs to node {remote_node.node_id}")
-        with remote_node.client() as mc:
-            check_commit = infra.checker.Checker(mc)
-            check_commit_n = infra.checker.Checker(mc)
+        if historical and not priv:
+            raise ValueError(
+                "Historical queries are only implemented with private records"
+            )
 
-            with remote_node.client(self.user) as uc:
-                for _ in range(number_txs):
-                    end_time = time.time() + timeout
-                    while time.time() < end_time:
-                        try:
-                            priv_msg = (
-                                f"Private message at index {self.next_priv_index}"
+        cmd = "/app/log/private" if priv else "/app/log/public"
+        headers = {}
+        if historical:
+            cmd = "/app/log/private/historical"
+            headers = {
+                ccf.clients.CCF_TX_VIEW_HEADER: str(view),
+                ccf.clients.CCF_TX_SEQNO_HEADER: str(seqno),
+            }
+
+        found = False
+        start_time = time.time()
+        while time.time() < (start_time + timeout):
+            with node.client(self.user) as c:
+                rep = c.get(f"{cmd}?id={idx}", headers=headers)
+                if rep.status_code == http.HTTPStatus.OK:
+                    infra.checker.Checker(c)(
+                        rep,
+                        result={"msg": msg},
+                    )
+                    found = True
+                    break
+                elif rep.status_code == http.HTTPStatus.NOT_FOUND:
+                    LOG.warning("User frontend is not yet opened")
+                    continue
+
+                if historical:
+                    if rep.status_code == http.HTTPStatus.ACCEPTED:
+                        retry_after = rep.headers.get("retry-after")
+                        if retry_after is None:
+                            raise ValueError(
+                                f"Response with status {rep.status_code} is missing 'retry-after' header"
                             )
-                            pub_msg = f"Public message at index {self.next_pub_index}"
-                            rep_priv = uc.post(
-                                "/app/log/private",
-                                {
-                                    "id": self.next_priv_index,
-                                    "msg": priv_msg,
-                                },
-                            )
-                            rep_pub = uc.post(
-                                "/app/log/public",
-                                {
-                                    "id": self.next_pub_index,
-                                    "msg": pub_msg,
-                                },
-                            )
-                            check_commit_n(rep_priv, result=True)
-                            check_commit(rep_pub, result=True)
-
-                            self.priv[self.next_priv_index] = priv_msg
-                            self.pub[self.next_pub_index] = pub_msg
-                            self.next_priv_index += 1
-                            self.next_pub_index += 1
-                            break
-                        except (
-                            TimeoutError,
-                            ccf.clients.CCFConnectionException,
-                        ):
-                            LOG.debug("Network is unavailable")
-                            if not ignore_failures:
-                                raise
-
-        if wait_for_sync:
-            self.node_commit_sync(network, consensus, timeout, ignore_failures)
-
-    def node_commit_sync(self, network, consensus, timeout=3, ignore_failures=False):
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            try:
-                network.wait_for_node_commit_sync(consensus)
-                break
-            except (TimeoutError, ccf.clients.CCFConnectionException):
-                LOG.error("Timeout error while waiting for nodes to sync")
-                if not ignore_failures:
-                    raise
+                        retry_after = int(retry_after)
+                        LOG.info(
+                            f"Sleeping for {retry_after}s waiting for historical query processing..."
+                        )
+                        # Bump the timeout enough so that it is likely that the next
+                        # command will have time to be issued, without causing this
+                        # to loop for too long if the entry cannot be found
+                        timeout += retry_after * 0.8
+                        time.sleep(retry_after)
+                    elif rep.status_code == http.HTTPStatus.NO_CONTENT:
+                        raise ValueError(
+                            f"Historical query response claims there was no write to {idx} at {view}.{seqno}"
+                        )
+                    else:
+                        raise ValueError(
+                            f"Unexpected response status code {rep.status_code}: {rep.body}"
+                        )
                 time.sleep(0.1)
 
-    def verify(self, network, timeout=5):
-        LOG.success("Verifying all logging txs")
-        for n in network.get_joined_nodes():
-            for pub_tx_index in self.pub:
-                self._verify_tx(n, pub_tx_index, priv=False, timeout=timeout)
-            for priv_tx_index in self.priv:
-                self._verify_tx(n, priv_tx_index, priv=True, timeout=timeout)
-
-    def verify_last_tx(self, network, timeout=5):
-        LOG.success("Verifying last logging tx")
-        for n in network.get_joined_nodes():
-            self._verify_tx(n, self.next_pub_index - 1, priv=False, timeout=timeout)
-            self._verify_tx(n, self.next_priv_index - 1, priv=True, timeout=timeout)
-
-    def _verify_tx(self, node, idx, priv=True, timeout=5):
-        txs = self.priv if priv else self.pub
-        cmd = "/app/log/private" if priv else "/app/log/public"
-
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            with node.client(self.user) as uc:
-                rep = uc.get(f"{cmd}?id={idx}")
-                if rep.status_code == http.HTTPStatus.NOT_FOUND.value:
-                    LOG.warning("User frontend is not yet opened")
-                    time.sleep(0.1)
-                else:
-                    check = infra.checker.Checker(uc)
-                    check(
-                        rep,
-                        result={"msg": txs[idx]},
-                    )
-                    break
+        if not found:
+            raise LoggingTxsVerifyException(
+                f"Unable to retrieve entry at {idx} (seqno: {seqno}, view: {view}) after {timeout}s"
+            )

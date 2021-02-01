@@ -13,10 +13,8 @@ from loguru import logger as LOG
 
 
 def run(args):
-    hosts = ["localhost"] * (4 if args.consensus == "bft" else 1)
-
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         check = infra.checker.Checker()
         network.start_and_join(args)
@@ -99,13 +97,7 @@ def run(args):
 
 if __name__ == "__main__":
 
-    def add(parser):
-        parser.add_argument(
-            "-p",
-            "--package",
-            help="The enclave package to load (e.g., liblogging)",
-            default="liblogging",
-        )
-
-    args = infra.e2e_args.cli_args(add)
+    args = infra.e2e_args.cli_args()
+    args.package = "liblogging"
+    args.nodes = ["local://localhost"]
     run(args)

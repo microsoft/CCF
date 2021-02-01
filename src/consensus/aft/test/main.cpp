@@ -18,11 +18,12 @@ using TRaft =
   aft::Aft<aft::LedgerStubProxy, aft::ChannelStubProxy, aft::StubSnapshotter>;
 using Store = aft::LoggingStubStore;
 using StoreSig = aft::LoggingStubStoreSig;
-using Adaptor = aft::Adaptor<Store, kv::DeserialiseSuccess>;
+using Adaptor = aft::Adaptor<Store>;
+
+threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 std::vector<uint8_t> cert;
-kv::Map<size_t, aft::Request> request_map(
-  nullptr, "test", kv::SecurityDomain::PUBLIC, true);
 
 DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 {
@@ -39,19 +40,21 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     nullptr,
     nullptr,
     cert,
-    request_map,
     std::make_shared<aft::State>(node_id),
     nullptr,
+    nullptr,
+    nullptr,
     ms(10),
-    election_timeout);
+    election_timeout,
+    ms(1000));
 
-  kv::Consensus::Configuration::Nodes config;
+  kv::Configuration::Nodes config;
   config.try_emplace(node_id);
   r0.add_configuration(0, config);
 
   DOCTEST_INFO("DOCTEST_REQUIRE Initial State");
 
-  DOCTEST_REQUIRE(!r0.is_leader());
+  DOCTEST_REQUIRE(!r0.is_primary());
   DOCTEST_REQUIRE(r0.leader() == aft::NoNode);
   DOCTEST_REQUIRE(r0.get_term() == 0);
   DOCTEST_REQUIRE(r0.get_commit_idx() == 0);
@@ -60,10 +63,10 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     "In the absence of other nodes, become leader after election timeout");
 
   r0.periodic(ms(0));
-  DOCTEST_REQUIRE(!r0.is_leader());
+  DOCTEST_REQUIRE(!r0.is_primary());
 
   r0.periodic(election_timeout * 2);
-  DOCTEST_REQUIRE(r0.is_leader());
+  DOCTEST_REQUIRE(r0.is_primary());
   DOCTEST_REQUIRE(r0.leader() == node_id);
 }
 
@@ -82,11 +85,13 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     nullptr,
     nullptr,
     cert,
-    request_map,
     std::make_shared<aft::State>(node_id),
     nullptr,
+    nullptr,
+    nullptr,
     ms(10),
-    election_timeout);
+    election_timeout,
+    ms(1000));
 
   aft::Configuration::Nodes config;
   config[node_id] = {};
@@ -95,7 +100,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
   DOCTEST_INFO("Become leader after election timeout");
 
   r0.periodic(election_timeout * 2);
-  DOCTEST_REQUIRE(r0.is_leader());
+  DOCTEST_REQUIRE(r0.is_primary());
 
   DOCTEST_INFO("Observe that data is committed on replicate immediately");
 
@@ -106,7 +111,9 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     entry->push_back(2);
     entry->push_back(3);
 
-    r0.replicate(kv::BatchVector{{i, entry, true}}, 1);
+    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+
+    r0.replicate(kv::BatchVector{{i, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(r0.get_last_idx() == i);
     DOCTEST_REQUIRE(r0.get_commit_idx() == i);
   }
@@ -134,11 +141,13 @@ DOCTEST_TEST_CASE(
     nullptr,
     nullptr,
     cert,
-    request_map,
     std::make_shared<aft::State>(node_id0),
     nullptr,
+    nullptr,
+    nullptr,
     request_timeout,
-    ms(20));
+    ms(20),
+    ms(1000));
   TRaft r1(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
@@ -148,11 +157,13 @@ DOCTEST_TEST_CASE(
     nullptr,
     nullptr,
     cert,
-    request_map,
     std::make_shared<aft::State>(node_id1),
     nullptr,
+    nullptr,
+    nullptr,
     request_timeout,
-    ms(100));
+    ms(100),
+    ms(1000));
   TRaft r2(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store2),
@@ -162,11 +173,13 @@ DOCTEST_TEST_CASE(
     nullptr,
     nullptr,
     cert,
-    request_map,
     std::make_shared<aft::State>(node_id2),
     nullptr,
+    nullptr,
+    nullptr,
     request_timeout,
-    ms(50));
+    ms(50),
+    ms(1000));
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
@@ -195,8 +208,9 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(get<0>(rv) == node_id1);
   auto rvc = get<1>(rv);
   DOCTEST_REQUIRE(rvc.term == 1);
-  DOCTEST_REQUIRE(rvc.last_commit_idx == 0);
-  DOCTEST_REQUIRE(rvc.last_commit_term == aft::ViewHistory::InvalidView);
+  DOCTEST_REQUIRE(rvc.last_committable_idx == 0);
+  DOCTEST_REQUIRE(
+    rvc.term_of_last_committable_idx == aft::ViewHistory::InvalidView);
 
   r1.recv_message(reinterpret_cast<uint8_t*>(&rvc), sizeof(rvc));
 
@@ -207,8 +221,9 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(get<0>(rv) == node_id2);
   rvc = get<1>(rv);
   DOCTEST_REQUIRE(rvc.term == 1);
-  DOCTEST_REQUIRE(rvc.last_commit_idx == 0);
-  DOCTEST_REQUIRE(rvc.last_commit_term == aft::ViewHistory::InvalidView);
+  DOCTEST_REQUIRE(rvc.last_committable_idx == 0);
+  DOCTEST_REQUIRE(
+    rvc.term_of_last_committable_idx == aft::ViewHistory::InvalidView);
 
   r2.recv_message(reinterpret_cast<uint8_t*>(&rvc), sizeof(rvc));
 
@@ -249,7 +264,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO(
     "Node 0 is now leader, and sends empty append entries to other nodes");
 
-  DOCTEST_REQUIRE(r0.is_leader());
+  DOCTEST_REQUIRE(r0.is_primary());
   DOCTEST_REQUIRE(
     ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size() ==
     2);
@@ -335,11 +350,13 @@ DOCTEST_TEST_CASE(
     nullptr,
     nullptr,
     cert,
-    request_map,
     std::make_shared<aft::State>(node_id0),
     nullptr,
+    nullptr,
+    nullptr,
     request_timeout,
-    ms(20));
+    ms(20),
+    ms(1000));
   TRaft r1(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
@@ -349,11 +366,14 @@ DOCTEST_TEST_CASE(
     nullptr,
     nullptr,
     cert,
-    request_map,
+
     std::make_shared<aft::State>(node_id1),
     nullptr,
+    nullptr,
+    nullptr,
     request_timeout,
-    ms(100));
+    ms(100),
+    ms(1000));
   TRaft r2(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store2),
@@ -363,11 +383,13 @@ DOCTEST_TEST_CASE(
     nullptr,
     nullptr,
     cert,
-    request_map,
     std::make_shared<aft::State>(node_id2),
     nullptr,
+    nullptr,
+    nullptr,
     request_timeout,
-    ms(50));
+    ms(50),
+    ms(1000));
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
@@ -416,7 +438,7 @@ DOCTEST_TEST_CASE(
       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries_response,
       [](const auto& msg) {
         DOCTEST_REQUIRE(msg.last_log_idx == 0);
-        DOCTEST_REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
       }));
   DOCTEST_REQUIRE(
     1 ==
@@ -425,7 +447,7 @@ DOCTEST_TEST_CASE(
       ((aft::ChannelStubProxy*)r2.channels.get())->sent_append_entries_response,
       [](const auto& msg) {
         DOCTEST_REQUIRE(msg.last_log_idx == 0);
-        DOCTEST_REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
       }));
 
   DOCTEST_INFO("There ought to be no messages pending anywhere now");
@@ -439,10 +461,12 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO("Try to replicate on a follower, and fail");
   std::vector<uint8_t> entry = {1, 2, 3};
   auto data = std::make_shared<std::vector<uint8_t>>(entry);
-  DOCTEST_REQUIRE_FALSE(r1.replicate(kv::BatchVector{{1, data, true}}, 1));
+  auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+  DOCTEST_REQUIRE_FALSE(
+    r1.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
 
   DOCTEST_INFO("Tell the leader to replicate a message");
-  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true}}, 1));
+  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
   DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
   DOCTEST_REQUIRE(*r0.ledger->ledger.front() == entry);
   DOCTEST_INFO("The other nodes are not told about this yet");
@@ -473,7 +497,7 @@ DOCTEST_TEST_CASE(
       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries_response,
       [](const auto& msg) {
         DOCTEST_REQUIRE(msg.last_log_idx == 1);
-        DOCTEST_REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
       }));
   DOCTEST_REQUIRE(
     1 ==
@@ -482,7 +506,7 @@ DOCTEST_TEST_CASE(
       ((aft::ChannelStubProxy*)r2.channels.get())->sent_append_entries_response,
       [](const auto& msg) {
         DOCTEST_REQUIRE(msg.last_log_idx == 1);
-        DOCTEST_REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
       }));
 }
 
@@ -507,11 +531,14 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     nullptr,
     nullptr,
     cert,
-    request_map,
+
     std::make_shared<aft::State>(node_id0),
     nullptr,
+    nullptr,
+    nullptr,
     request_timeout,
-    ms(20));
+    ms(20),
+    ms(1000));
   TRaft r1(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
@@ -521,11 +548,14 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     nullptr,
     nullptr,
     cert,
-    request_map,
+
     std::make_shared<aft::State>(node_id1),
     nullptr,
+    nullptr,
+    nullptr,
     request_timeout,
-    ms(100));
+    ms(100),
+    ms(1000));
   TRaft r2(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store2),
@@ -535,11 +565,14 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     nullptr,
     nullptr,
     cert,
-    request_map,
+
     std::make_shared<aft::State>(node_id2),
     nullptr,
+    nullptr,
+    nullptr,
     request_timeout,
-    ms(50));
+    ms(50),
+    ms(1000));
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
@@ -574,7 +607,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries_response,
       [](const auto& msg) {
         DOCTEST_REQUIRE(msg.last_log_idx == 0);
-        DOCTEST_REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
       }));
 
   DOCTEST_REQUIRE(
@@ -584,7 +617,8 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
 
   std::vector<uint8_t> first_entry = {1, 2, 3};
   auto data = std::make_shared<std::vector<uint8_t>>(first_entry);
-  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true}}, 1));
+  auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
   r0.periodic(ms(10));
 
   DOCTEST_REQUIRE(
@@ -607,7 +641,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries_response,
       [](const auto& msg) {
         DOCTEST_REQUIRE(msg.last_log_idx == 1);
-        DOCTEST_REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
       }));
 
   DOCTEST_INFO("Node 2 joins the ensemble");
@@ -661,11 +695,14 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     nullptr,
     nullptr,
     cert,
-    request_map,
+
     std::make_shared<aft::State>(node_id0),
     nullptr,
+    nullptr,
+    nullptr,
     request_timeout,
-    ms(20));
+    ms(20),
+    ms(1000));
   TRaft r1(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
@@ -675,11 +712,14 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     nullptr,
     nullptr,
     cert,
-    request_map,
+
     std::make_shared<aft::State>(node_id1),
     nullptr,
+    nullptr,
+    nullptr,
     request_timeout,
-    ms(100));
+    ms(100),
+    ms(1000));
 
   aft::Configuration::Nodes config0;
   config0[node_id0] = {};
@@ -706,7 +746,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
         ((aft::ChannelStubProxy*)r1.channels.get())
           ->sent_request_vote_response));
 
-    DOCTEST_REQUIRE(r0.is_leader());
+    DOCTEST_REQUIRE(r0.is_primary());
     DOCTEST_REQUIRE(
       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size() ==
       1);
@@ -728,9 +768,10 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     auto data_1 = std::make_shared<std::vector<uint8_t>>(first_entry);
     std::vector<uint8_t> second_entry = {2, 2, 2};
     auto data_2 = std::make_shared<std::vector<uint8_t>>(second_entry);
+    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data_1, true}}, 1));
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, data_2, true}}, 1));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data_1, true, hooks}}, 1));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, data_2, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 2);
     r0.periodic(ms(10));
     DOCTEST_REQUIRE(
@@ -759,7 +800,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> third_entry = {3, 3, 3};
     auto data = std::make_shared<std::vector<uint8_t>>(third_entry);
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{3, data, true}}, 1));
+    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{3, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 3);
 
     // Simulate that the append entries was not deserialised successfully
@@ -769,7 +811,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
                  .second;
     ((aft::ChannelStubProxy*)r1.channels.get())
       ->sent_append_entries_response.pop_front();
-    aer.success = false;
+    aer.success = aft::AppendEntriesResponseType::FAIL;
     r0.recv_message(reinterpret_cast<uint8_t*>(&aer), sizeof(aer));
     DOCTEST_REQUIRE(
       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size() ==
@@ -797,7 +839,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> fourth_entry = {4, 4, 4};
     auto data = std::make_shared<std::vector<uint8_t>>(fourth_entry);
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{4, data, true}}, 1));
+    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{4, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 4);
     r0.periodic(ms(10));
     DOCTEST_REQUIRE(
@@ -816,7 +859,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> fifth_entry = {5, 5, 5};
     auto data = std::make_shared<std::vector<uint8_t>>(fifth_entry);
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{5, data, true}}, 1));
+    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{5, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 5);
     r0.periodic(ms(10));
     DOCTEST_REQUIRE(
@@ -832,7 +876,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
                  .second;
     ((aft::ChannelStubProxy*)r1.channels.get())
       ->sent_append_entries_response.pop_front();
-    aer.success = false;
+    aer.success = aft::AppendEntriesResponseType::FAIL;
     r0.recv_message(reinterpret_cast<uint8_t*>(&aer), sizeof(aer));
     DOCTEST_REQUIRE(
       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size() ==
@@ -873,11 +917,14 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     nullptr,
     nullptr,
     cert,
-    request_map,
+
     std::make_shared<aft::State>(node_id0),
     nullptr,
+    nullptr,
+    nullptr,
     request_timeout,
-    ms(20));
+    ms(20),
+    ms(1000));
   TRaft r1(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
@@ -887,11 +934,14 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     nullptr,
     nullptr,
     cert,
-    request_map,
+
     std::make_shared<aft::State>(node_id1),
     nullptr,
+    nullptr,
+    nullptr,
     request_timeout,
-    ms(100));
+    ms(100),
+    ms(1000));
   TRaft r2(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store2),
@@ -901,11 +951,14 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     nullptr,
     nullptr,
     cert,
-    request_map,
+
     std::make_shared<aft::State>(node_id2),
     nullptr,
+    nullptr,
+    nullptr,
     request_timeout,
-    ms(50));
+    ms(50),
+    ms(1000));
 
   aft::Configuration::Nodes config0;
   config0[node_id0] = {};
@@ -940,7 +993,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries_response,
       [](const auto& msg) {
         DOCTEST_REQUIRE(msg.last_log_idx == 0);
-        DOCTEST_REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
       }));
 
   DOCTEST_REQUIRE(
@@ -963,7 +1016,8 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
 
   for (size_t i = 1; i <= num_big_entries; ++i)
   {
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{i, data, true}}, 1));
+    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{i, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(
       msg_response ==
       dispatch_all_and_DOCTEST_CHECK(
@@ -983,7 +1037,9 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
 
   for (size_t i = num_big_entries + 1; i <= individual_entries; ++i)
   {
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{i, smaller_data, true}}, 1));
+    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+    DOCTEST_REQUIRE(
+      r0.replicate(kv::BatchVector{{i, smaller_data, true, hooks}}, 1));
     dispatch_all(
       nodes, ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries);
   }
@@ -1040,366 +1096,4 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     (sent_entries > num_small_entries_sent &&
      sent_entries <= num_small_entries_sent + num_big_entries));
   DOCTEST_REQUIRE(r2.ledger->ledger.size() == individual_entries);
-}
-
-// Reproduces issue described here: https://github.com/microsoft/CCF/issues/521
-// Once this is fixed test will need to be modified since right now it
-// DOCTEST_CHECKs that the issue stands
-DOCTEST_TEST_CASE(
-  "Primary gets invalidated if it compacts right before a term change that it "
-  "doesn't participate in")
-{
-  auto kv_store0 = std::make_shared<StoreSig>(0);
-  auto kv_store1 = std::make_shared<StoreSig>(1);
-  auto kv_store2 = std::make_shared<StoreSig>(2);
-
-  aft::NodeId node_id0(0);
-  aft::NodeId node_id1(1);
-  aft::NodeId node_id2(2);
-
-  ms request_timeout(10);
-
-  TRaft r0(
-    ConsensusType::CFT,
-    std::make_unique<Adaptor>(kv_store0),
-    std::make_unique<aft::LedgerStubProxy>(node_id0),
-    std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
-    cert,
-    request_map,
-    std::make_shared<aft::State>(node_id0),
-    nullptr,
-    request_timeout,
-    ms(20));
-  TRaft r1(
-    ConsensusType::CFT,
-    std::make_unique<Adaptor>(kv_store1),
-    std::make_unique<aft::LedgerStubProxy>(node_id1),
-    std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
-    cert,
-    request_map,
-    std::make_shared<aft::State>(node_id1),
-    nullptr,
-    request_timeout,
-    ms(100));
-  TRaft r2(
-    ConsensusType::CFT,
-    std::make_unique<Adaptor>(kv_store2),
-    std::make_unique<aft::LedgerStubProxy>(node_id2),
-    std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
-    cert,
-    request_map,
-    std::make_shared<aft::State>(node_id2),
-    nullptr,
-    request_timeout,
-    ms(50));
-
-  aft::Configuration::Nodes config0;
-  config0[node_id0] = {};
-  config0[node_id1] = {};
-  config0[node_id2] = {};
-  r0.add_configuration(0, config0);
-  r1.add_configuration(0, config0);
-  r2.add_configuration(0, config0);
-
-  map<aft::NodeId, TRaft*> nodes;
-  nodes[node_id0] = &r0;
-  nodes[node_id1] = &r1;
-  nodes[node_id2] = &r2;
-
-  r0.periodic(std::chrono::milliseconds(200));
-
-  DOCTEST_INFO("Initial election for Node 0");
-  {
-    DOCTEST_REQUIRE(
-      2 ==
-      dispatch_all(
-        nodes, ((aft::ChannelStubProxy*)r0.channels.get())->sent_request_vote));
-    DOCTEST_REQUIRE(
-      1 ==
-      dispatch_all(
-        nodes,
-        ((aft::ChannelStubProxy*)r1.channels.get())
-          ->sent_request_vote_response));
-
-    DOCTEST_REQUIRE(r0.is_leader());
-    DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size() ==
-      2);
-    DOCTEST_REQUIRE(
-      2 ==
-      dispatch_all(
-        nodes,
-        ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries));
-    DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size() ==
-      0);
-  }
-
-  ((aft::ChannelStubProxy*)r1.channels.get())
-    ->sent_append_entries_response.clear();
-  ((aft::ChannelStubProxy*)r2.channels.get())
-    ->sent_append_entries_response.clear();
-
-  auto first_entry = std::make_shared<std::vector<uint8_t>>();
-  for (auto i = 0; i < 3; ++i)
-  {
-    first_entry->push_back(1);
-  }
-  auto second_entry = std::make_shared<std::vector<uint8_t>>();
-  for (auto i = 0; i < 3; ++i)
-  {
-    second_entry->push_back(2);
-  }
-
-  auto third_entry = std::make_shared<std::vector<uint8_t>>();
-  for (auto i = 0; i < 3; ++i)
-  {
-    third_entry->push_back(3);
-  }
-
-  DOCTEST_INFO("Node 0 compacts twice but Nodes 1 and 2 only once");
-  {
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, first_entry, true}}, 1));
-    DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
-    r0.periodic(ms(10));
-    DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size() ==
-      2);
-
-    // Nodes 1 and 2 receive append entries and respond
-    DOCTEST_REQUIRE(
-      2 ==
-      dispatch_all(
-        nodes,
-        ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries));
-    DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size() ==
-      0);
-
-    DOCTEST_REQUIRE(
-      1 ==
-      dispatch_all(
-        nodes,
-        ((aft::ChannelStubProxy*)r1.channels.get())
-          ->sent_append_entries_response));
-    DOCTEST_REQUIRE(
-      1 ==
-      dispatch_all(
-        nodes,
-        ((aft::ChannelStubProxy*)r2.channels.get())
-          ->sent_append_entries_response));
-
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, second_entry, true}}, 1));
-    DOCTEST_REQUIRE(r0.ledger->ledger.size() == 2);
-    r0.periodic(ms(10));
-    DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size() ==
-      2);
-
-    // Nodes 1 and 2 receive append entries and respond
-    // Node 0 will compact again and be ahead of Node 1 and 2
-    DOCTEST_REQUIRE(
-      2 ==
-      dispatch_all(
-        nodes,
-        ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries));
-    DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size() ==
-      0);
-
-    DOCTEST_REQUIRE(
-      1 ==
-      dispatch_all(
-        nodes,
-        ((aft::ChannelStubProxy*)r1.channels.get())
-          ->sent_append_entries_response));
-    DOCTEST_REQUIRE(
-      1 ==
-      dispatch_all(
-        nodes,
-        ((aft::ChannelStubProxy*)r2.channels.get())
-          ->sent_append_entries_response));
-
-    DOCTEST_CHECK(r0.get_term() == 1);
-    DOCTEST_CHECK(r0.get_commit_idx() == 2);
-    DOCTEST_CHECK(r0.get_last_idx() == 2);
-
-    DOCTEST_CHECK(r1.get_term() == 1);
-    DOCTEST_CHECK(r1.get_commit_idx() == 1);
-    DOCTEST_CHECK(r1.get_last_idx() == 2);
-
-    DOCTEST_CHECK(r2.get_term() == 1);
-    DOCTEST_CHECK(r2.get_commit_idx() == 1);
-    DOCTEST_CHECK(r2.get_last_idx() == 2);
-
-    // clean up
-    ((aft::ChannelStubProxy*)r2.channels.get())
-      ->sent_request_vote_response.clear();
-
-    DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r0.channels.get())->sent_msg_count() == 0);
-    DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r1.channels.get())->sent_msg_count() == 0);
-    DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r2.channels.get())->sent_msg_count() == 0);
-  }
-
-  DOCTEST_INFO("Node 1 exceeds its election timeout and starts an election");
-  {
-    auto by_0 = [](auto const& lhs, auto const& rhs) -> bool {
-      return get<0>(lhs) < get<0>(rhs);
-    };
-
-    r1.periodic(std::chrono::milliseconds(200));
-    DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r1.channels.get())->sent_request_vote.size() ==
-      2);
-    ((aft::ChannelStubProxy*)r1.channels.get())->sent_request_vote.sort(by_0);
-
-    DOCTEST_INFO("Node 2 receives the vote request");
-    // pop for first node (node 0) so that it doesn't participate in the
-    // election
-    auto vote_req_from_1_to_0 =
-      ((aft::ChannelStubProxy*)r1.channels.get())->sent_request_vote.front();
-    ((aft::ChannelStubProxy*)r1.channels.get())->sent_request_vote.pop_front();
-
-    DOCTEST_REQUIRE(
-      1 ==
-      dispatch_all_and_DOCTEST_CHECK(
-        nodes,
-        ((aft::ChannelStubProxy*)r1.channels.get())->sent_request_vote,
-        [](const auto& msg) {
-          DOCTEST_REQUIRE(msg.term == 2);
-          DOCTEST_REQUIRE(msg.last_commit_idx == 1);
-          DOCTEST_REQUIRE(msg.last_commit_term == 1);
-        }));
-
-    DOCTEST_INFO("Node 2 votes for Node 1, Node 0 is suspended");
-    DOCTEST_REQUIRE(
-      1 ==
-      dispatch_all_and_DOCTEST_CHECK(
-        nodes,
-        ((aft::ChannelStubProxy*)r2.channels.get())->sent_request_vote_response,
-        [](const auto& msg) {
-          DOCTEST_REQUIRE(msg.term == 2);
-          DOCTEST_REQUIRE(msg.vote_granted);
-        }));
-
-    DOCTEST_INFO("Node 1 is now leader");
-    DOCTEST_REQUIRE(r1.is_leader());
-    // pop Node 0's append entries
-    ((aft::ChannelStubProxy*)r1.channels.get())
-      ->sent_append_entries.pop_front();
-    DOCTEST_REQUIRE(
-      1 ==
-      dispatch_all_and_DOCTEST_CHECK(
-        nodes,
-        ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries,
-        [](const auto& msg) {
-          DOCTEST_REQUIRE(msg.idx == 1);
-          DOCTEST_REQUIRE(msg.term == 2);
-          DOCTEST_REQUIRE(msg.prev_idx == 1);
-          DOCTEST_REQUIRE(msg.prev_term == 1);
-          DOCTEST_REQUIRE(msg.leader_commit_idx == 1);
-        }));
-    DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries.size() ==
-      0);
-
-    DOCTEST_REQUIRE(
-      1 ==
-      dispatch_all(
-        nodes,
-        ((aft::ChannelStubProxy*)r2.channels.get())
-          ->sent_append_entries_response));
-  }
-
-  DOCTEST_INFO(
-    "Node 1 and Node 2 proceed to compact at idx 2, where Node 0 has "
-    "compacted for a previous term");
-  {
-    DOCTEST_REQUIRE(r1.replicate(kv::BatchVector{{2, second_entry, true}}, 2));
-    DOCTEST_REQUIRE(r1.ledger->ledger.size() == 2);
-    r1.periodic(ms(10));
-    DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries.size() ==
-      2);
-
-    // Nodes 0 and 2 receive append entries and respond
-    DOCTEST_REQUIRE(
-      2 ==
-      dispatch_all(
-        nodes,
-        ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries));
-    DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries.size() ==
-      0);
-
-    DOCTEST_REQUIRE(
-      1 ==
-      dispatch_all(
-        nodes,
-        ((aft::ChannelStubProxy*)r2.channels.get())
-          ->sent_append_entries_response));
-
-    // Node 0 will not respond here since it received an append entries it can
-    // not process [prev_idex (1) < commit_idx (2)]
-    DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r0.channels.get())
-        ->sent_append_entries_response.size() == 0);
-
-    DOCTEST_INFO("Another entry from Node 1 so that Node 2 can also compact");
-    DOCTEST_REQUIRE(r1.replicate(kv::BatchVector{{3, third_entry, true}}, 2));
-    DOCTEST_REQUIRE(r1.ledger->ledger.size() == 3);
-    r1.periodic(ms(10));
-    DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries.size() ==
-      2);
-
-    // Nodes 0 and 2 receive append entries
-    DOCTEST_REQUIRE(
-      2 ==
-      dispatch_all(
-        nodes,
-        ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries));
-    DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries.size() ==
-      0);
-
-    // Node 0 will now have an ae response which will return false because
-    // its log for index 2 has the wrong term (ours: 1, theirs: 2)
-    DOCTEST_REQUIRE(
-      ((aft::ChannelStubProxy*)r0.channels.get())
-        ->sent_append_entries_response.size() == 1);
-    DOCTEST_REQUIRE(
-      1 ==
-      dispatch_all_and_DOCTEST_CHECK(
-        nodes,
-        ((aft::ChannelStubProxy*)r0.channels.get())
-          ->sent_append_entries_response,
-        [](const auto& msg) {
-          DOCTEST_REQUIRE(msg.last_log_idx == 2);
-          DOCTEST_REQUIRE(!msg.success);
-        }));
-
-    DOCTEST_REQUIRE(r1.ledger->ledger.size() == 3);
-    DOCTEST_REQUIRE(r2.ledger->ledger.size() == 3);
-
-    DOCTEST_CHECK(r1.get_term() == 2);
-    DOCTEST_CHECK(r1.get_commit_idx() == 2);
-    DOCTEST_CHECK(r1.get_last_idx() == 3);
-
-    DOCTEST_CHECK(r2.get_term() == 2);
-    DOCTEST_CHECK(r2.get_commit_idx() == 2);
-    DOCTEST_CHECK(r2.get_last_idx() == 3);
-  }
 }

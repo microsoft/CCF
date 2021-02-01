@@ -3,20 +3,29 @@
 #pragma once
 
 #include "kv_types.h"
+#include "map_handle.h"
 #include "serialise_entry_blit.h"
 #include "serialise_entry_json.h"
 #include "serialise_entry_msgpack.h"
-#include "tx_view.h"
 
 namespace kv
 {
+  /** Defines the schema of a table within the @c kv::Store, exposing associated
+   * types.
+   *
+   * K defines the type of the Key which indexes each entry, while V is the type
+   * of the Value associated with a given Key. KSerialiser and VSerialiser
+   * determine how each K and V are serialised and deserialised, so they may be
+   * written to the ledger and replicated by the consensus algorithm. Note that
+   * equality is always evaluated on the serialised form; if unequal Ks produce
+   * the same serialisation, they will coincide within this table. Serialisers
+   * which leverage existing msgpack or JSON serialisation are provided by CCF.
+   */
   template <typename K, typename V, typename KSerialiser, typename VSerialiser>
-  class TypedMap : public AbstractMap
+  class TypedMap : public NamedMap
   {
   protected:
     using This = TypedMap<K, V, KSerialiser, VSerialiser>;
-
-    kv::untyped::Map untyped_map;
 
   public:
     // Expose correct public aliases of types
@@ -25,128 +34,18 @@ namespace kv
     using Write = std::map<K, std::optional<V>>;
 
     using CommitHook = CommitHook<Write>;
+    using MapHook = MapHook<Write>;
 
-    using ReadOnlyTxView = kv::ReadOnlyTxView<K, V, KSerialiser, VSerialiser>;
-    using TxView = kv::TxView<K, V, KSerialiser, VSerialiser>;
+    using ReadOnlyHandle =
+      kv::ReadableMapHandle<K, V, KSerialiser, VSerialiser>;
+    using WriteOnlyHandle =
+      kv::WriteableMapHandle<K, V, KSerialiser, VSerialiser>;
+    using Handle = kv::MapHandle<K, V, KSerialiser, VSerialiser>;
 
-    template <typename... Ts>
-    TypedMap(Ts&&... ts) : untyped_map(std::forward<Ts>(ts)...)
-    {}
+    using KeySerialiser = KSerialiser;
+    using ValueSerialiser = VSerialiser;
 
-    bool operator==(const AbstractMap& that) const override
-    {
-      auto p = dynamic_cast<const This*>(&that);
-      if (p == nullptr)
-      {
-        return false;
-      }
-
-      return untyped_map == p->untyped_map;
-    }
-
-    bool operator!=(const AbstractMap& that) const override
-    {
-      return !(*this == that);
-    }
-
-    AbstractStore* get_store() override
-    {
-      return untyped_map.get_store();
-    }
-
-    void serialise(
-      const AbstractTxView* view,
-      KvStoreSerialiser& s,
-      bool include_reads) override
-    {
-      untyped_map.serialise(view, s, include_reads);
-    }
-
-    AbstractTxView* deserialise(
-      KvStoreDeserialiser& d, Version version, bool commit) override
-    {
-      return untyped_map.deserialise_internal<TxView>(d, version, commit);
-    }
-
-    AbstractTxView* deserialise_snapshot(KvStoreDeserialiser& d) override
-    {
-      return untyped_map.deserialise_snapshot(d);
-    }
-
-    const std::string& get_name() const override
-    {
-      return untyped_map.get_name();
-    }
-
-    void compact(Version v) override
-    {
-      return untyped_map.compact(v);
-    }
-
-    std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
-    {
-      return untyped_map.snapshot(v);
-    }
-
-    void post_compact() override
-    {
-      return untyped_map.post_compact();
-    }
-
-    void rollback(Version v) override
-    {
-      untyped_map.rollback(v);
-    }
-
-    void lock() override
-    {
-      untyped_map.lock();
-    }
-
-    void unlock() override
-    {
-      untyped_map.unlock();
-    }
-
-    SecurityDomain get_security_domain() override
-    {
-      return untyped_map.get_security_domain();
-    }
-
-    bool is_replicated() override
-    {
-      return untyped_map.is_replicated();
-    }
-
-    void clear() override
-    {
-      untyped_map.clear();
-    }
-
-    AbstractMap* clone(AbstractStore* store) override
-    {
-      return new TypedMap(
-        store,
-        untyped_map.get_name(),
-        untyped_map.get_security_domain(),
-        untyped_map.is_replicated());
-    }
-
-    void swap(AbstractMap* map) override
-    {
-      auto p = dynamic_cast<This*>(map);
-      if (p == nullptr)
-        throw std::logic_error(
-          "Attempted to swap maps with incompatible types");
-
-      untyped_map.swap(&p->untyped_map);
-    }
-
-    template <typename TView>
-    TView* create_view(Version v)
-    {
-      return untyped_map.create_view<TView>(v);
-    }
+    using NamedMap::NamedMap;
 
     static kv::untyped::Map::CommitHook wrap_commit_hook(const CommitHook& hook)
     {
@@ -171,24 +70,27 @@ namespace kv
       };
     }
 
-    void set_local_hook(const CommitHook& hook)
+    static kv::untyped::Map::MapHook wrap_map_hook(const MapHook& hook)
     {
-      untyped_map.set_local_hook(wrap_commit_hook(hook));
-    }
+      return [hook](Version v, const kv::untyped::Write& w) {
+        Write typed_writes;
+        for (const auto& [uk, opt_uv] : w)
+        {
+          if (!opt_uv.has_value())
+          {
+            // Deletions are indicated by nullopt. We cannot deserialise them,
+            // they are deletions here as well
+            typed_writes[KSerialiser::from_serialised(uk)] = std::nullopt;
+          }
+          else
+          {
+            typed_writes[KSerialiser::from_serialised(uk)] =
+              VSerialiser::from_serialised(opt_uv.value());
+          }
+        }
 
-    void unset_local_hook()
-    {
-      untyped_map.unset_local_hook();
-    }
-
-    void set_global_hook(const CommitHook& hook)
-    {
-      untyped_map.set_global_hook(wrap_commit_hook(hook));
-    }
-
-    void unset_global_hook()
-    {
-      untyped_map.unset_global_hook();
+        return hook(v, typed_writes);
+      };
     }
   };
 

@@ -155,7 +155,7 @@ TEST_CASE("MemberAck")
   {
     INFO("Implausible ack");
     MemberAck ma;
-    ma.state_digest.push_back(42);
+    ma.state_digest = "string";
     const auto converted = msgpack_roundtrip(ma);
     CHECK(ma.state_digest == converted.state_digest);
   }
@@ -163,7 +163,9 @@ TEST_CASE("MemberAck")
   {
     INFO("Plausible ack");
     MemberAck ma;
-    fill_rand(ma.state_digest, 16);
+    std::vector<uint8_t> data;
+    fill_rand(data, 1024);
+    ma.state_digest = crypto::Sha256Hash(data).hex_str();
     const auto converted = msgpack_roundtrip(ma);
     CHECK(ma.state_digest == converted.state_digest);
   }

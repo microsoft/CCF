@@ -162,10 +162,14 @@ TEST_CASE("Basic message loop" * doctest::test_suite("messaging"))
 
   BufferProcessor bp;
 
-  Reader loop_src(1 << 10);
+  constexpr auto buffer_size = 1 << 10;
+
+  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  Reader loop_src(in_buffer->bd);
   Writer test_filler(loop_src);
 
-  Reader out_reader(1 << 10);
+  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  Reader out_reader(out_buffer->bd);
   Writer out_writer(out_reader);
 
   size_t x = 0;
@@ -374,9 +378,15 @@ TEST_CASE("Multiple threads" * doctest::test_suite("messaging"))
 
   SUBCASE("Message loops run until stopped")
   {
+    constexpr auto buffer_size = 1 << 10;
+
+    auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+    auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+
+    ringbuffer::Circuit circuit(in_buffer->bd, out_buffer->bd);
+
     size_t reads_inside = 0;
     size_t reads_outside = 0;
-    Circuit circuit(1 << 10);
 
     // Prepare a single message from outside to inside, telling it to finish
     circuit.write_to_inside().write(finish);
@@ -388,9 +398,15 @@ TEST_CASE("Multiple threads" * doctest::test_suite("messaging"))
 
   SUBCASE("Both loops can send data")
   {
+    constexpr auto buffer_size = 1 << 10;
+
+    auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+    auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+
+    ringbuffer::Circuit circuit(in_buffer->bd, out_buffer->bd);
+
     size_t reads_inside = 0;
     size_t reads_outside = 0;
-    Circuit circuit(1 << 10);
 
     // Both sides send some empty messages
     constexpr auto count_inbound = 2u;
@@ -431,9 +447,15 @@ TEST_CASE("Multiple threads" * doctest::test_suite("messaging"))
       const auto& pings_in = pc.in;
       const auto& pings_out = pc.out;
 
+      constexpr auto buffer_size = 1 << 10;
+
+      auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+      auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+
+      ringbuffer::Circuit circuit(in_buffer->bd, out_buffer->bd);
+
       size_t reads_inside = 0;
       size_t reads_outside = 0;
-      Circuit circuit(1 << 10);
 
       circuit.write_to_inside().write(ping, pings_in);
       circuit.write_to_outside().write(ping, pings_out);
@@ -461,7 +483,11 @@ TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
   };
 
   constexpr auto circuit_size = 1 << 6;
-  Circuit circuit(circuit_size);
+
+  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(circuit_size);
+  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(circuit_size);
+
+  ringbuffer::Circuit circuit(in_buffer->bd, out_buffer->bd);
 
   BufferProcessor processor_inside;
 

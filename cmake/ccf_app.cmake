@@ -30,33 +30,32 @@ if((NOT ${IS_VALID_TARGET}))
 endif()
 
 # Find OpenEnclave package
-find_package(OpenEnclave 0.10 CONFIG REQUIRED)
+find_package(OpenEnclave 0.13 CONFIG REQUIRED)
 # As well as pulling in openenclave:: targets, this sets variables which can be
 # used for our edge cases (eg - for virtual libraries). These do not follow the
 # standard naming patterns, for example use OE_INCLUDEDIR rather than
 # OpenEnclave_INCLUDE_DIRS
+set(OE_CRYPTO_LIB
+    mbedtls
+    CACHE STRING "Crypto library used by enclaves."
+)
+
+set(OE_TARGET_LIBC openenclave::oelibc)
+set(OE_TARGET_ENCLAVE_AND_STD
+    openenclave::oeenclave openenclave::oecryptombedtls openenclave::oelibcxx
+    openenclave::oelibc openenclave::oecryptoopenssl
+)
+# These oe libraries must be linked in specific order
+set(OE_TARGET_ENCLAVE_CORE_LIBS
+    openenclave::oeenclave openenclave::oecryptombedtls openenclave::oesnmalloc
+    openenclave::oecore openenclave::oesyscall
+)
 
 option(LVI_MITIGATIONS "Enable LVI mitigations" ON)
 if(LVI_MITIGATIONS)
-  set(OE_TARGET_LIBC openenclave::oelibc-lvi-cfg)
-  set(OE_TARGET_ENCLAVE_AND_STD
-      openenclave::oeenclave-lvi-cfg openenclave::oelibcxx-lvi-cfg
-      openenclave::oelibc-lvi-cfg
-  )
-  set(OE_TARGET_ENCLAVE_CORE_LIBS
-      openenclave::oeenclave-lvi-cfg openenclave::oesnmalloc-lvi-cfg
-      openenclave::oecore-lvi-cfg openenclave::oesyscall-lvi-cfg
-  )
-else()
-  set(OE_TARGET_LIBC openenclave::oelibc)
-  set(OE_TARGET_ENCLAVE_AND_STD openenclave::oeenclave openenclave::oelibcxx
-                                openenclave::oelibc
-  )
-  # These oe libraries must be linked in specific order
-  set(OE_TARGET_ENCLAVE_CORE_LIBS
-      openenclave::oeenclave openenclave::oesnmalloc openenclave::oecore
-      openenclave::oesyscall
-  )
+  string(APPEND OE_TARGET_LIBC -lvi-cfg)
+  list(TRANSFORM OE_TARGET_ENCLAVE_AND_STD APPEND -lvi-cfg)
+  list(TRANSFORM OE_TARGET_ENCLAVE_CORE_LIBS APPEND -lvi-cfg)
 endif()
 
 function(add_lvi_mitigations name)
@@ -169,37 +168,6 @@ function(enable_quote_code name)
   endif()
 endfunction()
 
-function(add_san name)
-  if(SAN)
-    target_compile_options(
-      ${name}
-      PRIVATE -fsanitize=undefined,address -fno-omit-frame-pointer
-              -fno-sanitize-recover=all -fno-sanitize=function
-              -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
-    )
-    target_link_libraries(
-      ${name}
-      PRIVATE -fsanitize=undefined,address -fno-omit-frame-pointer
-              -fno-sanitize-recover=all -fno-sanitize=function
-              -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
-    )
-  endif()
-endfunction()
-
-separate_arguments(
-  COVERAGE_FLAGS UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping"
-)
-separate_arguments(
-  COVERAGE_LINK UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping"
-)
-
-function(enable_coverage name)
-  if(COVERAGE)
-    target_compile_options(${name} PRIVATE ${COVERAGE_FLAGS})
-    target_link_libraries(${name} PRIVATE ${COVERAGE_LINK})
-  endif()
-endfunction()
-
 function(use_client_mbedtls name)
   target_include_directories(${name} PRIVATE ${CLIENT_MBEDTLS_INCLUDE_DIR})
   target_link_libraries(${name} PRIVATE ${CLIENT_MBEDTLS_LIBRARIES})
@@ -263,7 +231,6 @@ function(add_ccf_app name)
 
     set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-    enable_coverage(${virt_name})
     use_client_mbedtls(${virt_name})
     add_san(${virt_name})
     add_lvi_mitigations(${virt_name})

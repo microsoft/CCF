@@ -6,6 +6,7 @@
 #include "hash.h"
 #include "serializer.h"
 
+#include <atomic>
 #include <optional>
 #include <string>
 #include <vector>
@@ -13,6 +14,16 @@
 namespace ringbuffer
 {
   using Message = uint32_t;
+
+  // Align by cacheline to avoid false sharing
+  static constexpr size_t CACHELINE_SIZE = 64;
+
+  struct alignas(CACHELINE_SIZE) Offsets
+  {
+    std::atomic<size_t> head_cache = {0};
+    std::atomic<size_t> tail = {0};
+    alignas(CACHELINE_SIZE) std::atomic<size_t> head = {0};
+  };
 
   class message_error : public std::logic_error
   {

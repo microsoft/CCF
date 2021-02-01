@@ -5,6 +5,7 @@
 #include "consensus/aft/raft_types.h"
 #include "consensus/aft/request.h"
 #include "enclave/rpc_map.h"
+#include "node/request_tracker.h"
 #include "state.h"
 
 namespace enclave
@@ -34,23 +35,27 @@ namespace aft
       Request& request) = 0;
 
     virtual kv::Version execute_request(
-      std::unique_ptr<RequestMessage> request, bool is_create_request) = 0;
+      std::unique_ptr<RequestMessage> request,
+      bool is_create_request,
+      std::shared_ptr<aft::RequestTracker> request_tracker = nullptr) = 0;
 
     virtual std::unique_ptr<aft::RequestMessage> create_request_message(
-      const kv::TxHistory::RequestCallbackArgs& args) = 0;
+      const kv::TxHistory::RequestCallbackArgs& args,
+      kv::Consensus::SeqNo committed_seqno) = 0;
 
-    virtual kv::Version commit_replayed_request(kv::Tx& tx) = 0;
+    virtual kv::Version commit_replayed_request(
+      kv::Tx& tx,
+      std::shared_ptr<aft::RequestTracker> request_tracker,
+      kv::Consensus::SeqNo committed_seqno) = 0;
   };
 
   class ExecutorImpl : public Executor
   {
   public:
     ExecutorImpl(
-      RequestsMap& pbft_requests_map_,
       std::shared_ptr<State> state_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       std::shared_ptr<enclave::RPCSessions> rpc_sessions_) :
-      pbft_requests_map(pbft_requests_map_),
       state(state_),
       rpc_map(rpc_map_),
       rpc_sessions(rpc_sessions_)
@@ -62,15 +67,20 @@ namespace aft
     std::unique_ptr<RequestCtx> create_request_ctx(Request& request) override;
 
     kv::Version execute_request(
-      std::unique_ptr<RequestMessage> request, bool is_create_request) override;
+      std::unique_ptr<RequestMessage> request,
+      bool is_create_request,
+      std::shared_ptr<aft::RequestTracker> request_tracker = nullptr) override;
 
     std::unique_ptr<aft::RequestMessage> create_request_message(
-      const kv::TxHistory::RequestCallbackArgs& args) override;
+      const kv::TxHistory::RequestCallbackArgs& args,
+      kv::Consensus::SeqNo committed_seqno) override;
 
-    kv::Version commit_replayed_request(kv::Tx& tx) override;
+    kv::Version commit_replayed_request(
+      kv::Tx& tx,
+      std::shared_ptr<aft::RequestTracker> request_tracker,
+      kv::Consensus::SeqNo committed_seqno) override;
 
   private:
-    RequestsMap& pbft_requests_map;
     std::shared_ptr<State> state;
     std::shared_ptr<enclave::RPCMap> rpc_map;
     std::shared_ptr<enclave::RPCSessions> rpc_sessions;

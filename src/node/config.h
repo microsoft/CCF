@@ -12,7 +12,7 @@ namespace ccf
   struct Config
   {
     // Number of required shares to decrypt ledger secrets (recovery)
-    size_t recovery_threshold;
+    size_t recovery_threshold = 0;
 
     MSGPACK_DEFINE(recovery_threshold)
   };

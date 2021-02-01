@@ -58,7 +58,7 @@ int main(int argc, char** argv)
   app.require_subcommand(1, 1);
 
   std::string enclave_file;
-  app.add_option("-e,--enclave-file", enclave_file, "CCF transaction engine")
+  app.add_option("-e,--enclave-file", enclave_file, "CCF application")
     ->required()
     ->check(CLI::ExistingFile);
 
@@ -114,7 +114,9 @@ int main(int argc, char** argv)
     app,
     rpc_address,
     "--rpc-address",
-    "Address on which to listen for TLS commands coming from clients")
+    "Address on which to listen for TLS commands coming from clients. Port "
+    "defaults to 443 if unspecified.",
+    "443")
     ->required();
 
   std::string rpc_address_file = {};
@@ -130,11 +132,20 @@ int main(int argc, char** argv)
     public_rpc_address,
     "--public-rpc-address",
     "Address to advertise publicly to clients (defaults to same as "
-    "--rpc-address)");
+    "--rpc-address)",
+    "443");
 
   std::string ledger_dir("ledger");
   app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
     ->capture_default_str();
+
+  std::vector<std::string> read_only_ledger_dirs;
+  app
+    .add_option(
+      "--read-only-ledger-dir",
+      read_only_ledger_dirs,
+      "Additional read-only ledger directory (optional)")
+    ->type_size(-1);
 
   std::string snapshot_dir("snapshots");
   app.add_option("--snapshot-dir", snapshot_dir, "Snapshots directory")
@@ -149,13 +160,12 @@ int main(int argc, char** argv)
     ->capture_default_str()
     ->transform(CLI::AsSizeValue(true)); // 1000 is kb
 
-  size_t snapshot_tx_interval = std::numeric_limits<std::size_t>::max();
+  size_t snapshot_tx_interval = 10'000;
   app
     .add_option(
       "--snapshot-tx-interval",
       snapshot_tx_interval,
-      "Number of transactions between snapshots (experimental). "
-      "Defaults to no snapshot.")
+      "Number of transactions between snapshots")
     ->capture_default_str();
 
   logger::Level host_log_level{logger::Level::INFO};
@@ -237,23 +247,23 @@ int main(int argc, char** argv)
       "election.")
     ->capture_default_str();
 
-  size_t pbft_view_change_timeout = 5000;
+  size_t bft_view_change_timeout = 5000;
   app
     .add_option(
-      "--pbft_view-change-timeout-ms",
-      pbft_view_change_timeout,
-      "Pbft view change timeout in milliseconds. If a backup does not receive "
+      "--bft-view-change-timeout-ms",
+      bft_view_change_timeout,
+      "bft view change timeout in milliseconds. If a backup does not receive "
       "the pre-prepare message for a request forwarded to the primary after "
       "this "
       "timeout, the backup triggers a new view change.")
     ->capture_default_str();
 
-  size_t pbft_status_interval = 100;
+  size_t bft_status_interval = 100;
   app
     .add_option(
-      "--pbft-status-interval-ms",
-      pbft_status_interval,
-      "Pbft status timer interval in milliseconds. All pbft nodes send "
+      "--bft-status-interval-ms",
+      bft_status_interval,
+      "bft status timer interval in milliseconds. All bft nodes send "
       "messages "
       "containing their status to all other known nodes at regular intervals "
       "defined by this timer interval.")
@@ -307,6 +317,14 @@ int main(int argc, char** argv)
     "Subject Alternative Name in node certificate. Can be either "
     "iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld");
 
+  size_t jwt_key_refresh_interval_s = 1800;
+  app
+    .add_option(
+      "--jwt-key-refresh-interval-s",
+      jwt_key_refresh_interval_s,
+      "Interval in seconds for JWT public signing key refresh.")
+    ->capture_default_str();
+
   size_t memory_reserve_startup = 0;
   app
     .add_option(
@@ -323,7 +341,6 @@ int main(int argc, char** argv)
   // The network certificate file can either be an input or output parameter,
   // depending on the subcommand.
   std::string network_cert_file = "networkcert.pem";
-  std::string network_enc_pubk_file = "network_enc_pubk.pem";
 
   auto start = app.add_subcommand("start", "Start new network");
   start->configurable();
@@ -336,21 +353,13 @@ int main(int argc, char** argv)
     ->capture_default_str()
     ->check(CLI::NonexistentPath);
 
-  start
-    ->add_option(
-      "--network-enc-pubk-file",
-      network_enc_pubk_file,
-      "Destination path to freshly created network encryption public key")
-    ->capture_default_str()
-    ->check(CLI::NonexistentPath);
-
   std::string gov_script = "gov.lua";
   start
     ->add_option(
       "--gov-script",
       gov_script,
       "Path to Lua file that defines the contents of the "
-      "ccf.governance.scripts table")
+      "public:ccf.gov.governance.scripts table")
     ->capture_default_str()
     ->check(CLI::ExistingFile)
     ->required();
@@ -360,8 +369,8 @@ int main(int argc, char** argv)
     *start,
     members_info,
     "--member-info",
-    "Initial consortium members information (public identity,recovery public "
-    "key)")
+    "Initial consortium members information "
+    "(member_cert.pem[,member_enc_pubk.pem[,member_data.json]])")
     ->required();
 
   std::optional<size_t> recovery_threshold = std::nullopt;
@@ -370,7 +379,7 @@ int main(int argc, char** argv)
       "--recovery-threshold",
       recovery_threshold,
       "Number of member shares required for recovery. Defaults to total number "
-      "of initial consortium members.")
+      "of initial consortium members with a public encryption key.")
     ->check(CLI::PositiveNumber)
     ->type_name("UINT");
 
@@ -413,14 +422,6 @@ int main(int argc, char** argv)
     ->capture_default_str()
     ->check(CLI::NonexistentPath);
 
-  recover
-    ->add_option(
-      "--network-enc-pubk-file",
-      network_enc_pubk_file,
-      "Destination path to freshly created network encryption public key")
-    ->capture_default_str()
-    ->check(CLI::NonexistentPath);
-
   CLI11_PARSE(app, argc, argv);
 
   if (!(*public_rpc_address_option))
@@ -434,6 +435,9 @@ int main(int argc, char** argv)
     logger::config::initialize_with_json_console();
   }
 
+  const auto cli_config = app.config_to_str(true, false);
+  LOG_INFO_FMT("Run with following options:\n{}", cli_config);
+
   uint32_t oe_flags = 0;
   try
   {
@@ -445,11 +449,10 @@ int main(int argc, char** argv)
         rpc_address.hostname));
     }
 
-    if ((*start || *join) && files::exists(ledger_dir))
+    if (*start && files::exists(ledger_dir))
     {
       throw std::logic_error(fmt::format(
-        "On start and join, ledger directory should not exist ({})",
-        ledger_dir));
+        "On start, ledger directory should not exist ({})", ledger_dir));
     }
     else if (*recover && !files::exists(ledger_dir))
     {
@@ -459,20 +462,36 @@ int main(int argc, char** argv)
 
     if (*start)
     {
+      // Count members with public encryption key as only these members will be
+      // handed a recovery share.
+      // Note that it is acceptable to start a network without any member having
+      // a recovery share. The service will check that at least one recovery
+      // member is added before the service can be opened.
+      size_t members_with_pubk_count = 0;
+      for (auto const& mi : members_info)
+      {
+        if (mi.enc_pubk_file.has_value())
+        {
+          members_with_pubk_count++;
+        }
+      }
+
       if (!recovery_threshold.has_value())
       {
         LOG_INFO_FMT(
-          "--recovery-threshold unset. Defaulting to number of initial "
-          "consortium members ({}).",
-          members_info.size());
-        recovery_threshold = members_info.size();
+          "Recovery threshold unset. Defaulting to number of initial "
+          "consortium members with a public encryption key ({}).",
+          members_with_pubk_count);
+        recovery_threshold = members_with_pubk_count;
       }
-      else if (recovery_threshold.value() > members_info.size())
+      else if (recovery_threshold.value() > members_with_pubk_count)
       {
         throw std::logic_error(fmt::format(
-          "--recovery-threshold cannot be greater than total number "
-          "of initial consortium members (specified via --member-info "
-          "options)"));
+          "Recovery threshold ({}) cannot be greater than total number ({})"
+          "of initial consortium members with a public encryption "
+          "key (specified via --member-info options)",
+          recovery_threshold.value(),
+          members_with_pubk_count));
       }
     }
 
@@ -515,7 +534,20 @@ int main(int argc, char** argv)
   host::Enclave enclave(enclave_file, oe_flags);
 
   // messaging ring buffers
-  ringbuffer::Circuit circuit(1 << circuit_size_shift);
+  const auto buffer_size = 1 << circuit_size_shift;
+
+  std::vector<uint8_t> to_enclave_buffer(buffer_size);
+  ringbuffer::Offsets to_enclave_offsets;
+  ringbuffer::BufferDef to_enclave_def{
+    to_enclave_buffer.data(), to_enclave_buffer.size(), &to_enclave_offsets};
+
+  std::vector<uint8_t> from_enclave_buffer(buffer_size);
+  ringbuffer::Offsets from_enclave_offsets;
+  ringbuffer::BufferDef from_enclave_def{from_enclave_buffer.data(),
+                                         from_enclave_buffer.size(),
+                                         &from_enclave_offsets};
+
+  ringbuffer::Circuit circuit(to_enclave_def, from_enclave_def);
   messaging::BufferProcessor bp("Host");
 
   // To prevent deadlock, all blocking writes from the host to the ringbuffer
@@ -531,205 +563,268 @@ int main(int argc, char** argv)
   // reconstruct oversized messages sent to the host
   oversized::FragmentReconstructor fr(bp.get_dispatcher());
 
-  // provide regular ticks to the enclave
-  const std::chrono::milliseconds tick_period(tick_period_ms);
-  asynchost::Ticker ticker(
-    tick_period, writer_factory, [](auto s) { logger::config::set_start(s); });
-
-  // reset the inbound-TCP processing quota each iteration
-  asynchost::ResetTCPReadQuota reset_tcp_quota;
-
-  // regularly update the time given to the enclave
-  asynchost::TimeUpdater time_updater(1ms);
-
-  // regularly record some load statistics
-  asynchost::LoadMonitor load_monitor(500ms, bp);
-
-  // handle outbound messages from the enclave
-  asynchost::HandleRingbuffer handle_ringbuffer(
-    1ms, bp, circuit.read_from_inside(), non_blocking_factory);
-
-  // graceful shutdown on sigterm
-  asynchost::Sigterm sigterm(writer_factory);
-
-  asynchost::Ledger ledger(ledger_dir, writer_factory, ledger_chunk_bytes);
-  ledger.register_message_handlers(bp.get_dispatcher());
-
-  asynchost::SnapshotManager snapshots(snapshot_dir);
-  snapshots.register_message_handlers(bp.get_dispatcher());
-
-  // Begin listening for node-to-node and RPC messages.
-  // This includes DNS resolution and potentially dynamic port assignment (if
-  // requesting port 0). The hostname and port may be modified - after calling
-  // it holds the final assigned values.
-  asynchost::NodeConnectionsTickingReconnect node(
-    20ms, //< Flush reconnections every 20ms
-    bp.get_dispatcher(),
-    ledger,
-    writer_factory,
-    node_address.hostname,
-    node_address.port);
-  if (!node_address_file.empty())
   {
-    files::dump(
-      fmt::format("{}\n{}", node_address.hostname, node_address.port),
-      node_address_file);
-  }
+    // provide regular ticks to the enclave
+    const std::chrono::milliseconds tick_period(tick_period_ms);
+    asynchost::Ticker ticker(tick_period, writer_factory, [](auto s) {
+      logger::config::set_start(s);
+    });
 
-  asynchost::RPCConnections rpc(writer_factory);
-  rpc.register_message_handlers(bp.get_dispatcher());
-  rpc.listen(0, rpc_address.hostname, rpc_address.port);
-  if (!rpc_address_file.empty())
-  {
-    files::dump(
-      fmt::format("{}\n{}", rpc_address.hostname, rpc_address.port),
-      rpc_address_file);
-  }
+    // reset the inbound-TCP processing quota each iteration
+    asynchost::ResetTCPReadQuota reset_tcp_quota;
 
-  // Initialise the enclave and create a CCF node in it
-  const size_t certificate_size = 4096;
-  const size_t pubk_size = 1024;
-  std::vector<uint8_t> node_cert(certificate_size);
-  std::vector<uint8_t> network_cert(certificate_size);
-  std::vector<uint8_t> network_enc_pubk(pubk_size);
+    // regularly update the time given to the enclave
+    asynchost::TimeUpdater time_updater(1ms);
 
-  StartType start_type = StartType::Unknown;
+    // regularly record some load statistics
+    asynchost::LoadMonitor load_monitor(500ms, bp);
 
-  EnclaveConfig enclave_config;
-  enclave_config.circuit = &circuit;
-  enclave_config.writer_config = writer_config;
+    // handle outbound messages from the enclave
+    asynchost::HandleRingbuffer handle_ringbuffer(
+      1ms, bp, circuit.read_from_inside(), non_blocking_factory);
+
+    // graceful shutdown on sigterm
+    asynchost::Sigterm sigterm(writer_factory);
+
+    asynchost::Ledger ledger(
+      ledger_dir,
+      writer_factory,
+      ledger_chunk_bytes,
+      asynchost::ledger_max_read_cache_files_default,
+      read_only_ledger_dirs);
+    ledger.register_message_handlers(bp.get_dispatcher());
+
+    asynchost::SnapshotManager snapshots(snapshot_dir, ledger);
+    snapshots.register_message_handlers(bp.get_dispatcher());
+
+    // Begin listening for node-to-node and RPC messages.
+    // This includes DNS resolution and potentially dynamic port assignment (if
+    // requesting port 0). The hostname and port may be modified - after calling
+    // it holds the final assigned values.
+    asynchost::NodeConnectionsTickingReconnect node(
+      20ms, //< Flush reconnections every 20ms
+      bp.get_dispatcher(),
+      ledger,
+      writer_factory,
+      node_address.hostname,
+      node_address.port);
+    if (!node_address_file.empty())
+    {
+      files::dump(
+        fmt::format("{}\n{}", node_address.hostname, node_address.port),
+        node_address_file);
+    }
+
+    asynchost::RPCConnections rpc(writer_factory);
+    rpc.register_message_handlers(bp.get_dispatcher());
+    rpc.listen(0, rpc_address.hostname, rpc_address.port);
+    if (!rpc_address_file.empty())
+    {
+      files::dump(
+        fmt::format("{}\n{}", rpc_address.hostname, rpc_address.port),
+        rpc_address_file);
+    }
+    if (public_rpc_address.port == "0")
+    {
+      public_rpc_address.port = rpc_address.port;
+    }
+
+    // Initialise the enclave and create a CCF node in it
+    const size_t certificate_size = 4096;
+    std::vector<uint8_t> node_cert(certificate_size);
+    std::vector<uint8_t> network_cert(certificate_size);
+
+    StartType start_type = StartType::Unknown;
+
+    EnclaveConfig enclave_config;
+    enclave_config.to_enclave_buffer_start = to_enclave_buffer.data();
+    enclave_config.to_enclave_buffer_size = to_enclave_buffer.size();
+    enclave_config.to_enclave_buffer_offsets = &to_enclave_offsets;
+    enclave_config.from_enclave_buffer_start = from_enclave_buffer.data();
+    enclave_config.from_enclave_buffer_size = from_enclave_buffer.size();
+    enclave_config.from_enclave_buffer_offsets = &from_enclave_offsets;
+
+    enclave_config.writer_config = writer_config;
 #ifdef DEBUG_CONFIG
-  enclave_config.debug_config = {memory_reserve_startup};
+    enclave_config.debug_config = {memory_reserve_startup};
 #endif
 
-  CCFConfig ccf_config;
-  ccf_config.consensus_config = {raft_timeout,
-                                 raft_election_timeout,
-                                 pbft_view_change_timeout,
-                                 pbft_status_interval};
-  ccf_config.signature_intervals = {sig_tx_interval, sig_ms_interval};
-  ccf_config.node_info_network = {rpc_address.hostname,
-                                  public_rpc_address.hostname,
-                                  node_address.hostname,
-                                  node_address.port,
-                                  rpc_address.port};
-  ccf_config.domain = domain;
-  ccf_config.snapshot_tx_interval = snapshot_tx_interval;
+    CCFConfig ccf_config;
+    ccf_config.consensus_config = {raft_timeout,
+                                   raft_election_timeout,
+                                   bft_view_change_timeout,
+                                   bft_status_interval};
+    ccf_config.signature_intervals = {sig_tx_interval, sig_ms_interval};
+    ccf_config.node_info_network = {rpc_address.hostname,
+                                    public_rpc_address.hostname,
+                                    node_address.hostname,
+                                    node_address.port,
+                                    rpc_address.port,
+                                    public_rpc_address.port};
+    ccf_config.domain = domain;
+    ccf_config.snapshot_tx_interval = snapshot_tx_interval;
 
-  ccf_config.subject_name = subject_name;
-  ccf_config.subject_alternative_names = subject_alternative_names;
+    ccf_config.subject_name = subject_name;
+    ccf_config.subject_alternative_names = subject_alternative_names;
 
-  if (*start)
-  {
-    start_type = StartType::New;
+    ccf_config.jwt_key_refresh_interval_s = jwt_key_refresh_interval_s;
 
-    for (auto const& m_info : members_info)
+    if (*start)
     {
-      ccf_config.genesis.members_info.emplace_back(
-        files::slurp(m_info.cert_file), files::slurp(m_info.keyshare_pub_file));
-    }
-    ccf_config.genesis.gov_script = files::slurp_string(gov_script);
-    ccf_config.genesis.recovery_threshold = recovery_threshold.value();
-    LOG_INFO_FMT(
-      "Creating new node: new network (with {} initial member(s) and {} "
-      "member(s) required for recovery)",
-      ccf_config.genesis.members_info.size(),
-      ccf_config.genesis.recovery_threshold);
-  }
-  else if (*join)
-  {
-    LOG_INFO_FMT(
-      "Creating new node - joining existing network at {}:{}",
-      target_rpc_address.hostname,
-      target_rpc_address.port);
-    start_type = StartType::Join;
+      start_type = StartType::New;
 
-    ccf_config.joining.target_host = target_rpc_address.hostname;
-    ccf_config.joining.target_port = target_rpc_address.port;
-    ccf_config.joining.network_cert = files::slurp(network_cert_file);
-    ccf_config.joining.join_timer = join_timer;
+      for (auto const& m_info : members_info)
+      {
+        std::optional<std::vector<uint8_t>> public_encryption_key_file =
+          std::nullopt;
+        if (m_info.enc_pubk_file.has_value())
+        {
+          public_encryption_key_file =
+            files::slurp(m_info.enc_pubk_file.value());
+        }
 
-    auto snapshot_file = snapshots.find_latest_snapshot();
-    if (snapshot_file.has_value())
-    {
-      ccf_config.joining.snapshot = files::slurp(snapshot_file.value());
+        nlohmann::json md = nullptr;
+        if (m_info.member_data_file.has_value())
+        {
+          md = nlohmann::json::parse(
+            files::slurp(m_info.member_data_file.value()));
+        }
+
+        ccf_config.genesis.members_info.emplace_back(
+          files::slurp(m_info.cert_file), public_encryption_key_file, md);
+      }
+      ccf_config.genesis.gov_script = files::slurp_string(gov_script);
+      ccf_config.genesis.recovery_threshold = recovery_threshold.value();
       LOG_INFO_FMT(
-        "Found latest snapshot file: {} (size: {})",
-        snapshot_file.value(),
-        ccf_config.joining.snapshot.size());
+        "Creating new node: new network (with {} initial member(s) and {} "
+        "member(s) required for recovery)",
+        ccf_config.genesis.members_info.size(),
+        ccf_config.genesis.recovery_threshold);
     }
-    else
+    else if (*join)
     {
       LOG_INFO_FMT(
-        "No snapshot found, node will request transactions from the beginning");
+        "Creating new node - joining existing network at {}:{}",
+        target_rpc_address.hostname,
+        target_rpc_address.port);
+      start_type = StartType::Join;
+
+      ccf_config.joining.target_host = target_rpc_address.hostname;
+      ccf_config.joining.target_port = target_rpc_address.port;
+      ccf_config.joining.network_cert = files::slurp(network_cert_file);
+      ccf_config.joining.join_timer = join_timer;
     }
-  }
-  else if (*recover)
-  {
-    LOG_INFO_FMT("Creating new node - recover");
-    start_type = StartType::Recover;
-  }
-
-  if (start_type == StartType::Unknown)
-  {
-    LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
-  }
-
-  enclave.create_node(
-    enclave_config,
-    ccf_config,
-    node_cert,
-    network_cert,
-    network_enc_pubk,
-    start_type,
-    consensus,
-    num_worker_threads,
-    time_updater->behaviour.get_value());
-
-  LOG_INFO_FMT("Created new node");
-
-  // Write the node and network certs to disk.
-  files::dump(node_cert, node_cert_file);
-  if (*start || *recover)
-  {
-    files::dump(network_cert, network_cert_file);
-    files::dump(network_enc_pubk, network_enc_pubk_file);
-  }
-
-  auto enclave_thread_start = [&]() {
-#ifndef VIRTUAL_ENCLAVE
-    try
-#endif
+    else if (*recover)
     {
-      enclave.run();
+      LOG_INFO_FMT("Creating new node - recover");
+      start_type = StartType::Recover;
     }
-#ifndef VIRTUAL_ENCLAVE
-    catch (const std::exception& e)
+
+    if (*join || *recover)
     {
-      LOG_FAIL_FMT("Exception in enclave::run: {}", e.what());
+      auto snapshot_file = snapshots.find_latest_committed_snapshot();
+      if (snapshot_file.has_value())
+      {
+        auto& snapshot = snapshot_file.value();
+        auto snapshot_evidence_idx =
+          asynchost::get_snapshot_evidence_idx_from_file_name(snapshot);
+        if (!snapshot_evidence_idx.has_value())
+        {
+          throw std::logic_error(fmt::format(
+            "Snapshot file \"{}\" does not include snapshot evidence seqno",
+            snapshot));
+        }
 
-      // This exception should be rethrown, probably aborting the process, but
-      // we sleep briefly to allow more outbound messages to be processed. If
-      // the enclave sent logging messages, it is useful to read and print them
-      // before dying.
-      std::this_thread::sleep_for(1s);
-      throw;
+        ccf_config.startup_snapshot = files::slurp(snapshot);
+        ccf_config.startup_snapshot_evidence_seqno =
+          snapshot_evidence_idx->first;
+        LOG_INFO_FMT(
+          "Found latest snapshot file: {} (size: {}, evidence seqno: {})",
+          snapshot,
+          ccf_config.startup_snapshot.size(),
+          ccf_config.startup_snapshot_evidence_seqno);
+      }
+      else
+      {
+        LOG_FAIL_FMT(
+          "No snapshot found: Node will request all historical transactions");
+      }
     }
+
+    if (start_type == StartType::Unknown)
+    {
+      LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
+    }
+
+    enclave.create_node(
+      enclave_config,
+      ccf_config,
+      node_cert,
+      network_cert,
+      start_type,
+      consensus,
+      num_worker_threads,
+      time_updater->behaviour.get_value());
+
+    LOG_INFO_FMT("Created new node");
+
+    // Write the node and network certs to disk.
+    files::dump(node_cert, node_cert_file);
+    if (*start || *recover)
+    {
+      files::dump(network_cert, network_cert_file);
+    }
+
+    auto enclave_thread_start = [&]() {
+#ifndef VIRTUAL_ENCLAVE
+      try
 #endif
-  };
+      {
+        enclave.run();
+      }
+#ifndef VIRTUAL_ENCLAVE
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("Exception in enclave::run: {}", e.what());
 
-  // Start threads which will ECall and process messages inside the enclave
-  std::vector<std::thread> threads;
-  for (uint32_t i = 0; i < (num_worker_threads + 1); ++i)
-  {
-    threads.emplace_back(std::thread(enclave_thread_start));
+        // This exception should be rethrown, probably aborting the process, but
+        // we sleep briefly to allow more outbound messages to be processed. If
+        // the enclave sent logging messages, it is useful to read and print
+        // them before dying.
+        std::this_thread::sleep_for(1s);
+        throw;
+      }
+#endif
+    };
+
+    // Start threads which will ECall and process messages inside the enclave
+    std::vector<std::thread> threads;
+    for (uint32_t i = 0; i < (num_worker_threads + 1); ++i)
+    {
+      threads.emplace_back(std::thread(enclave_thread_start));
+    }
+
+    uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+    for (auto& t : threads)
+    {
+      t.join();
+    }
   }
 
-  uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-  for (auto& t : threads)
+  // Continue running the loop long enough for the on_close
+  // callbacks to be despatched, so as to avoid memory being
+  // leaked by handles. Capped out of abundance of caution.
+  size_t close_iterations = 100;
+  while (uv_loop_alive(uv_default_loop()) && close_iterations > 0)
   {
-    t.join();
+    uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+    close_iterations--;
   }
+  LOG_INFO_FMT("Ran an extra {} cleanup iteration(s)", 100 - close_iterations);
 
-  return 0;
+  auto rc = uv_loop_close(uv_default_loop());
+  if (rc)
+    LOG_FAIL_FMT("Failed to close uv loop cleanly: {}", uv_err_name(rc));
+
+  return rc;
 }

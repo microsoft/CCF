@@ -22,7 +22,7 @@ namespace enclave
   class Enclave
   {
   private:
-    ringbuffer::Circuit* circuit;
+    ringbuffer::Circuit circuit;
     ringbuffer::WriterFactory basic_writer_factory;
     oversized::WriterFactory writer_factory;
     ccf::NetworkState network;
@@ -33,6 +33,7 @@ namespace enclave
     std::unique_ptr<ccf::NodeState> node;
     std::shared_ptr<ccf::Forwarder<ccf::NodeToNode>> cmd_forwarder;
     ringbuffer::WriterPtr to_host = nullptr;
+    std::chrono::milliseconds last_tick_time;
 
     CCFConfig ccf_config;
     StartType start_type;
@@ -40,6 +41,7 @@ namespace enclave
     struct NodeContext : public ccfapp::AbstractNodeContext
     {
       ccf::historical::StateCache historical_state_cache;
+      ccf::AbstractNodeState* node_state = nullptr;
 
       NodeContext(ccf::historical::StateCache&& hsc) :
         historical_state_cache(std::move(hsc))
@@ -49,24 +51,35 @@ namespace enclave
       {
         return historical_state_cache;
       }
+
+      ccf::AbstractNodeState& get_node_state() override
+      {
+        return *node_state;
+      }
     } context;
 
   public:
     Enclave(
-      const EnclaveConfig& enclave_config,
+      const EnclaveConfig& ec,
       const CCFConfig::SignatureIntervals& signature_intervals,
       const ConsensusType& consensus_type_,
       const consensus::Config& consensus_config) :
-      circuit(enclave_config.circuit),
-      basic_writer_factory(*circuit),
-      writer_factory(basic_writer_factory, enclave_config.writer_config),
+      circuit(
+        ringbuffer::BufferDef{ec.to_enclave_buffer_start,
+                              ec.to_enclave_buffer_size,
+                              ec.to_enclave_buffer_offsets},
+        ringbuffer::BufferDef{ec.from_enclave_buffer_start,
+                              ec.from_enclave_buffer_size,
+                              ec.from_enclave_buffer_offsets}),
+      basic_writer_factory(circuit),
+      writer_factory(basic_writer_factory, ec.writer_config),
       network(consensus_type_),
       share_manager(network),
       n2n_channels(std::make_shared<ccf::NodeToNodeImpl>(writer_factory)),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
-        rpcsessions, n2n_channels, rpc_map)),
+        rpcsessions, n2n_channels, rpc_map, consensus_type_)),
       context(ccf::historical::StateCache(
         *network.tables, writer_factory.create_writer_to_outside()))
     {
@@ -77,6 +90,7 @@ namespace enclave
 
       node = std::make_unique<ccf::NodeState>(
         writer_factory, network, rpcsessions, share_manager);
+      context.node_state = node.get();
 
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(
@@ -88,7 +102,7 @@ namespace enclave
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
         std::make_unique<ccf::NodeRpcFrontend>(network, *node));
 
-      for (auto& [actor, fe] : rpc_map->get_map())
+      for (auto& [actor, fe] : rpc_map->frontends())
       {
         fe->set_sig_intervals(
           signature_intervals.sig_tx_interval,
@@ -96,7 +110,13 @@ namespace enclave
         fe->set_cmd_forwarder(cmd_forwarder);
       }
 
-      node->initialize(consensus_config, n2n_channels, rpc_map, cmd_forwarder);
+      node->initialize(
+        consensus_config,
+        n2n_channels,
+        rpc_map,
+        cmd_forwarder,
+        signature_intervals.sig_tx_interval,
+        signature_intervals.sig_ms_interval);
     }
 
     bool create_new_node(
@@ -107,10 +127,7 @@ namespace enclave
       size_t* node_cert_len,
       uint8_t* network_cert,
       size_t network_cert_size,
-      size_t* network_cert_len,
-      uint8_t* network_enc_pubk,
-      size_t network_enc_pubk_size,
-      size_t* network_enc_pubk_len)
+      size_t* network_cert_len)
     {
       // node_cert_size and network_cert_size are ignored here, but we pass them
       // in because it allows us to set EDL an annotation so that node_cert_len
@@ -119,53 +136,43 @@ namespace enclave
       start_type = start_type_;
       ccf_config = ccf_config_;
 
-      auto r = node->create({start_type, ccf_config});
-      if (!r.second)
+      ccf::NodeCreateInfo r;
+      try
+      {
+        r = node->create(start_type, ccf_config);
+      }
+      catch (const std::runtime_error& e)
+      {
+        LOG_FAIL_FMT("Error starting node: {}", e.what());
         return false;
+      }
 
       // Copy node and network certs out
-      if (r.first.node_cert.size() > node_cert_size)
+      if (r.node_cert.size() > node_cert_size)
       {
         LOG_FAIL_FMT(
           "Insufficient space ({}) to copy node_cert out ({})",
           node_cert_size,
-          r.first.node_cert.size());
+          r.node_cert.size());
         return false;
       }
-      ::memcpy(node_cert, r.first.node_cert.data(), r.first.node_cert.size());
-      *node_cert_len = r.first.node_cert.size();
+      ::memcpy(node_cert, r.node_cert.data(), r.node_cert.size());
+      *node_cert_len = r.node_cert.size();
 
       if (start_type == StartType::New || start_type == StartType::Recover)
       {
         // When starting a node in start or recover modes, fresh network secrets
         // are created and the associated certificate can be passed to the host
-        if (r.first.network_cert.size() > network_cert_size)
+        if (r.network_cert.size() > network_cert_size)
         {
           LOG_FAIL_FMT(
             "Insufficient space ({}) to copy network_cert out ({})",
             network_cert_size,
-            r.first.network_cert.size());
+            r.network_cert.size());
           return false;
         }
-        ::memcpy(
-          network_cert,
-          r.first.network_cert.data(),
-          r.first.network_cert.size());
-        *network_cert_len = r.first.network_cert.size();
-
-        if (r.first.network_enc_pubk.size() > network_enc_pubk_size)
-        {
-          LOG_FAIL_FMT(
-            "Insufficient space ({}) to copy network enc pubk out ({})",
-            network_enc_pubk_size,
-            r.first.network_enc_pubk.size());
-          return false;
-        }
-        ::memcpy(
-          network_enc_pubk,
-          r.first.network_enc_pubk.data(),
-          r.first.network_enc_pubk.size());
-        *network_enc_pubk_len = r.first.network_enc_pubk.size();
+        ::memcpy(network_cert, r.network_cert.data(), r.network_cert.size());
+        *network_cert_len = r.network_cert.size();
       }
 
       return true;
@@ -189,33 +196,37 @@ namespace enclave
             threading::ThreadMessaging::thread_messaging.set_finished();
           });
 
+        last_tick_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+          enclave::get_enclave_time());
+
         DISPATCHER_SET_MESSAGE_HANDLER(
-          bp,
-          AdminMessage::tick,
-          [this, &bp](const uint8_t* data, size_t size) {
-            auto [ms_count] =
-              ringbuffer::read_message<AdminMessage::tick>(data, size);
+          bp, AdminMessage::tick, [this, &bp](const uint8_t*, size_t) {
+            const auto message_counts =
+              bp.get_dispatcher().retrieve_message_counts();
+            const auto j =
+              bp.get_dispatcher().convert_message_counts(message_counts);
+            RINGBUFFER_WRITE_MESSAGE(
+              AdminMessage::work_stats, to_host, j.dump());
 
-            if (ms_count > 0)
+            const auto time_now =
+              std::chrono::duration_cast<std::chrono::milliseconds>(
+                enclave::get_enclave_time());
+            logger::config::set_time(time_now);
+
+            std::chrono::milliseconds elapsed_ms = time_now - last_tick_time;
+            if (elapsed_ms.count() > 0)
             {
-              const auto message_counts =
-                bp.get_dispatcher().retrieve_message_counts();
-              const auto j =
-                bp.get_dispatcher().convert_message_counts(message_counts);
-              RINGBUFFER_WRITE_MESSAGE(
-                AdminMessage::work_stats, to_host, j.dump());
+              last_tick_time = time_now;
 
-              std::chrono::milliseconds elapsed_ms(ms_count);
-              logger::config::tick(elapsed_ms);
               node->tick(elapsed_ms);
               threading::ThreadMessaging::thread_messaging.tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
               // public ledger is being read
               if (!node->is_reading_public_ledger())
               {
-                for (auto& r : rpc_map->get_map())
+                for (auto& [actor, frontend] : rpc_map->frontends())
                 {
-                  r.second->tick(elapsed_ms);
+                  frontend->tick(elapsed_ms);
                 }
               }
               node->tick_end();
@@ -252,7 +263,9 @@ namespace enclave
             {
               case consensus::LedgerRequestPurpose::Recovery:
               {
-                if (node->is_reading_public_ledger())
+                if (
+                  node->is_reading_public_ledger() ||
+                  node->is_verifying_snapshot())
                   node->recover_public_ledger_entry(body);
                 else if (node->is_reading_private_ledger())
                   node->recover_private_ledger_entry(body);
@@ -282,7 +295,14 @@ namespace enclave
             {
               case consensus::LedgerRequestPurpose::Recovery:
               {
-                node->recover_ledger_end();
+                if (node->is_verifying_snapshot())
+                {
+                  node->verify_snapshot_end(ccf_config);
+                }
+                else
+                {
+                  node->recover_ledger_end();
+                }
                 break;
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
@@ -301,50 +321,71 @@ namespace enclave
 
         if (start_type == StartType::Join)
         {
-          node->join(ccf_config);
+          // When joining from a snapshot, deserialise ledger suffix to verify
+          // snapshot evidence. Otherwise, attempt to join straight away
+          if (!ccf_config.startup_snapshot.empty())
+          {
+            node->start_ledger_recovery();
+          }
+          else
+          {
+            node->join(ccf_config);
+          }
         }
         else if (start_type == StartType::Recover)
         {
           node->start_ledger_recovery();
         }
 
-        bp.run(circuit->read_from_outside(), [](size_t num_consecutive_idles) {
-          static std::chrono::microseconds idling_start_time;
-          const auto time_now = enclave::get_enclave_time();
+        // Maximum number of inbound ringbuffer messages which will be
+        // processed in a single iteration
+        static constexpr size_t max_messages = 256;
 
-          if (num_consecutive_idles == 0)
+        size_t consecutive_idles = 0u;
+        while (!bp.get_finished())
+        {
+          // First, read some messages from the ringbuffer
+          auto read = bp.read_n(max_messages, circuit.read_from_outside());
+
+          // Then, execute some thread messages
+          size_t thread_msg = 0;
+          while (thread_msg < max_messages &&
+                 threading::ThreadMessaging::thread_messaging.run_one())
           {
-            idling_start_time = time_now;
+            thread_msg++;
           }
 
-          // If we have pending thread messages, handle them now (and don't
-          // sleep)
+          // If no messages were read from the ringbuffer and no thread
+          // messages were executed, idle
+          if (read == 0 && thread_msg == 0)
           {
-            uint16_t tid = threading::get_current_thread_id();
-            threading::Task& task =
-              threading::ThreadMessaging::thread_messaging.get_task(tid);
+            const auto time_now = enclave::get_enclave_time();
+            static std::chrono::microseconds idling_start_time;
 
-            bool task_run =
-              threading::ThreadMessaging::thread_messaging.run_one(task);
-
-            if (task_run)
+            if (consecutive_idles == 0)
             {
-              return;
+              idling_start_time = time_now;
             }
-          }
 
-          // Handle initial idles by pausing, eventually sleep (in host)
-          constexpr std::chrono::milliseconds timeout(5);
+            // Handle initial idles by pausing, eventually sleep (in host)
+            constexpr std::chrono::milliseconds timeout(5);
+            if ((time_now - idling_start_time) > timeout)
+            {
+              std::this_thread::sleep_for(timeout * 10);
+            }
+            else
+            {
+              CCF_PAUSE();
+            }
 
-          if ((time_now - idling_start_time) > timeout)
-          {
-            std::this_thread::sleep_for(timeout * 10);
+            consecutive_idles++;
           }
           else
           {
-            CCF_PAUSE();
+            // If some messages were read, reset consecutive idles count
+            consecutive_idles = 0;
           }
-        });
+        }
 
         LOG_INFO_FMT("Enclave stopped successfully. Stopping host...");
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::stopped, to_host);

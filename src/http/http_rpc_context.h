@@ -5,6 +5,7 @@
 #include "enclave/rpc_context.h"
 #include "http_parser.h"
 #include "http_sig.h"
+#include "node/rpc/error.h"
 #include "ws_parser.h"
 #include "ws_rpc_context.h"
 
@@ -18,9 +19,7 @@ namespace http
     const auto first_slash = path.find_first_of('/');
     const auto second_slash = path.find_first_of('/', first_slash + 1);
 
-    if (
-      first_slash != 0 || first_slash == std::string::npos ||
-      second_slash == std::string::npos)
+    if (first_slash != 0 || second_slash == std::string::npos)
     {
       return std::nullopt;
     }
@@ -37,18 +36,27 @@ namespace http
     return actor;
   }
 
-  static std::vector<uint8_t> error(size_t code, const std::string& msg)
+  inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
   {
-    http_status status = (http_status)code;
-    std::vector<uint8_t> data(msg.begin(), msg.end());
-    auto response = http::Response(status);
+    nlohmann::json body = ccf::ODataErrorResponse{
+      ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+    const auto s = body.dump();
+
+    std::vector<uint8_t> data(s.begin(), s.end());
+    auto response = http::Response(error.status);
 
     response.set_header(
-      http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+      http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
     response.set_body(&data);
 
     return response.build_response();
-  };
+  }
+
+  inline std::vector<uint8_t> error(
+    http_status status, const std::string& code, std::string&& msg)
+  {
+    return error({status, code, std::move(msg)});
+  }
 
   class HttpRpcContext : public enclave::RpcContext
   {
@@ -66,7 +74,6 @@ namespace http
     enclave::PathParams path_params = {};
 
     std::vector<uint8_t> serialised_request = {};
-    std::optional<ccf::SignedReq> signed_request = std::nullopt;
 
     http::HeaderMap response_headers;
     std::vector<uint8_t> response_body = {};
@@ -152,14 +159,14 @@ namespace http
     HttpRpcContext(
       size_t request_index_,
       std::shared_ptr<enclave::SessionContext> s,
-      http_method verb_,
+      llhttp_method verb_,
       const std::string_view& path_,
       const std::string_view& query_,
       const http::HeaderMap& headers_,
       const std::vector<uint8_t>& body_,
       const std::vector<uint8_t>& raw_request_ = {},
-      const std::vector<uint8_t>& raw_pbft_ = {}) :
-      RpcContext(s, raw_pbft_),
+      const std::vector<uint8_t>& raw_bft_ = {}) :
+      RpcContext(s, raw_bft_),
       request_index(request_index_),
       verb(verb_),
       path(path_),
@@ -222,26 +229,15 @@ namespace http
       return verb;
     }
 
+    virtual std::string get_request_path() const override
+    {
+      return whole_path;
+    }
+
     virtual const std::vector<uint8_t>& get_serialised_request() override
     {
       canonicalise();
       return serialised_request;
-    }
-
-    virtual std::optional<ccf::SignedReq> get_signed_request() override
-    {
-      canonicalise();
-      if (!signed_request.has_value())
-      {
-        signed_request = http::HttpSignatureVerifier::parse(
-          std::string(verb.c_str()),
-          whole_path,
-          query,
-          request_headers,
-          request_body);
-      }
-
-      return signed_request;
     }
 
     virtual std::string get_method() const override
@@ -304,6 +300,12 @@ namespace http
       response_headers[std::string(name)] = value;
     }
 
+    virtual bool has_global_commit() override
+    {
+      return response_headers.find(http::headers::CCF_GLOBAL_COMMIT) !=
+        response_headers.end();
+    }
+
     virtual void set_apply_writes(bool apply) override
     {
       explicit_apply_writes = apply;
@@ -332,12 +334,6 @@ namespace http
       http_response.set_body(&response_body);
       return http_response.build_response();
     }
-
-    virtual std::vector<uint8_t> serialise_error(
-      size_t code, const std::string& msg) const override
-    {
-      return error(code, msg);
-    }
   };
 }
 
@@ -347,23 +343,12 @@ namespace enclave
   inline std::shared_ptr<RpcContext> make_rpc_context(
     std::shared_ptr<enclave::SessionContext> s,
     const std::vector<uint8_t>& packed,
-    const std::vector<uint8_t>& raw_pbft = {})
+    const std::vector<uint8_t>& raw_bft = {})
   {
     http::SimpleRequestProcessor processor;
     http::RequestParser parser(processor);
 
-    const auto parsed_count = parser.execute(packed.data(), packed.size());
-    if (parsed_count != packed.size())
-    {
-      const auto err_no = (http_errno)parser.get_raw_parser()->http_errno;
-      throw std::logic_error(fmt::format(
-        "Failed to fully parse HTTP request. Parsed only {} bytes. Error code "
-        "{} ({}: {})",
-        parsed_count,
-        err_no,
-        http_errno_name(err_no),
-        http_errno_description(err_no)));
-    }
+    parser.execute(packed.data(), packed.size());
 
     if (processor.received.size() != 1)
     {
@@ -384,70 +369,34 @@ namespace enclave
       msg.headers,
       msg.body,
       packed,
-      raw_pbft);
+      raw_bft);
   }
 
   inline std::shared_ptr<enclave::RpcContext> make_fwd_rpc_context(
     std::shared_ptr<enclave::SessionContext> s,
     const std::vector<uint8_t>& packed,
     enclave::FrameFormat frame_format,
-    const std::vector<uint8_t>& raw_pbft = {})
+    const std::vector<uint8_t>& raw_bft = {})
   {
-    http::SimpleRequestProcessor processor;
-
     switch (frame_format)
     {
       case enclave::FrameFormat::http:
       {
-        http::RequestParser parser(processor);
-        const auto parsed_count = parser.execute(packed.data(), packed.size());
-        if (parsed_count != packed.size())
-        {
-          const auto err_no = (http_errno)parser.get_raw_parser()->http_errno;
-          throw std::logic_error(fmt::format(
-            "Failed to fully parse HTTP request. Parsed only {} bytes. Error "
-            "code "
-            "{} ({}: {})",
-            parsed_count,
-            err_no,
-            http_errno_name(err_no),
-            http_errno_description(err_no)));
-        }
-
-        if (processor.received.size() != 1)
-        {
-          throw std::logic_error(fmt::format(
-            "Expected packed to contain a single complete HTTP message. "
-            "Actually "
-            "parsed {} messages",
-            processor.received.size()));
-        }
-
-        const auto& msg = processor.received.front();
-
-        return std::make_shared<http::HttpRpcContext>(
-          0,
-          s,
-          msg.method,
-          msg.path,
-          msg.query,
-          msg.headers,
-          msg.body,
-          packed,
-          raw_pbft);
+        return make_rpc_context(s, packed, raw_bft);
       }
       case enclave::FrameFormat::ws:
       {
+        http::SimpleRequestProcessor processor;
         ws::RequestParser parser(processor);
 
-        auto next_read = 2;
+        auto next_read = ws::INITIAL_READ;
         size_t index = 0;
         while (index < packed.size())
         {
-          auto chunk = std::vector(
-            packed.begin() + index, packed.begin() + index + next_read);
+          const auto next_next =
+            parser.consume(packed.data() + index, next_read);
           index += next_read;
-          next_read = parser.consume(chunk);
+          next_read = next_next;
         }
 
         if (processor.received.size() != 1)
@@ -461,11 +410,10 @@ namespace enclave
         const auto& msg = processor.received.front();
 
         return std::make_shared<ws::WsRpcContext>(
-          0, s, msg.path, msg.body, packed, raw_pbft);
+          0, s, msg.path, msg.body, packed, raw_bft);
       }
       default:
         throw std::logic_error("Unknown Frame Format");
     }
-    http::RequestParser parser(processor);
   }
 }

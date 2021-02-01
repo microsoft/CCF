@@ -17,31 +17,29 @@ struct MapTypes
 TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
 {
   kv::Store store;
-  auto& string_map = store.create<MapTypes::StringString>(
-    "string_map", kv::SecurityDomain::PUBLIC);
-  auto& num_map =
-    store.create<MapTypes::NumNum>("num_map", kv::SecurityDomain::PUBLIC);
+  MapTypes::StringString string_map("public:string_map");
+  MapTypes::NumNum num_map("public:num_map");
 
   kv::Version first_snapshot_version = kv::NoVersion;
   kv::Version second_snapshot_version = kv::NoVersion;
 
   INFO("Apply transactions to original store");
   {
-    kv::Tx tx1;
-    auto view_1 = tx1.get_view(string_map);
-    view_1->put("foo", "bar");
+    auto tx1 = store.create_tx();
+    auto handle_1 = tx1.rw<MapTypes::StringString>("public:string_map");
+    handle_1->put("foo", "bar");
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
     first_snapshot_version = tx1.commit_version();
 
-    kv::Tx tx2;
-    auto view_2 = tx2.get_view(num_map);
-    view_2->put(42, 123);
+    auto tx2 = store.create_tx();
+    auto handle_2 = tx2.rw(num_map);
+    handle_2->put(42, 123);
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
     second_snapshot_version = tx2.commit_version();
 
-    kv::Tx tx3;
-    auto view_3 = tx1.get_view(string_map);
-    view_3->put("key", "not committed");
+    auto tx3 = store.create_tx();
+    auto handle_3 = tx1.rw<MapTypes::StringString>("public:string_map");
+    handle_3->put("uncommitted", "not committed");
     // Do not commit tx3
   }
 
@@ -52,29 +50,23 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
   INFO("Apply snapshot at 1 to new store");
   {
     kv::Store new_store;
-    new_store.clone_schema(store);
 
+    kv::ConsensusHookPtrs hooks;
     REQUIRE_EQ(
-      new_store.deserialise_snapshot(first_serialised_snapshot),
-      kv::DeserialiseSuccess::PASS);
+      new_store.deserialise_snapshot(first_serialised_snapshot, hooks),
+      kv::ApplySuccess::PASS);
     REQUIRE_EQ(new_store.current_version(), 1);
 
-    auto new_string_map = new_store.get<MapTypes::StringString>("string_map");
-    auto new_num_map = new_store.get<MapTypes::NumNum>("num_map");
-
-    kv::Tx tx1;
-    auto view = tx1.get_view(*new_string_map);
-    auto v = view->get("foo");
+    auto tx1 = new_store.create_tx();
+    auto handle = tx1.rw<MapTypes::StringString>("public:string_map");
+    auto v = handle->get("foo");
     REQUIRE(v.has_value());
     REQUIRE_EQ(v.value(), "bar");
 
-    auto view_ = tx1.get_view(*new_num_map);
-    auto v_ = view_->get(42);
-    REQUIRE(!v_.has_value());
+    auto num_handle = tx1.rw<MapTypes::NumNum>("public:num_map");
+    REQUIRE(!num_handle->has(42));
 
-    view = tx1.get_view(*new_string_map);
-    v = view->get("key");
-    REQUIRE(!v.has_value());
+    REQUIRE(!handle->has("uncommitted"));
   }
 
   auto second_snapshot = store.snapshot(second_snapshot_version);
@@ -84,29 +76,24 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
   INFO("Apply snapshot at 2 to new store");
   {
     kv::Store new_store;
-    new_store.clone_schema(store);
 
-    auto new_string_map = new_store.get<MapTypes::StringString>("string_map");
-    auto new_num_map = new_store.get<MapTypes::NumNum>("num_map");
-
-    new_store.deserialise_snapshot(second_serialised_snapshot);
+    kv::ConsensusHookPtrs hooks;
+    new_store.deserialise_snapshot(second_serialised_snapshot, hooks);
     REQUIRE_EQ(new_store.current_version(), 2);
 
-    kv::Tx tx1;
-    auto view = tx1.get_view(*new_string_map);
+    auto tx1 = new_store.create_tx();
+    auto handle = tx1.rw<MapTypes::StringString>("public:string_map");
 
-    auto v = view->get("foo");
+    auto v = handle->get("foo");
     REQUIRE(v.has_value());
     REQUIRE_EQ(v.value(), "bar");
 
-    auto view_ = tx1.get_view(*new_num_map);
-    auto v_ = view_->get(42);
-    REQUIRE(v_.has_value());
-    REQUIRE_EQ(v_.value(), 123);
+    auto num_handle = tx1.rw<MapTypes::NumNum>("public:num_map");
+    auto num_v = num_handle->get(42);
+    REQUIRE(num_v.has_value());
+    REQUIRE_EQ(num_v.value(), 123);
 
-    view = tx1.get_view(*new_string_map);
-    v = view->get("key");
-    REQUIRE(!v.has_value());
+    REQUIRE(!handle->has("uncommitted"));
   }
 }
 
@@ -115,20 +102,19 @@ TEST_CASE(
   doctest::test_suite("snapshot"))
 {
   kv::Store store;
-  auto& string_map = store.create<MapTypes::StringString>(
-    "string_map", kv::SecurityDomain::PUBLIC);
+  MapTypes::StringString string_map("public:string_map");
 
   kv::Version snapshot_version = kv::NoVersion;
   INFO("Apply transactions to original store");
   {
-    kv::Tx tx1;
-    auto view_1 = tx1.get_view(string_map);
-    view_1->put("foo", "foo");
+    auto tx1 = store.create_tx();
+    auto handle_1 = tx1.rw<MapTypes::StringString>("public:string_map");
+    handle_1->put("foo", "foo");
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK); // Committed at 1
 
-    kv::Tx tx2;
-    auto view_2 = tx2.get_view(string_map);
-    view_2->put("bar", "bar");
+    auto tx2 = store.create_tx();
+    auto handle_2 = tx2.rw<MapTypes::StringString>("public:string_map");
+    handle_2->put("bar", "bar");
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK); // Committed at 2
     snapshot_version = tx2.commit_version();
   }
@@ -139,46 +125,46 @@ TEST_CASE(
   INFO("Apply snapshot while committing a transaction");
   {
     kv::Store new_store;
-    new_store.clone_schema(store);
 
-    auto new_string_map = new_store.get<MapTypes::StringString>("string_map");
-    kv::Tx tx;
-    auto view = tx.get_view(*new_string_map);
-    view->put("in", "flight");
+    auto tx = new_store.create_tx();
+    auto handle = tx.rw<MapTypes::StringString>("public:string_map");
+    handle->put("in", "flight");
     // tx is not committed until the snapshot is deserialised
 
-    new_store.deserialise_snapshot(serialised_snapshot);
+    kv::ConsensusHookPtrs hooks;
+    new_store.deserialise_snapshot(serialised_snapshot, hooks);
 
     // Transaction conflicts as snapshot was applied while transaction was in
     // flight
     REQUIRE(tx.commit() == kv::CommitSuccess::CONFLICT);
 
-    view = tx.get_view(*new_string_map);
-    view->put("baz", "baz");
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    // Try again
+    auto tx2 = new_store.create_tx();
+    auto handle2 = tx2.rw<MapTypes::StringString>("public:string_map");
+    handle2->put("baz", "baz");
+    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
   }
 }
 
 TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
 {
   kv::Store store;
-  auto& string_map = store.create<MapTypes::StringString>(
-    "string_map", kv::SecurityDomain::PUBLIC);
+  constexpr auto string_map = "public:string_map";
 
   kv::Version snapshot_version = kv::NoVersion;
   INFO("Apply transactions to original store");
   {
-    kv::Tx tx1;
-    auto view_1 = tx1.get_view(string_map);
-    view_1->put("foo", "foo");
-    view_1->put("bar", "bar");
+    auto tx1 = store.create_tx();
+    auto handle_1 = tx1.rw<MapTypes::StringString>(string_map);
+    handle_1->put("foo", "foo");
+    handle_1->put("bar", "bar");
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK); // Committed at 1
 
     // New transaction, deleting content from the previous transaction
-    kv::Tx tx2;
-    auto view_2 = tx2.get_view(string_map);
-    view_2->put("baz", "baz");
-    view_2->remove("bar");
+    auto tx2 = store.create_tx();
+    auto handle_2 = tx2.rw<MapTypes::StringString>(string_map);
+    handle_2->put("baz", "baz");
+    handle_2->remove("bar");
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK); // Committed at 2
     snapshot_version = tx2.commit_version();
   }
@@ -189,9 +175,8 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
   INFO("Apply snapshot with local hook on target store");
   {
     kv::Store new_store;
-    new_store.clone_schema(store);
 
-    auto new_string_map = new_store.get<MapTypes::StringString>("string_map");
+    MapTypes::StringString new_string_map(string_map);
 
     using Write = MapTypes::StringString::Write;
     std::vector<Write> local_writes;
@@ -199,25 +184,31 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
 
     INFO("Set hooks on target store");
     {
-      auto local_hook = [&](kv::Version v, const Write& w) {
+      auto map_hook =
+        [&](kv::Version v, const Write& w) -> kv::ConsensusHookPtr {
         local_writes.push_back(w);
+        return kv::ConsensusHookPtr(nullptr);
       };
       auto global_hook = [&](kv::Version v, const Write& w) {
         global_writes.push_back(w);
       };
-      new_string_map->set_local_hook(local_hook);
-      new_string_map->set_global_hook(global_hook);
+
+      new_store.set_map_hook(
+        string_map, new_string_map.wrap_map_hook(map_hook));
+      new_store.set_global_hook(
+        string_map, new_string_map.wrap_commit_hook(global_hook));
     }
 
-    new_store.deserialise_snapshot(serialised_snapshot);
+    kv::ConsensusHookPtrs hooks;
+    new_store.deserialise_snapshot(serialised_snapshot, hooks);
 
     INFO("Verify content of snapshot");
     {
-      kv::Tx tx;
-      auto view = tx.get_view(*new_string_map);
-      REQUIRE(view->get("foo").has_value());
-      REQUIRE(!view->get("bar").has_value());
-      REQUIRE(view->get("baz").has_value());
+      auto tx = new_store.create_tx();
+      auto handle = tx.rw<MapTypes::StringString>(string_map);
+      REQUIRE(handle->get("foo").has_value());
+      REQUIRE(!handle->get("bar").has_value());
+      REQUIRE(handle->get("baz").has_value());
     }
 
     INFO("Verify local hook execution");

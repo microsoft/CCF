@@ -1,0 +1,116 @@
+{
+  "endpoints": {
+    "/compute": {
+      "post": {
+        "js_module": "math.js",
+        "js_function": "compute",
+        "forwarding_required": "never",
+        "execute_outside_consensus": "locally",
+        "authn_policies": ["user_cert"],
+        "readonly": true,
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "op": {
+                      "type": "string",
+                      "enum": ["add", "sub", "mul"]
+                    },
+                    "left": {
+                      "type": "number"
+                    },
+                    "right": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["op", "left", "right"],
+                  "type": "object",
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Compute result",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "result": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["result"],
+                    "type": "object",
+                    "additionalProperties": false
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Client-side error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "error": {
+                        "description": "Error message",
+                        "type": "string"
+                      }
+                    },
+                    "required": ["error"],
+                    "type": "object",
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/compute2/{op}/{left}/{right}": {
+      "get": {
+        "js_module": "math.js",
+        "js_function": "compute2",
+        "forwarding_required": "never",
+        "execute_outside_consensus": "locally",
+        "authn_policies": ["user_cert"],
+        "readonly": true,
+        "openapi": {
+          "parameters": [
+            {
+              "name": "op",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "enum": ["add", "sub", "mul"]
+              }
+            },
+            {
+              "name": "left",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "number"
+              }
+            },
+            {
+              "name": "right",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "number"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

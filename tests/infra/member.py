@@ -3,14 +3,14 @@
 
 from enum import Enum
 import infra.proc
-import infra.node
 import infra.proposal
 import infra.crypto
 import ccf.clients
-import infra.checker
 import http
 import os
 import base64
+import json
+from typing import NamedTuple, Optional
 
 
 class NoRecoveryShareFound(Exception):
@@ -25,23 +25,57 @@ class MemberStatus(Enum):
     RETIRED = 2
 
 
+class MemberInfo(NamedTuple):
+    certificate_file: str
+    encryption_pub_key_file: Optional[str]
+    member_data_file: Optional[str]
+
+
 class Member:
-    def __init__(self, member_id, curve, common_dir, share_script, key_generator=None):
+    def __init__(
+        self,
+        member_id,
+        curve,
+        common_dir,
+        share_script,
+        is_recovery_member=True,
+        key_generator=None,
+        member_data=None,
+        authenticate_session=True,
+    ):
         self.common_dir = common_dir
         self.member_id = member_id
         self.status_code = MemberStatus.ACCEPTED
         self.share_script = share_script
+        self.member_data = member_data
+        self.is_recovery_member = is_recovery_member
+        self.authenticate_session = authenticate_session
+
+        self.member_info = MemberInfo(
+            f"member{self.member_id}_cert.pem",
+            f"member{self.member_id}_enc_pubk.pem" if is_recovery_member else None,
+            f"member{self.member_id}_data.json" if member_data else None,
+        )
 
         if key_generator is not None:
-            # For now, all members are given an encryption key (for recovery)
             member = f"member{member_id}"
-            infra.proc.ccall(
-                key_generator,
+
+            key_generator_args = [
                 "--name",
                 f"{member}",
                 "--curve",
                 f"{curve.name}",
                 "--gen-enc-key",
+            ]
+
+            if is_recovery_member:
+                key_generator_args += [
+                    "--gen-enc-key",
+                ]
+
+            infra.proc.ccall(
+                key_generator,
+                *key_generator_args,
                 path=self.common_dir,
                 log_output=False,
             ).check_returncode()
@@ -52,11 +86,23 @@ class Member:
                 os.path.join(self.common_dir, f"member{self.member_id}_privk.pem")
             )
             assert os.path.isfile(
-                os.path.join(self.common_dir, f"member{self.member_id}_cert.pem")
+                os.path.join(self.common_dir, self.member_info.certificate_file)
             )
-            assert os.path.isfile(
-                os.path.join(self.common_dir, f"member{self.member_id}_enc_privk.pem")
-            )
+
+        if self.member_data is not None:
+            with open(
+                os.path.join(self.common_dir, self.member_info.member_data_file), "w"
+            ) as md:
+                json.dump(member_data, md)
+
+    def auth(self, write=False):
+        if self.authenticate_session:
+            if write:
+                return (f"member{self.member_id}", f"member{self.member_id}")
+            else:
+                return (f"member{self.member_id}", None)
+        else:
+            return (None, f"member{self.member_id}")
 
     def is_active(self):
         return self.status_code == MemberStatus.ACTIVE
@@ -65,13 +111,9 @@ class Member:
         # Use this with caution (i.e. only when the network is opening)
         self.status_code = MemberStatus.ACTIVE
 
-    def propose(self, remote_node, proposal, has_proposer_voted_for=True):
-        with remote_node.client(f"member{self.member_id}") as mc:
-            r = mc.post(
-                "/gov/proposals",
-                proposal,
-                signed=True,
-            )
+    def propose(self, remote_node, proposal):
+        with remote_node.client(*self.auth(write=True)) as mc:
+            r = mc.post("/gov/proposals", proposal)
             if r.status_code != http.HTTPStatus.OK.value:
                 raise infra.proposal.ProposalNotCreated(r)
 
@@ -79,92 +121,64 @@ class Member:
                 proposer_id=self.member_id,
                 proposal_id=r.body.json()["proposal_id"],
                 state=infra.proposal.ProposalState(r.body.json()["state"]),
-                has_proposer_voted_for=has_proposer_voted_for,
+                view=r.view,
+                seqno=r.seqno,
             )
 
-    def vote(
-        self,
-        remote_node,
-        proposal,
-        accept=True,
-        wait_for_global_commit=True,
-    ):
-        with remote_node.client(f"member{self.member_id}") as mc:
-            r = mc.post(
-                f"/gov/proposals/{proposal.proposal_id}/votes",
-                body=proposal.vote_for,
-                signed=True,
-            )
-
-        if r.status_code != 200:
-            return r
-
-        # If the proposal was accepted, wait for it to be globally committed
-        # This is particularly useful for the open network proposal to wait
-        # until the global hook on the SERVICE table is triggered
-        if (
-            r.body.json()["state"] == infra.proposal.ProposalState.Accepted.value
-            and wait_for_global_commit
-        ):
-            with remote_node.client() as mc:
-                # If we vote in a new node, which becomes part of quorum, the transaction
-                # can only commit after it has successfully joined and caught up.
-                # Given that the retry timer on join RPC is 4 seconds, anything less is very
-                # likely to time out!
-                ccf.commit.wait_for_commit(mc, r.seqno, r.view, timeout=6)
+    def vote(self, remote_node, proposal, ballot):
+        with remote_node.client(*self.auth(write=True)) as mc:
+            r = mc.post(f"/gov/proposals/{proposal.proposal_id}/votes", body=ballot)
 
         return r
 
     def withdraw(self, remote_node, proposal):
-        with remote_node.client(f"member{self.member_id}") as c:
-            r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw", signed=True)
+        with remote_node.client(*self.auth(write=True)) as c:
+            r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw")
             if r.status_code == http.HTTPStatus.OK.value:
                 proposal.state = infra.proposal.ProposalState.Withdrawn
             return r
 
     def update_ack_state_digest(self, remote_node):
-        with remote_node.client(f"member{self.member_id}") as mc:
+        with remote_node.client(*self.auth()) as mc:
             r = mc.post("/gov/ack/update_state_digest")
             assert r.status_code == 200, f"Error ack/update_state_digest: {r}"
-            return bytearray(r.body.json()["state_digest"])
+            return r.body.json()
 
     def ack(self, remote_node):
         state_digest = self.update_ack_state_digest(remote_node)
-        with remote_node.client(f"member{self.member_id}") as mc:
-            r = mc.post(
-                "/gov/ack", body={"state_digest": list(state_digest)}, signed=True
-            )
-            assert r.status_code == 200, f"Error ACK: {r}"
+        with remote_node.client(*self.auth(write=True)) as mc:
+            r = mc.post("/gov/ack", body=state_digest)
+            assert r.status_code == http.HTTPStatus.NO_CONTENT, f"Error ACK: {r}"
             self.status_code = MemberStatus.ACTIVE
             return r
 
-    def get_and_decrypt_recovery_share(self, remote_node, defunct_network_enc_pubk):
-        with remote_node.client(f"member{self.member_id}") as mc:
+    def get_and_decrypt_recovery_share(self, remote_node):
+        if not self.is_recovery_member:
+            raise ValueError(f"Member {self.member_id} does not have a recovery share")
+
+        with remote_node.client(*self.auth()) as mc:
             r = mc.get("/gov/recovery_share")
             if r.status_code != http.HTTPStatus.OK.value:
                 raise NoRecoveryShareFound(r)
 
-            ctx = infra.crypto.CryptoBoxCtx(
+            with open(
                 os.path.join(self.common_dir, f"member{self.member_id}_enc_privk.pem"),
-                defunct_network_enc_pubk,
-            )
+                "r",
+            ) as priv_enc_key:
+                return infra.crypto.unwrap_key_rsa_oaep(
+                    base64.b64decode(r.body.json()["encrypted_share"]),
+                    priv_enc_key.read(),
+                )
 
-            nonce_bytes = base64.b64decode(r.body.json()["nonce"])
-            encrypted_share_bytes = base64.b64decode(
-                r.body.json()["encrypted_recovery_share"]
-            )
-            return ctx.decrypt(encrypted_share_bytes, nonce_bytes)
+    def get_and_submit_recovery_share(self, remote_node):
+        if not self.is_recovery_member:
+            raise ValueError(f"Member {self.member_id} does not have a recovery share")
 
-    def get_and_submit_recovery_share(self, remote_node, defunct_network_enc_pubk):
-        # For now, all members are given an encryption key (for recovery)
         res = infra.proc.ccall(
             self.share_script,
-            "--rpc-address",
-            f"{remote_node.host}:{remote_node.rpc_port}",
+            f"https://{remote_node.pubhost}:{remote_node.pubport}",
             "--member-enc-privk",
             os.path.join(self.common_dir, f"member{self.member_id}_enc_privk.pem"),
-            "--network-enc-pubk",
-            defunct_network_enc_pubk,
             "--cert",
             os.path.join(self.common_dir, f"member{self.member_id}_cert.pem"),
             "--key",

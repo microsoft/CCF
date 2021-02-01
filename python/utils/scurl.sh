@@ -4,16 +4,21 @@
 
 set -e
 
-# Loop through all arguments and find url, request data, command and private key
+# Loop through all arguments and find url, request data, command, private key and user cert
 # NB: For simplicity, assume url is the first argument or preceded by --url. curl is slightly more permissive
 next_is_url=false
 next_is_data=false
 next_is_command=false
 next_is_privk=false
+next_is_cert=false
+next_is_signing_privk=false
+next_is_signing_cert=false
 
 url=$1
 command="post"
+is_print_digest_to_sign=false
 
+fwd_args=()
 for item in "$@" ; do
     if [ "$next_is_url" == true ]; then
         url=$item
@@ -28,8 +33,20 @@ for item in "$@" ; do
         next_is_command=false
     fi
     if [ "$next_is_privk" == true ]; then
-        privk=$item
         next_is_privk=false
+    fi
+    if [ "$next_is_cert" == true ]; then
+        next_is_cert=false
+    fi
+    if [ "$next_is_signing_privk" == true ]; then
+        signing_privk=$item
+        next_is_signing_privk=false
+        continue
+    fi
+    if [ "$next_is_signing_cert" == true ]; then
+        signing_cert=$item
+        next_is_signing_privk=false
+        continue
     fi
     if [ "$item" == "--url" ]; then
         next_is_url=true
@@ -43,10 +60,30 @@ for item in "$@" ; do
     if [ "$item" == "--key" ]; then
         next_is_privk=true
     fi
+    if [ "$item" == "--cert" ]; then
+        next_is_cert=true
+    fi
+    if [ "$item" == "--signing-key" ]; then
+        next_is_signing_privk=true
+        continue
+    fi
+    if [ "$item" == "--signing-cert" ]; then
+        next_is_signing_cert=true
+        continue
+    fi
+    if [ "$item" == "--print-digest-to-sign" ]; then
+        is_print_digest_to_sign=true
+        continue
+    fi
+    fwd_args+=("$item")
 done
 
-if [ -z "$privk" ]; then
-    echo "Error: No private key found in arguments (--key)"
+if [ -z "$signing_cert" ]; then
+    echo "Error: No signing certificate found in arguments (--signing-cert)"
+    exit 1
+fi
+if [ -z "$signing_privk" ] && [ "$is_print_digest_to_sign" == false ]; then
+    echo "Error: No signing private key found in arguments (--signing-key)"
     exit 1
 fi
 
@@ -79,11 +116,27 @@ string_to_sign="(request-target): ${command,,} ${url}
 digest: SHA-256=$req_digest
 content-length: $content_length"
 
+# https://tools.ietf.org/html/draft-cavage-http-signatures-12#appendix-E.2
+signature_algorithm="hs2019"
+
+# Compute key ID
+key_id=$(openssl dgst -sha256 "$signing_cert" | cut -d ' ' -f 2)
+
+if [ "$is_print_digest_to_sign" == true ]; then
+    hash_to_sign=$(echo -n "$string_to_sign" | openssl dgst -binary -sha384 | openssl base64 -A)
+    echo "Hash to sign: $hash_to_sign"
+    echo "Request headers:"
+    echo "-H 'Digest: SHA-256=$req_digest'"
+    echo "-H 'Authorization: Signature keyId=\"$key_id\",signature_algorithm=\"$signature_algorithm\",headers=\"(request-target) digest content-length\",signature=\"<insert_base64_signature_here>\"'"
+    echo "${additional_curl_args[@]}"
+    exit 0
+fi
+
 # Compute signature
-signed_raw=$(echo -n "$string_to_sign" | openssl dgst -sha256 -sign "$privk" | openssl base64 -A)
+signed_raw=$(echo -n "$string_to_sign" | openssl dgst -sha384 -sign "$signing_privk" | openssl base64 -A)
 
 curl \
 -H "Digest: SHA-256=$req_digest" \
--H "Authorization: Signature keyId=\"tls\",algorithm=\"ecdsa-sha256\",headers=\"(request-target) digest content-length\",signature=\"$signed_raw\"" \
+-H "Authorization: Signature keyId=\"$key_id\",algorithm=\"$signature_algorithm\",headers=\"(request-target) digest content-length\",signature=\"$signed_raw\"" \
 "${additional_curl_args[@]}" \
-"$@"
+"${fwd_args[@]}"

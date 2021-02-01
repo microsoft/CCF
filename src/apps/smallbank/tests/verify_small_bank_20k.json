@@ -1,0 +1,91 @@
+{
+  "params": {
+    "seed": 42,
+    "transactions": 20000,
+    "accounts": 10
+  },
+  "initial": [
+    {
+      "account": 0,
+      "balance": 2000
+    },
+    {
+      "account": 1,
+      "balance": 2000
+    },
+    {
+      "account": 2,
+      "balance": 2000
+    },
+    {
+      "account": 3,
+      "balance": 2000
+    },
+    {
+      "account": 4,
+      "balance": 2000
+    },
+    {
+      "account": 5,
+      "balance": 2000
+    },
+    {
+      "account": 6,
+      "balance": 2000
+    },
+    {
+      "account": 7,
+      "balance": 2000
+    },
+    {
+      "account": 8,
+      "balance": 2000
+    },
+    {
+      "account": 9,
+      "balance": 2000
+    }
+  ],
+  "final": [
+    {
+      "account": 0,
+      "balance": 120018
+    },
+    {
+      "account": 1,
+      "balance": 0
+    },
+    {
+      "account": 2,
+      "balance": 187
+    },
+    {
+      "account": 3,
+      "balance": 42
+    },
+    {
+      "account": 4,
+      "balance": -35
+    },
+    {
+      "account": 5,
+      "balance": 36
+    },
+    {
+      "account": 6,
+      "balance": 1189
+    },
+    {
+      "account": 7,
+      "balance": 6
+    },
+    {
+      "account": 8,
+      "balance": 0
+    },
+    {
+      "account": 9,
+      "balance": 39
+    }
+  ]
+}

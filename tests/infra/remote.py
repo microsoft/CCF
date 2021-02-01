@@ -87,6 +87,14 @@ def log_errors(out_path, err_path):
     except IOError:
         LOG.exception("Could not read err output {}".format(err_path))
 
+    # See https://github.com/microsoft/CCF/issues/1701
+    ignore_fatal_errors = False
+    for line in fatal_error_lines:
+        if line.startswith("Tracer caught signal 11"):
+            ignore_fatal_errors = True
+    if ignore_fatal_errors:
+        fatal_error_lines = []
+
     return error_lines, fatal_error_lines
 
 
@@ -189,7 +197,14 @@ class SSHRemote(CmdMixin):
             LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, path))
         session.close()
 
-    def get(self, file_name, dst_path, timeout=FILE_TIMEOUT, target_name=None):
+    def get(
+        self,
+        file_name,
+        dst_path,
+        timeout=FILE_TIMEOUT,
+        target_name=None,
+        pre_condition_func=lambda src_dir, _: True,
+    ):
         """
         Get file called `file_name` under the root of the remote. If the
         file is missing, wait for timeout, and raise an exception.
@@ -213,6 +228,10 @@ class SSHRemote(CmdMixin):
                         if os.path.exists(dst_dir):
                             shutil.rmtree(dst_dir)
                         os.makedirs(dst_dir)
+                        if not pre_condition_func(src_dir, session.listdir):
+                            raise RuntimeError(
+                                "Pre-condition for getting remote files failed"
+                            )
                         for f in session.listdir(src_dir):
                             session.get(
                                 os.path.join(src_dir, f),
@@ -364,20 +383,6 @@ class SSHRemote(CmdMixin):
             client.close()
 
 
-@contextmanager
-def ssh_remote(*args, **kwargs):
-    """
-    Context Manager wrapper for SSHRemote
-    """
-    remote = SSHRemote(*args, **kwargs)
-    try:
-        remote.setup()
-        remote.start()
-        yield remote
-    finally:
-        remote.stop()
-
-
 class LocalRemote(CmdMixin):
     def __init__(
         self,
@@ -415,14 +420,7 @@ class LocalRemote(CmdMixin):
 
     def _cp(self, src_path, dst_path):
         if os.path.isdir(src_path):
-            assert (
-                self._rc(
-                    "rm -rf {}".format(
-                        os.path.join(dst_path, os.path.basename(src_path))
-                    )
-                )
-                == 0
-            )
+            assert self._rc("rm -rf {}".format(os.path.join(dst_path))) == 0
             assert self._rc("cp -r {} {}".format(src_path, dst_path)) == 0
         else:
             assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
@@ -438,7 +436,14 @@ class LocalRemote(CmdMixin):
             dst_path = os.path.join(self.root, os.path.basename(path))
             self._cp(path, dst_path)
 
-    def get(self, src_path, dst_path, timeout=FILE_TIMEOUT, target_name=None):
+    def get(
+        self,
+        src_path,
+        dst_path,
+        timeout=FILE_TIMEOUT,
+        target_name=None,
+        pre_condition_func=lambda src_dir, _: True,
+    ):
         path = os.path.join(self.root, src_path)
         end_time = time.time() + timeout
         while time.time() < end_time:
@@ -447,10 +452,10 @@ class LocalRemote(CmdMixin):
             time.sleep(0.1)
         else:
             raise ValueError(path)
-        if target_name is not None:
-            self._cp(path, os.path.join(dst_path, target_name))
-        else:
-            self._cp(path, dst_path)
+        if not pre_condition_func(path, os.listdir):
+            raise RuntimeError("Pre-condition for getting remote files failed")
+        target_name = target_name or os.path.basename(src_path)
+        self._cp(path, os.path.join(dst_path, target_name))
 
     def list_files(self):
         return os.listdir(self.root)
@@ -528,7 +533,8 @@ CCF_TO_OE_LOG_LEVEL = {
 def make_address(host, port=None):
     if port is not None:
         return f"{host}:{port}"
-    return host
+    else:
+        return f"{host}:0"
 
 
 class CCFRemote(object):
@@ -557,17 +563,20 @@ class CCFRemote(object):
         sig_tx_interval=5000,
         sig_ms_interval=1000,
         raft_election_timeout=1000,
-        pbft_view_change_timeout=5000,
+        bft_view_change_timeout=5000,
         consensus="cft",
         worker_threads=0,
         memory_reserve_startup=0,
         gov_script=None,
         ledger_dir=None,
+        read_only_ledger_dir=None,  # Read-only ledger dir to copy to node director
+        common_read_only_ledger_dir=None,  # Read-only ledger dir for all nodes
         log_format_json=None,
         binary_dir=".",
         ledger_chunk_bytes=(5 * 1000 * 1000),
         domain=None,
         snapshot_tx_interval=None,
+        jwt_key_refresh_interval_s=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -580,6 +589,7 @@ class CCFRemote(object):
         self.BIN = infra.path.build_bin_path(
             self.BIN, enclave_type, binary_dir=binary_dir
         )
+        self.common_dir = common_dir
 
         self.ledger_dir = os.path.normpath(ledger_dir) if ledger_dir else None
         self.ledger_dir_name = (
@@ -587,15 +597,20 @@ class CCFRemote(object):
             if self.ledger_dir
             else f"{local_node_id}.ledger"
         )
+
+        self.read_only_ledger_dir = read_only_ledger_dir
+        self.common_read_only_ledger_dir = common_read_only_ledger_dir
+
         self.snapshot_dir = os.path.normpath(snapshot_dir) if snapshot_dir else None
         self.snapshot_dir_name = (
-            os.path.basename(self.snapshot_dir) if self.snapshot_dir else "snapshots"
+            os.path.basename(self.snapshot_dir)
+            if self.snapshot_dir
+            else f"{local_node_id}.snapshots"
         )
-
-        self.common_dir = common_dir
 
         exe_files = [self.BIN, lib_path] + self.DEPS
         data_files = [self.ledger_dir] if self.ledger_dir else []
+        data_files += [self.snapshot_dir] if self.snapshot_dir else []
 
         # exe_files may be relative or absolute. The remote implementation should
         # copy (or symlink) to the target workspace, and then node will be able
@@ -604,7 +619,7 @@ class CCFRemote(object):
         enclave_path = os.path.join(".", os.path.basename(lib_path))
 
         election_timeout_arg = (
-            f"--pbft_view-change-timeout-ms={pbft_view_change_timeout}"
+            f"--bft-view-change-timeout-ms={bft_view_change_timeout}"
             if consensus == "bft"
             else f"--raft-election-timeout-ms={raft_election_timeout}"
         )
@@ -619,6 +634,7 @@ class CCFRemote(object):
             f"--rpc-address-file={self.rpc_address_path}",
             f"--public-rpc-address={make_address(pubhost, rpc_port)}",
             f"--ledger-dir={self.ledger_dir_name}",
+            f"--snapshot-dir={self.snapshot_dir_name}",
             f"--node-cert-file={self.pem}",
             f"--host-log-level={host_log_level}",
             election_timeout_arg,
@@ -647,21 +663,42 @@ class CCFRemote(object):
         if snapshot_tx_interval:
             cmd += [f"--snapshot-tx-interval={snapshot_tx_interval}"]
 
+        if jwt_key_refresh_interval_s:
+            cmd += [f"--jwt-key-refresh-interval-s={jwt_key_refresh_interval_s}"]
+
+        if self.read_only_ledger_dir is not None:
+            cmd += [
+                f"--read-only-ledger-dir={os.path.basename(self.read_only_ledger_dir)}"
+            ]
+            data_files += [os.path.join(self.common_dir, self.read_only_ledger_dir)]
+
+        if self.common_read_only_ledger_dir is not None:
+            cmd += [f"--read-only-ledger-dir={self.common_read_only_ledger_dir}"]
+
         if start_type == StartType.new:
             cmd += [
                 "start",
                 "--network-cert-file=networkcert.pem",
                 f"--gov-script={os.path.basename(gov_script)}",
             ]
+            data_files += [os.path.join(os.path.basename(self.common_dir), gov_script)]
             if members_info is None:
                 raise ValueError(
-                    "Starting node should be given at least one pair member certificate, member public encryption key"
+                    "Starting node should be given at least one member info"
                 )
-            for mc, mk in members_info:
-                cmd += [f"--member-info={mc},{mk}"]
-                data_files.append(os.path.join(self.common_dir, mc))
-                data_files.append(os.path.join(self.common_dir, mk))
-            data_files += [os.path.join(os.path.basename(self.common_dir), gov_script)]
+            for mi in members_info:
+                member_info_cmd = f"--member-info={mi.certificate_file}"
+                if mi.encryption_pub_key_file is not None:
+                    member_info_cmd += f",{mi.encryption_pub_key_file}"
+                elif mi.member_data_file is not None:
+                    member_info_cmd += ","
+                if mi.member_data_file is not None:
+                    member_info_cmd += f",{mi.member_data_file}"
+                for mf in mi:
+                    if mf is not None:
+                        data_files.append(os.path.join(self.common_dir, mf))
+                cmd += [member_info_cmd]
+
         elif start_type == StartType.join:
             cmd += [
                 "join",
@@ -671,10 +708,9 @@ class CCFRemote(object):
             ]
             data_files += [os.path.join(self.common_dir, "networkcert.pem")]
 
-            if snapshot_dir:
-                data_files += [snapshot_dir]
         elif start_type == StartType.recover:
             cmd += ["recover", "--network-cert-file=networkcert.pem"]
+
         else:
             raise ValueError(
                 f"Unexpected CCFRemote start type {start_type}. Should be start, join or recover"
@@ -723,7 +759,6 @@ class CCFRemote(object):
         self.remote.get(self.rpc_address_path, dst_path)
         if self.start_type in {StartType.new, StartType.recover}:
             self.remote.get("networkcert.pem", dst_path)
-            self.remote.get("network_enc_pubk.pem", dst_path)
 
     def debug_node_cmd(self):
         return self.remote.debug_node_cmd()
@@ -747,30 +782,49 @@ class CCFRemote(object):
     def set_perf(self):
         self.remote.set_perf()
 
-    def get_ledger(self):
-        self.remote.get(self.ledger_dir_name, self.common_dir)
-        return os.path.join(self.common_dir, self.ledger_dir_name)
+    # For now, it makes sense to default include_read_only_dirs to False
+    # but when nodes started from snapshots are fully supported in the test
+    # suite, this argument will probably default to True (or be deleted entirely)
+    def get_ledger(self, ledger_dir_name, include_read_only_dirs=False):
+        self.remote.get(
+            self.ledger_dir_name,
+            self.common_dir,
+            target_name=ledger_dir_name,
+        )
+        read_only_ledger_dirs = []
+        if include_read_only_dirs and self.read_only_ledger_dir is not None:
+            read_only_ledger_dir_name = (
+                f"{ledger_dir_name}.ro"
+                if ledger_dir_name
+                else self.read_only_ledger_dir
+            )
+            self.remote.get(
+                os.path.basename(self.read_only_ledger_dir),
+                self.common_dir,
+                target_name=read_only_ledger_dir_name,
+            )
+            read_only_ledger_dirs.append(
+                os.path.join(self.common_dir, read_only_ledger_dir_name)
+            )
+        return (
+            os.path.join(self.common_dir, ledger_dir_name),
+            read_only_ledger_dirs,
+        )
 
     def get_snapshots(self):
         self.remote.get(self.snapshot_dir_name, self.common_dir)
         return os.path.join(self.common_dir, self.snapshot_dir_name)
 
+    def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
+        self.remote.get(
+            self.snapshot_dir_name,
+            self.common_dir,
+            pre_condition_func=pre_condition_func,
+        )
+        return os.path.join(self.common_dir, self.snapshot_dir_name)
+
     def ledger_path(self):
         return os.path.join(self.remote.root, self.ledger_dir_name)
-
-
-@contextmanager
-def ccf_remote(*args, **kwargs):
-    """
-    Context Manager wrapper for CCFRemote
-    """
-    remote = CCFRemote(*args, **kwargs)
-    try:
-        remote.setup()
-        remote.start()
-        yield remote
-    finally:
-        remote.stop()
 
 
 class StartType(Enum):

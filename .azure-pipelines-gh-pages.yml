@@ -3,72 +3,72 @@ trigger:
   branches:
     include:
       - master
-      - 'refs/tags/ccf-*'
+      - "refs/tags/ccf-*"
 
 jobs:
-- job: build_and_publish_docs
-  container: ccfciteam/ccf-ci:oe0.11.0
-  pool:
-    vmImage: ubuntu-18.04
+  - job: build_and_publish_docs
+    container: ccfciteam/ccf-ci:oe0.13.0
+    pool:
+      vmImage: ubuntu-18.04
 
-  steps:
-    - checkout: self
-      clean: true
+    steps:
+      - checkout: self
+        clean: true
 
-    - script: |
-        env
-        git status
-        git rev-parse HEAD
-        git checkout -b master $(git rev-parse HEAD)
-      displayName: Prepare repo
+      - script: |
+          env
+          git status
+          git rev-parse HEAD
+          git checkout -b master $(git rev-parse HEAD)
+        displayName: Prepare repo
 
-    # Used to generate setup.py
-    - template: .azure-pipelines-templates/cmake.yml
-      parameters:
-        cmake_args: ''
+      # Used to generate setup.py
+      - template: .azure-pipelines-templates/cmake.yml
+        parameters:
+          cmake_args: ""
 
-    - script: |
-        python3.8 -m venv env
-        source env/bin/activate
-        pip install wheel
-        pip install -U -r doc/requirements.txt
-        pip install -U -e ./python
-        sphinx-multiversion doc build/html
-      displayName: Sphinx
+      - script: |
+          python3.8 -m venv env
+          source env/bin/activate
+          pip install wheel
+          pip install -U -r doc/requirements.txt
+          pip install -U -e ./python
+          sphinx-multiversion doc build/html
+        displayName: Sphinx
 
-    - script: |
-        git init
-        git config --local user.name "Azure Pipelines"
-        git config --local user.email "azuredevops@microsoft.com"
-        git add .
-        touch .nojekyll
-        git add .nojekyll
-        cp ../../doc/index.html .
-        git add index.html
-        git commit -m "[ci skip] commit generated documentation"
-      displayName: 'Commit pages'
-      workingDirectory: build/html
+      - script: |
+          git init
+          git config --local user.name "Azure Pipelines"
+          git config --local user.email "azuredevops@microsoft.com"
+          git add .
+          touch .nojekyll
+          git add .nojekyll
+          cp ../../doc/index.html .
+          git add index.html
+          git commit -m "[ci skip] commit generated documentation"
+        displayName: "Commit pages"
+        workingDirectory: build/html
 
-    - task: DownloadSecureFile@1
-      inputs:
-        secureFile: ccf
-      displayName: 'Get the deploy key'
+      - task: DownloadSecureFile@1
+        inputs:
+          secureFile: ccf
+        displayName: "Get the deploy key"
 
-    - script: |
-        mv $DOWNLOADSECUREFILE_SECUREFILEPATH deploy_key
-        chmod 600 deploy_key
-        mkdir ~/.ssh
-        chmod 700 ~/.ssh
-        ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
-        git remote add origin git@github.com:microsoft/CCF.git
-        GIT_SSH_COMMAND="ssh -i deploy_key" git push -f origin HEAD:gh-pages
-      displayName: 'Publish GitHub Pages'
-      condition: |
-        and(not(eq(variables['Build.Reason'], 'PullRequest')),
-            eq(variables['Build.SourceBranch'], 'refs/heads/master'))
-      workingDirectory: build/html
+      - script: |
+          mv $DOWNLOADSECUREFILE_SECUREFILEPATH deploy_key
+          chmod 600 deploy_key
+          mkdir ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+          git remote add origin git@github.com:microsoft/CCF.git
+          GIT_SSH_COMMAND="ssh -i deploy_key" git push -f origin HEAD:gh-pages
+        displayName: "Publish GitHub Pages"
+        condition: |
+          and(not(eq(variables['Build.Reason'], 'PullRequest')),
+              eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+        workingDirectory: build/html
 
-    - script: rm deploy_key || true
-      displayName: 'Make sure key is removed'
-      workingDirectory: build/html
-      condition: always()
+      - script: rm deploy_key || true
+        displayName: "Make sure key is removed"
+        workingDirectory: build/html
+        condition: always()

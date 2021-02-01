@@ -30,31 +30,43 @@ MSGPACK_ADD_ENUM(ccf::MemberStatus);
 namespace ccf
 {
   // Current limitations of secret sharing library (sss).
-  // This could be mitigated by not handing a recovery share to every member.
-  static constexpr size_t max_active_members_count = 255;
+  static constexpr size_t max_active_recovery_members = 255;
 
   struct MemberPubInfo
   {
     tls::Pem cert;
-    tls::Pem keyshare;
+
+    // If encryption public key is set, the member is a recovery member
+    std::optional<tls::Pem> encryption_pub_key = std::nullopt;
+    nlohmann::json member_data = nullptr;
 
     MemberPubInfo() {}
 
-    MemberPubInfo(const tls::Pem& cert_, const tls::Pem& keyshare_) :
-      cert(cert_),
-      keyshare(keyshare_)
-    {}
-
     MemberPubInfo(
-      std::vector<uint8_t>&& cert_, std::vector<uint8_t>&& keyshare_) :
-      cert(std::move(cert_)),
-      keyshare(std::move(keyshare_))
+      const tls::Pem& cert_,
+      const std::optional<tls::Pem>& encryption_pub_key_ = std::nullopt,
+      const nlohmann::json& member_data_ = nullptr) :
+      cert(cert_),
+      encryption_pub_key(encryption_pub_key_),
+      member_data(member_data_)
     {}
 
-    MSGPACK_DEFINE(cert, keyshare);
+    bool operator==(const MemberPubInfo& rhs) const
+    {
+      return cert == rhs.cert && encryption_pub_key == rhs.encryption_pub_key &&
+        member_data == rhs.member_data;
+    }
+
+    bool is_recovery() const
+    {
+      return encryption_pub_key.has_value();
+    }
+
+    MSGPACK_DEFINE(cert, encryption_pub_key, member_data);
   };
-  DECLARE_JSON_TYPE(MemberPubInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(MemberPubInfo, cert, keyshare)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(MemberPubInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(MemberPubInfo, cert)
+  DECLARE_JSON_OPTIONAL_FIELDS(MemberPubInfo, encryption_pub_key, member_data)
 
   struct MemberInfo : public MemberPubInfo
   {
@@ -62,22 +74,20 @@ namespace ccf
 
     MemberInfo() {}
 
-    MemberInfo(
-      const tls::Pem& cert_, const tls::Pem& keyshare_, MemberStatus status_) :
-      MemberPubInfo(cert_, keyshare_),
+    MemberInfo(const MemberPubInfo& member_pub_info, MemberStatus status_) :
+      MemberPubInfo(member_pub_info),
       status(status_)
     {}
 
     bool operator==(const MemberInfo& rhs) const
     {
-      return cert == rhs.cert && keyshare == rhs.keyshare &&
-        status == rhs.status;
+      return MemberPubInfo::operator==(rhs) && status == rhs.status;
     }
 
     MSGPACK_DEFINE(MSGPACK_BASE(MemberPubInfo), status);
   };
-  DECLARE_JSON_TYPE(MemberInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(MemberInfo, cert, keyshare, status)
+  DECLARE_JSON_TYPE_WITH_BASE(MemberInfo, MemberPubInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(MemberInfo, status)
   using Members = kv::Map<MemberId, MemberInfo>;
 
   /** Records a signed signature containing the last state digest and the next
@@ -86,12 +96,11 @@ namespace ccf
   struct StateDigest
   {
     //! the next state digest the member is supposed to sign
-    std::vector<uint8_t> state_digest;
+    std::string state_digest;
 
     StateDigest() {}
 
-    StateDigest(const crypto::Sha256Hash& root) :
-      state_digest(root.h.begin(), root.h.end())
+    StateDigest(const crypto::Sha256Hash& root) : state_digest(root.hex_str())
     {}
 
     MSGPACK_DEFINE(state_digest);

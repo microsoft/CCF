@@ -13,13 +13,13 @@ namespace consensus
   {
     size_t raft_request_timeout;
     size_t raft_election_timeout;
-    size_t pbft_view_change_timeout;
-    size_t pbft_status_interval;
+    size_t bft_view_change_timeout;
+    size_t bft_status_interval;
     MSGPACK_DEFINE(
       raft_request_timeout,
       raft_election_timeout,
-      pbft_view_change_timeout,
-      pbft_status_interval);
+      bft_view_change_timeout,
+      bft_status_interval);
   };
 
 #pragma pack(push, 1)

@@ -2,21 +2,20 @@
 # Licensed under the Apache 2.0 License.
 
 import argparse
-import collections
+from collections import abc
 import inspect
 import json
 import glob
 import os
 import sys
+import shutil
+import tempfile
 from pathlib import PurePosixPath
-from typing import Union, Optional, Any
+from typing import Union, Optional, Any, List
 
 from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
 from loguru import logger as LOG  # type: ignore
-
-
-CERT_OID_SGX_QUOTE = "1.2.840.113556.10.1.1"
 
 
 def dump_to_file(output_path: str, obj: dict, dump_args: dict):
@@ -24,17 +23,41 @@ def dump_to_file(output_path: str, obj: dict, dump_args: dict):
         json.dump(obj, f, **dump_args)
 
 
-def list_as_lua_literal(l):
-    return str(l).translate(str.maketrans("[]", "{}"))
+def as_lua_literal(arg):
+    if isinstance(arg, str):
+        # This long string swallows any initial newline. This means if we
+        # had an actual newline, it will be lost. To work around this, we
+        # insert a newline to every string. If there was originally a
+        # newline at the start, its now the second character, and is kept.
+        return f"[====[\n{arg}]====]"
+    elif isinstance(arg, bool):
+        return str(arg).lower()
+    elif isinstance(arg, abc.Sequence):
+        return f"{{ {', '.join(as_lua_literal(e) for e in arg)} }}"
+    elif isinstance(arg, abc.Mapping):
+        inner = ", ".join(
+            f"[ {as_lua_literal(k)} ] = {as_lua_literal(v)}" for k, v in arg.items()
+        )
+        return f"{{ {inner} }}"
+    else:
+        return str(arg)
 
 
-LUA_FUNCTION_EQUAL_ARRAYS = """function equal_arrays(a, b)
+LUA_FUNCTION_EQUAL_TABLES = """function equal_tables(a, b)
   if #a ~= #b then
     return false
   else
-    for k, v in ipairs(a) do
-      if b[k] ~= v then
+    for k, v in pairs(a) do
+      if type(v) ~= type(b[k]) then
         return false
+      elseif type(v) == "table" then
+        if not equal_tables(v, b[k]) then
+          return false
+        end
+      else
+        if v ~= b[k] then
+          return false
+        end
       end
     end
     return true
@@ -79,58 +102,45 @@ def complete_vote_output_path(
 
 def add_arg_construction(
     lines: list,
-    arg: Union[str, collections.abc.Sequence, collections.abc.Mapping],
+    arg: Union[str, abc.Sequence, abc.Mapping],
     arg_name: str = "args",
 ):
-    if isinstance(arg, str):
-        lines.append(f"{arg_name} = [====[{arg}]====]")
-    elif isinstance(arg, collections.abc.Sequence):
-        lines.append(f"{arg_name} = {list_as_lua_literal(arg)}")
-    elif isinstance(arg, collections.abc.Mapping):
-        lines.append(f"{arg_name} = {{}}")
-        for k, v in args.items():
-            add_arg_construction(lines, v, arg_name=f"{arg_name}.{k}")
-    else:
-        lines.append(f"{arg_name} = {arg}")
+    lines.append(f"{arg_name} = {as_lua_literal(arg)}")
 
 
 def add_arg_checks(
     lines: list,
-    arg: Union[str, collections.abc.Sequence, collections.abc.Mapping],
+    arg: Union[str, abc.Sequence, abc.Mapping],
     arg_name: str = "args",
-    added_equal_arrays_fn: bool = False,
+    added_equal_tables_fn: bool = False,
 ):
     lines.append(f"if {arg_name} == nil then return false end")
     if isinstance(arg, str):
-        lines.append(f"if not {arg_name} == [====[{arg}]====] then return false end")
-    elif isinstance(arg, collections.abc.Sequence):
-        if not added_equal_arrays_fn:
-            lines.extend(
-                line.strip() for line in LUA_FUNCTION_EQUAL_ARRAYS.splitlines()
-            )
-            added_equal_arrays_fn = True
-        expected_name = arg_name.replace(".", "_")
-        lines.append(f"{expected_name} = {list_as_lua_literal(arg)}")
         lines.append(
-            f"if not equal_arrays({arg_name}, {expected_name}) then return false end"
+            f"if not {arg_name} == {as_lua_literal(arg)} then return false end"
         )
-    elif isinstance(arg, collections.abc.Mapping):
-        for k, v in arg.items():
-            add_arg_checks(
-                lines,
-                v,
-                arg_name=f"{arg_name}.{k}",
-                added_equal_arrays_fn=added_equal_arrays_fn,
+    elif isinstance(arg, abc.Sequence) or isinstance(arg, abc.Mapping):
+        if not added_equal_tables_fn:
+            lines.extend(
+                line.strip() for line in LUA_FUNCTION_EQUAL_TABLES.splitlines()
             )
+            added_equal_tables_fn = True
+        expected_name = "expected"
+        lines.append(f"{expected_name} = {as_lua_literal(arg)}")
+        lines.append(
+            f"if not equal_tables({arg_name}, {expected_name}) then return false end"
+        )
     else:
-        lines.append(f"if not {arg_name} == {arg} then return false end")
+        lines.append(
+            f"if not {arg_name} == {as_lua_literal(arg)} then return false end"
+        )
+    return added_equal_tables_fn
 
 
 def build_proposal(
     proposed_call: str,
     args: Optional[Any] = None,
     inline_args: bool = False,
-    vote_against: bool = False,
 ):
     LOG.trace(f"Generating {proposed_call} proposal")
 
@@ -144,14 +154,12 @@ def build_proposal(
             proposal_script_lines.append("tables, args = ...")
         proposal_script_lines.append(f'return Calls:call("{proposed_call}", args)')
 
-    proposal_script_text = "; ".join(proposal_script_lines)
+    proposal_script_text = ";\n".join(proposal_script_lines)
     proposal = {
         "script": {"text": proposal_script_text},
     }
     if args is not None and not inline_args:
         proposal["parameter"] = args
-    if vote_against:
-        proposal["ballot"] = {"text": "return false"}
 
     vote_lines = [
         "tables, calls = ...",
@@ -163,7 +171,7 @@ def build_proposal(
         vote_lines.append("args = call.args")
         add_arg_checks(vote_lines, args)
     vote_lines.append("return true")
-    vote_text = "; ".join(vote_lines)
+    vote_text = ";\n".join(vote_lines)
     vote = {"ballot": {"text": vote_text}}
 
     LOG.trace(f"Made {proposed_call} proposal:\n{json.dumps(proposal, indent=2)}")
@@ -178,12 +186,20 @@ def cli_proposal(func):
 
 
 @cli_proposal
-def new_member(member_cert_path: str, member_enc_pubk_path: str, **kwargs):
+def new_member(
+    member_cert_path: str,
+    member_enc_pubk_path: str = None,
+    member_data: Any = None,
+    **kwargs,
+):
     LOG.debug("Generating new_member proposal")
 
     # Read certs
     member_cert = open(member_cert_path).read()
-    member_keyshare_encryptor = open(member_enc_pubk_path).read()
+
+    encryption_pub_key = None
+    if member_enc_pubk_path is not None:
+        encryption_pub_key = open(member_enc_pubk_path).read()
 
     # Script which proposes adding a new member
     proposal_script_text = """
@@ -193,16 +209,27 @@ def new_member(member_cert_path: str, member_enc_pubk_path: str, **kwargs):
 
     # Proposal object (request body for POST /gov/proposals) containing this member's info as parameter
     proposal = {
-        "parameter": {"cert": member_cert, "keyshare": member_keyshare_encryptor},
+        "parameter": {
+            "cert": member_cert,
+            "encryption_pub_key": encryption_pub_key,
+            "member_data": member_data,
+        },
         "script": {"text": proposal_script_text},
     }
 
-    vote_against = kwargs.pop("vote_against", False)
-
-    if vote_against:
-        proposal["ballot"] = {"text": "return false"}
-
     # Sample vote script which checks the expected member is being added, and no other actions are being taken
+
+    verify_encryption_pubk_text = (
+        f"""
+        expected_enc_pub_key = [====[{encryption_pub_key}]====]
+        if not call.args.encryption_pub_key == expected_enc_pub_key then
+        return false
+        end
+        """
+        if encryption_pub_key is not None
+        else ""
+    )
+
     verifying_vote_text = f"""
     tables, calls = ...
     if #calls ~= 1 then
@@ -219,10 +246,7 @@ def new_member(member_cert_path: str, member_enc_pubk_path: str, **kwargs):
     return false
     end
 
-    expected_keyshare = [====[{member_keyshare_encryptor}]====]
-    if not call.args.keyshare == expected_keyshare then
-    return false
-    end
+    {verify_encryption_pubk_text}
 
     return true
     """
@@ -239,6 +263,12 @@ def new_member(member_cert_path: str, member_enc_pubk_path: str, **kwargs):
 @cli_proposal
 def retire_member(member_id: int, **kwargs):
     return build_proposal("retire_member", member_id, **kwargs)
+
+
+@cli_proposal
+def set_member_data(member_id: int, member_data: Any, **kwargs):
+    proposal_args = {"member_id": member_id, "member_data": member_data}
+    return build_proposal("set_member_data", proposal_args, **kwargs)
 
 
 @cli_proposal
@@ -261,17 +291,50 @@ def set_user_data(user_id: int, user_data: Any, **kwargs):
 
 
 @cli_proposal
-def set_lua_app(app_script_path: str, **kwargs):
-    with open(app_script_path) as f:
-        app_script = f.read()
-    return build_proposal("set_lua_app", app_script, **kwargs)
-
-
-@cli_proposal
 def set_js_app(app_script_path: str, **kwargs):
+    LOG.error(
+        "set_js_app proposal type is deprecated - update to use deploy_js_app instead"
+    )
     with open(app_script_path) as f:
         app_script = f.read()
     return build_proposal("set_js_app", app_script, **kwargs)
+
+
+@cli_proposal
+def deploy_js_app(bundle_path: str, **kwargs):
+    # read modules
+    if os.path.isfile(bundle_path):
+        tmp_dir = tempfile.TemporaryDirectory(prefix="ccf")
+        shutil.unpack_archive(bundle_path, tmp_dir.name)
+        bundle_path = tmp_dir.name
+    modules_path = os.path.join(bundle_path, "src")
+    modules = read_modules(modules_path)
+
+    # read metadata
+    metadata_path = os.path.join(bundle_path, "app.json")
+    with open(metadata_path) as f:
+        metadata = json.load(f)
+
+    # sanity checks
+    module_paths = set(module["name"] for module in modules)
+    for url, methods in metadata["endpoints"].items():
+        for method, endpoint in methods.items():
+            module_path = endpoint["js_module"]
+            if module_path not in module_paths:
+                raise ValueError(
+                    f"{method} {url}: module '{module_path}' not found in bundle"
+                )
+
+    proposal_args = {
+        "bundle": {"metadata": metadata, "modules": modules},
+    }
+
+    return build_proposal("deploy_js_app", proposal_args, **kwargs)
+
+
+@cli_proposal
+def remove_js_app(**kwargs):
+    return build_proposal("remove_js_app", **kwargs)
 
 
 @cli_proposal
@@ -295,38 +358,17 @@ def remove_module(module_name: str, **kwargs):
     return build_proposal("remove_module", module_name, **kwargs)
 
 
-@cli_proposal
-def update_modules(module_name_prefix: str, modules_path: Optional[str], **kwargs):
-    LOG.debug("Generating update_modules proposal")
-
-    # Validate module name prefix
-    module_name_prefix_ = PurePosixPath(module_name_prefix)
-    if not module_name_prefix_.is_absolute():
-        raise ValueError("module name prefix must be an absolute path")
-    if any(folder in [".", ".."] for folder in module_name_prefix_.parents):
-        raise ValueError("module name prefix must not contain . or .. components")
-    if not module_name_prefix.endswith("/"):
-        raise ValueError("module name prefix must end with /")
-
-    # Read module files and build relative module names
+def read_modules(modules_path: str) -> List[dict]:
     modules = []
-    if modules_path:
-        for path in glob.glob(f"{modules_path}/**/*.js", recursive=True):
-            rel_module_name = os.path.relpath(path, modules_path)
-            rel_module_name = rel_module_name.replace("\\", "/")  # Windows support
-            with open(path) as f:
-                js = f.read()
-                modules.append({"rel_name": rel_module_name, "module": {"js": js}})
-
-    proposal_args = {"prefix": module_name_prefix, "modules": modules}
-
-    return build_proposal("update_modules", proposal_args, **kwargs)
-
-
-@cli_proposal
-def remove_modules(module_name_prefix: str, **kwargs):
-    LOG.debug("Generating update_modules proposal (remove only)")
-    return update_modules(module_name_prefix, modules_path=None)
+    for path in glob.glob(f"{modules_path}/**/*.js", recursive=True):
+        if not os.path.isfile(path):
+            continue
+        rel_module_name = os.path.relpath(path, modules_path)
+        rel_module_name = rel_module_name.replace("\\", "/")  # Windows support
+        with open(path) as f:
+            js = f.read()
+            modules.append({"name": rel_module_name, "module": {"js": js}})
+    return modules
 
 
 @cli_proposal
@@ -377,28 +419,56 @@ def set_recovery_threshold(threshold: int, **kwargs):
 
 
 @cli_proposal
-def update_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
+def set_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
     with open(cert_path) as f:
         cert_pem = f.read()
 
     if not skip_checks:
         try:
-            cert = x509.load_pem_x509_certificate(
+            x509.load_pem_x509_certificate(
                 cert_pem.encode(), crypto_backends.default_backend()
             )
         except Exception as exc:
             raise ValueError("Cannot parse PEM certificate") from exc
 
-        try:
-            oid = x509.ObjectIdentifier(CERT_OID_SGX_QUOTE)
-            _ = cert.extensions.get_extension_for_oid(oid)
-        except x509.ExtensionNotFound as exc:
-            raise ValueError(
-                "X.509 extension with SGX quote not found in certificate"
-            ) from exc
-
     args = {"name": cert_name, "cert": cert_pem}
-    return build_proposal("update_ca_cert", args, **kwargs)
+    return build_proposal("set_ca_cert", args, **kwargs)
+
+
+@cli_proposal
+def remove_ca_cert(cert_name, **kwargs):
+    return build_proposal("remove_ca_cert", cert_name, **kwargs)
+
+
+@cli_proposal
+def set_jwt_issuer(json_path: str, **kwargs):
+    with open(json_path) as f:
+        obj = json.load(f)
+    args = {
+        "issuer": obj["issuer"],
+        "key_filter": obj.get("key_filter", "all"),
+        "key_policy": obj.get("key_policy"),
+        "ca_cert_name": obj.get("ca_cert_name"),
+        "auto_refresh": obj.get("auto_refresh", False),
+        "jwks": obj.get("jwks"),
+    }
+    return build_proposal("set_jwt_issuer", args, **kwargs)
+
+
+@cli_proposal
+def remove_jwt_issuer(issuer: str, **kwargs):
+    args = {"issuer": issuer}
+    return build_proposal("remove_jwt_issuer", args, **kwargs)
+
+
+@cli_proposal
+def set_jwt_public_signing_keys(issuer: str, jwks_path: str, **kwargs):
+    with open(jwks_path) as f:
+        jwks = json.load(f)
+    if "keys" not in jwks:
+        raise ValueError("not a JWKS document")
+    args = {"issuer": issuer, "jwks": jwks}
+    return build_proposal("set_jwt_public_signing_keys", args, **kwargs)
 
 
 if __name__ == "__main__":
@@ -429,12 +499,6 @@ if __name__ == "__main__":
         help="Create a fixed proposal script with the call arguments as literals inside "
         "the script. When not inlined, the parameters are passed separately and could "
         "be replaced in the resulting object",
-    )
-    parser.add_argument(
-        "--vote-against",
-        action="store_true",
-        help="Include a negative initial vote when creating the proposal",
-        default=False,
     )
     parser.add_argument("-v", "--verbose", action="store_true")
 
@@ -481,7 +545,6 @@ if __name__ == "__main__":
 
     proposal, vote = args.func(
         **{name: getattr(args, name) for name in args.param_names},
-        vote_against=args.vote_against,
         inline_args=args.inline_args,
     )
 

@@ -4,7 +4,7 @@
 -- This file defines the default initial contents (ie, Lua scripts) of the governance scripts table.
 return {
   pass = [[
-  tables, calls, votes = ...
+  tables, calls, votes, proposer_id = ...
 
   -- interface definitions
   PASSED = 1
@@ -12,27 +12,65 @@ return {
   REJECTED = -1
   STATE_ACTIVE = "ACTIVE"
 
+  -- returns true if the member is a recovery member
+  function is_recovery_member(member)
+    member_info = tables["public:ccf.gov.members"]:get(member)
+    if member_info then
+      member_enc_pubk = member_info.encryption_pub_key
+      if member_enc_pubk then
+        return true
+      end
+    end
+    return false
+  end
+
   -- defines which of the members are operators
   function is_operator(member)
-    return member == "0"
+    -- Operators cannot be recovery members
+    if is_recovery_member(member) then
+      return false
+    end
+    member_info = tables["public:ccf.gov.members"]:get(member)
+    if member_info then
+      member_data = member_info.member_data
+      if member_data then
+        return member_data.is_operator == true
+      end
+    end
+    return false
   end
 
   -- defines calls that can be passed with sole operator input
-  operator_calls = {
-    trust_node=true,
-    retire_node=true,
-    new_node_code=true
-  }
+  function can_operator_pass(call)
+    -- some calls can always be called by operators
+    allowed_operator_funcs = {
+      trust_node=true,
+      retire_node=true,
+      new_node_code=true
+    }
+    if allowed_operator_funcs[call.func] then
+      return true
+    end
+
+    -- additionally, operators can add or retire other operators
+    if call.func == "new_member" then
+      member_data = call.args.member_data
+      if member_data and member_data.is_operator then
+        return true
+      end
+    elseif call.func == "retire_member" then
+      if is_operator(call.args) then
+        return true
+      end
+    end
+  end
 
   -- count member votes
-  operator_votes = 0
   member_votes = 0
 
   for member, vote in pairs(votes) do
     if vote then
-      if is_operator(member) then
-        operator_votes = operator_votes + 1
-      else
+      if not is_operator(tonumber(member)) then
         member_votes = member_votes + 1
       end
     end
@@ -41,14 +79,14 @@ return {
   -- count active members, excluding operators
   members_active = 0
 
-  tables["ccf.members"]:foreach(function(member, details)
-    if details["status"] == STATE_ACTIVE and not is_operator(tostring(member)) then
+  tables["public:ccf.gov.members"]:foreach(function(member, details)
+    if details["status"] == STATE_ACTIVE and not is_operator(member) then
       members_active = members_active + 1
     end
   end)
 
   -- check for raw_puts to sensitive tables
-  SENSITIVE_TABLES = {"ccf.whitelists", "ccf.governance.scripts"}
+  SENSITIVE_TABLES = {"public:ccf.gov.whitelists", "public:ccf.gov.governance.scripts"}
   for _, call in pairs(calls) do
     if call.func == "raw_puts" then
       for _, sensitive_table in pairs(SENSITIVE_TABLES) do
@@ -64,11 +102,11 @@ return {
     end
   end
 
-  -- a vote is an operator vote if it's only making operator calls
-  operator_vote = true
+  -- a proposal is an operator change if it's only making operator calls
+  operator_change = true
   for _, call in pairs(calls) do
-    if not operator_calls[call.func] then
-      operator_vote = false
+    if not can_operator_pass(call) then
+      operator_change = false
       break
     end
   end
@@ -78,8 +116,8 @@ return {
     return PASSED
   end
 
-  -- a single operator can pass an operator vote
-  if operator_vote and operator_votes > 0 then
+  -- operators proposing operator changes can pass them without a vote
+  if operator_change and is_operator(tonumber(proposer_id)) then
     return PASSED
   end
 
@@ -114,7 +152,15 @@ return {
     table.insert(self, {func=_func, args=_args})
     return self
   end
-  Calls =  setmetatable({}, {__index = __Calls})
+  Calls = setmetatable({}, {__index = __Calls})
+
+  function empty_list()
+    return setmetatable({}, {__was_object=false})
+  end
+
+  function empty_object()
+    return setmetatable({}, {__was_object=true})
+  end
   ]],
 
   -- scripts that can be proposed to be called

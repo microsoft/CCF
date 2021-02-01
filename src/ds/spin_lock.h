@@ -26,6 +26,11 @@ public:
     pthread_spin_lock(&sl);
   }
 
+  bool try_lock()
+  {
+    return pthread_spin_trylock(&sl) == 0;
+  }
+
   void unlock()
   {
     pthread_spin_unlock(&sl);

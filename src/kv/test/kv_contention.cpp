@@ -36,7 +36,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 
   struct ThreadArgs
   {
-    std::vector<MapType*> maps;
+    std::vector<MapType> maps;
     kv::Store* kv_store;
     std::atomic<size_t>* counter;
   };
@@ -46,15 +46,15 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   constexpr size_t map_count = 8;
   for (size_t i = 0u; i < map_count; ++i)
   {
-    const auto name = std::to_string(i);
-    auto& map = kv_store.create<MapType>(name, kv::SecurityDomain::PUBLIC);
+    const auto name = fmt::format("public:{}", i);
+    MapType map(name);
 
     // Every thread gets the first map, and a random half of the others
     for (size_t j = 0u; j < thread_count; ++j)
     {
       if (i == 0u || rand() % 2)
       {
-        args[j].maps.push_back(&map);
+        args[j].maps.push_back(map);
       }
     }
   }
@@ -80,21 +80,21 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
         try
         {
           // Start a transaction over selected maps
-          kv::Tx tx;
+          auto tx = args->kv_store->create_tx();
 
-          std::vector<MapType::TxView*> views;
-          for (const auto map : args->maps)
+          std::vector<MapType::Handle*> handles;
+          for (const auto& map : args->maps)
           {
-            views.push_back(tx.get_view(*map));
+            handles.push_back(tx.rw(map));
           }
 
           for (const auto& [from_map, from_k, to_map, to_k] : writes)
           {
-            auto from_view = views[from_map];
-            const auto v = from_view->get(from_k).value_or(from_k);
+            auto from_handle = handles[from_map];
+            const auto v = from_handle->get(from_k).value_or(from_k);
 
-            auto to_view = views[to_map];
-            to_view->put(to_k, v);
+            auto to_handle = handles[to_map];
+            to_handle->put(to_k, v);
           }
 
           // Yield now, to increase the chance of conflicts

@@ -1,15 +1,15 @@
 parameters:
-  cmake_args: ''
+  cmake_args: ""
 
 steps:
-- script: |
-    tests/sgxinfo.sh
-    cat /proc/cpuinfo | grep flags | uniq
-  displayName: Platform Info
-  condition: succeededOrFailed()
+  - script: |
+      tests/sgxinfo.sh
+      cat /proc/cpuinfo | grep flags | uniq
+    displayName: Platform Info
+    condition: succeededOrFailed()
 
-- script: |
-    mkdir build
-    cd build
-    cmake -L -GNinja .. ${{ parameters.cmake_args }}
-  displayName: CMake
+  - script: |
+      mkdir build
+      cd build
+      cmake -L -GNinja .. ${{ parameters.cmake_args }}
+    displayName: CMake

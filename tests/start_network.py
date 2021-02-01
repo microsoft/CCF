@@ -2,82 +2,99 @@
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
 import infra.network
+import http
 import time
 import sys
-import json
-import os
 from loguru import logger as LOG
 
 
-def dump_network_info(path, network, node):
-    network_info = {}
-    network_info["host"] = node.pubhost
-    network_info["port"] = node.rpc_port
-    network_info["ledger"] = node.remote.ledger_path()
-    network_info["common_dir"] = network.common_dir
-
-    with open(path, "w") as network_info_file:
-        json.dump(network_info, network_info_file)
-
-    LOG.debug(f"Dumped network information to {os.path.abspath(path)}")
+DEFAULT_NODES = ["local://127.0.0.1:8000"]
 
 
 def run(args):
-    hosts = args.node or ["localhost"] * 3
+    hosts = args.node or DEFAULT_NODES
 
     if not args.verbose:
         LOG.remove()
         LOG.add(
             sys.stdout,
-            format="<green>[{time:YYYY-MM-DD HH:mm:ss.SSS}]</green> {message}",
+            format="<green>[{time:HH:mm:ss.SSS}]</green> {message}",
         )
         LOG.disable("infra")
         LOG.disable("ccf")
 
-    LOG.info(f"Starting {len(hosts)} CCF nodes...")
+    LOG.info(f"Starting {len(hosts)} CCF node{'s' if len(hosts) > 1 else ''}...")
     if args.enclave_type == "virtual":
         LOG.warning("Virtual mode enabled")
 
     with infra.network.network(
-        hosts=hosts, binary_directory=args.binary_dir, dbg_nodes=args.debug_nodes
+        hosts=hosts,
+        binary_directory=args.binary_dir,
+        library_directory=args.library_dir,
+        dbg_nodes=args.debug_nodes,
     ) as network:
         if args.recover:
             args.label = args.label + "_recover"
             LOG.info("Recovering network from:")
-            LOG.info(f" - Ledger: {args.ledger_dir}")
-            LOG.info(
-                f" - Defunct network public encryption key: {args.network_enc_pubk}"
-            )
             LOG.info(f" - Common directory: {args.common_dir}")
-            network.start_in_recovery(args, args.ledger_dir, args.common_dir)
-            network.recover(args, args.network_enc_pubk)
+            LOG.info(f" - Ledger: {args.ledger_dir}")
+            if args.snapshot_dir:
+                LOG.info(f" - Snapshots: {args.snapshot_dir}")
+            else:
+                LOG.warning(
+                    "No available snapshot to recover from. Entire transaction history will be replayed."
+                )
+            network.start_in_recovery(
+                args,
+                args.ledger_dir,
+                snapshot_dir=args.snapshot_dir,
+                common_dir=args.common_dir,
+            )
+            network.recover(args)
         else:
             network.start_and_join(args)
 
         primary, backups = network.find_nodes()
+        max_len = len(str(len(backups)))
+
+        # To be sure, confirm that the app frontend is open on each node
+        for node in [primary, *backups]:
+            with node.client("user0") as c:
+                if args.verbose:
+                    r = c.get("/app/commit")
+                else:
+                    r = c.get("/app/commit", log_capture=[])
+                assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+        def pad_node_id(nid):
+            return (f"{{:{max_len}d}}").format(nid)
+
         LOG.info("Started CCF network with the following nodes:")
         LOG.info(
-            "  Node [{:2d}] = {}:{}".format(
-                primary.node_id, primary.pubhost, primary.rpc_port
+            "  Node [{}] = https://{}:{}".format(
+                pad_node_id(primary.node_id), primary.pubhost, primary.pubport
             )
         )
-        for b in backups:
-            LOG.info("  Node [{:2d}] = {}:{}".format(b.node_id, b.pubhost, b.rpc_port))
 
-        # Dump primary info to file for tutorial testing
-        if args.network_info_file is not None:
-            dump_network_info(args.network_info_file, network, primary)
+        for b in backups:
+            LOG.info(
+                "  Node [{}] = https://{}:{}".format(
+                    pad_node_id(b.node_id), b.pubhost, b.pubport
+                )
+            )
 
         LOG.info(
-            f"You can now issue business transactions to the {args.package} application."
+            f"You can now issue business transactions to the {args.package} application"
         )
+        if args.js_app_bundle is not None:
+            LOG.info(f"Loaded JS application: {args.js_app_bundle}")
         LOG.info(
             f"Keys and certificates have been copied to the common folder: {network.common_dir}"
         )
         LOG.info(
-            "See https://microsoft.github.io/CCF/users/issue_commands.html for more information."
+            "See https://microsoft.github.io/CCF/master/users/issue_commands.html for more information"
         )
-        LOG.warning("Press Ctrl+C to shutdown the network.")
+        LOG.warning("Press Ctrl+C to shutdown the network")
 
         try:
             while True:
@@ -95,14 +112,8 @@ if __name__ == "__main__":
         parser.add_argument(
             "-n",
             "--node",
-            help="List of hostnames[,pub_hostnames:ports]. If empty, two nodes are spawned locally",
+            help=f"List of (local://|ssh://)hostname:port[,pub_hostnames:pub_port]. Default is {DEFAULT_NODES}",
             action="append",
-        )
-        parser.add_argument(
-            "-p",
-            "--package",
-            help="The enclave package to load (e.g., liblogging)",
-            required=True,
         )
         parser.add_argument(
             "-v",
@@ -110,11 +121,6 @@ if __name__ == "__main__":
             help="If set, start up logs are displayed",
             action="store_true",
             default=False,
-        )
-        parser.add_argument(
-            "--network-info-file",
-            help="Path to output file where network information will be dumped to (useful for scripting)",
-            default=None,
         )
         parser.add_argument(
             "-r",
@@ -128,23 +134,17 @@ if __name__ == "__main__":
             help="Ledger directory to recover from",
         )
         parser.add_argument(
-            "--network-enc-pubk",
-            help="Defunct network public encryption key (used by members to decrypt recovery shares)",
+            "--snapshot-dir",
+            help="Snapshot directory to recover from (optional)",
         )
         parser.add_argument(
             "--common-dir",
-            help="Directory containing previous network member identities and network encryption key",
+            help="Directory containing previous network member identities",
         )
 
     args = infra.e2e_args.cli_args(add)
-    if args.recover and (
-        args.ledger_dir is None
-        or args.common_dir is None
-        or args.network_enc_pubk is None
-    ):
-        print(
-            "Error: --recover requires --ledger, --network-enc-pubk and --common-dir arguments."
-        )
+    if args.recover and not all([args.ledger_dir, args.common_dir]):
+        print("Error: --recover requires --ledger-dir and --common-dir arguments.")
         sys.exit(1)
 
     run(args)

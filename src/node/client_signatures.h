@@ -26,25 +26,28 @@ namespace ccf
   {
     // signature
     std::vector<uint8_t> sig = {};
-    // the signed content
+    // signed content
     std::vector<uint8_t> req = {};
 
-    // the request body
+    // request body
     std::vector<uint8_t> request_body = {};
 
-    // the hashing algorithm used
+    // signature hashing algorithm used
     mbedtls_md_type_t md = MBEDTLS_MD_NONE;
+
+    // The key id, if declared in the request
+    std::string key_id = {};
 
     bool operator==(const SignedReq& other) const
     {
       return (sig == other.sig) && (req == other.req) && (md == other.md) &&
-        (request_body == other.request_body);
+        (request_body == other.request_body) && (key_id == other.key_id);
     }
 
     MSGPACK_DEFINE(sig, req, request_body, md);
   };
   DECLARE_JSON_TYPE(SignedReq)
-  DECLARE_JSON_REQUIRED_FIELDS(SignedReq, sig, req, request_body, md)
+  DECLARE_JSON_REQUIRED_FIELDS(SignedReq, sig, req, request_body, md, key_id)
   // this maps client-id to latest SignedReq
   using ClientSignatures = kv::Map<CallerId, SignedReq>;
 }

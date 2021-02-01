@@ -23,6 +23,17 @@ with section("parse"):
                 "LABEL": "*",
                 "CURL_CLIENT": "*",
                 "CONSENSUS": "*",
+                "CONFIGURATIONS": "*",
+                "ADDITIONAL_ARGS": "*",
+            },
+        },
+        "add_e2e_sandbox_test": {
+            "kwargs": {
+                "NAME": "*",
+                "SCRIPT": "*",
+                "LABEL": "*",
+                "CONSENSUS": "*",
+                "CONFIGURATIONS": "*",
                 "ADDITIONAL_ARGS": "*",
             },
         },
@@ -38,7 +49,11 @@ with section("parse"):
             },
         },
         "add_picobench": {
-            "kwargs": {"SRCS": "*", "INCLUDE_DIRS": "*", "LINK_LIBS": "*",},
+            "kwargs": {
+                "SRCS": "*",
+                "INCLUDE_DIRS": "*",
+                "LINK_LIBS": "*",
+            },
         },
     }
 
@@ -244,4 +259,3 @@ with section("misc"):
     # A dictionary containing any per-command configuration overrides. Currently
     # only `command_case` is supported.
     per_command = {}
-

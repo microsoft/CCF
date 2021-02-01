@@ -22,6 +22,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 endif()
 
 add_library(sss.host STATIC ${SSS_SRC})
+add_san(sss.host)
 set_property(TARGET sss.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 install(
   TARGETS sss.host

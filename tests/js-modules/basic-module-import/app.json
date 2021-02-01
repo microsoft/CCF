@@ -1,0 +1,15 @@
+{
+  "endpoints": {
+    "/test_module": {
+      "post": {
+        "js_module": "test_module.js",
+        "js_function": "test_module",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "readonly": true,
+        "openapi": {}
+      }
+    }
+  }
+}

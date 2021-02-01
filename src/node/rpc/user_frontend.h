@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/ccf_deprecated.h"
 #include "frontend.h"
 #include "node/client_signatures.h"
 #include "node/network_tables.h"
@@ -13,53 +12,41 @@ namespace ccf
    */
   class UserRpcFrontend : public RpcFrontend
   {
-  protected:
-    std::string invalid_caller_error_message() const override
-    {
-      return "Could not find matching user certificate";
-    }
-
-    Users* users;
-
   public:
     UserRpcFrontend(kv::Store& tables, EndpointRegistry& h) :
-      RpcFrontend(
-        tables,
-        h,
-        tables.get<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
-      users(tables.get<Users>(Tables::USERS))
-    {
-      h.openapi_info.title = "CCF Application API";
-    }
+      RpcFrontend(tables, h)
+    {}
 
-    void open() override
+    void open(std::optional<tls::Pem*> identity = std::nullopt) override
     {
-      RpcFrontend::open();
+      RpcFrontend::open(identity);
+      endpoints.openapi_info.title = "CCF Application API";
     }
+  };
 
-    bool lookup_forwarded_caller_cert(
-      std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx) override
-    {
-      // Lookup the calling user's certificate from the forwarded caller id
-      auto users_view = tx.get_view(*users);
-      auto caller = users_view->get(ctx->session->original_caller->caller_id);
-      if (!caller.has_value())
-      {
-        return false;
-      }
+  class UserEndpointRegistry : public CommonEndpointRegistry
+  {
+  public:
+    UserEndpointRegistry(ccf::AbstractNodeState& node) :
+      CommonEndpointRegistry(
+        get_actor_prefix(ActorsType::users), node, Tables::USER_CERT_DERS)
+    {}
+  };
 
-      ctx->session->caller_cert = caller.value().cert.raw();
-      return true;
-    }
+  class SimpleUserRpcFrontend : public UserRpcFrontend
+  {
+  protected:
+    UserEndpointRegistry common_handlers;
+
+  public:
+    SimpleUserRpcFrontend(
+      kv::Store& tables, ccf::AbstractNodeState& node_state) :
+      UserRpcFrontend(tables, common_handlers),
+      common_handlers(node_state)
+    {}
 
     // Forward these methods so that apps can write foo(...); rather than
     // endpoints.foo(...);
-    template <typename... Ts>
-    ccf::EndpointRegistry::Endpoint& install(Ts&&... ts)
-    {
-      return endpoints.install(std::forward<Ts>(ts)...);
-    }
-
     template <typename... Ts>
     ccf::EndpointRegistry::Endpoint make_endpoint(Ts&&... ts)
     {
@@ -77,33 +64,5 @@ namespace ccf
     {
       return endpoints.make_command_endpoint(std::forward<Ts>(ts)...);
     }
-  };
-
-  class UserEndpointRegistry : public CommonEndpointRegistry
-  {
-  public:
-    UserEndpointRegistry(kv::Store& store) :
-      CommonEndpointRegistry(
-        get_actor_prefix(ActorsType::users), store, Tables::USER_CERT_DERS)
-    {}
-
-    UserEndpointRegistry(NetworkTables& network) :
-      CommonEndpointRegistry(
-        get_actor_prefix(ActorsType::users),
-        *network.tables,
-        Tables::USER_CERT_DERS)
-    {}
-  };
-
-  class SimpleUserRpcFrontend : public UserRpcFrontend
-  {
-  protected:
-    UserEndpointRegistry common_handlers;
-
-  public:
-    SimpleUserRpcFrontend(kv::Store& tables) :
-      UserRpcFrontend(tables, common_handlers),
-      common_handlers(tables)
-    {}
   };
 }

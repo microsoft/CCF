@@ -33,7 +33,7 @@ namespace ccf
    * ./src/runtime_config/gov.lua.)
    *
    *  local tables, param = ...
-   *  local value = tables["ccf.values"]:get(param)
+   *  local value = tables["public:ccf.gov.values"]:get(param)
    *  local c = Calls:new()
    *  local p = Puts:new()
    *  -- propose writing store["table"]["key"] = value
@@ -45,7 +45,7 @@ namespace ccf
    *
    *  local tables, param = ...
    *  return Calls:call(Puts:put("table", "key",
-   *    tables["ccf.values"]:get(param))
+   *    tables["public:ccf.gov.values"]:get(param))
    */
   enum class ProposalState
   {
@@ -93,11 +93,12 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     Proposal, script, parameter, proposer, state, votes)
 
-  using Proposals = kv::Map<ObjectId, Proposal>;
+  using ProposalId = std::string;
+  using Proposals = kv::Map<ProposalId, Proposal>;
 
   struct ProposalInfo
   {
-    ObjectId proposal_id;
+    ProposalId proposal_id;
     MemberId proposer_id;
     ProposalState state;
   };
@@ -132,8 +133,6 @@ namespace ccf
       Script script;
       //! fixed parameter for the script
       nlohmann::json parameter = nullptr;
-      //! vote ballot of proposer
-      Script ballot = {"return true"};
     };
 
     //! results from propose RPC
@@ -141,7 +140,7 @@ namespace ccf
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Propose::In)
   DECLARE_JSON_REQUIRED_FIELDS(Propose::In, script)
-  DECLARE_JSON_OPTIONAL_FIELDS(Propose::In, parameter, ballot)
+  DECLARE_JSON_OPTIONAL_FIELDS(Propose::In, parameter)
 
   /** A list of calls proposed (and returned) by a proposal script
    * Every proposal script must return a compatible data structure.

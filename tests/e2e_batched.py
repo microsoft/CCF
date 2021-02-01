@@ -17,7 +17,7 @@ id_gen = itertools.count()
 
 
 @reqs.description("Running batch submission of new entries")
-@reqs.supports_methods("BATCH_submit", "BATCH_fetch")
+@reqs.supports_methods("batch/submit", "batch/fetch")
 def test(network, args, batch_size=100, write_key_divisor=1, write_size_multiplier=1):
     LOG.info(f"Number of batched entries: {batch_size}")
     primary, _ = network.find_primary()
@@ -35,7 +35,7 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
         pre_submit = time.time()
         check(
             c.post(
-                "/app/BATCH_submit",
+                "/app/batch/submit",
                 {
                     "entries": messages,
                     "write_key_divisor": write_key_divisor,
@@ -50,7 +50,7 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
             f"Submitting {batch_size} new keys took {post_submit - pre_submit}s"
         )
 
-        fetch_response = c.post("/app/BATCH_fetch", message_ids, timeout=30)
+        fetch_response = c.post("/app/batch/fetch", message_ids, timeout=30)
 
         if write_key_divisor == 1 and write_size_multiplier == 1:
             check(fetch_response, result=messages)
@@ -59,10 +59,8 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
 
 
 def run(args):
-    hosts = ["localhost", "localhost", "localhost"]
-
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
 
@@ -93,10 +91,8 @@ def run(args):
 
 
 def run_to_destruction(args):
-    hosts = ["localhost", "localhost", "localhost"]
-
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
 
@@ -135,9 +131,9 @@ def run_to_destruction(args):
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
-    args.package = "liblua_generic"
+    args.package = "libjs_generic"
     args.enforce_reqs = True
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
 
     run(args)
-
     run_to_destruction(args)

@@ -20,7 +20,7 @@ namespace kv::serialisers
 
     static T from_serialised(const SerialisedEntry& rep)
     {
-      const auto j = nlohmann::json::parse(rep);
+      const auto j = nlohmann::json::parse(rep.begin(), rep.end());
       return j.get<T>();
     }
   };

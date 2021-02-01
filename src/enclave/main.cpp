@@ -44,9 +44,6 @@ extern "C"
     uint8_t* network_cert,
     size_t network_cert_size,
     size_t* network_cert_len,
-    uint8_t* network_enc_pubk,
-    size_t network_enc_pubk_size,
-    size_t* network_enc_pubk_len,
     StartType start_type,
     ConsensusType consensus_type,
     size_t num_worker_threads,
@@ -86,19 +83,32 @@ extern "C"
     EnclaveConfig ec = *static_cast<EnclaveConfig*>(enclave_config);
 
     {
-      if (!oe_is_outside_enclave(ec.circuit, sizeof(ringbuffer::Circuit)))
+      // Check that ringbuffer memory ranges are entirely outside of the enclave
+      if (!oe_is_outside_enclave(
+            ec.to_enclave_buffer_start, ec.to_enclave_buffer_size))
+      {
+        return false;
+      }
+
+      if (!oe_is_outside_enclave(
+            ec.from_enclave_buffer_start, ec.from_enclave_buffer_size))
+      {
+        return false;
+      }
+
+      if (!oe_is_outside_enclave(
+            ec.to_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
+      {
+        return false;
+      }
+
+      if (!oe_is_outside_enclave(
+            ec.from_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
       {
         return false;
       }
 
       oe_lfence();
-
-      const auto& reader = ec.circuit->read_from_outside();
-      auto [data, size] = reader.get_memory_range();
-      if (!oe_is_outside_enclave(data, size))
-      {
-        return false;
-      }
     }
 
     if (!oe_is_outside_enclave(ccf_config, ccf_config_size))
@@ -128,10 +138,7 @@ extern "C"
       node_cert_len,
       network_cert,
       network_cert_size,
-      network_cert_len,
-      network_enc_pubk,
-      network_enc_pubk_size,
-      network_enc_pubk_len);
+      network_cert_len);
     e.store(enclave);
 
     return result;

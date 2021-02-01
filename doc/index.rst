@@ -1,26 +1,85 @@
-CCF documentation
+CCF Documentation
 =================
 
-.. image:: img/ccf.svg
-  :width: 250
-  :align: right
+.. panels::
 
-The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly available,
-and performant applications that focus on multi-party compute and data.
-CCF can enable high-scale, confidential networks that meet key enterprise requirements
-— providing a means to accelerate production and enterprise adoption of consortium based blockchain and multi-party compute technology.
+    :fa:`info-circle` :doc:`overview/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Leveraging the power of trusted execution environments (TEEs), decentralized systems concepts, and cryptography, CCF enables enterprise-ready multiparty computation or blockchains.
+    .. image:: img/ccf.svg
+      :width: 75
+      :align: left
+      :target: concepts.html
+
+    Get started with CCF and its core concepts through a sample app.
+
+    ---
+
+    :fa:`tools` :doc:`build_apps/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    .. image:: img/ts.svg
+      :width: 32
+      :target: build_apps/js_app.html
+      :alt: TypeScript
+      :align: left
+
+    .. image:: img/empty.svg
+      :height: 10
+      :align: left
+
+    .. image:: img/cpp.svg
+      :width: 32
+      :target: build_apps/example.html
+      :alt: C++
+      :align: left
+
+    Write application logic against the CCF Key-Value store.
+
+    ---
+
+    :fa:`user` :doc:`use_apps/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Interact with a CCF application, using HTTP or WebSockets over TLS.
+
+    ---
+
+    :fa:`tachometer-alt` :doc:`operations/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Provision and operate a network of CCF nodes hosting an application.
+
+    ---
+
+    :fa:`users` :doc:`governance/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Propose and vote changes to a CCF network, the rules that define it and the application it runs.
+
+    ---
+
+    :fa:`eye` :doc:`audit/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Audit a running CCF network and its complete history.
+
+    ---
+
+    :fa:`code-branch` :doc:`contribute/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Contribute to the CCF GitHub repository.
 
 .. toctree::
     :maxdepth: 1
     :hidden:
 
-    concepts
-    quickstart/index.rst
-    members/index.rst
-    developers/index.rst
-    operators/index.rst
-    users/index.rst
-
+    overview/index.rst
+    build_apps/index.rst
+    use_apps/index.rst
+    operations/index.rst
+    governance/index.rst
+    audit/index.rst
+    contribute/index.rst
     glossary

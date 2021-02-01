@@ -5,12 +5,11 @@
 #include "consensus/ledger_enclave_types.h"
 #include "ds/logger.h"
 #include "ds/messaging.h"
+#include "ds/nonstd.h"
 
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
-#include <limits>
-#include <linux/limits.h>
 #include <list>
 #include <map>
 #include <string>
@@ -22,12 +21,12 @@ namespace fs = std::filesystem;
 
 namespace asynchost
 {
-  static constexpr size_t max_chunk_threshold_size =
-    std::numeric_limits<uint32_t>::max(); // 4GB
-  static constexpr size_t max_read_cache_files_default = 5;
+  static constexpr size_t ledger_max_read_cache_files_default = 5;
+
   static constexpr auto ledger_committed_suffix = "committed";
   static constexpr auto ledger_start_idx_delimiter = "_";
   static constexpr auto ledger_last_idx_delimiter = "-";
+  static constexpr auto ledger_corrupt_file_suffix = "corrupted";
 
   static inline bool is_ledger_file_committed(const std::string& file_name)
   {
@@ -63,6 +62,48 @@ namespace asynchost
     }
 
     return std::stol(file_name.substr(pos + 1));
+  }
+
+  static inline bool is_ledger_file_name_corrupted(const std::string& file_name)
+  {
+    return nonstd::ends_with(file_name, ledger_corrupt_file_suffix);
+  }
+
+  std::optional<std::string> get_file_name_with_idx(
+    const std::string& dir, size_t idx)
+  {
+    std::optional<std::string> match = std::nullopt;
+    for (auto const& f : fs::directory_iterator(dir))
+    {
+      // If any file, based on its name, contains idx. Only committed
+      // (i.e. those with a last idx) and non-corrupted files are considered
+      // here.
+      auto f_name = f.path().filename();
+      if (is_ledger_file_name_corrupted(f_name))
+      {
+        continue;
+      }
+
+      size_t start_idx = 0;
+      std::optional<size_t> last_idx = std::nullopt;
+      try
+      {
+        start_idx = get_start_idx_from_file_name(f_name);
+        last_idx = get_last_idx_from_file_name(f_name);
+      }
+      catch (const std::exception& e)
+      {
+        // Ignoring invalid ledger file
+        continue;
+      }
+      if (idx >= start_idx && last_idx.has_value() && idx <= last_idx.value())
+      {
+        match = f_name;
+        break;
+      }
+    }
+
+    return match;
   }
 
   class LedgerFile
@@ -452,10 +493,16 @@ namespace asynchost
   class Ledger
   {
   private:
+    static constexpr size_t max_chunk_threshold_size =
+      std::numeric_limits<uint32_t>::max(); // 4GB
+
     ringbuffer::WriterPtr to_enclave;
 
-    // Ledger directory
+    // Main ledger directory (write and read)
     const std::string ledger_dir;
+
+    // Ledger directories (read-only)
+    std::vector<std::string> read_ledger_dirs;
 
     // Keep tracks of all ledger files for writing.
     // Current ledger file is always the last one
@@ -507,19 +554,23 @@ namespace asynchost
       }
 
       // If the file is not in the cache, find the file from the ledger
-      // directory
-      std::optional<std::string> match = std::nullopt;
-      for (auto const& f : fs::directory_iterator(ledger_dir))
+      // directories, inspecting the main ledger directory first
+      std::string ledger_dir_;
+      auto match = get_file_name_with_idx(ledger_dir, idx);
+      if (match.has_value())
       {
-        // If any file, based on its name, contains idx. Only committed files
-        // (i.e. those with a last idx) are considered here.
-        auto last_idx = get_last_idx_from_file_name(f.path().filename());
-        if (
-          last_idx.has_value() && idx <= last_idx.value() &&
-          idx >= get_start_idx_from_file_name(f.path().filename()))
+        ledger_dir_ = ledger_dir;
+      }
+      else
+      {
+        for (auto const& dir : read_ledger_dirs)
         {
-          match = f.path().filename();
-          break;
+          match = get_file_name_with_idx(dir, idx);
+          if (match.has_value())
+          {
+            ledger_dir_ = dir;
+            break;
+          }
         }
       }
 
@@ -528,13 +579,15 @@ namespace asynchost
         return nullptr;
       }
 
-      // Emplace file in the max-sized read cache
-      auto match_file = std::make_shared<LedgerFile>(ledger_dir, match.value());
-      if (files_read_cache.size() >= max_read_cache_files)
+      // Emplace file in the max-sized read cache, replacing the oldest entry if
+      // the read cache is full
+      auto match_file =
+        std::make_shared<LedgerFile>(ledger_dir_, match.value());
+      files_read_cache.emplace_back(match_file);
+      if (files_read_cache.size() > max_read_cache_files)
       {
         files_read_cache.erase(files_read_cache.begin());
       }
-      files_read_cache.emplace_back(match_file);
 
       return match_file;
     }
@@ -578,9 +631,11 @@ namespace asynchost
       const std::string& ledger_dir,
       ringbuffer::AbstractWriterFactory& writer_factory,
       size_t chunk_threshold,
-      size_t max_read_cache_files = max_read_cache_files_default) :
+      size_t max_read_cache_files = ledger_max_read_cache_files_default,
+      std::vector<std::string> read_ledger_dirs = {}) :
       to_enclave(writer_factory.create_writer_to_inside()),
       ledger_dir(ledger_dir),
+      read_ledger_dirs(read_ledger_dirs),
       max_read_cache_files(max_read_cache_files),
       chunk_threshold(chunk_threshold)
     {
@@ -591,13 +646,87 @@ namespace asynchost
           max_chunk_threshold_size));
       }
 
+      // Recover last idx from read-only ledger directories
+      for (const auto& read_dir : read_ledger_dirs)
+      {
+        LOG_DEBUG_FMT("Recovering read-only ledger directory \"{}\"", read_dir);
+        if (!fs::is_directory(read_dir))
+        {
+          throw std::logic_error(fmt::format(
+            "\"{}\" read-only ledger is not a directory", read_dir));
+        }
+
+        for (auto const& f : fs::directory_iterator(read_dir))
+        {
+          auto last_idx_ = get_last_idx_from_file_name(f.path().filename());
+          if (!last_idx_.has_value())
+          {
+            LOG_DEBUG_FMT(
+              "Read-only ledger file {} is ignored as not committed",
+              f.path().filename());
+            continue;
+          }
+
+          if (last_idx_.value() > last_idx)
+          {
+            last_idx = last_idx_.value();
+            committed_idx = last_idx;
+          }
+        }
+      }
+
       if (fs::is_directory(ledger_dir))
       {
         // If the ledger directory exists, recover ledger files from it
+        std::vector<fs::path> corrupt_files = {};
         for (auto const& f : fs::directory_iterator(ledger_dir))
         {
-          files.push_back(
-            std::make_shared<LedgerFile>(ledger_dir, f.path().filename()));
+          auto file_name = f.path().filename();
+          std::shared_ptr<LedgerFile> ledger_file = nullptr;
+          try
+          {
+            ledger_file = std::make_shared<LedgerFile>(ledger_dir, file_name);
+          }
+          catch (const std::exception& e)
+          {
+            corrupt_files.emplace_back(f.path());
+            LOG_TRACE_FMT(
+              "Ignoring invalid ledger file {}: {}", file_name, e.what());
+            continue;
+          }
+
+          files.emplace_back(std::move(ledger_file));
+        }
+
+        // Rename corrupt files so that they are not considered for reading
+        // entries later on
+        for (auto const& f : corrupt_files)
+        {
+          if (!is_ledger_file_name_corrupted(f.filename()))
+          {
+            auto new_file_name = fmt::format(
+              "{}.{}", f.filename().string(), ledger_corrupt_file_suffix);
+            fs::rename(f, fs::path(ledger_dir) / fs::path(new_file_name));
+
+            LOG_FAIL_FMT(
+              "Renamed invalid ledger file {} to \"{}\" (file will be ignored)",
+              f.filename(),
+              new_file_name);
+          }
+          else
+          {
+            LOG_TRACE_FMT(
+              "Corrupted ledger file {} will be ignored", f.filename());
+          }
+        }
+
+        if (files.empty())
+        {
+          LOG_TRACE_FMT(
+            "Ledger directory \"{}\" is empty: no ledger file to recover",
+            ledger_dir);
+          require_new_file = true;
+          return;
         }
 
         files.sort([](
@@ -606,7 +735,17 @@ namespace asynchost
           return a->get_last_idx() < b->get_last_idx();
         });
 
-        last_idx = get_latest_file()->get_last_idx();
+        auto main_ledger_dir_last_idx = get_latest_file()->get_last_idx();
+        if (main_ledger_dir_last_idx < last_idx)
+        {
+          throw std::logic_error(fmt::format(
+            "Ledger directory last idx ({}) is less than read-only "
+            "ledger directories last idx ({})",
+            main_ledger_dir_last_idx,
+            last_idx));
+        }
+
+        last_idx = main_ledger_dir_last_idx;
 
         for (auto f = files.begin(); f != files.end();)
         {
@@ -643,13 +782,52 @@ namespace asynchost
         }
         require_new_file = true;
       }
+
+      LOG_INFO_FMT(
+        "Recovered ledger entries up to {}, committed to {}",
+        last_idx,
+        committed_idx);
     }
 
     Ledger(const Ledger& that) = delete;
 
-    void init_idx(size_t idx)
+    void init(size_t idx)
     {
+      // Used to initialise the ledger when starting from a non-empty state,
+      // i.e. snapshot. It is assumed that idx is included in a committed ledger
+      // file
+
+      // As it is possible that some ledger files containing indices later than
+      // snapshot index already exist (e.g. to verify the snapshot evidence),
+      // delete those so that ledger can restart neatly.
+      bool has_deleted = false;
+      for (auto const& f : fs::directory_iterator(ledger_dir))
+      {
+        auto file_name = f.path().filename();
+        if (get_start_idx_from_file_name(file_name) > idx)
+        {
+          LOG_INFO_FMT(
+            "Deleting {} file as it is later than init index {}",
+            file_name,
+            idx);
+          fs::remove(f);
+          has_deleted = true;
+        }
+      }
+
+      if (has_deleted)
+      {
+        files.clear();
+        require_new_file = true;
+      }
+
+      LOG_DEBUG_FMT("Setting last known index to {}", idx);
       last_idx = idx;
+    }
+
+    size_t get_last_idx() const
+    {
+      return last_idx;
     }
 
     std::optional<std::vector<uint8_t>> read_entry(size_t idx)
@@ -718,7 +896,7 @@ namespace asynchost
       {
         f->complete();
         require_new_file = true;
-        LOG_TRACE_FMT("New ledger chunk will start at {}", last_idx + 1);
+        LOG_DEBUG_FMT("Ledger chunk completed at {}", last_idx);
       }
 
       return last_idx;
@@ -804,7 +982,7 @@ namespace asynchost
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, consensus::ledger_init, [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
-          init_idx(idx);
+          init(idx);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(

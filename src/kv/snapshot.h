@@ -41,7 +41,12 @@ namespace kv
     std::vector<uint8_t> serialise(
       std::shared_ptr<AbstractTxEncryptor> encryptor)
     {
-      KvStoreSerialiser serialiser(encryptor, version, true);
+      // Set the execution dependency for the snapshot to be the version
+      // previous to said snapshot to ensure that the correct snapshot is
+      // serialized.
+      // Note: Snapshots are always taken at compacted state so version only is
+      // unique enough to prevent IV reuse
+      KvStoreSerialiser serialiser(encryptor, {0, version}, version - 1, true);
 
       if (hash_at_snapshot.has_value())
       {

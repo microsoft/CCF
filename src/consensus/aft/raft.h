@@ -8,11 +8,13 @@
 #include "impl/execution.h"
 #include "impl/request_message.h"
 #include "impl/state.h"
+#include "impl/view_change_tracker.h"
 #include "kv/kv_types.h"
 #include "kv/tx.h"
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/progress_tracker.h"
+#include "node/request_tracker.h"
 #include "node/rpc/tx_status.h"
 #include "node/signatures.h"
 #include "raft_types.h"
@@ -26,10 +28,10 @@
 
 namespace aft
 {
-  using Configuration = kv::Consensus::Configuration;
+  using Configuration = kv::Configuration;
 
   template <class LedgerProxy, class ChannelProxy, class SnapshotterProxy>
-  class Aft
+  class Aft : public kv::ConfigurableConsensus
   {
   private:
     enum ReplicaState
@@ -63,7 +65,7 @@ namespace aft
     };
 
     ConsensusType consensus_type;
-    std::unique_ptr<Store<kv::DeserialiseSuccess>> store;
+    std::unique_ptr<Store> store;
 
     // Persistent
     NodeId voted_for;
@@ -74,15 +76,25 @@ namespace aft
 
     ReplicaState replica_state;
     std::chrono::milliseconds timeout_elapsed;
+    // Last (committable) index preceding the node's election, this is
+    // used to decide when to start issuing signatures. While commit_idx
+    // hasn't caught up with election_index, a newly elected leader is
+    // effectively finishing establishing commit over the previous term
+    // or even previous terms, and can therefore not meaningfully sign
+    // over the commit level.
+    kv::Version election_index = 0;
 
     // BFT
-    RequestsMap& pbft_requests_map;
     std::shared_ptr<aft::State> state;
     std::shared_ptr<Executor> executor;
+    std::shared_ptr<aft::RequestTracker> request_tracker;
+    std::unique_ptr<aft::ViewChangeTracker> view_change_tracker;
 
     // Timeouts
     std::chrono::milliseconds request_timeout;
     std::chrono::milliseconds election_timeout;
+    std::chrono::milliseconds view_change_timeout;
+    size_t sig_tx_interval;
 
     // Configurations
     std::list<Configuration> configurations;
@@ -97,8 +109,8 @@ namespace aft
     // Indices that are eligible for global commit, from a Node's perspective
     std::deque<Index> committable_indices;
 
-    // When this is set, only public domain is deserialised when receving append
-    // entries
+    // When this is set, only public domain is deserialised when receiving
+    // append entries
     bool public_only = false;
 
     // Randomness
@@ -112,22 +124,26 @@ namespace aft
     std::shared_ptr<SnapshotterProxy> snapshotter;
     std::shared_ptr<enclave::RPCSessions> rpc_sessions;
     std::shared_ptr<enclave::RPCMap> rpc_map;
+    std::set<NodeId> backup_nodes;
 
   public:
     Aft(
       ConsensusType consensus_type_,
-      std::unique_ptr<Store<kv::DeserialiseSuccess>> store_,
+      std::unique_ptr<Store> store_,
       std::unique_ptr<LedgerProxy> ledger_,
       std::shared_ptr<ccf::NodeToNode> channels_,
       std::shared_ptr<SnapshotterProxy> snapshotter_,
       std::shared_ptr<enclave::RPCSessions> rpc_sessions_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       const std::vector<uint8_t>& /*cert*/,
-      RequestsMap& requests_map,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<Executor> executor_,
+      std::shared_ptr<aft::RequestTracker> request_tracker_,
+      std::unique_ptr<aft::ViewChangeTracker> view_change_tracker_,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
+      std::chrono::milliseconds view_change_timeout_,
+      size_t sig_tx_interval_ = 0,
       bool public_only_ = false) :
       consensus_type(consensus_type_),
       store(std::move(store_)),
@@ -136,12 +152,15 @@ namespace aft
       replica_state(Follower),
       timeout_elapsed(0),
 
-      pbft_requests_map(requests_map),
       state(state_),
       executor(executor_),
+      request_tracker(request_tracker_),
+      view_change_tracker(std::move(view_change_tracker_)),
 
       request_timeout(request_timeout_),
       election_timeout(election_timeout_),
+      view_change_timeout(view_change_timeout_),
+      sig_tx_interval(sig_tx_interval_),
       public_only(public_only_),
 
       distrib(0, (int)election_timeout_.count() / 2),
@@ -155,18 +174,58 @@ namespace aft
 
     {
       leader_id = NoNode;
+      if (view_change_tracker != nullptr)
+      {
+        view_change_tracker->set_current_view_change(starting_view_change);
+      }
 
       if (consensus_type == ConsensusType::BFT)
       {
         // Initialize view history for bft. We start on view 2 and the first
         // commit is always 1.
-        state->view_history.update(1, 2);
+        state->view_history.update(1, starting_view_change);
       }
     }
+
+    virtual ~Aft() = default;
 
     NodeId leader()
     {
       return leader_id;
+    }
+
+    bool view_change_in_progress()
+    {
+      std::unique_lock<SpinLock> guard(state->lock);
+      if (consensus_type == ConsensusType::BFT)
+      {
+        auto time = threading::ThreadMessaging::thread_messaging
+                      .get_current_time_offset();
+        return view_change_tracker->is_view_change_in_progress(time);
+      }
+      else
+      {
+        return (replica_state == Candidate);
+      }
+    }
+
+    std::set<NodeId> active_nodes()
+    {
+      // Find all nodes present in any active configuration.
+      if (backup_nodes.empty())
+      {
+        Configuration::Nodes active_nodes;
+
+        for (auto& conf : configurations)
+        {
+          for (auto node : conf.nodes)
+          {
+            backup_nodes.insert(node.first);
+          }
+        }
+      }
+
+      return backup_nodes;
     }
 
     NodeId id()
@@ -174,7 +233,7 @@ namespace aft
       return state->my_node_id;
     }
 
-    bool is_leader()
+    bool is_primary()
     {
       return replica_state == Leader;
     }
@@ -182,6 +241,19 @@ namespace aft
     bool is_follower()
     {
       return replica_state == Follower;
+    }
+
+    NodeId get_primary(kv::Consensus::View view)
+    {
+      // This will not work once we have reconfiguration support
+      // https://github.com/microsoft/CCF/issues/1852
+      return (view - starting_view_change) % active_nodes().size();
+    }
+
+    Index last_committable_index() const
+    {
+      return committable_indices.empty() ? state->commit_idx :
+                                           committable_indices.back();
     }
 
     void enable_all_domains()
@@ -203,24 +275,7 @@ namespace aft
       }
 
       std::lock_guard<SpinLock> guard(state->lock);
-      state->current_view += 2;
-      become_leader();
-    }
-
-    void force_become_leader(Index index, Term term, Index commit_idx_)
-    {
-      // This is unsafe and should only be called when the node is certain
-      // there is no leader and no other node will attempt to force leadership.
-      if (leader_id != NoNode)
-        throw std::logic_error(
-          "Can't force leadership if there is already a leader");
-
-      std::lock_guard<SpinLock> guard(state->lock);
-      state->current_view = term;
-      state->last_idx = index;
-      state->commit_idx = commit_idx_;
-      state->view_history.update(index, term);
-      state->current_view += 2;
+      state->current_view += starting_view_change;
       become_leader();
     }
 
@@ -241,11 +296,12 @@ namespace aft
       state->commit_idx = commit_idx_;
       state->view_history.initialise(terms);
       state->view_history.update(index, term);
-      state->current_view += 2;
+      state->current_view += starting_view_change;
       become_leader();
     }
 
-    void init_as_follower(Index index, Term term)
+    void init_as_follower(
+      Index index, Term term, const std::vector<Index>& term_history)
     {
       // This should only be called when the node resumes from a snapshot and
       // before it has received any append entries.
@@ -253,6 +309,8 @@ namespace aft
 
       state->last_idx = index;
       state->commit_idx = index;
+
+      state->view_history.initialise(term_history);
 
       ledger->init(index);
       snapshotter->set_last_snapshot_idx(index);
@@ -267,40 +325,42 @@ namespace aft
 
     Index get_commit_idx()
     {
-      if (consensus_type == ConsensusType::BFT && is_follower())
-      {
-        return state->commit_idx;
-      }
       std::lock_guard<SpinLock> guard(state->lock);
       return state->commit_idx;
     }
 
     Term get_term()
     {
-      if (consensus_type == ConsensusType::BFT && is_follower())
-      {
-        return state->current_view;
-      }
       std::lock_guard<SpinLock> guard(state->lock);
       return state->current_view;
     }
 
     std::pair<Term, Index> get_commit_term_and_idx()
     {
-      if (consensus_type == ConsensusType::BFT && is_follower())
-      {
-        return {get_term_internal(state->commit_idx), state->commit_idx};
-      }
       std::lock_guard<SpinLock> guard(state->lock);
       return {get_term_internal(state->commit_idx), state->commit_idx};
     }
 
+    std::optional<kv::Consensus::SignableTxIndices>
+    get_signable_commit_term_and_idx()
+    {
+      std::lock_guard<SpinLock> guard(state->lock);
+      if (state->commit_idx >= election_index)
+      {
+        kv::Consensus::SignableTxIndices r;
+        r.term = get_term_internal(state->commit_idx);
+        r.version = state->commit_idx;
+        r.previous_version = last_committable_index();
+        return r;
+      }
+      else
+      {
+        return std::nullopt;
+      }
+    }
+
     Term get_term(Index idx)
     {
-      if (consensus_type == ConsensusType::BFT && is_follower())
-      {
-        return get_term_internal(idx);
-      }
       std::lock_guard<SpinLock> guard(state->lock);
       return get_term_internal(idx);
     }
@@ -321,6 +381,7 @@ namespace aft
     {
       // This should only be called when the spin lock is held.
       configurations.push_back({idx, std::move(conf)});
+      backup_nodes.clear();
       create_and_remove_node_state();
     }
 
@@ -334,16 +395,27 @@ namespace aft
       return configurations.back().nodes;
     }
 
+    uint32_t node_count() const
+    {
+      return get_latest_configuration().size();
+    }
+
     template <typename T>
     bool replicate(
-      const std::vector<std::tuple<Index, T, bool>>& entries, Term term)
+      const std::vector<
+        std::tuple<Index, T, bool, std::shared_ptr<kv::ConsensusHookPtrs>>>&
+        entries,
+      Term term)
     {
       if (consensus_type == ConsensusType::BFT && is_follower())
       {
-        for (auto& [index, data, globally_committable] : entries)
+        // Already under lock in the current BFT path
+        for (auto& [_, __, ___, hooks] : entries)
         {
-          state->last_idx = index;
-          ledger->put_entry(*data, globally_committable, false);
+          for (auto& hook : *hooks)
+          {
+            hook->call(this);
+          }
         }
         return true;
       }
@@ -370,19 +442,24 @@ namespace aft
 
       LOG_DEBUG_FMT("Replicating {} entries", entries.size());
 
-      for (auto& [index, data, is_globally_committable] : entries)
+      for (auto& [index, data, is_globally_committable, hooks] : entries)
       {
-        bool globally_committable =
-          is_globally_committable || consensus_type == ConsensusType::BFT;
+        bool globally_committable = is_globally_committable;
 
         if (index != state->last_idx + 1)
           return false;
 
         LOG_DEBUG_FMT(
-          "Replicated on leader {}: {}{}",
+          "Replicated on leader {}: {}{} ({} hooks)",
           state->my_node_id,
           index,
-          (globally_committable ? " committable" : ""));
+          (globally_committable ? " committable" : ""),
+          hooks->size());
+
+        for (auto& hook : *hooks)
+        {
+          hook->call(this);
+        }
 
         bool force_ledger_chunk = false;
         if (globally_committable)
@@ -391,7 +468,7 @@ namespace aft
 
           // Only if globally committable, a snapshot requires a new ledger
           // chunk to be created
-          force_ledger_chunk = snapshotter->requires_snapshot(index);
+          force_ledger_chunk = snapshotter->record_committable(index);
         }
 
         state->last_idx = index;
@@ -456,6 +533,22 @@ namespace aft
           recv_request_vote_response(data, size);
           break;
 
+        case bft_signature_received_ack:
+          recv_signature_received_ack(data, size);
+          break;
+
+        case bft_nonce_reveal:
+          recv_nonce_reveal(data, size);
+          break;
+
+        case bft_view_change:
+          recv_view_change(data, size);
+          break;
+
+        case bft_view_change_evidence:
+          recv_view_change_evidence(data, size);
+          break;
+
         default:
         {
         }
@@ -464,7 +557,75 @@ namespace aft
 
     void periodic(std::chrono::milliseconds elapsed)
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::unique_lock<SpinLock> guard(state->lock);
+      if (consensus_type == ConsensusType::BFT)
+      {
+        auto time = threading::ThreadMessaging::thread_messaging
+                      .get_current_time_offset();
+        request_tracker->tick(time);
+
+        if (
+          !view_change_tracker->is_view_change_in_progress(time) &&
+          is_follower() && (has_bft_timeout_occurred(time)) &&
+          view_change_tracker->should_send_view_change(time))
+        {
+          // We have not seen a request executed within an expected period of
+          // time. We should invoke a view-change.
+          //
+          kv::Consensus::View new_view = view_change_tracker->get_target_view();
+          kv::Consensus::SeqNo seqno;
+          std::unique_ptr<ccf::ViewChangeRequest> vc;
+
+          auto progress_tracker = store->get_progress_tracker();
+          std::tie(vc, seqno) =
+            progress_tracker->get_view_change_message(new_view);
+
+          size_t vc_size = vc->get_serialized_size();
+
+          RequestViewChangeMsg vcm = {
+            {bft_view_change, state->my_node_id}, new_view, seqno};
+
+          std::vector<uint8_t> m;
+          m.resize(sizeof(RequestViewChangeMsg) + vc_size);
+
+          uint8_t* data = m.data();
+          size_t size = m.size();
+
+          serialized::write(
+            data, size, reinterpret_cast<uint8_t*>(&vcm), sizeof(vcm));
+          vc->serialize(data, size);
+          CCF_ASSERT_FMT(size == 0, "Did not write everything");
+
+          LOG_INFO_FMT("Sending view change msg view:{}", vcm.view);
+          for (auto it = nodes.begin(); it != nodes.end(); ++it)
+          {
+            auto send_to = it->first;
+            if (send_to != state->my_node_id)
+            {
+              channels->send_authenticated(
+                ccf::NodeMsgType::consensus_msg, send_to, m);
+            }
+          }
+
+          if (
+            aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
+              view_change_tracker->add_request_view_change(
+                *vc, id(), new_view, seqno, node_count()) &&
+            get_primary(new_view) == id())
+          {
+            // We need to reobtain the lock when writing to the ledger so we
+            // need to release it at this time.
+            //
+            // It is safe to release the lock here because there is no
+            // concurrency based dependency between appending to the ledger and
+            // replicating the ledger to other machines.
+            guard.unlock();
+            append_new_view(new_view);
+            guard.lock();
+          }
+        }
+      }
+
       timeout_elapsed += elapsed;
 
       if (replica_state == Leader)
@@ -482,7 +643,7 @@ namespace aft
           }
         }
       }
-      else
+      else if (consensus_type != ConsensusType::BFT)
       {
         if (replica_state != Retired && timeout_elapsed >= election_timeout)
         {
@@ -492,11 +653,97 @@ namespace aft
       }
     }
 
+    void recv_view_change(const uint8_t* data, size_t size)
+    {
+      RequestViewChangeMsg r;
+      try
+      {
+        r =
+          channels->template recv_authenticated_with_load<RequestViewChangeMsg>(
+            data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_EXC(err.what());
+        return;
+      }
+
+      auto node = nodes.find(r.from_node);
+      if (node == nodes.end())
+      {
+        // Ignore if we don't recognise the node.
+        LOG_FAIL_FMT(
+          "Recv nonce reveal to {} from {}: unknown node",
+          state->my_node_id,
+          r.from_node);
+        return;
+      }
+
+      ccf::ViewChangeRequest v =
+        ccf::ViewChangeRequest::deserialize(data, size);
+      LOG_INFO_FMT(
+        "Received view change from:{}, view:{}", r.from_node, r.view);
+
+      auto progress_tracker = store->get_progress_tracker();
+      if (!progress_tracker->apply_view_change_message(
+            v, r.from_node, r.view, r.seqno))
+      {
+        return;
+      }
+
+      if (
+        aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
+          view_change_tracker->add_request_view_change(
+            v, r.from_node, r.view, r.seqno, node_count()) &&
+        get_primary(r.view) == id())
+      {
+        append_new_view(r.view);
+      }
+    }
+
+    void recv_view_change_evidence(const uint8_t* data, size_t size)
+    {
+      ViewChangeEvidenceMsg r;
+      try
+      {
+        r = channels
+              ->template recv_authenticated_with_load<ViewChangeEvidenceMsg>(
+                data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_EXC(err.what());
+        return;
+      }
+
+      auto node = nodes.find(r.from_node);
+      if (node == nodes.end())
+      {
+        // Ignore if we don't recognise the node.
+        LOG_FAIL_FMT(
+          "Recv nonce reveal to {} from {}: unknown node",
+          state->my_node_id,
+          r.from_node);
+        return;
+      }
+
+      if (r.from_node != state->requested_evidence_from)
+      {
+        // Ignore if we didn't request this evidence.
+        LOG_FAIL_FMT("Received unrequested evidence from {}", r.from_node);
+        return;
+      }
+      state->requested_evidence_from = NoNode;
+
+      view_change_tracker->add_unknown_primary_evidence(
+        {data, size}, r.view, node_count());
+    }
+
     bool is_first_request = true;
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
     {
-      auto request = executor->create_request_message(args);
+      auto request = executor->create_request_message(args, get_commit_idx());
       executor->execute_request(std::move(request), is_first_request);
       is_first_request = false;
 
@@ -518,6 +765,72 @@ namespace aft
       // balance out total batch size across batch window
       batch_window_sum += (batch_size - batch_avg);
       entries_batch_size = std::max((batch_window_sum / batch_window_size), 1);
+    }
+
+    void append_new_view(kv::Consensus::View view)
+    {
+      state->current_view = view;
+      become_leader();
+      state->new_view_idx =
+        view_change_tracker->write_view_change_confirmation_append_entry(view);
+
+      view_change_tracker->clear(get_primary(view) == id(), view);
+      request_tracker->clear();
+    }
+
+    bool has_bft_timeout_occurred(std::chrono::milliseconds time)
+    {
+      auto oldest_entry = request_tracker->oldest_entry();
+      kv::Consensus::SeqNo last_sig_seqno;
+      std::chrono::milliseconds last_sig_time;
+      std::tie(last_sig_seqno, last_sig_time) =
+        request_tracker->get_seqno_time_last_request();
+
+      if (
+        view_change_timeout != std::chrono::milliseconds(0) &&
+        oldest_entry.has_value() &&
+        oldest_entry.value() + view_change_timeout < time)
+      {
+        LOG_FAIL_FMT("Timeout waiting for request to be executed");
+        return true;
+      }
+
+      // Check if any requests were added to the ledger since the last signature
+      if (last_sig_seqno >= state->last_idx)
+      {
+        return false;
+      }
+
+      constexpr auto wait_factor = 10;
+      std::chrono::milliseconds expire_time = last_sig_time +
+        std::chrono::milliseconds(view_change_timeout.count() * wait_factor);
+
+      // Check if we are waiting too long since the last signature
+      if (expire_time < time)
+      {
+        LOG_FAIL_FMT(
+          "Timeout waiting for global commit, last_sig_seqno:{}, last_idx:{}",
+          last_sig_seqno,
+          state->last_idx);
+        return true;
+      }
+
+      // Check if there have been too many entried since the last signature
+      if (
+        sig_tx_interval != 0 &&
+        last_sig_seqno + sig_tx_interval * wait_factor <
+          static_cast<size_t>(state->last_idx))
+      {
+        LOG_FAIL_FMT(
+          "Too many transactions occurred since last signature, "
+          "last_sig_seqno:{}, "
+          "last_idx:{}",
+          last_sig_seqno,
+          state->last_idx);
+        return true;
+      }
+
+      return false;
     }
 
     Term get_term_internal(Index idx)
@@ -551,6 +864,8 @@ namespace aft
       const auto prev_idx = start_idx - 1;
       const auto prev_term = get_term_internal(prev_idx);
       const auto term_of_idx = get_term_internal(end_idx);
+      const bool contains_new_view =
+        (state->new_view_idx > prev_idx) && (state->new_view_idx <= end_idx);
 
       LOG_DEBUG_FMT(
         "Send append entries from {} to {}: {} to {} ({})",
@@ -565,7 +880,8 @@ namespace aft
                           state->current_view,
                           prev_term,
                           state->commit_idx,
-                          term_of_idx};
+                          term_of_idx,
+                          contains_new_view};
 
       auto& node = nodes.at(to);
 
@@ -585,7 +901,6 @@ namespace aft
     {
       std::lock_guard<SpinLock> guard(state->lock);
       AppendEntries r;
-      bool is_first_entry = true; // Indicates first entry in batch
 
       try
       {
@@ -593,20 +908,68 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT(err.what());
+        LOG_FAIL_EXC(err.what());
         return;
       }
 
       LOG_DEBUG_FMT(
-        "Received pt: {} pi: {} t: {} i: {}",
+        "Received pt: {} pi: {} t: {} i: {} toi: {}",
         r.prev_term,
         r.prev_idx,
         r.term,
-        r.idx);
+        r.idx,
+        r.term_of_idx);
 
       // Don't check that the sender node ID is valid. Accept anything that
       // passes the integrity check. This way, entries containing dynamic
       // topology changes that include adding this new leader can be accepted.
+
+      // When we are running with in a Byzantine model we cannot trust that the
+      // replica is sending up this data is correct so we need to validate
+      // additional properties that go above and beyond the non-byzantine
+      // scenario.
+      bool confirm_evidence = false;
+      if (consensus_type == ConsensusType::BFT)
+      {
+        if (active_nodes().size() == 0)
+        {
+          // The replica is just starting up, we want to check that this replica
+          // is part of the network we joined but that is dependent on Byzantine
+          // identity
+        }
+        else if (get_primary(r.term) != r.from_node)
+        {
+          LOG_DEBUG_FMT(
+            "Recv append entries to {} from {} at view:{} but the primary at "
+            "this view should be {}",
+            state->my_node_id,
+            r.from_node,
+            r.term,
+            get_primary(r.term));
+          send_append_entries_response(
+            r.from_node, AppendEntriesResponseType::FAIL);
+          return;
+        }
+        else if (!view_change_tracker->check_evidence(r.term))
+        {
+          if (r.contains_new_view)
+          {
+            confirm_evidence = true;
+          }
+          else
+          {
+            LOG_DEBUG_FMT(
+              "Recv append entries to {} from {} at view:{} but we do not have "
+              "the evidence to support this view",
+              state->my_node_id,
+              r.from_node,
+              r.term);
+            send_append_entries_response(
+              r.from_node, AppendEntriesResponseType::REQUIRE_EVIDENCE);
+            return;
+          }
+        }
+      }
 
       // First, check append entries term against our own term, becoming
       // follower if necessary
@@ -623,13 +986,14 @@ namespace aft
       else if (state->current_view > r.term)
       {
         // Reply false, since our term is later than the received term.
-        LOG_DEBUG_FMT(
+        LOG_INFO_FMT(
           "Recv append entries to {} from {} but our term is later ({} > {})",
           state->my_node_id,
           r.from_node,
           state->current_view,
           r.term);
-        send_append_entries_response(r.from_node, false);
+        send_append_entries_response(
+          r.from_node, AppendEntriesResponseType::FAIL);
         return;
       }
 
@@ -662,7 +1026,8 @@ namespace aft
             prev_term,
             r.prev_term);
         }
-        send_append_entries_response(r.from_node, false);
+        send_append_entries_response(
+          r.from_node, AppendEntriesResponseType::FAIL);
         return;
       }
 
@@ -707,6 +1072,9 @@ namespace aft
         r.idx,
         r.prev_idx);
 
+      std::vector<
+        std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>
+        append_entries;
       // Finally, deserialise each entry in the batch
       for (Index i = r.prev_idx + 1; i <= r.idx; i++)
       {
@@ -720,9 +1088,7 @@ namespace aft
 
         LOG_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
 
-        is_first_entry = false;
         std::vector<uint8_t> entry;
-
         try
         {
           entry = ledger->get_entry(data, size);
@@ -735,89 +1101,188 @@ namespace aft
             state->my_node_id,
             r.from_node,
             e.what());
-          send_append_entries_response(r.from_node, false);
+          send_append_entries_response(
+            r.from_node, AppendEntriesResponseType::FAIL);
           return;
         }
 
+        auto ds = store->apply(entry, consensus_type, public_only);
+        if (ds == nullptr)
+        {
+          LOG_DEBUG_FMT("failed to deserialize we failed to apply");
+          send_append_entries_response(
+            r.from_node, AppendEntriesResponseType::FAIL);
+          return;
+        }
+        append_entries.push_back(std::make_tuple(std::move(ds), i));
+      }
+
+      for (auto& ae : append_entries)
+      {
+        auto& [ds, i] = ae;
         state->last_idx = i;
 
-        Term sig_term = 0;
-        kv::Tx tx;
-        kv::DeserialiseSuccess deserialise_success;
-        ccf::PrimarySignature sig;
-        if (consensus_type == ConsensusType::BFT)
+        kv::ApplySuccess apply_success = ds->execute();
+        if (apply_success == kv::ApplySuccess::FAILED)
         {
-          deserialise_success =
-            store->deserialise_views(entry, public_only, &sig_term, &tx, &sig);
+          // Setting last_idx to i-1 is a work around that should be fixed
+          // shortly. In BFT mode when we deserialize and realize we need to
+          // create a new map we remember this. If we need to create the same
+          // map multiple times (for tx in the same group of append entries) the
+          // first create successes but the second fails because the map is
+          // already there. This works around the problem by stopping just
+          // before the 2nd create (which failed at this point) and when the
+          // primary resends the append entries we will succeed as the map is
+          // already there. This will only occur on BFT startup so not a perf
+          // problem but still need to be resolved.
+          state->last_idx = i - 1;
+          ledger->truncate(state->last_idx);
+          send_append_entries_response(
+            r.from_node, AppendEntriesResponseType::FAIL);
+          return;
         }
-        else
+
+        for (auto& hook : ds->get_hooks())
         {
-          deserialise_success =
-            store->deserialise(entry, public_only, &sig_term);
+          hook->call(this);
         }
 
         bool globally_committable =
-          (deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
+          (apply_success == kv::ApplySuccess::PASS_SIGNATURE);
         bool force_ledger_chunk = false;
         if (globally_committable)
         {
-          force_ledger_chunk = snapshotter->requires_snapshot(i);
+          force_ledger_chunk = snapshotter->record_committable(i);
         }
 
-        ledger->put_entry(entry, globally_committable, force_ledger_chunk);
+        ledger->put_entry(
+          ds->get_entry(), globally_committable, force_ledger_chunk);
 
-        switch (deserialise_success)
+        switch (apply_success)
         {
-          case kv::DeserialiseSuccess::FAILED:
+          case kv::ApplySuccess::FAILED:
           {
             LOG_FAIL_FMT("Follower failed to apply log entry: {}", i);
             state->last_idx--;
-            send_append_entries_response(r.from_node, false);
+            ledger->truncate(state->last_idx);
+            send_append_entries_response(
+              r.from_node, AppendEntriesResponseType::FAIL);
             break;
           }
 
-          case kv::DeserialiseSuccess::PASS_SIGNATURE:
+          case kv::ApplySuccess::PASS_SIGNATURE:
           {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
+            auto prev_lci = last_committable_index();
             committable_indices.push_back(i);
 
-            if (sig_term)
+            if (ds->get_term())
             {
-              state->view_history.update(state->commit_idx + 1, sig_term);
+              // A signature for sig_term tells us that all transactions from
+              // the previous signature onwards (at least, if not further back)
+              // happened in sig_term. We reflect this in the history.
+              if (r.term_of_idx == aft::ViewHistory::InvalidView)
+              {
+                state->view_history.update(1, r.term);
+              }
+              else
+              {
+                state->view_history.update(prev_lci + 1, ds->get_term());
+              }
               commit_if_possible(r.leader_commit_idx);
             }
             if (consensus_type == ConsensusType::BFT)
             {
-              send_append_entries_signed_response(r.from_node, sig);
+              send_append_entries_signed_response(
+                r.from_node, ds->get_signature());
             }
             break;
           }
 
-          case kv::DeserialiseSuccess::PASS:
+          case kv::ApplySuccess::PASS_BACKUP_SIGNATURE:
+          {
+            break;
+          }
+          case kv::ApplySuccess::PASS_NEW_VIEW:
+          {
+            view_change_tracker->clear(
+              get_primary(ds->get_term()) == id(), ds->get_term());
+            request_tracker->clear();
+            break;
+          }
+
+          case kv::ApplySuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
+          {
+            try_send_sig_ack(
+              {ds->get_term(), ds->get_index()},
+              kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK);
+            break;
+          }
+
+          case kv::ApplySuccess::PASS_NONCES:
+          {
+            request_tracker->insert_signed_request(
+              state->last_idx,
+              threading::ThreadMessaging::thread_messaging
+                .get_current_time_offset());
+            break;
+          }
+
+          case kv::ApplySuccess::PASS:
           {
             if (consensus_type == ConsensusType::BFT)
             {
-              state->last_idx = executor->commit_replayed_request(tx);
+              state->last_idx = executor->commit_replayed_request(
+                ds->get_tx(), request_tracker, state->commit_idx);
             }
+            break;
+          }
+
+          case kv::ApplySuccess::PASS_SNAPSHOT_EVIDENCE:
+          {
             break;
           }
 
           default:
           {
-            throw std::logic_error("Unknown DeserialiseSuccess value");
+            throw std::logic_error("Unknown ApplySuccess value");
           }
         }
+      }
+
+      if (
+        consensus_type == ConsensusType::BFT && confirm_evidence &&
+        !view_change_tracker->check_evidence(r.term))
+      {
+        rollback(last_committable_index());
+        LOG_DEBUG_FMT(
+          "Recv append entries to {} from {} at view:{} but we do not have "
+          "the evidence to support this view, append message was marked as "
+          "containing evidence",
+          state->my_node_id,
+          r.from_node,
+          r.term);
+        send_append_entries_response(
+          r.from_node, AppendEntriesResponseType::REQUIRE_EVIDENCE);
+        return;
       }
 
       // After entries have been deserialised, we try to commit the leader's
       // commit index and update our term history accordingly
       commit_if_possible(r.leader_commit_idx);
-      state->view_history.update(state->commit_idx + 1, r.term_of_idx);
 
-      send_append_entries_response(r.from_node, true);
+      // The term may have changed, and we have not have seen a signature yet.
+      auto lci = last_committable_index();
+      if (r.term_of_idx == aft::ViewHistory::InvalidView)
+        state->view_history.update(1, r.term);
+      else
+        state->view_history.update(lci + 1, r.term_of_idx);
+
+      send_append_entries_response(r.from_node, AppendEntriesResponseType::OK);
     }
 
-    void send_append_entries_response(NodeId to, bool answer)
+    void send_append_entries_response(
+      NodeId to, AppendEntriesResponseType answer)
     {
       LOG_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",
@@ -845,22 +1310,41 @@ namespace aft
         to,
         state->last_idx);
 
+      auto progress_tracker = store->get_progress_tracker();
+      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
+
       SignedAppendEntriesResponse r = {
         {raft_append_entries_signed_response, state->my_node_id},
         state->current_view,
         state->last_idx,
+        {},
         static_cast<uint32_t>(sig.sig.size()),
         {}};
+
+      progress_tracker->get_my_hashed_nonce(
+        {state->current_view, state->last_idx}, r.hashed_nonce);
+
       std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
 
-      auto progress_tracker = store->get_progress_tracker();
-      if (progress_tracker != nullptr)
+      auto result = progress_tracker->add_signature(
+        {r.term, r.last_log_idx},
+        r.from_node,
+        r.signature_size,
+        r.sig,
+        r.hashed_nonce,
+        node_count(),
+        is_primary());
+      for (auto it = nodes.begin(); it != nodes.end(); ++it)
       {
-        progress_tracker->add_signature(
-          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig);
+        auto send_to = it->first;
+        if (send_to != state->my_node_id)
+        {
+          channels->send_authenticated(
+            ccf::NodeMsgType::consensus_msg, send_to, r);
+        }
       }
 
-      channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, r);
+      try_send_sig_ack({r.term, r.last_log_idx}, result);
     }
 
     void recv_append_entries_signed_response(const uint8_t* data, size_t size)
@@ -874,8 +1358,7 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT("Error in recv_authenticated message");
-        LOG_DEBUG_FMT("Error in recv_authenticated message: {}", err.what());
+        LOG_FAIL_EXC(err.what());
         return;
       }
 
@@ -891,11 +1374,173 @@ namespace aft
       }
 
       auto progress_tracker = store->get_progress_tracker();
-      if (progress_tracker != nullptr)
+      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
+      auto result = progress_tracker->add_signature(
+        {r.term, r.last_log_idx},
+        r.from_node,
+        r.signature_size,
+        r.sig,
+        r.hashed_nonce,
+        node_count(),
+        is_primary());
+      try_send_sig_ack({r.term, r.last_log_idx}, result);
+    }
+
+    void try_send_sig_ack(kv::TxID tx_id, kv::TxHistory::Result r)
+    {
+      switch (r)
       {
-        progress_tracker->add_signature(
-          r.term, r.last_log_idx, r.from_node, r.signature_size, r.sig);
+        case kv::TxHistory::Result::OK:
+        case kv::TxHistory::Result::FAIL:
+        {
+          break;
+        }
+        case kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK:
+        {
+          SignaturesReceivedAck r = {
+            {bft_signature_received_ack, state->my_node_id},
+            tx_id.term,
+            tx_id.version};
+          for (auto it = nodes.begin(); it != nodes.end(); ++it)
+          {
+            auto send_to = it->first;
+            if (send_to != state->my_node_id)
+            {
+              channels->send_authenticated(
+                ccf::NodeMsgType::consensus_msg, send_to, r);
+            }
+          }
+
+          auto progress_tracker = store->get_progress_tracker();
+          CCF_ASSERT(
+            progress_tracker != nullptr, "progress_tracker is not set");
+          auto result = progress_tracker->add_signature_ack(
+            tx_id, state->my_node_id, node_count());
+          try_send_reply_and_nonce(tx_id, result);
+          break;
+        }
+        default:
+        {
+          throw ccf::ccf_logic_error(fmt::format("Unknown enum type: {}", r));
+        }
       }
+    }
+
+    void recv_signature_received_ack(const uint8_t* data, size_t size)
+    {
+      SignaturesReceivedAck r;
+
+      try
+      {
+        r = channels->template recv_authenticated<SignaturesReceivedAck>(
+          data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_EXC(err.what());
+        return;
+      }
+
+      auto node = nodes.find(r.from_node);
+      if (node == nodes.end())
+      {
+        // Ignore if we don't recognise the node.
+        LOG_FAIL_FMT(
+          "Recv signature received ack to {} from {}: unknown node",
+          state->my_node_id,
+          r.from_node);
+        return;
+      }
+
+      auto progress_tracker = store->get_progress_tracker();
+      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
+      LOG_TRACE_FMT(
+        "processing recv_signature_received_ack, from:{} view:{}, seqno:{}",
+        r.from_node,
+        r.term,
+        r.idx);
+      auto result = progress_tracker->add_signature_ack(
+        {r.term, r.idx}, r.from_node, node_count());
+      try_send_reply_and_nonce({r.term, r.idx}, result);
+    }
+
+    void try_send_reply_and_nonce(kv::TxID tx_id, kv::TxHistory::Result r)
+    {
+      switch (r)
+      {
+        case kv::TxHistory::Result::OK:
+        case kv::TxHistory::Result::FAIL:
+        {
+          break;
+        }
+        case kv::TxHistory::Result::SEND_REPLY_AND_NONCE:
+        {
+          Nonce nonce;
+          auto progress_tracker = store->get_progress_tracker();
+          CCF_ASSERT(
+            progress_tracker != nullptr, "progress_tracker is not set");
+          nonce = progress_tracker->get_my_nonce(tx_id);
+          NonceRevealMsg r = {{bft_nonce_reveal, state->my_node_id},
+                              tx_id.term,
+                              tx_id.version,
+                              nonce};
+
+          for (auto it = nodes.begin(); it != nodes.end(); ++it)
+          {
+            auto send_to = it->first;
+            if (send_to != state->my_node_id)
+            {
+              channels->send_authenticated(
+                ccf::NodeMsgType::consensus_msg, send_to, r);
+            }
+          }
+          progress_tracker->add_nonce_reveal(
+            tx_id, nonce, state->my_node_id, node_count(), is_primary());
+          break;
+        }
+        default:
+        {
+          throw ccf::ccf_logic_error(fmt::format("Unknown enum type: {}", r));
+        }
+      }
+    }
+
+    void recv_nonce_reveal(const uint8_t* data, size_t size)
+    {
+      NonceRevealMsg r;
+
+      try
+      {
+        r = channels->template recv_authenticated<NonceRevealMsg>(data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_EXC(err.what());
+        return;
+      }
+
+      auto node = nodes.find(r.from_node);
+      if (node == nodes.end())
+      {
+        // Ignore if we don't recognise the node.
+        LOG_FAIL_FMT(
+          "Recv nonce reveal to {} from {}: unknown node",
+          state->my_node_id,
+          r.from_node);
+        return;
+      }
+
+      auto progress_tracker = store->get_progress_tracker();
+      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
+      LOG_TRACE_FMT(
+        "processing nonce_reveal, from:{} view:{}, seqno:{}",
+        r.from_node,
+        r.term,
+        r.idx);
+      progress_tracker->add_nonce_reveal(
+        {r.term, r.idx}, r.nonce, r.from_node, node_count(), is_primary());
+
+      update_commit();
     }
 
     void recv_append_entries_response(const uint8_t* data, size_t size)
@@ -914,7 +1559,7 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT(err.what());
+        LOG_FAIL_EXC(err.what());
         return;
       }
 
@@ -946,8 +1591,10 @@ namespace aft
           "Recv append entries response to {} from {}: stale term",
           state->my_node_id,
           r.from_node);
-        if (r.success)
+        if (r.success == AppendEntriesResponseType::OK)
+        {
           return;
+        }
       }
       else if (r.last_log_idx < node->second.match_idx)
       {
@@ -957,14 +1604,38 @@ namespace aft
           "Recv append entries response to {} from {}: stale idx",
           state->my_node_id,
           r.from_node);
-        if (r.success)
+        if (r.success == AppendEntriesResponseType::OK)
+        {
           return;
+        }
       }
 
       // Update next and match for the responding node.
       node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
 
-      if (!r.success)
+      if (r.success == AppendEntriesResponseType::REQUIRE_EVIDENCE)
+      {
+        // We need to provide evidence to the replica that we can send it append
+        // entries. This should only happened if there is some kind of network
+        // partition.
+        state->requested_evidence_from = r.from_node;
+        ViewChangeEvidenceMsg vw = {
+          {bft_view_change_evidence, state->my_node_id}, state->current_view};
+
+        std::vector<uint8_t> data =
+          view_change_tracker->get_serialized_view_change_confirmation(
+            state->current_view);
+
+        data.insert(
+          data.begin(),
+          reinterpret_cast<uint8_t*>(&vw),
+          reinterpret_cast<uint8_t*>(&vw) + sizeof(ViewChangeEvidenceMsg));
+
+        channels->send_authenticated(
+          ccf::NodeMsgType::consensus_msg, r.from_node, data);
+      }
+
+      if (r.success != AppendEntriesResponseType::OK)
       {
         // Failed due to log inconsistency. Reset sent_idx and try again.
         LOG_DEBUG_FMT(
@@ -987,10 +1658,13 @@ namespace aft
     {
       LOG_INFO_FMT("Send request vote from {} to {}", state->my_node_id, to);
 
+      auto last_committable_idx = last_committable_index();
+      CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
+
       RequestVote rv = {{raft_request_vote, state->my_node_id},
                         state->current_view,
-                        state->commit_idx,
-                        get_term_internal(state->commit_idx)};
+                        last_committable_idx,
+                        get_term_internal(last_committable_idx)};
 
       channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, rv);
     }
@@ -1006,7 +1680,7 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT(err.what());
+        LOG_FAIL_EXC(err.what());
         return;
       }
 
@@ -1057,12 +1731,17 @@ namespace aft
         return;
       }
 
-      // If the candidate's log is at least as up-to-date as ours, vote yes
-      auto last_commit_term = get_term_internal(state->commit_idx);
+      // If the candidate's committable log is at least as up-to-date as ours,
+      // vote yes
 
-      auto answer = (r.last_commit_term > last_commit_term) ||
-        ((r.last_commit_term == last_commit_term) &&
-         (r.last_commit_idx >= state->commit_idx));
+      auto last_committable_idx = last_committable_index();
+      auto term_of_last_committable_index =
+        get_term_internal(last_committable_idx);
+
+      auto answer =
+        (r.term_of_last_committable_idx > term_of_last_committable_index) ||
+        ((r.term_of_last_committable_idx == term_of_last_committable_index) &&
+         (r.last_committable_idx >= last_committable_idx));
 
       if (answer)
       {
@@ -1112,7 +1791,7 @@ namespace aft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT(err.what());
+        LOG_FAIL_EXC(err.what());
         return;
       }
 
@@ -1189,22 +1868,30 @@ namespace aft
       LOG_INFO_FMT(
         "Becoming candidate {}: {}", state->my_node_id, state->current_view);
 
-      for (auto it = nodes.begin(); it != nodes.end(); ++it)
+      if (consensus_type != ConsensusType::BFT)
       {
-        channels->create_channel(
-          it->first, it->second.node_info.hostname, it->second.node_info.port);
-        send_request_vote(it->first);
+        for (auto it = nodes.begin(); it != nodes.end(); ++it)
+        {
+          channels->create_channel(
+            it->first,
+            it->second.node_info.hostname,
+            it->second.node_info.port);
+          send_request_vote(it->first);
+        }
       }
     }
 
     void become_leader()
     {
-      // Discard any un-committed updates we may hold,
+      election_index = last_committable_index();
+      LOG_DEBUG_FMT(
+        "Election index is {} in term {}", election_index, state->current_view);
+      // Discard any un-committable updates we may hold,
       // since we have no signature for them. Except at startup,
       // where we do not want to roll back the genesis transaction.
       if (state->commit_idx)
       {
-        rollback(state->commit_idx);
+        rollback(election_index);
       }
       else
       {
@@ -1212,7 +1899,6 @@ namespace aft
         store->set_term(state->current_view);
       }
 
-      committable_indices.clear();
       replica_state = Leader;
       leader_id = state->my_node_id;
 
@@ -1252,13 +1938,15 @@ namespace aft
       voted_for = NoNode;
       votes_for_me.clear();
 
-      // Rollback unreplicated commits.
-      rollback(state->commit_idx);
-      committable_indices.clear();
+      rollback(last_committable_index());
 
       LOG_INFO_FMT(
         "Becoming follower {}: {}", state->my_node_id, state->current_view);
-      channels->close_all_outgoing();
+
+      if (consensus_type != ConsensusType::BFT)
+      {
+        channels->close_all_outgoing();
+      }
     }
 
     void become_retired()
@@ -1285,8 +1973,17 @@ namespace aft
       // If there exists some idx in the current term such that
       // idx > commit_idx and a majority of nodes have replicated it,
       // commit to that idx.
-      auto new_commit_idx = std::numeric_limits<Index>::max();
+      auto new_commit_cft_idx = std::numeric_limits<Index>::max();
+      auto new_commit_bft_idx = std::numeric_limits<Index>::max();
 
+      // Obtain BFT watermarks
+      auto progress_tracker = store->get_progress_tracker();
+      if (progress_tracker != nullptr)
+      {
+        new_commit_bft_idx = progress_tracker->get_highest_committed_nonce();
+      }
+
+      // Obtain CFT watermarks
       for (auto& c : configurations)
       {
         // The majority must be checked separately for each active
@@ -1309,28 +2006,44 @@ namespace aft
         sort(match.begin(), match.end());
         auto confirmed = match.at((match.size() - 1) / 2);
 
-        if (confirmed < new_commit_idx)
+        if (confirmed < new_commit_cft_idx)
         {
-          new_commit_idx = confirmed;
+          new_commit_cft_idx = confirmed;
         }
       }
-
       LOG_DEBUG_FMT(
-        "In update_commit, new_commit_idx: {}, last_idx: {}",
-        new_commit_idx,
+        "In update_commit, new_commit_cft_idx: {}, new_commit_bft_idx:{}. "
+        "last_idx: {}",
+        new_commit_cft_idx,
+        new_commit_bft_idx,
         state->last_idx);
 
-      if (new_commit_idx > state->last_idx)
+      if (new_commit_cft_idx != std::numeric_limits<Index>::max())
+      {
+        state->cft_watermark_idx = new_commit_cft_idx;
+      }
+
+      if (new_commit_bft_idx != std::numeric_limits<Index>::max())
+      {
+        state->bft_watermark_idx = new_commit_bft_idx;
+      }
+
+      if (get_commit_watermark_idx() > state->last_idx)
       {
         throw std::logic_error(
           "Followers appear to have later match indices than leader");
       }
 
-      commit_if_possible(new_commit_idx);
+      commit_if_possible(get_commit_watermark_idx());
     }
 
     void commit_if_possible(Index idx)
     {
+      LOG_DEBUG_FMT(
+        "Commit if possible {} (ci: {}) (ti {})",
+        idx,
+        state->commit_idx,
+        get_term_internal(idx));
       if (
         (idx > state->commit_idx) &&
         (get_term_internal(idx) <= state->current_view))
@@ -1368,10 +2081,11 @@ namespace aft
       state->commit_idx = idx;
 
       LOG_DEBUG_FMT("Compacting...");
-      snapshotter->compact(idx);
-      if (replica_state == Leader)
+      snapshotter->commit(idx);
+      if (consensus_type == ConsensusType::CFT)
       {
-        snapshotter->snapshot(idx);
+        // Snapshots are not yet supported with BFT
+        snapshotter->update(idx, replica_state == Leader);
       }
       store->compact(idx);
       ledger->commit(idx);
@@ -1396,12 +2110,25 @@ namespace aft
           break;
 
         configurations.pop_front();
+        backup_nodes.clear();
         changed = true;
       }
 
       if (changed)
       {
         create_and_remove_node_state();
+      }
+    }
+
+    Index get_commit_watermark_idx()
+    {
+      if (consensus_type == ConsensusType::BFT)
+      {
+        return state->bft_watermark_idx;
+      }
+      else
+      {
+        return state->cft_watermark_idx;
       }
     }
 
@@ -1425,6 +2152,7 @@ namespace aft
       while (!configurations.empty() && (configurations.back().idx > idx))
       {
         configurations.pop_back();
+        backup_nodes.clear();
         changed = true;
       }
 
@@ -1461,7 +2189,7 @@ namespace aft
 
       for (auto node_id : to_remove)
       {
-        if (replica_state == Leader)
+        if (replica_state == Leader || consensus_type == ConsensusType::BFT)
         {
           channels->destroy_channel(node_id);
         }
@@ -1487,13 +2215,16 @@ namespace aft
           auto index = state->last_idx + 1;
           nodes.try_emplace(node_info.first, node_info.second, index, 0);
 
-          if (replica_state == Leader)
+          if (replica_state == Leader || consensus_type == ConsensusType::BFT)
           {
             channels->create_channel(
               node_info.first,
               node_info.second.hostname,
               node_info.second.port);
+          }
 
+          if (replica_state == Leader)
+          {
             send_append_entries(node_info.first, index);
           }
 

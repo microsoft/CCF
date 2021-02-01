@@ -67,12 +67,6 @@ namespace http
     return ret;
   }
 
-  struct SigningDetails
-  {
-    std::vector<uint8_t> to_sign;
-    std::vector<uint8_t> signature;
-  };
-
   inline void add_digest_header(http::Request& request)
   {
     // Ensure digest is present and up-to-date
@@ -93,13 +87,13 @@ namespace http
   inline void sign_request(
     http::Request& request,
     const tls::KeyPairPtr& kp,
-    const std::vector<std::string_view>& headers_to_sign,
-    SigningDetails* details = nullptr)
+    const std::string& key_id,
+    const std::vector<std::string_view>& headers_to_sign)
   {
     add_digest_header(request);
 
     const auto to_sign = construct_raw_signed_string(
-      http_method_str(request.get_method()),
+      llhttp_method_name(request.get_method()),
       request.get_path(),
       request.get_formatted_query(),
       request.get_headers(),
@@ -110,48 +104,42 @@ namespace http
       throw std::logic_error("Unable to sign HTTP request");
     }
 
-    const auto signature = kp->sign(to_sign.value(), MBEDTLS_MD_SHA256);
+    const auto signature = kp->sign(to_sign.value());
 
     auto auth_value = fmt::format(
       "Signature "
-      "keyId=\"ignored\",algorithm=\"{}\",headers=\"{}\",signature="
+      "keyId=\"{}\",algorithm=\"{}\",headers=\"{}\",signature="
       "\"{}\"",
-      auth::SIGN_ALGORITHM_SHA256,
+      key_id,
+      auth::SIGN_ALGORITHM_HS_2019,
       fmt::format("{}", fmt::join(headers_to_sign, " ")),
       tls::b64_from_raw(signature.data(), signature.size()));
 
     request.set_header(headers::AUTHORIZATION, auth_value);
-
-    if (details != nullptr)
-    {
-      details->to_sign = to_sign.value();
-      details->signature = signature;
-    }
   }
 
   inline void sign_request(
     http::Request& request,
     const tls::KeyPairPtr& kp,
-    SigningDetails* details = nullptr)
+    const std::string& key_id)
   {
     std::vector<std::string_view> headers_to_sign;
     headers_to_sign.emplace_back(auth::SIGN_HEADER_REQUEST_TARGET);
     headers_to_sign.emplace_back(headers::DIGEST);
     headers_to_sign.emplace_back(headers::CONTENT_LENGTH);
 
-    sign_request(request, kp, headers_to_sign, details);
+    sign_request(request, kp, key_id, headers_to_sign);
   }
 
   // Implements verification of "Signature" scheme from
   // https://tools.ietf.org/html/draft-cavage-http-signatures-12
   //
-  // Tested with RequestClient in tests/infra/clients.py
-  //
   // Notes:
   //    - Only supports public key crytography (i.e. no HMAC)
-  //    - Only supports SHA-256 as digest algorithm
-  //    - Only supports ecdsa-sha256 as signature algorithm
-  //    - keyId is ignored
+  //    - Only supports SHA-256 as request digest algorithm
+  //    - Only supports ecdsa-sha256 and hs2019 as signature algorithms
+  //    - keyId can be set to a SHA-256 digest of a cert against which the
+  //    signature verifies
   class HttpSignatureVerifier
   {
   public:
@@ -160,6 +148,7 @@ namespace http
       std::string_view signature = {};
       std::string_view signature_algorithm = {};
       std::vector<std::string_view> signed_headers;
+      std::string key_id = {};
     };
 
     static bool parse_auth_scheme(std::string_view& auth_header_value)
@@ -167,11 +156,11 @@ namespace http
       auto next_space = auth_header_value.find(" ");
       if (next_space == std::string::npos)
       {
-        LOG_FAIL_FMT("Authorization header only contains one field!");
+        LOG_FAIL_FMT("Authorization header only contains one field");
         return false;
       }
       auto auth_scheme = auth_header_value.substr(0, next_space);
-      if (auth_scheme != auth::AUTH_SCHEME)
+      if (auth_scheme != auth::SIGN_AUTH_SCHEME)
       {
         return false;
       }
@@ -203,8 +192,8 @@ namespace http
       auto sha_key = digest->second.substr(0, equal_pos);
       if (sha_key != auth::DIGEST_SHA256)
       {
-        error_reason =
-          fmt::format("Only {} digest is supported", auth::DIGEST_SHA256);
+        error_reason = fmt::format(
+          "Only {} for request digest is supported", auth::DIGEST_SHA256);
         return false;
       }
 
@@ -289,12 +278,14 @@ namespace http
 
           if (k == auth::SIGN_PARAMS_KEYID)
           {
-            // keyId is ignored
+            sig_params.key_id = v;
           }
           else if (k == auth::SIGN_PARAMS_ALGORITHM)
           {
             sig_params.signature_algorithm = v;
-            if (v != auth::SIGN_ALGORITHM_SHA256)
+            if (
+              v != auth::SIGN_ALGORITHM_ECDSA_SHA256 &&
+              v != auth::SIGN_ALGORITHM_HS_2019)
             {
               LOG_FAIL_FMT("Signature algorithm {} is not supported", v);
               return std::nullopt;
@@ -329,6 +320,31 @@ namespace http
         }
       }
 
+      // If any sig params were not found, this is invalid
+      if (sig_params.key_id.empty())
+      {
+        LOG_TRACE_FMT("Signature params: Missing {}", auth::SIGN_PARAMS_KEYID);
+        return std::nullopt;
+      }
+      if (sig_params.signature_algorithm.empty())
+      {
+        LOG_TRACE_FMT(
+          "Signature params: Missing {}", auth::SIGN_PARAMS_ALGORITHM);
+        return std::nullopt;
+      }
+      if (sig_params.signature.empty())
+      {
+        LOG_TRACE_FMT(
+          "Signature params: Missing {}", auth::SIGN_PARAMS_SIGNATURE);
+        return std::nullopt;
+      }
+      if (sig_params.signed_headers.empty())
+      {
+        LOG_TRACE_FMT(
+          "Signature params: Missing {}", auth::SIGN_PARAMS_HEADERS);
+        return std::nullopt;
+      }
+
       return sig_params;
     }
 
@@ -353,17 +369,21 @@ namespace http
         std::string verify_error_reason;
         if (!verify_digest(headers, body, verify_error_reason))
         {
-          throw std::logic_error(fmt::format(
+          LOG_TRACE_FMT(
             "Error verifying HTTP {} header: {}",
             headers::DIGEST,
-            verify_error_reason));
+            verify_error_reason);
+          return std::nullopt;
         }
 
         auto parsed_sign_params = parse_signature_params(authz_header);
         if (!parsed_sign_params.has_value())
         {
-          throw std::logic_error(
-            fmt::format("Error parsing {} fields", headers::AUTHORIZATION));
+          LOG_TRACE_FMT(
+            "Error parsing elements in {} header: {}",
+            headers::AUTHORIZATION,
+            authz_header);
+          return std::nullopt;
         }
 
         const auto& signed_headers = parsed_sign_params->signed_headers;
@@ -380,22 +400,35 @@ namespace http
 
         if (!missing_required_headers.empty())
         {
-          throw std::logic_error(fmt::format(
+          LOG_TRACE_FMT(
             "HTTP signature does not cover required fields: {}",
-            fmt::join(missing_required_headers, ", ")));
+            fmt::join(missing_required_headers, ", "));
+          return std::nullopt;
         }
 
         auto signed_raw = construct_raw_signed_string(
           verb, path, query, headers, signed_headers);
         if (!signed_raw.has_value())
         {
-          throw std::logic_error(
-            fmt::format("Error constructing signed string"));
+          LOG_TRACE_FMT("Error constructing signed string");
+          return std::nullopt;
         }
 
         auto sig_raw = tls::raw_from_b64(parsed_sign_params->signature);
-        ccf::SignedReq ret = {
-          sig_raw, signed_raw.value(), body, MBEDTLS_MD_SHA256};
+
+        mbedtls_md_type_t signature_digest = MBEDTLS_MD_NONE;
+        if (
+          parsed_sign_params->signature_algorithm ==
+          auth::SIGN_ALGORITHM_ECDSA_SHA256)
+        {
+          signature_digest = MBEDTLS_MD_SHA256;
+        }
+
+        ccf::SignedReq ret = {sig_raw,
+                              signed_raw.value(),
+                              body,
+                              signature_digest,
+                              parsed_sign_params->key_id};
         return ret;
       }
 

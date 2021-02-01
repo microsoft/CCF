@@ -4,9 +4,11 @@
 
 #include "ds/json.h"
 #include "ds/nonstd.h"
+#include "http/http_status.h"
 
-#include <http-parser/http_parser.h>
+#include <llhttp/llhttp.h>
 #include <nlohmann/json.hpp>
+#include <regex>
 #include <string>
 
 #pragma clang diagnostic push
@@ -41,26 +43,24 @@ namespace ds
 
     static inline void check_path_valid(const std::string& s)
     {
-      if (s.rfind("/", 0) != 0)
+      if (!nonstd::starts_with(s, "/"))
       {
         throw std::logic_error(
           fmt::format("'{}' is not a valid path - must begin with '/'", s));
       }
     }
 
-    static inline std::string remove_invalid_chars(const std::string_view& s_)
+    static inline std::string sanitise_components_key(const std::string_view& s)
     {
-      std::string s(s_);
-
-      for (auto& c : s)
-      {
-        if (c == ':')
-        {
-          c = '_';
-        }
-      }
-
-      return s;
+      // From the OpenAPI spec:
+      // All the fixed fields declared above are objects that MUST use keys that
+      // match the regular expression: ^[a-zA-Z0-9\.\-_]+$
+      // So here we replace any non-matching characters with _
+      std::string result;
+      std::regex re("[^a-zA-Z0-9\\.\\-_]");
+      std::regex_replace(
+        std::back_inserter(result), s.begin(), s.end(), re, "_");
+      return result;
     }
 
     static inline nlohmann::json create_document(
@@ -88,7 +88,7 @@ namespace ds
     static inline nlohmann::json& path(
       nlohmann::json& document, const std::string& path)
     {
-      auto p = remove_invalid_chars(path);
+      auto p = path;
       if (p.find("/") != 0)
       {
         p = fmt::format("/{}", p);
@@ -99,10 +99,10 @@ namespace ds
     }
 
     static inline nlohmann::json& path_operation(
-      nlohmann::json& path, http_method verb)
+      nlohmann::json& path, llhttp_method verb)
     {
       // HTTP_GET becomes the string "get"
-      std::string s = http_method_str(verb);
+      std::string s = llhttp_method_name(verb);
       nonstd::to_lower(s);
       auto& po = access::get_object(path, s);
       // responses is required field in a path_operation
@@ -115,16 +115,22 @@ namespace ds
       return access::get_array(path_operation, "parameters");
     }
 
+    static inline nlohmann::json& responses(nlohmann::json& path_operation)
+    {
+      return access::get_object(path_operation, "responses");
+    }
+
     static inline nlohmann::json& response(
       nlohmann::json& path_operation,
       http_status status,
       const std::string& description = "Default response description")
     {
-      auto& responses = access::get_object(path_operation, "responses");
+      auto& all_responses = responses(path_operation);
+
       // HTTP_STATUS_OK (aka an int-enum with value 200) becomes the string
       // "200"
       const auto s = std::to_string(status);
-      auto& response = access::get_object(responses, s);
+      auto& response = access::get_object(all_responses, s);
       response["description"] = description;
       return response;
     }
@@ -167,7 +173,7 @@ namespace ds
       const std::string& element_name,
       const nlohmann::json& schema_)
     {
-      const auto name = remove_invalid_chars(element_name);
+      const auto name = sanitise_components_key(element_name);
 
       auto& components = access::get_object(document, "components");
       auto& schemas = access::get_object(components, "schemas");
@@ -194,6 +200,39 @@ namespace ds
       }
 
       return components_ref_object(name);
+    }
+
+    static inline void add_security_scheme_to_components(
+      nlohmann::json& document,
+      const std::string& scheme_name,
+      const nlohmann::json& security_scheme)
+    {
+      const auto name = sanitise_components_key(scheme_name);
+
+      auto& components = access::get_object(document, "components");
+      auto& schemes = access::get_object(components, "securitySchemes");
+
+      const auto schema_it = schemes.find(name);
+      if (schema_it != schemes.end())
+      {
+        // Check that the existing schema matches the new one being added with
+        // the same name
+        const auto& existing_scheme = schema_it.value();
+        if (security_scheme != existing_scheme)
+        {
+          throw std::logic_error(fmt::format(
+            "Adding security scheme with name '{}'. Does not match previous "
+            "scheme "
+            "registered with this name: {} vs {}",
+            name,
+            security_scheme.dump(),
+            existing_scheme.dump()));
+        }
+      }
+      else
+      {
+        schemes.emplace(name, security_scheme);
+      }
     }
 
     struct SchemaHelper
@@ -236,13 +275,13 @@ namespace ds
               items["type"] = "array";
 
               auto sub_items = nlohmann::json::array();
-              // NB: OpenAPI doesn't like this tuple for "items", even though
-              // its valid JSON schema. May need to switch this to oneOf to
-              // satisfy some validators
               sub_items.push_back(add_schema_component<typename T::key_type>());
               sub_items.push_back(
                 add_schema_component<typename T::mapped_type>());
-              items["items"] = sub_items;
+
+              items["items"]["oneOf"] = sub_items;
+              items["minItems"] = 2;
+              items["maxItems"] = 2;
             }
             schema["items"] = items;
           }
@@ -270,7 +309,7 @@ namespace ds
         }
         else
         {
-          const auto name = remove_invalid_chars(ds::json::schema_name<T>());
+          const auto name = sanitise_components_key(ds::json::schema_name<T>());
 
           auto& components = access::get_object(document, "components");
           auto& schemas = access::get_object(components, "schemas");
@@ -300,7 +339,7 @@ namespace ds
     static inline void add_request_body_schema(
       nlohmann::json& document,
       const std::string& uri,
-      http_method verb,
+      llhttp_method verb,
       const std::string& content_type,
       const std::string& schema_name,
       const nlohmann::json& schema_)
@@ -316,7 +355,7 @@ namespace ds
     static inline void add_request_body_schema(
       nlohmann::json& document,
       const std::string& uri,
-      http_method verb,
+      llhttp_method verb,
       const std::string& content_type)
     {
       auto& rb = request_body(path_operation(path(document, uri), verb));
@@ -342,7 +381,7 @@ namespace ds
     static inline void add_request_parameter_schema(
       nlohmann::json& document,
       const std::string& uri,
-      http_method verb,
+      llhttp_method verb,
       const nlohmann::json& param)
     {
       auto& params = parameters(path_operation(path(document, uri), verb));
@@ -352,7 +391,7 @@ namespace ds
     static inline void add_response_schema(
       nlohmann::json& document,
       const std::string& uri,
-      http_method verb,
+      llhttp_method verb,
       http_status status,
       const std::string& content_type,
       const std::string& schema_name,
@@ -368,7 +407,7 @@ namespace ds
     static inline void add_response_schema(
       nlohmann::json& document,
       const std::string& uri,
-      http_method verb,
+      llhttp_method verb,
       http_status status,
       const std::string& content_type)
     {

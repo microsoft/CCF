@@ -3,10 +3,12 @@
 #pragma once
 #include "ds/json_schema.h"
 #include "kv/kv_types.h"
+#include "metrics.h"
 #include "node/code_id.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
 #include "node/nodes.h"
+#include "node/service.h"
 #include "node_call_types.h"
 #include "tx_status.h"
 
@@ -37,35 +39,6 @@ namespace ccf
     };
   };
 
-  struct GetMetrics
-  {
-    struct HistogramResults
-    {
-      int low = {};
-      int high = {};
-      size_t overflow = {};
-      size_t underflow = {};
-      nlohmann::json buckets = {};
-    };
-
-    struct Out
-    {
-      HistogramResults histogram;
-      nlohmann::json tx_rates;
-    };
-  };
-
-  struct GetPrimaryInfo
-  {
-    struct Out
-    {
-      NodeId primary_id;
-      std::string primary_host;
-      std::string primary_port;
-      kv::Consensus::View current_view;
-    };
-  };
-
   struct GetCode
   {
     struct Version
@@ -82,38 +55,43 @@ namespace ccf
 
   struct GetNetworkInfo
   {
-    struct NodeInfo
-    {
-      NodeId node_id;
-      std::string host;
-      std::string port;
-    };
-
     struct Out
     {
-      std::vector<NodeInfo> nodes = {};
-      std::optional<NodeId> primary_id = std::nullopt;
+      ServiceStatus service_status;
+      std::optional<kv::Consensus::View> current_view;
+      std::optional<NodeId> primary_id;
+      std::optional<bool> view_change_in_progress;
     };
   };
 
-  struct GetNodesByRPCAddress
+  struct GetNode
   {
     struct NodeInfo
     {
       NodeId node_id;
       NodeStatus status;
-    };
-
-    struct In
-    {
       std::string host;
       std::string port;
-      bool retired = false;
+      std::string local_host;
+      std::string local_port;
+      bool primary;
+    };
+
+    using Out = NodeInfo;
+  };
+
+  struct GetNodes
+  {
+    struct In
+    {
+      std::optional<std::string> host;
+      std::optional<std::string> port;
+      std::optional<NodeStatus> status;
     };
 
     struct Out
     {
-      std::vector<NodeInfo> nodes = {};
+      std::vector<GetNode::NodeInfo> nodes = {};
     };
   };
 
@@ -126,7 +104,7 @@ namespace ccf
   {
     struct In
     {
-      std::vector<uint8_t> cert;
+      std::string cert;
     };
 
     using Out = CallerInfo;
@@ -139,8 +117,10 @@ namespace ccf
 
   struct EndpointMetrics
   {
-    struct Metric
+    struct Entry
     {
+      std::string path;
+      std::string method;
       size_t calls = 0;
       size_t errors = 0;
       size_t failures = 0;
@@ -148,21 +128,7 @@ namespace ccf
 
     struct Out
     {
-      std::map<std::string, std::map<std::string, Metric>> metrics;
-    };
-  };
-
-  struct GetSchema
-  {
-    struct In
-    {
-      std::string method = {};
-    };
-
-    struct Out
-    {
-      ds::json::JsonSchema params_schema = {};
-      ds::json::JsonSchema result_schema = {};
+      std::vector<Entry> metrics;
     };
   };
 
@@ -189,6 +155,29 @@ namespace ccf
     struct Out
     {
       bool valid = false;
+    };
+  };
+
+  struct GetRecoveryShare
+  {
+    using In = void;
+
+    struct Out
+    {
+      std::string encrypted_share;
+    };
+  };
+
+  struct SubmitRecoveryShare
+  {
+    struct In
+    {
+      std::string share;
+    };
+
+    struct Out
+    {
+      std::string message;
     };
   };
 }

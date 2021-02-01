@@ -13,7 +13,6 @@ debs:
   - clang-tools-8
   - expect
   - git
-  - libcurl4-openssl-dev
   - ccache
   - doxygen
   - kmod
@@ -24,8 +23,6 @@ debs:
   - curl
   - shellcheck
 
-mbedtls_ver: "2.16.6"
+mbedtls_ver: "2.16.8"
 mbedtls_dir: "mbedtls-{{ mbedtls_ver }}"
 mbedtls_src: "{{ mbedtls_dir }}.tar.gz"
-step_cli_ver: "0.15.2"
-step_cli: "https://github.com/smallstep/cli/releases/download/v{{ step_cli_ver }}/step-cli_{{ step_cli_ver }}_amd64.deb"

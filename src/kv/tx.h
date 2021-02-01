@@ -2,10 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "apply_changes.h"
+#include "ds/ccf_assert.h"
+#include "ds/ccf_deprecated.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
-#include "view_containers.h"
+
+#include <list>
 
 namespace kv
 {
@@ -23,117 +27,92 @@ namespace kv
     }
   };
 
-  // Manages a collection of TxViews. Derived implementations call get_tuple to
-  // retrieve views over target maps.
-  class BaseTx : public AbstractViewContainer
+  // Manages a collection of MapHandles. Derived implementations should call
+  // get_handle_by_name to retrieve handles over their desired maps.
+  class BaseTx : public AbstractChangeContainer
   {
   protected:
-    AbstractStore* store = nullptr;
+    AbstractStore* store;
 
-    OrderedViews view_list;
+    OrderedChanges all_changes;
+
+    // NB: This exists only to maintain the old API, where this Tx stores
+    // MapHandles and returns raw pointers to them. It could be removed entirely
+    // with a near-identical API if we return `shared_ptr`s, and assuming that
+    // we don't actually care about returning exactly the same Handle instance
+    // if `rw` is called multiple times
+    using PossibleHandles = std::list<std::unique_ptr<AbstractMapHandle>>;
+    std::map<std::string, PossibleHandles> all_handles;
+
     bool committed = false;
     bool success = false;
     Version read_version = NoVersion;
     Version version = NoVersion;
+    Version max_conflict_version = NoVersion;
     Term term = 0;
 
     kv::TxHistory::RequestID req_id;
 
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
 
-    template <typename MapView>
-    std::tuple<MapView*> check_and_store_view(
-      MapView* typed_view,
+    template <typename THandle>
+    THandle* get_or_insert_handle(
+      untyped::ChangeSet& change_set, const std::string& name)
+    {
+      auto it = all_handles.find(name);
+      if (it == all_handles.end())
+      {
+        PossibleHandles handles;
+        auto typed_handle = new THandle(change_set);
+        handles.emplace_back(std::unique_ptr<AbstractMapHandle>(typed_handle));
+        all_handles[name] = std::move(handles);
+        return typed_handle;
+      }
+      else
+      {
+        PossibleHandles& handles = it->second;
+        for (auto& handle : handles)
+        {
+          auto typed_handle = dynamic_cast<THandle*>(handle.get());
+          if (typed_handle != nullptr)
+          {
+            return typed_handle;
+          }
+        }
+        auto typed_handle = new THandle(change_set);
+        handles.emplace_back(std::unique_ptr<AbstractMapHandle>(typed_handle));
+        return typed_handle;
+      }
+    }
+
+    template <typename THandle>
+    THandle* check_and_store_change_set(
+      std::unique_ptr<untyped::ChangeSet>&& change_set,
       const std::string& map_name,
       const std::shared_ptr<AbstractMap>& abstract_map)
     {
-      if (typed_view == nullptr)
+      if (change_set == nullptr)
       {
         throw CompactedVersionConflict(fmt::format(
-          "Unable to retrieve view over {} at {}", map_name, read_version));
+          "Unable to retrieve state over map {} at {}",
+          map_name,
+          read_version));
       }
 
-      auto abstract_view = dynamic_cast<AbstractTxView*>(typed_view);
-      if (abstract_view == nullptr)
-      {
-        throw std::logic_error(
-          fmt::format("View over map {} is not an AbstractTxView", map_name));
-      }
-      view_list[map_name] = {abstract_map,
-                             std::unique_ptr<AbstractTxView>(abstract_view)};
-
-      return std::make_tuple(typed_view);
+      auto typed_handle = get_or_insert_handle<THandle>(*change_set, map_name);
+      all_changes[map_name] = {abstract_map, std::move(change_set)};
+      return typed_handle;
     }
 
-    template <class M>
-    std::tuple<typename M::TxView*> get_tuple(M& m)
+    template <class THandle>
+    THandle* get_handle_by_name(const std::string& map_name)
     {
-      using MapView = typename M::TxView;
-
-      // If the M is present, its AbstractTxView should be an M::TxView. This
-      // invariant could be broken by set_view_list, which will produce an error
-      // here
-      auto search = view_list.find(m.get_name());
-      if (search != view_list.end())
+      auto search = all_changes.find(map_name);
+      if (search != all_changes.end())
       {
-        auto view = dynamic_cast<MapView*>(search->second.view.get());
-
-        if (view == nullptr)
-        {
-          throw std::logic_error(fmt::format(
-            "View over map {} is not of expected type", m.get_name()));
-        }
-
-        return std::make_tuple(view);
-      }
-
-      auto it = view_list.begin();
-      if (it != view_list.end())
-      {
-        // All Maps must be in the same store.
-        if (it->second.map->get_store() != m.get_store())
-          throw std::logic_error(
-            "Transaction must be over maps in the same store");
-      }
-
-      if (read_version == NoVersion)
-      {
-        // Grab opacity version that all Maps should be queried at.
-        auto txid = m.get_store()->current_txid();
-        term = txid.term;
-        read_version = txid.version;
-      }
-
-      MapView* typed_view = m.template create_view<MapView>(read_version);
-      return check_and_store_view(
-        typed_view, m.get_name(), m.shared_from_this());
-    }
-
-    template <class M>
-    std::tuple<typename M::TxView*> get_tuple2(const std::string& map_name)
-    {
-      if (store == nullptr)
-      {
-        throw std::logic_error("New form called on old-style Tx");
-      }
-
-      using MapView = typename M::TxView;
-
-      // If the M is present, its AbstractTxView should be an M::TxView. This
-      // invariant could be broken by set_view_list, which will produce an error
-      // here
-      auto search = view_list.find(map_name);
-      if (search != view_list.end())
-      {
-        auto view = dynamic_cast<MapView*>(search->second.view.get());
-
-        if (view == nullptr)
-        {
-          throw std::logic_error(
-            fmt::format("View over map {} is not of expected type", map_name));
-        }
-
-        return std::make_tuple(view);
+        auto handle =
+          get_or_insert_handle<THandle>(*search->second.changeset, map_name);
+        return handle;
       }
 
       if (read_version == NoVersion)
@@ -144,8 +123,6 @@ namespace kv
         read_version = txid.version;
       }
 
-      MapView* typed_view = nullptr;
-
       auto abstract_map = store->get_map(read_version, map_name);
       if (abstract_map == nullptr)
       {
@@ -154,76 +131,58 @@ namespace kv
           const auto map_it = created_maps.find(map_name);
           if (map_it != created_maps.end())
           {
-            throw std::logic_error("Created map without creating view over it");
+            throw std::logic_error(
+              "Created map without creating handle over it");
           }
         }
 
-        // NB: The created maps are always untyped. Only the views over them are
-        // typed
+        // NB: The created maps are always untyped. Only the handles over them
+        // are typed
         auto new_map = std::make_shared<kv::untyped::Map>(
           store,
           map_name,
           kv::get_security_domain(map_name),
           store->is_map_replicated(map_name));
         created_maps[map_name] = new_map;
-        LOG_DEBUG_FMT("Creating new map '{}'", map_name);
 
         abstract_map = new_map;
-        typed_view = new_map->template create_view<MapView>(read_version);
       }
-      else
+
+      auto untyped_map =
+        std::dynamic_pointer_cast<kv::untyped::Map>(abstract_map);
+      if (untyped_map == nullptr)
       {
-        auto* am = abstract_map.get();
-        auto typed_map = dynamic_cast<M*>(am);
-        if (typed_map == nullptr)
-        {
-          auto untyped_map = dynamic_cast<kv::untyped::Map*>(am);
-          if (untyped_map == nullptr)
-          {
-            throw std::logic_error(
-              fmt::format("Map {} has unexpected type", map_name));
-          }
-          else
-          {
-            typed_view =
-              untyped_map->template create_view<MapView>(read_version);
-          }
-        }
-        else
-        {
-          typed_view = typed_map->template create_view<MapView>(read_version);
-        }
+        throw std::logic_error(
+          fmt::format("Map {} has unexpected type", map_name));
       }
 
-      return check_and_store_view(typed_view, map_name, abstract_map);
-    }
-
-    template <class M, class... Ms>
-    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_tuple(
-      M& m, Ms&... ms)
-    {
-      return std::tuple_cat(get_tuple(m), get_tuple(ms...));
-    }
-
-    template <class M, class... Ms, class... Ts>
-    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_tuple2(
-      const std::string& map_names, const Ts&... names)
-    {
-      return std::tuple_cat(
-        get_tuple2<M>(map_names), get_tuple2<Ms...>(names...));
+      auto change_set = untyped_map->create_change_set(read_version);
+      return check_and_store_change_set<THandle>(
+        std::move(change_set), map_name, abstract_map);
     }
 
   public:
-    BaseTx() : view_list() {}
-    BaseTx(AbstractStore* _store) : store(_store) {}
+    BaseTx(AbstractStore* _store, bool known_null = false) : store(_store)
+    {
+      // For testing purposes, caller may opt-in to creation of an unsafe Tx by
+      // passing (nullptr, true). Many operations on this Tx, including
+      // commit(), will try to dereference this pointer, so the caller must not
+      // call these.
+      if (!known_null)
+      {
+        CCF_ASSERT(
+          store != nullptr,
+          "Transactions must be created with reference to real Store");
+      }
+    }
 
     BaseTx(const BaseTx& that) = delete;
 
-    void set_view_list(OrderedViews& view_list_, Term term_) override
+    void set_change_list(OrderedChanges&& change_list_, Term term_) override
     {
-      // if view list is not empty then any coinciding keys will not be
+      // if all_changes is not empty then any coinciding keys will not be
       // overwritten
-      view_list.merge(view_list_);
+      all_changes.merge(change_list_);
       term = term_;
     }
 
@@ -272,22 +231,27 @@ namespace kv
       if (committed)
         throw std::logic_error("Transaction already committed");
 
-      if (view_list.empty())
+      if (all_changes.empty())
       {
         committed = true;
         success = true;
         return CommitSuccess::OK;
       }
 
-      auto store = view_list.begin()->second.map->get_store();
+      auto store = all_changes.begin()->second.map->get_store();
 
-      // If this transaction may create maps, ensure that commit gets a
-      // consistent view of the existing maps
+      // If this transaction creates any maps, ensure that commit gets a
+      // consistent snapshot of the existing maps
       if (!created_maps.empty())
         this->store->lock();
 
-      auto c = apply_views(
-        view_list, [store]() { return store->next_version(); }, created_maps);
+      kv::ConsensusHookPtrs hooks;
+
+      auto c = apply_changes(
+        all_changes,
+        [store]() { return store->next_version(); },
+        hooks,
+        created_maps);
 
       if (!created_maps.empty())
         this->store->unlock();
@@ -296,8 +260,8 @@ namespace kv
 
       if (!success)
       {
-        // Conflicting views (and contained writes) and all version tracking are
-        // discarded. They must be reconstructed at updated, non-conflicting
+        // Conflicting handles (and contained writes) and all version tracking
+        // are discarded. They must be reconstructed at updated, non-conflicting
         // versions
         reset();
 
@@ -307,7 +271,7 @@ namespace kv
       else
       {
         committed = true;
-        version = c.value();
+        std::tie(version, max_conflict_version) = c.value();
 
         // From here, we have received a unique commit version and made
         // modifications to our local kv. If we fail in any way, we cannot
@@ -318,19 +282,13 @@ namespace kv
 
           if (data.empty())
           {
-            auto h = store->get_history();
-            if (h != nullptr)
-            {
-              // This tx does not have a write set, so this is a read only tx
-              // because of this we are returning NoVersion
-              h->add_result(req_id, NoVersion);
-            }
             return CommitSuccess::OK;
           }
 
           return store->commit(
             {term, version},
-            MovePendingTx(std::move(data), std::move(req_id)),
+            std::make_unique<MovePendingTx>(
+              std::move(data), std::move(req_id), std::move(hooks)),
             false);
         }
         catch (const std::exception& e)
@@ -387,8 +345,8 @@ namespace kv
 
       // If no transactions made changes, return a zero length vector.
       const bool any_changes =
-        std::any_of(view_list.begin(), view_list.end(), [](const auto& it) {
-          return it.second.view->has_changes();
+        std::any_of(all_changes.begin(), all_changes.end(), [](const auto& it) {
+          return it.second.changeset->has_writes();
         });
 
       if (!any_changes)
@@ -397,23 +355,30 @@ namespace kv
       }
 
       // Retrieve encryptor.
-      auto map = view_list.begin()->second.map;
+      auto map = all_changes.begin()->second.map;
       auto e = map->get_store()->get_encryptor();
 
-      KvStoreSerialiser replicated_serialiser(e, version);
+      if (max_conflict_version == NoVersion)
+      {
+        max_conflict_version = version - 1;
+      }
+
+      KvStoreSerialiser replicated_serialiser(
+        e, {term, version}, max_conflict_version);
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
       {
-        for (const auto& it : view_list)
+        for (const auto& it : all_changes)
         {
-          const auto map = it.second.map;
+          const auto& map = it.second.map;
+          const auto& changeset = it.second.changeset;
           if (
             map->get_security_domain() == domain && map->is_replicated() &&
-            it.second.view->has_changes())
+            changeset->has_writes())
           {
-            map->serialise(
-              it.second.view.get(), replicated_serialiser, include_reads);
+            map->serialise_changes(
+              changeset.get(), replicated_serialiser, include_reads);
           }
         }
       }
@@ -424,36 +389,18 @@ namespace kv
 
     // Used by frontend for reserved transactions
     BaseTx(Version reserved) :
-      view_list(),
       committed(false),
       success(false),
       read_version(reserved - 1),
       version(reserved)
     {}
 
-    // Used by frontend to commit reserved transactions
-    PendingTxInfo commit_reserved()
-    {
-      if (committed)
-        throw std::logic_error("Transaction already committed");
-
-      if (view_list.empty())
-        throw std::logic_error("Reserved transaction cannot be empty");
-
-      auto c = apply_views(view_list, [this]() { return version; });
-      success = c.has_value();
-
-      if (!success)
-        throw std::logic_error("Failed to commit reserved transaction");
-
-      committed = true;
-      return {CommitSuccess::OK, {0, 0, 0}, serialise()};
-    }
-
     // Used to clear the Tx to its initial state, to retry after a conflict
     void reset()
     {
-      view_list.clear();
+      all_changes.clear();
+      all_handles.clear();
+      created_maps.clear();
       committed = false;
       success = false;
       read_version = NoVersion;
@@ -462,93 +409,142 @@ namespace kv
     }
   };
 
+  /** Used to create read-only handles for accessing a Map.
+   *
+   * Acquiring a handle will create the map in the KV if it does not yet exist.
+   * The returned handles can view state written by previous transactions, and
+   * any additional modifications made in this transaction.
+   */
   class ReadOnlyTx : public BaseTx
   {
   public:
     using BaseTx::BaseTx;
 
-    /** Get a read-only transaction view on a map.
+    /** Get a read-only handle from a map instance.
      *
-     * This adds the map to the transaction set if it is not yet present.
-     *
-     * @param m Map
+     * @param m Map instance
      */
     template <class M>
-    typename M::ReadOnlyTxView* get_read_only_view(M& m)
+    typename M::ReadOnlyHandle* ro(M& m)
     {
-      return std::get<0>(get_tuple(m));
+      // NB: Always creates a (writeable) MapHandle, which is cast to
+      // ReadOnlyHandle on return. This is so that other calls (before or
+      // after) can retrieve writeable handles over the same map.
+      return get_handle_by_name<typename M::Handle>(m.get_name());
     }
 
-    /** Get read-only transaction views over multiple maps.
+    /** Get a read-only handle by map name. Map type must be specified
+     * as explicit template parameter.
      *
-     * @param m Map
-     * @param ms Map
+     * @param map_name Name of map
      */
-    template <class M, class... Ms>
-    std::tuple<typename M::ReadOnlyTxView*, typename Ms::ReadOnlyTxView*...>
-    get_read_only_view(M& m, Ms&... ms)
+    template <class M>
+    typename M::ReadOnlyHandle* ro(const std::string& map_name)
     {
-      return std::tuple_cat(get_tuple(m), get_tuple(ms...));
+      return get_handle_by_name<typename M::Handle>(map_name);
+    }
+
+    template <class M>
+    CCF_DEPRECATED("Replace with ro")
+    typename M::ReadOnlyHandle* get_read_only_view(M& m)
+    {
+      return ro<M>(m);
+    }
+
+    template <class M>
+    CCF_DEPRECATED("Replace with ro")
+    typename M::ReadOnlyHandle* get_read_only_view(const std::string& map_name)
+    {
+      return ro<M>(map_name);
     }
   };
 
+  /** Used to create writeable handles for accessing a Map.
+   *
+   * Acquiring a handle will create the map in the KV if it does not yet exist.
+   * Any writes made by the returned handles will be visible to all other
+   * handles created by this transaction. They will only be visible to other
+   * transactions after this transaction has completed and been applied. For
+   * type-safety, prefer restricted handles returned by @c ro or @c wo where
+   * possible, rather than the general @c rw.
+   *
+   * @see kv::ReadOnlyTx
+   */
   class Tx : public ReadOnlyTx
   {
   public:
     using ReadOnlyTx::ReadOnlyTx;
 
-    /** Get a transaction view on a map.
+    /** Get a read-write handle from a map instance.
      *
-     * This adds the map to the transaction set if it is not yet present.
+     * This handle can be used for both reads and writes.
      *
-     * @param m Map
+     * @param m Map instance
      */
     template <class M>
-    typename M::TxView* get_view(M& m)
+    typename M::Handle* rw(M& m)
     {
-      return std::get<0>(get_tuple(m));
+      return get_handle_by_name<typename M::Handle>(m.get_name());
     }
 
-    // EXPERIMENTAL - DO NOT USE
-    // This API is for internal testing only, and may change or be removed
-    template <class M>
-    typename M::TxView* get_view2(const std::string& map_name)
-    {
-      return std::get<0>(get_tuple2<M>(map_name));
-    }
-
-    /** Get transaction views over multiple maps.
+    /** Get a read-write handle by map name. Map type must be specified
+     * as explicit template parameter.
      *
-     * @param m Map
-     * @param ms Map
+     * @param map_name Name of map
      */
-    template <class M, class... Ms>
-    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_view(
-      M& m, Ms&... ms)
+    template <class M>
+    typename M::Handle* rw(const std::string& map_name)
     {
-      return std::tuple_cat(get_tuple(m), get_tuple(ms...));
+      return get_handle_by_name<typename M::Handle>(map_name);
     }
 
-    // EXPERIMENTAL - DO NOT USE
-    // This API is for internal testing only, and may change or be removed
-    template <class M, class... Ms, class... Ts>
-    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_view2(
-      const std::string& map_name, const Ts&... names)
+    template <class M>
+    CCF_DEPRECATED("Replace with rw")
+    typename M::ReadOnlyHandle* get_view(M& m)
     {
-      return std::tuple_cat(
-        get_tuple2<M>(map_name), get_tuple2<Ms...>(names...));
+      return rw<M>(m);
+    }
+
+    template <class M>
+    CCF_DEPRECATED("Replace with rw")
+    typename M::ReadOnlyHandle* get_view(const std::string& map_name)
+    {
+      return rw<M>(map_name);
+    }
+
+    /** Get a write-only handle from a map instance.
+     *
+     * @param m Map instance
+     */
+    template <class M>
+    typename M::WriteOnlyHandle* wo(M& m)
+    {
+      // As with ro, this returns a full-featured Handle
+      // which is cast to only show its writeable facet.
+      return get_handle_by_name<typename M::Handle>(m.get_name());
+    }
+
+    /** Get a read-write handle by map name. Map type must be specified
+     * as explicit template parameter.
+     *
+     * @param map_name Name of map
+     */
+    template <class M>
+    typename M::WriteOnlyHandle* wo(const std::string& map_name)
+    {
+      return get_handle_by_name<typename M::Handle>(map_name);
     }
   };
 
   // Used by frontend for reserved transactions. These are constructed with a
-  // pre-reserved Version, and _must succeed_ to fulfil this version, else
-  // creating a hole in the history
+  // pre-reserved Version, and _must succeed_ to fulfil this version. Otherwise
+  // they create a hole in the transaction order, and no future transactions can
+  // complete.
   class ReservedTx : public Tx
   {
   public:
-    ReservedTx(AbstractStore* _store, Version reserved)
+    ReservedTx(AbstractStore* _store, Version reserved) : Tx(_store)
     {
-      store = _store;
       committed = false;
       success = false;
       read_version = reserved - 1;
@@ -561,17 +557,23 @@ namespace kv
       if (committed)
         throw std::logic_error("Transaction already committed");
 
-      if (view_list.empty())
+      if (all_changes.empty())
         throw std::logic_error("Reserved transaction cannot be empty");
 
-      auto c = apply_views(view_list, [this]() { return version; });
+      std::vector<ConsensusHookPtr> hooks;
+      auto c = apply_changes(
+        all_changes,
+        [this]() { return version; },
+        hooks,
+        created_maps,
+        version);
       success = c.has_value();
 
       if (!success)
         throw std::logic_error("Failed to commit reserved transaction");
 
       committed = true;
-      return {CommitSuccess::OK, {0, 0, 0}, serialise()};
+      return {CommitSuccess::OK, {0, 0}, serialise(), std::move(hooks)};
     }
   };
 }

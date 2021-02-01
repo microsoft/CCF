@@ -17,6 +17,8 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 import struct
 import base64
+import re
+import hashlib
 from typing import Union, Optional, List, Any
 
 import requests
@@ -26,6 +28,13 @@ import websocket  # type: ignore
 
 import ccf.commit
 from ccf.log_capture import flush_info
+
+
+loguru_tag_regex = re.compile(r"\\?</?((?:[fb]g\s)?[^<>\s]*)>")
+
+
+def escape_loguru_tags(s):
+    return loguru_tag_regex.sub(lambda match: f"\\{match[0]}", s)
 
 
 def truncate(string: str, max_len: int = 128):
@@ -59,6 +68,8 @@ class Request:
     http_verb: str
     #: HTTP headers
     headers: dict
+    #: Whether redirect headers should be transparently followed
+    allow_redirects: bool
 
     def __str__(self):
         string = f"<cyan>{self.http_verb}</> <green>{self.path}</>"
@@ -68,6 +79,20 @@ class Request:
             string += f' {truncate(f"{self.body}")}'
 
         return string
+
+
+@dataclass
+class Identity:
+    """
+    Identity (as private key and corresponding certificate) for a :py:class:`ccf.clients.CCFClient` client.
+    """
+
+    #: Path to file containing private key
+    key: str
+    #: Path to file containing PEM certificate
+    cert: str
+    #: Identity description
+    description: str
 
 
 def int_or_none(v):
@@ -158,10 +183,15 @@ class Response:
     def __str__(self):
         versioned = (self.view, self.seqno) != (None, None)
         status_color = "red" if self.status_code / 100 in (4, 5) else "green"
+        body_s = escape_loguru_tags(truncate(str(self.body)))
+        # Body can't end with a \, or it will escape the loguru closing tag
+        if len(body_s) > 0 and body_s[-1] == "\\":
+            body_s += " "
+
         return (
             f"<{status_color}>{self.status_code}</> "
             + (f"@<magenta>{self.view}.{self.seqno}</> " if versioned else "")
-            + f"<yellow>{truncate(str(self.body))}</>"
+            + f"<yellow>{body_s}</>"
         )
 
     @staticmethod
@@ -177,10 +207,20 @@ class Response:
 
     @staticmethod
     def from_raw(raw):
-        sock = FakeSocket(raw)
-        response = HTTPResponse(sock)
-        response.begin()
-        raw_body = response.read(raw)
+        # Raw is the output of curl, which is a full HTTP response.
+        # But in the case of a redirect, it is multiple concatenated responses.
+        # We want the final response, so we keep constructing new responses from this stream until we have reached the end
+        while True:
+            sock = FakeSocket(raw)
+            response = HTTPResponse(sock)
+            response.begin()
+            response_len = sock.file.tell() + response.length
+            raw_len = len(raw)
+            if raw_len == response_len:
+                break
+            raw = raw[response_len:]
+
+        raw_body = response.read()
 
         return Response(
             response.status,
@@ -229,12 +269,12 @@ class CurlClient:
     These commands could also be run manually, or used by another client tool.
     """
 
-    def __init__(self, host, port, ca=None, cert=None, key=None):
+    def __init__(self, host, port, ca=None, session_auth=None, signing_auth=None):
         self.host = host
         self.port = port
         self.ca = ca
-        self.cert = cert
-        self.key = key
+        self.session_auth = session_auth
+        self.signing_auth = signing_auth
 
         ca_curve = get_curve(self.ca)
         if ca_curve.name == "secp256k1":
@@ -243,9 +283,9 @@ class CurlClient:
                 "Use RequestClient class instead."
             )
 
-    def request(self, request, signed=False, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
+    def request(self, request, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
         with tempfile.NamedTemporaryFile() as nf:
-            if signed:
+            if self.signing_auth:
                 cmd = ["scurl.sh"]
             else:
                 cmd = ["curl"]
@@ -259,6 +299,9 @@ class CurlClient:
                 "-i",
                 f"-m {timeout}",
             ]
+
+            if request.allow_redirects:
+                cmd.append("-L")
 
             if request.body is not None:
                 if isinstance(request.body, str) and request.body.startswith("@"):
@@ -292,13 +335,18 @@ class CurlClient:
 
             if self.ca:
                 cmd.extend(["--cacert", self.ca])
-            if self.key:
-                cmd.extend(["--key", self.key])
-            if self.cert:
-                cmd.extend(["--cert", self.cert])
+            if self.session_auth:
+                cmd.extend(["--key", self.session_auth.key])
+                cmd.extend(["--cert", self.session_auth.cert])
+            if self.signing_auth:
+                cmd.extend(["--signing-key", self.signing_auth.key])
+                cmd.extend(["--signing-cert", self.signing_auth.cert])
 
-            LOG.debug(f"Running: {' '.join(cmd)}")
-            rc = subprocess.run(cmd, capture_output=True, check=False)
+            cmd_s = " ".join(cmd)
+            env = {k: v for k, v in os.environ.items()}
+
+            LOG.debug(f"Running: {cmd_s}")
+            rc = subprocess.run(cmd, capture_output=True, check=False, env=env)
 
             if rc.returncode != 0:
                 if rc.returncode == 60:  # PEER_FAILED_VERIFICATION
@@ -352,44 +400,56 @@ class RequestClient:
     CCF default client and wrapper around Python Requests, handling HTTP signatures.
     """
 
+    _auth_provider = HTTPSignatureAuth_AlwaysDigest
+
     def __init__(
         self,
         host: str,
         port: int,
         ca: str,
-        cert: Optional[str] = None,
-        key: Optional[str] = None,
+        session_auth: Optional[Identity] = None,
+        signing_auth: Optional[Identity] = None,
     ):
         self.host = host
         self.port = port
         self.ca = ca
-        self.cert = cert
-        self.key = key
+        self.session_auth = session_auth
+        self.signing_auth = signing_auth
+        self.key_id = None
         self.session = requests.Session()
         self.session.verify = self.ca
-        if self.cert is not None and self.key is not None:
-            self.session.cert = (self.cert, self.key)
+        if self.session_auth:
+            self.session.cert = (self.session_auth.cert, self.session_auth.key)
+        if self.signing_auth:
+            with open(self.signing_auth.cert) as cert_file:
+                self.key_id = hashlib.sha256(cert_file.read().encode()).hexdigest()
         self.session.mount("https://", TlsAdapter(self.ca))
 
     def request(
         self,
         request: Request,
-        signed: bool = False,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
     ):
         extra_headers = {}
         extra_headers.update(request.headers)
 
         auth_value = None
-        if signed:
-            if self.key is None:
-                raise ValueError("Cannot sign request if client has no key")
-
-            auth_value = HTTPSignatureAuth_AlwaysDigest(
+        if self.signing_auth is not None:
+            # Add content length of 0 when signing a GET request
+            if request.http_verb == "GET":
+                if (
+                    "Content-Length" in extra_headers
+                    and extra_headers.get("Content-Length") != "0"
+                ):
+                    raise ValueError(
+                        "Content-Length should be set to 0 for GET requests"
+                    )
+                else:
+                    extra_headers["Content-Length"] = "0"
+            auth_value = RequestClient._auth_provider(
                 algorithm="ecdsa-sha256",
-                key=open(self.key, "rb").read(),
-                # key_id needs to be specified but is unused
-                key_id="tls",
+                key=open(self.signing_auth.key, "rb").read(),
+                key_id=self.key_id,
                 headers=["(request-target)", "Digest", "Content-Length"],
             )
 
@@ -422,7 +482,7 @@ class RequestClient:
                 url=f"https://{self.host}:{self.port}{request.path}",
                 auth=auth_value,
                 headers=extra_headers,
-                allow_redirects=False,
+                allow_redirects=request.allow_redirects,
                 timeout=timeout,
                 data=request_body,
             )
@@ -448,14 +508,15 @@ class WSClient:
         host: str,
         port: int,
         ca: str,
-        cert: Optional[str] = None,
-        key: Optional[str] = None,
+        session_auth: Optional[Identity] = None,
+        signing_auth: Optional[Identity] = None,
     ):
+        assert signing_auth is None, "WSClient does not support signing requests"
+
         self.host = host
         self.port = port
         self.ca = ca
-        self.cert = cert
-        self.key = key
+        self.session_auth = session_auth
         self.ws = None
 
         ca_curve = get_curve(self.ca)
@@ -468,24 +529,19 @@ class WSClient:
     def request(
         self,
         request: Request,
-        signed: bool = False,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
     ):
-        if signed:
-            raise ValueError(
-                "Client signatures over WebSocket are not supported by CCF"
-            )
 
         if self.ws is None:
             LOG.info("Creating WSS connection")
             try:
+                sslopt = {"ca_certs": self.ca}
+                if self.session_auth:
+                    sslopt["certfile"] = self.session_auth.cert
+                    sslopt["keyfile"] = self.session_auth.key
                 self.ws = websocket.create_connection(
                     f"wss://{self.host}:{self.port}",
-                    sslopt={
-                        "certfile": self.cert,
-                        "keyfile": self.key,
-                        "ca_certs": self.ca,
-                    },
+                    sslopt=sslopt,
                     timeout=timeout,
                 )
             except Exception as exc:
@@ -520,7 +576,7 @@ class CCFClient:
     """
     Client used to connect securely and issue requests to a given CCF node.
 
-    This is a very thin wrapper around Python Requests with TLS with added:
+    This is a wrapper around either Python Requests, curl or a websockets client over TLS with added:
 
     - Retry logic when connecting to nodes that are joining the network
     - Support for HTTP signatures (https://tools.ietf.org/html/draft-cavage-http-signatures-12).
@@ -530,8 +586,8 @@ class CCFClient:
     :param str host: RPC IP address or domain name of node to connect to.
     :param int port: RPC port number of node to connect to.
     :param str ca: Path to CCF network certificate.
-    :param str cert: Path to client certificate (optional).
-    :param str key: Path to client private key (optional).
+    :param Identity session_auth: Path to private key and certificate to be used as client authentication for the session (optional).
+    :param Identity signing_auth: Path to private key and certificate to be used to sign requests for the session (optional).
     :param int connection_timeout: Maximum time to wait for successful connection establishment before giving up.
     :param str description: Message to print on each request emitted with this client.
     :param bool ws: Use WebSocket client (experimental).
@@ -546,23 +602,25 @@ class CCFClient:
         host: str,
         port: int,
         ca: str,
-        cert: Optional[str] = None,
-        key: Optional[str] = None,
+        session_auth: Optional[Identity] = None,
+        signing_auth: Optional[Identity] = None,
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
         description: Optional[str] = None,
         ws: bool = False,
     ):
         self.connection_timeout = connection_timeout
-        self.description = description
         self.name = f"[{host}:{port}]"
+        self.description = description or self.name
         self.is_connected = False
+        self.auth = bool(session_auth)
+        self.sign = bool(signing_auth)
 
         if os.getenv("CURL_CLIENT"):
-            self.client_impl = CurlClient(host, port, ca, cert, key)
+            self.client_impl = CurlClient(host, port, ca, session_auth, signing_auth)
         elif os.getenv("WEBSOCKETS_CLIENT") or ws:
-            self.client_impl = WSClient(host, port, ca, cert, key)
+            self.client_impl = WSClient(host, port, ca, session_auth, signing_auth)
         else:
-            self.client_impl = RequestClient(host, port, ca, cert, key)
+            self.client_impl = RequestClient(host, port, ca, session_auth, signing_auth)
 
     def _response(self, response: Response) -> Response:
         LOG.info(response)
@@ -574,22 +632,16 @@ class CCFClient:
         body: Optional[Union[str, dict, bytes]] = None,
         http_verb: str = "POST",
         headers: Optional[dict] = None,
-        signed: bool = False,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
         log_capture: Optional[list] = None,
+        allow_redirects=True,
     ) -> Response:
-        description = ""
-        if self.description:
-            description = f"{self.description}{signed * 's'}"
-        else:
-            description = self.name
-
         if headers is None:
             headers = {}
-        r = Request(path, body, http_verb, headers)
+        r = Request(path, body, http_verb, headers, allow_redirects)
 
-        flush_info([f"{description} {r}"], log_capture, 3)
-        response = self.client_impl.request(r, signed, timeout)
+        flush_info([f"{self.description} {r}"], log_capture, 3)
+        response = self.client_impl.request(r, timeout)
         flush_info([str(response)], log_capture, 3)
         return response
 
@@ -599,9 +651,9 @@ class CCFClient:
         body: Optional[Union[str, dict, bytes]] = None,
         http_verb: str = "POST",
         headers: Optional[dict] = None,
-        signed: bool = False,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
         log_capture: Optional[list] = None,
+        allow_redirects: bool = True,
     ) -> Response:
         """
         Issues one request, synchronously, and returns the response.
@@ -611,9 +663,9 @@ class CCFClient:
         :type body: str or dict or bytes
         :param str http_verb: HTTP verb (e.g. "POST" or "GET").
         :param dict headers: HTTP request headers (optional).
-        :param bool signed: Sign request with client private key.
         :param int timeout: Maximum time to wait for a response before giving up.
         :param list log_capture: Rather than emit to default handler, capture log lines to list (optional).
+        :param bool allow_redirects: Select whether redirects are followed.
 
         :return: :py:class:`ccf.clients.Response`
         """
@@ -623,7 +675,9 @@ class CCFClient:
         logs: List[str] = []
 
         if self.is_connected:
-            r = self._call(path, body, http_verb, headers, signed, timeout, logs)
+            r = self._call(
+                path, body, http_verb, headers, timeout, logs, allow_redirects
+            )
             flush_info(logs, log_capture, 2)
             return r
 
@@ -632,7 +686,7 @@ class CCFClient:
             try:
                 logs = []
                 response = self._call(
-                    path, body, http_verb, headers, signed, timeout, logs
+                    path, body, http_verb, headers, timeout, logs, allow_redirects
                 )
                 # Only the first request gets this timeout logic - future calls
                 # call _call

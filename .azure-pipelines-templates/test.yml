@@ -1,41 +1,42 @@
 parameters:
-  suite_name_suffix: ''
-  ctest_filter: ''
-  ctest_timeout: '240'
+  suite_name_suffix: ""
+  ctest_filter: ""
+  ctest_timeout: "240"
 
 steps:
-- script: |
-    ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
-  env:
-    METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
-  displayName: CTest
-  workingDirectory: build
+  - script: |
+      ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
+    env:
+      METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
+      CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
+    displayName: CTest
+    workingDirectory: build
 
-# If a test fails, crudely upload nodes' logs for all tests
-- task: CopyFiles@2
-  inputs:
-    contents: '**/?(*out|*err)'
-    sourceFolder: $(Build.SourcesDirectory)/build/workspace
-    targetFolder: $(Build.ArtifactStagingDirectory)
-  condition: or(failed(), canceled())
-  displayName: 'Copy logs (only on failure)'
+  # If a test fails, crudely upload nodes' logs for all tests
+  - task: CopyFiles@2
+    inputs:
+      contents: "**/?(*out|*err)"
+      sourceFolder: $(Build.SourcesDirectory)/build/workspace
+      targetFolder: $(Build.ArtifactStagingDirectory)
+    condition: or(failed(), canceled())
+    displayName: "Copy logs (only on failure)"
 
-- task: PublishBuildArtifacts@1
-  inputs:
-    pathToPublish: $(Build.ArtifactStagingDirectory)
-    artifactName: 'workspace ${{ parameters.suite_name_suffix }}'
-  condition: or(failed(), canceled())
-  displayName: 'Upload logs (only on failure)'
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathToPublish: $(Build.ArtifactStagingDirectory)
+      artifactName: "workspace ${{ parameters.suite_name_suffix }}"
+    condition: or(failed(), canceled())
+    displayName: "Upload logs (only on failure)"
 
-- script: |
-    sed -i -r "s/\[NON-XML-CHAR-0x1B\]\[([0-9]*)m//g" Testing/*/Test.xml
-  displayName: 'Remove color codes'
-  workingDirectory: build
+  - script: |
+      sed -i -r "s/\[NON-XML-CHAR-0x1B\]\[([0-9]*)m//g" Testing/*/Test.xml
+    displayName: "Remove color codes"
+    workingDirectory: build
 
-- task: PublishTestResults@2
-  inputs:
-    testResultsFormat: cTest
-    testResultsFiles: '**/Test.xml'
-    testRunTitle: "${{ parameters.suite_name_suffix }}"
-    platform: "$(Agent.MachineName)"
-  condition: succeededOrFailed()
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFormat: cTest
+      testResultsFiles: "**/Test.xml"
+      testRunTitle: "${{ parameters.suite_name_suffix }}"
+      platform: "$(Agent.MachineName)"
+    condition: succeededOrFailed()

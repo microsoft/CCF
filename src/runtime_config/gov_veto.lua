@@ -4,7 +4,7 @@
 -- This file defines the default initial contents (ie, Lua scripts) of the governance scripts table.
 return {
   pass = [[
-  tables, calls, votes = ...
+  tables, calls, votes, proposer_id = ...
 
   -- interface definitions
   PASSED = 1
@@ -28,14 +28,14 @@ return {
   -- count active members
   members_active = 0
 
-  tables["ccf.members"]:foreach(function(member, details)
+  tables["public:ccf.gov.members"]:foreach(function(member, details)
     if details["status"] == STATE_ACTIVE then
       members_active = members_active + 1
     end
   end)
 
   -- check for raw_puts to sensitive tables
-  SENSITIVE_TABLES = {"ccf.whitelists", "ccf.governance.scripts"}
+  SENSITIVE_TABLES = {"public:ccf.gov.whitelists", "public:ccf.gov.governance.scripts"}
   for _, call in pairs(calls) do
     if call.func == "raw_puts" then
       for _, sensitive_table in pairs(SENSITIVE_TABLES) do
@@ -87,7 +87,15 @@ return {
     table.insert(self, {func=_func, args=_args})
     return self
   end
-  Calls =  setmetatable({}, {__index = __Calls})
+  Calls = setmetatable({}, {__index = __Calls})
+
+  function empty_list()
+    return setmetatable({}, {__was_object=false})
+  end
+
+  function empty_object()
+    return setmetatable({}, {__was_object=true})
+  end
   ]],
 
   -- scripts that can be proposed to be called

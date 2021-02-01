@@ -3,6 +3,7 @@
 #pragma once
 
 #include "intel_drng.h"
+#include "mbedtls_wrappers.h"
 #include "tls.h"
 
 #include <functional>
@@ -19,30 +20,23 @@ namespace tls
   class MbedtlsEntropy : public Entropy
   {
   private:
-    mbedtls_entropy_context entropy;
-    mbedtls_ctr_drbg_context drbg;
+    mbedtls::Entropy entropy = mbedtls::make_unique<mbedtls::Entropy>();
+    mbedtls::CtrDrbg drbg = mbedtls::make_unique<mbedtls::CtrDrbg>();
 
     static bool gen(uint64_t& v);
 
   public:
     MbedtlsEntropy()
     {
-      mbedtls_entropy_init(&entropy);
-      mbedtls_ctr_drbg_init(&drbg);
-      mbedtls_ctr_drbg_seed(&drbg, mbedtls_entropy_func, &entropy, nullptr, 0);
-    }
-
-    ~MbedtlsEntropy()
-    {
-      mbedtls_ctr_drbg_free(&drbg);
-      mbedtls_entropy_free(&entropy);
+      mbedtls_ctr_drbg_seed(
+        drbg.get(), mbedtls_entropy_func, entropy.get(), nullptr, 0);
     }
 
     std::vector<uint8_t> random(size_t len) override
     {
       std::vector<uint8_t> data(len);
 
-      if (mbedtls_ctr_drbg_random(&drbg, data.data(), data.size()) != 0)
+      if (mbedtls_ctr_drbg_random(drbg.get(), data.data(), data.size()) != 0)
         throw std::logic_error("Couldn't create random data");
 
       return data;
@@ -55,7 +49,7 @@ namespace tls
 
       if (
         mbedtls_ctr_drbg_random(
-          &drbg, reinterpret_cast<unsigned char*>(&rnd), len) != 0)
+          drbg.get(), reinterpret_cast<unsigned char*>(&rnd), len) != 0)
       {
         throw std::logic_error("Couldn't create random data");
       }
@@ -65,7 +59,7 @@ namespace tls
 
     void random(unsigned char* data, size_t len) override
     {
-      if (mbedtls_ctr_drbg_random(&drbg, data, len) != 0)
+      if (mbedtls_ctr_drbg_random(drbg.get(), data, len) != 0)
         throw std::logic_error("Couldn't create random data");
     }
 
@@ -81,7 +75,7 @@ namespace tls
 
     void* get_data() override
     {
-      return &drbg;
+      return drbg.get();
     }
   };
 

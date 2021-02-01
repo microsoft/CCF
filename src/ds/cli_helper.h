@@ -2,9 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/nonstd.h"
 #include "tls/san.h"
 
 #include <CLI11/CLI11.hpp>
+#include <optional>
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -21,9 +23,11 @@ namespace cli
     CLI::App& app,
     ParsedAddress& parsed,
     const std::string& option_name,
-    const std::string& option_desc)
+    const std::string& option_desc,
+    const std::string& default_port = "0")
   {
-    CLI::callback_t fun = [&parsed, option_name](CLI::results_t results) {
+    CLI::callback_t fun = [&parsed, option_name, default_port](
+                            CLI::results_t results) {
       if (results.size() != 1)
       {
         throw CLI::ValidationError(option_name, "Address could not be parsed");
@@ -33,9 +37,8 @@ namespace cli
       auto found = addr.find_last_of(":");
       auto hostname = addr.substr(0, found);
 
-      // If no port is specified, use port 0 (auto-assign a free port)
       const auto port =
-        found == std::string::npos ? "0" : addr.substr(found + 1);
+        found == std::string::npos ? default_port : addr.substr(found + 1);
 
       // Check if port is in valid range
       int port_int;
@@ -43,7 +46,7 @@ namespace cli
       {
         port_int = std::stoi(port);
       }
-      catch (const std::exception)
+      catch (const std::exception&)
       {
         throw CLI::ValidationError(option_name, "Port is not a number");
       }
@@ -68,12 +71,8 @@ namespace cli
   struct ParsedMemberInfo
   {
     std::string cert_file;
-    std::string keyshare_pub_file;
-
-    ParsedMemberInfo(const std::string& cert, const std::string& keyshare_pub) :
-      cert_file(cert),
-      keyshare_pub_file(keyshare_pub)
-    {}
+    std::optional<std::string> enc_pubk_file;
+    std::optional<std::string> member_data_file;
   };
 
   CLI::Option* add_member_info_option(
@@ -86,38 +85,75 @@ namespace cli
       parsed.clear();
       for (const auto& r : res)
       {
-        auto found = r.find_last_of(",");
-        if (found == std::string::npos)
+        std::stringstream ss(r);
+        std::string chunk;
+        std::vector<std::string> chunks;
+
+        while (std::getline(ss, chunk, ','))
+        {
+          chunks.emplace_back(chunk);
+        }
+
+        if (chunks.empty() || chunks.size() > 3)
         {
           throw CLI::ValidationError(
             option_name,
-            "Member info is not in format "
-            "member_cert.pem,member_encryption_public_key.pem");
+            "Member info is not in expected format: "
+            "member_cert.pem[,member_enc_pubk.pem[,member_data.json]]");
         }
 
-        auto cert = r.substr(0, found);
-        auto keyshare_pub = r.substr(found + 1);
+        ParsedMemberInfo member_info;
+        member_info.cert_file = chunks.at(0);
+        if (chunks.size() == 2)
+        {
+          member_info.enc_pubk_file = chunks.at(1);
+        }
+        else if (chunks.size() == 3)
+        {
+          // Only read encryption public key if there is something between two
+          // commas
+          if (!chunks.at(1).empty())
+          {
+            member_info.enc_pubk_file = chunks.at(1);
+          }
+          member_info.member_data_file = chunks.at(2);
+        }
 
-        // Validate that member certificate and public encryption key exist
+        // Validate that member info files exist, when specified
         auto validator = CLI::detail::ExistingFileValidator();
-        auto err_str = validator(cert);
-        if (!err_str.empty())
-        {
-          throw CLI::ValidationError(option_name, err_str);
-        }
-        err_str = validator(keyshare_pub);
+        auto err_str = validator(member_info.cert_file);
         if (!err_str.empty())
         {
           throw CLI::ValidationError(option_name, err_str);
         }
 
-        parsed.emplace_back(cert, keyshare_pub);
+        if (member_info.enc_pubk_file.has_value())
+        {
+          err_str = validator(member_info.enc_pubk_file.value());
+          if (!err_str.empty())
+          {
+            throw CLI::ValidationError(option_name, err_str);
+          }
+        }
+
+        if (member_info.member_data_file.has_value())
+        {
+          err_str = validator(member_info.member_data_file.value());
+          if (!err_str.empty())
+          {
+            throw CLI::ValidationError(option_name, err_str);
+          }
+        }
+
+        parsed.emplace_back(member_info);
       }
       return true;
     };
 
     auto* option = app.add_option(option_name, fun, option_desc, true);
-    option->type_name("member_cert.pem,member_enc_pubk.pem")->type_size(-1);
+    option
+      ->type_name("member_cert.pem[,member_enc_pubk.pem[,member_data.json]]")
+      ->type_size(-1);
 
     return option;
   }
@@ -134,11 +170,11 @@ namespace cli
     CLI::callback_t fun = [&parsed, option_name](CLI::results_t results) {
       for (auto& result : results)
       {
-        if (result.rfind(IP_ADDRESS_PREFIX, 0) == 0)
+        if (nonstd::starts_with(result, IP_ADDRESS_PREFIX))
         {
           parsed.push_back({result.substr(IP_ADDRESS_PREFIX.size()), true});
         }
-        else if (result.rfind(DNS_NAME_PREFIX, 0) == 0)
+        else if (nonstd::starts_with(result, DNS_NAME_PREFIX))
         {
           parsed.push_back({result.substr(DNS_NAME_PREFIX.size()), false});
         }

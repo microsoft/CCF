@@ -27,26 +27,23 @@ namespace enclave
     virtual void set_cmd_forwarder(
       std::shared_ptr<AbstractForwarder> cmd_forwarder_) = 0;
     virtual void tick(std::chrono::milliseconds) {}
-    virtual void open() = 0;
-    virtual bool is_open() = 0;
+    virtual void open(std::optional<tls::Pem*> identity = std::nullopt) = 0;
+    virtual bool is_open(kv::Tx& tx) = 0;
 
     // Used by rpcendpoint to process incoming client RPCs
     virtual std::optional<std::vector<uint8_t>> process(
       std::shared_ptr<RpcContext> ctx) = 0;
 
-    // Used by PBFT to execute commands
-    struct ProcessPbftResp
+    // Used by BFT to execute commands
+    struct ProcessBftResp
     {
       std::vector<uint8_t> result;
       kv::Version version;
     };
 
-    virtual bool is_members_frontend() = 0;
-    virtual ProcessPbftResp process_pbft(
+    virtual ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx) = 0;
-    virtual ProcessPbftResp process_pbft(
-      std::shared_ptr<enclave::RpcContext>, kv::Tx& tx, bool playback) = 0;
-    virtual crypto::Sha256Hash get_merkle_root() = 0;
-    virtual void update_merkle_tree() = 0;
+    virtual ProcessBftResp process_bft(
+      std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx) = 0;
   };
 }

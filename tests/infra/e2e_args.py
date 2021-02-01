@@ -17,6 +17,25 @@ def absolute_path_to_existing_file(arg):
     return arg
 
 
+def min_nodes(args, f):
+    """
+    Minimum number of nodes allowing 'f' faults for the
+    consensus variant.
+    """
+    if args.consensus == "bft":
+        return ["local://localhost"] * (3 * f + 1)
+    else:
+        return ["local://localhost"] * (2 * f + 1)
+
+
+def max_nodes(args, f):
+    """
+    Maximum number of nodes allowing no more than 'f'
+    faults for the consensus variant.
+    """
+    return min_nodes(args, f + 1)[:-1]
+
+
 def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     LOG.remove()
     LOG.add(
@@ -33,6 +52,17 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--binary-dir",
         help="Path to CCF binaries (cchost, scurl, keygenerator)",
         default=".",
+    )
+    parser.add_argument(
+        "--oe-binary",
+        help="Path to Open Enclave binary folder",
+        type=str,
+        default="/opt/openenclave/bin/",
+    )
+    parser.add_argument(
+        "--library-dir",
+        help="Path to CCF libraries (enclave images)",
+        default=None,
     )
     parser.add_argument(
         "-d",
@@ -68,13 +98,24 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=False,
     )
     parser.add_argument(
+        "-p",
+        "--package",
+        help="The enclave package to load (e.g., liblogging)",
+    )
+    parser.add_argument(
         "-g",
         "--gov-script",
         help="Path to governance script",
         type=absolute_path_to_existing_file,
     )
-    parser.add_argument("-s", "--app-script", help="Path to app script")
     parser.add_argument("-j", "--js-app-script", help="Path to js app script")
+    parser.add_argument("--js-app-bundle", help="Path to js app bundle")
+    parser.add_argument(
+        "--jwt-issuer",
+        help="Path to JSON file with JWT issuer definition",
+        action="append",
+        default=[],
+    )
     parser.add_argument(
         "-o",
         "--network-only",
@@ -105,8 +146,8 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=100000,
     )
     parser.add_argument(
-        "--pbft-view-change-timeout",
-        help="Pbft maximum view change timeout for each node in the network",
+        "--bft-view-change-timeout",
+        help="bft maximum view change timeout for each node in the network",
         type=int,
         default=5000,
     )
@@ -124,9 +165,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
     parser.add_argument(
         "--pdb", help="Break to debugger on exception", action="store_true"
-    )
-    parser.add_argument(
-        "--notify-server", help="Server host to notify progress to (host:port)"
     )
     parser.add_argument(
         "--workspace",
@@ -172,13 +210,25 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
     parser.add_argument(
         "--initial-member-count",
-        help="Number of members when intializing the network",
+        help="Number of members when initializing the network",
         type=int,
         default=3,
     )
     parser.add_argument(
+        "--initial-operator-count",
+        help="Number of additional members with is_operator set in their member_data when initializing the network",
+        type=int,
+        default=0,
+    )
+    parser.add_argument(
         "--initial-user-count",
-        help="Number of users when intializing the network",
+        help="Number of users when initializing the network",
+        type=int,
+        default=1,
+    )
+    parser.add_argument(
+        "--initial-recovery-member-count",
+        help="Number of initial members that are handed recovery shares",
         type=int,
         default=3,
     )
@@ -196,12 +246,49 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--snapshot-tx-interval",
         help="Number of transactions between two snapshots",
+        type=int,
+        default=10,
+    )
+    parser.add_argument(
+        "--jwt-key-refresh-interval-s",
+        help="JWT key refresh interval in seconds",
+        default=None,
+    )
+    parser.add_argument(
+        "--long-tests", help="Enable extended tests", action="store_true"
+    )
+    parser.add_argument(
+        "--disable-member-session-auth",
+        help="Disable session auth for members",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--common-read-only-ledger-dir",
+        help="Location of read-only ledger directory available to all nodes",
+        type=str,
         default=None,
     )
 
     add(parser)
 
     if accept_unknown:
-        return parser.parse_known_args()
+        args, unknown_args = parser.parse_known_args()
     else:
-        return parser.parse_args()
+        args = parser.parse_args()
+
+    args.binary_dir = os.path.abspath(args.binary_dir)
+
+    if args.library_dir is None:
+        if os.path.basename(args.binary_dir) == "bin":
+            args.library_dir = os.path.join(args.binary_dir, os.pardir, "lib")
+        else:
+            args.library_dir = args.binary_dir
+
+    # js_app_script is deprecated
+    if not args.package and (args.js_app_script or args.js_app_bundle):
+        args.package = "libjs_generic"
+
+    if accept_unknown:
+        return args, unknown_args
+    else:
+        return args
