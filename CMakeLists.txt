@@ -399,14 +399,14 @@ if(BUILD_TESTS)
                                  secp256k1.host http_parser.host sss.host
     )
 
-    add_unit_test(
-      proposal_id_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/proposal_id_test.cpp
-    )
-    target_link_libraries(
-      proposal_id_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-                               secp256k1.host http_parser.host sss.host
-    )
+    # add_unit_test(
+    #   proposal_id_test
+    #   ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/proposal_id_test.cpp
+    # )
+    # target_link_libraries(
+    #   proposal_id_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
+    #                            secp256k1.host http_parser.host sss.host
+    # )
 
     add_unit_test(
       node_frontend_test
