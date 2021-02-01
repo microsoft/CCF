@@ -28,14 +28,17 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     auto tx1 = store.create_tx();
     auto handle_1s = tx1.rw(string_map);
     handle_1s->put("foo", "bar");
+    handle_1s->put("baz", "hello");
     auto handle_1n = tx1.rw(num_map);
     handle_1n->put(42, 100);
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
     first_snapshot_version = tx1.commit_version();
 
     auto tx2 = store.create_tx();
-    auto handle_2 = tx2.rw(num_map);
-    handle_2->put(42, 123);
+    auto handle_2s = tx2.rw(string_map);
+    handle_2s->remove("baz");
+    auto handle_2n = tx2.rw(num_map);
+    handle_2n->put(42, 123);
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
     second_snapshot_version = tx2.commit_version();
 
@@ -62,13 +65,25 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     auto tx1 = new_store.create_tx();
     {
       auto handle = tx1.rw(string_map);
-      auto v = handle->get("foo");
-      REQUIRE(v.has_value());
-      REQUIRE_EQ(v.value(), "bar");
+      {
+        auto v = handle->get("foo");
+        REQUIRE(v.has_value());
+        REQUIRE_EQ(v.value(), "bar");
 
-      const auto ver = handle->get_previous_version("foo");
-      REQUIRE(ver.has_value());
-      REQUIRE_EQ(ver.value(), first_snapshot_version);
+        const auto ver = handle->get_previous_version("foo");
+        REQUIRE(ver.has_value());
+        REQUIRE_EQ(ver.value(), first_snapshot_version);
+      }
+
+      {
+        auto v = handle->get("baz");
+        REQUIRE(v.has_value());
+        REQUIRE_EQ(v.value(), "hello");
+
+        const auto ver = handle->get_previous_version("baz");
+        REQUIRE(ver.has_value());
+        REQUIRE_EQ(ver.value(), first_snapshot_version);
+      }
 
       REQUIRE(!handle->has("uncommitted"));
     }
@@ -102,13 +117,23 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     {
       auto handle = tx1.rw(string_map);
 
-      auto v = handle->get("foo");
-      REQUIRE(v.has_value());
-      REQUIRE_EQ(v.value(), "bar");
+      {
+        auto v = handle->get("foo");
+        REQUIRE(v.has_value());
+        REQUIRE_EQ(v.value(), "bar");
 
-      const auto ver = handle->get_previous_version("foo");
-      REQUIRE(ver.has_value());
-      REQUIRE_EQ(ver.value(), first_snapshot_version);
+        const auto ver = handle->get_previous_version("foo");
+        REQUIRE(ver.has_value());
+        REQUIRE_EQ(ver.value(), first_snapshot_version);
+      }
+
+      {
+        auto v = handle->get("baz");
+        REQUIRE(!v.has_value());
+
+        const auto ver = handle->get_previous_version("baz");
+        REQUIRE(!ver.has_value());
+      }
 
       REQUIRE(!handle->has("uncommitted"));
     }
