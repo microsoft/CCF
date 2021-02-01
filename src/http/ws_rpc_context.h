@@ -201,8 +201,7 @@ namespace ws
 
     virtual std::vector<uint8_t> serialise_response() const override
     {
-      return serialise(
-        response_status, response_body, seqno, view);
+      return serialise(response_status, response_body, seqno, view);
     }
   };
 }
