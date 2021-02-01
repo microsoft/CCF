@@ -75,7 +75,7 @@ class PublicDomain:
         self._msgpacked_tables = {
             "public:ccf.gov.member_cert_ders",
             "public:ccf.gov.governance.history",
-            "public:ccf.gov.signatures",
+            "public:ccf.internal.signatures",
             "public:ccf.gov.nodes",
         }
         self._read()
