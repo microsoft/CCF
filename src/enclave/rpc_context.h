@@ -184,7 +184,6 @@ namespace enclave
 
     virtual void set_seqno(kv::Version) = 0;
     virtual void set_view(kv::Consensus::View) = 0;
-    virtual void set_global_commit(kv::Version) = 0;
 
     virtual void set_response_header(
       const std::string_view& name, const std::string_view& value) = 0;
@@ -192,8 +191,6 @@ namespace enclave
     {
       set_response_header(name, fmt::format("{}", n));
     }
-
-    virtual bool has_global_commit() = 0;
 
     virtual void set_error(
       http_status status, const std::string& code, std::string&& msg)

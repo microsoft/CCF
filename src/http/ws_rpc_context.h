@@ -15,10 +15,9 @@ namespace ws
     size_t code,
     const std::vector<uint8_t>& body,
     kv::Version seqno = kv::NoVersion,
-    kv::Consensus::View view = ccf::VIEW_UNKNOWN,
-    kv::Version global_commit = kv::NoVersion)
+    kv::Consensus::View view = ccf::VIEW_UNKNOWN)
   {
-    return make_out_frame(code, seqno, view, global_commit, body);
+    return make_out_frame(code, seqno, view, body);
   };
 
   inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
@@ -62,7 +61,6 @@ namespace ws
 
     size_t seqno = 0;
     size_t view = 0;
-    size_t global_commit = 0;
 
   public:
     WsRpcContext(
@@ -185,16 +183,6 @@ namespace ws
       view = t;
     }
 
-    virtual void set_global_commit(kv::Version gc) override
-    {
-      global_commit = gc;
-    }
-
-    virtual bool has_global_commit() override
-    {
-      return global_commit != 0;
-    }
-
     virtual void set_apply_writes(bool apply) override
     {
       explicit_apply_writes = apply;
@@ -214,7 +202,7 @@ namespace ws
     virtual std::vector<uint8_t> serialise_response() const override
     {
       return serialise(
-        response_status, response_body, seqno, view, global_commit);
+        response_status, response_body, seqno, view);
     }
   };
 }
