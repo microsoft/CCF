@@ -174,7 +174,7 @@ DOCTEST_TEST_CASE("Proposer ballot")
   Propose::In proposal;
   proposal.script = std::string(R"xxx(
     tables, member_info = ...
-    for i = 1,10000000,1
+    for i = 1,100000000,1
     do
     u = i ^ 0.5
     end
