@@ -100,7 +100,7 @@ namespace kv
      * @param key Key to read
      *
      * @return Optional containing version of applied transaction which last
-     * wrote at this key, or nullopt of this key has no associated value
+     * wrote at this key, or nullopt if this key has no associated value
      */
     std::optional<Version> get_version_of_previous_write(const K& key)
     {
