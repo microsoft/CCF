@@ -584,13 +584,22 @@ if(BUILD_TESTS)
     NAME js_batched_stress_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/src/apps/batched
+    ADDITIONAL_ARGS
+      --js-app-bundle
+      ${CMAKE_SOURCE_DIR}/src/apps/batched
+      --raft-election-timeout-ms
+      10000 # Larger election timeout as recording large JS applications may
+            # trigger leadership changes
   )
 
   add_e2e_test(
     NAME modules_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
     CONSENSUS cft
+    ADDITIONAL_ARGS
+      --raft-election-timeout-ms 10000 # Larger election timeout as recording
+                                       # large JS applications may trigger
+                                       # leadership changes
   )
 
   add_e2e_test(
