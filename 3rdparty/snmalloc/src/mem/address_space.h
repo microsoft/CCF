@@ -13,8 +13,8 @@ namespace snmalloc
    * It cannot unreserve memory, so this does not require the
    * usual complexity of a buddy allocator.
    */
-  template<typename Pal>
-  class AddressSpaceManager : public Pal
+  template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
+  class AddressSpaceManager
   {
     /**
      * Stores the blocks of address space
@@ -160,7 +160,7 @@ namespace snmalloc
       auto page_start = pointer_align_down<OS_PAGE_SIZE, char>(base);
       auto page_end =
         pointer_align_up<OS_PAGE_SIZE, char>(pointer_offset(base, size));
-      Pal::template notify_using<NoZero>(
+      PAL::template notify_using<NoZero>(
         page_start, static_cast<size_t>(page_end - page_start));
     }
 
@@ -175,14 +175,13 @@ namespace snmalloc
     template<bool committed>
     void* reserve(size_t size)
     {
-      SNMALLOC_ASSERT(bits::next_pow2(size) == size);
+      SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
-      if constexpr (pal_supports<AlignedAllocation, Pal>)
+      if constexpr (pal_supports<AlignedAllocation, PAL>)
       {
-        if (size >= Pal::minimum_alloc_size)
-          return static_cast<Pal*>(this)->template reserve_aligned<committed>(
-            size);
+        if (size >= PAL::minimum_alloc_size)
+          return PAL::template reserve_aligned<committed>(size);
       }
 
       void* res;
@@ -192,22 +191,20 @@ namespace snmalloc
         if (res == nullptr)
         {
           // Allocation failed ask OS for more memory
-          void* block;
-          size_t block_size;
-          if constexpr (pal_supports<AlignedAllocation, Pal>)
+          void* block = nullptr;
+          size_t block_size = 0;
+          if constexpr (pal_supports<AlignedAllocation, PAL>)
           {
-            block_size = Pal::minimum_alloc_size;
-            block = static_cast<Pal*>(this)->template reserve_aligned<false>(
-              block_size);
+            block_size = PAL::minimum_alloc_size;
+            block = PAL::template reserve_aligned<false>(block_size);
           }
-          else
+          else if constexpr (!pal_supports<NoAllocation, PAL>)
           {
             // Need at least 2 times the space to guarantee alignment.
             // Hold lock here as a race could cause additional requests to
-            // the Pal, and this could lead to suprious OOM.  This is
-            // particularly bad if the Pal gives all the memory on first call.
-            auto block_and_size =
-              static_cast<Pal*>(this)->reserve_at_least(size * 2);
+            // the PAL, and this could lead to suprious OOM.  This is
+            // particularly bad if the PAL gives all the memory on first call.
+            auto block_and_size = PAL::reserve_at_least(size * 2);
             block = block_and_size.first;
             block_size = block_and_size.second;
 
@@ -238,6 +235,22 @@ namespace snmalloc
         commit_block(res, size);
 
       return res;
+    }
+
+    /**
+     * Default constructor.  An address-space manager constructed in this way
+     * does not own any memory at the start and will request any that it needs
+     * from the PAL.
+     */
+    AddressSpaceManager() = default;
+
+    /**
+     * Constructor that pre-initialises the address-space manager with a region
+     * of memory.
+     */
+    AddressSpaceManager(void* base, size_t length)
+    {
+      add_range(base, length);
     }
   };
 } // namespace snmalloc
