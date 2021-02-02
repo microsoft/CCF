@@ -66,24 +66,18 @@ namespace timing
     const bool expects_commit;
   };
 
-  struct CommitIDs
+  struct TransactionID
   {
-    size_t seqno;
-    size_t global;
     size_t view;
+    size_t seqno;
   };
 
   struct ReceivedReply
   {
-    const TimeDelta receive_time;
-    const size_t rpc_id;
-    const optional<CommitIDs> commit;
-  };
-
-  struct CommitPoint
-  {
-    size_t view;
-    size_t seqno;
+    TimeDelta receive_time;
+    size_t rpc_id;
+    optional<TransactionID> commit;
+    size_t global_seqno;
   };
 
   std::string timestamp()
@@ -163,35 +157,26 @@ namespace timing
     vector<PerRound> per_round;
   };
 
-  static std::optional<CommitIDs> parse_commit_ids(
+  static std::optional<TransactionID> extract_transaction_id(
     const RpcTlsClient::Response& response)
   {
     const auto& h = response.headers;
-    const auto local_commit_it = h.find(http::headers::CCF_TX_SEQNO);
-    if (local_commit_it == h.end())
-    {
-      return std::nullopt;
-    }
-
-    const auto global_commit_it = h.find(http::headers::CCF_GLOBAL_COMMIT);
-    if (global_commit_it == h.end())
-    {
-      return std::nullopt;
-    }
-
     const auto view_it = h.find(http::headers::CCF_TX_VIEW);
     if (view_it == h.end())
     {
       return std::nullopt;
     }
 
-    const auto seqno =
-      std::strtoul(local_commit_it->second.c_str(), nullptr, 0);
-    const auto global =
-      std::strtoul(global_commit_it->second.c_str(), nullptr, 0);
-    const auto view = std::strtoul(view_it->second.c_str(), nullptr, 0);
+    const auto seqno_it = h.find(http::headers::CCF_TX_SEQNO);
+    if (seqno_it == h.end())
+    {
+      return std::nullopt;
+    }
 
-    return {{seqno, global, view}};
+    const auto view = std::strtoul(view_it->second.c_str(), nullptr, 0);
+    const auto seqno = std::strtoul(seqno_it->second.c_str(), nullptr, 0);
+
+    return {{view, seqno}};
   }
 
   class ResponseTimes
@@ -240,16 +225,20 @@ namespace timing
         {Clock::now() - start_time, method, rpc_id, expects_commit});
     }
 
-    void record_receive(size_t rpc_id, const optional<CommitIDs>& commit)
+    void record_receive(
+      size_t rpc_id,
+      const optional<TransactionID>& tx_id,
+      size_t global_seqno = 0)
     {
-      receives.push_back({Clock::now() - start_time, rpc_id, commit});
+      receives.push_back(
+        {Clock::now() - start_time, rpc_id, tx_id, global_seqno});
     }
 
     // Repeatedly calls GET /tx RPC until the target seqno has been
     // committed (or will never be committed), returns first confirming
     // response. Calls record_[send/response], if record is true.
     // Throws on errors, or if target is rolled back
-    void wait_for_global_commit(const CommitPoint& target, bool record = true)
+    void wait_for_global_commit(const TransactionID& target, bool record = true)
     {
       auto params = nlohmann::json::object();
       params["view"] = target.view;
@@ -279,7 +268,7 @@ namespace timing
             body.dump()));
         }
 
-        const auto commit_ids = parse_commit_ids(response);
+        const auto tx_id = extract_transaction_id(response);
 
         // NB: Eventual header re-org should be exposing API types so
         // they can be consumed cleanly from C++ clients
@@ -288,7 +277,7 @@ namespace timing
         {
           if (record)
           {
-            record_receive(response.id, commit_ids);
+            record_receive(response.id, tx_id);
           }
 
           // Commit is pending, poll again
@@ -298,27 +287,24 @@ namespace timing
         else if (tx_status == "COMMITTED")
         {
           LOG_INFO_FMT("Found global commit {}.{}", target.view, target.seqno);
-          if (commit_ids.has_value())
+          if (tx_id.has_value())
           {
             LOG_INFO_FMT(
-              " (headers view: {}, seqno: {}, global: {})",
-              commit_ids->view,
-              commit_ids->seqno,
-              commit_ids->global);
+              " (headers view: {}, seqno: {})", tx_id->view, tx_id->seqno);
           }
 
           if (record)
           {
-            if (commit_ids.has_value())
+            if (tx_id.has_value())
             {
-              record_receive(response.id, commit_ids);
+              record_receive(response.id, tx_id, target.seqno);
             }
             else
             {
               // If this response didn't contain commit IDs in headers, we can
               // still construct them from the body
               record_receive(
-                response.id, {{target.seqno, target.seqno, target.view}});
+                response.id, {{target.view, target.seqno}}, target.seqno);
             }
           }
           return;
@@ -365,11 +351,11 @@ namespace timing
 
         if (receive.commit.has_value())
         {
-          if (receive.commit->global >= highest_local_commit)
+          if (receive.global_seqno >= highest_local_commit)
           {
             LOG_INFO_FMT(
               "Global commit match {} for highest local commit {}",
-              receive.commit->global,
+              receive.global_seqno,
               highest_local_commit);
             auto was =
               duration_cast<milliseconds>(end_time_delta).count() / 1000.0;
@@ -400,16 +386,16 @@ namespace timing
         vector<PendingGlobalCommit> pending_global_commits;
 
         auto complete_pending = [&](const ReceivedReply& receive) {
-          if (receive.commit.has_value())
+          if (receive.global_seqno > 0)
           {
             auto pending_it = pending_global_commits.begin();
             while (pending_it != pending_global_commits.end())
             {
-              if (receive.commit->global >= pending_it->target_commit)
+              if (receive.global_seqno >= pending_it->target_commit)
               {
                 round_global_commit.push_back(
                   (receive.receive_time - pending_it->send_time).count());
-                pending_it = pending_global_commits.erase(pending_it);
+                ++pending_it;
               }
               else
               {
@@ -419,6 +405,11 @@ namespace timing
                 break;
               }
             }
+            if (pending_it != pending_global_commits.begin())
+            {
+              pending_global_commits.erase(
+                pending_global_commits.begin(), pending_it);
+            }
           }
         };
 
@@ -427,7 +418,7 @@ namespace timing
           const auto& send = *send_it;
 
           double tx_latency;
-          optional<CommitIDs> response_commit;
+          optional<ReceivedReply> matching_reply;
           for (auto i = next_recv; i < receives.size(); ++i)
           {
             const auto& receive = receives[i];
@@ -448,7 +439,7 @@ namespace timing
                 continue;
               }
 
-              response_commit = receive.commit;
+              matching_reply = receive;
               next_recv = i + 1;
               break;
             }
@@ -456,24 +447,24 @@ namespace timing
 
           if (send.expects_commit)
           {
-            if (response_commit.has_value())
+            if (matching_reply.has_value())
             {
               // Successful write - measure local tx time AND try to find global
               // commit time
               round_local_commit.push_back(tx_latency);
 
-              if (response_commit->global >= response_commit->seqno)
+              if (matching_reply->global_seqno >= matching_reply->commit->seqno)
               {
                 // Global commit already already
                 round_global_commit.push_back(tx_latency);
               }
               else
               {
-                if (response_commit->seqno <= highest_local_commit)
+                if (matching_reply->commit->seqno <= highest_local_commit)
                 {
                   // Store expected global commit to find later
                   pending_global_commits.push_back(
-                    {send.send_time, response_commit->seqno});
+                    {send.send_time, matching_reply->commit->seqno});
                 }
                 else
                 {
@@ -481,7 +472,7 @@ namespace timing
                     "Ignoring request with ID {} because it committed too late "
                     "({} > {})",
                     send.rpc_id,
-                    response_commit->seqno,
+                    matching_reply->commit->seqno,
                     highest_local_commit);
                 }
               }
@@ -597,14 +588,14 @@ namespace timing
           {
             recv_csv << "," << reply.commit->seqno;
             recv_csv << "," << reply.commit->view;
-            recv_csv << "," << reply.commit->global;
           }
           else
           {
             recv_csv << "," << 0;
             recv_csv << "," << 0;
-            recv_csv << "," << 0;
           }
+
+          recv_csv << "," << reply.global_seqno;
           recv_csv << endl;
         }
         LOG_INFO_FMT("Wrote {} entries to {}", receives.size(), recv_path);
