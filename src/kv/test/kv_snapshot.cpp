@@ -26,19 +26,24 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
   INFO("Apply transactions to original store");
   {
     auto tx1 = store.create_tx();
-    auto handle_1 = tx1.rw<MapTypes::StringString>("public:string_map");
-    handle_1->put("foo", "bar");
+    auto handle_1s = tx1.rw(string_map);
+    handle_1s->put("foo", "bar");
+    handle_1s->put("baz", "hello");
+    auto handle_1n = tx1.rw(num_map);
+    handle_1n->put(42, 100);
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
     first_snapshot_version = tx1.commit_version();
 
     auto tx2 = store.create_tx();
-    auto handle_2 = tx2.rw(num_map);
-    handle_2->put(42, 123);
+    auto handle_2s = tx2.rw(string_map);
+    handle_2s->remove("baz");
+    auto handle_2n = tx2.rw(num_map);
+    handle_2n->put(42, 123);
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
     second_snapshot_version = tx2.commit_version();
 
     auto tx3 = store.create_tx();
-    auto handle_3 = tx1.rw<MapTypes::StringString>("public:string_map");
+    auto handle_3 = tx1.rw(string_map);
     handle_3->put("uncommitted", "not committed");
     // Do not commit tx3
   }
@@ -55,18 +60,44 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     REQUIRE_EQ(
       new_store.deserialise_snapshot(first_serialised_snapshot, hooks),
       kv::ApplySuccess::PASS);
-    REQUIRE_EQ(new_store.current_version(), 1);
+    REQUIRE_EQ(new_store.current_version(), first_snapshot_version);
 
     auto tx1 = new_store.create_tx();
-    auto handle = tx1.rw<MapTypes::StringString>("public:string_map");
-    auto v = handle->get("foo");
-    REQUIRE(v.has_value());
-    REQUIRE_EQ(v.value(), "bar");
+    {
+      auto handle = tx1.rw(string_map);
+      {
+        auto v = handle->get("foo");
+        REQUIRE(v.has_value());
+        REQUIRE_EQ(v.value(), "bar");
 
-    auto num_handle = tx1.rw<MapTypes::NumNum>("public:num_map");
-    REQUIRE(!num_handle->has(42));
+        const auto ver = handle->get_version_of_previous_write("foo");
+        REQUIRE(ver.has_value());
+        REQUIRE_EQ(ver.value(), first_snapshot_version);
+      }
 
-    REQUIRE(!handle->has("uncommitted"));
+      {
+        auto v = handle->get("baz");
+        REQUIRE(v.has_value());
+        REQUIRE_EQ(v.value(), "hello");
+
+        const auto ver = handle->get_version_of_previous_write("baz");
+        REQUIRE(ver.has_value());
+        REQUIRE_EQ(ver.value(), first_snapshot_version);
+      }
+
+      REQUIRE(!handle->has("uncommitted"));
+    }
+
+    {
+      auto num_handle = tx1.rw(num_map);
+      auto v = num_handle->get(42);
+      REQUIRE(v.has_value());
+      REQUIRE_EQ(v.value(), 100);
+
+      const auto ver = num_handle->get_version_of_previous_write(42);
+      REQUIRE(ver.has_value());
+      REQUIRE_EQ(ver.value(), first_snapshot_version);
+    }
   }
 
   auto second_snapshot = store.snapshot(second_snapshot_version);
@@ -79,21 +110,44 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
 
     kv::ConsensusHookPtrs hooks;
     new_store.deserialise_snapshot(second_serialised_snapshot, hooks);
-    REQUIRE_EQ(new_store.current_version(), 2);
+    REQUIRE_EQ(new_store.current_version(), second_snapshot_version);
 
     auto tx1 = new_store.create_tx();
-    auto handle = tx1.rw<MapTypes::StringString>("public:string_map");
 
-    auto v = handle->get("foo");
-    REQUIRE(v.has_value());
-    REQUIRE_EQ(v.value(), "bar");
+    {
+      auto handle = tx1.rw(string_map);
 
-    auto num_handle = tx1.rw<MapTypes::NumNum>("public:num_map");
-    auto num_v = num_handle->get(42);
-    REQUIRE(num_v.has_value());
-    REQUIRE_EQ(num_v.value(), 123);
+      {
+        auto v = handle->get("foo");
+        REQUIRE(v.has_value());
+        REQUIRE_EQ(v.value(), "bar");
 
-    REQUIRE(!handle->has("uncommitted"));
+        const auto ver = handle->get_version_of_previous_write("foo");
+        REQUIRE(ver.has_value());
+        REQUIRE_EQ(ver.value(), first_snapshot_version);
+      }
+
+      {
+        auto v = handle->get("baz");
+        REQUIRE(!v.has_value());
+
+        const auto ver = handle->get_version_of_previous_write("baz");
+        REQUIRE(!ver.has_value());
+      }
+
+      REQUIRE(!handle->has("uncommitted"));
+    }
+
+    {
+      auto num_handle = tx1.rw(num_map);
+      auto num_v = num_handle->get(42);
+      REQUIRE(num_v.has_value());
+      REQUIRE_EQ(num_v.value(), 123);
+
+      const auto ver = num_handle->get_version_of_previous_write(42);
+      REQUIRE(ver.has_value());
+      REQUIRE_EQ(ver.value(), second_snapshot_version);
+    }
   }
 }
 
