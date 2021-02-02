@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `TxView`s have been renamed to `MapHandle`s, to clearly distinguish them from consensus views. Calls to `tx.get_view` must be replaced with `tx.rw`.
 - `tx.rw` does not support retrieving multiple views in a single call. Instead of `auto [view1, view2] = tx.get_view(map1, map2);`, you must write `auto handle1 = tx.rw(map1); auto handle2 = tx.rw(map2);`.
 
+### Added
+
+- Added `get_version_of_previous_write(const K& k)` to `MapHandle`. If this entry was written to by a previous transaction, this returns the version at which that transaction was applied. See docs for more details.
+
 ## [0.17.2]
 
 ### Fixed
