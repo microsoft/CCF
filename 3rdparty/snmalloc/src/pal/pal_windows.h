@@ -46,7 +46,38 @@ namespace snmalloc
     }
 
   public:
-    PALWindows()
+    /**
+     * Bitmap of PalFeatures flags indicating the optional features that this
+     * PAL supports.  This PAL supports low-memory notifications.
+     */
+    static constexpr uint64_t pal_features = LowMemoryNotification
+#  if defined(PLATFORM_HAS_VIRTUALALLOC2) && !defined(USE_SYSTEMATIC_TESTING)
+      | AlignedAllocation
+#  endif
+      ;
+
+    static constexpr size_t minimum_alloc_size = 0x10000;
+
+    static constexpr size_t page_size = 0x1000;
+
+    /**
+     * Check whether the low memory state is still in effect.  This is an
+     * expensive operation and should not be on any fast paths.
+     */
+    static bool expensive_low_memory_check()
+    {
+      BOOL result;
+      QueryMemoryResourceNotification(lowMemoryObject, &result);
+      return result;
+    }
+
+    /**
+     * Register callback object for low-memory notifications.
+     * Client is responsible for allocation, and ensuring the object is live
+     * for the duration of the program.
+     */
+    static void
+    register_for_low_memory_callback(PalNotificationObject* callback)
     {
       // No error handling here - if this doesn't work, then we will just
       // consume more memory.  There's nothing sensible that we could do in
@@ -70,41 +101,7 @@ namespace snmalloc
           INFINITE,
           WT_EXECUTEDEFAULT);
       }
-    }
 
-    /**
-     * Bitmap of PalFeatures flags indicating the optional features that this
-     * PAL supports.  This PAL supports low-memory notifications.
-     */
-    static constexpr uint64_t pal_features = LowMemoryNotification
-#  if defined(PLATFORM_HAS_VIRTUALALLOC2) && !defined(USE_SYSTEMATIC_TESTING)
-      | AlignedAllocation
-#  endif
-      ;
-
-    static constexpr size_t minimum_alloc_size = 0x10000;
-
-    static constexpr size_t page_size = 0x1000;
-
-    /**
-     * Check whether the low memory state is still in effect.  This is an
-     * expensive operation and should not be on any fast paths.
-     */
-    bool expensive_low_memory_check()
-    {
-      BOOL result;
-      QueryMemoryResourceNotification(lowMemoryObject, &result);
-      return result;
-    }
-
-    /**
-     * Register callback object for low-memory notifications.
-     * Client is responsible for allocation, and ensuring the object is live
-     * for the duration of the program.
-     */
-    static void
-    register_for_low_memory_callback(PalNotificationObject* callback)
-    {
       low_memory_callbacks.register_notification(callback);
     }
 
@@ -116,7 +113,7 @@ namespace snmalloc
     }
 
     /// Notify platform that we will not be using these pages
-    void notify_not_using(void* p, size_t size) noexcept
+    static void notify_not_using(void* p, size_t size) noexcept
     {
       SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
 
@@ -128,7 +125,7 @@ namespace snmalloc
 
     /// Notify platform that we will be using these pages
     template<ZeroMem zero_mem>
-    void notify_using(void* p, size_t size) noexcept
+    static void notify_using(void* p, size_t size) noexcept
     {
       SNMALLOC_ASSERT(
         is_aligned_block<page_size>(p, size) || (zero_mem == NoZero));
@@ -141,7 +138,7 @@ namespace snmalloc
 
     /// OS specific function for zeroing memory
     template<bool page_aligned = false>
-    void zero(void* p, size_t size) noexcept
+    static void zero(void* p, size_t size) noexcept
     {
       if (page_aligned || is_aligned_block<page_size>(p, size))
       {
@@ -154,13 +151,13 @@ namespace snmalloc
     }
 
 #  ifdef USE_SYSTEMATIC_TESTING
-    size_t& systematic_bump_ptr()
+    static size_t& systematic_bump_ptr()
     {
       static size_t bump_ptr = (size_t)0x4000'0000'0000;
       return bump_ptr;
     }
 
-    std::pair<void*, size_t> reserve_at_least(size_t size) noexcept
+    static std::pair<void*, size_t> reserve_at_least(size_t size) noexcept
     {
       // Magic number for over-allocating chosen by the Pal
       // These should be further refined based on experiments.
@@ -186,9 +183,9 @@ namespace snmalloc
     }
 #  elif defined(PLATFORM_HAS_VIRTUALALLOC2)
     template<bool committed>
-    void* reserve_aligned(size_t size) noexcept
+    static void* reserve_aligned(size_t size) noexcept
     {
-      SNMALLOC_ASSERT(size == bits::next_pow2(size));
+      SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= minimum_alloc_size);
 
       DWORD flags = MEM_RESERVE;
@@ -216,9 +213,9 @@ namespace snmalloc
       return ret;
     }
 #  else
-    std::pair<void*, size_t> reserve_at_least(size_t size) noexcept
+    static std::pair<void*, size_t> reserve_at_least(size_t size) noexcept
     {
-      SNMALLOC_ASSERT(size == bits::next_pow2(size));
+      SNMALLOC_ASSERT(bits::is_pow2(size));
 
       // Magic number for over-allocating chosen by the Pal
       // These should be further refined based on experiments.
