@@ -112,9 +112,6 @@ namespace aft
 
     auto ctx = create_request_ctx(serialized_req.data(), serialized_req.size());
 
-    // Deprecated, this will be removed in future releases
-    ctx->ctx->set_global_commit(committed_seqno);
-
     return std::make_unique<RequestMessage>(
       std::move(serialized_req), args.rid, std::move(ctx), rep_cb);
   }
@@ -132,9 +129,6 @@ namespace aft
     Request request = req_v.value();
 
     auto ctx = create_request_ctx(request);
-
-    // Deprecated, this will be removed in future releases
-    ctx->ctx->set_global_commit(committed_seqno);
 
     auto request_message = RequestMessage::deserialize(
       std::move(request.raw), request.rid, std::move(ctx), nullptr);
