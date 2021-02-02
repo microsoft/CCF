@@ -280,27 +280,21 @@ namespace ccf
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
-      // auto quote_opt =
-      //   EnclaveEvidenceGenerator::get_quote(node_sign_kp->public_key_pem());
+      auto quote_opt =
+        EnclaveEvidenceGenerator::get_quote(node_sign_kp->public_key_pem());
+      if (!quote_opt.has_value())
       {
-        auto quote_opt =
-          EnclaveEvidenceGenerator::get_quote(node_sign_kp->public_key_pem());
-        if (!quote_opt.has_value())
-        {
-          throw std::logic_error("Quote could not be retrieved");
-        }
-        quote = quote_opt.value();
-
-        LOG_FAIL_FMT("Retrieved quote size: {}", quote.size());
-        // auto node_code_id_opt = EnclaveEvidenceGenerator::get_code_id(quote);
-        // if (!node_code_id_opt.has_value())
-        // {
-        //   return Fail<CreateNew::Out>(
-        //     "Code ID could not be retrieved from quote");
-        // }
-        // node_code_id = node_code_id_opt.value();
+        throw std::logic_error("Quote could not be retrieved");
       }
-      // node_code_id = node_code_id_opt.value();
+      quote = quote_opt.value();
+
+      LOG_FAIL_FMT("Retrieved quote size: {}", quote.size());
+      auto node_code_id_opt = EnclaveEvidenceGenerator::get_code_id(quote);
+      if (!node_code_id_opt.has_value())
+      {
+        throw std::logic_error("Could not retrieve code id from quote");
+      }
+      node_code_id = node_code_id_opt.value();
 #endif
 
       switch (start_type)

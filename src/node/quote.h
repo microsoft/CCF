@@ -49,10 +49,11 @@ namespace ccf
       return unique_id;
     }
 
-    static std::optional<std::vector<uint8_t>> get_quote(const tls::Pem& cert)
+    static std::optional<std::vector<uint8_t>> get_quote(
+      const tls::Pem& node_public_key)
     {
       std::vector<uint8_t> raw_quote;
-      crypto::Sha256Hash h{cert.contents()};
+      crypto::Sha256Hash h{node_public_key.contents()};
 
       auto rc = oe_attester_initialize();
       if (rc != OE_OK)
@@ -84,19 +85,14 @@ namespace ccf
         &endorsements_size);
       if (rc != OE_OK)
       {
-        LOG_FAIL_FMT("Failed to get evidence: {}", oe_result_str(rc));
-
         // TODO: Do we actually need to free this???
         oe_free_evidence(evidence);
         oe_free_endorsements(endorsements);
         return std::nullopt;
       }
 
-      LOG_FAIL_FMT("Evidence size: {}", evidence_size);
-
       raw_quote.assign(evidence, evidence + evidence_size);
 
-      LOG_FAIL_FMT("Raw quote size: {}", raw_quote.size());
       oe_free_report(evidence);
       oe_free_endorsements(endorsements);
 
@@ -205,13 +201,11 @@ namespace ccf
         return rc;
       }
 
-      (void)tx;
-
-      // rc = verify_enclave_measurement_against_store(tx, code_ids, unique_id);
-      // if (rc != QuoteVerificationResult::VERIFIED)
-      // {
-      //   return rc;
-      // }
+      rc = verify_enclave_measurement_against_store(tx, unique_id);
+      if (rc != QuoteVerificationResult::VERIFIED)
+      {
+        return rc;
+      }
 
       // TODO: Verify
       // rc = verify_quoted_certificate(cert, parsed_quote);
