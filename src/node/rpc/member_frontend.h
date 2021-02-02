@@ -1375,18 +1375,21 @@ namespace ccf
 
         Proposal proposal(in.script, in.parameter, caller_identity.member_id);
         auto proposals = ctx.tx.rw(this->network.proposals);
-        // The existence of this check guarantees that we always enter this
-        // block because it creates a read-dependency on that proposal_id, and
-        // so any other request with an identical digest and the same
-        // read_version will conflict, be re-based, acquire a new read_version
-        // and therefore a new proposal_id.
-        if (!proposals->has(proposal_id))
+        // Introduce a read dependency, so that if identical proposal creations
+        // are in-flight and reading at the same version, all except the first
+        // conflict and are re-executed. If we ever produce a proposal ID which
+        // already exists, we must have a hash collision.
+        if (proposals->has(proposal_id))
         {
-          proposals->put(proposal_id, proposal);
-
-          record_voting_history(
-            ctx.tx, caller_identity.member_id, caller_identity.signed_request);
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Proposal ID collision.");
         }
+        proposals->put(proposal_id, proposal);
+
+        record_voting_history(
+          ctx.tx, caller_identity.member_id, caller_identity.signed_request);
 
         return make_success(
           Propose::Out{complete_proposal(ctx.tx, proposal_id, proposal)});
