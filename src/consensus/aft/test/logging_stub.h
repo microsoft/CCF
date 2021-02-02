@@ -261,6 +261,22 @@ namespace aft
         throw std::logic_error("Not Implemented");
       }
 
+      bool support_asyc_execution() override
+      {
+        return true;
+        throw std::logic_error("Not Implemented");
+      }
+
+      uint64_t get_max_conflict_version() override
+      {
+        throw std::logic_error("get_index not implemented");
+      }
+
+      aft::Request& get_request() override
+      {
+        throw std::logic_error("get_index not implemented");
+      }
+
     private:
       const std::vector<uint8_t>& data;
       kv::ConsensusHookPtrs hooks;

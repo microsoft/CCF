@@ -15,6 +15,7 @@ namespace ccf
   {
     bool is_primary;
     Nonce nonce;
+    crypto::Sha256Hash root;
 
     BftNodeSignature(const NodeSignature& ns) :
       NodeSignature(ns),
@@ -22,9 +23,11 @@ namespace ccf
     {}
 
     BftNodeSignature(
-      const std::vector<uint8_t>& sig_, NodeId node_, Nonce hashed_nonce_) :
-      NodeSignature(sig_, node_, hashed_nonce_),
-      is_primary(false)
+      const std::vector<uint8_t>& sig_,
+      NodeId node_,
+      Nonce hashed_nonce_,
+      crypto::Sha256Hash& root_) :
+      NodeSignature(sig_, node_, hashed_nonce_), is_primary(false), root(root_)
     {}
   };
 
@@ -135,21 +138,36 @@ namespace ccf
 
     void write_nonces(aft::RevealedNonces& nonces) override
     {
-      kv::Tx tx(&store);
-      auto nonces_tv = tx.rw(revealed_nonces);
+      auto r = kv::CommitResult::FAIL_CONFLICT;
+      for (auto i = 0; i < 32 && r == kv::CommitResult::FAIL_CONFLICT; ++i)
+      {
+        kv::Tx tx(&store);
+        auto nonces_tv = tx.rw(revealed_nonces);
 
-      nonces_tv->put(0, nonces);
-      auto r = tx.commit();
-      if (r != kv::CommitResult::SUCCESS)
+        nonces_tv->put(0, nonces);
+        r = tx.commit();
+      if (r == kv::CommitResult::FAIL_NO_REPLICATE)
       {
         LOG_FAIL_FMT(
-          "Failed to write nonces, view:{}, seqno:{}",
+          "Failed to write nonces, view:{}, seqno:{}, r:{}, version:{}",
           nonces.tx_id.term,
-          nonces.tx_id.version);
+          nonces.tx_id.version,
+          r,
+          tx.get_version());
+      }
+      }
+      if (r == kv::CommitResult::FAIL_CONFLICT)
+      {
+        LOG_FAIL_FMT(
+          "Failed to write nonces, view:{}, seqno:{}, r:{}",
+          nonces.tx_id.term,
+          nonces.tx_id.version,
+          r);
         throw ccf::ccf_logic_error(fmt::format(
-          "Failed to write nonces, view:{}, seqno:{}",
+          "Failed to write nonces, view:{}, seqno:{}, r:{}",
           nonces.tx_id.term,
-          nonces.tx_id.version));
+          nonces.tx_id.version,
+          r));
       }
     }
 

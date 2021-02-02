@@ -18,7 +18,7 @@ namespace kv
   using Snapshot = champ::Snapshot<K, VersionV<V>, H>;
 
   template <typename K>
-  using Read = std::map<K, Version>;
+  using Read = std::map<K, std::tuple<Version,Version>>;
 
   // nullopt values represent deletions
   template <typename K, typename V>

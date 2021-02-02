@@ -42,8 +42,13 @@ namespace enclave
     };
 
     virtual ProcessBftResp process_bft(
-      std::shared_ptr<enclave::RpcContext> ctx) = 0;
+      std::shared_ptr<enclave::RpcContext> ctx,
+      kv::Consensus::SeqNo last_idx,
+      kv::Consensus::SeqNo max_conflict_version) = 0;
     virtual ProcessBftResp process_bft(
-      std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx) = 0;
+      std::shared_ptr<enclave::RpcContext> ctx,
+      kv::Tx& tx,
+      kv::Consensus::SeqNo last_idx = -1,
+      kv::Consensus::SeqNo max_conflict_version = -1) = 0;
   };
 }

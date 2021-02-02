@@ -96,6 +96,7 @@ void ordered_execution(
         i,
         MBEDTLS_ECDSA_MAX_LEN,
         sig,
+        root,
         hashed_nonce,
         node_count,
         am_i_primary);
@@ -169,10 +170,6 @@ void run_ordered_execution(uint32_t my_node_id)
   StoreMock& store_mock = *store.get();
   auto pt =
     std::make_unique<ccf::ProgressTracker>(std::move(store), my_node_id);
-
-  REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
-    .RETURN(true)
-    .TIMES(AT_LEAST(2));
 
   if (my_node_id == 0)
   {
@@ -353,9 +350,6 @@ TEST_CASE("View Changes")
 
   INFO("find first view-change message");
   {
-    REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
-      .RETURN(true)
-      .TIMES(AT_LEAST(2));
     REQUIRE_CALL(store_mock, sign_view_change_request(_, _, _))
       .TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
@@ -369,6 +363,7 @@ TEST_CASE("View Changes")
         i,
         MBEDTLS_ECDSA_MAX_LEN,
         sig,
+        root,
         hashed_nonce,
         node_count,
         false);
@@ -393,9 +388,6 @@ TEST_CASE("View Changes")
   {
     kv::Consensus::SeqNo new_seqno = 84;
 
-    REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
-      .RETURN(true)
-      .TIMES(AT_LEAST(2));
     REQUIRE_CALL(store_mock, sign_view_change_request(_, _, _))
       .TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
@@ -409,6 +401,7 @@ TEST_CASE("View Changes")
         i,
         MBEDTLS_ECDSA_MAX_LEN,
         sig,
+        root,
         hashed_nonce,
         node_count,
         false);
@@ -435,9 +428,6 @@ TEST_CASE("View Changes")
   {
     kv::Consensus::SeqNo new_seqno = 21;
 
-    REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
-      .RETURN(true)
-      .TIMES(AT_LEAST(2));
     REQUIRE_CALL(store_mock, sign_view_change_request(_, _, _))
       .TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
@@ -451,6 +441,7 @@ TEST_CASE("View Changes")
         i,
         MBEDTLS_ECDSA_MAX_LEN,
         sig,
+        root,
         hashed_nonce,
         node_count,
         false);
@@ -579,10 +570,6 @@ TEST_CASE("test progress_tracker apply_view_change")
   auto pt = std::make_unique<ccf::ProgressTracker>(std::move(store), node_id);
 
   {
-    REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
-      .RETURN(true)
-      .TIMES(AT_LEAST(2));
-
     ordered_execution(node_id, pt);
   }
 

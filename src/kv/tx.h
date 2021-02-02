@@ -251,7 +251,9 @@ namespace kv
      *
      * @return transaction outcome
      */
-    CommitResult commit()
+    CommitResult commit(
+      std::function<Version()> f = nullptr,
+      kv::Version replicated_max_conflict_version = -1)
     {
       if (committed)
         throw std::logic_error("Transaction already committed");
@@ -264,6 +266,8 @@ namespace kv
       }
 
       auto store = all_changes.begin()->second.map->get_store();
+      auto consensus = store->get_consensus();
+      bool track_conflicts = (consensus != nullptr && consensus->type() == ConsensusType::BFT);
 
       // If this transaction creates any maps, ensure that commit gets a
       // consistent snapshot of the existing maps
@@ -272,11 +276,15 @@ namespace kv
 
       kv::ConsensusHookPtrs hooks;
 
+    std::optional<Version> new_maps_conflict_version = std::nullopt; 
+
       auto c = apply_changes(
         all_changes,
-        [store]() { return store->next_version(); },
+        f == nullptr ? [store]() { return store->next_version(); } : f,
         hooks,
-        created_maps);
+        created_maps,
+        new_maps_conflict_version,
+        track_conflicts);
 
       if (!created_maps.empty())
         this->store->unlock();
@@ -297,6 +305,14 @@ namespace kv
       {
         committed = true;
         std::tie(version, max_conflict_version) = c.value();
+
+        if (
+          version > max_conflict_version &&
+          version > replicated_max_conflict_version &&
+          replicated_max_conflict_version != -1)
+        {
+          max_conflict_version = replicated_max_conflict_version;
+        }
 
         // From here, we have received a unique commit version and made
         // modifications to our local kv. If we fail in any way, we cannot

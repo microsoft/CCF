@@ -3,6 +3,7 @@
 #pragma once
 
 #include "apply_changes.h"
+#include "consensus/aft/request.h"
 #include "kv_types.h"
 #include "node/progress_tracker.h"
 #include "node/signatures.h"
@@ -19,6 +20,7 @@ namespace kv
       const std::vector<uint8_t>& data,
       bool public_only,
       kv::Version& v,
+      kv::Version& max_conflict_version,
       kv::OrderedChanges& changes,
       kv::MapCollection& new_maps,
       bool ignore_strict_versions = false) = 0;
@@ -78,6 +80,11 @@ namespace kv
       throw std::logic_error("get_index not implemented");
     }
 
+    aft::Request& get_request() override
+    {
+      throw std::logic_error("get_index not implemented");
+    }
+
     std::function<ApplyResult(
       ExecutionWrapperStore* store,
       const std::vector<uint8_t>& data,
@@ -98,7 +105,8 @@ namespace kv
              OrderedChanges& changes,
              MapCollection& new_maps,
              kv::ConsensusHookPtrs& hooks) -> ApplyResult {
-      if (!store->fill_maps(data, public_only, v, changes, new_maps, true))
+      kv::Version max_conflict_version;
+      if (!store->fill_maps(data, public_only, v, max_conflict_version, changes, new_maps, true))
       {
         return ApplyResult::FAIL;
       }
@@ -145,6 +153,16 @@ namespace kv
       }
       return success;
     };
+
+    bool support_asyc_execution() override
+    {
+      return false;
+    }
+
+    virtual uint64_t get_max_conflict_version() override
+    {
+      return v - 1;
+    }
 
     ExecutionWrapperStore* store;
     std::shared_ptr<TxHistory> history;
@@ -211,6 +229,21 @@ namespace kv
       return *tx;
     }
 
+    aft::Request& get_request() override
+    {
+      return req;
+    }
+
+    virtual bool support_asyc_execution() override
+    {
+      return false;
+    }
+
+    virtual uint64_t get_max_conflict_version() override
+    {
+      return v - 1;
+    }
+
     ExecutionWrapperStore* store;
     std::shared_ptr<TxHistory> history;
     std::shared_ptr<ccf::ProgressTracker> progress_tracker;
@@ -225,6 +258,7 @@ namespace kv
     MapCollection new_maps;
     kv::ConsensusHookPtrs hooks;
     std::unique_ptr<Tx> tx;
+    aft::Request req;
   };
 
   class SignatureBFTExec : public BFTExecutionWrapper
@@ -396,7 +430,6 @@ namespace kv
       }
       else
       {
-        LOG_FAIL_FMT("receive_backup_signatures Failed");
         LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
         throw std::logic_error(
           "Failed to verify signature, view-changes not implemented");
@@ -572,6 +605,7 @@ namespace kv
       bool public_only_,
       std::unique_ptr<Tx> tx_,
       kv::Version v_,
+      kv::Version max_conflict_version_,
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
       BFTExecutionWrapper(
@@ -583,22 +617,43 @@ namespace kv
         public_only_,
         v_,
         std::move(changes_),
-        std::move(new_maps_))
+        std::move(new_maps_)), max_conflict_version(max_conflict_version_)
     {
       tx = std::move(tx_);
     }
 
     ApplyResult execute() override
     {
-      return fn(tx, term, changes);
+      return fn(tx, term, changes, req);
     }
 
     std::function<ApplyResult(
-      std::unique_ptr<Tx>& tx, Term term, OrderedChanges& changes)>
-      fn = [](std::unique_ptr<Tx>& tx, Term term, OrderedChanges& changes)
+      std::unique_ptr<Tx>& tx, Term term, OrderedChanges& changes, aft::Request& req_)>
+      fn = [](std::unique_ptr<Tx>& tx, Term term, OrderedChanges& changes, aft::Request& req_)
       -> ApplyResult {
       tx->set_change_list(std::move(changes), term);
+
+      auto aft_requests = tx->rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
+      auto req_v = aft_requests->get(0);
+      CCF_ASSERT(
+        req_v.has_value(),
+        "Deserialised request but it was not found in the requests map");
+      req_ = req_v.value();
+
       return ApplyResult::PASS;
     };
+
+    virtual bool support_asyc_execution() override
+    {
+      return true;
+    }
+
+    virtual uint64_t get_max_conflict_version() override
+    {
+      return max_conflict_version;
+    }
+
+  private:
+    uint64_t max_conflict_version;
   };
 }

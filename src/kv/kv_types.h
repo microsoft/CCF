@@ -22,6 +22,11 @@ namespace ccf
   struct PrimarySignature;
 }
 
+namespace aft
+{
+  struct Request;
+}
+
 namespace kv
 {
   // Version indexes modifications to the local kv store. Negative values
@@ -456,8 +461,9 @@ namespace kv
     virtual ~AbstractCommitter() = default;
 
     virtual bool has_writes() = 0;
-    virtual bool prepare(Version& max_conflict_version) = 0;
-    virtual void commit(Version v) = 0;
+    virtual bool prepare() = 0;
+    virtual void commit(
+      Version v, Version& max_conflict_version, bool skip_max_conflict) = 0;
     virtual ConsensusHookPtr post_commit() = 0;
   };
 
@@ -535,6 +541,9 @@ namespace kv
     virtual kv::Version get_index() = 0;
     virtual ccf::PrimarySignature& get_signature() = 0;
     virtual kv::Tx& get_tx() = 0;
+    virtual aft::Request& get_request() = 0;
+    virtual bool support_asyc_execution() = 0;
+    virtual uint64_t get_max_conflict_version() = 0;
   };
 
   class AbstractStore

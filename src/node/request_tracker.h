@@ -4,6 +4,7 @@
 #include "crypto/hash.h"
 #include "ds/ccf_assert.h"
 #include "ds/dl_list.h"
+#include "ds/spin_lock.h"
 
 #include <array>
 #include <chrono>
@@ -58,6 +59,7 @@ namespace aft
   public:
     void insert(const crypto::Sha256Hash& hash, std::chrono::milliseconds time)
     {
+      std::unique_lock<SpinLock> guard(lock);
       if (remove(hash, hashes_without_requests, hashes_without_requests_list))
       {
         return;
@@ -68,6 +70,7 @@ namespace aft
     void insert_deleted(
       const crypto::Sha256Hash& hash, std::chrono::milliseconds time)
     {
+      std::unique_lock<SpinLock> guard(lock);
 #ifndef NDEBUG
       Request r(hash);
       CCF_ASSERT_FMT(
@@ -80,11 +83,13 @@ namespace aft
 
     bool remove(const crypto::Sha256Hash& hash)
     {
+      std::unique_lock<SpinLock> guard(lock);
       return remove(hash, requests, requests_list);
     }
 
     void tick(std::chrono::milliseconds current_time)
     {
+      std::unique_lock<SpinLock> guard(lock);
       if (current_time < retail_unmatched_deleted_hashes)
       {
         return;
@@ -102,6 +107,7 @@ namespace aft
 
     std::optional<std::chrono::milliseconds> oldest_entry()
     {
+      std::unique_lock<SpinLock> guard(lock);
       if (requests_list.is_empty())
       {
         return std::nullopt;
@@ -111,6 +117,7 @@ namespace aft
 
     bool is_empty()
     {
+      std::unique_lock<SpinLock> guard(lock);
       return requests.empty() && requests_list.is_empty() &&
         hashes_without_requests.empty() &&
         hashes_without_requests_list.is_empty();
@@ -119,6 +126,7 @@ namespace aft
     void insert_signed_request(
       kv::Consensus::SeqNo seqno, std::chrono::milliseconds time)
     {
+      std::unique_lock<SpinLock> guard(lock);
       if (seqno > seqno_last_signature)
       {
         seqno_last_signature = seqno;
@@ -129,11 +137,13 @@ namespace aft
     std::tuple<kv::Consensus::SeqNo, std::chrono::milliseconds>
     get_seqno_time_last_request() const
     {
+      std::unique_lock<SpinLock> guard(lock);
       return {seqno_last_signature, time_last_signature};
     }
 
     void clear()
     {
+      std::unique_lock<SpinLock> guard(lock);
       requests.clear();
       requests_list.clear();
 
@@ -152,6 +162,7 @@ namespace aft
     kv::Consensus::SeqNo seqno_last_signature = -1;
     std::chrono::milliseconds time_last_signature =
       std::chrono::milliseconds(0);
+    mutable SpinLock lock;
 
     void insert(
       const crypto::Sha256Hash& hash,

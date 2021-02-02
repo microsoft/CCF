@@ -52,7 +52,9 @@ namespace aft
   kv::Version ExecutorImpl::execute_request(
     std::unique_ptr<RequestMessage> request,
     bool is_create_request,
-    std::shared_ptr<aft::RequestTracker> request_tracker)
+    kv::Consensus::SeqNo last_idx,
+    std::shared_ptr<aft::RequestTracker> request_tracker,
+    kv::Consensus::SeqNo max_conflict_version)
   {
     std::shared_ptr<enclave::RpcContext>& ctx = request->get_request_ctx().ctx;
     std::shared_ptr<enclave::RpcHandler>& frontend =
@@ -81,9 +83,9 @@ namespace aft
 
     ctx->is_create_request = is_create_request;
     ctx->execute_on_node = true;
-    ctx->set_apply_writes(true);
 
-    enclave::RpcHandler::ProcessBftResp rep = frontend->process_bft(ctx);
+    enclave::RpcHandler::ProcessBftResp rep =
+      frontend->process_bft(ctx, last_idx, max_conflict_version);
 
     request->callback(std::move(rep.result));
 
@@ -116,16 +118,12 @@ namespace aft
   }
 
   kv::Version ExecutorImpl::commit_replayed_request(
-    kv::Tx& tx,
+    aft::Request& request,
     std::shared_ptr<aft::RequestTracker> request_tracker,
-    kv::Consensus::SeqNo committed_seqno)
+    kv::Consensus::SeqNo last_idx,
+    kv::Consensus::SeqNo committed_seqno,
+    kv::Consensus::SeqNo max_conflict_version)
   {
-    auto aft_requests = tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
-    auto req_v = aft_requests->get(0);
-    CCF_ASSERT(
-      req_v.has_value(),
-      "Deserialised request but it was not found in the requests map");
-    Request request = req_v.value();
 
     auto ctx = create_request_ctx(request);
 
@@ -133,6 +131,6 @@ namespace aft
       std::move(request.raw), request.rid, std::move(ctx), nullptr);
 
     return execute_request(
-      std::move(request_message), state->commit_idx == 0, request_tracker);
+      std::move(request_message), state->commit_idx == 0, last_idx, request_tracker, max_conflict_version);
   }
 }

@@ -43,7 +43,8 @@ namespace kv
     std::function<Version()> f,
     kv::ConsensusHookPtrs& hooks,
     const MapCollection& new_maps = {},
-    const std::optional<Version>& new_maps_conflict_version = std::nullopt)
+    const std::optional<Version>& new_maps_conflict_version = std::nullopt,
+    bool track_conflicts = false)
   {
     // All maps with pending writes are locked, transactions are prepared
     // and possibly committed, and then all maps with pending writes are
@@ -51,6 +52,8 @@ namespace kv
     // interleaved fashion.
     Version version = 0;
     bool has_writes = false;
+
+    kv::Version max_conflict_version = kv::NoVersion;
 
     std::map<std::string, std::unique_ptr<AbstractCommitter>> views;
     for (const auto& [map_name, mc] : changes)
@@ -60,19 +63,21 @@ namespace kv
 
     for (auto it = changes.begin(); it != changes.end(); ++it)
     {
-      if (it->second.changeset->has_writes())
+      bool changeset_has_writes = it->second.changeset->has_writes();
+      if (changeset_has_writes)
+      {
+        has_writes = true;
+      }
+      if (changeset_has_writes || track_conflicts)
       {
         it->second.map->lock();
-        has_writes = true;
       }
     }
 
     bool ok = true;
-    kv::Version max_conflict_version = kv::NoVersion;
-
     for (auto it = views.begin(); it != views.end(); ++it)
     {
-      if (!it->second->prepare(max_conflict_version))
+      if (!it->second->prepare())
       {
         ok = false;
         break;
@@ -113,6 +118,11 @@ namespace kv
       // Get the version number to be used for this commit.
       version = f();
 
+      if (!new_maps.empty() && version > 0)
+      {
+        max_conflict_version = version - 1;
+      }
+
       // Transfer ownership of these new maps to their target stores, iff we
       // have writes to them
       for (const auto& [map_name, map_ptr] : new_maps)
@@ -126,7 +136,9 @@ namespace kv
 
       for (auto it = views.begin(); it != views.end(); ++it)
       {
-        it->second->commit(version);
+        bool skip_max_conflict =
+          (it->first.compare("public:ccf.gov.aft.requests") == 0);
+        it->second->commit(version, max_conflict_version, skip_max_conflict);
       }
 
       // Collect ConsensusHooks
@@ -142,7 +154,7 @@ namespace kv
 
     for (auto it = changes.begin(); it != changes.end(); ++it)
     {
-      if (it->second.changeset->has_writes())
+      if (it->second.changeset->has_writes() || track_conflicts)
       {
         it->second.map->unlock();
       }
