@@ -145,17 +145,17 @@ namespace ccf
       Evidence evidence;
       Endorsements endorsements;
       SerialisedClaims serialised_custom_claims;
-      oe_claim_t custom_claim;
 
       // Serialise hash of node's public key as a custom claim
-      const size_t custom_claims_count = 1;
+      const size_t custom_claim_length = 1;
+      oe_claim_t custom_claim;
       custom_claim.name = const_cast<char*>(sgx_report_data_claim_name);
       custom_claim.value = h.h.data();
       custom_claim.value_size = h.SIZE;
 
       auto rc = oe_serialize_custom_claims(
         &custom_claim,
-        custom_claims_count,
+        custom_claim_length,
         &serialised_custom_claims.buffer,
         &serialised_custom_claims.size);
       if (rc != OE_OK)
@@ -191,6 +191,7 @@ namespace ccf
     }
 
   private:
+    // TODO: Return value should change?
     static QuoteVerificationResult verify_quote(
       const std::vector<uint8_t>& raw_quote,
       CodeDigest& unique_id,
@@ -217,6 +218,8 @@ namespace ccf
         return QuoteVerificationResult::FAIL_VERIFY_OE;
       }
 
+      bool unique_id_found = false;
+      bool sgx_report_data_found = false;
       for (size_t i = 0; i < claims.length; i++)
       {
         auto& claim = claims.data[i];
@@ -225,9 +228,11 @@ namespace ccf
         {
           std::copy(
             claim.value, claim.value + claim.value_size, unique_id.begin());
+          unique_id_found = true;
         }
         else if (claim_name == OE_CLAIM_CUSTOM_CLAIMS_BUFFER)
         {
+          // Find sgx report data in custom claims
           Claims custom_claims;
           rc = oe_deserialize_custom_claims(
             claim.value,
@@ -240,33 +245,39 @@ namespace ccf
               "Failed to deserialise custom claims", oe_result_str(rc)));
           }
 
-          // TODO: Be more relaxed here, it's OK to have more claims!!
-          if (custom_claims.length != 1)
+          for (size_t j = 0; j < custom_claims.length; j++)
           {
-            throw std::logic_error(fmt::format(
-              "Expected one custom claim, got {}", custom_claims.length));
-          }
+            auto& custom_claim = custom_claims.data[j];
+            if (std::string(custom_claim.name) == sgx_report_data_claim_name)
+            {
+              if (custom_claim.value_size != hash_node_public_key.SIZE)
+              {
+                throw std::logic_error(fmt::format(
+                  "Expected {} of size {}, had size {}",
+                  sgx_report_data_claim_name,
+                  hash_node_public_key.SIZE,
+                  custom_claim.value_size));
+              }
 
-          auto& custom_claim = custom_claims.data[0];
-          if (std::string(custom_claim.name) != sgx_report_data_claim_name)
-          {
-            throw std::logic_error(fmt::format(
-              "Unique custom claim is not {}", sgx_report_data_claim_name));
+              std::copy(
+                custom_claim.value,
+                custom_claim.value + custom_claim.value_size,
+                hash_node_public_key.h.begin());
+              sgx_report_data_found = true;
+              break;
+            }
           }
-
-          if (custom_claim.value_size != hash_node_public_key.SIZE)
-          {
-            throw std::logic_error(fmt::format(
-              "Expected {} of size {}",
-              sgx_report_data_claim_name,
-              hash_node_public_key.SIZE));
-          }
-
-          std::copy(
-            custom_claim.value,
-            custom_claim.value + custom_claim.value_size,
-            hash_node_public_key.h.begin());
         }
+      }
+
+      if (!unique_id_found)
+      {
+        return QuoteVerificationResult::FAIL_VERIFY_OE;
+      }
+
+      if (!sgx_report_data_found)
+      {
+        return QuoteVerificationResult::FAIL_VERIFY_OE;
       }
 
       return QuoteVerificationResult::VERIFIED;
