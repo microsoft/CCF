@@ -40,11 +40,6 @@ parameters:
       ctest_args: '-L "zaptest"'
 
 jobs:
-  - template: checks.yml
-    parameters:
-      env: ${{ parameters.env.Hosted }}
-      perf_or_release: ${{ parameters.perf_or_release }}
-
   # Debug
   - ${{ each target in parameters.target }}:
       - template: common.yml
@@ -79,6 +74,10 @@ jobs:
 
   # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
+      - template: checks.yml
+        parameters:
+          env: ${{ parameters.env.Hosted }}
+
       - template: common.yml
         parameters:
           target: SGX
