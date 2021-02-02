@@ -560,7 +560,7 @@ class WSClient:
         (status_code,) = struct.unpack("<h", out[:2])
         seqno = unpack_seqno_or_view(out[2:10])
         view = unpack_seqno_or_view(out[10:18])
-        payload = out[26:]
+        payload = out[18:]
         body = RawResponseBody(payload)
         return Response(status_code, body, seqno, view, headers={})
 
