@@ -336,12 +336,8 @@ namespace ccf
           q.format = format;
 
 #ifdef GET_QUOTE
-          auto code_id_opt = EnclaveQuoteGenerator::get_code_id(raw_quote);
-          if (code_id_opt.has_value())
-          {
-            q.mrenclave =
-              fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
-          }
+          auto code_id = EnclaveQuoteGenerator::get_code_id(raw_quote);
+          q.mrenclave = fmt::format("{:02x}", fmt::join(code_id, ""));
 #endif
 
           return make_success(q);
@@ -381,15 +377,9 @@ namespace ccf
             q.format = QuoteFormat::oe_sgx_v1;
 
 #ifdef GET_QUOTE
-            auto code_id_opt =
-              EnclaveQuoteGenerator::get_code_id(node_info.quote);
-            if (code_id_opt.has_value())
-            {
-              q.mrenclave =
-                fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
-            }
+            auto code_id = EnclaveQuoteGenerator::get_code_id(node_info.quote);
+            q.mrenclave = fmt::format("{:02x}", fmt::join(code_id, ""));
 #endif
-
             quotes.emplace_back(q);
           }
           return true;

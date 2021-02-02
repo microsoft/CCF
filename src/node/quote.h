@@ -37,11 +37,55 @@ namespace ccf
     FAIL_VERIFY_INVALID_QUOTED_PUBLIC_KEY,
   };
 
+  struct Claims
+  {
+    oe_claim_t* data = nullptr;
+    size_t length = 0;
+
+    ~Claims()
+    {
+      oe_free_claims(data, length);
+    }
+  };
+
+  struct SerialisedClaims
+  {
+    uint8_t* buffer = nullptr;
+    size_t size = 0;
+
+    ~SerialisedClaims()
+    {
+      oe_free_serialized_custom_claims(buffer);
+    }
+  };
+
+  struct Evidence
+  {
+    uint8_t* buffer = NULL;
+    size_t size = 0;
+
+    ~Evidence()
+    {
+      oe_free_evidence(buffer);
+    }
+  };
+
+  struct Endorsements
+  {
+    uint8_t* buffer = NULL;
+    size_t size = 0;
+
+    ~Endorsements()
+    {
+      oe_free_endorsements(buffer);
+    }
+  };
+
   // TODO: Make this a non-static object!
   class EnclaveQuoteGenerator
   {
   private:
-    static constexpr oe_uuid_t sgx_remote_uuid = {OE_FORMAT_UUID_SGX_ECDSA};
+    static constexpr oe_uuid_t oe_quote_format = {OE_FORMAT_UUID_SGX_ECDSA};
     static constexpr auto sgx_report_data_claim_name = OE_CLAIM_SGX_REPORT_DATA;
 
   public:
@@ -79,36 +123,28 @@ namespace ccf
       }
     }
 
-    static std::optional<CodeDigest> get_code_id(
-      const std::vector<uint8_t>& raw_quote)
+    static CodeDigest get_code_id(const std::vector<uint8_t>& raw_quote)
     {
       CodeDigest unique_id = {};
-      crypto::Sha256Hash h; // TODO: Unusued?
-      auto rc = verify_oe_quote(raw_quote, unique_id, h);
+      crypto::Sha256Hash h;
+      auto rc = verify_quote(raw_quote, unique_id, h);
       if (rc != QuoteVerificationResult::VERIFIED)
       {
-        // TODO: Return error
-        throw std::logic_error(
-          fmt::format("Failed to verify evidence: {}", rc));
+        throw std::logic_error(fmt::format("Failed to verify quote: {}", rc));
       }
 
       return unique_id;
     }
 
-    static std::optional<NodeQuoteInfo> generate_quote(
-      const tls::Pem& node_public_key)
+    static NodeQuoteInfo generate_quote(const tls::Pem& node_public_key)
     {
       NodeQuoteInfo node_quote_info;
       crypto::Sha256Hash h{node_public_key.contents()};
 
       // TODO: Check if object is initialized!
-
-      uint8_t* evidence = NULL;
-      size_t evidence_size = 0;
-      uint8_t* endorsements = NULL;
-      size_t endorsements_size = 0;
-      uint8_t* custom_claims_buffer = nullptr;
-      size_t custom_claims_buffer_size = 0;
+      Evidence evidence;
+      Endorsements endorsements;
+      SerialisedClaims serialised_custom_claims;
       oe_claim_t custom_claim;
 
       // Serialise hash of node's public key as a custom claim
@@ -120,143 +156,118 @@ namespace ccf
       auto rc = oe_serialize_custom_claims(
         &custom_claim,
         custom_claims_count,
-        &custom_claims_buffer,
-        &custom_claims_buffer_size);
+        &serialised_custom_claims.buffer,
+        &serialised_custom_claims.size);
       if (rc != OE_OK)
       {
-        LOG_FAIL_FMT(
+        throw std::logic_error(fmt::format(
           "Could not serialise node's public key as quote custom claim: {}",
-          oe_result_str(rc));
-        return std::nullopt;
+          oe_result_str(rc)));
       }
 
       rc = oe_get_evidence(
-        &sgx_remote_uuid,
+        &oe_quote_format,
         0,
-        custom_claims_buffer,
-        custom_claims_buffer_size,
+        serialised_custom_claims.buffer,
+        serialised_custom_claims.size,
         nullptr,
         0,
-        &evidence,
-        &evidence_size,
-        &endorsements,
-        &endorsements_size);
+        &evidence.buffer,
+        &evidence.size,
+        &endorsements.buffer,
+        &endorsements.size);
       if (rc != OE_OK)
       {
-        // TODO: Use wrapper instead!
-        oe_free_evidence(evidence);
-        oe_free_endorsements(endorsements);
-        oe_free_custom_claims(&custom_claim, custom_claims_count);
-        LOG_FAIL_FMT("Failed to get evidence: {}", oe_result_str(rc));
-        return std::nullopt;
+        throw std::logic_error(
+          fmt::format("Failed to get evidence: {}", oe_result_str(rc)));
       }
 
-      node_quote_info.quote.assign(evidence, evidence + evidence_size);
+      node_quote_info.quote.assign(
+        evidence.buffer, evidence.buffer + evidence.size);
       node_quote_info.endorsements.assign(
-        endorsements, endorsements + endorsements_size);
-
-      // TODO: use wrapper intead!
-      oe_free_report(evidence);
-      oe_free_endorsements(endorsements);
-      oe_free_custom_claims(&custom_claim, custom_claims_count);
+        endorsements.buffer, endorsements.buffer + endorsements.size);
 
       return node_quote_info;
     }
 
   private:
-    static QuoteVerificationResult verify_oe_quote(
+    static QuoteVerificationResult verify_quote(
       const std::vector<uint8_t>& raw_quote,
       CodeDigest& unique_id,
-      crypto::Sha256Hash& h)
+      crypto::Sha256Hash& hash_node_public_key)
     {
-      // TODO: Create wrapper for this!
-      oe_claim_t* claims = nullptr;
-      size_t claims_length = 0;
+      Claims claims;
 
       // TODO: Verify that object is initialised
 
-      // auto rc = oe_verifier_initialize();
-      // if (rc != OE_OK)
-      // {
-      //   LOG_FAIL_FMT(
-      //     "Failed to initialise evidence verifier: {}", oe_result_str(rc));
-      //   return QuoteVerificationResult::FAIL_VERIFY_OE;
-      // }
-
       auto rc = oe_verify_evidence(
-        &sgx_remote_uuid,
+        &oe_quote_format,
         raw_quote.data(),
         raw_quote.size(),
         nullptr,
         0,
         nullptr,
         0,
-        &claims,
-        &claims_length);
+        &claims.data,
+        &claims.length);
       if (rc != OE_OK)
       {
-        oe_free_claims(claims, claims_length);
         LOG_FAIL_FMT("Failed to verify evidence: {}", oe_result_str(rc));
         // return std::nullopt;
         return QuoteVerificationResult::FAIL_VERIFY_OE;
       }
 
-      for (size_t i = 0; i < claims_length; i++)
+      for (size_t i = 0; i < claims.length; i++)
       {
-        auto claim_name = std::string(claims[i].name);
-        LOG_FAIL_FMT("Claim name: {}", claim_name);
+        auto& claim = claims.data[i];
+        auto claim_name = std::string(claim.name);
         if (claim_name == OE_CLAIM_UNIQUE_ID)
         {
           std::copy(
-            claims[i].value,
-            claims[i].value + claims[i].value_size,
-            unique_id.begin());
-          // break; // TODO: Re-add!
+            claim.value, claim.value + claim.value_size, unique_id.begin());
         }
         else if (claim_name == OE_CLAIM_CUSTOM_CLAIMS_BUFFER)
         {
-          oe_claim_t* custom_claims = nullptr;
-          size_t custom_claims_length = 0;
-
+          Claims custom_claims;
           rc = oe_deserialize_custom_claims(
-            claims[i].value,
-            claims[i].value_size,
-            &custom_claims,
-            &custom_claims_length);
+            claim.value,
+            claim.value_size,
+            &custom_claims.data,
+            &custom_claims.length);
           if (rc != OE_OK)
           {
-            throw std::logic_error("Failed to deserialise custom claims");
+            throw std::logic_error(fmt::format(
+              "Failed to deserialise custom claims", oe_result_str(rc)));
           }
 
-          if (custom_claims_length != 1)
-          {
-            throw std::logic_error("Expected one custom claim!");
-          }
-
-          auto custom_claim_name = std::string(custom_claims[0].name);
-
-          if (custom_claim_name != sgx_report_data_claim_name)
+          // TODO: Be more relaxed here, it's OK to have more claims!!
+          if (custom_claims.length != 1)
           {
             throw std::logic_error(fmt::format(
-              "Custom claim is not {}", sgx_report_data_claim_name));
+              "Expected one custom claim, got {}", custom_claims.length));
           }
 
-          if (custom_claims[0].value_size != h.SIZE)
+          auto& custom_claim = custom_claims.data[0];
+          if (std::string(custom_claim.name) != sgx_report_data_claim_name)
           {
             throw std::logic_error(fmt::format(
-              "Expected {} of size {}", sgx_report_data_claim_name, h.SIZE));
+              "Unique custom claim is not {}", sgx_report_data_claim_name));
           }
 
-          LOG_FAIL_FMT("Custom claim: {}", custom_claims[0].name);
+          if (custom_claim.value_size != hash_node_public_key.SIZE)
+          {
+            throw std::logic_error(fmt::format(
+              "Expected {} of size {}",
+              sgx_report_data_claim_name,
+              hash_node_public_key.SIZE));
+          }
 
           std::copy(
-            custom_claims[0].value,
-            custom_claims[0].value + custom_claims[0].value_size,
-            h.h.begin());
+            custom_claim.value,
+            custom_claim.value + custom_claim.value_size,
+            hash_node_public_key.h.begin());
         }
       }
-
-      oe_free_claims(claims, claims_length);
 
       return QuoteVerificationResult::VERIFIED;
     }
@@ -294,14 +305,12 @@ namespace ccf
     static QuoteVerificationResult verify_quote_against_store(
       kv::Tx& tx,
       const std::vector<uint8_t>& raw_quote,
-      const tls::Pem& node_public_key)
+      const tls::Pem& expected_node_public_key)
     {
-      (void)node_public_key;
       CodeDigest unique_id;
-      crypto::Sha256Hash h;
-      // TODO: Also retrieve report data from claims!
+      crypto::Sha256Hash hash_node_public_key;
 
-      auto rc = verify_oe_quote(raw_quote, unique_id, h);
+      auto rc = verify_quote(raw_quote, unique_id, hash_node_public_key);
       if (rc != QuoteVerificationResult::VERIFIED)
       {
         return rc;
@@ -313,7 +322,8 @@ namespace ccf
         return rc;
       }
 
-      rc = verify_quoted_node_public_key(node_public_key, h);
+      rc = verify_quoted_node_public_key(
+        expected_node_public_key, hash_node_public_key);
       if (rc != QuoteVerificationResult::VERIFIED)
       {
         return rc;

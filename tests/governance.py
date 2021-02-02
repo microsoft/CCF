@@ -66,7 +66,7 @@ def test_quote(network, args):
                 q.write(bytes.fromhex(quote["raw"]))
                 oed = subprocess.run(
                     [
-                        os.path.join(args.oe_binary, "oeverify"),
+                        "/data/git/openenclave/build/output/bin/oeverify",  # TODO: To be changed!
                         "-r",
                         qpath,
                     ],
@@ -76,7 +76,7 @@ def test_quote(network, args):
                 out = oed.stdout.decode().split(os.linesep)
                 LOG.debug(out)
                 for line in out:
-                    if line.startswith("Enclave sgx_report_data:"):
+                    if line.startswith("sgx_report_data:"):
                         report_digest = line.split(" ")[-1][2:]
                 assert "Evidence verification succeeded (0)." in out
 

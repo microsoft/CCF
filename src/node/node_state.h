@@ -280,21 +280,11 @@ namespace ccf
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
-      auto node_quote_info_opt =
-        EnclaveQuoteGenerator::generate_quote(node_sign_kp->public_key_pem());
-      if (!node_quote_info_opt.has_value())
-      {
-        throw std::logic_error("Quote could not be generated");
-      }
-      quote = node_quote_info_opt->quote;
-
-      LOG_FAIL_FMT("Retrieved quote size: {}", quote.size());
-      auto node_code_id_opt = EnclaveQuoteGenerator::get_code_id(quote);
-      if (!node_code_id_opt.has_value())
-      {
-        throw std::logic_error("Could not retrieve code id from quote");
-      }
-      node_code_id = node_code_id_opt.value();
+      EnclaveQuoteGenerator::initialise();
+      quote =
+        EnclaveQuoteGenerator::generate_quote(node_sign_kp->public_key_pem())
+          .quote;
+      node_code_id = EnclaveQuoteGenerator::get_code_id(quote);
 #endif
 
       switch (start_type)
