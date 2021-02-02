@@ -123,6 +123,7 @@ namespace ccf
     tls::Pem node_cert;
     std::vector<uint8_t> quote;
     CodeDigest node_code_id;
+    EnclaveQuoteGenerator enclave_quote_generator;
 
     //
     // kv store, replication, and I/O
@@ -268,6 +269,15 @@ namespace ccf
       sm.advance(State::initialized);
     }
 
+    QuoteVerificationResult verify_quote(
+      kv::ReadOnlyTx& tx,
+      const std::vector<uint8_t>& raw_quote,
+      const tls::Pem& expected_node_public_key) override
+    {
+      return enclave_quote_generator.verify_quote_against_store(
+        tx, raw_quote, expected_node_public_key);
+    }
+
     //
     // funcs in state "initialized"
     //
@@ -280,11 +290,10 @@ namespace ccf
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
-      EnclaveQuoteGenerator::initialise();
       quote =
-        EnclaveQuoteGenerator::generate_quote(node_sign_kp->public_key_pem())
+        enclave_quote_generator.generate_quote(node_sign_kp->public_key_pem())
           .quote;
-      node_code_id = EnclaveQuoteGenerator::get_code_id(quote);
+      node_code_id = enclave_quote_generator.get_code_id(quote);
 #endif
 
       switch (start_type)

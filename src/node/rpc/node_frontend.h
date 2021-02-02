@@ -116,12 +116,10 @@ namespace ccf
       auto pk_pem = public_key_pem_from_cert(caller_pem);
 
       QuoteVerificationResult verify_result =
-        EnclaveQuoteGenerator::verify_quote_against_store(tx, in.quote, pk_pem);
-
-      if (verify_result != QuoteVerificationResult::VERIFIED)
+        this->node.verify_quote(tx, in.quote, pk_pem);
+      if (verify_result != QuoteVerificationResult::Verified)
       {
-        const auto [code, message] =
-          EnclaveQuoteGenerator::quote_verification_error(verify_result);
+        const auto [code, message] = quote_verification_error(verify_result);
         return make_error(code, ccf::errors::InvalidQuote, message);
       }
 #else
@@ -186,7 +184,8 @@ namespace ccf
 
           if (
             !this->node.is_part_of_network() &&
-            !this->node.is_part_of_public_network())
+            !this->node.is_part_of_public_network() &&
+            !this->node.is_reading_private_ledger())
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
