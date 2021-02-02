@@ -24,7 +24,7 @@ Leveraging the power of trusted execution environments (TEEs), decentralised sys
 - [Build new CCF applications](https://microsoft.github.io/CCF/master/build_apps/index.html) in TypeScript/JavaScript or C++
 - [Contribute](https://microsoft.github.io/CCF/master/contribute) to this repository, following the [contribution guidelines](.github/CONTRIBUTING.md)
 - Submit [bugs](https://github.com/microsoft/CCF/issues/new?assignees=&labels=bug&template=bug_report.md&title=) and [feature requests](https://github.com/microsoft/CCF/issues/new?assignees=&labels=enhancement&template=feature_request.md&title=)
-- Start a [discussion](https://github.com/microsoft/CCF/discussions/new) to ask a question or propose an idea.
+- Start a [discussion](https://github.com/microsoft/CCF/discussions/new) to ask a question or propose an idea
 
 ## Learn More
 
