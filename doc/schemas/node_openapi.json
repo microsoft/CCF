@@ -208,14 +208,14 @@
       },
       "GetState__Out": {
         "properties": {
-          "id": {
-            "$ref": "#/components/schemas/uint64"
-          },
           "last_recovered_seqno": {
             "$ref": "#/components/schemas/int64"
           },
           "last_signed_seqno": {
             "$ref": "#/components/schemas/int64"
+          },
+          "node_id": {
+            "$ref": "#/components/schemas/uint64"
           },
           "recovery_target_seqno": {
             "$ref": "#/components/schemas/int64"
@@ -225,7 +225,7 @@
           }
         },
         "required": [
-          "id",
+          "node_id",
           "state",
           "last_signed_seqno"
         ],
