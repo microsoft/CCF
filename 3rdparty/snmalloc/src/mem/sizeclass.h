@@ -11,6 +11,8 @@ namespace snmalloc
   //  using sizeclass_t = uint8_t;
   using sizeclass_compress_t = uint8_t;
 
+  constexpr static uintptr_t SIZECLASS_MASK = 0xFF;
+
   constexpr static uint16_t get_initial_offset(sizeclass_t sc, bool is_short);
   constexpr static size_t sizeclass_to_size(sizeclass_t sizeclass);
   constexpr static size_t
@@ -181,7 +183,7 @@ namespace snmalloc
     // Client responsible for checking alignment is not zero
     SNMALLOC_ASSERT(alignment != 0);
     // Client responsible for checking alignment is a power of two
-    SNMALLOC_ASSERT(bits::next_pow2(alignment) == alignment);
+    SNMALLOC_ASSERT(bits::is_pow2(alignment));
 
     return ((alignment - 1) | (size - 1)) + 1;
   }
@@ -197,5 +199,13 @@ namespace snmalloc
       size = 1;
     }
     return sizeclass_to_size(size_to_sizeclass(size));
+  }
+
+  /// Returns the alignment that this size naturally has, that is
+  /// all allocations of size `size` will be aligned to the returned value.
+  SNMALLOC_FAST_PATH static size_t natural_alignment(size_t size)
+  {
+    auto rsize = round_size(size);
+    return bits::one_at_bit(bits::ctz(rsize));
   }
 } // namespace snmalloc
