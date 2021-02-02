@@ -22,8 +22,10 @@ namespace ccf
   struct NodeQuoteInfo
   {
     std::vector<uint8_t> quote;
-    std::vector<uint8_t> endorsement;
+    std::vector<uint8_t> endorsements;
   };
+
+  // TODO: Use oe_result_str(rc) whenever possible
 
   // TODO: Re-word!
   enum QuoteVerificationResult : uint32_t
@@ -32,22 +34,57 @@ namespace ccf
     FAIL_VERIFY_OE,
     FAIL_VERIFY_CODE_ID_RETIRED,
     FAIL_VERIFY_CODE_ID_NOT_FOUND,
-    FAIL_VERIFY_INVALID_QUOTED_CERT,
+    FAIL_VERIFY_INVALID_QUOTED_PUBLIC_KEY,
   };
 
-  // TODO: destroy verifier/initializer in destructor!
-  class EnclaveEvidenceGenerator
+  // TODO: Make this a non-static object!
+  class EnclaveQuoteGenerator
   {
   private:
     static constexpr oe_uuid_t sgx_remote_uuid = {OE_FORMAT_UUID_SGX_ECDSA};
     static constexpr auto sgx_report_data_claim_name = OE_CLAIM_SGX_REPORT_DATA;
 
   public:
+    static void initialise()
+    {
+      auto rc = oe_attester_initialize();
+      if (rc != OE_OK)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to initialise evidence attester: {}", oe_result_str(rc)));
+      }
+
+      rc = oe_verifier_initialize();
+      if (rc != OE_OK)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to initialise evidence verifier: {}", oe_result_str(rc)));
+      }
+    }
+
+    static void shutdown()
+    {
+      auto rc = oe_attester_shutdown();
+      if (rc != OE_OK)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to initialise evidence attester: {}", oe_result_str(rc)));
+      }
+
+      rc = oe_verifier_shutdown();
+      if (rc != OE_OK)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to initialise evidence verifier: {}", oe_result_str(rc)));
+      }
+    }
+
     static std::optional<CodeDigest> get_code_id(
       const std::vector<uint8_t>& raw_quote)
     {
       CodeDigest unique_id = {};
-      auto rc = verify_oe_quote(raw_quote, unique_id);
+      crypto::Sha256Hash h; // TODO: Unusued?
+      auto rc = verify_oe_quote(raw_quote, unique_id, h);
       if (rc != QuoteVerificationResult::VERIFIED)
       {
         // TODO: Return error
@@ -58,47 +95,41 @@ namespace ccf
       return unique_id;
     }
 
-    static std::optional<std::vector<uint8_t>> get_quote(
+    static std::optional<NodeQuoteInfo> generate_quote(
       const tls::Pem& node_public_key)
     {
-      std::vector<uint8_t> raw_quote;
+      NodeQuoteInfo node_quote_info;
       crypto::Sha256Hash h{node_public_key.contents()};
 
-      auto rc = oe_attester_initialize();
-      if (rc != OE_OK)
-      {
-        LOG_FAIL_FMT(
-          "Failed to initialise evidence attester: {}", oe_result_str(rc));
-        return std::nullopt;
-      }
+      // TODO: Check if object is initialized!
 
       uint8_t* evidence = NULL;
       size_t evidence_size = 0;
       uint8_t* endorsements = NULL;
       size_t endorsements_size = 0;
-
-      LOG_FAIL_FMT("Get quote");
-
       uint8_t* custom_claims_buffer = nullptr;
       size_t custom_claims_buffer_size = 0;
-
-      // TODO: Free these too!
       oe_claim_t custom_claim;
+
+      // Serialise hash of node's public key as a custom claim
+      const size_t custom_claims_count = 1;
       custom_claim.name = const_cast<char*>(sgx_report_data_claim_name);
       custom_claim.value = h.h.data();
       custom_claim.value_size = h.SIZE;
 
-      // TODO: Add custom claims!!
-
-      rc = oe_serialize_custom_claims(
-        &custom_claim, 1, &custom_claims_buffer, &custom_claims_buffer_size);
+      auto rc = oe_serialize_custom_claims(
+        &custom_claim,
+        custom_claims_count,
+        &custom_claims_buffer,
+        &custom_claims_buffer_size);
       if (rc != OE_OK)
       {
-        LOG_FAIL_FMT("Error formatting custom claims");
+        LOG_FAIL_FMT(
+          "Could not serialise node's public key as quote custom claim: {}",
+          oe_result_str(rc));
         return std::nullopt;
       }
 
-      // TODO: Record endorsement in KV too!
       rc = oe_get_evidence(
         &sgx_remote_uuid,
         0,
@@ -112,38 +143,47 @@ namespace ccf
         &endorsements_size);
       if (rc != OE_OK)
       {
-        // TODO: Do we actually need to free this??? --> use wrapper instead!
+        // TODO: Use wrapper instead!
         oe_free_evidence(evidence);
         oe_free_endorsements(endorsements);
+        oe_free_custom_claims(&custom_claim, custom_claims_count);
+        LOG_FAIL_FMT("Failed to get evidence: {}", oe_result_str(rc));
         return std::nullopt;
       }
 
-      raw_quote.assign(evidence, evidence + evidence_size);
+      node_quote_info.quote.assign(evidence, evidence + evidence_size);
+      node_quote_info.endorsements.assign(
+        endorsements, endorsements + endorsements_size);
 
+      // TODO: use wrapper intead!
       oe_free_report(evidence);
       oe_free_endorsements(endorsements);
+      oe_free_custom_claims(&custom_claim, custom_claims_count);
 
-      return raw_quote;
+      return node_quote_info;
     }
 
   private:
     static QuoteVerificationResult verify_oe_quote(
-      const std::vector<uint8_t>& raw_quote, CodeDigest& unique_id)
+      const std::vector<uint8_t>& raw_quote,
+      CodeDigest& unique_id,
+      crypto::Sha256Hash& h)
     {
       // TODO: Create wrapper for this!
       oe_claim_t* claims = nullptr;
       size_t claims_length = 0;
 
-      auto rc = oe_verifier_initialize();
-      if (rc != OE_OK)
-      {
-        LOG_FAIL_FMT(
-          "Failed to initialise evidence verifier: {}", oe_result_str(rc));
-        // return std::nullopt;
-        return QuoteVerificationResult::FAIL_VERIFY_OE;
-      }
+      // TODO: Verify that object is initialised
 
-      rc = oe_verify_evidence(
+      // auto rc = oe_verifier_initialize();
+      // if (rc != OE_OK)
+      // {
+      //   LOG_FAIL_FMT(
+      //     "Failed to initialise evidence verifier: {}", oe_result_str(rc));
+      //   return QuoteVerificationResult::FAIL_VERIFY_OE;
+      // }
+
+      auto rc = oe_verify_evidence(
         &sgx_remote_uuid,
         raw_quote.data(),
         raw_quote.size(),
@@ -193,7 +233,26 @@ namespace ccf
             throw std::logic_error("Expected one custom claim!");
           }
 
+          auto custom_claim_name = std::string(custom_claims[0].name);
+
+          if (custom_claim_name != sgx_report_data_claim_name)
+          {
+            throw std::logic_error(fmt::format(
+              "Custom claim is not {}", sgx_report_data_claim_name));
+          }
+
+          if (custom_claims[0].value_size != h.SIZE)
+          {
+            throw std::logic_error(fmt::format(
+              "Expected {} of size {}", sgx_report_data_claim_name, h.SIZE));
+          }
+
           LOG_FAIL_FMT("Custom claim: {}", custom_claims[0].name);
+
+          std::copy(
+            custom_claims[0].value,
+            custom_claims[0].value + custom_claims[0].value_size,
+            h.h.begin());
         }
       }
 
@@ -220,18 +279,12 @@ namespace ccf
       return QuoteVerificationResult::VERIFIED;
     }
 
-    static QuoteVerificationResult verify_quoted_certificate(
-      const tls::Pem& cert, const oe_report_t& parsed_quote)
+    static QuoteVerificationResult verify_quoted_node_public_key(
+      const tls::Pem& node_public_key, const crypto::Sha256Hash& h)
     {
-      crypto::Sha256Hash hash{cert.contents()};
-
-      if (
-        parsed_quote.report_data_size != OE_REPORT_DATA_SIZE ||
-        memcmp(
-          hash.h.data(), parsed_quote.report_data, crypto::Sha256Hash::SIZE) !=
-          0)
+      if (h != crypto::Sha256Hash(node_public_key.contents()))
       {
-        return QuoteVerificationResult::FAIL_VERIFY_INVALID_QUOTED_CERT;
+        return QuoteVerificationResult::FAIL_VERIFY_INVALID_QUOTED_PUBLIC_KEY;
       }
 
       return QuoteVerificationResult::VERIFIED;
@@ -245,9 +298,10 @@ namespace ccf
     {
       (void)node_public_key;
       CodeDigest unique_id;
+      crypto::Sha256Hash h;
       // TODO: Also retrieve report data from claims!
 
-      auto rc = verify_oe_quote(raw_quote, unique_id);
+      auto rc = verify_oe_quote(raw_quote, unique_id, h);
       if (rc != QuoteVerificationResult::VERIFIED)
       {
         return rc;
@@ -259,16 +313,16 @@ namespace ccf
         return rc;
       }
 
-      // TODO: Verify
-      // rc = verify_quoted_certificate(cert, parsed_quote);
-      // if (rc != QuoteVerificationResult::VERIFIED)
-      // {
-      //   return rc;
-      // }
+      rc = verify_quoted_node_public_key(node_public_key, h);
+      if (rc != QuoteVerificationResult::VERIFIED)
+      {
+        return rc;
+      }
 
       return QuoteVerificationResult::VERIFIED;
     }
 
+    // TODO: Rename this
     static std::pair<http_status, std::string> quote_verification_error(
       QuoteVerificationResult result)
     {
@@ -287,7 +341,7 @@ namespace ccf
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             "CODE_ID_NOT_FOUND: Quote does not contain known enclave "
             "measurement");
-        case FAIL_VERIFY_INVALID_QUOTED_CERT:
+        case FAIL_VERIFY_INVALID_QUOTED_PUBLIC_KEY:
           return std::make_pair(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             "Quote report data does not contain correct certificate hash");
