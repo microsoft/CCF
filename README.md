@@ -11,8 +11,6 @@
 | Documentation          | [![docs](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20GitHub%20Pages?branchName=master)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=4&branchName=master)         |
 | Containers             | ![Build and Publish Release Containers](https://github.com/microsoft/CCF/workflows/Build%20and%20Publish%20Release%20Containers/badge.svg)                                                         |
 
-
-
 The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly available,
 and performant applications that focus on multi-party compute and data.
 CCF can enable high-scale, confidential networks that meet key enterprise requirements — providing a means to accelerate production and enterprise adoption of consortium based blockchain and multi-party compute technology.
