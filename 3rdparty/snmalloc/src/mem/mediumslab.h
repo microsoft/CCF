@@ -25,7 +25,7 @@ namespace snmalloc
     uint16_t stack[SLAB_COUNT - 1];
 
   public:
-    static constexpr uint32_t header_size()
+    static constexpr size_t header_size()
     {
       static_assert(
         sizeof(Mediumslab) < OS_PAGE_SIZE,
@@ -34,9 +34,14 @@ namespace snmalloc
         sizeof(Mediumslab) < SLAB_SIZE,
         "Mediumslab header size must be less than the slab size");
 
-      // Always use a full page as the header, in order to get page sized
-      // alignment of individual allocations.
-      return OS_PAGE_SIZE;
+      /*
+       * Always use a full page or SLAB, whichever is smaller, in order
+       * to get good alignment of individual allocations.  Some platforms
+       * have huge minimum pages (e.g., Linux on PowerPC uses 64KiB) and
+       * our SLABs are occasionally small by comparison (e.g., in OE, when
+       * we take them to be 8KiB).
+       */
+      return bits::align_up(sizeof(Mediumslab), min(OS_PAGE_SIZE, SLAB_SIZE));
     }
 
     static Mediumslab* get(const void* p)
@@ -76,8 +81,8 @@ namespace snmalloc
       return sizeclass;
     }
 
-    template<ZeroMem zero_mem, typename MemoryProvider>
-    void* alloc(size_t size, MemoryProvider& memory_provider)
+    template<ZeroMem zero_mem, SNMALLOC_CONCEPT(ConceptPAL) PAL>
+    void* alloc(size_t size)
     {
       SNMALLOC_ASSERT(!full());
 
@@ -86,7 +91,7 @@ namespace snmalloc
       free--;
 
       if constexpr (zero_mem == YesZero)
-        memory_provider.zero(p, size);
+        PAL::zero(p, size);
       else
         UNUSED(size);
 
