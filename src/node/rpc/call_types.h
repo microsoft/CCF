@@ -100,7 +100,7 @@ namespace ccf
     CallerId caller_id;
   };
 
-  struct GetUserId
+  struct GetCallerId
   {
     struct In
     {
