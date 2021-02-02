@@ -1,6 +1,8 @@
 # The Confidential Consortium Framework
 
-[![Gitter](https://badges.gitter.im/MSRC-CCF/community.svg)](https://gitter.im/MSRC-CCF/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![Docs](https://img.shields.io/badge/Docs-succeeded-green)](https://microsoft.github.io/CCF)
+<img alt="ccf" align="right" src="https://microsoft.github.io/CCF/master/_images/ccf.svg" width="300">
+
+[![Docs](https://img.shields.io/badge/Docs-succeeded-green)](https://microsoft.github.io/CCF)
 
 |                        |                                                                                                                                                                                                    |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -9,7 +11,7 @@
 | Documentation          | [![docs](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20GitHub%20Pages?branchName=master)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=4&branchName=master)         |
 | Containers             | ![Build and Publish Release Containers](https://github.com/microsoft/CCF/workflows/Build%20and%20Publish%20Release%20Containers/badge.svg)                                                         |
 
-<img alt="ccf" align="right" src="https://microsoft.github.io/CCF/master/_images/ccf.svg" width="300">
+
 
 The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly available,
 and performant applications that focus on multi-party compute and data.
@@ -24,6 +26,7 @@ Leveraging the power of trusted execution environments (TEEs), decentralised sys
 - [Build new CCF applications](https://microsoft.github.io/CCF/master/build_apps/index.html) in TypeScript/JavaScript or C++
 - [Contribute](https://microsoft.github.io/CCF/master/contribute) to this repository, following the [contribution guidelines](.github/CONTRIBUTING.md)
 - Submit [bugs](https://github.com/microsoft/CCF/issues/new?assignees=&labels=bug&template=bug_report.md&title=) and [feature requests](https://github.com/microsoft/CCF/issues/new?assignees=&labels=enhancement&template=feature_request.md&title=)
+- Start a [discussion](https://github.com/microsoft/CCF/discussions/new) to ask a question or propose an idea.
 
 ## Learn More
 
