@@ -293,12 +293,6 @@ namespace ccf
                   ctx->set_view(tx.commit_term());
                 }
 
-                // Deprecated, this will be removed in future releases
-                if (!ctx->has_global_commit())
-                {
-                  ctx->set_global_commit(consensus->get_committed_seqno());
-                }
-
                 if (history != nullptr && consensus->is_primary())
                 {
                   history->try_emit_signature();
