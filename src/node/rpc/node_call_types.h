@@ -48,7 +48,7 @@ namespace ccf
       std::string gov_script;
       tls::Pem node_cert;
       tls::Pem network_cert;
-      std::vector<uint8_t> quote;
+      NodeQuoteInfo quote_info;
       tls::Pem public_encryption_key;
       std::vector<uint8_t> code_digest;
       NodeInfoNetwork node_info_network;
@@ -62,7 +62,7 @@ namespace ccf
     struct In
     {
       NodeInfoNetwork node_info_network;
-      std::vector<uint8_t> quote;
+      NodeQuoteInfo quote_info;
       tls::Pem public_encryption_key;
       ConsensusType consensus_type = ConsensusType::CFT;
     };

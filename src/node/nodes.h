@@ -28,10 +28,21 @@ MSGPACK_ADD_ENUM(ccf::NodeStatus);
 
 namespace ccf
 {
+  struct NodeQuoteInfo // TODO: Rename to attestation info?
+  {
+    std::vector<uint8_t> quote;
+    std::vector<uint8_t> endorsements;
+
+    MSGPACK_DEFINE(quote, endorsements);
+  };
+
+  DECLARE_JSON_TYPE(NodeQuoteInfo);
+  DECLARE_JSON_REQUIRED_FIELDS(NodeQuoteInfo, quote, endorsements);
+
   struct NodeInfo : NodeInfoNetwork
   {
     tls::Pem cert;
-    std::vector<uint8_t> quote;
+    NodeQuoteInfo quote_info;
     tls::Pem encryption_pub_key;
     NodeStatus status = NodeStatus::PENDING;
 
@@ -42,14 +53,14 @@ namespace ccf
     MSGPACK_DEFINE(
       MSGPACK_BASE(NodeInfoNetwork),
       cert,
-      quote,
+      quote_info,
       encryption_pub_key,
       status,
       ledger_secret_seqno);
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
-    NodeInfo, cert, quote, encryption_pub_key, status);
+    NodeInfo, cert, quote_info, encryption_pub_key, status);
   DECLARE_JSON_OPTIONAL_FIELDS(NodeInfo, ledger_secret_seqno);
 
   using Nodes = kv::Map<NodeId, NodeInfo>;

@@ -15,13 +15,14 @@ namespace ccf
   {
     NodeId node_id = {};
     std::string raw = {}; // < Hex-encoded
+    std::string endorsements = {}; // < Hex-encoded
     QuoteFormat format;
 
     std::string mrenclave = {}; // < Hex-encoded
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Quote)
-  DECLARE_JSON_REQUIRED_FIELDS(Quote, node_id, raw, format)
+  DECLARE_JSON_REQUIRED_FIELDS(Quote, node_id, raw, endorsements, format)
   DECLARE_JSON_OPTIONAL_FIELDS(Quote, mrenclave)
 
   struct GetQuotes
@@ -115,8 +116,9 @@ namespace ccf
 #ifdef GET_QUOTE
       auto pk_pem = public_key_pem_from_cert(caller_pem);
 
+      // TODO: Verify with endorsements too!
       QuoteVerificationResult verify_result =
-        this->node.verify_quote(tx, in.quote, pk_pem);
+        this->node.verify_quote(tx, in.quote_info.quote, pk_pem);
       if (verify_result != QuoteVerificationResult::Verified)
       {
         const auto [code, message] = quote_verification_error(verify_result);
@@ -140,7 +142,7 @@ namespace ccf
         joining_node_id,
         {in.node_info_network,
          caller_pem,
-         in.quote,
+         in.quote_info,
          in.public_encryption_key,
          node_status,
          ledger_secret_seqno});
@@ -324,18 +326,21 @@ namespace ccf
 
       auto get_quote = [this](auto& args, nlohmann::json&&) {
         QuoteFormat format;
-        std::vector<uint8_t> raw_quote;
-        const auto result =
-          get_quote_for_this_node_v1(args.tx, format, raw_quote);
+        NodeQuoteInfo node_quote_info;
+        const auto result = get_quote_for_this_node_v1(
+          args.tx, format, node_quote_info.quote, node_quote_info.endorsements);
         if (result == ApiResult::OK)
         {
           Quote q;
           q.node_id = node.get_node_id();
-          q.raw = fmt::format("{:02x}", fmt::join(raw_quote, ""));
+          q.raw = fmt::format("{:02x}", fmt::join(node_quote_info.quote, ""));
+          q.endorsements =
+            fmt::format("{:02x}", fmt::join(node_quote_info.endorsements, ""));
           q.format = format;
 
 #ifdef GET_QUOTE
-          auto code_id = EnclaveQuoteGenerator::get_code_id(raw_quote);
+          auto code_id =
+            EnclaveQuoteGenerator::get_code_id(node_quote_info.quote);
           q.mrenclave = fmt::format("{:02x}", fmt::join(code_id, ""));
 #endif
 
@@ -372,11 +377,15 @@ namespace ccf
           {
             Quote q;
             q.node_id = node_id;
-            q.raw = fmt::format("{:02x}", fmt::join(node_info.quote, ""));
+            q.raw =
+              fmt::format("{:02x}", fmt::join(node_info.quote_info.quote, ""));
+            q.endorsements = fmt::format(
+              "{:02x}", fmt::join(node_info.quote_info.endorsements, ""));
             q.format = QuoteFormat::oe_sgx_v1;
 
 #ifdef GET_QUOTE
-            auto code_id = EnclaveQuoteGenerator::get_code_id(node_info.quote);
+            auto code_id =
+              EnclaveQuoteGenerator::get_code_id(node_info.quote_info.quote);
             q.mrenclave = fmt::format("{:02x}", fmt::join(code_id, ""));
 #endif
             quotes.emplace_back(q);

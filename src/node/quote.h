@@ -9,6 +9,7 @@
 #  include "entities.h"
 #  include "network_tables.h"
 #  include "node/rpc/node_interface.h"
+#  include "nodes.h"
 
 #  include <openenclave/attestation/attester.h>
 #  include <openenclave/attestation/custom_claims.h>
@@ -19,14 +20,6 @@
 
 namespace ccf
 {
-  // TODO: To move to nodes.h
-  // TODO: Record and return endorsements from GET /quotes/self
-  struct NodeQuoteInfo
-  {
-    std::vector<uint8_t> quote;
-    std::vector<uint8_t> endorsements;
-  };
-
 // Unused in all sample apps, but used by node frontend
 #  pragma clang diagnostic push
 #  pragma clang diagnostic ignored "-Wunused-function"
