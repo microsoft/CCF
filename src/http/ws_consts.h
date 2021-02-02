@@ -9,7 +9,7 @@ namespace ws
   static constexpr size_t INITIAL_READ = 2;
   static constexpr size_t OUT_CCF_HEADER_SIZE =
     sizeof(uint16_t) /* return code */ + sizeof(size_t) /* seqno */ +
-    sizeof(size_t) /* view */ + sizeof(size_t) /* global_commit */;
+    sizeof(size_t) /* view */;
 
   enum Verb
   {
