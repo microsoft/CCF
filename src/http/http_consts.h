@@ -21,9 +21,6 @@ namespace http
 
     static constexpr auto CCF_TX_SEQNO = "x-ccf-tx-seqno";
     static constexpr auto CCF_TX_VIEW = "x-ccf-tx-view";
-
-    // Deprecated, will be removed in a later release
-    static constexpr auto CCF_GLOBAL_COMMIT = "x-ccf-global-commit";
   }
 
   namespace headervalues
