@@ -821,8 +821,6 @@ namespace ccf
       const std::vector<uint8_t>& request,
       uint8_t frame_format) override
     {
-      LOG_DEBUG_FMT("HISTORY: add_request {0}", id);
-
       auto consensus = store.get_consensus();
       if (!consensus)
       {

@@ -544,6 +544,7 @@ namespace kv
     virtual ccf::PrimarySignature& get_signature() = 0;
     virtual aft::Request& get_request() = 0;
     virtual kv::Version get_max_conflict_version() = 0;
+    virtual bool support_async_execution() = 0;
   };
 
   class AbstractStore

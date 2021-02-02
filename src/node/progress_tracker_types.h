@@ -102,11 +102,17 @@ namespace ccf
 
       backup_sig_view->put(0, sig_value);
       auto r = tx.commit();
-      LOG_TRACE_FMT("Adding signatures to ledger, result:{}", r);
-      CCF_ASSERT_FMT(
-        r == kv::CommitResult::SUCCESS,
-        "Commiting backup signatures failed r:{}",
-        r);
+      if (r == kv::CommitResult::FAIL_CONFLICT)
+      {
+        LOG_FAIL_FMT(
+          "Failed to write backup signatures, view:{}, seqno:{}",
+          sig_value.view,
+          sig_value.seqno);
+        throw ccf::ccf_logic_error(fmt::format(
+          "Failed to write backup signatures, view:{}, seqno:{}",
+          sig_value.view,
+          sig_value.seqno));
+      }
     }
 
     std::optional<BackupSignatures> get_backup_signatures() override
@@ -142,7 +148,7 @@ namespace ccf
 
       nonces_tv->put(0, nonces);
       auto r = tx.commit();
-      if (r != kv::CommitResult::SUCCESS)
+      if (r == kv::CommitResult::FAIL_CONFLICT)
       {
         LOG_FAIL_FMT(
           "Failed to write nonces, view:{}, seqno:{}",
