@@ -115,16 +115,13 @@ namespace ws
           auto status = serialized::read<uint16_t>(data, s);
           auto seqno = serialized::read<size_t>(data, s);
           auto view = serialized::read<size_t>(data, s);
-          auto global_commit = serialized::read<size_t>(data, s);
 
           std::vector<uint8_t> body(data, data + s);
 
           proc.handle_response(
             (http_status)status,
             {{http::headers::CCF_TX_SEQNO, fmt::format("{}", seqno)},
-             {http::headers::CCF_TX_VIEW, fmt::format("{}", view)},
-             {http::headers::CCF_GLOBAL_COMMIT,
-              fmt::format("{}", global_commit)}},
+             {http::headers::CCF_TX_VIEW, fmt::format("{}", view)}},
             std::move(body));
           state = INIT;
           return INITIAL_READ;

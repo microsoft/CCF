@@ -28,6 +28,7 @@ jobs:
     steps:
       - checkout: self
         clean: true
+        fetchDepth: 10000
       - script: |
           mkdir build_make
           cd build_make

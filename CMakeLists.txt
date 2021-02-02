@@ -517,13 +517,7 @@ if(BUILD_TESTS)
     NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS cft
-    ADDITIONAL_ARGS
-      --recovery
-      2
-      # Shorten Raft election timeout to speed up test when it kills a node on
-      # purpose to check that a recovery network is robust to a view change.
-      --raft-election-timeout
-      4000
+    ADDITIONAL_ARGS --recovery 2
   )
 
   add_e2e_test(
@@ -552,14 +546,8 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS cft
     LABEL suite
-    ADDITIONAL_ARGS
-      --test-duration
-      200
-      --enforce-reqs
-      --test-suite
-      reconfiguration
-      --raft-election-timeout
-      4000
+    ADDITIONAL_ARGS --test-duration 200 --enforce-reqs --test-suite
+                    reconfiguration
   )
 
   add_e2e_test(
@@ -577,35 +565,41 @@ if(BUILD_TESTS)
       --enforce-reqs
       --test-suite
       all
-      --raft-election-timeout
-      4000
   )
 
   add_e2e_test(
     NAME rotation_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --raft-election-timeout 4000
   )
 
   add_e2e_test(
     NAME committable_suffix_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --raft-election-timeout 4000 --sig-ms-interval 100
+    ADDITIONAL_ARGS --sig-ms-interval 100
   )
 
   add_e2e_test(
     NAME js_batched_stress_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/src/apps/batched
+    ADDITIONAL_ARGS
+      --js-app-bundle
+      ${CMAKE_SOURCE_DIR}/src/apps/batched
+      --raft-election-timeout-ms
+      10000 # Larger election timeout as recording large JS applications may
+            # trigger leadership changes
   )
 
   add_e2e_test(
     NAME modules_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
     CONSENSUS cft
+    ADDITIONAL_ARGS
+      --raft-election-timeout-ms 10000 # Larger election timeout as recording
+                                       # large JS applications may trigger
+                                       # leadership changes
   )
 
   add_e2e_test(
@@ -663,16 +657,14 @@ if(BUILD_TESTS)
       NAME reconfiguration_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
       CONSENSUS cft
-      ADDITIONAL_ARGS --raft-election-timeout 4000
     )
 
     add_e2e_test(
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
       CONSENSUS cft
-      ADDITIONAL_ARGS
-        --oe-binary ${OE_BINDIR} --raft-election-timeout 4000 --js-app-bundle
-        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
     )
   endif()
 
@@ -802,7 +794,6 @@ if(BUILD_TESTS)
       NAME election_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
       CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS "--raft-election-timeout" "4000"
     )
 
     add_e2e_test(

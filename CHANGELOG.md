@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Added `get_version_of_previous_write(const K& k)` to `MapHandle`. If this entry was written to by a previous transaction, this returns the version at which that transaction was applied. See docs for more details.
 
+### Removed
+
+- The `x-ccf-global-commit` header is no longer sent with responses (#1586, #2144). This was a hint of global commit progress, but was known to be imprecise and unrelated to the executed transaction. Instead, clients should call `/commit` to monitor commit progress or `/tx` for a specific transaction.
+
 ## [0.17.2]
 
 ### Fixed

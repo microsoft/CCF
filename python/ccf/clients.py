@@ -46,8 +46,6 @@ def truncate(string: str, max_len: int = 128):
 
 CCF_TX_SEQNO_HEADER = "x-ccf-tx-seqno"
 CCF_TX_VIEW_HEADER = "x-ccf-tx-view"
-# Deprecated, will be removed
-CCF_GLOBAL_COMMIT_HEADER = "x-ccf-global-commit"
 
 DEFAULT_CONNECTION_TIMEOUT_SEC = 3
 DEFAULT_REQUEST_TIMEOUT_SEC = 10
@@ -175,8 +173,6 @@ class Response:
     seqno: Optional[int]
     #: CCF consensus view
     view: Optional[int]
-    #: CCF global commit sequence number (deprecated)
-    global_commit: Optional[int]
     #: Response HTTP headers
     headers: dict
 
@@ -201,7 +197,6 @@ class Response:
             body=RequestsResponseBody(rr),
             seqno=int_or_none(rr.headers.get(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(rr.headers.get(CCF_TX_VIEW_HEADER)),
-            global_commit=int_or_none(rr.headers.get(CCF_GLOBAL_COMMIT_HEADER)),
             headers=rr.headers,
         )
 
@@ -227,7 +222,6 @@ class Response:
             body=RawResponseBody(raw_body),
             seqno=int_or_none(response.getheader(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(response.getheader(CCF_TX_VIEW_HEADER)),
-            global_commit=int_or_none(response.getheader(CCF_GLOBAL_COMMIT_HEADER)),
             headers=response.headers,
         )
 
@@ -566,10 +560,9 @@ class WSClient:
         (status_code,) = struct.unpack("<h", out[:2])
         seqno = unpack_seqno_or_view(out[2:10])
         view = unpack_seqno_or_view(out[10:18])
-        global_commit = unpack_seqno_or_view(out[18:26])
-        payload = out[26:]
+        payload = out[18:]
         body = RawResponseBody(payload)
-        return Response(status_code, body, seqno, view, global_commit, headers={})
+        return Response(status_code, body, seqno, view, headers={})
 
 
 class CCFClient:
