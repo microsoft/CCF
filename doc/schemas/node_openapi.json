@@ -437,6 +437,40 @@
         }
       }
     },
+    "/caller_id": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cert",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallerInfo"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "user_signature": []
+          },
+          {
+            "member_signature": []
+          }
+        ]
+      }
+    },
     "/code": {
       "get": {
         "responses": {
@@ -786,40 +820,6 @@
             "description": "Default response description"
           }
         }
-      }
-    },
-    "/user_id": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "cert",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CallerInfo"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        },
-        "security": [
-          {
-            "user_signature": []
-          },
-          {
-            "member_signature": []
-          }
-        ]
       }
     }
   },
