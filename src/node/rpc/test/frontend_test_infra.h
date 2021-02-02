@@ -7,12 +7,12 @@
 #include "ds/logger.h"
 #include "enclave/app_interface.h"
 #include "kv/test/null_encryptor.h"
+#include "kv/test/stub_consensus.h"
 #include "node/client_signatures.h"
 #include "node/genesis_gen.h"
 #include "node/history.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/serdes.h"
-#include "node/rpc/test/stub_consensus.h"
 #include "node/rpc/user_frontend.h"
 #include "node_stub.h"
 #include "runtime_config/default_whitelists.h"
@@ -246,6 +246,6 @@ void init_network(NetworkState& network)
   network.tables->set_encryptor(encryptor);
   auto history = std::make_shared<ccf::NullTxHistory>(*network.tables, 0, *kp);
   network.tables->set_history(history);
-  auto consensus = std::make_shared<aft::StubCFTConsensus>();
+  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
   network.tables->set_consensus(consensus);
 }

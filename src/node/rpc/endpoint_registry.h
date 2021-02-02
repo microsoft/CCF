@@ -533,6 +533,7 @@ namespace ccf
       std::map<RESTVerb, std::shared_ptr<PathTemplatedEndpoint>>>
       templated_endpoints;
 
+    SpinLock metrics_lock;
     std::map<std::string, std::map<std::string, Metrics>> metrics;
 
     kv::Consensus* consensus = nullptr;
@@ -796,6 +797,7 @@ namespace ccf
 
     virtual void endpoint_metrics(EndpointMetrics::Out& out)
     {
+      std::lock_guard<SpinLock> guard(metrics_lock);
       for (const auto& [path, verb_metrics] : metrics)
       {
         for (const auto& [verb, metric] : verb_metrics)
@@ -812,6 +814,7 @@ namespace ccf
 
     Metrics& get_metrics(const EndpointDefinitionPtr& e)
     {
+      std::lock_guard<SpinLock> guard(metrics_lock);
       return metrics[e->dispatch.uri_path][e->dispatch.verb.c_str()];
     }
 
