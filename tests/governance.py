@@ -206,6 +206,6 @@ if __name__ == "__main__":
         sys.exit(0)
 
     args.package = "liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=0)
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.initial_user_count = 3
     run(args)

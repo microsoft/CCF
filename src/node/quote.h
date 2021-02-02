@@ -37,7 +37,7 @@ namespace ccf
     static std::optional<CodeDigest> get_code_id(
       const std::vector<uint8_t>& raw_quote)
     {
-      std::optional<CodeDigest> unique_id = std::nullopt;
+      CodeDigest unique_id = {};
       auto rc = verify_oe_quote(raw_quote, unique_id);
       if (rc != QuoteVerificationResult::VERIFIED)
       {
@@ -116,7 +116,8 @@ namespace ccf
       {
         LOG_FAIL_FMT(
           "Failed to initialise evidence verifier: {}", oe_result_str(rc));
-        return std::nullopt;
+        // return std::nullopt;
+        return QuoteVerificationResult::FAIL_VERIFY_OE;
       }
 
       rc = oe_verify_evidence(
@@ -133,7 +134,8 @@ namespace ccf
       {
         oe_free_claims(claims, claims_length);
         LOG_FAIL_FMT("Failed to verify evidence: {}", oe_result_str(rc));
-        return std::nullopt;
+        // return std::nullopt;
+        return QuoteVerificationResult::FAIL_VERIFY_OE;
       }
 
       for (size_t i = 0; i < claims_length; i++)
@@ -141,69 +143,23 @@ namespace ccf
         auto claim_name = std::string(claims[i].name);
         if (claim_name == OE_CLAIM_UNIQUE_ID)
         {
-          CodeDigest unique_id;
           std::copy(
             claims[i].value,
             claims[i].value + claims[i].value_size,
             unique_id.begin());
-
-          oe_free_claims(claims, claims_length);
-          return unique_id;
+          break;
         }
       }
 
       oe_free_claims(claims, claims_length);
 
-      return std::nullopt;
-
-      // auto rc = oe_verifier_initialize();
-      // if (rc != OE_OK)
-      // {
-      //   LOG_FAIL_FMT(
-      //     "Failed to initialise evidence verifier: {}", oe_result_str(rc));
-      //   return QuoteVerificationResult::FAIL_VERIFY_OE;
-      // }
-
-      // // TODO: Move this to verification function
-      // rc = oe_verify_evidence(
-      //   &sgx_remote_uuid,
-      //   raw_quote.data(),
-      //   raw_quote.size(),
-      //   nullptr,
-      //   0,
-      //   nullptr,
-      //   0,
-      //   &claims,
-      //   &claims_length);
-      // if (rc != OE_OK)
-      // {
-      //   oe_free_claims(claims, claims_length);
-      //   LOG_FAIL_FMT("Failed to verify evidence: {}", oe_result_str(rc));
-      //   return QuoteVerificationResult::FAIL_VERIFY_OE;
-      // }
-
-      // for (size_t i = 0; i < claims_length; i++)
-      // {
-      //   auto claim_name = std::string(claims[i].name);
-      //   if (claim_name == OE_CLAIM_UNIQUE_ID)
-      //   {
-      //     std::copy(
-      //       claims[i].value,
-      //       claims[i].value + claims[i].value_size,
-      //       unique_id.begin());
-      //     break;
-      //   }
-      // }
-
-      // oe_free_claims(claims, claims_length);
-
-      // return QuoteVerificationResult::VERIFIED;
+      return QuoteVerificationResult::VERIFIED;
     }
 
     static QuoteVerificationResult verify_enclave_measurement_against_store(
-      kv::Tx& tx, CodeIDs& code_ids_table, const CodeDigest& unique_id)
+      kv::Tx& tx, const CodeDigest& unique_id)
     {
-      auto code_ids = tx.ro(code_ids_table);
+      auto code_ids = tx.ro<CodeIDs>(Tables::NODE_CODE_IDS);
       auto code_id_status = code_ids->get(unique_id);
       if (!code_id_status.has_value())
       {
@@ -237,11 +193,9 @@ namespace ccf
 
   public:
     static QuoteVerificationResult verify_quote_against_store(
-      kv::Tx& tx,
-      CodeIDs& code_ids,
-      const std::vector<uint8_t>& raw_quote,
-      const tls::Pem& cert)
+      kv::Tx& tx, const std::vector<uint8_t>& raw_quote, const tls::Pem& cert)
     {
+      (void)cert;
       CodeDigest unique_id;
       // TODO: Also retrieve report data from claims!
 
@@ -251,12 +205,15 @@ namespace ccf
         return rc;
       }
 
-      rc = verify_enclave_measurement_against_store(tx, code_ids, unique_id);
-      if (rc != QuoteVerificationResult::VERIFIED)
-      {
-        return rc;
-      }
+      (void)tx;
 
+      // rc = verify_enclave_measurement_against_store(tx, code_ids, unique_id);
+      // if (rc != QuoteVerificationResult::VERIFIED)
+      // {
+      //   return rc;
+      // }
+
+      // TODO: Verify
       // rc = verify_quoted_certificate(cert, parsed_quote);
       // if (rc != QuoteVerificationResult::VERIFIED)
       // {
@@ -294,6 +251,5 @@ namespace ccf
       }
     }
   };
-
 }
 #endif

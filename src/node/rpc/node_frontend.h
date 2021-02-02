@@ -117,7 +117,7 @@ namespace ccf
 
       QuoteVerificationResult verify_result =
         EnclaveEvidenceGenerator::verify_quote_against_store(
-          tx, this->network.node_code_ids, in.quote, pk_pem);
+          tx, in.quote, pk_pem);
 
       if (verify_result != QuoteVerificationResult::VERIFIED)
       {
