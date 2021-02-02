@@ -10,6 +10,7 @@
 #  include "network_tables.h"
 
 #  include <openenclave/attestation/attester.h>
+#  include <openenclave/attestation/custom_claims.h>
 #  include <openenclave/attestation/sgx/evidence.h>
 #  include <openenclave/attestation/verifier.h>
 #  include <optional>
@@ -17,6 +18,13 @@
 
 namespace ccf
 {
+  // TODO: To move to nodes.h
+  struct NodeQuoteInfo
+  {
+    std::vector<uint8_t> quote;
+    std::vector<uint8_t> endorsement;
+  };
+
   // TODO: Re-word!
   enum QuoteVerificationResult : uint32_t
   {
@@ -32,6 +40,7 @@ namespace ccf
   {
   private:
     static constexpr oe_uuid_t sgx_remote_uuid = {OE_FORMAT_UUID_SGX_ECDSA};
+    static constexpr auto sgx_report_data_claim_name = OE_CLAIM_SGX_REPORT_DATA;
 
   public:
     static std::optional<CodeDigest> get_code_id(
@@ -70,13 +79,31 @@ namespace ccf
 
       LOG_FAIL_FMT("Get quote");
 
+      uint8_t* custom_claims_buffer = nullptr;
+      size_t custom_claims_buffer_size = 0;
+
+      // TODO: Free these too!
+      oe_claim_t custom_claim;
+      custom_claim.name = const_cast<char*>(sgx_report_data_claim_name);
+      custom_claim.value = h.h.data();
+      custom_claim.value_size = h.SIZE;
+
       // TODO: Add custom claims!!
 
+      rc = oe_serialize_custom_claims(
+        &custom_claim, 1, &custom_claims_buffer, &custom_claims_buffer_size);
+      if (rc != OE_OK)
+      {
+        LOG_FAIL_FMT("Error formatting custom claims");
+        return std::nullopt;
+      }
+
+      // TODO: Record endorsement in KV too!
       rc = oe_get_evidence(
         &sgx_remote_uuid,
         0,
-        nullptr,
-        0,
+        custom_claims_buffer,
+        custom_claims_buffer_size,
         nullptr,
         0,
         &evidence,
@@ -85,7 +112,7 @@ namespace ccf
         &endorsements_size);
       if (rc != OE_OK)
       {
-        // TODO: Do we actually need to free this???
+        // TODO: Do we actually need to free this??? --> use wrapper instead!
         oe_free_evidence(evidence);
         oe_free_endorsements(endorsements);
         return std::nullopt;
@@ -137,13 +164,36 @@ namespace ccf
       for (size_t i = 0; i < claims_length; i++)
       {
         auto claim_name = std::string(claims[i].name);
+        LOG_FAIL_FMT("Claim name: {}", claim_name);
         if (claim_name == OE_CLAIM_UNIQUE_ID)
         {
           std::copy(
             claims[i].value,
             claims[i].value + claims[i].value_size,
             unique_id.begin());
-          break;
+          // break; // TODO: Re-add!
+        }
+        else if (claim_name == OE_CLAIM_CUSTOM_CLAIMS_BUFFER)
+        {
+          oe_claim_t* custom_claims = nullptr;
+          size_t custom_claims_length = 0;
+
+          rc = oe_deserialize_custom_claims(
+            claims[i].value,
+            claims[i].value_size,
+            &custom_claims,
+            &custom_claims_length);
+          if (rc != OE_OK)
+          {
+            throw std::logic_error("Failed to deserialise custom claims");
+          }
+
+          if (custom_claims_length != 1)
+          {
+            throw std::logic_error("Expected one custom claim!");
+          }
+
+          LOG_FAIL_FMT("Custom claim: {}", custom_claims[0].name);
         }
       }
 
@@ -189,9 +239,11 @@ namespace ccf
 
   public:
     static QuoteVerificationResult verify_quote_against_store(
-      kv::Tx& tx, const std::vector<uint8_t>& raw_quote, const tls::Pem& cert)
+      kv::Tx& tx,
+      const std::vector<uint8_t>& raw_quote,
+      const tls::Pem& node_public_key)
     {
-      (void)cert;
+      (void)node_public_key;
       CodeDigest unique_id;
       // TODO: Also retrieve report data from claims!
 
