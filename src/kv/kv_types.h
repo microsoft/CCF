@@ -22,6 +22,11 @@ namespace ccf
   struct PrimarySignature;
 }
 
+namespace aft
+{
+  struct Request;
+}
+
 namespace kv
 {
   // Version indexes modifications to the local kv store. Negative values
@@ -457,8 +462,9 @@ namespace kv
     virtual ~AbstractCommitter() = default;
 
     virtual bool has_writes() = 0;
-    virtual bool prepare(Version& max_conflict_version) = 0;
-    virtual void commit(Version v) = 0;
+    virtual bool prepare(bool track_commits, Version& max_conflict_version) = 0;
+    virtual void commit(
+      Version v, bool track_conflicts) = 0;
     virtual ConsensusHookPtr post_commit() = 0;
   };
 
@@ -529,13 +535,16 @@ namespace kv
   {
   public:
     virtual ~AbstractExecutionWrapper() = default;
-    virtual kv::ApplyResult execute() = 0;
+    virtual kv::ApplyResult apply() = 0;
     virtual kv::ConsensusHookPtrs& get_hooks() = 0;
     virtual const std::vector<uint8_t>& get_entry() = 0;
     virtual kv::Term get_term() = 0;
     virtual kv::Version get_index() = 0;
     virtual ccf::PrimarySignature& get_signature() = 0;
     virtual kv::Tx& get_tx() = 0;
+    virtual aft::Request& get_request() = 0;
+    virtual bool support_async_execution() = 0;
+    virtual uint64_t get_max_conflict_version() = 0;
   };
 
   class AbstractStore
@@ -568,6 +577,7 @@ namespace kv
     virtual void add_dynamic_map(
       Version v, const std::shared_ptr<AbstractMap>& map) = 0;
     virtual bool is_map_replicated(const std::string& map_name) = 0;
+    virtual bool should_track_dependencies(const std::string& name) = 0;
 
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;

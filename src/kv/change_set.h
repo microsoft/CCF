@@ -17,8 +17,10 @@ namespace kv
   template <typename K, typename V, typename H>
   using Snapshot = champ::Snapshot<K, VersionV<V>, H>;
 
+  // This is a map of keys and with a tuple of the key's write version and the
+  // version of last transaction which read the key and committed successfully
   template <typename K>
-  using Read = std::map<K, Version>;
+  using Read = std::map<K, std::tuple<Version, Version>>;
 
   // nullopt values represent deletions
   template <typename K, typename V>

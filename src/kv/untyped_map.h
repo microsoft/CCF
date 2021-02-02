@@ -83,6 +83,7 @@ namespace kv::untyped
     SpinLock sl;
     const SecurityDomain security_domain;
     const bool replicated;
+    const bool include_conflict_read_version;
 
   public:
     class HandleCommitter : public AbstractCommitter
@@ -109,12 +110,32 @@ namespace kv::untyped
         return committed_writes || change_set.has_writes();
       }
 
-      bool prepare(kv::Version& max_conflict_version) override
+      bool prepare(bool track_conflicts, kv::Version& max_conflict_version) override
       {
+        auto& roll = map.get_roll();
+        auto state = roll.commits->get_tail()->state;
+
+        auto current = roll.commits->get_tail();
+
+
+        if (map.include_conflict_read_version && track_conflicts)
+        {
+          for (auto it = change_set.reads.begin(); it != change_set.reads.end();
+               ++it)
+          {
+            // Get the value from the current state.
+            auto search = current->state.get(it->first);
+            if (
+              map.include_conflict_read_version &&
+              max_conflict_version < search->version && search.has_value())
+            {
+              max_conflict_version = search->version;
+            }
+          }
+        }
+
         if (change_set.writes.empty())
           return true;
-
-        auto& roll = map.get_roll();
 
         // If the parent map has rolled back since this transaction began, this
         // transaction must fail.
@@ -122,8 +143,6 @@ namespace kv::untyped
           return false;
 
         // If we have iterated over the map, check for a global version match.
-        auto current = roll.commits->get_tail();
-
         if (
           (change_set.read_version != NoVersion) &&
           (change_set.read_version != current->version))
@@ -139,7 +158,7 @@ namespace kv::untyped
           // Get the value from the current state.
           auto search = current->state.get(it->first);
 
-          if (it->second == NoVersion)
+          if (std::get<0>(it->second) == NoVersion)
           {
             // If we depend on the key not existing, it must be absent.
             if (search.has_value())
@@ -152,15 +171,40 @@ namespace kv::untyped
           {
             // If we depend on the key existing, it must be present and have the
             // version that we expect.
-            if (!search.has_value() || (it->second != search.value().version))
+            if (
+              !search.has_value() ||
+              std::get<0>(it->second) != search.value().version ||
+              (track_conflicts &&
+               std::get<1>(it->second) != search.value().read_version))
             {
               LOG_DEBUG_FMT("Read depends on invalid version of entry");
               return false;
             }
-
-            if (max_conflict_version < search->version)
+          }
+        }
+        if (map.include_conflict_read_version && track_conflicts)
+        {
+          for (auto it = change_set.writes.begin();
+               it != change_set.writes.end();
+               ++it)
+          {
+            auto search = state.get(it->first);
+            if (max_conflict_version < search->version && search.has_value())
             {
               max_conflict_version = search->version;
+            }
+            if (
+              max_conflict_version < search->read_version && search.has_value())
+            {
+              max_conflict_version = search->read_version;
+            }
+
+            if (!search.has_value())
+            {
+              // If the key does not exist set the conflict version to version
+              // -1 as dependency tracking does not work for keys that do not
+              // exist
+              max_conflict_version = kv::NoVersion;
             }
           }
         }
@@ -168,20 +212,44 @@ namespace kv::untyped
         return true;
       }
 
-      void commit(Version v) override
+      void commit(
+        Version v,
+        bool track_conflicts) override
       {
+        auto& roll = map.get_roll();
+        auto current = roll.commits->get_tail();
+        auto state = current->state;
+
+        if (track_conflicts)
+        {
+          for (auto it = change_set.reads.begin(); it != change_set.reads.end();
+               ++it)
+          {
+            auto search = state.get(it->first);
+            if (!search.has_value())
+            {
+              continue;
+            }
+            state =
+              state.put(it->first, VersionV{search->version, v, search->value});
+          }
+        }
+
         if (change_set.writes.empty())
         {
           commit_version = change_set.start_version;
+
+          if (track_conflicts)
+          {
+            map.roll.commits->insert_back(map.roll.create_new_local_commit(
+              commit_version, std::move(state), change_set.writes));
+          }
           return;
         }
 
         // Record our commit time.
         commit_version = v;
         committed_writes = true;
-
-        auto& roll = map.get_roll();
-        auto state = roll.commits->get_tail()->state;
 
         for (auto it = change_set.writes.begin(); it != change_set.writes.end();
              ++it)
@@ -190,7 +258,7 @@ namespace kv::untyped
           {
             // Write the new value with the global version.
             changes = true;
-            state = state.put(it->first, VersionV{v, it->second.value()});
+            state = state.put(it->first, VersionV{v, v, it->second.value()});
           }
           else
           {
@@ -200,7 +268,7 @@ namespace kv::untyped
             if (search.has_value())
             {
               changes = true;
-              state = state.put(it->first, VersionV{-v, {}});
+              state = state.put(it->first, VersionV{-v, -v, {}});
             }
           }
         }
@@ -273,12 +341,14 @@ namespace kv::untyped
       AbstractStore* store_,
       const std::string& name_,
       SecurityDomain security_domain_,
-      bool replicated_) :
+      bool replicated_,
+      bool include_conflict_read_version_) :
       AbstractMap(name_),
       store(store_),
       roll{std::make_unique<LocalCommits>(), 0, {}},
       security_domain(security_domain_),
-      replicated(replicated_)
+      replicated(replicated_),
+      include_conflict_read_version(include_conflict_read_version_)
     {
       roll.reset_commits();
     }
@@ -287,7 +357,12 @@ namespace kv::untyped
 
     virtual AbstractMap* clone(AbstractStore* other) override
     {
-      return new Map(other, name, security_domain, replicated);
+      return new Map(
+        other,
+        name,
+        security_domain,
+        replicated,
+        include_conflict_read_version);
     }
 
     void serialise_changes(
@@ -315,7 +390,7 @@ namespace kv::untyped
         for (auto it = change_set.reads.begin(); it != change_set.reads.end();
              ++it)
         {
-          s.serialise_read(it->first, it->second);
+          s.serialise_read(it->first, std::get<0>(it->second));
         }
       }
       else
@@ -378,13 +453,13 @@ namespace kv::untyped
         return true;
       }
 
-      bool prepare(kv::Version&) override
+      bool prepare(bool, kv::Version&) override
       {
         // Snapshots never conflict
         return true;
       }
 
-      void commit(Version) override
+      void commit(Version, bool) override
       {
         // Version argument is ignored. The version of the roll after the
         // snapshot is applied depends on the version of the map at which the
@@ -460,7 +535,8 @@ namespace kv::untyped
       for (size_t i = 0; i < ctr; ++i)
       {
         auto r = d.deserialise_read();
-        change_set.reads[std::get<0>(r)] = std::get<1>(r);
+        change_set.reads[std::get<0>(r)] =
+          std::make_tuple(std::get<1>(r), NoVersion);
       }
 
       ctr = d.deserialise_write_header();

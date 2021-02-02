@@ -366,7 +366,7 @@ namespace ccf::historical
         // recovered ledger secret was bogus, the deserialisation of
         // subsequent ledger entries would fail.
         const auto deserialise_result =
-          store->apply(entry, ConsensusType::CFT, true)->execute();
+          store->apply(entry, ConsensusType::CFT, true)->apply();
         if (deserialise_result == kv::ApplyResult::FAIL)
         {
           throw std::logic_error(fmt::format(
@@ -396,7 +396,7 @@ namespace ccf::historical
       }
 
       const auto deserialise_result =
-        store->apply(entry, ConsensusType::CFT)->execute();
+        store->apply(entry, ConsensusType::CFT)->apply();
 
       switch (deserialise_result)
       {

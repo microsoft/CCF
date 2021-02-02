@@ -172,6 +172,7 @@ namespace aft
     Nonce hashed_nonce;
     uint32_t signature_size;
     std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
+    crypto::Sha256Hash root;
   };
 
   struct SignaturesReceivedAck : RaftHeader

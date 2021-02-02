@@ -12,8 +12,8 @@ namespace aft
     virtual void recv_append_entries(
       AppendEntries r, const uint8_t* data, size_t size) = 0;
     virtual void recv_append_entries_response(AppendEntriesResponse r) = 0;
-    virtual void recv_append_entries_signed_response(
-      SignedAppendEntriesResponse r) = 0;
+    virtual bool recv_append_entries_signed_response(
+      SignedAppendEntriesResponse r, bool is_pre_exec) = 0;
     virtual void recv_request_vote(RequestVote r) = 0;
     virtual void recv_request_vote_response(RequestVoteResponse r) = 0;
     virtual void recv_signature_received_ack(SignaturesReceivedAck r) = 0;
@@ -29,6 +29,7 @@ namespace aft
   public:
     virtual ~AbstractMsgCallback() = default;
     virtual void execute() = 0;
+    virtual void async_execute() {}
   };
 
   class AppendEntryCallback : public AbstractMsgCallback
@@ -88,14 +89,23 @@ namespace aft
       hdr(std::move(hdr_))
     {}
 
+    void async_execute() override
+    {
+      async_exec_result = store.recv_append_entries_signed_response(hdr, true);
+    }
+
     void execute() override
     {
-      store.recv_append_entries_signed_response(hdr);
+      if (async_exec_result)
+      {
+        store.recv_append_entries_signed_response(hdr, false);
+      }
     }
 
   private:
     AbstractConsensusCallback& store;
     SignedAppendEntriesResponse hdr;
+    bool async_exec_result = false;
   };
 
   class RequestVoteCallback : public AbstractMsgCallback

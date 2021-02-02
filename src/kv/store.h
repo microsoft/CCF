@@ -284,6 +284,11 @@ namespace kv
       }
     }
 
+    bool should_track_dependencies(const std::string& name) override
+    {
+      return name.compare(ccf::Tables::AFT_REQUESTS) != 0;
+    }
+
     std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
     {
       if (v < commit_version())
@@ -407,7 +412,8 @@ namespace kv
             this,
             map_name,
             get_security_domain(map_name),
-            is_map_replicated(map_name));
+            is_map_replicated(map_name),
+            should_track_dependencies(map_name));
           new_maps[map_name] = map;
           LOG_DEBUG_FMT(
             "Creating map {} while deserialising snapshot at version {}",
@@ -625,6 +631,7 @@ namespace kv
       const std::vector<uint8_t>& data,
       bool public_only,
       kv::Version& v,
+      kv::Version& max_conflict_version,
       OrderedChanges& changes,
       MapCollection& new_maps,
       bool ignore_strict_versions = false) override
@@ -647,7 +654,7 @@ namespace kv
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
         return false;
       }
-      std::tie(v, std::ignore) = v_.value();
+      std::tie(v, max_conflict_version) = v_.value();
 
       // Throw away any local commits that have not propagated via the
       // consensus.
@@ -682,7 +689,8 @@ namespace kv
             this,
             map_name,
             get_security_domain(map_name),
-            is_map_replicated(map_name));
+            is_map_replicated(map_name),
+            should_track_dependencies(map_name));
           map = new_map;
           new_maps[map_name] = new_map;
           LOG_DEBUG_FMT(
@@ -729,9 +737,17 @@ namespace kv
       else
       {
         kv::Version v;
+        kv::Version max_conflict_version;
         OrderedChanges changes;
         MapCollection new_maps;
-        if (!fill_maps(data, public_only, v, changes, new_maps, true))
+        if (!fill_maps(
+              data,
+              public_only,
+              v,
+              max_conflict_version,
+              changes,
+              new_maps,
+              true))
         {
           return nullptr;
         }
@@ -805,8 +821,9 @@ namespace kv
             get_history(),
             std::move(data),
             public_only,
-            std::make_unique<Tx>(this),
+            std::make_unique<Tx>(this, v),
             v,
+            max_conflict_version,
             std::move(changes),
             std::move(new_maps));
         }
@@ -964,6 +981,11 @@ namespace kv
         next_last_replicated = last_replicated + batch.size();
 
         replication_view = term;
+
+        if (consensus->type() == ConsensusType::BFT && consensus->is_backup())
+        {
+          last_replicated = next_last_replicated;
+        }
       }
 
       if (c->replicate(batch, replication_view))
@@ -971,7 +993,8 @@ namespace kv
         std::lock_guard<SpinLock> vguard(version_lock);
         if (
           last_replicated == previous_last_replicated &&
-          previous_rollback_count == rollback_count)
+          previous_rollback_count == rollback_count &&
+          !(consensus->type() == ConsensusType::BFT && consensus->is_backup()))
         {
           last_replicated = next_last_replicated;
         }
@@ -1086,7 +1109,11 @@ namespace kv
           auto new_map = std::make_pair(
             NoVersion,
             std::make_shared<kv::untyped::Map>(
-              this, name, SecurityDomain::PRIVATE, is_map_replicated(name)));
+              this,
+              name,
+              SecurityDomain::PRIVATE,
+              is_map_replicated(name),
+              should_track_dependencies(name)));
           maps[name] = new_map;
           map = new_map.second;
         }

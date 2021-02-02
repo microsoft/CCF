@@ -21,7 +21,7 @@ using StoreSig = aft::LoggingStubStoreSig;
 using Adaptor = aft::Adaptor<Store>;
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
-std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
 
 std::vector<uint8_t> cert;
 
@@ -1096,4 +1096,47 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     (sent_entries > num_small_entries_sent &&
      sent_entries <= num_small_entries_sent + num_big_entries));
   DOCTEST_REQUIRE(r2.ledger->ledger.size() == individual_entries);
+}
+
+DOCTEST_TEST_CASE("Test Asynchronous Execution Coordinator")
+{
+  DOCTEST_INFO("With 1 thread");
+  {
+    aft::AsyncExecutor aec(1);
+    aec.execute_as_far_as_possible(0);
+    for (uint32_t i = 0; i < 20; ++i)
+    {
+      DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, 10));
+      DOCTEST_REQUIRE(
+        aec.execution_status() == aft::AsyncExecutionResult::COMPLETE);
+    }
+  }
+
+  DOCTEST_INFO("multithreaded run upto sync point");
+  {
+    aft::AsyncExecutor aec(2);
+    aec.execute_as_far_as_possible(5);
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+      DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, i));
+      aec.increment_pending();
+      DOCTEST_REQUIRE(
+        aec.execution_status() == aft::AsyncExecutionResult::PENDING);
+    }
+    DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, 5) == false);
+  }
+
+  DOCTEST_INFO("multithreaded run upto sync point");
+  {
+    aft::AsyncExecutor aec(2);
+    aec.execute_as_far_as_possible(10);
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+      DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, i));
+      aec.increment_pending();
+      DOCTEST_REQUIRE(
+        aec.execution_status() == aft::AsyncExecutionResult::PENDING);
+    }
+    DOCTEST_REQUIRE(aec.should_exec_next_append_entry(false, 5) == false);
+  }
 }

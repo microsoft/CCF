@@ -5,6 +5,7 @@
 #include "consensus/aft/revealed_nonces.h"
 #include "crypto/hash.h"
 #include "crypto/verifier.h"
+#include "ds/thread_messaging.h"
 #include "node_signature.h"
 #include "tls/tls.h"
 #include "view_change.h"
@@ -15,6 +16,7 @@ namespace ccf
   {
     bool is_primary;
     Nonce nonce;
+    crypto::Sha256Hash root;
 
     BftNodeSignature(const NodeSignature& ns) :
       NodeSignature(ns),
@@ -22,9 +24,13 @@ namespace ccf
     {}
 
     BftNodeSignature(
-      const std::vector<uint8_t>& sig_, NodeId node_, Nonce hashed_nonce_) :
+      const std::vector<uint8_t>& sig_,
+      NodeId node_,
+      Nonce hashed_nonce_,
+      crypto::Sha256Hash& root_) :
       NodeSignature(sig_, node_, hashed_nonce_),
-      is_primary(false)
+      is_primary(false),
+      root(root_)
     {}
   };
 
@@ -93,18 +99,59 @@ namespace ccf
       new_views(ccf::Tables::NEW_VIEWS)
     {}
 
+
+    struct WriteBackupSigs
+    {
+      WriteBackupSigs(
+      ccf::BackupSignatures sig_value_,
+      ProgressTrackerStoreAdapter* self_) : sig_value(std::move(sig_value_)), self(self_) {}
+      
+      ccf::BackupSignatures sig_value;
+      ProgressTrackerStoreAdapter* self;
+    };
+
     void write_backup_signatures(ccf::BackupSignatures& sig_value) override
+    {
+      if(threading::ThreadMessaging::thread_count > 1)
+      {
+        auto msg = std::make_unique<threading::Tmsg<WriteBackupSigs>>(
+          [](std::unique_ptr<threading::Tmsg<WriteBackupSigs>> msg) {
+            msg->data.self->write_backup_signatures_internal(msg->data.sig_value);
+          },
+          std::move(sig_value),
+          this);
+
+        threading::ThreadMessaging::thread_messaging.add_task(
+          threading::ThreadMessaging::get_execution_thread(
+            threading::get_current_thread_id()),
+          std::move(msg));
+      }
+      else
+      {
+        write_backup_signatures_internal(sig_value);
+      }
+    }
+
+    void write_backup_signatures_internal(ccf::BackupSignatures& sig_value)
     {
       kv::Tx tx(&store);
       auto backup_sig_view = tx.rw(backup_signatures);
 
       backup_sig_view->put(0, sig_value);
       auto r = tx.commit();
-      LOG_TRACE_FMT("Adding signatures to ledger, result:{}", r);
-      CCF_ASSERT_FMT(
-        r == kv::CommitResult::SUCCESS,
-        "Commiting backup signatures failed r:{}",
-        r);
+      if (r == kv::CommitResult::FAIL_CONFLICT)
+      {
+        LOG_FAIL_FMT(
+          "Failed to write nonces, view:{}, seqno:{}, r:{}",
+          sig_value.view,
+          sig_value.seqno,
+          r);
+        throw ccf::ccf_logic_error(fmt::format(
+          "Failed to write nonces, view:{}, seqno:{}, r:{}",
+          sig_value.view,
+          sig_value.seqno,
+          r));
+      }
     }
 
     std::optional<ccf::BackupSignatures> get_backup_signatures() override
@@ -133,23 +180,57 @@ namespace ccf
       return new_view;
     }
 
+    struct WriteNonces
+    {
+      WriteNonces(
+      aft::RevealedNonces nonces_,
+      ProgressTrackerStoreAdapter* self_) : nonces(std::move(nonces_)), self(self_) {}
+      
+      aft::RevealedNonces nonces;
+      ProgressTrackerStoreAdapter* self;
+    };
+
     void write_nonces(aft::RevealedNonces& nonces) override
+    {
+      if(threading::ThreadMessaging::thread_count > 1)
+      {
+        auto msg = std::make_unique<threading::Tmsg<WriteNonces>>(
+          [](std::unique_ptr<threading::Tmsg<WriteNonces>> msg) {
+            msg->data.self->write_nonces_internal(msg->data.nonces);
+          },
+          std::move(nonces),
+          this);
+
+        threading::ThreadMessaging::thread_messaging.add_task(
+          threading::ThreadMessaging::get_execution_thread(
+            threading::get_current_thread_id()),
+          std::move(msg));
+      }
+      else
+      {
+        write_nonces_internal(nonces);
+      }
+    }
+
+    void write_nonces_internal(aft::RevealedNonces& nonces)
     {
       kv::Tx tx(&store);
       auto nonces_tv = tx.rw(revealed_nonces);
 
       nonces_tv->put(0, nonces);
       auto r = tx.commit();
-      if (r != kv::CommitResult::SUCCESS)
+      if (r == kv::CommitResult::FAIL_CONFLICT)
       {
         LOG_FAIL_FMT(
-          "Failed to write nonces, view:{}, seqno:{}",
+          "Failed to write nonces, view:{}, seqno:{}, r:{}",
           nonces.tx_id.term,
-          nonces.tx_id.version);
+          nonces.tx_id.version,
+          r);
         throw ccf::ccf_logic_error(fmt::format(
-          "Failed to write nonces, view:{}, seqno:{}",
+          "Failed to write nonces, view:{}, seqno:{}, r:{}",
           nonces.tx_id.term,
-          nonces.tx_id.version));
+          nonces.tx_id.version,
+          r));
       }
     }
 
