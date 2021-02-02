@@ -98,7 +98,7 @@ namespace snmalloc
      */
     static constexpr uint64_t pal_features = LazyCommit;
 
-    static constexpr size_t page_size = 0x1000;
+    static constexpr size_t page_size = Aal::smallest_page_size;
 
     static void print_stack_trace()
     {
@@ -131,10 +131,13 @@ namespace snmalloc
      * high memory pressure conditions, though on Linux this seems to impose
      * too much of a performance penalty.
      */
-    void notify_not_using(void* p, size_t size) noexcept
+    static void notify_not_using(void* p, size_t size) noexcept
     {
       SNMALLOC_ASSERT(is_aligned_block<OS::page_size>(p, size));
 #ifdef USE_POSIX_COMMIT_CHECKS
+      // Fill memory so that when we switch the pages back on we don't make
+      // assumptions on the content.
+      memset(p, 0x5a, size);
       mprotect(p, size, PROT_NONE);
 #else
       UNUSED(p);
@@ -150,7 +153,7 @@ namespace snmalloc
      * function.
      */
     template<ZeroMem zero_mem>
-    void notify_using(void* p, size_t size) noexcept
+    static void notify_using(void* p, size_t size) noexcept
     {
       SNMALLOC_ASSERT(
         is_aligned_block<OS::page_size>(p, size) || (zero_mem == NoZero));
@@ -163,7 +166,7 @@ namespace snmalloc
 #endif
 
       if constexpr (zero_mem == YesZero)
-        static_cast<OS*>(this)->template zero<true>(p, size);
+        zero<true>(p, size);
     }
 
     /**
@@ -178,7 +181,7 @@ namespace snmalloc
      * calling bzero at some point.
      */
     template<bool page_aligned = false>
-    void zero(void* p, size_t size) noexcept
+    static void zero(void* p, size_t size) noexcept
     {
       if (page_aligned || is_aligned_block<OS::page_size>(p, size))
       {
@@ -207,9 +210,9 @@ namespace snmalloc
      * POSIX does not define a portable interface for specifying alignment
      * greater than a page.
      */
-    std::pair<void*, size_t> reserve_at_least(size_t size) noexcept
+    static std::pair<void*, size_t> reserve_at_least(size_t size) noexcept
     {
-      SNMALLOC_ASSERT(size == bits::next_pow2(size));
+      SNMALLOC_ASSERT(bits::is_pow2(size));
 
       // Magic number for over-allocating chosen by the Pal
       // These should be further refined based on experiments.
