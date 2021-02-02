@@ -66,7 +66,7 @@ function cleanup() {
 }
 trap cleanup EXIT
 
-curl -sS --fail -X GET "${node_address}"/node/quote "${@}" | jq -r .raw | perl -e 'print pack "H*", <STDIN>' > "${tmp_dir}/${quote_file_name}"
+curl -sS --fail -X GET "${node_address}"/node/quotes/self "${@}" | jq -r .raw | perl -e 'print pack "H*", <STDIN>' > "${tmp_dir}/${quote_file_name}"
 
 if [ ! -s "${tmp_dir}/${quote_file_name}" ]; then
     echo "Error: Node quote is empty. Virtual mode does not support SGX quotes."

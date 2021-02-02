@@ -88,6 +88,26 @@ namespace kv
       return read_handle.has(KSerialiser::to_serialised(key));
     }
 
+    /** Get version when this key was last written to, by a previous
+     * transaction.
+     *
+     * Returns nullopt when there is no value, because the key has no value
+     * (never existed or has been removed). Note that this is always talking
+     * about the version of previously committed state and not the same values
+     * as @c get or @c has - this transaction's pending writes have no version
+     * yet, and this method does not talk about them.
+     *
+     * @param key Key to read
+     *
+     * @return Optional containing version of applied transaction which last
+     * wrote at this key, or nullopt if this key has no associated value
+     */
+    std::optional<Version> get_version_of_previous_write(const K& key)
+    {
+      return read_handle.get_version_of_previous_write(
+        KSerialiser::to_serialised(key));
+    }
+
     /** Iterate over all entries in the map.
      *
      * The passed functor should have the signature `bool(const K& k, const V&
