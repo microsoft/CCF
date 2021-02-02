@@ -224,32 +224,37 @@ namespace client
 
       if (response_times.is_timing_active() && reply.status == HTTP_STATUS_OK)
       {
-        const auto commits = timing::parse_commit_ids(reply);
+        const auto tx_id = timing::extract_transaction_id(reply);
+
+        if (!tx_id.has_value())
+        {
+          throw std::logic_error("No transaction ID found in response headers");
+        }
 
         // Record time of received responses
-        response_times.record_receive(reply.id, commits);
+        response_times.record_receive(reply.id, tx_id);
 
-        if (commits->view < last_response_commit.view)
+        if (tx_id->view < last_response_tx_id.view)
         {
           throw std::logic_error(fmt::format(
             "View went backwards (expected {}, saw {})!",
-            last_response_commit.view,
-            commits->view));
+            last_response_tx_id.view,
+            tx_id->view));
         }
         else if (
-          commits->view > last_response_commit.view &&
-          commits->seqno <= last_response_commit.seqno)
+          tx_id->view > last_response_tx_id.view &&
+          tx_id->seqno <= last_response_tx_id.seqno)
         {
           throw std::logic_error(fmt::format(
             "There has been an election and transactions have "
             "been lost! (saw {}.{}, currently at {}.{})",
-            last_response_commit.view,
-            last_response_commit.seqno,
-            commits->view,
-            commits->seqno));
+            last_response_tx_id.view,
+            last_response_tx_id.seqno,
+            tx_id->view,
+            tx_id->seqno));
         }
 
-        last_response_commit = {commits->view, commits->seqno};
+        last_response_tx_id = tx_id.value();
       }
     }
 
@@ -280,7 +285,7 @@ namespace client
     PreparedTxs prepared_txs;
 
     timing::ResponseTimes response_times;
-    timing::CommitPoint last_response_commit = {0, 0};
+    timing::TransactionID last_response_tx_id = {0, 0};
 
     std::chrono::high_resolution_clock::time_point last_write_time;
     std::chrono::nanoseconds write_delay_ns = std::chrono::nanoseconds::zero();
@@ -461,9 +466,9 @@ namespace client
         // Create a new connection, because we need to do some GETs
         // and when all you have is a WebSocket, everything looks like a POST!
         auto c = create_connection(true, false);
-        wait_for_global_commit(last_response_commit);
+        wait_for_global_commit(last_response_tx_id);
       }
-      const auto last_commit = last_response_commit.seqno;
+      const auto last_commit = last_response_tx_id.seqno;
       auto timing_results = end_timing(last_commit);
       LOG_INFO_FMT("Timing ended");
       return timing_results;
@@ -708,7 +713,7 @@ namespace client
       }
     }
 
-    void wait_for_global_commit(const timing::CommitPoint& target)
+    void wait_for_global_commit(const timing::TransactionID& target)
     {
       response_times.wait_for_global_commit(target);
     }
@@ -717,16 +722,14 @@ namespace client
     {
       check_response(response);
 
-      const auto response_commit_ids = timing::parse_commit_ids(response);
-      if (!response_commit_ids.has_value())
+      const auto tx_id = timing::extract_transaction_id(response);
+      if (!tx_id.has_value())
       {
         throw std::logic_error(
           "Cannot wait for response to commit - it does not have a TxID");
       }
 
-      const timing::CommitPoint cp{response_commit_ids->view,
-                                   response_commit_ids->seqno};
-      wait_for_global_commit(cp);
+      wait_for_global_commit(tx_id.value());
     }
 
     void begin_timing()
