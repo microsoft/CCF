@@ -1607,7 +1607,8 @@ namespace ccf
             if (w.size() > 1)
             {
               throw std::logic_error(fmt::format(
-                "Unexpected: multiple writes to {} table",
+                "Transaction contains {} writes to map {}, expected one",
+                w.size(),
                 network.encrypted_ledger_secrets.get_name()));
             }
 
@@ -1615,7 +1616,7 @@ namespace ccf
             if (!encrypted_ledger_secret_info.has_value())
             {
               throw std::logic_error(fmt::format(
-                "Unexpected: removal from {} table",
+                "Removal from {} table",
                 network.encrypted_ledger_secrets.get_name()));
             }
 

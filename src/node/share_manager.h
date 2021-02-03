@@ -146,7 +146,7 @@ namespace ccf
       return encrypted_shares;
     }
 
-    void _shuffle_recovery_shares(
+    void shuffle_recovery_shares(
       kv::Tx& tx, const LedgerSecret& latest_ledger_secret)
     {
       auto ls_wrapping_key = LedgerSecretWrappingKey();
@@ -170,7 +170,7 @@ namespace ccf
       // Finally, encrypt each share with the public key of each member and
       // record it in the shares table.
 
-      _shuffle_recovery_shares(tx, latest_ledger_secret);
+      shuffle_recovery_shares(tx, latest_ledger_secret);
 
       auto encrypted_ls = tx.rw(network.encrypted_ledger_secrets);
 
@@ -280,36 +280,47 @@ namespace ccf
   public:
     ShareManager(NetworkState& network_) : network(network_) {}
 
+    /** Issue new recovery shares for the current ledger secret, recording the
+     * wrapped new ledger secret and encrypted previous ledger secret in the
+     * store.
+     *
+     * @param tx Store transaction object
+     */
     void issue_recovery_shares(kv::Tx& tx)
     {
-      // Issue new recovery shares for the current ledger secret, recording the
-      // wrapped new ledger secret and encrypted previous ledger secret in the
-      // store.
       auto [latest, penultimate] =
         network.ledger_secrets->get_latest_and_penultimate(tx);
 
       set_recovery_shares_info(tx, latest.second, penultimate, latest.first);
     }
 
+    /** Issue new recovery shares of the new ledger secret, recording the
+    /* wrapped new ledger secret and encrypted current (now previous) ledger
+    /* secret in the store.
+    /*
+    /* @param tx Store transaction object
+    /* @param new_ledger_secret New ledger secret
+    /*
+    /* Note: The version at which the new ledger secret is applicable from is
+    /* derived from the hook at which the ledger secret is applied to the
+    /* store.
+    */
     void issue_recovery_shares(
       kv::Tx& tx, const LedgerSecret& new_ledger_secret)
     {
-      // Issue new recovery shares of the new ledger secret, recording the
-      // wrapped new ledger secret and encrypted previous ledger secret in the
-      // store.
-      // Note: The version at which the new ledger secret is applicable from is
-      // derived from the hook at which the ledger secret is applied to the
-      // store.
       set_recovery_shares_info(
         tx, new_ledger_secret, network.ledger_secrets->get_latest(tx));
     }
 
+    /** Issue new recovery shares of the same current ledger secret to all
+    /* active recovery members. The encrypted ledger secrets recorded in the
+    /* store are not updated.
+    /*
+    /* @param tx Store transaction object
+    */
     void shuffle_recovery_shares(kv::Tx& tx)
     {
-      // Issue new recovery shares of the _same_ current ledger secret to all
-      // active recovery members. The encrypted ledger secrets recorded in the
-      // store are _not_ updated.
-      _shuffle_recovery_shares(
+      shuffle_recovery_shares(
         tx, network.ledger_secrets->get_latest(tx).second);
     }
 
@@ -342,7 +353,7 @@ namespace ccf
       if (recovery_ledger_secrets.empty())
       {
         throw std::logic_error(
-          "There should be at least one encrypted ledger secret to recover");
+          "Could not find any ledger secrets in the ledger");
       }
 
       auto recovery_shares_info = tx.ro(network.shares)->get(0);

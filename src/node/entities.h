@@ -82,7 +82,7 @@ namespace ccf
     static constexpr auto SERVICE = "public:ccf.gov.service";
     static constexpr auto SHARES = "public:ccf.gov.shares";
     static constexpr auto ENCRYPTED_LEDGER_SECRETS =
-      "public:ccf.gov.encrypted_ledger_secrets";
+      "public:ccf.internal.encrypted_ledger_secrets";
     static constexpr auto CONFIGURATION = "public:ccf.gov.config";
     static constexpr auto SUBMITTED_SHARES = "public:ccf.gov.submitted_shares";
     static constexpr auto SNAPSHOT_EVIDENCE =
