@@ -31,11 +31,11 @@ def test(network, args):
     with other.client("user0") as nc:
         while time.time() < end_time:
             r = nc.post("/app/log/private", {"id": 42, "msg": msg * i})
-            if r.status_code == 200:
+            if r.status_code == http.HTTPStatus.OK.value:
                 break
             else:
                 time.sleep(0.1)
-        assert r.status_code == 200, r
+        assert r.status_code == http.HTTPStatus.OK.value, r
 
     LOG.info("Write on secondary through forwarding")
     with other.client("user0", ws=True) as c:

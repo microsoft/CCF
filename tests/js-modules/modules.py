@@ -78,7 +78,7 @@ def test_module_set_and_remove(network, args):
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
         r = c.post("/gov/read", {"table": "public:ccf.gov.modules", "key": module_path})
-        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
     return network
 
 
@@ -128,7 +128,7 @@ def test_app_bundle(network, args):
 
         invalid_body = {"op": "add", "left": "1", "right": 2}
         r = c.post("/app/compute", invalid_body)
-        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
         assert r.headers["content-type"] == "application/json"
         assert r.body.json() == {"error": "invalid operand type"}, r.body
 
@@ -150,7 +150,7 @@ def test_app_bundle(network, args):
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
         r = c.post("/gov/read", {"table": "public:ccf.gov.modules", "key": "/math.js"})
-        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 
     return network
 

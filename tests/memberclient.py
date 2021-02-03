@@ -162,7 +162,7 @@ def run(args):
         LOG.debug(
             "Further vote requests fail as the proposal has already been accepted"
         )
-        params_error = http.HTTPStatus.BAD_REQUEST.value
+        params_error = http.HTTPStatus.NOT_FOUND.value
         assert (
             network.consortium.get_member_by_id(0)
             .vote(primary, new_member_proposal, careful_vote)

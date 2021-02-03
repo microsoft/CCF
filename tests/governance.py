@@ -166,7 +166,7 @@ def test_user_id(network, args):
             pem = ucert.read()
         json_pem = json.dumps(pem)
         r = uc.get(f"/app/user_id?cert={urllib.parse.quote_plus(json_pem)}")
-        assert r.status_code == 200
+        assert r.status_code == http.HTTPStatus.OK.value
         assert r.body.json()["caller_id"] == 1
     return network
 
@@ -179,7 +179,7 @@ def test_node_ids(network, args):
             r = c.get(
                 f'/node/network/nodes?host="{node.pubhost}"&port="{node.pubport}"'
             )
-            assert r.status_code == 200
+            assert r.status_code == http.HTTPStatus.OK.value
             info = r.body.json()["nodes"]
             assert len(info) == 1
             assert info[0]["node_id"] == node.node_id

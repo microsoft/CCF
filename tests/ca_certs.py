@@ -59,7 +59,7 @@ def test_cert_store(network, args):
         r = c.post(
             "/gov/read", {"table": "public:ccf.gov.ca_cert_ders", "key": cert_name}
         )
-        assert r.status_code == 200, r.status_code
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
         cert_ref = x509.load_pem_x509_certificate(
             cert_pem.encode(), crypto_backends.default_backend()
         )
@@ -83,7 +83,7 @@ def test_cert_store(network, args):
         r = c.post(
             "/gov/read", {"table": "public:ccf.gov.ca_cert_ders", "key": cert_name}
         )
-        assert r.status_code == 400, r.status_code
+        assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r.status_code
 
     return network
 

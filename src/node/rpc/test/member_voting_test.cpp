@@ -323,7 +323,7 @@ DOCTEST_TEST_CASE("Member query/read")
       create_request(read_params<int>(wrong_key, Tables::VALUES), "read");
     const auto response = frontend_process(frontend, read_call, member_cert);
 
-    check_error(response, HTTP_STATUS_BAD_REQUEST);
+    check_error(response, HTTP_STATUS_NOT_FOUND);
   }
 
   DOCTEST_SUBCASE("Read: access not allowed")
