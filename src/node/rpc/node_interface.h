@@ -39,7 +39,7 @@ namespace ccf
     virtual void open_user_frontend() = 0;
     virtual QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
-      const std::vector<uint8_t>& raw_quote,
+      const QuoteInfo& quote_info,
       const tls::Pem& expected_node_public_key) = 0;
   };
 }

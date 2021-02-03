@@ -99,7 +99,7 @@ namespace ccf
     static constexpr auto sgx_report_data_claim_name = OE_CLAIM_SGX_REPORT_DATA;
 
     static QuoteVerificationResult verify_quote(
-      const std::vector<uint8_t>& raw_quote,
+      const QuoteInfo& quote_info,
       CodeDigest& unique_id,
       crypto::Sha256Hash& hash_node_public_key)
     {
@@ -107,10 +107,10 @@ namespace ccf
 
       auto rc = oe_verify_evidence(
         &oe_quote_format,
-        raw_quote.data(),
-        raw_quote.size(),
-        nullptr,
-        0,
+        quote_info.quote.data(),
+        quote_info.quote.size(),
+        quote_info.endorsements.data(),
+        quote_info.endorsements.size(),
         nullptr,
         0,
         &claims.data,
@@ -231,11 +231,11 @@ namespace ccf
       oe_verifier_shutdown();
     }
 
-    static CodeDigest get_code_id(const std::vector<uint8_t>& raw_quote)
+    static CodeDigest get_code_id(const QuoteInfo& quote_info)
     {
       CodeDigest unique_id = {};
       crypto::Sha256Hash h;
-      auto rc = verify_quote(raw_quote, unique_id, h);
+      auto rc = verify_quote(quote_info, unique_id, h);
       if (rc != QuoteVerificationResult::Verified)
       {
         throw std::logic_error(fmt::format("Failed to verify quote: {}", rc));
@@ -299,13 +299,13 @@ namespace ccf
 
     static QuoteVerificationResult verify_quote_against_store(
       kv::ReadOnlyTx& tx,
-      const std::vector<uint8_t>& raw_quote,
+      const QuoteInfo& quote_info,
       const tls::Pem& expected_node_public_key)
     {
       CodeDigest unique_id;
       crypto::Sha256Hash quoted_hash;
 
-      auto rc = verify_quote(raw_quote, unique_id, quoted_hash);
+      auto rc = verify_quote(quote_info, unique_id, quoted_hash);
       if (rc != QuoteVerificationResult::Verified)
       {
         return rc;

@@ -116,9 +116,8 @@ namespace ccf
 #ifdef GET_QUOTE
       auto pk_pem = public_key_pem_from_cert(caller_pem);
 
-      // TODO: Verify with endorsements too!
       QuoteVerificationResult verify_result =
-        this->node.verify_quote(tx, in.quote_info.quote, pk_pem);
+        this->node.verify_quote(tx, in.quote_info, pk_pem);
       if (verify_result != QuoteVerificationResult::Verified)
       {
         const auto [code, message] = quote_verification_error(verify_result);
@@ -340,7 +339,7 @@ namespace ccf
 
 #ifdef GET_QUOTE
           auto code_id =
-            EnclaveAttestationProvider::get_code_id(node_quote_info.quote);
+            EnclaveAttestationProvider::get_code_id(node_quote_info);
           q.mrenclave = fmt::format("{:02x}", fmt::join(code_id, ""));
 #endif
 
@@ -384,8 +383,8 @@ namespace ccf
             q.format = QuoteFormat::oe_sgx_v1;
 
 #ifdef GET_QUOTE
-            auto code_id = EnclaveAttestationProvider::get_code_id(
-              node_info.quote_info.quote);
+            auto code_id =
+              EnclaveAttestationProvider::get_code_id(node_info.quote_info);
             q.mrenclave = fmt::format("{:02x}", fmt::join(code_id, ""));
 #endif
             quotes.emplace_back(q);

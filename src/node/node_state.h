@@ -248,11 +248,11 @@ namespace ccf
 
     QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
-      const std::vector<uint8_t>& raw_quote,
+      const QuoteInfo& quote_info,
       const tls::Pem& expected_node_public_key) override
     {
       return enclve_attestation_provider.verify_quote_against_store(
-        tx, raw_quote, expected_node_public_key);
+        tx, quote_info, expected_node_public_key);
     }
 
     //
@@ -292,7 +292,7 @@ namespace ccf
 #ifdef GET_QUOTE
       quote_info = enclve_attestation_provider.generate_quote(
         node_sign_kp->public_key_pem());
-      node_code_id = enclve_attestation_provider.get_code_id(quote_info.quote);
+      node_code_id = enclve_attestation_provider.get_code_id(quote_info);
 #endif
 
       switch (start_type)
