@@ -96,7 +96,7 @@ namespace kv
 
     NodeId primary() override
     {
-      return 1;
+      return 0;
     }
 
     bool view_change_in_progress() override
@@ -106,7 +106,7 @@ namespace kv
 
     std::set<NodeId> active_nodes() override
     {
-      return {};
+      return {0};
     }
 
     NodeId id() override
