@@ -123,7 +123,9 @@ namespace ccf
     tls::Pem node_cert;
     QuoteInfo quote_info;
     CodeDigest node_code_id;
-    EnclaveAttestationProvider enclve_attestation_provider;
+#ifdef GET_QUOTE
+    EnclaveAttestationProvider enclave_attestation_provider;
+#endif
 
     //
     // kv store, replication, and I/O
@@ -251,8 +253,15 @@ namespace ccf
       const QuoteInfo& quote_info,
       const tls::Pem& expected_node_public_key) override
     {
-      return enclve_attestation_provider.verify_quote_against_store(
+#ifdef GET_QUOTE
+      return enclave_attestation_provider.verify_quote_against_store(
         tx, quote_info, expected_node_public_key);
+#else
+      (void)tx;
+      (void)quote_info;
+      (void)expected_node_public_key;
+      return QuoteVerificationResult::Verified;
+#endif
     }
 
     //
@@ -290,9 +299,9 @@ namespace ccf
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
-      quote_info = enclve_attestation_provider.generate_quote(
+      quote_info = enclave_attestation_provider.generate_quote(
         node_sign_kp->public_key_pem());
-      node_code_id = enclve_attestation_provider.get_code_id(quote_info);
+      node_code_id = enclave_attestation_provider.get_code_id(quote_info);
 #endif
 
       switch (start_type)

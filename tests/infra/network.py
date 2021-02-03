@@ -588,10 +588,8 @@ class Network:
             if errors:
                 # Throw accurate exceptions if known errors found in
                 for error in errors:
-                    if "CODE_ID_NOT_FOUND" in error:
+                    if "Quote does not contain known enclave measurement" in error:
                         raise CodeIdNotFound from e
-                    if "CODE_ID_RETIRED" in error:
-                        raise CodeIdRetired from e
             raise
 
         return new_node

@@ -33,7 +33,7 @@ namespace nobuiltins
 
         {
           // SNIPPET_START: get_quote_api_v1
-          QuoteInfo quote_info;
+          ccf::QuoteInfo quote_info;
           result = get_quote_for_this_node_v1(
             ctx.tx, summary.quote_format, quote_info);
           if (result != ccf::ApiResult::OK)

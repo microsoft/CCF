@@ -10,7 +10,7 @@ open_enclave_path=${OPEN_ENCLAVE_PATH:-"/opt/openenclave"}
 
 # Re-enable once oeverify displays custom claims
 # See https://github.com/openenclave/openenclave/pull/3817
-if [ -z ${CCF_VERIFY_QUOTED_CERT} ]; then
+if [ -z "${CCF_VERIFY_QUOTED_CERT}" ]; then
     verify_quoted_cert=false
 else
     verify_quoted_cert=true
