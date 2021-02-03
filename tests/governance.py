@@ -182,12 +182,12 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        # network = test_node_ids(network, args)
-        # network = test_member_data(network, args)
+        network = test_node_ids(network, args)
+        network = test_member_data(network, args)
         network = test_quote(network, args)
-        # network = test_user(network, args)
-        # network = test_no_quote(network, args)
-        # network = test_user_id(network, args)
+        network = test_user(network, args)
+        network = test_no_quote(network, args)
+        network = test_user_id(network, args)
 
 
 if __name__ == "__main__":

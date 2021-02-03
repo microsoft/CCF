@@ -47,10 +47,6 @@ class CodeIdNotFound(Exception):
     pass
 
 
-class CodeIdRetired(Exception):
-    pass
-
-
 class NodeShutdownError(Exception):
     pass
 
