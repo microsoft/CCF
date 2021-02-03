@@ -682,22 +682,6 @@
         }
       }
     },
-    "/quote": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Quote"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
     "/quotes": {
       "get": {
         "responses": {
@@ -706,6 +690,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetQuotes__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/quotes/self": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Quote"
                 }
               }
             },
