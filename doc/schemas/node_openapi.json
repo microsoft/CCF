@@ -275,6 +275,9 @@
       },
       "Quote": {
         "properties": {
+          "endorsements": {
+            "$ref": "#/components/schemas/string"
+          },
           "format": {
             "$ref": "#/components/schemas/QuoteFormat"
           },
@@ -291,6 +294,7 @@
         "required": [
           "node_id",
           "raw",
+          "endorsements",
           "format"
         ],
         "type": "object"
