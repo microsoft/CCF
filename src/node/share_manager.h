@@ -295,16 +295,16 @@ namespace ccf
     }
 
     /** Issue new recovery shares of the new ledger secret, recording the
-    /* wrapped new ledger secret and encrypted current (now previous) ledger
-    /* secret in the store.
-    /*
-    /* @param tx Store transaction object
-    /* @param new_ledger_secret New ledger secret
-    /*
-    /* Note: The version at which the new ledger secret is applicable from is
-    /* derived from the hook at which the ledger secret is applied to the
-    /* store.
-    */
+     * wrapped new ledger secret and encrypted current (now previous) ledger
+     * secret in the store.
+     *
+     * @param tx Store transaction object
+     * @param new_ledger_secret New ledger secret
+     *
+     * Note: The version at which the new ledger secret is applicable from is
+     * derived from the hook at which the ledger secret is applied to the
+     * store.
+     */
     void issue_recovery_shares(
       kv::Tx& tx, const LedgerSecret& new_ledger_secret)
     {
@@ -313,11 +313,11 @@ namespace ccf
     }
 
     /** Issue new recovery shares of the same current ledger secret to all
-    /* active recovery members. The encrypted ledger secrets recorded in the
-    /* store are not updated.
-    /*
-    /* @param tx Store transaction object
-    */
+     * active recovery members. The encrypted ledger secrets recorded in the
+     * store are not updated.
+     *
+     * @param tx Store transaction object
+     */
     void shuffle_recovery_shares(kv::Tx& tx)
     {
       shuffle_recovery_shares(
