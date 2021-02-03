@@ -84,17 +84,6 @@ namespace ccfapp
     JS_FreeValue(ctx, exception_val);
   }
 
-  struct JSAutoFreeRuntime
-  {
-    JSRuntime* rt;
-
-    JSAutoFreeRuntime(JSRuntime* rt) : rt(rt) {}
-    ~JSAutoFreeRuntime()
-    {
-      JS_FreeRuntime(rt);
-    }
-  };
-
   struct JSAutoFreeCtx
   {
     JSContext* ctx;
@@ -708,6 +697,8 @@ namespace ccfapp
   private:
     NetworkTables& network;
 
+    JSRuntime* rt = nullptr;
+
     JSClassDef kv_class_def = {};
     JSClassExoticMethods kv_exotic_methods = {};
 
@@ -932,47 +923,19 @@ namespace ccfapp
       return request;
     }
 
-    void execute_request(
-      const std::string& method,
-      const ccf::RESTVerb& verb,
-      EndpointContext& args)
+    void init_runtime()
     {
-      const auto local_method = method.substr(method.find_first_not_of('/'));
-
-      const auto scripts = args.tx.ro(this->network.app_scripts);
-
-      // Try to find script for method
-      // - First try a script called "foo"
-      // - If that fails, try a script called "POST foo"
-      auto handler_script = scripts->get(local_method);
-      if (!handler_script)
+      if (rt)
       {
-        const auto verb_prefixed =
-          fmt::format("{} {}", verb.c_str(), local_method);
-        handler_script = scripts->get(verb_prefixed);
-        if (!handler_script)
-        {
-          args.rpc_ctx->set_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            fmt::format(
-              "No handler script found for method '{}'.", verb_prefixed));
-          return;
-        }
+        throw std::runtime_error("QuickJS runtime already initialised");
       }
-
-      JSRuntime* rt = JS_NewRuntime();
+      rt = JS_NewRuntime();
       if (rt == nullptr)
       {
         throw std::runtime_error("Failed to initialise QuickJS runtime");
       }
-      JSAutoFreeRuntime auto_free_rt(rt);
 
       JS_SetMaxStackSize(rt, 1024 * 1024);
-
-      JSModuleLoaderArg js_module_loader_arg{&this->network, &args.tx};
-      JS_SetModuleLoaderFunc(
-        rt, nullptr, js_module_loader, &js_module_loader_arg);
 
       // Register class for KV
       {
@@ -1004,6 +967,43 @@ namespace ccfapp
             "Failed to register JS class definition for Body");
         }
       }
+    }
+
+    void execute_request(
+      const std::string& method,
+      const ccf::RESTVerb& verb,
+      EndpointContext& args)
+    {
+      const auto local_method = method.substr(method.find_first_not_of('/'));
+
+      const auto scripts = args.tx.ro(this->network.app_scripts);
+
+      // Try to find script for method
+      // - First try a script called "foo"
+      // - If that fails, try a script called "POST foo"
+      auto handler_script = scripts->get(local_method);
+      if (!handler_script)
+      {
+        const auto verb_prefixed =
+          fmt::format("{} {}", verb.c_str(), local_method);
+        handler_script = scripts->get(verb_prefixed);
+        if (!handler_script)
+        {
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            fmt::format(
+              "No handler script found for method '{}'.", verb_prefixed));
+          return;
+        }
+      }
+
+      if (!rt)
+        init_runtime();
+
+      JSModuleLoaderArg js_module_loader_arg{&this->network, &args.tx};
+      JS_SetModuleLoaderFunc(
+        rt, nullptr, js_module_loader, &js_module_loader_arg);
 
       JSContext* ctx = JS_NewContext(rt);
       if (ctx == nullptr)
@@ -1260,6 +1260,8 @@ namespace ccfapp
 
       JS_NewClassID(&body_class_id);
       body_class_def.class_name = "Body";
+
+      // init_runtime();
 
       auto default_handler = [this](EndpointContext& args) {
         execute_request(
