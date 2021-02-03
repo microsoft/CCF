@@ -208,3 +208,125 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
     compact_thread.join();
   }
 }
+
+DOCTEST_TEST_CASE(
+  "get_version_of_previous_write ordering" * doctest::test_suite("concurrency"))
+{
+  // Many threads attempt to produce a chain of transactions pointing at the
+  // previous write to a single key, at that key.
+  kv::Store kv_store;
+  using MapType = kv::Map<size_t, nlohmann::json>;
+  MapType map("public:foo");
+
+  constexpr size_t k = 42;
+
+  size_t conflict_count = 0;
+
+  auto point_at_previous_write = [&]() {
+    auto sleep_time = std::chrono::microseconds(5);
+    while (true)
+    {
+      auto tx = kv_store.create_tx();
+      auto h = tx.rw(map);
+
+      auto ver = h->get_version_of_previous_write(k);
+
+      std::string message;
+      if (ver.has_value())
+      {
+        message = fmt::format("Key {} was previously modified at {}", k, *ver);
+      }
+      else
+      {
+        message = fmt::format("Key {} has never been written to before", k);
+      }
+
+      auto j = nlohmann::json::object();
+      j["version"] = ver;
+      j["message"] = message;
+      h->put(k, j);
+
+      const auto result = tx.commit();
+      if (result == kv::CommitSuccess::OK)
+      {
+        // Succeeded
+        break;
+      }
+
+      DOCTEST_REQUIRE(result == kv::CommitSuccess::CONFLICT);
+      ++conflict_count;
+
+      // Sleep before retrying
+      std::this_thread::sleep_for(sleep_time);
+
+      // Increase sleep time next iteration
+      const auto factor = 1.0f + ((float)rand() / (float)RAND_MAX);
+      sleep_time =
+        std::chrono::microseconds((size_t)(sleep_time.count() * factor));
+    }
+  };
+
+  std::vector<std::thread> threads;
+  constexpr auto num_threads = 64;
+  constexpr auto writes_per_thread = 10;
+  for (size_t i = 0; i < num_threads; ++i)
+  {
+    threads.emplace_back([&]() {
+      for (size_t n = 0; n < writes_per_thread; ++n)
+      {
+        point_at_previous_write();
+      }
+    });
+  }
+
+  for (auto& thread : threads)
+  {
+    thread.join();
+  }
+
+  DOCTEST_CHECK(conflict_count > 0);
+  constexpr auto last_write_version = num_threads * writes_per_thread;
+
+  {
+    DOCTEST_INFO("Read final write from current state");
+    auto tx = kv_store.create_tx();
+    auto h = tx.ro(map);
+
+    auto v = h->get(k);
+    DOCTEST_REQUIRE(v.has_value());
+    const auto j = v.value();
+    DOCTEST_REQUIRE(j["version"] == last_write_version - 1);
+
+    auto ver = h->get_version_of_previous_write(k);
+    DOCTEST_REQUIRE(ver.has_value());
+    DOCTEST_REQUIRE(ver.value() == last_write_version);
+  }
+
+  {
+    DOCTEST_INFO("Read full chain of writes");
+
+    // Use ReservedTx as a hack to read historic entries, rather than via
+    // deserialisation
+    for (size_t read_at = 1; read_at < last_write_version; ++read_at)
+    {
+      auto tx = kv_store.create_reserved_tx(read_at + 1);
+      auto h = tx.ro(map);
+
+      auto v = h->get(k);
+      DOCTEST_REQUIRE(v.has_value());
+
+      const auto j = v.value();
+      const auto claimed_prev_v = j["version"];
+
+      if (read_at == 1)
+      {
+        // First write indicates there was no previous version
+        DOCTEST_REQUIRE(claimed_prev_v == nullptr);
+      }
+      else
+      {
+        DOCTEST_REQUIRE(claimed_prev_v == read_at - 1);
+      }
+    }
+  }
+}
