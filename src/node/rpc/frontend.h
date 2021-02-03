@@ -293,12 +293,6 @@ namespace ccf
                   ctx->set_view(tx.commit_term());
                 }
 
-                // Deprecated, this will be removed in future releases
-                if (!ctx->has_global_commit())
-                {
-                  ctx->set_global_commit(consensus->get_committed_seqno());
-                }
-
                 if (history != nullptr && consensus->is_primary())
                 {
                   history->try_emit_signature();
@@ -311,6 +305,8 @@ namespace ccf
 
             case kv::CommitSuccess::CONFLICT:
             {
+              set_root_on_proposals(*ctx, tx);
+              metrics.retries++;
               break;
             }
 
@@ -459,6 +455,21 @@ namespace ccf
       return is_open_;
     }
 
+    void set_root_on_proposals(const enclave::RpcContext& ctx, kv::Tx& tx)
+    {
+      if (ctx.get_request_path() == "/gov/proposals")
+      {
+        update_history();
+        if (history)
+        {
+          const auto& [txid, root] =
+            history->get_replicated_state_txid_and_root();
+          tx.set_read_version_and_term(txid.version, txid.term);
+          tx.set_root_at_read_version(root);
+        }
+      }
+    }
+
     /** Process a serialised command with the associated RPC context
      *
      * If an RPC that requires writing to the kv store is processed on a
@@ -474,6 +485,8 @@ namespace ccf
       update_consensus();
 
       auto tx = tables.create_tx();
+      set_root_on_proposals(*ctx, tx);
+
       if (!is_open(tx))
       {
         ctx->set_error(
