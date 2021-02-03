@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import os
 import tempfile
+import http
 from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
 import infra.network
