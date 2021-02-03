@@ -3,5 +3,9 @@
 
 #define NO_BOOTSTRAP_ALLOCATOR
 
+#ifndef NDEBUG
+#  define NDEBUG
+#endif
+
 #include "snmalloc/src/override/malloc.cc"
 #include "snmalloc/src/override/new.cc"
