@@ -104,7 +104,7 @@ namespace ccf
       void _push_table() {}
 
     public:
-      Interpreter() : execution_limit(1 << 22)
+      Interpreter() : execution_limit(1 << 30)
       {
         l = luaL_newstate();
         lua_atpanic(l, panic);
