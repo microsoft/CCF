@@ -361,7 +361,10 @@ namespace ccf
         }
       };
       make_read_only_endpoint(
-        "quote", HTTP_GET, json_read_only_adapter(get_quote), no_auth_required)
+        "quotes/self",
+        HTTP_GET,
+        json_read_only_adapter(get_quote),
+        no_auth_required)
         .set_auto_schema<void, Quote>()
         .set_forwarding_required(ForwardingRequired::Never)
         .install();

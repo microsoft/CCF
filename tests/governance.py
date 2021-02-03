@@ -23,9 +23,9 @@ from loguru import logger as LOG
 
 
 @reqs.description("Test quotes")
-@reqs.supports_methods("quote", "quotes")
+@reqs.supports_methods("quotes/self", "quotes")
 def test_quote(network, args):
-    primary, _ = network.find_primary()
+    primary, _ = network.find_nodes()
     with primary.client() as c:
         oed = subprocess.run(
             [
@@ -44,7 +44,7 @@ def test_quote(network, args):
         ]
         expected_mrenclave = lines[0].strip().split("=")[1]
 
-        r = c.get("/node/quote")
+        r = c.get("/node/quotes/self")
         primary_quote_info = r.body.json()
         assert primary_quote_info["node_id"] == 0
         primary_mrenclave = primary_quote_info["mrenclave"]
@@ -118,7 +118,7 @@ def test_no_quote(network, args):
     with untrusted_node.client(
         ca=os.path.join(untrusted_node.common_dir, f"{untrusted_node.node_id}.pem")
     ) as uc:
-        r = uc.get("/node/quote")
+        r = uc.get("/node/quotes/self")
         assert r.status_code == http.HTTPStatus.NOT_FOUND
     return network
 

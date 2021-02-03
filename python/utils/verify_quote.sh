@@ -71,7 +71,7 @@ function cleanup() {
 }
 trap cleanup EXIT
 
-curl_output=$(curl -sS --fail -X GET "${node_address}"/node/quote "${@}")
+curl_output=$(curl -sS --fail -X GET "${node_address}"/node/quotes/self "${@}")
 
 # Note: xxd is not installed on CI machines so use perl instead
 echo "${curl_output}" | jq -r .raw | perl -e 'print pack "H*", <STDIN>' > "${tmp_dir}/${quote_file_name}"

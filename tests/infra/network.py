@@ -67,8 +67,8 @@ class Network:
         "host_log_level",
         "sig_tx_interval",
         "sig_ms_interval",
-        "raft_election_timeout",
-        "bft_view_change_timeout",
+        "raft_election_timeout_ms",
+        "bft_view_change_timeout_ms",
         "consensus",
         "memory_reserve_startup",
         "log_format_json",
@@ -316,9 +316,9 @@ class Network:
                 raise
 
         self.election_duration = (
-            args.bft_view_change_timeout / 1000
+            args.bft_view_change_timeout_ms / 1000
             if args.consensus == "bft"
-            else args.raft_election_timeout / 1000
+            else args.raft_election_timeout_ms / 1000
         ) * 2
 
         LOG.info("All nodes started")

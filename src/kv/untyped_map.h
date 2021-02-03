@@ -15,39 +15,6 @@
 
 namespace kv::untyped
 {
-  namespace Check
-  {
-    struct No
-    {};
-
-    template <typename T, typename Arg>
-    No operator!=(const T&, const Arg&)
-    {
-      return No();
-    }
-
-    template <typename T, typename Arg = T>
-    struct Ne
-    {
-      enum
-      {
-        value = !std::is_same<decltype(*(T*)(0) != *(Arg*)(0)), No>::value
-      };
-    };
-
-    template <class T>
-    bool ne(std::enable_if_t<Ne<T>::value, const T&> a, const T& b)
-    {
-      return a != b;
-    }
-
-    template <class T>
-    bool ne(std::enable_if_t<!Ne<T>::value, const T&>, const T&)
-    {
-      return false;
-    }
-  }
-
   struct LocalCommit
   {
     LocalCommit() = default;
@@ -618,7 +585,7 @@ namespace kv::untyped
             {
               return false;
             }
-            else if (Check::ne(found.value, v.value))
+            else if (found.value != v.value)
             {
               return false;
             }

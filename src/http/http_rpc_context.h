@@ -203,12 +203,6 @@ namespace http
       set_response_header(http::headers::CCF_TX_VIEW, fmt::format("{}", v));
     }
 
-    virtual void set_global_commit(kv::Version gc) override
-    {
-      set_response_header(
-        http::headers::CCF_GLOBAL_COMMIT, fmt::format("{}", gc));
-    }
-
     virtual const std::vector<uint8_t>& get_request_body() const override
     {
       return request_body;
@@ -298,12 +292,6 @@ namespace http
       const std::string_view& name, const std::string_view& value) override
     {
       response_headers[std::string(name)] = value;
-    }
-
-    virtual bool has_global_commit() override
-    {
-      return response_headers.find(http::headers::CCF_GLOBAL_COMMIT) !=
-        response_headers.end();
     }
 
     virtual void set_apply_writes(bool apply) override
