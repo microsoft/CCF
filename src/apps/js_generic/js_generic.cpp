@@ -998,6 +998,10 @@ namespace ccfapp
         }
       }
 
+      // Ideally this should happen in the constructor but that leads
+      // to issues with quick's stack overflow checks.
+      // This is only safe as long as this instance of JSHandlers
+      // is only called from a single persistent thread.
       if (!rt)
         init_runtime();
 
@@ -1260,8 +1264,6 @@ namespace ccfapp
 
       JS_NewClassID(&body_class_id);
       body_class_def.class_name = "Body";
-
-      // init_runtime();
 
       auto default_handler = [this](EndpointContext& args) {
         execute_request(
