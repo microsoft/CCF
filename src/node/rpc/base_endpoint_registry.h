@@ -230,7 +230,7 @@ namespace ccf
 
         format = QuoteFormat::oe_sgx_v1;
         raw_quote = node_info->quote_info.quote;
-        endorsements = node_info->quote_info.quote;
+        endorsements = node_info->quote_info.endorsements;
         return ApiResult::OK;
       }
       catch (const std::exception& e)

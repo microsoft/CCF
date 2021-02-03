@@ -60,37 +60,28 @@ def test_quote(network, args):
         for quote in quotes:
             mrenclave = quote["mrenclave"]
             assert mrenclave == expected_mrenclave, (mrenclave, expected_mrenclave)
-            qpath = os.path.join(network.common_dir, f"quote{quote['node_id']}")
-
-            with open(qpath, "wb") as q:
-                q.write(bytes.fromhex(quote["raw"]))
-                oed = subprocess.run(
-                    [
-                        "/data/git/openenclave/build/output/bin/oeverify",  # TODO: To be changed!
-                        "-r",
-                        qpath,
-                    ],
-                    capture_output=True,
-                    check=True,
-                )
-                out = oed.stdout.decode().split(os.linesep)
-                LOG.debug(out)
-                for line in out:
-                    if line.startswith("sgx_report_data:"):
-                        report_digest = line.split(" ")[-1][2:]
-                assert "Evidence verification succeeded (0)." in out
-
-            node = network.nodes[quote["node_id"]]
-            node_cert = ssl.get_server_certificate((node.pubhost, node.pubport))
-            public_key = x509.load_pem_x509_certificate(
-                node_cert.encode(), default_backend()
-            ).public_key()
-            pub_key = public_key.public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            quote_path = os.path.join(network.common_dir, f"quote{quote['node_id']}")
+            endorsements_path = os.path.join(
+                network.common_dir, f"endorsements{quote['node_id']}"
             )
-            key_digest = hashlib.sha256(pub_key).hexdigest()
-            assert report_digest[: len(key_digest)] == key_digest
+
+            with open(quote_path, "wb") as q:
+                q.write(bytes.fromhex(quote["raw"]))
+
+            with open(endorsements_path, "wb") as e:
+                e.write(bytes.fromhex(quote["endorsements"]))
+
+            cafile = os.path.join(network.common_dir, "networkcert.pem")
+            assert (
+                infra.proc.ccall(
+                    "verify_quote.sh",
+                    f"https://{primary.pubhost}:{primary.pubport}",
+                    "--cacert",
+                    f"{cafile}",
+                    log_output=True,
+                ).returncode
+                == 0
+            ), f"Quote verification for node {quote['node_id']} failed"
 
     return network
 

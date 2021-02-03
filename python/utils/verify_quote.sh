@@ -5,11 +5,16 @@
 set -e
 
 quote_file_name="quote.bin"
+endorsements_file_name="endorsements.bin"
 open_enclave_path=${OPEN_ENCLAVE_PATH:-"/opt/openenclave"}
 
-# Until https://github.com/microsoft/CCF/issues/1468 is done, CCF
-# uses old attestation API to generate quotes
-quote_format="LEGACY_REPORT_REMOTE"
+# Re-enable once oeverify displays custom claims
+# See https://github.com/openenclave/openenclave/pull/3817
+if [ -z ${CCF_VERIFY_QUOTED_CERT} ]; then
+    verify_quoted_cert=false
+else
+    verify_quoted_cert=true
+fi
 
 function usage()
 {
@@ -66,7 +71,13 @@ function cleanup() {
 }
 trap cleanup EXIT
 
-curl -sS --fail -X GET "${node_address}"/node/quote "${@}" | jq -r .raw | perl -e 'print pack "H*", <STDIN>' > "${tmp_dir}/${quote_file_name}"
+curl_output=$(curl -sS --fail -X GET "${node_address}"/node/quote "${@}")
+
+# Note: xxd is not installed on CI machines so use perl instead
+echo "${curl_output}" | jq -r .raw | perl -e 'print pack "H*", <STDIN>' > "${tmp_dir}/${quote_file_name}"
+echo "${curl_output}" | jq -r .endorsements | perl -e 'print pack "H*", <STDIN>' > "${tmp_dir}/${endorsements_file_name}"
+truncate -s -1 "${tmp_dir}/${quote_file_name}"
+truncate -s -1 "${tmp_dir}/${endorsements_file_name}"
 
 if [ ! -s "${tmp_dir}/${quote_file_name}" ]; then
     echo "Error: Node quote is empty. Virtual mode does not support SGX quotes."
@@ -75,7 +86,7 @@ fi
 
 echo "Node quote successfully retrieved. Verifying quote..."
 
-oeverify_output=$("${open_enclave_path}"/bin/oeverify -r "${tmp_dir}"/"${quote_file_name}" -f "${quote_format}")
+oeverify_output=$("${open_enclave_path}"/bin/oeverify -r "${tmp_dir}"/"${quote_file_name}")
 
 # Extract SGX report data
 oeverify_report_data=$(echo "${oeverify_output}" | grep "sgx_report_data" | cut -d ":" -f 2)
@@ -96,10 +107,10 @@ for mrenclave in "${trusted_mrenclaves[@]}"; do
     fi
 done
 
-if [ "${extracted_report_data}" != "${node_pubk_hash}" ]; then
+if [ "${verify_quoted_cert}" = true ] && [ "${extracted_report_data}" != "${node_pubk_hash}" ]; then
     echo "Error: quote verification failed."
     echo "Reported quote data does not match node certificate public key:"
-    echo "${extracted_report_data} != ${node_pubk_hash}"
+    echo "\"${extracted_report_data}\" != \"${node_pubk_hash}\""
     exit 1
 elif [ "${is_mrenclave_valid}" != true ]; then
     echo "Error: quote verification failed."
