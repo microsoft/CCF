@@ -145,6 +145,7 @@ namespace ccf
       size_t calls = 0;
       size_t errors = 0;
       size_t failures = 0;
+      size_t retries = 0;
     };
 
     struct Endpoint;
@@ -532,6 +533,7 @@ namespace ccf
       std::map<RESTVerb, std::shared_ptr<PathTemplatedEndpoint>>>
       templated_endpoints;
 
+    SpinLock metrics_lock;
     std::map<std::string, std::map<std::string, Metrics>> metrics;
 
     kv::Consensus* consensus = nullptr;
@@ -793,20 +795,26 @@ namespace ccf
       }
     }
 
-    virtual void endpoint_metrics(kv::Tx&, EndpointMetrics::Out& out)
+    virtual void endpoint_metrics(EndpointMetrics::Out& out)
     {
+      std::lock_guard<SpinLock> guard(metrics_lock);
       for (const auto& [path, verb_metrics] : metrics)
       {
         for (const auto& [verb, metric] : verb_metrics)
         {
-          out.metrics.push_back(
-            {path, verb, metric.calls, metric.errors, metric.failures});
+          out.metrics.push_back({path,
+                                 verb,
+                                 metric.calls,
+                                 metric.errors,
+                                 metric.failures,
+                                 metric.retries});
         }
       }
     }
 
     Metrics& get_metrics(const EndpointDefinitionPtr& e)
     {
+      std::lock_guard<SpinLock> guard(metrics_lock);
       return metrics[e->dispatch.uri_path][e->dispatch.verb.c_str()];
     }
 
