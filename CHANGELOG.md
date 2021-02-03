@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `endpoint_metrics` is renamed `api/metrics` and now returns an array of objects instead of nested path/method objects (#2068).
 - `user_id` endpoint is renamed `caller_id` (#2142).
+- Governance proposal ids are now digests of the proposal and store state observed during their creation, hex-encoded as strings. This makes votes entirely specific to an instance of a proposal without having to include a nonce. (#2104, #2135).
 - `quote` endpoint has been renamed to `quotes/self` (#2149).
-- Governance proposal ids are now digests, hex-encoded as strings (#2104).
 - `TxView`s have been renamed to `MapHandle`s, to clearly distinguish them from consensus views. Calls to `tx.get_view` must be replaced with `tx.rw`.
 - `tx.rw` does not support retrieving multiple views in a single call. Instead of `auto [view1, view2] = tx.get_view(map1, map2);`, you must write `auto handle1 = tx.rw(map1); auto handle2 = tx.rw(map2);`.
 

@@ -192,16 +192,15 @@ namespace ccf
         .set_auto_schema<void, GetAPI::Out>()
         .install();
 
-      auto endpoint_metrics_fn = [this](kv::Tx& tx, nlohmann::json&&) {
+      auto endpoint_metrics_fn = [this](auto&, nlohmann::json&&) {
         EndpointMetrics::Out out;
-        endpoint_metrics(tx, out);
-
+        endpoint_metrics(out);
         return make_success(out);
       };
-      make_endpoint(
+      make_command_endpoint(
         "api/metrics",
         HTTP_GET,
-        json_adapter(endpoint_metrics_fn),
+        json_command_adapter(endpoint_metrics_fn),
         no_auth_required)
         .set_auto_schema<void, EndpointMetrics::Out>()
         .install();
