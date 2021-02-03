@@ -326,9 +326,9 @@ namespace ccf
 
       auto get_quote = [this](auto& args, nlohmann::json&&) {
         QuoteFormat format;
-        NodeQuoteInfo node_quote_info;
-        const auto result = get_quote_for_this_node_v1(
-          args.tx, format, node_quote_info.quote, node_quote_info.endorsements);
+        QuoteInfo node_quote_info;
+        const auto result =
+          get_quote_for_this_node_v1(args.tx, format, node_quote_info);
         if (result == ApiResult::OK)
         {
           Quote q;
@@ -340,7 +340,7 @@ namespace ccf
 
 #ifdef GET_QUOTE
           auto code_id =
-            EnclaveQuoteGenerator::get_code_id(node_quote_info.quote);
+            EnclaveAttestationProvider::get_code_id(node_quote_info.quote);
           q.mrenclave = fmt::format("{:02x}", fmt::join(code_id, ""));
 #endif
 
@@ -384,8 +384,8 @@ namespace ccf
             q.format = QuoteFormat::oe_sgx_v1;
 
 #ifdef GET_QUOTE
-            auto code_id =
-              EnclaveQuoteGenerator::get_code_id(node_info.quote_info.quote);
+            auto code_id = EnclaveAttestationProvider::get_code_id(
+              node_info.quote_info.quote);
             q.mrenclave = fmt::format("{:02x}", fmt::join(code_id, ""));
 #endif
             quotes.emplace_back(q);

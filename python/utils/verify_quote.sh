@@ -86,7 +86,7 @@ fi
 
 echo "Node quote successfully retrieved. Verifying quote..."
 
-oeverify_output=$("${open_enclave_path}"/bin/oeverify -r "${tmp_dir}"/"${quote_file_name}")
+oeverify_output=$("${open_enclave_path}"/bin/oeverify -r "${tmp_dir}"/"${quote_file_name}" -e "${tmp_dir}"/"${endorsements_file_name}")
 
 # Extract SGX report data
 oeverify_report_data=$(echo "${oeverify_output}" | grep "sgx_report_data" | cut -d ":" -f 2)
@@ -114,11 +114,11 @@ if [ "${verify_quoted_cert}" = true ] && [ "${extracted_report_data}" != "${node
     exit 1
 elif [ "${is_mrenclave_valid}" != true ]; then
     echo "Error: quote verification failed."
-    echo "Reported mrenclave ${extracted_mrenclave} is not trusted. List of trusted mrenclave:"
+    echo "Reported mrenclave \"${extracted_mrenclave}\" is not trusted. List of trusted mrenclave:"
     echo "${trusted_mrenclaves[@]}"
     exit 1
 else
-    echo "mrenclave: ${extracted_mrenclave}"
+    echo "mrenclave: \"${extracted_mrenclave}\""
     echo "Quote verification successful."
     exit 0
 fi

@@ -28,7 +28,7 @@ MSGPACK_ADD_ENUM(ccf::NodeStatus);
 
 namespace ccf
 {
-  struct NodeQuoteInfo // TODO: Rename to attestation info?
+  struct QuoteInfo
   {
     std::vector<uint8_t> quote;
     std::vector<uint8_t> endorsements;
@@ -36,13 +36,13 @@ namespace ccf
     MSGPACK_DEFINE(quote, endorsements);
   };
 
-  DECLARE_JSON_TYPE(NodeQuoteInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(NodeQuoteInfo, quote, endorsements);
+  DECLARE_JSON_TYPE(QuoteInfo);
+  DECLARE_JSON_REQUIRED_FIELDS(QuoteInfo, quote, endorsements);
 
   struct NodeInfo : NodeInfoNetwork
   {
     tls::Pem cert;
-    NodeQuoteInfo quote_info;
+    QuoteInfo quote_info;
     tls::Pem encryption_pub_key;
     NodeStatus status = NodeStatus::PENDING;
 

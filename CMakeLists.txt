@@ -217,9 +217,6 @@ sign_app_library(
   ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 
-set(OE_SIGN_PATH ${OE_BINDIR}/oesign)
-set(OE_HOST_VERIFY_PATH ${OE_BINDIR}/host_verify)
-
 # Add NoBuiltins app
 add_ccf_app(nobuiltins SRCS samples/apps/nobuiltins/nobuiltins.cpp)
 sign_app_library(
@@ -673,7 +670,8 @@ if(BUILD_TESTS)
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
       CONSENSUS cft
-      ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --hostverify ${OE_HOST_VERIFY_PATH}
+      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --js-app-bundle
+      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
     )
   endif()
 

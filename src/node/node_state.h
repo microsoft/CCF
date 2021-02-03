@@ -121,9 +121,9 @@ namespace ccf
     tls::KeyPairPtr node_sign_kp;
     tls::KeyPairPtr node_encrypt_kp;
     tls::Pem node_cert;
-    NodeQuoteInfo quote_info;
+    QuoteInfo quote_info;
     CodeDigest node_code_id;
-    EnclaveQuoteGenerator enclave_quote_generator; // TODO: Rename??
+    EnclaveAttestationProvider enclve_attestation_provider;
 
     //
     // kv store, replication, and I/O
@@ -251,7 +251,7 @@ namespace ccf
       const std::vector<uint8_t>& raw_quote,
       const tls::Pem& expected_node_public_key) override
     {
-      return enclave_quote_generator.verify_quote_against_store(
+      return enclve_attestation_provider.verify_quote_against_store(
         tx, raw_quote, expected_node_public_key);
     }
 
@@ -290,9 +290,9 @@ namespace ccf
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
-      quote_info =
-        enclave_quote_generator.generate_quote(node_sign_kp->public_key_pem());
-      node_code_id = enclave_quote_generator.get_code_id(quote_info.quote);
+      quote_info = enclve_attestation_provider.generate_quote(
+        node_sign_kp->public_key_pem());
+      node_code_id = enclve_attestation_provider.get_code_id(quote_info.quote);
 #endif
 
       switch (start_type)
@@ -328,7 +328,8 @@ namespace ccf
           accept_network_tls_connections(config);
           auto_refresh_jwt_keys(config);
 
-          reset_data(quote_info.quote); // TODO: Reset quote and endorsements!
+          reset_data(quote_info.quote);
+          reset_data(quote_info.endorsements);
           sm.advance(State::partOfNetwork);
 
           return {node_cert, network.identity->cert};
@@ -547,8 +548,8 @@ namespace ccf
             }
             else
             {
-              reset_data(
-                quote_info.quote); // TODO: Reset quote and endorsements!
+              reset_data(quote_info.quote);
+              reset_data(quote_info.endorsements);
               sm.advance(State::partOfNetwork);
             }
 
@@ -1020,7 +1021,8 @@ namespace ccf
         }
       }
       open_user_frontend();
-      reset_data(quote_info.quote); // TODO: Reset quote and endorsements!
+      reset_data(quote_info.quote);
+      reset_data(quote_info.endorsements);
       sm.advance(State::partOfNetwork);
     }
 
@@ -1373,7 +1375,7 @@ namespace ccf
     }
 
     std::vector<uint8_t> serialize_create_request(
-      const CCFConfig& config, const NodeQuoteInfo& quote_info)
+      const CCFConfig& config, const QuoteInfo& quote_info)
     {
       CreateNetworkNodeToNode::In create_params;
 

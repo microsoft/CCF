@@ -211,10 +211,7 @@ namespace ccf
      * format indicates how the raw_quote should be interpreted and verified.
      */
     ApiResult get_quote_for_this_node_v1(
-      kv::ReadOnlyTx& tx,
-      QuoteFormat& format,
-      std::vector<uint8_t>& raw_quote,
-      std::vector<uint8_t>& endorsements)
+      kv::ReadOnlyTx& tx, QuoteFormat& format, QuoteInfo& quote_info)
     {
       try
       {
@@ -229,8 +226,7 @@ namespace ccf
         }
 
         format = QuoteFormat::oe_sgx_v1;
-        raw_quote = node_info->quote_info.quote;
-        endorsements = node_info->quote_info.endorsements;
+        quote_info = node_info->quote_info;
         return ApiResult::OK;
       }
       catch (const std::exception& e)

@@ -92,7 +92,7 @@ namespace ccf
     }
   };
 
-  class EnclaveQuoteGenerator
+  class EnclaveAttestationProvider
   {
   private:
     static constexpr oe_uuid_t oe_quote_format = {OE_FORMAT_UUID_SGX_ECDSA};
@@ -208,7 +208,7 @@ namespace ccf
     }
 
   public:
-    EnclaveQuoteGenerator()
+    EnclaveAttestationProvider()
     {
       auto rc = oe_attester_initialize();
       if (rc != OE_OK)
@@ -225,7 +225,7 @@ namespace ccf
       }
     }
 
-    ~EnclaveQuoteGenerator()
+    ~EnclaveAttestationProvider()
     {
       oe_attester_shutdown();
       oe_verifier_shutdown();
@@ -244,9 +244,9 @@ namespace ccf
       return unique_id;
     }
 
-    static NodeQuoteInfo generate_quote(const tls::Pem& node_public_key)
+    static QuoteInfo generate_quote(const tls::Pem& node_public_key)
     {
-      NodeQuoteInfo node_quote_info;
+      QuoteInfo node_quote_info;
       crypto::Sha256Hash h{node_public_key.contents()};
 
       Evidence evidence;
