@@ -2,13 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/hash.h"
 #include "http_consts.h"
 #include "http_parser.h"
 #include "node/client_signatures.h"
 #include "tls/base64.h"
 #include "tls/hash.h"
 #include "tls/key_pair.h"
-#include "crypto/hash.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -424,12 +424,11 @@ namespace http
           md_type = crypto::MDType::SHA256;
         }
 
-        ccf::SignedReq ret = {
-          sig_raw,
-          signed_raw.value(),
-          body,
-          md_type,
-          parsed_sign_params->key_id};
+        ccf::SignedReq ret = {sig_raw,
+                              signed_raw.value(),
+                              body,
+                              md_type,
+                              parsed_sign_params->key_id};
         return ret;
       }
 

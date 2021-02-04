@@ -4,11 +4,11 @@
 
 #include "ds/logger.h"
 #include "ds/stacktrace_utils.h"
-#include "tls.h"
 #include "hash.h"
+#include "tls.h"
 
-#include <openssl/evp.h>
 #include <mbedtls/ecp.h>
+#include <openssl/evp.h>
 #include <secp256k1/include/secp256k1.h>
 #include <secp256k1/include/secp256k1_recovery.h>
 #include <stdexcept>
@@ -35,7 +35,8 @@ namespace tls
   static constexpr bool prefer_bitcoin_secp256k1 = true;
 
   // Helper to access elliptic curve id from context
-  inline mbedtls_ecp_group_id get_mbedtls_ec_from_context(const mbedtls_pk_context& ctx)
+  inline mbedtls_ecp_group_id get_mbedtls_ec_from_context(
+    const mbedtls_pk_context& ctx)
   {
     return mbedtls_pk_ec(ctx)->grp.id;
   }
@@ -45,9 +46,12 @@ namespace tls
   {
     switch (ec)
     {
-      case CurveID::SECP384R1: return MDType::SHA384;
-      case CurveID::SECP256K1: return MDType::SHA256;
-      case CurveID::SECP256R1: return MDType::SHA256;
+      case CurveID::SECP384R1:
+        return MDType::SHA384;
+      case CurveID::SECP256K1:
+        return MDType::SHA256;
+      case CurveID::SECP256R1:
+        return MDType::SHA256;
       default:
       {
         if (allow_none)
@@ -64,13 +68,17 @@ namespace tls
     }
   }
 
-  inline mbedtls_md_type_t get_mbedtls_md_for_ec(mbedtls_ecp_group_id ec, bool allow_none = false)
+  inline mbedtls_md_type_t get_mbedtls_md_for_ec(
+    mbedtls_ecp_group_id ec, bool allow_none = false)
   {
     switch (ec)
     {
-      case MBEDTLS_ECP_DP_SECP384R1: return MBEDTLS_MD_SHA384;
-      case MBEDTLS_ECP_DP_SECP256K1: return MBEDTLS_MD_SHA256;
-      case MBEDTLS_ECP_DP_SECP256R1: return MBEDTLS_MD_SHA256;
+      case MBEDTLS_ECP_DP_SECP384R1:
+        return MBEDTLS_MD_SHA384;
+      case MBEDTLS_ECP_DP_SECP256K1:
+        return MBEDTLS_MD_SHA256;
+      case MBEDTLS_ECP_DP_SECP256R1:
+        return MBEDTLS_MD_SHA256;
       default:
       {
         if (allow_none)

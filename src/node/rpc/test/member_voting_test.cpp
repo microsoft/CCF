@@ -1224,9 +1224,7 @@ DOCTEST_TEST_CASE(
     const auto propose =
       create_signed_request(proposal, "proposals", kp, members[proposer_id]);
     const auto r = parse_response_body<Propose::Out>(frontend_process(
-      frontend,
-      propose,
-      tls::make_verifier(members[proposer_id])->cert_der()));
+      frontend, propose, tls::make_verifier(members[proposer_id])->cert_der()));
 
     DOCTEST_CHECK(r.state == ProposalState::OPEN);
 

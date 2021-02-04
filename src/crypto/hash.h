@@ -153,76 +153,76 @@ namespace crypto
     };
 
     MSGPACK_DEFINE(h);
-    };
+  };
 
-    DECLARE_JSON_TYPE(Sha256Hash);
-    DECLARE_JSON_REQUIRED_FIELDS(Sha256Hash, h);
+  DECLARE_JSON_TYPE(Sha256Hash);
+  DECLARE_JSON_REQUIRED_FIELDS(Sha256Hash, h);
 
-    inline bool operator==(const Sha256Hash& lhs, const Sha256Hash& rhs)
+  inline bool operator==(const Sha256Hash& lhs, const Sha256Hash& rhs)
+  {
+    for (unsigned i = 0; i < crypto::Sha256Hash::SIZE; i++)
     {
-      for (unsigned i = 0; i < crypto::Sha256Hash::SIZE; i++)
+      if (lhs.h[i] != rhs.h[i])
       {
-        if (lhs.h[i] != rhs.h[i])
-        {
-          return false;
-        }
+        return false;
       }
-      return true;
+    }
+    return true;
+  }
+
+  inline bool operator!=(const Sha256Hash& lhs, const Sha256Hash& rhs)
+  {
+    return !(lhs == rhs);
+  }
+
+  // Incremental Hash Objects
+  class ISha256HashBase
+  {
+  public:
+    ISha256HashBase() {}
+    virtual ~ISha256HashBase() {}
+
+    virtual void update_hash(CBuffer data) = 0;
+    virtual Sha256Hash finalise() = 0;
+
+    template <typename T>
+    void update(const T& t)
+    {
+      update_hash({reinterpret_cast<const uint8_t*>(&t), sizeof(T)});
     }
 
-    inline bool operator!=(const Sha256Hash& lhs, const Sha256Hash& rhs)
+    template <>
+    void update<std::vector<uint8_t>>(const std::vector<uint8_t>& d)
     {
-      return !(lhs == rhs);
+      update_hash({d.data(), d.size()});
     }
+  };
 
-    // Incremental Hash Objects
-    class ISha256HashBase
-    {
-    public:
-      ISha256HashBase() {}
-      virtual ~ISha256HashBase() {}
+  class ISha256MbedTLS : public ISha256HashBase
+  {
+  public:
+    ISha256MbedTLS();
+    ~ISha256MbedTLS();
+    virtual void update_hash(CBuffer data);
+    virtual Sha256Hash finalise();
 
-      virtual void update_hash(CBuffer data) = 0;
-      virtual Sha256Hash finalise() = 0;
+  protected:
+    void* ctx;
+  };
 
-      template <typename T>
-      void update(const T& t)
-      {
-        update_hash({reinterpret_cast<const uint8_t*>(&t), sizeof(T)});
-      }
+  class ISha256OpenSSL : public ISha256HashBase
+  {
+  public:
+    ISha256OpenSSL();
+    ~ISha256OpenSSL();
+    virtual void update_hash(CBuffer data);
+    virtual Sha256Hash finalise();
 
-      template <>
-      void update<std::vector<uint8_t>>(const std::vector<uint8_t>& d)
-      {
-        update_hash({d.data(), d.size()});
-      }
-    };
+  protected:
+    void* ctx;
+  };
 
-    class ISha256MbedTLS : public ISha256HashBase
-    {
-    public:
-      ISha256MbedTLS();
-      ~ISha256MbedTLS();
-      virtual void update_hash(CBuffer data);
-      virtual Sha256Hash finalise();
-
-    protected:
-      void* ctx;
-    };
-
-    class ISha256OpenSSL : public ISha256HashBase
-    {
-    public:
-      ISha256OpenSSL();
-      ~ISha256OpenSSL();
-      virtual void update_hash(CBuffer data);
-      virtual Sha256Hash finalise();
-
-    protected:
-      void* ctx;
-    };
-
-    typedef ISha256OpenSSL ISha256Hash;
+  typedef ISha256OpenSSL ISha256Hash;
 }
 
 namespace fmt
