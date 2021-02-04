@@ -81,7 +81,7 @@ namespace ccf
     Nodes nodes;
 
     //
-    // Lua application table
+    // JS application table
     //
     Scripts app_scripts;
 
@@ -120,7 +120,7 @@ namespace ccf
       member_acks(Tables::MEMBER_ACKS),
       governance_history(Tables::GOV_HISTORY),
       shares(Tables::SHARES),
-      encrypted_ledger_secrets(Tables::ENCRYPTED_LEDGER_SECRETS),
+      encrypted_ledger_secrets(Tables::ENCRYPTED_PAST_LEDGER_SECRET),
       submitted_shares(Tables::SUBMITTED_SHARES),
       config(Tables::CONFIGURATION),
       ca_certs(Tables::CA_CERT_DERS),
@@ -135,7 +135,7 @@ namespace ccf
       app_scripts(Tables::APP_SCRIPTS),
       service(Tables::SERVICE),
       values(Tables::VALUES),
-      secrets(Tables::SECRETS),
+      secrets(Tables::ENCRYPTED_LEDGER_SECRETS),
       signatures(Tables::SIGNATURES),
       snapshot_evidence(Tables::SNAPSHOT_EVIDENCE),
       bft_requests_map(Tables::AFT_REQUESTS),
