@@ -29,7 +29,7 @@ DOCTEST_TEST_CASE("Member query/read")
 
   static constexpr auto query = R"xxx(
   local tables = ...
-  return tables["public:ccf.gov.values"]:get(123)
+  return tables["public:ccf.internal.values"]:get(123)
   )xxx";
 
   DOCTEST_SUBCASE("Query: bytecode/script allowed access")
@@ -309,6 +309,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
+  gen.init_configuration({1});
   ShareManager share_manager(network);
   StubNodeState node;
   // add three initial active members
@@ -326,7 +327,6 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
 
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  gen.set_recovery_threshold(1);
   gen.open_service();
   gen.finalize();
   MemberRpcFrontend frontend(network, node, share_manager);
@@ -398,7 +398,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       R"xxx(
         local tables, calls = ...
         local n = 0
-        tables["public:ccf.gov.members"]:foreach( function(k, v) n = n + 1 end )
+        tables["public:ccf.gov.members.info"]:foreach( function(k, v) n = n + 1 end )
         if n < {} then
           return true
         else
@@ -840,7 +840,7 @@ DOCTEST_TEST_CASE("Propose raw writes")
         {R"xxx(
         local tables, recovery_threshold = ...
         local p = Puts:new()
-        p:put("public:ccf.gov.config", 0, {recovery_threshold = recovery_threshold})
+        p:put("public:ccf.gov.service.config", 0, {recovery_threshold = recovery_threshold, consensus = "CFT"})
         return Calls:call("raw_puts", p)
       )xxx"s,
          4},
@@ -1783,7 +1783,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
       gen.activate_member(id);
       members[id] = {cert, enc_kp};
     }
-    gen.set_recovery_threshold(recovery_threshold);
+    gen.init_configuration({recovery_threshold});
     share_manager.issue_shares(gen_tx);
     gen.finalize();
     frontend.open();
@@ -1924,7 +1924,7 @@ DOCTEST_TEST_CASE("Number of active members with recovery shares limits")
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
-  gen.set_recovery_threshold(1);
+  gen.init_configuration({1});
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
 
@@ -2002,7 +2002,7 @@ DOCTEST_TEST_CASE("Open network sequence")
       auto id = gen.add_member({cert, dummy_enc_pubk});
       members[id] = {cert, {}};
     }
-    gen.set_recovery_threshold(recovery_threshold);
+    gen.init_configuration({recovery_threshold});
     gen.finalize();
     frontend.open();
   }

@@ -74,9 +74,9 @@ class PublicDomain:
         # Store most as raw bytes, only decode a few which we know are msgpack.
         self._msgpacked_tables = {
             "public:ccf.internal.members.certs_der",
-            "public:ccf.gov.governance.history",
+            "public:ccf.gov.history",
             "public:ccf.internal.signatures",
-            "public:ccf.gov.nodes",
+            "public:ccf.gov.nodes.info",
         }
         self._read()
 
