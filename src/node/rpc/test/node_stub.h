@@ -99,7 +99,13 @@ namespace ccf
 
     void initiate_private_recovery(kv::Tx& tx) override
     {
-      share_manager.restore_recovery_shares_info(tx, {});
+      kv::Version current_ledger_secret_version = 1;
+      RecoveredEncryptedLedgerSecrets recovered_secrets;
+      recovered_secrets.push_back(
+        EncryptedLedgerSecretInfo{std::nullopt, current_ledger_secret_version});
+
+      share_manager.restore_recovery_shares_info(
+        tx, std::move(recovered_secrets));
     }
   };
 }
