@@ -8,197 +8,320 @@
 #  include "enclave/oe_shim.h"
 #  include "entities.h"
 #  include "network_tables.h"
+#  include "node/rpc/node_interface.h"
+#  include "quote_info.h"
 
-#  include <openenclave/bits/report.h>
-#  include <openenclave/bits/result.h>
+#  include <openenclave/attestation/attester.h>
+#  include <openenclave/attestation/custom_claims.h>
+#  include <openenclave/attestation/sgx/evidence.h>
+#  include <openenclave/attestation/verifier.h>
 #  include <optional>
 #  include <vector>
 
 namespace ccf
 {
-  inline CodeDigest get_digest_from_parsed_quote(
-    const oe_report_t& parsed_quote)
+// Unused in all sample apps, but used by node frontend
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wunused-function"
+  static std::pair<http_status, std::string> quote_verification_error(
+    QuoteVerificationResult result)
   {
-    CodeDigest ret;
-    std::copy(
-      std::begin(parsed_quote.identity.unique_id),
-      std::end(parsed_quote.identity.unique_id),
-      ret.begin());
-
-    auto raw_digest = std::vector<uint8_t>(ret.begin(), ret.end());
-    return ret;
+    switch (result)
+    {
+      case QuoteVerificationResult::Failed:
+        return std::make_pair(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR, "Quote could not be verified");
+      case QuoteVerificationResult::FailedCodeIdNotFound:
+        return std::make_pair(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          "Quote does not contain known enclave measurement");
+      case QuoteVerificationResult::FailedInvalidQuotedPublicKey:
+        return std::make_pair(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          "Quote report data does not contain node's public key hash");
+      default:
+        return std::make_pair(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          "Unknown quote verification error");
+    }
   }
+#  pragma clang diagnostic pop
 
-  class QuoteGenerator
+  // Set of wrappers for safe memory management
+  struct Claims
   {
-  public:
-    static std::optional<CodeDigest> get_code_id(
-      const std::vector<uint8_t>& raw_quote)
+    oe_claim_t* data = nullptr;
+    size_t length = 0;
+
+    ~Claims()
     {
-      oe_report_t parsed_quote;
-
-      auto rc =
-        oe_parse_report(raw_quote.data(), raw_quote.size(), &parsed_quote);
-      if (rc != OE_OK)
-      {
-        LOG_FAIL_FMT("Failed to parse quote: {}", oe_result_str(rc));
-        return {};
-      }
-
-      return get_digest_from_parsed_quote(parsed_quote);
-    }
-
-    static std::optional<std::vector<uint8_t>> get_quote(const tls::Pem& cert)
-    {
-      std::vector<uint8_t> raw_quote;
-      crypto::Sha256Hash h{cert.contents()};
-      uint8_t* quote;
-      size_t quote_len = 0;
-
-      auto rc = oe_get_report(
-        OE_REPORT_FLAGS_REMOTE_ATTESTATION,
-        h.h.data(),
-        h.SIZE,
-        nullptr,
-        0,
-        &quote,
-        &quote_len);
-
-      if (rc != OE_OK)
-      {
-        oe_free_report(quote);
-        LOG_FAIL_FMT("Failed to get quote: {}", oe_result_str(rc));
-        return {};
-      }
-
-      raw_quote.assign(quote, quote + quote_len);
-      oe_free_report(quote);
-
-      return raw_quote;
+      oe_free_claims(data, length);
     }
   };
 
-  enum QuoteVerificationResult : uint32_t
+  struct SerialisedClaims
   {
-    VERIFIED = 0,
-    FAIL_VERIFY_OE,
-    FAIL_VERIFY_CODE_ID_RETIRED,
-    FAIL_VERIFY_CODE_ID_NOT_FOUND,
-    FAIL_VERIFY_INVALID_QUOTED_CERT,
+    uint8_t* buffer = nullptr;
+    size_t size = 0;
+
+    ~SerialisedClaims()
+    {
+      oe_free_serialized_custom_claims(buffer);
+    }
   };
 
-  class QuoteVerifier
+  struct Evidence
+  {
+    uint8_t* buffer = NULL;
+    size_t size = 0;
+
+    ~Evidence()
+    {
+      oe_free_evidence(buffer);
+    }
+  };
+
+  struct Endorsements
+  {
+    uint8_t* buffer = NULL;
+    size_t size = 0;
+
+    ~Endorsements()
+    {
+      oe_free_endorsements(buffer);
+    }
+  };
+
+  class EnclaveAttestationProvider
   {
   private:
-    static QuoteVerificationResult verify_oe_quote(
-      const std::vector<uint8_t>& quote, oe_report_t& parsed_quote)
-    {
-      oe_result_t result =
-        oe_verify_report(quote.data(), quote.size(), &parsed_quote);
+    static constexpr oe_uuid_t oe_quote_format = {OE_FORMAT_UUID_SGX_ECDSA};
+    static constexpr auto sgx_report_data_claim_name = OE_CLAIM_SGX_REPORT_DATA;
 
-      if (result != OE_OK)
+    static QuoteVerificationResult verify_quote(
+      const QuoteInfo& quote_info,
+      CodeDigest& unique_id,
+      crypto::Sha256Hash& hash_node_public_key)
+    {
+      Claims claims;
+
+      auto rc = oe_verify_evidence(
+        &oe_quote_format,
+        quote_info.quote.data(),
+        quote_info.quote.size(),
+        quote_info.endorsements.data(),
+        quote_info.endorsements.size(),
+        nullptr,
+        0,
+        &claims.data,
+        &claims.length);
+      if (rc != OE_OK)
       {
-        LOG_FAIL_FMT("Quote verification failed: {}", oe_result_str(result));
-        return QuoteVerificationResult::FAIL_VERIFY_OE;
+        LOG_FAIL_FMT("Failed to verify evidence: {}", oe_result_str(rc));
+        return QuoteVerificationResult::Failed;
       }
-      return QuoteVerificationResult::VERIFIED;
+
+      bool unique_id_found = false;
+      bool sgx_report_data_found = false;
+      for (size_t i = 0; i < claims.length; i++)
+      {
+        auto& claim = claims.data[i];
+        auto claim_name = std::string(claim.name);
+        if (claim_name == OE_CLAIM_UNIQUE_ID)
+        {
+          std::copy(
+            claim.value, claim.value + claim.value_size, unique_id.begin());
+          unique_id_found = true;
+        }
+        else if (claim_name == OE_CLAIM_CUSTOM_CLAIMS_BUFFER)
+        {
+          // Find sgx report data in custom claims
+          Claims custom_claims;
+          rc = oe_deserialize_custom_claims(
+            claim.value,
+            claim.value_size,
+            &custom_claims.data,
+            &custom_claims.length);
+          if (rc != OE_OK)
+          {
+            throw std::logic_error(fmt::format(
+              "Failed to deserialise custom claims", oe_result_str(rc)));
+          }
+
+          for (size_t j = 0; j < custom_claims.length; j++)
+          {
+            auto& custom_claim = custom_claims.data[j];
+            if (std::string(custom_claim.name) == sgx_report_data_claim_name)
+            {
+              if (custom_claim.value_size != hash_node_public_key.SIZE)
+              {
+                throw std::logic_error(fmt::format(
+                  "Expected {} of size {}, had size {}",
+                  sgx_report_data_claim_name,
+                  hash_node_public_key.SIZE,
+                  custom_claim.value_size));
+              }
+
+              std::copy(
+                custom_claim.value,
+                custom_claim.value + custom_claim.value_size,
+                hash_node_public_key.h.begin());
+              sgx_report_data_found = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!unique_id_found || !sgx_report_data_found)
+      {
+        return QuoteVerificationResult::Failed;
+      }
+
+      return QuoteVerificationResult::Verified;
     }
 
     static QuoteVerificationResult verify_enclave_measurement_against_store(
-      kv::Tx& tx, CodeIDs& code_ids_table, const oe_report_t& parsed_quote)
+      kv::ReadOnlyTx& tx, const CodeDigest& unique_id)
     {
-      auto code_digest = get_digest_from_parsed_quote(parsed_quote);
-
-      auto code_ids = tx.ro(code_ids_table);
-      auto code_id_status = code_ids->get(code_digest);
+      auto code_ids = tx.ro<CodeIDs>(Tables::NODE_CODE_IDS);
+      auto code_id_status = code_ids->get(unique_id);
       if (!code_id_status.has_value())
       {
-        return QuoteVerificationResult::FAIL_VERIFY_CODE_ID_NOT_FOUND;
+        return QuoteVerificationResult::FailedCodeIdNotFound;
       }
 
-      if (code_id_status.value() != CodeStatus::ALLOWED_TO_JOIN)
-      {
-        return QuoteVerificationResult::FAIL_VERIFY_CODE_ID_RETIRED;
-      }
-
-      return QuoteVerificationResult::VERIFIED;
+      return QuoteVerificationResult::Verified;
     }
 
-    static QuoteVerificationResult verify_quoted_certificate(
-      const tls::Pem& cert, const oe_report_t& parsed_quote)
+    static QuoteVerificationResult verify_quoted_node_public_key(
+      const tls::Pem& expected_node_public_key,
+      const crypto::Sha256Hash& quoted_hash)
     {
-      crypto::Sha256Hash hash{cert.contents()};
-
       if (
-        parsed_quote.report_data_size != OE_REPORT_DATA_SIZE ||
-        memcmp(
-          hash.h.data(), parsed_quote.report_data, crypto::Sha256Hash::SIZE) !=
-          0)
+        quoted_hash != crypto::Sha256Hash(expected_node_public_key.contents()))
       {
-        return QuoteVerificationResult::FAIL_VERIFY_INVALID_QUOTED_CERT;
+        return QuoteVerificationResult::FailedInvalidQuotedPublicKey;
       }
 
-      return QuoteVerificationResult::VERIFIED;
+      return QuoteVerificationResult::Verified;
     }
 
   public:
-    static QuoteVerificationResult verify_quote_against_store(
-      kv::Tx& tx,
-      CodeIDs& code_ids,
-      const std::vector<uint8_t>& raw_quote,
-      const tls::Pem& cert)
+    EnclaveAttestationProvider()
     {
-      oe_report_t parsed_quote;
-
-      auto rc = verify_oe_quote(raw_quote, parsed_quote);
-      if (rc != QuoteVerificationResult::VERIFIED)
+      auto rc = oe_attester_initialize();
+      if (rc != OE_OK)
       {
-        return rc;
+        throw std::logic_error(fmt::format(
+          "Failed to initialise evidence attester: {}", oe_result_str(rc)));
       }
 
-      rc = verify_enclave_measurement_against_store(tx, code_ids, parsed_quote);
-      if (rc != QuoteVerificationResult::VERIFIED)
+      rc = oe_verifier_initialize();
+      if (rc != OE_OK)
       {
-        return rc;
+        throw std::logic_error(fmt::format(
+          "Failed to initialise evidence verifier: {}", oe_result_str(rc)));
       }
-
-      rc = verify_quoted_certificate(cert, parsed_quote);
-      if (rc != QuoteVerificationResult::VERIFIED)
-      {
-        return rc;
-      }
-
-      return QuoteVerificationResult::VERIFIED;
     }
 
-    static std::pair<http_status, std::string> quote_verification_error(
-      QuoteVerificationResult result)
+    ~EnclaveAttestationProvider()
     {
-      switch (result)
+      oe_attester_shutdown();
+      oe_verifier_shutdown();
+    }
+
+    static CodeDigest get_code_id(const QuoteInfo& quote_info)
+    {
+      CodeDigest unique_id = {};
+      crypto::Sha256Hash h;
+      auto rc = verify_quote(quote_info, unique_id, h);
+      if (rc != QuoteVerificationResult::Verified)
       {
-        case FAIL_VERIFY_OE:
-          return std::make_pair(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Quote could not be verified");
-        case FAIL_VERIFY_CODE_ID_RETIRED:
-          return std::make_pair(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "CODE_ID_RETIRED: Quote does not contain valid enclave "
-            "measurement");
-        case FAIL_VERIFY_CODE_ID_NOT_FOUND:
-          return std::make_pair(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "CODE_ID_NOT_FOUND: Quote does not contain known enclave "
-            "measurement");
-        case FAIL_VERIFY_INVALID_QUOTED_CERT:
-          return std::make_pair(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "Quote report data does not contain correct certificate hash");
-        default:
-          return std::make_pair(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unknown error");
+        throw std::logic_error(fmt::format("Failed to verify quote: {}", rc));
       }
+
+      return unique_id;
+    }
+
+    static QuoteInfo generate_quote(const tls::Pem& node_public_key)
+    {
+      QuoteInfo node_quote_info;
+      node_quote_info.format = QuoteFormat::oe_sgx_v1;
+
+      crypto::Sha256Hash h{node_public_key.contents()};
+
+      Evidence evidence;
+      Endorsements endorsements;
+      SerialisedClaims serialised_custom_claims;
+
+      // Serialise hash of node's public key as a custom claim
+      const size_t custom_claim_length = 1;
+      oe_claim_t custom_claim;
+      custom_claim.name = const_cast<char*>(sgx_report_data_claim_name);
+      custom_claim.value = h.h.data();
+      custom_claim.value_size = h.SIZE;
+
+      auto rc = oe_serialize_custom_claims(
+        &custom_claim,
+        custom_claim_length,
+        &serialised_custom_claims.buffer,
+        &serialised_custom_claims.size);
+      if (rc != OE_OK)
+      {
+        throw std::logic_error(fmt::format(
+          "Could not serialise node's public key as quote custom claim: {}",
+          oe_result_str(rc)));
+      }
+
+      rc = oe_get_evidence(
+        &oe_quote_format,
+        0,
+        serialised_custom_claims.buffer,
+        serialised_custom_claims.size,
+        nullptr,
+        0,
+        &evidence.buffer,
+        &evidence.size,
+        &endorsements.buffer,
+        &endorsements.size);
+      if (rc != OE_OK)
+      {
+        throw std::logic_error(
+          fmt::format("Failed to get evidence: {}", oe_result_str(rc)));
+      }
+
+      node_quote_info.quote.assign(
+        evidence.buffer, evidence.buffer + evidence.size);
+      node_quote_info.endorsements.assign(
+        endorsements.buffer, endorsements.buffer + endorsements.size);
+
+      return node_quote_info;
+    }
+
+    static QuoteVerificationResult verify_quote_against_store(
+      kv::ReadOnlyTx& tx,
+      const QuoteInfo& quote_info,
+      const tls::Pem& expected_node_public_key)
+    {
+      CodeDigest unique_id;
+      crypto::Sha256Hash quoted_hash;
+
+      auto rc = verify_quote(quote_info, unique_id, quoted_hash);
+      if (rc != QuoteVerificationResult::Verified)
+      {
+        return rc;
+      }
+
+      rc = verify_enclave_measurement_against_store(tx, unique_id);
+      if (rc != QuoteVerificationResult::Verified)
+      {
+        return rc;
+      }
+
+      return verify_quoted_node_public_key(
+        expected_node_public_key, quoted_hash);
     }
   };
-
 }
 #endif
