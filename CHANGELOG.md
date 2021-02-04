@@ -5,13 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- `"id"` field in `state` endpoint response has been renamed to `"node_id"` (#2150).
+- `user_id` endpoint is renamed `caller_id` (#2142).
+
 ## [0.18.0]
 
 ### Changed
 
 - `endpoint_metrics` is renamed `api/metrics` and now returns an array of objects instead of nested path/method objects (#2068).
-- `"id"` field in `state` endpoint response has been renamed to `"node_id"` (#2150).
-- `user_id` endpoint is renamed `caller_id` (#2142).
 - Governance proposal ids are now digests of the proposal and store state observed during their creation, hex-encoded as strings. This makes votes entirely specific to an instance of a proposal without having to include a nonce. (#2104, #2135).
 - `quote` endpoint has been renamed to `quotes/self` (#2149).
 - `TxView`s have been renamed to `MapHandle`s, to clearly distinguish them from consensus views. Calls to `tx.get_view` must be replaced with `tx.rw`.
