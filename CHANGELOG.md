@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- Nodes' quotes format updated to Open Enclave's `SGX_ECDSA`. Quote endorsements are also stored in CCF and can be retrieved via the `quotes/self` and `quotes` endpoints (#2161).
+- `get_quote_for_this_node_v1()` takes a `QuoteInfo` structure (containing the format, raw quote and corresponding endorsements) as out parameter instead of the distinct format and raw quote as two out paramters (#2161).
+
 ## [0.18.0]
 
 ### Changed
@@ -16,8 +23,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `quote` endpoint has been renamed to `quotes/self` (#2149).
 - `TxView`s have been renamed to `MapHandle`s, to clearly distinguish them from consensus views. Calls to `tx.get_view` must be replaced with `tx.rw`.
 - `tx.rw` does not support retrieving multiple views in a single call. Instead of `auto [view1, view2] = tx.get_view(map1, map2);`, you must write `auto handle1 = tx.rw(map1); auto handle2 = tx.rw(map2);`.
-- Nodes' quotes format updated to Open Enclave's `SGX_ECDSA`. Quote endorsements are also stored in CCF and can be retrieved via the `quotes/self` and `quotes` endpoints (#2161).
-- `get_quote_for_this_node_v1()` takes a `QuoteInfo` structure (containing the format, raw quote and corresponding endorsements) as out parameter instead of the distinct format and raw quote as two out paramters (#2161).
 
 ### Added
 
