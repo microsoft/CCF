@@ -109,7 +109,7 @@ namespace ccf
     static constexpr auto SECRETS = "public:ccf.internal.secrets";
     static constexpr auto SHARES = "public:ccf.internal.shares";
     static constexpr auto SUBMITTED_SHARES =
-      "public:ccf.intenal.encrypted_submitted_shares";
+      "public:ccf.internal.encrypted_submitted_shares";
     static constexpr auto SNAPSHOT_EVIDENCE =
       "public:ccf.internal.snapshot_evidence";
     static constexpr auto SIGNATURES = "public:ccf.internal.signatures";
