@@ -74,7 +74,7 @@ namespace ccf
     static constexpr auto USERS = "public:ccf.gov.users";
     static constexpr auto USER_CERT_DERS =
       "public:ccf.internal.users.certs_der";
-    static constexpr auto USER_DIGESTS = "public:internal.gov.users.digests";
+    static constexpr auto USER_DIGESTS = "public:ccf.internal.users.digests";
     static constexpr auto SERVICE_PRINCIPALS =
       "public:ccf.gov.service_principals";
 
