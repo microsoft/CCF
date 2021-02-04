@@ -73,11 +73,8 @@ trap cleanup EXIT
 
 curl_output=$(curl -sS --fail -X GET "${node_address}"/node/quotes/self "${@}")
 
-# Note: xxd is not installed on CI machines so use perl instead
-echo "${curl_output}" | jq -r .raw | perl -e 'print pack "H*", <STDIN>' > "${tmp_dir}/${quote_file_name}"
-echo "${curl_output}" | jq -r .endorsements | perl -e 'print pack "H*", <STDIN>' > "${tmp_dir}/${endorsements_file_name}"
-truncate -s -1 "${tmp_dir}/${quote_file_name}"
-truncate -s -1 "${tmp_dir}/${endorsements_file_name}"
+echo "${curl_output}" | jq -r .raw | xxd -r -p > "${tmp_dir}/${quote_file_name}"
+echo "${curl_output}" | jq -r .endorsements | xxd -r -p > "${tmp_dir}/${endorsements_file_name}"
 
 if [ ! -s "${tmp_dir}/${quote_file_name}" ]; then
     echo "Error: Node quote is empty. Virtual mode does not support SGX quotes."
