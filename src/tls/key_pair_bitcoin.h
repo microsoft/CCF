@@ -1,5 +1,7 @@
 #pragma once
 
+#include "key_pair_mbedtls.h"
+
 namespace tls
 {
   static constexpr size_t ecp_num_size = 100;
