@@ -277,7 +277,7 @@ namespace ccf::historical
       to_host(host_writer)
     {}
 
-    StorePtr get_store_at(consensus::Index idx) override
+    StorePtr get_store_at(RequestHandle request, consensus::Index idx) override
     {
       const auto it = requests.find(idx);
       if (it == requests.end())
@@ -296,6 +296,20 @@ namespace ccf::historical
 
       // Still fetching this store or don't trust it yet
       return nullptr;
+    }
+
+    // TODO: Impl
+    void set_default_expiry_duration(ExpiryDuration duration) override {}
+
+    bool set_expiry_duration(
+      RequestHandle handle, ExpiryDuration duration) override
+    {
+      return false;
+    }
+
+    bool drop_request(RequestHandle handle) override
+    {
+      return false;
     }
 
     bool handle_ledger_entry(consensus::Index idx, const LedgerEntry& data)

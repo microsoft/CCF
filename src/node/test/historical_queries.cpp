@@ -166,17 +166,19 @@ TEST_CASE("StateCache")
   auto rw = std::make_shared<ringbuffer::Writer>(rr);
   ccf::historical::StateCache cache(store, rw);
 
+  static const ccf::historical::RequestHandle default_handle = 0;
+
   {
     INFO(
       "Initially, no stores are available, even if they're requested multiple "
       "times");
-    REQUIRE(cache.get_store_at(low_index) == nullptr);
-    REQUIRE(cache.get_store_at(low_index) == nullptr);
-    REQUIRE(cache.get_store_at(high_index) == nullptr);
-    REQUIRE(cache.get_store_at(low_index) == nullptr);
-    REQUIRE(cache.get_store_at(unsigned_index) == nullptr);
-    REQUIRE(cache.get_store_at(high_index) == nullptr);
-    REQUIRE(cache.get_store_at(low_index) == nullptr);
+    REQUIRE(cache.get_store_at(default_handle, low_index) == nullptr);
+    REQUIRE(cache.get_store_at(default_handle, low_index) == nullptr);
+    REQUIRE(cache.get_store_at(default_handle, high_index) == nullptr);
+    REQUIRE(cache.get_store_at(default_handle, low_index) == nullptr);
+    REQUIRE(cache.get_store_at(default_handle, unsigned_index) == nullptr);
+    REQUIRE(cache.get_store_at(default_handle, high_index) == nullptr);
+    REQUIRE(cache.get_store_at(default_handle, low_index) == nullptr);
   }
 
   {
@@ -211,11 +213,11 @@ TEST_CASE("StateCache")
     for (size_t i = high_index + 1; i < high_signature_transaction; ++i)
     {
       REQUIRE(provide_ledger_entry(i));
-      REQUIRE(cache.get_store_at(high_index) == nullptr);
+      REQUIRE(cache.get_store_at(default_handle, high_index) == nullptr);
     }
 
     REQUIRE(provide_ledger_entry(high_signature_transaction));
-    REQUIRE(cache.get_store_at(high_index) != nullptr);
+    REQUIRE(cache.get_store_at(default_handle, high_index) != nullptr);
   }
 
   {
@@ -226,25 +228,25 @@ TEST_CASE("StateCache")
     // will accept anything that looks quite like a valid entry, even if it
     // never came from a legitimate node - they should all fail at the signature
     // check
-    REQUIRE(cache.get_store_at(low_index) == nullptr);
+    REQUIRE(cache.get_store_at(default_handle, low_index) == nullptr);
     REQUIRE(cache.handle_ledger_entry(low_index, ledger.at(low_index + 1)));
 
     // Count up to next signature
     for (size_t i = low_index + 1; i < high_signature_transaction; ++i)
     {
       REQUIRE(provide_ledger_entry(i));
-      REQUIRE(cache.get_store_at(low_index) == nullptr);
+      REQUIRE(cache.get_store_at(default_handle, low_index) == nullptr);
     }
 
     // Signature is good
     REQUIRE(provide_ledger_entry(high_signature_transaction));
     // Junk entry is still not available
-    REQUIRE(cache.get_store_at(low_index) == nullptr);
+    REQUIRE(cache.get_store_at(default_handle, low_index) == nullptr);
   }
 
   {
     INFO("Historical state can be retrieved from provided entries");
-    auto store_at_index = cache.get_store_at(high_index);
+    auto store_at_index = cache.get_store_at(default_handle, high_index);
     REQUIRE(store_at_index != nullptr);
 
     {
@@ -279,7 +281,7 @@ TEST_CASE("StateCache")
 
   {
     INFO("Cache doesn't throw when given junk");
-    REQUIRE(cache.get_store_at(unsigned_index) == nullptr);
+    REQUIRE(cache.get_store_at(default_handle, unsigned_index) == nullptr);
     bool result;
     REQUIRE_NOTHROW(result = cache.handle_ledger_entry(unsigned_index, {}));
     REQUIRE(!result);
@@ -299,12 +301,12 @@ TEST_CASE("StateCache")
     INFO("Signature transactions can be requested");
     for (const auto i : {low_signature_transaction, high_signature_transaction})
     {
-      auto store_at_index = cache.get_store_at(i);
+      auto store_at_index = cache.get_store_at(default_handle, i);
       REQUIRE(store_at_index == nullptr);
 
       REQUIRE(provide_ledger_entry(i));
 
-      store_at_index = cache.get_store_at(i);
+      store_at_index = cache.get_store_at(default_handle, i);
       REQUIRE(store_at_index != nullptr);
     }
   }
