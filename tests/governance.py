@@ -151,7 +151,7 @@ def test_user_id(network, args):
             pem = ucert.read()
         json_pem = json.dumps(pem)
         r = uc.get(f"/app/user_id?cert={urllib.parse.quote_plus(json_pem)}")
-        assert r.status_code == 200
+        assert r.status_code == http.HTTPStatus.OK.value
         assert r.body.json()["caller_id"] == 1
     return network
 
@@ -164,12 +164,69 @@ def test_node_ids(network, args):
             r = c.get(
                 f'/node/network/nodes?host="{node.pubhost}"&port="{node.pubport}"'
             )
-            assert r.status_code == 200
+            assert r.status_code == http.HTTPStatus.OK.value
             info = r.body.json()["nodes"]
             assert len(info) == 1
             assert info[0]["node_id"] == node.node_id
             assert info[0]["status"] == "TRUSTED"
         return network
+
+
+@reqs.description("Checking service principals proposals")
+def test_service_principals(network, args):
+    primary, _ = network.find_nodes()
+
+    principal_id = "0xdeadbeef"
+    ballot = {"ballot": {"text": "return true"}}
+
+    def read_service_principal():
+        with primary.client("member0") as mc:
+            return mc.post(
+                "/gov/read",
+                {"table": "public:ccf.gov.service_principals", "key": principal_id},
+            )
+
+    # Initially, there is nothing in this table
+    r = read_service_principal()
+    assert r.status_code == http.HTTPStatus.NOT_FOUND.value
+
+    # Create and accept a proposal which populates an entry in this table
+    principal_data = {"name": "Bob", "roles": ["Fireman", "Zookeeper"]}
+    proposal = {
+        "script": {
+            "text": 'tables, args = ...\nreturn Calls:call("set_service_principal", args)'
+        },
+        "parameter": {
+            "id": principal_id,
+            "data": principal_data,
+        },
+    }
+    proposal = network.consortium.get_any_active_member().propose(primary, proposal)
+    network.consortium.vote_using_majority(primary, proposal, ballot)
+
+    # Confirm it can be read
+    r = read_service_principal()
+    assert r.status_code == http.HTTPStatus.OK.value
+    j = r.body.json()
+    assert j == principal_data
+
+    # Create and accept a proposal which removes an entry from this table
+    proposal = {
+        "script": {
+            "text": 'tables, args = ...\nreturn Calls:call("remove_service_principal", args)'
+        },
+        "parameter": {
+            "id": principal_id,
+        },
+    }
+    proposal = network.consortium.get_any_active_member().propose(primary, proposal)
+    network.consortium.vote_using_majority(primary, proposal, ballot)
+
+    # Confirm it is gone
+    r = read_service_principal()
+    assert r.status_code == http.HTTPStatus.NOT_FOUND.value
+
+    return network
 
 
 def run(args):
@@ -183,6 +240,7 @@ def run(args):
         network = test_user(network, args)
         network = test_no_quote(network, args)
         network = test_user_id(network, args)
+        network = test_service_principals(network, args)
 
 
 if __name__ == "__main__":

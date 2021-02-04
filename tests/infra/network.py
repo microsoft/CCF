@@ -851,7 +851,7 @@ class Network:
                         # that is app agnostic
                         r = nc.post("/gov/ack/update_state_digest")
                         assert (
-                            r.status_code == 200
+                            r.status_code == http.HTTPStatus.OK.value
                         ), f"Error ack/update_state_digest: {r}"
                         c.wait_for_commit(r)
                         return True
