@@ -63,7 +63,7 @@ namespace ccf
     // Service tables
 
     // Member identities
-    static constexpr auto MEMBERS = "public:ccf.gov.members";
+    static constexpr auto MEMBERS = "public:ccf.gov.members.info";
     static constexpr auto MEMBER_ACKS = "public:ccf.gov.members.acks";
     static constexpr auto MEMBER_CERT_DERS =
       "public:ccf.internal.members.certs_der";
@@ -71,7 +71,7 @@ namespace ccf
       "public:ccf.internal.members.digests";
 
     // User identities
-    static constexpr auto USERS = "public:ccf.gov.users";
+    static constexpr auto USERS = "public:ccf.gov.users.info";
     static constexpr auto USER_CERT_DERS =
       "public:ccf.internal.users.certs_der";
     static constexpr auto USER_DIGESTS = "public:ccf.internal.users.digests";
@@ -79,17 +79,17 @@ namespace ccf
       "public:ccf.gov.service_principals";
 
     // Nodes identities and allowed code ids
-    static constexpr auto NODES = "public:ccf.gov.nodes";
+    static constexpr auto NODES = "public:ccf.gov.nodes.info";
     static constexpr auto NODE_CODE_IDS = "public:ccf.gov.nodes.code_ids";
 
     // Service information
-    static constexpr auto SERVICE = "public:ccf.gov.service";
+    static constexpr auto SERVICE = "public:ccf.gov.service.info";
     static constexpr auto CONFIGURATION = "public:ccf.gov.service.config";
 
     // Governance
     static constexpr auto PROPOSALS = "public:ccf.gov.proposals";
-    static constexpr auto GOV_SCRIPTS = "public:ccf.gov.governance.scripts";
-    static constexpr auto GOV_HISTORY = "public:ccf.gov.governance.history";
+    static constexpr auto GOV_SCRIPTS = "public:ccf.gov.scripts";
+    static constexpr auto GOV_HISTORY = "public:ccf.gov.history";
     static constexpr auto WHITELISTS = "public:ccf.gov.whitelists";
 
     // JS applications
@@ -106,8 +106,9 @@ namespace ccf
       "public:ccf.gov.jwt.public_signing_key_issuer";
 
     // Internal only
-    static constexpr auto SECRETS = "public:ccf.internal.secrets";
-    static constexpr auto SHARES = "public:ccf.internal.shares";
+    static constexpr auto SECRETS =
+      "public:ccf.internal.encrypted_ledger_secrets";
+    static constexpr auto SHARES = "public:ccf.internal.recovery_shares";
     static constexpr auto SUBMITTED_SHARES =
       "public:ccf.internal.encrypted_submitted_shares";
     static constexpr auto SNAPSHOT_EVIDENCE =
