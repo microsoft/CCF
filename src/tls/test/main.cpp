@@ -11,6 +11,7 @@
 #include <string>
 
 using namespace std;
+using namespace tls;
 
 static const string contents_ =
   "Lorem ipsum dolor sit amet, consectetur adipiscing "
@@ -31,8 +32,8 @@ void corrupt(T& buf)
   buf[buf.size() - 2]++;
 }
 
-static constexpr tls::CurveID supported_curves[] = {
-  tls::CurveID::SECP384R1, tls::CurveID::SECP256K1, tls::CurveID::SECP256R1};
+static constexpr CurveID supported_curves[] = {
+  CurveID::SECP384R1, CurveID::SECP256K1, CurveID::SECP256R1};
 
 static constexpr char const* labels[] = {"secp384r1", "secp256k1", "secp256r1"};
 
@@ -41,12 +42,12 @@ TEST_CASE("Sign, verify, with KeyPair")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
     CHECK(kp->verify(contents, signature));
 
-    auto kp2 = tls::make_key_pair(kp->private_key_pem());
+    auto kp2 = make_key_pair(kp->private_key_pem());
     CHECK(kp2->verify(contents, signature));
 
     // Signatures won't necessarily be identical due to entropy, but should be
@@ -65,12 +66,12 @@ TEST_CASE("Sign, verify, with PublicKey")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
 
     const auto public_key = kp->public_key_pem();
-    auto pubk = tls::make_public_key(public_key);
+    auto pubk = make_public_key(public_key);
     CHECK(pubk->verify(contents, signature));
   }
 }
@@ -80,12 +81,12 @@ TEST_CASE("Sign, fail to verify with bad signature")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
     const auto public_key = kp->public_key_pem();
-    auto pubk = tls::make_public_key(public_key);
+    auto pubk = make_public_key(public_key);
     corrupt(signature);
     CHECK_FALSE(pubk->verify(contents, signature));
   }
@@ -96,12 +97,12 @@ TEST_CASE("Sign, fail to verify with bad contents")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
     const auto public_key = kp->public_key_pem();
-    auto pubk = tls::make_public_key(public_key);
+    auto pubk = make_public_key(public_key);
     corrupt(contents);
     CHECK_FALSE(pubk->verify(contents, signature));
   }
@@ -112,13 +113,13 @@ TEST_CASE("Sign, fail to verify with wrong key on correct curve")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
-    auto kp2 = tls::make_key_pair(curve);
+    auto kp2 = make_key_pair(curve);
     const auto public_key = kp2->public_key_pem();
-    auto pubk = tls::make_public_key(public_key);
+    auto pubk = make_public_key(public_key);
     CHECK_FALSE(pubk->verify(contents, signature));
   }
 }
@@ -128,21 +129,20 @@ TEST_CASE("Sign, fail to verify with wrong key on wrong curve")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
-    const auto wrong_curve = curve == tls::CurveID::SECP384R1 ?
-      tls::CurveID::SECP256K1 :
-      tls::CurveID::SECP384R1;
-    auto kp2 = tls::make_key_pair(wrong_curve);
+    const auto wrong_curve =
+      curve == CurveID::SECP384R1 ? CurveID::SECP256K1 : CurveID::SECP384R1;
+    auto kp2 = make_key_pair(wrong_curve);
     const auto public_key = kp2->public_key_pem();
-    auto pubk = tls::make_public_key(public_key);
+    auto pubk = make_public_key(public_key);
     CHECK_FALSE(pubk->verify(contents, signature));
   }
 }
 
-template <typename T, typename S, tls::CurveID CID>
+template <typename T, typename S, CurveID CID>
 void run_alt()
 {
   auto kp1 = new T(CID);
@@ -155,30 +155,18 @@ void run_alt()
 
 TEST_CASE("Sign, verify with alternate implementation")
 {
-  run_alt<
-    tls::KeyPair_mbedTLS,
-    tls::PublicKey_mbedTLS,
-    tls::CurveID::SECP256K1>();
-  run_alt<
-    tls::KeyPair_mbedTLS,
-    tls::PublicKey_k1Bitcoin,
-    tls::CurveID::SECP256K1>();
-  run_alt<
-    tls::KeyPair_k1Bitcoin,
-    tls::PublicKey_mbedTLS,
-    tls::CurveID::SECP256K1>();
-  run_alt<
-    tls::KeyPair_OpenSSL,
-    tls::PublicKey_OpenSSL,
-    tls::CurveID::SECP256K1>();
-  run_alt<
-    tls::KeyPair_mbedTLS,
-    tls::PublicKey_OpenSSL,
-    tls::CurveID::SECP256K1>();
-  run_alt<
-    tls::KeyPair_OpenSSL,
-    tls::PublicKey_mbedTLS,
-    tls::CurveID::SECP256K1>();
+  run_alt<KeyPair_mbedTLS, PublicKey_mbedTLS, CurveID::SECP256K1>();
+  //  run_alt<KeyPair_OpenSSL, PublicKey_OpenSSL, CurveID::SECP256K1>();
+  run_alt<KeyPair_k1Bitcoin, PublicKey_k1Bitcoin, CurveID::SECP256K1>();
+
+  run_alt<KeyPair_mbedTLS, PublicKey_k1Bitcoin, CurveID::SECP256K1>();
+  run_alt<KeyPair_k1Bitcoin, PublicKey_mbedTLS, CurveID::SECP256K1>();
+
+  run_alt<KeyPair_mbedTLS, PublicKey_OpenSSL, CurveID::SECP256K1>();
+  run_alt<KeyPair_OpenSSL, PublicKey_mbedTLS, CurveID::SECP256K1>();
+
+  run_alt<KeyPair_k1Bitcoin, PublicKey_OpenSSL, CurveID::SECP256K1>();
+  run_alt<KeyPair_OpenSSL, PublicKey_k1Bitcoin, CurveID::SECP256K1>();
 
   // TODO: More OpenSSL
 }
@@ -188,12 +176,12 @@ TEST_CASE("Sign, verify with certificate")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
 
     auto cert = kp->self_sign("CN=name");
-    auto verifier = tls::make_verifier(cert);
+    auto verifier = make_verifier(cert);
     CHECK(verifier->verify(contents, signature));
   }
 }
@@ -203,12 +191,12 @@ TEST_CASE("Sign, verify. Fail to verify with bad contents")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
 
     auto cert = kp->self_sign("CN=name");
-    auto verifier = tls::make_verifier(cert);
+    auto verifier = make_verifier(cert);
     CHECK(verifier->verify(contents, signature));
     corrupt(contents);
     CHECK_FALSE(verifier->verify(contents, signature));
@@ -235,13 +223,13 @@ TEST_CASE("Manually hash, sign, verify, with PublicKey")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     crypto::HashBytes hash = bad_manual_hash(contents);
     const vector<uint8_t> signature = kp->sign_hash(hash.data(), hash.size());
 
     const auto public_key = kp->public_key_pem();
-    auto pubk = tls::make_public_key(public_key);
+    auto pubk = make_public_key(public_key);
     CHECK(pubk->verify_hash(hash, signature));
     corrupt(hash);
     CHECK_FALSE(pubk->verify_hash(hash, signature));
@@ -253,13 +241,13 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     crypto::HashBytes hash = bad_manual_hash(contents);
     const vector<uint8_t> signature = kp->sign_hash(hash.data(), hash.size());
 
     auto cert = kp->self_sign("CN=name");
-    auto verifier = tls::make_verifier(cert);
+    auto verifier = make_verifier(cert);
     CHECK(verifier->verify_hash(hash, signature));
     corrupt(hash);
     CHECK_FALSE(verifier->verify(hash, signature));
@@ -268,7 +256,7 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
 
 TEST_CASE("Recoverable signatures")
 {
-  auto kp = tls::KeyPair_k1Bitcoin(tls::CurveID::SECP256K1);
+  auto kp = KeyPair_k1Bitcoin(CurveID::SECP256K1);
 
   vector<uint8_t> contents(contents_.begin(), contents_.end());
   crypto::HashBytes hash = bad_manual_hash(contents);
@@ -276,7 +264,7 @@ TEST_CASE("Recoverable signatures")
   auto signature = kp.sign_recoverable_hashed(hash);
   const auto target_pem = kp.public_key_pem().str();
 
-  auto recovered = tls::PublicKey_k1Bitcoin::recover_key(signature, hash);
+  auto recovered = PublicKey_k1Bitcoin::recover_key(signature, hash);
 
   {
     INFO("Normal recovery");
@@ -294,7 +282,7 @@ TEST_CASE("Recoverable signatures")
     bool recovery_failed = false;
     try
     {
-      auto r = tls::PublicKey_k1Bitcoin::recover_key(signature, hash2);
+      auto r = PublicKey_k1Bitcoin::recover_key(signature, hash2);
       recovery_failed = target_pem != r.public_key_pem().str();
     }
     catch (const std::exception& e)
@@ -311,7 +299,7 @@ TEST_CASE("Recoverable signatures")
     bool recovery_failed = false;
     try
     {
-      auto r = tls::PublicKey_k1Bitcoin::recover_key(signature2, hash);
+      auto r = PublicKey_k1Bitcoin::recover_key(signature2, hash);
       recovery_failed = target_pem != r.public_key_pem().str();
     }
     catch (const std::exception& e)
@@ -328,7 +316,7 @@ TEST_CASE("Recoverable signatures")
     bool recovery_failed = false;
     try
     {
-      auto r = tls::PublicKey_k1Bitcoin::recover_key(signature3, hash);
+      auto r = PublicKey_k1Bitcoin::recover_key(signature3, hash);
       recovery_failed = target_pem != r.public_key_pem().str();
     }
     catch (const std::exception& e)
@@ -355,8 +343,8 @@ TEST_CASE("base64")
     std::vector<uint8_t> raw(length);
     std::generate(raw.begin(), raw.end(), rand);
 
-    const auto encoded = tls::b64_from_raw(raw.data(), raw.size());
-    const auto decoded = tls::raw_from_b64(encoded);
+    const auto encoded = b64_from_raw(raw.data(), raw.size());
+    const auto decoded = raw_from_b64(encoded);
     REQUIRE(decoded == raw);
   }
 }
@@ -368,12 +356,12 @@ TEST_CASE("base64url")
     std::vector<uint8_t> raw(length);
     std::generate(raw.begin(), raw.end(), rand);
 
-    auto encoded = tls::b64_from_raw(raw.data(), raw.size());
+    auto encoded = b64_from_raw(raw.data(), raw.size());
     std::replace(encoded.begin(), encoded.end(), '+', '-');
     std::replace(encoded.begin(), encoded.end(), '/', '_');
     encoded.erase(
       std::find(encoded.begin(), encoded.end(), '='), encoded.end());
-    const auto decoded = tls::raw_from_b64url(encoded);
+    const auto decoded = raw_from_b64url(encoded);
     REQUIRE(decoded == raw);
   }
 }
@@ -381,20 +369,20 @@ TEST_CASE("base64url")
 TEST_CASE("Wrap, unwrap with RSAKeyPair")
 {
   size_t input_len = 64;
-  std::vector<uint8_t> input = tls::create_entropy()->random(input_len);
+  std::vector<uint8_t> input = create_entropy()->random(input_len);
 
   INFO("Cannot make RSA key from EC key");
   {
-    auto rsa_kp = tls::make_key_pair(); // EC Key
+    auto rsa_kp = make_key_pair(); // EC Key
 
     REQUIRE_THROWS_AS(
-      tls::make_rsa_public_key(rsa_kp->public_key_pem()), std::logic_error);
+      make_rsa_public_key(rsa_kp->public_key_pem()), std::logic_error);
   }
 
   INFO("Without label");
   {
-    auto rsa_kp = tls::make_rsa_key_pair();
-    auto rsa_pub = tls::make_rsa_public_key(rsa_kp->public_key_pem());
+    auto rsa_kp = make_rsa_key_pair();
+    auto rsa_pub = make_rsa_public_key(rsa_kp->public_key_pem());
 
     // Public key can wrap
     auto wrapped = rsa_pub->wrap(input);
@@ -412,8 +400,8 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
 
   INFO("With label");
   {
-    auto rsa_kp = tls::make_rsa_key_pair();
-    auto rsa_pub = tls::make_rsa_public_key(rsa_kp->public_key_pem());
+    auto rsa_kp = make_rsa_key_pair();
+    auto rsa_pub = make_rsa_public_key(rsa_kp->public_key_pem());
     std::string label = "my_label";
     auto wrapped = rsa_pub->wrap(input, label);
     auto unwrapped = rsa_kp->unwrap(wrapped, label);
@@ -426,11 +414,11 @@ TEST_CASE("Extract public key from cert")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = tls::make_key_pair(curve);
+    auto kp = make_key_pair(curve);
     auto pk = kp->public_key_pem();
     auto cert = kp->self_sign("CN=name");
 
-    auto pubk = tls::public_key_pem_from_cert(cert);
+    auto pubk = public_key_pem_from_cert(cert);
     REQUIRE(pk == pubk);
   }
 }
@@ -438,7 +426,7 @@ TEST_CASE("Extract public key from cert")
 template <typename T, typename S>
 void run_csr()
 {
-  T kpm(tls::CurveID::SECP384R1);
+  T kpm(CurveID::SECP384R1);
 
   const char* subject_name = "CN=myname";
 
@@ -449,7 +437,7 @@ void run_csr()
 
   std::cout << "CSR:" << std::endl << csr.str() << std::endl;
 
-  std::vector<tls::SubjectAltName> subject_alternative_names;
+  std::vector<SubjectAltName> subject_alternative_names;
   auto crt = kpm.sign_csr(csr, subject_name, subject_alternative_names);
 
   std::cout << "CRT:" << std::endl << crt.str() << std::endl;
@@ -463,6 +451,6 @@ void run_csr()
 
 TEST_CASE("Create & sign CRSs")
 {
-  // run_csr<tls::KeyPair_mbedTLS, tls::Verifier_MBedTLS>();
-  run_csr<tls::KeyPair_mbedTLS, tls::Verifier_OpenSSL>();
+  // run_csr<KeyPair_mbedTLS, Verifier_MBedTLS>();
+  run_csr<KeyPair_mbedTLS, Verifier_OpenSSL>();
 }

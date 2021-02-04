@@ -5,6 +5,7 @@
 #include "key_pair_base.h"
 
 #include <openssl/ec.h>
+#include <openssl/engine.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
@@ -21,10 +22,21 @@ namespace tls
     }
   }
 
+  inline void OPENSSL_CHECKNULL(void* ptr)
+  {
+    unsigned long ec = ERR_get_error();
+    if (ptr == NULL && ec != 0)
+    {
+      throw std::runtime_error(
+        fmt::format("OpenSSL error: {}", ERR_error_string(ec, NULL)));
+    }
+  }
+
   class PublicKey_OpenSSL : public PublicKeyBase
   {
   protected:
     EVP_PKEY* key = nullptr;
+    ENGINE* engine = nullptr;
 
     PublicKey_OpenSSL() {}
 
@@ -48,12 +60,21 @@ namespace tls
       return nullptr;
     }
 
+    void set_rng_engine()
+    {
+      OPENSSL_CHECK1(ENGINE_load_rdrand());
+      OPENSSL_CHECKNULL(engine = ENGINE_by_id("rdrand"));
+      OPENSSL_CHECK1(ENGINE_init(engine));
+      OPENSSL_CHECK1(ENGINE_set_default(engine, ENGINE_METHOD_RAND));
+    }
+
   public:
     /**
      * Construct from PEM
      */
     PublicKey_OpenSSL(const Pem& pem)
     {
+      set_rng_engine();
       BIO* mem = BIO_new_mem_buf(pem.data(), -1);
       key = PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL);
       BIO_free(mem);
@@ -66,6 +87,7 @@ namespace tls
      */
     PublicKey_OpenSSL(const std::vector<uint8_t>& der)
     {
+      set_rng_engine();
       const unsigned char* pp = der.data();
       key = d2i_PublicKey(EVP_PKEY_EC, &key, &pp, der.size());
       if (!key)
@@ -78,6 +100,11 @@ namespace tls
     {
       if (key)
         EVP_PKEY_free(key);
+      if (engine)
+      {
+        ENGINE_finish(engine);
+        ENGINE_free(engine);
+      }
     }
 
     virtual CurveID get_curve_id() const override
@@ -141,13 +168,14 @@ namespace tls
 
       EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
       OPENSSL_CHECK1(EVP_DigestVerifyInit(mdctx, NULL, md, NULL, key));
-      bool ok = EVP_DigestVerify(mdctx, sig, sig_size, hash, hash_size) == 1;
+      int rc = EVP_DigestVerify(mdctx, sig, sig_size, hash, hash_size);
+      bool ok = rc == 1;
       if (!ok)
       {
-        // LOG_DEBUG_FMT(
-        throw std::runtime_error(fmt::format(
+        int ec = ERR_get_error();
+        LOG_DEBUG_FMT(
           "OpenSSL digest verification failure: {}",
-          ERR_error_string(ERR_get_error(), NULL)));
+          ERR_error_string(ec, NULL));
       }
       EVP_MD_CTX_free(mdctx);
 
@@ -207,6 +235,7 @@ namespace tls
      */
     KeyPair_OpenSSL(CurveID curve_id = service_identity_curve_choice)
     {
+      PublicKey_OpenSSL::set_rng_engine();
       int curve_nid = get_openssl_group_id(curve_id);
       key = EVP_PKEY_new();
       EVP_PKEY_CTX* pkctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
@@ -224,6 +253,7 @@ namespace tls
 
     KeyPair_OpenSSL(const Pem& pem, CBuffer pw = nullb)
     {
+      PublicKey_OpenSSL::set_rng_engine();
       BIO* mem = BIO_new_mem_buf(pem.data(), -1);
       key = PEM_read_bio_PrivateKey(mem, NULL, NULL, (void*)pw.p);
       BIO_free(mem);
