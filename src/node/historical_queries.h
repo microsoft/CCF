@@ -32,63 +32,39 @@ namespace ccf::historical
 
     struct Request
     {
+      consensus::Index target_index;
       RequestStage current_stage = RequestStage::Fetching;
       crypto::Sha256Hash entry_hash = {};
       StorePtr store = nullptr;
     };
 
-    // These constitute a simple LRU, where only user queries will refresh an
-    // entry's priority
-    static constexpr size_t MAX_ACTIVE_REQUESTS = 10;
-    std::map<consensus::Index, Request> requests;
-    std::list<consensus::Index> recent_requests;
+    // Things actually requested by external callers
+    std::map<RequestHandle, Request> requests;
 
-    // To trust an index, we currently need to fetch a sequence of entries
-    // around it - these aren't user requests, so we don't store them, but we do
-    // need to distinguish things-we-asked-for from junk-from-the-host
-    std::set<consensus::Index> pending_fetches;
+    // Outstanding requested indices. Some will be targets of requests, some
+    // will just be surrounding supporting evidence. Stored to enable efficient
+    // reverse lookup.
+    using HandleSet = std::set<RequestHandle>;
+    std::map<consensus::Index, HandleSet> pending_fetches;
 
-    void request_entry_at(consensus::Index idx)
+    void fetch_entry_at(const HandleSet& handles, consensus::Index idx)
     {
-      // To avoid duplicates, remove index if it was already requested
-      recent_requests.remove(idx);
-
-      // Add request to front of list, most recently requested
-      recent_requests.emplace_front(idx);
-
-      // Cull old requests
-      while (recent_requests.size() > MAX_ACTIVE_REQUESTS)
-      {
-        const auto old_idx = recent_requests.back();
-        recent_requests.pop_back();
-        requests.erase(old_idx);
-      }
-
-      // Try to insert new request
-      const auto ib = requests.insert(std::make_pair(idx, Request{}));
-      if (ib.second)
-      {
-        // If its a new request, begin fetching it
-        fetch_entry_at(idx);
-      }
-    }
-
-    void fetch_entry_at(consensus::Index idx)
-    {
-      const auto it =
-        std::find(pending_fetches.begin(), pending_fetches.end(), idx);
+      auto it = pending_fetches.find(idx);
       if (it != pending_fetches.end())
       {
-        // Already fetching this index
+        // Already fetching this index - record all _new_ handles which are
+        // waiting for it
+        it->second.insert(handles.begin(), handles.end());
         return;
       }
 
+      // Begin fetching, and record who we're fetching for
+      pending_fetches.emplace_hint(it, idx, handles);
       RINGBUFFER_WRITE_MESSAGE(
         consensus::ledger_get,
         to_host,
         idx,
         consensus::LedgerRequestPurpose::HistoricalQuery);
-      pending_fetches.insert(idx);
     }
 
     std::optional<ccf::PrimarySignature> get_signature(
@@ -110,14 +86,18 @@ namespace ccf::historical
       return nodes->get(node_id);
     }
 
-    void handle_signature_transaction(
-      consensus::Index sig_idx, const StorePtr& sig_store)
+    // Returns true if this is a valid signature that passes our verification
+    // checks
+    bool handle_signature_transaction(
+      const StorePtr& sig_store,
+      consensus::Index sig_idx,
+      const HandleSet& requesting_handles)
     {
       const auto sig = get_signature(sig_store);
       if (!sig.has_value())
       {
-        throw std::logic_error(
-          "Missing signature value in signature transaction");
+        LOG_FAIL_FMT("Signature at {}: Missing signature value", sig_idx);
+        return false;
       }
 
       // Build tree from signature
@@ -125,17 +105,15 @@ namespace ccf::historical
       const auto real_root = tree.get_root();
       if (real_root != sig->root)
       {
-        throw std::logic_error("Invalid signature: invalid root");
+        LOG_FAIL_FMT("Signature at {}: Invalid root", sig_idx);
+        return false;
       }
 
       const auto node_info = get_node_info(sig->node);
       if (!node_info.has_value())
       {
-        throw std::logic_error(fmt::format(
-          "Signature {} claims it was produced by node {}: This node is "
-          "unknown",
-          sig_idx,
-          sig->node));
+        LOG_FAIL_FMT("Signature at {}: Node {} is unknown", sig_idx, sig->node);
+        return false;
       }
 
       auto verifier = tls::make_verifier(node_info->cert);
@@ -146,15 +124,22 @@ namespace ccf::historical
         sig->sig.size());
       if (!verified)
       {
-        throw std::logic_error(
-          fmt::format("Signature at {} is invalid", sig_idx));
+        LOG_FAIL_FMT("Signature at {}: Signature invalid", sig_idx);
+        return false;
       }
 
-      auto it = requests.begin();
-      while (it != requests.end())
+      LOG_INFO_FMT("AAAA");
+      for (const auto handle : requesting_handles)
       {
+        LOG_INFO_FMT("Considering handle {}", handle);
+        auto it = requests.find(handle);
+        if (it == requests.end())
+        {
+          continue;
+        }
+
         auto& request = it->second;
-        const auto& untrusted_idx = it->first;
+        const auto untrusted_idx = request.target_index;
         const auto sig_is_requested = (sig_idx == untrusted_idx);
 
         if (
@@ -192,81 +177,38 @@ namespace ccf::historical
           LOG_DEBUG_FMT(
             "Now trusting {} due to signature at {}", untrusted_idx, sig_idx);
           request.current_stage = RequestStage::Trusted;
-          ++it;
-        }
-        else
-        {
-          // Already trusted or still fetching, or this signature doesn't cover
-          // this transaction - skip it and try the next
-          ++it;
         }
       }
+
+      return true;
     }
 
-    void deserialise_ledger_entry(
-      consensus::Index idx, const LedgerEntry& entry)
+    void process_deserialised_store(
+      const StorePtr& store,
+      const crypto::Sha256Hash& entry_hash,
+      consensus::Index idx,
+      const HandleSet& requesting_handles)
     {
-      StorePtr store = std::make_shared<kv::Store>(
-        false /* Do not start from very first idx */,
-        true /* Make use of historical secrets */);
-
-      store->set_encryptor(source_store.get_encryptor());
-      const auto deserialise_result =
-        store->apply(entry, ConsensusType::CFT)->execute();
-
-      switch (deserialise_result)
+      for (const auto handle : requesting_handles)
       {
-        case kv::ApplySuccess::FAILED:
+        auto request_it = requests.find(handle);
+        if (request_it != requests.end())
         {
-          throw std::logic_error("Deserialise failed!");
-          break;
-        }
-        case kv::ApplySuccess::PASS:
-        case kv::ApplySuccess::PASS_SIGNATURE:
-        case kv::ApplySuccess::PASS_BACKUP_SIGNATURE:
-        case kv::ApplySuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
-        case kv::ApplySuccess::PASS_NONCES:
-        case kv::ApplySuccess::PASS_NEW_VIEW:
-        case kv::ApplySuccess::PASS_SNAPSHOT_EVIDENCE:
-        {
-          LOG_DEBUG_FMT("Processed transaction at {}", idx);
-
-          auto request_it = requests.find(idx);
-          if (request_it != requests.end())
+          auto& request = request_it->second;
+          if (request.current_stage == RequestStage::Fetching)
           {
-            auto& request = request_it->second;
-            if (request.current_stage == RequestStage::Fetching)
-            {
-              // We were looking for this entry. Store the produced store
-              request.current_stage = RequestStage::Untrusted;
-              request.entry_hash = crypto::Sha256Hash(entry);
-              request.store = store;
-            }
-            else
-            {
-              LOG_DEBUG_FMT(
-                "Not fetching ledger entry {}: already have it in stage {}",
-                request_it->first,
-                request.current_stage);
-            }
-          }
-
-          if (deserialise_result == kv::ApplySuccess::PASS_SIGNATURE)
-          {
-            // This looks like a valid signature - try to use this signature to
-            // move some stores from untrusted to trusted
-            handle_signature_transaction(idx, store);
+            // We were looking for this entry. Store the produced store
+            request.current_stage = RequestStage::Untrusted;
+            request.entry_hash = entry_hash;
+            request.store = store;
           }
           else
           {
-            // This is not a signature - try the next transaction
-            fetch_entry_at(idx + 1);
+            LOG_DEBUG_FMT(
+              "Not fetching ledger entry {}: already have it in stage {}",
+              request_it->first,
+              request.current_stage);
           }
-          break;
-        }
-        default:
-        {
-          throw std::logic_error("Unexpected deserialise result");
         }
       }
     }
@@ -279,11 +221,16 @@ namespace ccf::historical
 
     StorePtr get_store_at(RequestHandle request, consensus::Index idx) override
     {
-      const auto it = requests.find(idx);
+      // TODO: Lock here, and probably everywhere
+      const auto it = requests.find(request);
       if (it == requests.end())
       {
+        Request new_request;
+        new_request.target_index = idx;
+        requests.emplace_hint(it, idx, std::move(new_request));
+
         // Treat this as a hint and start fetching it
-        request_entry_at(idx);
+        fetch_entry_at({request}, idx);
 
         return nullptr;
       }
@@ -314,44 +261,86 @@ namespace ccf::historical
 
     bool handle_ledger_entry(consensus::Index idx, const LedgerEntry& data)
     {
-      const auto it =
-        std::find(pending_fetches.begin(), pending_fetches.end(), idx);
+      const auto it = pending_fetches.find(idx);
       if (it == pending_fetches.end())
       {
         // Unexpected entry - ignore it?
         return false;
       }
 
-      pending_fetches.erase(it);
+      // Create a new store and try to deserialise this entry into it
+      StorePtr store = std::make_shared<kv::Store>(
+        false /* Do not start from very first idx */,
+        true /* Make use of historical secrets */);
+      store->set_encryptor(source_store.get_encryptor());
+
+      kv::ApplySuccess deserialise_result;
 
       try
       {
-        deserialise_ledger_entry(idx, data);
+        deserialise_result = store->apply(data, ConsensusType::CFT)->execute();
       }
       catch (const std::exception& e)
       {
-        LOG_FAIL_FMT("Unable to deserialise entry {}: {}", idx, e.what());
+        LOG_FAIL_FMT(
+          "Exception while attempting to deserialise entry {}: {}",
+          idx,
+          e.what());
+        deserialise_result = kv::ApplySuccess::FAILED;
+      }
+
+      if (deserialise_result == kv::ApplySuccess::FAILED)
+      {
+        pending_fetches.erase(it);
         return false;
       }
+
+      LOG_DEBUG_FMT(
+        "Processing historical store at {} ({})",
+        idx,
+        (size_t)deserialise_result);
+      const auto entry_hash = crypto::Sha256Hash(data);
+      process_deserialised_store(store, entry_hash, idx, it->second);
+
+      if (deserialise_result == kv::ApplySuccess::PASS_SIGNATURE)
+      {
+        // This looks like a valid signature - try to use this signature to
+        // move some stores from untrusted to trusted
+        handle_signature_transaction(store, idx, it->second);
+      }
+      else
+      {
+        // This is not a signature - try the next transaction
+        fetch_entry_at(it->second, idx + 1);
+      }
+
+      pending_fetches.erase(it);
 
       return true;
     }
 
     void handle_no_entry(consensus::Index idx)
     {
-      const auto request_it = requests.find(idx);
-      if (request_it != requests.end())
-      {
-        if (request_it->second.current_stage == RequestStage::Fetching)
-        {
-          requests.erase(request_it);
-        }
-      }
+      // TODO: Can do this more efficiently now pending_fetches is a reverse
+      // lookup The host failed or refused to give this entry. Currently just
+      // forget about it - don't have a mechanism for remembering this failure
+      // and reporting it to users.
+      const auto was_fetching = pending_fetches.erase(idx);
 
-      // The host failed or refused to give this entry. Currently just forget
-      // about it - don't have a mechanism for remembering this failure and
-      // reporting it to users.
-      pending_fetches.erase(idx);
+      if (was_fetching)
+      {
+        // To remove requests which were looking for this we need to iterate
+        // through all, so only do this if we were actually fetching
+        // TODO: What do we do in the range-query case, if an entry is missing?
+        // Very tempted to just drop all the work we may have done, assume this
+        // is a malicious host or an uncommitted suffix, and we don't want to
+        // waste any more time retrying. But we leave orphans if deserialise
+        // throws, maybe we need to do that here too? std::erase_if(requests,
+        // [idx](const auto& item) {
+        //   const auto& [handle, request] = item;
+        //   return request.target_index == idx;
+        // });
+      }
     }
   };
 }
