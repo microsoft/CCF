@@ -81,12 +81,6 @@ namespace ccf
       }
     }
 
-    auto add_consensus(ConsensusType consensus_type)
-    {
-      auto cv = tx.rw(tables.consensus);
-      cv->put(0, consensus_type);
-    }
-
     auto get_active_recovery_members()
     {
       auto members = tx.ro(tables.members);
@@ -444,11 +438,24 @@ namespace ccf
       shares->put(0, key_share_info);
     }
 
-    bool set_recovery_threshold(size_t threshold, bool allow_zero = false)
+    void init_configuration(const ServiceConfiguration& configuration)
+    {
+      auto config = tx.rw(tables.config);
+      if (config->get(0).has_value())
+      {
+        throw std::logic_error(
+          "Cannot initialise service configuration: configuration already "
+          "exists");
+      }
+
+      config->put(0, configuration);
+    }
+
+    bool set_recovery_threshold(size_t threshold)
     {
       auto config = tx.rw(tables.config);
 
-      if (!allow_zero && threshold == 0)
+      if (threshold == 0)
       {
         LOG_FAIL_FMT("Cannot set recovery threshold to 0");
         return false;
@@ -486,7 +493,14 @@ namespace ccf
         }
       }
 
-      config->put(0, {threshold});
+      auto current_config = config->get(0);
+      if (!current_config.has_value())
+      {
+        throw std::logic_error("Configuration should already be set");
+      }
+
+      current_config->recovery_threshold = threshold;
+      config->put(0, current_config.value());
       return true;
     }
 

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/json_schema.h"
+#include "node/config.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
 #include "node/members.h"
@@ -52,8 +53,7 @@ namespace ccf
       tls::Pem public_encryption_key;
       std::vector<uint8_t> code_digest;
       NodeInfoNetwork node_info_network;
-      ConsensusType consensus_type = ConsensusType::CFT;
-      size_t recovery_threshold;
+      ServiceConfiguration configuration;
     };
   };
 

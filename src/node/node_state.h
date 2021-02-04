@@ -129,7 +129,7 @@ namespace ccf
     //
     ringbuffer::AbstractWriterFactory& writer_factory;
     ringbuffer::WriterPtr to_host;
-    consensus::Config consensus_config;
+    consensus::Configuration consensus_config;
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
@@ -249,7 +249,7 @@ namespace ccf
     // funcs in state "uninitialized"
     //
     void initialize(
-      const consensus::Config& consensus_config_,
+      const consensus::Configuration& consensus_config_,
       std::shared_ptr<NodeToNode> n2n_channels_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder_,
@@ -1389,8 +1389,8 @@ namespace ccf
       create_params.code_digest =
         std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
       create_params.node_info_network = config.node_info_network;
-      create_params.consensus_type = network.consensus_type;
-      create_params.recovery_threshold = config.genesis.recovery_threshold;
+      create_params.configuration = {config.genesis.recovery_threshold,
+                                     network.consensus_type};
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 

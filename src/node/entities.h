@@ -117,7 +117,6 @@ namespace ccf
     static constexpr auto VALUES = "public:ccf.internal.values";
 
     // Consensus
-    static constexpr auto CONSENSUS = "public:ccf.internal.consensus";
     static constexpr auto AFT_REQUESTS = "ccf.internal.consensus.requests";
     static constexpr auto NEW_VIEWS = "public:ccf.internal.consensus.new_views";
     static constexpr auto BACKUP_SIGNATURES =

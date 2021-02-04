@@ -42,7 +42,7 @@ struct EnclaveConfig
 
 struct CCFConfig
 {
-  consensus::Config consensus_config = {};
+  consensus::Configuration consensus_config = {};
   ccf::NodeInfoNetwork node_info_network = {};
   std::string domain;
   size_t snapshot_tx_interval;

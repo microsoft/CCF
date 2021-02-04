@@ -6,7 +6,6 @@
 #include "client_signatures.h"
 #include "code_id.h"
 #include "config.h"
-#include "consensus.h"
 #include "consensus/aft/raft_tables.h"
 #include "consensus/aft/request.h"
 #include "consensus/aft/revealed_nonces.h"
@@ -92,7 +91,6 @@ namespace ccf
     Values values;
     Secrets secrets;
     Signatures signatures;
-    ConsensusTable consensus;
     SnapshotEvidence snapshot_evidence;
 
     //
@@ -137,7 +135,6 @@ namespace ccf
       values(Tables::VALUES),
       secrets(Tables::SECRETS),
       signatures(Tables::SIGNATURES),
-      consensus(Tables::CONSENSUS),
       snapshot_evidence(Tables::SNAPSHOT_EVIDENCE),
       bft_requests_map(Tables::AFT_REQUESTS),
       backup_signatures_map(Tables::BACKUP_SIGNATURES),

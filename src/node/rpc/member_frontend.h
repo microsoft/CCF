@@ -1908,17 +1908,7 @@ namespace ccf
         // Note that it is acceptable to start a network without any member
         // having a recovery share. The service will check that at least one
         // recovery member is added before the service is opened.
-        if (!g.set_recovery_threshold(in.recovery_threshold, true))
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            fmt::format(
-              "Could not set recovery threshold to {}.",
-              in.recovery_threshold));
-        }
-
-        g.add_consensus(in.consensus_type);
+        g.init_configuration(in.configuration);
 
         size_t self = g.add_node({in.node_info_network,
                                   in.node_cert,
