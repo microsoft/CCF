@@ -46,6 +46,7 @@ namespace nobuiltins
             return;
           }
 
+          summary.quote_format = quote_info.format;
           summary.quote =
             fmt::format("{:02x}", fmt::join(quote_info.quote, ""));
           summary.endorsements =

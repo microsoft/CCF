@@ -324,10 +324,9 @@ namespace ccf
         .install();
 
       auto get_quote = [this](auto& args, nlohmann::json&&) {
-        QuoteFormat format;
         QuoteInfo node_quote_info;
         const auto result =
-          get_quote_for_this_node_v1(args.tx, format, node_quote_info);
+          get_quote_for_this_node_v1(args.tx, node_quote_info);
         if (result == ApiResult::OK)
         {
           Quote q;
@@ -335,7 +334,7 @@ namespace ccf
           q.raw = fmt::format("{:02x}", fmt::join(node_quote_info.quote, ""));
           q.endorsements =
             fmt::format("{:02x}", fmt::join(node_quote_info.endorsements, ""));
-          q.format = format;
+          q.format = node_quote_info.format;
 
 #ifdef GET_QUOTE
           auto code_id =

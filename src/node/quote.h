@@ -9,7 +9,7 @@
 #  include "entities.h"
 #  include "network_tables.h"
 #  include "node/rpc/node_interface.h"
-#  include "nodes.h"
+#  include "quote_info.h"
 
 #  include <openenclave/attestation/attester.h>
 #  include <openenclave/attestation/custom_claims.h>
@@ -247,6 +247,8 @@ namespace ccf
     static QuoteInfo generate_quote(const tls::Pem& node_public_key)
     {
       QuoteInfo node_quote_info;
+      node_quote_info.format = QuoteFormat::oe_sgx_v1;
+
       crypto::Sha256Hash h{node_public_key.contents()};
 
       Evidence evidence;

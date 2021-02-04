@@ -9,13 +9,6 @@
 
 namespace ccf
 {
-  enum class QuoteFormat
-  {
-    oe_sgx_v1,
-  };
-
-  DECLARE_JSON_ENUM(QuoteFormat, {{QuoteFormat::oe_sgx_v1, "OE_SGX_v1"}})
-
   /** Lists the possible return codes from the versioned APIs in @see
    * ccf::BaseEndpointRegistry
    */
@@ -207,11 +200,10 @@ namespace ccf
       }
     }
 
-    /** Get a quote attesting to the hardware this node is running on. The
-     * format indicates how the raw_quote should be interpreted and verified.
+    /** Get a quote attesting to the hardware this node is running on.
      */
     ApiResult get_quote_for_this_node_v1(
-      kv::ReadOnlyTx& tx, QuoteFormat& format, QuoteInfo& quote_info)
+      kv::ReadOnlyTx& tx, QuoteInfo& quote_info)
     {
       try
       {
@@ -225,7 +217,6 @@ namespace ccf
           return ApiResult::NotFound;
         }
 
-        format = QuoteFormat::oe_sgx_v1;
         quote_info = node_info->quote_info;
         return ApiResult::OK;
       }

@@ -4,6 +4,7 @@
 #include "entities.h"
 #include "kv/map.h"
 #include "node_info_network.h"
+#include "quote_info.h"
 
 #include <msgpack/msgpack.hpp>
 #include <string>
@@ -28,17 +29,6 @@ MSGPACK_ADD_ENUM(ccf::NodeStatus);
 
 namespace ccf
 {
-  struct QuoteInfo
-  {
-    std::vector<uint8_t> quote;
-    std::vector<uint8_t> endorsements;
-
-    MSGPACK_DEFINE(quote, endorsements);
-  };
-
-  DECLARE_JSON_TYPE(QuoteInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(QuoteInfo, quote, endorsements);
-
   struct NodeInfo : NodeInfoNetwork
   {
     tls::Pem cert;
