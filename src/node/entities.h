@@ -106,7 +106,9 @@ namespace ccf
       "public:ccf.gov.jwt.public_signing_key_issuer";
 
     // Internal only
-    static constexpr auto SECRETS =
+    static constexpr auto ENCRYPTED_PAST_LEDGER_SECRET =
+      "public:ccf.internal.historical_encrypted_ledger_secret";
+    static constexpr auto ENCRYPTED_LEDGER_SECRETS =
       "public:ccf.internal.encrypted_ledger_secrets";
     static constexpr auto SHARES = "public:ccf.internal.recovery_shares";
     static constexpr auto SUBMITTED_SHARES =

@@ -117,8 +117,7 @@ def run(args):
         if new_network is None:
             raise ValueError(f"Network returned by {s.test_name(test)} is None")
 
-        # If the network was changed (e.g. recovery test), stop the previous network
-        # and use the new network from now on
+        # If the network was changed (e.g. recovery test), use the new network from now on
         if new_network != network:
             network = new_network
 
