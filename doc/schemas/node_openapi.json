@@ -212,14 +212,14 @@
       },
       "GetState__Out": {
         "properties": {
-          "id": {
-            "$ref": "#/components/schemas/uint64"
-          },
           "last_recovered_seqno": {
             "$ref": "#/components/schemas/int64"
           },
           "last_signed_seqno": {
             "$ref": "#/components/schemas/int64"
+          },
+          "node_id": {
+            "$ref": "#/components/schemas/uint64"
           },
           "recovery_target_seqno": {
             "$ref": "#/components/schemas/int64"
@@ -229,7 +229,7 @@
           }
         },
         "required": [
-          "id",
+          "node_id",
           "state",
           "last_signed_seqno"
         ],
@@ -439,6 +439,40 @@
             "description": "Default response description"
           }
         }
+      }
+    },
+    "/caller_id": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cert",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallerInfo"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "user_signature": []
+          },
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/code": {
@@ -790,40 +824,6 @@
             "description": "Default response description"
           }
         }
-      }
-    },
-    "/user_id": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "cert",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CallerInfo"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        },
-        "security": [
-          {
-            "user_signature": []
-          },
-          {
-            "member_signature": []
-          }
-        ]
       }
     }
   },
