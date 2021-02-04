@@ -443,12 +443,6 @@ namespace ccf
       codeid->put(node_code_id, CodeStatus::ALLOWED_TO_JOIN);
     }
 
-    void add_key_share_info(const RecoverySharesInfo& key_share_info)
-    {
-      auto shares = tx.rw(tables.shares);
-      shares->put(0, key_share_info);
-    }
-
     bool set_recovery_threshold(size_t threshold, bool allow_zero = false)
     {
       auto config = tx.rw(tables.config);
