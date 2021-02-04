@@ -22,6 +22,7 @@
 #include "scripts.h"
 #include "secrets.h"
 #include "service.h"
+#include "service_principals.h"
 #include "shares.h"
 #include "signatures.h"
 #include "snapshot_evidence.h"
@@ -71,6 +72,8 @@ namespace ccf
     Users users;
     CertDERs user_certs;
     CertDigests user_digests;
+
+    ServicePrincipals service_principals;
 
     //
     // Node table
@@ -127,6 +130,7 @@ namespace ccf
       users(Tables::USERS),
       user_certs(Tables::USER_CERT_DERS),
       user_digests(Tables::USER_DIGESTS),
+      service_principals(Tables::SERVICE_PRINCIPALS),
       nodes(Tables::NODES),
       app_scripts(Tables::APP_SCRIPTS),
       service(Tables::SERVICE),
@@ -164,6 +168,7 @@ namespace ccf
         std::ref(jwt_public_signing_key_issuer),
         std::ref(users),
         std::ref(user_certs),
+        std::ref(service_principals),
         std::ref(nodes),
         std::ref(service),
         std::ref(app_scripts),

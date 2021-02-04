@@ -5,6 +5,7 @@ import tempfile
 import json
 import time
 import base64
+import http
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from http import HTTPStatus
 import ssl
@@ -85,7 +86,7 @@ def test_jwt_without_key_policy(network, args):
         r = c.post(
             "/gov/read", {"table": "public:ccf.gov.jwt_public_signing_keys", "key": kid}
         )
-        assert r.status_code == 200, r.status_code
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
         # Note that /gov/read returns all data as JSON.
         # Here, the stored data is a uint8 array, therefore it
         # is returned as an array of integers.
@@ -105,7 +106,7 @@ def test_jwt_without_key_policy(network, args):
         r = c.post(
             "/gov/read", {"table": "public:ccf.gov.jwt_public_signing_keys", "key": kid}
         )
-        assert r.status_code == 400, r.status_code
+        assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r.status_code
 
     LOG.info("Add JWT issuer with initial keys")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
@@ -120,7 +121,7 @@ def test_jwt_without_key_policy(network, args):
         r = c.post(
             "/gov/read", {"table": "public:ccf.gov.jwt_public_signing_keys", "key": kid}
         )
-        assert r.status_code == 200, r.status_code
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
         cert_kv_der = bytes(r.body.json())
         cert_kv_pem = infra.crypto.cert_der_to_pem(cert_kv_der)
         assert infra.crypto.are_certs_equal(
@@ -248,12 +249,12 @@ def test_jwt_with_sgx_key_filter(network, args):
             "/gov/read",
             {"table": "public:ccf.gov.jwt_public_signing_keys", "key": non_oe_kid},
         )
-        assert r.status_code == 400, r.status_code
+        assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r.status_code
         r = c.post(
             "/gov/read",
             {"table": "public:ccf.gov.jwt_public_signing_keys", "key": oe_kid},
         )
-        assert r.status_code == 200, r.status_code
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
 
     return network
 
@@ -320,9 +321,9 @@ def check_kv_jwt_key_matches(network, kid, cert_pem):
             {"table": "public:ccf.gov.jwt_public_signing_keys", "key": kid},
         )
         if cert_pem is None:
-            assert r.status_code == 400, r.status_code
+            assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r.status_code
         else:
-            assert r.status_code == 200, r.status_code
+            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
             # Note that /gov/read returns all data as JSON.
             # Here, the stored data is a uint8 array, therefore it
             # is returned as an array of integers.
