@@ -141,7 +141,9 @@ class Member:
     def update_ack_state_digest(self, remote_node):
         with remote_node.client(*self.auth()) as mc:
             r = mc.post("/gov/ack/update_state_digest")
-            assert r.status_code == 200, f"Error ack/update_state_digest: {r}"
+            assert (
+                r.status_code == http.HTTPStatus.OK.value
+            ), f"Error ack/update_state_digest: {r}"
             return r.body.json()
 
     def ack(self, remote_node):

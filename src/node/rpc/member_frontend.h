@@ -1284,7 +1284,7 @@ namespace ccf
         if (value.empty())
         {
           return make_error(
-            HTTP_STATUS_BAD_REQUEST,
+            HTTP_STATUS_NOT_FOUND,
             ccf::errors::KeyNotFound,
             fmt::format(
               "Key {} does not exist in table {}.", in.key.dump(), in.table));
