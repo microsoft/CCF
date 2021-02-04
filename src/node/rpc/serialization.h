@@ -108,8 +108,8 @@ namespace ccf
   DECLARE_JSON_TYPE(CallerInfo)
   DECLARE_JSON_REQUIRED_FIELDS(CallerInfo, caller_id)
 
-  DECLARE_JSON_TYPE(GetUserId::In)
-  DECLARE_JSON_REQUIRED_FIELDS(GetUserId::In, cert)
+  DECLARE_JSON_TYPE(GetCallerId::In)
+  DECLARE_JSON_REQUIRED_FIELDS(GetCallerId::In, cert)
 
   DECLARE_JSON_TYPE(EndpointMetrics::Entry)
   DECLARE_JSON_REQUIRED_FIELDS(
