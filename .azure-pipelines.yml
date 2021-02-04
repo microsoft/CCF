@@ -2,14 +2,14 @@ trigger:
   batch: true
   branches:
     include:
-      - master
+      - main
       - "refs/tags/ccf-*"
 
 pr:
   autoCancel: true
   branches:
     include:
-      - master
+      - main
   paths:
     include:
       - "*"
@@ -19,7 +19,7 @@ schedules:
     displayName: Daily morning build
     branches:
       include:
-        - master
+        - main
     always: true
 
 resources:

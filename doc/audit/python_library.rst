@@ -46,7 +46,7 @@ Finally, the ledger can be iterated over. For each transaction in the ledger, th
 Example
 -------
 
-An example of how to read and verify entries on the ledger can be found in `governance_history.py <https://github.com/microsoft/CCF/blob/master/tests/governance_history.py>`_, which verifies the member voting history for a short-lived service.
+An example of how to read and verify entries on the ledger can be found in `governance_history.py <https://github.com/microsoft/CCF/blob/main/tests/governance_history.py>`_, which verifies the member voting history for a short-lived service.
 
 Since every vote request is signed by the voting member, verified by the primary node and then stored on the ledger, the test performs the following (this sequence of operations is performed sequentially per transaction):
 
