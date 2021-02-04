@@ -193,23 +193,6 @@ namespace ccf
       return *s;
     }
 
-    void set_app_scripts(kv::Tx& tx, std::map<std::string, std::string> scripts)
-    {
-      auto tx_scripts = tx.rw(network.app_scripts);
-
-      // First, remove all existing handlers
-      tx_scripts->foreach(
-        [&tx_scripts](const std::string& name, const Script&) {
-          tx_scripts->remove(name);
-          return true;
-        });
-
-      for (auto& rs : scripts)
-      {
-        tx_scripts->put(rs.first, lua::compile(rs.second));
-      }
-    }
-
     void set_js_scripts(kv::Tx& tx, std::map<std::string, std::string> scripts)
     {
       auto tx_scripts = tx.rw(network.app_scripts);

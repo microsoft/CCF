@@ -432,11 +432,6 @@ namespace ccf
       set_scripts(scripts, tables.gov_scripts, false);
     }
 
-    void set_app_scripts(std::map<std::string, std::string> scripts)
-    {
-      set_scripts(scripts, tables.app_scripts, true);
-    }
-
     void trust_node_code_id(CodeDigest& node_code_id)
     {
       auto codeid = tx.rw(tables.node_code_ids);

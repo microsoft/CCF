@@ -73,7 +73,7 @@ class PublicDomain:
         # Keys and Values may have custom serialisers.
         # Store most as raw bytes, only decode a few which we know are msgpack.
         self._msgpacked_tables = {
-            "public:ccf.gov.member_cert_ders",
+            "public:ccf.internal.members.certs_der",
             "public:ccf.gov.governance.history",
             "public:ccf.internal.signatures",
             "public:ccf.gov.nodes",
