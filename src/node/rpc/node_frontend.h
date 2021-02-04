@@ -299,7 +299,7 @@ namespace ccf
       auto get_state = [this](auto& args, nlohmann::json&&) {
         GetState::Out result;
         auto [s, rts, lrs] = this->node.state();
-        result.id = this->node.get_node_id();
+        result.node_id = this->node.get_node_id();
         result.state = s;
         result.recovery_target_seqno = rts;
         result.last_recovered_seqno = lrs;

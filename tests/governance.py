@@ -143,14 +143,14 @@ def test_member_data(network, args):
     return network
 
 
-@reqs.description("Check user_id")
-def test_user_id(network, args):
+@reqs.description("Check caller_id")
+def test_caller_id(network, args):
     primary, _ = network.find_nodes()
     with primary.client("user0") as uc:
         with open(network.consortium.user_cert_path(1), "r") as ucert:
             pem = ucert.read()
         json_pem = json.dumps(pem)
-        r = uc.get(f"/app/user_id?cert={urllib.parse.quote_plus(json_pem)}")
+        r = uc.get(f"/app/caller_id?cert={urllib.parse.quote_plus(json_pem)}")
         assert r.status_code == http.HTTPStatus.OK.value
         assert r.body.json()["caller_id"] == 1
     return network
@@ -239,7 +239,7 @@ def run(args):
         network = test_quote(network, args)
         network = test_user(network, args)
         network = test_no_quote(network, args)
-        network = test_user_id(network, args)
+        network = test_caller_id(network, args)
         network = test_service_principals(network, args)
 
 
